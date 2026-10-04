@@ -48,6 +48,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const [bankRetry, setBankRetry] = useState(0);
   const requests = useRef(0);
   const scope = `${run.id}:${entityId}:${month}`;
+  useEffect(() => () => runRead?.setTimeReviewActive?.(false), [scope, runRead?.setTimeReviewActive]);
   const load = useCallback(async () => {
     const request = ++requests.current;
     try {
@@ -63,7 +64,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     } catch (cause) { if (requests.current === request) setError(cause.message || "Unable to load employee payroll evidence."); throw cause; }
   }, [entityId, month, run.id, runRead?.data]);
   useEffect(() => { setEvidence(null); setEmployeeId(""); setReviewHours(false); setPaySetup(null); setCalculationFailures({}); }, [scope]);
-  useEffect(() => { if (!runRead || runRead.data) load().catch(() => {}); return () => { ++requests.current; }; }, [load]);
+  useEffect(() => { if (!reviewHours && (!runRead || runRead.data)) load().catch(() => {}); return () => { ++requests.current; }; }, [load, reviewHours]);
   useEffect(() => { if (focusEmployeeId) setEmployeeId(focusEmployeeId); }, [focusEmployeeId]);
   const rows = useMemo(() => (evidence?.scope === scope ? payrollReviewRows(evidence) : []).map((member) => {
     const employee = (data.employees || []).find((item) => item.id === member.employee_id)
@@ -175,10 +176,23 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     catch (cause) { await refresh(); setError(cause.message || "Unable to save adjustment or refresh payroll. Review saved evidence and retry the failed calculation."); }
     finally { setBusy(false); }
   };
-  const timeDecisionSaved = async () => {
-    await refresh();
+  const timeDecisionSaved = async result => {
+    if (result?.row) {
+      const updated = evidence.time.map(row => row.employee_id === result.row.employee_id && row.work_date === result.row.work_date ? result.row : row);
+      const stale = data => data && {...data, results: data.results?.map(row => row.employee_id === selected.id ? {...row,is_stale:true} : row)};
+      setEvidence(previous => ({...previous,time:updated,calculation:stale(previous.calculation),statutory:stale(previous.statutory)}));
+      runRead?.invalidateEmployee?.(selected.id);
+      return updated.filter(row => row.employee_id === selected.id);
+    }
+    // Compatibility with an older server; never advance without read-back.
     const time = await payrollService.readTime(entityId, `${month}-01`, periodEnd(month));
     return time.filter(row => row.employee_id === selected.id);
+  };
+  const openTimeReview = () => { runRead?.setTimeReviewActive?.(true); setReviewHours(true); };
+  const closeTimeReview = () => {
+    setReviewHours(false);
+    runRead?.setTimeReviewActive?.(false);
+    (runRead ? refresh() : updateCalculation(selected.id).then(refresh)).catch(cause => setError(cause.message));
   };
   const statutoryCell = (row, scheme) => {
     const value = payrollStatutoryCell(row, scheme);
@@ -242,6 +256,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <div className="flex items-center justify-between border-b border-border pb-3">
           <span>{month}-01 – {periodEnd(month)}</span><Badge tone={selected.needsReview ? "warning" : "success"}>{selected.needsReview ? "Need Attention" : "Ready"}</Badge>
         </div>
+        {(selected.calculation?.is_stale || selected.statutory?.is_stale) && <p role="status">Updating calculation… Saved payable-time decisions are retained.</p>}
         {selected.needsReview && <section aria-label="Review blockers" className="rounded-lg border border-border bg-surface-muted p-3"><h4 className="font-semibold">Needs Attention</h4>
           <ul className="mt-2 list-disc space-y-1 pl-5">{[...new Set([...(selected.projection?.issues || []), ...(selected.calculation?.issues || []), ...(selected.statutory?.issues || []), ...(selected.preparation?.statutory_setup?.schemes?.lindung?.issue ? [selected.preparation.statutory_setup.schemes.lindung.issue] : [])])].map(issue => <li key={issue}>{payrollIssueLabel(issue, { components: data.components, statutory: selected.statutory })}</li>)}</ul>
           {selected.pcb?.applicable && !selected.pcb?.confirmation && <p className="mt-2">PCB amount required</p>}
@@ -266,7 +281,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <div className="flex justify-between border-t border-border pt-3 font-bold"><span>Gross Earnings</span><span className="tabular-nums">{money(selected.result.gross)}</span></div>
         {selected.calculation?.lines?.some(line => line.kind === "reimbursement") && <section><h4 className="font-semibold">Business Reimbursements</h4><p className="text-xs text-text-secondary">Outside Gross Earnings; added to employee payment.</p><div className="divide-y divide-border">{selected.calculation.lines.filter(line => line.kind === "reimbursement").map(financialLine)}</div></section>}
         {selected.adjustments.some(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)) && <section><h4 className="font-semibold">Awaiting Calculation</h4>{selected.adjustments.filter(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)).map(item => <div key={item.id} className="flex justify-between py-2"><span>{item.component_name}<small className="block text-text-secondary">Saved adjustment · {item.reason}</small></span>{adjustmentActions(item)}</div>)}</section>}
-        {selected.timeRelevant && <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance</h4><button type="button" className="font-semibold text-primary" onClick={()=>setReviewHours(true)}>Review Hours</button></div><p className="mt-1 text-text-secondary">{selected.time.length} recorded days · {selected.time.filter(item=>item.status === 'review_required').length} exceptions. Review Hours compares roster, clock evidence and approved payable time.</p></section>}
+        {selected.timeRelevant && <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance</h4><button type="button" className="font-semibold text-primary" disabled={runRead?.calculating} onClick={openTimeReview}>Review Hours</button></div><p className="mt-1 text-text-secondary">{selected.time.length} recorded days · {selected.time.filter(item=>item.status === 'review_required').length} exceptions. Review Hours compares roster, clock evidence and approved payable time.</p></section>}
         <PayrollPhStatutory runId={run.id} employeeId={selected.id} canManage={active} onChanged={refresh} />
         <section className="border-t border-border pt-4"><div className="flex justify-between gap-3"><h4 className="text-base font-bold">Employee Deductions</h4>{active && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button"
           onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>
@@ -303,7 +318,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         {active && calculationErrors[selected.id] && <div role="alert" className="text-rose-700">{calculationErrors[selected.id]} <button className="btn-secondary" type="button" disabled={busy} onClick={() => retryCalculation(selected.id)}>Retry Calculation</button></div>}
         {error && <p role="alert" className="text-rose-700">{error}</p>}
       </div></Modal>}
-    {selected && reviewHours && <PayrollPayableTimeReview employee={selected} runId={run.id} month={month} canManage={active} onClose={()=>setReviewHours(false)} onDecisionSaved={timeDecisionSaved} />}
+    {selected && reviewHours && <PayrollPayableTimeReview employee={selected} runId={run.id} month={month} canManage={active} onClose={closeTimeReview} onDecisionSaved={timeDecisionSaved} />}
     {pcbDraft && <Modal title="Confirm PCB / MTD" description="The confirmed amount is statutory evidence for this employee and period." onClose={() => !busy && setPcbDraft(null)}
       footer={<><button className="btn-secondary" type="button" onClick={() => setPcbDraft(null)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || pcbDraft.amount === "" || Number(pcbDraft.amount) < 0 || !pcbDraft.reason.trim()} onClick={savePcb}>Confirm PCB</button></>}>
       <div className="space-y-3"><AdminFormField label="Confirmed PCB (RM)" required><input className="control" type="number" min="0" step="0.01" value={pcbDraft.amount} onChange={(event) => setPcbDraft((old) => ({ ...old, amount: event.target.value }))} /></AdminFormField>

@@ -112,11 +112,12 @@ it("shows calculated adjustment provenance once and derives the chosen component
   fireEvent.click(screen.getByRole("button",{name:"QA Deduction · Deduction"}));
   expect(screen.getByText("Deduction")).toBeTruthy();
 });
-it("saves time and canonical calculation atomically before projection refresh", async () => {
+it("advances from committed day read-back without waiting for month projections", async () => {
   mocks.recalculateEmployee.mockClear();
   mocks.readPreparation.mockResolvedValue({results:[{employee_id:'employee',time_relevant:true,projection:{status:'review_required',lines:[],inputs:{compensation_start:{pay_basis:'hourly',hourly_rate:15.5}}}}]});
   mocks.readTime.mockResolvedValue([{id:'time',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-25',status:'review_required',classification:'regular',issue_codes:['missing_punch'],proposed_minutes:null,evidence:{}}]);
-  mocks.decideTime.mockResolvedValue({});
+  const committed={id:'saved-time',employee_id:'employee',work_date:'2026-09-25',status:'approved_manual',approved_minutes:120,classification:'regular',evidence:{}};
+  mocks.decideTime.mockResolvedValue({row:committed,calculation_stale:true});
   mocks.recalculateEmployee.mockResolvedValue({});
   render(<PayrollRunEmployeesPanel {...props} />);
   await screen.findByText('QA Employee');
@@ -128,8 +129,7 @@ it("saves time and canonical calculation atomically before projection refresh", 
   fireEvent.click(screen.getByRole('button',{name:'Save & Finish'}));
   await waitFor(()=>expect(mocks.decideTime).toHaveBeenCalled());
   expect(mocks.decideTime).toHaveBeenCalledWith(expect.objectContaining({runId:'run',requestId:expect.any(String),correction:false}));
-  expect(mocks.recalculateEmployee).not.toHaveBeenCalled();
-  await waitFor(()=>expect(mocks.readPreparation.mock.invocationCallOrder.at(-1)).toBeGreaterThan(mocks.decideTime.mock.invocationCallOrder.at(-1)));
+  await waitFor(()=>expect(mocks.readPreparation.mock.invocationCallOrder.at(-1)).toBeGreaterThan(mocks.decideTime.mock.invocationCallOrder.at(-1))); // finish automatically refreshes outside the save
 });
 
 it("uses a compact processing table and keeps bank absence informational", async () => {
@@ -146,7 +146,7 @@ it("uses a compact processing table and keeps bank absence informational", async
   expect(screen.getByRole("region",{name:"Payroll review filters"})).toBeTruthy();
   expect(screen.getByText("Ready")).toBeTruthy();
   expect(screen.getByText(/1,900.00/)).toBeTruthy();
-  expect(snapshot).toHaveBeenLastCalledWith(expect.objectContaining({runId:"run",rows:[expect.objectContaining({needsReview:false})]}));
+  await waitFor(()=>expect(snapshot).toHaveBeenLastCalledWith(expect.objectContaining({runId:"run",rows:[expect.objectContaining({needsReview:false})]})));
   fireEvent.click(screen.getByRole("button",{name:"Review pay basis"}));
   fireEvent.click(screen.getByRole("button",{name:"Hourly",exact:true}));
   expect(screen.getByText("No employees match these review filters.")).toBeTruthy();

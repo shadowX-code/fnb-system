@@ -89,3 +89,20 @@ it('deduplicates overlapping refreshes and observes canonical input changes on f
   await waitFor(()=>expect(result.current.calculating).toBe(false));
   expect(mocks.recalculateEmployee).toHaveBeenCalledTimes(1);
 });
+
+it('coalesces review decisions without reads or calculations until the queue closes', async () => {
+ const ready={results:[{employee_id:'employee',status:'ready',is_stale:false}]};
+ mocks.readPreparation.mockResolvedValue({results:[{employee_id:'employee'}]});
+ mocks.readCalculation.mockResolvedValue(ready); mocks.readStatutory.mockResolvedValue(ready);
+ mocks.recalculateEmployee.mockResolvedValue({});
+ const {result}=renderHook(()=>usePayrollRunRead({id:'run',status:'draft'},0,true,true));
+ await waitFor(()=>expect(result.current.data).toBeTruthy());
+ mocks.readPreparation.mockClear(); mocks.readCalculation.mockClear(); mocks.readStatutory.mockClear();
+ act(()=>{ result.current.setTimeReviewActive(true); result.current.invalidateEmployee('employee'); result.current.invalidateEmployee('employee'); });
+ await act(async()=>{ await result.current.refresh(); window.dispatchEvent(new Event('focus')); });
+ expect(mocks.readCalculation).not.toHaveBeenCalled(); expect(mocks.recalculateEmployee).not.toHaveBeenCalled();
+ expect(result.current.data.calculation.results[0].is_stale).toBe(true);
+ await act(async()=>{ result.current.setTimeReviewActive(false); await result.current.refresh(); });
+ expect(mocks.recalculateEmployee).toHaveBeenCalledTimes(1);
+ expect(mocks.recalculateEmployee.mock.invocationCallOrder[0]).toBeLessThan(mocks.readCalculation.mock.invocationCallOrder[0]);
+});

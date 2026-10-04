@@ -66,8 +66,8 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
     onPrevious={!correcting && index > 0 ? () => setDecisionDate(queue[index - 1]) : null}
     onNext={() => advance(rows, decisionDate)}
     onClose={onClose}
-    onSaved={async () => {
-      const updated = await onDecisionSaved();
+    onSaved={async result => {
+      const updated = await onDecisionSaved(result);
       if (!Array.isArray(updated)) throw new Error('Decision recorded. Latest payable-time evidence is unavailable; retry refresh.');
       if (updated.some(row => row.work_date === decisionDate && row.status === 'review_required'))
         throw new Error('This date still requires review. Refresh the evidence before continuing.');

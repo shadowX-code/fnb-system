@@ -697,3 +697,7 @@ evidence; overrides append audit/compliance warnings and recalculate through exi
 Payroll/Payable Time authorities. Company benefits and PH overtime remain separate.
 Reusable statutory setup is Advanced tooling; original legal pricing and frozen
 snapshots remain intact. Staging-only verification; no Production change.
+
+## 2026-10-04 — Payable Time sequential save latency
+
+Daily Run decisions now commit audit/time evidence without whole-month recalculation, return canonical day/history, and advance the retained queue. Automatic calculation coalesces on finish/return; stale financial values remain unavailable. Audited request read-back and identical replay distinguish SQL rollback from lost responses. Profile-filtered latest compensation reads preserve history and existing calculation authorities. Verified 22-save cancellation/retry/reconciliation contracts on Staging; Production investigation was read-only.
