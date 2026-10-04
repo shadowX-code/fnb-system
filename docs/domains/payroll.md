@@ -25,61 +25,51 @@ holiday eligibility, normal hours or prior wage evidence is backfilled.
 
 ### Operational PH Pay Treatment
 
-A published paid holiday appears in the employee/date Payroll review. The ordinary
-workflow asks for a day decision and **PH Pay Treatment**, not a mandatory PH Pay
-Profile. Roster hours still require an explicit authorized Payable Time decision.
-`payroll_ph_treatment_preview` returns a server quote, known day/pay evidence,
-statutory comparison and compliance warnings. Confirmation binds both source context
-and the exact quote fingerprint; changed time, legal/wage evidence or amounts require
-a fresh preview. No statutory calculation is reproduced in the UI.
+The normal employee/date review has one PH cash treatment: **Statutory PH Pay**,
+**Company PH Allowance**, **Custom PH Allowance** or **No Additional PH Pay**.
+Published calendar and canonical approved Payable Time remain prerequisites; editing
+time delegates to the existing audited correction command. A date-effective **Default
+PH Pay Treatment** preselects Statutory, Company or no default; every occurrence still
+requires explicit confirmation. Settings normally shows the current policy, with
+prior/future versions under View history.
 
-Pay Preview summarizes the same canonical day earning lines consumed by Payroll:
-Public Holiday Allowance, separately classified PH OT and applicable company benefit.
-It returns the resolved day additions and the net change from the prior effective
-day treatment. The prior review identity is quote-bound so a concurrent correction
-requires a new preview. UI changes immediately invalidate the displayed quote and
-disable confirmation until its matching response resolves. Unavailable statutory
-treatment is disabled with explicit custom/evidence actions.
+Company PH Allowance reuses the existing `Additional Pay` formula/version/scope:
+monthly Basic Salary ÷ 26; hourly approved normal PH hours × effective Hourly Rate.
+`payroll_ph_company_allowance` is the single extracted existing calculator used by
+both the retained legacy projection and unified quote. Historical `additional_pay`
+policies remain date-effective Company defaults without rewriting policy evidence.
+Company is an alternative treatment, never an extra layer over Statutory/Custom/zero.
+New cash defaults do not supersede retained legacy Leave policies or grants. An active
+Replacement Leave grant requires resolution through Leave before a unified cash
+confirmation; this workflow never revokes or consumes Leave automatically.
 
-Monthly Basic remains in period Basic Salary and is shown as included, never invented
-as an additional daily wage. Hourly statutory ordinary holiday pay is already within
-Public Holiday Allowance, not a duplicated Regular line. The preview describes Gross
-earnings before employee deductions. Confirmed Payable Time is existing evidence;
-only an explicit Edit Payable Time action reveals its correction controls. Reusable
-statutory inputs remain collapsed under Advanced compliance evidence.
+`payroll_ph_treatment_preview` returns canonical earning lines, statutory comparison,
+compliance warnings, total day earnings and correction delta. Confirmation binds the
+source and exact quote fingerprint including prior review; UI edits invalidate the
+quote. The UI never calculates Payroll. Company hourly Regular wages are separately
+priced by the existing regular rule; monthly Basic stays in period Basic Salary.
+Statutory ordinary holiday pay remains within Public Holiday Allowance. PH OT remains
+separate; Company treatment with overtime cannot confirm an unavailable statutory OT
+amount. Custom treatment uses its existing explicit separately classified OT amount.
 
-- **Apply Statutory PH Pay** consumes the unchanged verified Malaysia engine when
-  evidence establishes the amount. Unknown legal categories and wage facts cannot
-  produce a statutory quote.
-- **Custom PH Allowance** records explicit cash, with separately confirmed PH OT
-  cash when approved overtime exists. It is an audited Payroll override, never legal
-  coverage/eligibility evidence. Ordinary custom remuneration is contributable under
-  the existing statutory owner; separately classified PH OT uses its overtime boundary.
-- **No Additional PH Pay** records explicit zero additional cash. Monthly Basic is
-  retained. It does not assert forfeiture or statutory compliance.
+All unified non-OT holiday cash is labelled exactly **Public Holiday Allowance** in
+Review and canonical Draft/Final Payslip aggregation. Contribution classifications
+remain unchanged. Legacy decisions/snapshots retain their original semantics and
+labels; daily pricing and decisions remain auditable.
 
-Custom/zero require a reason and explicit acknowledgement of the compliance warning.
-Missing statutory profile/wage/eligibility evidence and comparison shortfalls remain
-warnings in original daily reviews, events, calculation inputs and finalized snapshots;
-they do not indefinitely block the authorized explicit cash treatment. This does not
-resolve unrelated statutory setup, time, holiday publication or company-benefit gates.
+Unavailable Statutory treatment is disabled. Company/Custom/zero do not assert
+statutory compliance; missing evidence and comparison warnings stay in reviews,
+events, calculation inputs and finalized snapshots. Normal occurrence review exposes
+no statutory internal forms, reference field, benefit selector or acknowledgement
+checkbox. Explicit confirmation records warning handling server-side. Reusable PH
+profile/historical wage authorities remain accessible through Payroll Profile Advanced
+compliance tooling and continue to determine statutory quotes.
 
-The existing `payroll_ph_statutory_confirm` append authority records treatment,
-comparison, warnings, actor/time/reason and prior revision; corrections never edit
-previous evidence. Payable Time changes delegate to its existing command, and open-run
-recalculation commits atomically. Finalized/paid mutation remains prohibited.
-
-Company benefit decisions remain under their existing authority. A relevant cash
-benefit requires explicit no-benefit, inclusive top-up or additional relationship.
-For an inclusive benefit only excess over the confirmed normal PH allowance is added;
-a genuinely additional benefit remains a separate Company Public Holiday Benefit
-line. No statutory and company amount is automatically paid twice. Custom/OT cash
-uses the exact **Public Holiday Allowance** name and existing canonical aggregation
-for Review and Draft/Final Payslips, retaining daily pricing and override detail.
-
-Reusable PH profiles and historical wage evidence remain under **Advanced compliance
-evidence** in day review and **Advanced compliance** in Payroll Profiles. They can
-establish a statutory quote but are not prerequisites for an explicit cash override.
+Custom, zero, Payable Time edits and corrections require a reason. A first Statutory
+or Company confirmation of already approved time records a server-owned confirmation
+reason when none is supplied. The existing `payroll_ph_statutory_confirm` remains the
+single append/atomic recalculation authority with actor, time, warnings and prior
+revision. Retry IDs remain idempotent; finalized/paid mutation remains prohibited.
 
 ### Reusable PH Pay Profile and day review
 
