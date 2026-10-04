@@ -1,6 +1,7 @@
 -- STAGING ONLY: synthetic canonical commands, fully rolled back.
 begin;
 select set_config('request.jwt.claim.sub',(select e.auth_user_id::text from employees e join roles r on r.id=e.role_id where lower(r.name)='owner' and e.enable_system_login and e.access_state='active' limit 1),true);
+create temp table ph_treatment_documents(manifest jsonb);
 create function pg_temp.confirm_ph(input jsonb) returns jsonb language plpgsql as $$begin
  return payroll_ph_statutory_confirm(input||jsonb_build_object('quote_fingerprint',payroll_ph_treatment_preview(input)->>'quote_fingerprint'));
 end $$;
@@ -32,6 +33,8 @@ begin
   input:=jsonb_build_object('run_id',run,'employee_id',emp,'date','2026-09-16','decision','paid_not_worked','treatment','custom','amount',37.25,'reason','QA approved explicit allowance','request_id',gen_random_uuid(),'context_fingerprint',read->>'context_fingerprint');
   begin perform pg_temp.confirm_ph(input);raise exception 'Warning acknowledgement bypassed';exception when others then if sqlerrm<>'Acknowledge the compliance warning before confirming this override.' then raise;end if;end;
   input:=input||jsonb_build_object('acknowledge_warning',true);
+  begin perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);perform payroll_ph_treatment_preview(input);raise exception 'Unauthorized PH preview';exception when insufficient_privilege then null;end;
+  begin perform payroll_ph_statutory_confirm(input||jsonb_build_object('amount',39,'quote_fingerprint',payroll_ph_treatment_preview(input)->>'quote_fingerprint'));raise exception 'Stale amount quote accepted';exception when serialization_failure then null;end;
   perform pg_temp.confirm_ph(input);perform pg_temp.confirm_ph(input);
   read:=payroll_ph_statutory_project(run,emp,'2026-09-16');
   if jsonb_array_length(read->'issues')<>0 or (read#>>'{lines,0,amount}')::numeric<>37.25 or not (read->'warnings' ? 'ph_statutory_amount_undetermined') then raise exception 'Missing profile blocks explicit custom: %',read;end if;
@@ -39,7 +42,7 @@ begin
   before_hash:=md5((read->'review')::text);
   perform pg_temp.confirm_ph(input||jsonb_build_object('request_id',gen_random_uuid(),'amount',42.75,'context_fingerprint',read->>'context_fingerprint','reason','QA audited correction'));
   read:=payroll_ph_statutory_project(run,emp,'2026-09-16');
-  if (read#>>'{lines,0,amount}')::numeric<>42.75 or jsonb_array_length(read->'history')<>2 then raise exception 'Correction did not append effective allowance';end if;
+  if (read#>>'{lines,0,amount}')::numeric<>42.75 or jsonb_array_length(read->'history')<>2 or md5((read#>'{history,1}')::text)<>before_hash then raise exception 'Correction did not append effective allowance';end if;
   begin perform pg_temp.confirm_ph(input||jsonb_build_object('request_id',gen_random_uuid(),'treatment','statutory'));raise exception 'Unknown statutory evidence accepted';exception when others then if sqlerrm<>'Statutory amount cannot be determined automatically.' then raise;end if;end;
   read:=payroll_ph_profile_read(emp,'2026-09-16');
   evidence:=jsonb_build_object('coverage',category,'schedule_category','general','normal_minutes',case when i=3 then 240 else 480 end,'normal_weekly_minutes',case when i=3 then 1200 else 2400 end,'schedule_monthly_wages',2600,'monthly_ordinary_wages',2600,'company_overlap','not_applicable');
@@ -113,6 +116,7 @@ begin
   if (read#>>'{lines,0,amount}')::numeric<>50 or (read#>>'{lines,1,amount}')::numeric<>17 or read#>>'{lines,1,code}'<>'public_holiday_ot' then raise exception 'Custom OT was merged or guessed';end if;
   result:=payroll_calculation_project(run,emp);
   if (select sum((x->>'amount')::numeric) from jsonb_array_elements(payroll_earning_groups(result)) x)<>(result->>'gross_earnings')::numeric then raise exception 'Custom Gross mismatch';end if;
+  insert into ph_treatment_documents values(jsonb_build_object('draft',payroll_payslip_document('{"employer":"QA ONLY","employee_name":"QA PH 陈"}','2026-09-01','2026-09-30',null,result,jsonb_build_object('net_pay',(result->>'gross_earnings')::numeric,'lines','[]'::jsonb),true),'final',payroll_payslip_document('{"employer":"QA ONLY","employee_name":"QA PH 陈"}','2026-09-01','2026-09-30','2026-10-04T00:00:00Z',result,jsonb_build_object('net_pay',(result->>'gross_earnings')::numeric,'lines','[]'::jsonb),false)));
   -- Correction retains original time; missing statutory comparison remains warning.
   if (select md5(to_jsonb(v)::text) from payroll_payable_time_versions v where id=approved)<>before_hash then raise exception 'Override edited approved time';end if;
   begin update payroll_ph_profile_versions set reason='overwrite' where id=(saved->>'id')::uuid;raise exception 'Profile mutable';exception when sqlstate '55000' then null;end;
@@ -142,4 +146,5 @@ begin
  if snapshot_hash<>(select md5(coalesce(jsonb_agg(to_jsonb(s) order by to_jsonb(s)::text)::text,'')) from payroll_run_calculation_snapshots s) then raise exception 'Finalized evidence changed'; end if;
  if has_function_privilege('anon','public.payroll_ph_profile_read(uuid,date)','execute') or has_function_privilege('authenticated','public.payroll_ph_profile_resolve(uuid,date)','execute') or has_table_privilege('authenticated','public.payroll_ph_profile_versions','select') then raise exception 'Private authority exposed';end if;
 end $$;
+select jsonb_build_object('manifests',jsonb_agg(manifest)) from ph_treatment_documents;
 rollback;
