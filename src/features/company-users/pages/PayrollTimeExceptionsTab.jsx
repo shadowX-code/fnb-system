@@ -10,8 +10,26 @@ const time = (value) => value ? new Intl.DateTimeFormat("en-MY", {
   timeZone: "Asia/Kuala_Lumpur", hour: "2-digit", minute: "2-digit", hour12: false,
 }).format(new Date(value)) : "—";
 
-export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Record Decision', onPrevious, onNext, runId, correction = false }) {
+export function sourceChanges(changes = []) {
+  const labels = { classification: 'Classification', issue_codes: 'Review', scheduled_minutes: 'Roster payable time',
+    roster_break_minutes: 'Roster break', clock_in_at: 'Clock in', clock_out_at: 'Clock out',
+    attendance_id: 'Attendance record', leave_type: 'Leave', outlet_id: 'Workplace evidence',
+    compensation_version_id: 'Pay evidence', roster_publication_id: 'Published roster version' };
+  const value = (field, v) => v == null ? 'None' : field.endsWith('_at') ? time(v) : Array.isArray(v) ? v.map(titleCase).join(' + ') : field.includes('minutes') ? duration(v) : titleCase(v);
+  const policy = changes.find(c => c.field === 'paid_holiday_policy');
+  const holiday = p => p?.holidays?.map(h => h.holiday?.name || 'Published holiday').join(', ') || 'None';
+  const result = policy ? [`Holiday: ${holiday(policy.before)} → ${holiday(policy.after)}`] : [];
+  for (const c of changes) {
+    if (['source_fingerprint', 'paid_holiday_policy'].includes(c.field) || (policy && c.field === 'holiday_id')) continue;
+    result.push(`${labels[c.field] || titleCase(c.field)}: ${value(c.field, c.before)} → ${value(c.field, c.after)}`);
+  }
+  if (policy) result.push('Published holiday calendar/policy evidence updated');
+  return result;
+}
+
+export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Record Decision', onPrevious, onNext, onReconciled, runId, correction = false }) {
   const evidence = row.evidence || {};
+  const [sourceState, setSourceState] = useState(row.source_state);
   const hasProposal = row.proposed_minutes != null;
   const rosterClassification = evidence.classification || row.classification;
   const rosterAvailable = row.issue_codes?.some(code => ['missing_punch', 'missing_clock_in', 'missing_clock_out'].includes(code))
@@ -46,8 +64,19 @@ export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Re
     } catch (cause) {
       if (!cause.saveUncertain) setPendingIntent(null);
       setError(cause.message || "Unable to confirm payable time.");
+      if (!cause.saveUncertain && /Source work evidence changed/.test(cause.message || '')) {
+        try { setSourceState(await payrollService.readTimeSource(row.id)); } catch { /* Keep the error; never bypass the source guard. */ }
+      }
     }
     finally { setBusy(false); }
+  };
+  const reconcileSource = async () => {
+    setBusy(true); setError('');
+    try { await onReconciled(await payrollService.reconcileTimeSource(runId, row.id, sourceState.fingerprint)); }
+    catch (cause) {
+      setError(cause.message || 'Unable to reconcile source evidence.');
+      try { setSourceState(await payrollService.readTimeSource(row.id)); } catch { /* Keep the original error. */ }
+    } finally { setBusy(false); }
   };
   const chooseAction = value => {
     setAction(value);
@@ -67,9 +96,14 @@ export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Re
     size="lg" onClose={() => !busy && !pendingIntent && onClose()}
     footer={<><button className="btn-secondary" type="button" onClick={onClose} disabled={busy || !!pendingIntent}>{progress ? 'Back to Employee Review' : 'Cancel'}</button>
       {onPrevious && <button className="btn-secondary" type="button" disabled={busy || recorded || !!pendingIntent} onClick={onPrevious}>Previous</button>}
-      {!editing ? <button className="btn-primary" type="button" onClick={onNext}>Next unresolved exception</button> :
+      {sourceState?.updated ? <button className="btn-primary" type="button" disabled={busy || !!pendingIntent || !sourceState.fingerprint || !onReconciled} onClick={reconcileSource}>{busy ? 'Reconciling…' : 'Reconcile & Review'}</button> : !editing ? <button className="btn-primary" type="button" onClick={onNext}>Next unresolved exception</button> :
       <button className="btn-primary" type="button" onClick={save} disabled={busy || (!recorded && (!reason.trim() || (action !== "reject" && (minutes === "" || !Number.isInteger(Number(minutes)) || !Number.isInteger(Number(extra)) || Number(minutes) < 0 || Number(extra) < 0 || Number(minutes) + Number(extra) > 1440))))}>{busy ? "Saving..." : recorded ? "Refresh Review" : pendingIntent ? "Verify / Retry Decision" : saveLabel}</button>}</>}>
     <div className="space-y-4 text-sm">
+      {sourceState?.updated && <section role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+        <strong>Source Updated</strong>
+        <p className="mt-1">Review the changes, then reconcile this date. Previous decisions and evidence remain in history; no hours are approved automatically.</p>
+        <ul className="mt-2 space-y-1">{sourceChanges(sourceState.changes).map((change, index) => <li key={index}>{change}</li>)}</ul>
+      </section>}
       {progress && <p role="status" className="font-semibold">{progress}</p>}
       {correction && <p role="status">Correct Decision · The prior decision is retained. A new reason is required.</p>}
       {reviewed && <p role="status">Decision already recorded · {duration(row.approved_minutes)} · {titleCase(row.classification)}</p>}
@@ -81,7 +115,7 @@ export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Re
         <div><strong>Proposed Payable</strong><p>{duration(row.proposed_minutes)} · extra candidate {duration(evidence.extra_candidate_minutes)}</p></div>
       </div>
       <div><strong>Issues requiring review</strong><p className="text-text-secondary">{row.issue_codes?.map(titleCase).join(" · ") || "—"}</p></div>
-      <fieldset disabled={busy || recorded || !!pendingIntent || !editing} className="grid gap-3 sm:grid-cols-2">
+      <fieldset disabled={sourceState?.updated || busy || recorded || !!pendingIntent || !editing} className="grid gap-3 sm:grid-cols-2">
         <SelectField label="Decision" value={action} onChange={chooseAction} options={[
           ...(hasProposal ? [{ value: "approve", label: "Approve proposed time" }] : []), ...(rosterAvailable ? [{ value: "roster", label: "Approve Roster Hours" }] : []), { value: "adjust", label: "Adjust Payable Time" }, { value: "reject", label: "Reject / Non-payable" },
         ]} />

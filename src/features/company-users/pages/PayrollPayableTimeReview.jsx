@@ -28,7 +28,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
     setDecisionDate(row.work_date);
   };
   const rows = [...(latestRows || employee.time)].sort((a,b) => Number(b.status === 'review_required') - Number(a.status === 'review_required') || a.work_date.localeCompare(b.work_date));
-  const exceptions = rows.filter(row => row.status === 'review_required');
+  const exceptions = rows.filter(row => row.status === 'review_required' || row.source_state?.updated);
   const sum = key => rows.reduce((total,row) => total + Number(row[key] || 0), 0);
   const total = key => `${hours(sum(key))}${rows.some(row=>row[key] == null) ? ' · incomplete' : ''}`;
   const regular = (employee.calculation?.lines || []).filter(line => line.kind === 'earning' && line.code === 'regular');
@@ -45,15 +45,15 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
       {Number(row.approved_extra_minutes) > 0 && <small className="block text-text-secondary">Approved OT {hours(row.approved_extra_minutes)}</small>}</div> },
     { key:'payable',header:'Payable',align:'right',render:row => <div className="whitespace-nowrap tabular-nums"><strong>{row.approved_minutes == null ? 'Awaiting review' : hours(Number(row.approved_minutes) + Number(row.approved_extra_minutes || 0))}</strong>
       <small className="block text-text-secondary">Proposed {hours(row.proposed_minutes)}</small><small className="block text-text-secondary">{human(row.classification)}</small></div> },
-    { key:'status',header:'Status',render:row => <div><Badge tone={row.status === 'review_required' ? 'warning' : 'success'}>{row.status === 'review_required' ? 'Review Required' : row.status === 'approved_auto' ? 'Approved automatically' : human(row.status)}</Badge>
-      {canManage && row.status === 'review_required' && <button type="button" className="mt-1 block font-semibold text-primary" onClick={()=>startReview(row)}>Review exception</button>}
-      {canManage && row.status !== 'review_required' && <button type="button" className="mt-1 block font-semibold text-primary" onClick={() => { setCorrecting(true); setLatestRows(rows); setDecisionDate(row.work_date); }}>Correct Decision</button>}
+    { key:'status',header:'Status',render:row => <div><Badge tone={row.status === 'review_required' || row.source_state?.updated ? 'warning' : 'success'}>{row.source_state?.updated ? 'Source Updated' : row.status === 'review_required' ? 'Review Required' : row.status === 'approved_auto' ? 'Approved automatically' : human(row.status)}</Badge>
+      {canManage && (row.status === 'review_required' || row.source_state?.updated) && <button type="button" className="mt-1 block font-semibold text-primary" onClick={()=>startReview(row)}>{row.source_state?.updated ? 'Review source changes' : 'Review exception'}</button>}
+      {canManage && row.status !== 'review_required' && !row.source_state?.updated && <button type="button" className="mt-1 block font-semibold text-primary" onClick={() => { setCorrecting(true); setLatestRows(rows); setDecisionDate(row.work_date); }}>Correct Decision</button>}
       {!!row.history?.length && <details className="mt-1 text-xs text-text-secondary"><summary>Evidence / history</summary>{row.history.map(version => <p key={version.id} className="mt-1">{human(version.status)} · {hours(version.approved_minutes)}{version.reason ? ` · ${version.reason}` : ''}{version.at ? ` · ${new Date(version.at).toLocaleString()}` : ''}</p>)}</details>}</div> },
   ];
   const decision = rows.find(row => row.work_date === decisionDate);
   const index = queue.indexOf(decisionDate);
   const advance = (updated, savedDate) => {
-    const unresolved = updated.filter(row => row.status === 'review_required').sort((a, b) => a.work_date.localeCompare(b.work_date));
+    const unresolved = updated.filter(row => row.status === 'review_required' || row.source_state?.updated).sort((a, b) => a.work_date.localeCompare(b.work_date));
     const next = unresolved.find(row => row.work_date > savedDate) || unresolved[0];
     if (next) {
       setQueue(previous => [...new Set([...previous, ...unresolved.map(row => row.work_date)])].sort());
@@ -66,6 +66,11 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
     onPrevious={!correcting && index > 0 ? () => setDecisionDate(queue[index - 1]) : null}
     onNext={() => advance(rows, decisionDate)}
     onClose={onClose}
+    onReconciled={async result => {
+      const updated = await onDecisionSaved(result);
+      if (!Array.isArray(updated)) throw new Error('Reconciled evidence unavailable. Reopen the review.');
+      setLatestRows(updated); setCorrecting(false);
+    }}
     onSaved={async result => {
       const updated = await onDecisionSaved(result);
       if (!Array.isArray(updated)) throw new Error('Decision recorded. Latest payable-time evidence is unavailable; retry refresh.');

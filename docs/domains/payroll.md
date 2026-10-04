@@ -1053,6 +1053,18 @@ broaden membership.
 
 ### Payable Time decision latency and recovery
 
+Open Payable Time reads expose **Source Updated** and server-derived field differences
+when the current Roster/Attendance/Leave/holiday/pay evidence no longer matches the
+bound source. **Reconcile & Review** is an explicit Run/employee/date-scoped command,
+not approval: it appends an unresolved revision bound to current canonical evidence,
+retaining all previous decisions, fingerprints and source snapshots. It checks
+latest revision, reviewed source fingerprint, Payroll permission/scope and open-period
+correction authority. Identical retries return committed evidence without another
+revision. Admin then submits the ordinary audited decision; the retained queue advances
+only after that explicit save. Reconciliation marks financial presentation stale through
+the existing time-version dependency and never calculates the whole period inline.
+Finalized evidence and genuine source-change guards remain enforced.
+
 `payroll_time_decision_save` appends the authorized date decision and its request-bound audit in one short transaction. It returns the canonical saved row and history. It does not calculate the whole pay period inside that transaction. The changed time-version identity already invalidates the existing calculation/statutory fingerprints; no second money or invalidation authority is introduced.
 
 Sequential Review applies that committed row to its retained queue immediately. While the reviewer handles the queue, whole-run refresh/focus reads are suspended and affected employees are marked stale in the presentation. Closing or finishing the queue automatically coalesces recalculation before refreshed financial projections; stale amounts are hidden and calculation updates are explicit. Required PH/statutory evidence remains Pending Review and calculation failures use the existing Retry Calculation recovery. Reopening a run uses the same server fingerprint checks. Finalized/paid evidence is never recalculated through this workflow.
