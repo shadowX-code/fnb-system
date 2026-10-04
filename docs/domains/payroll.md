@@ -33,6 +33,21 @@ statutory comparison and compliance warnings. Confirmation binds both source con
 and the exact quote fingerprint; changed time, legal/wage evidence or amounts require
 a fresh preview. No statutory calculation is reproduced in the UI.
 
+Pay Preview summarizes the same canonical day earning lines consumed by Payroll:
+Public Holiday Allowance, separately classified PH OT and applicable company benefit.
+It returns the resolved day additions and the net change from the prior effective
+day treatment. The prior review identity is quote-bound so a concurrent correction
+requires a new preview. UI changes immediately invalidate the displayed quote and
+disable confirmation until its matching response resolves. Unavailable statutory
+treatment is disabled with explicit custom/evidence actions.
+
+Monthly Basic remains in period Basic Salary and is shown as included, never invented
+as an additional daily wage. Hourly statutory ordinary holiday pay is already within
+Public Holiday Allowance, not a duplicated Regular line. The preview describes Gross
+earnings before employee deductions. Confirmed Payable Time is existing evidence;
+only an explicit Edit Payable Time action reveals its correction controls. Reusable
+statutory inputs remain collapsed under Advanced compliance evidence.
+
 - **Apply Statutory PH Pay** consumes the unchanged verified Malaysia engine when
   evidence establishes the amount. Unknown legal categories and wage facts cannot
   produce a statutory quote.

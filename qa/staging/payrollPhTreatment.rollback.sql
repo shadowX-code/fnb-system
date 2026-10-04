@@ -2,8 +2,16 @@
 begin;
 select set_config('request.jwt.claim.sub',(select e.auth_user_id::text from employees e join roles r on r.id=e.role_id where lower(r.name)='owner' and e.enable_system_login and e.access_state='active' limit 1),true);
 create temp table ph_treatment_documents(manifest jsonb);
-create function pg_temp.confirm_ph(input jsonb) returns jsonb language plpgsql as $$begin
- return payroll_ph_statutory_confirm(input||jsonb_build_object('quote_fingerprint',payroll_ph_treatment_preview(input)->>'quote_fingerprint'));
+create function pg_temp.confirm_ph(input jsonb) returns jsonb language plpgsql as $$declare fingerprint text; q jsonb; result jsonb; gross_before numeric; gross_after numeric; events_before bigint;begin
+ select count(*) into events_before from payroll_events;
+ q:=payroll_ph_treatment_preview(input);
+ if (select count(*) from payroll_events)<>events_before then raise exception 'Preview wrote audit evidence';end if;
+ gross_before:=(payroll_calculation_project((input->>'run_id')::uuid,(input->>'employee_id')::uuid)->>'gross_earnings')::numeric;
+ select evidence#>>'{intent,quote_fingerprint}' into fingerprint from payroll_ph_eligibility_reviews where request_id=(input->>'request_id')::uuid;
+ result:=payroll_ph_statutory_confirm(input||jsonb_build_object('quote_fingerprint',coalesce(fingerprint,q->>'quote_fingerprint')));
+ gross_after:=(payroll_calculation_project((input->>'run_id')::uuid,(input->>'employee_id')::uuid)->>'gross_earnings')::numeric;
+ if q#>>'{pay_preview,determinate}'='true' and gross_after-gross_before<>(q#>>'{pay_preview,payroll_change}')::numeric then raise exception 'Financial preview/Gross delta mismatch: % => % quote %',gross_before,gross_after,q;end if;
+ return result;
 end $$;
 do $$
 declare actor uuid:=payroll_admin_actor(); ent uuid; outlet uuid; emp uuid; profile uuid; run uuid; prior_run uuid; pub uuid; augpub uuid; calendar uuid; prev uuid; h uuid; h2 uuid; day date; i integer; basis text; category text; read jsonb; input jsonb; result jsonb; saved jsonb; before_hash text; evidence jsonb; t payroll_payable_time_versions%rowtype; snapshot_hash text; approved uuid; roster uuid; workplace text:='QA ONLY PH Treatment '||substr(gen_random_uuid()::text,1,8);
@@ -40,7 +48,9 @@ begin
   if jsonb_array_length(read->'issues')<>0 or (read#>>'{lines,0,amount}')::numeric<>37.25 or not (read->'warnings' ? 'ph_statutory_amount_undetermined') then raise exception 'Missing profile blocks explicit custom: %',read;end if;
   if (select count(*) from payroll_ph_profile_versions where profile_id=profile)<>0 then raise exception 'Override manufactured statutory evidence';end if;
   before_hash:=md5((read->'review')::text);
+  result:=payroll_ph_treatment_preview(input||jsonb_build_object('amount',42.75));
   perform pg_temp.confirm_ph(input||jsonb_build_object('request_id',gen_random_uuid(),'amount',42.75,'context_fingerprint',read->>'context_fingerprint','reason','QA audited correction'));
+  begin perform payroll_ph_statutory_confirm(input||jsonb_build_object('request_id',gen_random_uuid(),'amount',42.75,'quote_fingerprint',result->>'quote_fingerprint'));raise exception 'Obsolete prior-review quote accepted';exception when serialization_failure then null;end;
   read:=payroll_ph_statutory_project(run,emp,'2026-09-16');
   if (read#>>'{lines,0,amount}')::numeric<>42.75 or jsonb_array_length(read->'history')<>2 or md5((read#>'{history,1}')::text)<>before_hash then raise exception 'Correction did not append effective allowance';end if;
   begin perform pg_temp.confirm_ph(input||jsonb_build_object('request_id',gen_random_uuid(),'treatment','statutory'));raise exception 'Unknown statutory evidence accepted';exception when others then if sqlerrm<>'Statutory amount cannot be determined automatically.' then raise;end if;end;

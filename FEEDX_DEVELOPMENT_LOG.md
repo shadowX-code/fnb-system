@@ -1,5 +1,14 @@
 # FeedX Development Log
 
+## 2026-10-04 — PH treatment decision safety
+
+PH review now shows a server-owned financial preview with separate allowance,
+PH OT/company-benefit amounts, resolved day additions and the correction delta.
+Quotes bind the prior review; unavailable statutory decisions are disabled before
+confirmation. Confirmed Payable Time remains existing evidence with explicit edit
+disclosure. Monthly Basic is not counted twice. Existing pricing, approved-time,
+audited treatments, compliance warnings and frozen Payroll remain unchanged.
+
 ## 2026-09-30 — Corrected Cutover Effective Resolution
 
 - People now treats a cutover observation explicitly corrected by an earlier historical assignment as audit-only for effective employment resolution. Genuine later Admin changes still take effect, and Leave scans the same effective revisions for entitlement boundaries. Staging rollback QA covered the dated resolver, current projection, Roster, Leave, Performance, same-date correction lineage, and a later change; no finalized evidence or persistent QA employment record was rewritten.
