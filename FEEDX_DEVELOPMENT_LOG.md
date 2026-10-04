@@ -701,3 +701,7 @@ bases; unknown exclusions/historical wages/substitutions remain Review Required.
 Company benefit overlap requires contract evidence, preserving statutory cash and
 preventing an inclusive benefit from being paid twice. Day/hour earning groups and
 Draft/Final presentation share priced lines; finalized evidence is unchanged.
+
+## 2026-10-04 — Recruitment Phase 2 recorded AI interviews
+
+Delivered Recruitment-owned realtime voice, durable ordered transcript and opening-specific topic/scenario collection progress. Foreground recording units use private acknowledged transport chunks and streamed MP4 assembly, independently of AI reconnect. Reload/device/background gaps retain evidence and classify outcomes honestly; authorized managers review recordings, transcript and unresolved coverage. No hiring score, decision or Employee conversion was introduced. Canonical Staging baseline completed; recovery retained three playable units as Partial. Short physical probes do not certify full-duration mobile recording; Safari repeated-capture integrity remains explicit. Canonical owner: docs/domains/recruitment.md; verification: qa/recruitment/phase2Staging.closure.md.

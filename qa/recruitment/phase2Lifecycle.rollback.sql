@@ -58,6 +58,10 @@ begin
   perform recruitment_recording_access(token,client,'abandon',jsonb_build_object('unit_id',lost));
   perform pg_temp.assert((select status='interrupted' from recruitment_recording_units where id=lost),'Lost local recording must not block forever');
   perform pg_temp.assert((select acknowledged_at is not null from recruitment_recording_chunks where unit_id=unit),'Acknowledged evidence was lost');
+  update recruitment_interview_attempts set status='interviewing',max_ends_at=clock_timestamp()-interval '1 second',interview_ended_at=null,completion_reason=null,lease_expires_at=clock_timestamp()+interval '45 seconds' where id=attempt;
+  perform recruitment_public_heartbeat(token,client);
+  perform pg_temp.assert((select status='finalizing' and interview_ended_at=max_ends_at and completion_reason='max_duration' from recruitment_interview_attempts where id=attempt),'Deadline was not pinned by the server');
+  begin perform recruitment_realtime_context(token,client); raise exception 'AI reconnected after the deadline'; exception when insufficient_privilege then null; end;
   update recruitment_invitations set revoked_at=clock_timestamp() where id=invitation;
   begin perform recruitment_public_heartbeat(token,client); raise exception 'Revoked token accepted'; exception when insufficient_privilege then null; end;
   update recruitment_invitations set revoked_at=null,expires_at=clock_timestamp()-interval '1 second' where id=invitation;

@@ -1,6 +1,6 @@
 begin;
 do $$
-declare owner_auth uuid; manager_auth uuid; app uuid; outside uuid; denied boolean:=false;
+declare owner_auth uuid; manager_auth uuid; scoped_auth uuid; app uuid; outside uuid; denied boolean:=false;
 begin
   select e.auth_user_id into owner_auth from employees e join roles r on r.id=e.role_id where r.name='owner' and e.enable_system_login and e.access_state='active' and e.is_active limit 1;
   select e.auth_user_id into manager_auth from employees e join roles r on r.id=e.role_id where r.name='manager' and e.enable_system_login and e.access_state='active' and e.is_active limit 1;
@@ -15,7 +15,12 @@ begin
     begin perform recruitment_admin_evidence(app); exception when insufficient_privilege then denied:=true; end;
     if not denied then raise exception 'Manager without Recruitment permission could read evidence'; end if;
   end if;
+  select e.auth_user_id into scoped_auth from employees e join roles r on r.id=e.role_id where r.name='factory_read_only_test' and e.enable_system_login and e.access_state='active' and e.is_active limit 1;
+  if scoped_auth is null then raise exception 'Scoped existing QA account unavailable'; end if;
+  perform set_config('request.jwt.claim.sub',scoped_auth::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',scoped_auth,'role','authenticated')::text,true);
   select id into outside from outlets where not current_user_can_access_outlet(id) limit 1;
+  if outside is null then raise exception 'Expected out-of-scope workplace unavailable'; end if;
   if outside is not null and recruitment_opening_in_scope(outside) then raise exception 'Opening outlet scope escaped canonical authority'; end if;
   raise notice 'Existing owner evidence access, manager permission denial and canonical outlet scope checked';
 end $$;

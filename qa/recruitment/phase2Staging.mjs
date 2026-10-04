@@ -131,14 +131,8 @@ try {
       .getByRole("button", { name: "Stop and save partial interview" })
       .click();
   } else await page.waitForTimeout(130000);
-  if (
-    await page
-      .getByRole("button", { name: "Finish interview", exact: true })
-      .isVisible()
-  )
-    await page
-      .getByRole("button", { name: "Finish interview", exact: true })
-      .click();
+  const finish = page.getByRole("button", { name: "Finish interview", exact: true });
+  if (await finish.isVisible() && await finish.isEnabled()) await finish.click();
   await expect(
     page.getByRole("heading", { name: "Interview saved" }),
   ).toBeVisible({ timeout: 180000 });
