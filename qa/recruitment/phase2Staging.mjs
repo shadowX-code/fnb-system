@@ -38,7 +38,7 @@ try {
   await page.goto(`https://fnb-system-staging.vercel.app/i/${token}`);
   await expect(
     page.getByRole("heading", {
-      name: /Welcome, Synthetic|Before you continue|Camera and microphone|Your interview/,
+      name: /Welcome, Synthetic|Before you (?:continue|begin)|Camera and microphone|Your interview/,
     }),
   ).toBeVisible();
   if (
@@ -51,7 +51,7 @@ try {
     await page.getByRole("button", { name: "Confirm details" }).click();
   }
   await expect(
-    page.getByRole("heading", { name: "Before you continue" }),
+    page.getByRole("heading", { name: /Before you (?:continue|begin)/ }),
   ).toBeVisible();
   for (const c of await page.getByRole("checkbox").all()) await c.check();
   await page.getByRole("button", { name: "I agree and continue" }).click();

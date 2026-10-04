@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { interviewInstructions, type InterviewContext } from "./prompt.ts";
+import { interviewerProfile } from "./voice.ts";
 
 const allowedOrigins = new Set([
   "https://interview.feedx.my",
@@ -64,7 +65,7 @@ Deno.serve(async (request) => {
           transcription: { model: "gpt-4o-transcribe" },
           turn_detection: { type: "semantic_vad", eagerness: "low", create_response: true, interrupt_response: true },
         },
-        output: { voice: "marin" },
+        output: { voice: interviewerProfile.voice },
       },
     },
   };
