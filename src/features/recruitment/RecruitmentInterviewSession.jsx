@@ -132,7 +132,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     ai.current = null;
     const prior = recording.current;
     // Never join stale close/upload/IndexedDB promises before a new acquisition.
-    prior?.stop(reason).catch(() => setRecordingStatus("upload-pending"));
+    prior?.stop(reason).catch(() => { if (recording.current === prior && paused.current) setRecordingStatus("upload-pending"); });
     devices.stop();
     if (!wasPaused && clientId.current && recoveryId.current) {
       const pauseId = recoveryId.current;
@@ -264,9 +264,9 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       if (session.current.status === "finalizing") {
         setStatus("finalizing"); machine.current.finish(operation,"TERMINAL"); devices.stop(); activation.context.close().catch(()=>{}); return;
       }
-      const recovering = new InterviewRecording({token,clientId:clientId.current,startedAt:session.current.started_at,onStatus:state=>{if(recording.current?.recorder?.state!=="recording")setRecordingStatus(state);}});
+      const recovering = new InterviewRecording({token,clientId:clientId.current,startedAt:session.current.started_at,onStatus:state=>{if(recoveryId.current===operation.id && recording.current?.recorder?.state!=="recording")setRecordingStatus(state);}});
       // Old unit reconciliation/uploads are independent of live continuation.
-      recovering.recover({deferUploads:true,excludeUnit:()=>recording.current?.unit?.id}).then(()=>recovering.uploadRecovery).catch(()=>setRecordingStatus("upload-pending"));
+      recovering.recover({deferUploads:true,excludeUnit:()=>recording.current?.unit?.id}).then(()=>recovering.uploadRecovery).catch(()=>{if(recoveryId.current===operation.id && recording.current?.recorder?.state!=="recording")setRecordingStatus("upload-pending");});
       const transcript = new RecruitmentRealtimeSession({token,clientId:clientId.current,startedAt:session.current.started_at,audioElement:audio.current});
       // Restore locally queued turns before constructing server-approved continuation context.
       transcript.attemptKey = await step("transcript partition",()=>acquirePartition(token));
