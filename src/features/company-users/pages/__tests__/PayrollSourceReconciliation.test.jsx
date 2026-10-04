@@ -15,7 +15,7 @@ it('shows material holiday and roster changes without treating a new hash as pro
  expect(sourceChanges(changes)).toContain('Holiday: None → Hari Malaysia');
  expect(sourceChanges(changes)).toContain('Classification: Regular → Public Holiday');
  expect(sourceChanges(changes)).toContain('Review: Missing Punch → Public Holiday Review + Missing Punch');
- expect(sourceChanges([{field:'scheduled_start_at',before:'2026-09-16T03:00:00Z',after:'2026-09-16T04:00:00Z'}])).toEqual(['Scheduled Start At: 11:00 → 12:00']);
+ expect(sourceChanges([{field:'scheduled_start_at',before:'2026-09-16T03:00:00Z',after:'2026-09-16T04:00:00Z'}])).toEqual(['Roster start: 11:00 → 12:00']);
 });
 it('reconciles explicitly, approves nothing automatically and saves into the retained next-date queue', async () => {
  const old={id:'old',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-16',status:'approved_manual',approved_minutes:300,classification:'regular',issue_codes:['missing_punch'],evidence:{},source_state:{updated:true,fingerprint:'new-source',changes}};

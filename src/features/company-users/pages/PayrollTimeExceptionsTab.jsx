@@ -14,7 +14,8 @@ export function sourceChanges(changes = []) {
   const labels = { classification: 'Classification', issue_codes: 'Review', scheduled_minutes: 'Roster payable time',
     roster_break_minutes: 'Roster break', clock_in_at: 'Clock in', clock_out_at: 'Clock out',
     attendance_id: 'Attendance record', leave_type: 'Leave', outlet_id: 'Workplace evidence',
-    compensation_version_id: 'Pay evidence', roster_publication_id: 'Published roster version' };
+    compensation_version_id: 'Pay evidence', roster_publication_id: 'Published roster version',
+    scheduled_start_at: 'Roster start', scheduled_end_at: 'Roster end' };
   const value = (field, v) => v == null ? 'None' : field.endsWith('_at') ? time(v) : Array.isArray(v) ? v.map(titleCase).join(' + ') : field.includes('minutes') ? duration(v) : titleCase(v);
   const policy = changes.find(c => c.field === 'paid_holiday_policy');
   const holiday = p => p?.holidays?.map(h => h.holiday?.name || 'Published holiday').join(', ') || 'None';

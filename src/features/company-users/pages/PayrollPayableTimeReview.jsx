@@ -27,7 +27,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
     setQueue(exceptions.map(item => item.work_date));
     setDecisionDate(row.work_date);
   };
-  const rows = [...(latestRows || employee.time)].sort((a,b) => Number(b.status === 'review_required') - Number(a.status === 'review_required') || a.work_date.localeCompare(b.work_date));
+  const rows = [...(latestRows || employee.time)].sort((a,b) => Number(b.status === 'review_required' || !!b.source_state?.updated) - Number(a.status === 'review_required' || !!a.source_state?.updated) || a.work_date.localeCompare(b.work_date));
   const exceptions = rows.filter(row => row.status === 'review_required' || row.source_state?.updated);
   const sum = key => rows.reduce((total,row) => total + Number(row[key] || 0), 0);
   const total = key => `${hours(sum(key))}${rows.some(row=>row[key] == null) ? ' · incomplete' : ''}`;
