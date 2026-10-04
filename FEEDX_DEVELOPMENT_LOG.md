@@ -9,6 +9,10 @@ confirmation. Confirmed Payable Time remains existing evidence with explicit edi
 disclosure. Monthly Basic is not counted twice. Existing pricing, approved-time,
 audited treatments, compliance warnings and frozen Payroll remain unchanged.
 
+## 2026-10-04 — Recruitment finite recovery after physical acceptance #2
+
+Preserved the failed physical attempt and located recovery failure after successful server resume but before new capture/provider ownership. Added bounded cancellable recovery stages, tap-time fresh audio/media acquisition, cold server bootstrap, idempotent server recovery fencing and pre-provider operational diagnostics. Old close/upload/transcript persistence no longer gates live continuation; gaps and invalid evidence remain truthful. Focused local/Staging contracts include the exact failed attempt in rollback. Voice changes are paused and Production remains blocked; fault injections do not certify physical-device behavior. Canonical owner: docs/domains/recruitment.md; scoped evidence: qa/recruitment/boundedRecoveryClosure.md.
+
 ## 2026-10-04 — Recruitment interview recovery correction
 
 - Human Staging acceptance exposed refresh/background continuation failures and split spoken responses. Recruitment now retains the same attempt through explicit device reacquisition, server-owned paused-time recovery, separate recording-upload recovery and a single fenced realtime response owner. A non-reasoning OpenAI realtime model avoids the reproduced commentary/final-answer split; bounded private browser observations support subsequent diagnosis. Recording gaps and uncertain speech remain visible evidence. Physical-device reacceptance and Malaysian voice listening remain required; Production is blocked.

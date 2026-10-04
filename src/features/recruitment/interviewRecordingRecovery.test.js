@@ -34,6 +34,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 it("assembles a finalized unit only after every local transport chunk has a server acknowledgement", async () => {
   const create = document.createElement.bind(document);
@@ -147,4 +148,36 @@ it("bounds delayed mobile transport blobs without changing stopped-container byt
   ]);
   const reassembled = new Uint8Array(await new NodeBlob(chunks).arrayBuffer());
   expect(Buffer.compare(Buffer.from(reassembled), Buffer.from(bytes))).toBe(0);
+});
+
+it("suspended-context close cannot hold captureStopped or the next recording acquisition",async()=>{
+  recordingStore.unit.mockResolvedValue();recordingStore.chunks.mockResolvedValue([]);
+  recruitmentService.evidence.mockResolvedValue({});
+  const stopTrack=vi.fn(),close=vi.fn(()=>new Promise(()=>{}));
+  const recorder=new InterviewRecording({token:"a".repeat(64),clientId:"client",startedAt:new Date().toISOString(),stream:{getTracks:()=>[{stop:stopTrack}]},onStatus:vi.fn()});
+  recorder.unit={id:"old",closed:false};recorder.context={close};
+  recorder.recorder={state:"recording",stop:()=>queueMicrotask(()=>recorder.resolveStop())};
+  const upload=recorder.stop("media_track_muted");
+  const result=await recorder.captureStopped;
+  expect(result.closed).toBe(true);expect(stopTrack).toHaveBeenCalledTimes(1);expect(close).toHaveBeenCalledTimes(1);
+  await upload;
+});
+it("independent old-upload recovery never abandons the new live unit",async()=>{
+  recordingStore.units.mockResolvedValue([]);
+  recruitmentService.evidence.mockResolvedValue({units:[{id:"fresh",status:"capturing"}],chunks:[]});
+  const recorder=new InterviewRecording({token:"a".repeat(64),clientId:"client",startedAt:new Date().toISOString(),onStatus:vi.fn()});
+  await recorder.recover({deferUploads:true,excludeUnit:()=>"fresh"});await recorder.uploadRecovery;
+  expect(recruitmentService.evidence.mock.calls.map(([action])=>action)).toEqual(["state"]);
+});
+
+it("activates audio synchronously and exposes a finite error if native resume never settles",async()=>{
+  vi.useFakeTimers();
+  const resume=vi.fn(()=>new Promise(()=>{}));
+  vi.stubGlobal("AudioContext",class {constructor(){this.state="suspended";}resume(){return resume();}});
+  vi.stubGlobal("MediaRecorder",{isTypeSupported:()=>true});
+  const activation=InterviewRecording.activateAudio();expect(resume).toHaveBeenCalledTimes(1);
+  const recorder=new InterviewRecording({token:"a".repeat(64),clientId:"client",startedAt:new Date().toISOString(),audioActivation:activation,onStatus:vi.fn()});
+  const start=recorder.start();const assertion=expect(start).rejects.toThrow(/Microphone audio timed out/);
+  await vi.advanceTimersByTimeAsync(10100);await assertion;
+  expect(recruitmentService.evidence).not.toHaveBeenCalled();vi.useRealTimers();
 });

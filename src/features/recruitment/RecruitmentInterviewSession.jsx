@@ -2,7 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { recruitmentService } from "./recruitmentService.js";
 import { RecruitmentRealtimeSession } from "./RecruitmentRealtimeSession.js";
 import { acquireInterviewClient } from "./interviewClient.js";
+import { interviewLocalKey as acquirePartition } from "./interviewRecordingStore.js";
 import { InterviewRecording } from "./InterviewRecording.js";
+import { bounded, InterviewRecovery } from "./interviewRecovery.js";
+
+const recoveryLabels = {
+  preparing: "Preparing to resume", "tab ownership": "Checking this browser tab",
+  "server state": "Loading your saved interview", "server resume": "Restoring your interview",
+  "transcript partition": "Finding saved answers", "recent transcript": "Saving recent answers",
+  "camera and microphone": "Reacquiring camera and microphone", "fresh recording": "Starting a new recording",
+  "fresh AI session": "Reconnecting your interviewer",
+};
 
 export default function RecruitmentInterviewSession({ token, entry, devices }) {
   const [status, setStatus] = useState(["starting", "interviewing", "interrupted"].includes(entry.status) ? "interrupted" : entry.status),
@@ -11,7 +21,10 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [elapsed, setElapsed] = useState(0),
-    [coverage, setCoverage] = useState(null);
+    [coverage, setCoverage] = useState(null),
+    [recoveryView, setRecoveryView] = useState({state:"RECOVERY_REQUIRED",stage:""}),
+    [terminalReason, setTerminalReason] = useState(""),
+    [recoveryNotice,setRecoveryNotice] = useState("");
   const clientId = useRef(null),
     recording = useRef(null),
     ai = useRef(null),
@@ -28,9 +41,23 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     assessing = useRef(false);
   statusRef.current = status;
   const alive = useRef(true), connecting = useRef(null), starting = useRef(false), releaseClient = useRef(null), recovery = useRef(null);
-  async function claimClient() {
+  const machine = useRef(null), recoveryId = useRef(null), observations = useRef([]);
+  function observe(type, details = {}) {
+    const item = {key:crypto.randomUUID(), record:{type,at:Date.now(),hidden:document.hidden,...details}};
+    observations.current.push(item);
+    if (!clientId.current) return;
+    for (const event of observations.current.splice(0, 40))
+      bounded(recruitmentService.observeRecovery(token,clientId.current,event.key,event.record), "Saving recovery observation", {timeoutMs:5000}).catch(() => {});
+  }
+  if (!machine.current) machine.current = new InterviewRecovery(view => {
+    if (!alive.current) return;
+    setRecoveryView(view);
+    setBusy(view.state === "RECOVERING");
+    observe("recovery.transition",{...view,request_id:machine.current?.operation?.id || recoveryId.current});
+  });
+  async function claimClient(signal) {
     if (!releaseClient.current) {
-      const claim = await acquireInterviewClient(token);
+      const claim = await bounded(acquireInterviewClient(token), "Interview tab ownership", {signal,onLate: value=>value.release()});
       clientId.current = claim.clientId;
       releaseClient.current = claim.release;
     }
@@ -88,31 +115,43 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       setBusy(false);
     }
   }
-  async function pause(reason) {
-    if (paused.current || finishing.current || !recording.current) return;
+  function pause(reason) {
+    if (finishing.current) return;
+    const wasPaused = paused.current;
     paused.current = true;
+    machine.current.cancel();
+    connecting.current = null;
     setStatus("interrupted");
     setAiStatus("paused");
     clearTimeout(reconnectTimer.current);
     clearTimeout(maxTimer.current);
-    finishApproved.current = false;
     clearTimeout(finishTimer.current);
+    finishApproved.current = false;
     ai.current?.close();
-    ai.current?.flush().catch(() => {});
-    recovery.current = recruitmentService.interruption(token, clientId.current, reason);
-    recovery.current.catch(() => {});
-    const stop = recording.current.stop(reason);
-    stop.catch(() => setRecordingStatus("upload-pending"));
-    setError(
-      "The recording was interrupted. Resume when this page is visible and your camera and microphone are available. The interruption will be visible to your recruiter.",
-    );
+    const prior = recording.current;
+    // Never join stale close/upload/IndexedDB promises before a new acquisition.
+    prior?.stop(reason).catch(() => setRecordingStatus("upload-pending"));
+    devices.stop();
+    if (!wasPaused && clientId.current && recoveryId.current) {
+      const pauseId = recoveryId.current;
+      recovery.current = bounded(recruitmentService.recoverPause(token,clientId.current,recoveryId.current,reason), "Pausing interview", {timeoutMs:8000});
+      recovery.current.catch(cause=>{
+        observe("recovery.error",{stage:"pause",code:cause.code||"request_failed",request_id:pauseId});
+        if (paused.current) setError("Your connection could not confirm the pause. Tap Resume to restore the server state.");
+      });
+    }
+    setError("The interview paused. Tap Resume to reacquire camera and microphone. Saved answers remain; the recording gap will be visible to your recruiter.");
   }
-  async function connectAI() {
+  async function connectAI(signal) {
     if (connecting.current) return connecting.current;
-    connecting.current = replaceAI();
-    try { return await connecting.current; } finally { connecting.current = null; }
+    connecting.current = replaceAI(signal);
+    const pending = connecting.current;
+    try { return await pending; } catch(cause) {
+      if (!machine.current.operation && !paused.current) pause("provider_reconnect_failed");
+      throw cause;
+    } finally { if (connecting.current === pending) connecting.current = null; }
   }
-  async function replaceAI() {
+  async function replaceAI(signal) {
     if (paused.current || finishing.current || !alive.current || document.hidden) return;
     clearTimeout(reconnectTimer.current);
     finishApproved.current = false;
@@ -122,6 +161,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       token,
       clientId: clientId.current,
       mediaStream: devices.streamRef.current,
+      recoveryId: recoveryId.current,
       startedAt: session.current.started_at,
       audioElement: audio.current,
       onRemote: (stream) => { if (ai.current === transport && !paused.current) recording.current?.remote(stream); },
@@ -175,88 +215,95 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       },
     });
     ai.current?.close();
-    await ai.current?.flush();
+    ai.current?.flush().catch(() => {});
     if (paused.current || finishing.current || !alive.current || document.hidden) { transport.close(); return; }
     ai.current = transport;
-    await transport.connect();
-    setError("");
+    await bounded(transport.connect({signal}), "AI connection", {signal,timeoutMs:25000});
+    if (ai.current === transport && !paused.current) setError("");
   }
   async function start() {
-    if (starting.current || document.hidden) return;
+    observe("recovery.command",{stage:"resume"});
+    if (document.hidden) { setError("Return to this page before resuming."); return; }
+    if (machine.current.state === "RESUMED") return;
+    const operation = machine.current.begin();
+    if (!operation) return;
+    recoveryId.current = operation.id;
     starting.current = true;
-    setBusy(true);
+    paused.current = false;
     setError("");
+    setAiStatus("recovering");
+    setRecoveryNotice("");
+    let activation, media, capture, serverClaimed = false;
+    const step = (stage,work,options) => machine.current.step(operation,stage,work,options);
     try {
-      await claimClient();
-      await recording.current?.captureStopped;
-      await recovery.current?.catch(() => {});
-      paused.current = false;
-      session.current = await recruitmentService.begin(token, clientId.current);
-      const recovering = new InterviewRecording({
-        token,
-        clientId: clientId.current,
-        startedAt: session.current.started_at,
-        onStatus: state => { if (recording.current?.recorder?.state !== "recording") setRecordingStatus(state); },
-        onLost: pause,
-      });
-      await recovering.recover({ deferUploads: true });
-      recovering.uploadRecovery?.catch(() => setRecordingStatus("upload-pending"));
-      if (!ai.current)
-        ai.current = new RecruitmentRealtimeSession({
-          token,
-          clientId: clientId.current,
-          startedAt: session.current.started_at,
-          audioElement: audio.current,
-        });
-      ai.current.attemptKey = recovering.attemptKey;
-      const pendingTurns = await ai.current.flush();
-      if (session.current.status === "finalizing") {
-        setStatus("finalizing");
-        if (pendingTurns)
-          throw Error(
-            "Transcript save is still pending. Retry with a stable connection.",
-          );
-        const result = await recruitmentService.evidence(
-          "finalize",
-          token,
-          clientId.current,
-        );
-        setStatus(result.status);
-        setRecordingStatus(result.recording_state);
-        return;
-      }
-      if (document.hidden || !alive.current) throw Error("Return to this page before resuming.");
-      devices.stop();
-      const stream = await devices.start();
-      if (!stream) throw Error("Allow your camera and microphone before starting.");
-      if (document.hidden || paused.current || !alive.current) { devices.stop(); throw Error("Return to this page before resuming."); }
-      const capture = new InterviewRecording({
-        token,
-        clientId: clientId.current,
-        stream,
-        startedAt: session.current.started_at,
-        onStatus: state => { if (recording.current === capture) setRecordingStatus(state); },
-        onLost: pause,
-      });
-      recording.current = capture;
-      await recording.current.start();
-      if (document.hidden || paused.current || !alive.current) { await pause("page_backgrounded"); return; }
+      ai.current?.close();
+      connecting.current = null;
       clearTimeout(maxTimer.current);
-      maxTimer.current = setTimeout(
-        () => finalize("max_duration"),
-        Math.max(0, Date.parse(session.current.max_ends_at) - Date.now()),
-      );
-      setStatus("starting");
-      await connectAI();
-    } catch (cause) {
-      setError(cause.message || "Unable to start the interview.");
-      if (recording.current?.recorder?.state === "recording") {
-        setStatus("interrupted");
-        await pause("start_failed");
+      const oldCapture = recording.current;
+      oldCapture?.stop("recovery_replaced").catch(() => {});
+      devices.stop();
+      // Both calls occur during the Resume tap. No stale hardware or activation is reused.
+      activation = InterviewRecording.activateAudio();
+      operation.controller.signal.addEventListener("abort",()=>{devices.stop();activation.context.close().catch(()=>{});},{once:true});
+      const mediaPromise = devices.start({signal:operation.controller.signal,meter:false});
+      mediaPromise.catch(() => {});
+      media = bounded(mediaPromise, "Camera and microphone", {signal:operation.controller.signal,timeoutMs:15000,onLate:stream=>stream?.getTracks().forEach(track=>track.stop())});
+      media.catch(() => {});
+      await step("tab ownership",signal=>claimClient(signal));
+      observe("recovery.bootstrap",{request_id:operation.id});
+      const durable = await step("server state",signal=>recruitmentService.recoveryState(token,clientId.current,signal));
+      if (durable.state === "TERMINAL" && durable.status !== "finalizing") {
+        setTerminalReason(durable.reason || "This interview has already ended. Please contact your recruiter if another interview is needed.");
+        machine.current.finish(operation,"TERMINAL");
+        devices.stop(); activation.context.close().catch(()=>{}); return;
       }
+      session.current = await step("server resume",signal=>recruitmentService.recoverBegin(token,clientId.current,operation.id,durable.recovery_id||null,signal));
+      serverClaimed = true;
+      if (session.current.status === "finalizing") {
+        setStatus("finalizing"); machine.current.finish(operation,"TERMINAL"); devices.stop(); activation.context.close().catch(()=>{}); return;
+      }
+      const recovering = new InterviewRecording({token,clientId:clientId.current,startedAt:session.current.started_at,onStatus:state=>{if(recording.current?.recorder?.state!=="recording")setRecordingStatus(state);}});
+      // Old unit reconciliation/uploads are independent of live continuation.
+      recovering.recover({deferUploads:true,excludeUnit:()=>recording.current?.unit?.id}).then(()=>recovering.uploadRecovery).catch(()=>setRecordingStatus("upload-pending"));
+      const transcript = new RecruitmentRealtimeSession({token,clientId:clientId.current,startedAt:session.current.started_at,audioElement:audio.current});
+      // Restore locally queued turns before constructing server-approved continuation context.
+      transcript.attemptKey = await step("transcript partition",()=>acquirePartition(token));
+      try {
+        const pendingTurns = await step("recent transcript",()=>transcript.flush(),{timeoutMs:8000});
+        if (pendingTurns) setRecoveryNotice("Some local evidence is still waiting to save. The interview continues from your saved answers; missing evidence remains visible to your recruiter.");
+      } catch(cause) {
+        if (!machine.current.current(operation)) throw cause;
+        observe("recovery.error",{request_id:operation.id,stage:"recent transcript",code:cause.code||"local_evidence_pending"});
+        setRecoveryNotice("Some local evidence is still waiting to save. The interview continues from your saved answers; missing evidence remains visible to your recruiter.");
+      }
+      const stream = await step("camera and microphone",()=>media);
+      if (!stream) throw Error("Camera and microphone are unavailable. Allow access and tap Resume again.");
+      observe("recovery.media",{request_id:operation.id,tracks:stream.getTracks().map(t=>({kind:t.kind,state:t.readyState,muted:t.muted})),audio_state:activation.context.state});
+      capture = new InterviewRecording({token,clientId:clientId.current,stream,startedAt:session.current.started_at,audioActivation:activation,recoveryId:operation.id,onStatus:state=>{if(recording.current===capture)setRecordingStatus(state);},onLost:reason=>{if(recording.current===capture)pause(reason);}});
+      recording.current = capture;
+      await step("fresh recording",signal=>capture.start({signal}));
+      if (document.hidden || paused.current) throw Error("Return to this page and tap Resume again.");
+      setStatus("starting");
+      await step("fresh AI session",signal=>connectAI(signal),{timeoutMs:30000});
+      clearTimeout(maxTimer.current);
+      maxTimer.current = setTimeout(()=>finalize("max_duration"),Math.max(0,Date.parse(session.current.max_ends_at)-Date.now()));
+      machine.current.finish(operation,"RESUMED");
+    } catch (cause) {
+      if (!machine.current.current(operation)) return;
+      observe("recovery.error",{request_id:operation.id,stage:machine.current.stage,code:cause.code||"dependency_failed"});
+      operation.controller.abort();
+      ai.current?.close();
+      capture?.stop("recovery_failed").catch(()=>{});
+      capture?.dispose();
+      devices.stop();
+      activation?.context.close().catch(()=>{});
+      paused.current = true;
+      if (serverClaimed) bounded(recruitmentService.recoverPause(token,clientId.current,operation.id,"recovery_failed"),"Pausing failed recovery",{timeoutMs:8000}).catch(()=>{});
+      setStatus("interrupted");setAiStatus("paused");
+      setError(cause.message||"Recovery failed. Tap Resume to try again.");
+      machine.current.finish(operation,"RECOVERY_REQUIRED");
     } finally {
-      starting.current = false;
-      setBusy(false);
+      if (!machine.current.operation) { starting.current = false; setBusy(false); }
     }
   }
   async function retryFinalization() {
@@ -271,7 +318,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
         startedAt: session.current.started_at,
         onStatus: setRecordingStatus,
       });
-      await recovery.recover();
+      await bounded(recovery.recover(),"Recovering saved evidence",{timeoutMs:25000});
       if (!ai.current)
         ai.current = new RecruitmentRealtimeSession({
           token,
@@ -331,7 +378,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
           ),
         ),
       );
-      if (document.hidden || paused.current) return;
+      if (document.hidden || paused.current || machine.current.state !== "RESUMED") return;
       try {
         const state = await recruitmentService.heartbeat(
           token,
@@ -354,6 +401,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       }
     }, 15000);
     const hidden = () => {
+      observe("recovery.visibility",{stage:document.hidden?"background":"foreground",request_id:recoveryId.current});
       if (document.hidden) pause("page_backgrounded");
       else if (paused.current) {
         setStatus("interrupted");
@@ -365,6 +413,8 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     window.addEventListener("pagehide", pagehide);
     return () => {
       alive.current = false;
+      machine.current.cancel();
+      devices.stop();
       clearInterval(clock);
       clearInterval(tick);
       clearTimeout(reconnectTimer.current);
@@ -378,13 +428,13 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       recording.current?.stop("page_closed").catch(() => {});
     };
   }, [token]);
-  const terminal = ["completed", "partial", "failed"].includes(status);
+  const terminal = ["completed", "partial", "failed"].includes(status) || !!terminalReason;
   return (
     <section>
       <p className="recruitment-eyebrow">AI voice interview</p>
       <h1>
         {terminal
-          ? "Interview saved"
+          ? terminalReason ? "Interview cannot continue" : "Interview saved"
           : status === "finalizing"
             ? "Saving your interview"
             : status === "interrupted"
@@ -394,9 +444,9 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       {terminal ? (
         <>
           <p>
-            {status === "completed"
+            {terminalReason || (status === "completed"
               ? "Thank you. Your interview is ready for your recruiter to review."
-              : "Your available interview evidence has been saved. Your recruiter can see any missing or interrupted evidence."}
+              : "Your available interview evidence has been saved. Your recruiter can see any missing or interrupted evidence.")}
           </p>
           <p className="recruitment-notice">
             The AI does not make the hiring decision. Your manager reviews the
@@ -531,6 +581,8 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
           ) : null}
         </>
       )}
+      {recoveryView.state === "RECOVERING" ? <p role="status">{recoveryLabels[recoveryView.stage] || "Restoring your interview"}</p> : null}
+      {recoveryNotice ? <p role="status">{recoveryNotice}</p> : null}
       <audio ref={audio} autoPlay />
       {error ? (
         <p className="recruitment-error" role="alert">

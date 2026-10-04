@@ -1,3 +1,4 @@
+import { bounded } from "./interviewRecovery.js";
 import { InterviewResponseOwner } from "./InterviewResponseOwner.js";
 import { recruitmentService } from "./recruitmentService.js";
 import { interviewTranscriptQueue } from "./interviewTranscriptQueue.js";
@@ -13,8 +14,10 @@ export class RecruitmentRealtimeSession {
     onStatus,
     onEvent,
     onRemote,
+    recoveryId,
   }) {
     this.token = token;
+    this.recoveryId = recoveryId;
     this.clientId = clientId;
     this.mediaStream = mediaStream;
     this.startedAt = Date.parse(startedAt);
@@ -41,7 +44,8 @@ export class RecruitmentRealtimeSession {
     this.eventSequence = 0;
   }
 
-  async connect() {
+  async connect({ signal } = {}) {
+    signal?.addEventListener("abort", () => this.close(), {once:true});
     if (this.closed) throw new Error("Interview session is closed.");
     if (!this.attemptKey) {
       const digest = await crypto.subtle.digest(
@@ -62,6 +66,8 @@ export class RecruitmentRealtimeSession {
     const secret = await recruitmentService.realtimeSecret(
       this.token,
       this.clientId,
+      this.recoveryId,
+      signal,
     );
     if (this.closed) throw new Error("Interview session was replaced.");
     this.generation = secret.generation;
@@ -111,6 +117,7 @@ export class RecruitmentRealtimeSession {
           "Content-Type": "application/sdp",
         },
         body: offer.sdp,
+        signal,
       });
       if (!answer.ok) throw new Error("AI interviewer could not connect.");
       if (this.closed || this.peer !== peer) throw new Error("Interview session was replaced.");
@@ -146,10 +153,14 @@ export class RecruitmentRealtimeSession {
         this.token,
         this.clientId,
         this.generation,
+        this.recoveryId,
+        signal,
       );
+      if (this.closed) throw Error("Interview session was replaced.");
       this.trace({type:"transport.connected"});
       this.onStatus("connected");
-      await this.flush();
+      this.flush().catch(() => this.onStatus("transcript-pending"));
+      if (this.closed) throw Error("Interview session was replaced.");
       this.responses.request(`session:${this.generation}`);
       return secret;
     } catch (error) {
@@ -299,12 +310,6 @@ export class RecruitmentRealtimeSession {
       await this.persistence;
       try {
         const items = await interviewTranscriptQueue.list(this.attemptKey);
-        const traces = items.filter(item => item.kind === "realtime_trace");
-        for (let offset = 0; offset < traces.length; offset += 40) {
-          const batch = traces.slice(offset, offset + 40);
-          await recruitmentService.trace(this.token, this.clientId, batch.map(item => ({generation:item.generation,key:item.key,record:item.record})));
-          for (const item of batch) await interviewTranscriptQueue.remove(item.key);
-        }
         for (const item of items.filter(item => item.kind !== "realtime_trace")) {
           if (item.kind)
             await recruitmentService.annotation(
@@ -323,11 +328,21 @@ export class RecruitmentRealtimeSession {
             );
           await interviewTranscriptQueue.remove(item.key);
         }
+        // Diagnostics cannot hold durable answers or recovery hostage.
+        try {
+        const traces = items.filter(item => item.kind === "realtime_trace");
+        for (let offset = 0; offset < traces.length; offset += 40) {
+          const batch = traces.slice(offset, offset + 40);
+          await bounded(recruitmentService.trace(this.token, this.clientId, batch.map(item => ({generation:item.generation,key:item.key,record:item.record}))), "Saving diagnostics", {timeoutMs:2000});
+          for (const item of batch) await interviewTranscriptQueue.remove(item.key);
+        }
+        } catch { /* Bounded diagnostic retries are independent of transcript authority. */ }
+
       } catch {
         this.onStatus("transcript-pending");
       }
       return (
-        (await interviewTranscriptQueue.list(this.attemptKey)).length +
+        (await interviewTranscriptQueue.list(this.attemptKey)).filter(item=>item.kind!=="realtime_trace").length +
         this.pendingFinal.size
       );
     })();
