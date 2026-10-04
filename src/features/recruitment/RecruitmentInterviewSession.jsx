@@ -4,7 +4,7 @@ import { RecruitmentRealtimeSession } from "./RecruitmentRealtimeSession.js";
 import { acquireInterviewClient } from "./interviewClient.js";
 import { interviewLocalKey as acquirePartition } from "./interviewRecordingStore.js";
 import { InterviewRecording } from "./InterviewRecording.js";
-import { bounded, InterviewRecovery } from "./interviewRecovery.js";
+import { bounded, InterviewRecovery, readyInterviewMedia } from "./interviewRecovery.js";
 
 const recoveryLabels = {
   preparing: "Preparing to resume", "tab ownership": "Checking this browser tab",
@@ -12,6 +12,7 @@ const recoveryLabels = {
   "transcript partition": "Finding saved answers", "recent transcript": "Saving recent answers",
   "camera and microphone": "Reacquiring camera and microphone", "fresh recording": "Starting a new recording",
   "fresh AI session": "Reconnecting your interviewer",
+  "device readiness": "Waiting for camera and microphone",
 };
 
 export default function RecruitmentInterviewSession({ token, entry, devices }) {
@@ -84,24 +85,22 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     setBusy(true);
     setError("");
     try {
-      await recruitmentService.finish(token, clientId.current, reason);
+      await bounded(recruitmentService.finish(token, clientId.current, reason),"Saving interview outcome",{timeoutMs:15000});
       setStatus("finalizing");
       clearTimeout(reconnectTimer.current);
       clearTimeout(finishTimer.current);
       clearTimeout(maxTimer.current);
       ai.current?.close();
-      const pending = await ai.current?.flush();
-      await recording.current?.stop("completed");
+      const pending = await bounded(ai.current?.flush(),"Saving transcript",{timeoutMs:8000});
+      await bounded(recording.current?.stop("completed"),"Saving recording evidence",{timeoutMs:30000});
       devices.stop();
       if (pending)
         throw Error(
           "Some transcript turns are still waiting to save. Keep this page open and retry finalization.",
         );
-      const result = await recruitmentService.evidence(
-        "finalize",
-        token,
-        clientId.current,
-      );
+      const result = await bounded(recruitmentService.evidence(
+        "finalize",token,clientId.current,
+      ),"Finalizing saved evidence",{timeoutMs:20000});
       setStatus(result.status);
       setRecordingStatus(result.recording_state);
     } catch (cause) {
@@ -237,6 +236,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     const step = (stage,work,options) => machine.current.step(operation,stage,work,options);
     try {
       ai.current?.close();
+      ai.current = null;
       connecting.current = null;
       clearTimeout(maxTimer.current);
       const oldCapture = recording.current;
@@ -278,15 +278,19 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       }
       const stream = await step("camera and microphone",()=>media);
       if (!stream) throw Error("Camera and microphone are unavailable. Allow access and tap Resume again.");
+      await step("device readiness",signal=>readyInterviewMedia(stream,signal),{timeoutMs:5000});
       observe("recovery.media",{request_id:operation.id,tracks:stream.getTracks().map(t=>({kind:t.kind,state:t.readyState,muted:t.muted})),audio_state:activation.context.state});
-      capture = new InterviewRecording({token,clientId:clientId.current,stream,startedAt:session.current.started_at,audioActivation:activation,recoveryId:operation.id,onStatus:state=>{if(recording.current===capture)setRecordingStatus(state);},onLost:reason=>{if(recording.current===capture)pause(reason);}});
+      capture = new InterviewRecording({token,clientId:clientId.current,stream,startedAt:session.current.started_at,audioActivation:activation,recoveryId:operation.id,onStatus:state=>{if(recording.current===capture)setRecordingStatus(state);},onLost:reason=>{if(recording.current===capture && recoveryId.current===operation.id)pause(reason);}});
       recording.current = capture;
       await step("fresh recording",signal=>capture.start({signal}));
       if (document.hidden || paused.current) throw Error("Return to this page and tap Resume again.");
       setStatus("starting");
       await step("fresh AI session",signal=>connectAI(signal),{timeoutMs:30000});
       clearTimeout(maxTimer.current);
-      maxTimer.current = setTimeout(()=>finalize("max_duration"),Math.max(0,Date.parse(session.current.max_ends_at)-Date.now()));
+      const approvedSession = session.current;
+      maxTimer.current = setTimeout(()=>{
+        if (!paused.current && machine.current.state === "RESUMED" && session.current === approvedSession) finalize("max_duration");
+      },Math.max(0,Date.parse(approvedSession.max_ends_at)-Date.now()));
       machine.current.finish(operation,"RESUMED");
     } catch (cause) {
       if (!machine.current.current(operation)) return;
@@ -311,7 +315,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     setError("");
     try {
       await claimClient();
-      session.current = await recruitmentService.begin(token, clientId.current);
+      session.current = await bounded(recruitmentService.begin(token, clientId.current),"Loading evidence recovery",{timeoutMs:15000});
       const recovery = new InterviewRecording({
         token,
         clientId: clientId.current,
@@ -327,16 +331,14 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
           audioElement: audio.current,
         });
       ai.current.attemptKey = recovery.attemptKey;
-      const pending = await ai.current.flush();
+      const pending = await bounded(ai.current.flush(),"Saving transcript",{timeoutMs:8000});
       if (pending)
         throw Error(
           "Transcript save is still pending. Retry with a stable connection.",
         );
-      const result = await recruitmentService.evidence(
-        "finalize",
-        token,
-        clientId.current,
-      );
+      const result = await bounded(recruitmentService.evidence(
+        "finalize",token,clientId.current,
+      ),"Finalizing saved evidence",{timeoutMs:20000});
       setStatus(result.status);
       setRecordingStatus(result.recording_state);
     } catch (cause) {
@@ -379,15 +381,18 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
         ),
       );
       if (document.hidden || paused.current || machine.current.state !== "RESUMED") return;
+      const heartbeatSession = session.current, heartbeatOwner = recoveryId.current;
       try {
         const state = await recruitmentService.heartbeat(
           token,
           clientId.current,
         );
-        await ai.current?.flush();
+        if (paused.current || machine.current.state !== "RESUMED" || session.current !== heartbeatSession || recoveryId.current !== heartbeatOwner) return;
+        ai.current?.flush().catch(() => {});
         if (state.status === "finalizing" && statusRef.current !== "finalizing")
           finalize("max_duration");
       } catch {
+        if (paused.current || machine.current.state !== "RESUMED" || session.current !== heartbeatSession || recoveryId.current !== heartbeatOwner) return;
         if (!navigator.onLine)
           setError(
             "Connection lost. Recording continues locally. Return online to save evidence.",
