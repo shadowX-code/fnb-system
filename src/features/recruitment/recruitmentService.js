@@ -37,6 +37,7 @@ export const recruitmentService = {
   interruption: (token, clientId, reason) => call("recruitment_public_interruption", { p_token: token, p_client_id: clientId, p_reason: reason }),
   finish: (token, clientId, reason) => call("recruitment_public_finish", { p_token: token, p_client_id: clientId, p_reason: reason }),
   annotation: (token, clientId, generation, itemId, kind, elapsedMs) => call("recruitment_public_annotation", { p_token: token, p_client_id: clientId, p_generation: generation, p_item_id: itemId, p_kind: kind, p_elapsed_ms: elapsedMs }),
+  trace: (token, clientId, records) => call("recruitment_public_traces", {p_token:token,p_client_id:clientId,p_records:records}),
   begin: (token, clientId) => call("recruitment_public_begin", { p_token: token, p_client_id: clientId }),
   heartbeat: (token, clientId) => call("recruitment_public_heartbeat", { p_token: token, p_client_id: clientId }),
   providerConnected: (token, clientId, generation) => call("recruitment_public_provider_connected", { p_token: token, p_client_id: clientId, p_generation: generation }),

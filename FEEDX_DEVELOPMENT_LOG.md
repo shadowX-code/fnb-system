@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-04 — Recruitment interview recovery correction
+
+- Human Staging acceptance exposed refresh/background continuation failures and split spoken responses. Recruitment now retains the same attempt through explicit device reacquisition, server-owned paused-time recovery, separate recording-upload recovery and a single fenced realtime response owner. A non-reasoning OpenAI realtime model avoids the reproduced commentary/final-answer split; bounded private browser observations support subsequent diagnosis. Recording gaps and uncertain speech remain visible evidence. Physical-device reacceptance and Malaysian voice listening remain required; Production is blocked.
+
 ## 2026-09-30 — Corrected Cutover Effective Resolution
 
 - People now treats a cutover observation explicitly corrected by an earlier historical assignment as audit-only for effective employment resolution. Genuine later Admin changes still take effect, and Leave scans the same effective revisions for entitlement boundaries. Staging rollback QA covered the dated resolver, current projection, Roster, Leave, Performance, same-date correction lineage, and a later change; no finalized evidence or persistent QA employment record was rewritten.

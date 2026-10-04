@@ -10,6 +10,8 @@ vi.mock("./recruitmentService.js", () => ({
     transcriptTurn: vi.fn(),
     providerDisconnected: vi.fn().mockResolvedValue(null),
     annotation: vi.fn(),
+    trace: vi.fn(),
+    realtimeSecret: vi.fn(),
   },
 }));
 vi.mock("./interviewTranscriptQueue.js", () => ({
@@ -20,6 +22,7 @@ vi.mock("./interviewTranscriptQueue.js", () => ({
   },
 }));
 import { RecruitmentRealtimeSession } from "./RecruitmentRealtimeSession.js";
+import { recruitmentService } from "./recruitmentService.js";
 import { interviewTranscriptQueue } from "./interviewTranscriptQueue.js";
 const box = (name, data) => {
   const bytes = new Uint8Array(data.length + 8);
@@ -113,15 +116,19 @@ describe("Recruitment realtime transcript and recording boundary", () => {
         item: { id: "candidate-1", type: "message", role: "user" },
       }),
     );
+    session.responses.request("test");
+    await session.consume(JSON.stringify({type:"response.created",response:{id:"response-1",metadata:{owner:"test"}}}));
     await session.consume(
       JSON.stringify({
         type: "response.output_item.added",
+        response_id: "response-1",
         item: { id: "ai-1", type: "message", role: "assistant" },
       }),
     );
     await session.consume(
       JSON.stringify({
         type: "response.output_audio_transcript.done",
+        response_id: "response-1",
         item_id: "ai-1",
         transcript: "Tell me more.",
       }),
@@ -133,9 +140,19 @@ describe("Recruitment realtime transcript and recording boundary", () => {
         transcript: "Saya worked at 前台.",
       }),
     );
-    const turns = interviewTranscriptQueue.put.mock.calls.map(([turn]) => turn);
-    expect(turns.map((t) => t.providerOrder)).toEqual([2, 1]);
-    expect(turns[1].transcript).toBe("Saya worked at 前台.");
+    await session.consume(JSON.stringify({type:"output_audio_buffer.stopped",response_id:"response-1"}));
+    const turns = interviewTranscriptQueue.put.mock.calls.map(([turn]) => turn).filter(turn=>!turn.kind);
+    expect(turns.map((t) => t.providerOrder)).toEqual([1, 2]);
+    expect(turns[0].transcript).toBe("Saya worked at 前台.");
+  });
+  it("cannot create a peer after credentials arrive for a closed transport", async () => {
+    let resolve;
+    recruitmentService.realtimeSecret.mockReturnValue(new Promise(r => { resolve = r; }));
+    const peer = vi.fn(); vi.stubGlobal("RTCPeerConnection", peer);
+    const session = new RecruitmentRealtimeSession({token:"a".repeat(64),clientId:"test",audioElement:{},startedAt:new Date().toISOString()});
+    session.attemptKey = "partition";
+    const connect = session.connect(); session.close(); resolve({generation:2,value:"synthetic"});
+    await expect(connect).rejects.toThrow("replaced"); expect(peer).not.toHaveBeenCalled(); vi.unstubAllGlobals();
   });
   it("closing AI transport leaves camera and microphone tracks alive", () => {
     const stop = vi.fn();
