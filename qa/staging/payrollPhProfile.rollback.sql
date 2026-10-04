@@ -2,11 +2,11 @@
 begin;
 select set_config('request.jwt.claim.sub',(select e.auth_user_id::text from employees e join roles r on r.id=e.role_id where lower(r.name)='owner' and e.enable_system_login and e.access_state='active' limit 1),true);
 do $$
-declare actor uuid:=payroll_admin_actor(); ent uuid; outlet uuid; emp uuid; profile uuid; run uuid; prior_run uuid; pub uuid; augpub uuid; calendar uuid; prev uuid; h uuid; h2 uuid; day date; i integer; basis text; category text; read jsonb; input jsonb; result jsonb; saved jsonb; before_hash text; evidence jsonb; t payroll_payable_time_versions%rowtype; snapshot_hash text; approved uuid;
+declare actor uuid:=payroll_admin_actor(); ent uuid; outlet uuid; emp uuid; profile uuid; run uuid; prior_run uuid; pub uuid; augpub uuid; calendar uuid; prev uuid; h uuid; h2 uuid; day date; i integer; basis text; category text; read jsonb; input jsonb; result jsonb; saved jsonb; before_hash text; evidence jsonb; t payroll_payable_time_versions%rowtype; snapshot_hash text; approved uuid; workplace text:='QA ONLY PH Profile '||substr(gen_random_uuid()::text,1,8);
 begin
  select md5(coalesce(jsonb_agg(to_jsonb(s) order by to_jsonb(s)::text)::text,'')) into snapshot_hash from payroll_run_calculation_snapshots s;
  insert into legal_entities(legal_company_name,company_registration_no,registered_address,created_by_employee_id,updated_by_employee_id) values('QA ONLY PH Profile','QA-PHP-'||substr(gen_random_uuid()::text,1,8),'STAGING ONLY',actor,actor) returning id into ent;
- insert into outlets(name,code,state_code) values('QA ONLY PH Profile Workplace','QA-PHP-'||substr(gen_random_uuid()::text,1,8),'MY-08') returning id into outlet;
+ insert into outlets(name,code,state_code) values(workplace,'QA-PHP-'||substr(gen_random_uuid()::text,1,8),'MY-08') returning id into outlet;
  perform set_config('feedx.payroll_command','yes',true);
  insert into payroll_outlet_state_versions(outlet_id,effective_from,state_code) values(outlet,'2026-08-01','MY-08');
  h:=payroll_holiday_save('2026-09-16','QA ONLY Profile PH one','national','QA ONLY synthetic fixture');
@@ -18,8 +18,8 @@ begin
  insert into duty_roster_publications(outlet_id,week_start_date,week_end_date,revision,published_by) values(outlet,'2026-08-17','2026-08-23',1,auth.uid()) returning id into augpub;
  for i in 1..3 loop
   basis:=case when i=1 then 'monthly' else 'hourly' end;category:=case when i=3 then 'part_time' else 'full_time' end;
-  insert into employees(full_name,employee_code,legal_entity_id,workplace,position,employment_type,employment_status,joined_date,birthday,nationality,enable_system_login,access_state) values('QA ONLY PH Profile '||i,'QA-PHP-'||substr(gen_random_uuid()::text,1,8),ent,'QA ONLY PH Profile Workplace','Service Crew',category,'active','2026-08-01','1990-01-01','Malaysia',false,'no_access') returning id into emp;
-  perform employee_employment_assignment_save(emp,'2026-08-01',jsonb_build_object('employment_type',category,'employment_status','active','position','Service Crew','workplace','QA ONLY PH Profile Workplace','legal_entity_id',ent),'QA verified employment',null,'QA synthetic evidence');
+  insert into employees(full_name,employee_code,legal_entity_id,workplace,position,employment_type,employment_status,joined_date,birthday,nationality,enable_system_login,access_state) values('QA ONLY PH Profile '||i,'QA-PHP-'||substr(gen_random_uuid()::text,1,8),ent,workplace,'Service Crew',category,'active','2026-08-01','1990-01-01','Malaysia',false,'no_access') returning id into emp;
+  perform employee_employment_assignment_save(emp,'2026-08-01',jsonb_build_object('employment_type',category,'employment_status','active','position','Service Crew','workplace',workplace,'legal_entity_id',ent),'QA verified employment',null,'QA synthetic evidence');
   profile:=payroll_profile_create(emp,'2026-08-01',basis,case when basis='monthly' then 2600 else 8 end,'MYR','QA verified pay',null,outlet,false,false,false,false);
   if i=1 then run:=payroll_run_create(ent,'2026-09-01','2026-09-30','QA ONLY Profile review'); end if;
   read:=payroll_ph_profile_read(emp,'2026-09-16');
@@ -50,7 +50,7 @@ begin
   end loop;
   if (select count(*) from payroll_ph_profile_versions where profile_id=profile)<>1 or (i>1 and (select count(*) from payroll_ph_wage_evidence_versions where profile_id=profile)<>1) then raise exception 'Reusable setup repeated per day'; end if;
   -- Explicit work / correction uses the existing append-only time authority.
-  insert into duty_roster_published_entries(publication_id,outlet_id,employee_id,roster_date,start_time,end_time,break_minutes,entry_type,outlet_name_snapshot,published_at) values(pub,outlet,emp,'2026-09-16','09:00',case when i=3 then '13:00'::time else '17:00'::time end,0,'working','QA ONLY PH Profile Workplace',now());
+  insert into duty_roster_published_entries(publication_id,outlet_id,employee_id,roster_date,start_time,end_time,break_minutes,entry_type,outlet_name_snapshot,published_at) values(pub,outlet,emp,'2026-09-16','09:00',case when i=3 then '13:00'::time else '17:00'::time end,0,'working',workplace,now());
   perform payroll_time_reconcile(ent,'2026-09-16','2026-09-16');
   read:=payroll_ph_statutory_project(run,emp,'2026-09-16');
   input:=jsonb_build_object('run_id',run,'employee_id',emp,'date','2026-09-16','context_fingerprint',read->>'context_fingerprint','decision','approve_roster','reason','QA explicit roster after absence review','request_id',gen_random_uuid());
@@ -73,13 +73,13 @@ begin
   if not (read->'issues' ? 'ph_absence_or_substitution_requires_review') then raise exception 'Absence blocker lost'; end if;
   -- Genuine future employment changes invalidate the later profile only.
   if i=3 then
-   perform employee_employment_assignment_save(emp,'2026-10-01',jsonb_build_object('employment_type','full_time','employment_status','active','position','Service Crew','workplace','QA ONLY PH Profile Workplace','legal_entity_id',ent),'QA genuine employment change',(employee_employment_assignment_at(emp,'2026-10-01')).id,'QA verified future contract change');
+   perform employee_employment_assignment_save(emp,'2026-10-01',jsonb_build_object('employment_type','full_time','employment_status','active','position','Service Crew','workplace',workplace,'legal_entity_id',ent),'QA genuine employment change',(employee_employment_assignment_at(emp,'2026-10-01')).id,'QA verified future contract change');
    if payroll_ph_profile_read(emp,'2026-10-01')->>'profile_status'<>'review_required' or payroll_ph_profile_read(emp,'2026-09-16')->>'profile_status'<>'verified' then raise exception 'Employment change overwrote historical profile';end if;
   end if;
   -- Real canonical preceding Payroll/time derives wages after source changes;
   -- the manually confirmed source-bound history must no longer apply.
   if i=2 then
-   insert into duty_roster_published_entries(publication_id,outlet_id,employee_id,roster_date,start_time,end_time,break_minutes,entry_type,outlet_name_snapshot,published_at) values(augpub,outlet,emp,'2026-08-20','09:00','14:00',0,'working','QA ONLY PH Profile Workplace',now());
+   insert into duty_roster_published_entries(publication_id,outlet_id,employee_id,roster_date,start_time,end_time,break_minutes,entry_type,outlet_name_snapshot,published_at) values(augpub,outlet,emp,'2026-08-20','09:00','14:00',0,'working',workplace,now());
    prior_run:=payroll_run_create(ent,'2026-08-01','2026-08-31','QA ONLY canonical preceding wages');
    perform payroll_time_reconcile(ent,'2026-08-20','2026-08-20');
    select * into t from payroll_payable_time_versions where employee_id=emp and work_date='2026-08-20' order by revision desc limit 1;
