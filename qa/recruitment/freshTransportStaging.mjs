@@ -44,6 +44,7 @@ try {
     await expect(page.getByRole("navigation")).toHaveCount(0);
     await page.screenshot({path:`${dir}/details-mobile.png`});
     await page.getByRole("button",{name:"Continue",exact:true}).click();
+    await expect(page.getByRole("heading",{name:"Get ready"})).toBeVisible();
   }
   if(await page.getByRole("heading",{name:"Get ready"}).count()) {
     await expect(page.getByRole("heading",{name:"Get ready"})).toBeVisible();

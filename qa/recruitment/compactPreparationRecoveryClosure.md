@@ -21,3 +21,9 @@ Interview Details combines opening/position/workplace/duration, initial editable
 - Function `recruitment-realtime` v10 delivered only to Staging `ujkzdaaadnvcfayuldmh`; voice file unchanged. This is technical verification, **not physical iOS or perceived conversation-quality certification**.
 
 Canonical Staging UI verification and final physical acceptance are recorded after delivery. No unrelated Recruitment/Phase 1–3 QA, Hire, Employee creation, Production delivery or `main` mutation.
+
+## Canonical Staging verification
+
+Git integration delivered `167cfe255aeaf0d7e1b2e79cbd8d00613feaa982` as READY `dpl_B2pLLtA4MsT1hr7aXCxYEyz6Yw3m` on canonical `fnb-system-staging.vercel.app`. Concurrent Payroll integration subsequently advanced dev; Recruitment runtime files were verified byte-equivalent across that advance. The target gate passed from a clean dev checkout preserving concurrent Payroll work.
+
+Canonical alias synthetic `ee7d77b0-3689-439e-a2c5-094924b18025` passed compact preparation (390×844 and 1280×900 screenshots inspected), persisted concise consent, device/server readiness, actual initial provider playback, foreground hang/rejection retry, stale close/pending uploads, cold refresh and dead-peer reconstruction. Four generations, exactly one entry response each, one retained finalized transcript turn, six explicit gaps. Saved Partial with three verified 640×480 units and one Invalid reload unit. No human consent, media check or attempt is submitted by automation for the final invitation. Physical iPhone acceptance is still required; synthetic tests do not certify perceived speech continuity.
