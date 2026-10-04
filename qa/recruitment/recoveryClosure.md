@@ -1,6 +1,6 @@
 # Recruitment V1 recovery correction — Staging evidence
 
-Status: local and Staging SQL contracts verified; canonical browser verification pending delivery. No Production authorization.
+Status: focused canonical Staging technical verification passed on `6aaf1f9db3ee06db553c7a2d63612d2b6655d477`. Physical reacceptance and regional voice judgement remain pending. No Production authorization.
 
 ## Investigation before changes
 
@@ -31,6 +31,15 @@ Original failed attempt: `ed2cac1c-f049-4608-bb4e-acc882043dc4`, application `20
 
 Private raw synthetic timelines/media/receipts are under `/private/tmp/feedx-continuity-baseline`, `/private/tmp/feedx-continuity-recovery` and `/private/tmp/feedx-voice-{marin,cedar}`. Tokens and signed URLs are omitted from Git.
 
-## Remaining acceptance
+## Canonical Staging verification
+
+- Git-integrated deployment `dpl_7Vt87V3Sim9naLuCtzwinnSxEp8P` is READY in `fnb-system-staging`; canonical dev/origin/dev/deployment matched. Both scoped recovery migrations and the realtime Edge Function were delivered to `ujkzdaaadnvcfayuldmh`.
+- Real-provider canonical browser run: application `e82b19ca-245c-40e1-8515-24001cadf1ad`, attempt `65da25dd-2d4c-459e-8778-23709a1da1eb`. Four connected provider generations cover initial voice, refresh, foreground return and independent realtime reconnect. Three independently verified 640×480 MP4 units survive; AI-only reconnect adds no recording unit. Three disclosed gaps produce Partial, not Complete.
+- A three-second mid-answer thinking pause generated no premature response. Barge-in produced one provider truncation; refresh immediately offered explicit media resume; duplicate tab was denied; simulated page background closed transports before explicit foreground resume. Five completed captured provider responses each contained one message; a sixth was cancelled. Eight response requests/creations have matching ownership, no captured provider errors and no commentary/final-answer split.
+- Bounded durable traces contain committed/VAD events, response IDs and owners, cancellation/buffer clearing, playback and transport observations. Manager review displays ordered retained transcript, two uncertain/interrupted annotations, Partial evidence, three gaps and source-pinned ready AI report with unresolved collection evidence. All three manager video elements loaded 640×480; recovered unit 3 played through its 35.4-second end. This is metadata/playback verification, not human acoustic judgement.
+- Raw synthetic canonical evidence and manager screenshot are private in `/private/tmp/feedx-canonical-recovery`. Browser background was simulated; physical OS media suspension and mobile audio quality still require the six-scenario reacceptance in `v1RecoveryAcceptance.md`.
+- Original failed evidence is retained. No manager hiring decision or Employee was created by this correction QA. No Production/main or DNS action was taken.
+
+## Human reacceptance
 
 Physical iOS/Android refresh, app switching, device reacquisition, pause/barge-in quality, repeated recording-unit integrity and regional voice must be judged by a human. Previously observed Safari invalid later units remain a real limitation; preserve valid prior units and Partial evidence. No continuous background capture or seamless recording is promised. No Employee/Hire/Production action belongs to this acceptance.
