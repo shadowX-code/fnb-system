@@ -1,7 +1,7 @@
 import { bounded } from "./interviewRecovery.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-function deviceError(error) {
+export function deviceError(error) {
   if (!navigator.mediaDevices?.getUserMedia) return "This browser cannot access a camera and microphone.";
   if (["NotAllowedError", "PermissionDeniedError"].includes(error?.name)) return "Camera or microphone access was denied. Allow both devices in your browser settings and try again.";
   if (["NotFoundError", "DevicesNotFoundError"].includes(error?.name)) return "A camera and microphone are both required. Connect the missing device and try again.";
@@ -28,17 +28,26 @@ export function useInterviewDevices() {
     setState((current) => ({ ...current, status: "idle", level: 0 }));
   }, []);
 
-  const start = useCallback(async ({ cameraId = "", microphoneId = "", signal, meter = true } = {}) => {
-    if (!navigator.mediaDevices?.getUserMedia) { setState((current) => ({ ...current, status: "unsupported", error: deviceError() })); return; }
+  const start = useCallback(async ({ cameraId = "", microphoneId = "", signal, meter = true, onNative = () => {} } = {}) => {
+    if (!navigator.mediaDevices?.getUserMedia) { setState((current) => ({ ...current, status: "unsupported", error: deviceError() })); if (!meter) throw Object.assign(Error(deviceError()),{code:"native_media_unsupported"}); return; }
     const generation = ++generationRef.current;
-    signal?.addEventListener("abort", () => { if (generation === generationRef.current) stop(); }, {once:true});
+    signal?.addEventListener("abort", () => { if (generation === generationRef.current) { generationRef.current += 1; stream?.getTracks().forEach(track => track.stop()); } }, {once:true});
     setState((current) => ({ ...current, status: "checking", error: "" }));
     let stream;
     try {
-      stream = await bounded(navigator.mediaDevices.getUserMedia({ video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: microphoneId ? { deviceId: { exact: microphoneId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true } }), "Camera and microphone", {signal,timeoutMs:15000,onLate:value=>value.getTracks().forEach(track=>track.stop())});
+      // Native request is the first hardware operation in the Resume gesture.
+      // Recovery avoids optional device/processing constraints on WebKit reacquisition.
+      const request = navigator.mediaDevices.getUserMedia(meter ? { video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: microphoneId ? { deviceId: { exact: microphoneId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true } } : {video: {facingMode:"user"}, audio:true});
+      onNative({stage:"getUserMedia.requested"});
+      if (!meter && navigator.permissions?.query) for (const name of ["camera", "microphone"]) {
+        bounded(navigator.permissions.query({name}), "Permission observation", {signal, timeoutMs:2000})
+          .then(value => onNative({stage:"permissions",code:`${name}_${value.state}`})).catch(() => onNative({stage:"permissions",code:`${name}_unknown`}));
+      }
+      stream = await bounded(request, "Camera and microphone", {signal,timeoutMs:15000,onLate:value=>value.getTracks().forEach(track=>track.stop())});
+      onNative({stage:"getUserMedia.resolved",tracks:stream.getTracks().map(t=>({kind:t.kind,state:t.readyState,muted:t.muted}))});
       if (generation !== generationRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current?.getTracks().forEach((track) => { track.onended = null; track.stop(); });
-      audioRef.current?.close?.().catch(() => {});
+      if (meter) audioRef.current?.close?.().catch(() => {});
       streamRef.current = stream;
       if (previewRef.current) { previewRef.current.srcObject = stream; previewRef.current.play?.().catch(() => {}); }
       stream.getTracks().forEach((track) => { track.onended = () => { if (generation === generationRef.current) setState((current) => ({ ...current, status: "lost", error: `${track.kind === "video" ? "Camera" : "Microphone"} disconnected. Recheck both devices.` })); }; });
@@ -57,7 +66,12 @@ export function useInterviewDevices() {
       return stream;
     } catch (error) {
       if (stream) stream.getTracks().forEach((track) => track.stop());
+      onNative({stage:"getUserMedia.error",code:error.code || error.name || "native_media_failed"});
       if (generation === generationRef.current) setState((current) => ({ ...current, status: "error", error: deviceError(error) }));
+      if (!meter) {
+        const code = typeof error.code === "string" ? error.code : error.name || "native_media_failed";
+        throw Object.assign(new Error(code.startsWith("recovery_") ? error.message : deviceError(error), {cause:error}), {code});
+      }
     }
   }, [stop]);
 
