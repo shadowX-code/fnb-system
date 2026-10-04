@@ -7,6 +7,27 @@ async function command(name, args) {
   return data;
 }
 
+async function saveTimeDecision(input) {
+  const args = { p_input: input };
+  try { return await command('payroll_time_decision_save', args); }
+  catch (error) {
+    if (/^[0-9A-Z]{5}$/.test(error.cause?.code || '')) {
+      if (error.cause.code === '57014') throw new Error('Decision was not saved: the save transaction timed out. Retry this decision.');
+      throw error;
+    }
+    // A response can be lost after commit. Confirm the audited request before
+    // replaying exactly the same intent; the run lock + request index serialize it.
+    try {
+      const recorded = await command('payroll_time_decision_status', args);
+      return recorded || await command('payroll_time_decision_save', args);
+    } catch {
+      const uncertain = new Error('Decision confirmation is unavailable. Verify / Retry Decision to check the same request; do not submit a different decision.');
+      uncertain.saveUncertain = true;
+      throw uncertain;
+    }
+  }
+}
+
 // Payroll is the only owner of compensation and run commands. Employee and
 // Employment Document services remain read/provenance sources, not writers here.
 export const payrollService = {
@@ -187,10 +208,10 @@ export const payrollService = {
     p_legal_entity_id: legalEntityId, p_from: from, p_to: to,
   }),
   decideTime: ({ id, runId, requestId, correction = false, action, approvedMinutes, extraMinutes, classification, reason }) =>
-    runId ? command("payroll_time_decision_save", { p_input: {
+    runId ? saveTimeDecision({
       run_id: runId, request_id: requestId, time_version_id: id, correction, action,
       approved_minutes: approvedMinutes, extra_minutes: extraMinutes, classification, reason,
-    } }) :
+    }) :
     command("payroll_time_decide", {
       p_time_version_id: id, p_action: action, p_approved_minutes: approvedMinutes,
       p_extra_minutes: extraMinutes, p_classification: classification, p_reason: reason,
