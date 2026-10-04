@@ -21,6 +21,7 @@ import { payrollService } from "../../../services/payrollService.js";
 import FoundationForm from "./PayrollCompensationForm.jsx";
 export { default as FoundationForm } from "./PayrollCompensationForm.jsx";
 import { effectivePay, effectivePayVersions } from "./payrollCompensationPresentation.js";
+import PayrollPhProfile from "./PayrollPhProfile.jsx";
 import PayrollRunEmployeesPanel from "./PayrollRunEmployeesPanel.jsx";
 import PayrollFinalizedRecord from "./PayrollFinalizedRecord.jsx";
 import { payComponentIsConfigured, payrollEmployeeResult, payrollIssueLabel, payrollRunSummary, payrollReviewRows, payrollReviewSummary } from "./payrollRunPresentation.js";
@@ -132,7 +133,7 @@ export function ProfilesTab({ data, canManage, reload }) {
     <Card>{visibleRows.length ? <DataTable columns={columns} rows={visibleRows} getRowKey={(row) => row.id}
       density="compact" tableClassName="!min-w-0" onRowClick={(row) => setSelectedId(row.id)} /> : <div className="p-8 text-center text-sm text-text-secondary">No employees match these filters.</div>}</Card>
     <Drawer open={Boolean(selectedEmployee) && !form} title={selectedEmployee?.name} eyebrow="Payroll employee" description={`${entityName(entities, selectedEmployee?.legal_entity_id)} · ${selectedEmployee?.workplace || "Workplace not set"}`} onClose={() => setSelectedId("")}
-      footer={canManage && selectedEmployee ? <div className="flex flex-wrap justify-end gap-2">{selected ? <><button className="btn-secondary" type="button" onClick={() => setForm("compensation")}>Edit Pay</button><button className="btn-secondary" type="button" onClick={() => setForm("statutory")}>Manage Statutory Setup</button><button className="btn-primary" type="button" onClick={() => setForm("recurring")}>Manage Components</button></> : <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(selectedEmployee.id); setForm("create"); }}>Set Up Employee</button>}</div> : null}>
+      footer={canManage && selectedEmployee ? <div className="flex flex-wrap justify-end gap-2">{selected ? <><button className="btn-secondary" type="button" onClick={() => setForm("compensation")}>Edit Pay</button><button className="btn-secondary" type="button" onClick={() => setForm("statutory")}>Manage Statutory Setup</button><button className="btn-secondary" type="button" onClick={() => setForm("ph_profile")}>PH Pay Profile</button><button className="btn-primary" type="button" onClick={() => setForm("recurring")}>Manage Components</button></> : <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(selectedEmployee.id); setForm("create"); }}>Set Up Employee</button>}</div> : null}>
       {selectedEmployee && <div className="space-y-5">
       <Badge tone={selected ? setupState({ profile: selected }) === "Ready" ? "success" : "warning" : "warning"}>{setupState({ profile: selected })}</Badge>
       {!selected && <p className="text-sm text-text-secondary">Pay has not been set up for this employee. Open Set Up Employee to create the first effective-dated profile.</p>}
@@ -167,7 +168,8 @@ export function ProfilesTab({ data, canManage, reload }) {
       </>}
       </div>}
     </Drawer>
-    {form === "statutory" ? <PayrollStatutorySetup profile={selected} onSaved={reload} onClose={() => setForm("")} />
+    {form === "ph_profile" ? <PayrollPhProfile employeeId={selectedEmployee.id} date={today()} onSaved={reload} onClose={() => setForm("")} />
+      : form === "statutory" ? <PayrollStatutorySetup profile={selected} onSaved={reload} onClose={() => setForm("")} />
       : form === "recurring" ? <PayrollEmployeeComponents profile={selected} components={data.components || []} date={today()} onSaved={reload} onClose={() => setForm("")} />
       : form && <FoundationForm mode={form} profile={selected} initialEmployeeId={setupEmployeeId} data={data} onClose={() => setForm("")} onSaved={async employeeId=>{await reload();if(employeeId)setSelectedId(employeeId);}} />}
   </div>;

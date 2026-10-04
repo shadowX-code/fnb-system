@@ -709,3 +709,11 @@ Delivered Recruitment-owned realtime voice, durable ordered transcript and openi
 ## 2026-10-04 — Recruitment Phase 3 intelligence and canonical Hire
 
 Added versioned source-pinned interview reports with validated candidate citations and approximate verified recording correspondence, neutral partial/unusable evidence presentation, historical-attempt review and immutable manager review acknowledgements. Audited manager decisions own Shortlist / Final Interview / Reject / Hire. The retry-safe Hire adapter creates one ordinary People Employee and canonical initial assignment, with duplicate-person checks and no automatic Admin/Crew access, then hands off to People setup. Provisional consent remains an explicit real-collection launch blocker. Staging-only delivery; canonical owners: docs/domains/recruitment.md and docs/domains/people-identity-rbac.md.
+## 2026-10-04 — Reusable Malaysia PH Pay Profile authority
+
+Split reusable statutory category/contract/company-overlap evidence and source-bound
+preceding wages from occurrence review. The existing Malaysia pricing pack remains
+unchanged. Day decisions delegate to canonical Payable Time, append audited occurrence
+evidence and recalculate atomically. Scoped setup returns to the same holiday; old
+reviews and finalized snapshots retain their evidence. No Production data is backfilled.
+Verification evidence is recorded in the scoped Staging QA report.

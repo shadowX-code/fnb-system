@@ -59,6 +59,9 @@ export function payrollIssueLabel(issue, context = {}) {
   const [code, detail] = String(issue).split(":");
   const range = value => value?.replaceAll("..", " – ");
   const phReasons = {
+    ph_pay_profile_required: "Set up the employee’s effective PH Pay Profile once for reusable coverage and contractual hours.",
+    ph_occurrence_review_required: "Review this holiday’s work and eligibility.",
+    ph_historical_wage_evidence_required: "Historical wage evidence required: confirm the missing preceding wage-period record once.",
     ph_eligibility_review_required: "Verify PH entitlement: statutory coverage, contractual hours, wage basis and holiday eligibility.",
     ph_eligibility_evidence_changed: "PH evidence changed. Review the current employment, time, pay and holiday evidence.",
     ph_preceding_wage_period_evidence_required: "PH pay needs verified qualifying wages and worked days from the preceding wage period with this employer.",

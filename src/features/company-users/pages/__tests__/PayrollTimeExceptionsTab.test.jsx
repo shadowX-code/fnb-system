@@ -39,10 +39,10 @@ describe("Payroll Time Exceptions workspace", () => {
     expect(screen.getByText("Attendance")).not.toBeNull();
     fireEvent.change(screen.getByLabelText(/Decision reason/), { target: { value: "Reviewed early departure evidence" } });
     fireEvent.click(screen.getByRole("button", { name: "Record Decision" }));
-    await waitFor(() => expect(mocks.decide).toHaveBeenCalledWith({
+    await waitFor(() => expect(mocks.decide).toHaveBeenCalledWith(expect.objectContaining({
       id: "time-1", action: "approve", approvedMinutes: 270, extraMinutes: 0,
-      classification: "regular", reason: "Reviewed early departure evidence",
-    }));
+      classification: "regular", reason: "Reviewed early departure evidence", correction: false, requestId: expect.any(String),
+    })));
   });
 
   it("requires a reason and preserves source-only review", () => {
