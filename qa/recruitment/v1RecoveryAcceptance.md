@@ -1,6 +1,6 @@
 # V1 recovery — physical Staging reacceptance
 
-Status: technical prerequisites verified; physical acceptance and voice listening judgement pending. Production remains blocked.
+Status: **Human Acceptance #2 failed foreground and refresh recovery.** This invitation is historical evidence; do not rerun it for acceptance. See `boundedRecoveryClosure.md` for investigation/correction. Voice work is paused. Production remains blocked.
 
 ## Fresh invitation
 

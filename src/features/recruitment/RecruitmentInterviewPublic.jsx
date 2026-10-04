@@ -1,3 +1,4 @@
+import { bounded } from "./interviewRecovery.js";
 import { useEffect, useState } from "react";
 import { recruitmentService } from "./recruitmentService.js";
 import RecruitmentInterviewSession from "./RecruitmentInterviewSession.jsx";
@@ -11,6 +12,8 @@ const tokenFromPath = () =>
 export default function RecruitmentInterviewPublic() {
   const [token] = useState(tokenFromPath);
   const [entry, setEntry] = useState(null);
+  const [bootstrapError,setBootstrapError] = useState("");
+  const [bootstrapRevision,setBootstrapRevision] = useState(0);
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
@@ -20,8 +23,8 @@ export default function RecruitmentInterviewPublic() {
   const devices = useInterviewDevices();
   useEffect(() => {
     let active = true;
-    recruitmentService
-      .publicEntry(token)
+    setBootstrapError("");
+    bounded(recruitmentService.publicEntry(token), "Loading saved interview", {timeoutMs:15000})
       .then((value) => {
         if (!active) return;
         setEntry(value);
@@ -43,13 +46,13 @@ export default function RecruitmentInterviewPublic() {
         else if (value?.status === "consented") setStep(4);
         else if (value?.status === "profile_confirmed") setStep(3);
       })
-      .catch(() => {
-        if (active) setEntry({ available: false });
+      .catch(cause => {
+        if (active) setBootstrapError(cause.message || "Could not load your saved interview. Retry with a stable connection.");
       });
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [token,bootstrapRevision]);
   async function run(action, nextStep) {
     setBusy(true);
     setError("");
@@ -73,7 +76,8 @@ export default function RecruitmentInterviewPublic() {
         </header>
         {entry === null ? (
           <section>
-            <h1>Preparing interview…</h1>
+            <h1>{bootstrapError ? "Interview recovery required" : "Preparing interview…"}</h1>
+            {bootstrapError ? <><p role="alert">{bootstrapError}</p><button className="recruitment-primary" onClick={()=>setBootstrapRevision(value=>value+1)}>Retry loading interview</button></> : null}
           </section>
         ) : !entry.available ? (
           <section>

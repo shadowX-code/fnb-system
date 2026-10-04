@@ -1,3 +1,4 @@
+import { bounded } from "./interviewRecovery.js";
 import { supabase } from "../../lib/supabase.ts";
 import { recruitmentService } from "./recruitmentService.js";
 import {
@@ -36,7 +37,7 @@ export async function checkRecordingVideo(blob) {
   });
 }
 export class InterviewRecording {
-  constructor({ token, clientId, stream, startedAt, onStatus, onLost }) {
+  constructor({ token, clientId, stream, startedAt, onStatus, onLost, audioActivation, recoveryId }) {
     Object.assign(this, {
       token,
       clientId,
@@ -44,12 +45,33 @@ export class InterviewRecording {
       startedAt: Date.parse(startedAt),
       onStatus,
       onLost,
+      audioActivation,
+      recoveryId,
     });
     this.queue = Promise.resolve();
     this.writing = Promise.resolve();
     this.stopping = false;
   }
-  async start() {
+  static activateAudio() {
+    const context = new (window.AudioContext || window.webkitAudioContext)();
+    // Called directly from the tap, before any server/IndexedDB await loses activation.
+    const ready = context.resume();
+    ready.catch(() => {});
+    return { context, ready };
+  }
+  dispose() {
+    if (this.unit && !this.stopping) this.stop("recovery_aborted").catch(() => {});
+    this.stopping = true;
+    clearInterval(this.timer);
+    this.remoteSource?.disconnect();
+    this.stream?.getTracks().forEach(track => track.stop());
+    this.context?.close().catch(() => {});
+    this.audioActivation?.context.close().catch(() => {});
+  }
+  async start({ signal } = {}) {
+    const active = () => { if (signal?.aborted) throw Error("Recording recovery was replaced."); };
+    signal?.addEventListener("abort", () => this.dispose(), {once:true});
+    active();
     const options = ['video/mp4;codecs="avc1.42E01E,mp4a.40.2"', "video/mp4"];
     const mime = options.find((t) => MediaRecorder.isTypeSupported(t));
     if (!mime)
@@ -57,8 +79,12 @@ export class InterviewRecording {
         "This browser cannot record the required MP4 camera evidence. Use current Safari or Chrome.",
       );
     this.attemptKey = await interviewLocalKey(this.token);
-    this.context = new (window.AudioContext || window.webkitAudioContext)();
-    await this.context.resume();
+    active();
+    this.audioActivation ||= InterviewRecording.activateAudio();
+    this.context = this.audioActivation.context;
+    await bounded(this.audioActivation.ready, "Microphone audio", { signal, timeoutMs: 10000 });
+    active();
+    if (this.context.state !== "running") throw Error("Microphone audio is suspended. Tap Resume to reacquire it.");
     this.destination = this.context.createMediaStreamDestination();
     this.context.createMediaStreamSource(this.stream).connect(this.destination);
     this.recordingStream = new MediaStream([
@@ -74,8 +100,11 @@ export class InterviewRecording {
     };
     await recruitmentService.evidence("open", this.token, this.clientId, {
       unit_id: this.unit.id,
-    });
+      ...(this.recoveryId ? { recovery_id: this.recoveryId } : {}),
+    }, signal);
+    active();
     await recordingStore.unit(this.unit);
+    active();
     this.recorder = new MediaRecorder(this.recordingStream, {
       mimeType: mime,
       videoBitsPerSecond: 450000,
@@ -106,7 +135,7 @@ export class InterviewRecording {
     this.recorder.onerror = () => this.onLost("recorder_error");
     this.recorder.onstop = () => this.resolveStop?.();
     this.context.addEventListener("statechange", () => {
-      if (!this.stopping && this.context.state === "suspended") this.onLost("audio_context_suspended");
+      if (!this.stopping && ["suspended", "interrupted"].includes(this.context.state)) this.onLost("audio_context_suspended");
     });
     this.stream.getTracks().forEach(track => track.addEventListener("mute", () => {
       if (!this.stopping) this.onLost("media_track_muted");
@@ -180,7 +209,11 @@ export class InterviewRecording {
     }
   }
   async stop(reason = "completed") {
-    if (this.stopping) return this.stopPromise;
+    if (this.stopping && this.stopPromise) return this.stopPromise;
+    if (!this.unit) {
+      this.dispose();
+      return "not-started";
+    }
     this.stopping = true;
     clearInterval(this.timer);
     this.captureStopped = (async () => {
@@ -193,8 +226,11 @@ export class InterviewRecording {
           try { this.recorder.stop(); } catch { clearTimeout(timer); resolve(false); }
         });
       }
-      await this.writing;
-      this.stream.getTracks().forEach((t) => t.stop());
+      // Release hardware before persistence/upload. WebKit close() can remain pending.
+      this.stream?.getTracks().forEach((t) => t.stop());
+      this.remoteSource?.disconnect();
+      this.context?.close().catch(() => {});
+      await bounded(this.writing, "Saving recording bytes");
       this.unit = {
         ...this.unit,
         closed,
@@ -202,8 +238,6 @@ export class InterviewRecording {
         elapsedEndMs: Math.max(0, Date.now() - this.startedAt),
       };
       await recordingStore.unit(this.unit);
-      this.remoteSource?.disconnect();
-      await this.context?.close();
       return this.unit;
     })();
     this.stopPromise = this.captureStopped.then((unit) =>
@@ -262,7 +296,7 @@ export class InterviewRecording {
     this.onStatus("verified");
     return "verified";
   }
-  async recover({ deferUploads = false } = {}) {
+  async recover({ deferUploads = false, excludeUnit = () => null } = {}) {
     const uploads = [];
     this.attemptKey = await interviewLocalKey(this.token);
     const units = await recordingStore.units(this.attemptKey);
@@ -272,6 +306,7 @@ export class InterviewRecording {
       this.clientId,
     );
     for (const unit of state.units) {
+      if (unit.id === excludeUnit()) continue;
       if (
         ["capturing", "pending"].includes(unit.status) &&
         !units.some((local) => local.id === unit.id)
@@ -298,6 +333,7 @@ export class InterviewRecording {
       }
     }
     for (const unit of units) {
+      if (unit.id === excludeUnit()) continue;
       if (unit.closed) uploads.push(() => this.uploadUnit(unit));
       else {
         if (!deferUploads) await recruitmentService.interruption(

@@ -1,3 +1,4 @@
+import { bounded } from "./interviewRecovery.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 function deviceError(error) {
@@ -27,22 +28,24 @@ export function useInterviewDevices() {
     setState((current) => ({ ...current, status: "idle", level: 0 }));
   }, []);
 
-  const start = useCallback(async ({ cameraId = "", microphoneId = "" } = {}) => {
+  const start = useCallback(async ({ cameraId = "", microphoneId = "", signal, meter = true } = {}) => {
     if (!navigator.mediaDevices?.getUserMedia) { setState((current) => ({ ...current, status: "unsupported", error: deviceError() })); return; }
     const generation = ++generationRef.current;
+    signal?.addEventListener("abort", () => { if (generation === generationRef.current) stop(); }, {once:true});
     setState((current) => ({ ...current, status: "checking", error: "" }));
     let stream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: microphoneId ? { deviceId: { exact: microphoneId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true } });
+      stream = await bounded(navigator.mediaDevices.getUserMedia({ video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: microphoneId ? { deviceId: { exact: microphoneId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true } }), "Camera and microphone", {signal,timeoutMs:15000,onLate:value=>value.getTracks().forEach(track=>track.stop())});
       if (generation !== generationRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current?.getTracks().forEach((track) => { track.onended = null; track.stop(); });
       audioRef.current?.close?.().catch(() => {});
       streamRef.current = stream;
       if (previewRef.current) { previewRef.current.srcObject = stream; previewRef.current.play?.().catch(() => {}); }
       stream.getTracks().forEach((track) => { track.onended = () => { if (generation === generationRef.current) setState((current) => ({ ...current, status: "lost", error: `${track.kind === "video" ? "Camera" : "Microphone"} disconnected. Recheck both devices.` })); }; });
-      const devices = await navigator.mediaDevices.enumerateDevices?.().catch(() => []) || [];
+      const devices = meter ? await bounded(navigator.mediaDevices.enumerateDevices?.() || Promise.resolve([]), "Device list", {signal,timeoutMs:3000}).catch(() => []) : [];
+      if (generation !== generationRef.current) { stream.getTracks().forEach(track=>track.stop()); return; }
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (AudioContextClass) {
+      if (meter && AudioContextClass) {
         const context = new AudioContextClass(); audioRef.current = context;
         const source = context.createMediaStreamSource(stream);
         const analyser = context.createAnalyser(); analyser.fftSize = 512; source.connect(analyser);
@@ -56,7 +59,7 @@ export function useInterviewDevices() {
       if (stream) stream.getTracks().forEach((track) => track.stop());
       if (generation === generationRef.current) setState((current) => ({ ...current, status: "error", error: deviceError(error) }));
     }
-  }, []);
+  }, [stop]);
 
   useEffect(() => {
     const changed = () => { if (streamRef.current && streamRef.current.getTracks().some((track) => track.readyState === "ended")) setState((current) => ({ ...current, status: "lost", error: "A device disconnected. Recheck both devices." })); };

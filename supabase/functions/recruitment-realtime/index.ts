@@ -42,7 +42,7 @@ Deno.serve(async (request) => {
   if (!url || !serviceKey || !openaiKey) return json(request, { error: "Interview service is unavailable." }, 503);
 
   const service = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data, error } = await service.rpc("recruitment_realtime_context", { p_token: token, p_client_id: clientId });
+  const { data, error } = await service.rpc(body.recovery_id ? "recruitment_recovery_context" : "recruitment_realtime_context", { p_token: token, p_client_id: clientId, ...(body.recovery_id ? {p_request_id:body.recovery_id} : {}) });
   if (error || !data?.attempt_id) return json(request, { error: "Interview session is unavailable." }, 403);
 
   const context = data as InterviewContext & { attempt_id: string; max_ends_at: string };
