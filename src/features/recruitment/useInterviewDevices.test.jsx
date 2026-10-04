@@ -35,3 +35,11 @@ it('cancelling an obsolete acquisition cannot stop newer tracks',async()=>{
  await expect(request).rejects.toMatchObject({code:'recovery_cancelled'});await act(async()=>resolveOld(stream()));
  expect(result.current.streamRef.current).toBe(fresh);fresh.getTracks().forEach(t=>expect(t.stop).not.toHaveBeenCalled());
 });
+it('the preparation microphone meter activates native audio in the same Check gesture',async()=>{
+ const fresh=stream();acquire.mockResolvedValue(fresh);const resume=vi.fn().mockResolvedValue();
+ vi.stubGlobal('requestAnimationFrame',vi.fn());
+ vi.stubGlobal('AudioContext',class {resume(){return resume();}close(){return Promise.resolve();}createMediaStreamSource(){return {connect:vi.fn()};}createAnalyser(){return {getByteTimeDomainData:a=>a.fill(128)};}});
+ const {result}=renderHook(()=>useInterviewDevices());let request;
+ act(()=>{request=result.current.start();expect(acquire).toHaveBeenCalledOnce();expect(resume).toHaveBeenCalledOnce();});
+ await act(async()=>request);expect(result.current.state.status).toBe('ready');
+});

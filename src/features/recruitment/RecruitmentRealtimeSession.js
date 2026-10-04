@@ -37,7 +37,7 @@ export class RecruitmentRealtimeSession {
     this.order = 0;
     this.closed = false;
     this.flushing = false;
-    this.responses = new InterviewResponseOwner((event) => this.send(event), (event) => this.trace(event));
+    this.responses = new InterviewResponseOwner((event) => this.send(event), (event) => this.trace(event), () => { this.trace({type:"transport.disconnected",status:"response_lifecycle_timeout"}); this.disconnected(); });
     this.aiFinals = new Map();
     this.responseItems = new Map();
     this.audioPlaying = false;
@@ -159,7 +159,7 @@ export class RecruitmentRealtimeSession {
       this.onStatus("connected");
       this.flush().catch(() => this.onStatus("transcript-pending"));
       if (this.closed) throw Error("Interview session was replaced.");
-      this.responses.request(`session:${this.generation}`);
+      this.responses.begin(`session:${this.generation}`, secret.first_response_instructions);
       return secret;
     } catch (error) {
       channel.close();
@@ -186,17 +186,19 @@ export class RecruitmentRealtimeSession {
     const accepted = this.responses.event(event);
     if (!accepted) return;
     if (event.type === "response.created" && this.responses.active?.closing) this.closingResponseId = event.response.id;
-    if (event.type === "output_audio_buffer.started") this.audioPlaying = true;
-    if (["output_audio_buffer.stopped", "output_audio_buffer.cleared"].includes(event.type)) this.audioPlaying = false;
+    this.audioPlaying = !!this.responses.active?.playing;
     if (event.type === "response.output_item.added" && event.item?.type === "message") {
       const items = this.responseItems.get(event.response_id) || [];
       items.push(event.item.id);
       this.responseItems.set(event.response_id, items);
     }
-    if (event.type === "output_audio_buffer.stopped") {
+    if (["output_audio_buffer.stopped", "output_audio_buffer.cleared"].includes(event.type)) {
       for (const item of this.responseItems.get(event.response_id) || []) {
         const final = this.aiFinals.get(item);
-        if (final) { await this.saveFinal(final); this.aiFinals.delete(item); }
+        if (final) {
+          if (this.responses.cancelled.has(event.response_id)) this.queueAnnotation(item, "truncated");
+          await this.saveFinal(final); this.aiFinals.delete(item);
+        }
       }
     }
     if (event.type === "input_audio_buffer.speech_started")
@@ -261,7 +263,7 @@ export class RecruitmentRealtimeSession {
     if (!allowed.test(event.type)) return;
     const record = { type: event.type, response_id: event.response_id || event.response?.id || null,
       item_id: event.item_id || event.item?.id || null, owner: event.owner || event.response?.metadata?.owner || null,
-      status: event.response?.status || event.error?.code || null, phase: event.item?.phase || event.phase || null,
+      status: event.response?.status || event.error?.code || event.status || null, phase: event.item?.phase || event.phase || null,
       audio_end_ms: event.audio_end_ms ?? null, playing: event.phase === "browser" ? !this.audioElement.paused : this.audioPlaying,
       elapsed_ms: Math.max(0, Date.now() - this.startedAt) };
     const item = { key: `${this.attemptKey}:${this.generation}:trace:${crypto.randomUUID()}`,

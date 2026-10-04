@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
-import { interviewInstructions, type InterviewContext } from "./prompt.ts";
+import { interviewInstructions, firstInterviewResponse, type InterviewContext } from "./prompt.ts";
 import { interviewerProfile } from "./voice.ts";
 
 const allowedOrigins = new Set([
@@ -84,5 +84,5 @@ Deno.serve(async (request) => {
   if (!provider.ok) return json(request, { error: "Unable to connect to the AI interviewer. Please retry." }, 502);
   const secret = await provider.json().catch(() => null);
   if (!secret?.value || typeof secret.value !== "string") return json(request, { error: "Unable to connect to the AI interviewer. Please retry." }, 502);
-  return json(request, { value: secret.value, expires_at: secret.expires_at, generation: context.generation, max_ends_at: context.max_ends_at });
+  return json(request, { value: secret.value, expires_at: secret.expires_at, generation: context.generation, first_response_instructions: firstInterviewResponse(context), max_ends_at: context.max_ends_at });
 });
