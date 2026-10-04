@@ -3,7 +3,8 @@ import fs from "node:fs";
 import { chromium, expect } from "@playwright/test";
 const dir=process.env.FEEDX_RECRUITMENT_QA_DIR;
 if (!dir) throw Error("Private synthetic fixture directory required.");
-const origin="https://fnb-system-staging.vercel.app";
+const origin=process.env.FEEDX_RECRUITMENT_QA_ORIGIN || "https://fnb-system-staging.vercel.app";
+if (!["https://fnb-system-staging.vercel.app", "http://localhost:5173"].includes(origin)) throw Error("Only canonical Staging or local UI against Staging is allowed.");
 const token=fs.readFileSync(`${dir}/invitation.txt`,"utf8").trim();
 const context=await chromium.launchPersistentContext(`${dir}/browser`,{headless:true,viewport:{width:390,height:844},permissions:["camera","microphone"],args:["--use-fake-device-for-media-stream","--use-fake-ui-for-media-stream","--autoplay-policy=no-user-gesture-required"]});
 await context.addInitScript(()=>{

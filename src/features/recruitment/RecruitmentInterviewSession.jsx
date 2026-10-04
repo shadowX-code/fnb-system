@@ -399,7 +399,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
         else {
           pause("session_authority_lost");
           setError(
-            "The interview session could not be renewed. Reopen this link or contact your recruiter.",
+            "The interview could not continue. Tap Continue interview or contact your recruiter.",
           );
         }
       }
@@ -486,7 +486,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
                         : "Camera recording will start before AI voice"}
             </strong>{" "}
             · {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}{" "}
-            · {recoveryView.state === "RESUMED" ? "Interview in progress" : ""}
+            {recoveryView.state === "RESUMED" ? " · Interview in progress" : ""}
           </p>
           {status === "ready" ||
           (["starting", "interviewing", "interrupted"].includes(status) &&
