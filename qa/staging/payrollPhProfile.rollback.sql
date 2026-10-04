@@ -31,6 +31,8 @@ begin
   if (select count(*) from payroll_ph_profile_versions where profile_id=profile)<>1 then raise exception 'Profile retry duplicated'; end if;
   begin perform payroll_ph_profile_save(input||jsonb_build_object('reason','Changed')); raise exception 'Changed retry accepted'; exception when others then if sqlerrm<>'PH profile request changed' then raise; end if; end;
   begin perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);perform payroll_ph_profile_read(emp,'2026-09-16');raise exception 'Unauthorized profile read';exception when insufficient_privilege then null;end;
+  if payroll_ph_profile_read(emp,'2026-08-31')->>'profile_status'<>'review_required' then raise exception 'Later profile proves earlier history'; end if;
+  begin perform payroll_ph_profile_save(input||jsonb_build_object('employee_id',gen_random_uuid(),'request_id',gen_random_uuid()));raise exception 'Wrong employee scope accepted';exception when insufficient_privilege then null;end;
   read:=payroll_ph_profile_read(emp,'2026-09-17');
   if read#>>'{revision,id}'<>saved->>'id' or read->>'profile_status'<>'verified' then raise exception 'Dated profile not reused'; end if;
   if i>1 then
@@ -69,6 +71,11 @@ begin
   perform payroll_ph_statutory_confirm(input||jsonb_build_object('request_id',gen_random_uuid(),'date','2026-09-17','context_fingerprint',read->>'context_fingerprint','decision','absence_review','reason','QA independent absence unresolved'));
   read:=payroll_ph_statutory_project(run,emp,'2026-09-17');
   if not (read->'issues' ? 'ph_absence_or_substitution_requires_review') then raise exception 'Absence blocker lost'; end if;
+  -- Genuine future employment changes invalidate the later profile only.
+  if i=3 then
+   perform employee_employment_assignment_save(emp,'2026-10-01',jsonb_build_object('employment_type','full_time','employment_status','active','position','Service Crew','workplace','QA ONLY PH Profile Workplace','legal_entity_id',ent),'QA genuine employment change',(employee_employment_assignment_at(emp,'2026-10-01')).id,'QA verified future contract change');
+   if payroll_ph_profile_read(emp,'2026-10-01')->>'profile_status'<>'review_required' or payroll_ph_profile_read(emp,'2026-09-16')->>'profile_status'<>'verified' then raise exception 'Employment change overwrote historical profile';end if;
+  end if;
   -- Real canonical preceding Payroll/time derives wages after source changes;
   -- the manually confirmed source-bound history must no longer apply.
   if i=2 then

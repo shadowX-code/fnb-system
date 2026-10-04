@@ -30,6 +30,8 @@ contractual daily/weekly hours, regular part-time comparison/exclusions and comp
 benefit overlap evidence. Confirm through scoped `payroll_ph_profile_save`; effective
 revisions carry forward until superseded. Dated employment establishes full-time
 context, and only completed matching template contracts establish contractual hours.
+Later completed uploaded contracts also require profile review; superseded completed
+contracts remain evidence for their historical dates.
 Job title, roster and pay basis never establish a legal category. Changes to employment
 type, position, employer, pay basis, completed contract or company policy require
 profile review; compensation changes independently re-resolve wage evidence. Prior

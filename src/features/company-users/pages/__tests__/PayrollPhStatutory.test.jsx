@@ -4,7 +4,7 @@ import PayrollPhStatutory from '../PayrollPhStatutory.jsx';
 const service=vi.hoisted(()=>({readPhStatutory:vi.fn(),confirmPhStatutory:vi.fn(),readPhProfile:vi.fn(),savePhProfile:vi.fn(),savePhHistoricalWages:vi.fn()}));
 vi.mock('../../../../services/payrollService.js',()=>({payrollService:service}));
 const profile={status:'verified',profile_status:'verified',issues:[],basis:{legal_entity_id:'entity'},revision:{id:'profile'},wages:{status:'verified',origin:'payroll'}};
-const row={date:'2026-09-16',context_fingerprint:'server-current',issues:['ph_occurrence_review_required'],profile,context:{compensation:{pay_basis:'hourly'},time:{status:'approved_manual',approved_minutes:480,scheduled_minutes:480,actual_minutes:null},source:{leave_type:null},company_policy:null},review:null};
+const row={date:'2026-09-16',context_fingerprint:'server-current',issues:['ph_occurrence_review_required'],profile,context:{compensation:{pay_basis:'hourly'},time:{id:'time',status:'approved_manual',approved_minutes:480,scheduled_minutes:480,actual_minutes:null},source:{leave_type:null},company_policy:null},review:null};
 beforeEach(()=>{vi.clearAllMocks();service.readPhStatutory.mockResolvedValue([row]);service.confirmPhStatutory.mockResolvedValue({review_id:'verified'});});
 afterEach(cleanup);
 describe('PH occurrence review consumes reusable profile',()=>{
@@ -18,7 +18,7 @@ describe('PH occurrence review consumes reusable profile',()=>{
   const input=service.confirmPhStatutory.mock.calls[0][0];expect(input.context_fingerprint).toBe('server-current');expect(input.decision).toBe('keep_approved');expect(input.evidence).toBeUndefined();expect(input.amount).toBeUndefined();
  });
  it('requires an explicit roster decision; missing Attendance is not approval',async()=>{
-  service.readPhStatutory.mockResolvedValue([{...row,context:{...row.context,time:{status:'review_required',scheduled_minutes:480}}}]);
+  service.readPhStatutory.mockResolvedValue([{...row,context:{...row.context,time:{id:'time',status:'review_required',scheduled_minutes:480}}}]);
   render(<PayrollPhStatutory runId="run" employeeId="employee" canManage/>);fireEvent.click(await screen.findByRole('button',{name:'Review Holiday'}));
   fireEvent.click(screen.getByRole('button',{name:'Select day decision'}));expect(screen.queryByRole('button',{name:'Confirm approved payable time'})).toBeNull();expect(screen.getByRole('button',{name:'Approve Roster Hours'})).toBeTruthy();expect(screen.getByRole('button',{name:'Confirm Holiday Decision'}).disabled).toBe(true);
  });
