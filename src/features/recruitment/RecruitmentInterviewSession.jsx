@@ -221,34 +221,52 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     if (ai.current === transport && !paused.current) setError("");
   }
   async function start() {
-    observe("recovery.command",{stage:"resume"});
     if (document.hidden) { setError("Return to this page before resuming."); return; }
     if (machine.current.state === "RESUMED") return;
-    const operation = machine.current.begin();
-    if (!operation) return;
+    let activation, mediaPromise;
+    let operation;
+    try {
+      operation = machine.current.begin(owner=>{
+        mediaPromise = devices.start({signal:owner.controller.signal,meter:false,
+          onNative:details=>observe("recovery.media",{request_id:owner.id,...details})});
+        mediaPromise.catch(() => {});
+        activation = InterviewRecording.activateAudio();
+      });
+    } catch(cause) {
+      setError("Native audio could not start. Tap Resume to try again.");
+      setStatus("interrupted");setAiStatus("paused");devices.stop();return;
+    }
+    observe("recovery.command",{stage:"resume",request_id:operation.id});
     recoveryId.current = operation.id;
     starting.current = true;
     paused.current = false;
     setError("");
     setAiStatus("recovering");
     setRecoveryNotice("");
-    let activation, media, capture, serverClaimed = false;
+    let media, capture, serverClaimed = false;
     const step = (stage,work,options) => machine.current.step(operation,stage,work,options);
     try {
-      ai.current?.close();
-      ai.current = null;
+      // getUserMedia must precede Web Audio, old transport and capture cleanup.
+      observe("recovery.media",{request_id:operation.id,stage:"audio.activation",audio_state:activation.context.state});
+      bounded(activation.ready,"Audio activation",{signal:operation.controller.signal,timeoutMs:10000})
+        .then(()=>observe("recovery.media",{request_id:operation.id,stage:"audio.activated",audio_state:activation.context.state}))
+        .catch(cause=>observe("recovery.error",{request_id:operation.id,stage:"audio.activation",code:cause.code||cause.name||"native_audio_failed"}));
+      let freshStream;
+      operation.controller.signal.addEventListener("abort",()=>{
+        freshStream?.getTracks().forEach(track=>track.stop());
+        activation.context.close().catch(()=>{});
+      },{once:true});
+      media = bounded(mediaPromise, "Camera and microphone", {signal:operation.controller.signal,timeoutMs:15000,onLate:stream=>stream?.getTracks().forEach(track=>track.stop())});
+      media.catch(() => {});
+      ai.current?.close(); ai.current = null;
       connecting.current = null;
       clearTimeout(maxTimer.current);
       const oldCapture = recording.current;
       oldCapture?.stop("recovery_replaced").catch(() => {});
-      devices.stop();
-      // Both calls occur during the Resume tap. No stale hardware or activation is reused.
-      activation = InterviewRecording.activateAudio();
-      operation.controller.signal.addEventListener("abort",()=>{devices.stop();activation.context.close().catch(()=>{});},{once:true});
-      const mediaPromise = devices.start({signal:operation.controller.signal,meter:false});
-      mediaPromise.catch(() => {});
-      media = bounded(mediaPromise, "Camera and microphone", {signal:operation.controller.signal,timeoutMs:15000,onLate:stream=>stream?.getTracks().forEach(track=>track.stop())});
-      media.catch(() => {});
+      const stream = freshStream = await step("camera and microphone",()=>media);
+      if (!stream) throw Object.assign(Error("Camera and microphone could not start. Tap Resume to reacquire them."),{code:"native_media_failed"});
+      await step("device readiness",signal=>readyInterviewMedia(stream,signal),{timeoutMs:5000});
+      observe("recovery.media",{request_id:operation.id,stage:"tracks.validated",tracks:stream.getTracks().map(t=>({kind:t.kind,state:t.readyState,muted:t.muted})),audio_state:activation.context.state});
       await step("tab ownership",signal=>claimClient(signal));
       observe("recovery.bootstrap",{request_id:operation.id});
       const durable = await step("server state",signal=>recruitmentService.recoveryState(token,clientId.current,signal));
@@ -276,10 +294,6 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
         observe("recovery.error",{request_id:operation.id,stage:"recent transcript",code:cause.code||"local_evidence_pending"});
         setRecoveryNotice("Some local evidence is still waiting to save. The interview continues from your saved answers; missing evidence remains visible to your recruiter.");
       }
-      const stream = await step("camera and microphone",()=>media);
-      if (!stream) throw Error("Camera and microphone are unavailable. Allow access and tap Resume again.");
-      await step("device readiness",signal=>readyInterviewMedia(stream,signal),{timeoutMs:5000});
-      observe("recovery.media",{request_id:operation.id,tracks:stream.getTracks().map(t=>({kind:t.kind,state:t.readyState,muted:t.muted})),audio_state:activation.context.state});
       capture = new InterviewRecording({token,clientId:clientId.current,stream,startedAt:session.current.started_at,audioActivation:activation,recoveryId:operation.id,onStatus:state=>{if(recording.current===capture)setRecordingStatus(state);},onLost:reason=>{if(recording.current===capture && recoveryId.current===operation.id)pause(reason);}});
       recording.current = capture;
       await step("fresh recording",signal=>capture.start({signal}));
@@ -294,7 +308,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       machine.current.finish(operation,"RESUMED");
     } catch (cause) {
       if (!machine.current.current(operation)) return;
-      observe("recovery.error",{request_id:operation.id,stage:machine.current.stage,code:cause.code||"dependency_failed"});
+      observe("recovery.error",{request_id:operation.id,stage:machine.current.stage,code:cause.code||cause.name||"dependency_failed"});
       operation.controller.abort();
       ai.current?.close();
       capture?.stop("recovery_failed").catch(()=>{});
@@ -410,7 +424,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       if (document.hidden) pause("page_backgrounded");
       else if (paused.current) {
         setStatus("interrupted");
-        setError("Ready to continue. Re-enable your camera and microphone. Your saved answers are retained; the recording gap will be visible to your recruiter.");
+        setError("Ready to continue. Tap Resume to start a fresh camera and microphone. Your saved answers are retained; the recording gap will be visible to your recruiter.");
       }
     };
     const pagehide = () => pause("page_closed");
@@ -495,7 +509,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
             !session.current) ? (
             <button
               className="recruitment-primary"
-              disabled={busy}
+              disabled={finishing.current}
               onClick={start}
             >
               {status === "ready" ? "Start interview" : "Resume with camera and microphone"}
@@ -504,12 +518,13 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
           {status === "interrupted" && session.current ? (
             <button
               className="recruitment-primary"
-              disabled={busy}
+              disabled={finishing.current}
               onClick={start}
             >
               Resume with camera and microphone
             </button>
           ) : null}
+          {recoveryView.state === "RECOVERING" && status === "starting" && session.current ? <button className="recruitment-primary" onClick={start}>Resume with camera and microphone</button> : null}
           {(status === "interviewing" || status === "starting") && session.current ? (
             <div className="recruitment-actions">
               <button

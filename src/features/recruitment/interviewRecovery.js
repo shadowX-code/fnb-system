@@ -23,7 +23,7 @@ export function bounded(promise, label, { signal, timeoutMs = 15000, onLate } = 
 export function readyInterviewMedia(stream, signal) {
   const tracks = stream.getTracks();
   if (!tracks.some(t=>t.kind === "audio") || !tracks.some(t=>t.kind === "video"))
-    return Promise.reject(Error("Both camera and microphone are required. Tap Resume to reacquire them."));
+    return Promise.reject(Object.assign(Error("Both camera and microphone are required. Tap Resume to reacquire them."),{code:"missing_media_tracks"}));
   return new Promise((resolve,reject)=>{
     const cleanup = () => {
       signal?.removeEventListener("abort",cancel);
@@ -31,7 +31,7 @@ export function readyInterviewMedia(stream, signal) {
     };
     const cancel=()=>{cleanup();reject(Error("Device acquisition was interrupted. Tap Resume again."));};
     const check=()=>{
-      if(tracks.some(t=>t.readyState !== "live")) {cleanup();reject(Error("A device stopped. Tap Resume to reacquire it."));}
+      if(tracks.some(t=>t.readyState !== "live")) {cleanup();reject(Object.assign(Error("A device stopped. Tap Resume to reacquire it."),{code:"stale_media_tracks"}));}
       else if(tracks.every(t=>!t.muted)) {cleanup();resolve(stream);}
     };
     signal?.addEventListener("abort",cancel,{once:true});
@@ -43,10 +43,14 @@ export function readyInterviewMedia(stream, signal) {
 export class InterviewRecovery {
   constructor(onState) { this.onState = onState; this.state = "RECOVERY_REQUIRED"; }
   transition(state, stage = "") { this.state = state; this.stage = stage; this.onState?.({ state, stage }); }
-  begin() {
-    if (this.operation) return null;
+  begin(activate) {
+    const previous = this.operation;
     const operation = { id: crypto.randomUUID(), controller: new AbortController() };
     this.operation = operation;
+    try { activate?.(operation); } catch(error) { operation.controller.abort(); this.operation = null; previous?.controller.abort(); this.transition("RECOVERY_REQUIRED"); throw error; }
+    // Abort after the new gesture has invoked native acquisition; old continuations
+    // already fail the current-operation fence synchronously.
+    if (previous) queueMicrotask(() => previous.controller.abort());
     this.transition("RECOVERING", "preparing");
     return operation;
   }

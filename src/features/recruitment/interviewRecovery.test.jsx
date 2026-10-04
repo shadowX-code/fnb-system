@@ -84,16 +84,17 @@ it("a never-settling capture acquisition becomes visible retryable recovery; ret
   expect(screen.getByText(/AI connected/)).toBeTruthy();
   expect(qa.begin).toHaveBeenCalledTimes(2);
 });
-it("repeated Resume during recovery cannot compete and foreground cancels pending server work",async()=>{
-  qa.begin.mockImplementationOnce(()=>new Promise(()=>{}));mount();
+it("repeated Resume replaces pending client work and stale results cannot take ownership",async()=>{
+  let stale;
+  qa.begin.mockImplementationOnce(()=>new Promise(resolve=>{stale=resolve;}));mount();
   const button=screen.getByRole("button",{name:"Resume with camera and microphone"});
-  fireEvent.click(button);fireEvent.click(button);
+  fireEvent.click(button);
   await waitFor(()=>expect(qa.begin).toHaveBeenCalledTimes(1));
-  vi.spyOn(document,"hidden","get").mockReturnValue(true);fireEvent(document,new Event("visibilitychange"));
-  vi.spyOn(document,"hidden","get").mockReturnValue(false);fireEvent(document,new Event("visibilitychange"));
-  qa.begin.mockResolvedValue({status:"starting",started_at:new Date().toISOString(),max_ends_at:new Date(Date.now()+600000).toISOString()});
   fireEvent.click(button);await screen.findByText(/AI connected/);
   expect(qa.begin).toHaveBeenCalledTimes(2);
+  await act(async()=>stale({status:"finalizing"}));
+  expect(screen.getByText(/AI connected/)).toBeTruthy();
+  expect(qa.captures.filter(c=>c.recorder.state==="recording")).toHaveLength(1);
 });
 it("cold refresh discards pending in-memory media/transport rather than joining it",async()=>{
   qa.connect.mockImplementationOnce(()=>new Promise(()=>{}));mount();
@@ -154,4 +155,22 @@ it("late loss from a previous recording cannot cancel a new recovery",async()=>{
   oldCapture.props.onLost("local_storage_failed");
   resolveBegin({status:"starting",started_at:new Date().toISOString(),max_ends_at:new Date(Date.now()+600000).toISOString()});
   await screen.findByText(/AI connected/);
+});
+
+it("requests native media before AudioContext activation or old cleanup",async()=>{
+  const devices=mount();
+  fireEvent.click(screen.getByRole("button",{name:"Resume with camera and microphone"}));
+  expect(devices.start.mock.invocationCallOrder[0]).toBeLessThan(qa.activation.mock.invocationCallOrder[0]);
+  expect(devices.stop).not.toHaveBeenCalled();
+  await screen.findByText(/AI connected/);
+});
+it("hung camera acquisition has its own timeout and never starts a server resume",async()=>{
+  vi.useFakeTimers();const devices=mount();devices.start.mockImplementationOnce(()=>new Promise(()=>{}));
+  await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Resume with camera and microphone"})));
+  await act(async()=>vi.advanceTimersByTimeAsync(15100));
+  expect(screen.getByRole("alert").textContent).toMatch(/Camera and microphone timed out/);
+  expect(screen.getByRole("alert").textContent).not.toMatch(/Allow access/);
+  expect(qa.begin).not.toHaveBeenCalled();
+  await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Resume with camera and microphone"})));
+  expect(screen.getByText(/AI connected/)).toBeTruthy();
 });
