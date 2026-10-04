@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const qa=vi.hoisted(()=>({begin:vi.fn(),interruption:vi.fn(),captures:[],transports:[],state:vi.fn(),activation:vi.fn(),recordStart:vi.fn(),flush:vi.fn(),connect:vi.fn(),heartbeat:vi.fn()}));
-vi.mock("./interviewClient.js",()=>({acquireInterviewClient:async()=>({clientId:"stable-client",release:vi.fn()})}));
+const qa=vi.hoisted(()=>({begin:vi.fn(),interruption:vi.fn(),captures:[],transports:[],state:vi.fn(),activation:vi.fn(),recordStart:vi.fn(),flush:vi.fn(),connect:vi.fn(),heartbeat:vi.fn(),claim:vi.fn()}));
+vi.mock("./interviewClient.js",()=>({acquireInterviewClient:qa.claim}));
 vi.mock("./recruitmentService.js",()=>({recruitmentService:{
   begin:qa.begin, recoverBegin:qa.begin,recoveryState:qa.state,recoverPause:qa.interruption,observeRecovery:vi.fn().mockResolvedValue(),interruption:qa.interruption, heartbeat:qa.heartbeat,
 }}));
@@ -22,7 +22,7 @@ vi.mock("./RecruitmentRealtimeSession.js",()=>({RecruitmentRealtimeSession:class
 }}));
 import RecruitmentInterviewSession from "./RecruitmentInterviewSession.jsx";
 beforeEach(()=>{
-  vi.clearAllMocks();qa.captures.length=0;qa.transports.length=0;
+  vi.clearAllMocks();qa.captures.length=0;qa.transports.length=0;qa.claim.mockResolvedValue({clientId:"stable-client",release:vi.fn()});
   qa.heartbeat.mockResolvedValue({status:"interviewing"});
   qa.state.mockResolvedValue({state:"RECOVERY_REQUIRED",recovery_id:null});
   qa.activation.mockReturnValue({context:{close:vi.fn().mockResolvedValue(),state:"running"},ready:Promise.resolve()});
@@ -173,4 +173,13 @@ it("hung camera acquisition has its own timeout and never starts a server resume
   expect(qa.begin).not.toHaveBeenCalled();
   await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Resume with camera and microphone"})));
   expect(screen.getByText(/AI connected/)).toBeTruthy();
+});
+
+it("repeated Resume shares one pending tab identity without a competing own-tab lock",async()=>{
+ let resolveClaim;qa.claim.mockImplementationOnce(()=>new Promise(resolve=>resolveClaim=resolve));const devices=mount();
+ const button=screen.getByRole("button",{name:"Resume with camera and microphone"});fireEvent.click(button);fireEvent.click(button);
+ await waitFor(()=>expect(resolveClaim).toBeTypeOf("function"));
+ await act(async()=>resolveClaim({clientId:"stable-client",release:vi.fn()}));
+ await screen.findByText(/AI connected/);expect(qa.claim).toHaveBeenCalledTimes(1);expect(devices.start).toHaveBeenCalledTimes(2);
+ expect(qa.begin).toHaveBeenCalledTimes(1);
 });
