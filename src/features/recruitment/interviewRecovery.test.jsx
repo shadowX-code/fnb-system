@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const qa=vi.hoisted(()=>({begin:vi.fn(),interruption:vi.fn(),captures:[],transports:[],state:vi.fn(),activation:vi.fn(),recordStart:vi.fn(),flush:vi.fn(),connect:vi.fn()}));
+const qa=vi.hoisted(()=>({begin:vi.fn(),interruption:vi.fn(),captures:[],transports:[],state:vi.fn(),activation:vi.fn(),recordStart:vi.fn(),flush:vi.fn(),connect:vi.fn(),heartbeat:vi.fn()}));
 vi.mock("./interviewClient.js",()=>({acquireInterviewClient:async()=>({clientId:"stable-client",release:vi.fn()})}));
 vi.mock("./recruitmentService.js",()=>({recruitmentService:{
-  begin:qa.begin, recoverBegin:qa.begin,recoveryState:qa.state,recoverPause:qa.interruption,observeRecovery:vi.fn().mockResolvedValue(),interruption:qa.interruption, heartbeat:vi.fn(),
+  begin:qa.begin, recoverBegin:qa.begin,recoveryState:qa.state,recoverPause:qa.interruption,observeRecovery:vi.fn().mockResolvedValue(),interruption:qa.interruption, heartbeat:qa.heartbeat,
 }}));
 vi.mock("./interviewRecordingStore.js",()=>({interviewLocalKey:async()=>"partition"}));
 vi.mock("./InterviewRecording.js",()=>({InterviewRecording:class {
@@ -23,6 +23,7 @@ vi.mock("./RecruitmentRealtimeSession.js",()=>({RecruitmentRealtimeSession:class
 import RecruitmentInterviewSession from "./RecruitmentInterviewSession.jsx";
 beforeEach(()=>{
   vi.clearAllMocks();qa.captures.length=0;qa.transports.length=0;
+  qa.heartbeat.mockResolvedValue({status:"interviewing"});
   qa.state.mockResolvedValue({state:"RECOVERY_REQUIRED",recovery_id:null});
   qa.activation.mockReturnValue({context:{close:vi.fn().mockResolvedValue(),state:"running"},ready:Promise.resolve()});
   qa.recordStart.mockResolvedValue();qa.flush.mockResolvedValue(0);qa.connect.mockResolvedValue();
@@ -32,7 +33,7 @@ beforeEach(()=>{
 });
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.useRealTimers();});
 function mount() {
-  const devices={start:vi.fn().mockResolvedValue({getTracks:()=>[]}),stop:vi.fn(),streamRef:{current:{}},previewRef:{current:null}};
+  const devices={start:vi.fn().mockResolvedValue({getTracks:()=>["audio","video"].map(kind=>({kind,readyState:"live",muted:false,addEventListener:vi.fn(),removeEventListener:vi.fn(),stop:vi.fn()}))}),stop:vi.fn(),streamRef:{current:{}},previewRef:{current:null}};
   render(<RecruitmentInterviewSession token={"a".repeat(64)} entry={{status:"interviewing"}} devices={devices}/>);
   return devices;
 }
@@ -115,4 +116,42 @@ it("pending old transcript persistence cannot hold a cold durable resume indefin
   await act(async()=>{await vi.advanceTimersByTimeAsync(8100);});
   expect(screen.getByText(/AI connected/)).toBeTruthy();
   expect(screen.getByText(/Some local evidence is still waiting/)).toBeTruthy();
+});
+
+it("an old heartbeat cannot finalize or pause a newly recovered session",async()=>{
+  vi.useFakeTimers();let resolveHeartbeat;
+  qa.heartbeat.mockImplementationOnce(()=>new Promise(resolve=>{resolveHeartbeat=resolve;}));mount();
+  await act(async()=>{fireEvent.click(screen.getByRole("button",{name:"Resume with camera and microphone"}));});
+  await act(async()=>{await vi.advanceTimersByTimeAsync(15000);});expect(resolveHeartbeat).toBeTypeOf("function");
+  vi.spyOn(document,"hidden","get").mockReturnValue(true);fireEvent(document,new Event("visibilitychange"));
+  vi.spyOn(document,"hidden","get").mockReturnValue(false);fireEvent(document,new Event("visibilitychange"));
+  await act(async()=>{fireEvent.click(screen.getByRole("button",{name:"Resume with camera and microphone"}));});
+  await act(async()=>{resolveHeartbeat({status:"finalizing"});});
+  expect(screen.getByText(/AI connected/)).toBeTruthy();expect(screen.queryByRole("heading",{name:"Saving your interview"})).toBeNull();
+});
+it("fresh but still-muted mobile tracks expose a bounded reacquire action instead of starting AI",async()=>{
+  vi.useFakeTimers();const devices=mount();
+  const tracks=["audio","video"].map(kind=>Object.assign(new EventTarget(),{kind,readyState:"live",muted:true,stop:vi.fn()}));
+  devices.start.mockResolvedValueOnce({getTracks:()=>tracks});
+  await act(async()=>{fireEvent.click(screen.getByRole("button",{name:"Resume with camera and microphone"}));});
+  await act(async()=>{await vi.advanceTimersByTimeAsync(5100);});
+  expect(screen.getByRole("alert").textContent).toMatch(/device readiness timed out/);
+  expect(screen.getByRole("button",{name:"Resume with camera and microphone"}).disabled).toBe(false);
+  expect(qa.connect).not.toHaveBeenCalled();
+  await act(async()=>{fireEvent.click(screen.getByRole("button",{name:"Resume with camera and microphone"}));});
+  expect(screen.getByText(/AI connected/)).toBeTruthy();
+});
+
+it("late loss from a previous recording cannot cancel a new recovery",async()=>{
+  mount();fireEvent.click(screen.getByRole("button",{name:"Resume with camera and microphone"}));await screen.findByText(/AI connected/);
+  const oldCapture=qa.captures.at(-1);
+  vi.spyOn(document,"hidden","get").mockReturnValue(true);fireEvent(document,new Event("visibilitychange"));
+  vi.spyOn(document,"hidden","get").mockReturnValue(false);fireEvent(document,new Event("visibilitychange"));
+  let resolveBegin;
+  qa.begin.mockImplementationOnce(()=>new Promise(resolve=>{resolveBegin=resolve;}));
+  fireEvent.click(screen.getByRole("button",{name:"Resume with camera and microphone"}));
+  await waitFor(()=>expect(resolveBegin).toBeTypeOf("function"));
+  oldCapture.props.onLost("local_storage_failed");
+  resolveBegin({status:"starting",started_at:new Date().toISOString(),max_ends_at:new Date(Date.now()+600000).toISOString()});
+  await screen.findByText(/AI connected/);
 });

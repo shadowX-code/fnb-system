@@ -24,6 +24,7 @@ const resume=()=>page.getByRole("button",{name:"Resume with camera and microphon
 const connected=()=>expect(page.getByText(/AI connected/)).toBeVisible({timeout:45000});
 try {
   await page.goto(`${origin}/i/${token}`);
+  await expect.poll(async()=>await page.getByRole("button",{name:"Continue",exact:true}).count() || await resume().count() || await page.getByRole("button",{name:"Start interview",exact:true}).count(),{timeout:30000}).toBeTruthy();
   if(await page.getByRole("button",{name:"Continue",exact:true}).count()) {
     await page.getByRole("button",{name:"Continue",exact:true}).click();
     await page.getByRole("button",{name:"Continue",exact:true}).click();
@@ -33,7 +34,9 @@ try {
     await expect(page.getByRole("button",{name:"Devices ready"})).toBeEnabled({timeout:20000});
     await page.getByRole("button",{name:"Devices ready"}).click();
   }
-  await page.getByRole("button",{name:"Start interview",exact:true}).click();await connected();
+  if(await resume().count()) await resume().click();
+  else await page.getByRole("button",{name:"Start interview",exact:true}).click();
+  await connected();
   blockUploads=true;
   await page.evaluate(()=>{window.qaHangClose=true;window.qaHidden=true;document.dispatchEvent(new Event("visibilitychange"));});
   await expect(page.getByRole("heading",{name:"Interview interrupted"})).toBeVisible();
@@ -58,7 +61,12 @@ try {
   blockUploads=false;
   for(const item of held.splice(0)){await item.route.abort();item.resolve();}
   await page.getByRole("button",{name:"Stop and save partial interview"}).click();
-  await expect(page.getByRole("heading",{name:"Interview saved"})).toBeVisible({timeout:180000});
+  await expect.poll(async()=>{
+    if(await page.getByRole("heading",{name:"Interview saved",exact:true}).count()) return true;
+    const retry=page.getByRole("button",{name:"Retry saving evidence",exact:true});
+    if(await retry.count() && await retry.isEnabled()) await retry.click();
+    return false;
+  },{timeout:180000,intervals:[1000,5000,10000]}).toBe(true);
   await page.screenshot({path:`${dir}/saved.png`});
   console.log("Same attempt saved with truthful interruption evidence; inspect server transitions/manifest.");
 } catch(error){console.log(await page.locator("main").innerText());throw error;}
