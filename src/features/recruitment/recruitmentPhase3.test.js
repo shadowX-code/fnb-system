@@ -73,4 +73,17 @@ describe("Recruitment report evidence authority", () => {
     r.topics[0].finding = { text: "Missing", kind: "unresolved", turn_ids: [] };
     expect(() => validateReport(r, source)).toThrow("Uncited covered");
   });
+  it("pins collection limitations into v2 follow-up without candidate assessment", () => {
+    const r = validateReport(
+      report(),
+      {
+        ...source,
+        annotations: [{ kind: "truncated" }, { kind: "transcription_failed" }],
+      },
+      "recruitment-report-v2",
+    );
+    expect(r.follow_up).toHaveLength(4);
+    expect(r.follow_up[1].text).toContain("collection quality");
+    expect(r.follow_up[2].text).toContain("not reconstructed");
+  });
 });

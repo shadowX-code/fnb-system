@@ -1,5 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
-import { instructions, reportSchema, validateReport } from "./report.ts";
+import {
+  instructionsForVersion,
+  reportSchema,
+  validateReport,
+} from "./report.ts";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -67,7 +71,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: claim.model,
         store: false,
-        instructions,
+        instructions: instructionsForVersion(claim.prompt_version),
         input: JSON.stringify({
           attempt: source.attempt,
           config: source.config,
@@ -97,7 +101,7 @@ Deno.serve(async (req) => {
       .filter((x: any) => x.type === "output_text")
       .map((x: any) => x.text)
       .join("");
-    const body = validateReport(JSON.parse(text), source);
+    const body = validateReport(JSON.parse(text), source, claim.prompt_version);
     await rpc("recruitment_report_finish", {
       p_report_id: claim.id,
       p_generation_id: claim.generation_id,
