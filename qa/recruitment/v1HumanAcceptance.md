@@ -1,6 +1,6 @@
 # FeedX AI Interview V1 — human Staging acceptance
 
-Status: **First human execution failed; superseded by recovery reacceptance.** No voice-naturalness or full mobile-quality PASS is inferred from automated tests.
+Status: **First human execution failed; superseded by [recovery reacceptance](v1RecoveryAcceptance.md).** No voice-naturalness or full mobile-quality PASS is inferred from automated tests.
 
 ## Original failed application (retained evidence)
 
