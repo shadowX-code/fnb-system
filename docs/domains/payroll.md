@@ -23,6 +23,49 @@ legal coverage/eligibility → current approved PH time → official statutory P
 → explicitly applicable company benefit → canonical priced earnings. No employment,
 holiday eligibility, normal hours or prior wage evidence is backfilled.
 
+### Operational PH Pay Treatment
+
+A published paid holiday appears in the employee/date Payroll review. The ordinary
+workflow asks for a day decision and **PH Pay Treatment**, not a mandatory PH Pay
+Profile. Roster hours still require an explicit authorized Payable Time decision.
+`payroll_ph_treatment_preview` returns a server quote, known day/pay evidence,
+statutory comparison and compliance warnings. Confirmation binds both source context
+and the exact quote fingerprint; changed time, legal/wage evidence or amounts require
+a fresh preview. No statutory calculation is reproduced in the UI.
+
+- **Apply Statutory PH Pay** consumes the unchanged verified Malaysia engine when
+  evidence establishes the amount. Unknown legal categories and wage facts cannot
+  produce a statutory quote.
+- **Custom PH Allowance** records explicit cash, with separately confirmed PH OT
+  cash when approved overtime exists. It is an audited Payroll override, never legal
+  coverage/eligibility evidence. Ordinary custom remuneration is contributable under
+  the existing statutory owner; separately classified PH OT uses its overtime boundary.
+- **No Additional PH Pay** records explicit zero additional cash. Monthly Basic is
+  retained. It does not assert forfeiture or statutory compliance.
+
+Custom/zero require a reason and explicit acknowledgement of the compliance warning.
+Missing statutory profile/wage/eligibility evidence and comparison shortfalls remain
+warnings in original daily reviews, events, calculation inputs and finalized snapshots;
+they do not indefinitely block the authorized explicit cash treatment. This does not
+resolve unrelated statutory setup, time, holiday publication or company-benefit gates.
+
+The existing `payroll_ph_statutory_confirm` append authority records treatment,
+comparison, warnings, actor/time/reason and prior revision; corrections never edit
+previous evidence. Payable Time changes delegate to its existing command, and open-run
+recalculation commits atomically. Finalized/paid mutation remains prohibited.
+
+Company benefit decisions remain under their existing authority. A relevant cash
+benefit requires explicit no-benefit, inclusive top-up or additional relationship.
+For an inclusive benefit only excess over the confirmed normal PH allowance is added;
+a genuinely additional benefit remains a separate Company Public Holiday Benefit
+line. No statutory and company amount is automatically paid twice. Custom/OT cash
+uses the exact **Public Holiday Allowance** name and existing canonical aggregation
+for Review and Draft/Final Payslips, retaining daily pricing and override detail.
+
+Reusable PH profiles and historical wage evidence remain under **Advanced compliance
+evidence** in day review and **Advanced compliance** in Payroll Profiles. They can
+establish a statutory quote but are not prerequisites for an explicit cash override.
+
 ### Reusable PH Pay Profile and day review
 
 `payroll_ph_profile_versions` owns employee coverage, First Schedule category,
@@ -49,7 +92,7 @@ time/compensation/component source fingerprint. No confirmed current state prove
 older coverage, and historical source changes invalidate reusable manual wages.
 
 `payroll_ph_eligibility_reviews` remains append-only Run/employee/day evidence.
-`payroll_ph_statutory_confirm` now accepts occurrence intent only: retain approved time,
+Legacy profile-based occurrence reviews accepted: retain approved time,
 explicitly approve roster hours, adjust time, confirm an eligible paid day not worked,
 or retain unresolved absence/substitution. It derives actor, checks Run/employee outlet
 scope, locks the open Run, requires a decision/correction reason, checks current context,
