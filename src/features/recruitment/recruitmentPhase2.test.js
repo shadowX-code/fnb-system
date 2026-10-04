@@ -108,7 +108,7 @@ describe("Recruitment realtime transcript and recording boundary", () => {
       startedAt: new Date().toISOString(),
       audioElement: {},
     });
-    session.attemptKey = "partition";
+    session.attemptKey = "partition"; session.recoveryId = "recovery-owner";
     session.generation = 1;
     await session.consume(
       JSON.stringify({
@@ -150,9 +150,15 @@ describe("Recruitment realtime transcript and recording boundary", () => {
     recruitmentService.realtimeSecret.mockReturnValue(new Promise(r => { resolve = r; }));
     const peer = vi.fn(); vi.stubGlobal("RTCPeerConnection", peer);
     const session = new RecruitmentRealtimeSession({token:"a".repeat(64),clientId:"test",audioElement:{},startedAt:new Date().toISOString()});
-    session.attemptKey = "partition";
+    session.attemptKey = "partition"; session.recoveryId = "recovery-owner";
     const connect = session.connect(); session.close(); resolve({generation:2,value:"synthetic"});
     await expect(connect).rejects.toThrow("replaced"); expect(peer).not.toHaveBeenCalled(); vi.unstubAllGlobals();
+  });
+  it("a realtime object is single-use even while its old credentials are hung", async () => {
+    recruitmentService.realtimeSecret.mockImplementationOnce(()=>new Promise(()=>{}));
+    const session = new RecruitmentRealtimeSession({token:"test",clientId:"client",recoveryId:"generation-owner",startedAt:new Date().toISOString(),audioElement:{}});
+    session.attemptKey="partition";session.connect().catch(()=>{});
+    await expect(session.connect()).rejects.toThrow("fresh connection");session.close();
   });
   it("closing AI transport leaves camera and microphone tracks alive", () => {
     const stop = vi.fn();

@@ -84,7 +84,7 @@ export class InterviewRecording {
     this.context = this.audioActivation.context;
     await bounded(this.audioActivation.ready, "Microphone audio", { signal, timeoutMs: 10000 });
     active();
-    if (this.context.state !== "running") throw Error("Microphone audio is suspended. Tap Resume to reacquire it.");
+    if (this.context.state !== "running") throw Error("Microphone audio is suspended. Tap Continue interview to reacquire it.");
     this.destination = this.context.createMediaStreamDestination();
     this.context.createMediaStreamSource(this.stream).connect(this.destination);
     this.recordingStream = new MediaStream([

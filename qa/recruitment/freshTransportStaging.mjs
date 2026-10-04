@@ -7,6 +7,9 @@ const origin="https://fnb-system-staging.vercel.app";
 const token=fs.readFileSync(`${dir}/invitation.txt`,"utf8").trim();
 const context=await chromium.launchPersistentContext(`${dir}/browser`,{headless:true,viewport:{width:390,height:844},permissions:["camera","microphone"],args:["--use-fake-device-for-media-stream","--use-fake-ui-for-media-stream","--autoplay-policy=no-user-gesture-required"]});
 await context.addInitScript(()=>{
+  const Peer=window.RTCPeerConnection;
+  window.qaPeers=[];
+  window.RTCPeerConnection=class extends Peer { constructor(...args){super(...args);window.qaPeers.push(this);} };
   window.qaHidden=false;
   Object.defineProperty(document,"hidden",{configurable:true,get:()=>window.qaHidden});
   const acquire=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
@@ -64,6 +67,16 @@ try {
   await resume().click();await connected();
   await page.screenshot({path:`${dir}/cold-refresh-resumed.png`});
   console.log("Cold refresh: durable bootstrap, bounded fresh acquisition failure, then effective retry connected.");
+  await expect(page.getByRole("button",{name:"Reconnect AI"})).toHaveCount(0);
+  const priorPeerCount=await page.evaluate(()=>window.qaPeers.length);
+  await page.evaluate(()=>{const peer=window.qaPeers.at(-1);peer.close();peer.dispatchEvent(new Event("connectionstatechange"));});
+  await expect(page.getByRole("heading",{name:"Interview interrupted"})).toBeVisible();
+  await expect(page.getByText("● Recording",{exact:true})).toHaveCount(0);
+  await expect(resume()).toBeEnabled();
+  await resume().click();await connected();
+  await expect.poll(()=>page.evaluate(()=>window.qaPeers.length)).toBe(priorPeerCount+1);
+  await expect(page.getByRole("button",{name:"Reconnect AI"})).toHaveCount(0);
+  console.log("Dead transport: capture stopped, one Continue action, fresh native peer and recording generation.");
   blockUploads=false;
   for(const item of held.splice(0)){await item.route.abort();item.resolve();}
   await page.getByRole("button",{name:"Stop and save partial interview"}).click();
