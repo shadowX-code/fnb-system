@@ -204,6 +204,10 @@ export const payrollService = {
   readTime: (legalEntityId, from, to) => command("payroll_time_read", {
     p_legal_entity_id: legalEntityId, p_from: from, p_to: to,
   }),
+  readTimeSource: id => command("payroll_time_source_read", { p_time_version_id: id }),
+  reconcileTimeSource: (runId, id, fingerprint) => command("payroll_time_source_reconcile", {
+    p_run_id: runId, p_time_version_id: id, p_source_fingerprint: fingerprint,
+  }),
   reconcileTime: (legalEntityId, from, to) => command("payroll_time_reconcile", {
     p_legal_entity_id: legalEntityId, p_from: from, p_to: to,
   }),
