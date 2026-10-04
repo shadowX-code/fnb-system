@@ -45,6 +45,9 @@ export class RecruitmentRealtimeSession {
   }
 
   async connect({ signal } = {}) {
+    if (this.connectionStarted) throw Error("Continue interview to start a fresh connection.");
+    this.connectionStarted = true;
+    if (!this.recoveryId) throw Error("Continue interview to restore your interview safely.");
     signal?.addEventListener("abort", () => this.close(), {once:true});
     if (this.closed) throw new Error("Interview session is closed.");
     if (!this.attemptKey) {
@@ -56,12 +59,6 @@ export class RecruitmentRealtimeSession {
         .map((part) => part.toString(16).padStart(2, "0"))
         .join("");
     }
-    const previousChannel = this.channel;
-    const previousPeer = this.peer;
-    this.channel = null;
-    this.peer = null;
-    previousChannel?.close();
-    previousPeer?.close();
     this.disconnectionSent = false;
     const secret = await recruitmentService.realtimeSecret(
       this.token,
@@ -104,6 +101,7 @@ export class RecruitmentRealtimeSession {
     channel.onmessage = (message) => {
       if (!this.closed && this.channel === channel) this.consume(message.data).catch(() => this.onStatus("transcript-pending"));
     };
+    channel.onerror = () => { if (!this.closed && this.channel === channel) this.disconnected(); };
     channel.onclose = () => {
       if (!this.closed && this.channel === channel) this.disconnected();
     };
