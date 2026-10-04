@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-04 — Durable interview / disposable browser transport
+
+Removed provider-only automatic/manual reconnect and separate audio controls from candidate recovery. Continue interview reconstructs fresh media, recording and realtime ownership together from durable context; dead transport/audio failures stop capture and expose the same retry action. Forty-four focused regressions, Staging rollback authority checks and changed-local-UI/real-Staging-provider reconstruction checks passed. Canonical dev delivery is pushed but Vercel rejected builds with a 24-hour deployment rate limit; previous READY Staging still serves the prior UX. No physical acceptance invitation is issued until the new canonical build is READY. Voice, reports, hiring authority and Production unchanged. Canonical owner: docs/domains/recruitment.md; evidence: qa/recruitment/freshTransportClosure.md.
+
 ## 2026-10-04 — Recruitment iOS native-first recovery
 
 Latest physical evidence isolates camera/microphone acquisition timeout after server-approved Resume; the device hook swallowed it and offered incorrect permission advice. Resume now invokes minimal native getUserMedia before audio activation, cleanup or server work, propagates distinct errors, validates fresh tracks and supports replacing pending recovery safely with one shared tab identity. Cold reconstruction shares the same path; bounded native/permission/activation diagnostics identify subsequent failures. Forty focused regressions, existing Staging rollback contracts and real-provider foreground/cold fault checks passed, with truthful Partial recording evidence. Physical WebKit acceptance remains pending; Production blocked and voice unchanged. Canonical owner: docs/domains/recruitment.md; evidence: qa/recruitment/iosRecoveryClosure.md.
