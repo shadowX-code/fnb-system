@@ -701,3 +701,7 @@ snapshots remain intact. Staging-only verification; no Production change.
 ## 2026-10-04 — Payable Time sequential save latency
 
 Daily Run decisions now commit audit/time evidence without whole-month recalculation, return canonical day/history, and advance the retained queue. Automatic calculation coalesces on finish/return; stale financial values remain unavailable. Audited request read-back and identical replay distinguish SQL rollback from lost responses. Profile-filtered latest compensation reads preserve history and existing calculation authorities. Verified 22-save cancellation/retry/reconciliation contracts on Staging; Production investigation was read-only.
+
+## 2026-10-04 — Forward pay-rule ordering repair
+
+Restored effective-date-only selection for monthly-basic and non-payable pay rules after the fast-decision migration applied compensation revision ordering too broadly. Compensation indexed reads and the short audited decision transaction remain intact. All pay-rule readers/types are checked against the actual unique effective-date schema; focused monthly/non-payable contracts and read-only Production closure preserve existing evidence. Canonical owner: docs/domains/payroll.md.
