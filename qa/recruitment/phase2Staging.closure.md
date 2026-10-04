@@ -19,7 +19,7 @@ Verified 2026-10-04. QA level **L3 Canonical**. Synthetic candidates only.
 | Admin authority | Existing owner read/playback succeeded; existing manager lacking permission denied; existing restricted account outside outlet scope denied by canonical scope helper. No temporary grants |
 | Public boundaries | Anonymous manager request 403; direct verification RPC/table 401; private media denied; revoked invitation unavailable |
 | Baseline candidate | Consent → device readiness → record → real OpenAI interview → transcript/coverage → saved. Final attempt Completed; recording Complete; verified MP4 5,028,714 bytes, 640×480 |
-| Conversation | Dynamic outcome follow-ups; EN, Chinese and BM responses and durable transcript. Scenario explicitly asked at turn 24, answered at turn 28; volunteered earlier answer cannot complete it |
+| Conversation | Dynamic outcome follow-ups; EN, Chinese and BM responses and durable transcript. Scenario explicitly asked at displayed turn 3, answered at displayed turn 4 (stored citation IDs 24 and 28); volunteered earlier answer cannot complete it |
 | Recovery candidate | Real provider reconnect while recorder stayed active; 18-second HTTP offline/upload retry; simulated visibility interruption; fresh camera capture; reload after lease expiry; same attempt and retained progress; explicit candidate partial stop |
 | Recovery evidence | Partial / Partial; three server-verified MP4s: 2,171,506 / 708,542 / 805,400 bytes. Manager browser loaded all at 640×480, durations 61.2994 / 20.25075 / 22.8479 s. First unit played. Background and reload gaps visibly disclosed |
 | Deadline recovery | Prior interrupted attempt reloaded after deadline and finalized Partial, retaining a playable unit; deadline forbids another AI session |
