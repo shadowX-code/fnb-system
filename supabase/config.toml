@@ -11,3 +11,6 @@ verify_jwt = false
 [functions.recruitment-evidence]
 # Invitation lease or canonical Admin Auth/scope is validated within the function.
 verify_jwt = false
+
+[functions.recruitment-report]
+verify_jwt = false

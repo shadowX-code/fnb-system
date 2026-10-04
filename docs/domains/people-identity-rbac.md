@@ -126,3 +126,7 @@ Employee Directory, Roles, Permissions, and audit-oriented views remain grouped 
 Legacy fields or labels must not become competing role or Auth-link authorities.
 External identity providers and HRIS synchronization remain deferred. Payroll now owns its separate effective-dated profile and foundation run authority in [Payroll](payroll.md); Employee Master remains its identity and legal-employer source, not its rate table.
 An explicit UUID employee-outlet assignment is planned as a future compatibility hardening phase. Until then, the established Employee Master workplace resolver remains the canonical relationship consumed by Crew Workforce.
+
+## Recruitment Hire handoff
+
+Recruitment's trusted manager Hire command creates an ordinary canonical Employee using the established Employee insert/auth-derived actor and initial employment-assignment triggers. It additionally requires Employee creation/view authority and the same workplace access boundary, validates active Position and Legal Employer, rejects duplicate person risks, and records exactly one applicant conversion. No login, role or Crew Access is created. The initial timeline remains current-only; Joined Date is not historical assignment evidence. Recruitment retains an immutable Employee link and hands off to the existing scoped People profile via the `employee` query parameter. People owns all remaining identity, employment history, access, compliance, document and onboarding commands. Recruitment report/decision rules are owned by [Recruitment](recruitment.md).

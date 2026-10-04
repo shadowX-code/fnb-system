@@ -8,6 +8,12 @@ async function call(name, args) {
 }
 
 export const recruitmentService = {
+  generateReport: async (applicationId, requestId, newVersion = false, attemptId = null) => {
+    const {data,error} = await supabase.functions.invoke("recruitment-report", {body:{application_id:applicationId,request_id:requestId,new_version:newVersion,attempt_id:attemptId}});
+    if(error){const detail=await error.context?.json?.().catch(()=>null);throw new Error(detail?.error||"Report generation unavailable.");} return data;
+  },
+  reviewReport: (reportId) => call("recruitment_report_review", {p_report_id:reportId}),
+  decide: ({applicationId,requestId,expectedState,decision,reason,hire,reportId}) => call("recruitment_decide", {p_application_id:applicationId,p_request_id:requestId,p_expected_state:expectedState,p_decision:decision,p_reason:reason,p_hire:hire,p_report_id:reportId}),
   adminData: (page = 1) => call("recruitment_admin_data", { p_page: page, p_page_size: 20 }),
   findApplicants: (query) => call("recruitment_find_applicants", { p_query: query }),
   saveOpening: (opening) => call("recruitment_save_opening", { p_opening: opening }),
@@ -24,8 +30,8 @@ export const recruitmentService = {
     if (data?.error) throw new Error(data.error);
     return data;
   },
-  managerEvidence: async (applicationId) => {
-    const { data, error } = await supabase.functions.invoke("recruitment-evidence", { body: { action: "manager", application_id: applicationId } });
+  managerEvidence: async (applicationId, attemptId = null) => {
+    const { data, error } = await supabase.functions.invoke("recruitment-evidence", { body: { action: "manager", application_id: applicationId, attempt_id: attemptId } });
     throwSupabaseError("recruitment-evidence", error); return data;
   },
   interruption: (token, clientId, reason) => call("recruitment_public_interruption", { p_token: token, p_client_id: clientId, p_reason: reason }),

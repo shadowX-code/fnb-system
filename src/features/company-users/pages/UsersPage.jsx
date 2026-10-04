@@ -1418,6 +1418,7 @@ export default function UsersPage({ ui, store, auth }) {
   const [employmentStatusFilter, setEmploymentStatusFilter] = useState([]);
   const [accountFilter, setAccountFilter] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
+  const [recruitmentHandoff] = useState(() => new URLSearchParams(window.location.search).get("employee"));
   const [profileMode, setProfileMode] = useState("view");
   const [formState, setFormState] = useState(null);
   const [actionMenuUserId, setActionMenuUserId] = useState(null);
@@ -1462,6 +1463,10 @@ export default function UsersPage({ ui, store, auth }) {
         ]);
         if (!ignore) {
           setUsers(employeeRows);
+          if (recruitmentHandoff) {
+            const employee = employeeRows.find(row => row.id === recruitmentHandoff);
+            if (employee) { setSelectedUser(employee); setProfileMode("view"); }
+          }
           setJobPositions(positionRows);
           setRoleRecords(roleRows);
           setLegalEntities(legalEntityRows);

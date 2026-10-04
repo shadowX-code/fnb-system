@@ -45,6 +45,7 @@ Deno.serve(async (request) => {
       });
       const { data, error } = await caller.rpc("recruitment_admin_evidence", {
         p_application_id: body.application_id,
+        p_attempt_id: body.attempt_id || null,
       });
       if (error || !data)
         return json({ error: "Interview evidence unavailable." }, 403);
@@ -304,8 +305,12 @@ Deno.serve(async (request) => {
         }),
       );
     }
-    if (body.action === "finalize")
-      return json(await rpc("recruitment_finalize", base));
+    if (body.action === "finalize") {
+      const result = await rpc("recruitment_finalize", base);
+      if (result.report_id) EdgeRuntime.waitUntil(fetch(`${url}/functions/v1/recruitment-report`, { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ report_id: result.report_id }) }).catch(() => undefined));
+      delete result.report_id;
+      return json(result);
+    }
     return json({ error: "Invalid evidence action." }, 400);
   } catch (error) {
     return json(
