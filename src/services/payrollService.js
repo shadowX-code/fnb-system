@@ -229,6 +229,7 @@ export const payrollService = {
   readPhProfile: (employeeId, date) => command("payroll_ph_profile_read", { p_employee: employeeId, p_date: date }),
   savePhProfile: (input) => command("payroll_ph_profile_save", { p_input: input }),
   savePhHistoricalWages: (input) => command("payroll_ph_wage_evidence_save", { p_input: input }),
+  previewPhTreatment: (input) => command("payroll_ph_treatment_preview", { p_input: input }),
   readPhStatutory: (runId, employeeId) => command("payroll_ph_statutory_read", { p_run: runId, p_employee: employeeId }),
   confirmPhStatutory: (input) => command("payroll_ph_statutory_confirm", { p_input: input }),
   readRules: () => command("payroll_rule_read", {}),

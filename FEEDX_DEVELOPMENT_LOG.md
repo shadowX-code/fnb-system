@@ -674,3 +674,12 @@ unchanged. Day decisions delegate to canonical Payable Time, append audited occu
 evidence and recalculate atomically. Scoped setup returns to the same holiday; old
 reviews and finalized snapshots retain their evidence. No Production data is backfilled.
 Verification evidence is recorded in the scoped Staging QA report.
+
+## 2026-10-04 — Operational PH Pay Treatment
+
+Published holiday review now offers statutory, custom allowance or explicit zero
+additional pay without mandatory reusable profile setup. Server previews pin pricing
+evidence; overrides append audit/compliance warnings and recalculate through existing
+Payroll/Payable Time authorities. Company benefits and PH overtime remain separate.
+Reusable statutory setup is Advanced tooling; original legal pricing and frozen
+snapshots remain intact. Staging-only verification; no Production change.

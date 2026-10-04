@@ -60,7 +60,7 @@ export function payrollIssueLabel(issue, context = {}) {
   const range = value => value?.replaceAll("..", " – ");
   const phReasons = {
     ph_schedule_wages_required: "Confirm the employee’s statutory PH wage basis for the applicable compensation version.",
-    ph_pay_profile_required: "Set up the employee’s effective PH Pay Profile once for reusable coverage and contractual hours.",
+    ph_pay_profile_required: "Review PH pay treatment; verified statutory evidence is available under Advanced.",
     ph_occurrence_review_required: "Review this holiday’s work and eligibility.",
     ph_historical_wage_evidence_required: "Historical wage evidence required: confirm the missing preceding wage-period record once.",
     ph_eligibility_review_required: "Verify PH entitlement: statutory coverage, contractual hours, wage basis and holiday eligibility.",
