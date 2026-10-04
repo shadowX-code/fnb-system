@@ -665,3 +665,12 @@ bases; unknown exclusions/historical wages/substitutions remain Review Required.
 Company benefit overlap requires contract evidence, preserving statutory cash and
 preventing an inclusive benefit from being paid twice. Day/hour earning groups and
 Draft/Final presentation share priced lines; finalized evidence is unchanged.
+
+## 2026-10-04 — Reusable Malaysia PH Pay Profile authority
+
+Split reusable statutory category/contract/company-overlap evidence and source-bound
+preceding wages from occurrence review. The existing Malaysia pricing pack remains
+unchanged. Day decisions delegate to canonical Payable Time, append audited occurrence
+evidence and recalculate atomically. Scoped setup returns to the same holiday; old
+reviews and finalized snapshots retain their evidence. No Production data is backfilled.
+Verification evidence is recorded in the scoped Staging QA report.

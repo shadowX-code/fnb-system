@@ -23,14 +23,45 @@ legal coverage/eligibility → current approved PH time → official statutory P
 → explicitly applicable company benefit → canonical priced earnings. No employment,
 holiday eligibility, normal hours or prior wage evidence is backfilled.
 
-`payroll_ph_eligibility_reviews` is append-only, Run/employee/day scoped evidence.
-`payroll_ph_statutory_confirm` derives actor, enforces canonical Run/employee outlet
-scope, locks the open Run, requires reference/reason, rechecks the current context,
-appends a request-bound review and recalculates that employee atomically. Changed
-request input is not a retry. Context pins People assignment, compensation, published
-calendar/geography, original time source, latest time decision, legal pack and company
-policy/decision. Changed context requires a new reviewed revision, not implicit reuse.
-History is exposed through the authorized PH read; source evidence is never rewritten.
+### Reusable PH Pay Profile and day review
+
+`payroll_ph_profile_versions` owns employee coverage, First Schedule category,
+contractual daily/weekly hours, regular part-time comparison/exclusions and company
+benefit overlap evidence. Confirm through scoped `payroll_ph_profile_save`; effective
+revisions carry forward until superseded. Dated employment establishes full-time
+context, and only completed matching template contracts establish contractual hours.
+Job title, roster and pay basis never establish a legal category. Changes to employment
+type, position, employer, pay basis, completed contract or company policy require
+profile review; compensation changes independently re-resolve wage evidence. Prior
+revisions remain immutable. Payroll Profiles and Run/day setup use the same command.
+
+`payroll_ph_wage_resolve` derives preceding qualifying regular wages/worked days from
+a complete canonical calculation: frozen Final evidence or an open calculation whose
+canonical input fingerprint still matches. It excludes premium earning categories and
+does not guess the treatment of additional earning components. Pure Monthly Basic can
+supply the ordinary/threshold wage basis; other remuneration requires explicit evidence.
+Manual wage basis remains bound to compensation, earning components and adjustments.
+Missing prior-month evidence uses `payroll_ph_wage_evidence_save` once per employee,
+employer and preceding wage period; append-only corrections bind the current original
+time/compensation/component source fingerprint. No confirmed current state proves
+older coverage, and historical source changes invalidate reusable manual wages.
+
+`payroll_ph_eligibility_reviews` remains append-only Run/employee/day evidence.
+`payroll_ph_statutory_confirm` now accepts occurrence intent only: retain approved time,
+explicitly approve roster hours, adjust time, confirm an eligible paid day not worked,
+or retain unresolved absence/substitution. It derives actor, checks Run/employee outlet
+scope, locks the open Run, requires a decision/correction reason, checks current context,
+delegates time changes to `payroll_time_decision_save`, appends the occurrence and
+recalculates atomically. Client legal/wage input is rejected. An absence concern cannot
+invent forfeiture or zero entitlement. Original Leave and pricing blockers remain.
+
+The effective projection combines the dated Profile, derived/reviewed wages and latest
+occurrence. Setup from a Run returns to the same employee/date; subsequent holidays
+reuse the profile and wage-period evidence. Snapshots pin resolved Profile/wage evidence
+alongside the day review. Legacy per-day reviews retain their original context-bound
+pricing semantics; they are not promoted into reusable profiles. Final/paid reads use
+frozen calculation evidence, and new setup affecting frozen periods requires the
+existing governed Payroll correction workflow.
 
 The effective `my_ph_2023_v1` formula pack extends the existing pay-rule registry;
 it is not a generic time multiplier. Generic PH rule publishing/pricing is disabled.
