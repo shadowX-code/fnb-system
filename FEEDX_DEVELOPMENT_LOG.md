@@ -1,5 +1,14 @@
 # FeedX Development Log
 
+## 2026-10-04 — PH treatment decision safety
+
+PH review now shows a server-owned financial preview with separate allowance,
+PH OT/company-benefit amounts, resolved day additions and the correction delta.
+Quotes bind the prior review; unavailable statutory decisions are disabled before
+confirmation. Confirmed Payable Time remains existing evidence with explicit edit
+disclosure. Monthly Basic is not counted twice. Existing pricing, approved-time,
+audited treatments, compliance warnings and frozen Payroll remain unchanged.
+
 ## 2026-10-04 — Recruitment interview recovery correction
 
 - Human Staging acceptance exposed refresh/background continuation failures and split spoken responses. Recruitment now retains the same attempt through explicit device reacquisition, server-owned paused-time recovery, separate recording-upload recovery and a single fenced realtime response owner. A non-reasoning OpenAI realtime model avoids the reproduced commentary/final-answer split; bounded private browser observations support subsequent diagnosis. Recording gaps and uncertain speech remain visible evidence. Physical-device reacceptance and Malaysian voice listening remain required; Production is blocked.
