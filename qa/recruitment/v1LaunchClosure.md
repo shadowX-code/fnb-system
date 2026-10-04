@@ -31,3 +31,7 @@ Primary recommended run: physical Android Chrome 154+, foreground/unlocked, no B
 At user direction, use canonical Staging `/i/<token>` and skip DNS now. `interview.feedx.my` does not currently resolve; Staging has only its Vercel alias. Read-only Vercel inspection identifies the external DNS nameservers and recommends `A interview.feedx.my → 76.76.21.21`. After acceptance and separate Production authorization, add the host to existing **fnb-system** Production project and publish the exact project-verified record; the guide records TLS/hostname/environment checks. No record/domain assignment was changed.
 
 The current public surface has no existing Privacy Notice destination/link. None was fabricated; no retention/deletion/legal terms were added. Approved consent resolves the previous copy blocker, but does not itself certify human/mobile E2E acceptance or authorize Production.
+
+## Subsequent human failure
+
+The prepared attempt failed real mobile acceptance on 4 October 2026: repeated/disconnected speech, refresh recovery, background continuation and insufficient Malaysian voice. The preparation checks above are historical and do not certify launch readiness. Recovery investigation and reacceptance supersede this handoff; Production remains blocked.

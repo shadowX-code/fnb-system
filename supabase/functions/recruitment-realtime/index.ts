@@ -56,14 +56,15 @@ Deno.serve(async (request) => {
     expires_after: { anchor: "created_at", seconds: 60 },
     session: {
       type: "realtime",
-      model: "gpt-realtime-2.1",
+      model: "gpt-realtime-1.5",
       output_modalities: ["audio"],
       tools: [{ type: "function", name: "request_completion", description: "Request server permission to conclude after collecting required topics and scenario answers. If declined, follow up on the unresolved evidence.", parameters: { type: "object", properties: {}, required: [], additionalProperties: false } }],
       instructions: interviewInstructions(context),
       audio: {
         input: {
-          transcription: { model: "gpt-4o-transcribe" },
-          turn_detection: { type: "semantic_vad", eagerness: "low", create_response: true, interrupt_response: true },
+          transcription: { model: "gpt-4o-transcribe", prompt: "F&B recruitment interview in Malaysia. English, Bahasa Malaysia and Mandarin Chinese, including natural Malaysian code-switching. Preserve the actual words; do not translate or invent speech from silence." },
+          noise_reduction: { type: "near_field" },
+          turn_detection: { type: "semantic_vad", eagerness: "low", create_response: false, interrupt_response: false },
         },
         output: { voice: interviewerProfile.voice },
       },

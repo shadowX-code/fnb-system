@@ -105,6 +105,12 @@ export class InterviewRecording {
     };
     this.recorder.onerror = () => this.onLost("recorder_error");
     this.recorder.onstop = () => this.resolveStop?.();
+    this.context.addEventListener("statechange", () => {
+      if (!this.stopping && this.context.state === "suspended") this.onLost("audio_context_suspended");
+    });
+    this.stream.getTracks().forEach(track => track.addEventListener("mute", () => {
+      if (!this.stopping) this.onLost("media_track_muted");
+    }, {once:true}));
     this.recorder.start(5000);
     this.onStatus("recording");
     this.timer = setInterval(() => this.drainChunks(), 10000);
@@ -178,18 +184,21 @@ export class InterviewRecording {
     this.stopping = true;
     clearInterval(this.timer);
     this.captureStopped = (async () => {
-      if (this.recorder?.state !== "inactive") {
-        await new Promise((resolve) => {
-          this.resolveStop = resolve;
-          this.recorder.stop();
+      let closed = true;
+      if (this.recorder && this.recorder.state !== "inactive") {
+        closed = await new Promise((resolve) => {
+          // Mobile suspension can prevent onstop. Do not hold recovery indefinitely.
+          const timer = setTimeout(() => resolve(false), 10000);
+          this.resolveStop = () => { clearTimeout(timer); resolve(true); };
+          try { this.recorder.stop(); } catch { clearTimeout(timer); resolve(false); }
         });
       }
       await this.writing;
       this.stream.getTracks().forEach((t) => t.stop());
       this.unit = {
         ...this.unit,
-        closed: true,
-        reason,
+        closed,
+        reason: closed ? reason : "recorder_stop_unconfirmed",
         elapsedEndMs: Math.max(0, Date.now() - this.startedAt),
       };
       await recordingStore.unit(this.unit);
@@ -253,7 +262,8 @@ export class InterviewRecording {
     this.onStatus("verified");
     return "verified";
   }
-  async recover() {
+  async recover({ deferUploads = false } = {}) {
+    const uploads = [];
     this.attemptKey = await interviewLocalKey(this.token);
     const units = await recordingStore.units(this.attemptKey);
     const state = await recruitmentService.evidence(
@@ -274,18 +284,10 @@ export class InterviewRecording {
           chunks.reduce((sum, c) => sum + Number(c.expected_bytes), 0) ===
             Number(unit.expected_bytes)
         ) {
-          await recruitmentService.evidence(
-            "assemble",
-            this.token,
-            this.clientId,
-            { unit_id: unit.id },
-          );
-          await recruitmentService.evidence(
-            "verify",
-            this.token,
-            this.clientId,
-            { unit_id: unit.id },
-          );
+          uploads.push(async () => {
+            await recruitmentService.evidence("assemble", this.token, this.clientId, { unit_id: unit.id });
+            await recruitmentService.evidence("verify", this.token, this.clientId, { unit_id: unit.id });
+          });
         } else
           await recruitmentService.evidence(
             "abandon",
@@ -296,9 +298,9 @@ export class InterviewRecording {
       }
     }
     for (const unit of units) {
-      if (unit.closed) await this.uploadUnit(unit);
+      if (unit.closed) uploads.push(() => this.uploadUnit(unit));
       else {
-        await recruitmentService.interruption(
+        if (!deferUploads) await recruitmentService.interruption(
           this.token,
           this.clientId,
           "reload_unfinalized_unit",
@@ -311,8 +313,12 @@ export class InterviewRecording {
           elapsedEndMs: chunks.at(-1)?.elapsedEndMs || 0,
         };
         await recordingStore.unit(recovered);
-        await this.uploadUnit(recovered);
+        uploads.push(() => this.uploadUnit(recovered));
       }
     }
+    this.uploadRecovery = (async () => {
+      for (const upload of uploads) await upload();
+    })();
+    if (!deferUploads) await this.uploadRecovery;
   }
 }

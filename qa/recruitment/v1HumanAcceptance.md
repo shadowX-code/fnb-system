@@ -1,8 +1,8 @@
 # FeedX AI Interview V1 — human Staging acceptance
 
-Status: **Prepared; human execution pending.** No voice-naturalness or full mobile-quality PASS is inferred from automated tests.
+Status: **First human execution failed; superseded by recovery reacceptance.** No voice-naturalness or full mobile-quality PASS is inferred from automated tests.
 
-## Prepared application
+## Original failed application (retained evidence)
 
 - Opening: **QA Service Crew — V1 real-device acceptance 2026-10-04**, configuration v1.
 - Canonical Position: Service Crew; existing QA Workplace: QA Demo — Reporting Posters; existing Legal Employer: FeedX V2 QA Employer.
@@ -38,7 +38,7 @@ Do not deliberately background, lock, reload or disconnect during the baseline. 
 
 ## What to judge about voice and conversation
 
-- Warm, natural, professional Malaysian F&B tone; subtle Malaysian English intonation, clear speech, comfortable pacing. No exaggerated accent or inserted “lah/lor/ah”. The base voice remains OpenAI `marin`; regional delivery is prompted, not a guaranteed/custom recorded voice.
+- Warm, natural, professional Malaysian F&B tone; subtle Malaysian English intonation, clear speech, comfortable pacing. No exaggerated accent or inserted “lah/lor/ah”. The original base voice was OpenAI `marin`; regional delivery is prompted, not a guaranteed/custom recorded voice.
 - Brief AI introduction; one question at a time; listens through normal pauses; useful follow-ups; short varied acknowledgement without repetitive praise.
 - Natural transitions using the answer; does not read a checklist, repeat established evidence or prolong the interview just to fill time.
 - Natural EN/BM/Chinese/code-switching pronunciation, comprehension, language matching and transcript fidelity. Accent/code-switching must never be framed as a weakness or suitability signal.
