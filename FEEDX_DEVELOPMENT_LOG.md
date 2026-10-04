@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-04 — Recruitment iOS native-first recovery
+
+Latest physical evidence isolates camera/microphone acquisition timeout after server-approved Resume; the device hook swallowed it and offered incorrect permission advice. Resume now invokes minimal native getUserMedia before audio activation, cleanup or server work, propagates distinct errors, validates fresh tracks and supports replacing pending recovery safely with one shared tab identity. Cold reconstruction shares the same path; bounded native/permission/activation diagnostics identify subsequent failures. Forty focused regressions, existing Staging rollback contracts and real-provider foreground/cold fault checks passed, with truthful Partial recording evidence. Physical WebKit acceptance remains pending; Production blocked and voice unchanged. Canonical owner: docs/domains/recruitment.md; evidence: qa/recruitment/iosRecoveryClosure.md.
+
 ## 2026-10-04 — Recruitment finite recovery after physical acceptance #2
 
 Preserved the failed physical attempt and located recovery failure after successful server resume but before new capture/provider ownership. Added bounded cancellable recovery stages, tap-time fresh audio/media acquisition, cold server bootstrap, idempotent server recovery fencing and pre-provider operational diagnostics. Old close/upload/transcript persistence no longer gates live continuation; gaps and invalid evidence remain truthful. Focused local/Staging contracts include the exact failed attempt in rollback. Voice changes are paused and Production remains blocked; fault injections do not certify physical-device behavior. Canonical owner: docs/domains/recruitment.md; scoped evidence: qa/recruitment/boundedRecoveryClosure.md.
