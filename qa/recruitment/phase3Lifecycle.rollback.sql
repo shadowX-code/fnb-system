@@ -13,13 +13,23 @@ begin
  insert into recruitment_interview_configs(id,opening_id,version,required_topics,scenario_briefs,target_minutes,max_minutes,created_by) values(config,op,1,'["Experience"]','[]',5,5,actor);
  insert into recruitment_applicants(id,full_name,contact,created_by) values(person,'QA Phase3 '||person,'QA-'||person,actor);
  insert into recruitment_applications(id,applicant_id,opening_id,opening_title_snapshot,opening_description_snapshot,position_snapshot,workplace_snapshot,legal_entity_snapshot,created_by) values(app,person,op,'QA','','QA','Management','QA',actor);
- insert into recruitment_invitations(id,application_id,token_hash,expires_at,issued_by) values(invitation,app,encode(extensions.digest(op::text,'sha256'),'hex'),clock_timestamp()+interval '1 hour',actor);
+ insert into recruitment_invitations(id,application_id,token_hash,expires_at,issued_by) values(invitation,app,encode(extensions.digest(repeat(replace(op::text,'-',''),2),'sha256'),'hex'),clock_timestamp()+interval '1 hour',actor);
  insert into recruitment_interview_attempts(id,invitation_id,application_id,opening_id,config_version_id,status,recording_state) values(attempt,invitation,app,op,config,'partial','partial');
  insert into recruitment_transcript_turns(attempt_id,provider_generation,provider_item_id,speaker,transcript,turn_number,elapsed_end_ms) values(attempt,1,'qa-item','candidate','I worked in a café.',1,1000);
- report:=recruitment_report_prepare(app,request);
+ -- Service finalization must enqueue the pinned report atomically, even for failed recording.
+ update recruitment_interview_attempts set status='finalizing',lease_owner=request,lease_expires_at=clock_timestamp()+interval '45 seconds',interview_started_at=clock_timestamp()-interval '5 seconds',interview_ended_at=clock_timestamp(),completion_reason='candidate_stop' where id=attempt;
+ result:=recruitment_finalize(repeat(replace(op::text,'-',''),2),request);
+ report:=(result->>'report_id')::uuid;
+ perform pg_temp.assert(result->>'status'='failed' and report is not null,'Finalization did not enqueue report');
+ perform pg_temp.assert((select source_snapshot->'attempt'->>'status'='failed' and status='queued' from recruitment_reports where id=report),'Report did not pin finalized evidence');
+ perform pg_temp.assert(report=recruitment_report_prepare(app,request),'Manager recovery duplicated auto-enqueued report');
  perform pg_temp.assert(report=recruitment_report_prepare(app,gen_random_uuid()),'Automatic report replaced existing version');
  claim:=recruitment_report_claim(report);
  perform pg_temp.assert(recruitment_report_claim(report)->>'status'='generating','Concurrent generation obtained lease');
+ update recruitment_reports set lease_until=clock_timestamp()-interval '1 second' where id=report;
+ payload:=recruitment_report_claim(report);
+ begin perform recruitment_report_finish(report,(claim->>'generation_id')::uuid,'{}',null,null); raise exception 'Expired worker published'; exception when serialization_failure then null; end;
+ claim:=payload;
  perform recruitment_report_finish(report,(claim->>'generation_id')::uuid,'{"candidate_snapshot":[]}',null,null);
  perform recruitment_report_review(report);
  begin update recruitment_reports set body='{}' where id=report; raise exception 'Reviewed report changed'; exception when object_not_in_prerequisite_state then null; end;
@@ -38,6 +48,7 @@ begin
  begin perform recruitment_issue_invitation(app,clock_timestamp()+interval '1 hour');raise exception 'Hired applicant invited again';exception when raise_exception then if sqlerrm='Hired applicant invited again' then raise;end if;end;
  insert into recruitment_openings(id,title,position_id,workplace,legal_entity_id,status,created_by,updated_by) values(op2,'QA Phase3 second',position_id,'Management',entity,'open',actor,actor);
  insert into recruitment_applications(id,applicant_id,opening_id,opening_title_snapshot,opening_description_snapshot,position_snapshot,workplace_snapshot,legal_entity_snapshot,created_by) values(app2,person,op2,'QA','','QA','Management','QA',actor);
+ begin perform recruitment_decide(app2,gen_random_uuid(),'review','shortlisted','',null,report);raise exception 'Foreign report attached to decision';exception when raise_exception then if sqlerrm='Foreign report attached to decision' then raise;end if;end;
  perform recruitment_decide(app2,gen_random_uuid(),'review','shortlisted');
  begin perform recruitment_decide(app2,gen_random_uuid(),'shortlisted','hired','',payload);raise exception 'Second application duplicated person';exception when unique_violation then null;end;
  perform recruitment_decide(app2,gen_random_uuid(),'shortlisted','final_interview');
