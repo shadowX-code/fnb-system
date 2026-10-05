@@ -1,3 +1,4 @@
+import { canonicalPathForRoute } from '../../../app/routeOwnership.js';
 import { useState } from 'react';
 import Modal from '../../../components/feedback/Modal.jsx';
 import DataTable from '../../../components/tables/DataTable.jsx';
@@ -17,7 +18,7 @@ const differences = {
   extra_time: 'Extra time / OT candidate',
 };
 
-export default function PayrollPayableTimeReview({ employee, month, canManage, onClose, onDecisionSaved, runId }) {
+export default function PayrollPayableTimeReview({ employee, month, canManage, canViewLeave = false, frozen = false, onClose, onDecisionSaved, runId }) {
   const [decisionDate, setDecisionDate] = useState(null);
   const [correcting, setCorrecting] = useState(false);
   const [queue, setQueue] = useState([]);
@@ -40,15 +41,16 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
     { key:'roster',header:'Duty Roster',render:row => <div>{interval(row.evidence?.scheduled_start_at,row.evidence?.scheduled_end_at)}
       <small className="block text-text-secondary">{hours(row.scheduled_minutes)} payable · {row.evidence?.roster_break_minutes == null ? 'Break not established' : `${row.evidence.roster_break_minutes}m unpaid break`}</small></div> },
     { key:'clock',header:'Clock In–Out',render:row => interval(row.evidence?.clock_in_at,row.evidence?.clock_out_at) },
+    { key:'leave',header:'Leave',render:row => <div>{row.evidence?.leave_id ? `Approved ${human(row.evidence.leave_type)} Leave` : 'No approved Leave'}{row.evidence?.leave_id && <small className="block text-text-secondary">Leave-owned evidence{canManage && canViewLeave && <a className="mt-1 block font-semibold text-primary" href={canonicalPathForRoute('crew_leave')} target="_blank" rel="noopener noreferrer">View in Leave</a>}</small>}</div> },
     { key:'actual',header:'Actual',align:'right',render:row => <span className="whitespace-nowrap tabular-nums">{hours(row.actual_minutes)}</span> },
     { key:'difference',header:'Difference',render:row => <div className="max-w-44">{row.issue_codes?.length ? row.issue_codes.map(issue => differences[issue] || human(issue)).join(' · ') : 'No discrepancy'}
       {Number(row.evidence?.extra_candidate_minutes) > 0 && <small className="block text-text-secondary">Extra candidate {hours(row.evidence.extra_candidate_minutes)}</small>}
       {Number(row.approved_extra_minutes) > 0 && <small className="block text-text-secondary">Approved OT {hours(row.approved_extra_minutes)}</small>}</div> },
-    { key:'payable',header:'Payable',align:'right',render:row => <div className="whitespace-nowrap tabular-nums"><strong>{row.approved_minutes == null ? 'Awaiting review' : hours(Number(row.approved_minutes) + Number(row.approved_extra_minutes || 0))}</strong>
+    { key:'payable',header:'Payable',align:'right',render:row => <div className="whitespace-nowrap tabular-nums"><strong>{row.approved_minutes == null ? row.review_state?.automatic ? 'Monthly salary / Leave rules' : 'Awaiting review' : hours(Number(row.approved_minutes) + Number(row.approved_extra_minutes || 0))}</strong>
       <small className="block text-text-secondary">Proposed {hours(row.proposed_minutes)}</small><small className="block text-text-secondary">{human(row.classification)}</small></div> },
     { key:'status',header:'Status',render:row => <div><Badge tone={payrollTimeNeedsReview(row) ? 'warning' : 'success'}>{payrollTimeNeedsReview(row) && row.source_state?.updated ? 'Source Updated' : payrollTimeNeedsReview(row) ? 'Review Required' : row.review_state?.automatic || row.status === 'approved_auto' ? 'Resolved automatically' : human(row.status)}</Badge>
-      {canManage && (payrollTimeNeedsReview(row)) && <button type="button" className="mt-1 block font-semibold text-primary" onClick={()=>startReview(row)}>{row.source_state?.updated ? 'Review source changes' : 'Review exception'}</button>}
-      {canManage && !payrollTimeNeedsReview(row) && !row.review_state?.automatic && <button type="button" className="mt-1 block font-semibold text-primary" onClick={() => { setCorrecting(true); setLatestRows(rows); setDecisionDate(row.work_date); }}>Correct Decision</button>}
+      {canManage && !frozen && (payrollTimeNeedsReview(row)) && <button type="button" className="mt-1 block font-semibold text-primary" onClick={()=>startReview(row)}>{row.source_state?.updated ? 'Review source changes' : 'Review exception'}</button>}
+      {canManage && !frozen && !payrollTimeNeedsReview(row) && !row.evidence?.leave_id && <button type="button" className="mt-1 block font-semibold text-primary" onClick={() => { setCorrecting(true); setLatestRows(rows); setDecisionDate(row.work_date); }}>{row.status === 'review_required' ? 'Adjust Payable Time' : 'Correct Decision'}</button>}
       {!!row.history?.length && <details className="mt-1 text-xs text-text-secondary"><summary>Evidence / history</summary>{row.history.map(version => <p key={version.id} className="mt-1">{human(version.status)} · {hours(version.approved_minutes)}{version.reason ? ` · ${version.reason}` : ''}{version.at ? ` · ${new Date(version.at).toLocaleString()}` : ''}</p>)}</details>}</div> },
   ];
   const decision = rows.find(row => row.work_date === decisionDate);
@@ -61,7 +63,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
       setDecisionDate(next.work_date);
     } else onClose();
   };
-  if (decision && canManage) return <DecisionModal key={decision.id} row={decision} runId={runId} correction={correcting}
+  if (decision && canManage && !frozen) return <DecisionModal key={decision.id} row={decision} runId={runId} correction={correcting}
     progress={correcting ? "Correct reviewed payable time" : `${index + 1} of ${queue.length} exceptions`}
     saveLabel={correcting ? 'Save Correction' : exceptions.some(row => row.work_date !== decisionDate) ? 'Save & Next' : 'Save & Finish'}
     onPrevious={!correcting && index > 0 ? () => setDecisionDate(queue[index - 1]) : null}
@@ -80,8 +82,8 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
       setLatestRows(updated);
       if (correcting) { setDecisionDate(null); setCorrecting(false); } else advance(updated, decisionDate);
     }} />;
-  return <Modal title={`Time & Attendance Review · ${employee.name}`} description={`${month} · Published roster and original clock evidence. Only Payroll payable time can be changed.`}
-    size="xl" onClose={onClose} footer={<><button type="button" className="btn-secondary" onClick={onClose}>Back to Employee Review</button>{canManage && exceptions.length > 0 && <button type="button" className="btn-primary" onClick={() => startReview(exceptions[0])}>Continue Review</button>}</>}>
+  return <Modal title={`Time & Attendance · ${employee.name}`} description={`${month} · ${frozen ? "Finalized evidence · Read-only; changes require a Correction Revision." : "Roster, clock and approved Leave evidence. Corrections retain the original evidence."}`}
+    size="xl" onClose={onClose} footer={<><button type="button" className="btn-secondary" onClick={onClose}>Back to Employee Review</button>{canManage && !frozen && exceptions.length > 0 && <button type="button" className="btn-primary" onClick={() => startReview(exceptions[0])}>Continue Review</button>}</>}>
     <div className="space-y-4 text-sm">
       {employee.pay?.pay_basis === 'hourly' && <dl className="grid grid-cols-2 gap-3 border-b border-border pb-4 lg:grid-cols-5">
         {[["Scheduled Hours",total('scheduled_minutes')],["Actual Hours",total('actual_minutes')],
@@ -90,9 +92,10 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
           ["Calculated Regular Earnings",employee.pay?.pay_basis !== 'hourly' ? 'Included in monthly salary' : (employee.result.earningsAvailable ?? employee.result.earningsCurrent) ? money(regular.reduce((total,line)=>total+Number(line.amount),0)) : 'Pending calculation']].map(([label,value])=>
           <div key={label}><dt className="text-xs text-text-secondary">{label}</dt><dd className="mt-1 font-bold tabular-nums">{value}</dd></div>)}
       </dl>}
-      <p className="text-xs text-text-secondary">Totals cover recorded time results; missing durations are not assumed. {exceptions.length} exception{exceptions.length === 1 ? '' : 's'} require review. Complete evidence resolves automatically.</p>
+      <p className="text-xs text-text-secondary">{frozen ? "Pinned time evidence only; current Roster, Attendance and Leave are not read." : exceptions.length ? `${exceptions.length} pay-impacting exception${exceptions.length === 1 ? '' : 's'} require review.` : "Time & Attendance — Ready. Complete evidence requires no approval."} Public Holiday treatment is reviewed separately.</p>
+      {canManage && !frozen && <p className="text-xs text-text-secondary">Use Adjust Payable Time / Correct Decision only for a genuine Payroll treatment correction. Approved Leave must be corrected through Leave; Payroll cannot create or change a Leave record.</p>}
       {employee.pay?.pay_basis === 'hourly' && <p className="text-xs text-text-secondary">Regular earnings use approved Regular hours and date-effective rates with canonical per-day rounding—not raw clock duration. OT, rest-day and public-holiday work use separate approved classifications and existing pay rules.</p>}
-      {rows.length ? <DataTable density="compact" columns={columns} rows={rows} getRowKey={row=>row.id} /> : <p className="py-6 text-text-secondary">No payable-time results yet. Use Refresh time evidence in Prepare Payroll to reconcile the published roster and Attendance.</p>}
+      {rows.length ? <DataTable density="compact" columns={columns} rows={rows} getRowKey={row=>row.id} /> : <p className="py-6 text-text-secondary">{frozen ? "No frozen daily time evidence is available for this revision." : "No recorded daily time evidence. Reconcile source evidence in Prepare Payroll when required."}</p>}
     </div>
   </Modal>;
 }

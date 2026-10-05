@@ -52,7 +52,7 @@ export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Re
   const save = async () => {
     setBusy(true); setError("");
     try {
-      if (!recorded) { const intent = pendingIntent || { id: row.id, runId, requestId, correction, action: action === "roster" ? "adjust" : action,
+      if (!recorded) { const intent = pendingIntent || { id: row.id, runId, requestId, correction: correction && reviewed, action: action === "roster" ? "adjust" : action,
         approvedMinutes: action === "reject" ? 0 : Number(minutes),
         extraMinutes: action === "reject" ? 0 : Number(extra),
         classification: action === "reject" ? "non_payable" : classification, reason };

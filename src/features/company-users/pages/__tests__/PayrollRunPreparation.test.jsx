@@ -107,9 +107,9 @@ it("shows calculated adjustment provenance once and derives the chosen component
   expect(screen.queryByText("This Period Adjustments")).toBeNull();
   fireEvent.click(screen.getByRole("button",{name:"Add Adjustment",exact:true}));
   expect(screen.queryByRole("button",{name:"Earning"})).toBeNull();
-  fireEvent.click(screen.getByRole("button",{name:"Select"}));
-  expect(screen.getByRole("button",{name:"Unresolved component · Allowance · Setup required"}).disabled).toBe(true);
-  fireEvent.click(screen.getByRole("button",{name:"QA Deduction · Deduction"}));
+  fireEvent.click(screen.getByRole("button",{name:/Pay Component/}));
+  expect(screen.getByRole("option",{name:"Unresolved component · Allowance · Setup required"}).disabled).toBe(true);
+  fireEvent.click(screen.getByRole("option",{name:"QA Deduction · Deduction"}));
   expect(screen.getByText("Deduction")).toBeTruthy();
 });
 it("advances from committed day read-back without waiting for month projections", async () => {
@@ -148,15 +148,15 @@ it("uses a compact processing table and keeps bank absence informational", async
   expect(screen.getByText(/1,900.00/)).toBeTruthy();
   await waitFor(()=>expect(snapshot).toHaveBeenLastCalledWith(expect.objectContaining({runId:"run",rows:[expect.objectContaining({needsReview:false})]})));
   fireEvent.click(screen.getByRole("button",{name:"Review pay basis"}));
-  fireEvent.click(screen.getByRole("button",{name:"Hourly",exact:true}));
+  fireEvent.click(screen.getByRole("option",{name:"Hourly",exact:true}));
   expect(screen.getByText("No employees match these review filters.")).toBeTruthy();
   fireEvent.click(screen.getByRole("button",{name:"Review pay basis"}));
-  fireEvent.click(screen.getByRole("button",{name:"All",exact:true}));
+  fireEvent.click(screen.getByRole("option",{name:"All",exact:true}));
   fireEvent.click(screen.getByRole("button",{name:"Review status"}));
-  fireEvent.click(screen.getByRole("button",{name:"Need Attention",exact:true}));
+  fireEvent.click(screen.getByRole("option",{name:"Need Attention",exact:true}));
   expect(screen.getByText("No employees match these review filters.")).toBeTruthy();
   fireEvent.click(screen.getByRole("button",{name:"Review status"}));
-  fireEvent.click(screen.getByRole("button",{name:"All",exact:true}));
+  fireEvent.click(screen.getByRole("option",{name:"All",exact:true}));
   fireEvent.change(screen.getByRole("searchbox",{name:"Search Employee"}),{target:{value:"unknown"}});
   expect(screen.getByText("No employees match these review filters.")).toBeTruthy();
   fireEvent.change(screen.getByRole("searchbox",{name:"Search Employee"}),{target:{value:"QA"}});
@@ -217,7 +217,7 @@ it('shows resolved Regular aggregate while an independent PH blocker keeps overa
  expect(screen.getByText(/requires a verified Malaysia hourly PH/)).toBeTruthy();
 });
 
-it('shows clean Monthly time Ready from canonical evidence without daily approval or an action', async () => {
+it('shows clean Monthly time Ready from canonical evidence without daily approval, with View Time access', async () => {
   mocks.readTime.mockResolvedValue([{employee_id:'employee',status:'review_required',work_date:'2026-09-01',review_state:{required:false,automatic:true,state:'ready'}}]);
   mocks.readPreparation.mockResolvedValue({results:[{employee_id:'employee',time_exception_count:0,time_relevant:false,projection:{status:'ready',issues:[],inputs:{compensation_start:{id:'pay',pay_basis:'monthly',basic_salary:3000}}}}]});
   render(<PayrollRunEmployeesPanel {...props} />);
@@ -235,6 +235,26 @@ it('counts only canonical unresolved time exceptions when PH and normal rows coe
   render(<PayrollRunEmployeesPanel {...props} />);
   await screen.findByText('1 exception');
   fireEvent.click(screen.getByRole('button',{name:'Review Time for QA Employee'}));
-  expect(screen.getByRole('dialog',{name:'Time & Attendance Review · QA Employee'})).toBeTruthy();
+  expect(screen.getByRole('dialog',{name:'Time & Attendance · QA Employee'})).toBeTruthy();
   expect(screen.queryByText('2026-09-16')).toBeNull();
+});
+
+it('Ready → View Time → Draft correction invalidates the employee and resumes automatic calculation', async () => {
+ const ready={id:'ready-time',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-25',status:'approved_auto',classification:'regular',approved_minutes:480,proposed_minutes:480,evidence:{},review_state:{required:true,state:'ready'}};
+ const corrected={...ready,id:'corrected-time',status:'approved_manual',approved_minutes:420};
+ mocks.decideTime.mockClear().mockResolvedValue({row:corrected});
+ const invalidate=vi.fn(),suspend=vi.fn(),refresh=vi.fn().mockResolvedValue(true);
+ const data={time:[ready],preparation:{results:[{employee_id:'employee',time_exception_count:0,projection:{status:'ready',inputs:{compensation_start:{id:'pay',pay_basis:'hourly',hourly_rate:8}}}}]},calculation:{results:[],adjustments:[]},statutory:{results:[]},pcb:{results:[]}};
+ render(<PayrollRunEmployeesPanel {...props} runRead={{data,invalidateEmployee:invalidate,setTimeReviewActive:suspend,refresh}} />);
+ await screen.findByRole('button',{name:'View Time for QA Employee'});
+ fireEvent.click(screen.getByRole('button',{name:'View Time for QA Employee'}));
+ fireEvent.click(screen.getByRole('button',{name:'Correct Decision'}));
+ fireEvent.change(screen.getByRole('spinbutton',{name:/Approved payable minutes/}),{target:{value:'420'}});
+ fireEvent.change(screen.getByRole('textbox',{name:/Correction reason/}),{target:{value:'Verified genuine hours correction'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save Correction'}));
+ await waitFor(()=>expect(invalidate).toHaveBeenCalledWith('employee'));
+ expect(suspend).toHaveBeenCalledWith(true);
+ fireEvent.click(await screen.findByRole('button',{name:'Back to Employee Review'}));
+ expect(suspend).toHaveBeenLastCalledWith(false);
+ await waitFor(()=>expect(refresh).toHaveBeenCalled());
 });

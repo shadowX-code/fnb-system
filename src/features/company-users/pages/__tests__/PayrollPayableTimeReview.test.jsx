@@ -78,8 +78,10 @@ it('offers published roster hours explicitly without approving a missing proposa
   render(<PayrollPayableTimeReview employee={{...employee,time:[missing]}} month="2026-09" canManage onClose={()=>{}} onDecisionSaved={refresh} />);
   fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
   expect(screen.queryByRole('button',{name:'Approve proposed time'})).toBeNull();
-  fireEvent.click(screen.getByRole('button',{name:'Adjust Payable Time'}));
-  fireEvent.click(screen.getByRole('button',{name:'Approve Roster Hours'}));
+  fireEvent.click(screen.getByRole('button',{name:'Decision'}));
+  fireEvent.click(screen.getByRole('option',{name:'Adjust Payable Time'}));
+  fireEvent.click(screen.getByRole('button',{name:'Decision'}));
+  fireEvent.click(screen.getByRole('option',{name:'Approve Roster Hours'}));
   expect(screen.getByRole('spinbutton',{name:/Approved payable minutes/}).value).toBe('480');
   expect(screen.getByRole('button',{name:'Save & Finish'}).disabled).toBe(true);
   fireEvent.click(screen.getByRole('button',{name:'Roster hours verified'}));
@@ -93,10 +95,12 @@ it('rejects explicitly at zero and does not offer unpublished roster or null pro
   const missing={...row,proposed_minutes:null,issue_codes:['missing_punch']};
   render(<PayrollPayableTimeReview employee={{...employee,time:[missing]}} month="2026-09" canManage onClose={()=>{}} onDecisionSaved={async()=>[{...missing,status:'non_payable',approved_minutes:0}]} />);
   fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
-  fireEvent.click(screen.getByRole('button',{name:'Adjust Payable Time'}));
+  fireEvent.click(screen.getByRole('button',{name:'Decision'}));
+  fireEvent.click(screen.getByRole('option',{name:'Adjust Payable Time'}));
   expect(screen.queryByRole('button',{name:'Approve Roster Hours'})).toBeNull();
   expect(screen.queryByRole('button',{name:'Approve proposed time'})).toBeNull();
-  fireEvent.click(screen.getByRole('button',{name:'Reject / Non-payable'}));
+  fireEvent.click(screen.getByRole('button',{name:'Decision'}));
+  fireEvent.click(screen.getByRole('option',{name:'Reject / Non-payable'}));
   fireEvent.click(screen.getByRole('button',{name:'Absence confirmed'}));
   fireEvent.click(screen.getByRole('button',{name:'Save & Finish'}));
   await waitFor(()=>expect(mocks.decideTime).toHaveBeenCalledWith(expect.objectContaining({action:'reject',approvedMinutes:0,extraMinutes:0,classification:'non_payable'})));
@@ -107,7 +111,9 @@ it('retains a real zero proposal and requires canonical read-back before advanci
   const zero={...row,proposed_minutes:0};
   render(<PayrollPayableTimeReview employee={{...employee,time:[zero]}} month="2026-09" canManage onClose={()=>{}} onDecisionSaved={async()=>[zero]} />);
   fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
-  expect(screen.getByRole('button',{name:'Approve proposed time'})).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'Decision'}));
+  expect(screen.getByRole('option',{name:'Approve proposed time'})).toBeTruthy();
+  fireEvent.click(screen.getByRole('option',{name:'Approve proposed time'}));
   fireEvent.click(screen.getByRole('button',{name:'Clock evidence reviewed'}));
   fireEvent.click(screen.getByRole('button',{name:'Save & Finish'}));
   await screen.findByRole('alert');
@@ -159,4 +165,31 @@ it('uses server pay-impact states for Monthly evidence and excludes PH from the 
   expect(screen.queryByText('Hourly Rate')).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
   expect(screen.getByText('1 of 1 exceptions')).toBeTruthy();
+});
+
+it('opens an automatically resolved Monthly day for an explicit audited adjustment', async () => {
+ mocks.decideTime.mockClear().mockResolvedValue({});
+ const ready={...row,status:'review_required',issue_codes:[],review_state:{required:false,automatic:true,state:'ready'}};
+ const close=vi.fn();
+ render(<PayrollPayableTimeReview employee={{...employee,pay:{pay_basis:'monthly',basic_salary:3000},time:[ready]}} runId="run" month="2026-09" canManage onClose={close} onDecisionSaved={async()=>[{...ready,status:'approved_manual',approved_minutes:300,review_state:{required:true,automatic:false,state:'ready'}}]} />);
+ expect(screen.queryByRole('button',{name:'Continue Review'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Adjust Payable Time'}));
+ fireEvent.change(screen.getByRole('spinbutton',{name:/Approved payable minutes/}),{target:{value:'300'}});
+ fireEvent.change(screen.getByRole('textbox',{name:/Correction reason/}),{target:{value:'Supporting evidence confirms short attendance'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save Correction'}));
+ await waitFor(()=>expect(mocks.decideTime).toHaveBeenCalledWith(expect.objectContaining({correction:false,approvedMinutes:300,runId:'run'})));
+ await screen.findByRole('button',{name:'Correct Decision'});
+ expect(close).not.toHaveBeenCalled();
+});
+it('keeps approved unpaid Leave source-owned and finalized evidence read-only', () => {
+ const leave={...row,status:'non_payable',approved_minutes:0,evidence:{leave_id:'leave',leave_type:'unpaid'},review_state:{required:false,automatic:true,state:'ready'}};
+ const view=render(<PayrollPayableTimeReview employee={{...employee,time:[leave]}} month="2026-09" canManage canViewLeave onClose={()=>{}} />);
+ expect(screen.getByText('Approved Unpaid Leave')).toBeTruthy();
+ expect(screen.getByRole('link',{name:'View in Leave'}).getAttribute('href')).toBe('/crew/workforce/leave');
+ expect(screen.queryByRole('button',{name:'Correct Decision'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Adjust Payable Time'})).toBeNull();
+ view.rerender(<PayrollPayableTimeReview employee={{...employee,time:[{...row,status:'approved_manual',approved_minutes:390}]}} month="2026-09" canManage={false} frozen onClose={()=>{}} />);
+ expect(screen.queryByRole('button',{name:/Correct Decision|Review exception/})).toBeNull();
+ expect(screen.queryByRole('link',{name:'View in Leave'})).toBeNull();
+ expect(screen.getByText(/Finalized evidence/)).toBeTruthy();
 });

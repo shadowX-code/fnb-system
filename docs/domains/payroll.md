@@ -190,8 +190,17 @@ Older foundation revisions without financial snapshots explicitly show unavailab
 evidence rather than inventing values. Corrections remain separate revisions;
 this presentation does not create a payslip or payment authority.
 
-Employee review exposes **Review Time** only for canonical pay-impacting unresolved
-time evidence. Monthly Basic does not depend on daily hours approval: complete normal
+Employee review exposes **View Time** for Ready evidence and **Review Time** for
+canonical pay-impacting unresolved time evidence. Both open the same daily evidence
+surface. Ready is a review state, not a Draft correction lock: authorized Admin can
+append a reasoned payable-treatment correction on a non-Leave day, including
+automatically resolved attendance. Approved Leave is read-only here and links to
+its owning Leave authority; Payroll never creates Leave evidence. Returning from
+a saved correction resumes the existing stale → automatic calculation flow.
+Finalized View Time reads only pinned `payroll_run_time_snapshots` and immutable
+versions/history up to the pinned revision through the existing finalized record
+read. Missing legacy snapshots are explicitly unavailable; later source changes
+do not enter the frozen view. PH treatment stays separate. Monthly Basic does not depend on daily hours approval: complete normal
 attendance resolves directly, and approved paid/unpaid Leave is consumed by the
 existing Monthly entitlement authority. Full-day unpaid Leave reduces Basic once;
 overlap, Attendance conflicts, unsupported units, jurisdiction and incomplete
