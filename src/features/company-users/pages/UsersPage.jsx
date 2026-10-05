@@ -16,7 +16,7 @@ import { malaysiaBankOptions, MALAYSIA_BANKS } from "../../../constants/malaysia
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL, normalizeEmployeeAccessState } from "../../../constants/employeeAccessStates.js";
-import { employeeService } from "../../../services/employeeService.js";
+import { employeeService, EMPLOYEE_BANK_CHANGE_KEY } from "../../../services/employeeService.js";
 import { employeeComplianceService } from "../../../services/employeeComplianceService.js";
 import EmployeeDisciplinaryPanel from "../components/EmployeeDisciplinaryPanel.jsx";
 import EmployeeEmploymentDocumentsPanel from "../components/EmployeeEmploymentDocumentsPanel.jsx";
@@ -1738,6 +1738,9 @@ export default function UsersPage({ ui, store, auth }) {
       }
       if (saved.auth_user_id && saved.auth_user_id === auth?.user?.id) {
         await auth?.refreshContext?.();
+      }
+      if (section === "bank") {
+        try { window.localStorage.setItem(EMPLOYEE_BANK_CHANGE_KEY, JSON.stringify({ id: saved.id, at: Date.now() })); } catch { /* Focus/visibility revalidation remains available. */ }
       }
       setSelectedUser(null);
       setFormState(null);

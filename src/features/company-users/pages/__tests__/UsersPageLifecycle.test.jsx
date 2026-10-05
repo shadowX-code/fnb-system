@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   onboarding: { sendLoginSetupEmail: vi.fn() },
 }));
 
-vi.mock("../../../../services/employeeService.js", () => ({ employeeService: mocks.employees }));
+vi.mock("../../../../services/employeeService.js", () => ({ employeeService: mocks.employees, EMPLOYEE_BANK_CHANGE_KEY: "feedx:employee-bank-change" }));
 vi.mock("../../../../services/jobPositionService.js", () => ({ jobPositionService: mocks.positions }));
 vi.mock("../../../../services/roleService.js", () => ({ roleService: mocks.roles }));
 vi.mock("../../../../services/employeeAuthOnboardingService.js", () => ({ employeeAuthOnboardingService: mocks.onboarding }));
