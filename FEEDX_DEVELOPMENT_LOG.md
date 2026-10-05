@@ -732,3 +732,7 @@ frozen evidence. Production remains unchanged.
 ## 2026-10-05 — Canonical LINDUNG Company PH wage treatment
 
 Closed the internal LINDUNG mapping omission for `company_ph_benefit`; Act 4 holiday remuneration is included centrally, consistently with ordinary SOCSO/EIS. PH pricing, ordinary statutory treatment, participation, custom component fail-closed behavior and finalized evidence remain unchanged. Focused Staging wage-base/projection contracts cover the RM2,000 + RM76.92 case and canonical system codes. Canonical owner: docs/domains/payroll.md.
+
+## 2026-10-05 — Company PH statutory authority
+
+Normal Company PH Allowance is centrally included for EPF/SOCSO/LINDUNG/EIS and taxable for manually confirmed PCB. Genuine OT and employee applicability remain separate. Settings shows an authorized read-only canonical summary. Staging rollback contracts verify formulas, wage bases, OT separation, N/A, manual PCB and immutable evidence.

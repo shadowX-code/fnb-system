@@ -1138,7 +1138,7 @@ Regular, overtime, rest-day pay, statutory/custom Public Holiday Allowance, PH O
 and `company_ph_benefit` in Act 4 contributable wages. Unpaid-time wage reductions
 subtract from that basis. The Company PH Allowance is holiday remuneration under
 Act 4 s2(24), consistent with its existing ordinary SOCSO/EIS inclusion; ordinary
-EPF treatment and all PH formulas remain unchanged. The legacy Company benefit
+statutory rates/ceilings and all PH formulas remain unchanged. The legacy Company benefit
 and unified treatment use the same earning code and classification.
 
 System earning codes are derived only by trusted calculation authorities. User-defined
@@ -1149,3 +1149,20 @@ the existing pinned wage-evidence fingerprint; automatic calculation uses the
 corrected mapping. Finalized statutory snapshots remain frozen.
 
 Official basis: [PERKESO Act 4, section 2(24)](https://perkeso.gov.my/images/akta/ACT%204/Act%204%20-%20EMPLOYEES%E2%80%99%20SOCIAL%20SECURITY%20ACT%201969%20(As%20at%201%20September%202022).pdf).
+
+## Company PH Allowance statutory treatment
+
+`company_ph_benefit` is normal PH remuneration: EPF, SOCSO, LINDUNG and EIS
+include it in their wage bases; PCB treats it as taxable remuneration while
+retaining manual PCB confirmation. Genuine overtime uses separate earning codes
+and retains its existing treatment (including EPF exclusion). Canonical earning
+classification does not override employee-level statutory applicability.
+
+The internal `payroll_company_ph_statutory_treatment` mapping is consumed by ordinary
+statutory and LINDUNG authorities. Settings reads the same classification through
+the authorized `payroll_company_ph_statutory_read` RPC; there is no editable
+statutory switch in PH treatment. Company PH formulas and finalized snapshots
+are unchanged. Open projections pin corrected wage evidence in their existing
+stale fingerprint; no employee evidence is inferred or modified.
+
+Official EPF basis: [KWSP FAQ Q19–21](https://www.kwsp.gov.my/en/employer/responsibilities/option-contribute).
