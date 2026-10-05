@@ -35,8 +35,7 @@ export function usePayrollRunRead(run, revision, enabled = true, canManage = fal
     setState(previous => previous?.key === key ? {...previous,calculating:true} : previous);
     const read = async () => ["finalized", "paid"].includes(run.status)
       ? payrollService.readFinalizedRecord(run.id)
-      : Promise.all([payrollService.readPreparation(run.id), payrollService.readCalculation(run.id), payrollService.readStatutory(run.id)])
-        .then(([preparation, calculation, statutory]) => ({ preparation, calculation, statutory }));
+      : payrollService.readRunEvidence(run.id);
     try {
       // Coalesce the sequence before expensive run projections. Each command
       // validates current canonical fingerprints and open-run authority again.
@@ -93,7 +92,10 @@ export function usePayrollRunRead(run, revision, enabled = true, canManage = fal
   }, [enabled, key, canManage, run?.foundation_only, recalculateEmployee]);
   const setTimeReviewActive = useCallback(active => {
     timeReviewActive.current = active;
-    if (active) ++generation.current;
+    if (active) {
+      ++generation.current;
+      setState(previous => previous ? {...previous, calculating:false} : previous);
+    }
   }, []);
   const invalidateEmployee = useCallback(id => {
     dirtyEmployees.current.add(id);

@@ -1074,3 +1074,29 @@ SQL cancellation rolls back both the decision and audit. An ambiguous transport 
 Date-effective compensation reads filter the canonical versions by profile before selecting latest effective date/revision, rather than materializing all employees through the global set function. This preserves corrected-date and historical version semantics and uses the existing compensation indexes.
 
 Pay-rule versions have a different canonical key: `(rule_code, pay_basis, effective_from)` is unique. Their effective lookup orders only by `effective_from DESC`; there is no pay-rule `revision` column. Compensation revision ordering must remain scoped to compensation reads. Forward repair `20261004151203` restores the monthly-basic and non-payable lookups without changing rules, decisions or calculation evidence.
+
+## Payroll Control Center read and workspace context
+
+The Payroll workspace owns one authorized Legal Entity selection across Overview,
+Profiles, Runs and Settings. Refresh retains that selection only while it remains
+in the scoped canonical entity list; unavailable selections fall back to an accessible
+entity. Tab changes do not reset the company or payroll month.
+
+Open runs consume `payroll_run_evidence_read`, a side-effect-free, transaction-local
+bundle of preparation, current calculation/statutory versions, canonical readiness,
+payable-time/history and PCB evidence. Preparation owns dated membership and employee
+access. Its fresh calculation projection supplies calculation staleness without a
+second scan; the existing statutory projector supplies statutory staleness. No persistent
+cache or new pricing authority is introduced. Readiness uses the same missing/stale/
+review counts and period/employment gates as the existing authorities; finalization
+continues to revalidate through the original server commands. Historical calculation
+versions outside current canonical membership remain stored but are not open-run members.
+Finalized/paid runs continue to use the frozen record authority.
+
+Review Hours opens from employee detail or its Prepare Payroll time cell even while
+financial recalculation runs. Entering time review suspends projection replacement;
+previously committed calculations may finish, while explicit daily decisions continue
+through the existing fast, audited command. Finish/Return resumes coalesced automatic
+calculation. Financial totals remain pending while stale or membership is unresolved.
+Run membership blockers appear once in the header, independently of employee preparation
+progress and actionable review items.

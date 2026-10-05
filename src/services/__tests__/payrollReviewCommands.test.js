@@ -43,3 +43,8 @@ it('states SQL cancellation did not save and keeps ambiguous transport failures 
  rpc.mockResolvedValue({error:{message:'Network unavailable'}});
  await expect(payrollService.decideTime(decision)).rejects.toMatchObject({saveUncertain:true});
 });
+
+it('reads complete run evidence through one scoped read-only RPC', async()=>{
+ await payrollService.readRunEvidence('run');
+ expect(rpc).toHaveBeenCalledExactlyOnceWith('payroll_run_evidence_read',{p_run_id:'run'});
+});

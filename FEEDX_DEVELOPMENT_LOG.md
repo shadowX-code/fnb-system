@@ -705,3 +705,15 @@ Daily Run decisions now commit audit/time evidence without whole-month recalcula
 ## 2026-10-04 — Forward pay-rule ordering repair
 
 Restored effective-date-only selection for monthly-basic and non-payable pay rules after the fast-decision migration applied compensation revision ordering too broadly. Compensation indexed reads and the short audited decision transaction remain intact. All pay-rule readers/types are checked against the actual unique effective-date schema; focused monthly/non-payable contracts and read-only Production closure preserve existing evidence. Canonical owner: docs/domains/payroll.md.
+
+## 2026-10-05 — Payroll Control Center interaction and read plan
+
+Review Hours no longer depends on financial recalculation finishing; entering review
+retains the employee/queue while background projections are suspended. A complete,
+read-only run evidence bundle reuses current canonical projections/fingerprints and
+readiness gates, eliminating duplicate run scans and the time-evidence waterfall.
+One authorized Legal Entity selection spans all Payroll tabs. Membership blockers,
+preparation progress and pending financial totals are presented separately. Existing
+fast decision, pricing, statutory and finalization commands are unchanged. Focused
+L3 Staging contracts compare canonical outputs and protect access/frozen evidence.
+Canonical owner: docs/domains/payroll.md.

@@ -29,7 +29,7 @@ export function annualCalendarEntries(holidays, year, previous = []) {
   });
 }
 
-export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, onViewHoliday, onCompanyChanged, onChanged }) {
+export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, onViewHoliday, onCompanyChanged, onChanged, selectedCompany }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(String(currentYear));
   const [annual, setAnnual] = useState(null);
@@ -39,7 +39,9 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const [draft, setDraft] = useState({});
   const [refresh, setRefresh] = useState(0);
   const [operation, setOperation] = useState("");
-  const [company, setCompany] = useState("all");
+  const [localCompany, setLocalCompany] = useState("all");
+  const company = selectedCompany ?? localCompany;
+  const setCompany = onCompanyChanged || setLocalCompany;
   const [companyBenefit, setCompanyBenefit] = useState(false);
   const [additionalReview, setAdditionalReview] = useState(null);
   const [additionalEvidence, setAdditionalEvidence] = useState(null);
@@ -131,7 +133,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
       <PayrollHolidayWorkflow operation={operation} onOperationChanged={setOperation} year={year} annual={annual} editable={editable} advancedContent={advancedContent} onAdditionalReview={setAdditionalReview} onPublished={() => { setRefresh(n=>n+1); onChanged?.(); }} />
       <section className="p-4">
         <details className="mt-3 text-sm"><summary className="cursor-pointer text-primary">Manage exceptions</summary><p className="my-2 text-text-secondary">Explicit company/outlet calendars retain their own scope. Changing an existing scope requires a separate policy; it is never silently reassigned.</p>
-          <SelectField label="Review company selection" value={company} onChange={value => { setCompany(value); onCompanyChanged?.(value); }} options={[{ value: "all", label: "All applicable companies" }, ...(data.legal_entities || []).filter(e => e.is_active !== false).map(e => ({ value: e.id, label: entityName(e) }))]} />
+          <SelectField label="Review company selection" value={company} onChange={value => { setCompany(value); }} options={[...(selectedCompany == null ? [{ value: "all", label: "All applicable companies" }] : []), ...(data.legal_entities || []).filter(e => e.is_active !== false).map(e => ({ value: e.id, label: entityName(e) }))]} />
           {policies.filter(p => !p.is_default).map(p => <div key={p.id} className="flex justify-between gap-3 py-2"><span>{p.legal_entity_ids.map(id => entityName((data.legal_entities || []).find(e => e.id === id) || {})).join(", ")} · {p.selected_holiday_ids.length} selected</span>{editable && <button className="text-primary" onClick={() => editPolicy(p, true)}>Review</button>}</div>)}
           {editable && <button className="btn-secondary" disabled={!published} onClick={() => editPolicy(null, true)}>Add Exception</button>}
         </details>

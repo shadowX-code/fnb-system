@@ -13,7 +13,7 @@ const money = (value) => value == null ? "—" : new Intl.NumberFormat("en-MY", 
 const clock = value => value ? new Date(value).toLocaleTimeString("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
 const range = (start, end) => `${clock(start)} – ${clock(end)}`;
 
-export function PayrollPhPolicy({ entities, canManage, onChanged, selectedCompany = "all" }) {
+export function PayrollPhPolicy({ entities, canManage, onChanged, selectedCompany = "all", onCompanyChanged }) {
   const [entityId,setEntityId]=useState(selectedCompany),[versions,setVersions]=useState(null),[draft,setDraft]=useState(null),[error,setError]=useState(""),[busy,setBusy]=useState(false);
   const activeEntities=entities.filter(e=>e.is_active!==false);
   const defaults=[{value:"statutory",label:"Statutory PH Pay"},{value:"additional_pay",label:"Company PH Allowance"},{value:"no_default",label:"No default — decide during Payroll"}];
@@ -27,7 +27,7 @@ export function PayrollPhPolicy({ entities, canManage, onChanged, selectedCompan
   const uniform=current.length>0&&current.every(v=>v&&v.treatment===current[0]?.treatment&&v.effective_from===current[0]?.effective_from);
   const save=async()=>{setBusy(true);setError('');try{if(entityId==='all')await payrollService.saveDefaultPhPolicy(draft);else await payrollService.savePhPolicy({entityId,...draft});setVersions(await load(entityId));setDraft(null);await onChanged?.();}catch(e){setError(e.message);}finally{setBusy(false);}};
   return <Card className="space-y-3 p-4"><h3 className="font-bold">Default PH Pay Treatment</h3><p className="text-sm text-text-secondary">Preselect the treatment for Payroll review. Each holiday still requires confirmation.</p>
-    <SelectField label="Company" value={entityId} onChange={setEntityId} options={[{value:'all',label:'All applicable companies'},...activeEntities.map(e=>({value:e.id,label:e.display_name||e.name}))]}/>
+    <SelectField label="Company" value={entityId} onChange={onCompanyChanged || setEntityId} options={[...(!onCompanyChanged ? [{value:'all',label:'All applicable companies'}] : []),...activeEntities.map(e=>({value:e.id,label:e.display_name||e.name}))]}/>
     {versions===null&&!error?<p role="status">Loading policy…</p>:<p className="text-sm"><strong>{uniform?policyLabel(current[0].treatment==='replacement_leave'?'no_default':current[0].treatment):current.some(Boolean)?'Company-specific defaults':'No default — decide during Payroll'}</strong>{uniform&&` · Effective ${current[0].effective_from}`}</p>}
     {(uniform&&current[0].treatment==='additional_pay'||draft?.treatment==='additional_pay')&&<dl className="grid gap-2 text-sm sm:grid-cols-2"><div><dt className="font-semibold">Monthly</dt><dd>+1 ordinary day · Basic Salary ÷ 26</dd></div><div><dt className="font-semibold">Hourly</dt><dd>Approved PH Hours × Hourly Rate</dd></div></dl>}
     <details className="text-sm"><summary className="cursor-pointer text-primary">View history</summary>{histories.map(h=><div key={h.entity?.id}><p className="mt-2 font-semibold">{h.entity?.display_name||h.entity?.name}</p>{h.rows.map(v=><p key={v.id}>{v.effective_from} · {policyLabel(v.treatment)}{v.remark&&` · ${v.remark}`}</p>)}</div>)}<p className="mt-2 text-text-secondary">Replacement Leave grants and consumption remain in Leave history; they are not PH cash treatments.</p></details>

@@ -53,9 +53,9 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     const request = ++requests.current;
     try {
       const [time, calculation, statutory, pcb, preparation] = await Promise.all([
-        payrollService.readTime(entityId, `${month}-01`, periodEnd(month)),
+        runRead ? Promise.resolve(runRead.data?.time) : payrollService.readTime(entityId, `${month}-01`, periodEnd(month)),
         runRead ? Promise.resolve(runRead.data?.calculation) : payrollService.readCalculation(run.id),
-        runRead ? Promise.resolve(runRead.data?.statutory) : payrollService.readStatutory(run.id), payrollService.readPcb(run.id),
+        runRead ? Promise.resolve(runRead.data?.statutory) : payrollService.readStatutory(run.id), runRead ? Promise.resolve(runRead.data?.pcb) : payrollService.readPcb(run.id),
         runRead ? Promise.resolve(runRead.data?.preparation) : payrollService.readPreparation(run.id),
       ]);
       if (requests.current !== request) return;
@@ -216,7 +216,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const columns = stage === "review" ? reviewColumns : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><small className="block text-text-secondary">{row.employee_code || "—"}</small></div> },
     { key: "pay", header: "Pay", render: (row) => row.pay ? <span>{human(row.pay.pay_basis)}<small className="block text-text-secondary">{money(row.pay.basic_salary || row.pay.hourly_rate)}{row.pay.pay_basis === "hourly" ? " / hour" : ""}</small></span> : <Badge tone="warning">Setup required</Badge> },
-    { key: "time", header: "Time & Attendance", render: (row) => !row.timeRelevant ? "Not required" : <Badge tone={row.timeNeedsReview ? "warning" : "neutral"}>{row.timeNeedsReview ? `${row.time.filter((item) => item.status === "review_required").length} exceptions` : row.time.length ? "Reviewed" : "Time evidence required"}</Badge> },
+    { key: "time", header: "Time & Attendance", render: (row) => !row.timeRelevant ? "Not required" : <button type="button" aria-label={`Review Hours for ${row.name}`} onClick={() => { setEmployeeId(row.id); openTimeReview(); }}><Badge tone={row.timeNeedsReview ? "warning" : "neutral"}>{row.timeNeedsReview ? `${row.time.filter((item) => item.status === "review_required").length} exceptions` : row.time.length ? "Reviewed" : "Time evidence required"}</Badge></button> },
     { key: "adjustments", header: "Adjustments", render: (row) => row.adjustments.length ? `${row.adjustments.length} adjustment${row.adjustments.length === 1 ? "" : "s"} · ${signedAdjustments(row.adjustments)}` : "None" },
     { key: "statutory", header: "Statutory", render: (row) => {
       const schemes = row.preparation?.statutory_setup?.schemes || {};
@@ -229,7 +229,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         {schemes.lindung?.issue && <small className="block text-amber-700">{payrollIssueLabel(schemes.lindung.issue)}</small>}
         {row.statutory?.is_stale && <small className="block text-text-secondary">Calculation pending</small>}</div>;
     } },
-    { key: "status", header: "Status", render: (row) => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Need Review" : "Ready"}</Badge> },
+    { key: "status", header: "Status", render: (row) => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Need Attention" : "Ready"}</Badge> },
     { key: "action", header: "Action", render: (row) => <button type="button" className="font-semibold text-primary" onClick={() => setEmployeeId(row.id)}>Review</button> },
   ];
   return <div className="space-y-4">
@@ -244,7 +244,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     {runRead?.calculating && <p role="status" className="text-sm text-text-secondary">Updating changed calculations…</p>}
     {active && Object.entries(calculationErrors).map(([id, message]) => <div role="alert" key={id} className="text-sm text-rose-700">{rows.find(row => row.id === id)?.name || 'Employee'}: {message} <button type="button" className="btn-secondary" disabled={busy} onClick={() => retryCalculation(id)}>Retry Calculation</button></div>)}
     {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
-    {evidence?.preparation?.employment_issue && <p role="alert" className="text-sm font-semibold text-amber-800">
+    {!runRead && evidence?.preparation?.employment_issue && <p role="alert" className="text-sm font-semibold text-amber-800">
       {`${payrollIssueLabel(evidence.preparation.employment_issue)}. This open period cannot be finalized until verified People employment history is available.`}
     </p>}
     <Card>{!evidence && !error ? <p className="p-6 text-sm text-text-secondary">Loading monthly employee evidence…</p>
@@ -281,7 +281,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <div className="flex justify-between border-t border-border pt-3 font-bold"><span>Gross Earnings</span><span className="tabular-nums">{money(selected.result.gross)}</span></div>
         {selected.calculation?.lines?.some(line => line.kind === "reimbursement") && <section><h4 className="font-semibold">Business Reimbursements</h4><p className="text-xs text-text-secondary">Outside Gross Earnings; added to employee payment.</p><div className="divide-y divide-border">{selected.calculation.lines.filter(line => line.kind === "reimbursement").map(financialLine)}</div></section>}
         {selected.adjustments.some(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)) && <section><h4 className="font-semibold">Awaiting Calculation</h4>{selected.adjustments.filter(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)).map(item => <div key={item.id} className="flex justify-between py-2"><span>{item.component_name}<small className="block text-text-secondary">Saved adjustment · {item.reason}</small></span>{adjustmentActions(item)}</div>)}</section>}
-        {selected.timeRelevant && <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance</h4><button type="button" className="font-semibold text-primary" disabled={runRead?.calculating} onClick={openTimeReview}>Review Hours</button></div><p className="mt-1 text-text-secondary">{selected.time.length} recorded days · {selected.time.filter(item=>item.status === 'review_required').length} exceptions. Review Hours compares roster, clock evidence and approved payable time.</p></section>}
+        {selected.timeRelevant && <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance</h4><button type="button" className="font-semibold text-primary" onClick={openTimeReview}>Review Hours</button></div><p className="mt-1 text-text-secondary">{selected.time.length} recorded days · {selected.time.filter(item=>item.status === 'review_required').length} exceptions. Review Hours compares roster, clock evidence and approved payable time.</p></section>}
         <PayrollPhStatutory runId={run.id} employeeId={selected.id} canManage={active} onChanged={refresh} />
         <section className="border-t border-border pt-4"><div className="flex justify-between gap-3"><h4 className="text-base font-bold">Employee Deductions</h4>{active && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button"
           onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>

@@ -75,11 +75,13 @@ function RegistryScheme({ scheme, state }) {
   return <InfoTooltip label={description}><Icon size={16} aria-hidden="true" className={scheduled ? "text-primary" : notApplicable ? "text-text-secondary" : resolved ? "text-emerald-700" : "text-amber-700"} /></InfoTooltip>;
 }
 
-export function ProfilesTab({ data, canManage, reload }) {
+export function ProfilesTab({ data, canManage, reload, entityId, onEntityChanged }) {
   const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState("");
   const [setupEmployeeId, setSetupEmployeeId] = useState("");
-  const [entityFilter, setEntityFilter] = useState(data.legal_entities?.[0]?.id || "");
+  const [localEntity, setLocalEntity] = useState(data.legal_entities?.[0]?.id || "");
+  const entityFilter = entityId ?? localEntity;
+  const setEntityFilter = onEntityChanged || setLocalEntity;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [employmentFilter, setEmploymentFilter] = useState("all");
@@ -235,17 +237,17 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
   const employeeCount = history?.find((item) => item.run_id === run?.id)?.employee_count;
   const blockers = [
     state?.time && !state.time.ready && (state.time.period_in_progress ? "Time review remains open until the pay period ends" : "Time & Attendance requires review"),
-    state?.calculation?.employment_issue && payrollIssueLabel(state.calculation.employment_issue),
+    state?.calculation?.employment_issue && "Resolve verified employment history",
     state?.calculation && !state.calculation.ready && "Employee payroll calculations need review",
     state?.statutory && !state.statutory.ready && "Employee statutory results need review",
   ].filter(Boolean);
   const statutoryRows = totals?.results || [];
   const total = (key) => statutoryRows.length && statutoryRows.every((item) => item[key] != null && !item.is_stale && item.status === "ready") ? money(statutoryRows.reduce((sum, item) => sum + Number(item[key]), 0)) : "—";
-  const allReady = Boolean(state?.time?.ready && (run.foundation_only || (state?.calculation?.ready && state?.statutory?.ready)));
+  const allReady = Boolean(!runRead?.calculating && !runRead?.data?.calculation?.results?.some(row=>row.is_stale) && !runRead?.data?.statutory?.results?.some(row=>row.is_stale) && state?.time?.ready && (run.foundation_only || (state?.calculation?.ready && state?.statutory?.ready)));
   const commandRows = run?.id && employeeSnapshot?.runId === run.id ? employeeSnapshot.rows : payrollReviewRows(runRead?.data, ["finalized", "paid"].includes(run?.status));
   const commandTotals = payrollReviewSummary(commandRows);
   const readyCount = commandTotals.readyCount;
-  const displayMoney = value => value == null ? "—" : money(value);
+  const displayMoney = value => value == null ? "Pending" : money(value);
   const approverName = run?.finalized_by_name || (employeeSnapshot?.runId === run?.id && employeeSnapshot?.approverName) || (data.employees || []).find((item) => item.id === run?.finalized_by_employee_id)?.name || "Authorized approver";
   const yearOptions = [...new Set([String(new Date().getFullYear()), ...(history || []).map((item) => item.period_start?.slice(0, 4)).filter(Boolean)])]
     .sort((a, b) => Number(b) - Number(a)).map((value) => ({ value, label: value }));
@@ -274,14 +276,15 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
     <button type="button" className="text-sm font-semibold text-primary" onClick={() => setOpenRunId("")}>← Payroll Run history</button>
     <Card className="space-y-4 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">{new Date(`${month}-01T12:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" })} Payroll</h2>
       <p className="text-sm text-text-secondary">{entityName(data.legal_entities || [], entityId)}{run ? ` · Revision ${run.revision}${run.supersedes_run_id ? " · Correction" : ""}` : ""}</p>
-      {run && <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><Badge tone={["ready", "finalized", "paid"].includes(run.status) ? "success" : "warning"}>{label(run.status)}</Badge><span>{state?.calculation?.employment_issue ? "Membership unresolved" : `${employeeCount ?? (commandRows.length || "—")} employees`}</span>
-        {!["finalized", "paid"].includes(run.status) && <span>{commandRows.length ? `${readyCount} Ready · ${commandRows.length - readyCount} Need Attention` : state?.calculation?.employment_issue ? payrollIssueLabel(state.calculation.employment_issue) : "Checking readiness…"}</span>}</div>}</div>
+      {run && <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><Badge tone={["ready", "finalized", "paid"].includes(run.status) ? "success" : "warning"}>{label(run.status)}</Badge><span>{`${employeeCount ?? (commandRows.length || "—")} employees`}</span>
+        {!["finalized", "paid"].includes(run.status) && <span>{commandRows.length ? `${readyCount} Ready · ${commandRows.length - readyCount} Need Attention` : "Checking readiness…"}</span>}</div>}</div>
       <div className="flex flex-wrap gap-2">
         {run && canFinalize && (run.status === "ready" || (canManage && ["draft", "review_required"].includes(run.status))) && allReady && <button className="btn-primary" type="button" disabled={busy || !totals || totals.error} onClick={() => requestTransition(run.id, "finalized")}>Finalize Payroll</button>}
         {runs.length > 1 && <SelectField ariaLabel="Payroll revision" value={run?.id || ""} onChange={(value) => { setOpenRunId(value); setStep(runs.find((item) => item.id === value)?.status === "finalized" ? 2 : 0); }} options={runs.map((item) => ({ value: item.id, label: `Revision ${item.revision} · ${label(item.status)}` }))} />}
       </div></div>
-      {run && <><dl className="grid grid-cols-2 gap-4 border-t border-border pt-3 lg:grid-cols-4">{[["Gross Payroll", commandTotals.gross], ["Employee Deductions", commandTotals.deductions], ["Net Payroll", commandTotals.net], ["Employer Cost", commandTotals.employerCost]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 font-bold tabular-nums">{displayMoney(value)}</dd></div>)}</dl>
-        {["finalized", "paid"].includes(run.status) ? <p className="text-xs text-text-secondary">Finalized {run.finalized_at ? new Date(run.finalized_at).toLocaleString() : "—"} · {approverName}. Read-only; changes require a Correction Revision.</p> : !allReady && <p className="text-sm text-text-secondary">Finalize is unavailable until {[["time and attendance", state?.time?.ready], ["payroll calculation", state?.calculation?.ready], ["statutory review", state?.statutory?.ready]].filter(([, ready]) => !ready).map(([name]) => name).join(", ")} are complete. Review employees needing attention.</p>}</>}
+      {state?.calculation?.employment_issue && <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>Membership unresolved</strong><p className="mt-1">{payrollIssueLabel(state.calculation.employment_issue)}</p></div>}
+      {run && <><dl className="grid grid-cols-2 gap-4 border-t border-border pt-3 lg:grid-cols-4">{[["Gross Payroll", commandTotals.gross], ["Employee Deductions", commandTotals.deductions], ["Net Payroll", commandTotals.net], ["Employer Cost", commandTotals.employerCost]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 font-bold tabular-nums">{displayMoney(state?.calculation?.employment_issue || runRead?.calculating ? null : value)}</dd></div>)}</dl>
+        {["finalized", "paid"].includes(run.status) ? <p className="text-xs text-text-secondary">Finalized {run.finalized_at ? new Date(run.finalized_at).toLocaleString() : "—"} · {approverName}. Read-only; changes require a Correction Revision.</p> : !allReady && <p className="text-xs text-text-secondary">Totals remain pending until required evidence is resolved.</p>}</>}
     </Card>
     {!run && canManage && <Card className="grid gap-4 p-5 sm:grid-cols-2"><MonthPickerField label="Pay Period" value={month} onChange={setMonth} />
       <SelectField label="Legal Entity" value={entityId} onChange={setEntityId} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />
@@ -350,7 +353,7 @@ export function Overview({ data, canManage, entityId, month, run, readiness, onO
   const employmentIssue = !finalized && readiness?.calculation?.employment_issue;
   const employees = (data.employees || []).filter((item) => item.legal_entity_id === entityId);
   const withoutProfile = employees.filter((item) => !(data.profiles || []).some((profile) => profile.employee_id === item.id));
-  const readyCount = summary?.readyCount ?? null;
+  const readyCount = rows?.length ? summary.readyCount : null;
   const employeeCount = summary?.employeeCount ?? employees.length;
   const needCount = summary?.needCount ?? null;
   const countCopy = (count, action) => `${count} employee${count === 1 ? " needs" : "s need"} ${action}`;
@@ -359,7 +362,7 @@ export function Overview({ data, canManage, entityId, month, run, readiness, onO
   const statutoryCount = summary?.statutoryCount || 0;
   const attention = finalized ? [] : [
     (timeCount || (readiness?.time && !readiness.time.ready)) && { group: "Time & Attendance", label: timeCount ? countCopy(timeCount, "time reconciliation") : "Review time readiness for this period", open: () => onOpenRun(0) },
-    (payCount || (!run && withoutProfile.length) || (readiness?.calculation && !readiness.calculation.ready)) && { group: "Payroll Calculation", label: readiness?.calculation?.employment_issue ? payrollIssueLabel(readiness.calculation.employment_issue) : payCount ? countCopy(payCount, "payroll review") : !run && withoutProfile.length ? countCopy(withoutProfile.length, "pay setup") : "Review employee calculations", open: !run ? onOpenEmployees : () => onOpenRun(0) },
+    (payCount || (!run && withoutProfile.length) || (readiness?.calculation && !readiness.calculation.ready)) && { group: "Payroll Calculation", label: payCount ? countCopy(payCount, "payroll review") : !run && withoutProfile.length ? countCopy(withoutProfile.length, "pay setup") : "Review employee calculations", open: !run ? onOpenEmployees : () => onOpenRun(0) },
     (statutoryCount || (readiness?.statutory && !readiness.statutory.ready)) && { group: "Statutory", label: statutoryCount ? countCopy(statutoryCount, "statutory review") : "Review statutory readiness", open: () => onOpenRun(1) },
   ].filter(Boolean);
   const historyRows = history?.entityId === entityId ? history.rows : [];
@@ -367,16 +370,17 @@ export function Overview({ data, canManage, entityId, month, run, readiness, onO
     const versions = historyRows.filter(item => item.period_start === date);
     return versions.find(item => item.current) || versions.sort((a, b) => Number(b.revision) - Number(a.revision))[0];
   });
-  const value = amount => amount == null ? "—" : money(amount);
+  const value = amount => employmentIssue || sharedRead.calculating || amount == null ? run ? "Pending" : "—" : money(amount);
   const metrics = [["Gross Payroll", value(summary?.gross)], ["Employee Deductions", value(summary?.deductions)],
     ["Net Payroll", value(summary?.net)], ["Employer Cost", value(summary?.employerCost)]];
   return <div className="space-y-4">
     <Card className="p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0"><h2 className="text-xl font-bold text-text-primary">{periodTitle} Payroll</h2><p className="mt-1 text-sm text-text-secondary">{entityName(data.legal_entities || [], entityId)}</p>
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm"><Badge tone={finalized || run?.status === "ready" ? "success" : run ? "warning" : "neutral"}>{run ? label(run.status) : "Not started"}</Badge><span>{employmentIssue ? "Membership unresolved" : `${employeeCount} employees`}</span></div></div>
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm"><Badge tone={finalized || run?.status === "ready" ? "success" : run ? "warning" : "neutral"}>{run ? label(run.status) : "Not started"}</Badge><span>{`${employeeCount} employees`}</span></div></div>
       <button className="btn-primary" type="button" disabled={!canManage && !run} onClick={() => onOpenRun(finalized ? 2 : 0)}>{finalized ? "View Finalized Payroll" : run ? "Continue Payroll" : "Start Payroll"} <ChevronRight size={16} /></button></div>
-      <div className="mt-4 border-t border-border pt-3"><p className="text-sm font-semibold" aria-live="polite">{employmentIssue ? payrollIssueLabel(employmentIssue) : readyCount != null ? `${readyCount} Ready · ${needCount} Need Attention` : detailError || readiness?.error ? "Readiness unavailable · Open Payroll to retry" : run ? "Checking employee readiness…" : "Start Payroll to assess employee readiness"}</p>
-        {!employmentIssue && employeeCount > 0 && readyCount != null && <progress className="mt-2 h-1.5 w-full accent-primary" aria-label="Payroll employee readiness" value={readyCount} max={employeeCount} />}</div>
+      {employmentIssue && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>Membership unresolved</strong><p className="mt-1">{payrollIssueLabel(employmentIssue)}</p></div>}
+      <div className="mt-4 border-t border-border pt-3"><p className="text-sm font-semibold" aria-live="polite">{readyCount != null ? `${readyCount} Ready · ${needCount} Need Attention` : detailError || readiness?.error ? "Readiness unavailable · Open Payroll to retry" : run ? "Checking employee readiness…" : "Start Payroll to assess employee readiness"}</p>
+        {employeeCount > 0 && readyCount != null && <progress className="mt-2 h-1.5 w-full accent-primary" aria-label="Payroll employee readiness" value={readyCount} max={employeeCount} />}</div>
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border pt-4 sm:grid-cols-4">{metrics.map(([name, value]) => <div key={name} className="min-w-0"><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 break-words text-lg font-bold tabular-nums">{value}</dd></div>)}</dl>
     </Card>
     {canManage && Object.entries(sharedRead.calculationErrors || {}).map(([id, message]) => <div key={id} role="alert" className="text-sm text-rose-700">{data.employees?.find(employee => employee.id === id)?.name || 'Employee'}: {message} <button className="btn-secondary" type="button" disabled={sharedRead.calculating} onClick={() => sharedRead.retryCalculation(id)}>Retry Calculation</button></div>)}
@@ -390,8 +394,8 @@ export function Overview({ data, canManage, entityId, month, run, readiness, onO
   </div>;
 }
 
-function SettingsTab({ data, canManage, reload }) {
-  const [holidayCompany, setHolidayCompany] = useState("all");
+function SettingsTab({ data, canManage, reload, entityId, onEntityChanged }) {
+
   const [schedules, setSchedules] = useState(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
@@ -476,6 +480,7 @@ function SettingsTab({ data, canManage, reload }) {
   };
   const undetermined = (item) => !payComponentIsConfigured(item) || !item.mid_period_policy;
   return <div className="space-y-4">
+    <AdminFilterToolbar compact ariaLabel="Payroll settings context" outlet={<SelectField label="Legal Entity" value={entityId} onChange={onEntityChanged} options={(data.legal_entities || []).map(item=>({value:item.id,label:item.display_name || item.name}))} />} />
     <AdminUnderlineTabs value={mode} onChange={(value) => { setMode(value); setAdding(false); setError(""); }}
       tabs={[["rules", "Statutory & Pay Rules"], ["holidays", "Public Holidays"], ["components", "Pay Components"]].map(([value, text]) => ({ value, label: text }))} ariaLabel="Payroll settings" />
     {mode === "rules" ? <div className="space-y-4"><Card className="p-5"><h3 className="text-lg font-bold">Statutory & Pay Rules</h3><p className="mt-1 text-sm text-text-secondary">Current calculation methods. Each run retains the applicable versions and source evidence.</p>
@@ -495,9 +500,9 @@ function SettingsTab({ data, canManage, reload }) {
           { key: "status", header: "Status", render: (item) => <Badge tone={!item.is_active ? "neutral" : undetermined(item) ? "warning" : "success"}>{!item.is_active ? "Inactive" : undetermined(item) ? "Setup Required" : "Active"}</Badge> },
           { key: "actions", header: "Actions", render: (item) => <button className="font-semibold text-primary" type="button" onClick={() => setSelectedComponentId(item.id)}>View</button> },
         ]} rows={components} getRowKey={(item) => item.id} onRowClick={(item) => { setSelectedComponentId(item.id); setEditingComponent(false); }} /> : <p className="p-6 text-sm text-text-secondary">No pay components configured.</p>}</Card>
-      : <div className="space-y-4"><PayrollAnnualHolidays data={data} canManage={canManageHolidays} onCompanyChanged={setHolidayCompany} onChanged={reload}
+      : <div className="space-y-4"><PayrollAnnualHolidays data={data} canManage={canManageHolidays} selectedCompany={entityId} onCompanyChanged={onEntityChanged} onChanged={reload}
         onAddHoliday={() => { setEditingHolidayId(""); setAdding(true); }} onViewHoliday={setSelectedHolidayId} />
-        <PayrollPhPolicy entities={data.legal_entities || []} canManage={canManageHolidays} selectedCompany={holidayCompany} onChanged={reload} /></div>}
+        <PayrollPhPolicy entities={data.legal_entities || []} canManage={canManageHolidays} selectedCompany={entityId} onCompanyChanged={onEntityChanged} onChanged={reload} /></div>}
     {adding && <Modal title={mode === "components" ? "Add Pay Component" : editingHolidayId ? "Edit Public Holiday" : "Add Public Holiday"} size="lg" onClose={() => !busy && setAdding(false)} footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setAdding(false)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || !draft.name || (mode === "components" ? ["epf", "socso", "eis", "pcb"].some((key) => draft[key] === "undetermined") : !draft.sourceNote || (editingHolidayId && !draft.reason) || (draft.scope === "state" && !draft.stateCode) || (draft.scope === "outlet" && !draft.outletId))} onClick={save}>{busy ? "Saving…" : mode === "components" ? "Add Component" : editingHolidayId ? "Save Changes" : "Add Holiday"}</button></>}>
       {mode === "components" ? <div className="grid gap-3 sm:grid-cols-2">
         <h3 className="sm:col-span-2 text-sm font-bold">Basic Information</h3>
@@ -567,7 +572,7 @@ export default function PayrollPage({ auth }) {
   const [month, setMonth] = useState(currentMonth());
   const [runStep, setRunStep] = useState(0);
   const [openRunId, setOpenRunId] = useState("");
-  const [readiness, setReadiness] = useState(null);
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -576,7 +581,7 @@ export default function PayrollPage({ auth }) {
   const canFinalize = hasPermission(auth, "payroll.finalize");
   const reload = useCallback(async () => {
     setLoading(true); setError("");
-    try { const result = await payrollService.read(); setData(result); setEntityId((value) => value || result.legal_entities?.[0]?.id || ""); }
+    try { const result = await payrollService.read(); setData(result); setEntityId((value) => result.legal_entities?.some(entity => entity.id === value) ? value : result.legal_entities?.[0]?.id || ""); }
     catch (cause) { setError(cause.message || "Unable to load Payroll."); }
     finally { setLoading(false); }
   }, []);
@@ -585,18 +590,13 @@ export default function PayrollPage({ auth }) {
   const activeRun = useMemo(() => (period?.runs || []).find((item) => item.id === openRunId)
     || (period?.runs || []).find((item) => ["draft", "review_required", "ready"].includes(item.status))
     || [...(period?.runs || [])].sort((a, b) => Number(b.revision) - Number(a.revision))[0], [period, openRunId]);
-  useEffect(() => {
-    if (!activeRun?.id) { setReadiness(null); return; }
-    let active = true;
-    setReadiness(null);
-    Promise.all([payrollService.runTimeReadiness(activeRun.id),
-      activeRun.foundation_only ? Promise.resolve(null) : payrollService.calculationReadiness(activeRun.id),
-      activeRun.foundation_only ? Promise.resolve(null) : payrollService.statutoryReadiness(activeRun.id)])
-      .then(([time, calculation, statutory]) => { if (active) setReadiness({ runId: activeRun.id, time, calculation, statutory }); })
-      .catch(() => { if (active) setReadiness({ runId: activeRun.id, error: true }); });
-    return () => { active = false; };
-  }, [activeRun?.id, activeRun?.foundation_only, data]);
   const runRead = usePayrollRunRead(activeRun, data, tab === "overview" || (tab === "runs" && Boolean(openRunId)), canManage);
+  const readiness = activeRun?.id && runRead.data?.readiness
+    ? {...runRead.data.readiness, runId:activeRun.id} : runRead.error ? {runId:activeRun?.id,error:true} : null;
+  const changeEntity = value => {
+    if (!data?.legal_entities?.some(entity => entity.id === value)) return;
+    setEntityId(value); setOpenRunId("");
+  };
   const openRun = (step = 0, targetPeriod, runId) => {
     if (targetPeriod) { setEntityId(targetPeriod.legal_entity_id); setMonth(targetPeriod.period_start.slice(0, 7)); }
     setOpenRunId(runId || activeRun?.id || "new"); setRunStep(step); setTab("runs");
@@ -609,12 +609,12 @@ export default function PayrollPage({ auth }) {
           : <>{error && <p role="alert" className="text-rose-700">{error}<button className="btn-secondary ml-3" type="button" onClick={reload}>Retry</button></p>}<AdminUnderlineTabs ariaLabel="Payroll sections" value={tab} onChange={key => { if (key === "runs") setOpenRunId(""); setTab(key); }}
             tabs={[["overview","Overview"],["employees","Payroll Profiles"],["runs","Payroll Runs"],["settings","Settings"]].map(([value,text]) => ({value,label:text}))} />
           {tab === "overview" && <AdminFilterToolbar compact ariaLabel="Payroll context"
-            outlet={<SelectField label="Legal Entity" value={entityId} onChange={(value) => { setEntityId(value); setOpenRunId(""); }} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
+            outlet={<SelectField label="Legal Entity" value={entityId} onChange={changeEntity} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
             period={<MonthPickerField label="Pay Period" value={month} onChange={(value) => { setMonth(value); setOpenRunId(""); }} />} />}
           {tab === "overview" && <Overview data={data} canManage={canManage} entityId={entityId} month={month} run={activeRun} readiness={readiness?.runId === activeRun?.id ? readiness : null} onOpenRun={openRun} onOpenEmployees={() => setTab("employees")} runRead={runRead} />}
-          {tab === "employees" && <ProfilesTab data={data} canManage={canManage} reload={reload} />}
-          {tab === "runs" && <RunsTab data={data} canManage={canManage} canFinalize={canFinalize} reload={reload} entityId={entityId} setEntityId={setEntityId} month={month} setMonth={setMonth} step={runStep} setStep={setRunStep} openRunId={openRunId} setOpenRunId={setOpenRunId} readiness={readiness} runRead={runRead} />}
-          {tab === "settings" && <SettingsTab data={data} canManage={canManage} reload={reload} />}
+          {tab === "employees" && <ProfilesTab data={data} canManage={canManage} reload={reload} entityId={entityId} onEntityChanged={changeEntity} />}
+          {tab === "runs" && <RunsTab data={data} canManage={canManage} canFinalize={canFinalize} reload={reload} entityId={entityId} setEntityId={changeEntity} month={month} setMonth={setMonth} step={runStep} setStep={setRunStep} openRunId={openRunId} setOpenRunId={setOpenRunId} readiness={readiness} runRead={runRead} />}
+          {tab === "settings" && <SettingsTab data={data} canManage={canManage} reload={reload} entityId={entityId} onEntityChanged={changeEntity} />}
         </>}
   </div>;
 }
