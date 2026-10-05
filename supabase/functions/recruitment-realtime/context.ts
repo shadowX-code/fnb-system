@@ -19,6 +19,8 @@ export function continuationContext(
       !truncated.has(`${t.provider_generation}:${t.provider_item_id}`),
   );
   return {
+    job_facts: state.job_facts || config.job_facts || {},
+    current_findings: state.current_findings || [],
     generation: attempt.provider_generation,
     preferred_language: attempt.preferred_language,
     opening: {
@@ -48,7 +50,7 @@ export function continuationContext(
     scenarios: state.scenarios.map((s: any) => ({
       index: s.scenario_index,
       brief: s.brief,
-      state: s.state,
+      state: s.equivalent_turn_id ? "equivalent real evidence" : s.state,
     })),
     established_facts: state.topics.flatMap((t: any) => {
       const evidence = turns.find(

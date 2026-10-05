@@ -97,7 +97,7 @@ Deno.serve(async (request) => {
       service
         .from("recruitment_interview_configs")
         .select(
-          "target_minutes,required_topics,scenario_briefs,language_guidance,interview_instructions,opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition)",
+          "job_facts,target_minutes,required_topics,scenario_briefs,language_guidance,interview_instructions,opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition)",
         )
         .eq("id", attempt.config_version_id)
         .single(),
@@ -155,7 +155,7 @@ Deno.serve(async (request) => {
   const { data: role } = await service
     .from("recruitment_interview_attempts")
     .select(
-      "preferred_language,application:recruitment_applications(position_snapshot,workplace_snapshot),config:recruitment_interview_configs(opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition))",
+      "preferred_language,application:recruitment_applications(position_snapshot,workplace_snapshot),config:recruitment_interview_configs(job_facts,opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition))",
     )
     .eq("id", context.attempt_id)
     .single();
@@ -167,9 +167,25 @@ Deno.serve(async (request) => {
       workplace: role.application.workplace_snapshot,
     };
   if (role?.config) {
+    context.job_facts = role.config.job_facts;
     context.interview_profile = role.config.interview_profile;
     context.opening_requirements = role.config.opening_requirements;
   }
+  const { data: durable, error: durableError } = await service.rpc(
+    "recruitment_assessment_context",
+    { p_token: token, p_client_id: clientId },
+  );
+  if (durableError)
+    return json(request, { error: "Interview context unavailable." }, 503);
+  context.current_findings = durable.current_findings || [];
+  context.job_facts = durable.job_facts || context.job_facts;
+  context.scenarios = context.scenarios.map((s: any) => ({
+    ...s,
+    state: durable.scenarios.find((d: any) => d.scenario_index === s.index)
+      ?.equivalent_turn_id
+      ? "equivalent real evidence"
+      : s.state,
+  }));
   const remainingSeconds = Math.max(
     1,
     Math.floor((Date.parse(context.max_ends_at) - Date.now()) / 1000),

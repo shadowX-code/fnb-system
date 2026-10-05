@@ -101,6 +101,7 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
   const profile = data.profiles.find(
     (p) => p.id === draft.config.interview_profile_id,
   );
+  const jobFacts = draft.config.job_facts || {};
   const requirements = draft.config.opening_requirements || {};
   const patchRequirements = (key, value) =>
     patchConfig("opening_requirements", { ...requirements, [key]: value });
@@ -225,6 +226,41 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
           </div>
         </fieldset>
         <fieldset>
+          <legend>Job Information</legend>
+          <p className="text-sm text-text-secondary mb-3">
+            Confirmed information for candidates only. Leave unconfirmed details
+            blank. Position, workplace and employer use the masters above;
+            employee contracts and payroll remain separate.
+          </p>
+          <div className="recruitment-form-grid">
+            {Object.entries({
+              employment_type: "Offered employment type",
+              job_scope: "Job scope",
+              offered_salary:
+                "Offered salary / range (include currency and pay period)",
+              working_hours: "Working / operating hours",
+              shift_arrangement: "Shift arrangement",
+              public_holidays: "Public-holiday expectation",
+              benefits: "Confirmed benefits",
+              additional_facts: "Other approved job information",
+            }).map(([key, label]) => (
+              <AdminFormField key={key} label={label}>
+                <input
+                  className={fieldClass}
+                  maxLength={1000}
+                  value={jobFacts[key] || ""}
+                  onChange={(e) => {
+                    const next = { ...jobFacts };
+                    if (e.target.value.trim()) next[key] = e.target.value;
+                    else delete next[key];
+                    patchConfig("job_facts", next);
+                  }}
+                />
+              </AdminFormField>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset>
           <legend>Interview</legend>
           <div className="recruitment-form-grid">
             <AdminFormField
@@ -259,7 +295,7 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
           </div>
         </fieldset>
         <fieldset>
-          <legend>Opening Requirements</legend>
+          <legend>Interview Requirements</legend>
           <div className="recruitment-form-grid">
             <AdminFormField label="Weekend availability">
               <SelectField

@@ -63,6 +63,7 @@ export default function RecruitmentInterviewRoom({
     connecting: "Connecting",
     recovering: "Ready to continue",
     submitting: "Submitting your responses",
+    submission_required: "Submission needs attention",
   };
   return (
     <section className="candidate-room" data-presence={state}>
@@ -88,7 +89,9 @@ export default function RecruitmentInterviewRoom({
             ? "Interview paused · saved responses retained"
             : status === "finalizing"
               ? "Submitting your interview"
-              : "Preparing your interview"}
+              : status === "submission_required"
+                ? "Your saved responses are retained · retry submission"
+                : "Preparing your interview"}
       </div>
       <div className="candidate-presence">
         <div className="candidate-orb" aria-hidden="true">
@@ -101,7 +104,9 @@ export default function RecruitmentInterviewRoom({
         </div>
         <h1>FeedX Interviewer</h1>
         <p role="status">
-          {labels[state] || "Connecting"}
+          {status === "submission_required"
+            ? "Submission needs attention"
+            : labels[state] || "Connecting"}
           {state === "listening" ? " · You can speak now" : ""}
         </p>
       </div>

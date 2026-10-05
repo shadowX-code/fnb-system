@@ -1,7 +1,7 @@
+import InterviewIntelligenceBuilder from "./InterviewIntelligenceBuilder.jsx";
+import { profileDraft } from "./serviceCrewV2.js";
 import { useState } from "react";
-import SelectField from "../../components/forms/SelectField.jsx";
 import PageHeader from "../../components/layout/PageHeader.jsx";
-import AdminFormField from "../../components/forms/AdminFormField.jsx";
 import {
   RecruitmentSection,
   RecruitmentState,
@@ -28,7 +28,6 @@ export default function InterviewProfileSettings({
   const latest = selected
     ? families.find((f) => f[0].name === selected.name)[0]
     : profiles[0];
-  const patch = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
   async function publish() {
     setError("");
     try {
@@ -76,7 +75,7 @@ export default function InterviewProfileSettings({
               <button
                 className="btn-secondary"
                 onClick={() => {
-                  setDraft(structuredClone(latest.definition));
+                  setDraft(profileDraft(latest.definition));
                   setEditing(true);
                 }}
               >
@@ -154,216 +153,33 @@ export default function InterviewProfileSettings({
               </span>
             </div>
           </div>
-          {editing ? (
-            <div className="space-y-4">
-              <AdminFormField label="Role context">
-                <textarea
-                  className="control w-full"
-                  value={draft.role_context}
-                  onChange={(e) => patch("role_context", e.target.value)}
-                />
-              </AdminFormField>
-              {draft.evidence_areas.map((area, index) => (
-                <div
-                  key={index}
-                  className="grid gap-3 border-t border-border pt-3 md:grid-cols-3"
-                >
-                  <AdminFormField label="Evidence area">
-                    <input
-                      className="control w-full"
-                      value={area.name}
-                      onChange={(e) =>
-                        patch(
-                          "evidence_areas",
-                          draft.evidence_areas.map((a, i) =>
-                            i === index ? { ...a, name: e.target.value } : a,
-                          ),
-                        )
-                      }
-                    />
-                  </AdminFormField>
-                  <AdminFormField label="Priority">
-                    <SelectField
-                      value={area.priority}
-                      onChange={(value) =>
-                        patch(
-                          "evidence_areas",
-                          draft.evidence_areas.map((a, i) =>
-                            i === index ? { ...a, priority: value } : a,
-                          ),
-                        )
-                      }
-                      ariaLabel={"Priority"}
-                      options={["Core", "Important", "Optional"].map((v) => ({
-                        value: v,
-                        label: v,
-                      }))}
-                    />
-                  </AdminFormField>
-                  <AdminFormField label="Evidence intent">
-                    <textarea
-                      className="control w-full"
-                      value={area.intent}
-                      onChange={(e) =>
-                        patch(
-                          "evidence_areas",
-                          draft.evidence_areas.map((a, i) =>
-                            i === index ? { ...a, intent: e.target.value } : a,
-                          ),
-                        )
-                      }
-                    />
-                  </AdminFormField>
-                </div>
-              ))}
-              <AdminFormField label="Follow-up guidance">
-                <textarea
-                  className="control min-h-28 w-full"
-                  value={draft.follow_up_guidance}
-                  onChange={(e) => patch("follow_up_guidance", e.target.value)}
-                />
-              </AdminFormField>
-              <AdminFormField label="Scenarios" helper="One brief per line.">
-                <textarea
-                  className="control w-full"
-                  value={draft.scenarios.join("\n")}
-                  onChange={(e) =>
-                    patch(
-                      "scenarios",
-                      e.target.value.split("\n").filter((s) => s.trim()),
-                    )
-                  }
-                />
-              </AdminFormField>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {["target_minutes", "max_minutes"].map((key) => (
-                  <AdminFormField
-                    key={key}
-                    label={
-                      key === "target_minutes"
-                        ? "Target minutes"
-                        : "Maximum minutes"
-                    }
+          <InterviewIntelligenceBuilder
+            definition={editing ? draft : selected.definition}
+            onChange={editing ? setDraft : undefined}
+            version={editing ? latest.version + 1 : selected.version}
+          />
+          {!editing && (
+            <RecruitmentSection
+              title="Version history"
+              description="Existing invitations keep their selected version."
+            >
+              {profiles
+                .filter((p) => p.name === selected.name)
+                .map((p) => (
+                  <button
+                    className="recruitment-attention-row"
+                    key={p.id}
+                    onClick={() => setVersionId(p.id)}
+                    aria-current={p.id === versionId ? "true" : undefined}
                   >
-                    <input
-                      className="control w-full"
-                      type="number"
-                      min="5"
-                      max="120"
-                      value={draft[key]}
-                      onChange={(e) => patch(key, Number(e.target.value))}
-                    />
-                  </AdminFormField>
+                    <span>
+                      Version {p.version}
+                      {p.id === latest.id ? " · Latest" : ""}
+                    </span>
+                    <RecruitmentState value="published" />
+                  </button>
                 ))}
-                {["Important", "Optional"].map((priority) => (
-                  <AdminFormField
-                    key={priority}
-                    label={`${priority} completion minimum`}
-                  >
-                    <SelectField
-                      value={draft.completion_criteria[priority]}
-                      onChange={(value) =>
-                        patch("completion_criteria", {
-                          ...draft.completion_criteria,
-                          [priority]: value,
-                        })
-                      }
-                      ariaLabel={`${priority} completion minimum`}
-                      options={(priority === "Important"
-                        ? ["partial", "covered"]
-                        : ["unresolved", "partial", "covered"]
-                      ).map((v) => ({
-                        value: v,
-                        label: v[0].toUpperCase() + v.slice(1),
-                      }))}
-                    />
-                  </AdminFormField>
-                ))}
-              </div>
-              <p className="text-sm text-text-muted">
-                Core evidence must be Covered and scenarios answered.
-                Publication creates a new version; existing openings are not
-                changed.
-              </p>
-            </div>
-          ) : (
-            <div className="recruitment-profile-layout">
-              <div className="grid gap-5">
-                <RecruitmentSection
-                  title="Evidence areas"
-                  description="Priorities define the evidence needed before an interview can conclude."
-                >
-                  {selected.definition.evidence_areas.map((area) => (
-                    <div
-                      key={area.name}
-                      className="py-3 border-b border-border last:border-0"
-                    >
-                      <div className="flex justify-between gap-3">
-                        <h3 className="font-semibold text-sm">{area.name}</h3>
-                        <RecruitmentState value={area.priority} />
-                      </div>
-                      <p className="text-sm text-text-secondary mt-1">
-                        {area.intent}
-                      </p>
-                    </div>
-                  ))}
-                </RecruitmentSection>
-                <RecruitmentSection title="Scenarios">
-                  {selected.definition.scenarios.map((brief, i) => (
-                    <p className="text-sm py-2" key={i}>
-                      {brief}
-                    </p>
-                  ))}
-                </RecruitmentSection>
-                <RecruitmentSection title="Conversational guidance">
-                  <p className="text-sm text-text-secondary">
-                    {selected.definition.follow_up_guidance}
-                  </p>
-                </RecruitmentSection>
-              </div>
-              <aside className="grid gap-5">
-                <RecruitmentSection title="Interview plan">
-                  <p className="text-sm">{selected.definition.role_context}</p>
-                  <p className="text-xs text-text-secondary mt-4">
-                    Target {selected.definition.target_minutes} min · Maximum{" "}
-                    {selected.definition.max_minutes} min
-                  </p>
-                </RecruitmentSection>
-                <RecruitmentSection title="Completion criteria">
-                  <dl className="recruitment-facts">
-                    {Object.entries(
-                      selected.definition.completion_criteria,
-                    ).map(([key, value]) => (
-                      <div key={key} className="contents">
-                        <dt className="capitalize">{key}</dt>
-                        <dd className="capitalize">{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </RecruitmentSection>
-                <RecruitmentSection
-                  title="Version history"
-                  description="Existing invitations keep their selected version."
-                >
-                  {profiles
-                    .filter((p) => p.name === selected.name)
-                    .map((p) => (
-                      <button
-                        className="recruitment-attention-row"
-                        key={p.id}
-                        onClick={() => setVersionId(p.id)}
-                        aria-current={p.id === versionId ? "true" : undefined}
-                      >
-                        <span>
-                          Version {p.version}
-                          {p.id === latest.id ? " · Latest" : ""}
-                        </span>
-                        <RecruitmentState value={p.status || "published"} />
-                      </button>
-                    ))}
-                </RecruitmentSection>
-              </aside>
-            </div>
+            </RecruitmentSection>
           )}
         </>
       )}
