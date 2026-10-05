@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { hasCompleteEmployeeBankInfo } from "../../../constants/malaysiaBanks.js";
-import { employeeService } from "../../../services/employeeService.js";
+import { employeeService, EMPLOYEE_BANK_CHANGE_KEY } from "../../../services/employeeService.js";
 
 // One scoped Employee read shared across Run stages. Focus revalidates edits made
 // in canonical People; no persistent cache or Payroll-owned bank mutation.
@@ -20,9 +20,15 @@ export function useEmployeeBankRead(runId, employeeIds, enabled = true) {
   useEffect(() => { refresh(); return () => { ++generation.current; }; }, [refresh]);
   useEffect(() => {
     const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    const onBankChanged = event => {
+      if (event.key !== EMPLOYEE_BANK_CHANGE_KEY) return;
+      try { if (JSON.parse(ids).includes(JSON.parse(event.newValue)?.id)) refresh(); } catch { /* Ignore malformed invalidation signals. */ }
+    };
+    window.addEventListener("storage", onBankChanged);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
+      window.removeEventListener("storage", onBankChanged);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", onVisible);
     };

@@ -1,3 +1,4 @@
+export const EMPLOYEE_BANK_CHANGE_KEY = "feedx:employee-bank-change";
 import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
