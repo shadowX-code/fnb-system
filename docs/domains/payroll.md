@@ -190,7 +190,37 @@ Older foundation revisions without financial snapshots explicitly show unavailab
 evidence rather than inventing values. Corrections remain separate revisions;
 this presentation does not create a payslip or payment authority.
 
-Employee monthly review exposes **Review Hours** only for time-dependent employees (all Hourly employees, and Monthly employees whose canonical preparation projection identifies relevant time). The centered review reads `payroll_time_read` snapshots, displays roster/clock/proposed/approved evidence and exception-first rows, and uses the Run-scoped `payroll_time_decision_save` adapter over the existing `payroll_time_decide` append authority. Clean days require no repeated confirmation. Exception review keeps employee/period navigation across refreshes and uses an explicit per-date queue with progress, Previous, Save & Next/Finish and Continue Review at the first unresolved date. Saved dates remain inspectable. Authorized open-run reviewers may Correct Decision with a new mandatory reason; the new version supersedes rather than edits the previous decision. Run/employee/date scope, latest version, current source fingerprint, request/payload-bound retry and finalized-period correction gates are enforced server-side. Correction audit pins the Run, actor, prior/new time versions and reason. Missing-punch dates with published working-shift evidence offer roster-minute prefill through the existing adjustment decision; roster evidence does not prove attendance. Null proposed minutes cannot be approved as a proposal. Reason shortcuts remain editable and require explicit save. A successful Run decision commits the appended time revision and audit together, returns canonical day read-back, and advances the retained queue without month recalculation. Changed time identity invalidates the existing calculation fingerprint. Queue completion/return automatically coalesces `payroll_employee_recalculate` before fresh financial projections. Calculation failure cannot undo a committed decision; unresolved evidence remains Pending Review. Ambiguous save responses use audited request read-back and identical replay; projection failures do not submit a new decision. Regular earnings and effective rates shown here come from persisted calculation lines, not a second UI wage calculator. Original work evidence and finalized snapshots remain under their existing immutable authorities.
+Employee review exposes **Review Time** only for canonical pay-impacting unresolved
+time evidence. Monthly Basic does not depend on daily hours approval: complete normal
+attendance resolves directly, and approved paid/unpaid Leave is consumed by the
+existing Monthly entitlement authority. Full-day unpaid Leave reduces Basic once;
+overlap, Attendance conflicts, unsupported units, jurisdiction and incomplete
+employment/compensation evidence remain blocked by their owning authorities.
+Missing punches, short time, OT candidates and other unresolved pay-impacting facts
+still require explicit decisions. Fixed salary never proves attendance.
+
+`payroll_time_requirement` is the private shared daily requirement projection used
+by calculation, preparation, time readiness and time read-back. It retains original
+source fingerprints and stored time/history, supplies `review_state`, and separates
+published PH occurrences into PH Treatment without clearing PH or PH-OT pricing
+blockers. Hourly Regular Pay still requires current approved payable hours. An
+explicit prior decision with changed source remains Source Updated; an explicitly
+rebased correction remains Review Required until saved, even if its new Monthly
+source otherwise looks complete. Calculation fingerprints version this contract;
+open runs recalculate through the existing automatic authority. Frozen reads remain
+snapshot-only. Preparation exposes canonical `time_exception_count` and dated review
+states; the UI neither hides raw blockers nor decides their pay impact.
+
+Review Time retains the date queue, Previous, Save & Next/Finish and Continue Review.
+Authorized corrections append a revision with a mandatory reason, preserving the
+original Roster, Attendance, Leave and decision evidence. Run/employee/date scope,
+latest version, source fingerprint and request/payload retry guards remain enforced.
+Missing punches with a published working shift offer roster prefill, which never
+proves attendance. Clean evidence needs no redundant confirmation. Daily saves
+commit decision/audit only; Finish/Return coalesces automatic calculation, and stale
+financial results show Updating calculation. Monthly review emphasizes exceptions;
+Hourly review retains scheduled/actual/approved hours and canonical Regular earnings.
+
 
 ### Priced earning presentation
 

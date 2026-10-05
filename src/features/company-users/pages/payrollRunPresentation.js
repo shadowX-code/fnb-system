@@ -31,6 +31,12 @@ export function payrollRunSummary(rows = []) {
   };
 }
 
+// Consume the canonical pay-impact projection; never infer salary consequences.
+export function payrollTimeNeedsReview(row) {
+  if (row.review_state) return row.review_state.required && row.review_state.state !== 'ready';
+  return row.status === 'review_required' || !!row.source_state?.updated;
+}
+
 // One display projection from server results. Never prices wages or grants Finalize.
 export function payrollReviewRows(evidence, finalized = false) {
   const members = finalized ? evidence?.results : evidence?.preparation?.results;
@@ -38,7 +44,7 @@ export function payrollReviewRows(evidence, finalized = false) {
     const calculation = finalized ? member.calculation : evidence.calculation?.results?.find(row => row.employee_id === member.employee_id);
     const statutory = finalized ? member.statutory : evidence.statutory?.results?.find(row => row.employee_id === member.employee_id);
     const result = payrollEmployeeResult(calculation, statutory);
-    const timeNeedsReview = !finalized && member.time_relevant && (member.projection?.issues || []).some(issue => /time|attendance|clock|roster/.test(issue));
+    const timeNeedsReview = !finalized && (member.time_exception_count != null ? member.time_exception_count > 0 : member.time_relevant && (member.projection?.issues || []).some(issue => /time|attendance|clock|roster/.test(issue)));
     const payNeedsReview = !result.earningsCurrent || (!finalized && member.projection?.status !== "ready");
     const statutoryNeedsReview = !result.statutoryCurrent || (!finalized && member.statutory_setup?.complete !== true);
     return { ...member, calculation, statutory, result, timeNeedsReview, payNeedsReview, statutoryNeedsReview,

@@ -29,7 +29,7 @@ it('does not submit a saved decision again when payroll refresh fails',async()=>
 });
 it('clean days and read-only access do not offer a decision',()=>{
   render(<PayrollPayableTimeReview employee={{...employee,time:[{...row,status:'approved_auto',approved_minutes:390,issue_codes:[]}]}} month="2026-09" canManage={false} onClose={()=>{}} />);
-  expect(screen.getByText('Approved automatically')).toBeTruthy();
+  expect(screen.getByText('Resolved automatically')).toBeTruthy();
   expect(screen.queryByRole('button',{name:'Review exception'})).toBeNull();
 });
 
@@ -145,4 +145,18 @@ it('shows recorded hours and reason on Previous without making the decision edit
   expect(reason.value).toBe('Original verified evidence');
   expect(reason.disabled).toBe(true);
   expect(mocks.decideTime).toHaveBeenCalledTimes(1);
+});
+
+it('uses server pay-impact states for Monthly evidence and excludes PH from the generic queue', () => {
+  const normal = {...row,id:'normal',status:'review_required',review_state:{required:false,automatic:true,state:'ready'}};
+  const absence = {...row,id:'absence',work_date:'2026-09-26',review_state:{required:true,automatic:false,state:'review_required'}};
+  const ph = {...row,id:'ph',work_date:'2026-09-16',classification:'public_holiday',review_state:{required:false,automatic:false,state:'ph_review'}};
+  render(<PayrollPayableTimeReview employee={{...employee,pay:{pay_basis:'monthly',basic_salary:3000},time:[normal,absence,ph]}} month="2026-09" canManage onClose={()=>{}} />);
+  expect(screen.getByText('Resolved automatically')).toBeTruthy();
+  expect(screen.getAllByRole('button',{name:'Review exception'})).toHaveLength(1);
+  expect(screen.queryByText('2026-09-16')).toBeNull();
+  expect(screen.queryByText('Approved Payable Hours')).toBeNull();
+  expect(screen.queryByText('Hourly Rate')).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
+  expect(screen.getByText('1 of 1 exceptions')).toBeTruthy();
 });
