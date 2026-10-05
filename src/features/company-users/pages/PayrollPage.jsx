@@ -181,7 +181,7 @@ export function ProfilesTab({ data, canManage, reload, entityId, onEntityChanged
 
 const runSteps = ["Prepare Payroll", "Review Payroll", "Finalize"];
 
-export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFinalize, reload, entityId, setEntityId, month, setMonth, step, setStep, openRunId, setOpenRunId, readiness, runRead }) {
+export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canEditOutlet, canFinalize, reload, entityId, setEntityId, month, setMonth, step, setStep, openRunId, setOpenRunId, readiness, runRead }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -295,7 +295,7 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
     {run && !["finalized", "paid"].includes(run.status) && <><nav aria-label="Payroll Run stages" className="grid gap-1 rounded-xl border border-border bg-surface p-1 sm:grid-cols-3">{runSteps.map((name, index) => <button key={name} type="button" onClick={() => setStep(index)}
       className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${step === index ? "bg-primary text-white" : "text-text-secondary hover:bg-surface-muted"}`}><span className="mr-2 text-xs opacity-70">{index + 1}.</span>{name}</button>)}</nav>
       {step !== 2 && <>
-        <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} canManage={canManage && mutable} canViewLeave={canViewLeave} canEditEmployee={canEditEmployee} bankRead={bankRead} onChanged={reload} runRead={runRead} focusEmployeeId={focusEmployeeId} stage={step === 1 ? "review" : "prepare"} />
+        <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} canManage={canManage && mutable} canViewLeave={canViewLeave} canEditEmployee={canEditEmployee} canEditOutlet={canEditOutlet} bankRead={bankRead} onChanged={reload} runRead={runRead} focusEmployeeId={focusEmployeeId} stage={step === 1 ? "review" : "prepare"} />
         {step === 0 && <div className="flex justify-end"><button className="btn-primary" type="button" onClick={() => setStep(1)}>Review Payroll <ChevronRight size={16} /></button></div>}
       </>}
       {step === 2 && <PayrollFinalizationReadiness run={run} read={runRead} readiness={state} allReady={allReady} canFinalize={canFinalize && (run.status === "ready" || (canManage && ["draft", "review_required"].includes(run.status)))} busy={busy} onResolve={setStep} onFinalize={() => requestTransition(run.id, "finalized")} bankRead={bankRead} />}
@@ -595,7 +595,7 @@ export default function PayrollPage({ auth }) {
             period={<MonthPickerField label="Pay Period" value={month} onChange={(value) => { setMonth(value); setOpenRunId(""); }} />} />}
           {tab === "overview" && <Overview data={data} canManage={canManage} entityId={entityId} month={month} run={activeRun} readiness={readiness?.runId === activeRun?.id ? readiness : null} onOpenRun={openRun} onOpenEmployees={() => setTab("employees")} runRead={runRead} />}
           {tab === "employees" && <ProfilesTab data={data} canManage={canManage} reload={reload} entityId={entityId} onEntityChanged={changeEntity} />}
-          {tab === "runs" && <RunsTab data={data} canManage={canManage} canViewLeave={hasPermission(auth, "crew_leave.view")} canEditEmployee={canEdit(auth, "employees")} canFinalize={canFinalize} reload={reload} entityId={entityId} setEntityId={changeEntity} month={month} setMonth={setMonth} step={runStep} setStep={setRunStep} openRunId={openRunId} setOpenRunId={setOpenRunId} readiness={readiness} runRead={runRead} />}
+          {tab === "runs" && <RunsTab data={data} canManage={canManage} canViewLeave={hasPermission(auth, "crew_leave.view")} canEditEmployee={canEdit(auth, "employees")} canEditOutlet={canEdit(auth, "outlets")} canFinalize={canFinalize} reload={reload} entityId={entityId} setEntityId={changeEntity} month={month} setMonth={setMonth} step={runStep} setStep={setRunStep} openRunId={openRunId} setOpenRunId={setOpenRunId} readiness={readiness} runRead={runRead} />}
           {tab === "settings" && <SettingsTab data={data} canManage={canManage} reload={reload} entityId={entityId} onEntityChanged={changeEntity} />}
         </>}
   </div>;

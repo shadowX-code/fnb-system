@@ -136,3 +136,17 @@ An explicit UUID employee-outlet assignment is planned as a future compatibility
 ## Recruitment Hire handoff
 
 Recruitment's trusted manager Hire command creates an ordinary canonical Employee using the established Employee insert/auth-derived actor and initial employment-assignment triggers. It additionally requires Employee creation/view authority and the same workplace access boundary, validates active Position and Legal Employer, rejects duplicate person risks, and records exactly one applicant conversion. No login, role or Crew Access is created. The initial timeline remains current-only; Joined Date is not historical assignment evidence. Recruitment retains an immutable Employee link and hands off to the existing scoped People profile via the `employee` query parameter. People owns all remaining identity, employment history, access, compliance, document and onboarding commands. Recruitment report/decision rules are owned by [Recruitment](recruitment.md).
+
+
+### Outlet / Workplace Employment Law Coverage
+
+Employment law coverage belongs to the existing Outlet/Workplace master authority,
+not individual employees or Payroll. Outlets → Law Coverage accepts explicit
+Peninsular Malaysia / Labuan, Sabah, Sarawak or Unresolved confirmation with effective
+date, evidence reference and reason. `outlet_employment_law_coverage_confirm` requires
+`outlets.edit`, a linked Admin identity and outlet scope. Read history requires scoped
+`outlets.view` or `outlets.edit`. The append-only versions record actor/time, request
+identity and same-date correction lineage; historical confirmation preserves later
+versions. No current-state/address inference or migration backfill occurs. Payroll
+consumes dated coverage for Monthly calendar-day rule scope; state-specific holiday
+geography remains independently owned by its existing state history.

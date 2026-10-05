@@ -4,6 +4,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import OutletEmploymentLawCoverage from "../components/OutletEmploymentLawCoverage.jsx";
 import EntityModal from "../components/EntityModal.jsx";
 import { outletService } from "../../../services/outletService.js";
 import { getOutletTaxConfig } from "../utils/analytics.js";
@@ -22,6 +23,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [modal, setModal] = useState(null);
+  const [coverageOutlet, setCoverageOutlet] = useState(null);
   const currentPeriod = latestPeriod(store);
 
   useEffect(() => {
@@ -101,6 +103,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
       align: "right",
       render: (row) => (
         <div className="flex justify-end gap-2">
+          <button type="button" className="btn-ghost text-xs" onClick={() => setCoverageOutlet(row)}>Law Coverage</button>
           <button className="icon-btn" onClick={() => setModal({ mode: "edit", row })}><Settings size={15} /></button>
           <button className="icon-btn" onClick={async () => {
             if (await ui.confirm({ title: "Deactivate outlet?", message: `${row.name} will stay in historical records but be hidden from default active selectors.`, danger: true, confirmLabel: "Deactivate" })) {
@@ -136,6 +139,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
           <DataTable columns={columns} rows={outlets} getRowKey={(row) => row.id} />
         )}
       </Card>
+      {coverageOutlet && <OutletEmploymentLawCoverage outlet={coverageOutlet} onClose={() => setCoverageOutlet(null)} />}
       {modal ? (
         <EntityModal
           title={modal.mode === "add" ? "Add Outlet" : "Edit Outlet"}
