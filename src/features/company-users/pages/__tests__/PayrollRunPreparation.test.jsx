@@ -236,7 +236,8 @@ it('counts only canonical unresolved time exceptions when PH and normal rows coe
   await screen.findByText('1 exception');
   fireEvent.click(screen.getByRole('button',{name:'Review Time for QA Employee'}));
   expect(screen.getByRole('dialog',{name:'Time & Attendance · QA Employee'})).toBeTruthy();
-  expect(screen.queryByText('2026-09-16')).toBeNull();
+  expect(screen.getByText('2026-09-16')).toBeTruthy();
+  expect(screen.getByText('PH treatment is separate in Employee Review.')).toBeTruthy();
 });
 
 it('Ready → View Time → Draft correction invalidates the employee and resumes automatic calculation', async () => {

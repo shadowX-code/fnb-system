@@ -160,7 +160,8 @@ it('uses server pay-impact states for Monthly evidence and excludes PH from the 
   render(<PayrollPayableTimeReview employee={{...employee,pay:{pay_basis:'monthly',basic_salary:3000},time:[normal,absence,ph]}} month="2026-09" canManage onClose={()=>{}} />);
   expect(screen.getByText('Resolved automatically')).toBeTruthy();
   expect(screen.getAllByRole('button',{name:'Review exception'})).toHaveLength(1);
-  expect(screen.queryByText('2026-09-16')).toBeNull();
+  expect(screen.getByText('2026-09-16')).toBeTruthy();
+  expect(screen.getByText('PH treatment is separate in Employee Review.')).toBeTruthy();
   expect(screen.queryByText('Approved Payable Hours')).toBeNull();
   expect(screen.queryByText('Hourly Rate')).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
