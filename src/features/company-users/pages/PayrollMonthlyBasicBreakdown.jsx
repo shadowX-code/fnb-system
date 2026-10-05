@@ -8,6 +8,9 @@ export function PayrollRecurringBreakdown({ line }) {
     {` · ${basis.period_start} – ${basis.period_end}`}</p>;
 }
 export default function PayrollMonthlyBasicBreakdown({ line }) {
+  // The shared server projection already presents salary and each reduction.
+  // Original calculation details retain the complete pinned basis below.
+  if (line?.presentation_model === "monthly_salary_reductions_v1") return null;
   const basis = line?.source?.monthly_entitlement;
   if (!basis || (basis.employed_days === basis.period_days && basis.unpaid_days === 0)) return null;
   const money = value => new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(Number(value));

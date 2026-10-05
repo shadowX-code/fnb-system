@@ -5,7 +5,7 @@ do $$
 declare actor uuid:=payroll_admin_actor(); ent uuid; outlet uuid; emp uuid; profile uuid; run uuid;
  pub uuid; roster uuid; request uuid; leave_id uuid; employees uuid[]:='{}'; i int; day date;
  t payroll_payable_time_versions%rowtype; original jsonb; result jsonb; input jsonb; corrected jsonb;
- policy payroll_paid_holiday_policy_versions%rowtype; snapshot_hash text; leave_hash text; source jsonb; quote jsonb; comp uuid; period uuid; basis jsonb;
+ policy payroll_paid_holiday_policy_versions%rowtype; snapshot_hash text; leave_hash text; source jsonb; quote jsonb; comp uuid; period uuid; basis jsonb; groups jsonb; draft jsonb; final jsonb;
 begin
  select md5(coalesce(jsonb_agg(to_jsonb(s) order by to_jsonb(s)::text)::text,'')) into snapshot_hash from payroll_run_calculation_snapshots s;
  select md5(coalesce(jsonb_agg(to_jsonb(l) order by l.id)::text,'')) into leave_hash from crew_approved_leaves l;
@@ -53,6 +53,15 @@ begin
  assert result->>'status'='ready',result->'issues';
  assert (result->>'gross_earnings')::numeric=1740,'Unpaid absence did not use 1800 / 30 x 29';
  assert (result->>'non_statutory_deductions')::numeric=0,'Absence deducted twice';
+ groups:=payroll_earning_groups(result);
+ assert groups#>>'{0,label}'='Basic Salary' and (groups#>>'{0,amount}')::numeric=1800,'Contractual salary presentation changed';
+ assert groups#>>'{1,label}'='Unpaid Absence' and (groups#>>'{1,amount}')::numeric=-60,'Absence presentation missing';
+ assert (result#>>'{lines,0,amount}')::numeric=1740,'Statutory canonical earning base changed';
+ assert (select sum((x->>'amount')::numeric) from jsonb_array_elements(groups) x)=1740,'Earning presentation deducted twice';
+ draft:=payroll_payslip_document('{"employee_name":"QA ONLY Monthly Absence 陈"}','2026-09-01','2026-09-30',null,result,'{"net_pay":1740,"lines":[]}',true);
+ final:=payroll_payslip_document('{"employee_name":"QA ONLY Monthly Absence 陈"}','2026-09-01','2026-09-30',now(),result,'{"net_pay":1740,"lines":[]}',false);
+ assert draft->'earnings'=final->'earnings' and final->'deductions'='[]'::jsonb,'Payslip authority divergence/double deduction';
+ assert (select sum((x->>'amount')::numeric) from jsonb_array_elements(final->'earnings') x)=1740,'Payslip Gross reconciliation';
  basis:=result#>'{inputs,monthly_entitlement}';
  assert (basis->>'unpaid_absence_days')::int=1 and (basis->>'unpaid_leave_days')::int=0,'Absence impersonated Leave';
  assert basis->'unpaid_absence_dates'=jsonb_build_array('2026-09-01') and (basis->>'unpaid_absence_reduction')::numeric=60,'Absence evidence missing';
@@ -71,6 +80,10 @@ begin
  assert (result->>'gross_earnings')::numeric=1740 and (result->>'non_statutory_deductions')::numeric=0,'Leave calendar rule changed';
  basis:=result#>'{inputs,monthly_entitlement}';
  assert (basis->>'unpaid_leave_days')::int=1 and (basis->>'unpaid_absence_days')::int=0,'Leave became absence';
+ groups:=payroll_earning_groups(result);
+ assert groups#>>'{0,label}'='Basic Salary' and (groups#>>'{0,amount}')::numeric=1800,'Leave changed contractual salary display';
+ assert groups#>>'{1,label}'='Unpaid Leave' and (groups#>>'{1,amount}')::numeric=-60,'Leave presentation lost ownership';
+ assert (select sum((x->>'amount')::numeric) from jsonb_array_elements(groups) x)=1740,'Leave presentation deducted twice';
  -- Hourly rejection remains zero, normal approved hours still feed Regular earnings.
  select * into t from payroll_payable_time_versions where employee_id=employees[3] and work_date='2026-09-01' order by revision desc limit 1;
  perform payroll_time_decision_save(input||jsonb_build_object('request_id',gen_random_uuid(),'time_version_id',t.id,'correction',false));
