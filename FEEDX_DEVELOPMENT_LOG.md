@@ -728,3 +728,7 @@ canonical exception counts and preserves the sequential audited correction workf
 Staging rollback contracts cover 26 clean days, 26/25 genuine missing-punch days,
 unpaid Leave exactly once, Hourly hours, explicit reconciliation, retry/history and
 frozen evidence. Production remains unchanged.
+
+## 2026-10-05 — Canonical LINDUNG Company PH wage treatment
+
+Closed the internal LINDUNG mapping omission for `company_ph_benefit`; Act 4 holiday remuneration is included centrally, consistently with ordinary SOCSO/EIS. PH pricing, ordinary statutory treatment, participation, custom component fail-closed behavior and finalized evidence remain unchanged. Focused Staging wage-base/projection contracts cover the RM2,000 + RM76.92 case and canonical system codes. Canonical owner: docs/domains/payroll.md.
