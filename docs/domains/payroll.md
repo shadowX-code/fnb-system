@@ -1218,3 +1218,7 @@ are unchanged. Open projections pin corrected wage evidence in their existing
 stale fingerprint; no employee evidence is inferred or modified.
 
 Official EPF basis: [KWSP FAQ Q19–21](https://www.kwsp.gov.my/en/employer/responsibilities/option-contribute).
+
+### Partial monthly earning evidence
+
+The canonical calculation preserves a verified stable contractual monthly salary even when monthly entitlement pricing requires review. Its raw net `monthly_basic` amount remains null until the existing authority resolves it. The shared earning presentation exposes contractual Basic Salary and source-distinct pending Employment Proration, Unpaid Leave or Unpaid Absence adjustments; it never prices an unresolved adjustment. Independently resolved PH/allowance earnings remain visible. Gross, statutory readiness and Finalize remain fail-closed. Frozen snapshots are neither reprojected nor recalculated by this change.

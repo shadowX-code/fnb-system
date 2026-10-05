@@ -56,3 +56,12 @@ it("preserves LINDUNG non-applicability versus opt-out in read-only statements",
  expect(screen.getByText("Not Applicable")).toBeTruthy();
  expect(screen.queryByText("Valid Opt-Out")).toBeNull();
 });
+
+it('preserves resolved salary and PH earnings while adjustment and Gross remain unresolved',()=>{
+ render(<ResultDetail result={{employee_name:'QA Partial',gross_earnings:null,issues:['monthly_proration_jurisdiction_requires_review'],inputs:{},lines:[],earning_groups:[{code:'monthly_basic',label:'Basic Salary',amount:1800,presentation_model:'monthly_salary_partial_evidence_v1'},{code:'unpaid_absence',label:'Unpaid Absence',amount:null,presentation_model:'monthly_salary_partial_evidence_v1'},{code:'company_ph_benefit',label:'Public Holiday Allowance',amount:69.23}]}} statutory={{lines:[],issues:[],net_pay:null}} onClose={()=>{}}/>);
+ expect(screen.getByText('Basic Salary')).toBeTruthy();
+ expect(screen.getByText(/1,800.00/)).toBeTruthy();
+ expect(screen.getByText(/69.23/)).toBeTruthy();
+ expect(screen.getByText('Review Required')).toBeTruthy();
+ expect(screen.queryByText(/1,869.23/)).toBeNull();
+});
