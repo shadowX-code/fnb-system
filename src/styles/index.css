@@ -477,6 +477,7 @@
     --theme-hover: #f1f5f9;
     --theme-subtle: #f8fafc;
     --theme-surface-raised: #ffffff;
+    --theme-surface-nested: var(--theme-subtle);
     --theme-table-header: #f3f6f8;
     --theme-table-row: #ffffff;
     --theme-table-row-alt: #fbfcfd;
@@ -3006,3 +3007,12 @@
 .control::placeholder { color:var(--theme-muted); opacity:1; }
 .admin-action-menu [role=menuitem].is-danger { margin-top:4px; border-top:1px solid var(--theme-border); border-radius:0 0 6px 6px; }
 @media (prefers-reduced-motion:reduce) { .admin-select-trigger>svg { transition:none; } }
+
+/* Action contrast is separate from the brighter brand accent. */
+:root { --theme-action-primary:#15803d; --theme-action-primary-hover:#166534; }
+.btn-primary:not(:disabled) { background-color:var(--theme-action-primary); }
+.btn-primary:not(:disabled):hover { background-color:var(--theme-action-primary-hover); }
+.btn-primary:disabled { background:var(--theme-subtle); color:var(--theme-muted); box-shadow:none; }
+.admin-select-option[aria-selected=true] { color:var(--factory-success-text); }
+:is(.btn-primary,.btn-secondary,.btn-ghost,.admin-checkbox):focus-visible { outline-color:var(--factory-success-text); }
+.admin-select-option:not(:disabled):focus-visible { outline-color:var(--factory-success-text); }

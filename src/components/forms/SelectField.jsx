@@ -110,7 +110,7 @@ export default function SelectField({
         aria-expanded={isOpen}
         aria-controls={isOpen ? `${id}-options` : undefined}
         aria-invalid={Boolean(error)}
-        aria-describedby={error || helper ? `${id}-message` : undefined}
+        aria-describedby={`${id}-value${error || helper ? ` ${id}-message` : ""}`}
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={(event) => {
@@ -120,7 +120,10 @@ export default function SelectField({
           }
         }}
       >
-        <span className={!selectedOption ? "text-text-secondary" : ""}>
+        <span
+          id={`${id}-value`}
+          className={!selectedOption ? "text-text-secondary" : ""}
+        >
           {selectedOption?.label ?? placeholder}
         </span>
         <ChevronDown

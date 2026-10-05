@@ -456,7 +456,7 @@
 }
 .recruitment-metrics .is-attention dt,
 .recruitment-metrics .is-attention dd {
-  color: var(--theme-primary);
+  color: var(--factory-success-text);
 }
 .recruitment-section {
   border: 0;
@@ -718,4 +718,9 @@
   .recruitment-form {
     padding: 16px;
   }
+}
+
+.recruitment-toolbar .admin-search-field-input {
+  width: 100%;
+  height: 36px;
 }
