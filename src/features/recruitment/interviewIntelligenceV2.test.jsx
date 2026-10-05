@@ -109,6 +109,7 @@ describe("Interview Intelligence V2", () => {
       "past-experience story is not a substitute",
     );
     expect(instructions).toContain("Covered never means Meets");
+    expect(instructions).toContain('"scenarios":[]');
   });
 });
 

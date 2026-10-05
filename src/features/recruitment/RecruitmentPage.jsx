@@ -216,13 +216,6 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
                 ]}
               />
             </AdminFormField>
-            <AdminFormField label="Description">
-              <input
-                className={fieldClass}
-                value={draft.description}
-                onChange={(e) => patch("description", e.target.value)}
-              />
-            </AdminFormField>
           </div>
         </fieldset>
         <fieldset>
@@ -233,9 +226,15 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
             employee contracts and payroll remain separate.
           </p>
           <div className="recruitment-form-grid">
+            <AdminFormField label="Job scope">
+              <input
+                className={fieldClass}
+                value={draft.description}
+                onChange={(e) => patch("description", e.target.value)}
+              />
+            </AdminFormField>
             {Object.entries({
               employment_type: "Offered employment type",
-              job_scope: "Job scope",
               offered_salary:
                 "Offered salary / range (include currency and pay period)",
               working_hours: "Working / operating hours",
