@@ -45,6 +45,21 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Users page employee/auth lifecycle guards", () => {
+  it("opens the canonical employment section without changing employee evidence",async()=>{
+    const scoped={...employee,id:"11111111-1111-4111-8111-111111111111"};
+    mocks.employees.listEmployees.mockResolvedValue([scoped]);
+    const scroll=vi.fn();
+    const original=HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView=scroll;
+    try {
+      window.history.replaceState(null,"",`/people/employees?employee=${scoped.id}&section=employment`);
+      mount(["employees.view","employees.edit"]);
+      await screen.findByText("Current Employment",{exact:true});
+      await waitFor(()=>expect(scroll).toHaveBeenCalledWith({block:"start"}));
+      expect(scroll.mock.instances.at(-1).textContent).toContain("Current Employment");
+      expect(mocks.employees.saveEmployee).not.toHaveBeenCalled();
+    } finally {HTMLElement.prototype.scrollIntoView=original;}
+  });
   it("opens scoped Bank Details and saves through Employee authority without unrelated profile requirements", async () => {
     const bankEmployee = { ...employee, id: "11111111-1111-4111-8111-111111111111", gender: "", ic_no: "", contact: "" };
     mocks.employees.listEmployees.mockResolvedValue([bankEmployee]);

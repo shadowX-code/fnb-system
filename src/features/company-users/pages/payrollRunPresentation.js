@@ -2,6 +2,12 @@
 export const payComponentIsConfigured = (component) => ["epf", "socso", "eis", "pcb"]
   .every(scheme => ["included", "excluded"].includes(component?.[`${scheme}_treatment`]));
 
+// These rows already carry confirmed canonical source evidence; only pricing is pending.
+export const payrollConfirmedUnpaidEvidence = line => line?.amount == null && line?.presentation_model === 'monthly_salary_partial_evidence_v1'
+  ? line.code === 'unpaid_absence' ? 'Confirmed unpaid absence · Deduction pending'
+    : line.code === 'unpaid_leave' ? 'Approved unpaid leave · Deduction pending' : null
+  : null;
+
 export function payrollEmployeeResult(calculation, statutory) {
   const earningsCurrent = calculation?.status === "ready" && !calculation.is_stale;
   const statutoryCurrent = earningsCurrent && statutory?.status === "ready" && !statutory.is_stale;
@@ -144,7 +150,7 @@ export function payrollIssueLabel(issue, context = {}) {
     unpaid_half_day_policy_required: "Half-day Unpaid Leave requires an approved policy; no amount has been assumed.",
     unpaid_leave_overlap_requires_review: "Approved leave overlaps; resolve the source leave evidence.",
     unpaid_leave_attendance_conflict: "Attendance conflicts with approved Unpaid Leave; review the source evidence.",
-    monthly_proration_jurisdiction_requires_review: "Confirm an effective workplace state covered by the approved calendar-day rule.",
+    monthly_proration_jurisdiction_requires_review: "Workplace information for this payroll period is required before the unpaid-time deduction can be calculated.",
     monthly_proration_jurisdiction_change: "Workplace jurisdiction changes during the period; review its salary treatment.",
     monthly_components_entitlement_policy_required: "Recurring components in an incomplete month require an approved entitlement policy.",
     mid_period_component_change: "A recurring component changes during this period; its period treatment requires review.",

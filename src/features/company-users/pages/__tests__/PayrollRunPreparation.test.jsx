@@ -259,3 +259,23 @@ it('Ready → View Time → Draft correction invalidates the employee and resume
  expect(suspend).toHaveBeenLastCalledWith(false);
  await waitFor(()=>expect(refresh).toHaveBeenCalled());
 });
+
+it("keeps confirmed absence separate from pending pricing and links only authorized Draft reviewers to People",async()=>{
+ const issue="monthly_proration_jurisdiction_requires_review";
+ const earning_groups=[{kind:"earning",code:"monthly_basic",label:"Basic Salary",amount:1800,presentation_model:"monthly_salary_partial_evidence_v1"},{kind:"earning",code:"unpaid_absence",label:"Unpaid Absence",amount:null,presentation_model:"monthly_salary_partial_evidence_v1"}];
+ mocks.readCalculation.mockResolvedValue({results:[{employee_id:"employee",status:"review_required",gross_earnings:null,issues:[issue],earning_groups,lines:[]}],adjustments:[]});
+ mocks.readPreparation.mockResolvedValue({results:[{employee_id:"employee",projection:{status:"review_required",issues:[issue],earning_groups,lines:[]}}]});
+ const {unmount}=render(<PayrollRunEmployeesPanel {...props} canEditEmployee/>);
+ await screen.findByText("QA Employee");
+ fireEvent.click(screen.getByRole("button",{name:"Review",exact:true}));
+ expect(screen.getByText("Confirmed unpaid absence · Deduction pending")).toBeTruthy();
+ expect(screen.getByText("Amount pending")).toBeTruthy();
+ expect(screen.getByRole("link",{name:"Resolve payroll-period workplace information for QA Employee"}).getAttribute("href")).toBe("/people/employees?employee=employee&section=employment");
+ expect(screen.queryByText(/Confirm an effective workplace state/)).toBeNull();
+ expect(screen.queryByText(/Updating calculation/)).toBeNull();
+ unmount();
+ render(<PayrollRunEmployeesPanel {...props} canEditEmployee={false}/>);
+ await screen.findByText("QA Employee");
+ fireEvent.click(screen.getByRole("button",{name:"Review",exact:true}));
+ expect(screen.queryByRole("link",{name:/Resolve payroll-period workplace/})).toBeNull();
+});

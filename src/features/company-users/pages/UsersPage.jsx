@@ -623,8 +623,10 @@ function UserFormModal({
 }) {
   const bankOnly = initialSection === "bank" && Boolean(initialUser?.id);
   const bankSection = useRef(null);
+  const employmentSection = useRef(null);
   useEffect(() => {
-    if (initialSection === "bank") bankSection.current?.scrollIntoView?.({block:"start"});
+    const section = initialSection === "bank" ? bankSection : initialSection === "employment" ? employmentSection : null;
+    section?.current?.scrollIntoView?.({block:"start"});
   }, [initialSection, mode]);
   const [values, setValues] = useState(() => {
     const merged = { ...createEmptyUser(), ...initialUser };
@@ -1115,7 +1117,7 @@ function UserFormModal({
           )}
         </FormSection>
 
-        <FormSection title="Current Employment" icon={BriefcaseBusiness}>
+        <div ref={employmentSection}><FormSection title="Current Employment" icon={BriefcaseBusiness}>
           {isViewMode || (mode === "edit" && Boolean(values.id)) ? (
             <div className="grid gap-3 md:grid-cols-2">
               <ReadOnlyField label="Employment Type">{employmentTypeLabel(values.employment_type)}</ReadOnlyField>
@@ -1189,7 +1191,7 @@ function UserFormModal({
           {values.id && <EmployeeEmploymentTimelinePanel employeeId={values.id} joinedDate={initialUser?.joined_date} canEdit={canEditEmployee}
             positions={jobPositions} workplaces={workplaceOptions} legalEntities={legalEntities}
             onSaved={refreshEmployment} />}
-        </FormSection>
+        </FormSection></div>
 
         </>}
         <div ref={bankSection}><FormSection title="Bank Info" icon={CreditCard}>

@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import PayrollMonthlyBasicBreakdown from "../PayrollMonthlyBasicBreakdown.jsx";
+import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "../PayrollMonthlyBasicBreakdown.jsx";
 afterEach(cleanup);
 const basis = { monthly_salary: 3000, employment_reduction: 1000, unpaid_leave_reduction: 100,
   payable_basic_salary: 1900, period_start: "2026-09-01", period_end: "2026-09-30",
@@ -39,4 +39,22 @@ it('keeps expanded server earning rows compact and preserves original calculatio
 it('does not present an unverified pending adjustment as a priced calculation',()=>{
  const {container}=render(<PayrollMonthlyBasicBreakdown line={{amount:null,presentation_model:'monthly_salary_partial_evidence_v1',source:{monthly_entitlement:basis}}}/>);
  expect(container.textContent).toBe('');
+});
+
+const recurring = {amount:250,source:{formula:"Sum effective daily component amounts / calendar days",daily_amount_sum:7500,recurring_period:{policy:"calendar_days",active_days:30,period_days:30,period_start:"2026-09-01",period_end:"2026-09-30"}}};
+it("keeps recurring summary operational and retains canonical arithmetic in details",()=>{
+ const {container,rerender}=render(<PayrollRecurringBreakdown line={recurring}/>);
+ expect(screen.getByText("Full month · 30/30 calendar days")).toBeTruthy();
+ expect(container.textContent).not.toMatch(/7,500|÷|Sum effective|2026-09/);
+ rerender(<PayrollRecurringBreakdown line={recurring} detailed/>);
+ expect(container.textContent).toMatch(/7,500.00.*÷ 30.*250.00/);
+ expect(container.textContent).toContain("2026-09-01 – 2026-09-30");
+});
+it("distinguishes actual proration from a full-amount partial-period policy",()=>{
+ const partial={...recurring,amount:125,source:{...recurring.source,recurring_period:{...recurring.source.recurring_period,active_days:15}}};
+ const {rerender}=render(<PayrollRecurringBreakdown line={partial}/>);
+ expect(screen.getByText("Prorated · 15/30 calendar days")).toBeTruthy();
+ rerender(<PayrollRecurringBreakdown line={{...partial,source:{...partial.source,recurring_period:{...partial.source.recurring_period,policy:"full_amount"}}}}/>);
+ expect(screen.getByText("Full amount · 15/30 calendar days")).toBeTruthy();
+ expect(screen.queryByText(/Prorated/)).toBeNull();
 });
