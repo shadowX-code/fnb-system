@@ -1130,3 +1130,22 @@ through the existing fast, audited command. Finish/Return resumes coalesced auto
 calculation. Financial totals remain pending while stale or membership is unresolved.
 Run membership blockers appear once in the header, independently of employee preparation
 progress and actionable review items.
+
+## LINDUNG system earning wage classification
+
+The internal `payroll_lindung_wages` authority centrally includes Basic Salary,
+Regular, overtime, rest-day pay, statutory/custom Public Holiday Allowance, PH OT
+and `company_ph_benefit` in Act 4 contributable wages. Unpaid-time wage reductions
+subtract from that basis. The Company PH Allowance is holiday remuneration under
+Act 4 s2(24), consistent with its existing ordinary SOCSO/EIS inclusion; ordinary
+EPF treatment and all PH formulas remain unchanged. The legacy Company benefit
+and unified treatment use the same earning code and classification.
+
+System earning codes are derived only by trusted calculation authorities. User-defined
+components continue to use their canonical `socso_treatment`, including exclusions,
+and unresolved/unknown components remain blocked. No employee or Run needs to
+reclassify a canonical PH earning. Open statutory projections become stale through
+the existing pinned wage-evidence fingerprint; automatic calculation uses the
+corrected mapping. Finalized statutory snapshots remain frozen.
+
+Official basis: [PERKESO Act 4, section 2(24)](https://perkeso.gov.my/images/akta/ACT%204/Act%204%20-%20EMPLOYEES%E2%80%99%20SOCIAL%20SECURITY%20ACT%201969%20(As%20at%201%20September%202022).pdf).

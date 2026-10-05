@@ -793,3 +793,7 @@ frozen evidence. Production remains unchanged.
 ## 2026-10-05 — Recruitment review intelligence
 
 Separated explicit opening-requirement fit from server-owned evidence coverage in new immutable v3 reports. Consolidated Application Review around factual summary, cited fit, one evidence area per row and progressive source/history disclosure. Preserved historical reports/findings, recording/transport and manager hiring authority. Focused verification is recorded in `qa/recruitment/reviewFitStaging.md`.
+
+## 2026-10-05 — Canonical LINDUNG Company PH wage treatment
+
+Closed the internal LINDUNG mapping omission for `company_ph_benefit`; Act 4 holiday remuneration is included centrally, consistently with ordinary SOCSO/EIS. PH pricing, ordinary statutory treatment, participation, custom component fail-closed behavior and finalized evidence remain unchanged. Focused Staging wage-base/projection contracts cover the RM2,000 + RM76.92 case and canonical system codes. Canonical owner: docs/domains/payroll.md.
