@@ -5,6 +5,27 @@ const mocks = vi.hoisted(() => ({ readPreparation: vi.fn(), readCalculation: vi.
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {...mocks, readRunEvidence: async id => { const [preparation,calculation,statutory]=await Promise.all([mocks.readPreparation(id),mocks.readCalculation(id),mocks.readStatutory(id)]); return {preparation,calculation,statutory}; }} }));
 import { usePayrollRunRead } from "../usePayrollRunRead.js";
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
+it('settles a blocked Monthly recalculation to current review evidence without repeat retries or stale totals', async () => {
+ let blocked=false;
+ const pending={employee_id:'monthly',status:'review_required',is_stale:false,persistence_state:'blocked',
+  gross_earnings:null,pre_statutory_pay:null,issues:['monthly_proration_jurisdiction_requires_review'],
+  earning_groups:[{label:'Basic Salary',amount:1800},{label:'Unpaid Absence',amount:null}]};
+ mocks.readPreparation.mockResolvedValue({results:[{employee_id:'monthly',projection:pending}]});
+ mocks.readCalculation.mockImplementation(async()=>({results:[blocked?pending:{employee_id:'monthly',is_stale:true,gross_earnings:1740}]}));
+ mocks.readStatutory.mockImplementation(async()=>({results:[{employee_id:'monthly',status:'review_required',is_stale:!blocked,net_pay:null}]}));
+ mocks.recalculateEmployee.mockImplementation(async()=>{blocked=true;return {calculation:{created:0,blocked:1},statutory:{created:0,blocked:1}};});
+ const {result}=renderHook(()=>usePayrollRunRead({id:'run',status:'draft'},null,true,true));
+ await waitFor(()=>expect(result.current.data?.calculation.results[0].persistence_state).toBe('blocked'));
+ expect(result.current.calculating).toBe(false);
+ expect(result.current.calculationErrors).toEqual({});
+ const rows=payrollReviewRows(result.current.data);
+ expect(rows[0].result).toMatchObject({earningsAvailable:true,gross:null,net:null,status:'Needs Attention'});
+ expect(rows[0].calculation.earning_groups[0]).toEqual({label:'Basic Salary',amount:1800});
+ await act(()=>result.current.retryCalculation('monthly'));
+ await act(()=>result.current.refresh());
+ expect(mocks.recalculateEmployee).toHaveBeenCalledTimes(1);
+ expect(result.current.calculationErrors).toEqual({});
+});
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b) => { resolve=a; reject=b; }); return {promise,resolve,reject}; };
 
 it("ignores old Run success and failure after scope changes", async () => {
