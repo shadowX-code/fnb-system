@@ -9,7 +9,7 @@ export function InterviewComplete({ entry, completedAt, reason }) {
       <p>{reason || "Thank you for your time."}</p>
       {!reason && (
         <p className="candidate-complete-note">
-          Your responses have been submitted to the hiring team for recruitment
+          Your interview has been submitted to the hiring team for recruitment
           review.
         </p>
       )}

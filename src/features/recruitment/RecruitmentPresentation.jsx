@@ -46,8 +46,9 @@ export function RecruitmentState({ value, kind = "lifecycle", children }) {
   );
 }
 export function RecruitmentMetrics({ items }) {
+  const Container = items.some((item) => item.onSelect) ? "div" : "dl";
   return (
-    <dl className="recruitment-metrics">
+    <Container className="recruitment-metrics">
       {items.map(({ key, label, value, attention, onSelect }) => (
         <div
           key={key || label}
@@ -70,7 +71,7 @@ export function RecruitmentMetrics({ items }) {
           )}
         </div>
       ))}
-    </dl>
+    </Container>
   );
 }
 export function RecruitmentSection({

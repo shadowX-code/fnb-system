@@ -236,8 +236,9 @@ export default function RecruitmentInterviewPublic() {
         ))}
         {entry.consent_copy?.notice && <p>{entry.consent_copy.notice}</p>}
         {entry.consent_copy?.consent ? (
-          <label className="admin-checkbox recruitment-checkbox">
+          <label className="recruitment-checkbox">
             <input
+              className="admin-checkbox"
               type="checkbox"
               checked={!!entry.consented || consentSelected}
               disabled={

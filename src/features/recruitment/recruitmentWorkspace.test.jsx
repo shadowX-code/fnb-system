@@ -14,6 +14,9 @@ const qa = vi.hoisted(() => ({
   saveOpening: vi.fn(),
   publishProfile: vi.fn(),
   issueInvitation: vi.fn(),
+  registerApplication: vi.fn(),
+  findApplicants: vi.fn(),
+  revokeInvitation: vi.fn(),
 }));
 vi.mock("./recruitmentService.js", () => ({ recruitmentService: qa }));
 vi.mock("./RecruitmentEvidenceReview.jsx", () => ({
@@ -256,12 +259,126 @@ it("hydrates pinned priorities, partial evidence, facts and requirements as cont
   expect(text).toContain("Prioritize unresolved Core");
   expect(context.established_facts[0].turn_number).toBe(2);
 });
-it("labels recording failure separately from candidate stage and interview evidence", async()=>{
- const fixture=structuredClone(data);fixture.applications[0].attempt_status="failed";fixture.applications[0].recording_state="failed";
- qa.workspace.mockResolvedValue(fixture);
- // Evidence read failure must not block candidate review.
- qa.managerEvidence=vi.fn().mockRejectedValue(new Error("not available"));
- await enter();fireEvent.click(screen.getByRole("tab",{name:"Candidates"}));
- expect(screen.getByText("Interview: Evidence incomplete")).toBeTruthy();
- expect(screen.getByText(/Recording:/)).toBeTruthy();expect(screen.getByRole("button",{name:"Review",exact:true})).toBeTruthy();
+it("labels recording failure separately from candidate stage and interview evidence", async () => {
+  const fixture = structuredClone(data);
+  fixture.applications[0].attempt_status = "failed";
+  fixture.applications[0].recording_state = "failed";
+  qa.workspace.mockResolvedValue(fixture);
+  // Evidence read failure must not block candidate review.
+  qa.managerEvidence = vi.fn().mockRejectedValue(new Error("not available"));
+  await enter();
+  fireEvent.click(screen.getByRole("tab", { name: "Candidates" }));
+  expect(screen.getByText("Interview: Evidence incomplete")).toBeTruthy();
+  expect(screen.getByText(/Recording:/)).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Review", exact: true }),
+  ).toBeTruthy();
+});
+describe("application invitation journey", () => {
+  it("registration offers optional immediate issuance rather than auto-inviting", async () => {
+    qa.registerApplication.mockResolvedValue("new-application");
+    await enter();
+    fireEvent.click(screen.getByRole("button", { name: "Add candidate" }));
+    fireEvent.change(screen.getByRole("textbox", { name: /Full name/ }), {
+      target: { value: "Synthetic Candidate" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /Contact number/ }), {
+      target: { value: "0000000337" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Register", exact: true }),
+    );
+    await screen.findByRole("dialog", { name: "Candidate added" });
+    expect(qa.issueInvitation).not.toHaveBeenCalled();
+    qa.issueInvitation.mockResolvedValue("c".repeat(64));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Issue interview link", exact: true }),
+    );
+    await screen.findByRole("dialog", { name: "Interview link issued" });
+    expect(qa.issueInvitation.mock.calls[0][0]).toBe("new-application");
+    expect(
+      screen
+        .getByRole("link", { name: "Open interview link" })
+        .getAttribute("href"),
+    ).toContain(`/i/${"c".repeat(64)}`);
+  });
+  it("active unretrievable hash-only invitation explains reissue rather than fabricating a link", async () => {
+    qa.workspace.mockResolvedValue({
+      ...structuredClone(data),
+      applications: [
+        {
+          id: "app1",
+          name: "Candidate A",
+          contact: "QA",
+          stage: "invited",
+          issued_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 86400000).toISOString(),
+        },
+      ],
+    });
+    await enter();
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Candidates", exact: true }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy link", exact: true }),
+    );
+    await screen.findByRole("dialog", { name: "Invitation active" });
+    expect(screen.getByText(/original link is not stored/)).toBeTruthy();
+    expect(
+      screen.queryByRole("link", { name: "Open interview link" }),
+    ).toBeNull();
+    expect(qa.issueInvitation).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["Candidates", "all"],
+    ["Invited", "invited"],
+    ["Interviewing", "interviewing"],
+    ["Needs review", "needs_review"],
+    ["Shortlisted", "shortlisted"],
+  ])("%s funnel deep-links to the existing stage", async (label, stage) => {
+    await enter();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: new RegExp(`^${label}:.*View candidates$`),
+      }),
+    );
+    await waitFor(() =>
+      expect(qa.workspace).toHaveBeenLastCalledWith({
+        openingId: "opening1",
+        stage,
+        page: 1,
+        includeQa: false,
+      }),
+    );
+  });
+});
+it("an invitation expiring after render cannot turn a Copy tap into automatic reissue", async () => {
+  const expiresAt = new Date(Date.now() + 86400000).toISOString();
+  qa.workspace.mockResolvedValue({
+    ...structuredClone(data),
+    applications: [
+      {
+        id: "app1",
+        name: "Candidate A",
+        contact: "QA",
+        stage: "invited",
+        issued_at: new Date().toISOString(),
+        expires_at: expiresAt,
+      },
+    ],
+  });
+  await enter();
+  fireEvent.click(screen.getByRole("tab", { name: "Candidates", exact: true }));
+  const copy = screen.getByRole("button", { name: "Copy link", exact: true });
+  const clock = vi
+    .spyOn(Date, "now")
+    .mockReturnValue(Date.parse(expiresAt) + 1);
+  try {
+    fireEvent.click(copy);
+    await screen.findByRole("dialog", { name: "Invitation expired" });
+    expect(qa.issueInvitation).not.toHaveBeenCalled();
+  } finally {
+    clock.mockRestore();
+  }
 });

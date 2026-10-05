@@ -575,13 +575,12 @@ export default function RecruitmentPage({ auth }) {
   async function copyLink(link) {
     try {
       await navigator.clipboard.writeText(link.url);
-      setCopied(true);
+      setCopied(link.url);
     } catch {
       setError("Could not copy automatically. Select and copy the link below.");
     }
   }
-  function candidateAction(row) {
-    const action = invitationAction(row, canManage, opening.status);
+  function candidateAction(row, action) {
     if (action === "issue") return issue(row);
     if (action === "copy") {
       const link = currentInvitation(row, issuedLinks);
@@ -1121,7 +1120,17 @@ export default function RecruitmentPage({ auth }) {
                       <button
                         className="btn-secondary"
                         disabled={busy}
-                        onClick={() => candidateAction(row)}
+                        data-action={invitationAction(
+                          row,
+                          canManage,
+                          opening.status,
+                        )}
+                        onClick={(event) =>
+                          candidateAction(
+                            row,
+                            event.currentTarget.dataset.action,
+                          )
+                        }
                       >
                         {invitationAction(row, canManage, opening.status) ===
                         "issue"
@@ -1422,7 +1431,13 @@ export default function RecruitmentPage({ auth }) {
       )}
       {invitation && (
         <Modal
-          title={invitation.url ? "Interview link issued" : "Invitation active"}
+          title={
+            invitation.url
+              ? "Interview link issued"
+              : Date.parse(invitation.expiresAt) > Date.now()
+                ? "Invitation active"
+                : "Invitation expired"
+          }
           description={invitation.name}
           onClose={() => setInvitation("")}
           footer={
@@ -1441,7 +1456,7 @@ export default function RecruitmentPage({ auth }) {
                     className="btn-primary"
                     onClick={() => copyLink(invitation)}
                   >
-                    {copied ? "Copied" : "Copy link"}
+                    {copied === invitation.url ? "Copied" : "Copy link"}
                   </button>
                 </>
               )}

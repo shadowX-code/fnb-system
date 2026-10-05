@@ -246,7 +246,58 @@ describe("application-bound invitation actions", () => {
   });
 });
 
-describe("canonical language context",()=>{
- it("every language preference reaches entry instructions, including Cantonese distinct from Mandarin",async()=>{const {firstInterviewResponse}=await import("../../../supabase/functions/recruitment-realtime/prompt.ts");for(const [preferred_language,expected] of [["en","English"],["ms","Bahasa Melayu"],["zh","Mandarin Chinese"],["yue","Cantonese (粤语, not Mandarin)"]]){const prompt=firstInterviewResponse({generation:1,preferred_language,turns:[],topics:[],scenarios:[],target_minutes:10,required_topics:[],scenario_briefs:[],language_guidance:"",interview_instructions:""});expect(prompt).toContain(`Selected starting language: ${expected}`);expect(prompt).toContain("never a language restriction");}});
- it("quiet canonical context preserves preference without replaying history",async()=>{const {continuationContext}=await import("../../../supabase/functions/recruitment-realtime/context.ts");const result=continuationContext({max_ends_at:new Date(Date.now()+100000).toISOString(),turns:[],topics:[],scenarios:[]},{provider_generation:2,preferred_language:"yue"},{target_minutes:10,required_topics:[],scenario_briefs:[]},{},[]);expect(result.preferred_language).toBe("yue");expect(result.turns).toEqual([]);});
+describe("canonical language context", () => {
+  it("every language preference reaches entry instructions, including Cantonese distinct from Mandarin", async () => {
+    const { firstInterviewResponse } = await import(
+      "../../../supabase/functions/recruitment-realtime/prompt.ts"
+    );
+    for (const [preferred_language, expected] of [
+      ["en", "English"],
+      ["ms", "Bahasa Melayu"],
+      ["zh", "Mandarin Chinese"],
+      ["yue", "Cantonese (粤语, not Mandarin)"],
+    ]) {
+      const prompt = firstInterviewResponse({
+        generation: 1,
+        preferred_language,
+        turns: [],
+        topics: [],
+        scenarios: [],
+        target_minutes: 10,
+        required_topics: [],
+        scenario_briefs: [],
+        language_guidance: "",
+        interview_instructions: "",
+      });
+      expect(prompt).toContain(`Selected starting language: ${expected}`);
+      expect(prompt).toContain("never a language restriction");
+    }
+  });
+  it("quiet canonical context preserves preference without replaying history", async () => {
+    const { continuationContext } = await import(
+      "../../../supabase/functions/recruitment-realtime/context.ts"
+    );
+    const result = continuationContext(
+      {
+        max_ends_at: new Date(Date.now() + 100000).toISOString(),
+        turns: [],
+        topics: [],
+        scenarios: [],
+      },
+      { provider_generation: 2, preferred_language: "yue" },
+      { target_minutes: 10, required_topics: [], scenario_briefs: [] },
+      {},
+      [],
+    );
+    expect(result.preferred_language).toBe("yue");
+    expect(result.turns).toEqual([]);
+  });
+});
+
+it("shared checkbox styling belongs to the input, leaving the consent label touchable", async () => {
+  mocks.entry = { ...base, status: "profile_confirmed" };
+  render(<Public />);
+  const checkbox = await screen.findByRole("checkbox");
+  expect(checkbox.className).toContain("admin-checkbox");
+  expect(checkbox.closest("label").className).not.toContain("admin-checkbox");
 });

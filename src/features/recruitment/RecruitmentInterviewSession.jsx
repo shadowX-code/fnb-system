@@ -80,7 +80,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
       setStatus("finalizing");
       clearTimeout(maxTimer.current);
       ai.current?.close();
-      const pending = await bounded((ai.current || machine.current.transport)?.flush(),"Saving transcript",{timeoutMs:8000});
+      const pending = await bounded((ai.current || machine.current.transport)?.flush(),"Saving your responses",{timeoutMs:8000});
       await bounded(recording.current?.stop("completed"),"Saving recording evidence",{timeoutMs:30000});
       devices.stop();
       if (pending)
@@ -89,7 +89,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
         );
       const result = await bounded(recruitmentService.evidence(
         "finalize",token,clientId.current,
-      ),"Finalizing saved evidence",{timeoutMs:20000});
+      ),"Submitting your interview",{timeoutMs:20000});
       setStatus(result.status);
       if (["completed","partial","failed"].includes(result.status)) recruitmentService.publicEntry(token).then(value=>{if(alive.current)setCompletedAt(value.completed_at);}).catch(()=>{});
       setRecordingStatus(result.recording_state);
@@ -258,14 +258,14 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
     setError("");
     try {
       await claimClient();
-      session.current = await bounded(recruitmentService.begin(token, clientId.current),"Loading evidence recovery",{timeoutMs:15000});
+      session.current = await bounded(recruitmentService.begin(token, clientId.current),"Loading your interview",{timeoutMs:15000});
       const recovery = new InterviewRecording({
         token,
         clientId: clientId.current,
         startedAt: session.current.started_at,
         onStatus: setRecordingStatus,
       });
-      await bounded(recovery.recover(),"Recovering saved evidence",{timeoutMs:25000});
+      await bounded(recovery.recover(),"Saving your interview",{timeoutMs:25000});
       if (!ai.current)
         ai.current = new RecruitmentRealtimeSession({
           token,
@@ -274,14 +274,14 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
           audioElement: audio.current,
         });
       ai.current.attemptKey = recovery.attemptKey;
-      const pending = await bounded(ai.current.flush(),"Saving transcript",{timeoutMs:8000});
+      const pending = await bounded(ai.current.flush(),"Saving your responses",{timeoutMs:8000});
       if (pending)
         throw Error(
-          "Transcript save is still pending. Retry with a stable connection.",
+          "Some responses are still saving. Try again with a stable connection.",
         );
       const result = await bounded(recruitmentService.evidence(
         "finalize",token,clientId.current,
-      ),"Finalizing saved evidence",{timeoutMs:20000});
+      ),"Submitting your interview",{timeoutMs:20000});
       setStatus(result.status);
       if (["completed","partial","failed"].includes(result.status)) recruitmentService.publicEntry(token).then(value=>{if(alive.current)setCompletedAt(value.completed_at);}).catch(()=>{});
       setRecordingStatus(result.recording_state);
