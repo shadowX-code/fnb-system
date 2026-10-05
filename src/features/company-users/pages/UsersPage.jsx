@@ -621,6 +621,7 @@ function UserFormModal({
   onEmploymentChanged,
   initialSection,
 }) {
+  const bankOnly = initialSection === "bank" && Boolean(initialUser?.id);
   const bankSection = useRef(null);
   useEffect(() => {
     if (initialSection === "bank") bankSection.current?.scrollIntoView?.({block:"start"});
@@ -879,8 +880,8 @@ function UserFormModal({
       notifyPermissionDenied(ui, requiresResetPassword ? "send reset password emails" : "send password setup links");
       return;
     }
-    const nextErrors = validateUserForm(values);
-    if (values.enable_system_login && values.email && ["invalid", "used"].includes(emailStatus)) {
+    const nextErrors = bankOnly ? {} : validateUserForm(values);
+    if (!bankOnly && values.enable_system_login && values.email && ["invalid", "used"].includes(emailStatus)) {
       nextErrors.email = emailStatus === "used" ? "Email is already used." : "Enter a valid email address.";
     }
     setErrors(nextErrors);
@@ -897,9 +898,10 @@ function UserFormModal({
     try {
       await onSubmit({
         ...values,
+        edit_section: bankOnly ? "bank" : undefined,
         full_name: normalizedFullName,
         nickname: values.nickname.trim(),
-        bank_account_name: values.bank_account_name?.trim() || normalizedFullName,
+        bank_account_name: bankOnly ? values.bank_account_name?.trim() || null : values.bank_account_name?.trim() || normalizedFullName,
         access_state: normalizeEmployeeAccessState(nextAccessStatus, values.enable_system_login),
         is_active: values.enable_system_login && nextAccessStatus === EMPLOYEE_ACCESS_STATE.ACTIVE,
         enable_system_login: Boolean(values.enable_system_login),
@@ -1009,7 +1011,7 @@ function UserFormModal({
 
   return (
     <Modal
-      title={isViewMode ? "Employee Profile" : mode === "add" ? "Add Employee" : "Edit Employee"}
+      title={bankOnly ? "Bank Details" : isViewMode ? "Employee Profile" : mode === "add" ? "Add Employee" : "Edit Employee"}
       description={isViewMode ? `${values.full_name || "-"} · ${getDisplayName(values)} · ${values.position || "No position"} · ${values.workplace || "No work place"}` : values.full_name || "Enable system login only for employees who need app access. Admins cannot create, view, or recover passwords."}
       onClose={onClose}
       size="xl"
@@ -1018,12 +1020,12 @@ function UserFormModal({
         isViewMode ? (
           <>
             <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-            {canEditEmployee ? <button className="btn-primary" type="button" onClick={onSwitchToEdit}>Edit Employee</button> : <Badge tone="neutral">Read-only access</Badge>}
+            {canEditEmployee ? <button className="btn-primary" type="button" onClick={onSwitchToEdit}>{bankOnly ? "Edit Bank Details" : "Edit Employee"}</button> : <Badge tone="neutral">Read-only access</Badge>}
           </>
         ) : (
           <>
             <button className="btn-secondary" type="button" disabled={isSaving} onClick={onClose}>Cancel</button>
-              {shouldShowAccessSetup && canManageCurrentLoginSetup ? (
+              {!bankOnly && shouldShowAccessSetup && canManageCurrentLoginSetup ? (
                 <button
                   className="btn-primary"
                   type="button"
@@ -1033,12 +1035,13 @@ function UserFormModal({
                   {isSaving ? "Saving..." : "Save & Send Login Setup"}
                 </button>
               ) : null}
-              <button className="btn-primary" type="button" disabled={isSaving || !canEditEmployee} onClick={() => handleSubmit()}>{isSaving ? "Saving..." : "Save Employee"}</button>
+              <button className="btn-primary" type="button" disabled={isSaving || !canEditEmployee} onClick={() => handleSubmit()}>{isSaving ? "Saving..." : bankOnly ? "Save Bank Details" : "Save Employee"}</button>
           </>
         )
       }
     >
       <div className="space-y-4">
+        {!bankOnly && <>
         <FormSection title="Personal Info" icon={UserRound}>
           {isViewMode ? (
             <div className="grid gap-3 md:grid-cols-2">
@@ -1188,6 +1191,7 @@ function UserFormModal({
             onSaved={refreshEmployment} />}
         </FormSection>
 
+        </>}
         <div ref={bankSection}><FormSection title="Bank Info" icon={CreditCard}>
           {isViewMode ? (
             hasBankInfo ? (
@@ -1217,6 +1221,7 @@ function UserFormModal({
           )}
         </FormSection></div>
 
+        {!bankOnly && <>
         <FormSection title="System Access" icon={ShieldCheck}>
           {isViewMode ? (
             values.enable_system_login ? (
@@ -1404,6 +1409,7 @@ function UserFormModal({
         <EmployeeCompliancePanel employeeId={values.id} canView={canViewCompliance} canReview={canReviewCompliance} ui={ui} />
         <EmployeeEmploymentDocumentsPanel employeeId={values.id} employeeName={values.full_name || "Employee"} canView={canViewEmploymentDocuments} canManage={canManageEmploymentDocuments} ui={ui} />
         <EmployeeDisciplinaryPanel employeeId={values.id} employeeName={values.full_name || "Employee"} canView={canViewLettersNotices} canManage={canManageLettersNotices} ui={ui} />
+        </>}
       </div>
     </Modal>
   );
@@ -1698,9 +1704,11 @@ export default function UsersPage({ ui, store, auth }) {
       const shouldSendLoginSetup = Boolean(user.send_login_setup);
       const payload = { ...user };
       delete payload.send_login_setup;
+      const section = payload.edit_section;
+      delete payload.edit_section;
       const selectedPosition = jobPositions.find((position) => position.name === payload.position);
       payload.department = selectedPosition?.department || payload.department || null;
-      let saved = await employeeService.saveEmployee(payload);
+      let saved = await employeeService.saveEmployee(payload, section === "bank" ? { section: "bank" } : undefined);
       if (isNew) {
         setFormState((current) => current ? { mode: "edit", user: saved } : current);
       }

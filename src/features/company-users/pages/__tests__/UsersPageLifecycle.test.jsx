@@ -45,6 +45,19 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Users page employee/auth lifecycle guards", () => {
+  it("opens scoped Bank Details and saves through Employee authority without unrelated profile requirements", async () => {
+    const bankEmployee = { ...employee, id: "11111111-1111-4111-8111-111111111111", gender: "", ic_no: "", contact: "" };
+    mocks.employees.listEmployees.mockResolvedValue([bankEmployee]);
+    mocks.employees.saveEmployee.mockResolvedValue(bankEmployee);
+    window.history.replaceState(null, "", `/people/employees?employee=${bankEmployee.id}&section=bank`);
+    mount(["employees.view", "employees.edit"]);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Bank Details" }));
+    expect(screen.queryByText("Personal Info", { exact: true })).toBeNull();
+    fireEvent.change(screen.getByPlaceholderText("Account number"), { target: { value: "000000000001" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Bank Details" }));
+    await waitFor(() => expect(mocks.employees.saveEmployee).toHaveBeenCalledWith(expect.objectContaining({ bank_account_number: "000000000001" }), { section: "bank" }));
+  });
+
   it("offers Factory as a canonical Workplace alongside Management for all-outlet employee administrators", async () => {
     mount(["employees.view", "employees.create"]);
     await screen.findByText("Aisha");

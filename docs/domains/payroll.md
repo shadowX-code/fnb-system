@@ -1176,9 +1176,11 @@ are unresolved; finalization is separate from payment.
 Bank Details are current People Employee data, not Payroll-owned or a payment snapshot.
 One scoped Employee bank read is shared across Prepare, Review and Finalize, revalidated
 on window focus and retry. Complete/incomplete table actions open details; authorized
-editing opens the canonical Employee form at Bank Info in a separate tab, preserving
+editing opens the canonical Employee Bank Details form in a separate tab, preserving
 Run/entity/stage context. Returning re-reads the Employee result. Missing bank details
-remain informational warnings and never add a finalization gate.
+remain informational warnings and never add a finalization gate. Bank-only saves use
+the same Employee service/RLS/audit authority with a bank-field allowlist; unrelated
+profile facts are not submitted or required. Original bank values are retained in audit.
 
 ## LINDUNG system earning wage classification
 

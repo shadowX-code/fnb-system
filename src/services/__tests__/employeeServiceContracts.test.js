@@ -45,6 +45,30 @@ beforeEach(() => {
 });
 
 describe("Employee and Auth lifecycle service contracts", () => {
+  it("reads only canonical bank fields for the requested employees without mutation or audit", async () => {
+    const bank = { id: employeeRow.id, bank_name: "Legacy bank", bank_account_name: "QA", bank_account_number: "00123" };
+    mocks.responses.push({ data: [bank], error: null });
+    expect(await employeeService.readBankInfo([employeeRow.id, employeeRow.id])).toEqual([bank]);
+    expect(mocks.operations).toEqual([{ table: "employees", method: "select", payload: null,
+      fields: "id,bank_name,bank_account_name,bank_account_number", filters: [["id", [employeeRow.id]]] }]);
+    expect(mocks.audit).not.toHaveBeenCalled();
+  });
+  it("does not substitute data when the Employee bank read fails or is outside RLS scope", async () => {
+    mocks.responses.push({ data: null, error: { message: "Denied" } });
+    await expect(employeeService.readBankInfo([employeeRow.id])).rejects.toThrow();
+    mocks.responses.push({ data: [], error: null });
+    expect(await employeeService.readBankInfo([employeeRow.id])).toEqual([]);
+    expect(await employeeService.readBankInfo([])).toEqual([]);
+  });
+  it("scopes Bank Details save to canonical Employee bank fields, preserves unrelated facts and audits before/after", async () => {
+    mocks.responses.push({ data: { ...employeeRow, bank_name: null, bank_account_name: null, bank_account_number: null }, error: null },
+      { data: { ...employeeRow, bank_name: "Maybank", bank_account_name: "QA", bank_account_number: "000000000001" }, error: null });
+    await employeeService.saveEmployee({ ...employeeRow, bank_name: "Maybank", bank_account_name: "QA", bank_account_number: "000000000001", gender: "", employment_status: "resigned" }, { section: "bank" });
+    expect(mocks.operations[1].payload).toEqual({ bank_name: "Maybank", bank_account_name: "QA", bank_account_number: "000000000001", updated_at: expect.any(String) });
+    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "employee_updated", description: "Employee bank details updated.", before: { bank_name: null, bank_account_name: null, bank_account_number: null } }));
+    await expect(employeeService.saveEmployee({ full_name: "New" }, { section: "bank" })).rejects.toThrow("existing employee");
+  });
+
   it("creates an employee without login access through one employee-row write and best-effort audit", async () => {
     mocks.responses.push({ data: employeeRow, error: null });
     await expect(employeeService.saveEmployee({ full_name: "Aisha Rahman", nickname: "Aisha", contact: "0123456789", enable_system_login: false, employment_status: "active", created_by: "spoofed-actor" })).resolves.toEqual(expect.objectContaining({ id: employeeRow.id, auth_user_id: "", email: "" }));
