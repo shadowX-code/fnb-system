@@ -29,9 +29,9 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
     setQueue(exceptions.map(item => item.work_date));
     setDecisionDate(row.work_date);
   };
-  const rows = [...(latestRows || employee.time)].filter(row => row.review_state?.state !== 'ph_review').sort((a,b) => Number(payrollTimeNeedsReview(b)) - Number(payrollTimeNeedsReview(a)) || a.work_date.localeCompare(b.work_date));
+  const rows = [...(latestRows || employee.time)].sort((a,b) => Number(payrollTimeNeedsReview(b)) - Number(payrollTimeNeedsReview(a)) || a.work_date.localeCompare(b.work_date));
   const exceptions = rows.filter(row => payrollTimeNeedsReview(row));
-  const sum = key => rows.reduce((total,row) => total + Number(row[key] || 0), 0);
+  const sum = key => rows.filter(row => row.review_state?.state !== 'ph_review').reduce((total,row) => total + Number(row[key] || 0), 0);
   const total = key => `${hours(sum(key))}${rows.some(row=>row[key] == null) ? ' · incomplete' : ''}`;
   const regular = (employee.calculation?.lines || []).filter(line => line.kind === 'earning' && line.code === 'regular');
   const rates = [...new Set(regular.map(line => Number(line.rate_per_minute) * 60).filter(Number.isFinite).map(rate => money(rate)))];
@@ -50,7 +50,8 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
       <small className="block text-text-secondary">Proposed {hours(row.proposed_minutes)}</small><small className="block text-text-secondary">{human(row.classification)}</small></div> },
     { key:'status',header:'Status',render:row => <div><Badge tone={payrollTimeNeedsReview(row) ? 'warning' : 'success'}>{payrollTimeNeedsReview(row) && row.source_state?.updated ? 'Source Updated' : payrollTimeNeedsReview(row) ? 'Review Required' : row.review_state?.automatic || row.status === 'approved_auto' ? 'Resolved automatically' : human(row.status)}</Badge>
       {canManage && !frozen && (payrollTimeNeedsReview(row)) && <button type="button" className="mt-1 block font-semibold text-primary" onClick={()=>startReview(row)}>{row.source_state?.updated ? 'Review source changes' : 'Review exception'}</button>}
-      {canManage && !frozen && !payrollTimeNeedsReview(row) && !row.evidence?.leave_id && <button type="button" className="mt-1 block font-semibold text-primary" onClick={() => { setCorrecting(true); setLatestRows(rows); setDecisionDate(row.work_date); }}>{row.status === 'review_required' ? 'Adjust Payable Time' : 'Correct Decision'}</button>}
+      {row.review_state?.state === 'ph_review' && <small className="mt-1 block text-text-secondary">PH treatment is separate in Employee Review.</small>}
+      {canManage && !frozen && row.review_state?.state !== 'ph_review' && !payrollTimeNeedsReview(row) && !row.evidence?.leave_id && <button type="button" className="mt-1 block font-semibold text-primary" onClick={() => { setCorrecting(true); setLatestRows(rows); setDecisionDate(row.work_date); }}>{row.status === 'review_required' ? 'Adjust Payable Time' : 'Correct Decision'}</button>}
       {!!row.history?.length && <details className="mt-1 text-xs text-text-secondary"><summary>Evidence / history</summary>{row.history.map(version => <p key={version.id} className="mt-1">{human(version.status)} · {hours(version.approved_minutes)}{version.reason ? ` · ${version.reason}` : ''}{version.at ? ` · ${new Date(version.at).toLocaleString()}` : ''}</p>)}</details>}</div> },
   ];
   const decision = rows.find(row => row.work_date === decisionDate);
@@ -94,7 +95,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
       </dl>}
       <p className="text-xs text-text-secondary">{frozen ? "Pinned time evidence only; current Roster, Attendance and Leave are not read." : exceptions.length ? `${exceptions.length} pay-impacting exception${exceptions.length === 1 ? '' : 's'} require review.` : "Time & Attendance — Ready. Complete evidence requires no approval."} Public Holiday treatment is reviewed separately.</p>
       {canManage && !frozen && <p className="text-xs text-text-secondary">Use Adjust Payable Time / Correct Decision only for a genuine Payroll treatment correction. Approved Leave must be corrected through Leave; Payroll cannot create or change a Leave record.</p>}
-      {employee.pay?.pay_basis === 'hourly' && <p className="text-xs text-text-secondary">Regular earnings use approved Regular hours and date-effective rates with canonical per-day rounding—not raw clock duration. OT, rest-day and public-holiday work use separate approved classifications and existing pay rules.</p>}
+      {employee.pay?.pay_basis === 'hourly' && <p className="text-xs text-text-secondary">Hour totals exclude PH; its treatment is separate. Regular earnings use approved Regular hours and date-effective rates with canonical per-day rounding—not raw clock duration. OT, rest-day and public-holiday work use separate approved classifications and existing pay rules.</p>}
       {rows.length ? <DataTable density="compact" columns={columns} rows={rows} getRowKey={row=>row.id} /> : <p className="py-6 text-text-secondary">{frozen ? "No frozen daily time evidence is available for this revision." : "No recorded daily time evidence. Reconcile source evidence in Prepare Payroll when required."}</p>}
     </div>
   </Modal>;
