@@ -93,9 +93,11 @@ export const employeeService = {
     };
   },
 
-  async saveEmployee(employee) {
+  async saveEmployee(employee, { section } = {}) {
+    if (section && section !== "bank") throw new Error("Unsupported Employee edit section.");
+    if (section === "bank" && !isSupabaseUuid(employee.id)) throw new Error("Bank Details requires an existing employee.");
     let roleId = employee.role_id || null;
-    if (!roleId && employee.role) {
+    if (section !== "bank" && !roleId && employee.role) {
       const { data: role } = await supabase.from("roles").select("id").eq("name", employee.role).maybeSingle();
       roleId = role?.id ?? null;
     }
@@ -105,7 +107,7 @@ export const employeeService = {
     if (isUpdate) {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,auth_user_id,email")
+        .select(section === "bank" ? "id,auth_user_id,email,bank_name,bank_account_name,bank_account_number" : "id,auth_user_id,email")
         .eq("id", employee.id)
         .maybeSingle();
       throwSupabaseError("employees.identity", error);
@@ -120,7 +122,7 @@ export const employeeService = {
     }
 
     const enableSystemLogin = Boolean(employee.enable_system_login);
-    if (enableSystemLogin && !roleId) {
+    if (section !== "bank" && enableSystemLogin && !roleId) {
       throw new Error("Role is required when system login is enabled.");
     }
     if (import.meta.env.DEV) {
@@ -174,6 +176,15 @@ export const employeeService = {
       }
     }
 
+    if (section === "bank") {
+      // Bank-only editing uses the same Employee RLS/save/audit authority without
+      // resubmitting unrelated identity, employment or personal profile fields.
+      for (const key of Object.keys(payload)) {
+        if (!["bank_name", "bank_account_number", "bank_account_name", "updated_at"].includes(key)) delete payload[key];
+      }
+      payload.bank_account_name = employee.bank_account_name?.trim() || null;
+    }
+
     const query = isUpdate
       ? supabase.from("employees").update(payload).eq("id", employee.id)
       : supabase.from("employees").insert(payload);
@@ -187,7 +198,8 @@ export const employeeService = {
       action: isUpdate ? "employee_updated" : "employee_created",
       module: "people",
       target: data.full_name,
-      description: isUpdate ? "Employee profile updated." : "Employee profile created.",
+      description: section === "bank" ? "Employee bank details updated." : isUpdate ? "Employee profile updated." : "Employee profile created.",
+      ...(section === "bank" ? { before: { bank_name: existingEmployee.bank_name, bank_account_name: existingEmployee.bank_account_name, bank_account_number: existingEmployee.bank_account_number } } : {}),
       after: data,
     }).catch(() => {});
     return mapEmployee(data);

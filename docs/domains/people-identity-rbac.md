@@ -19,6 +19,12 @@ information is not a Payroll calculation, readiness or Finalize blocker; this is
 not a payment workflow or finalized payment snapshot.
 `employees.profile_photo_path` is the canonical reference for an employee profile photo; the image itself is private Crew presentation data, not a second employee profile.
 
+Bank-only deep links open a focused Bank Details view/editor in the canonical Employee
+form. The existing Employee save service accepts a bank-field scope for existing
+employees only, enforcing the same Employee RLS and audit path while excluding
+unrelated personal, employment and access fields. Audit retains original bank values;
+incomplete bank details remain informational to Payroll.
+
 ## Core Entities
 
 - Employee master records and employment state
