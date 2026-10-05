@@ -105,8 +105,10 @@ const auth = { hasPermission: () => true };
 async function enter() {
   render(<RecruitmentPage auth={auth} />);
   await screen.findByRole("heading", { name: "Active openings" });
-  await screen.findByRole("button", { name: /^Service Crew/ });
-  fireEvent.click(screen.getByRole("button", { name: /^Service Crew/ }));
+  await screen.findByRole("button", { name: /^Open opening: Service Crew/ });
+  fireEvent.click(
+    screen.getByRole("button", { name: /^Open opening: Service Crew/ }),
+  );
   await screen.findByRole("tab", { name: "Overview" });
 }
 describe("opening-centred Recruitment workspace", () => {
@@ -145,10 +147,32 @@ describe("opening-centred Recruitment workspace", () => {
       }),
     );
   });
+  it("combines search and status filters without changing scoped backend reads", async () => {
+    render(<RecruitmentPage auth={auth} />);
+    await screen.findByRole("button", { name: /^Open opening:/ });
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: "Search openings" }),
+      { target: { value: "missing" } },
+    );
+    expect(screen.queryByRole("button", { name: /^Open opening:/ })).toBeNull();
+    expect(screen.getByText(/No openings match/)).toBeTruthy();
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "Service" },
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: "Opening status" }), {
+      target: { value: "draft" },
+    });
+    expect(screen.queryByRole("button", { name: /^Open opening:/ })).toBeNull();
+    fireEvent.change(screen.getByRole("combobox", { name: "Opening status" }), {
+      target: { value: "open" },
+    });
+    expect(screen.getByRole("button", { name: /^Open opening:/ })).toBeTruthy();
+    expect(qa.workspace).toHaveBeenCalledOnce();
+  });
   it("saves a profile reference and opening requirements through the canonical RPC", async () => {
     await enter();
     fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
-    fireEvent.click(screen.getByRole("button", { name: "Edit setup" }));
+
     fireEvent.change(
       screen.getByLabelText("Closing shift requirement / time"),
       { target: { value: "Midnight" } },
@@ -164,14 +188,17 @@ describe("opening-centred Recruitment workspace", () => {
     render(<RecruitmentPage auth={{ hasPermission: () => false }} />);
     await screen.findByRole("heading", { name: "Active openings" });
     expect(screen.queryByRole("button", { name: "New opening" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Interview Profiles" }));
+    fireEvent.click(screen.getByRole("button", { name: "View profile" }));
     expect(
-      screen.queryByRole("button", { name: "Interview Profiles" }),
+      screen.queryByRole("button", { name: "Prepare next version" }),
     ).toBeNull();
   });
   it("publishes explicitly as a new version without opening mutation", async () => {
     render(<RecruitmentPage auth={auth} />);
     await screen.findByRole("heading", { name: "Active openings" });
     fireEvent.click(screen.getByRole("button", { name: "Interview Profiles" }));
+    fireEvent.click(screen.getByRole("button", { name: "View profile" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Prepare next version" }),
     );
