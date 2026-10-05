@@ -17,7 +17,7 @@ describe("Employee bank presentation", () => {
     expect(screen.queryByText("00012345")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "View bank information for QA Employee" }));
     expect(rowClick).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "Bank Info" })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Bank Details" })).toBeTruthy();
     expect(screen.getByText("00012345")).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
   });
@@ -26,7 +26,7 @@ describe("Employee bank presentation", () => {
     const { rerender } = render(<PayrollEmployeeBankInfo result={null} />);
     expect(screen.getByText("Loading…")).toBeTruthy();
     rerender(<PayrollEmployeeBankInfo result={{ employee: { bank_name: "Maybank" } }} />);
-    expect(screen.getByText("Missing")).toBeTruthy();
+    expect(screen.getByRole("button", {name: /incomplete/})).toBeTruthy();
     rerender(<PayrollEmployeeBankInfo result={{}} />);
     expect(screen.getByText("Unavailable")).toBeTruthy();
     rerender(<PayrollEmployeeBankInfo employeeName="QA" result={{ error: true }} onRetry={retry} />);

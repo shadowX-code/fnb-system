@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BriefcaseBusiness, Cake, CreditCard, Edit3, Eye, Gift, KeyRound, MoreHorizontal, Plus, Power, Search, ShieldCheck, UserRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
@@ -619,7 +619,12 @@ function UserFormModal({
   canManageEmploymentDocuments = false,
   legalEntities = [],
   onEmploymentChanged,
+  initialSection,
 }) {
+  const bankSection = useRef(null);
+  useEffect(() => {
+    if (initialSection === "bank") bankSection.current?.scrollIntoView?.({block:"start"});
+  }, [initialSection, mode]);
   const [values, setValues] = useState(() => {
     const merged = { ...createEmptyUser(), ...initialUser };
     return {
@@ -1183,7 +1188,7 @@ function UserFormModal({
             onSaved={refreshEmployment} />}
         </FormSection>
 
-        <FormSection title="Bank Info" icon={CreditCard}>
+        <div ref={bankSection}><FormSection title="Bank Info" icon={CreditCard}>
           {isViewMode ? (
             hasBankInfo ? (
               <div className="grid gap-3 md:grid-cols-2">
@@ -1210,7 +1215,7 @@ function UserFormModal({
             </FormField>
             </div>
           )}
-        </FormSection>
+        </FormSection></div>
 
         <FormSection title="System Access" icon={ShieldCheck}>
           {isViewMode ? (
@@ -1995,6 +2000,7 @@ export default function UsersPage({ ui, store, auth }) {
         <UserFormModal
           mode={profileMode}
           initialUser={selectedUser}
+          initialSection={new URLSearchParams(window.location.search).get("section")}
           jobPositions={jobPositions}
           roleOptions={roleOptions}
           roleRecords={roleRecords}
