@@ -1,4 +1,5 @@
 import { useState } from "react";
+import SelectField from "../../components/forms/SelectField.jsx";
 import PageHeader from "../../components/layout/PageHeader.jsx";
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
 import {
@@ -73,7 +74,7 @@ export default function InterviewProfileSettings({
               </div>
             ) : (
               <button
-                className="btn-primary"
+                className="btn-secondary"
                 onClick={() => {
                   setDraft(structuredClone(latest.definition));
                   setEditing(true);
@@ -182,24 +183,22 @@ export default function InterviewProfileSettings({
                     />
                   </AdminFormField>
                   <AdminFormField label="Priority">
-                    <select
-                      className="control w-full"
+                    <SelectField
                       value={area.priority}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         patch(
                           "evidence_areas",
                           draft.evidence_areas.map((a, i) =>
-                            i === index
-                              ? { ...a, priority: e.target.value }
-                              : a,
+                            i === index ? { ...a, priority: value } : a,
                           ),
                         )
                       }
-                    >
-                      {["Core", "Important", "Optional"].map((p) => (
-                        <option key={p}>{p}</option>
-                      ))}
-                    </select>
+                      ariaLabel={"Priority"}
+                      options={["Core", "Important", "Optional"].map((v) => ({
+                        value: v,
+                        label: v,
+                      }))}
+                    />
                   </AdminFormField>
                   <AdminFormField label="Evidence intent">
                     <textarea
@@ -261,25 +260,23 @@ export default function InterviewProfileSettings({
                     key={priority}
                     label={`${priority} completion minimum`}
                   >
-                    <select
-                      className="control w-full"
+                    <SelectField
                       value={draft.completion_criteria[priority]}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         patch("completion_criteria", {
                           ...draft.completion_criteria,
-                          [priority]: e.target.value,
+                          [priority]: value,
                         })
                       }
-                    >
-                      {(priority === "Important"
+                      ariaLabel={`${priority} completion minimum`}
+                      options={(priority === "Important"
                         ? ["partial", "covered"]
                         : ["unresolved", "partial", "covered"]
-                      ).map((v) => (
-                        <option key={v} value={v}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
+                      ).map((v) => ({
+                        value: v,
+                        label: v[0].toUpperCase() + v.slice(1),
+                      }))}
+                    />
                   </AdminFormField>
                 ))}
               </div>

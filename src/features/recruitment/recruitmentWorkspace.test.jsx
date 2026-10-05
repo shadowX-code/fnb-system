@@ -159,13 +159,11 @@ describe("opening-centred Recruitment workspace", () => {
     fireEvent.change(screen.getByRole("searchbox"), {
       target: { value: "Service" },
     });
-    fireEvent.change(screen.getByRole("combobox", { name: "Opening status" }), {
-      target: { value: "draft" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Opening status" }));
+    fireEvent.click(screen.getByRole("option", { name: "Draft", exact: true }));
     expect(screen.queryByRole("button", { name: /^Open opening:/ })).toBeNull();
-    fireEvent.change(screen.getByRole("combobox", { name: "Opening status" }), {
-      target: { value: "open" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Opening status" }));
+    fireEvent.click(screen.getByRole("option", { name: "Open", exact: true }));
     expect(screen.getByRole("button", { name: /^Open opening:/ })).toBeTruthy();
     expect(qa.workspace).toHaveBeenCalledOnce();
   });
@@ -257,4 +255,13 @@ it("hydrates pinned priorities, partial evidence, facts and requirements as cont
   expect(text).toContain("never replay as speech");
   expect(text).toContain("Prioritize unresolved Core");
   expect(context.established_facts[0].turn_number).toBe(2);
+});
+it("labels recording failure separately from candidate stage and interview evidence", async()=>{
+ const fixture=structuredClone(data);fixture.applications[0].attempt_status="failed";fixture.applications[0].recording_state="failed";
+ qa.workspace.mockResolvedValue(fixture);
+ // Evidence read failure must not block candidate review.
+ qa.managerEvidence=vi.fn().mockRejectedValue(new Error("not available"));
+ await enter();fireEvent.click(screen.getByRole("tab",{name:"Candidates"}));
+ expect(screen.getByText("Interview: Evidence incomplete")).toBeTruthy();
+ expect(screen.getByText(/Recording:/)).toBeTruthy();expect(screen.getByRole("button",{name:"Review",exact:true})).toBeTruthy();
 });

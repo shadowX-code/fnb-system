@@ -28,8 +28,8 @@ describe("TimePickerField", () => {
     const onChange = vi.fn();
     render(<TimePickerField label="Time" value="09:00" onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: "Time", exact: true }));
-    fireEvent.click(screen.getByRole("button", { name: "AM", exact: true }));
-    const pm = screen.getByRole("button", { name: "PM", exact: true });
+    fireEvent.click(screen.getByRole("button", { name: "Period", exact: true }));
+    const pm = screen.getByRole("option", { name: "PM", exact: true });
     fireEvent.pointerDown(pm);
     fireEvent.click(pm);
     expect(onChange).toHaveBeenCalledWith("21:00");

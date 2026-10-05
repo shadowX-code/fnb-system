@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import SelectField from "../../components/forms/SelectField.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
-import StatusBadge from "../../components/ui/StatusBadge.jsx";
 import { RecruitmentState } from "./RecruitmentPresentation.jsx";
 import {
   reviewAreas,
@@ -263,22 +263,19 @@ export default function RecruitmentEvidenceReview({
             <header className="space-y-2 border-b border-border pb-5">
               {data.attempts.length > 1 && (
                 <AdminFormField label="Interview attempt">
-                  <select
-                    className="control w-full"
+                  <SelectField
                     value={data.attempt?.id || ""}
-                    onChange={(e) => {
+                    onChange={(value) => {
                       setReportId("");
-                      setAttemptId(e.target.value);
+                      setAttemptId(value);
                       setData(null);
                     }}
-                  >
-                    {data.attempts.map((t, i) => (
-                      <option key={t.id} value={t.id}>
-                        {i === 0 ? "Latest" : "Earlier"} · {t.status} ·{" "}
-                        {new Date(t.created_at).toLocaleString()}
-                      </option>
-                    ))}
-                  </select>
+                    ariaLabel="Interview attempt"
+                    options={data.attempts.map((t, i) => ({
+                      value: t.id,
+                      label: `${i === 0 ? "Latest" : "Earlier"} · ${t.status === "failed" ? "Evidence incomplete" : t.status} · ${new Date(t.created_at).toLocaleString()}`,
+                    }))}
+                  />
                 </AdminFormField>
               )}
               <h3 className="text-lg font-semibold">
@@ -288,30 +285,46 @@ export default function RecruitmentEvidenceReview({
                 {data.application.opening_title_snapshot} ·{" "}
                 {data.application.workplace_snapshot}
               </p>
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <RecruitmentState value={data.attempt?.status || "registered"}>
-                  {data.attempt?.status?.replaceAll("_", " ") || "Not started"}
-                </RecruitmentState>
-                <span className="text-text-secondary">
-                  {decisionLabels[state]}
-                </span>
-                <span className="text-text-muted">
-                  · Recording: {data.attempt?.recording_state || "not started"}
-                </span>
-                <span className="text-text-muted">
-                  ·{" "}
-                  {
-                    data.events.filter((e) => e.action === "recording_gap")
-                      .length
-                  }{" "}
-                  disclosed gaps
-                </span>
-                {data.units.some((u) => u.status === "invalid") && (
-                  <StatusBadge tone="warning">
-                    Recording unit unavailable
-                  </StatusBadge>
-                )}
+              <div className="recruitment-review-health">
+                <div>
+                  <span>Application</span>
+                  <RecruitmentState value={state}>
+                    {decisionLabels[state]}
+                  </RecruitmentState>
+                </div>
+                <div>
+                  <span>Interview outcome</span>
+                  <RecruitmentState
+                    value={data.attempt?.status || "registered"}
+                  >
+                    {data.attempt?.status === "failed"
+                      ? "Evidence incomplete"
+                      : data.attempt?.status?.replaceAll("_", " ") ||
+                        "Not started"}
+                  </RecruitmentState>
+                </div>
+                <div>
+                  <span>Recording</span>
+                  <RecruitmentState
+                    value={data.attempt?.recording_state || "registered"}
+                  >
+                    {data.attempt?.recording_state || "Not started"}
+                  </RecruitmentState>
+                </div>
+                <div>
+                  <span>Report</span>
+                  <RecruitmentState value={report?.status || "registered"}>
+                    {report?.status || "Not generated"}
+                  </RecruitmentState>
+                </div>
               </div>
+              <p className="text-xs text-text-secondary">
+                {data.events.filter((e) => e.action === "recording_gap").length}{" "}
+                disclosed recording gaps
+                {data.units.some((u) => u.status === "invalid")
+                  ? " · Recording unit unavailable"
+                  : ""}
+              </p>
               <p className="text-sm text-text-secondary">
                 Transcript{" "}
                 {data.annotations.some((a) => a.kind === "transcription_failed")
@@ -336,19 +349,15 @@ export default function RecruitmentEvidenceReview({
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-semibold">AI Interview Summary</h3>
                 {data.reports.length > 1 && (
-                  <select
-                    aria-label="Report version"
-                    className="control"
+                  <SelectField
                     value={report?.id || ""}
-                    onChange={(e) => setReportId(e.target.value)}
-                  >
-                    {data.reports.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        Version {r.version} · {r.status}
-                        {r.reviews ? " · reviewed" : ""}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setReportId(value)}
+                    ariaLabel="Report version"
+                    options={data.reports.map((r) => ({
+                      value: r.id,
+                      label: `Version ${r.version} · ${r.status}${r.reviews ? " · reviewed" : ""}`,
+                    }))}
+                  />
                 )}
               </div>
               {!report ? (
@@ -898,25 +907,23 @@ export default function RecruitmentEvidenceReview({
                               </AdminFormField>
                             ))}
                             <AdminFormField label="Employment type">
-                              <select
-                                className="control w-full"
+                              <SelectField
                                 value={hire.employment_type}
-                                onChange={(e) =>
-                                  patchHire("employment_type", e.target.value)
+                                onChange={(value) =>
+                                  patchHire("employment_type", value)
                                 }
-                              >
-                                {[
+                                ariaLabel="Employment type"
+                                options={[
                                   "probation",
                                   "full_time",
                                   "part_time",
                                   "intern",
                                   "contract",
-                                ].map((v) => (
-                                  <option key={v} value={v}>
-                                    {v.replaceAll("_", " ")}
-                                  </option>
-                                ))}
-                              </select>
+                                ].map((v) => ({
+                                  value: v,
+                                  label: v.replaceAll("_", " "),
+                                }))}
+                              />
                             </AdminFormField>
                             <AdminFormField label="Joined date">
                               <DatePickerField

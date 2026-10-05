@@ -13,3 +13,7 @@ Shared presentation composes canonical FeedX controls and theme tokens. No RPC, 
 - Desktop and tablet layouts are inspected with DOM overflow checks and screenshots. Source evidence remains collapsed by default; decision navigation focuses the existing decision section. Manager decisions are not executed.
 
 No unrelated Recruitment QA, Production deploy or main modification. Browser QA verifies presentation/navigation, not interview voice or physical-device runtime quality.
+
+## Final presentation polish
+
+L2 scope: canonical SelectField/listbox and ActionMenu keyboard/focus interactions; Admin control focus/pressed/checkbox presentation; all six Recruitment surfaces. No authority or runtime change. Native Recruitment selects replaced with shared selection controls; joined date retains DatePickerField. Candidates and Review explicitly distinguish application stage, interview evidence outcome, recording and report state. Failed interview evidence is labelled Evidence incomplete, never candidate failure. Setup uses one workspace surface, grouped fields and a sticky action bar. Source evidence remains collapsed and version preparation secondary. Focused shared-control and Recruitment suites plus authenticated canonical Staging desktop/tablet visual/action checks form the proportional gate; no real publication, hiring or recording changes are required.

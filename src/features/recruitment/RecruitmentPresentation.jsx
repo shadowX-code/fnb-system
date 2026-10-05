@@ -188,15 +188,20 @@ export function CandidateFitSummary({ application, revision }) {
       </span>
     );
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {["meets", "does_not_meet", "unclear"].map((value) => {
-        const count = fits.filter((f) => f.state === value).length;
-        return count > 0 ? (
-          <RecruitmentState key={value} kind="fit" value={value}>
-            {count} {fitLabels[value]}
-          </RecruitmentState>
-        ) : null;
-      })}
+    <div className="grid gap-1.5">
+      <span className="text-xs text-text-secondary">
+        Evidence report ready · Requirement fit
+      </span>
+      <div className="flex flex-wrap gap-1.5">
+        {["meets", "does_not_meet", "unclear"].map((value) => {
+          const count = fits.filter((f) => f.state === value).length;
+          return count > 0 ? (
+            <RecruitmentState key={value} kind="fit" value={value}>
+              {count} {fitLabels[value]}
+            </RecruitmentState>
+          ) : null;
+        })}
+      </div>
     </div>
   );
 }

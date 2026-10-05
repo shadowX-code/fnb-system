@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import SelectField from "../../components/forms/SelectField.jsx";
+import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
+import ActionMenu from "../../components/ui/ActionMenu.jsx";
 import PageHeader from "../../components/layout/PageHeader.jsx";
 import {
   RecruitmentMetrics,
@@ -149,63 +152,64 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
                 onChange={(e) => patch("title", e.target.value)}
               />
             </AdminFormField>
-            <AdminFormField label="Canonical position" required>
-              <select
-                className={fieldClass}
+            <AdminFormField label="Position" required>
+              <SelectField
                 value={draft.position_id}
-                onChange={(e) => patch("position_id", e.target.value)}
-              >
-                <option value="">Select position</option>
-                {data.positions.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => patch("position_id", value)}
+                ariaLabel="Position"
+                placeholder="Select position"
+                searchable
+                options={data.positions.map((row) => ({
+                  value: row.id,
+                  label: row.name,
+                }))}
+              />
             </AdminFormField>
             <AdminFormField label="Workplace" required>
-              <select
-                className={fieldClass}
+              <SelectField
                 value={workplaceValue}
-                onChange={(e) => {
-                  patch("outlet_id", e.target.value);
-                  patch("workplace", e.target.value);
+                onChange={(value) => {
+                  patch("outlet_id", value);
+                  patch("workplace", value);
                 }}
-              >
-                <option value="">Select workplace</option>
-                {data.outlets.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                  </option>
-                ))}
-                <option value="Factory">Factory</option>
-                <option value="Management">Management</option>
-              </select>
+                ariaLabel="Workplace"
+                placeholder="Select workplace"
+                searchable
+                options={[
+                  ...data.outlets.map((row) => ({
+                    value: row.id,
+                    label: row.name,
+                  })),
+                  { value: "Factory", label: "Factory" },
+                  { value: "Management", label: "Management" },
+                ]}
+              />
             </AdminFormField>
             <AdminFormField label="Legal employer" required>
-              <select
-                className={fieldClass}
+              <SelectField
                 value={draft.legal_entity_id}
-                onChange={(e) => patch("legal_entity_id", e.target.value)}
-              >
-                <option value="">Select legal entity</option>
-                {data.legal_entities.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => patch("legal_entity_id", value)}
+                ariaLabel="Legal employer"
+                placeholder="Select legal employer"
+                searchable
+                options={data.legal_entities.map((row) => ({
+                  value: row.id,
+                  label: row.name,
+                }))}
+              />
             </AdminFormField>
             <AdminFormField label="Status">
-              <select
-                className={fieldClass}
+              <SelectField
                 value={draft.status}
-                onChange={(e) => patch("status", e.target.value)}
-              >
-                <option value="draft">Draft</option>
-                <option value="open">Open</option>
-                <option value="closed">Closed</option>
-              </select>
+                onChange={(value) => patch("status", value)}
+                ariaLabel="Status"
+                placeholder="Select status"
+                options={[
+                  { value: "draft", label: "Draft" },
+                  { value: "open", label: "Open" },
+                  { value: "closed", label: "Closed" },
+                ]}
+              />
             </AdminFormField>
             <AdminFormField label="Description">
               <input
@@ -225,26 +229,18 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
               className="md:col-span-2"
               helper="This version is pinned when an invitation is issued."
             >
-              <select
-                className={fieldClass}
+              <SelectField
                 value={draft.config.interview_profile_id || ""}
-                onChange={(e) =>
-                  patchConfig("interview_profile_id", e.target.value)
-                }
-              >
-                {!draft.config.interview_profile_id && (
-                  <option value="">
-                    {opening
-                      ? "Existing opening configuration"
-                      : "Select profile version"}
-                  </option>
-                )}
-                {data.profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} v{p.version}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => patchConfig("interview_profile_id", value)}
+                ariaLabel="Interview Profile"
+                placeholder="Select profile version"
+                searchable
+                options={data.profiles.map((p) => ({
+                  value: p.id,
+                  label: `${p.name} v${p.version}`,
+                  description: `${p.definition.target_minutes}–${p.definition.max_minutes} min · ${p.definition.evidence_areas.length} evidence areas · ${p.definition.scenarios.length} scenarios`,
+                }))}
+              />
             </AdminFormField>
             {profile && (
               <p className="md:col-span-2 text-sm text-text-secondary">
@@ -262,19 +258,18 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
           <legend>Opening Requirements</legend>
           <div className="recruitment-form-grid">
             <AdminFormField label="Weekend availability">
-              <select
-                className={fieldClass}
+              <SelectField
                 value={requirements.weekend_required ? "required" : "flexible"}
-                onChange={(e) =>
-                  patchRequirements(
-                    "weekend_required",
-                    e.target.value === "required",
-                  )
+                onChange={(value) =>
+                  patchRequirements("weekend_required", value === "required")
                 }
-              >
-                <option value="flexible">Discuss availability</option>
-                <option value="required">Weekend availability required</option>
-              </select>
+                ariaLabel="Weekend availability"
+                placeholder="Weekend availability"
+                options={[
+                  { value: "flexible", label: "Discuss availability" },
+                  { value: "required", label: "Weekend availability required" },
+                ]}
+              />
             </AdminFormField>
             <AdminFormField label="Closing shift requirement / time">
               <input
@@ -408,9 +403,9 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
 
 function SetupSurface({ children, footer }) {
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end gap-2">{footer}</div>
+    <div className="recruitment-setup">
       {children}
+      <div className="recruitment-setup-actions">{footer}</div>
     </div>
   );
 }
@@ -441,6 +436,7 @@ export default function RecruitmentPage({ auth }) {
     }),
     [reviewApplication, setReviewApplication] = useState(null),
     [invitation, setInvitation] = useState("");
+  const [actionMenuId, setActionMenuId] = useState(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true);
@@ -705,55 +701,55 @@ export default function RecruitmentPage({ auth }) {
             description={`${visibleOpenings.length} ${visibleOpenings.length === 1 ? "opening" : "openings"} in this view`}
           >
             <div className="recruitment-toolbar">
-              <input
-                type="search"
-                className="control"
-                aria-label="Search openings"
+              <AdminSearchField
+                label="Search openings"
+                ariaLabel="Search openings"
                 placeholder="Search openings…"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={setSearch}
               />
-              <select
-                className="control"
-                aria-label="Opening status"
+              <SelectField
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="all">All statuses</option>
-                <option value="open">Open</option>
-                <option value="draft">Draft</option>
-                {includeClosed && <option value="closed">Closed</option>}
-              </select>
-              <select
-                className="control"
-                aria-label="Workplace filter"
+                onChange={(value) => setStatusFilter(value)}
+                ariaLabel="Opening status"
+                placeholder="All statuses"
+                options={[
+                  { value: "all", label: "All statuses" },
+                  { value: "open", label: "Open" },
+                  { value: "draft", label: "Draft" },
+                  ...(includeClosed
+                    ? [{ value: "closed", label: "Closed" }]
+                    : []),
+                ]}
+              />
+              <SelectField
                 value={workplaceFilter}
-                onChange={(e) => setWorkplaceFilter(e.target.value)}
-              >
-                <option value="all">All workplaces</option>
-                {[...new Set(data.openings.map((o) => o.workplace))].map(
-                  (w) => (
-                    <option key={w}>{w}</option>
+                onChange={(value) => setWorkplaceFilter(value)}
+                ariaLabel="Workplace filter"
+                placeholder="All workplaces"
+                searchable
+                options={[
+                  { value: "all", label: "All workplaces" },
+                  ...[...new Set(data.openings.map((o) => o.workplace))].map(
+                    (w) => ({ value: w, label: w }),
                   ),
-                )}
-              </select>
-              <select
-                className="control"
-                aria-label="Position filter"
+                ]}
+              />
+              <SelectField
                 value={positionFilter}
-                onChange={(e) => setPositionFilter(e.target.value)}
-              >
-                <option value="all">All positions</option>
-                {data.positions
-                  .filter((p) =>
-                    data.openings.some((o) => o.position_id === p.id),
-                  )
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
+                onChange={(value) => setPositionFilter(value)}
+                ariaLabel="Position filter"
+                placeholder="All positions"
+                searchable
+                options={[
+                  { value: "all", label: "All positions" },
+                  ...data.positions
+                    .filter((p) =>
+                      data.openings.some((o) => o.position_id === p.id),
+                    )
+                    .map((p) => ({ value: p.id, label: p.name })),
+                ]}
+              />
             </div>
             {visibleOpenings.map((o) => (
               <button
@@ -812,6 +808,7 @@ export default function RecruitmentPage({ auth }) {
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
+                  className="admin-checkbox"
                   checked={includeClosed}
                   onChange={(e) => {
                     setIncludeClosed(e.target.checked);
@@ -823,6 +820,7 @@ export default function RecruitmentPage({ auth }) {
               <label className="flex items-center gap-2 ml-auto">
                 <input
                   type="checkbox"
+                  className="admin-checkbox"
                   checked={includeQa}
                   onChange={(e) => setIncludeQa(e.target.checked)}
                 />
@@ -1008,7 +1006,7 @@ export default function RecruitmentPage({ auth }) {
               </div>
               <RecruitmentSection
                 title="Candidates"
-                description={`${data.applications_total} candidates · Current lifecycle and interview evidence`}
+                description={`${data.applications_total} ${data.applications_total === 1 ? "candidate" : "candidates"} · Application stage, interview evidence and requirement fit`}
                 className="is-list"
               >
                 {data.applications.map((row) => (
@@ -1043,8 +1041,9 @@ export default function RecruitmentPage({ auth }) {
                           : row.expires_at &&
                               Date.parse(row.expires_at) < Date.now()
                             ? "Invitation expired"
-                            : row.attempt_status?.replaceAll("_", " ") ||
-                              "Not interviewed"}
+                            : (row.attempt_status
+                                ? `Interview: ${row.attempt_status === "failed" ? "Evidence incomplete" : row.attempt_status.replaceAll("_", " ")}`
+                                : "") || "Not interviewed"}
                       </span>
                     </div>
                     <div className="recruitment-candidate-evidence grid gap-1.5">
@@ -1065,19 +1064,38 @@ export default function RecruitmentPage({ auth }) {
                       </button>
                       {canManage &&
                         !["hired", "rejected"].includes(row.decision_state) && (
-                          <details className="relative">
-                            <summary
+                          <ActionMenu
+                            open={actionMenuId === row.id}
+                            onOpenChange={(open) =>
+                              setActionMenuId(open ? row.id : null)
+                            }
+                            ariaLabel={`Actions for ${row.name}`}
+                            trigger={({ toggle, open, ariaLabel }) => (
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                aria-label={ariaLabel}
+                                aria-haspopup="menu"
+                                aria-expanded={open}
+                                onClick={toggle}
+                              >
+                                •••
+                              </button>
+                            )}
+                          >
+                            <div
+                              role="menu"
                               aria-label={`Actions for ${row.name}`}
-                              className="btn-ghost cursor-pointer list-none"
                             >
-                              •••
-                            </summary>
-                            <div className="absolute right-0 top-full z-10 min-w-44 rounded-lg border border-border bg-surface p-1">
                               {opening.status === "open" && (
                                 <button
-                                  className="block w-full rounded p-2 text-left text-sm hover:bg-surface-muted"
+                                  type="button"
+                                  role="menuitem"
                                   disabled={busy}
-                                  onClick={() => issue(row)}
+                                  onClick={() => {
+                                    setActionMenuId(null);
+                                    issue(row);
+                                  }}
                                 >
                                   {row.issued_at
                                     ? "Issue new invitation"
@@ -1086,21 +1104,24 @@ export default function RecruitmentPage({ auth }) {
                               )}
                               {row.issued_at && !row.revoked_at && (
                                 <button
-                                  className="block w-full rounded p-2 text-left text-sm hover:bg-surface-muted"
+                                  type="button"
+                                  role="menuitem"
+                                  className="is-danger"
                                   disabled={busy}
-                                  onClick={() =>
+                                  onClick={() => {
+                                    setActionMenuId(null);
                                     mutate(() =>
                                       recruitmentService.revokeInvitation(
                                         row.id,
                                       ),
-                                    ).catch(() => {})
-                                  }
+                                    ).catch(() => {});
+                                  }}
                                 >
                                   Revoke invitation
                                 </button>
                               )}
                             </div>
-                          </details>
+                          </ActionMenu>
                         )}
                     </div>
                   </div>
@@ -1195,21 +1216,17 @@ export default function RecruitmentPage({ auth }) {
             className="grid gap-4"
           >
             <AdminFormField label="Open opening" required>
-              <select
+              <SelectField
                 required
-                className={fieldClass}
                 value={selectedOpening}
-                onChange={(e) => setSelectedOpening(e.target.value)}
-              >
-                <option value="">Select opening</option>
-                {data.openings
+                onChange={(value) => setSelectedOpening(value)}
+                ariaLabel="Open opening"
+                placeholder="Select opening"
+                searchable
+                options={data.openings
                   .filter((x) => x.status === "open")
-                  .map((x) => (
-                    <option key={x.id} value={x.id}>
-                      {x.title}
-                    </option>
-                  ))}
-              </select>
+                  .map((x) => ({ value: x.id, label: x.title }))}
+              />
             </AdminFormField>
             <AdminFormField
               label="Find existing applicant"
@@ -1226,18 +1243,20 @@ export default function RecruitmentPage({ auth }) {
             </AdminFormField>
             {applicantResults.length ? (
               <AdminFormField label="Matching applicant">
-                <select
-                  className={fieldClass}
+                <SelectField
                   value={selectedApplicant}
-                  onChange={(e) => setSelectedApplicant(e.target.value)}
-                >
-                  <option value="">Register new applicant</option>
-                  {applicantResults.map((x) => (
-                    <option key={x.id} value={x.id}>
-                      {x.name} · {x.contact}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setSelectedApplicant(value)}
+                  ariaLabel="Matching applicant"
+                  placeholder="Register new applicant"
+                  searchable
+                  options={[
+                    { value: "", label: "Register new applicant" },
+                    ...applicantResults.map((x) => ({
+                      value: x.id,
+                      label: `${x.name} · ${x.contact}`,
+                    })),
+                  ]}
+                />
               </AdminFormField>
             ) : null}
             {!selectedApplicant ? (

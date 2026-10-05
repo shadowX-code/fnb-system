@@ -434,3 +434,288 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Final workspace polish: canvas, primary surface and embedded information. */
+.recruitment-workspace {
+  gap: 24px;
+}
+.recruitment-workspace h1 {
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+.recruitment-metrics {
+  border: 0;
+  background: var(--theme-surface-raised);
+}
+.recruitment-metrics > div {
+  padding: 12px 18px;
+}
+.recruitment-metrics dd {
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
+.recruitment-metrics .is-attention dt,
+.recruitment-metrics .is-attention dd {
+  color: var(--theme-primary);
+}
+.recruitment-section {
+  border: 0;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+}
+.recruitment-section > header {
+  border: 0;
+  padding: 18px 18px 12px;
+}
+.recruitment-section h2 {
+  font-size: 15px;
+}
+.recruitment-section-body {
+  padding-top: 8px;
+}
+.recruitment-toolbar {
+  background: var(--theme-surface-nested);
+  border: 0;
+  padding: 12px;
+  margin: 0 12px 4px;
+  border-radius: 8px;
+}
+.recruitment-toolbar > .admin-search-field {
+  flex: 1;
+  min-width: 180px;
+}
+.recruitment-toolbar > .admin-search-field > span:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.recruitment-toolbar .admin-select {
+  min-width: 130px;
+  flex: 0 1 160px;
+}
+.recruitment-toolbar .admin-select-trigger {
+  height: 36px;
+  font-size: 12px;
+}
+.recruitment-toolbar:has(.admin-checkbox) {
+  background: transparent;
+  margin: 0;
+  padding: 8px 18px;
+}
+.recruitment-toolbar label:has(.admin-checkbox) {
+  min-height: 36px;
+  cursor: pointer;
+}
+.recruitment-opening-row {
+  padding: 20px 18px;
+}
+.recruitment-opening-row strong {
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.recruitment-row-pipeline {
+  gap: 0;
+  border-radius: 8px;
+  padding: 8px 0;
+  background: var(--theme-surface-nested);
+  grid-template-columns: repeat(4, 76px);
+}
+.recruitment-row-pipeline > span {
+  padding: 0 8px;
+}
+.recruitment-row-pipeline > span + span {
+  border-left: 1px solid var(--theme-border);
+}
+.recruitment-attention-row {
+  padding: 10px 8px;
+  border-radius: 8px;
+  border: 0;
+  margin: 2px -8px;
+  width: calc(100% + 16px);
+}
+.recruitment-attention-row:hover {
+  background: var(--theme-surface-nested);
+}
+.recruitment-attention-row small {
+  line-height: 1.5;
+}
+.recruitment-workspace
+  :is(
+    .recruitment-opening-row,
+    .recruitment-attention-row,
+    .recruitment-candidate-identity,
+    .recruitment-review-nav button
+  ):focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: -2px;
+}
+.recruitment-form {
+  gap: 24px 32px;
+  padding: 24px;
+  background: var(--theme-surface-raised);
+  border-radius: 12px;
+}
+.recruitment-form fieldset {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.recruitment-form legend {
+  padding: 0;
+  margin-bottom: 16px;
+  font-size: 15px;
+}
+.recruitment-form-grid {
+  gap: 16px 20px;
+}
+.recruitment-form-grid p.md\:col-span-2 {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--theme-surface-nested);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.recruitment-setup {
+  display: grid;
+  gap: 16px;
+}
+.recruitment-setup-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--theme-surface-raised);
+  border-radius: 10px;
+  box-shadow: 0 -1px 2px rgb(15 23 42 / 0.06);
+}
+.recruitment-plan summary,
+.recruitment-form summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 6px;
+}
+.recruitment-plan summary::after,
+.recruitment-form summary::after {
+  content: "+";
+  font-size: 18px;
+  font-weight: 400;
+}
+.recruitment-plan details[open] > summary::after,
+.recruitment-form details[open] > summary::after {
+  content: "−";
+}
+.recruitment-plan summary::-webkit-details-marker,
+.recruitment-form summary::-webkit-details-marker {
+  display: none;
+}
+.recruitment-plan summary:focus-visible,
+.recruitment-form summary:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+.recruitment-profile-layout > div:first-child .recruitment-section-body > div {
+  padding: 16px 0;
+}
+.recruitment-profile-layout
+  > div:first-child
+  .recruitment-section-body
+  > div
+  p {
+  max-width: 70ch;
+  line-height: 1.6;
+}
+.recruitment-review {
+  background: var(--theme-surface-raised);
+}
+.recruitment-review-content {
+  gap: 24px;
+  padding: 20px;
+}
+.recruitment-review-nav {
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--theme-surface-nested);
+}
+.recruitment-review-main > header h3 {
+  font-size: 21px;
+  letter-spacing: -0.02em;
+}
+.recruitment-review-main > header > p {
+  font-size: 13px;
+  color: var(--theme-muted);
+}
+.recruitment-review-main h3 {
+  font-size: 15px;
+}
+.recruitment-review-health {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  background: var(--theme-surface-nested);
+  border-radius: 8px;
+  margin: 16px 0 8px;
+}
+.recruitment-review-health > div {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 6px;
+}
+.recruitment-review-health > div > span:first-child {
+  color: var(--theme-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.recruitment-review-health .badge {
+  white-space: normal;
+}
+.recruitment-review-main > section {
+  padding-top: 8px;
+}
+.recruitment-review-main details > summary {
+  border-radius: 8px;
+  cursor: pointer;
+}
+.recruitment-review-main details > summary:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+.recruitment-review-main #review-decision {
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--theme-surface-nested);
+}
+@media (max-width: 1100px) {
+  .recruitment-row-pipeline {
+    grid-template-columns: repeat(4, 62px);
+  }
+}
+@media (max-width: 850px) {
+  .recruitment-form {
+    padding: 20px;
+  }
+  .recruitment-review-health {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .recruitment-row-pipeline {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+  }
+  .recruitment-row-pipeline > span {
+    padding: 0 6px;
+  }
+  .recruitment-form {
+    padding: 16px;
+  }
+}
