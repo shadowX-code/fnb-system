@@ -6,7 +6,7 @@ vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {
   readTime: mocks.read, reconcileTime: mocks.reconcile, decideTime: mocks.decide,
 } }));
 
-import { DecisionModal } from "../PayrollTimeExceptionsTab.jsx";
+import { timeTreatment, DecisionModal } from "../PayrollTimeExceptionsTab.jsx";
 
 const data = { legal_entities: [{ id: "entity-1", display_name: "QA Employer" }] };
 const early = {
@@ -51,4 +51,10 @@ describe("Payroll Time Exceptions workspace", () => {
     expect(mocks.decide).not.toHaveBeenCalled();
     expect(mocks.reconcile).not.toHaveBeenCalled();
   });
+});
+
+it('names the evidence source without turning a Payroll decision into Leave',()=>{
+ expect(timeTreatment({classification:'non_payable',status:'non_payable',approved_minutes:0,evidence:{}})).toBe('Non Payable · Unpaid absence');
+ expect(timeTreatment({classification:'non_payable',status:'approved_auto',approved_minutes:0,evidence:{leave_id:'leave',leave_type:'unpaid'}})).toBe('Non Payable · Approved unpaid leave');
+ expect(timeTreatment({classification:'non_payable',status:'review_required',approved_minutes:null,evidence:{}})).toBe('Non Payable');
 });

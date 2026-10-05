@@ -46,7 +46,11 @@ confirmation; this workflow never revokes or consumes Leave automatically.
 `payroll_ph_treatment_preview` returns canonical earning lines, statutory comparison,
 compliance warnings, total day earnings and correction delta. Confirmation binds the
 source and exact quote fingerprint including prior review; UI edits invalidate the
-quote. The UI never calculates Payroll. Company hourly Regular wages are separately
+quote. A resolved Company allowance remains visible when independently required PH
+OT is unresolved; the OT amount, day total and correction delta stay unresolved, and
+confirmation remains blocked until required pricing is complete. Compliance warnings
+never null an otherwise resolved allowance. The UI never calculates Payroll.
+Company hourly Regular wages are separately
 priced by the existing regular rule; monthly Basic stays in period Basic Salary.
 Statutory ordinary holiday pay remains within Public Holiday Allowance. PH OT remains
 separate; Company treatment with overtime cannot confirm an unavailable statutory OT
@@ -651,7 +655,7 @@ revision. The draft Run UI exposes per-employee lines and rule explanations.
 
 ## Statutory Calculation (Phase 4 V1 — guarded)
 
-### Monthly Basic entitlement / approved Unpaid Leave
+### Monthly Basic entitlement / unpaid Leave and confirmed unpaid absence
 
 `payroll_monthly_rule_confirm` records a real authorized Owner/Admin's audited,
 retry-safe confirmation of the fixed `ea18a_calendar_days_v1` formula. It is not
@@ -662,8 +666,19 @@ and [JTKSM BPP2026 guidance](https://jtksm.mohr.gov.my/sites/default/files/2026-
 The private `payroll_monthly_entitlement` helper is consumed by the existing
 calculation projection, not a second calculator. It intersects inclusive
 joining/last-employment dates with the month and removes distinct approved
-full-day Unpaid Leave dates inside that employment window. Roster minutes are
+full-day Unpaid Leave dates and explicitly confirmed full-day Payroll unpaid-absence
+dates inside that employment window. Roster minutes are
 not needed; a Payroll time decision cannot erase canonical approved leave.
+A confirmed zero-hour `non_payable` decision supplies unpaid-absence evidence through
+Payroll, never an invented Leave record. Only the latest decision matching current
+source evidence, effective Monthly employment and the period's company is consumed.
+PH dates remain in PH Treatment; approved Leave retains ownership of its date.
+Distinct unpaid dates reduce Basic once through the same calendar-day rule, without
+a second roster-minute deduction. The Basic basis separately pins approved Leave and
+unpaid-absence decisions, dates and reconciled reductions. Corrections append decision
+history, invalidate the calculation fingerprint and restore/change entitlement; stale
+source decisions cannot continue charging salary. Hourly zero-pay treatment and
+Monthly partial-time treatment retain their existing authorities.
 The final Basic amount is rounded once to RM0.01. Its earning line retains
 salary, date/day counts, approved leave snapshots and rule/geography versions.
 Employee Review and frozen statements display nominal salary, reductions and
@@ -681,7 +696,7 @@ compensation workplace/outlet snapshot and effective outlet-state evidence.
 Unknown/out-of-scope geography, half-day leave, overlapping approved leave,
 attendance conflicting with unpaid leave, salary blending and incomplete-month
 recurring component entitlements remain Review Required. No arbitrary final-RM
-override or generic absence/late deduction is introduced. Source corrections
+override or inferred absence/late deduction is introduced. Source corrections
 remain in their canonical owning workflow and require Payroll recalculation.
 
 Actual payable Basic feeds the existing EPF/SOCSO/EIS `monthly_basic` wage-base

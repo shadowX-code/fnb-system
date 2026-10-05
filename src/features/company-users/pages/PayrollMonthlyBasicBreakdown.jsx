@@ -16,13 +16,15 @@ export default function PayrollMonthlyBasicBreakdown({ line }) {
     <dl className="space-y-1">{[
       ["Monthly Salary", basis.monthly_salary],
       ["Employment proration", basis.employment_reduction, true],
-      ["Unpaid Leave", basis.unpaid_leave_reduction, true],
+      ["Approved unpaid leave", basis.unpaid_leave_reduction, true],
+      ["Unpaid absence", basis.unpaid_absence_reduction, true],
       ["Payable Basic Salary", basis.payable_basic_salary],
     ].filter(([, value, reduction]) => !reduction || Number(value) > 0).map(([label, value, reduction]) =>
       <div key={label} className="flex justify-between gap-3"><dt>{label}</dt><dd className="shrink-0 font-semibold tabular-nums">{reduction ? "−" : ""}{money(value)}</dd></div>)}</dl>
     <p className="text-xs text-text-secondary">{basis.period_start}–{basis.period_end} · {basis.eligible_days} eligible / {basis.period_days} calendar days<br />
       Employment {basis.employment_start}–{basis.employment_end}{basis.unpaid_days > 0 && ` · ${basis.unpaid_days} unpaid days`}</p>
-    {basis.unpaid_dates?.length > 0 && <details className="text-xs text-text-secondary"><summary className="cursor-pointer">Unpaid Leave dates</summary><p className="mt-1">{basis.unpaid_dates.join(", ")}</p></details>}
+    {(basis.unpaid_leave_dates ?? basis.unpaid_dates)?.length > 0 && <details className="text-xs text-text-secondary"><summary className="cursor-pointer">Approved unpaid leave dates</summary><p className="mt-1">{(basis.unpaid_leave_dates ?? basis.unpaid_dates).join(", ")}</p></details>}
+    {basis.unpaid_absence_dates?.length > 0 && <details className="text-xs text-text-secondary"><summary className="cursor-pointer">Confirmed unpaid absence dates</summary><p className="mt-1">{basis.unpaid_absence_dates.join(", ")}</p><p>Payroll decision evidence · no Leave record created.</p></details>}
     <p className="text-xs text-text-secondary">Monthly Salary ÷ wage-period calendar days × eligible days. Reductions above reconcile Basic Salary; they are not deducted twice.</p>
   </div>;
 }
