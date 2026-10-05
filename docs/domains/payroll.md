@@ -1157,13 +1157,28 @@ continues to revalidate through the original server commands. Historical calcula
 versions outside current canonical membership remain stored but are not open-run members.
 Finalized/paid runs continue to use the frozen record authority.
 
-Review Hours opens from employee detail or its Prepare Payroll time cell even while
+Review Time / View Time opens from employee detail or its Prepare Payroll time cell even while
 financial recalculation runs. Entering time review suspends projection replacement;
 previously committed calculations may finish, while explicit daily decisions continue
 through the existing fast, audited command. Finish/Return resumes coalesced automatic
 calculation. Financial totals remain pending while stale or membership is unresolved.
 Run membership blockers appear once in the header, independently of employee preparation
 progress and actionable review items.
+
+Prepare and Review retain the same employee surface and shared Run evidence across
+stage changes. Finalization Readiness consumes that same read, separates employee
+preparation progress from Run gates and routes unresolved gates back to Prepare or
+Review. Its checklist explains server readiness; it does not grant Finalize. The
+existing finalization command revalidates all required evidence before freezing.
+Financial summaries remain pending when calculations, statutory results or membership
+are unresolved; finalization is separate from payment.
+
+Bank Details are current People Employee data, not Payroll-owned or a payment snapshot.
+One scoped Employee bank read is shared across Prepare, Review and Finalize, revalidated
+on window focus and retry. Complete/incomplete table actions open details; authorized
+editing opens the canonical Employee form at Bank Info in a separate tab, preserving
+Run/entity/stage context. Returning re-reads the Employee result. Missing bank details
+remain informational warnings and never add a finalization gate.
 
 ## LINDUNG system earning wage classification
 

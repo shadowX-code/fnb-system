@@ -139,7 +139,7 @@ it("uses a compact processing table and keeps bank absence informational", async
   const snapshot=vi.fn();
   render(<PayrollRunEmployeesPanel {...props} stage="review" onSnapshot={snapshot} />);
   await screen.findByText("QA Employee");
-  expect(screen.getAllByRole("columnheader").map(item=>item.textContent)).toEqual(["Employee","Pay Basis","Basic / Hours","Gross","EPF","SOCSO","EIS","PCB","Deductions","Net Pay","Employer Cost","Status","Actions"]);
+  expect(screen.getAllByRole("columnheader").map(item=>item.textContent)).toEqual(["Employee","Pay Basis","Basic / Hours","Gross","EPF","SOCSO","EIS","PCB","Deductions","Net Pay","Employer Cost","Bank","Status","Actions"]);
   expect(screen.queryByText("Missing")).toBeNull();
   expect(screen.getByText(/EE RM\s*100.00/)).toBeTruthy();
   expect(screen.getByText(/ER RM\s*200.00/)).toBeTruthy();
@@ -160,7 +160,7 @@ it("uses a compact processing table and keeps bank absence informational", async
   fireEvent.change(screen.getByRole("searchbox",{name:"Search Employee"}),{target:{value:"unknown"}});
   expect(screen.getByText("No employees match these review filters.")).toBeTruthy();
   fireEvent.change(screen.getByRole("searchbox",{name:"Search Employee"}),{target:{value:"QA"}});
-  fireEvent.click(screen.getByRole("button",{name:"View",exact:true}));
+  fireEvent.click(screen.getByRole("button",{name:"View Payroll for QA Employee",exact:true}));
   expect(screen.getByRole("heading",{name:"Compensation"})).toBeTruthy();
   expect(screen.getByRole("heading",{name:"Bank Information"})).toBeTruthy();
   expect(screen.queryByRole("heading",{name:"Time & Attendance"})).toBeNull();
@@ -169,11 +169,11 @@ it("uses a compact processing table and keeps bank absence informational", async
 it("puts human-readable blockers first and hides unresolved Net Pay", async () => {
   mocks.readPreparation.mockResolvedValue({results:[{employee_id:"employee",projection:{status:"review_required",issues:["pay_history_missing:2026-09-01..2026-09-25"],inputs:{compensation_end:{pay_basis:"monthly",basic_salary:1700}}}}]});
   render(<PayrollRunEmployeesPanel {...props} stage="review" />);
-  await screen.findByRole("button",{name:"View",exact:true});
+  await screen.findByRole("button",{name:"View Payroll for QA Employee",exact:true});
   const net=screen.getByRole("columnheader",{name:"Net Pay"});
   expect(net).toBeTruthy();
   expect(screen.getAllByRole("cell").some(cell=>cell.textContent==="—")).toBe(true);
-  fireEvent.click(screen.getByRole("button",{name:"View",exact:true}));
+  fireEvent.click(screen.getByRole("button",{name:"View Payroll for QA Employee",exact:true}));
   const blockers=screen.getByRole("region",{name:"Review blockers"});
   expect(blockers.textContent).toContain("Pay history missing · 2026-09-01 – 2026-09-25");
   expect(blockers.compareDocumentPosition(screen.getByRole("heading",{name:"Earnings"})) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -184,7 +184,7 @@ it.each([false, true])("uses only frozen LINDUNG evidence in finalized Review (p
   mocks.readStatutory.mockResolvedValue({results:[{employee_id:"employee",status:"ready",net_pay:1900,lines: present ? [{scheme:"lindung",applicable:true,participation_status:"participating",employee_amount:14.65,employer_amount:0}] : []}]});
   render(<PayrollRunEmployeesPanel {...props} run={{...props.run,status:"finalized"}} stage="review" />);
   await screen.findByText("QA Employee");
-  fireEvent.click(screen.getByRole("button",{name:"View",exact:true}));
+  fireEvent.click(screen.getByRole("button",{name:"View Payroll for QA Employee",exact:true}));
   if(present) {
     expect(screen.getByText("LINDUNG 24 Jam")).toBeTruthy();
     expect(screen.getByText("Participating")).toBeTruthy();

@@ -10,7 +10,7 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import PayrollEmployeeBankInfo from "./PayrollEmployeeBankInfo.jsx";
-import { employeeService } from "../../../services/employeeService.js";
+import { useEmployeeBankRead } from "./useEmployeeBankRead.js";
 import { payrollService } from "../../../services/payrollService.js";
 import PayrollPayableTimeReview from "./PayrollPayableTimeReview.jsx";
 import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "./PayrollMonthlyBasicBreakdown.jsx";
@@ -30,8 +30,8 @@ const hours = (minutes) => minutes == null ? "—" : `${(Number(minutes) / 60).t
 const signedMoney = (amount) => `${amount < 0 ? "−" : "+"}${money(Math.abs(amount))}`;
 const signedAdjustments = (items) => signedMoney(items.reduce((sum, item) => sum + Number(item.amount) * (item.component_type === "deduction" ? -1 : 1), 0));
 
-export default function PayrollRunEmployeesPanel({ run, data, entityId, month, canManage, canViewLeave = false, onChanged, focusEmployeeId = "", stage = "prepare", onSnapshot, runRead }) {
-  const [evidence, setEvidence] = useState(null);
+export default function PayrollRunEmployeesPanel({ run, data, entityId, month, canManage, canViewLeave = false, canEditEmployee = false, bankRead, onChanged, focusEmployeeId = "", stage = "prepare", onSnapshot, runRead }) {
+  const [evidence, setEvidence] = useState(() => runRead?.data ? { ...runRead.data, scope: `${run.id}:${entityId}:${month}` } : null);
   const [error, setError] = useState("");
   const [calculationFailures, setCalculationFailures] = useState({});
   const [busy, setBusy] = useState(false);
@@ -44,26 +44,28 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const [basisFilter, setBasisFilter] = useState("all");
   const [workplaceFilter, setWorkplaceFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [banks, setBanks] = useState(null);
-  const [bankRetry, setBankRetry] = useState(0);
   const requests = useRef(0);
   const scope = `${run.id}:${entityId}:${month}`;
   useEffect(() => () => runRead?.setTimeReviewActive?.(false), [scope, runRead?.setTimeReviewActive]);
   const load = useCallback(async () => {
     const request = ++requests.current;
+    if (runRead) {
+      if (runRead.data) setEvidence({...runRead.data, scope});
+      return runRead.data?.time;
+    }
     try {
       const [time, calculation, statutory, pcb, preparation] = await Promise.all([
-        runRead ? Promise.resolve(runRead.data?.time) : payrollService.readTime(entityId, `${month}-01`, periodEnd(month)),
-        runRead ? Promise.resolve(runRead.data?.calculation) : payrollService.readCalculation(run.id),
-        runRead ? Promise.resolve(runRead.data?.statutory) : payrollService.readStatutory(run.id), runRead ? Promise.resolve(runRead.data?.pcb) : payrollService.readPcb(run.id),
-        runRead ? Promise.resolve(runRead.data?.preparation) : payrollService.readPreparation(run.id),
+        payrollService.readTime(entityId, `${month}-01`, periodEnd(month)),
+        payrollService.readCalculation(run.id),
+        payrollService.readStatutory(run.id), payrollService.readPcb(run.id),
+        payrollService.readPreparation(run.id),
       ]);
       if (requests.current !== request) return;
       setEvidence({ scope, time, calculation, statutory, pcb, preparation }); setError("");
       return time;
     } catch (cause) { if (requests.current === request) setError(cause.message || "Unable to load employee payroll evidence."); throw cause; }
   }, [entityId, month, run.id, runRead?.data]);
-  useEffect(() => { setEvidence(null); setEmployeeId(""); setReviewHours(false); setPaySetup(null); setCalculationFailures({}); }, [scope]);
+  useEffect(() => { setEvidence(runRead?.data ? {...runRead.data, scope} : null); setEmployeeId(""); setReviewHours(false); setPaySetup(null); setCalculationFailures({}); }, [scope]);
   useEffect(() => { if (!reviewHours && (!runRead || runRead.data)) load().catch(() => {}); return () => { ++requests.current; }; }, [load, reviewHours]);
   useEffect(() => { if (focusEmployeeId) setEmployeeId(focusEmployeeId); }, [focusEmployeeId]);
   const rows = useMemo(() => (evidence?.scope === scope ? payrollReviewRows(evidence) : []).map((member) => {
@@ -94,16 +96,9 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       adjustments, pay, preparation, projection, timeRelevant, timeNeedsReview, timeExceptionCount, needsReview };
   }), [data, entityId, evidence, month, scope]);
   useEffect(() => { if (evidence) onSnapshot?.({ runId: run.id, rows }); }, [evidence, rows, run.id, onSnapshot]);
-  const bankIds = JSON.stringify(rows.map(row => row.id).sort());
-  useEffect(() => {
-    let active = true;
-    setBanks(null);
-    const ids = JSON.parse(bankIds);
-    if (ids.length) employeeService.readBankInfo(ids).then(employees => { if (active) setBanks({ employees, runId: run.id, ids: bankIds }); })
-      .catch(() => { if (active) setBanks({ error: true, runId: run.id, ids: bankIds }); });
-    return () => { active = false; };
-  }, [bankIds, bankRetry, run.id]);
-  const bankFor = row => banks?.runId === run.id && banks.ids === bankIds ? { error: banks.error, employee: banks.employees?.find(employee => employee.id === row.id) } : null;
+  const localBanks = useEmployeeBankRead(run.id, rows.map(row => row.id), !bankRead);
+  const bankAuthority = bankRead || localBanks;
+  const bankFor = row => bankAuthority.forEmployee(row.id);
   const visible = rows.filter(row => (stage !== "review" || (
     (statusFilter === "all" || (statusFilter === "attention" ? row.needsReview : !row.needsReview))
     && (basisFilter === "all" || row.pay?.pay_basis === basisFilter)
@@ -211,8 +206,9 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     { key: "deductions", header: "Deductions", align: "right", render: row => <span className="tabular-nums">{money(row.result.deductions)}</span> },
     { key: "net", header: "Net Pay", align: "right", render: row => <strong className="tabular-nums">{money(row.result.net)}</strong> },
     { key: "employer", header: "Employer Cost", align: "right", render: row => <span className="tabular-nums">{row.result.statutoryCurrent ? money(row.statutory.total_employer_cost) : 'Pending'}</span> },
+    { key: "bank", header: "Bank", render: row => <PayrollEmployeeBankInfo result={bankFor(row)} employeeName={row.name} canEdit={canEditEmployee} onRetry={bankAuthority.refresh} /> },
     { key: "status", header: "Status", render: row => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Pending Review" : "Ready"}</Badge> },
-    { key: "action", header: "Actions", render: row => <div className="inline-flex gap-1"><button type="button" className="btn-secondary" onClick={() => setEmployeeId(row.id)}><Eye size={16} aria-hidden="true" />View</button><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
+    { key: "action", header: "Actions", render: row => <div className="inline-flex gap-1"><button type="button" className="icon-btn" aria-label={`View Payroll for ${row.name}`} title="View Payroll" onClick={event => { event.stopPropagation(); setEmployeeId(row.id); }}><Eye size={16} aria-hidden="true" /></button><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
   ];
   const columns = stage === "review" ? reviewColumns : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><small className="block text-text-secondary">{row.employee_code || "—"}</small></div> },
@@ -314,7 +310,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
           <div className="flex justify-between py-2 font-semibold"><span>Total Employer Contributions</span><span className="tabular-nums">{selected.result.statutoryCurrent ? money(selected.statutory.employer_statutory_cost) : "Pending review"}</span></div>
           <div className="flex justify-between py-2 font-semibold"><span>Total Employer Cost</span><span className="tabular-nums">{selected.result.statutoryCurrent ? money(selected.statutory.total_employer_cost) : "Pending review"}</span></div>
         </div><p className="text-xs text-text-secondary">Employer contributions do not reduce employee Net Pay.</p></section>
-        <section className="border-t border-border pt-4"><h4 className="font-bold">Bank Information</h4><PayrollEmployeeBankInfo inline result={bankFor(selected)} employeeName={selected.name} onRetry={() => setBankRetry(value => value + 1)} /><p className="mt-1 text-xs text-text-secondary">Missing details do not block Payroll finalization or change Net Pay.</p></section>
+        <section className="border-t border-border pt-4"><h4 className="font-bold">Bank Information</h4><PayrollEmployeeBankInfo inline result={bankFor(selected)} employeeName={selected.name} canEdit={canEditEmployee} onRetry={bankAuthority.refresh} /><p className="mt-1 text-xs text-text-secondary">Missing details do not block Payroll finalization or change Net Pay.</p></section>
         <details className="border-t border-border pt-3 text-xs text-text-secondary"><summary className="cursor-pointer">Calculation basis & source evidence</summary><p className="mt-2">Pay effective {selected.pay?.effective_from || "not established"} · Calculation {selected.calculation?.revision || "not available"}</p>{(selected.statutory?.lines || []).map(line => <p className="mt-2" key={line.scheme}>{statutoryName(line.scheme)} · {line.applicable === false ? "Not Applicable" : line.source_row || line.source_version || line.method || "Source review required"}{line.wage_base != null ? ` · Wage base ${money(line.wage_base)}` : ""}</p>)}</details>
         {active && calculationErrors[selected.id] && <div role="alert" className="text-rose-700">{calculationErrors[selected.id]} <button className="btn-secondary" type="button" disabled={busy} onClick={() => retryCalculation(selected.id)}>Retry Calculation</button></div>}
         {error && <p role="alert" className="text-rose-700">{error}</p>}
