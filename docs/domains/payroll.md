@@ -1175,7 +1175,7 @@ are unresolved; finalization is separate from payment.
 
 Bank Details are current People Employee data, not Payroll-owned or a payment snapshot.
 One scoped Employee bank read is shared across Prepare, Review and Finalize, revalidated
-on window focus and retry. Complete/incomplete table actions open details; authorized
+on window focus, tab visibility and retry. Complete/incomplete table actions open details; authorized
 editing opens the canonical Employee Bank Details form in a separate tab, preserving
 Run/entity/stage context. Returning re-reads the Employee result. Missing bank details
 remain informational warnings and never add a finalization gate. Bank-only saves use

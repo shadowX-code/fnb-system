@@ -19,8 +19,13 @@ export function useEmployeeBankRead(runId, employeeIds, enabled = true) {
   }, [key, enabled]);
   useEffect(() => { refresh(); return () => { ++generation.current; }; }, [refresh]);
   useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
     window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [refresh]);
   return { forEmployee: id => state?.key === key ? {error:state.error, employee:state.employees?.find(e => e.id === id)} : null, refresh,
     missingCount: state?.key === key && !state.error ? state.employees?.filter(e => !hasCompleteEmployeeBankInfo(e)).length : null };

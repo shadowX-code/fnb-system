@@ -22,3 +22,12 @@ it("never uses invisible employees as complete or carries old scope results forw
  await waitFor(()=>expect(result.current.forEmployee('employee').error).toBe(true));
  expect(result.current.missingCount).toBeNull();
 });
+
+it("revalidates bank edits when returning from a separate browser tab",async()=>{
+ bank.mockResolvedValue([{id:'employee',bank_name:''}]);
+ const {result}=renderHook(()=>useEmployeeBankRead('run',['employee']));
+ await waitFor(()=>expect(result.current.missingCount).toBe(1));
+ bank.mockResolvedValue([{id:'employee',bank_name:'Maybank',bank_account_name:'QA',bank_account_number:'123'}]);
+ await act(async()=>document.dispatchEvent(new Event('visibilitychange')));
+ await waitFor(()=>expect(result.current.missingCount).toBe(0));
+});
