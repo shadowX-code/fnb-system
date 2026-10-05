@@ -10,7 +10,7 @@ export function reviewAreas(data, report) {
     const history = (data.coverage_findings || []).filter((f) => f.topic_index === topic.topic_index && valid.has(f.evidence_turn_id) && (!report || new Date(f.created_at) <= new Date(report.created_at)));
     const current = [...history].reverse().find((f) => f.evidence_turn_id === topic.evidence_turn_id && f.state === topic.state);
     const reported = report?.status === "ready" ? report.body.topics.find((t) => t.index === topic.topic_index) : null;
-    const evidenceIds = [...new Set([...history.map((f) => f.evidence_turn_id), ...(reported?.finding?.evidence || []).map((e) => e.turn_id), topic.evidence_turn_id].filter((id) => valid.has(id)))];
+    const evidenceIds = [...new Set([...(reported?.finding?.evidence || []).map((e) => e.turn_id), topic.evidence_turn_id].filter((id) => valid.has(id)))];
     return { ...topic, finding: reported?.finding || null, text: reported?.finding?.text || current?.reason || "No supported finding established yet.", history, evidenceIds };
   });
 }

@@ -23,6 +23,7 @@ describe("Requirement fit remains separate from evidence coverage", () => {
   it("does not infer requirements from coverage or false/empty configuration",()=>expect(explicitRequirements({opening_requirements:{weekend_required:false,closing_shift:" "}})).toEqual([]));
   it("uses canonical coverage even if report model returns another state",()=>{const body=raw();body.topics[0].state="partial";expect(validateReport(body,source,"recruitment-report-v3").topics[0].state).toBe("covered");});
   it("consolidates each area while retaining history and unique supporting turns",()=>{const d=data();const rows=reviewAreas(d,d.reports[0]);expect(rows).toHaveLength(1);expect(rows[0].history).toHaveLength(2);expect(rows[0].evidenceIds).toEqual([330,334]);expect(d.coverage_findings).toHaveLength(2);});
+  it("counts current support separately from superseded citations without a report",()=>{const d=data();expect(reviewAreas(d,null)[0].evidenceIds).toEqual([334]);expect(reviewAreas(d,null)[0].history).toHaveLength(2);});
   it("does not mix future evidence into an older report snapshot",()=>{const d=data();d.coverage_findings.push({...d.coverage_findings[1],id:"future",created_at:"2026-10-06T00:00:00Z"});expect(reviewAreas(d,d.reports[0])[0].history).toHaveLength(2);});
 });
 describe("Manager review progressive disclosure",()=>{
