@@ -416,6 +416,37 @@ export default function RecruitmentEvidenceReview({
               </div>
             )}
           </section>
+          {data.coverage_findings?.length > 0 && (
+            <section>
+              <h3 className="font-semibold">Evidence collection</h3>
+              <p className="text-sm text-text-muted">
+                {data.interview_profile?.name} v
+                {data.interview_profile?.version} · Collection progress, not a
+                candidate score.
+              </p>
+              <div className="mt-2 divide-y divide-border">
+                {data.coverage_findings.map((f) => (
+                  <div key={f.id} className="py-2 text-sm">
+                    <p className="font-medium">
+                      {
+                        data.topics.find((t) => t.topic_index === f.topic_index)
+                          ?.topic
+                      }{" "}
+                      · {f.state}
+                    </p>
+                    <p>{f.reason}</p>
+                    <button
+                      type="button"
+                      className="text-primary underline"
+                      onClick={() => showTurn(f.evidence_turn_id)}
+                    >
+                      View cited transcript
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           <section>
             <h3 className="font-semibold">Transcript</h3>
             <p className="text-sm text-text-muted">
