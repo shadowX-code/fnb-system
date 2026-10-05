@@ -248,6 +248,16 @@ group details remain available under Calculation details. Existing finalized
 snapshots and existing PDF artifacts are not rewritten. Newly rendered documents
 consume the same server groups with the unchanged Unicode renderer/font assets.
 
+Monthly presentation preserves contractual Basic Salary. When pinned monthly
+entitlement evidence reconciles to the canonical net `monthly_basic` earning,
+the shared groups show nominal Basic Salary plus negative Employment Proration,
+Unpaid Leave (approved Leave) and Unpaid Absence (confirmed Payroll/Attendance)
+lines where applicable. These are earning presentation reductions, not additional
+deductions or a changed compensation rate. Their sum equals the original net
+earning; statutory wage bases still consume that original earning once. Original
+net lines and their source evidence remain in Calculation details. Incomplete
+legacy bases retain their canonical net amount; stored snapshots/PDFs are unchanged.
+
 Resolved, non-stale earning lines display even when an independent PH/OT/statutory
 issue prevents Run readiness. Pending Gross/Net and finalization gates remain; a
 partial earning projection is never represented as final payable totals.

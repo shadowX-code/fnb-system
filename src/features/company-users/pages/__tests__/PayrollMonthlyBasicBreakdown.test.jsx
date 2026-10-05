@@ -27,3 +27,11 @@ it("shows confirmed unpaid absence separately without labelling it Leave",()=>{
  expect(screen.queryByText('Approved unpaid leave')).toBeNull();expect(screen.queryByText('Approved unpaid leave dates')).toBeNull();expect(screen.getByText('2026-09-01')).toBeTruthy();
  expect(screen.getByText(/1,740.00/)).toBeTruthy();
 });
+
+it('keeps expanded server earning rows compact and preserves original calculation detail',()=>{
+ const line={amount:1800,presentation_model:'monthly_salary_reductions_v1',source:{monthly_entitlement:{...basis,unpaid_absence_reduction:60}}};
+ const {container,rerender}=render(<PayrollMonthlyBasicBreakdown line={line}/>);
+ expect(container.textContent).toBe('');
+ rerender(<PayrollMonthlyBasicBreakdown line={{...line,presentation_model:undefined,amount:1740}}/>);
+ expect(screen.getByText('Payable Basic Salary')).toBeTruthy();
+});
