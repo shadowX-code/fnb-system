@@ -116,7 +116,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     const saved = selected.adjustments.find(item => item.id === line.source?.run_adjustment_id);
     return <div key={`${line.code}-${index}`} className="py-2"><div className="flex justify-between gap-3"><span>{line.code === "monthly_basic" && !line.presentation_model ? "Payable Basic Salary" : line.label}
       <small className="block text-text-secondary">{saved ? `This period adjustment · ${saved.reason}` : line.minutes != null ? `${hours(line.minutes)}${line.rate != null ? ` · ${money(line.rate)}/hour` : ""}${line.multiplier != null ? ` · ${line.multiplier}×` : ""}` : line.units ? line.units : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence"}</small></span>
-      <span className="shrink-0 text-right"><strong className="tabular-nums">{selected.result.earningsAvailable ? `${line.kind === "deduction" ? "−" : ""}${money(line.amount)}` : "Pending review"}</strong>
+      <span className="shrink-0 text-right"><strong className="tabular-nums">{selected.result.earningsAvailable ? line.amount == null ? "Review Required" : `${line.kind === "deduction" ? "−" : ""}${money(line.amount)}` : "Pending review"}</strong>
         {saved && adjustmentActions(saved)}</span></div>
       {selected.result.earningsAvailable && <PayrollMonthlyBasicBreakdown line={line} />}
       <PayrollRecurringBreakdown line={line} /></div>;

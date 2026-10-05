@@ -35,3 +35,8 @@ it('keeps expanded server earning rows compact and preserves original calculatio
  rerender(<PayrollMonthlyBasicBreakdown line={{...line,presentation_model:undefined,amount:1740}}/>);
  expect(screen.getByText('Payable Basic Salary')).toBeTruthy();
 });
+
+it('does not present an unverified pending adjustment as a priced calculation',()=>{
+ const {container}=render(<PayrollMonthlyBasicBreakdown line={{amount:null,presentation_model:'monthly_salary_partial_evidence_v1',source:{monthly_entitlement:basis}}}/>);
+ expect(container.textContent).toBe('');
+});
