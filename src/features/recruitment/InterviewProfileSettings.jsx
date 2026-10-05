@@ -109,7 +109,10 @@ export default function InterviewProfileSettings({
                 <div className="text-xs text-text-secondary">
                   <p>
                     {p.definition.evidence_areas.length} evidence areas ·{" "}
-                    {p.definition.scenarios.length} scenarios
+                    {p.definition.scenarios.length}{" "}
+                    {p.definition.scenarios.length === 1
+                      ? "scenario"
+                      : "scenarios"}
                   </p>
                   <p>
                     Target {p.definition.target_minutes} min · Maximum{" "}

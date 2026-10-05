@@ -702,7 +702,7 @@ export default function RecruitmentPage({ auth }) {
           <RecruitmentSection
             title={includeClosed ? "All openings" : "Active openings"}
             className="is-list"
-            description={`${visibleOpenings.length} openings in this view`}
+            description={`${visibleOpenings.length} ${visibleOpenings.length === 1 ? "opening" : "openings"} in this view`}
           >
             <div className="recruitment-toolbar">
               <input
@@ -834,7 +834,9 @@ export default function RecruitmentPage({ auth }) {
             <RecruitmentSection title="Needs attention">
               {data.openings
                 .filter(
-                  (o) => o.pipeline.needs_review > 0 || o.pipeline.invited > 0,
+                  (o) =>
+                    (includeClosed || o.status !== "closed") &&
+                    (o.pipeline.needs_review > 0 || o.pipeline.invited > 0),
                 )
                 .map((o) => (
                   <button
@@ -851,7 +853,7 @@ export default function RecruitmentPage({ auth }) {
                       {o.title}
                       <small>
                         {o.pipeline.needs_review
-                          ? `${o.pipeline.needs_review} interviews ready for review`
+                          ? `${o.pipeline.needs_review} ${o.pipeline.needs_review === 1 ? "interview" : "interviews"} ready for review`
                           : `${o.pipeline.invited} invitations to follow up`}
                       </small>
                     </span>

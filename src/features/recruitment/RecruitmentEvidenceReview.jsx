@@ -197,7 +197,7 @@ export default function RecruitmentEvidenceReview({
   const patchHire = (k, v) => setHire((h) => ({ ...h, [k]: v }));
   return (
     <Modal
-      title={`${application.name} · Application review`}
+      title="Application review"
       size="3xl"
       panelClassName="recruitment-review"
       bodyClassName="!p-0"
@@ -420,15 +420,16 @@ export default function RecruitmentEvidenceReview({
                       {busy ? "Generating…" : "Generate interview report"}
                     </button>
                   )}
-                  {report && data.can_manage && (
-                    <button
-                      className="btn-secondary"
-                      disabled={busy}
-                      onClick={() => generate(true)}
-                    >
-                      Generate new version
-                    </button>
-                  )}
+                  {["ready", "unusable"].includes(report?.status) &&
+                    data.can_manage && (
+                      <button
+                        className="btn-secondary"
+                        disabled={busy}
+                        onClick={() => generate(true)}
+                      >
+                        Generate new version
+                      </button>
+                    )}
                   {["ready", "unusable"].includes(report?.status) &&
                     data.can_manage && (
                       <button

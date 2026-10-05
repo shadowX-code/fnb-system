@@ -37,7 +37,13 @@ export function RecruitmentState({ value, kind = "lifecycle", children }) {
             : ["failed", "invalid", "rejected"].includes(value)
               ? "danger"
               : "neutral";
-  return <Badge tone={tone}>{text}</Badge>;
+  return (
+    <Badge tone={tone}>
+      {kind === "lifecycle" && typeof text === "string"
+        ? text[0]?.toUpperCase() + text.slice(1)
+        : text}
+    </Badge>
+  );
 }
 export function RecruitmentMetrics({ items }) {
   return (
@@ -149,7 +155,9 @@ export function CandidateFitSummary({ application, revision }) {
       .managerEvidence(application.id)
       .then((data) => {
         if (active) {
-          setReport(data.reports?.find((r) => r.status === "ready"));
+          setReport(
+            data.reports?.[0]?.status === "ready" ? data.reports[0] : null,
+          );
           setState("loaded");
         }
       })
@@ -174,7 +182,9 @@ export function CandidateFitSummary({ application, revision }) {
           ? "Loading requirement evidence…"
           : state === "error"
             ? "Fit available in review"
-            : "Requirement fit awaiting report"}
+            : report
+              ? "Requirement fit not included in this report"
+              : "Requirement fit awaiting report"}
       </span>
     );
   return (
