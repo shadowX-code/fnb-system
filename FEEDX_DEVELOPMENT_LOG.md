@@ -717,3 +717,14 @@ preparation progress and pending financial totals are presented separately. Exis
 fast decision, pricing, statutory and finalization commands are unchanged. Focused
 L3 Staging contracts compare canonical outputs and protect access/frozen evidence.
 Canonical owner: docs/domains/payroll.md.
+
+## 2026-10-05 — Exception-driven Payroll time review
+
+Canonical daily requirement/readiness now distinguishes Monthly fixed-salary evidence
+from Hourly approved-hours calculation. Complete Monthly attendance and approved Leave
+resolve without redundant daily decisions; genuine missing/changed evidence and OT
+remain reviewed. Published PH occurrences stay in PH Treatment. Review Time consumes
+canonical exception counts and preserves the sequential audited correction workflow.
+Staging rollback contracts cover 26 clean days, 26/25 genuine missing-punch days,
+unpaid Leave exactly once, Hourly hours, explicit reconciliation, retry/history and
+frozen evidence. Production remains unchanged.

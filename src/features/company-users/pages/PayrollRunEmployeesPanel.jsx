@@ -18,7 +18,7 @@ import PayrollPayslipAction from './PayrollPayslipAction.jsx';
 import { Eye } from 'lucide-react';
 import { statutoryName } from "./payrollStatutoryLabels.js";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
-import { payComponentIsConfigured, payrollEmployeeResult, payrollReviewRows, payrollIssueLabel, payrollStatutoryCell } from "./payrollRunPresentation.js";
+import { payComponentIsConfigured, payrollEmployeeResult, payrollReviewRows, payrollIssueLabel, payrollStatutoryCell, payrollTimeNeedsReview } from "./payrollRunPresentation.js";
 
 const money = (value) => value == null ? "—" : new Intl.NumberFormat("en-MY", {
   style: "currency", currency: "MYR", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -81,7 +81,8 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     const periodPay = projection?.inputs?.compensation_start?.id ? projection.inputs.compensation_start : projection?.inputs?.compensation_end;
     const pay = periodPay?.id ? periodPay : null;
     const timeRelevant = preparation?.time_relevant === true;
-    const timeNeedsReview = timeRelevant && time.some((item) => item.status === "review_required");
+    const timeExceptionCount = preparation?.time_exception_count ?? time.filter(payrollTimeNeedsReview).length;
+    const timeNeedsReview = timeExceptionCount > 0;
     const needsReview = member.needsReview;
     return { ...employee,
       // Current Employee is an identity fallback only; open-run assignment comes from People as-of evidence.
@@ -90,7 +91,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       employment_type: periodAssignment?.employment_type || "",
       legal_entity_id: periodAssignment?.legal_entity_id || null,
       profile, time, calculation, statutory, result: payrollEmployeeResult(calculation, statutory), pcb,
-      adjustments, pay, preparation, projection, timeRelevant, timeNeedsReview, needsReview };
+      adjustments, pay, preparation, projection, timeRelevant, timeNeedsReview, timeExceptionCount, needsReview };
   }), [data, entityId, evidence, month, scope]);
   useEffect(() => { if (evidence) onSnapshot?.({ runId: run.id, rows }); }, [evidence, rows, run.id, onSnapshot]);
   const bankIds = JSON.stringify(rows.map(row => row.id).sort());
@@ -216,7 +217,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const columns = stage === "review" ? reviewColumns : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><small className="block text-text-secondary">{row.employee_code || "—"}</small></div> },
     { key: "pay", header: "Pay", render: (row) => row.pay ? <span>{human(row.pay.pay_basis)}<small className="block text-text-secondary">{money(row.pay.basic_salary || row.pay.hourly_rate)}{row.pay.pay_basis === "hourly" ? " / hour" : ""}</small></span> : <Badge tone="warning">Setup required</Badge> },
-    { key: "time", header: "Time & Attendance", render: (row) => !row.timeRelevant ? "Not required" : <button type="button" aria-label={`Review Hours for ${row.name}`} onClick={() => { setEmployeeId(row.id); openTimeReview(); }}><Badge tone={row.timeNeedsReview ? "warning" : "neutral"}>{row.timeNeedsReview ? `${row.time.filter((item) => item.status === "review_required").length} exceptions` : row.time.length ? "Reviewed" : "Time evidence required"}</Badge></button> },
+    { key: "time", header: "Time & Attendance", render: (row) => row.timeNeedsReview ? <button type="button" aria-label={`Review Time for ${row.name}`} onClick={() => { setEmployeeId(row.id); openTimeReview(); }}><Badge tone="warning">{row.timeExceptionCount} exception{row.timeExceptionCount === 1 ? "" : "s"}</Badge></button> : <span><Badge tone="success">Ready</Badge>{row.pay?.pay_basis === "hourly" && <small className="block text-text-secondary">{hours(row.time.filter(item => item.review_state?.state !== "ph_review").reduce((sum,item) => sum + Number(item.approved_minutes || 0),0))} approved Regular / non-PH time</small>}</span> },
     { key: "adjustments", header: "Adjustments", render: (row) => row.adjustments.length ? `${row.adjustments.length} adjustment${row.adjustments.length === 1 ? "" : "s"} · ${signedAdjustments(row.adjustments)}` : "None" },
     { key: "statutory", header: "Statutory", render: (row) => {
       const schemes = row.preparation?.statutory_setup?.schemes || {};
@@ -281,7 +282,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <div className="flex justify-between border-t border-border pt-3 font-bold"><span>Gross Earnings</span><span className="tabular-nums">{money(selected.result.gross)}</span></div>
         {selected.calculation?.lines?.some(line => line.kind === "reimbursement") && <section><h4 className="font-semibold">Business Reimbursements</h4><p className="text-xs text-text-secondary">Outside Gross Earnings; added to employee payment.</p><div className="divide-y divide-border">{selected.calculation.lines.filter(line => line.kind === "reimbursement").map(financialLine)}</div></section>}
         {selected.adjustments.some(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)) && <section><h4 className="font-semibold">Awaiting Calculation</h4>{selected.adjustments.filter(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)).map(item => <div key={item.id} className="flex justify-between py-2"><span>{item.component_name}<small className="block text-text-secondary">Saved adjustment · {item.reason}</small></span>{adjustmentActions(item)}</div>)}</section>}
-        {selected.timeRelevant && <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance</h4><button type="button" className="font-semibold text-primary" onClick={openTimeReview}>Review Hours</button></div><p className="mt-1 text-text-secondary">{selected.time.length} recorded days · {selected.time.filter(item=>item.status === 'review_required').length} exceptions. Review Hours compares roster, clock evidence and approved payable time.</p></section>}
+        <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance — {selected.timeNeedsReview ? "Review Required" : "Ready"}</h4>{selected.timeNeedsReview && <button type="button" className="font-semibold text-primary" onClick={openTimeReview}>Review Time</button>}</div><p className="mt-1 text-text-secondary">{selected.timeNeedsReview ? `${selected.timeExceptionCount} pay-impacting exception${selected.timeExceptionCount === 1 ? "" : "s"} require review.` : selected.pay?.pay_basis === "monthly" ? "Normal attendance does not require daily hours approval. Approved leave and period employment use their canonical pay rules." : "Approved payable hours determine Regular Pay."} Public Holiday treatment is reviewed separately.</p></section>
         <PayrollPhStatutory runId={run.id} employeeId={selected.id} canManage={active} onChanged={refresh} />
         <section className="border-t border-border pt-4"><div className="flex justify-between gap-3"><h4 className="text-base font-bold">Employee Deductions</h4>{active && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button"
           onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>

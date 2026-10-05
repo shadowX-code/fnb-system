@@ -18,14 +18,14 @@ it("keeps monthly time irrelevant and displays persisted deductions before calcu
   render(<PayrollRunEmployeesPanel {...props} />);
   expect(screen.queryByRole("button", { name: "All", exact: true })).toBeNull();
   await screen.findByText("QA Employee");
-  expect(screen.getByText("Not required")).toBeTruthy();
+  expect(screen.getByText("Ready")).toBeTruthy();
   expect(screen.getByText(/1 adjustment/)).toBeTruthy();
   expect(screen.queryByText("Confirm amount")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Review", exact: true }));
   expect(screen.getByText("Deduction")).toBeTruthy();
   expect(screen.getByText("Saved adjustment · Approved period adjustment")).toBeTruthy();
   expect(screen.queryByRole("heading", { name: "Time & Attendance" })).toBeNull();
-  expect(screen.queryByRole("button", { name: "Review Hours" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Review Time" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Confirm PCB" })).toBeNull();
 });
 it("resolves period-effective categories and PCB N/A beside current amounts", async () => {
@@ -67,12 +67,12 @@ it("removes a Draft adjustment without required remark and refreshes only that e
   expect(mocks.saveDraftAdjustment.mock.invocationCallOrder.at(-1)).toBeLessThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1));
 });
 it("still exposes time-dependent employee evidence", async () => {
-  mocks.readPreparation.mockResolvedValue({ results: [{ employee_id: "employee", time_relevant: true, projection: { status: "review_required", issues: ["unreconciled_time:2026-09-01"], lines: [] } }] });
+  mocks.readPreparation.mockResolvedValue({ results: [{ employee_id: "employee", time_relevant: true, time_exception_count: 1, projection: { status: "review_required", issues: ["unreconciled_time:2026-09-01"], lines: [] } }] });
   render(<PayrollRunEmployeesPanel {...props} />);
   await screen.findByText("QA Employee");
-  expect(screen.getByText("Time evidence required")).toBeTruthy();
+  expect(screen.getByText("1 exception")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Review", exact: true }));
-  expect(screen.getByRole("heading", { name: "Time & Attendance" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Time & Attendance — Review Required" })).toBeTruthy();
 });
 it("edits an existing Draft input and recalculates after the atomic save", async () => {
   mocks.readCalculation.mockResolvedValue({results:[],adjustments:[{id:"line",employee_id:"employee",component_id:"component",component_name:"QA allowance",component_type:"allowance",amount:50,reason:"Previous evidence"}]});
@@ -122,7 +122,7 @@ it("advances from committed day read-back without waiting for month projections"
   render(<PayrollRunEmployeesPanel {...props} />);
   await screen.findByText('QA Employee');
   fireEvent.click(screen.getByRole('button',{name:'Review',exact:true}));
-  fireEvent.click(screen.getByRole('button',{name:'Review Hours'}));
+  fireEvent.click(screen.getByRole('button',{name:'Review Time'}));
   fireEvent.click(screen.getByRole('button',{name:'Review exception'}));
   fireEvent.change(screen.getByRole('spinbutton',{name:/Approved payable minutes/}),{target:{value:'120'}});
   fireEvent.change(screen.getByRole('textbox',{name:/Decision reason/}),{target:{value:'Verified QA evidence'}});
@@ -199,7 +199,7 @@ it('preserves employee and active exception when the shared run projection refre
   const view=render(<PayrollRunEmployeesPanel {...props} runRead={{data:snapshot,refresh:vi.fn(),calculating:true}} />);
   await screen.findByText('QA Employee');
   fireEvent.click(screen.getByRole('button',{name:'Review',exact:true}));
-  fireEvent.click(screen.getByRole('button',{name:'Review Hours'}));
+  fireEvent.click(screen.getByRole('button',{name:'Review Time'}));
   fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
   fireEvent.change(screen.getByRole('textbox',{name:/Decision reason/}),{target:{value:'Keep this unsaved draft'}});
   view.rerender(<PayrollRunEmployeesPanel {...props} runRead={{data:{...snapshot},refresh:vi.fn()}} />);
@@ -215,4 +215,26 @@ it('shows resolved Regular aggregate while an independent PH blocker keeps overa
  expect(screen.getByText('Regular Pay')).toBeTruthy(); expect(screen.getAllByText(/RM\s*80\.00/).length).toBeGreaterThan(0);
  expect(screen.getByText('Calculation details')).toBeTruthy();
  expect(screen.getByText(/requires a verified Malaysia hourly PH/)).toBeTruthy();
+});
+
+it('shows clean Monthly time Ready from canonical evidence without daily approval or an action', async () => {
+  mocks.readTime.mockResolvedValue([{employee_id:'employee',status:'review_required',work_date:'2026-09-01',review_state:{required:false,automatic:true,state:'ready'}}]);
+  mocks.readPreparation.mockResolvedValue({results:[{employee_id:'employee',time_exception_count:0,time_relevant:false,projection:{status:'ready',issues:[],inputs:{compensation_start:{id:'pay',pay_basis:'monthly',basic_salary:3000}}}}]});
+  render(<PayrollRunEmployeesPanel {...props} />);
+  await screen.findByText('QA Employee');
+  expect(screen.getByText('Ready')).toBeTruthy();
+  expect(screen.queryByRole('button',{name:/Review Time/})).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Review',exact:true}));
+  expect(screen.getByRole('heading',{name:'Time & Attendance — Ready'})).toBeTruthy();
+  expect(screen.getByText(/Normal attendance does not require daily hours approval/)).toBeTruthy();
+});
+
+it('counts only canonical unresolved time exceptions when PH and normal rows coexist', async () => {
+  mocks.readTime.mockResolvedValue([{employee_id:'employee',status:'review_required',work_date:'2026-09-16',review_state:{required:false,state:'ph_review'}},{employee_id:'employee',status:'review_required',work_date:'2026-09-17',review_state:{required:true,state:'review_required'}}]);
+  mocks.readPreparation.mockResolvedValue({results:[{employee_id:'employee',time_exception_count:1,time_relevant:true,projection:{status:'review_required',issues:['unresolved_time_exception:2026-09-17','ph_occurrence_review_required:2026-09-16'],inputs:{compensation_start:{id:'pay',pay_basis:'monthly',basic_salary:3000}}}}]});
+  render(<PayrollRunEmployeesPanel {...props} />);
+  await screen.findByText('1 exception');
+  fireEvent.click(screen.getByRole('button',{name:'Review Time for QA Employee'}));
+  expect(screen.getByRole('dialog',{name:'Time & Attendance Review · QA Employee'})).toBeTruthy();
+  expect(screen.queryByText('2026-09-16')).toBeNull();
 });
