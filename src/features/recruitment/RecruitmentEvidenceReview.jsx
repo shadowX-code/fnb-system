@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import Modal from "../../components/feedback/Modal.jsx";
+import StatusBadge from "../../components/ui/StatusBadge.jsx";
+import { reviewAreas, fitLabels, coverageLabels } from "./reviewIntelligence.js";
+import { explicitRequirements } from "../../../supabase/functions/recruitment-report/report.ts";
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
 import DatePickerField from "../../components/forms/DatePickerField.jsx";
 import { recruitmentService } from "./recruitmentService.js";
@@ -36,7 +39,7 @@ function Finding({ finding, showTurn, showRecording }) {
             >
               Turn {e.turn_number}
             </button>
-            {e.recordings.map((r) => (
+            {(e.recordings || []).map((r) => (
               <button
                 key={r.unit_id}
                 className="text-sm underline"
@@ -45,7 +48,7 @@ function Finding({ finding, showTurn, showRecording }) {
                 Recording {r.sequence} · ~{Math.round(r.offset_seconds)}s
               </button>
             ))}
-            {!e.recordings.length && (
+            {!e.recordings?.length && (
               <span className="text-xs text-text-muted">
                 Recording correspondence unavailable
               </span>
@@ -78,6 +81,7 @@ export default function RecruitmentEvidenceReview({
     duplicate_name_reason: "",
   });
   const [attemptId, setAttemptId] = useState(null);
+  const transcriptSection = useRef(null), recordingSection = useRef(null), decisionSection = useRef(null);
   const retry = useRef(null),
     turnRefs = useRef({}),
     videoRefs = useRef({});
@@ -107,8 +111,6 @@ export default function RecruitmentEvidenceReview({
     data?.reports.find((r) => r.id === reportId) || data?.reports[0];
   const source = report?.source_snapshot;
   const turns = source?.turns || data?.turns || [],
-    topics =
-      source?.config.required_topics || data?.topics.map((t) => t.topic) || [],
     scenarios =
       source?.config.scenario_briefs ||
       data?.scenarios.map((s) => s.brief) ||
@@ -137,13 +139,15 @@ export default function RecruitmentEvidenceReview({
     });
   }
   function showTurn(id) {
+    if (transcriptSection.current) transcriptSection.current.open = true;
     setFocusTurn(id);
-    turnRefs.current[id]?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
+    requestAnimationFrame(() => {
+      turnRefs.current[id]?.scrollIntoView({ block: "center" });
+      turnRefs.current[id]?.focus({ preventScroll: true });
     });
   }
   function showRecording(ref) {
+    if (recordingSection.current) recordingSection.current.open = true;
     const video = videoRefs.current[ref.unit_id];
     if (video) {
       video.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -179,20 +183,20 @@ export default function RecruitmentEvidenceReview({
       data?.attempt?.status,
     ),
     state = data?.application.decision_state;
+  const areas = data ? reviewAreas(data, report) : [];
+  const requirements = explicitRequirements(source?.config || { opening_requirements: data?.opening_requirements });
   const patchHire = (k, v) => setHire((h) => ({ ...h, [k]: v }));
   return (
     <Modal
       title={`${application.name} · Application review`}
-      size="xl"
+      size="2xl"
+      bodyClassName="!p-0"
       onClose={onClose}
       footer={
-        <button
-          className="btn-secondary"
-          disabled={busy}
-          onClick={() => act(async () => {})}
-        >
-          Refresh evidence and playback
-        </button>
+        <>
+          <button className="btn-secondary" disabled={busy} onClick={() => act(async () => {})}>Refresh evidence</button>
+          {data && <button className="btn-primary" onClick={() => { decisionSection.current?.scrollIntoView({ block: "start" }); decisionSection.current?.focus({ preventScroll: true }); }}>Manager decision</button>}
+        </>
       }
     >
       {error && (
@@ -203,8 +207,8 @@ export default function RecruitmentEvidenceReview({
       {!data ? (
         <p>Loading application…</p>
       ) : (
-        <div className="space-y-6">
-          <header className="space-y-2">
+        <div className="space-y-6 p-5 sm:p-6">
+          <header className="space-y-2 border-b border-border pb-5">
             {data.attempts.length > 1 && (
               <AdminFormField label="Interview attempt">
                 <select
@@ -232,28 +236,15 @@ export default function RecruitmentEvidenceReview({
               {data.application.opening_title_snapshot} ·{" "}
               {data.application.workplace_snapshot}
             </p>
-            <p>
-              Interview:{" "}
-              <strong>{data.attempt?.status || "Not started"}</strong> ·{" "}
-              {decisionLabels[state]}
-            </p>
-            <p>
-              Recording {data.attempt?.recording_state || "not started"}
-              {data.events.filter((e) => e.action === "recording_gap").length
-                ? ` · ${data.events.filter((e) => e.action === "recording_gap").length} disclosed gaps`
-                : ""}{" "}
-              · Transcript{" "}
-              {data.annotations.some((a) => a.kind === "transcription_failed")
-                ? "has disclosed gaps"
-                : data.turns.some((t) => t.speaker === "candidate")
-                  ? "available · provider relay"
-                  : "unavailable"}
-            </p>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <StatusBadge status={data.attempt?.status || "registered"}>{data.attempt?.status?.replaceAll("_", " ") || "Not started"}</StatusBadge>
+              <span className="text-text-secondary">{decisionLabels[state]}</span>
+              <span className="text-text-muted">· Recording: {data.attempt?.recording_state || "not started"}</span>
+              <span className="text-text-muted">· {data.events.filter((e) => e.action === "recording_gap").length} disclosed gaps</span>
+              {data.units.some((u) => u.status === "invalid") && <StatusBadge tone="warning">Recording unit unavailable</StatusBadge>}
+            </div>
             <p className="text-sm text-text-secondary">
-              Partial evidence describes collection quality, not candidate
-              performance. Recordings support human verification; appearance,
-              expressions, accent, voice characteristics and inferred
-              personality are not hiring signals.
+              Transcript {data.annotations.some((a) => a.kind === "transcription_failed") ? "has disclosed gaps" : data.turns.some((t) => t.speaker === "candidate") ? "available" : "unavailable"}. Evidence coverage describes what is understood; requirement fit is assessed separately.
             </p>
           </header>
           {!data.launch_ready && (
@@ -300,74 +291,14 @@ export default function RecruitmentEvidenceReview({
                 </p>
                 {report.status === "ready" ? (
                   <>
-                    {report.body.candidate_snapshot.length ? (
-                      report.body.candidate_snapshot.map((f, i) => (
-                        <Finding
-                          key={i}
-                          finding={f}
-                          showTurn={showTurn}
-                          showRecording={showRecording}
-                        />
-                      ))
-                    ) : (
-                      <p>No factual candidate snapshot established.</p>
-                    )}
-                    <h4 className="mt-5 font-semibold">Required Topics</h4>
-                    {report.body.topics.map((t) => (
-                      <div
-                        key={t.index}
-                        className="border-b border-border py-2"
-                      >
-                        <p className="font-medium">
-                          {topics[t.index]} · {t.state}
-                        </p>
-                        <Finding
-                          finding={t.finding}
-                          showTurn={showTurn}
-                          showRecording={showRecording}
-                        />
-                      </div>
-                    ))}
-                    <h4 className="mt-5 font-semibold">Scenario Evidence</h4>
-                    {report.body.scenarios.map((s) => (
-                      <div
-                        key={s.index}
-                        className="border-b border-border py-2"
-                      >
-                        <p className="font-medium">{scenarios[s.index]}</p>
-                        <Finding
-                          finding={s.finding}
-                          showTurn={showTurn}
-                          showRecording={showRecording}
-                        />
-                        {s.unresolved.map((f, i) => (
-                          <Finding
-                            key={i}
-                            finding={f}
-                            showTurn={showTurn}
-                            showRecording={showRecording}
-                          />
-                        ))}
-                      </div>
-                    ))}
-                    <h4 className="mt-5 font-semibold">
-                      Unresolved / Manager Follow-up
-                    </h4>
-                    {report.body.follow_up.map((f, i) => (
-                      <Finding
-                        key={i}
-                        finding={f}
-                        showTurn={showTurn}
-                        showRecording={showRecording}
-                      />
-                    ))}
-                    <p className="mt-3 text-sm text-text-muted">
-                      Report evidence: {report.body.limitations.recording_state}{" "}
-                      recording · {report.body.limitations.gaps} gaps ·{" "}
-                      {report.body.limitations.annotations} transcript
-                      annotations. Findings are AI-assisted and require human
-                      verification.
-                    </p>
+                    <ul className="my-3 space-y-2 text-sm leading-relaxed max-w-[75ch]">
+                      {report.body.candidate_snapshot.filter((f) => f.kind === "candidate_stated").map((f, i) => <li key={i}>{f.text}</li>)}
+                    </ul>
+                    {!report.body.candidate_snapshot.some((f) => f.kind === "candidate_stated") && <p className="text-sm text-text-secondary">No factual candidate snapshot established.</p>}
+                    <details className="text-sm text-text-secondary">
+                      <summary className="cursor-pointer py-2">Summary sources</summary>
+                      {report.body.candidate_snapshot.filter((f) => f.kind === "candidate_stated").map((f, i) => <Finding key={i} finding={f} showTurn={showTurn} showRecording={showRecording} />)}
+                    </details>
                   </>
                 ) : report.status === "unusable" ? (
                   <p>{report.body.unusable_reason}</p>
@@ -416,39 +347,51 @@ export default function RecruitmentEvidenceReview({
               </div>
             )}
           </section>
-          {data.coverage_findings?.length > 0 && (
-            <section>
-              <h3 className="font-semibold">Evidence collection</h3>
-              <p className="text-sm text-text-muted">
-                {data.interview_profile?.name} v
-                {data.interview_profile?.version} · Collection progress, not a
-                candidate score.
-              </p>
-              <div className="mt-2 divide-y divide-border">
-                {data.coverage_findings.map((f) => (
-                  <div key={f.id} className="py-2 text-sm">
-                    <p className="font-medium">
-                      {
-                        data.topics.find((t) => t.topic_index === f.topic_index)
-                          ?.topic
-                      }{" "}
-                      · {f.state}
-                    </p>
-                    <p>{f.reason}</p>
-                    <button
-                      type="button"
-                      className="text-primary underline"
-                      onClick={() => showTurn(f.evidence_turn_id)}
-                    >
-                      View cited transcript
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+          <section aria-labelledby="opening-requirements-heading">
+            <h3 id="opening-requirements-heading" className="text-base font-semibold">Opening Requirements</h3>
+            <p className="mt-1 text-sm text-text-muted">Evidence fit for this opening only. Covered evidence can still conflict with a requirement.</p>
+            {!requirements.length && <p className="mt-3 text-sm text-text-secondary">No explicit opening requirements configured.</p>}
+            <div className="mt-3 divide-y divide-border">
+              {requirements.map((r) => {
+                const fit = report?.status === "ready" ? report.body.opening_requirements?.find((f) => f.key === r.key) : null;
+                return <div key={r.key} className="py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2"><p className="font-medium text-sm">{r.requirement}</p><StatusBadge icon={false} tone={fit?.state === "does_not_meet" ? "warning" : "neutral"}>{fitLabels[fit?.state] || "Unclear"}</StatusBadge></div>
+                  <p className="mt-1 text-sm text-text-secondary">{fit?.finding.text || (report?.status === "ready" ? "This historical report does not assess requirement fit. Generate a new version to evaluate cited evidence." : "Requirement fit awaits a finalized evidence report; no fit is inferred from coverage.")}</p>
+                  {fit?.finding.evidence.length > 0 && <details className="mt-1 text-sm"><summary className="cursor-pointer py-1 text-text-secondary">Supporting evidence · {fit.finding.evidence.length}</summary><Finding finding={fit.finding} showTurn={showTurn} showRecording={showRecording}/></details>}
+                </div>;
+              })}
+            </div>
+          </section>
+          <section aria-labelledby="interview-evidence-heading">
+            <h3 id="interview-evidence-heading" className="text-base font-semibold">Interview Evidence</h3>
+            <p className="mt-1 text-sm text-text-muted">{data.interview_profile?.name || "Interview plan"}{data.interview_profile ? ` v${data.interview_profile.version}` : ""} · Current finding per area{source ? " in the selected report snapshot" : ""}.</p>
+            <div className="mt-3 divide-y divide-border">
+              {areas.map((area) => <details key={area.topic_index} className="group py-3">
+                <summary className="cursor-pointer list-none rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">{area.topic}</span><StatusBadge tone="neutral" icon={false}>{coverageLabels[area.state]}</StatusBadge></div>
+                  <p className="mt-1 text-sm leading-relaxed text-text-secondary max-w-[75ch]">{area.text}</p>
+                  {report?.body?.opening_requirements?.filter((r) => (area.topic === "Shift Flexibility" && ["weekend_required", "closing_shift"].includes(r.key)) || (area.topic === "Availability / Start Date" && r.key === "preferred_start")).map((r) => <p key={r.key} className="mt-1 text-xs text-text-secondary">{r.key === "weekend_required" ? "Weekend requirement" : r.key === "closing_shift" ? "Closing shift requirement" : "Preferred start"}: {fitLabels[r.state]}</p>)}
+                  <span className="mt-2 inline-block text-xs text-text-muted">{area.evidenceIds.length} supporting {area.evidenceIds.length === 1 ? "turn" : "turns"} · <span className="group-open:hidden">View evidence</span><span className="hidden group-open:inline">Hide evidence</span></span>
+                </summary>
+                <div className="mt-3 space-y-3 text-sm">
+                  {area.finding && <Finding finding={area.finding} showTurn={showTurn} showRecording={showRecording} />}
+                  {area.evidenceIds.map((id) => { const turn = turns.find((t) => t.id === id); return <div key={id} className="rounded-lg bg-surface-muted p-3"><p className="whitespace-pre-wrap">{turn?.transcript}</p><button className="mt-2 text-primary underline" onClick={() => showTurn(id)}>View transcript · Turn {turn?.turn_number}</button></div>; })}
+                  <details><summary className="cursor-pointer text-text-secondary">Coverage evolution · {area.history.length} findings</summary><ol className="mt-2 space-y-2">{area.history.map((f) => <li key={f.id} className="border-b border-border py-2"><span className="text-xs text-text-muted">{coverageLabels[f.state]} · {new Date(f.created_at).toLocaleString()}</span><p>{f.reason}</p><button className="text-primary underline" onClick={() => showTurn(f.evidence_turn_id)}>View cited transcript</button></li>)}</ol></details>
+                </div>
+              </details>)}
+            </div>
+            {report?.status === "ready" && report.body.scenarios.map((s) => <details key={s.index} className="border-t border-border py-3"><summary className="cursor-pointer text-sm font-medium">Scenario · {scenarios[s.index]}<p className="mt-1 font-normal text-text-secondary">{s.finding.text}</p></summary><Finding finding={s.finding} showTurn={showTurn} showRecording={showRecording}/>{s.unresolved.map((f,i) => <Finding key={i} finding={f} showTurn={showTurn} showRecording={showRecording}/>)}</details>)}
+          </section>
           <section>
-            <h3 className="font-semibold">Transcript</h3>
+            <h3 className="text-base font-semibold">Unresolved / Follow-up</h3>
+            {report?.status === "ready" ? report.body.follow_up.length ? report.body.follow_up.map((f,i) => <details key={i} className="border-b border-border py-3 text-sm"><summary className="cursor-pointer">{f.text}</summary>{f.evidence.length > 0 ? <Finding finding={f} showTurn={showTurn} showRecording={showRecording}/> : <p className="mt-2 text-text-muted">Missing or uncertain information; no candidate assertion is inferred.</p>}</details>) : <p className="mt-2 text-sm text-text-secondary">No additional unresolved items identified in this report.</p> : <p className="mt-2 text-sm text-text-secondary">{areas.filter((a) => a.state !== "covered").map((a) => a.topic).join(" · ") || "Awaiting report for consolidated follow-up."}</p>}
+          </section>
+          <section className="border-t border-border pt-5">
+            <h3 className="text-base font-semibold">Original Evidence</h3>
+            <p className="my-2 text-sm text-text-muted">AI-assisted findings require human verification. Appearance, accent, voice characteristics and inferred personality are not hiring signals.</p>
+          </section>
+          <details ref={transcriptSection}>
+            <summary className="cursor-pointer font-semibold py-2">Transcript · {turns.length} turns</summary>
             <p className="text-sm text-text-muted">
               Provider text is relayed by the browser. Interrupted AI speech may
               include unplayed words. Recording links seek to approximate
@@ -479,9 +422,9 @@ export default function RecruitmentEvidenceReview({
                 <p className="whitespace-pre-wrap">{t.transcript}</p>
               </div>
             ))}
-          </section>
-          <section>
-            <h3 className="font-semibold">Recording</h3>
+          </details>
+          <details ref={recordingSection}>
+            <summary className="cursor-pointer font-semibold py-2">Recording · {data.units.length} units</summary>
             {data.units.map((u) => (
               <div
                 key={u.id}
@@ -504,7 +447,7 @@ export default function RecruitmentEvidenceReview({
                     }}
                     controls
                     playsInline
-                    preload="metadata"
+                    preload="none"
                     src={u.signed_url}
                     className="mt-2 w-full max-h-96"
                   />
@@ -529,8 +472,9 @@ export default function RecruitmentEvidenceReview({
                     : ""}
                 </p>
               ))}
-          </section>
-          <section className="border-t border-border pt-5">
+          </details>
+          <details><summary className="cursor-pointer font-semibold py-2">Evidence / audit history</summary><div className="space-y-2 py-2 text-sm text-text-secondary">{data.events.map((e,i) => <p key={i}>{new Date(e.occurred_at).toLocaleString()} · {e.action.replaceAll("_", " ")}</p>)}</div></details>
+          <section ref={decisionSection} tabIndex={-1} className="border-t border-border pt-5">
             <h3 className="font-semibold">Manager Decision</h3>
             <p className="my-2 text-sm text-text-secondary">
               The manager owns this decision. AI reports cannot execute a hiring

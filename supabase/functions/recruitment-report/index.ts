@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import {
   instructionsForVersion,
-  reportSchema,
+  reportSchemaForVersion,
   validateReport,
 } from "./report.ts";
 const cors = {
@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
             type: "json_schema",
             name: "recruitment_interview_report",
             strict: true,
-            schema: reportSchema,
+            schema: reportSchemaForVersion(claim.prompt_version),
           },
         },
         max_output_tokens: 9000,

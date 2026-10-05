@@ -789,3 +789,7 @@ canonical exception counts and preserves the sequential audited correction workf
 Staging rollback contracts cover 26 clean days, 26/25 genuine missing-punch days,
 unpaid Leave exactly once, Hourly hours, explicit reconciliation, retry/history and
 frozen evidence. Production remains unchanged.
+
+## 2026-10-05 — Recruitment review intelligence
+
+Separated explicit opening-requirement fit from server-owned evidence coverage in new immutable v3 reports. Consolidated Application Review around factual summary, cited fit, one evidence area per row and progressive source/history disclosure. Preserved historical reports/findings, recording/transport and manager hiring authority. Focused verification is recorded in `qa/recruitment/reviewFitStaging.md`.
