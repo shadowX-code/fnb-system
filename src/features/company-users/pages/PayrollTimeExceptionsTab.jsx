@@ -10,6 +10,15 @@ const time = (value) => value ? new Intl.DateTimeFormat("en-MY", {
   timeZone: "Asia/Kuala_Lumpur", hour: "2-digit", minute: "2-digit", hour12: false,
 }).format(new Date(value)) : "—";
 
+// Describe the owning evidence; a zero-hour decision never creates Leave.
+export function timeTreatment(row) {
+  if (row.classification !== 'non_payable') return titleCase(row.classification);
+  if (row.evidence?.leave_id && row.evidence.leave_type === 'unpaid') return 'Non Payable · Approved unpaid leave';
+  if (['approved_manual', 'non_payable'].includes(row.status) && Number(row.approved_minutes) === 0)
+    return 'Non Payable · Unpaid absence';
+  return 'Non Payable';
+}
+
 export function sourceChanges(changes = []) {
   const labels = { classification: 'Classification', issue_codes: 'Review', scheduled_minutes: 'Roster payable time',
     roster_break_minutes: 'Roster break', clock_in_at: 'Clock in', clock_out_at: 'Clock out',
@@ -107,7 +116,7 @@ export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Re
       </section>}
       {progress && <p role="status" className="font-semibold">{progress}</p>}
       {correction && <p role="status">Correct Decision · The prior decision is retained. A new reason is required.</p>}
-      {reviewed && <p role="status">Decision already recorded · {duration(row.approved_minutes)} · {titleCase(row.classification)}</p>}
+      {reviewed && <p role="status">Decision already recorded · {duration(row.approved_minutes)} · {timeTreatment(row)}</p>}
       {recorded && <p role="status">Decision recorded. Refresh the review to restore the latest payroll result; this will not submit another decision.</p>}
       <div className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
         <div><strong>Published Roster</strong><p>{time(evidence.scheduled_start_at)} – {time(evidence.scheduled_end_at)} · {evidence.roster_break_minutes ?? "—"}m unpaid break</p><small className="text-text-muted">Entry {evidence.roster_entry_id || "None"}</small></div>

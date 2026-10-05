@@ -4,7 +4,7 @@ import Modal from '../../../components/feedback/Modal.jsx';
 import DataTable from '../../../components/tables/DataTable.jsx';
 import Badge from '../../../components/ui/Badge.jsx';
 import { payrollTimeNeedsReview } from './payrollRunPresentation.js';
-import { DecisionModal } from './PayrollTimeExceptionsTab.jsx';
+import { DecisionModal, timeTreatment } from './PayrollTimeExceptionsTab.jsx';
 
 const hours = value => value == null ? '—' : `${(Number(value) / 60).toFixed(2)} h`;
 const money = value => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' }).format(value);
@@ -47,7 +47,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
       {Number(row.evidence?.extra_candidate_minutes) > 0 && <small className="block text-text-secondary">Extra candidate {hours(row.evidence.extra_candidate_minutes)}</small>}
       {Number(row.approved_extra_minutes) > 0 && <small className="block text-text-secondary">Approved OT {hours(row.approved_extra_minutes)}</small>}</div> },
     { key:'payable',header:'Payable',align:'right',render:row => <div className="whitespace-nowrap tabular-nums"><strong>{row.approved_minutes == null ? row.review_state?.automatic ? 'Monthly salary / Leave rules' : 'Awaiting review' : hours(Number(row.approved_minutes) + Number(row.approved_extra_minutes || 0))}</strong>
-      <small className="block text-text-secondary">Proposed {hours(row.proposed_minutes)}</small><small className="block text-text-secondary">{human(row.classification)}</small></div> },
+      <small className="block text-text-secondary">Proposed {hours(row.proposed_minutes)}</small><small className="block text-text-secondary">{timeTreatment(row)}</small></div> },
     { key:'status',header:'Status',render:row => <div><Badge tone={payrollTimeNeedsReview(row) ? 'warning' : 'success'}>{payrollTimeNeedsReview(row) && row.source_state?.updated ? 'Source Updated' : payrollTimeNeedsReview(row) ? 'Review Required' : row.review_state?.automatic || row.status === 'approved_auto' ? 'Resolved automatically' : human(row.status)}</Badge>
       {canManage && !frozen && (payrollTimeNeedsReview(row)) && <button type="button" className="mt-1 block font-semibold text-primary" onClick={()=>startReview(row)}>{row.source_state?.updated ? 'Review source changes' : 'Review exception'}</button>}
       {row.review_state?.state === 'ph_review' && <small className="mt-1 block text-text-secondary">PH treatment is separate in Employee Review.</small>}

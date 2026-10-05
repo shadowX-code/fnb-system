@@ -20,3 +20,10 @@ it("preserves older frozen statements and keeps full-month salary compact", () =
   rerender(<PayrollMonthlyBasicBreakdown line={{source:{monthly_entitlement:{...basis, employed_days:30, unpaid_days:0}}}} />);
   expect(container.textContent).toBe("");
 });
+
+it("shows confirmed unpaid absence separately without labelling it Leave",()=>{
+ render(<PayrollMonthlyBasicBreakdown line={{source:{monthly_entitlement:{...basis,monthly_salary:1800,employment_reduction:0,unpaid_leave_reduction:0,unpaid_absence_reduction:60,payable_basic_salary:1740,unpaid_leave_dates:[],unpaid_absence_dates:['2026-09-01']}}}}/>);
+ expect(screen.getByText('Unpaid absence')).toBeTruthy();expect(screen.getByText('Confirmed unpaid absence dates')).toBeTruthy();
+ expect(screen.queryByText('Approved unpaid leave')).toBeNull();expect(screen.queryByText('Approved unpaid leave dates')).toBeNull();expect(screen.getByText('2026-09-01')).toBeTruthy();
+ expect(screen.getByText(/1,740.00/)).toBeTruthy();
+});
