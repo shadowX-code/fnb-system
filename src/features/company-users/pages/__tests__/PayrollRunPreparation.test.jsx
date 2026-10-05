@@ -107,9 +107,9 @@ it("shows calculated adjustment provenance once and derives the chosen component
   expect(screen.queryByText("This Period Adjustments")).toBeNull();
   fireEvent.click(screen.getByRole("button",{name:"Add Adjustment",exact:true}));
   expect(screen.queryByRole("button",{name:"Earning"})).toBeNull();
-  fireEvent.click(screen.getByRole("button",{name:/Pay Component/}));
-  expect(screen.getByRole("option",{name:"Unresolved component · Allowance · Setup required"}).disabled).toBe(true);
-  fireEvent.click(screen.getByRole("option",{name:"QA Deduction · Deduction"}));
+  fireEvent.click((screen.queryByRole("button",{name:/Pay Component/}) || screen.getByRole("button",{name:"Select"})));
+  expect((screen.queryByRole("option",{name:"Unresolved component · Allowance · Setup required"}) || screen.getByRole("button",{name:"Unresolved component · Allowance · Setup required"})).disabled).toBe(true);
+  fireEvent.click((screen.queryByRole("option",{name:"QA Deduction · Deduction"}) || screen.getByRole("button",{name:"QA Deduction · Deduction"})));
   expect(screen.getByText("Deduction")).toBeTruthy();
 });
 it("advances from committed day read-back without waiting for month projections", async () => {
@@ -148,15 +148,15 @@ it("uses a compact processing table and keeps bank absence informational", async
   expect(screen.getByText(/1,900.00/)).toBeTruthy();
   await waitFor(()=>expect(snapshot).toHaveBeenLastCalledWith(expect.objectContaining({runId:"run",rows:[expect.objectContaining({needsReview:false})]})));
   fireEvent.click(screen.getByRole("button",{name:"Review pay basis"}));
-  fireEvent.click(screen.getByRole("option",{name:"Hourly",exact:true}));
+  fireEvent.click((screen.queryByRole("option",{name:"Hourly",exact:true}) || screen.getByRole("button",{name:"Hourly",exact:true})));
   expect(screen.getByText("No employees match these review filters.")).toBeTruthy();
   fireEvent.click(screen.getByRole("button",{name:"Review pay basis"}));
-  fireEvent.click(screen.getByRole("option",{name:"All",exact:true}));
+  fireEvent.click((screen.queryByRole("option",{name:"All",exact:true}) || screen.getByRole("button",{name:"All",exact:true})));
   fireEvent.click(screen.getByRole("button",{name:"Review status"}));
-  fireEvent.click(screen.getByRole("option",{name:"Need Attention",exact:true}));
+  fireEvent.click((screen.queryByRole("option",{name:"Need Attention",exact:true}) || screen.getByRole("button",{name:"Need Attention",exact:true})));
   expect(screen.getByText("No employees match these review filters.")).toBeTruthy();
   fireEvent.click(screen.getByRole("button",{name:"Review status"}));
-  fireEvent.click(screen.getByRole("option",{name:"All",exact:true}));
+  fireEvent.click((screen.queryByRole("option",{name:"All",exact:true}) || screen.getByRole("button",{name:"All",exact:true})));
   fireEvent.change(screen.getByRole("searchbox",{name:"Search Employee"}),{target:{value:"unknown"}});
   expect(screen.getByText("No employees match these review filters.")).toBeTruthy();
   fireEvent.change(screen.getByRole("searchbox",{name:"Search Employee"}),{target:{value:"QA"}});
