@@ -14,6 +14,7 @@ function query(table) {
     insert(payload) { operation.method = "insert"; operation.payload = payload; return chain; },
     update(payload) { operation.method = "update"; operation.payload = payload; return chain; },
     eq(column, value) { operation.filters.push([column, value]); return chain; },
+    in(column, value) { operation.filters.push([column, value]); return chain; },
     order() { return chain; },
     single() { return respond(operation); },
     maybeSingle() { return respond(operation); },

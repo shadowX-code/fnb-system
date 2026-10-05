@@ -213,7 +213,7 @@ describe("Users page employee/auth lifecycle guards", () => {
       role_id: "role-2",
       email: activeEmployee.email,
       auth_user_id: activeEmployee.auth_user_id,
-    }));
+    }), undefined);
     expect(mocks.onboarding.sendLoginSetupEmail).not.toHaveBeenCalled();
   });
 
