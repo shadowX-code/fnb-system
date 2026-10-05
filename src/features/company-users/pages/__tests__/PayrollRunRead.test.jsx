@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { payrollReviewRows, payrollReviewSummary } from "../payrollRunPresentation.js";
 const mocks = vi.hoisted(() => ({ readPreparation: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), recalculateEmployee: vi.fn(), readFinalizedRecord:vi.fn() }));
-vi.mock("../../../../services/payrollService.js", () => ({ payrollService: mocks }));
+vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {...mocks, readRunEvidence: async id => { const [preparation,calculation,statutory]=await Promise.all([mocks.readPreparation(id),mocks.readCalculation(id),mocks.readStatutory(id)]); return {preparation,calculation,statutory}; }} }));
 import { usePayrollRunRead } from "../usePayrollRunRead.js";
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b) => { resolve=a; reject=b; }); return {promise,resolve,reject}; };
@@ -106,3 +106,17 @@ it('coalesces review decisions without reads or calculations until the queue clo
  expect(mocks.recalculateEmployee).toHaveBeenCalledTimes(1);
  expect(mocks.recalculateEmployee.mock.invocationCallOrder[0]).toBeLessThan(mocks.readCalculation.mock.invocationCallOrder[0]);
 });
+
+ it('opens time review during an in-flight calculation without losing review context', async()=>{
+  const command=deferred();
+  mocks.readPreparation.mockResolvedValue({results:[{employee_id:'one'}]});
+  mocks.readCalculation.mockResolvedValue({results:[{employee_id:'one',is_stale:true}]});
+  mocks.readStatutory.mockResolvedValue({results:[{employee_id:'one',is_stale:true}]});
+  mocks.recalculateEmployee.mockReturnValue(command.promise);
+  const {result}=renderHook(()=>usePayrollRunRead({id:'run',status:'draft'},null,true,true));
+  await waitFor(()=>expect(mocks.recalculateEmployee).toHaveBeenCalledTimes(1));
+  act(()=>result.current.setTimeReviewActive(true));
+  expect(result.current.calculating).toBe(false);
+  await act(async()=>{command.resolve();});
+  expect(result.current.data.preparation.results[0].employee_id).toBe('one');
+ });

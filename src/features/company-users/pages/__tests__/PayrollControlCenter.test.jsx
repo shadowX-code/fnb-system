@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   readHolidayHistory: vi.fn(), readRunHistory: vi.fn(),
 }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {
+  readRunEvidence: async id => { const [preparation,calculation,statutory,time] = await Promise.all([mocks.readPreparation(id),mocks.readCalculation(id),mocks.readStatutory(id),mocks.readTime()]); return {preparation,calculation,statutory,time,pcb:await mocks.readPcb(id),readiness:{time:await mocks.time(id),calculation:await mocks.calculation(id),statutory:await mocks.statutory(id)}}; },
   read: mocks.read, runTimeReadiness: mocks.time, calculationReadiness: mocks.calculation,
   statutoryReadiness: mocks.statutory, readTime: mocks.readTime,
   readCalculation: mocks.readCalculation, readStatutory: mocks.readStatutory,
@@ -31,6 +32,7 @@ const fixture = {
 };
 
 beforeEach(() => {
+  vi.useFakeTimers({toFake:["Date"]}); vi.setSystemTime(new Date("2026-09-30T12:00:00Z"));
   mocks.read.mockReset().mockResolvedValue(fixture);
   mocks.time.mockReset().mockResolvedValue({ ready: false, unresolved: 1, unreconciled: 0, stale: 0 });
   mocks.calculation.mockReset().mockResolvedValue({ ready: false, review_required: 0, uncalculated: 1, stale: 0 });
@@ -48,7 +50,7 @@ beforeEach(() => {
   mocks.readRunHistory.mockReset().mockResolvedValue([{ run_id: "run-1", period_start: "2026-09-01", revision: 1,
     status: "review_required", employee_count: 1, gross: null, net_pay: null }]);
 });
-afterEach(cleanup);
+afterEach(()=>{cleanup();vi.useRealTimers();});
 
 describe("Payroll Control Center", () => {
   it("keeps one gated Finalize action in the command header and summarizes its confirmation", async () => {
@@ -149,7 +151,7 @@ describe("Payroll Control Center", () => {
     fireEvent.click(screen.getByRole("button", { name: "Review Time & Attendance" }));
     expect(screen.getByRole("navigation", { name: "Payroll Run stages" })).not.toBeNull();
     await screen.findByRole("heading", { name: "Prepare Payroll" });
-    expect(mocks.readTime).toHaveBeenCalledWith("entity-1", "2026-09-01", "2026-09-30");
+    expect(mocks.readPreparation).toHaveBeenCalledWith("run-1");
   });
 
   it("keeps employee setup separate and shows pay rules as managed versions", async () => {
@@ -208,3 +210,17 @@ describe("Payroll Control Center", () => {
     expect(screen.queryByRole("textbox", { name: "Reason / provenance" })).toBeNull();
   });
 });
+
+ it('keeps one Legal Entity across Profiles, Runs, Settings and Overview',async()=>{
+  mocks.read.mockResolvedValue({...fixture,legal_entities:[...fixture.legal_entities,{id:'entity-2',name:'Second Employer'}]});
+  render(<PayrollPage auth={{}}/>);
+  await screen.findByRole('heading',{name:'September 2026 Payroll'});
+  fireEvent.click(screen.getByRole('tab',{name:'Payroll Profiles'}));
+  fireEvent.click(screen.getByRole('button',{name:'QA Employer'}));
+  fireEvent.click(screen.getByRole('button',{name:'Second Employer',exact:true}));
+  for(const tab of ['Payroll Runs','Settings','Overview','Payroll Profiles']){
+   fireEvent.click(screen.getByRole('tab',{name:tab,exact:true}));
+   await screen.findByRole('button',{name:'Second Employer',exact:true});
+  }
+  expect(mocks.readRunHistory).toHaveBeenCalledWith('entity-2');
+ });

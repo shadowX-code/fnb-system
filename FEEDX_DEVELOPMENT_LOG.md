@@ -766,3 +766,15 @@ Restored effective-date-only selection for monthly-basic and non-payable pay rul
 ## 2026-10-05 — Recruitment Interview Profiles and opening workspace
 
 Introduced immutable Service Crew Interview Profile versions, opening-specific requirements and pinned configuration references. Evidence collection supports cited Partial findings and shared server completion criteria without scoring or hiring-authority changes. Recruitment Admin now centres on an opening workspace (Overview / Candidates / Setup), with scoped server pipeline counts/pagination and an explicit QA-opening filter. Public preparation, provider-owned realtime transport, independent recording, reports and canonical People Hire remain under their existing authorities. Focused profile/coverage/workspace contracts are verified with rollback-only Staging fixtures and component/context tests; canonical behavior is documented in `docs/domains/recruitment.md`.
+
+## 2026-10-05 — Payroll Control Center interaction and read plan
+
+Review Hours no longer depends on financial recalculation finishing; entering review
+retains the employee/queue while background projections are suspended. A complete,
+read-only run evidence bundle reuses current canonical projections/fingerprints and
+readiness gates, eliminating duplicate run scans and the time-evidence waterfall.
+One authorized Legal Entity selection spans all Payroll tabs. Membership blockers,
+preparation progress and pending financial totals are presented separately. Existing
+fast decision, pricing, statutory and finalization commands are unchanged. Focused
+L3 Staging contracts compare canonical outputs and protect access/frozen evidence.
+Canonical owner: docs/domains/payroll.md.

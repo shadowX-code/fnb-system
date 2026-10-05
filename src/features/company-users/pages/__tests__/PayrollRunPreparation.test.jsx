@@ -195,8 +195,8 @@ it.each([false, true])("uses only frozen LINDUNG evidence in finalized Review (p
 it('preserves employee and active exception when the shared run projection refreshes',async()=>{
   const time=[{id:'t1',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-25',status:'review_required',classification:'regular',proposed_minutes:120,evidence:{}}, {id:'t2',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-26',status:'review_required',classification:'regular',proposed_minutes:180,evidence:{}}];
   mocks.readTime.mockResolvedValue(time);
-  const snapshot={preparation:{results:[{employee_id:'employee',time_relevant:true,projection:{status:'review_required',lines:[],inputs:{compensation_start:{pay_basis:'hourly',hourly_rate:15}}}}]},calculation:{results:[],adjustments:[]},statutory:{results:[]}};
-  const view=render(<PayrollRunEmployeesPanel {...props} runRead={{data:snapshot,refresh:vi.fn()}} />);
+  const snapshot={time,pcb:{results:[]},preparation:{results:[{employee_id:'employee',time_relevant:true,projection:{status:'review_required',lines:[],inputs:{compensation_start:{pay_basis:'hourly',hourly_rate:15}}}}]},calculation:{results:[],adjustments:[]},statutory:{results:[]}};
+  const view=render(<PayrollRunEmployeesPanel {...props} runRead={{data:snapshot,refresh:vi.fn(),calculating:true}} />);
   await screen.findByText('QA Employee');
   fireEvent.click(screen.getByRole('button',{name:'Review',exact:true}));
   fireEvent.click(screen.getByRole('button',{name:'Review Hours'}));
