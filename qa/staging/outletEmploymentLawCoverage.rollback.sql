@@ -144,6 +144,13 @@ begin
  begin perform outlet_employment_law_coverage_confirm(outlet,'2026-09-01','peninsular_labuan','QA','QA',gen_random_uuid(),corrected_id); exception when insufficient_privilege then denied:=true; end;
  assert denied,'Anonymous confirmation accepted';
  perform set_config('request.jwt.claim.sub','b6ee4db2-0f37-4b3e-a3ee-fa804ec5e6cd',true);
+ -- A genuine partial-month employment end retains its original metadata while
+ -- the new legal-coverage loop uses a separate assignment variable.
+ perform employee_employment_assignment_save(employees[1],'2026-09-20',jsonb_build_object('employment_type','full_time','employment_status','resigned','position','Service Crew','workplace','QA rollback projection gaps','legal_entity_id',ent),'QA partial-month boundary',(employee_employment_assignment_at(employees[1],'2026-09-20')).id,'QA rollback');
+ result:=payroll_monthly_entitlement(employees[1],period,comp);
+ assert result#>>'{basis,last_employment_date}'='2026-09-20','Legal coverage loop overwrote employment end evidence';
+ assert (result#>>'{basis,employed_days}')::int=19,'Partial-month employment days changed';
+ assert (result->>'amount')::numeric=1080,'Partial-month salary / unpaid absence incorrect';
  assert (select md5(coalesce(jsonb_agg(to_jsonb(s) order by to_jsonb(s)::text)::text,'')) from payroll_run_calculation_snapshots s)=snapshot_hash,'Finalized evidence changed';
  assert (select md5(coalesce(jsonb_agg(to_jsonb(v) order by v.id)::text,'')) from payroll_public_holidays v)=ph_hash,'PH authority/evidence changed';
 end $$;
