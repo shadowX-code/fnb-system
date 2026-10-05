@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { interviewInstructions, firstInterviewResponse } from "../../../supabase/functions/recruitment-realtime/prompt.ts";
 import { interviewerProfile } from "../../../supabase/functions/recruitment-realtime/voice.ts";
-const qa = vi.hoisted(() => ({publicEntry:vi.fn(),consent:vi.fn(),confirmProfile:vi.fn(),ready:vi.fn(),start:vi.fn(),devices:{state:{status:"idle",level:0},previewRef:{current:null},streamRef:{current:null},start:vi.fn()}}));
+const qa = vi.hoisted(() => ({publicEntry:vi.fn(),language:vi.fn(),consent:vi.fn(),confirmProfile:vi.fn(),ready:vi.fn(),start:vi.fn(),devices:{state:{status:"idle",level:0},previewRef:{current:null},streamRef:{current:null},start:vi.fn()}}));
 vi.mock("./recruitmentService.js",()=>({recruitmentService:qa}));
 vi.mock("./useInterviewDevices.js",()=>({useInterviewDevices:()=>qa.devices}));
 vi.mock("./RecruitmentInterviewSession.jsx",()=>({default:({renderPreparation})=>renderPreparation({start:qa.start})}));
@@ -12,6 +12,7 @@ beforeEach(()=>{
   vi.clearAllMocks(); window.history.replaceState({},"",`/i/${"a".repeat(64)}`);
   qa.devices.state={status:"idle",level:0};
   qa.publicEntry.mockResolvedValue(entry);
+  qa.language.mockResolvedValue(entry);
   qa.confirmProfile.mockResolvedValue({...entry,status:"profile_confirmed"});
   qa.consent.mockResolvedValue({...entry,status:"consented",consented:true});
   qa.ready.mockResolvedValue({...entry,status:"ready",consented:true});
@@ -23,6 +24,7 @@ describe("Two-screen versioned candidate preparation",()=>{
     await screen.findByRole("heading",{name:"Interview details"});
     expect(screen.queryByRole("navigation")).toBeNull();
     expect(screen.getByText("About 9 minutes")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button",{name:"Edit",exact:true}));
     fireEvent.change(screen.getByLabelText("Candidate name"),{target:{value:"Updated tester"}});
     fireEvent.click(screen.getByRole("button",{name:"Continue"}));
     await screen.findByRole("heading",{name:"Get ready"});

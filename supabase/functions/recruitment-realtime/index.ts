@@ -77,7 +77,7 @@ Deno.serve(async (request) => {
     const { data: attempt } = await service
       .from("recruitment_interview_attempts")
       .select(
-        "recovery_id,provider_generation,paused_at,config_version_id,application_id",
+        "recovery_id,provider_generation,paused_at,config_version_id,application_id,preferred_language",
       )
       .eq("id", state.attempt_id)
       .single();
@@ -155,10 +155,11 @@ Deno.serve(async (request) => {
   const { data: role } = await service
     .from("recruitment_interview_attempts")
     .select(
-      "application:recruitment_applications(position_snapshot,workplace_snapshot),config:recruitment_interview_configs(opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition))",
+      "preferred_language,application:recruitment_applications(position_snapshot,workplace_snapshot),config:recruitment_interview_configs(opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition))",
     )
     .eq("id", context.attempt_id)
     .single();
+  context.preferred_language = role?.preferred_language || "en";
   if (role?.application)
     context.opening = {
       ...context.opening,
@@ -209,7 +210,7 @@ Deno.serve(async (request) => {
           transcription: {
             model: "gpt-4o-transcribe",
             prompt:
-              "F&B recruitment interview in Malaysia. English, Bahasa Malaysia and Mandarin Chinese, including natural Malaysian code-switching. Preserve the actual words; do not translate or invent speech from silence.",
+              "F&B recruitment interview in Malaysia. English, Bahasa Malaysia and Mandarin/Cantonese Chinese, including natural Malaysian code-switching. Preserve the actual words; do not translate or invent speech from silence.",
           },
           noise_reduction: { type: "near_field" },
           turn_detection: {

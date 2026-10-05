@@ -24,6 +24,7 @@ export const recruitmentService = {
   issueInvitation: (applicationId, expiresAt) => call("recruitment_issue_invitation", { p_application_id: applicationId, p_expires_at: expiresAt }),
   revokeInvitation: (applicationId) => call("recruitment_revoke_invitation", { p_application_id: applicationId }),
   publicEntry: (token) => call("recruitment_public_entry", { p_token: token }),
+  language: (token, language) => call("recruitment_public_language", {p_token:token,p_language:language}),
   confirmProfile: (token, name, contact) => call("recruitment_public_confirm_profile", { p_token: token, p_name: name, p_contact: contact }),
   consent: (token, version) => call("recruitment_public_consent", { p_token: token, p_copy_version: version, p_accepted: { ai: true, recording: true, review: true } }),
   ready: (token) => call("recruitment_public_ready", { p_token: token, p_device_check: { camera: "ready", microphone: "ready" } }),

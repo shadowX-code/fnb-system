@@ -1,3 +1,7 @@
+import {
+  invitationAction,
+  currentInvitation,
+} from "./invitationPresentation.js";
 import { useEffect, useState } from "react";
 import SelectField from "../../components/forms/SelectField.jsx";
 import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
@@ -436,6 +440,9 @@ export default function RecruitmentPage({ auth }) {
     }),
     [reviewApplication, setReviewApplication] = useState(null),
     [invitation, setInvitation] = useState("");
+  const [issuedLinks, setIssuedLinks] = useState({}),
+    [addedCandidate, setAddedCandidate] = useState(null),
+    [copied, setCopied] = useState(false);
   const [actionMenuId, setActionMenuId] = useState(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -515,13 +522,20 @@ export default function RecruitmentPage({ auth }) {
   async function register(e) {
     e.preventDefault();
     try {
-      await mutate(() =>
+      const applicationId = await mutate(() =>
         recruitmentService.registerApplication(
           selectedOpening,
           applicant,
           selectedApplicant || null,
         ),
       );
+      setAddedCandidate({
+        id: applicationId,
+        name: selectedApplicant
+          ? applicantResults.find((a) => a.id === selectedApplicant)
+              ?.full_name || "Candidate"
+          : applicant.full_name,
+      });
       setApplicationForm(false);
       setOpeningId(selectedOpening);
       setStage("all");
@@ -533,11 +547,9 @@ export default function RecruitmentPage({ auth }) {
   }
   async function issue(row) {
     try {
+      const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
       const token = await mutate(() =>
-        recruitmentService.issueInvitation(
-          row.id,
-          new Date(Date.now() + 7 * 86400000).toISOString(),
-        ),
+        recruitmentService.issueInvitation(row.id, expiresAt),
       );
       const origin = import.meta.env.VITE_INTERVIEW_WEB_APP_HOSTNAME
         ? `https://${import.meta.env.VITE_INTERVIEW_WEB_APP_HOSTNAME}`
@@ -546,10 +558,46 @@ export default function RecruitmentPage({ auth }) {
             )
           ? "https://interview.feedx.my"
           : window.location.origin;
-      setInvitation(`${origin}/i/${token}`);
+      const link = {
+        url: `${origin}/i/${token}`,
+        expiresAt,
+        applicationId: row.id,
+        name: row.name,
+      };
+      setIssuedLinks((current) => ({ ...current, [row.id]: link }));
+      setInvitation(link);
+      setCopied(false);
+      setAddedCandidate(null);
     } catch {
       /* visible error */
     }
+  }
+  async function copyLink(link) {
+    try {
+      await navigator.clipboard.writeText(link.url);
+      setCopied(true);
+    } catch {
+      setError("Could not copy automatically. Select and copy the link below.");
+    }
+  }
+  function candidateAction(row) {
+    const action = invitationAction(row, canManage, opening.status);
+    if (action === "issue") return issue(row);
+    if (action === "copy") {
+      const link = currentInvitation(row, issuedLinks);
+      setCopied(false);
+      if (link) {
+        setInvitation(link);
+        copyLink(link);
+      } else
+        setInvitation({
+          applicationId: row.id,
+          name: row.name,
+          expiresAt: row.expires_at,
+        });
+      return;
+    }
+    setReviewApplication(row);
   }
   const opening = data?.openings.find((o) => o.id === openingId);
   const profile = data?.profiles.find(
@@ -906,6 +954,11 @@ export default function RecruitmentPage({ auth }) {
                   ...item,
                   value: opening.pipeline[item.key],
                   attention: item.key === "needs_review",
+                  onSelect: () =>
+                    attention(
+                      item.key === "total" ? "all" : item.key,
+                      opening.id,
+                    ),
                 }))}
               />
               <div className="recruitment-form-grid">
@@ -1045,6 +1098,15 @@ export default function RecruitmentPage({ auth }) {
                                 ? `Interview: ${row.attempt_status === "failed" ? "Evidence incomplete" : row.attempt_status.replaceAll("_", " ")}`
                                 : "") || "Not interviewed"}
                       </span>
+                      {row.expires_at &&
+                        !row.revoked_at &&
+                        Date.parse(row.expires_at) > Date.now() &&
+                        row.stage === "invited" && (
+                          <span className="text-xs text-text-secondary">
+                            Link active · Expires{" "}
+                            {new Date(row.expires_at).toLocaleDateString()}
+                          </span>
+                        )}
                     </div>
                     <div className="recruitment-candidate-evidence grid gap-1.5">
                       {row.recording_state && (
@@ -1058,9 +1120,16 @@ export default function RecruitmentPage({ auth }) {
                     <div className="recruitment-candidate-actions flex items-center gap-1">
                       <button
                         className="btn-secondary"
-                        onClick={() => setReviewApplication(row)}
+                        disabled={busy}
+                        onClick={() => candidateAction(row)}
                       >
-                        Review
+                        {invitationAction(row, canManage, opening.status) ===
+                        "issue"
+                          ? "Issue interview link"
+                          : invitationAction(row, canManage, opening.status) ===
+                              "copy"
+                            ? "Copy link"
+                            : "Review"}
                       </button>
                       {canManage &&
                         !["hired", "rejected"].includes(row.decision_state) && (
@@ -1087,6 +1156,26 @@ export default function RecruitmentPage({ auth }) {
                               role="menu"
                               aria-label={`Actions for ${row.name}`}
                             >
+                              {currentInvitation(row, issuedLinks) && (
+                                <a
+                                  role="menuitem"
+                                  href={currentInvitation(row, issuedLinks).url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  Open interview link
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setActionMenuId(null);
+                                  setReviewApplication(row);
+                                }}
+                              >
+                                Review application
+                              </button>
                               {opening.status === "open" && (
                                 <button
                                   type="button"
@@ -1098,8 +1187,8 @@ export default function RecruitmentPage({ auth }) {
                                   }}
                                 >
                                   {row.issued_at
-                                    ? "Issue new invitation"
-                                    : "Invite candidate"}
+                                    ? "Reissue interview link"
+                                    : "Issue interview link"}
                                 </button>
                               )}
                               {row.issued_at && !row.revoked_at && (
@@ -1303,24 +1392,127 @@ export default function RecruitmentPage({ auth }) {
           onClose={() => setReviewApplication(null)}
         />
       )}
-      {invitation && (
+      {addedCandidate && (
         <Modal
-          title="Interview invitation"
-          description="Copy this link now. The full token cannot be retrieved later."
-          onClose={() => setInvitation("")}
+          title="Candidate added"
+          description={`${addedCandidate.name} is registered for this opening.`}
+          onClose={() => setAddedCandidate(null)}
           footer={
-            <button
-              className="btn-primary"
-              type="button"
-              onClick={() => navigator.clipboard.writeText(invitation)}
-            >
-              Copy link
-            </button>
+            <>
+              <button
+                className="btn-secondary"
+                onClick={() => setAddedCandidate(null)}
+              >
+                Done
+              </button>
+              <button
+                className="btn-primary"
+                disabled={busy}
+                onClick={() => issue(addedCandidate)}
+              >
+                Issue interview link
+              </button>
+            </>
           }
         >
-          <p className="break-all rounded-lg bg-surface-muted p-3 text-sm">
-            {invitation}
+          <p className="text-sm text-text-secondary">
+            Issue a personal link when you’re ready to invite this candidate.
           </p>
+        </Modal>
+      )}
+      {invitation && (
+        <Modal
+          title={invitation.url ? "Interview link issued" : "Invitation active"}
+          description={invitation.name}
+          onClose={() => setInvitation("")}
+          footer={
+            <>
+              {invitation.url && (
+                <>
+                  <a
+                    className="btn-secondary"
+                    href={invitation.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open interview link
+                  </a>
+                  <button
+                    className="btn-primary"
+                    onClick={() => copyLink(invitation)}
+                  >
+                    {copied ? "Copied" : "Copy link"}
+                  </button>
+                </>
+              )}
+              {!invitation.url && (
+                <button
+                  className="btn-primary"
+                  disabled={busy}
+                  onClick={() =>
+                    issue({
+                      id: invitation.applicationId,
+                      name: invitation.name,
+                    })
+                  }
+                >
+                  Reissue interview link
+                </button>
+              )}
+            </>
+          }
+        >
+          <p className="text-sm mb-3">
+            Expires {new Date(invitation.expiresAt).toLocaleString()}
+          </p>
+          {invitation.url ? (
+            <>
+              <p className="text-sm text-text-secondary mb-3">
+                Copy this candidate-specific link now. It stays available here
+                until this page is refreshed.
+              </p>
+              <p className="break-all rounded-lg bg-surface-muted p-3 text-sm select-all">
+                {invitation.url}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-text-secondary">
+              The original link is not stored and cannot be retrieved. Use the
+              link you previously copied, or reissue a new one. Reissuing
+              invalidates the previous link.
+            </p>
+          )}
+          <div className="flex gap-3 mt-4">
+            {invitation.url && (
+              <button
+                className="btn-ghost"
+                disabled={busy}
+                onClick={() =>
+                  issue({ id: invitation.applicationId, name: invitation.name })
+                }
+              >
+                Reissue link
+              </button>
+            )}
+            <button
+              className="btn-ghost text-danger"
+              disabled={busy}
+              onClick={() =>
+                mutate(() =>
+                  recruitmentService.revokeInvitation(invitation.applicationId),
+                )
+                  .then(() => setInvitation(""))
+                  .catch(() => {})
+              }
+            >
+              Revoke invitation
+            </button>
+          </div>
+          {error && (
+            <p role="alert" className="text-danger mt-3">
+              {error}
+            </p>
+          )}
         </Modal>
       )}
     </div>

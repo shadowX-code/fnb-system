@@ -9,7 +9,7 @@ export class InterviewTransportGeneration extends InterviewRecovery {
     const operation=super.begin(activate); // native gesture acquisition first
     this.closeInterviewer();return operation;
   }
-  async connectInterviewer({token,clientId,recoveryId,mediaStream,startedAt,audioElement,onStatus,onRemote,onRecovery,onCompletion,signal}) {
+  async connectInterviewer({token,clientId,recoveryId,mediaStream,startedAt,audioElement,onStatus,onRemote,onRecovery,onCompletion,onEvent=()=>{},signal}) {
     this.closeInterviewer();
     const current = () => this.transport === transport && !transport.closed;
     const assess = () => {
@@ -45,6 +45,7 @@ export class InterviewTransportGeneration extends InterviewRecovery {
       },
       onEvent:event=>{
         if (!current()) return;
+        onEvent(event);
         if(event.type === "input_audio_buffer.speech_started") this.completion=null;
         if(event.type === "conversation.item.input_audio_transcription.completed") {
           // Coalesce server coverage work, independently of provider turn progress.

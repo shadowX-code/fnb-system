@@ -20,6 +20,7 @@ export function continuationContext(
   );
   return {
     generation: attempt.provider_generation,
+    preferred_language: attempt.preferred_language,
     opening: {
       title: opening.opening_title_snapshot,
       description: opening.opening_description_snapshot,

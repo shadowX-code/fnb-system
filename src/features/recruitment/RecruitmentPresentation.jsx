@@ -48,13 +48,26 @@ export function RecruitmentState({ value, kind = "lifecycle", children }) {
 export function RecruitmentMetrics({ items }) {
   return (
     <dl className="recruitment-metrics">
-      {items.map(({ key, label, value, attention }) => (
+      {items.map(({ key, label, value, attention, onSelect }) => (
         <div
           key={key || label}
           className={attention && value > 0 ? "is-attention" : ""}
         >
-          <dt>{label}</dt>
-          <dd>{value ?? 0}</dd>
+          {onSelect ? (
+            <button
+              className="recruitment-metric-action"
+              onClick={onSelect}
+              aria-label={`${label}: ${value ?? 0}. View candidates`}
+            >
+              <span>{label}</span>
+              <strong>{value ?? 0}</strong>
+            </button>
+          ) : (
+            <>
+              <dt>{label}</dt>
+              <dd>{value ?? 0}</dd>
+            </>
+          )}
         </div>
       ))}
     </dl>

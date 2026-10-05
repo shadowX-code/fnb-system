@@ -1,3 +1,5 @@
+import RecruitmentInterviewRoom, { InterviewComplete } from "./RecruitmentInterviewRoom.jsx";
+import { initialPresence, observeInterviewPresence } from "./interviewPresentation.js";
 import { useEffect, useRef, useState } from "react";
 import { recruitmentService } from "./recruitmentService.js";
 import { RecruitmentRealtimeSession } from "./RecruitmentRealtimeSession.js";
@@ -26,6 +28,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
     [recoveryView, setRecoveryView] = useState({state:"RECOVERY_REQUIRED",stage:""}),
     [terminalReason, setTerminalReason] = useState(""),
     [recoveryNotice,setRecoveryNotice] = useState("");
+  const [presence,setPresence]=useState(initialPresence),[completedAt,setCompletedAt]=useState(entry.completed_at);
   const clientId = useRef(null),
     recording = useRef(null),
     ai = useRef(null),
@@ -88,6 +91,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
         "finalize",token,clientId.current,
       ),"Finalizing saved evidence",{timeoutMs:20000});
       setStatus(result.status);
+      if (["completed","partial","failed"].includes(result.status)) recruitmentService.publicEntry(token).then(value=>{if(alive.current)setCompletedAt(value.completed_at);}).catch(()=>{});
       setRecordingStatus(result.recording_state);
     } catch (cause) {
       setError(
@@ -131,6 +135,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
       mediaStream:devices.streamRef.current, startedAt:session.current.started_at,
       audioElement:audio.current, signal,
       onRemote:stream=>recording.current?.remote(stream),
+      onEvent:event=>{if(alive.current && !paused.current && recoveryId.current===generation)setPresence(current=>observeInterviewPresence(current,event));},
       onStatus:state=>{if(alive.current && !paused.current && recoveryId.current===generation)setAiStatus(state);},
       onRecovery:state=>{
         if(!alive.current || paused.current || recoveryId.current!==generation)return;
@@ -163,6 +168,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
     paused.current = false;
     setError("");
     setAiStatus("recovering");
+    setPresence(initialPresence);
     setRecoveryNotice("");
     let media, capture, serverClaimed = false;
     const step = (stage,work,options) => machine.current.step(operation,stage,work,options);
@@ -277,6 +283,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
         "finalize",token,clientId.current,
       ),"Finalizing saved evidence",{timeoutMs:20000});
       setStatus(result.status);
+      if (["completed","partial","failed"].includes(result.status)) recruitmentService.publicEntry(token).then(value=>{if(alive.current)setCompletedAt(value.completed_at);}).catch(()=>{});
       setRecordingStatus(result.recording_state);
     } catch (cause) {
       setError(cause.message);
@@ -371,65 +378,34 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
   }, [token]);
   const terminal = ["completed", "partial", "failed"].includes(status) || !!terminalReason;
   if (renderPreparation && status === "ready" && recoveryView.state !== "RECOVERING") return renderPreparation({start});
+  const preview = (node) => {
+    devices.previewRef.current = node;
+    if (node && node.srcObject !== devices.streamRef.current)
+      node.srcObject = devices.streamRef.current;
+  };
   return (
-    <section>
-      <h1>
-        {terminal
-          ? terminalReason ? "Interview cannot continue" : "Interview saved"
-          : status === "finalizing"
-            ? "Saving your interview"
-            : status === "interrupted"
-              ? "Interview interrupted"
-              : "Your interview"}
-      </h1>
+    <>
       {terminal ? (
-        <>
-          <p>
-            {terminalReason || (status === "completed"
-              ? "Thank you. Your interview is ready for your recruiter to review."
-              : "Your available interview evidence has been saved. Your recruiter can see any missing or interrupted evidence.")}
-          </p>
-          <p className="recruitment-notice">
-            Your hiring team will review your interview and make the hiring decision.
-          </p>
-        </>
+        <InterviewComplete
+          entry={entry}
+          completedAt={completedAt}
+          reason={terminalReason}
+        />
       ) : (
-        <>
-          <p>
-            Use English, BM, Chinese, or switch naturally. Keep this page
-            visible throughout the interview. Changing apps or locking your
-            phone may interrupt recording.
-          </p>
-          <video
-            ref={devices.previewRef}
-            className="recruitment-preview"
-            autoPlay
-            playsInline
-            muted
-            aria-label="Interview camera preview"
-          />
-          <p role="status" className="recruitment-notice">
-            <strong>
-              {recoveryView.state === "RECOVERING" ? "Preparing your interview" : status === "interrupted" ? "Interview paused — saved evidence retained" : recordingStatus === "recording"
-                ? "● Recording"
-                : recordingStatus === "verified"
-                  ? "Recording saved"
-                  : recordingStatus === "upload-pending"
-                    ? "Recording upload pending"
-                    : recordingStatus === "uploading"
-                      ? "Uploading recording"
-                      : status === "finalizing"
-                        ? "Finalizing evidence"
-                        : "Preparing your interview"}
-            </strong>{" "}
-            · {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}{" "}
-            {recoveryView.state === "RESUMED" ? " · Interview in progress" : ""}
-          </p>
+        <RecruitmentInterviewRoom
+          entry={entry}
+          presence={presence}
+          status={status}
+          recovering={recoveryView.state === "RECOVERING"}
+          recordingStatus={recordingStatus}
+          elapsed={elapsed}
+          previewRef={preview}
+        >
           {status === "ready" ||
           (["starting", "interviewing", "interrupted"].includes(status) &&
             !session.current) ? (
             <button
-              className="recruitment-primary"
+              className="btn-primary"
               disabled={finishing.current}
               onClick={start}
             >
@@ -438,18 +414,26 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
           ) : null}
           {status === "interrupted" && session.current ? (
             <button
-              className="recruitment-primary"
+              className="btn-primary"
               disabled={finishing.current}
               onClick={start}
             >
               Continue interview
             </button>
           ) : null}
-          {recoveryView.state === "RECOVERING" && status === "starting" && session.current ? <button className="recruitment-primary" onClick={start}>Continue interview</button> : null}
-          {recoveryView.state === "RESUMED" && status === "interviewing" && session.current ? (
+          {recoveryView.state === "RECOVERING" &&
+          status === "starting" &&
+          session.current ? (
+            <button className="btn-primary" onClick={start}>
+              Continue interview
+            </button>
+          ) : null}
+          {recoveryView.state === "RESUMED" &&
+          status === "interviewing" &&
+          session.current ? (
             <div className="recruitment-actions">
               <button
-                className="recruitment-secondary"
+                className="btn-secondary"
                 disabled={busy}
                 onClick={async () => {
                   setBusy(true);
@@ -461,7 +445,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
                       );
                     else
                       setError(
-                        "A few required topics remain. Continue with the interviewer, or stop and save a partial interview.",
+                        "The interviewer has a few more questions. Please continue, or stop and save the responses you have given.",
                       );
                   } catch (c) {
                     setError(c.message);
@@ -473,7 +457,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
                 Finish interview
               </button>
               <button
-                className="recruitment-secondary"
+                className="btn-secondary"
                 disabled={busy}
                 onClick={() => finalize("candidate_stop")}
               >
@@ -483,7 +467,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
           ) : null}
           {status === "interrupted" && session.current ? (
             <button
-              className="recruitment-secondary"
+              className="btn-secondary"
               disabled={busy}
               onClick={() => finalize("candidate_stop")}
             >
@@ -492,24 +476,28 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
           ) : null}
           {status === "finalizing" ? (
             <button
-              className="recruitment-primary"
+              className="btn-primary"
               disabled={busy}
               onClick={retryFinalization}
             >
-              Retry saving evidence
+              Retry submission
             </button>
           ) : null}
 
-        </>
+          {recoveryView.state === "RECOVERING" && (
+            <p role="status">
+              {recoveryLabels[recoveryView.stage] || "Preparing your interview"}
+            </p>
+          )}
+          {recoveryNotice && <p role="status">{recoveryNotice}</p>}
+          {error && (
+            <p className="recruitment-error" role="alert">
+              {error}
+            </p>
+          )}
+        </RecruitmentInterviewRoom>
       )}
-      {recoveryView.state === "RECOVERING" ? <p role="status">{recoveryLabels[recoveryView.stage] || "Restoring your interview"}</p> : null}
-      {recoveryNotice ? <p role="status">{recoveryNotice}</p> : null}
       <audio ref={audio} autoPlay />
-      {error ? (
-        <p className="recruitment-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </section>
+    </>
   );
 }
