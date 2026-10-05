@@ -690,7 +690,18 @@ history, invalidate the calculation fingerprint and restore/change entitlement; 
 source decisions cannot continue charging salary. Hourly zero-pay treatment and
 Monthly partial-time treatment retain their existing authorities.
 The final Basic amount is rounded once to RM0.01. Its earning line retains
-salary, date/day counts, approved leave snapshots and rule/geography versions.
+salary, date/day counts, approved leave snapshots and rule/legal-coverage versions.
+Monthly calendar-day pricing requires dated verified Peninsular Malaysia / Labuan
+coverage, not a particular historical State/Federal Territory. Outlet-owned
+`outlet_employment_law_coverage_versions` is append-only and explicitly confirmed
+through Outlets → Law Coverage (effective date, evidence reference, reason, actor/time,
+retry identity and same-date superseding lineage). Confirmation never changes the
+outlet state or employee assignment and never infers historical coverage. Explicit
+coverage takes precedence, including Unresolved. Without explicit coverage, existing
+dated outlet-state evidence may establish legal scope. Each employed date uses its
+canonical People assignment/workplace; Sabah, Sarawak, ambiguous workplace and
+unresolved scope stay blocked for this rule. Later evidence survives historical
+confirmation. State-specific Public Holiday authorities are unchanged.
 Employee Review and frozen statements display nominal salary, reductions and
 payable Basic without creating a second deduction.
 

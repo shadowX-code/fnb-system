@@ -27,6 +27,20 @@ function mapOutlet(outlet) {
 }
 
 export const outletService = {
+  async readEmploymentLawCoverage(outletId) {
+    const { data, error } = await supabase.rpc("outlet_employment_law_coverage_read", { p_outlet_id: outletId });
+    throwSupabaseError("outlets.coverage.read", error);
+    return data;
+  },
+  async confirmEmploymentLawCoverage(outletId, values, requestId, expectedRevisionId) {
+    const { data, error } = await supabase.rpc("outlet_employment_law_coverage_confirm", {
+      p_outlet_id: outletId, p_effective_from: values.effective_from, p_coverage: values.coverage,
+      p_reference: values.reference, p_reason: values.reason, p_request_id: requestId,
+      p_expected_revision_id: expectedRevisionId,
+    });
+    throwSupabaseError("outlets.coverage.confirm", error);
+    return data;
+  },
   logoPublicUrl(path, version) {
     if (!path) return "";
     const { data } = supabase.storage.from("outlet-logos").getPublicUrl(path);
