@@ -7,7 +7,7 @@ import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
 import { statutorySetupHelp, statutoryCategories } from "./PayrollStatutorySetup.jsx";
-import { effectivePay as effective } from "./payrollCompensationPresentation.js";
+import { effectivePay as effective, compensationCorrectionInput } from "./payrollCompensationPresentation.js";
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const currentMonth = () => today().slice(0,7);
 const entityName = (entities,id) => entities.find(e=>e.id===id)?.display_name || entities.find(e=>e.id===id)?.name || "Historical Legal Employer";
@@ -76,7 +76,8 @@ export default function FoundationForm({ mode, profile, initialEmployeeId = "", 
     setBusy(true);
     setError("");
     try {
-      const input = { ...draft, rate: Number(draft.rate) };
+      const input = mode === "compensation" ? compensationCorrectionInput(draft, profile?.compensation)
+        : { ...draft, rate: Number(draft.rate) };
       if (mode === "create") await payrollService.confirmInitialSetup({
         ...input, statutoryMonth: `${statutoryMonth}-01`, applicability: { epf, socso, eis, pcb }, fingerprint: setup.fingerprint,
       });
@@ -144,4 +145,3 @@ export default function FoundationForm({ mode, profile, initialEmployeeId = "", 
     </div>
   </Modal>;
 }
-
