@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PayrollPayableTimeReview from "./PayrollPayableTimeReview.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -16,13 +17,14 @@ const deductionTotal = row => row.statutory ? Number(row.calculation?.non_statut
 export default function PayrollFinalizedRecord({ run, onSnapshot, commandHeader = false }) {
   const [record, setRecord] = useState(null);
   const [error, setError] = useState("");
+  const [viewTime, setViewTime] = useState(false);
   const [selected, setSelected] = useState(null);
   const [retry, setRetry] = useState(0);
   const [banks, setBanks] = useState(null);
   const [bankRetry, setBankRetry] = useState(0);
   useEffect(() => {
     let active = true;
-    setRecord(null); setSelected(null); setError("");
+    setRecord(null); setSelected(null); setViewTime(false); setError("");
     payrollService.readFinalizedRecord(run.id).then(value => { if (active) setRecord(value); })
       .catch(cause => { if (active) setError(cause.message || "Unable to load Payroll record."); });
     return () => { active = false; };
@@ -64,10 +66,12 @@ export default function PayrollFinalizedRecord({ run, onSnapshot, commandHeader 
       </dl>
     </Card>}
     <Card className="overflow-hidden"><DataTable density="compact" columns={columns} rows={rows} getRowKey={row => row.employee_id} /></Card>
-    {selected && <ResultDetail result={{ ...selected.calculation, employee_name: selected.employee_name }} statutory={selected.statutory}
+    {selected && !viewTime && <ResultDetail result={{ ...selected.calculation, employee_name: selected.employee_name }} statutory={selected.statutory}
       payslip={<PayrollPayslipAction runId={run.id} employeeId={selected.employee_id} />}
       bankInfo={<PayrollEmployeeBankInfo inline result={bankFor(selected)} employeeName={selected.employee_name} onRetry={() => setBankRetry(value => value + 1)} />}
+      timeAction={<button type="button" className="font-semibold text-primary" onClick={() => setViewTime(true)}>View Time</button>}
       frozenPeriod={record.period.period_start.slice(0, 7)} onClose={() => setSelected(null)} />}
+    {selected && viewTime && <PayrollPayableTimeReview employee={{name:selected.employee_name,time:selected.time || [],pay:selected.calculation?.inputs?.compensation_start,calculation:selected.calculation,result:{earningsAvailable:true}}} month={record.period.period_start.slice(0,7)} canManage={false} frozen onClose={() => setViewTime(false)} />}
   </div>;
 }
 import { Eye } from 'lucide-react';

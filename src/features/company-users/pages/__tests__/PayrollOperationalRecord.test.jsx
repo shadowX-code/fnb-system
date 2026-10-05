@@ -9,7 +9,7 @@ import PayrollFinalizedRecord from "../PayrollFinalizedRecord.jsx";
 afterEach(cleanup);
 it("shows frozen employee identity, earnings and contributions without editable actions", async () => {
   mocks.readFinalizedRecord.mockResolvedValue({run:{revision:1,finalized_at:"2026-07-31T12:00:00Z"},period:{period_start:"2026-07-01"},finalized_by_name:"Approver",results:[{
-    employee_id:"employee",employee_name:"Frozen Employee",calculation:{revision:1,inputs:{compensation_start:{pay_basis:"monthly",effective_from:"2026-07-01"}},lines:[{kind:"earning",label:"Basic Salary",amount:2000}],gross_earnings:2000,non_statutory_deductions:50,reimbursements:0},
+    employee_id:"employee",employee_name:"Frozen Employee",time:[{id:"pinned-time",work_date:"2026-07-01",status:"approved_manual",approved_minutes:480,evidence:{leave_type:"unpaid",leave_id:"frozen-leave"}}],calculation:{revision:1,inputs:{compensation_start:{pay_basis:"monthly",effective_from:"2026-07-01"}},lines:[{kind:"earning",label:"Basic Salary",amount:2000}],gross_earnings:2000,non_statutory_deductions:50,reimbursements:0},
     statutory:{lines:[{scheme:"epf",applicable:true,category:"malaysian_under_60",source_row:"Part A line 134",schedule_version_id:"schedule",employee_amount:220,employer_amount:260},{scheme:"socso",employee_amount:9.75,employer_amount:34.15},{scheme:"eis",employee_amount:3.9,employer_amount:3.9},{scheme:"pcb",applicable:false,employee_amount:0}],net_pay:1716.35,employer_statutory_cost:298.05,total_employer_cost:2298.05},
   }]});
   render(<PayrollFinalizedRecord run={{id:"final"}} />);
@@ -22,9 +22,14 @@ it("shows frozen employee identity, earnings and contributions without editable 
   expect(screen.getByRole("heading",{name:"Employer Contributions"})).toBeTruthy();
   expect(screen.getAllByText(/1,716.35/).length).toBeGreaterThan(1);
   expect(screen.queryByRole("button",{name:/Edit|Remove|Add Adjustment/})).toBeNull();
-  fireEvent.click(screen.getByText("Calculation evidence",{exact:true}));
+  fireEvent.click(screen.getByText("Calculation details",{exact:true}));
   expect(screen.getByText(/EPF · Part A line 134/)).toBeTruthy();
   expect(screen.queryByText(/EPF · Not Applicable/)).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'View Time'}));
+  expect(screen.getByText('Approved Unpaid Leave')).toBeTruthy();
+  expect(screen.getByText(/Finalized evidence/)).toBeTruthy();
+  expect(screen.queryByRole('button',{name:'Correct Decision'})).toBeNull();
+  expect(screen.queryByRole('link',{name:'View in Leave'})).toBeNull();
 });
 it("keeps the canonical append-only cores and snapshot-only financial reads", () => {
   const sql=readFileSync("supabase/migrations/20260926123834_payroll_operational_record.sql","utf8");

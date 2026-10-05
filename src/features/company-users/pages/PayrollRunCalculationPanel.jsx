@@ -11,7 +11,7 @@ const rm = (value) => new Intl.NumberFormat("en-MY", {
 const title = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const issueLabel = payrollIssueLabel;
 
-export function ResultDetail({ result, statutory, frozenPeriod, onClose, bankInfo, payslip }) {
+export function ResultDetail({ result, statutory, frozenPeriod, onClose, bankInfo, payslip, timeAction }) {
   const compensation = result.inputs?.compensation_start;
   const time = result.inputs?.time || [];
   const deductions = statutory ? Number(result.non_statutory_deductions || 0) + (statutory.lines || []).reduce((sum, line) => sum + Number(line.employee_amount || 0), 0) : null;
@@ -33,7 +33,7 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose, bankInf
         <div className="mt-2 divide-y divide-border">{financialLines("earning")}{row("Gross Earnings",result.gross_earnings)}</div>
         {Number(result.reimbursements) > 0 && <div className="mt-3 divide-y divide-border">{financialLines("reimbursement")}</div>}
       </section>
-      {(compensation?.pay_basis === "hourly" || time.length > 0) && <section className="border-t border-border pt-4"><h4 className="font-bold">Time & Attendance</h4><p className="text-sm text-text-secondary">{time.length} days · approved payable-time evidence retained in this result.</p></section>}
+      {(timeAction || compensation?.pay_basis === "hourly" || time.length > 0) && <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance</h4>{timeAction}</div><p className="text-sm text-text-secondary">{time.length} days · approved payable-time evidence retained in this result.</p></section>}
       {result.inputs?.ph_work?.filter(Boolean).length > 0 && <section className="border-t border-border pt-4"><h4 className="font-bold">Public Holiday Work · Company Benefit</h4>
         <div className="divide-y divide-border">{result.inputs.ph_work.filter(Boolean).map(ph => row(ph.work_date,
           ph.decision?.treatment === "replacement_leave" ? "Replacement Leave · 1 day granted" : amount(ph.additional_amount),
