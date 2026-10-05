@@ -16,9 +16,10 @@ import PayrollPayableTimeReview from "./PayrollPayableTimeReview.jsx";
 import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "./PayrollMonthlyBasicBreakdown.jsx";
 import PayrollPayslipAction from './PayrollPayslipAction.jsx';
 import { Eye } from 'lucide-react';
+import { canonicalPathForRoute } from '../../../app/routeOwnership.js';
 import { statutoryName } from "./payrollStatutoryLabels.js";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
-import { payComponentIsConfigured, payrollEmployeeResult, payrollReviewRows, payrollIssueLabel, payrollStatutoryCell, payrollTimeNeedsReview } from "./payrollRunPresentation.js";
+import { payComponentIsConfigured, payrollEmployeeResult, payrollReviewRows, payrollIssueLabel, payrollStatutoryCell, payrollTimeNeedsReview, payrollConfirmedUnpaidEvidence } from "./payrollRunPresentation.js";
 
 const money = (value) => value == null ? "—" : new Intl.NumberFormat("en-MY", {
   style: "currency", currency: "MYR", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -112,14 +113,14 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     {["edit", "remove"].map(action => <button key={action} type="button" className="font-semibold text-primary" disabled={busy}
       onClick={() => setAdjustment({ requestId: crypto.randomUUID(), action, adjustmentId: item.id, componentId: item.component_id, amount: String(item.amount), reason: "" })}>{human(action)}</button>)}
   </span>;
-  const financialLine = (line, index) => {
+  const financialLine = (line, index, detailed = false) => {
     const saved = selected.adjustments.find(item => item.id === line.source?.run_adjustment_id);
     return <div key={`${line.code}-${index}`} className="py-2"><div className="flex justify-between gap-3"><span>{line.code === "monthly_basic" && !line.presentation_model ? "Payable Basic Salary" : line.label}
-      <small className="block text-text-secondary">{saved ? `This period adjustment · ${saved.reason}` : line.minutes != null ? `${hours(line.minutes)}${line.rate != null ? ` · ${money(line.rate)}/hour` : ""}${line.multiplier != null ? ` · ${line.multiplier}×` : ""}` : line.units ? line.units : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence"}</small></span>
-      <span className="shrink-0 text-right"><strong className="tabular-nums">{selected.result.earningsAvailable ? line.amount == null ? "Review Required" : `${line.kind === "deduction" ? "−" : ""}${money(line.amount)}` : "Pending review"}</strong>
+      <small className="block text-text-secondary">{payrollConfirmedUnpaidEvidence(line) || (saved ? `This period adjustment · ${saved.reason}` : line.minutes != null ? `${hours(line.minutes)}${line.rate != null ? ` · ${money(line.rate)}/hour` : ""}${line.multiplier != null ? ` · ${line.multiplier}×` : ""}` : line.units ? line.units : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence")}</small></span>
+      <span className="shrink-0 text-right"><strong className="tabular-nums">{selected.result.earningsAvailable ? line.amount == null ? payrollConfirmedUnpaidEvidence(line) ? "Amount pending" : "Review Required" : `${line.kind === "deduction" ? "−" : ""}${money(line.amount)}` : "Pending review"}</strong>
         {saved && adjustmentActions(saved)}</span></div>
       {selected.result.earningsAvailable && <PayrollMonthlyBasicBreakdown line={line} />}
-      <PayrollRecurringBreakdown line={line} /></div>;
+      <PayrollRecurringBreakdown line={line} detailed={detailed} /></div>;
   };
   const refresh = async () => {
     if (runRead) { if (!await runRead.refresh()) throw new Error('Unable to refresh Payroll evidence.'); }
@@ -255,7 +256,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         </div>
         {(selected.calculation?.is_stale || selected.statutory?.is_stale) && <p role="status">Updating calculation… Saved payable-time decisions are retained.</p>}
         {selected.needsReview && <section aria-label="Review blockers" className="rounded-lg border border-border bg-surface-muted p-3"><h4 className="font-semibold">Needs Attention</h4>
-          <ul className="mt-2 list-disc space-y-1 pl-5">{[...new Set([...(selected.projection?.issues || []), ...(selected.calculation?.issues || []), ...(selected.statutory?.issues || []), ...(selected.preparation?.statutory_setup?.schemes?.lindung?.issue ? [selected.preparation.statutory_setup.schemes.lindung.issue] : [])])].map(issue => <li key={issue}>{payrollIssueLabel(issue, { components: data.components, statutory: selected.statutory })}</li>)}</ul>
+          <ul className="mt-2 list-disc space-y-1 pl-5">{[...new Set([...(selected.projection?.issues || []), ...(selected.calculation?.issues || []), ...(selected.statutory?.issues || []), ...(selected.preparation?.statutory_setup?.schemes?.lindung?.issue ? [selected.preparation.statutory_setup.schemes.lindung.issue] : [])])].map(issue => <li key={issue}>{payrollIssueLabel(issue, { components: data.components, statutory: selected.statutory })}{issue === "monthly_proration_jurisdiction_requires_review" && active && canEditEmployee && <a className="ml-2 font-semibold text-primary hover:underline" href={`${canonicalPathForRoute("employees")}?employee=${encodeURIComponent(selected.id)}&section=employment`} target="_blank" rel="noreferrer" aria-label={`Resolve payroll-period workplace information for ${selected.name}`}>Resolve →</a>}</li>)}</ul>
           {selected.pcb?.applicable && !selected.pcb?.confirmation && <p className="mt-2">PCB amount required</p>}
           {(selected.calculation?.is_stale || selected.statutory?.is_stale) && <p className="mt-2">Inputs changed. Calculation is updating from current evidence.</p>}
           {!selected.calculation && <p className="mt-2">Calculate Payroll after completing employee setup.</p>}
@@ -269,14 +270,14 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <section className="border-b border-border pb-4"><div className="flex items-center justify-between gap-3"><h4 className="text-lg font-bold">Earnings</h4>
           {active && <button className="font-semibold text-primary" type="button" disabled={busy} onClick={() => setAdjustment({ requestId: crypto.randomUUID(), componentId: "", amount: "", reason: "" })}>Add Adjustment</button>}</div>
           <p className="mt-1 text-xs text-text-secondary">{selected.pay ? `${human(selected.pay.pay_basis)} · Pay effective ${selected.pay.effective_from}` : "Complete Employee pay setup"}</p>
-          <div className="mt-2 divide-y divide-border">{(selected.calculation?.earning_groups || []).map(financialLine)}
+          <div className="mt-2 divide-y divide-border">{(selected.calculation?.earning_groups || []).map((line,index) => financialLine(line,index))}
             {!selected.calculation?.lines?.some((line) => line.kind === "earning") && <p className="py-2 text-text-secondary">No earning lines are resolved yet. Review the blockers above.</p>}
           </div>
-          <details className="mt-3 text-xs text-text-secondary"><summary>Calculation details</summary>{(selected.calculation?.lines || []).filter(line => line.kind === "earning").map((line,index) => <div key={`daily-${index}`}><p className="mt-2 font-semibold">{line.source?.work_date || "Period evidence"}</p>{financialLine(line,index)}</div>)}</details>
+          <details className="mt-3 text-xs text-text-secondary"><summary>Calculation details</summary>{(selected.calculation?.lines || []).filter(line => line.kind === "earning").map((line,index) => <div key={`daily-${index}`}><p className="mt-2 font-semibold">{line.source?.work_date || "Period evidence"}</p>{financialLine(line,index,true)}</div>)}</details>
           {selected.calculation?.status !== "ready" && <p className="mt-2 text-xs text-amber-800">Resolved earning lines are shown. Gross and Net remain pending until independent blockers are resolved.</p>}
         </section>
         <div className="flex justify-between border-t border-border pt-3 font-bold"><span>Gross Earnings</span><span className="tabular-nums">{money(selected.result.gross)}</span></div>
-        {selected.calculation?.lines?.some(line => line.kind === "reimbursement") && <section><h4 className="font-semibold">Business Reimbursements</h4><p className="text-xs text-text-secondary">Outside Gross Earnings; added to employee payment.</p><div className="divide-y divide-border">{selected.calculation.lines.filter(line => line.kind === "reimbursement").map(financialLine)}</div></section>}
+        {selected.calculation?.lines?.some(line => line.kind === "reimbursement") && <section><h4 className="font-semibold">Business Reimbursements</h4><p className="text-xs text-text-secondary">Outside Gross Earnings; added to employee payment.</p><div className="divide-y divide-border">{selected.calculation.lines.filter(line => line.kind === "reimbursement").map((line,index) => financialLine(line,index))}</div></section>}
         {selected.adjustments.some(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)) && <section><h4 className="font-semibold">Awaiting Calculation</h4>{selected.adjustments.filter(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)).map(item => <div key={item.id} className="flex justify-between py-2"><span>{item.component_name}<small className="block text-text-secondary">Saved adjustment · {item.reason}</small></span>{adjustmentActions(item)}</div>)}</section>}
         <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance — {selected.timeNeedsReview ? "Review Required" : "Ready"}</h4><button type="button" className="font-semibold text-primary" onClick={openTimeReview}>{selected.timeNeedsReview ? "Review Time" : "View Time"}</button></div><p className="mt-1 text-text-secondary">{selected.timeNeedsReview ? `${selected.timeExceptionCount} pay-impacting exception${selected.timeExceptionCount === 1 ? "" : "s"} require review.` : selected.pay?.pay_basis === "monthly" ? "Normal attendance does not require daily hours approval. Approved leave and period employment use their canonical pay rules." : "Approved payable hours determine Regular Pay."} Public Holiday treatment is reviewed separately.</p></section>
         <PayrollPhStatutory runId={run.id} employeeId={selected.id} canManage={active} onChanged={refresh} />
@@ -291,7 +292,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
                 : setup ? statutorySchemeLabel(scheme, setup) : "Period setup required"}</small></span>
               <strong className="tabular-nums">{notApplicable ? "N/A" : selected.result.statutoryCurrent && line?.employee_amount != null ? money(line.employee_amount) : "Pending review"}</strong></div>;
           })}</div>
-          <h5 className="mt-4 text-xs font-semibold text-text-secondary">Other Deductions</h5><div className="mt-2 divide-y divide-border">{(selected.calculation?.lines || []).filter(line => line.kind === "deduction").map(financialLine)}</div>
+          <h5 className="mt-4 text-xs font-semibold text-text-secondary">Other Deductions</h5><div className="mt-2 divide-y divide-border">{(selected.calculation?.lines || []).filter(line => line.kind === "deduction").map((line,index) => financialLine(line,index))}</div>
           <div className="flex justify-between border-t border-border pt-3 font-bold"><span>Total Deductions</span><span className="tabular-nums">{money(selected.result.deductions)}</span></div>
         </section>
         <section className="rounded-xl bg-primary/5 p-4"><h4 className="text-lg font-bold">Net Pay</h4><div className="mt-2 divide-y divide-border">

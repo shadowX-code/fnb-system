@@ -62,6 +62,8 @@ it('preserves resolved salary and PH earnings while adjustment and Gross remain 
  expect(screen.getByText('Basic Salary')).toBeTruthy();
  expect(screen.getByText(/1,800.00/)).toBeTruthy();
  expect(screen.getByText(/69.23/)).toBeTruthy();
- expect(screen.getByText('Review Required')).toBeTruthy();
+ expect(screen.getByText('Amount pending')).toBeTruthy();
+ expect(screen.getByText('Confirmed unpaid absence · Deduction pending')).toBeTruthy();
+ expect(screen.getByText(/Workplace information for this payroll period is required/)).toBeTruthy();
  expect(screen.queryByText(/1,869.23/)).toBeNull();
 });

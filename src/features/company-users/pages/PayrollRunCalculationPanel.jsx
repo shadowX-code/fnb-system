@@ -2,7 +2,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import { statutoryName } from "./payrollStatutoryLabels.js";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
-import { payrollIssueLabel } from "./payrollRunPresentation.js";
+import { payrollIssueLabel, payrollConfirmedUnpaidEvidence } from "./payrollRunPresentation.js";
 import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "./PayrollMonthlyBasicBreakdown.jsx";
 
 const rm = (value) => new Intl.NumberFormat("en-MY", {
@@ -18,7 +18,7 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose, bankInf
   const amount = value => value == null ? "—" : rm(value);
   const row = (name, value, note, key = name) => <div key={key} className="flex justify-between gap-4 py-2 text-sm"><span>{name}{note && <small className="block text-text-secondary">{note}</small>}</span><strong className="shrink-0 tabular-nums">{typeof value === "string" ? value : amount(value)}</strong></div>;
   const financialLines = kind => (kind === "earning" ? result.earning_groups || [] : (result.lines || []).filter(line => line.kind === kind)).map((line, index) => <div key={`${kind}-${index}`}>
-    {row(line.label, line.amount == null ? "Review Required" : line.amount, line.minutes != null ? `${(line.minutes / 60).toFixed(2)} h · ${line.multiplier}×` : line.units ? line.units : line.source?.effective_from ? `Effective ${line.source.effective_from}` : line.source?.run_adjustment_id ? "This period adjustment" : null)}
+    {row(line.label, line.amount == null ? payrollConfirmedUnpaidEvidence(line) ? "Amount pending" : "Review Required" : line.amount, payrollConfirmedUnpaidEvidence(line) || (line.minutes != null ? `${(line.minutes / 60).toFixed(2)} h · ${line.multiplier}×` : line.units ? line.units : line.source?.effective_from ? `Effective ${line.source.effective_from}` : line.source?.run_adjustment_id ? "This period adjustment" : null))}
     <PayrollMonthlyBasicBreakdown line={line} /><PayrollRecurringBreakdown line={line} /></div>);
   const statutoryRows = employer => (statutory?.lines || []).filter(line => !employer || !["pcb", "lindung"].includes(line.scheme)).map(line => row(statutoryName(line.scheme),
     line.applicable === false ? "N/A" : employer ? line.employer_amount : line.employee_amount,
@@ -46,7 +46,7 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose, bankInf
       <section className="border-t border-border pt-4 text-text-secondary"><h4 className="font-semibold">Employer Contributions</h4><div className="mt-2 divide-y divide-border">{statutoryRows(true)}
         {(statutory?.lines || []).some(line=>Number(line.remittance_rounding)>0) && row("Employer-funded remittance rounding",statutory.lines.reduce((sum,line)=>sum+Number(line.remittance_rounding || 0),0))}
         {row("Total Employer Contributions",statutory?.employer_statutory_cost)}{row("Total Employer Cost",statutory?.total_employer_cost)}</div><p className="text-xs">Employer contributions do not reduce employee Net Pay.</p></section>
-      <details className="text-xs text-text-secondary"><summary className="cursor-pointer">Calculation details</summary>{(result.lines || []).filter(line => line.kind === "earning").map((line,index) => row(`${line.source?.work_date || "Period"} · ${line.code === "monthly_basic" ? "Payable Basic Salary" : line.label}`,line.amount,null,`daily-${index}`))}<p className="mt-2">Calculation revision {result.revision} · {result.calculated_at ? new Date(result.calculated_at).toLocaleString() : "Pinned evidence"}</p>
+      <details className="text-xs text-text-secondary"><summary className="cursor-pointer">Calculation details</summary>{(result.lines || []).filter(line => line.kind === "earning").map((line,index) => <div key={`daily-${index}`}>{row(`${line.source?.work_date || "Period"} · ${line.code === "monthly_basic" ? "Payable Basic Salary" : line.label}`,line.amount,null,`daily-${index}`)}<PayrollRecurringBreakdown line={line} detailed /></div>)}<p className="mt-2">Calculation revision {result.revision} · {result.calculated_at ? new Date(result.calculated_at).toLocaleString() : "Pinned evidence"}</p>
         {(statutory?.lines || []).map(line=><p key={line.scheme} className="mt-2">{statutoryName(line.scheme)} · {line.applicable === false ? "Not Applicable" : line.method === "manual_confirmed" ? "Admin confirmed" : line.source_row || line.source_version || "Pinned contribution schedule"}{line.wage_base != null ? ` · Wage base ${rm(line.wage_base)}` : ""}{line.schedule_version_id && <small className="block">Schedule version {line.schedule_version_id}</small>}</p>)}
       </details>
       {payslip}
