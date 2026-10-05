@@ -24,22 +24,17 @@ After integration, inspect temporary branches and worktrees for cleanliness and 
 
 ### Production Release Trigger And Verification
 
-Both Vercel projects retain their Git connection and enable Git deployments (`gitProviderOptions.createDeployments = "enabled"`). Production `fnb-system` uses Production branch `main` and `previewDeploymentsDisabled = true`; Staging `fnb-system-staging` uses Production branch `dev` and the same preview-disable setting. Other branches do not automatically deploy to either project. Explicit Production authorization remains required under `FEEDX_CODEX_CONTEXT.md`.
+Explicit Production authorization is required. Vercel Git deployments remain enabled: `fnb-system` deploys only `main`; `fnb-system-staging` deploys only `dev`. Both use `previewDeploymentsDisabled = true` and `gitProviderOptions.createDeployments = "enabled"`.
 
-The normal Production release follows this sequence:
+1. From validated canonical Staging, isolate the approved scope onto the current Production/main baseline; preserve concurrent released work and exclude unrelated changes.
+2. Verify isolation, build and applicable migration rehearsal. Apply approved backward-compatible database/function dependencies through their governed paths before pushing the application.
+3. Immediately before release, recheck live Production and `origin/main` for drift; reconcile or stop if either moved unexpectedly.
+4. Push the exact explicitly approved candidate to `main` once. Vercel Git Integration creates the single normal Production application deployment.
+5. Verify READY and deployed SHA = approved `main` SHA, then run proportional Production smoke within the release's evidence-mutation restrictions. Report completion only after every required gate passes.
 
-1. Start from the validated canonical Staging implementation.
-2. Prepare an isolated candidate from the current Production/main baseline, preserving concurrent released work and excluding unrelated changes.
-3. Verify release isolation, build and required migration rehearsal. Apply approved backward-compatible database/function dependencies through their governed release paths before the application push.
-4. Recheck live Production and remote main for baseline drift immediately before release; reconcile or stop if either moved unexpectedly.
-5. Push the exact explicitly approved candidate to `main` once. Vercel Git Integration is the sole normal application deployment trigger.
-6. Wait for READY and verify the deployed Production SHA equals the exact approved main SHA.
-7. Perform proportional Production smoke, observing the release's business-evidence mutation restrictions.
-8. Report release complete only when all required gates pass.
+Do not also deploy through the API/CLI or synchronize `main` again after smoke. Retries require explicit handling and count as additional deployments; configuration read-back alone does not prove trigger counts.
 
-Do not also create an API Production deployment or synchronize main again after smoke. One normal release is expected to create one deployment; retries require explicit handling and are additional deployments. Configuration read-back alone does not prove future trigger counts.
-
-Main advances before deployment/smoke verification. If deployment or smoke fails, stop and report the live SHA versus main SHA and the failed gate. Do not automatically roll back, hotfix or report main as the last verified live state. The next release must reconcile both states.
+If deployment or smoke fails, stop and report the failed gate and live SHA versus `main` SHA. Do not automatically roll back or hotfix, or treat advanced `main` as verified live code. Reconcile both states before the next release.
 
 Do not force-push `main` or `dev` during routine integration or cleanup. Reconcile an authorized Production hotfix back into `dev` so Staging and Production do not silently drift. Guest AI adds domain-specific isolation and integration steps in [`../domains/guest-ai.md`](../domains/guest-ai.md).
 

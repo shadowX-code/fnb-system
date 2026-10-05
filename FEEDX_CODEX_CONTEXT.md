@@ -56,6 +56,8 @@ Interfaces must remain usable on desktop and mobile without overlap. Crew mobile
 
 ## Environments, Delivery, And Git Safety
 
+Before every FeedX Production release, read and follow `docs/architecture/platform.md` → “Production Release Trigger And Verification”.
+
 The normal path is local development to Staging to Production. Environment identity is explicit and must never be inferred from a branch name or Vercel target label alone.
 
 - Staging Vercel: `fnb-system-staging` (`prj_t6uJtKPDu9GuyefG6IqAfxh5YoIi`).
