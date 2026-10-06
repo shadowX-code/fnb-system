@@ -37,9 +37,24 @@ it('shows unavailable accounting measures alongside operational reporting', asyn
   vi.spyOn(reportingService, 'getMonthlyScopeFinancialReport').mockResolvedValue({ financials });
   render(<FinanceWorkspacePage auth={{ hasPermission: () => true, isProtectedRole: true }} store={{ outlets: [] }} />);
   await waitFor(() => expect(screen.getByRole('heading', { name: 'A partial financial picture.' })).toBeTruthy());
-  expect(screen.getAllByText('Unavailable · unavailable').length).toBeGreaterThan(0);
+  const gaps = screen.getByText(/Missing evidence ·/).closest('details');
+  expect(gaps.open).toBe(false);
+  expect(gaps.textContent).toContain('Gross Margin');
+  expect(document.querySelector('.finance-measures').textContent).not.toContain('Unavailable');
   expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull();
   expect(screen.getByRole('region', { name: 'Financial data status' }).textContent).toContain('source timestamp unavailable');
   fireEvent.click(screen.getByRole('button', { name: 'Data Sources' }));
   expect(window.location.pathname).toBe('/finance/data-sources');
+});
+it('attaches shared contextual actions to Profit Flow selection and retains disclosed evidence', async () => {
+  const provider = createFixtureProvider({ development: true });
+  const dataset = await provider.readOverview({ scope: { kind: 'group', id: 'demo-group' }, period: monthlyPeriod('2026-09'), currency: 'MYR' });
+  const before = JSON.stringify(dataset);
+  render(<FinanceOverview dataset={dataset} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Explore COGS flow' }));
+  expect(screen.getByRole('region', { name: 'Selected Profit Flow context' }).textContent).toContain('COGS');
+  fireEvent.keyDown(screen.getByRole('tab', { name: 'Explain' }), { key: 'ArrowRight' });
+  expect(screen.getByRole('tabpanel', { name: 'Compare' }).textContent).toContain('Prior period unavailable');
+  expect(screen.getByText('Evidence & definition for COGS').closest('details').textContent).toContain('Development illustration');
+  expect(JSON.stringify(dataset)).toBe(before);
 });

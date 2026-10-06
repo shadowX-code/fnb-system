@@ -1,3 +1,4 @@
+import { FinanceReadiness, FinanceDisclosure, FinanceMissing, FinanceContext, FinanceProvenance } from './FinanceVisualSystem.jsx';
 import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import PageHeader from '../../components/layout/PageHeader.jsx';
@@ -28,11 +29,11 @@ export function FinanceDataStatus({ dataset, loading, error }) {
   const status = dataset ? overviewDataStatus(dataset) : null;
   const freshness = status?.evidenceAt ? new Intl.DateTimeFormat('en-MY', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(status.evidenceAt)) : 'Unverified · source timestamp unavailable';
   return <section className="finance-data-status" aria-label="Financial data status">
-    <dl>
+    <FinanceDisclosure label={status ? `${status.sourceLabel} · ${status.completeness} evidence` : loading ? 'Loading source evidence…' : 'Source evidence unavailable'}><dl>
       <div><dt>Source</dt><dd>{status ? status.sourceLabel : loading ? 'Loading source evidence…' : 'Unavailable'}</dd>{status ? <span>{status.demo ? 'Development illustration · ' : ''}{status.semantics.map((semantic) => semantic[0] + semantic.slice(1).toLowerCase()).join(' / ') || 'Unavailable'}</span> : null}</div>
       <div><dt>Source freshness</dt><dd>{status ? freshness : 'Unavailable'}</dd></div>
       <div><dt>Completeness</dt><dd>{status ? status.completeness : error ? 'Unavailable' : 'Not assessed'}</dd>{status ? <span>{status.available} of {status.total} measures available · reconciliation unverified</span> : null}</div>
-    </dl>
+    </dl></FinanceDisclosure>
     <button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_data_sources')}>Data Sources <ArrowRight size={15} /></button>
   </section>;
 }
@@ -51,7 +52,9 @@ function Metric({ metric, prominent = false }) {
 }
 export function FinanceOverview({ dataset }) {
   const metrics = dataset.metrics;
-  const flowStart = (id) => id === 'cogs' ? metrics.gross_profit.value : id === 'labour' && metrics.ebitda.value !== null && metrics.opex.value !== null ? metrics.ebitda.value + metrics.opex.value : id === 'opex' ? metrics.ebitda.value : 0;
+  const [selectedId, setSelectedId] = useState('ebitda');
+  const [action, setAction] = useState('Explain');
+
   const flow = ['revenue', 'cogs', 'gross_profit', 'labour', 'opex', 'ebitda'];
   const primary = ['revenue', 'gross_margin', 'prime_cost', 'ebitda', 'ebitda_margin', 'cash'];
   const available = primary.filter((id) => metrics[id].value !== null).length;
@@ -61,22 +64,20 @@ export function FinanceOverview({ dataset }) {
       <div><span className="finance-label">Financial state · {periodLabel({ year: Number(dataset.period.start.slice(0, 4)), month: Number(dataset.period.start.slice(5, 7)) })}</span><h2>{dataset.demo ? 'Profit, with context.' : available < primary.length ? 'A partial financial picture.' : 'Your financial position.'}</h2><p>{dataset.sourceLabel}. {available} of {primary.length} Overview measures available.</p></div>
       <Metric metric={metrics.ebitda} prominent />
     </section>
-    <div className="finance-measures">{primary.filter((id) => id !== 'ebitda').map((id) => <Metric key={id} metric={metrics[id]} />)}</div>
+    <div className="finance-measures">{primary.filter((id) => id !== 'ebitda' && metrics[id].value !== null).map((id) => <Metric key={id} metric={metrics[id]} />)}</div>
+    <FinanceMissing ids={primary} metrics={metrics} registry={metricRegistry} />
     <section className="finance-flow" aria-labelledby="finance-flow-title">
       <div className="finance-section-heading"><div><h3 id="finance-flow-title">How your profit is made</h3><p>{dataset.demo ? 'Revenue flows through cost of goods, labour and operating expense to EBITDA.' : 'Existing Reporting EBITDA retains its operational calculation. Missing accounting inputs are shown explicitly.'}</p></div><span className="finance-label">Profit Flow</span></div>
-      <ol>{flow.map((id, index) => <li key={id} className={['cogs', 'labour', 'opex'].includes(id) ? 'finance-flow-deduction' : 'finance-flow-retained'}>
-        <span className="finance-flow-index">{String(index + 1).padStart(2, '0')}</span>
-        <div className="finance-flow-value"><span>{metricRegistry[id].label}</span><strong>{amount(metrics[id])}</strong></div>
-        <div className="finance-flow-track" aria-hidden="true"><span style={{ marginLeft: metrics.revenue.value > 0 && flowStart(id) !== null ? `${Math.max(0, Math.min(100, flowStart(id) / metrics.revenue.value * 100))}%` : '0%', width: metrics.revenue.value > 0 && metrics[id].value !== null ? `${Math.max(0, Math.min(100, metrics[id].value / metrics.revenue.value * 100))}%` : '0%' }} /></div>
-        <span className="finance-semantic">{semantic(metrics[id])}{metrics[id].completeness === 'partial' ? ' · Partial' : ''}</span>
-      <details className="finance-flow-detail"><summary>Evidence for {metricRegistry[id].label}</summary><p>{metrics[id].reason || metricRegistry[id].definition} · {metrics[id].completeness}</p><p>{semantic(metrics[id])}{dataset.demo ? " · Development demo" : ""}</p></details>
-      </li>)}</ol>
+      {flow.every((id) => metrics[id].value === null) ? <FinanceReadiness title="Profit Flow not ready">Revenue and supplied cost evidence are required to show your financial relationships.</FinanceReadiness> : <div className="finance-profit-map"><button type="button" className="finance-profit-source" aria-label="Explore Revenue flow" aria-pressed={selectedId === 'revenue'} onClick={() => setSelectedId('revenue')}><span>Revenue</span><strong>{amount(metrics.revenue)}</strong></button><div className="finance-profit-layers">{flow.filter((id) => !['revenue', 'ebitda'].includes(id)).map((id) => <button key={id} type="button" className={metrics[id].value === null ? 'is-unresolved' : ''} aria-label={`Explore ${metricRegistry[id].label} flow`} aria-pressed={selectedId === id} onClick={() => setSelectedId(id)}><span>{metricRegistry[id].label}</span><strong>{metrics[id].value === null ? 'Evidence needed' : amount(metrics[id])}</strong></button>)}</div><button type="button" className="finance-profit-result" aria-label="Explore EBITDA flow" aria-pressed={selectedId === 'ebitda'} onClick={() => setSelectedId('ebitda')}><span>EBITDA</span><strong>{amount(metrics.ebitda)}</strong></button></div>}
+      <p className="finance-analysis-muted">{dataset.demo ? 'Development illustration · supplied revenue and cost inputs retain their disclosed basis.' : 'Operational EBITDA retains purchase-based COGS. Labour is not separately established; no missing input is inferred or deducted again.'}</p>
+      <FinanceContext label={metricRegistry[selectedId].label} regionLabel="Selected Profit Flow context" action={action} onAction={setAction} evidence={<FinanceDisclosure label={`Evidence & definition for ${metricRegistry[selectedId].label}`}><p>{metricRegistry[selectedId].definition}</p><p>{semantic(metrics[selectedId])} · {metrics[selectedId].completeness} · {metrics[selectedId].reason}</p><FinanceProvenance metric={metrics[selectedId]} />{metrics[selectedId].comparison ? <><p>Previous month · {metrics[selectedId].comparison.completeness}</p><FinanceProvenance metric={metrics[selectedId].comparison} /></> : null}</FinanceDisclosure>}>{action === 'Explain' ? <p>{metrics[selectedId].reason || metricRegistry[selectedId].definition}</p> : action === 'Compare' ? <p><Comparison metric={metrics[selectedId]} /></p> : <div className="finance-analysis-inputs">{metricRegistry[selectedId].dependencies.map((id) => <button type="button" className="btn-secondary" key={id} onClick={() => setSelectedId(id)}>{metricRegistry[id].label} · {amount(metrics[id])}</button>)}{!metricRegistry[selectedId].dependencies.length ? <p>Finer source evidence is not supplied.</p> : null}</div>}</FinanceContext>
     </section>
-    <details className="finance-evidence"><summary>Source, freshness & metric definitions</summary><p>Values are {dataset.demo ? 'development illustrations' : 'authorized operational evidence'}. Actual means book-of-record evidence; Operational means FeedX records; Derived means a disclosed calculation; Forecast means a planning value. Accounting statements retain their own authority.</p>
+    <nav className="finance-paths" aria-label="Continue financial investigation">{[['analysis', 'Analysis', 'What changed & why'], ['costs', 'Costs', 'Where margin is consumed'], ['cash', 'Cash', 'Liquidity & capital conversion']].map(([route, label, detail]) => <button type="button" key={route} onClick={() => navigateAdminRoute(`finance_${route}`)}><strong>{label}</strong><span>{detail}</span><ArrowRight size={16} /></button>)}</nav>
+    <FinanceDisclosure label="Source, freshness & metric definitions"><p>Values are {dataset.demo ? 'development illustrations' : 'authorized operational evidence'}. Actual means book-of-record evidence; Operational means FeedX records; Derived means a disclosed calculation; Forecast means a planning value. Accounting statements retain their own authority.</p>
       <p>{dataset.demo ? 'Fixture timestamp is fixed for reproducible development.' : 'Loaded time records this read. Source freshness is unverified until source timestamps are available.'} Reconciliation: unverified.</p>
       <dl>{Object.entries(metrics).map(([id, metric]) => <div key={id}><dt>{metricRegistry[id].label}</dt><dd>{metric.reason || metricRegistry[id].definition}<br />{metric.completeness} · {semantic(metric)}{metric.provenance[0]?.observedAt ? ` · Loaded ${metric.provenance[0].observedAt}` : ''}</dd></div>)}</dl>
       <h4>Provider capabilities</h4><dl>{Object.entries(dataset.capabilities).map(([id, state]) => <div key={id}><dt>{id.replaceAll('_', ' ')}</dt><dd>{state}</dd></div>)}</dl>
-    </details>
+    </FinanceDisclosure>
   </div>;
 }
 function StatementsFoundation() {

@@ -1,3 +1,4 @@
+import { FinanceReadiness, FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { useState } from 'react';
 import { financialPeriod } from './presentation.js';
 function rate(value) { return value === null ? 'Unavailable' : `${value.toFixed(1)}%`; }
@@ -11,7 +12,7 @@ export default function OutletPerformanceField({ outlets, selectedId, onSelect, 
   const y = (value) => 34 + (yBound - value) / (2 * yBound) * 332;
   return <section className="finance-outlet-field" aria-labelledby="finance-outlet-field-title">
     <div className="finance-analysis-heading"><div><h2 id="finance-outlet-field-title">Outlet Performance Field</h2><p>Revenue growth meets profitability. Select an outlet to investigate its performance.</p></div><label className="finance-analysis-history"><input type="checkbox" checked={showHistory} onChange={(event) => setShowHistory(event.target.checked)} />Show 3-month trajectories</label></div>
-    <div className="finance-outlet-canvas">
+    {plotted.length ? <><div className="finance-outlet-canvas">
       <svg viewBox="0 0 800 416" role="group" aria-label="Outlet revenue growth and EBITDA margin field">
         <title>Revenue Growth on the horizontal axis; EBITDA Margin on the vertical axis</title>
         <rect x="64" y="34" width="672" height="332" fill="var(--theme-surface-muted, #f5f7f8)" />
@@ -28,7 +29,7 @@ export default function OutletPerformanceField({ outlets, selectedId, onSelect, 
             const prior = outlet.history[index];
             return point.x !== null && point.y !== null && prior.x !== null && prior.y !== null ? [`M${x(prior.x)},${y(prior.y)}L${x(point.x)},${y(point.y)}`] : [];
           });
-          return <g key={outlet.id} className={active ? 'finance-field-outlet is-selected' : 'finance-field-outlet'}>
+          return <g key={outlet.id} className={active || plotted.length === 1 ? 'finance-field-outlet is-selected' : 'finance-field-outlet'}>
             {showHistory ? <g aria-hidden="true">{paths.map((path, index) => <path key={index} d={path} className="finance-field-trajectory" />)}{outlet.history.filter((point) => point.x !== null && point.y !== null).slice(0, -1).map((point) => <circle key={point.period.start} cx={x(point.x)} cy={y(point.y)} r="3" className="finance-field-history-point"><title>{financialPeriod(point.period)} · growth {rate(point.x)} · margin {rate(point.y)}</title></circle>)}</g> : null}
             <g role="button" tabIndex="0" aria-pressed={active} aria-label={`${outlet.name}: revenue growth ${rate(outlet.position.x)}, EBITDA margin ${rate(outlet.position.y)}, ${outlet.position.zone}`} onClick={() => onSelect(outlet.id)} onKeyDown={(event) => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); onSelect(outlet.id); } }}>
               <circle cx={x(outlet.position.x)} cy={y(outlet.position.y)} r="26" fill="transparent" />
@@ -38,11 +39,12 @@ export default function OutletPerformanceField({ outlets, selectedId, onSelect, 
           </g>;
         })}
       </svg>
-      {!plotted.length ? <div className="finance-field-unavailable"><strong>No outlets can be positioned yet.</strong><p>Each point needs complete current Revenue and EBITDA, plus positive comparison Revenue. Missing evidence remains listed below.</p></div> : null}
-    </div>
+    </div><div className="finance-outlet-zones" aria-label="Outlet operating zones">{['Growing & profitable', 'Profitable but slowing', 'Growing with margin pressure', 'Needs attention', 'On the growth / profit boundary'].filter((zone) => zone !== 'On the growth / profit boundary' || plotted.some((outlet) => outlet.position.zone === zone)).map((zone) => <section key={zone}><h3>{zone}</h3>{plotted.filter((outlet) => outlet.position.zone === zone).map((outlet) => <button type="button" key={outlet.id} aria-pressed={selectedId === outlet.id} onClick={() => onSelect(outlet.id)}><strong>{outlet.name}</strong><span>Growth {rate(outlet.position.x)} · Margin {rate(outlet.position.y)}</span></button>)}{!plotted.some((outlet) => outlet.position.zone === zone) ? <span>No positioned outlets</span> : null}</section>)}</div></> : <FinanceReadiness title="No outlets can be positioned yet">Complete current Revenue and EBITDA, plus positive comparison Revenue, are required for each point.</FinanceReadiness>}
     <p className="finance-analysis-muted">Zones use zero growth and zero EBITDA margin, not a target. {plotted.length} of {outlets.length} eligible outlets positioned. Trajectories compare each month with {lag} month{lag === 1 ? '' : 's'} earlier; missing observations are not connected. Coincident points keep their true coordinates; select any outlet below.</p>
+    <FinanceDisclosure label={`Outlet detail · ${plotted.length} positioned / ${outlets.length} eligible`}>
     <div className="finance-analysis-table-wrap"><table className="finance-analysis-table"><caption>Eligible outlets · select a row to explore</caption><thead><tr><th>Outlet</th><th>Revenue Growth</th><th>EBITDA Margin</th><th>Operating zone / evidence</th></tr></thead><tbody>{outlets.map((outlet) => <tr key={outlet.id} className={outlet.id === selectedId ? 'is-selected' : ''}><th scope="row"><button type="button" disabled={!outlet.pair} aria-pressed={outlet.id === selectedId} onClick={() => onSelect(outlet.id)}>{outlet.name}</button></th><td>{rate(outlet.position?.x ?? null)}</td><td>{rate(outlet.position?.y ?? null)}</td><td>{outlet.error || outlet.position?.reason || outlet.position?.zone}</td></tr>)}</tbody></table></div>
+</FinanceDisclosure>
     {!outlets.length ? <p className="finance-analysis-muted">No eligible outlets are available in this scope. Non-outlet dimensions are not plotted as outlets.</p> : null}
-    {showHistory && selectedId ? <details className="finance-analysis-evidence"><summary>Selected outlet trajectory evidence</summary><ul>{outlets.find((outlet) => outlet.id === selectedId)?.history.map((point) => <li key={point.period.start}>{financialPeriod(point.period)} · growth {rate(point.x)} · margin {rate(point.y)}{point.reason ? ` · ${point.reason}` : ''}</li>)}</ul></details> : null}
+    {showHistory && selectedId ? <FinanceDisclosure label="Selected outlet trajectory evidence"><ul>{outlets.find((outlet) => outlet.id === selectedId)?.history.map((point) => <li key={point.period.start}>{financialPeriod(point.period)} · growth {rate(point.x)} · margin {rate(point.y)}{point.reason ? ` · ${point.reason}` : ''}</li>)}</ul></FinanceDisclosure> : null}
   </section>;
 }

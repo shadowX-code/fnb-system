@@ -1,8 +1,10 @@
+import { FinanceReadiness, FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { financialValue } from './presentation.js';
 
 const eventMetric = (event) => ({ value: event.amount, unit: 'money' });
 export default function LiquidityTimeline({ model, selectedEventId, onEvent, onCash }) {
   const { cash, schedule, rows, lowest, constrained, largestCollection, largestCommitment } = model;
+  if (!rows.length && !model.projected) return <section className="finance-cash-section finance-liquidity" aria-labelledby="finance-liquidity-title"><h2 id="finance-liquidity-title">Liquidity timeline</h2><FinanceReadiness title="Dated liquidity evidence not ready">Opening book cash and validated collection / payment dates are required. AR and AP balances alone do not establish dates or expected cash.</FinanceReadiness><FinanceDisclosure label="Liquidity source & coverage"><p>{model.reason}</p><p>Opening book cash: {financialValue(cash)} · {cash.completeness}. Schedule: {schedule?.completeness ?? 'unavailable'}.</p></FinanceDisclosure></section>;
   return <section className="finance-cash-section finance-liquidity" aria-labelledby="finance-liquidity-title">
     <div className="finance-analysis-heading"><div><h2 id="finance-liquidity-title">Liquidity timeline</h2><p>{schedule ? `${schedule.horizon.start} to ${schedule.horizon.end} · ${schedule.completeness} schedule coverage` : 'Opening position → dated collections & commitments → expected cash'}</p></div><span className="finance-cash-basis">{model.projected ? 'Forecast · end-of-day checkpoints' : 'Expected positions unavailable'}</span></div>
     <p className="finance-analysis-muted">{model.reason}</p>

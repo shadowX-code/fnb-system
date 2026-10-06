@@ -44,7 +44,11 @@ it('requests only the chosen canonical scope and comparison, preserves context a
   const view = render(<FinanceCostsPage {...props()} />);
   await screen.findByRole('alert'); fireEvent.click(screen.getByRole('button', { name: 'Retry', exact: true }));
   await screen.findByRole('heading', { name: 'How Revenue Becomes Profit' });
-  fireEvent.click(screen.getByRole('button', { name: 'Explore OPEX layer' }));
+  expect(screen.getByText('Margin consumption not ready')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Explore OPEX layer' })).toBeNull();
+  fireEvent.click(screen.getByRole('tab', { name: 'Break down' }));
+  fireEvent.click(screen.getByText('Movement method & evidence'));
+  fireEvent.click(screen.getByRole('button', { name: 'Investigate OPEX' }));
   fireEvent.click(screen.getByRole('tab', { name: 'Compare' }));
   const count = spy.mock.calls.length; view.rerender(<FinanceCostsPage {...props()} />);
   await waitFor(() => expect(screen.getByRole('table', { name: 'OPEX · period comparison' })).toBeTruthy());

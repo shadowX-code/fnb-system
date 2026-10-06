@@ -39,9 +39,23 @@ it('recovers canonical read failure and keeps live missing balances distinct fro
   render(<FinanceCashPage auth={{ roleOutletIds: ['allowed'] }} store={{ outlets: [{ id: 'allowed', name: 'Allowed' }, { id: 'hidden', name: 'Hidden' }] }} />);
   await screen.findByRole('alert'); fireEvent.click(screen.getByRole('button', { name: 'Retry', exact: true }));
   await screen.findByRole('heading', { name: 'Liquidity timeline' });
-  expect(screen.getByRole('list', { name: 'Liquidity evidence required' }).textContent).toContain('Unavailable');
-  expect(screen.getByRole('list', { name: 'Liquidity evidence required' }).textContent).toContain('no complete projection');
+  expect(screen.getByText('Dated liquidity evidence not ready')).toBeTruthy();
+  expect(screen.queryByRole('list', { name: 'Liquidity evidence required' })).toBeNull();
+  expect(screen.getByText('Cash position not ready')).toBeTruthy();
+  fireEvent.click(screen.getByText('Compare supplied profit, balances & cash flows'));
   expect(screen.queryByText('Hidden')).toBeNull();
   expect(spy.mock.calls.every(([query]) => query.outletId === null)).toBe(true);
   expect(screen.getByRole('table').textContent).toContain('Operational');
+});
+it('keeps partial cash position values visible while disclosing missing balances', async () => {
+  const data = await fixture();
+  data.current.metrics.debt = { ...data.current.metrics.debt, value: null, completeness: 'unavailable', provenance: [] };
+  render(<FinanceCash analysis={data} />);
+  const position = document.querySelector('.finance-cash-position');
+  expect(position.textContent).toContain('Cash');
+  expect(position.textContent).not.toContain('Unavailable');
+  expect(screen.queryByText('Cash position not ready')).toBeNull();
+  const disclosure = screen.getByText('Missing evidence · 1 measures').closest('details');
+  expect(disclosure.open).toBe(false);
+  expect(disclosure.textContent).toContain('Debt');
 });
