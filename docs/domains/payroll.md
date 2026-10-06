@@ -691,17 +691,13 @@ source decisions cannot continue charging salary. Hourly zero-pay treatment and
 Monthly partial-time treatment retain their existing authorities.
 The final Basic amount is rounded once to RM0.01. Its earning line retains
 salary, date/day counts, approved leave snapshots and rule/legal-coverage versions.
-Monthly calendar-day pricing requires dated verified Peninsular Malaysia / Labuan
-coverage, not a particular historical State/Federal Territory. Outlet-owned
-`outlet_employment_law_coverage_versions` is append-only and explicitly confirmed
-through Outlets → Law Coverage (effective date, evidence reference, reason, actor/time,
-retry identity and same-date superseding lineage). Confirmation never changes the
-outlet state or employee assignment and never infers historical coverage. Explicit
-coverage takes precedence, including Unresolved. Without explicit coverage, existing
-dated outlet-state evidence may establish legal scope. Each employed date uses its
-canonical People assignment/workplace; Sabah, Sarawak, ambiguous workplace and
-unresolved scope stay blocked for this rule. Later evidence survives historical
-confirmation. State-specific Public Holiday authorities are unchanged.
+Monthly calendar-day pricing requires dated People Employment Jurisdiction of
+Peninsular Malaysia / Labuan. Each employed date resolves the canonical employment
+revision and pins its jurisdiction/revision in calculation evidence. Sabah, Sarawak
+and unconfirmed scope remain Review Required. Outlet Law Coverage and Outlet State
+are not legal-coverage fallback authorities. State-specific Public Holiday geography
+remains unchanged. Historical jurisdiction confirmation uses People Change
+Employment, preserving later revisions and finalized evidence.
 Employee Review and frozen statements display nominal salary, reductions and
 payable Basic without creating a second deduction.
 
@@ -1236,4 +1232,4 @@ The canonical calculation preserves a verified stable contractual monthly salary
 
 Recalculation appends a financial calculation version only when its required totals are numeric. A blocked projection returns `blocked` without replacing the last valid version or calculating statutory contributions from old wages. Open reads expose the current canonical earning evidence as `review_required`, `persistence_state: blocked` and non-stale, with pending financial totals; they retain prior-version identifiers solely for history. This is a settled evidence blocker, not an in-flight calculation or Retry failure. When evidence changes and totals resolve, normal fingerprint-based recalculation appends the next version. Finalized records continue to use frozen evidence.
 
-Confirmed unpaid-absence and approved unpaid-leave evidence remain confirmed when workplace/jurisdiction evidence prevents pricing; only the deduction amount is pending. Authorized Draft reviewers can open the employee's canonical People employment section to resolve payroll-period workplace evidence. Payroll does not write workplace facts. Recurring-component summaries show the payable result with full-month/prorated calendar-day context; original pricing arithmetic and sources remain under Calculation details.
+Confirmed unpaid-absence and approved unpaid-leave evidence remain confirmed when workplace/jurisdiction evidence prevents pricing; only the deduction amount is pending. Authorized Draft reviewers can open the employee's canonical People employment section to resolve payroll-period Employment Jurisdiction evidence. Payroll does not write employment jurisdiction or workplace facts. Recurring-component summaries show the payable result with full-month/prorated calendar-day context; original pricing arithmetic and sources remain under Calculation details.

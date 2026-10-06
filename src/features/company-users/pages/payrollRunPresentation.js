@@ -150,7 +150,7 @@ export function payrollIssueLabel(issue, context = {}) {
     unpaid_half_day_policy_required: "Half-day Unpaid Leave requires an approved policy; no amount has been assumed.",
     unpaid_leave_overlap_requires_review: "Approved leave overlaps; resolve the source leave evidence.",
     unpaid_leave_attendance_conflict: "Attendance conflicts with approved Unpaid Leave; review the source evidence.",
-    monthly_proration_jurisdiction_requires_review: "Verified Peninsular Malaysia / Labuan employment law coverage for this payroll period is required before Monthly unpaid-time pay can be calculated. Confirm coverage in Outlets.",
+    monthly_proration_jurisdiction_requires_review: "Verified Peninsular Malaysia / Labuan Employment Jurisdiction for this payroll period is required before Monthly unpaid-time pay can be calculated. Resolve the dated People employment evidence.",
     monthly_proration_jurisdiction_change: "Workplace jurisdiction changes during the period; review its salary treatment.",
     monthly_components_entitlement_policy_required: "Recurring components in an incomplete month require an approved entitlement policy.",
     mid_period_component_change: "A recurring component changes during this period; its period treatment requires review.",

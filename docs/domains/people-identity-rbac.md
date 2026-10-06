@@ -124,15 +124,19 @@ Legacy fields or labels must not become competing role or Auth-link authorities.
 External identity providers, HRIS synchronization, and payroll identity are deferred unless explicitly introduced.
 An explicit UUID employee-outlet assignment is planned as a future compatibility hardening phase. Until then, the established Employee Master workplace resolver remains the canonical relationship consumed by Crew Workforce.
 
-### Outlet / Workplace Employment Law Coverage
+### People Employment Jurisdiction
 
-Employment law coverage belongs to the existing Outlet/Workplace master authority,
-not individual employees or Payroll. Outlets → Law Coverage accepts explicit
-Peninsular Malaysia / Labuan, Sabah, Sarawak or Unresolved confirmation with effective
-date, evidence reference and reason. `outlet_employment_law_coverage_confirm` requires
-`outlets.edit`, a linked Admin identity and outlet scope. Read history requires scoped
-`outlets.view` or `outlets.edit`. The append-only versions record actor/time, request
-identity and same-date correction lineage; historical confirmation preserves later
-versions. No current-state/address inference or migration backfill occurs. Payroll
-consumes dated coverage for Monthly calendar-day rule scope; state-specific holiday
-geography remains independently owned by its existing state history.
+Employment-law territorial coverage belongs to the effective People employment
+assignment (`employee_employment_assignment_revisions.employment_jurisdiction`).
+Change Employment confirms Peninsular Malaysia / Labuan, Sabah, Sarawak or
+Unresolved through the existing `employees.edit` command and workplace scope.
+Existing revisions remain unconfirmed; there is no address, employer-registration
+or Outlet-state inference/backfill. Historical confirmation appends a complete
+assignment with reason, reference, actor/time and correction lineage; later genuine
+revisions and finalized downstream evidence are preserved. Legacy callers may
+retain jurisdiction only when employer/workplace context is unchanged.
+
+Outlet State/Federal Territory remains location authority for state-specific Public
+Holidays. Outlet Law Coverage has no active table, RPC, application or fallback path.
+Its applied migrations remain immutable history. Retirement locks/checks the empty
+coverage table and aborts if any confirmation exists; evidence is never converted.

@@ -12,6 +12,14 @@ const fields = [
   ["position", "Position"],
   ["legal_entity_id", "Legal Employer"],
   ["workplace", "Workplace"],
+  ["employment_jurisdiction", "Employment Jurisdiction"],
+];
+const jurisdictionOptions = [
+  { value: "", label: "Not confirmed" },
+  { value: "peninsular_labuan", label: "Peninsular Malaysia / Labuan" },
+  { value: "sabah", label: "Sabah" },
+  { value: "sarawak", label: "Sarawak" },
+  { value: "unresolved", label: "Unresolved" },
 ];
 const typeOptions = [
   { value: "probation", label: "Probation" },
@@ -41,6 +49,7 @@ function assignmentOf(revision) {
 }
 
 function displayValue(key, value, entities) {
+  if (key === "employment_jurisdiction") return jurisdictionOptions.find((entry) => entry.value === value)?.label || "Not confirmed";
   if (key === "legal_entity_id") {
     const entity = entities.find((entry) => entry.id === value);
     return entity?.display_name || entity?.legal_company_name || (value ? "Former employer" : "Not assigned");
@@ -81,7 +90,7 @@ export default function EmployeeEmploymentTimelinePanel({ employeeId, joinedDate
   const currentRead = read?.as_of === effectiveFrom ? read : null;
   const before = assignmentOf(currentRead?.assignment);
   const isBaselineCorrection = currentRead?.state === "unresolved" && currentRead?.verified_from && effectiveFrom < currentRead.verified_from;
-  const missingFields = fields.filter(([key]) => key !== "legal_entity_id" && !String(assignment?.[key] || "").trim()).map(([, label]) => label);
+  const missingFields = fields.filter(([key]) => !["legal_entity_id", "employment_jurisdiction"].includes(key) && !String(assignment?.[key] || "").trim()).map(([, label]) => label);
   const changed = assignment && fields.some(([key]) => assignment[key] !== before[key]);
   const isHistorical = effectiveFrom < malaysiaToday();
   const isFuture = effectiveFrom > malaysiaToday();
@@ -138,7 +147,7 @@ export default function EmployeeEmploymentTimelinePanel({ employeeId, joinedDate
                   {item.corrects_revision_id && <span className="text-text-secondary">{item.effective_from < (revisions.find((prior) => prior.id === item.corrects_revision_id)?.effective_from || item.effective_from) ? "Historical baseline correction" : "Correction"}</span>}
                   {revisions.some((other) => other.supersedes_revision_id === item.id) && <span className="text-text-secondary">Superseded</span>}
                 </div>
-                <div className="text-xs text-text-secondary">{displayValue("legal_entity_id", item.legal_entity_id, legalEntities)} · {item.workplace || "Workplace missing"}</div>
+                <div className="text-xs text-text-secondary">{displayValue("legal_entity_id", item.legal_entity_id, legalEntities)} · {item.workplace || "Workplace missing"} · {displayValue("employment_jurisdiction", item.employment_jurisdiction, legalEntities)}</div>
                 <div className="text-xs text-text-secondary">{item.reason} · Recorded {new Date(item.recorded_at).toLocaleString()}</div>
                 {item.evidence_reference && <div className="text-xs text-text-secondary">Evidence: {item.evidence_reference}</div>}
               </div>)}
@@ -161,6 +170,7 @@ export default function EmployeeEmploymentTimelinePanel({ employeeId, joinedDate
                 <SelectField label="Position" required searchable value={assignment?.position || ""} onChange={(value) => setAssignment((current) => ({ ...current, position: value }))} options={positions.map((item) => ({ value: item.name, label: item.name }))} />
                 <SelectField label="Legal Employer" searchable value={assignment?.legal_entity_id || ""} onChange={(value) => setAssignment((current) => ({ ...current, legal_entity_id: value }))} options={[{ value: "", label: "Not assigned" }, ...legalEntities.filter((item) => item.is_active || item.id === assignment?.legal_entity_id).map((item) => ({ value: item.id, label: item.display_name || item.legal_company_name }))]} />
                 <SelectField label="Workplace" required searchable value={assignment?.workplace || ""} onChange={(value) => setAssignment((current) => ({ ...current, workplace: value }))} options={workplaces.map((item) => ({ value: item, label: item }))} />
+                <SelectField label="Employment Jurisdiction" value={assignment?.employment_jurisdiction || ""} onChange={(value) => setAssignment((current) => ({ ...current, employment_jurisdiction: value }))} options={jurisdictionOptions} />
               </div>
               {(changed || isBaselineCorrection) && <div className="rounded-xl border border-border bg-slate-50 p-3 text-sm">
                 <div className="font-semibold">{isBaselineCorrection ? "Review verified assignment" : "Review change"} · {effectiveFrom}</div>
