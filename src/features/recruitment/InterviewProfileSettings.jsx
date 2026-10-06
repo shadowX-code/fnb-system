@@ -2,6 +2,7 @@ import InterviewIntelligenceBuilder from "./InterviewIntelligenceBuilder.jsx";
 import { profileDraft } from "./serviceCrewV2.js";
 import { useState } from "react";
 import PageHeader from "../../components/layout/PageHeader.jsx";
+import DataTable from "../../components/tables/DataTable.jsx";
 import {
   RecruitmentSection,
   RecruitmentState,
@@ -25,40 +26,70 @@ export default function InterviewProfileSettings({
       .filter((p) => p.name === name)
       .sort((a, b) => b.version - a.version),
   );
-  const latest = selected
-    ? families.find((f) => f[0].name === selected.name)[0]
-    : profiles[0];
+  const versions = selected
+    ? families.find((f) => f[0].name === selected.name)
+    : [];
+  const latest = versions[0];
+  function library() {
+    setVersionId(null);
+    setEditing(false);
+    setError("");
+  }
+  function view(id) {
+    setVersionId(id);
+    setEditing(false);
+    setError("");
+  }
   async function publish() {
     setError("");
     try {
       await onPublish(draft, latest.version);
-      setEditing(false);
-      setVersionId(null);
+      library();
     } catch (e) {
       setError(e.message);
     }
   }
+  const current = editing ? draft : selected?.definition;
   return (
     <>
-      <button
-        className="text-sm text-text-secondary justify-self-start"
-        onClick={onClose}
-      >
-        ← Recruitment
-      </button>
       <PageHeader
+        breadcrumbs={[
+          { label: "Recruitment", onClick: onClose },
+          selected
+            ? { label: "Interview Profiles", onClick: library }
+            : { label: "Interview Profiles" },
+          ...(selected ? [{ label: selected.name }] : []),
+        ]}
         title={selected ? selected.name : "Interview Profiles"}
         description={
           selected
-            ? "Evidence, conversational guidance and completion criteria."
-            : "A library of reusable interview plans. Published versions remain fixed."
+            ? "A reusable evidence plan for this role."
+            : "Reusable interview plans with fixed published versions."
+        }
+        metadata={
+          selected ? (
+            <>
+              <RecruitmentState
+                value={editing ? "draft" : selected.status || "published"}
+              />
+              <span>
+                Version {editing ? latest.version + 1 : selected.version}
+                {!editing && selected.id === latest.id ? " · Latest" : ""}
+              </span>
+              <span>
+                Target {current.target_minutes} min · Maximum{" "}
+                {current.max_minutes} min
+              </span>
+            </>
+          ) : null
         }
         primaryActions={
           selected && canManage ? (
             editing ? (
-              <div className="flex gap-2">
+              <>
                 <button
                   className="btn-secondary"
+                  disabled={busy}
                   onClick={() => setEditing(false)}
                 >
                   Discard draft
@@ -70,7 +101,7 @@ export default function InterviewProfileSettings({
                 >
                   Publish {latest.name} v{latest.version + 1}
                 </button>
-              </div>
+              </>
             ) : (
               <button
                 className="btn-secondary"
@@ -91,43 +122,86 @@ export default function InterviewProfileSettings({
         </p>
       )}
       {!selected ? (
-        <RecruitmentSection title="Profile library" className="is-list">
-          {families.map((versions) => {
-            const p = versions[0];
-            return (
-              <div className="recruitment-profile-row" key={p.name}>
-                <div>
-                  <div className="flex items-center gap-2">
+        <RecruitmentSection
+          title="Profile library"
+          className="is-list"
+          description={`${families.length} reusable ${families.length === 1 ? "plan" : "plans"}`}
+        >
+          <DataTable
+            density="compact"
+            minWidth={700}
+            rows={families.map((f) => f[0])}
+            getRowKey={(p) => p.id}
+            tableClassName="recruitment-profile-table"
+            onRowClick={(p) => view(p.id)}
+            columns={[
+              {
+                key: "name",
+                header: "Interview Plan",
+                render: (p) => (
+                  <div>
                     <strong className="text-sm">{p.name}</strong>
-                    <RecruitmentState value={p.status || "published"} />
+                    <p className="recruitment-row-meta">
+                      {p.definition.role_context ||
+                        "Reusable role evidence plan"}
+                    </p>
                   </div>
-                  <p>
-                    Version {p.version} · {versions.length} published{" "}
-                    {versions.length === 1 ? "version" : "versions"}
-                  </p>
-                </div>
-                <div className="text-xs text-text-secondary">
-                  <p>
-                    {p.definition.evidence_areas.length} evidence areas ·{" "}
-                    {p.definition.scenarios.length}{" "}
-                    {p.definition.scenarios.length === 1
-                      ? "scenario"
-                      : "scenarios"}
-                  </p>
-                  <p>
-                    Target {p.definition.target_minutes} min · Maximum{" "}
-                    {p.definition.max_minutes} min
-                  </p>
-                </div>
-                <button
-                  className="btn-secondary"
-                  onClick={() => setVersionId(p.id)}
-                >
-                  View profile
-                </button>
-              </div>
-            );
-          })}
+                ),
+              },
+              {
+                key: "version",
+                header: "Published version",
+                render: (p) => (
+                  <div className="recruitment-cell-stack">
+                    <RecruitmentState value={p.status || "published"} />
+                    <span>Version {p.version} · Latest</span>
+                  </div>
+                ),
+              },
+              {
+                key: "evidence",
+                header: "Evidence plan",
+                render: (p) => (
+                  <div className="recruitment-cell-stack">
+                    <span>
+                      {p.definition.evidence_areas.length} evidence areas
+                    </span>
+                    <span>
+                      {p.definition.scenarios.length}{" "}
+                      {p.definition.scenarios.length === 1
+                        ? "scenario"
+                        : "scenarios"}
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                key: "duration",
+                header: "Duration",
+                render: (p) => (
+                  <div className="recruitment-cell-stack">
+                    <span>Target {p.definition.target_minutes} min</span>
+                    <span className="text-text-secondary">
+                      Maximum {p.definition.max_minutes} min
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                key: "action",
+                header: "Action",
+                render: (p) => (
+                  <button
+                    className="btn-secondary"
+                    aria-label={`View ${p.name} profile`}
+                    onClick={() => view(p.id)}
+                  >
+                    View
+                  </button>
+                ),
+              },
+            ]}
+          />
           {!families.length && (
             <RecruitmentEmpty>
               No interview profiles are available.
@@ -136,50 +210,40 @@ export default function InterviewProfileSettings({
         </RecruitmentSection>
       ) : (
         <>
-          <div className="flex items-center justify-between gap-3">
-            <button
-              className="btn-ghost"
-              onClick={() => {
-                setVersionId(null);
-                setEditing(false);
-              }}
-            >
-              ← Profile library
-            </button>
-            <div className="flex gap-2">
-              <RecruitmentState value={editing ? "draft" : "published"} />
-              <span className="text-sm text-text-secondary">
-                Version {editing ? latest.version + 1 : selected.version}
-              </span>
-            </div>
-          </div>
           <InterviewIntelligenceBuilder
-            definition={editing ? draft : selected.definition}
+            definition={current}
             onChange={editing ? setDraft : undefined}
             version={editing ? latest.version + 1 : selected.version}
           />
           {!editing && (
-            <RecruitmentSection
-              title="Version history"
-              description="Existing invitations keep their selected version."
+            <section
+              className="recruitment-profile-history"
+              aria-labelledby="profile-history-title"
             >
-              {profiles
-                .filter((p) => p.name === selected.name)
-                .map((p) => (
-                  <button
-                    className="recruitment-attention-row"
-                    key={p.id}
-                    onClick={() => setVersionId(p.id)}
-                    aria-current={p.id === versionId ? "true" : undefined}
-                  >
-                    <span>
-                      Version {p.version}
-                      {p.id === latest.id ? " · Latest" : ""}
-                    </span>
-                    <RecruitmentState value="published" />
-                  </button>
+              <h2 id="profile-history-title">Version History</h2>
+              <p className="text-xs text-text-secondary">
+                Published versions stay fixed. Existing invitations retain their
+                selected plan.
+              </p>
+              <ol className="mt-3 divide-y divide-border">
+                {versions.map((p) => (
+                  <li key={p.id}>
+                    <button
+                      className="recruitment-attention-row"
+                      onClick={() => view(p.id)}
+                      aria-current={p.id === versionId ? "true" : undefined}
+                    >
+                      <span>
+                        Version {p.version}
+                        {p.id === latest.id ? " · Latest" : ""}
+                        {p.id === versionId ? " · Viewing" : ""}
+                      </span>
+                      <RecruitmentState value={p.status || "published"} />
+                    </button>
+                  </li>
                 ))}
-            </RecruitmentSection>
+              </ol>
+            </section>
           )}
         </>
       )}

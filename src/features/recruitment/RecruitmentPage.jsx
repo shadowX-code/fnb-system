@@ -23,7 +23,6 @@ import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
 import ActionMenu from "../../components/ui/ActionMenu.jsx";
 import PageHeader from "../../components/layout/PageHeader.jsx";
 import {
-  RecruitmentMetrics,
   RecruitmentSection,
   RecruitmentEmpty,
   RecruitmentState,
@@ -154,7 +153,7 @@ function OpeningForm({
   const Surface = SetupSurface;
   return (
     <Surface
-      title={opening ? "Edit job opening" : "Create job opening"}
+      title={opening ? "Edit job opening" : "Create Job"}
       description="Confirm the role and employment terms, then choose how candidates should be interviewed."
       size="xl"
       onClose={onClose}
@@ -210,7 +209,7 @@ function OpeningForm({
       {inline && (
         <div className="recruitment-setup-header">
           <div>
-            <strong>{draft.title || "Create job opening"}</strong>
+            <strong>{draft.title || "Create Job"}</strong>
             <p>
               {profile
                 ? `${profile.name} v${profile.version}`
@@ -606,7 +605,7 @@ function SetupSurface({ children, footer }) {
 export default function RecruitmentPage({ auth }) {
   const [data, setData] = useState(null),
     [openingId, setOpeningId] = useState(null),
-    [tab, setTab] = useState("overview");
+    [tab, setTab] = useState("candidates");
   const [stage, setStage] = useState("all"),
     [page, setPage] = useState(1),
     [includeQa, setIncludeQa] = useState(false),
@@ -718,7 +717,7 @@ export default function RecruitmentPage({ auth }) {
     setOfferingFilter("all");
     setOpeningId(id);
     setSelectedOpening(id || "");
-    setTab("overview");
+    setTab("candidates");
     setStage("all");
     setPage(1);
   }
@@ -809,11 +808,6 @@ export default function RecruitmentPage({ auth }) {
     opening?.employer_name ||
     data?.legal_entities.find((e) => e.id === opening?.legal_entity_id)?.name ||
     "Employer";
-  const position =
-    opening?.position_name ||
-    data?.positions.find((p) => p.id === opening?.position_id)?.name ||
-    "Position";
-  const requirements = opening?.config.opening_requirements || {};
   const visibleOpenings = (data?.openings || []).filter(
     (o) =>
       (includeClosed || o.status !== "closed") &&
@@ -868,15 +862,12 @@ export default function RecruitmentPage({ auth }) {
   if (formOpening !== undefined && data)
     return (
       <div className="recruitment-workspace">
-        <button
-          type="button"
-          className="btn-ghost justify-self-start"
-          onClick={() => setFormOpening(undefined)}
-        >
-          ← Recruitment
-        </button>
         <PageHeader
-          title={formOpening ? "Edit job opening" : "Create job opening"}
+          breadcrumbs={[
+            { label: "Recruitment", onClick: () => setFormOpening(undefined) },
+            { label: formOpening ? "Edit job" : "Create Job" },
+          ]}
+          title={formOpening ? "Edit job opening" : "Create Job"}
           description="Set up the role, employment terms and interview configuration."
         />
         <OpeningForm
@@ -890,17 +881,37 @@ export default function RecruitmentPage({ auth }) {
     );
   return (
     <div className="recruitment-workspace">
-      {openingId && (
-        <button
-          type="button"
-          className="text-sm text-text-secondary hover:text-primary justify-self-start"
-          onClick={() => selectOpening(null)}
-        >
-          ← Recruitment
-        </button>
-      )}
       <PageHeader
-        section="People"
+        breadcrumbs={
+          opening
+            ? [
+                { label: "Recruitment", onClick: () => selectOpening(null) },
+                { label: opening.title },
+              ]
+            : undefined
+        }
+        metadata={
+          opening ? (
+            <>
+              <RecruitmentState value={opening.status} />
+              <span>
+                {(opening.config.employment_offerings || [])
+                  .map(
+                    (o) =>
+                      preferenceLabels[o.employment_type] ||
+                      o.employment_type?.replaceAll("_", " "),
+                  )
+                  .join(" + ")}
+              </span>
+              <span>
+                {profile
+                  ? `${profile.name} v${profile.version}`
+                  : "Opening interview plan"}
+              </span>
+            </>
+          ) : null
+        }
+        section={opening ? undefined : "People"}
         title={opening?.title || "Recruitment"}
         description={
           opening
@@ -938,7 +949,7 @@ export default function RecruitmentPage({ auth }) {
                 openingId ? setApplicationForm(true) : setFormOpening(null)
               }
             >
-              {openingId ? "Add candidate" : "Create job opening"}
+              {openingId ? "Add candidate" : "Create Job"}
             </button>
           ) : null
         }
@@ -1016,9 +1027,9 @@ export default function RecruitmentPage({ auth }) {
                   value={statusFilter}
                   onChange={(value) => setStatusFilter(value)}
                   ariaLabel="Opening status"
-                  placeholder="All statuses"
+                  placeholder="All"
                   options={[
-                    { value: "all", label: "All statuses" },
+                    { value: "all", label: "All" },
                     { value: "open", label: "Open" },
                     { value: "draft", label: "Draft" },
                     ...(includeClosed
@@ -1031,10 +1042,10 @@ export default function RecruitmentPage({ auth }) {
                   value={workplaceFilter}
                   onChange={(value) => setWorkplaceFilter(value)}
                   ariaLabel="Workplace filter"
-                  placeholder="All workplaces"
+                  placeholder="All"
                   searchable
                   options={[
-                    { value: "all", label: "All workplaces" },
+                    { value: "all", label: "All" },
                     ...[...new Set(data.openings.map((o) => o.workplace))].map(
                       (w) => ({ value: w, label: w }),
                     ),
@@ -1045,10 +1056,10 @@ export default function RecruitmentPage({ auth }) {
                   value={positionFilter}
                   onChange={(value) => setPositionFilter(value)}
                   ariaLabel="Position filter"
-                  placeholder="All positions"
+                  placeholder="All"
                   searchable
                   options={[
-                    { value: "all", label: "All positions" },
+                    { value: "all", label: "All" },
                     ...data.positions
                       .filter((p) =>
                         data.openings.some((o) => o.position_id === p.id),
@@ -1100,6 +1111,7 @@ export default function RecruitmentPage({ auth }) {
                 density="compact"
                 minWidth={700}
                 rows={visibleOpenings}
+                onRowClick={(o) => selectOpening(o.id)}
                 getRowKey={(o) => o.id}
                 tableClassName="recruitment-jobs-table"
                 columns={[
@@ -1276,182 +1288,38 @@ export default function RecruitmentPage({ auth }) {
         </RecruitmentEmpty>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <AdminSegmentedControl
-              value={tab}
-              onChange={setTab}
-              label="Opening workspace"
-              options={[
-                { value: "overview", label: "Overview" },
-                { value: "candidates", label: "Candidates" },
-                { value: "setup", label: "Setup" },
-              ]}
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              {(opening.config.employment_offerings || []).map((o) => (
-                <span key={o.id} className="text-xs text-text-secondary">
-                  {o.employment_type?.replaceAll("_", " ")}
-                </span>
-              ))}
-              <RecruitmentState value={opening.status} />
-              <span className="text-xs text-text-secondary">
-                {profile
-                  ? `${profile.name} v${profile.version}`
-                  : "Opening interview plan"}
-              </span>
-            </div>
-          </div>
-          {tab === "overview" && (
+          <AdminSegmentedControl
+            value={tab}
+            onChange={setTab}
+            label="Opening workspace"
+            options={[
+              { value: "candidates", label: "Candidates" },
+              { value: "setup", label: "Setup" },
+            ]}
+          />
+          {tab === "candidates" && (
             <>
-              <RecruitmentMetrics
+              <AdminSummaryGrid
+                variant="compact"
+                ariaLabel="Candidate pipeline"
                 items={pipeline.map((item) => ({
-                  ...item,
-                  value: opening.pipeline[item.key],
-                  attention: item.key === "needs_review",
-                  onSelect: () =>
+                  key: item.key,
+                  label: item.label,
+                  value: opening.pipeline[item.key] ?? 0,
+                  ariaLabel: `${item.label}: ${opening.pipeline[item.key] ?? 0}. View candidates`,
+                  active: stage === (item.key === "total" ? "all" : item.key),
+                  tone:
+                    item.key === "needs_review" &&
+                    opening.pipeline[item.key] > 0
+                      ? "warning"
+                      : "neutral",
+                  onClick: () =>
                     attention(
                       item.key === "total" ? "all" : item.key,
                       opening.id,
                     ),
                 }))}
               />
-              <div className="recruitment-opening-dashboard">
-                <div className="grid gap-4">
-                  <RecruitmentSection
-                    title="Needs attention"
-                    description="Next actions for this job"
-                  >
-                    {opening.pipeline.needs_review > 0 && (
-                      <button
-                        className="recruitment-attention-row"
-                        onClick={() => attention("needs_review")}
-                      >
-                        <span>
-                          Interviews ready for review
-                          <small>
-                            {opening.pipeline.needs_review} candidates awaiting
-                            a manager decision
-                          </small>
-                        </span>
-                        <RecruitmentState value="needs_review">
-                          Review →
-                        </RecruitmentState>
-                      </button>
-                    )}
-                    {opening.pipeline.invited > 0 && (
-                      <button
-                        className="recruitment-attention-row"
-                        onClick={() => attention("invited")}
-                      >
-                        <span>
-                          Invitation follow-up
-                          <small>
-                            {opening.pipeline.invited} invited candidates
-                          </small>
-                        </span>
-                        <span>View →</span>
-                      </button>
-                    )}
-                    {data.applications
-                      .filter(
-                        (row) =>
-                          row.attempt_status === "interrupted" ||
-                          ["partial", "invalid", "failed"].includes(
-                            row.recording_state,
-                          ),
-                      )
-                      .map((row) => (
-                        <button
-                          key={row.id}
-                          className="recruitment-attention-row"
-                          onClick={() => setReviewApplication(row)}
-                        >
-                          <span>
-                            {row.name}
-                            <small>
-                              {row.attempt_status === "interrupted"
-                                ? "Interview interrupted"
-                                : `Recording ${row.recording_state}`}
-                            </small>
-                          </span>
-                          <span>Check →</span>
-                        </button>
-                      ))}
-                    {!opening.pipeline.needs_review &&
-                      !opening.pipeline.invited &&
-                      !data.applications.some(
-                        (row) =>
-                          row.attempt_status === "interrupted" ||
-                          ["partial", "invalid", "failed"].includes(
-                            row.recording_state,
-                          ),
-                      ) && (
-                        <RecruitmentEmpty>
-                          No interviews or invitations need attention.
-                        </RecruitmentEmpty>
-                      )}
-                  </RecruitmentSection>
-                  {data.activity.length > 0 && (
-                    <RecruitmentSection
-                      title="Recent activity"
-                      className="recruitment-secondary"
-                    >
-                      {activity}
-                    </RecruitmentSection>
-                  )}
-                </div>
-                <RecruitmentSection
-                  title="Job at a glance"
-                  action={
-                    canManage && (
-                      <button
-                        className="btn-ghost"
-                        onClick={() => setTab("setup")}
-                      >
-                        Edit setup →
-                      </button>
-                    )
-                  }
-                >
-                  <dl className="recruitment-facts">
-                    <dt>Position</dt>
-                    <dd>{position}</dd>
-                    <dt>Workplace</dt>
-                    <dd>{opening.workplace}</dd>
-                    <dt>Employer</dt>
-                    <dd>{employer}</dd>
-                  </dl>
-                  <div className="recruitment-glance-offerings">
-                    {(opening.config.employment_offerings || []).map((o) => (
-                      <div key={o.id}>
-                        <strong>
-                          {o.employment_type?.replaceAll("_", " ")}
-                        </strong>
-                        <p>
-                          {o.amount_min != null
-                            ? `${o.currency || "MYR"} ${Number(o.amount_min).toLocaleString("en-MY")}${o.amount_max != null ? `–${Number(o.amount_max).toLocaleString("en-MY")}` : ""} / ${o.compensation_type === "hourly" ? "hour" : "month"}`
-                            : "Compensation unconfirmed"}
-                        </p>
-                        {o.schedule && <p>{o.schedule}</p>}
-                      </div>
-                    ))}
-                  </div>
-                  {opening.config.job_context?.operating_start && (
-                    <p className="text-sm text-text-secondary my-3">
-                      Operating hours:{" "}
-                      {opening.config.job_context.operating_start}
-                      {opening.config.job_context.operating_end
-                        ? `–${opening.config.job_context.operating_end}`
-                        : ""}
-                    </p>
-                  )}
-                  <OpeningPlan opening={opening} profile={profile} />
-                </RecruitmentSection>
-              </div>
-            </>
-          )}
-          {tab === "candidates" && (
-            <>
               <AdminFilterToolbar
                 compact
                 denseFields
@@ -1489,7 +1357,7 @@ export default function RecruitmentPage({ auth }) {
                       }}
                       ariaLabel="Offering filter"
                       options={[
-                        { value: "all", label: "All offerings" },
+                        { value: "all", label: "All" },
                         ...Object.entries(preferenceLabels).map(
                           ([value, label]) => ({ value, label }),
                         ),
@@ -1799,7 +1667,7 @@ export default function RecruitmentPage({ auth }) {
                 inline
                 onViewProfile={() => setProfilesOpen(true)}
                 onSave={(o) => mutate(() => recruitmentService.saveOpening(o))}
-                onClose={() => setTab("overview")}
+                onClose={() => setTab("candidates")}
               />
             ) : (
               <RecruitmentSection title="Interview setup">

@@ -13,6 +13,7 @@ export default function MetricCard({
   insight,
   onClick,
   active = false,
+  ariaLabel,
   size = "standard",
   emphasis = "normal",
   presentation = "default",
@@ -58,6 +59,8 @@ export default function MetricCard({
       type={onClick ? "button" : undefined}
       title={title}
       onClick={onClick}
+      aria-label={ariaLabel}
+      aria-pressed={onClick ? active : undefined}
       data-admin-summary-card={isSummary ? "true" : undefined}
     >
       <div className="flex items-start justify-between gap-1.5">

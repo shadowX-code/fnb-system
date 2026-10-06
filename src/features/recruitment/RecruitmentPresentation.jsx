@@ -45,35 +45,6 @@ export function RecruitmentState({ value, kind = "lifecycle", children }) {
     </Badge>
   );
 }
-export function RecruitmentMetrics({ items }) {
-  const Container = items.some((item) => item.onSelect) ? "div" : "dl";
-  return (
-    <Container className="recruitment-metrics">
-      {items.map(({ key, label, value, attention, onSelect }) => (
-        <div
-          key={key || label}
-          className={attention && value > 0 ? "is-attention" : ""}
-        >
-          {onSelect ? (
-            <button
-              className="recruitment-metric-action"
-              onClick={onSelect}
-              aria-label={`${label}: ${value ?? 0}. View candidates`}
-            >
-              <span>{label}</span>
-              <strong>{value ?? 0}</strong>
-            </button>
-          ) : (
-            <>
-              <dt>{label}</dt>
-              <dd>{value ?? 0}</dd>
-            </>
-          )}
-        </div>
-      ))}
-    </Container>
-  );
-}
 export function RecruitmentSection({
   title,
   description,

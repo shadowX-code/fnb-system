@@ -121,7 +121,7 @@ async function enter() {
   fireEvent.click(
     screen.getByRole("button", { name: /^Open opening: Service Crew/ }),
   );
-  await screen.findByRole("tab", { name: "Overview" });
+  await screen.findByRole("tab", { name: "Candidates" });
 }
 describe("opening-centred Recruitment workspace", () => {
   it("has one opening workflow, no duplicate Interviews tab or acceptance banner", async () => {
@@ -130,7 +130,7 @@ describe("opening-centred Recruitment workspace", () => {
     expect(screen.queryByText(/Real-device acceptance/)).toBeNull();
     expect(screen.getByRole("tab", { name: "Candidates" })).toBeTruthy();
     fireEvent.click(
-      screen.getByRole("button", { name: /^Interviews ready for review/ }),
+      screen.getByRole("button", { name: /^Needs review:.*View candidates$/ }),
     );
     await waitFor(() =>
       expect(qa.workspace).toHaveBeenLastCalledWith({
@@ -206,11 +206,11 @@ describe("opening-centred Recruitment workspace", () => {
   it("hides management controls from view-only readers", async () => {
     render(<RecruitmentPage auth={{ hasPermission: () => false }} />);
     await screen.findByRole("heading", { name: "Open jobs" });
-    expect(
-      screen.queryByRole("button", { name: "Create job opening" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create Job" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Interview Profiles" }));
-    fireEvent.click(screen.getByRole("button", { name: "View profile" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "View Service Crew profile" }),
+    );
     expect(
       screen.queryByRole("button", { name: "Prepare next version" }),
     ).toBeNull();
@@ -219,7 +219,9 @@ describe("opening-centred Recruitment workspace", () => {
     render(<RecruitmentPage auth={auth} />);
     await screen.findByRole("heading", { name: "Open jobs" });
     fireEvent.click(screen.getByRole("button", { name: "Interview Profiles" }));
-    fireEvent.click(screen.getByRole("button", { name: "View profile" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "View Service Crew profile" }),
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "Prepare next version" }),
     );
@@ -451,11 +453,9 @@ it("uses server search and offering filters before pagination, with quiet normal
 it("creates a job in a workspace with explicit draft/open actions through the existing authority", async () => {
   render(<RecruitmentPage auth={auth} />);
   await screen.findByRole("heading", { name: "Open jobs" });
-  fireEvent.click(screen.getByRole("button", { name: "Create job opening" }));
+  fireEvent.click(screen.getByRole("button", { name: "Create Job" }));
   expect(screen.queryByRole("dialog")).toBeNull();
-  expect(
-    screen.getByRole("heading", { name: "Create job opening" }),
-  ).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Create Job" })).toBeTruthy();
   expect(screen.getByText("Job / Workplace Information")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Save draft" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Open job" })).toBeTruthy();
@@ -468,7 +468,7 @@ it("creates a job in a workspace with explicit draft/open actions through the ex
       expect.objectContaining({ title: "Test Crew", status: "draft" }),
     ),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Create job opening" }));
+  fireEvent.click(screen.getByRole("button", { name: "Create Job" }));
   fireEvent.change(screen.getByLabelText(/Job-facing title/), {
     target: { value: "Open Crew" },
   });
@@ -491,4 +491,45 @@ it("uses four shared summary cards and puts canonical filters outside operationa
   ).toBeNull();
   expect(screen.getByRole("table")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Reconnect AI" })).toBeNull();
+});
+
+it("enters Jobs through the whole row, defaults to Candidates, and nested Review retains its filter", async () => {
+  render(<RecruitmentPage auth={auth} />);
+  await screen.findByRole("heading", { name: "Open jobs" });
+  fireEvent.click(screen.getByRole("cell", { name: /^Management/ }));
+  await screen.findByRole("region", { name: "Candidate pipeline" });
+  expect(
+    screen
+      .getByRole("tab", { name: "Candidates" })
+      .getAttribute("aria-selected"),
+  ).toBe("true");
+  expect(screen.queryByRole("tab", { name: "Overview" })).toBeNull();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Recruitment", exact: true }),
+  );
+  await screen.findByRole("heading", { name: "Open jobs" });
+  fireEvent.click(screen.getByRole("button", { name: /1 Review/ }));
+  await waitFor(() =>
+    expect(qa.workspace).toHaveBeenLastCalledWith(
+      expect.objectContaining({ openingId: "opening1", stage: "needs_review" }),
+    ),
+  );
+});
+it("keeps All options contextual and exposes selected status cards accessibly", async () => {
+  await enter();
+  const all = screen.getByRole("button", {
+    name: /^Candidates:.*View candidates$/,
+  });
+  expect(all.getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(
+    screen.getByRole("button", { name: /^Invited:.*View candidates$/ }),
+  );
+  expect(all.getAttribute("aria-pressed")).toBe("false");
+  expect(
+    screen
+      .getByRole("button", { name: /^Invited:.*View candidates$/ })
+      .getAttribute("aria-pressed"),
+  ).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: "Offering filter" }));
+  expect(screen.getByRole("option", { name: "All", exact: true })).toBeTruthy();
 });
