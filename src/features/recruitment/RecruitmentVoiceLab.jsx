@@ -1,3 +1,4 @@
+import GeneratedMalaysianVoiceExperiment from "./GeneratedMalaysianVoiceExperiment.jsx";
 import { useEffect, useRef, useState } from "react";
 import PageHeader from "../../components/layout/PageHeader.jsx";
 import AdminSegmentedControl from "../../components/forms/AdminSegmentedControl.jsx";
@@ -186,6 +187,7 @@ export default function RecruitmentVoiceLab({ onClose }) {
           );
         })}
       </RecruitmentSection>
+      <GeneratedMalaysianVoiceExperiment />
       <audio
         ref={audio}
         controls

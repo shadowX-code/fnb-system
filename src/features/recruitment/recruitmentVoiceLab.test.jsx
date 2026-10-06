@@ -2,6 +2,7 @@ import {afterEach, beforeEach, expect, it, vi} from "vitest";
 import {cleanup, fireEvent, render, screen, waitFor} from "@testing-library/react";
 const qa = vi.hoisted(() => ({invoke: vi.fn()}));
 vi.mock("../../lib/supabase.ts", () => ({supabase: {functions: qa}}));
+vi.mock("./GeneratedMalaysianVoiceExperiment.jsx", () => ({default: () => null}));
 import RecruitmentVoiceLab from "./RecruitmentVoiceLab.jsx";
 beforeEach(() => {
   qa.invoke.mockReset();
