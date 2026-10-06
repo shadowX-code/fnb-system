@@ -27,6 +27,23 @@ it('does not submit a saved decision again when payroll refresh fails',async()=>
   expect(mocks.decideTime).toHaveBeenCalledTimes(1);
   expect(mocks.decideTime).toHaveBeenCalledWith(expect.objectContaining({id:'time',approvedMinutes:390,reason:'Reviewed clock evidence'}));
 });
+it('keeps an unsupported saved response on the same date without duplicating the decision', async () => {
+  mocks.decideTime.mockClear().mockResolvedValue({id:'saved'});
+  const close=vi.fn();
+  const readBack=vi.fn().mockRejectedValue(new Error('Unsupported decision response. Do not submit another decision; return to Employee Review to reload the saved evidence.'));
+  render(<PayrollPayableTimeReview employee={{...employee,time:[row,{...row,id:'next',work_date:'2026-09-26'}]}} runId="run" month="2026-09" canManage onClose={close} onDecisionSaved={readBack} />);
+  fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
+  fireEvent.change(screen.getByRole('textbox',{name:/Decision reason/}),{target:{value:'Reviewed evidence'}});
+  fireEvent.click(screen.getByRole('button',{name:'Save & Next'}));
+  await screen.findByText(/Unsupported decision response/);
+  expect(screen.getByText('1 of 2 exceptions')).toBeTruthy();
+  expect(close).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button',{name:'Refresh Review'}));
+  await waitFor(()=>expect(readBack).toHaveBeenCalledTimes(2));
+  expect(mocks.decideTime).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button',{name:'Back to Employee Review'}));
+  expect(close).toHaveBeenCalledTimes(1);
+});
 it('clean days and read-only access do not offer a decision',()=>{
   render(<PayrollPayableTimeReview employee={{...employee,time:[{...row,status:'approved_auto',approved_minutes:390,issue_codes:[]}]}} month="2026-09" canManage={false} onClose={()=>{}} />);
   expect(screen.getByText('Resolved automatically')).toBeTruthy();

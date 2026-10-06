@@ -183,9 +183,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       runRead?.invalidateEmployee?.(selected.id);
       return updated.filter(row => row.employee_id === selected.id);
     }
-    // Compatibility with an older server; never advance without read-back.
-    const time = await payrollService.readTime(entityId, `${month}-01`, periodEnd(month));
-    return time.filter(row => row.employee_id === selected.id);
+    throw new Error('Unsupported decision response. Do not submit another decision; return to Employee Review to reload the saved evidence.');
   };
   const openTimeReview = () => { runRead?.setTimeReviewActive?.(true); setReviewHours(true); };
   const closeTimeReview = () => {

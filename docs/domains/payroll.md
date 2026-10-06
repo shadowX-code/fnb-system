@@ -1,27 +1,12 @@
 # Payroll
 
-## Company paid-holiday work benefit
-
-Company Paid Holiday selection, confirmed work and company benefit are separate
-authorities. The annual published policy supplies applicability; published working
-roster, complete Attendance and current approved PH Payable Time supply work evidence.
-`payroll_ph_work_project` / scoped `payroll_ph_work_read` are side-effect-free.
-An effective Legal-Entity company benefit policy recommends Additional Pay or
-Replacement Leave. No statutory baseline/premium is inferred from this policy.
-
-`payroll_ph_work_confirm` locks the Draft/Correction Run and employee Leave scope,
-rechecks the source fingerprint, appends a request-bound decision, reconciles the
-source-linked Leave grant and recalculates only that employee in one transaction.
-The company policy's historical Additional Pay recommendation uses Monthly Basic
-/ 26 × one benefit day or Hourly Rate × approved hours. This is a company benefit,
-not the statutory Malaysia PH entitlement.
-
 ## Malaysia statutory public-holiday pricing
 
 The canonical chain is published paid calendar → People employment and reviewed
-legal coverage/eligibility → current approved PH time → official statutory PH pack
-→ explicitly applicable company benefit → canonical priced earnings. No employment,
-holiday eligibility, normal hours or prior wage evidence is backfilled.
+legal coverage/eligibility → current approved PH time → one confirmed PH Pay
+Treatment → canonical priced earnings. Statutory pricing and Company PH Allowance
+retain their respective authorities; Company is not a separate payment layer.
+No employment, holiday eligibility, normal hours or prior wage evidence is backfilled.
 
 ### Operational PH Pay Treatment
 
@@ -170,6 +155,17 @@ Replacement Leave belongs to canonical Crew Leave, not a Payroll balance. Draft
 Pay ↔ Leave changes append decisions and signed Leave adjustments. A used source
 grant or insufficient unreserved balance blocks switching to Pay. No source
 Holiday, published roster, Attendance or historical decision is rewritten.
+
+### Retained historical company PH authorities
+
+Historical `additional_pay` and `replacement_leave` policy/decision evidence remains
+unchanged. The retained `payroll_ph_work_project` feeds current PH context and uses
+the shared Company PH Allowance calculator. `payroll_ph_work_read` and
+`payroll_ph_work_confirm` remain existing SQL authorities for historical
+compatibility; the normal client no longer mounts their separate occurrence editor.
+Their source fingerprints, request-bound audit lineage, source-linked Leave grants
+and frozen snapshots are not removed or converted. New operational occurrence
+reviews use the unified PH Pay Treatment workflow above.
 
 ## Operational draft and finalized-record presentation
 
@@ -1203,6 +1199,12 @@ separate non-blocking bank warning and an action footer explaining disabled stat
 The header financial summary yields to that panel on Finalize. Payslip actions
 retain canonical secondary-button typography and a single-line label alongside
 the icon-only Employee View action.
+
+The current daily decision response includes the authoritative row on both a fresh
+save and an idempotent retry. Unsupported responses stop queue advancement and
+instruct the reviewer to return to Employee Review for canonical read-back; the
+client never substitutes a whole-month read or submits a new decision to compensate.
+Lost-response request verification/replay remains in the shared save service.
 
 Prepare and Review retain the same employee surface and shared Run evidence across
 stage changes. Finalization Readiness consumes that same read, separates employee

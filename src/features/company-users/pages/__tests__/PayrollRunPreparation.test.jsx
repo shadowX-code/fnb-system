@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-const mocks = vi.hoisted(() => ({ readPhWork: vi.fn(), readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), saveDraftAdjustment: vi.fn(), decideTime: vi.fn() }));
+const mocks = vi.hoisted(() => ({ readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), saveDraftAdjustment: vi.fn(), decideTime: vi.fn() }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: mocks }));
 vi.mock("../../../../services/employeeService.js", () => ({ employeeService: { readBankInfo: async ids => ids.map(id => ({ id, bank_name: "" })) } }));
 import PayrollRunEmployeesPanel from "../PayrollRunEmployeesPanel.jsx";
 afterEach(cleanup);
 beforeEach(() => {
-  mocks.readPhWork.mockResolvedValue([]);
   mocks.readTime.mockResolvedValue([]);
   mocks.readCalculation.mockResolvedValue({ results: [], adjustments: [{ id: "line", employee_id: "employee", component_name: "Deduction", component_type: "deduction", amount: 50, reason: "Approved period adjustment" }] });
   mocks.readStatutory.mockResolvedValue({ results: [] });
@@ -45,7 +44,7 @@ it("resolves period-effective categories and PCB N/A beside current amounts", as
     pcb:{state:"not_applicable",applicable:false},
   }},projection:{status:"ready",inputs:{compensation_start:{id:"pay",pay_basis:"monthly",basic_salary:2000,effective_from:"2026-01-01"}}}}]});
   render(<PayrollRunEmployeesPanel {...props} />);
-  await screen.findByText("Ready · EPF / SOCSO / EIS");
+  await screen.findByText("EPF / SOCSO / EIS · PCB N/A");
   fireEvent.click(screen.getByRole("button",{name:"Review",exact:true}));
   expect(screen.getByText("Malaysian · under 60")).toBeTruthy();
   expect(screen.getByText("Act 4 · First Category")).toBeTruthy();
