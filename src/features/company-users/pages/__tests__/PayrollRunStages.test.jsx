@@ -8,8 +8,8 @@ import { RunsTab } from "../PayrollPage.jsx";
 afterEach(()=>{cleanup();vi.resetAllMocks();});
 it("reuses run evidence and bank batch through Prepare, Review, Finalize and Resolve",async()=>{
  mocks.bank.mockResolvedValue([{id:'employee',bank_name:''}]);mocks.history.mockResolvedValue([]);
- const evidence={time:[],pcb:{results:[]},preparation:{results:[{employee_id:'employee',projection:{status:'ready'},statutory_setup:{complete:true}}]},
- calculation:{results:[{employee_id:'employee',status:'ready',gross_earnings:2000}],adjustments:[]},statutory:{results:[{employee_id:'employee',status:'ready',net_pay:1800,total_employer_cost:2260,employer_statutory_cost:260,lines:[{employee_amount:200}]}]}};
+ const evidence={time:[],pcb:{results:[]},preparation:{results:[{employee_id:'employee',projection:{status:'ready'},statutory_setup:{complete:true,schemes:Object.fromEntries(['epf','socso','lindung','eis','pcb'].map(scheme=>[scheme,{state:'confirmed',applicable:true}]))}}]},
+ calculation:{results:[{employee_id:'employee',status:'ready',gross_earnings:2000}],adjustments:[]},statutory:{results:[{employee_id:'employee',status:'ready',net_pay:1696,non_statutory_deductions:10,total_employer_cost:2301,employer_statutory_cost:301,lines:[{scheme:'epf',employee_amount:220,employer_amount:260},{scheme:'socso',employee_amount:10,employer_amount:35},{scheme:'lindung',employee_amount:15,employer_amount:0},{scheme:'eis',employee_amount:4,employer_amount:6},{scheme:'pcb',employee_amount:45,employer_amount:0}]}]}};
  const props={data:{legal_entities:[{id:'entity',name:'QA'}],employees:[{id:'employee',name:'QA Employee'}],periods:[{legal_entity_id:'entity',period_start:'2026-09-01',runs:[{id:'run',status:'draft'}]}]},
  entityId:'entity',month:'2026-09',openRunId:'run',canManage:true,canFinalize:true,canEditEmployee:true,setStep:vi.fn(),runRead:{data:evidence,setTimeReviewActive:vi.fn()},readiness:{runId:'run',time:{ready:true},calculation:{ready:false,employees:1,employment_issue:'employment_history_unresolved',uncalculated:0,review_required:0,stale:0},statutory:{ready:true}}};
  const {rerender}=render(<RunsTab {...props} step={0}/>);
@@ -19,6 +19,13 @@ it("reuses run evidence and bank batch through Prepare, Review, Finalize and Res
  expect(screen.getByRole('button',{name:'View Payroll for QA Employee'})).toBeTruthy();
  expect(screen.queryByText('Loading monthly employee evidence…')).toBeNull();
  expect(screen.getAllByRole('columnheader').map(el=>el.textContent).slice(-3)).toEqual(['Bank','Status','Actions']);
+ expect(screen.getAllByRole('columnheader').map(el=>el.textContent).slice(4,9)).toEqual(['EPF','SOCSO','LINDUNG 24 Jam','EIS','PCB']);
+ const reviewRow=screen.getByRole('button',{name:'View Payroll for QA Employee'}).closest('tr');
+ const reviewCells=within(reviewRow).getAllByRole('cell');
+ expect(reviewCells[6].textContent).toMatch(/EE RM\s*15.00ER RM\s*0.00/);
+ expect(reviewCells[9].textContent).toMatch(/RM\s*304.00/);
+ expect(reviewCells[10].textContent).toMatch(/RM\s*1,696.00/);
+ expect(reviewCells[11].textContent).toMatch(/RM\s*2,301.00/);
  expect(screen.getByRole('button',{name:'Draft Payslip'}).querySelector('svg')).toBeNull();
  expect(screen.getByRole('button',{name:'Draft Payslip'}).classList.contains('whitespace-nowrap')).toBe(true);
  expect(within(screen.getByRole('region',{name:'Payroll Run Header'})).getByRole('navigation',{name:'Payroll Run stages'})).toBeTruthy();

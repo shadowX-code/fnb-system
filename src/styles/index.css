@@ -939,6 +939,10 @@
     line-height: var(--leading-body-ui);
   }
 
+  .admin-data-table[data-column-spacing="compact"] {
+    --admin-table-cell-inline: 0.625rem;
+  }
+
   .admin-data-table[data-density="compact"] {
     --admin-table-cell-block: 0.625rem;
     --admin-table-row-min-height: 3.25rem;

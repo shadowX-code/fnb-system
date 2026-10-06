@@ -18,7 +18,7 @@ import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "./Payro
 import PayrollPayslipAction from './PayrollPayslipAction.jsx';
 import RecordViewAction from "../../../components/ui/RecordViewAction.jsx";
 import { canonicalPathForRoute } from '../../../app/routeOwnership.js';
-import { statutoryName, statutoryReviewSummary } from "./payrollStatutoryLabels.js";
+import { statutorySchemes, statutoryName, statutoryReviewSummary } from "./payrollStatutoryLabels.js";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { payComponentIsConfigured, payrollEmployeeResult, payrollReviewRows, payrollIssueLabel, payrollStatutoryCell, payrollTimeNeedsReview, payrollConfirmedUnpaidEvidence } from "./payrollRunPresentation.js";
 
@@ -204,7 +204,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     { key: "basis", header: "Pay Basis", render: row => row.pay ? human(row.pay.pay_basis) : "—" },
     { key: "basic", header: "Basic / Hours", render: row => row.pay?.pay_basis === "monthly" ? money(row.pay.basic_salary) : <span>{row.calculation?.basic_or_hours || "—"}<small className="block text-text-secondary">{row.pay ? `${money(row.pay.hourly_rate)} / hour` : "Pay setup required"}</small></span> },
     { key: "gross", header: "Gross", align: "right", render: row => <span className="tabular-nums">{money(row.result.gross)}</span> },
-    ...["epf", "socso", "eis", "pcb"].map(scheme => ({key:scheme,header:scheme.toUpperCase(),align:"right",render:row=>statutoryCell(row,scheme)})),
+    ...statutorySchemes.map(scheme => ({key:scheme,header:scheme === "pcb" ? "PCB" : statutoryName(scheme),align:"right",render:row=>statutoryCell(row,scheme)})),
     { key: "deductions", header: "Deductions", align: "right", render: row => <span className="tabular-nums">{money(row.result.deductions)}</span> },
     { key: "net", header: "Net Pay", align: "right", render: row => <strong className="tabular-nums">{money(row.result.net)}</strong> },
     { key: "employer", header: "Employer Cost", align: "right", render: row => <span className="tabular-nums">{row.result.statutoryCurrent ? money(row.statutory.total_employer_cost) : 'Pending'}</span> },
@@ -221,7 +221,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     { key: "adjustments", header: "Adjustments", render: (row) => row.adjustments.length ? `${row.adjustments.length} adjustment${row.adjustments.length === 1 ? "" : "s"} · ${signedAdjustments(row.adjustments)}` : "None" },
     { key: "statutory", header: "Statutory", render: (row) => {
       const schemes = row.preparation?.statutory_setup?.schemes || {};
-      const issues = ["epf", "socso", "lindung", "eis", "pcb"].filter((scheme) =>
+      const issues = statutorySchemes.filter((scheme) =>
         !schemes[scheme] || !["confirmed", "not_applicable"].includes(schemes[scheme].state)
         || (scheme === "pcb" && schemes.pcb.applicable && !row.pcb?.confirmation));
       const applicable = ["epf", "socso", "lindung", "eis"].filter((scheme) => schemes[scheme]?.applicable).map((scheme) => statutoryName(scheme));
@@ -252,7 +252,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       {`${payrollIssueLabel(evidence.preparation.employment_issue)}. This open period cannot be finalized until verified People employment history is available.`}
     </p>}
     <Card>{!evidence && !error ? <p className="p-6 text-sm text-text-secondary">Loading monthly employee evidence…</p>
-      : visible.length ? <DataTable columns={columns} rows={visible} getRowKey={(row) => row.id} density="compact" onRowClick={(row) => setEmployeeId(row.id)} />
+      : visible.length ? <DataTable columns={columns} rows={visible} getRowKey={(row) => row.id} density="compact" columnSpacing={stage === "review" ? "compact" : "normal"} onRowClick={(row) => setEmployeeId(row.id)} />
         : <p className="p-6 text-sm text-text-secondary">{rows.length ? "No employees match these review filters." : evidence?.preparation?.employment_issue ? "Employment evidence is unresolved; no employee list is authoritative yet." : "No employees included in this payroll revision."}</p>}</Card>
     {selected && !reviewHours && !pcbDraft && !adjustment && !paySetup && <Modal title={selected.name} description={`${month} · Monthly Payroll review. Pay changes use effective-dated Payroll compensation history.`}
       size="xl" onClose={() => setEmployeeId("")} footer={<button className="btn-secondary" type="button" onClick={() => setEmployeeId("")}>Close</button>}>
@@ -289,7 +289,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <PayrollPhStatutory runId={run.id} employeeId={selected.id} canManage={active} onChanged={refresh} />
         <section className="border-t border-border pt-4"><div className="flex justify-between gap-3"><h4 className="text-base font-bold">Employee Deductions</h4>{active && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button"
           onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>
-          <div className="mt-2 divide-y divide-border">{["epf", "socso", "lindung", "eis", "pcb"].filter(scheme => active || scheme !== "lindung" || selected.statutory?.lines?.some(line => line.scheme === scheme)).map((scheme) => {
+          <div className="mt-2 divide-y divide-border">{statutorySchemes.filter(scheme => active || scheme !== "lindung" || selected.statutory?.lines?.some(line => line.scheme === scheme)).map((scheme) => {
             const line = selected.statutory?.lines?.find((item) => item.scheme === scheme);
             const setup = scheme === "lindung" && !active ? line && { ...line, state: line.applicable ? "confirmed" : "not_applicable", status: line.participation_status } : selected.preparation?.statutory_setup?.schemes?.[scheme];
             const notApplicable = setup?.applicable === false;
