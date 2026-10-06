@@ -21,7 +21,7 @@ it("reuses run evidence and bank batch through Prepare, Review, Finalize and Res
  expect(screen.getByRole('button',{name:'Draft Payslip'}).querySelector('svg')).toBeNull();
  rerender(<RunsTab {...props} step={2}/>);
  expect(screen.getByRole('heading',{name:'Finalization Readiness'})).toBeTruthy();expect(screen.getByRole('button',{name:'Finalize Payroll'}).disabled).toBe(true);
- fireEvent.click(screen.getByRole('button',{name:'Resolve Employment / Membership'}));expect(props.setStep).toHaveBeenCalledWith(0);
+ fireEvent.click(screen.getByRole('button',{name:'Resolve Employment History Required'}));expect(props.setStep).toHaveBeenCalledWith(0);
  rerender(<RunsTab {...props} step={0}/>);
  await screen.findByRole('button',{name:'View Time for QA Employee'});
  expect(mocks.bank).toHaveBeenCalledTimes(1);expect(mocks.history).not.toHaveBeenCalled();

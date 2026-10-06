@@ -10,8 +10,8 @@ it("keeps employee-ready membership-blocked runs disabled and resolves the ownin
  render(<Finalization run={{}} read={read} readiness={blocked} allReady={false} canFinalize onResolve={onResolve} onFinalize={onFinalize}/>);
  expect(screen.getByText("1 required item remaining")).toBeTruthy();
  expect(screen.getByRole("button",{name:"Finalize Payroll"}).disabled).toBe(true);
- fireEvent.click(screen.getByRole("button",{name:"Resolve Employment / Membership"})); expect(onResolve).toHaveBeenCalledWith(0);
- expect(onFinalize).not.toHaveBeenCalled(); expect(screen.getByText(/Employment assignment history unresolved/)).toBeTruthy();
+ fireEvent.click(screen.getByRole("button",{name:"Resolve Employment History Required"})); expect(onResolve).toHaveBeenCalledWith(0);
+ expect(onFinalize).not.toHaveBeenCalled(); expect(screen.getByText(/Historical employment is unverified/)).toBeTruthy();
 });
 it("bank warnings never grant or remove canonical finalization authority",()=>{
  const {rerender}=render(<Finalization run={{}} read={read} readiness={readiness} allReady canFinalize bankRead={{missingCount:1}}/>);
