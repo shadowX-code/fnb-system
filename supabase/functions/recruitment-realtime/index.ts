@@ -104,7 +104,7 @@ Deno.serve(async (request) => {
       service
         .from("recruitment_applications")
         .select(
-          "opening_title_snapshot,opening_description_snapshot,position_snapshot,workplace_snapshot",
+          "opening_title_snapshot,opening_description_snapshot,position_snapshot,workplace_snapshot,employment_preference",
         )
         .eq("id", attempt.application_id)
         .single(),
@@ -155,11 +155,14 @@ Deno.serve(async (request) => {
   const { data: role } = await service
     .from("recruitment_interview_attempts")
     .select(
-      "preferred_language,application:recruitment_applications(position_snapshot,workplace_snapshot),config:recruitment_interview_configs(job_facts,job_context,employment_offerings,opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition))",
+      "preferred_language,application:recruitment_applications(position_snapshot,workplace_snapshot,employment_preference),config:recruitment_interview_configs(job_facts,job_context,employment_offerings,opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition))",
     )
     .eq("id", context.attempt_id)
     .single();
   context.preferred_language = role?.preferred_language || "en";
+  if (!role?.application)
+    return json(request, { error: "Interview context unavailable." }, 503);
+  context.employment_preference = role.application.employment_preference;
   if (role?.application)
     context.opening = {
       ...context.opening,

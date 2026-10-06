@@ -22,6 +22,7 @@ export function continuationContext(
     job_facts: state.job_facts || config.job_facts || {},
     job_context: config.job_context || {},
     employment_offerings: config.employment_offerings || [],
+    employment_preference: opening.employment_preference || "unknown",
     current_findings: state.current_findings || [],
     generation: attempt.provider_generation,
     preferred_language: attempt.preferred_language,

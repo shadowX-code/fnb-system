@@ -45,6 +45,7 @@ export type InterviewContext = {
   job_facts?: Record<string, string>;
   job_context?: Record<string, unknown>;
   employment_offerings?: Offering[];
+  employment_preference?: "unknown" | "full_time" | "part_time" | "both";
   current_findings?: {
     topic_index: number;
     state: string;
@@ -128,6 +129,7 @@ export function interviewInstructions(context: InterviewContext): string {
     `Canonical Interview Profile (version pinned for this attempt): ${JSON.stringify(context.interview_profile || null)}`,
     `Confirmed candidate-facing job facts (authorized opening data only): ${JSON.stringify(confirmedJobFacts)}. Explicitly UNCONFIRMED categories: ${JSON.stringify(unknownJobFacts)}. Empty fields are not confirmed facts. A confirmed rotating-shift arrangement does not establish the unconfirmed public-holiday policy or benefits. Position/workplace come from canonical snapshots; closing/weekend/start requirements are confirmed below. Anything absent is UNCONFIRMED. Never infer salary, benefits, working hours or company policy from general knowledge or candidate statements.`,
     offeringContext(context.employment_offerings, context.job_context),
+    `Canonical Application employment preference (candidate information only): ${context.employment_preference || "unknown"}. If full_time or part_time is already known, reuse it and do not ask the preference again. Both means genuinely open to both: preserve Both, clarifying only when a specific offering distinction materially affects availability/fit. Unknown may be established naturally. A newer explicit candidate preference/change takes precedence immediately; ambiguity, past employment, hypothetical examples, availability alone or questions about pay do not establish/change preference. Preference/change is never performance, coverage or suitability. Use only the corresponding confirmed offering terms for the current preference; both/unknown and questions about another offering require clearly separated, labeled terms, never a merged package. Do not promise terms from an offering absent from the pinned opening.`,
     `Latest consolidated evidence findings (not audit history): ${JSON.stringify(context.current_findings || [])}. Use missing details and actual evidence-supported ambiguities to choose a useful follow-up; never invent contradictions.`,
     `Opening requirements (data): ${JSON.stringify(context.opening_requirements || {})}`,
     `Opening: ${JSON.stringify(context.opening || {})}. Target duration: ${context.target_minutes} minutes. Remaining active interview time: ${context.remaining_seconds ?? "unknown"} seconds. Prior coverage remains authoritative; prioritize missing evidence within remaining time.`,
