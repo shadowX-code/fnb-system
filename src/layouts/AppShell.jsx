@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Clock3, Download, Eye, EyeOff, Factory, FileText, FlaskConical, Gauge, KeyRound, LogOut, Menu, MessageSquareText, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShieldCheck, ShoppingCart, Sparkles, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Clock3, Download, Eye, EyeOff, Factory, FileText, FlaskConical, Gauge, KeyRound, LogOut, Link2, Menu, MessageSquareText, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShieldCheck, ShoppingCart, Sparkles, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import FloatingLayer from "../components/ui/FloatingLayer.jsx";
@@ -11,7 +11,7 @@ import { isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue } from 
 import { canAccessOutlet, hasPermission } from "../utils/accessControl.js";
 
 const iconMap = {
-  finance_overview: Gauge, finance_analysis: BarChart3, finance_costs: Wallet, finance_cash: Wallet, finance_planning: CalendarDays, finance_statements: FileText,
+  finance_data_sources: Link2, finance_overview: Gauge, finance_analysis: BarChart3, finance_costs: Wallet, finance_cash: Wallet, finance_planning: CalendarDays, finance_statements: FileText,
   "guest-ai-device-console": Bot,
   "guest-ai-overview": Sparkles,
   "guest-ai-devices": Bot,

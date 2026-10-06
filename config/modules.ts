@@ -144,6 +144,7 @@ export const workspaceSwitcherOptions: Array<{
 export const moduleSectionOrder = [
   "Overview",
   "Finance",
+  "Manage",
   "Sales",
   "Purchases",
   "Operations",
@@ -171,6 +172,7 @@ export const moduleRegistry: AppModule[] = [
   { id: "finance_costs", section: "Finance", label: "Costs", route: "/finance/costs", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
   { id: "finance_cash", section: "Finance", label: "Cash", route: "/finance/cash", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
   { id: "finance_planning", section: "Finance", label: "Planning", route: "/finance/planning", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
+  { id: "finance_data_sources", section: "Manage", label: "Data Sources", route: "/finance/data-sources", icon: "settings", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
   { id: "finance_statements", section: "Finance", label: "Statements", route: "/finance/statements", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
 
   {

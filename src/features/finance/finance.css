@@ -42,3 +42,46 @@
 .finance-flow-detail summary { cursor: pointer; width: fit-content; padding: 4px 0; }
 .finance-flow-detail p { padding-top: 6px; max-width: 65ch; }
 .finance-workspace summary:focus-visible { outline: 2px solid var(--theme-primary, #176b5b); outline-offset: 3px; }
+
+.finance-data-status { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 0; border-block: 1px solid var(--theme-border, #dce3e8); }
+.finance-data-status dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; flex: 1; }
+.finance-data-status dt, .finance-source-health dt { font-size: 12px; font-weight: 600; color: var(--text-secondary, #475569); }
+.finance-data-status dd { margin-top: 6px; font-size: 13px; }
+.finance-data-status span { display: block; margin-top: 4px; font-size: 12px; color: var(--text-secondary, #475569); }
+.finance-future { max-width: 65ch; padding: 18px 0 18px 20px; border-left: 2px solid var(--theme-border, #dce3e8); }
+.finance-future h2 { font-size: 16px; font-weight: 600; }
+.finance-future p { margin: 8px 0 16px; color: var(--text-secondary, #475569); font-size: 14px; line-height: 1.65; }
+.finance-source-health { padding: 22px 0; border-block: 1px solid var(--theme-border, #dce3e8); }
+.finance-source-health h2, .finance-source-panel h2 { font-size: 18px; font-weight: 600; }
+.finance-source-health dl { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 24px; margin-top: 20px; }
+.finance-source-health dd strong { display: block; margin-top: 8px; font-size: 14px; font-weight: 600; }
+.finance-source-health dd span { display: block; margin-top: 6px; font-size: 12px; color: var(--text-secondary, #475569); line-height: 1.6; }
+.finance-source-issues { margin-top: 20px; font-size: 13px; }
+.finance-source-issues summary { cursor: pointer; width: fit-content; }
+.finance-source-issues ul { list-style: disc; margin: 10px 0 0 20px; color: var(--text-secondary, #475569); line-height: 1.8; }
+.finance-source-panel { padding: 24px; border-radius: 12px; background: var(--surface, white); min-width: 0; }
+.finance-source-empty { padding: 20px 0; }
+.finance-source-empty h3, .finance-source-mapping h3, .finance-source-connection h3, .finance-source-subheading { font-size: 14px; font-weight: 600; }
+.finance-source-empty p, .finance-source-mapping p, .finance-source-note { font-size: 13px; color: var(--text-secondary, #475569); line-height: 1.7; max-width: 75ch; }
+.finance-source-empty p { margin-top: 6px; }
+.finance-source-facts { margin: 20px 0; }
+.finance-source-facts > div { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 24px; padding: 12px 0; border-bottom: 1px solid var(--theme-border, #dce3e8); font-size: 13px; }
+.finance-source-facts dt { font-weight: 600; }
+.finance-source-facts dd { color: var(--text-secondary, #475569); overflow-wrap: anywhere; }
+.finance-source-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.finance-source-connection { padding: 20px 0; }
+.finance-source-mapping { padding: 20px 0; border-bottom: 1px solid var(--theme-border, #dce3e8); }
+.finance-source-mapping p { margin-top: 6px; }
+.finance-source-mapping strong { display: block; margin-top: 12px; font-size: 13px; }
+.finance-source-table-wrap { overflow-x: auto; margin-top: 20px; }
+.finance-source-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+.finance-source-table th { font-weight: 600; color: var(--text-secondary, #475569); }
+.finance-source-table th, .finance-source-table td { padding: 12px; border-bottom: 1px solid var(--theme-border, #dce3e8); vertical-align: top; }
+@media (max-width: 1100px) { .finance-source-health dl { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .finance-data-status { flex-direction: column; align-items: stretch; gap: 16px; }
+  .finance-data-status dl { grid-template-columns: 1fr; gap: 16px; }
+  .finance-source-health dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .finance-source-panel { padding: 20px; }
+  .finance-source-facts > div { grid-template-columns: 1fr; gap: 6px; }
+}

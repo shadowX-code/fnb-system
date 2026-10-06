@@ -43,7 +43,7 @@ Do not force-push `main` or `dev` during routine integration or cleanup. Reconci
 FeedX currently exposes five workspaces:
 
 - Restaurant: operational financial input, purchasing, inventory, assets, people administration, and existing reporting.
-- Finance: financial statements, analysis, intelligence and future planning; Phase 1 reuses `reports.view` and existing Reporting outlet scope.
+- Finance: Overview, Analysis, Costs, Cash, Planning and Statements under Finance; Data Sources under secondary Manage owns read-only source administration at `/finance/data-sources`. Phase 1 reuses `reports.view` and existing Reporting outlet scope.
 - Crew: workforce, operations, learning, performance/reward, and localized Crew experiences.
 - Factory: production, warehouse, and factory-owned master data.
 - Guest AI: a bounded prototype module with minimal coupling to FeedX business domains.

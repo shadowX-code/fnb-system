@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, RefreshCw } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import PageHeader from '../../components/layout/PageHeader.jsx';
 import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
@@ -10,16 +10,31 @@ import { money, periodLabel } from '../reports/components/reportingFormatters.js
 import { navigateAdminRoute } from '../../app/routeOwnership.js';
 import { financeDemoEnabled, getFinanceProvider, readFinanceOverview } from './financeService.js';
 import { monthlyPeriod } from './foundation.js';
+import { overviewDataStatus } from './dataSources.js';
 import { metricRegistry } from './metrics.js';
 import './finance.css';
 
 const sectionLabels = { overview: 'Overview', analysis: 'Analysis', costs: 'Costs', cash: 'Cash', planning: 'Planning', statements: 'Statements' };
-const futureDescriptions = {
-  analysis: 'Profit drivers and outlet, product and category profitability will build on validated financial evidence.',
-  costs: 'COGS, Labour, Prime Cost and OPEX will share one classification and metric model.',
-  cash: 'Cash, payables, receivables and working capital require validated accounting balances.',
-  planning: 'Forecasts, Profit Levers, scenarios and capital allocation will carry separate planning provenance.',
+const sectionDescriptions = {
+  overview: 'Financial state, its sources, and how your profit is made.',
+  analysis: 'Understand what is driving growth and profitability.',
+  costs: 'Find where margin is being gained or lost.',
+  cash: 'Understand liquidity, commitments and working capital.',
+  planning: 'Model where the business is heading and what could change it.',
+  statements: 'Authoritative financial statements and supporting evidence.',
 };
+export function FinanceDataStatus({ dataset, loading, error }) {
+  const status = dataset ? overviewDataStatus(dataset) : null;
+  const freshness = status?.evidenceAt ? new Intl.DateTimeFormat('en-MY', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(status.evidenceAt)) : 'Unverified · source timestamp unavailable';
+  return <section className="finance-data-status" aria-label="Financial data status">
+    <dl>
+      <div><dt>Source</dt><dd>{status ? status.sourceLabel : loading ? 'Loading source evidence…' : 'Unavailable'}</dd>{status ? <span>{status.demo ? 'Development illustration · ' : ''}{status.semantics.map((semantic) => semantic[0] + semantic.slice(1).toLowerCase()).join(' / ') || 'Unavailable'}</span> : null}</div>
+      <div><dt>Source freshness</dt><dd>{status ? freshness : 'Unavailable'}</dd></div>
+      <div><dt>Completeness</dt><dd>{status ? status.completeness : error ? 'Unavailable' : 'Not assessed'}</dd>{status ? <span>{status.available} of {status.total} measures available · reconciliation unverified</span> : null}</div>
+    </dl>
+    <button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_data_sources')}>Data Sources <ArrowRight size={15} /></button>
+  </section>;
+}
 function currentMonth() {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
   return `${parts.find((p) => p.type === 'year').value}-${parts.find((p) => p.type === 'month').value}`;
@@ -85,7 +100,7 @@ export default function FinanceWorkspacePage({ section = 'overview', store = {},
   const [dataset, setDataset] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [refresh, setRefresh] = useState(0);
+  const [attempt, setAttempt] = useState(0);
   const outletOptions = [{ value: 'all', label: 'All authorized outlets' }, ...getAccessibleOutletOptions(auth, store.outlets ?? [], { includeAll: false })];
   useEffect(() => {
     if (!financeDemoEnabled || mode !== 'demo') return;
@@ -102,16 +117,17 @@ export default function FinanceWorkspacePage({ section = 'overview', store = {},
     const request = { scope: { kind: scope.kind, id: scope.id, ...(scope.legalEntityId ? { legalEntityId: scope.legalEntityId } : {}) }, period: monthlyPeriod(month), currency: 'MYR' };
     getFinanceProvider(mode).then((provider) => readFinanceOverview(provider, request, { allowDemo: financeDemoEnabled && mode === 'demo' })).then((result) => { if (active) setDataset(result); }).catch((failure) => { if (active) setError(failure.message || 'Finance is unavailable.'); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [mode, month, outletId, demoScope, demoOptions, section, refresh]);
+  }, [mode, month, outletId, demoScope, demoOptions, section, attempt]);
   return <div className="finance-workspace space-y-5">
-    <PageHeader section="Finance" title={sectionLabels[section]} description={section === 'overview' ? 'Financial state, its sources, and how your profit is made.' : 'Financial statements, analysis and future planning.'} />
+    <PageHeader section="Finance" title={sectionLabels[section]} description={sectionDescriptions[section]} />
     {section === 'overview' ? <>
-      <AdminFilterToolbar primaryActions={<button className="btn-secondary" type="button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={15} />Refresh</button>}>
+      <AdminFilterToolbar>
         {financeDemoEnabled ? <SelectField label="Evidence" value={mode} onChange={setMode} options={[{ value: 'operational', label: 'FeedX operational' }, { value: 'demo', label: 'Development demo' }]} /> : null}
         <SelectField label={mode === 'demo' ? 'Demo scope' : 'Outlet scope'} value={mode === 'demo' ? demoScope : outletId} onChange={mode === 'demo' ? setDemoScope : setOutletId} options={mode === 'demo' ? demoOptions : outletOptions} />
         <MonthPickerField label="Period" value={month} onChange={setMonth} />
       </AdminFilterToolbar>
-      <AsyncDataSurface loading={loading} error={error} hasData={Boolean(dataset)} isEmpty={!dataset} emptyTitle="Select financial evidence" emptyDescription="Choose a scope to review its financial state." onRetry={() => setRefresh((value) => value + 1)}>{dataset ? <FinanceOverview dataset={dataset} /> : null}</AsyncDataSurface>
-    </> : section === 'statements' ? <StatementsFoundation /> : <section className="finance-foundation"><span className="finance-label">Foundation established</span><h2>{sectionLabels[section]}</h2><p>{futureDescriptions[section]}</p><p>Available in a future phase, once its evidence and authority are validated.</p><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_overview')}>Review financial state <ArrowRight size={15} /></button></section>}
+      <FinanceDataStatus dataset={dataset} loading={loading} error={error} />
+      <AsyncDataSurface loading={loading} error={error} hasData={Boolean(dataset)} isEmpty={!dataset} emptyTitle="Select financial evidence" emptyDescription="Choose a scope to review its financial state." onRetry={() => setAttempt((value) => value + 1)}>{dataset ? <FinanceOverview dataset={dataset} /> : null}</AsyncDataSurface>
+    </> : section === 'statements' ? <StatementsFoundation /> : <section className="finance-future"><h2>Foundation established</h2><p>This workspace will become available once its financial evidence and authority are validated.</p><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_overview')}>Review financial state <ArrowRight size={15} /></button></section>}
   </div>;
 }

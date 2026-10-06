@@ -9,10 +9,12 @@ import { getSidebarSections } from '../../../../config/modules.ts';
 import { reportingService } from '../../../services/reportingService.js';
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it('registers Finance IA with existing Reporting permissions and canonical paths', () => {
-  const items = getSidebarSections('finance').flatMap((s) => s.items);
-  expect(items.map((i) => i.label)).toEqual(['Overview', 'Analysis', 'Costs', 'Cash', 'Planning', 'Statements']);
+  const sections = getSidebarSections('finance');
+  expect(sections.map((s) => s.label)).toEqual(['Finance', 'Manage']);
+  const items = sections.flatMap((s) => s.items);
+  expect(items.map((i) => i.label)).toEqual(['Overview', 'Analysis', 'Costs', 'Cash', 'Planning', 'Statements', 'Data Sources']);
   for (const item of items) {
-    expect(canonicalPathForRoute(item.id)).toBe(`/finance/${item.id.replace('finance_', '')}`);
+    expect(canonicalPathForRoute(item.id)).toBe(`/finance/${item.id.replace('finance_', '').replaceAll('_', '-')}`);
     expect(getAdminRouteDefinition(item.id).ownership).toMatchObject({ workspace: 'finance', permission: 'reports.view' });
   }
 });
@@ -36,4 +38,8 @@ it('shows unavailable accounting measures alongside operational reporting', asyn
   render(<FinanceWorkspacePage auth={{ hasPermission: () => true, isProtectedRole: true }} store={{ outlets: [] }} />);
   await waitFor(() => expect(screen.getByRole('heading', { name: 'A partial financial picture.' })).toBeTruthy());
   expect(screen.getAllByText('Unavailable · unavailable').length).toBeGreaterThan(0);
+  expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull();
+  expect(screen.getByRole('region', { name: 'Financial data status' }).textContent).toContain('source timestamp unavailable');
+  fireEvent.click(screen.getByRole('button', { name: 'Data Sources' }));
+  expect(window.location.pathname).toBe('/finance/data-sources');
 });

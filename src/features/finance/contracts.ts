@@ -29,3 +29,24 @@ export interface AccountingProvider {
   readOverview(request: FinanceRequest): Promise<FinanceDataset>;
   readStatement?(request: FinanceRequest & { kind: Statement['kind'] }): Promise<Statement | null>;
 }
+
+/** Read-only administration projections reuse canonical Phase 1 records. No credentials. */
+export type FinancialConnectionView = {
+  connection: Connection; providerLabel: string; legalEntityLabel: string;
+  state: 'connected' | 'disconnected' | 'deactivated' | 'error';
+  status: 'active' | 'historical'; sync: SyncState[]; evidenceAt?: string | null;
+};
+export type MappingReadiness = {
+  connectionId: Connection['id']; kind: Mapping['kind']; scope: Scope; scopeLabel: string; period: Period;
+  mapped: number; unresolved: number;
+};
+export type ReconciliationComparison = {
+  connectionId: Connection['id']; sourceLabel: string; metricId: MetricResult['id'];
+  scope: Scope; period: Period; currency: string; difference: number | null;
+  reconciliation: Reconciliation;
+};
+export type FinanceDataSources = {
+  connections: FinancialConnectionView[]; authorityPeriods: AuthorityPeriod[];
+  mappingReadiness: MappingReadiness[]; reconciliations: ReconciliationComparison[];
+  operationalSource: { providerId: string; label: string; capabilities: Record<Capability, CapabilityState> };
+};
