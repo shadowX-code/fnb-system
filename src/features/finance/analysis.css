@@ -108,3 +108,7 @@
   .finance-analysis-page .admin-segmented-control.finance-analysis-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; }
   .finance-analysis-actions button { min-width: 0; padding-inline: 4px; }
 }
+
+@media (max-width: 400px) {
+  .finance-performance-strip > div { flex-basis: 100%; }
+}
