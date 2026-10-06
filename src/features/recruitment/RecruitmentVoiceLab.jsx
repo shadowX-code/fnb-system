@@ -28,9 +28,11 @@ export default function RecruitmentVoiceLab({onClose}) {
       }
       if (operation.current !== controller) return;
       audio.current.src = url;
-      await audio.current.play();
+      let playbackTimer;
+      try { await Promise.race([audio.current.play(), new Promise((_, reject) => { playbackTimer = setTimeout(() => reject(new Error("Sample is ready, but playback did not start. Tap Replay to retry.")), 5000); })]); }
+      finally { clearTimeout(playbackTimer); }
     } catch (cause) {
-      if (operation.current === controller) setError(cause.name === "NotAllowedError" ? "Sample is ready. Tap Replay to listen." : controller.signal.aborted ? "Sample timed out. Tap Play to retry." : cause.message);
+      if (operation.current === controller) { audio.current?.pause(); setError(cause.name === "NotAllowedError" ? "Sample is ready. Tap Replay to listen." : controller.signal.aborted ? "Sample timed out. Tap Play to retry." : cause.message); }
     } finally { clearTimeout(timer); if (operation.current === controller) { operation.current = null; setBusy(""); } }
   }
   return <>

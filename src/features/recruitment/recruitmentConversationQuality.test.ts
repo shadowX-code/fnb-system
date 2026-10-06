@@ -10,13 +10,17 @@ describe("28-turn physical regression planner", () => {
     expect(interviewInstructions(legacy)).toContain('"topics":["Relevant Work Experience","Teamwork"]');
   });
   it("requires a grounded opening/self introduction, avoids coached Teamwork loops and retains unknown/Q&A/completion authority", () => {
-    const prompt = firstInterviewResponse(context());
+    const c = context(); c.job_facts = {employment_type: "Full-time", public_holidays: "", shift_arrangement: "Rotating shifts"};
+    const prompt = firstInterviewResponse(c);
     expect(prompt).toContain("Invite a brief self-introduction");
     expect(prompt).toContain("Happiness Kopitiam");
     expect(prompt).toContain("Normally clarify a vague answer once");
     expect(prompt).toContain("Never coach the candidate");
     expect(prompt).toContain("candidate Q&A is finished");
     expect(prompt).toContain("Anything absent is UNCONFIRMED");
+    expect(prompt).not.toContain('"public_holidays":""');
+    expect(prompt).toContain("Explicitly UNCONFIRMED categories");
+    expect(prompt).toContain("does not establish the unconfirmed public-holiday policy");
     expect(prompt).toContain("FeedX server controls completion");
   });
   it("keeps durable Cantonese context, switches explicit requests immediately and never replays the opening on recovery", () => {
