@@ -44,7 +44,7 @@ describe("Change Employment historical baseline", () => {
     fireEvent.click(confirm);
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
       employeeId: "employee", effectiveFrom: "2026-09-26", expectedRevisionId: null,
-      assignment: { employment_type: "part_time", employment_status: "active", position: "Service Crew", legal_entity_id: "employer", workplace: "JYMT Kopitiam" },
+      assignment: { employment_type: "part_time", employment_status: "active", position: "Service Crew", legal_entity_id: "employer", workplace: "JYMT Kopitiam", employment_jurisdiction: "" },
       reason: "Verified from joining records", evidenceReference: "HR record 26 Sep",
     })));
   });
@@ -56,4 +56,14 @@ describe("Change Employment historical baseline", () => {
     await screen.findByText(/Effective date cannot precede this employee’s Joined Date/);
     expect(screen.getByRole("button", { name: "Confirm Historical Employment" }).disabled).toBe(true);
   });
+});
+
+it("confirms jurisdiction through the existing complete employment correction command", async () => {
+ render(<EmployeeEmploymentTimelinePanel {...props} />);
+ fireEvent.click(screen.getByRole("button", { name: "Change Employment" }));
+ const control=await screen.findByLabelText("Employment Jurisdiction");
+ fireEvent.change(control,{target:{value:"peninsular_labuan"}});
+ fireEvent.change(screen.getByPlaceholderText("Why is this assignment changing?"),{target:{value:"Verified applicable employment law"}});
+ fireEvent.click(screen.getByRole("button",{name:"Confirm Employment Change"}));
+ await waitFor(()=>expect(save).toHaveBeenCalledWith(expect.objectContaining({expectedRevisionId:"baseline",assignment:expect.objectContaining({employment_jurisdiction:"peninsular_labuan",workplace:"JYMT Kopitiam"})})));
 });

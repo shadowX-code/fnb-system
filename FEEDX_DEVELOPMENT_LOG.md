@@ -805,3 +805,7 @@ Normal Company PH Allowance is centrally included for EPF/SOCSO/LINDUNG/EIS and 
 ## 2026-10-06 — Outlet employment-law coverage for Monthly pay
 
 Added append-only, explicitly effective-dated legal coverage to the Outlet/Workplace authority, with scoped Admin confirmation, evidence reference/reason, actor/time, retry identity and same-date correction lineage. Monthly calendar-day entitlement consumes dated coverage or existing dated state evidence; it no longer requires a particular historical state. Peninsular Malaysia/Labuan is supported, Sabah/Sarawak and unresolved scope remain guarded. No inferred backfill, state-specific PH change or finalized evidence rewrite. Disposable Staging contracts verify the Lee-style RM1,800 salary / RM60 unpaid absence, Leave parity, Hourly preservation and authority boundaries.
+
+## 2026-10-06 — Retire Outlet Law Coverage
+
+Removed Outlet coverage UI/services and dedicated database objects through a guarded forward migration. Legal scope now belongs to the existing audited People employment assignment/Change Employment command; Monthly entitlement reads only dated People jurisdiction. Existing history is unconfirmed, with no state/address backfill. Outlet state remains the PH location authority. Historical corrections preserve later revisions and finalized evidence.

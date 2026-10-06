@@ -5,13 +5,14 @@ do $$
 declare actor uuid:=payroll_admin_actor(); ent uuid; outlet uuid; emp uuid; profile uuid; run uuid;
  pub uuid; roster uuid; request uuid; leave_id uuid; employees uuid[]:='{}'; i int; day date;
  t payroll_payable_time_versions%rowtype; original jsonb; result jsonb; input jsonb; corrected jsonb;
- policy payroll_paid_holiday_policy_versions%rowtype; snapshot_hash text; leave_hash text; source jsonb; quote jsonb; comp uuid; period uuid; basis jsonb; groups jsonb; draft jsonb; final jsonb; before_versions jsonb; before_statutory jsonb; evidence jsonb; command_result jsonb; denied boolean; frozen_run uuid; law_id uuid; later_id uuid; corrected_id uuid; law_request uuid; prior_hash text; ph_hash text; hourly_before jsonb; state_outlet uuid;
+ policy payroll_paid_holiday_policy_versions%rowtype; snapshot_hash text; leave_hash text; source jsonb; quote jsonb; comp uuid; period uuid; basis jsonb; groups jsonb; draft jsonb; final jsonb; before_versions jsonb; before_statutory jsonb; evidence jsonb; command_result jsonb; denied boolean; frozen_run uuid; law_id uuid; later_id uuid; corrected_id uuid; law_request uuid; prior_hash text; ph_hash text; hourly_before jsonb; state_outlet uuid; v_scope text; v_prior_id uuid; original_assignment jsonb;
 begin
  select md5(coalesce(jsonb_agg(to_jsonb(s) order by to_jsonb(s)::text)::text,'')) into snapshot_hash from payroll_run_calculation_snapshots s;
  select md5(coalesce(jsonb_agg(to_jsonb(l) order by l.id)::text,'')) into leave_hash from crew_approved_leaves l;
  insert into legal_entities(legal_company_name,company_registration_no,registered_address,created_by_employee_id,updated_by_employee_id)
  values('QA rollback Payroll projection gaps','QA-'||gen_random_uuid(),'Staging disposable',actor,actor) returning id into ent;
  insert into outlets(name,code,state_code) values('QA rollback projection gaps','QA-'||substr(gen_random_uuid()::text,1,8),'MY-08') returning id into outlet;
+ insert into payroll_outlet_state_versions(outlet_id,state_code,effective_from,actor_employee_id) values(outlet,'MY-08','2026-09-01',actor);
  perform set_config('feedx.payroll_command','yes',true);
 
  insert into crew_leave_policies(outlet_id,leave_type,annual_days,balance_enforced,entitlement_method,proration_rule)
@@ -24,7 +25,7 @@ begin
   insert into employees(full_name,employee_code,legal_entity_id,workplace,position,employment_type,employment_status,joined_date,birthday)
   values('QA rollback projection gaps '||i,'QA-'||substr(gen_random_uuid()::text,1,8),ent,'QA rollback projection gaps','Service Crew','full_time','active','2026-09-01','1990-01-01') returning id into emp;
   employees:=array_append(employees,emp);
-  perform employee_employment_assignment_save(emp,'2026-09-01',jsonb_build_object('employment_type','full_time','employment_status','active','position','Service Crew','workplace','QA rollback projection gaps','legal_entity_id',ent),'QA verified employment',null,'QA rollback');
+  perform employee_employment_assignment_save(emp,'2026-09-01',jsonb_build_object('employment_type','full_time','employment_status','active','position','Service Crew','workplace','QA rollback projection gaps','legal_entity_id',ent,'employment_jurisdiction',case when i=2 then 'peninsular_labuan' else null end),'QA verified employment',null,'QA rollback');
   profile:=payroll_profile_create(emp,'2026-09-01',case when i=3 then 'hourly' else 'monthly' end,case when i=3 then 8 else 1800 end,'MYR','QA compensation',null,outlet,false,false,false,false);
   foreach day in array array['2026-09-01'::date,'2026-09-02'::date] loop
    insert into duty_roster_published_entries(publication_id,outlet_id,employee_id,roster_date,start_time,end_time,break_minutes,entry_type,outlet_name_snapshot,published_at)
@@ -69,90 +70,74 @@ begin
  assert draft->>'gross_earnings' is null and draft#>>'{earnings,0,label}'='Basic Salary' and (draft#>>'{earnings,0,amount}')::numeric=1800,'Draft partial evidence / pending Gross lost';
 
 
- -- Reproduce Lee's facts without copying any Production records.
+
+ -- No current address/state or existing dated State evidence proves People jurisdiction.
+ assert payroll_calculation_project(run,employees[1])->'issues' ? 'monthly_proration_jurisdiction_requires_review','Outlet state became a legal-scope fallback';
  select md5(coalesce(jsonb_agg(to_jsonb(v) order by v.id)::text,'')) into prior_hash from payroll_payable_time_versions v where employee_id=employees[1];
  select md5(coalesce(jsonb_agg(to_jsonb(v) order by v.id)::text,'')) into ph_hash from payroll_public_holidays v;
  hourly_before:=payroll_calculation_project(run,employees[3]);
- law_request:=gen_random_uuid();
+ original_assignment:=to_jsonb(employee_employment_assignment_at(employees[1],'2026-09-01'));
+ input:=original_assignment||jsonb_build_object('employment_jurisdiction','unresolved');
  perform set_config('role','authenticated',true);
- later_id:=outlet_employment_law_coverage_confirm(outlet,'2026-10-03','unresolved','QA later evidence','QA preserve later observation',gen_random_uuid(),null);
- law_id:=outlet_employment_law_coverage_confirm(outlet,'2026-09-01','peninsular_labuan','QA verified September legal coverage','QA explicit historical confirmation',law_request,null);
- assert outlet_employment_law_coverage_confirm(outlet,'2026-09-01','peninsular_labuan','QA verified September legal coverage','QA explicit historical confirmation',law_request,null)=law_id,'Retry duplicated evidence';
- assert jsonb_array_length(outlet_employment_law_coverage_read(outlet)->'history')=2,'Audit history missing or duplicated';
- denied:=false;
- begin perform outlet_employment_law_coverage_confirm(outlet,'2026-09-01','sarawak','QA evidence','QA changed payload',law_request,null); exception when invalid_parameter_value then denied:=true; end;
- assert denied,'Reused request accepted changed evidence';
- denied:=false;
- begin perform outlet_employment_law_coverage_confirm(outlet,'2026-09-01','sabah','QA evidence','QA concurrent correction',gen_random_uuid(),null); exception when serialization_failure then denied:=true; end;
- assert denied,'Concurrent revision guard failed';
+ command_result:=employee_employment_assignment_save(employees[1],'2026-10-01',input,'QA later genuine jurisdiction change',(original_assignment->>'id')::uuid,'QA explicitly unconfirmed');
+ later_id:=(command_result#>>'{revision,id}')::uuid;
+ v_prior_id:=(original_assignment->>'id')::uuid;
+ command_result:=employee_employment_assignment_save(employees[1],'2026-09-01',original_assignment||jsonb_build_object('employment_jurisdiction','peninsular_labuan'),'QA explicit September Employment Jurisdiction',v_prior_id,'QA historical contract evidence');
+ law_id:=(command_result#>>'{revision,id}')::uuid;
  perform set_config('role','postgres',true);
- assert outlet_employment_law_coverage_at(outlet,'2026-08-31')->>'coverage'='unresolved','Pre-confirmation coverage inferred';
- assert outlet_employment_law_coverage_at(outlet,'2026-09-01')->>'revision_id'=law_id::text,'Historical law coverage not effective';
- assert outlet_employment_law_coverage_at(outlet,'2026-10-03')->>'revision_id'=later_id::text,'Historical confirmation overwrote later evidence';
+ assert (employee_employment_assignment_at(employees[1],'2026-09-01')).employment_jurisdiction='peninsular_labuan','People jurisdiction missing';
+ assert (employee_employment_assignment_at(employees[1],'2026-10-02')).id=later_id,'Historical correction overwrote later genuine revision';
+ assert (employee_employment_assignment_at(employees[1],'2026-08-31')).id is null,'Pre-baseline coverage inferred';
+ assert to_jsonb((select a from employee_employment_assignment_revisions a where id=v_prior_id))- 'employment_jurisdiction'=original_assignment-'employment_jurisdiction','Original assignment mutated';
+ assert (select supersedes_revision_id from employee_employment_assignment_revisions where id=law_id)=v_prior_id,'Correction lineage lost';
  result:=payroll_calculation_project(run,employees[1]);
- assert result->>'status'='ready' and (result->>'gross_earnings')::numeric=1740,'Confirmed unpaid absence did not resolve to 1740';
+ assert result->>'status'='ready' and (result->>'gross_earnings')::numeric=1740,'People jurisdiction did not resolve Monthly unpaid absence';
  assert (payroll_monthly_entitlement(employees[1],period,comp)#>>'{basis,unpaid_absence_reduction}')::numeric=60,'Unpaid absence reduction missing';
- groups:=payroll_earning_groups(result);
- assert exists(select 1 from jsonb_array_elements(groups) x where x->>'label'='Basic Salary' and (x->>'amount')::numeric=1800),'Contractual salary changed';
- assert exists(select 1 from jsonb_array_elements(groups) x where x->>'label'='Unpaid Absence' and (x->>'amount')::numeric=-60),'Separate deduction/reconciliation missing';
- result:=payroll_calculation_project(run,employees[2]);
- assert result->>'status'='ready' and (result->>'gross_earnings')::numeric=1740,'Approved unpaid Leave did not resolve';
- assert payroll_calculation_project(run,employees[3])=hourly_before,'Hourly calculation changed';
- assert (select md5(coalesce(jsonb_agg(to_jsonb(v) order by v.id)::text,'')) from payroll_payable_time_versions v where employee_id=employees[1])=prior_hash,'Time decisions/evidence changed';
- assert not exists(select 1 from payroll_outlet_state_versions where outlet_id=outlet and effective_from<='2026-09-30'),'Historical state was created';
- -- Same-date corrections append, never overwrite; unsupported scopes fail closed.
+ assert payroll_monthly_entitlement(employees[1],period,comp)#>>'{basis,employment_jurisdiction,0,employment_revision_id}'=law_id::text,'Dated People evidence not pinned';
+ assert (payroll_calculation_project(run,employees[2])->>'gross_earnings')::numeric=1740,'Approved unpaid Leave parity failed';
+ assert payroll_calculation_project(run,employees[3])=hourly_before,'Hourly result changed';
+ assert (select md5(coalesce(jsonb_agg(to_jsonb(v) order by v.id)::text,'')) from payroll_payable_time_versions v where employee_id=employees[1])=prior_hash,'Time evidence changed';
+ foreach v_scope in array array['sabah','sarawak','unresolved'] loop
+  perform set_config('role','authenticated',true);
+  command_result:=employee_employment_assignment_save(employees[1],'2026-09-01',original_assignment||jsonb_build_object('employment_jurisdiction',v_scope),'QA jurisdiction correction',law_id,'QA jurisdiction evidence');
+  law_id:=(command_result#>>'{revision,id}')::uuid;
+  perform set_config('role','postgres',true);
+  assert payroll_calculation_project(run,employees[1])->'issues' ? 'monthly_proration_jurisdiction_requires_review','Unsupported scope priced';
+ end loop;
  perform set_config('role','authenticated',true);
- corrected_id:=outlet_employment_law_coverage_confirm(outlet,'2026-09-01','sabah','QA evidence','QA correction to Sabah',gen_random_uuid(),law_id);
- perform set_config('role','postgres',true);
- assert (select supersedes_id from outlet_employment_law_coverage_versions where id=corrected_id)=law_id,'Correction lineage lost';
- assert payroll_calculation_project(run,employees[1])->'issues' ? 'monthly_proration_jurisdiction_requires_review','Sabah improperly priced';
- perform set_config('role','authenticated',true);
- corrected_id:=outlet_employment_law_coverage_confirm(outlet,'2026-09-01','sarawak','QA evidence','QA correction to Sarawak',gen_random_uuid(),corrected_id);
- perform set_config('role','postgres',true);
- assert payroll_calculation_project(run,employees[1])->'issues' ? 'monthly_proration_jurisdiction_requires_review','Sarawak improperly priced';
- perform set_config('role','authenticated',true);
- corrected_id:=outlet_employment_law_coverage_confirm(outlet,'2026-09-01','unresolved','QA evidence','QA unresolved coverage',gen_random_uuid(),corrected_id);
- perform set_config('role','postgres',true);
- assert payroll_calculation_project(run,employees[1])->'issues' ? 'monthly_proration_jurisdiction_requires_review','Unresolved improperly priced';
- perform set_config('role','authenticated',true);
- corrected_id:=outlet_employment_law_coverage_confirm(outlet,'2026-09-01','peninsular_labuan','QA evidence','QA restore verified scope',gen_random_uuid(),corrected_id);
- perform set_config('role','postgres',true);
- assert (payroll_calculation_project(run,employees[1])->>'gross_earnings')::numeric=1740,'Corrected legal coverage not effective';
- -- Existing dated state is sufficient, with no legal coverage inferred/backfilled.
- insert into outlets(name,code,state_code) values('QA ONLY dated scope control','QA-'||substr(gen_random_uuid()::text,1,8),'MY-08') returning id into state_outlet;
- insert into payroll_outlet_state_versions(outlet_id,state_code,effective_from,actor_employee_id) values(state_outlet,'MY-08','2026-09-01',actor);
- assert outlet_employment_law_coverage_at(state_outlet,'2026-09-01')->>'coverage'='peninsular_labuan','Dated state fallback failed';
- assert not exists(select 1 from outlet_employment_law_coverage_versions where outlet_id=state_outlet),'State evidence backfilled law revisions';
- insert into payroll_outlet_state_versions(outlet_id,state_code,effective_from,actor_employee_id) values(state_outlet,'MY-15','2026-09-15',actor);
- assert outlet_employment_law_coverage_at(state_outlet,'2026-09-15')->>'coverage'='peninsular_labuan','Labuan unsupported';
- insert into payroll_outlet_state_versions(outlet_id,state_code,effective_from,actor_employee_id) values(state_outlet,'MY-12','2026-09-20',actor);
- assert outlet_employment_law_coverage_at(state_outlet,'2026-09-20')->>'coverage'='sabah','State exclusion lost';
- assert not has_function_privilege('authenticated','outlet_employment_law_coverage_at(uuid,date)','execute'),'Private resolver exposed';
- assert not has_table_privilege('authenticated','outlet_employment_law_coverage_versions','insert'),'Direct table insert exposed';
  denied:=false;
- begin update outlet_employment_law_coverage_versions set reason='overwrite' where id=law_id; exception when object_not_in_prerequisite_state then denied:=true; end;
- assert denied,'History was mutable';
+ begin perform employee_employment_assignment_save(employees[1],'2026-09-01',original_assignment||jsonb_build_object('employment_jurisdiction','perak'),'QA invalid jurisdiction',law_id,'QA'); exception when invalid_parameter_value or sqlstate '22023' then denied:=true; end;
+ assert denied,'Invalid territory accepted';
+ denied:=false;
+ begin perform employee_employment_assignment_save(employees[1],'2026-09-01',original_assignment||jsonb_build_object('employment_jurisdiction','peninsular_labuan'),'QA stale expected revision',v_prior_id,'QA'); exception when serialization_failure then denied:=true; end;
+ assert denied,'Concurrency guard lost';
  perform set_config('request.jwt.claim.sub','df540974-8945-46b2-8186-8699de24c14c',true);
  denied:=false;
- begin perform outlet_employment_law_coverage_confirm(outlet,'2026-09-01','peninsular_labuan','QA','QA',gen_random_uuid(),corrected_id); exception when insufficient_privilege then denied:=true; end;
- assert denied,'Non-Admin/out-of-scope confirmation accepted';
- denied:=false;
- begin perform outlet_employment_law_coverage_read(outlet); exception when insufficient_privilege then denied:=true; end;
- assert denied,'Non-Admin/out-of-scope history read accepted';
+ begin perform employee_employment_assignment_save(employees[1],'2026-09-01',original_assignment||jsonb_build_object('employment_jurisdiction','peninsular_labuan'),'QA outside scope',law_id,'QA'); exception when insufficient_privilege then denied:=true; end;
+ assert denied,'Unauthorized jurisdiction mutation accepted';
  perform set_config('request.jwt.claim.sub','',true);
  denied:=false;
- begin perform outlet_employment_law_coverage_confirm(outlet,'2026-09-01','peninsular_labuan','QA','QA',gen_random_uuid(),corrected_id); exception when insufficient_privilege then denied:=true; end;
- assert denied,'Anonymous confirmation accepted';
+ begin perform employee_employment_assignment_save(employees[1],'2026-09-01',original_assignment||jsonb_build_object('employment_jurisdiction','peninsular_labuan'),'QA anonymous',law_id,'QA'); exception when insufficient_privilege then denied:=true; end;
+ assert denied,'Anonymous jurisdiction mutation accepted';
  perform set_config('request.jwt.claim.sub','b6ee4db2-0f37-4b3e-a3ee-fa804ec5e6cd',true);
- -- A genuine partial-month employment end retains its original metadata while
- -- the new legal-coverage loop uses a separate assignment variable.
+ command_result:=employee_employment_assignment_save(employees[1],'2026-09-01',original_assignment||jsonb_build_object('employment_jurisdiction','peninsular_labuan'),'QA restore verified legal scope',law_id,'QA verified contract');
+ perform set_config('role','postgres',true);
+ -- Legacy callers do not silently retain jurisdiction when workplace/employer changes.
+ assert not exists(select 1 from pg_proc where proname like 'outlet_employment_law_coverage%'),'Retired functions remain';
+ assert to_regclass('outlet_employment_law_coverage_versions') is null,'Retired table remains';
  perform employee_employment_assignment_save(employees[1],'2026-09-20',jsonb_build_object('employment_type','full_time','employment_status','resigned','position','Service Crew','workplace','QA rollback projection gaps','legal_entity_id',ent),'QA partial-month boundary',(employee_employment_assignment_at(employees[1],'2026-09-20')).id,'QA rollback');
  result:=payroll_monthly_entitlement(employees[1],period,comp);
- assert result#>>'{basis,last_employment_date}'='2026-09-20','Legal coverage loop overwrote employment end evidence';
- assert (result#>>'{basis,employed_days}')::int=19,'Partial-month employment days changed';
- assert (result->>'amount')::numeric=1080,'Partial-month salary / unpaid absence incorrect';
+ assert result#>>'{basis,last_employment_date}'='2026-09-20','End-date evidence lost';
+ assert (result->>'amount')::numeric=1080,'Partial-month pricing changed';
+ -- A legacy caller moving workplace cannot silently carry the prior legal scope.
+ insert into outlets(name,code) values('QA ONLY new jurisdiction workplace','QA-'||substr(gen_random_uuid()::text,1,8)) returning id into state_outlet;
+ perform employee_employment_assignment_save(employees[1],'2026-09-10',(original_assignment-'employment_jurisdiction')||jsonb_build_object('workplace','QA ONLY new jurisdiction workplace'),'QA changed workplace requires confirmation',(employee_employment_assignment_at(employees[1],'2026-09-10')).id,'QA rollback');
+ assert (employee_employment_assignment_at(employees[1],'2026-09-10')).employment_jurisdiction is null,'Legacy caller carried jurisdiction across changed workplace';
+ denied:=false;
+ begin update employee_employment_assignment_revisions set employment_jurisdiction='sabah' where id=v_prior_id; exception when object_not_in_prerequisite_state then denied:=true; end;
+ assert denied,'Employment evidence became mutable';
  assert (select md5(coalesce(jsonb_agg(to_jsonb(s) order by to_jsonb(s)::text)::text,'')) from payroll_run_calculation_snapshots s)=snapshot_hash,'Finalized evidence changed';
- assert (select md5(coalesce(jsonb_agg(to_jsonb(v) order by v.id)::text,'')) from payroll_public_holidays v)=ph_hash,'PH authority/evidence changed';
+ assert (select md5(coalesce(jsonb_agg(to_jsonb(v) order by v.id)::text,'')) from payroll_public_holidays v)=ph_hash,'PH evidence changed';
 end $$;
-select 'PASS: Lee-style Monthly absence, Leave, Hourly, dated legal coverage/state fallback, exclusions, retry/concurrency, append/audit, frozen evidence' as contract;
+select 'PASS: People jurisdiction, no Outlet fallback, historical lineage, leave/absence/hourly, territorial guards, auth/concurrency, frozen evidence' as contract;
 rollback;

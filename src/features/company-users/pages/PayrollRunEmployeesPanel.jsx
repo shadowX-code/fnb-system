@@ -31,7 +31,7 @@ const hours = (minutes) => minutes == null ? "—" : `${(Number(minutes) / 60).t
 const signedMoney = (amount) => `${amount < 0 ? "−" : "+"}${money(Math.abs(amount))}`;
 const signedAdjustments = (items) => signedMoney(items.reduce((sum, item) => sum + Number(item.amount) * (item.component_type === "deduction" ? -1 : 1), 0));
 
-export default function PayrollRunEmployeesPanel({ run, data, entityId, month, canManage, canViewLeave = false, canEditEmployee = false, canEditOutlet = false, bankRead, onChanged, focusEmployeeId = "", stage = "prepare", onSnapshot, runRead }) {
+export default function PayrollRunEmployeesPanel({ run, data, entityId, month, canManage, canViewLeave = false, canEditEmployee = false, bankRead, onChanged, focusEmployeeId = "", stage = "prepare", onSnapshot, runRead }) {
   const [evidence, setEvidence] = useState(() => runRead?.data ? { ...runRead.data, scope: `${run.id}:${entityId}:${month}` } : null);
   const [error, setError] = useState("");
   const [calculationFailures, setCalculationFailures] = useState({});
@@ -256,7 +256,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         </div>
         {(selected.calculation?.is_stale || selected.statutory?.is_stale) && <p role="status">Updating calculation… Saved payable-time decisions are retained.</p>}
         {selected.needsReview && <section aria-label="Review blockers" className="rounded-lg border border-border bg-surface-muted p-3"><h4 className="font-semibold">Needs Attention</h4>
-          <ul className="mt-2 list-disc space-y-1 pl-5">{[...new Set([...(selected.projection?.issues || []), ...(selected.calculation?.issues || []), ...(selected.statutory?.issues || []), ...(selected.preparation?.statutory_setup?.schemes?.lindung?.issue ? [selected.preparation.statutory_setup.schemes.lindung.issue] : [])])].map(issue => <li key={issue}>{payrollIssueLabel(issue, { components: data.components, statutory: selected.statutory })}{issue === "monthly_proration_jurisdiction_requires_review" && active && canEditOutlet && <a className="ml-2 font-semibold text-primary hover:underline" href={`${canonicalPathForRoute("outlets")}`} target="_blank" rel="noreferrer" aria-label={`Resolve outlet employment law coverage for ${selected.name}`}>Resolve →</a>}</li>)}</ul>
+          <ul className="mt-2 list-disc space-y-1 pl-5">{[...new Set([...(selected.projection?.issues || []), ...(selected.calculation?.issues || []), ...(selected.statutory?.issues || []), ...(selected.preparation?.statutory_setup?.schemes?.lindung?.issue ? [selected.preparation.statutory_setup.schemes.lindung.issue] : [])])].map(issue => <li key={issue}>{payrollIssueLabel(issue, { components: data.components, statutory: selected.statutory })}{issue === "monthly_proration_jurisdiction_requires_review" && active && canEditEmployee && <a className="ml-2 font-semibold text-primary hover:underline" href={`${canonicalPathForRoute("employees")}?employee=${selected.id}&section=employment`} target="_blank" rel="noreferrer" aria-label={`Resolve People employment jurisdiction for ${selected.name}`}>Resolve →</a>}</li>)}</ul>
           {selected.pcb?.applicable && !selected.pcb?.confirmation && <p className="mt-2">PCB amount required</p>}
           {(selected.calculation?.is_stale || selected.statutory?.is_stale) && <p className="mt-2">Inputs changed. Calculation is updating from current evidence.</p>}
           {!selected.calculation && <p className="mt-2">Calculate Payroll after completing employee setup.</p>}
