@@ -13,13 +13,13 @@ export default function OutletPerformanceField({ outlets, selectedId, onSelect, 
   return <section className="finance-outlet-field" aria-labelledby="finance-outlet-field-title">
     <div className="finance-analysis-heading"><div><h2 id="finance-outlet-field-title">Outlet Performance Field</h2><p>Revenue growth meets profitability. Select an outlet to investigate its performance.</p></div><label className="finance-analysis-history"><input type="checkbox" checked={showHistory} onChange={(event) => setShowHistory(event.target.checked)} />Show 3-month trajectories</label></div>
     {plotted.length ? <><div className="finance-outlet-canvas">
-      <svg viewBox="0 0 800 416" role="group" aria-label="Outlet revenue growth and EBITDA margin field">
+      <svg viewBox="0 0 800 466" role="group" aria-label="Outlet revenue growth and EBITDA margin field">
         <title>Revenue Growth on the horizontal axis; EBITDA Margin on the vertical axis</title>
         <rect x="64" y="34" width="672" height="332" fill="var(--theme-surface-muted, #f5f7f8)" />
         <path d="M400 34V366M64 200H736" className="finance-field-axis" />
-        <text x="80" y="56" className="finance-field-zone">Profitable but slowing</text><text x="720" y="56" textAnchor="end" className="finance-field-zone">Growing & profitable</text>
-        <text x="80" y="350" className="finance-field-zone">Needs attention</text><text x="720" y="350" textAnchor="end" className="finance-field-zone">Growing with margin pressure</text>
-        <text x="400" y="403" textAnchor="middle" className="finance-field-axis-label">Revenue Growth →</text><text x="18" y="200" textAnchor="middle" transform="rotate(-90 18 200)" className="finance-field-axis-label">EBITDA Margin →</text>
+        <text x="80" y="22" className="finance-field-zone">Profitable but slowing</text><text x="720" y="22" textAnchor="end" className="finance-field-zone">Growing & profitable</text>
+        <text x="80" y="423" className="finance-field-zone">Needs attention</text><text x="720" y="423" textAnchor="end" className="finance-field-zone">Growing with margin pressure</text>
+        <text x="400" y="455" textAnchor="middle" className="finance-field-axis-label">Revenue Growth →</text><text x="18" y="200" textAnchor="middle" transform="rotate(-90 18 200)" className="finance-field-axis-label">EBITDA Margin →</text>
         <text x="64" y="387" className="finance-field-tick">−{xBound.toFixed(1)}%</text><text x="400" y="387" textAnchor="middle" className="finance-field-tick">0%</text><text x="736" y="387" textAnchor="end" className="finance-field-tick">+{xBound.toFixed(1)}%</text>
         <text x="54" y="40" textAnchor="end" className="finance-field-tick">{yBound.toFixed(1)}%</text><text x="54" y="204" textAnchor="end" className="finance-field-tick">0%</text><text x="54" y="366" textAnchor="end" className="finance-field-tick">−{yBound.toFixed(1)}%</text>
         {plotted.map((outlet) => {
@@ -29,7 +29,7 @@ export default function OutletPerformanceField({ outlets, selectedId, onSelect, 
             const prior = outlet.history[index];
             return point.x !== null && point.y !== null && prior.x !== null && prior.y !== null ? [`M${x(prior.x)},${y(prior.y)}L${x(point.x)},${y(point.y)}`] : [];
           });
-          return <g key={outlet.id} className={active || plotted.length === 1 ? 'finance-field-outlet is-selected' : 'finance-field-outlet'}>
+          return <g key={outlet.id} className={active ? 'finance-field-outlet is-selected' : plotted.length === 1 ? 'finance-field-outlet has-label' : 'finance-field-outlet'}>
             {showHistory ? <g aria-hidden="true">{paths.map((path, index) => <path key={index} d={path} className="finance-field-trajectory" />)}{outlet.history.filter((point) => point.x !== null && point.y !== null).slice(0, -1).map((point) => <circle key={point.period.start} cx={x(point.x)} cy={y(point.y)} r="3" className="finance-field-history-point"><title>{financialPeriod(point.period)} · growth {rate(point.x)} · margin {rate(point.y)}</title></circle>)}</g> : null}
             <g role="button" tabIndex="0" aria-pressed={active} aria-label={`${outlet.name}: revenue growth ${rate(outlet.position.x)}, EBITDA margin ${rate(outlet.position.y)}, ${outlet.position.zone}`} onClick={() => onSelect(outlet.id)} onKeyDown={(event) => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); onSelect(outlet.id); } }}>
               <circle cx={x(outlet.position.x)} cy={y(outlet.position.y)} r="26" fill="transparent" />

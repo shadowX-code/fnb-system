@@ -222,3 +222,16 @@
  .finance-workspace .finance-cost-flow-path button { grid-template-columns: minmax(0, 1fr) auto; }
  .finance-workspace .finance-cost-flow-path button strong { font-size: 16px; white-space: nowrap; }
 }
+.finance-workspace .finance-analysis-actions button[aria-selected=true] { color: var(--finance-focus); }
+.finance-workspace .admin-filter-toolbar { background: transparent; border: 0; box-shadow: none; padding: 0; }
+.finance-workspace .finance-field-outlet.has-label .finance-field-outlet-name { visibility: visible; }
+.finance-workspace .finance-driver-node.is-unresolved .finance-driver-effect strong { font-size: 12px; font-weight: 400; color: var(--finance-muted); }
+/* Every ribbon shares the Revenue canvas; negative retained profit is an explicit loss. */
+.finance-workspace .finance-cost-flow-path li:nth-child(n) { grid-column: 1 / -1; }
+.finance-workspace .finance-cost-flow-path li:nth-child(2) .finance-cost-flow-label { padding-left: 16px; }
+.finance-workspace .finance-cost-flow-path li:nth-child(3) .finance-cost-flow-label, .finance-workspace .finance-cost-flow-path li:nth-child(4) .finance-cost-flow-label { padding-left: 32px; }
+.finance-workspace .finance-cost-flow-path li:nth-child(5) .finance-cost-flow-label { padding-left: 48px; }
+.finance-workspace .finance-cost-flow-path li:last-child .finance-cost-flow-label { padding-left: 64px; }
+.finance-workspace .finance-consumption-track.is-negative > span { background: transparent; border-bottom: 2px dashed var(--finance-ink); margin-left: 0; }
+@media (max-width: 640px) { .finance-workspace .finance-cost-flow-path li:nth-child(n) .finance-cost-flow-label { padding-left: 0; } }
+.finance-workspace .finance-source-tabs button[aria-selected=true] { color: var(--finance-focus); }

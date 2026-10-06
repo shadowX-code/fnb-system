@@ -113,7 +113,7 @@ export default function FinanceDataSourcesPage() {
   }, [attempt]);
   return <div className="finance-workspace space-y-5">
     <PageHeader section="Finance · Manage" title="Data Sources" description="Manage where financial evidence comes from and whether it is usable." primaryActions={<button type="button" className="btn-secondary" disabled aria-describedby="finance-connect-availability"><Link2 size={15} />Connect provider</button>} />
-    <p id="finance-connect-availability" className="finance-source-note">Accounting connections are not available yet. FeedX operational reporting remains available.</p>
+    <p id="finance-connect-availability" className="sr-only">Accounting connections are not available yet. FeedX operational reporting remains available.</p>
     <AsyncDataSurface loading={!state && !error} error={error} hasData={Boolean(state)} onRetry={() => setAttempt((value) => value + 1)}>{state ? <FinanceDataSources state={state} /> : null}</AsyncDataSurface>
   </div>;
 }
