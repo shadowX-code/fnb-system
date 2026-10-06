@@ -1,4 +1,4 @@
-import { capabilities, validatePeriod } from '../foundation.js';
+import { capabilities, financialClassifications, validatePeriod } from '../foundation.js';
 import { metricResults, calculateDemoMetrics } from '../metrics.js';
 
 export const fixtureScopes = Object.freeze([
@@ -30,10 +30,22 @@ export function createFixtureProvider({ development = false } = {}) {
       const values = Object.fromEntries(['revenue', 'cogs', 'labour', 'opex', 'cash', 'ap', 'ar'].map((id) => [id, Math.round(selected.reduce((sum, row) => sum + row[id], 0) * factor)]));
       Object.assign(values, calculateDemoMetrics(values));
       const provenance = selected.map((row) => ({ identity: { providerId: 'development_fixture', connectionId: `demo-${row.entity}`, externalId: `${row.outlet ?? row.dimension}:${request.period.start}`, revision: '1' }, semantic: 'ACTUAL', demo: true, observedAt: '2026-10-01T02:00:00Z', evidenceAt: `${request.period.end}T23:59:59Z` }));
-      const derived = ['gross_profit', 'prime_cost', 'ebitda', 'gross_margin', 'labour_percent', 'prime_cost_percent', 'opex_percent', 'ebitda_margin'];
+      const derived = ['cogs_percent', 'gross_profit', 'prime_cost', 'ebitda', 'gross_margin', 'labour_percent', 'prime_cost_percent', 'opex_percent', 'ebitda_margin'];
       const evidence = Object.fromEntries(Object.entries(values).map(([id, value]) => [id, { value, completeness: 'complete', provenance: provenance.map((source) => ({ ...source, semantic: derived.includes(id) ? 'DERIVED' : 'ACTUAL' })), reason: 'Development demo evidence; not business records' }]));
       const metrics = metricResults(request, evidence);
-      return { ...request, metrics, capabilities: supported, sourceLabel: 'Development demo · illustrative accounting evidence', demo: true, statements: [{ kind: 'profit_loss', provenance, scope: request.scope, period: request.period, currency: 'MYR', completeness: 'complete', reconciliation: { status: 'unverified', evidence: [], checkedAt: null }, lines: ['revenue', 'cogs', 'gross_profit', 'labour', 'opex', 'ebitda'].map((id) => ({ classificationId: ['revenue', 'cogs', 'labour', 'opex'].includes(id) ? id : null, label: id, amount: metrics[id].value })) }] };
+      // Illustrative classified evidence lives only in this development provider. Parent totals stay unchanged.
+      const classifications = ['cogs', 'labour', 'opex'].flatMap((parent) => {
+        const children = financialClassifications.filter((entry) => entry.parentId === parent);
+        const weights = children.map((_, index) => (children.length - index) * (index === 0 ? 1 + Number(request.period.start.slice(5, 7)) * .02 : 1));
+        const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+        let remaining = values[parent];
+        return children.map((child, index) => {
+          const value = index === children.length - 1 ? remaining : Math.round(values[parent] * weights[index] / totalWeight);
+          remaining -= value;
+          return { ...metrics[parent], id: child.id, value, reason: 'Development classified illustration; not business records' };
+        });
+      });
+      return { ...request, metrics, classifications, capabilities: supported, sourceLabel: 'Development demo · illustrative accounting evidence', demo: true, statements: [{ kind: 'profit_loss', provenance, scope: request.scope, period: request.period, currency: 'MYR', completeness: 'complete', reconciliation: { status: 'unverified', evidence: [], checkedAt: null }, lines: ['revenue', 'cogs', 'gross_profit', 'labour', 'opex', 'ebitda'].map((id) => ({ classificationId: ['revenue', 'cogs', 'labour', 'opex'].includes(id) ? id : null, label: id, amount: metrics[id].value })) }] };
     },
     async readStatement(request) {
       if (request.kind !== 'profit_loss') return null;

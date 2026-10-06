@@ -14,7 +14,7 @@ const classificationGroups = {
   assets: [], liabilities: [], equity: [],
 };
 export const financialClassifications = Object.freeze(Object.entries(classificationGroups).flatMap(([parent, children]) => [
-  Object.freeze({ id: parent, parentId: null }), ...children.map((child) => Object.freeze({ id: `${parent}.${child}`, parentId: parent })),
+  Object.freeze({ id: parent, parentId: null }), ...children.map((child) => Object.freeze({ id: `${parent}.${child}`, parentId: parent, label: child.split('_').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ') })),
 ]));
 function validDate(value) { const date = new Date(`${value}T00:00:00Z`); return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value; }
 export function validatePeriod(period) {

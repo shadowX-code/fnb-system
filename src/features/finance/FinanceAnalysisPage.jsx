@@ -1,17 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
+import FinanceComparisonWorkspace from './FinanceComparisonWorkspace.jsx';
 import { ArrowRight, RotateCcw } from 'lucide-react';
-import PageHeader from '../../components/layout/PageHeader.jsx';
-import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
-import SelectField from '../../components/forms/SelectField.jsx';
-import MonthPickerField from '../../components/forms/MonthPickerField.jsx';
-import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
-import { getAccessibleOutlets } from '../../utils/accessControl.js';
 import { navigateAdminRoute } from '../../app/routeOwnership.js';
-import { financeDemoEnabled, getFinanceProvider } from './financeService.js';
-import { monthlyPeriod, previousPeriod } from './foundation.js';
 import { metricMovement, metricRegistry } from './metrics.js';
-import { performanceIds, profitMovement, readFinanceAnalysis, shiftMonth } from './analysis.js';
-import { currentFinanceMonth, financialPeriod, financialSemantics, financialValue, movementValue } from './presentation.js';
+import { performanceIds, profitMovement } from './analysis.js';
+import { financialPeriod, financialSemantics, financialValue, movementValue } from './presentation.js';
 import AnalysisContext from './AnalysisContext.jsx';
 import OutletPerformanceField from './OutletPerformanceField.jsx';
 import './finance.css';
@@ -60,48 +53,6 @@ export function FinanceAnalysis({ analysis }) {
     {selection.origin === 'outlet' ? <section className="finance-selected-outlet" aria-label="Selected outlet performance"><div className="finance-analysis-heading"><h2>{outlet?.name} · outlet detail</h2><span className="finance-analysis-muted">Revenue Growth {outlet?.position?.x === null || outlet?.position?.x === undefined ? 'unavailable' : `${outlet.position.x.toFixed(1)}%`}</span></div><PerformanceStrip pair={pair} onSelect={(id) => selectMetric(id, 'outlet')} />{context}</section> : null}
   </div>;
 }
-export default function FinanceAnalysisPage({ store = {}, auth }) {
-  const [mode, setMode] = useState('operational');
-  const [month, setMonth] = useState(currentFinanceMonth);
-  const [comparisonMode, setComparisonMode] = useState('previous');
-  const [customMonth, setCustomMonth] = useState(() => previousPeriod(monthlyPeriod(currentFinanceMonth())).start.slice(0, 7));
-  const [outletId, setOutletId] = useState('all');
-  const [demoScope, setDemoScope] = useState('group:demo-group');
-  const [demoScopes, setDemoScopes] = useState([]);
-  const [analysis, setAnalysis] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [attempt, setAttempt] = useState(0);
-  // Auth/store wrappers can rerender when shared controls open. Only changed authorized identities
-  // or labels invalidate this read; equal scope must preserve the user's analytical selection.
-  const outletSignature = JSON.stringify(getAccessibleOutlets(auth, store.outlets ?? []).map((outlet) => ({ id: outlet.id, name: outlet.name })));
-  const outlets = useMemo(() => JSON.parse(outletSignature), [outletSignature]);
-  const comparisonMonth = comparisonMode === 'custom' ? customMonth : shiftMonth(monthlyPeriod(month), comparisonMode === 'year' ? -12 : -1).start.slice(0, 7);
-  useEffect(() => {
-    if (!financeDemoEnabled || mode !== 'demo') return;
-    let active = true;
-    import('./providers/fixtureProvider.js').then(({ fixtureScopes }) => { if (active) setDemoScopes(fixtureScopes); }).catch(() => { if (active) { setError('Development evidence could not be loaded.'); setLoading(false); } });
-    return () => { active = false; };
-  }, [mode]);
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true); setError(''); setAnalysis(null);
-    const scope = mode === 'demo' ? demoScopes.find((entry) => entry.value === demoScope) : outletId === 'all' ? { kind: 'authorized_outlets', id: null } : outlets.some((outlet) => outlet.id === outletId) ? { kind: 'outlet', id: outletId } : null;
-    if (!scope) { if (mode !== 'demo' || demoScopes.length) { setError('Choose an available financial scope.'); setLoading(false); } return () => controller.abort(); }
-    const request = { scope: { kind: scope.kind, id: scope.id, ...(scope.legalEntityId ? { legalEntityId: scope.legalEntityId } : {}) }, period: monthlyPeriod(month), currency: 'MYR' };
-    const eligible = mode === 'demo' ? demoScopes.filter((entry) => entry.kind === 'outlet').map((entry) => ({ id: entry.id, name: entry.label, legalEntityId: entry.legalEntityId })) : outlets;
-    getFinanceProvider(mode).then((provider) => readFinanceAnalysis(provider, request, { comparisonPeriod: monthlyPeriod(comparisonMonth), outlets: eligible, allowDemo: financeDemoEnabled && mode === 'demo', signal: controller.signal })).then((result) => { if (!controller.signal.aborted) setAnalysis(result); }).catch((failure) => { if (!controller.signal.aborted) setError(failure.message === 'Choose a complete comparison month before the current period.' ? failure.message : 'Analysis evidence could not be loaded. Retry the read or review Data Sources.'); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [mode, month, comparisonMonth, outletId, demoScope, demoScopes, outlets, attempt]);
-  return <div className="finance-workspace finance-analysis-page space-y-5">
-    <PageHeader section="Finance" title="Analysis" description="Understand what changed, what drove it, and where to investigate next." />
-    <AdminFilterToolbar>
-      {financeDemoEnabled ? <SelectField label="Evidence" value={mode} onChange={setMode} options={[{ value: 'operational', label: 'FeedX operational' }, { value: 'demo', label: 'Development demo' }]} /> : null}
-      <SelectField label={mode === 'demo' ? 'Demo scope' : 'Outlet scope'} value={mode === 'demo' ? demoScope : outletId} onChange={mode === 'demo' ? setDemoScope : setOutletId} options={mode === 'demo' ? demoScopes : [{ value: 'all', label: 'All authorized outlets' }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]} />
-      <MonthPickerField label="Current period" value={month} onChange={setMonth} />
-      <SelectField label="Compare with" value={comparisonMode} onChange={setComparisonMode} options={[{ value: 'previous', label: 'Previous month' }, { value: 'year', label: 'Same month last year' }, { value: 'custom', label: 'Selected month' }]} />
-      {comparisonMode === 'custom' ? <MonthPickerField label="Comparison period" value={customMonth} onChange={setCustomMonth} /> : null}
-    </AdminFilterToolbar>
-    <AsyncDataSurface loading={loading} error={error} hasData={Boolean(analysis)} loadingRows={6} onRetry={() => setAttempt((value) => value + 1)}>{analysis ? <FinanceAnalysis key={`${mode}:${month}:${comparisonMonth}:${outletId}:${demoScope}`} analysis={analysis} /> : null}</AsyncDataSurface>
-  </div>;
+export default function FinanceAnalysisPage(props) {
+  return <FinanceComparisonWorkspace {...props} title="Analysis" description="Understand what changed, what drove it, and where to investigate next." includeOutlets>{(analysis) => <FinanceAnalysis analysis={analysis} />}</FinanceComparisonWorkspace>;
 }

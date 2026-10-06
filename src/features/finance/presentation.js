@@ -5,7 +5,8 @@ export function financialValue(metric) {
 }
 export function movementValue(movement, unit = 'money') {
   if (movement.value === null) return 'Unavailable';
-  const sign = movement.value > 0 ? '+' : movement.value < 0 ? '−' : '';
+  const displayZero = unit === 'percent' && Number(Math.abs(movement.value).toFixed(1)) === 0;
+  const sign = displayZero ? '' : movement.value > 0 ? '+' : movement.value < 0 ? '−' : '';
   return unit === 'percent' ? `${sign}${Math.abs(movement.value).toFixed(1)} pp` : `${sign}${money({ amount: Math.abs(movement.value), presence: 'present' })}`;
 }
 export function financialSemantics(metric) {
@@ -15,4 +16,14 @@ export function financialPeriod(period) { return periodLabel({ year: Number(peri
 export function currentFinanceMonth() {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
   return `${parts.find((part) => part.type === 'year').value}-${parts.find((part) => part.type === 'month').value}`;
+}
+
+export function costObservation(row, label) {
+  if (row.movement.value === null) return `${label}: ${row.movement.reason}`;
+  const spend = row.movement.value === 0 ? 'was unchanged' : `${row.movement.value > 0 ? 'increased' : 'decreased'} by ${financialValue({ value: Math.abs(row.movement.value), unit: 'money' })}`;
+  const ratio = row.direction === 'unavailable' ? 'Its share of Revenue cannot be compared with the available evidence.' : row.direction === 'stable' ? 'Its share of Revenue remained broadly stable (less than 0.1pp movement).' : `Its share of Revenue ${row.direction === 'pressure' ? 'rose' : 'fell'} ${movementValue({ value: Math.abs(row.ratioMovement.value) }, 'percent').replace('+', '')}.`;
+  return `${label} ${spend}. ${ratio}`;
+}
+export function growthValue(growth) {
+  return growth.value === null ? 'Unavailable' : `${growth.value > 0 ? '+' : ''}${growth.value.toFixed(1)}%`;
 }

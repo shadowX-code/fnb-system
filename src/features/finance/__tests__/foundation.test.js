@@ -34,7 +34,7 @@ describe('Finance evidence boundary', () => {
   });
   it('carries missing evidence without manufacturing zeros or working capital', () => {
     const metrics = metricResults(request);
-    expect(Object.keys(metrics)).toHaveLength(16);
+    expect(Object.keys(metrics)).toHaveLength(17);
     expect(metrics.cash.value).toBeNull();
     expect(metrics.working_capital.completeness).toBe('unavailable');
     expect(metricRegistry.working_capital.definition).toContain('Current assets');

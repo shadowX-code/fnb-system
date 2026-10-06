@@ -1,6 +1,6 @@
 import { monthlyPeriod, previousPeriod, validatePeriod } from './foundation.js';
 import { validateDataset } from './financeService.js';
-import { analysisMargin, metricMovement, revenueGrowth } from './metrics.js';
+import { analysisMargin, compatibleMetricBasis, metricMovement, revenueGrowth } from './metrics.js';
 
 export const profitDriverIds = Object.freeze(['revenue', 'cogs', 'labour', 'opex']);
 export const performanceIds = Object.freeze(['revenue', 'gross_margin', 'prime_cost', 'ebitda', 'ebitda_margin']);
@@ -37,6 +37,7 @@ export function profitMovement(pair, model) {
   const ties = (dataset) => {
     if (!model || !model.drivers.includes('revenue') || new Set(model.drivers).size !== model.drivers.length || model.drivers.some((id) => !profitDriverIds.includes(id))) return false;
     if (dataset.metrics.ebitda.completeness !== 'complete' || model.drivers.some((id) => dataset.metrics[id].completeness !== 'complete')) return false;
+    if (!compatibleMetricBasis(...model.drivers.map((id) => dataset.metrics[id]))) return false;
     const explained = model.drivers.reduce((sum, id) => sum + dataset.metrics[id].value * (id === 'revenue' ? 1 : -1), 0);
     return Math.abs(explained - dataset.metrics.ebitda.value) < 0.01;
   };

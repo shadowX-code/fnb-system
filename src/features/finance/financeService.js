@@ -1,4 +1,4 @@
-import { capabilityKeys, capabilityStates, previousPeriod, sourceSemantics, sourceIdentityKey, validatePeriod } from './foundation.js';
+import { capabilityKeys, capabilityStates, financialClassifications, previousPeriod, sourceSemantics, sourceIdentityKey, validatePeriod } from './foundation.js';
 import { metricRegistry } from './metrics.js';
 import { operationalProvider } from './providers/operationalProvider.js';
 
@@ -21,6 +21,21 @@ export function validateDataset(dataset, request, { allowDemo = false } = {}) {
     for (const source of result.provenance) {
       sourceIdentityKey(source.identity);
       if (!sourceSemantics.includes(source.semantic) || source.demo !== dataset.demo) throw new Error('Invalid financial provenance');
+    }
+  }
+  if (dataset.classifications !== undefined) {
+    if (!Array.isArray(dataset.classifications)) throw new Error('Invalid canonical classifications');
+    const seen = new Set();
+    for (const result of dataset.classifications) {
+      const definition = financialClassifications.find((entry) => entry.id === result.id && entry.parentId);
+      if (!definition || seen.has(result.id)) throw new Error('Unknown or duplicate financial classification');
+      seen.add(result.id);
+      if (result.unit !== 'money' || result.currency !== request.currency || JSON.stringify(result.scope) !== JSON.stringify(request.scope) || JSON.stringify(result.period) !== JSON.stringify(request.period) || !['complete', 'partial', 'unavailable', 'unverified'].includes(result.completeness) || (result.value !== null && !Number.isFinite(result.value)) || (!['complete', 'partial'].includes(result.completeness) && result.value !== null)) throw new Error('Invalid classified metric result');
+      if (!Array.isArray(result.provenance) || (result.value !== null && !result.provenance.length)) throw new Error('Classified value requires provenance');
+      for (const source of result.provenance) {
+        sourceIdentityKey(source.identity);
+        if (!sourceSemantics.includes(source.semantic) || source.demo !== dataset.demo) throw new Error('Invalid classified provenance');
+      }
     }
   }
   if (!Array.isArray(dataset.statements)) throw new Error('Invalid canonical statements');

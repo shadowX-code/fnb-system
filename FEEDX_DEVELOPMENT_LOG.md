@@ -1,5 +1,11 @@
 # FeedX Development Log
 
+## 2026-10-07 — Finance Phase 2B: Costs Intelligence
+
+- Replaced the Costs foundation with selectable revenue-to-profit flow, cost state, material Revenue-share movements and deterministic cost growth/ratio observations.
+- Reused the Analysis comparison/scope and contextual action owners; added validated optional classified evidence with complete-parent coverage gates for child EBITDA attribution.
+- Preserved Reporting calculations, purchase-based operational semantics and development-only fixture isolation. Cash, Planning, provider integrations and deeper operational cost intelligence remain outside this phase.
+
 ## 2026-10-07 — Finance Analysis Phase 2A
 
 Finance Analysis now provides period performance, evidence-backed EBITDA driver exploration, a Revenue Growth / EBITDA Margin outlet field, and selected-context Explain / Compare / Break down actions. Diagnostic ratios and movements reuse the Finance registry and retain original provenance; missing evidence and history gaps remain explicit. Reporting amounts and authority, accounting integration, Costs/Cash/Planning and provider credentials are unchanged. Canonical owner: docs/domains/finance.md.

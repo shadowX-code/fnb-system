@@ -21,7 +21,7 @@ export type Reconciliation = { status: 'reconciled' | 'unreconciled' | 'unverifi
 export type MetricResult = { id: string; value: number | null; unit: 'money' | 'percent'; currency: string; scope: Scope; period: Period; provenance: Provenance[]; completeness: Completeness; reason: string | null; comparison: { value: number | null; period: Period; provenance: Provenance[]; completeness: Completeness } | null; target: { value: number; source: string } | null };
 export type Statement = { kind: 'profit_loss' | 'balance_sheet' | 'cash_flow'; provenance: Provenance[]; scope: Scope; period: Period; currency: string; completeness: Completeness; reconciliation: Reconciliation; lines: { accountIdentity?: SourceIdentity; classificationId: string | null; label: string; amount: number | null }[] };
 export type FinanceRequest = { scope: Scope; period: Period; currency: string };
-export type FinanceDataset = FinanceRequest & { metrics: Record<string, MetricResult>; statements: Statement[]; capabilities: Record<Capability, CapabilityState>; sourceLabel: string; demo: boolean };
+export type FinanceDataset = FinanceRequest & { metrics: Record<string, MetricResult>; classifications?: MetricResult[]; statements: Statement[]; capabilities: Record<Capability, CapabilityState>; sourceLabel: string; demo: boolean };
 /** Adapters return validated canonical evidence, never credentials or raw vendor payloads. */
 export interface AccountingProvider {
   id: string;

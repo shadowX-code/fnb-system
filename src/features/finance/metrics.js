@@ -2,6 +2,7 @@
 const definitions = [
   ['revenue', 'Revenue', 'money', 'Recognized revenue', []],
   ['cogs', 'COGS', 'money', 'Cost of goods sold; valuation basis must be disclosed', []],
+  ['cogs_percent', 'COGS %', 'percent', 'COGS ÷ Revenue × 100; retains the disclosed COGS basis', ['cogs', 'revenue']],
   ['gross_profit', 'Gross Profit', 'money', 'Revenue − COGS', ['revenue', 'cogs']],
   ['gross_margin', 'Gross Margin', 'percent', 'Gross Profit ÷ Revenue × 100', ['gross_profit', 'revenue']],
   ['labour', 'Labour Cost', 'money', 'Salary + overtime + statutory + other labour', []],
@@ -39,7 +40,7 @@ export function calculateDemoMetrics(inputs) {
   values.gross_profit = values.revenue - values.cogs;
   values.prime_cost = values.cogs + values.labour;
   values.ebitda = values.gross_profit - values.labour - values.opex;
-  for (const [id, numerator] of [['gross_margin', 'gross_profit'], ['labour_percent', 'labour'], ['prime_cost_percent', 'prime_cost'], ['opex_percent', 'opex'], ['ebitda_margin', 'ebitda']]) values[id] = ratioValue(values[numerator], values.revenue);
+  for (const [id, numerator] of [['cogs_percent', 'cogs'], ['gross_margin', 'gross_profit'], ['labour_percent', 'labour'], ['prime_cost_percent', 'prime_cost'], ['opex_percent', 'opex'], ['ebitda_margin', 'ebitda']]) values[id] = ratioValue(values[numerator], values.revenue);
   return values;
 }
 
@@ -73,4 +74,24 @@ export function revenueGrowth(current, previous) {
   const movement = metricMovement(current, previous);
   const value = movement.value !== null && previous.value > 0 ? ratioValue(movement.value, previous.value) : null;
   return { value, reason: movement.reason ?? (previous.value > 0 ? value === null ? 'Revenue growth exceeds the supported range.' : null : 'Revenue growth needs positive comparison Revenue.') };
+}
+
+/** Compatible input bases only; Derived diagnostics retain their original evidence semantics. */
+export function compatibleMetricBasis(...metrics) {
+  const basis = (metric) => [...new Set((metric.inputProvenance ?? metric.provenance ?? []).map((source) => source.semantic))].sort().join(',');
+  return metrics.length > 0 && metrics.every((metric) => basis(metric) && basis(metric) === basis(metrics[0]) && !basis(metric).includes(','));
+}
+export function diagnosticRatio(amount, revenue, existing) {
+  if (existing?.value !== null && existing?.value !== undefined) return existing;
+  const available = amount.completeness === 'complete' && revenue.completeness === 'complete' && revenue.value > 0 && compatibleMetricBasis(amount, revenue);
+  const value = available ? ratioValue(amount.value, revenue.value) : null;
+  const inputProvenance = value !== null ? [...amount.provenance, ...revenue.provenance] : [];
+  return { ...(existing ?? amount), unit: 'percent', value, completeness: value !== null ? 'complete' : 'unavailable',
+    inputProvenance, provenance: inputProvenance.map((source) => ({ ...source, semantic: 'DERIVED' })),
+    reason: value !== null ? 'Derived share of complete positive Revenue; retains the input cost basis.' : 'A cost ratio needs complete cost evidence, positive Revenue and compatible evidence semantics.' };
+}
+export function costGrowth(current, previous) {
+  const movement = metricMovement(current, previous);
+  const value = movement.value !== null && previous.value > 0 ? ratioValue(movement.value, previous.value) : null;
+  return { value, reason: movement.reason ?? (value === null ? 'Cost growth needs positive comparison cost.' : null) };
 }
