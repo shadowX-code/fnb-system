@@ -53,11 +53,11 @@ export const recruitmentService = {
   providerDisconnected: (token, clientId, generation) => call("recruitment_public_provider_disconnected", { p_token: token, p_client_id: clientId, p_generation: generation }),
   transcriptTurn: (token, clientId, item) => call("recruitment_public_transcript_turn", { p_token: token, p_client_id: clientId, p_generation: item.generation, p_provider_order: item.providerOrder, p_item_id: item.itemId, p_speaker: item.speaker, p_transcript: item.transcript, p_start_ms: item.startMs ?? null, p_end_ms: item.elapsedMs }),
   realtimeContext: async (token,clientId,recoveryId,generation,signal) => {
-    const {data,error}=await supabase.functions.invoke("recruitment-realtime",{body:{action:"context",token,client_id:clientId,recovery_id:recoveryId,generation},signal});
+    const {data,error}=await supabase.functions.invoke("recruitment-realtime",{body:{action:"context",token,client_id:clientId,recovery_id:recoveryId,generation,orientation_version:"receipt-v1"},signal});
     throwSupabaseError("recruitment-realtime",error);return data;
   },
   realtimeSecret: async (token, clientId, recoveryId, signal) => {
-    const { data, error } = await supabase.functions.invoke("recruitment-realtime", { body: { token, client_id: clientId, recovery_id: recoveryId, conversation_version:"provider-owned-v1" }, signal });
+    const { data, error } = await supabase.functions.invoke("recruitment-realtime", { body: { token, client_id: clientId, recovery_id: recoveryId, conversation_version:"provider-owned-v1",orientation_version:"receipt-v1" }, signal });
     throwSupabaseError("recruitment-realtime", error);
     return data;
   },

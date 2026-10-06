@@ -35,6 +35,7 @@ export class RecruitmentRealtimeSession {
     this.closed = false;
     this.flushing = false;
     this.conversation = new OpenAIInterviewConversation({send:event=>this.send(event), onTool, onCompletion,
+      onOrientation:receipt=>this.trace({type:"output_audio_buffer.stopped",phase:"orientation_complete",...receipt}),
       onRecovery:reason=>{this.trace({type:"transport.disconnected",status:reason});this.disconnected();}});
     this.audioPlaying = false;
     this.eventSequence = 0;
@@ -64,6 +65,9 @@ export class RecruitmentRealtimeSession {
     );
     if (this.closed) throw new Error("Interview session was replaced.");
     this.generation = secret.generation;
+    this.conversation.orientationRequired = secret.orientation_required === true;
+    this.conversation.instructions = secret.conversation_instructions;
+    this.conversation.introductionPending = secret.introduction_pending === true;
     this.evidence.itemOrder.clear();
     this.evidence.pendingFinal.clear();
     const peer = new RTCPeerConnection();
@@ -150,7 +154,7 @@ export class RecruitmentRealtimeSession {
         signal,
       );
       if (this.closed) throw Error("Interview session was replaced.");
-      this.trace({type:"transport.connected"});
+      this.trace({type:"transport.connected",phase:secret.orientation_required ? "orientation_pending" : null});
       this.onStatus("connected");
       this.flush().catch(() => this.onStatus("transcript-pending"));
       if (this.closed) throw Error("Interview session was replaced.");
