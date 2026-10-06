@@ -59,6 +59,10 @@ Purchasing may hand off accepted quantities to inventory through existing contra
 People/RBAC supplies identity and scope; product analytics and dashboards consume canonical read models.
 Purchase Order draft, suggestion conversion, submit, supplier confirmation, cancel and completion commands share the trusted Restaurant Inventory lifecycle boundary. Receipt posting remains the Inventory authority and creates canonical receipt and Purchase movement evidence. The token-bound Crew Inventory Gateway delegates its permitted PO actions to the same core; PO cancellation and manual closure remain Admin-only. There is no Crew PO mobile UI yet.
 
+## Finance Workspace Convergence
+
+Finance is the long-term workspace owner for statements and intelligence. Its Phase 1 Statements entry opens the existing Reports owner for Monthly/Yearly P&L, preserving these Reporting contracts, permissions and calculations. Finance Overview consumes the same financial-only scope read through an Operational adapter; it does not infer labour, accounting balances or legal-entity totals from outlet reporting. Provider-neutral contracts and integration gates live in [`finance.md`](finance.md).
+
 ## Compatibility And Deferred Scope
 
 Legacy report labels or routes may remain compatibility entry points but do not define separate domains.

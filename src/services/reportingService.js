@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { throwSupabaseError } from "./supabaseError";
-import { buildMonthlyReportingDataset, buildYearlyFinancialDataset } from "./reportingDatasets";
+import { buildMonthlyReportingDataset, buildYearlyFinancialDataset, monthlyFinancialDataset } from "./reportingDatasets";
 
 function malaysiaCurrentPeriod(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -53,6 +53,9 @@ async function readYearlyScopeFinancials(outletId, year) {
 // All Reporting consumers, including the future Poster renderer, must use this
 // service rather than querying Reporting source tables from the browser.
 export const reportingService = {
+  async getMonthlyScopeFinancialReport({ outletId = null, year, month }) {
+    return monthlyFinancialDataset(await readMonthlyScopeFinancials(outletId, year, month));
+  },
   async getYearlyScopeFinancialReport({ outletId = null, year, now }) {
     const current = malaysiaCurrentPeriod(now);
     const contract = await readYearlyScopeFinancials(outletId, year);

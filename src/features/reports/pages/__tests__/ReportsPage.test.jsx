@@ -30,7 +30,7 @@ describe("ReportsPage", () => {
   it("generates a Monthly poster only on Generate and preserves missing/product unavailable states", async () => {
     getMonthlyAllOutletsReport.mockResolvedValue(allOutletsMonthlyDataset);
     render(<ReportsPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    expect(screen.getByRole("button", { name: "All Outlets" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Outlet" })).toBeTruthy();
     expect(screen.getByText("Generate a report preview")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
     await waitFor(() => expect(getMonthlyAllOutletsReport).toHaveBeenCalledWith(expect.objectContaining({ year: expect.any(Number), month: expect.any(Number) })));
@@ -44,8 +44,8 @@ describe("ReportsPage", () => {
   it("switches to a 12-month Yearly/YTD poster and calls the yearly Reporting service", async () => {
     getYearlyAllOutletsFinancialReport.mockResolvedValue(allOutletsYearlyDataset);
     render(<ReportsPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    fireEvent.click(screen.getByRole("button", { name: "Monthly P&L" }));
-    fireEvent.click(screen.getByRole("button", { name: "Yearly P&L" }));
+    fireEvent.click(screen.getByRole("button", { name: "Report Type" }));
+    fireEvent.click(screen.getByRole("option", { name: "Yearly P&L" }));
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
     await waitFor(() => expect(getYearlyAllOutletsFinancialReport).toHaveBeenCalledWith(expect.objectContaining({ year: expect.any(Number) })));
     expect(screen.getAllByLabelText("Yearly P&L Report poster")).toHaveLength(2);
@@ -108,8 +108,8 @@ describe("ReportsPage", () => {
   it("keeps individual outlet generation on its existing canonical Reporting reads", async () => {
     getMonthlyOutletReport.mockResolvedValue(monthlyDataset);
     render(<ReportsPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    fireEvent.click(screen.getByRole("button", { name: "All Outlets" }));
-    fireEvent.click(screen.getByRole("button", { name: "Outlet A" }));
+    fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
+    fireEvent.click(screen.getByRole("option", { name: "Outlet A" }));
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
     await waitFor(() => expect(getMonthlyOutletReport).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-a" })));
     expect(getMonthlyAllOutletsReport).not.toHaveBeenCalled();

@@ -19,7 +19,7 @@ describe("Guest AI independent workspace", () => {
 
   it("keeps Guest AI as a fourth workspace with an explicit access boundary", () => {
     const guestAiWorkspace = workspaceSwitcherOptions.find((workspace) => workspace.id === "guest_ai");
-    expect(workspaceSwitcherOptions.map((workspace) => workspace.id)).toEqual(["restaurant", "factory", "crew", "guest_ai"]);
+    expect(workspaceSwitcherOptions.map((workspace) => workspace.id)).toEqual(["restaurant", "finance", "factory", "crew", "guest_ai"]);
     expect(guestAiWorkspace).toMatchObject({ label: "Guest AI", detail: "AI Guest Experience", permission: "guest_ai.access" });
   });
 });

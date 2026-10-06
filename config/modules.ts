@@ -40,7 +40,9 @@ export type AppModule = {
   sidebar: boolean;
   // Internal modules may supply data or modal workflows without being valid hash-route destinations.
   routable?: boolean;
-  workspace?: "restaurant" | "factory" | "crew" | "guest_ai";
+  // Consumer routes may reuse an existing permission without introducing a second grant.
+  readPermission?: string;
+  workspace?: "restaurant" | "factory" | "crew" | "guest_ai" | "finance";
   permissions: Partial<Record<ModuleAction, boolean>>;
 };
 
@@ -112,10 +114,11 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   export: "Export",
 };
 
-export type WorkspaceKey = "restaurant" | "factory" | "crew" | "guest_ai";
+export type WorkspaceKey = "restaurant" | "factory" | "crew" | "guest_ai" | "finance";
 
 export const workspaceLabels: Record<WorkspaceKey, string> = {
   restaurant: "Restaurant",
+  finance: "Finance",
   factory: "Factory",
   crew: "Crew",
   guest_ai: "Guest AI",
@@ -132,6 +135,7 @@ export const workspaceSwitcherOptions: Array<{
   permission?: string;
 }> = [
   { id: "restaurant", label: "Restaurant", detail: "Store Operations" },
+  { id: "finance", label: "Finance", detail: "Financial state & statements", permission: "reports.view" },
   { id: "factory", label: "Factory", detail: "Production Operations" },
   { id: "crew", label: "Crew", detail: "People, learning & workforce" },
   { id: "guest_ai", label: "Guest AI", detail: "AI Guest Experience", permission: "guest_ai.access" },
@@ -139,6 +143,7 @@ export const workspaceSwitcherOptions: Array<{
 
 export const moduleSectionOrder = [
   "Overview",
+  "Finance",
   "Sales",
   "Purchases",
   "Operations",
@@ -161,6 +166,13 @@ export const moduleSectionOrder = [
 ];
 
 export const moduleRegistry: AppModule[] = [
+  { id: "finance_overview", section: "Finance", label: "Overview", route: "/finance/overview", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
+  { id: "finance_analysis", section: "Finance", label: "Analysis", route: "/finance/analysis", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
+  { id: "finance_costs", section: "Finance", label: "Costs", route: "/finance/costs", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
+  { id: "finance_cash", section: "Finance", label: "Cash", route: "/finance/cash", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
+  { id: "finance_planning", section: "Finance", label: "Planning", route: "/finance/planning", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
+  { id: "finance_statements", section: "Finance", label: "Statements", route: "/finance/statements", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
+
   {
     id: "guest_ai",
     section: "Guest AI",

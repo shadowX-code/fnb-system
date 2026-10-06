@@ -809,3 +809,7 @@ Added append-only, explicitly effective-dated legal coverage to the Outlet/Workp
 ## 2026-10-06 — Retire Outlet Law Coverage
 
 Removed Outlet coverage UI/services and dedicated database objects through a guarded forward migration. Legal scope now belongs to the existing audited People employment assignment/Change Employment command; Monthly entitlement reads only dated People jurisdiction. Existing history is unconfirmed, with no state/address backfill. Outlet state remains the PH location authority. Historical corrections preserve later revisions and finalized evidence.
+
+## 2026-10-06 — Finance Phase 1 foundation
+
+Introduced the Finance workspace IA, provider-neutral read/statement contracts, explicit capabilities and financial classifications, 16-metric registry, historical authority/evidence reference policy and development-only multi-entity fixture. Overview consumes existing authorized operational Reporting evidence; Statements converges through the existing Monthly/Yearly P&L owner. No accounting ingestion, credentials, schema mutation, Bukku integration or Production P&L replacement. Durable ownership and remaining provider gates are documented in `docs/domains/finance.md`.

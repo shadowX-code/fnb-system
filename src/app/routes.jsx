@@ -39,6 +39,7 @@ import { GuestAiDeveloperPage, GuestAiDevicesPage, GuestAiInteractionsPage, Gues
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 // Keep one component identity per feature, including all of its route aliases.
+const FinanceWorkspacePage = lazy(() => import("../features/finance/FinanceWorkspacePage.jsx"));
 const FactoryWorkspacePage = lazy(() => import("../features/factory/pages/FactoryWorkspacePage.jsx"));
 const InventoryControlPage = lazy(() => import("../features/sales-purchase/pages/InventoryControlPage.jsx"));
 const AssetTrackingPage = lazy(() => import("../features/sales-purchase/pages/AssetTrackingPage.jsx"));
@@ -60,6 +61,13 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 }
 
 export const routeDetails = {
+  finance_overview: { description: "Finance overview foundation.", component: FinanceWorkspacePage, props: { section: "overview" } },
+  finance_analysis: { description: "Finance analysis foundation.", component: FinanceWorkspacePage, props: { section: "analysis" } },
+  finance_costs: { description: "Finance costs foundation.", component: FinanceWorkspacePage, props: { section: "costs" } },
+  finance_cash: { description: "Finance cash foundation.", component: FinanceWorkspacePage, props: { section: "cash" } },
+  finance_planning: { description: "Finance planning foundation.", component: FinanceWorkspacePage, props: { section: "planning" } },
+  finance_statements: { description: "Finance statements foundation.", component: FinanceWorkspacePage, props: { section: "statements" } },
+
   guest_ai_overview: {
     description: "Guest AI device, voice runtime, and foundation status overview.",
     component: GuestAiOverviewPage,
@@ -593,7 +601,7 @@ export const salesPurchaseRoutes = moduleRegistry.filter((module) => module.rout
     eyebrow: module.section,
     description: details.description ?? `${module.label} workspace.`,
     component: details.component ?? ModulePlaceholderPage,
-    permission: details.permission ?? viewPermission(module.id),
+    permission: details.permission ?? module.readPermission ?? viewPermission(module.id),
     props: {
       moduleId: module.id,
       moduleLabel: module.label,

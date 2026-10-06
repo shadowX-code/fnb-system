@@ -11,6 +11,7 @@ import { isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue } from 
 import { canAccessOutlet, hasPermission } from "../utils/accessControl.js";
 
 const iconMap = {
+  finance_overview: Gauge, finance_analysis: BarChart3, finance_costs: Wallet, finance_cash: Wallet, finance_planning: CalendarDays, finance_statements: FileText,
   "guest-ai-device-console": Bot,
   "guest-ai-overview": Sparkles,
   "guest-ai-devices": Bot,
@@ -1317,7 +1318,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
         <button className="flex w-full items-center justify-between rounded-xl border border-border bg-slate-50 px-3 py-2.5 text-left transition hover:border-primary/30 hover:bg-white" type="button" aria-expanded={workspaceMenuOpen} onClick={() => setWorkspaceMenuOpen((value) => !value)}>
           <span><span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Workspace</span><span className="mt-0.5 block text-sm font-bold text-text-primary">{workspaceOptions.find((option) => option.id === workspace)?.label ?? "Restaurant"}</span></span><ChevronDown size={16} className={`text-text-muted transition-transform ${workspaceMenuOpen ? "rotate-180" : ""}`} />
         </button>
-        {workspaceMenuOpen ? <div className="absolute inset-x-3 top-[76px] z-20 rounded-xl border border-border bg-surface p-1.5 shadow-lg">{workspaceOptions.map((option) => { const Icon = option.id === "guest_ai" ? Sparkles : option.id === "crew" ? Users : option.id === "factory" ? Factory : Building2; const active = workspace === option.id; return <button key={option.id} className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition ${active ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`} type="button" onClick={() => { setWorkspaceMenuOpen(false); onWorkspaceChange?.(option.id); }}><Icon size={16} /><span><span className="block text-sm font-bold">{option.label}</span><span className="block text-xs font-medium opacity-75">{option.detail}</span></span>{active ? <Check className="ml-auto" size={15} /> : null}</button>; })}</div> : null}
+        {workspaceMenuOpen ? <div className="absolute inset-x-3 top-[76px] z-20 rounded-xl border border-border bg-surface p-1.5 shadow-lg">{workspaceOptions.map((option) => { const Icon = option.id === "finance" ? Wallet : option.id === "guest_ai" ? Sparkles : option.id === "crew" ? Users : option.id === "factory" ? Factory : Building2; const active = workspace === option.id; return <button key={option.id} className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition ${active ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`} type="button" onClick={() => { setWorkspaceMenuOpen(false); onWorkspaceChange?.(option.id); }}><Icon size={16} /><span><span className="block text-sm font-bold">{option.label}</span><span className="block text-xs font-medium opacity-75">{option.detail}</span></span>{active ? <Check className="ml-auto" size={15} /> : null}</button>; })}</div> : null}
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-2.5">

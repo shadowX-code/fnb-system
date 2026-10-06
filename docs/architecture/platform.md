@@ -40,9 +40,10 @@ Do not force-push `main` or `dev` during routine integration or cleanup. Reconci
 
 ## Workspace Ownership
 
-FeedX currently exposes four workspaces:
+FeedX currently exposes five workspaces:
 
-- Restaurant: outlet finance, purchasing, inventory, assets, people administration, and reporting.
+- Restaurant: operational financial input, purchasing, inventory, assets, people administration, and existing reporting.
+- Finance: financial statements, analysis, intelligence and future planning; Phase 1 reuses `reports.view` and existing Reporting outlet scope.
 - Crew: workforce, operations, learning, performance/reward, and localized Crew experiences.
 - Factory: production, warehouse, and factory-owned master data.
 - Guest AI: a bounded prototype module with minimal coupling to FeedX business domains.
@@ -102,7 +103,7 @@ Growth/Performance, Reward, Learn, Cash Checkout, and Leave components use route
 
 ### Admin/Factory Route Contract
 
-`src/app/routeOwnership.js` is the single executable FeedX route contract. It derives routable Admin modules from `config/modules.ts`, defines the canonical pathname and retained hash aliases for Restaurant, Factory, People, System, Crew Admin, and Crew Mobile destinations, declares route parameters, and limits query state to product-owned values that must survive migration. Its canonical taxonomy is organized by real ownership rather than sidebar presentation: Restaurant uses `/restaurant/...`; Factory uses `/factory/warehouse`, `/factory/raw-materials`, `/factory/mesti`, and `/factory/master-data` where applicable; People uses `/people/...`; System uses `/system/...`; and Crew separates Admin workforce/operations from the Crew Mobile self-service experience.
+`src/app/routeOwnership.js` is the single executable FeedX route contract. It derives routable Admin modules from `config/modules.ts`, defines the canonical pathname and retained hash aliases for Restaurant, Finance, Factory, People, System, Crew Admin, and Crew Mobile destinations, declares route parameters, and limits query state to product-owned values that must survive migration. Its canonical taxonomy is organized by real ownership rather than sidebar presentation: Restaurant uses `/restaurant/...`; Factory uses `/factory/warehouse`, `/factory/raw-materials`, `/factory/mesti`, and `/factory/master-data` where applicable; People uses `/people/...`; System uses `/system/...`; and Crew separates Admin workforce/operations from the Crew Mobile self-service experience.
 
 Phase 3 makes the shared contract the sole Admin pathname writer: Restaurant, Factory, Crew Admin, People, and System navigation now writes canonical pathnames. A recognized legacy Admin hash is resolved once and replaced with the equivalent pathname, preserving declared route parameters and product query state without creating a second history entry. The shared writer retains unrelated external query markers (for example `qa` and `audit`) without treating them as product state; route changes discard prior route-owned query keys unless the destination declares them. Crew Mobile uses the same contract but only on its dedicated host: `crew.feedx.my` reads and writes host-relative Crew paths, while `os.feedx.my/crew/*` remains exclusively Admin. Public Feedback and auth/recovery callbacks retain their independent owners.
 

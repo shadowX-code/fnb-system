@@ -298,7 +298,7 @@ function AdminApp() {
     if (routeWorkspace !== "restaurant") return routeWorkspace;
     try {
       const saved = localStorage.getItem("feedx.workspace");
-      return ["restaurant", "factory", "crew", "guest_ai"].includes(saved) ? saved : "restaurant";
+      return ["restaurant", "factory", "crew", "guest_ai", "finance"].includes(saved) ? saved : "restaurant";
     } catch {
       return "restaurant";
     }
