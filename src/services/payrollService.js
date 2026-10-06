@@ -58,16 +58,11 @@ export const payrollService = {
   publishHolidayCandidate: (id, revision) => command("payroll_holiday_candidate_publish", { p_id: id, p_revision: revision }),
   readHolidaySource: (id) => command("payroll_holiday_candidate_source", { p_id: id }),
   saveDefaultPhPolicy: ({ date, treatment, remark }) => command("payroll_ph_default_policy_save", { p_effective_from: date, p_treatment: treatment, p_remark: remark || null }),
-  importHolidayCalendar: ({ year, manifest, publish, previousId, requestId }) => command("payroll_holiday_import", { p_year: Number(year), p_manifest: manifest, p_publish: publish, p_previous_id: previousId || null, p_request_id: requestId }),
   saveDefaultPaidHolidays: ({ calendarId, selected, previousId, requestId }) => command("payroll_paid_holiday_default_save", { p_calendar_id: calendarId, p_selected: selected, p_previous_id: previousId || null, p_request_id: requestId }),
   readCompanyPhStatutory: (entityId) => command("payroll_company_ph_statutory_read", { p_legal_entity_id: entityId }),
   readPhPolicy: (entityId) => command("payroll_ph_policy_read", { p_legal_entity_id: entityId }),
   savePhPolicy: (input) => command("payroll_ph_policy_save", { p_legal_entity_id: input.entityId,
     p_effective_from: input.date, p_treatment: input.treatment, p_remark: input.remark || null }),
-  readPhWork: (runId, employeeId) => command("payroll_ph_work_read", { p_run_id: runId, p_employee_id: employeeId }),
-  confirmPhWork: (input) => command("payroll_ph_work_confirm", { p_run_id: input.runId,
-    p_employee_id: input.employeeId, p_work_date: input.workDate, p_treatment: input.treatment,
-    p_source_fingerprint: input.fingerprint, p_request_id: input.requestId, p_remark: input.remark || null }),
   readHolidayOperation: (outletId = null) => command("payroll_holiday_operation_read", { p_outlet_id: outletId }),
   publishHolidayOperation: input => command("payroll_holiday_operation_publish", { p_input: input }),
   readAnnualHolidays: (year) => command("payroll_annual_holiday_read", { p_year: Number(year) }),
@@ -119,10 +114,6 @@ export const payrollService = {
   }),
   readLindungSetup: (profileId, month) => command("payroll_lindung_setup_read", { p_profile_id: profileId, p_month: month }),
   previewLindungSetup: (profileId, month, intent, act4Covered) => command("payroll_lindung_setup_preview", { p_profile_id: profileId, p_month: month, p_intent: intent, p_act4_covered: act4Covered }),
-  confirmLindungSetup: (input) => command("payroll_lindung_setup_confirm", {
-    p_profile_id: input.profileId, p_intent: input.intent, p_fingerprint: input.fingerprint, p_request_id: input.requestId,
-  }),
-  readStatutoryInput: (profileId) => command("payroll_statutory_input_read", { p_profile_id: profileId }),
   readStatutorySetup: (profileId, date = null, applicability = null) => command("payroll_statutory_setup_read", {
     p_profile_id: profileId, p_date: date, p_applicability: applicability,
   }),
@@ -221,12 +212,6 @@ export const payrollService = {
       p_time_version_id: id, p_action: action, p_approved_minutes: approvedMinutes,
       p_extra_minutes: extraMinutes, p_classification: classification, p_reason: reason,
     }),
-  runTimeReadiness: (runId) => command("payroll_run_time_readiness", { p_run_id: runId }),
-  calculateRun: (runId) => command("payroll_run_calculate", { p_run_id: runId }),
-  recalculateRun: async (runId) => {
-    await command("payroll_run_calculate", { p_run_id: runId });
-    return command("payroll_run_statutory_calculate", { p_run_id: runId });
-  },
   finalizeRun: async (runId, status, reason) => {
     // Preserve each server-validated transition and its evidence, without extra UI steps.
     if (status === "draft") await command("payroll_run_transition", { p_run_id: runId, p_next_status: "review_required", p_reason: reason });
@@ -239,10 +224,7 @@ export const payrollService = {
   readCalculation: (runId) => command("payroll_run_calculation_read", { p_run_id: runId }),
   readRunEvidence: (runId) => command("payroll_run_evidence_read", { p_run_id: runId }),
   readPreparation: (runId) => command("payroll_run_preparation_read", { p_run_id: runId }),
-  calculationReadiness: (runId) => command("payroll_run_calculation_readiness", { p_run_id: runId }),
-  calculateStatutory: (runId) => command("payroll_run_statutory_calculate", { p_run_id: runId }),
   readStatutory: (runId) => command("payroll_run_statutory_read", { p_run_id: runId }),
-  statutoryReadiness: (runId) => command("payroll_run_statutory_readiness", { p_run_id: runId }),
   readPcb: (runId) => command("payroll_run_pcb_read", { p_run_id: runId }),
   confirmPcb: (input) => command("payroll_run_pcb_confirm", {
     p_request_id: input.requestId,
@@ -271,17 +253,5 @@ export const payrollService = {
     p_source_note: input.sourceNote,
     p_reason: input.reason,
   }),
-  addRunComponent: (input) => command("payroll_run_component_add", {
-    p_request_id: input.requestId,
-    p_run_id: input.runId,
-    p_employee_id: input.employeeId,
-    p_component_id: input.componentId,
-    p_amount: Number(input.amount),
-    p_reason: input.reason,
-  }),
-  reverseRunComponent: (input) => command("payroll_run_component_reverse", {
-    p_request_id: input.requestId,
-    p_adjustment_id: input.adjustmentId,
-    p_reason: input.reason,
-  }),
+
 };

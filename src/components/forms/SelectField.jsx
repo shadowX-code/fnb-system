@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Search, X } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import FloatingLayer from "../ui/FloatingLayer.jsx";
 
+/** Canonical Admin selection: portaled options, search and native form validation. */
 export default function SelectField({
   label,
   value,
@@ -18,110 +19,211 @@ export default function SelectField({
   footerAction = null,
   ariaLabel,
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const containerRef = useRef(null);
-  const selectedOption = options.find((option) => String(option.value) === String(value));
-  const filteredOptions = useMemo(() => {
-    const search = query.trim().toLowerCase();
-    if (!search) return options;
-    return options.filter((option) => String(option.label).toLowerCase().includes(search));
-  }, [options, query]);
-
+  const [isOpen, setIsOpen] = useState(false),
+    [query, setQuery] = useState("");
+  const containerRef = useRef(null),
+    triggerRef = useRef(null),
+    optionRefs = useRef([]);
+  const id = useId();
+  const selectedOption = options.find(
+    (option) => String(option.value) === String(value),
+  );
+  const filteredOptions = useMemo(
+    () =>
+      options.filter((option) =>
+        `${option.label} ${option.description || ""}`
+          .toLowerCase()
+          .includes(query.trim().toLowerCase()),
+      ),
+    [options, query],
+  );
   useEffect(() => {
     if (!isOpen) setQuery("");
   }, [isOpen]);
-
   function closeSelect() {
     setIsOpen(false);
     setQuery("");
+    triggerRef.current?.focus();
   }
-
   function selectOption(option) {
-    if (option.disabled) return;
-    onChange(option.value);
-    closeSelect();
+    if (!option.disabled) {
+      onChange(option.value);
+      closeSelect();
+    }
   }
-
-  const footerContent = typeof footerAction === "function" ? footerAction({ close: closeSelect }) : footerAction;
-
+  function moveFocus(direction, from = -1) {
+    const enabled = filteredOptions
+      .map((o, i) => (o.disabled ? -1 : i))
+      .filter((i) => i >= 0);
+    if (!enabled.length) return;
+    const position = enabled.indexOf(from);
+    const next =
+      direction === "first"
+        ? enabled[0]
+        : direction === "last"
+          ? enabled.at(-1)
+          : enabled[(position + direction + enabled.length) % enabled.length];
+    optionRefs.current[next]?.focus();
+  }
+  function optionKey(event, index) {
+    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      moveFocus(
+        event.key === "Home"
+          ? "first"
+          : event.key === "End"
+            ? "last"
+            : event.key === "ArrowDown"
+              ? 1
+              : -1,
+        index,
+      );
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeSelect();
+    }
+    if (event.key === "Tab") setIsOpen(false);
+  }
+  const footerContent =
+    typeof footerAction === "function"
+      ? footerAction({ close: closeSelect })
+      : footerAction;
   return (
-    <div className={`relative min-w-0 ${className}`} ref={containerRef}>
-      {label ? (
-        <div className="admin-form-field-label mb-2">
-          {label} {required ? <span className="text-rose-500">*</span> : null}
+    <div
+      className={`admin-select relative min-w-0 ${className}`}
+      ref={containerRef}
+    >
+      {label && (
+        <div id={`${id}-label`} className="admin-form-field-label mb-2">
+          {label} {required && <span className="text-rose-500">*</span>}
         </div>
-      ) : null}
+      )}
       <button
-        className={`flex h-10 w-full items-center justify-between gap-2 rounded-xl border bg-white px-3 text-left text-[14px] font-medium transition focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-text-muted ${
-          error ? "border-rose-200" : isOpen ? "border-primary/50 shadow-sm" : "border-border hover:border-slate-300 hover:bg-slate-50"
-        } ${buttonClassName}`}
+        ref={triggerRef}
         type="button"
-        aria-label={ariaLabel || undefined}
+        className={`admin-select-trigger control ${buttonClassName}`}
+        aria-label={ariaLabel}
+        aria-labelledby={!ariaLabel && label ? `${id}-label` : undefined}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        aria-controls={isOpen ? `${id}-options` : undefined}
+        aria-invalid={Boolean(error)}
+        aria-describedby={`${id}-value${error || helper ? ` ${id}-message` : ""}`}
         disabled={disabled}
-        onClick={() => setIsOpen((current) => !current)}
+        onClick={() => setIsOpen(!isOpen)}
+        onKeyDown={(event) => {
+          if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+            event.preventDefault();
+            setIsOpen(true);
+          }
+        }}
       >
-        <span className={`truncate ${selectedOption ? "text-text-primary" : "text-text-secondary"}`}>{selectedOption?.label ?? placeholder}</span>
-        <ChevronDown className={`shrink-0 text-text-muted transition ${isOpen ? "rotate-180" : ""}`} size={15} />
+        <span
+          id={`${id}-value`}
+          className={!selectedOption ? "text-text-secondary" : ""}
+        >
+          {selectedOption?.label ?? placeholder}
+        </span>
+        <ChevronDown
+          size={15}
+          aria-hidden="true"
+          className={isOpen ? "rotate-180" : ""}
+        />
       </button>
-      {error ? <div className="mt-1 type-micro font-medium text-rose-600">{error}</div> : null}
-      {!error && helper ? <div className="mt-1 type-micro text-text-muted">{helper}</div> : null}
-
+      {required && (
+        <input
+          className="admin-select-validation"
+          tabIndex={-1}
+          aria-hidden="true"
+          required
+          disabled={disabled}
+          value={value ?? ""}
+          onChange={() => {}}
+          onInvalid={(event) => {
+            event.preventDefault();
+            triggerRef.current?.focus();
+          }}
+        />
+      )}
+      {(error || helper) && (
+        <div
+          id={`${id}-message`}
+          className={`admin-form-field-message mt-1 ${error ? "text-rose-600" : ""}`}
+        >
+          {error || helper}
+        </div>
+      )}
       <FloatingLayer
         open={isOpen}
-        onOpenChange={setIsOpen}
+        onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) triggerRef.current?.focus();
+        }}
         anchorRef={containerRef}
         minWidth={224}
         align="start"
         estimatedHeight={320}
-        focusOnOpen={searchable}
-        className="p-3 sm:p-2"
+        focusOnOpen
+        className="admin-select-popover"
       >
-          <div className="mb-2 flex items-center justify-between px-1 sm:hidden">
-            <div className="type-body font-bold text-text-primary">{label || placeholder}</div>
-            <button className="icon-btn" type="button" onClick={() => setIsOpen(false)} aria-label="Close select">
-              <X size={15} />
+        {searchable && (
+          <div className="admin-select-search">
+            <Search size={14} aria-hidden="true" />
+            <input
+              className="control"
+              value={query}
+              aria-label={`Search ${ariaLabel || label || "options"}`}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search…"
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  moveFocus("first");
+                }
+              }}
+            />
+          </div>
+        )}
+        <div
+          id={`${id}-options`}
+          role="listbox"
+          aria-label={ariaLabel || label || placeholder}
+          className="admin-select-options"
+        >
+          {filteredOptions.map((option, index) => (
+            <button
+              key={option.value}
+              ref={(node) => {
+                optionRefs.current[index] = node;
+              }}
+              role="option"
+              aria-selected={String(option.value) === String(value)}
+              className="admin-select-option"
+              type="button"
+              disabled={option.disabled}
+              onKeyDown={(event) => optionKey(event, index)}
+              onClick={() => selectOption(option)}
+            >
+              <span>
+                <strong>{option.label}</strong>
+                {option.description && <small>{option.description}</small>}
+              </span>
+              {String(option.value) === String(value) && (
+                <Check size={15} aria-hidden="true" />
+              )}
             </button>
+          ))}
+          {!filteredOptions.length && (
+            <p className="p-3 text-sm text-text-secondary">No options found</p>
+          )}
+        </div>
+        {footerContent && (
+          <div className="mt-2 border-t border-border pt-2">
+            {footerContent}
           </div>
-          {searchable ? (
-            <div className="relative mb-2">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
-              <input
-                className="control h-8 w-full pl-8 text-[13px]"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search..."
-              />
-            </div>
-          ) : null}
-          <div className="max-h-[52vh] space-y-1 overflow-y-auto pr-1 sm:max-h-72">
-            {filteredOptions.length ? filteredOptions.map((option) => {
-              const checked = String(option.value) === String(value);
-              return (
-                <button
-                  key={option.value}
-                  className={`flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 text-left text-[13px] transition ${
-                    option.disabled
-                      ? "cursor-not-allowed text-text-muted opacity-50"
-                      : checked
-                        ? "bg-primary/10 text-primary"
-                        : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"
-                  }`}
-                  type="button"
-                  disabled={option.disabled}
-                  onClick={() => selectOption(option)}
-                >
-                  <span className="truncate font-semibold">{option.label}</span>
-                  {checked ? <Check size={14} strokeWidth={3} /> : null}
-                </button>
-              );
-            }) : (
-              <div className="rounded-xl border border-dashed border-border px-3 py-4 text-center text-xs font-semibold text-text-muted">No options found</div>
-            )}
-          </div>
-          {footerContent ? <div className="mt-2 border-t border-border pt-2">{footerContent}</div> : null}
+        )}
       </FloatingLayer>
     </div>
   );

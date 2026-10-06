@@ -1,27 +1,12 @@
 # Payroll
 
-## Company paid-holiday work benefit
-
-Company Paid Holiday selection, confirmed work and company benefit are separate
-authorities. The annual published policy supplies applicability; published working
-roster, complete Attendance and current approved PH Payable Time supply work evidence.
-`payroll_ph_work_project` / scoped `payroll_ph_work_read` are side-effect-free.
-An effective Legal-Entity company benefit policy recommends Additional Pay or
-Replacement Leave. No statutory baseline/premium is inferred from this policy.
-
-`payroll_ph_work_confirm` locks the Draft/Correction Run and employee Leave scope,
-rechecks the source fingerprint, appends a request-bound decision, reconciles the
-source-linked Leave grant and recalculates only that employee in one transaction.
-The company policy's historical Additional Pay recommendation uses Monthly Basic
-/ 26 × one benefit day or Hourly Rate × approved hours. This is a company benefit,
-not the statutory Malaysia PH entitlement.
-
 ## Malaysia statutory public-holiday pricing
 
 The canonical chain is published paid calendar → People employment and reviewed
-legal coverage/eligibility → current approved PH time → official statutory PH pack
-→ explicitly applicable company benefit → canonical priced earnings. No employment,
-holiday eligibility, normal hours or prior wage evidence is backfilled.
+legal coverage/eligibility → current approved PH time → one confirmed PH Pay
+Treatment → canonical priced earnings. Statutory pricing and Company PH Allowance
+retain their respective authorities; Company is not a separate payment layer.
+No employment, holiday eligibility, normal hours or prior wage evidence is backfilled.
 
 ### Operational PH Pay Treatment
 
@@ -171,6 +156,17 @@ Pay ↔ Leave changes append decisions and signed Leave adjustments. A used sour
 grant or insufficient unreserved balance blocks switching to Pay. No source
 Holiday, published roster, Attendance or historical decision is rewritten.
 
+### Retained historical company PH authorities
+
+Historical `additional_pay` and `replacement_leave` policy/decision evidence remains
+unchanged. The retained `payroll_ph_work_project` feeds current PH context and uses
+the shared Company PH Allowance calculator. `payroll_ph_work_read` and
+`payroll_ph_work_confirm` remain existing SQL authorities for historical
+compatibility; the normal client no longer mounts their separate occurrence editor.
+Their source fingerprints, request-bound audit lineage, source-linked Leave grants
+and frozen snapshots are not removed or converted. New operational occurrence
+reviews use the unified PH Pay Treatment workflow above.
+
 ## Operational draft and finalized-record presentation
 
 Prepare Payroll uses one exception-first employee table; status is not duplicated
@@ -193,6 +189,8 @@ snapshots. Names and financial values never fall back to current employee setup.
 Older foundation revisions without financial snapshots explicitly show unavailable
 evidence rather than inventing values. Corrections remain separate revisions;
 this presentation does not create a payslip or payment authority.
+
+Prepare row Review uses the shared secondary button. The shared Payroll time-evidence cell groups its Ready pill with an accessible eye-only inspect action, with the time/evidence summary beneath; actionable Review Time remains a secondary workflow action.
 
 Employee review exposes **View Time** for Ready evidence and **Review Time** for
 canonical pay-impacting unresolved time evidence. Both open the same daily evidence
@@ -1164,7 +1162,10 @@ Pay-rule versions have a different canonical key: `(rule_code, pay_basis, effect
 The Payroll workspace owns one authorized Legal Entity selection across Overview,
 Profiles, Runs and Settings. Refresh retains that selection only while it remains
 in the scoped canonical entity list; unavailable selections fall back to an accessible
-entity. Tab changes do not reset the company or payroll month.
+entity. Tab changes do not reset the company or payroll month. Open Runs expose a
+compact context bar with Payroll Runs, Legal Entity and Pay Period controls. Switching
+entity preserves the selected month and opens its current Run, or a preparation/empty
+state when none exists; it never substitutes another pay period.
 
 Open runs consume `payroll_run_evidence_read`, a side-effect-free, transaction-local
 bundle of preparation, current calculation/statutory versions, canonical readiness,
@@ -1183,7 +1184,29 @@ previously committed calculations may finish, while explicit daily decisions con
 through the existing fast, audited command. Finish/Return resumes coalesced automatic
 calculation. Financial totals remain pending while stale or membership is unresolved.
 Run membership blockers appear once in the header, independently of employee preparation
-progress and actionable review items.
+progress and actionable review items. Prepare shows compact statutory exceptions with
+Resolve actions into Employee Review, which retains the detailed explanation. Normal
+time evidence revalidates through Run reads, input changes, review return and window
+focus; manual evidence synchronization is recovery-only after a failed read or canonical
+unreconciled-day count. Genuine source updates retain explicit Reconcile & Review.
+Prepare progression remains available while incomplete, using Continue to Review until
+employee preparation is ready; it does not certify Run finalization readiness.
+
+The Run Header owns title/status/readiness and a connected Prepare → Review →
+Finalize stepper. Current, completed (canonical readiness) and pending states are
+explicit; visiting a stage does not certify completion. Prepare and Review begin
+with operational content, without repeated headings/counts. Finalize uses one
+confirmation panel containing canonical financial totals, readiness checklist,
+separate non-blocking bank warning and an action footer explaining disabled state.
+The header financial summary yields to that panel on Finalize. Payslip actions
+retain canonical secondary-button typography and a single-line label alongside
+the icon-only Employee View action.
+
+The current daily decision response includes the authoritative row on both a fresh
+save and an idempotent retry. Unsupported responses stop queue advancement and
+instruct the reviewer to return to Employee Review for canonical read-back; the
+client never substitutes a whole-month read or submits a new decision to compensate.
+Lost-response request verification/replay remains in the shared save service.
 
 Prepare and Review retain the same employee surface and shared Run evidence across
 stage changes. Finalization Readiness consumes that same read, separates employee

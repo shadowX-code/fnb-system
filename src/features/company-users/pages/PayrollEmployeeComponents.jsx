@@ -1,3 +1,4 @@
+import RecordViewAction from "../../../components/ui/RecordViewAction.jsx";
 import { useState } from 'react';
 import Modal from '../../../components/feedback/Modal.jsx';
 import DataTable from '../../../components/tables/DataTable.jsx';
@@ -75,7 +76,7 @@ export default function PayrollEmployeeComponents({ profile, components, date, o
       {key:'amount',header:'Current Amount',align:'right',render:r=>r.current?.is_active ? money(r.current.amount) : '—'},
       {key:'from',header:'Effective From',render:r=><>{r.current?.effective_from || 'Not started'}{r.upcoming.length>0 && <small className="block text-text-secondary">Next: {r.upcoming[0].effective_from}</small>}</>},
       {key:'status',header:'Status',render:r=><Badge tone={r.upcoming.length ? 'warning' : r.current?.is_active ? 'success':'neutral'}>{r.upcoming.length ? 'Scheduled change' : r.current?.is_active ? 'Active':'Stopped'}</Badge>},
-      {key:'action',header:'Action',render:r=><button className="font-semibold text-primary" onClick={()=>setSelection(r.id)}>View</button>},
+      {key:'action',header:'Action',render:r=><RecordViewAction label={`View ${r.definition?.name || "Component"} history`} onClick={()=>setSelection(r.id)} />},
     ]} /> : <p className="py-6 text-sm text-text-secondary">No components assigned. Add a canonical allowance or deduction.</p>}
   </Modal>;
 }

@@ -136,3 +136,7 @@ Update this document when workspace boundaries, module ownership, shared shell r
 Update the relevant domain document for feature workflows and business rules.
 
 Crew mobile history views share a two-month selector, compact status chips, and explicit incremental loading. The underlying PO and Stock Check queries remain separate domain authorities. Crew confirmation dialogs use the shared focus-managed modal; actions and dismissal remain accessible without a duplicate close control.
+
+### Shared record actions
+
+Primary actions use the shared filled-green brand tokens with white labels/icons in normal and hover states; features do not override their foreground. Compact record continuation and document actions use `btn-secondary`. `RecordViewAction` owns the accessible eye-only inspect action on `icon-btn`; exception resolution and navigation remain text actions.

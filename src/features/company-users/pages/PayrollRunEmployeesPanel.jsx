@@ -1,3 +1,4 @@
+import PayrollTimeEvidenceCell from "./PayrollTimeEvidenceCell.jsx";
 import PayrollPhStatutory from "./PayrollPhStatutory.jsx";
 import FoundationForm from "./PayrollCompensationForm.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -15,9 +16,9 @@ import { payrollService } from "../../../services/payrollService.js";
 import PayrollPayableTimeReview from "./PayrollPayableTimeReview.jsx";
 import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "./PayrollMonthlyBasicBreakdown.jsx";
 import PayrollPayslipAction from './PayrollPayslipAction.jsx';
-import { Eye } from 'lucide-react';
+import RecordViewAction from "../../../components/ui/RecordViewAction.jsx";
 import { canonicalPathForRoute } from '../../../app/routeOwnership.js';
-import { statutoryName } from "./payrollStatutoryLabels.js";
+import { statutoryName, statutoryReviewSummary } from "./payrollStatutoryLabels.js";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { payComponentIsConfigured, payrollEmployeeResult, payrollReviewRows, payrollIssueLabel, payrollStatutoryCell, payrollTimeNeedsReview, payrollConfirmedUnpaidEvidence } from "./payrollRunPresentation.js";
 
@@ -146,11 +147,13 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     } catch (cause) { setError(cause.message); }
     finally { setBusy(false); }
   };
-  const reconcile = async () => {
+  const unsynchronizedDays = runRead?.data?.readiness?.time?.unreconciled || 0;
+  const synchronizationError = runRead?.error || (!runRead && !evidence && error);
+  const retryEvidence = async () => {
     setBusy(true); setError("");
     try {
       const end = periodEnd(month);
-      await payrollService.reconcileTime(entityId, `${month}-01`, end < currentDate() ? end : currentDate());
+      if (unsynchronizedDays > 0) await payrollService.reconcileTime(entityId, `${month}-01`, end < currentDate() ? end : currentDate());
       await refresh();
     } catch (cause) { setError(cause.message || "Unable to reconcile time evidence."); }
     finally { setBusy(false); }
@@ -181,9 +184,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       runRead?.invalidateEmployee?.(selected.id);
       return updated.filter(row => row.employee_id === selected.id);
     }
-    // Compatibility with an older server; never advance without read-back.
-    const time = await payrollService.readTime(entityId, `${month}-01`, periodEnd(month));
-    return time.filter(row => row.employee_id === selected.id);
+    throw new Error('Unsupported decision response. Do not submit another decision; return to Employee Review to reload the saved evidence.');
   };
   const openTimeReview = () => { runRead?.setTimeReviewActive?.(true); setReviewHours(true); };
   const closeTimeReview = () => {
@@ -209,12 +210,14 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     { key: "employer", header: "Employer Cost", align: "right", render: row => <span className="tabular-nums">{row.result.statutoryCurrent ? money(row.statutory.total_employer_cost) : 'Pending'}</span> },
     { key: "bank", header: "Bank", render: row => <PayrollEmployeeBankInfo result={bankFor(row)} employeeName={row.name} canEdit={canEditEmployee} onRetry={bankAuthority.refresh} /> },
     { key: "status", header: "Status", render: row => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Pending Review" : "Ready"}</Badge> },
-    { key: "action", header: "Actions", render: row => <div className="inline-flex gap-1"><button type="button" className="icon-btn" aria-label={`View Payroll for ${row.name}`} title="View Payroll" onClick={event => { event.stopPropagation(); setEmployeeId(row.id); }}><Eye size={16} aria-hidden="true" /></button><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
+    { key: "action", header: "Actions", width: "1%", className: "whitespace-nowrap", render: row => <div className="inline-flex items-center gap-2 whitespace-nowrap"><RecordViewAction label={`View Payroll for ${row.name}`} title="View Payroll" onClick={event => { event.stopPropagation(); setEmployeeId(row.id); }} /><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
   ];
   const columns = stage === "review" ? reviewColumns : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><small className="block text-text-secondary">{row.employee_code || "—"}</small></div> },
     { key: "pay", header: "Pay", render: (row) => row.pay ? <span>{human(row.pay.pay_basis)}<small className="block text-text-secondary">{money(row.pay.basic_salary || row.pay.hourly_rate)}{row.pay.pay_basis === "hourly" ? " / hour" : ""}</small></span> : <Badge tone="warning">Setup required</Badge> },
-    { key: "time", header: "Time & Attendance", render: row => <div><Badge tone={row.timeNeedsReview ? "warning" : "success"}>{row.timeNeedsReview ? `${row.timeExceptionCount} exception${row.timeExceptionCount === 1 ? "" : "s"}` : "Ready"}</Badge>{row.pay?.pay_basis === "hourly" && <small className="block text-text-secondary">{hours(row.time.filter(item => item.review_state?.state !== "ph_review").reduce((sum,item) => sum + Number(item.approved_minutes || 0),0))} approved Regular / non-PH time</small>}<button type="button" className="mt-1 block font-semibold text-primary" aria-label={`${row.timeNeedsReview ? "Review" : "View"} Time for ${row.name}`} onClick={() => { setEmployeeId(row.id); openTimeReview(); }}>{row.timeNeedsReview ? "Review Time" : "View Time"}</button></div> },
+    { key: "time", header: "Time & Attendance", render: row => <PayrollTimeEvidenceCell employeeName={row.name} needsReview={row.timeNeedsReview} exceptionCount={row.timeExceptionCount}
+      summary={row.pay?.pay_basis === "hourly" ? `${hours(row.time.filter(item => item.review_state?.state !== "ph_review").reduce((sum,item) => sum + Number(item.approved_minutes || 0),0))} approved Regular / non-PH time` : "Monthly attendance evidence"}
+      onOpen={() => { setEmployeeId(row.id); openTimeReview(); }} /> },
     { key: "adjustments", header: "Adjustments", render: (row) => row.adjustments.length ? `${row.adjustments.length} adjustment${row.adjustments.length === 1 ? "" : "s"} · ${signedAdjustments(row.adjustments)}` : "None" },
     { key: "statutory", header: "Statutory", render: (row) => {
       const schemes = row.preparation?.statutory_setup?.schemes || {};
@@ -222,18 +225,21 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         !schemes[scheme] || !["confirmed", "not_applicable"].includes(schemes[scheme].state)
         || (scheme === "pcb" && schemes.pcb.applicable && !row.pcb?.confirmation));
       const applicable = ["epf", "socso", "lindung", "eis"].filter((scheme) => schemes[scheme]?.applicable).map((scheme) => statutoryName(scheme));
-      return <div className="text-xs"><strong>{issues.length ? `${issues.length} statutory issue${issues.length === 1 ? "" : "s"}` : `Ready${applicable.length ? ` · ${applicable.join(" / ")}` : ""}`}</strong>
-        <small className="block text-text-secondary">{schemes.pcb?.applicable === false ? "PCB N/A" : row.pcb?.confirmation ? "PCB confirmed" : "PCB confirmation required"}</small>
-        {schemes.lindung?.issue && <small className="block text-amber-700">{payrollIssueLabel(schemes.lindung.issue)}</small>}
+      return <div className="space-y-1 text-xs">
+        {issues.length ? <>
+          {issues.map(scheme => <p key={scheme} className="text-text-primary">{statutoryReviewSummary(scheme, schemes[scheme], Boolean(row.pcb?.confirmation))}</p>)}
+          <button type="button" className="font-semibold text-primary hover:underline" aria-label={`Resolve statutory issues for ${row.name}`} onClick={() => setEmployeeId(row.id)}>Resolve →</button>
+        </> : <><strong>Ready</strong><small className="block text-text-secondary">{applicable.join(" / ") || "Not Applicable"}{schemes.pcb?.applicable === false ? " · PCB N/A" : " · PCB confirmed"}</small></>}
         {row.statutory?.is_stale && <small className="block text-text-secondary">Calculation pending</small>}</div>;
     } },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Need Attention" : "Ready"}</Badge> },
-    { key: "action", header: "Action", render: (row) => <button type="button" className="font-semibold text-primary" onClick={() => setEmployeeId(row.id)}>Review</button> },
+    { key: "action", header: "Action", render: (row) => <button type="button" className="btn-secondary whitespace-nowrap" onClick={() => setEmployeeId(row.id)}>Review</button> },
   ];
-  return <div className="space-y-4">
-    <Card className="flex flex-wrap items-center justify-between gap-3 p-4"><div><h3 className="text-lg font-bold">{stage === "review" ? "Review Payroll" : "Prepare Payroll"}</h3>
-      <p className="text-sm text-text-secondary">{rows.length} included · {rows.filter((row) => row.needsReview).length} need attention. Resolve only exceptions; clean evidence needs no manual approval.</p></div>
-      {active && stage !== "review" && <button type="button" className="btn-secondary" disabled={busy} onClick={reconcile}>{busy ? "Reconciling…" : "Refresh time evidence"}</button>}</Card>
+  return <div className="space-y-3">
+    {(synchronizationError || unsynchronizedDays > 0) && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+      <p>{synchronizationError ? "Payroll evidence could not be synchronized." : `${unsynchronizedDays} day${unsynchronizedDays === 1 ? "" : "s"} of time evidence need synchronization.`}</p>
+      {(unsynchronizedDays === 0 || active) && <button type="button" className="btn-secondary" disabled={busy || runRead?.calculating} onClick={retryEvidence}>{busy ? "Synchronizing…" : "Retry Evidence Sync"}</button>}
+    </div>}
     {stage === "review" && <AdminFilterToolbar ariaLabel="Payroll review filters" compact denseFields searchAfterFilters
       filters={<><SelectField label="Status" ariaLabel="Review status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, { value: "ready", label: "Ready" }, { value: "attention", label: "Need Attention" }]} />
         <SelectField label="Pay Basis" ariaLabel="Review pay basis" value={basisFilter} onChange={setBasisFilter} options={[{ value: "all", label: "All" }, { value: "monthly", label: "Monthly" }, { value: "hourly", label: "Hourly" }]} />

@@ -10,12 +10,15 @@ it("keeps employee-ready membership-blocked runs disabled and resolves the ownin
  render(<Finalization run={{}} read={read} readiness={blocked} allReady={false} canFinalize onResolve={onResolve} onFinalize={onFinalize}/>);
  expect(screen.getByText("1 required item remaining")).toBeTruthy();
  expect(screen.getByRole("button",{name:"Finalize Payroll"}).disabled).toBe(true);
- fireEvent.click(screen.getByRole("button",{name:"Resolve Employment History Required"})); expect(onResolve).toHaveBeenCalledWith(0);
- expect(onFinalize).not.toHaveBeenCalled(); expect(screen.getByText(/Historical employment is unverified/)).toBeTruthy();
+ fireEvent.click(screen.getByRole("button",{name:"Resolve Employment History"})); expect(onResolve).toHaveBeenCalledWith(0);
+ expect(onFinalize).not.toHaveBeenCalled();
 });
 it("bank warnings never grant or remove canonical finalization authority",()=>{
  const {rerender}=render(<Finalization run={{}} read={read} readiness={readiness} allReady canFinalize bankRead={{missingCount:1}}/>);
  expect(screen.getByText(/does not block finalization/)).toBeTruthy();
+ expect(screen.getByText("Employer Contributions")).toBeTruthy();
+ expect(screen.getByText(/260.00/)).toBeTruthy();
+ expect(screen.getByRole("button",{name:"Finalize Payroll"}).getAttribute("aria-describedby")).toBe("payroll-finalize-state");
  expect(screen.getByRole("button",{name:"Finalize Payroll"}).disabled).toBe(false);
  rerender(<Finalization run={{}} read={read} readiness={readiness} allReady={false} canFinalize/>);
  expect(screen.getByRole("button",{name:"Finalize Payroll"}).disabled).toBe(true);
@@ -26,6 +29,8 @@ it("statutory resolution goes to Review and changing calculations stay blocked",
  const onResolve=vi.fn();
  render(<Finalization run={{}} read={{...read,calculating:true}} readiness={{...readiness,statutory:{ready:false}}} allReady={false} canFinalize onResolve={onResolve}/>);
  fireEvent.click(screen.getByRole("button",{name:"Resolve Statutory"}));expect(onResolve).toHaveBeenCalledWith(1);
- expect(screen.getAllByText("Pending").length).toBe(4);
+ expect(screen.getByRole("region",{name:"Finalize Payroll"})).toBeTruthy();
+ expect(screen.queryByRole("heading",{name:"Finalization Readiness"})).toBeNull();
+ expect(screen.getByText("Gross Payroll")).toBeTruthy();
  expect(finalizationGates({...readiness,time:{ready:false,period_in_progress:true}},false).find(g=>g.key==='period').ready).toBe(false);
 });

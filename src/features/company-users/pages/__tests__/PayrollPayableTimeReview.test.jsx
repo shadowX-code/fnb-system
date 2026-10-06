@@ -27,6 +27,23 @@ it('does not submit a saved decision again when payroll refresh fails',async()=>
   expect(mocks.decideTime).toHaveBeenCalledTimes(1);
   expect(mocks.decideTime).toHaveBeenCalledWith(expect.objectContaining({id:'time',approvedMinutes:390,reason:'Reviewed clock evidence'}));
 });
+it('keeps an unsupported saved response on the same date without duplicating the decision', async () => {
+  mocks.decideTime.mockClear().mockResolvedValue({id:'saved'});
+  const close=vi.fn();
+  const readBack=vi.fn().mockRejectedValue(new Error('Unsupported decision response. Do not submit another decision; return to Employee Review to reload the saved evidence.'));
+  render(<PayrollPayableTimeReview employee={{...employee,time:[row,{...row,id:'next',work_date:'2026-09-26'}]}} runId="run" month="2026-09" canManage onClose={close} onDecisionSaved={readBack} />);
+  fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
+  fireEvent.change(screen.getByRole('textbox',{name:/Decision reason/}),{target:{value:'Reviewed evidence'}});
+  fireEvent.click(screen.getByRole('button',{name:'Save & Next'}));
+  await screen.findByText(/Unsupported decision response/);
+  expect(screen.getByText('1 of 2 exceptions')).toBeTruthy();
+  expect(close).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button',{name:'Refresh Review'}));
+  await waitFor(()=>expect(readBack).toHaveBeenCalledTimes(2));
+  expect(mocks.decideTime).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button',{name:'Back to Employee Review'}));
+  expect(close).toHaveBeenCalledTimes(1);
+});
 it('clean days and read-only access do not offer a decision',()=>{
   render(<PayrollPayableTimeReview employee={{...employee,time:[{...row,status:'approved_auto',approved_minutes:390,issue_codes:[]}]}} month="2026-09" canManage={false} onClose={()=>{}} />);
   expect(screen.getByText('Resolved automatically')).toBeTruthy();
@@ -78,10 +95,10 @@ it('offers published roster hours explicitly without approving a missing proposa
   render(<PayrollPayableTimeReview employee={{...employee,time:[missing]}} month="2026-09" canManage onClose={()=>{}} onDecisionSaved={refresh} />);
   fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
   expect(screen.queryByRole('button',{name:'Approve proposed time'})).toBeNull();
-  fireEvent.click((screen.queryByRole('button',{name:'Decision'}) || screen.getByRole('button',{name:/^(Adjust Payable Time|Approve proposed time)$/})));
-  fireEvent.click((screen.queryByRole('option',{name:'Adjust Payable Time'}) || screen.getAllByRole('button',{name:'Adjust Payable Time'}).at(-1)));
-  fireEvent.click((screen.queryByRole('button',{name:'Decision'}) || screen.getByRole('button',{name:/^(Adjust Payable Time|Approve proposed time)$/})));
-  fireEvent.click((screen.queryByRole('option',{name:'Approve Roster Hours'}) || screen.getAllByRole('button',{name:'Approve Roster Hours'}).at(-1)));
+  fireEvent.click(screen.getByRole('button',{name:'Decision'}));
+  fireEvent.click(screen.getByRole('option',{name:'Adjust Payable Time'}));
+  fireEvent.click(screen.getByRole('button',{name:'Decision'}));
+  fireEvent.click(screen.getByRole('option',{name:'Approve Roster Hours'}));
   expect(screen.getByRole('spinbutton',{name:/Approved payable minutes/}).value).toBe('480');
   expect(screen.getByRole('button',{name:'Save & Finish'}).disabled).toBe(true);
   fireEvent.click(screen.getByRole('button',{name:'Roster hours verified'}));
@@ -95,12 +112,12 @@ it('rejects explicitly at zero and does not offer unpublished roster or null pro
   const missing={...row,proposed_minutes:null,issue_codes:['missing_punch']};
   render(<PayrollPayableTimeReview employee={{...employee,time:[missing]}} month="2026-09" canManage onClose={()=>{}} onDecisionSaved={async()=>[{...missing,status:'non_payable',approved_minutes:0}]} />);
   fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
-  fireEvent.click((screen.queryByRole('button',{name:'Decision'}) || screen.getByRole('button',{name:/^(Adjust Payable Time|Approve proposed time)$/})));
-  fireEvent.click((screen.queryByRole('option',{name:'Adjust Payable Time'}) || screen.getAllByRole('button',{name:'Adjust Payable Time'}).at(-1)));
+  fireEvent.click(screen.getByRole('button',{name:'Decision'}));
+  fireEvent.click(screen.getByRole('option',{name:'Adjust Payable Time'}));
   expect(screen.queryByRole('button',{name:'Approve Roster Hours'})).toBeNull();
   expect(screen.queryByRole('button',{name:'Approve proposed time'})).toBeNull();
-  fireEvent.click((screen.queryByRole('button',{name:'Decision'}) || screen.getByRole('button',{name:/^(Adjust Payable Time|Approve proposed time)$/})));
-  fireEvent.click((screen.queryByRole('option',{name:'Reject / Non-payable'}) || screen.getAllByRole('button',{name:'Reject / Non-payable'}).at(-1)));
+  fireEvent.click(screen.getByRole('button',{name:'Decision'}));
+  fireEvent.click(screen.getByRole('option',{name:'Reject / Non-payable'}));
   fireEvent.click(screen.getByRole('button',{name:'Absence confirmed'}));
   fireEvent.click(screen.getByRole('button',{name:'Save & Finish'}));
   await waitFor(()=>expect(mocks.decideTime).toHaveBeenCalledWith(expect.objectContaining({action:'reject',approvedMinutes:0,extraMinutes:0,classification:'non_payable'})));
@@ -111,9 +128,9 @@ it('retains a real zero proposal and requires canonical read-back before advanci
   const zero={...row,proposed_minutes:0};
   render(<PayrollPayableTimeReview employee={{...employee,time:[zero]}} month="2026-09" canManage onClose={()=>{}} onDecisionSaved={async()=>[zero]} />);
   fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
-  fireEvent.click((screen.queryByRole('button',{name:'Decision'}) || screen.getByRole('button',{name:/^(Adjust Payable Time|Approve proposed time)$/})));
-  expect((screen.queryByRole('option',{name:'Approve proposed time'}) || screen.getAllByRole('button',{name:'Approve proposed time'}).at(-1))).toBeTruthy();
-  fireEvent.click((screen.queryByRole('option',{name:'Approve proposed time'}) || screen.getAllByRole('button',{name:'Approve proposed time'}).at(-1)));
+  fireEvent.click(screen.getByRole('button',{name:'Decision'}));
+  expect(screen.getByRole('option',{name:'Approve proposed time'})).toBeTruthy();
+  fireEvent.click(screen.getByRole('option',{name:'Approve proposed time'}));
   fireEvent.click(screen.getByRole('button',{name:'Clock evidence reviewed'}));
   fireEvent.click(screen.getByRole('button',{name:'Save & Finish'}));
   await screen.findByRole('alert');
@@ -174,7 +191,7 @@ it('opens an automatically resolved Monthly day for an explicit audited adjustme
  const close=vi.fn();
  render(<PayrollPayableTimeReview employee={{...employee,pay:{pay_basis:'monthly',basic_salary:3000},time:[ready]}} runId="run" month="2026-09" canManage onClose={close} onDecisionSaved={async()=>[{...ready,status:'approved_manual',approved_minutes:300,review_state:{required:true,automatic:false,state:'ready'}}]} />);
  expect(screen.queryByRole('button',{name:'Continue Review'})).toBeNull();
- fireEvent.click(screen.getAllByRole('button',{name:'Adjust Payable Time'}).at(-1));
+ fireEvent.click(screen.getByRole('button',{name:'Adjust Payable Time'}));
  fireEvent.change(screen.getByRole('spinbutton',{name:/Approved payable minutes/}),{target:{value:'300'}});
  fireEvent.change(screen.getByRole('textbox',{name:/Correction reason/}),{target:{value:'Supporting evidence confirms short attendance'}});
  fireEvent.click(screen.getByRole('button',{name:'Save Correction'}));

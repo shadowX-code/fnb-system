@@ -1,3 +1,4 @@
+import RecordViewAction from "../../../components/ui/RecordViewAction.jsx";
 import { useCallback, useEffect, useState } from "react";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -76,7 +77,7 @@ export default function PayrollPayRulesPanel({ canManage }) {
       { key: "rule", header: "Current Rule", render: (row) => row.current ? <span>{officialPh(row) ? row.code === "public_holiday" ? "Ordinary holiday pay + 2 ordinary days for covered work" : "Verified hourly rate × statutory OT tiers" : row.explanation}<small className="block text-text-secondary">{officialPh(row) ? "Employee eligibility and legal wage evidence required" : `${row.current.multiplier}×`}{row.current.monthly_divisor_minutes ? ` · ${row.current.monthly_divisor_minutes} minute divisor` : ""}</small></span> : "—" },
       { key: "date", header: "Effective From", render: (row) => row.current?.effective_from || "—" },
       { key: "status", header: "Status", render: (row) => <Badge tone={row.current ? "success" : "warning"}>{row.current ? "Configured" : "Not configured"}</Badge> },
-      { key: "action", header: "Action", render: (row) => <button className="font-semibold text-primary" type="button" onClick={() => setSelected(row)}>View</button> },
+      { key: "action", header: "Action", render: (row) => <RecordViewAction label={`View ${row.name} ${row.basis} rule`} onClick={() => setSelected(row)} /> },
     ]} onRowClick={setSelected} />}</Card>
     {selected && <Modal title={`${selected.name} · ${selected.basis === "monthly" ? "Monthly" : "Hourly"}`} description={selected.explanation} onClose={() => setSelected(null)}
       footer={<><button className="btn-secondary" type="button" onClick={() => setSelected(null)}>Close</button>{canManage && !["public_holiday", "public_holiday_ot"].includes(selected.code) && <button className="btn-primary" type="button" onClick={() => { openDraft(selected); setSelected(null); }}>Create New Version</button>}</>}>

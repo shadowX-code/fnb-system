@@ -773,6 +773,7 @@
   }
 
   .btn-secondary {
+    line-height: var(--leading-body-ui);
     @apply inline-flex h-9 items-center justify-center gap-2 rounded-control border border-border bg-surface px-3 text-[13.5px] font-medium text-text-primary transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-text-muted;
   }
 
@@ -1027,7 +1028,7 @@
     @apply flex min-w-[96px] items-center justify-end gap-1.5;
   }
 
-  .admin-data-table .admin-table-cell button {
+  .admin-data-table .admin-table-cell button:not(.btn-primary):not(.btn-secondary) {
     font-size: 0.8125rem;
   }
 
@@ -2978,3 +2979,29 @@
 @media(max-width:1024px){.crew-admin-toolbar{align-items:stretch;flex-wrap:wrap}.crew-admin-toolbar-controls{width:100%}.crew-admin-toolbar-actions{width:100%;justify-content:flex-end}}
 @media(max-width:640px){.crew-admin-toolbar-controls>div,.crew-admin-toolbar-filter-group,.crew-admin-toolbar-filter-group>*,.crew-admin-toolbar-outlet{width:100%}.crew-admin-toolbar-actions>*{flex:1 1 auto;justify-content:center}}
 .crew-feedback-qr{display:grid;gap:16px}.crew-feedback-qr-outlet{display:grid;gap:3px}.crew-feedback-qr-outlet span{color:var(--theme-muted,#66778c);font-size:11px;font-weight:700}.crew-feedback-qr-outlet strong{color:var(--theme-text,#17273f);font-size:15px}.crew-feedback-qr-canvas{display:grid;place-items:center;border:1px solid var(--theme-border,#dbe3e8);border-radius:8px;background:#f8fbfa;padding:16px}.crew-feedback-qr-canvas canvas{display:block;width:min(100%,256px);height:auto;image-rendering:pixelated}.crew-feedback-qr>label{display:grid;gap:6px;color:var(--theme-text,#35495f);font-size:11px;font-weight:700}.crew-feedback-qr>label input{font-size:12px}
+
+/* Shared primary actions use the brand fill and canonical white label/icon. */
+:root { --theme-action-primary:var(--theme-primary); --theme-action-primary-hover:var(--theme-primary-hover); }
+.btn-primary { line-height:var(--leading-body-ui); white-space:nowrap; }
+.btn-primary:not(:disabled) { background-color:var(--theme-action-primary); }
+.btn-primary:not(:disabled):hover { background-color:var(--theme-action-primary-hover); }
+.btn-primary:disabled { background:var(--theme-subtle); color:var(--theme-muted); box-shadow:none; }
+
+.admin-select-trigger { display:flex; width:100%; align-items:center; justify-content:space-between; gap:12px; text-align:left; font-weight:500; }
+.admin-select-trigger>span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.admin-select-trigger>svg { flex-shrink:0; color:var(--theme-muted); transition:transform 160ms ease; }
+.admin-select-trigger[aria-expanded=true] { border-color:var(--theme-primary); }
+.admin-select-trigger[aria-invalid=true],.control[aria-invalid=true] { border-color:var(--theme-danger,#b4233b); }
+.admin-select-popover { border-radius:var(--radius-control)!important; padding:6px!important; box-shadow:0 4px 8px rgb(15 23 42 / .12)!important; }
+.admin-select-options { max-height:280px; overflow-y:auto; display:grid; gap:2px; }
+.admin-select-option { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:36px; padding:8px 10px; border-radius:6px; color:var(--theme-text); font-size:13px; text-align:left; }
+.admin-select-option strong { display:block; font-weight:500; overflow-wrap:anywhere; }
+.admin-select-option small { display:block; color:var(--theme-muted); margin-top:3px; font-size:12px; }
+.admin-select-option[aria-selected=true] { background:var(--theme-primary-soft); color:var(--theme-primary); }
+.admin-select-option:not(:disabled):hover,.admin-select-option:not(:disabled):focus-visible { background:var(--theme-surface-nested); outline:2px solid var(--theme-primary); outline-offset:-2px; }
+.admin-select-option:disabled { opacity:.5; cursor:not-allowed; }
+.admin-select-search { display:flex; align-items:center; gap:8px; padding:4px 6px 8px; color:var(--theme-muted); }
+.admin-select-search input { width:100%; height:34px; }
+.admin-select-validation { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+
+@media (prefers-reduced-motion:reduce) { .admin-select-trigger>svg { transition:none; } }
