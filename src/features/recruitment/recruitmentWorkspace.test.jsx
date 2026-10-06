@@ -128,7 +128,7 @@ describe("opening-centred Recruitment workspace", () => {
         openingId: "opening1",
         stage: "needs_review",
         page: 1,
-        includeQa: false,
+        includeQa: false, search: "", offering: "all",
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: /^Candidate A/ }));
@@ -146,7 +146,7 @@ describe("opening-centred Recruitment workspace", () => {
         openingId: null,
         stage: "all",
         page: 1,
-        includeQa: true,
+        includeQa: true, search: "", offering: "all",
       }),
     );
   });
@@ -173,6 +173,7 @@ describe("opening-centred Recruitment workspace", () => {
   it("saves a profile reference and opening requirements through the canonical RPC", async () => {
     await enter();
     fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    fireEvent.click(screen.getByRole("button", {name:"Edit setup"}));
 
     fireEvent.change(
       screen.getByLabelText("Closing shift requirement / time"),
@@ -268,8 +269,8 @@ it("labels recording failure separately from candidate stage and interview evide
   qa.managerEvidence = vi.fn().mockRejectedValue(new Error("not available"));
   await enter();
   fireEvent.click(screen.getByRole("tab", { name: "Candidates" }));
-  expect(screen.getByText("Interview: Evidence incomplete")).toBeTruthy();
-  expect(screen.getByText(/Recording:/)).toBeTruthy();
+  expect(screen.getByText("Incomplete")).toBeTruthy();
+  expect(screen.getByText("Recording failed")).toBeTruthy();
   expect(
     screen.getByRole("button", { name: "Review", exact: true }),
   ).toBeTruthy();
@@ -348,7 +349,7 @@ describe("application invitation journey", () => {
         openingId: "opening1",
         stage,
         page: 1,
-        includeQa: false,
+        includeQa: false, search: "", offering: "all",
       }),
     );
   });
@@ -381,4 +382,24 @@ it("an invitation expiring after render cannot turn a Copy tap into automatic re
   } finally {
     clock.mockRestore();
   }
+});
+it("opens Setup read-only, edits explicitly and cancels without saving",async()=>{
+ await enter();fireEvent.click(screen.getByRole("tab",{name:"Setup"}));
+ expect(screen.queryByRole("button",{name:"Save opening"})).toBeNull();
+ expect(screen.getByLabelText(/Job-facing title/).disabled).toBe(false); // native disabled ancestor is authoritative
+ expect(screen.getByLabelText(/Job-facing title/).closest("fieldset[disabled]")).not.toBeNull();
+ fireEvent.click(screen.getByRole("button",{name:"Edit setup"}));
+ fireEvent.change(screen.getByLabelText(/Job-facing title/),{target:{value:"Unsaved name"}});
+ fireEvent.click(screen.getByRole("button",{name:"Cancel"}));
+ expect(screen.getByLabelText(/Job-facing title/).value).toBe("Service Crew");
+ expect(qa.saveOpening).not.toHaveBeenCalled();
+});
+it("uses server search and offering filters before pagination, with quiet normal recording health",async()=>{
+ const fixture=structuredClone(data);fixture.applications[0].recording_state="complete";fixture.applications[0].employment_preference="both";qa.workspace.mockResolvedValue(fixture);
+ await enter();fireEvent.click(screen.getByRole("tab",{name:"Candidates"}));
+ expect(screen.getByRole("table")).toBeTruthy();expect(screen.queryByText("Recording complete")).toBeNull();expect(screen.getByRole("cell",{name:"Both"})).toBeTruthy();
+ fireEvent.change(screen.getByRole("searchbox",{name:"Search candidates"}),{target:{value:"Candidate"}});
+ await waitFor(()=>expect(qa.workspace).toHaveBeenLastCalledWith(expect.objectContaining({search:"Candidate",page:1})));
+ fireEvent.click(screen.getByRole("button",{name:"Offering filter"}));fireEvent.click(screen.getByRole("option",{name:"Both",exact:true}));
+ await waitFor(()=>expect(qa.workspace).toHaveBeenLastCalledWith(expect.objectContaining({offering:"both",page:1})));
 });

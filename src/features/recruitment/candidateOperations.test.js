@@ -1,0 +1,8 @@
+import {expect,it} from "vitest";
+import {candidateTimeline,formatRecruitmentTime,interviewStateLabel} from "./candidateOperations.js";
+it("formats canonical operational timestamps in Kuala Lumpur with an explicit local clock",()=>{expect(formatRecruitmentTime("2026-10-06T13:15:00Z")).toBe("6 Oct 2026 · 9:15 PM");expect(formatRecruitmentTime(null)).toBe("—");expect(formatRecruitmentTime("bad")).toBe("—");});
+it("keeps a factual timeline separate from technical events and uses server completion/review times",()=>{
+ const timeline=candidateTimeline({application:{created_at:"2026-10-01T00:00:00Z"},attempt:{id:"a",interview_started_at:"2026-10-02T00:00:00Z",interview_ended_at:"2026-10-02T00:10:00Z",status:"partial"},lifecycle_events:[{id:1,action:"invitation_issued",occurred_at:"2026-10-01T01:00:00Z"},{id:2,action:"interview_finalized",attempt_id:"a",occurred_at:"2026-10-02T00:12:00Z"},{id:3,action:"provider_connected",occurred_at:"2026-10-02T00:00:00Z"},{id:4,action:"recording_gap",occurred_at:"2026-10-02T00:05:00Z"}]});
+ expect(timeline.map(e=>e.label)).toEqual(["Registered","Invited","Interview started","Interview interrupted · recording gap","Interview completed","Ready for review"]);expect(timeline.find(e=>e.key==="completed").detail).toBe("partial evidence");expect(candidateTimeline({application:{},attempt:{}})).toEqual([]);
+});
+it("does not imply completion or success for not-started/interrupted/failed interviews",()=>{expect(interviewStateLabel("ready")).toBe("Not started");expect(interviewStateLabel("interrupted")).toBe("Interrupted");expect(interviewStateLabel("failed")).toBe("Incomplete");});

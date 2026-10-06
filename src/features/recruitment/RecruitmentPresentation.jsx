@@ -185,7 +185,7 @@ export function CandidateFitSummary({ application, revision }) {
   if (state === "none")
     return (
       <span className="text-xs text-text-secondary">
-        Fit after interview review
+        Pending
       </span>
     );
   const fits = report?.body?.opening_requirements || [];
@@ -193,19 +193,16 @@ export function CandidateFitSummary({ application, revision }) {
     return (
       <span className="text-xs text-text-secondary">
         {state === "loading"
-          ? "Loading requirement evidence…"
+          ? "Pending"
           : state === "error"
             ? "Fit available in review"
             : report
-              ? "Requirement fit not included in this report"
-              : "Requirement fit awaiting report"}
+              ? "Not assessed"
+              : "Pending"}
       </span>
     );
   return (
     <div className="grid gap-1.5">
-      <span className="text-xs text-text-secondary">
-        Evidence report ready · Requirement fit
-      </span>
       <div className="flex flex-wrap gap-1.5">
         {["meets", "does_not_meet", "unclear"].map((value) => {
           const count = fits.filter((f) => f.state === value).length;

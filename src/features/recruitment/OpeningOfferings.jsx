@@ -176,15 +176,16 @@ export default function OpeningOfferings({ value = [], onChange }) {
           <details
             key={o.id}
             className="recruitment-offering"
-            open={value.length === 1 ? true : undefined}
+
           >
             <summary>
-              <span>{types[o.employment_type] || "Employment offering"}</span>
+              <div className="recruitment-offering-summary"><strong>{types[o.employment_type] || "Employment offering"}</strong>
               <span className="text-text-secondary">
                 {o.amount_min !== undefined
-                  ? `${o.currency || ""} ${o.amount_min}${o.amount_max !== undefined ? `–${o.amount_max}` : ""} / ${o.compensation_type === "hourly" ? "hour" : "month"}`
+                  ? `${o.currency || ""} ${Number(o.amount_min).toLocaleString("en-MY")}${o.amount_max !== undefined ? `–${Number(o.amount_max).toLocaleString("en-MY")}` : ""} / ${o.compensation_type === "hourly" ? "hour" : "month"}`
                   : "Compensation unconfirmed"}
               </span>
+              <small>{o.working_start && o.working_end ? `${o.working_start}–${o.working_end}${o.rest_days_per_week !== undefined ? ` · ${o.rest_days_per_week} rest day/week` : ""}` : o.schedule || "Schedule unconfirmed"}</small></div>
             </summary>
             <div className="recruitment-offering-body">
               <div className="recruitment-form-grid">

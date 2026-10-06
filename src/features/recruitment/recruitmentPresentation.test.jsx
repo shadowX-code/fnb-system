@@ -51,7 +51,7 @@ it("does not read extra evidence for pre-interview candidates", () => {
       application={{ id: "one", attempt_status: "ready" }}
     />,
   );
-  expect(screen.getByText("Fit after interview review")).toBeTruthy();
+  expect(screen.getByText("Pending")).toBeTruthy();
   expect(qa.managerEvidence).not.toHaveBeenCalled();
 });
 it("leaves a failed fit read usable through the primary review action", async () => {

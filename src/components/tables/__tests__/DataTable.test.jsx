@@ -21,3 +21,8 @@ describe("DataTable", () => {
     expect(table.querySelector(".admin-table-cell").className).toContain("text-right");
   });
 });
+
+it("supports semantic secondary columns and explicit minimum width without changing default tables",()=>{
+ const {container}=render(<DataTable minWidth="100%" density="compact" rows={[{id:"a"}]} getRowKey={r=>r.id} columns={[{key:"identity",header:"Candidate"},{key:"metadata",header:"Invitation",priority:"secondary"}]}/>);
+ expect(container.querySelector("table").style.minWidth).toBe("100%");expect(container.querySelectorAll('[data-priority="secondary"]')).toHaveLength(2);
+});

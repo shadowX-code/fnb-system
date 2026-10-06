@@ -3022,3 +3022,6 @@
 .admin-select-option[aria-selected=true] { color:var(--factory-success-text); }
 :is(.btn-primary,.btn-secondary,.btn-ghost,.admin-checkbox):focus-visible { outline-color:var(--factory-success-text); }
 .admin-select-option:not(:disabled):focus-visible { outline-color:var(--factory-success-text); }
+
+/* Shared operational tables may hide explicitly secondary columns on tablets. */
+@media (max-width: 1100px) { .admin-data-table [data-priority="secondary"] { display: none; } }

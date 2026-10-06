@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import SelectField from "../../components/forms/SelectField.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
+import { candidateTimeline, preferenceLabels, formatRecruitmentTime } from "./candidateOperations.js";
 import { RecruitmentState } from "./RecruitmentPresentation.jsx";
 import {
   reviewAreas,
@@ -278,6 +279,7 @@ export default function RecruitmentEvidenceReview({
                   />
                 </AdminFormField>
               )}
+              <AdminFormField label="Employment preference"><SelectField ariaLabel="Employment preference" disabled={!data.can_manage || busy || ["hired","rejected"].includes(data.application.decision_state)} value={data.application.employment_preference || "unknown"} onChange={value=>act(()=>recruitmentService.setPreference(application.id,value))} options={Object.entries(preferenceLabels).map(([value,label])=>({value,label}))}/></AdminFormField>
               <h3 className="text-lg font-semibold">
                 {data.attempt?.profile_name || data.candidate.full_name}
               </h3>
@@ -813,6 +815,7 @@ export default function RecruitmentEvidenceReview({
                 ))}
               </div>
             </details>
+            <details className="recruitment-lifecycle"><summary>Candidate timeline</summary><ol>{candidateTimeline(data).map(entry=><li key={entry.key}><div><strong>{entry.label}</strong>{entry.detail && <span>{entry.detail}</span>}</div><time dateTime={entry.at}>{formatRecruitmentTime(entry.at)}</time></li>)}</ol></details>
             <section
               id="review-decision"
               ref={decisionSection}
