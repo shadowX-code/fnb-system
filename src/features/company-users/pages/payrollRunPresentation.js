@@ -33,6 +33,7 @@ export function payrollRunSummary(rows = []) {
     gross: sum(row => row.result.gross),
     deductions: sum(row => row.result.deductions),
     net: sum(row => row.result.net),
+    employerContributions: sum(row => row.result.statutoryCurrent ? row.statutory?.employer_statutory_cost : null),
     employerCost: sum(row => row.result.statutoryCurrent ? row.statutory?.total_employer_cost : null),
   };
 }

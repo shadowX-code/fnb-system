@@ -180,7 +180,7 @@ export function ProfilesTab({ data, canManage, reload, entityId, onEntityChanged
   </div>;
 }
 
-const runSteps = ["Prepare Payroll", "Review Payroll", "Finalize"];
+const runSteps = ["Prepare", "Review", "Finalize"];
 
 export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFinalize, reload, entityId, setEntityId, month, setMonth, step, setStep, openRunId, setOpenRunId, readiness, runRead }) {
   const [reason, setReason] = useState("");
@@ -293,15 +293,22 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
       {run && <p className="text-sm text-text-secondary">Revision {run.revision}{run.supersedes_run_id ? " · Correction" : ""}</p>}
       {run && <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><Badge tone={["ready", "finalized", "paid"].includes(run.status) ? "success" : "warning"}>{label(run.status)}</Badge><span>{`${employeeCount ?? (commandRows.length || "—")} employees`}</span>
         {!["finalized", "paid"].includes(run.status) && <span>{commandRows.length ? `${readyCount} / ${commandRows.length} employees ready` : "Checking employee preparation…"}</span>}
-        {mutable && <span className="font-semibold">Run readiness: {allReady ? "Ready" : `${remainingGates || 1} blocker${remainingGates === 1 ? "" : "s"} remaining`}</span>}</div>}</div>
+        {mutable && step !== 2 && <span className="font-semibold">Run readiness: {allReady ? "Ready" : `${remainingGates || 1} blocker${remainingGates === 1 ? "" : "s"} remaining`}</span>}</div>}</div>
       <div className="flex flex-wrap gap-2">
         {runs.length > 1 && <SelectField ariaLabel="Payroll revision" value={run?.id || ""} onChange={(value) => { setOpenRunId(value); setStep(runs.find((item) => item.id === value)?.status === "finalized" ? 2 : 0); }} options={runs.map((item) => ({ value: item.id, label: `Revision ${item.revision} · ${label(item.status)}` }))} />}
       </div></div>
       {step !== 2 && state?.calculation?.employment_issue && <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><PayrollEmploymentHistoryRequired issue={state.calculation.employment_issue} preparation={runRead?.data?.preparation} employees={data.employees} canEditEmployee={canEditEmployee} /></div>}
-      {run && <><dl className="grid grid-cols-2 gap-4 border-t border-border pt-3 lg:grid-cols-4">{[["Gross Payroll", commandTotals.gross], ["Employee Deductions", commandTotals.deductions], ["Net Payroll", commandTotals.net], ["Employer Cost", commandTotals.employerCost]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 font-bold tabular-nums">{displayMoney(state?.calculation?.employment_issue || runRead?.calculating ? null : value)}</dd></div>)}</dl>
+      {run && step !== 2 && <><dl className="grid grid-cols-2 gap-4 border-t border-border pt-3 lg:grid-cols-4">{[["Gross Payroll", commandTotals.gross], ["Employee Deductions", commandTotals.deductions], ["Net Payroll", commandTotals.net], ["Employer Cost", commandTotals.employerCost]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 font-bold tabular-nums">{displayMoney(state?.calculation?.employment_issue || runRead?.calculating ? null : value)}</dd></div>)}</dl>
         {["finalized", "paid"].includes(run.status) ? <p className="text-xs text-text-secondary">Finalized {run.finalized_at ? new Date(run.finalized_at).toLocaleString() : "—"} · {approverName}. Read-only; changes require a Correction Revision.</p> : !allReady && <p className="text-xs text-text-secondary">Totals remain pending until required evidence is resolved.</p>}</>}
-      {run && !["finalized", "paid"].includes(run.status) && <nav aria-label="Payroll Run stages" className="grid gap-1 border-t border-border pt-3 sm:grid-cols-3">{runSteps.map((name, index) => <button key={name} type="button" aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}
-      className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${step === index ? "bg-primary text-white" : "text-text-secondary hover:bg-surface-muted"}`}><span className="mr-2 text-xs opacity-70">{index + 1}.</span>{name}</button>)}</nav>}
+      {run && !["finalized", "paid"].includes(run.status) && <nav aria-label="Payroll Run stages" className="border-t border-border pt-3"><ol className="flex items-center gap-2 sm:gap-4">{runSteps.map((name, index) => {
+        const complete = index === 0 ? preparationReady : index === 1 ? allReady : false;
+        const current = step === index;
+        const status = current ? "Current" : complete ? "Completed" : "Upcoming";
+        return <li key={name} className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4"><button type="button" aria-current={current ? "step" : undefined} aria-label={`${name} · ${status}`} onClick={() => setStep(index)}
+          className={`flex items-center gap-2 rounded-md px-1 py-1 text-left text-sm ${current ? "font-bold text-primary" : complete ? "text-primary" : "text-text-secondary"}`}>
+          <span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs ${current ? "border-primary bg-primary/10" : complete ? "border-primary" : "border-border"}`}>{complete && !current ? <Check size={14} /> : index + 1}</span>
+          <span>{name}<small className="block text-xs font-normal">{status}</small></span></button>{index < 2 && <span aria-hidden="true" className="h-px flex-1 bg-border" />}</li>;
+      })}</ol></nav>}
     </Card></section>
     {!run && <Card className="grid gap-4 p-5 sm:grid-cols-2">
       {!runs.length && <p className="text-sm text-text-secondary sm:col-span-2">No Payroll Run exists for this Legal Entity and pay period.</p>}

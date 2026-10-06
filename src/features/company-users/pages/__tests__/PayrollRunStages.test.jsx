@@ -22,9 +22,12 @@ it("reuses run evidence and bank batch through Prepare, Review, Finalize and Res
  expect(screen.getByRole('button',{name:'Draft Payslip'}).querySelector('svg')).toBeNull();
  expect(screen.getByRole('button',{name:'Draft Payslip'}).classList.contains('whitespace-nowrap')).toBe(true);
  expect(within(screen.getByRole('region',{name:'Payroll Run Header'})).getByRole('navigation',{name:'Payroll Run stages'})).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Review · Current'}).getAttribute('aria-current')).toBe('step');
+ expect(screen.queryByRole('heading',{name:'Review Payroll'})).toBeNull();
+ expect(screen.getByRole('button',{name:'Prepare · Completed'})).toBeTruthy();
  rerender(<RunsTab {...props} step={2}/>);
- expect(screen.getByRole('heading',{name:'Finalize Payroll'})).toBeTruthy();expect(screen.getByRole('button',{name:'Finalize Payroll'}).disabled).toBe(true);
- fireEvent.click(screen.getByRole('button',{name:'Resolve Employment History Required'}));expect(props.setStep).toHaveBeenCalledWith(0);
+ expect(screen.getByRole('region',{name:'Finalize Payroll'})).toBeTruthy();expect(screen.getByRole('button',{name:'Finalize Payroll'}).disabled).toBe(true);
+ fireEvent.click(screen.getByRole('button',{name:'Resolve Employment History'}));expect(props.setStep).toHaveBeenCalledWith(0);
  rerender(<RunsTab {...props} step={0}/>);
  await screen.findByRole('button',{name:'View Time for QA Employee'});
  expect(mocks.bank).toHaveBeenCalledTimes(1);expect(mocks.history).not.toHaveBeenCalled();

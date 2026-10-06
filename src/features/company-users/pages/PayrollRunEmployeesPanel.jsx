@@ -1,4 +1,3 @@
-import PayrollStageHeading from "./PayrollStageHeading.jsx";
 import PayrollPhStatutory from "./PayrollPhStatutory.jsx";
 import FoundationForm from "./PayrollCompensationForm.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -236,8 +235,6 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     { key: "action", header: "Action", render: (row) => <button type="button" className="font-semibold text-primary" onClick={() => setEmployeeId(row.id)}>Review</button> },
   ];
   return <div className="space-y-3">
-    <PayrollStageHeading title={stage === "review" ? "Review Payroll" : "Prepare Payroll"}
-      summary={evidence?.scope === scope ? `${rows.length} employees · ${rows.filter(row => !row.needsReview).length} ready · ${rows.filter(row => row.needsReview).length} need attention` : "Checking employee preparation…"} />
     {(synchronizationError || unsynchronizedDays > 0) && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
       <p>{synchronizationError ? "Payroll evidence could not be synchronized." : `${unsynchronizedDays} day${unsynchronizedDays === 1 ? "" : "s"} of time evidence need synchronization.`}</p>
       {(unsynchronizedDays === 0 || active) && <button type="button" className="btn-secondary" disabled={busy || runRead?.calculating} onClick={retryEvidence}>{busy ? "Synchronizing…" : "Retry Evidence Sync"}</button>}
