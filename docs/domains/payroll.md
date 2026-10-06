@@ -636,8 +636,17 @@ effective employment end evidence. Today's Employee Legal Employer, status,
 type, position and workplace are not historical authority. A missing Joined
 Date prevents authoritative membership and is surfaced as a run-level Setup
 Required condition rather than silently treating an unverified month as payable.
-Periods before the 29 September 2026 People cutover remain Review Required;
-current Employee fields never backfill that history. A verified mid-period
+Population completeness checks every employee and date, including records not yet
+included in the Run. A missing dated assignment or active assignment without a Legal
+Employer cannot establish inclusion/exclusion and blocks all potentially affected
+entities. Verified inactive days and dated assignments to another employer establish
+exclusion; Joined Date after the period establishes no period overlap. Today's employer,
+status and workplace never exclude unknown historical records. There is no fixed
+cutover-date blocker: explicitly verified historical assignments can cover earlier
+periods. The authenticated preparation read exposes exact unresolved date ranges and
+missing fields only for accessible employees; inaccessible records still block the
+Run without disclosing identity. Finalized membership/snapshots remain pinned.
+A verified mid-period
 assignment change that the current Payroll model cannot represent as one
 employer/identity also remains Review Required with People revision evidence.
 
@@ -1073,13 +1082,13 @@ lines/base, official pack/version, band and amount in the existing statutory
 snapshot. Finalized reads consume that snapshot. Later setup cannot rewrite final
 records or PDFs; setup affecting finalized periods requires an open governed
 correction. Corrections freeze new evidence while preserving the previous revision.
-The separate People employment-history/cutover gate is unchanged.
+The separate People employment-history completeness gate remains enforced.
 
 ### Unified effective-dated statutory setup
 
 Manage Statutory Setup confirms ordinary statutory setup and LINDUNG atomically through the extended `payroll_statutory_setup_confirm` authority. Existing initialization callers retain their seven-argument contract. Worker coverage derives from canonical nationality when known; verified resident evidence remains explicit. Coverage status is the primary LINDUNG input. Routine coverage inherits Effective Payroll Month and the dated employment employer; opt-out/rejoin retain their legally required notice/submission date and time. Optional notes do not replace required PERKESO transition evidence. The server records actor, timestamp, month and transition reason automatically.
 
-An unchanged resolver-verified participation revision can be retained for the selected month without creating another notice or audit revision. Later evidence cannot prove an earlier month. New combined writes share one transaction, request identity and stale-read checks; failed LINDUNG validation leaves ordinary setup unchanged. Calculation packs, resolver semantics, finalized snapshots and the People pre-cutover finalization gate remain unchanged.
+An unchanged resolver-verified participation revision can be retained for the selected month without creating another notice or audit revision. Later evidence cannot prove an earlier month. New combined writes share one transaction, request identity and stale-read checks; failed LINDUNG validation leaves ordinary setup unchanged. Calculation packs, resolver semantics, finalized snapshots and the People employment-history completeness gate remain enforced.
 
 ### Targeted LINDUNG validation
 

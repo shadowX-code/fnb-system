@@ -96,6 +96,7 @@ export function payrollIssueLabel(issue, context = {}) {
   if (phReasons[code]) return `${phReasons[code]}${detail ? ` · ${detail}` : ""}`;
   if (code === "pay_history_missing") return `Pay history missing · ${range(detail)}`;
   if (code === "employment_history_unresolved") return `Historical employment is unverified for ${range(detail)}.`;
+  if (code === "employment_population_requires_review") return 'Employment records do not yet establish the complete Payroll Run population for this period.';
   if (code === "component_proration_policy_required" || code === "component_multiple_amounts_requires_review") {
     const component = context.components?.find(c => c.id === detail);
     return `${component?.name || "Recurring component"} · ${code === "component_proration_policy_required" ? "Component proration policy required" : "Multiple amounts in one period require review"}`;
