@@ -190,6 +190,8 @@ Older foundation revisions without financial snapshots explicitly show unavailab
 evidence rather than inventing values. Corrections remain separate revisions;
 this presentation does not create a payslip or payment authority.
 
+Prepare row Review uses the shared secondary button. The shared Payroll time-evidence cell groups its Ready pill with an accessible eye-only inspect action, with the time/evidence summary beneath; actionable Review Time remains a secondary workflow action.
+
 Employee review exposes **View Time** for Ready evidence and **Review Time** for
 canonical pay-impacting unresolved time evidence. Both open the same daily evidence
 surface. Ready is a review state, not a Draft correction lock: authorized Admin can

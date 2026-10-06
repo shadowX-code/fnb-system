@@ -1,3 +1,4 @@
+import PayrollTimeEvidenceCell from "./PayrollTimeEvidenceCell.jsx";
 import PayrollPhStatutory from "./PayrollPhStatutory.jsx";
 import FoundationForm from "./PayrollCompensationForm.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -214,7 +215,9 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const columns = stage === "review" ? reviewColumns : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><small className="block text-text-secondary">{row.employee_code || "—"}</small></div> },
     { key: "pay", header: "Pay", render: (row) => row.pay ? <span>{human(row.pay.pay_basis)}<small className="block text-text-secondary">{money(row.pay.basic_salary || row.pay.hourly_rate)}{row.pay.pay_basis === "hourly" ? " / hour" : ""}</small></span> : <Badge tone="warning">Setup required</Badge> },
-    { key: "time", header: "Time & Attendance", render: row => <div><Badge tone={row.timeNeedsReview ? "warning" : "success"}>{row.timeNeedsReview ? `${row.timeExceptionCount} exception${row.timeExceptionCount === 1 ? "" : "s"}` : "Ready"}</Badge>{row.pay?.pay_basis === "hourly" && <small className="block text-text-secondary">{hours(row.time.filter(item => item.review_state?.state !== "ph_review").reduce((sum,item) => sum + Number(item.approved_minutes || 0),0))} approved Regular / non-PH time</small>}<button type="button" className="mt-1 block font-semibold text-primary" aria-label={`${row.timeNeedsReview ? "Review" : "View"} Time for ${row.name}`} onClick={() => { setEmployeeId(row.id); openTimeReview(); }}>{row.timeNeedsReview ? "Review Time" : "View Time"}</button></div> },
+    { key: "time", header: "Time & Attendance", render: row => <PayrollTimeEvidenceCell employeeName={row.name} needsReview={row.timeNeedsReview} exceptionCount={row.timeExceptionCount}
+      summary={row.pay?.pay_basis === "hourly" ? `${hours(row.time.filter(item => item.review_state?.state !== "ph_review").reduce((sum,item) => sum + Number(item.approved_minutes || 0),0))} approved Regular / non-PH time` : "Monthly attendance evidence"}
+      onOpen={() => { setEmployeeId(row.id); openTimeReview(); }} /> },
     { key: "adjustments", header: "Adjustments", render: (row) => row.adjustments.length ? `${row.adjustments.length} adjustment${row.adjustments.length === 1 ? "" : "s"} · ${signedAdjustments(row.adjustments)}` : "None" },
     { key: "statutory", header: "Statutory", render: (row) => {
       const schemes = row.preparation?.statutory_setup?.schemes || {};
@@ -230,7 +233,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         {row.statutory?.is_stale && <small className="block text-text-secondary">Calculation pending</small>}</div>;
     } },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Need Attention" : "Ready"}</Badge> },
-    { key: "action", header: "Action", render: (row) => <button type="button" className="font-semibold text-primary" onClick={() => setEmployeeId(row.id)}>Review</button> },
+    { key: "action", header: "Action", render: (row) => <button type="button" className="btn-secondary whitespace-nowrap" onClick={() => setEmployeeId(row.id)}>Review</button> },
   ];
   return <div className="space-y-3">
     {(synchronizationError || unsynchronizedDays > 0) && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">

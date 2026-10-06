@@ -13,7 +13,7 @@ it("reuses run evidence and bank batch through Prepare, Review, Finalize and Res
  const props={data:{legal_entities:[{id:'entity',name:'QA'}],employees:[{id:'employee',name:'QA Employee'}],periods:[{legal_entity_id:'entity',period_start:'2026-09-01',runs:[{id:'run',status:'draft'}]}]},
  entityId:'entity',month:'2026-09',openRunId:'run',canManage:true,canFinalize:true,canEditEmployee:true,setStep:vi.fn(),runRead:{data:evidence,setTimeReviewActive:vi.fn()},readiness:{runId:'run',time:{ready:true},calculation:{ready:false,employees:1,employment_issue:'employment_history_unresolved',uncalculated:0,review_required:0,stale:0},statutory:{ready:true}}};
  const {rerender}=render(<RunsTab {...props} step={0}/>);
- await screen.findByRole('button',{name:'View Time for QA Employee'}); await waitFor(()=>expect(mocks.bank).toHaveBeenCalledTimes(1));
+ await screen.findByRole('button',{name:'View time evidence for QA Employee'}); await waitFor(()=>expect(mocks.bank).toHaveBeenCalledTimes(1));
  expect(screen.getByText('Employee readiness: 1 / 1 ready')).toBeTruthy();expect(screen.getByText('Run readiness: 1 blocker remaining')).toBeTruthy();
  rerender(<RunsTab {...props} step={1}/>);
  expect(screen.getByRole('button',{name:'View Payroll for QA Employee'})).toBeTruthy();
@@ -32,7 +32,7 @@ it("reuses run evidence and bank batch through Prepare, Review, Finalize and Res
  expect(screen.getByRole('region',{name:'Finalize Payroll'})).toBeTruthy();expect(screen.getByRole('button',{name:'Finalize Payroll'}).disabled).toBe(true);
  fireEvent.click(screen.getByRole('button',{name:'Resolve Employment History'}));expect(props.setStep).toHaveBeenCalledWith(0);
  rerender(<RunsTab {...props} step={0}/>);
- await screen.findByRole('button',{name:'View Time for QA Employee'});
+ await screen.findByRole('button',{name:'View time evidence for QA Employee'});
  expect(mocks.bank).toHaveBeenCalledTimes(1);expect(mocks.history).not.toHaveBeenCalled();
  expect(mocks.readRunEvidence).not.toHaveBeenCalled();expect(mocks.recalculateEmployee).not.toHaveBeenCalled();
 });

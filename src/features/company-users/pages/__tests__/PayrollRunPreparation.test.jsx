@@ -246,8 +246,8 @@ it('Ready → View Time → Draft correction invalidates the employee and resume
  const invalidate=vi.fn(),suspend=vi.fn(),refresh=vi.fn().mockResolvedValue(true);
  const data={time:[ready],preparation:{results:[{employee_id:'employee',time_exception_count:0,projection:{status:'ready',inputs:{compensation_start:{id:'pay',pay_basis:'hourly',hourly_rate:8}}}}]},calculation:{results:[],adjustments:[]},statutory:{results:[]},pcb:{results:[]}};
  render(<PayrollRunEmployeesPanel {...props} runRead={{data,invalidateEmployee:invalidate,setTimeReviewActive:suspend,refresh}} />);
- await screen.findByRole('button',{name:'View Time for QA Employee'});
- fireEvent.click(screen.getByRole('button',{name:'View Time for QA Employee'}));
+ await screen.findByRole('button',{name:'View time evidence for QA Employee'});
+ fireEvent.click(screen.getByRole('button',{name:'View time evidence for QA Employee'}));
  fireEvent.click(screen.getByRole('button',{name:'Correct Decision'}));
  fireEvent.change(screen.getByRole('spinbutton',{name:/Approved payable minutes/}),{target:{value:'420'}});
  fireEvent.change(screen.getByRole('textbox',{name:/Correction reason/}),{target:{value:'Verified genuine hours correction'}});
