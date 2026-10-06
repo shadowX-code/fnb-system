@@ -2,6 +2,12 @@ import { afterEach, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import Blocker from '../PayrollEmploymentHistoryRequired.jsx';
 afterEach(cleanup);
+it('shows non-members from the scoped population authority without leaking inaccessible records', () => {
+ render(<Blocker issue='employment_population_requires_review' canEditEmployee preparation={{results:[],employment_population:{unresolved_count:2,records:[{employee_id:'outside',employee_name:'Unresolved non-member',date_from:'2026-09-01',date_to:'2026-09-28',employment:{state:'review_required',missing_field:'legal_entity_id'}}]}}} />);
+ expect(screen.getByRole('link',{name:'Resolve Employment History for Unresolved non-member'})).toBeTruthy();
+ expect(screen.getByText(/Legal Employer required/)).toBeTruthy();
+ expect(screen.getByText(/Additional unresolved records require an Admin/)).toBeTruthy();
+});
 const issue = 'employment_history_unresolved:2026-09-01..2026-09-28';
 it('links only canonical unresolved records to the People employment surface', () => {
  render(<Blocker issue={issue} canEditEmployee employees={[{id:'missing',name:'Historical employee'},{id:'known',name:'Verified employee'}]}
