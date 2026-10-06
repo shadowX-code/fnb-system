@@ -22,3 +22,12 @@ it('keeps canonical employee deduction aggregate separate from employer shares a
  expect(result.deductions).toBe(290);
  expect(result.net).toBe(1710);
 });
+
+it('presents LINDUNG EE/ER, N/A, Review and Pending through the shared statutory renderer',()=>{
+ const lindungRow={...row,preparation:{statutory_setup:{schemes:{lindung:{state:'confirmed',applicable:true}}}},statutory:{...row.statutory,lines:[{scheme:'lindung',employee_amount:15.4,employer_amount:0}]}};
+ expect(payrollStatutoryCell(lindungRow,'lindung')).toEqual({state:'calculated',employee:15.4,employer:0});
+ expect(payrollStatutoryCell({...lindungRow,preparation:{statutory_setup:{schemes:{lindung:{state:'not_applicable',applicable:false}}}}},'lindung')).toEqual({state:'N/A'});
+ expect(payrollStatutoryCell({...lindungRow,preparation:{}},'lindung')).toEqual({state:'Review'});
+ expect(payrollStatutoryCell({...lindungRow,statutory:{...lindungRow.statutory,is_stale:true}},'lindung')).toEqual({state:'Pending'});
+ expect(payrollStatutoryCell({...lindungRow,statutory:{...lindungRow.statutory,issues:['lindung_wage_treatment_unresolved']}},'lindung')).toEqual({state:'Review'});
+});

@@ -1,11 +1,11 @@
-export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, density = "normal", tableClassName = "" }) {
+export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, density = "normal", columnSpacing = "normal", tableClassName = "" }) {
   function shouldIgnoreRowClick(event) {
     return Boolean(event.target.closest("button, a, input, select, textarea, [role='button'], [data-row-action='true']"));
   }
 
   return (
     <div className="data-table-scroll admin-data-table-scroll overflow-x-auto">
-      <table className={`admin-data-table w-full min-w-[880px] border-collapse ${tableClassName}`} data-density={density}>
+      <table className={`admin-data-table w-full min-w-[880px] border-collapse ${tableClassName}`} data-density={density} data-column-spacing={columnSpacing}>
         <thead className="table-head admin-table-head">
           <tr>
             {columns.map((column) => (
