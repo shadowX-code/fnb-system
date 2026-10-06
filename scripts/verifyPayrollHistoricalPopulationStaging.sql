@@ -8,70 +8,20 @@ create table qa_payroll_population.employee_employment_assignment_revisions(
 id uuid primary key,employee_id uuid,effective_from date,employment_type text,employment_status text,
 position text,legal_entity_id uuid,workplace text,employment_end_date date,source_kind text,
 corrects_revision_id uuid,supersedes_revision_id uuid,recorded_at timestamptz default now());
-CREATE OR REPLACE FUNCTION qa_payroll_population.employee_employment_assignment_at(p_employee_id uuid, p_on date)
- RETURNS qa_payroll_population.employee_employment_assignment_revisions
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'qa_payroll_population'
-AS $function$
-  select r from qa_payroll_population.employee_employment_assignment_revisions r
-  where r.employee_id=p_employee_id and r.effective_from<=p_on
-    and not exists (select 1 from qa_payroll_population.employee_employment_assignment_revisions newer
-      where newer.supersedes_revision_id=r.id)
-    and not (r.source_kind='cutover_current' and exists (
-      select 1 from qa_payroll_population.employee_employment_assignment_revisions correction
-      where correction.employee_id=r.employee_id
-        and correction.source_kind='admin_change'
-        and correction.corrects_revision_id=r.id
-        and correction.effective_from<r.effective_from))
-  order by r.effective_from desc,r.recorded_at desc,r.id desc limit 1;
-$function$;
-
--- Population completeness is separate from inclusion. Unknown employer/history
--- can affect any entity; today's employer, status and workplace cannot exclude it.
-create function qa_payroll_population.payroll_period_population_gaps(p_period_id uuid)
-returns table(employee_id uuid, date_from date, date_to date, issue text, missing_field text)
-language sql stable security definer set search_path=qa_payroll_population as $$
-  with daily as materialized (
-    select e.id employee_id,e.joined_date,p.legal_entity_id,d.work_date::date work_date,
-      qa_payroll_population.employee_employment_assignment_at(e.id,d.work_date::date) assignment
-    from qa_payroll_population.payroll_periods p
-    cross join qa_payroll_population.employees e
-    cross join lateral generate_series(greatest(p.period_start,coalesce(e.joined_date,p.period_start)),
-      p.period_end,interval '1 day') d(work_date)
-    where p.id=p_period_id
-  ), unresolved as (
-    select employee_id,work_date,
-      case when (assignment).id is null then 'employment_history_unresolved'
-        when (assignment).legal_entity_id is null then 'legal_employer_unresolved'
-        else 'employment_joined_date_missing' end issue,
-      case when (assignment).id is null then 'employment_assignment'
-        when (assignment).legal_entity_id is null then 'legal_entity_id'
-        else 'joined_date' end missing_field
-    from daily
-    where (assignment).id is null
-      or ((assignment).employment_status='active'
-        and ((assignment).employment_end_date is null or work_date<=(assignment).employment_end_date)
-        and ((assignment).legal_entity_id is null
-          or ((assignment).legal_entity_id=legal_entity_id and joined_date is null)))
-  ), islands as (
-    select *,work_date-(row_number() over(partition by employee_id,issue,missing_field order by work_date))::int island
-    from unresolved
-  )
-  select employee_id,min(work_date),max(work_date),issue,missing_field from islands
-    group by employee_id,issue,missing_field,island order by min(work_date),employee_id;
-$$;
-revoke all on function qa_payroll_population.payroll_period_population_gaps(uuid) from public,anon,authenticated;
-
-create or replace function qa_payroll_population.payroll_period_employment_scope_issue(p_period_id uuid)
-returns text language sql stable security definer set search_path=qa_payroll_population as $$
-  select case when not exists(select 1 from qa_payroll_population.payroll_periods where id=p_period_id)
-    then 'employment_period_unresolved'
-    when exists(select 1 from qa_payroll_population.payroll_period_population_gaps(p_period_id))
-    then 'employment_population_requires_review' else null end;
-$$;
-revoke all on function qa_payroll_population.payroll_period_employment_scope_issue(uuid) from public,anon,authenticated;
-
+-- Exercise the installed canonical definitions against rollback-only fixture tables.
+do $clone$
+declare signature text; definition text;
+begin
+ foreach signature in array array['employee_employment_assignment_at(uuid,date)',
+   'payroll_period_population_gaps(uuid)','payroll_period_employment_scope_issue(uuid)'] loop
+   definition:=pg_get_functiondef(('public.'||signature)::regprocedure);
+   definition:=replace(definition,'RETURNS employee_employment_assignment_revisions',
+     'RETURNS qa_payroll_population.employee_employment_assignment_revisions');
+   execute replace(replace(definition,'public.','qa_payroll_population.'),
+     $search$'public'$search$,$search$'qa_payroll_population'$search$);
+   execute 'revoke all on function qa_payroll_population.'||signature||' from public,anon,authenticated';
+ end loop;
+end $clone$;
 
 insert into qa_payroll_population.payroll_periods values('ee4cdd64-15a4-43ce-a177-de6c37551616','2026-09-01','2026-09-30','5514e530-e0c4-4f2f-9779-4dd4b06a6709');
 insert into qa_payroll_population.payroll_periods values('067ef239-1eef-4af4-b94d-f9e79518f708','2026-09-01','2026-09-30','b54bb901-3790-4e55-8ab1-571768b44665');
@@ -131,19 +81,20 @@ begin
  insert into qa_payroll_population.employees values('00000000-0000-0000-0000-000000000001','2026-09-01');
  insert into qa_payroll_population.employee_employment_assignment_revisions(id,employee_id,effective_from,employment_status,legal_entity_id,source_kind)
  values('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000001','2026-09-29','active','bcd86ee3-0b72-4117-bdd4-26b59f3e3740','cutover_current');
- for p in select id from qa_payroll_population.payroll_periods loop
+ for p in select * from qa_payroll_population.payroll_periods loop
    select count(*) into n from qa_payroll_population.payroll_period_population_gaps(p.id) where employee_id='00000000-0000-0000-0000-000000000001' and date_from='2026-09-01' and date_to='2026-09-28' and missing_field='employment_assignment';
-   if n<>1 then raise exception 'Unknown non-member must block every potentially affected entity'; end if;
+   if n<>(case when p.legal_entity_id='bcd86ee3-0b72-4117-bdd4-26b59f3e3740' then 1 else 0 end) then raise exception 'Known boundary employer must scope unknown non-member'; end if;
  end loop;
  insert into qa_payroll_population.employee_employment_assignment_revisions(id,employee_id,effective_from,employment_status,legal_entity_id,source_kind,corrects_revision_id)
  values('00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000001','2026-09-01','active','bcd86ee3-0b72-4117-bdd4-26b59f3e3740','admin_change','00000000-0000-0000-0000-000000000002');
  for p in select id from qa_payroll_population.payroll_periods loop
    if qa_payroll_population.payroll_period_employment_scope_issue(p.id) is not null then raise exception 'Historical correction failed to clear actual gap'; end if;
  end loop;
- -- Missing employer remains unknown for all entities, even outside current members.
+ -- No effective employer association: global People gap is not a company blocker.
+ -- The cutover is audit-only after correction, so its old employer cannot scope this gap.
  update qa_payroll_population.employee_employment_assignment_revisions set legal_entity_id=null where id='00000000-0000-0000-0000-000000000003';
  for p in select id from qa_payroll_population.payroll_periods loop
-   if not exists(select 1 from qa_payroll_population.payroll_period_population_gaps(p.id) where missing_field='legal_entity_id' and date_from='2026-09-01' and date_to='2026-09-30') then raise exception 'Missing employer bypassed'; end if;
+   if qa_payroll_population.payroll_period_employment_scope_issue(p.id) is not null then raise exception 'Unlinked employer gap blocked unrelated company'; end if;
  end loop;
  update qa_payroll_population.employee_employment_assignment_revisions set legal_entity_id='bcd86ee3-0b72-4117-bdd4-26b59f3e3740' where id='00000000-0000-0000-0000-000000000003';
  update qa_payroll_population.employees set joined_date=null where id='00000000-0000-0000-0000-000000000001';
@@ -155,6 +106,28 @@ begin
  for p in select id from qa_payroll_population.payroll_periods loop
    if qa_payroll_population.payroll_period_employment_scope_issue(p.id) is not null then raise exception 'Verified inactive dates blocked'; end if;
  end loop;
+ -- Genuine missing-employer segment between A and B must block A and B only.
+ insert into qa_payroll_population.employees values('00000000-0000-0000-0000-000000000010','2026-01-01');
+ insert into qa_payroll_population.employee_employment_assignment_revisions(id,employee_id,effective_from,employment_status,legal_entity_id,source_kind) values
+ ('00000000-0000-0000-0000-000000000011','00000000-0000-0000-0000-000000000010','2026-08-01','active','5514e530-e0c4-4f2f-9779-4dd4b06a6709','admin_change'),
+ ('00000000-0000-0000-0000-000000000012','00000000-0000-0000-0000-000000000010','2026-09-01','active',null,'admin_change'),
+ ('00000000-0000-0000-0000-000000000013','00000000-0000-0000-0000-000000000010','2026-10-01','active','b54bb901-3790-4e55-8ab1-571768b44665','admin_change');
+ for p in select * from qa_payroll_population.payroll_periods loop
+   select count(*) into n from qa_payroll_population.payroll_period_population_gaps(p.id) where employee_id='00000000-0000-0000-0000-000000000010' and date_from='2026-09-01' and date_to='2026-09-30' and missing_field='legal_entity_id';
+   if n<>(case when p.legal_entity_id in ('5514e530-e0c4-4f2f-9779-4dd4b06a6709','b54bb901-3790-4e55-8ab1-571768b44665') then 1 else 0 end) then raise exception 'Ambiguous employer segment scope wrong'; end if;
+ end loop;
+ -- A superseded employer is not a candidate boundary.
+ insert into qa_payroll_population.employee_employment_assignment_revisions(id,employee_id,effective_from,employment_status,legal_entity_id,source_kind,supersedes_revision_id) values
+ ('00000000-0000-0000-0000-000000000014','00000000-0000-0000-0000-000000000010','2026-08-01','active','b54bb901-3790-4e55-8ab1-571768b44665','admin_change','00000000-0000-0000-0000-000000000011');
+ for p in select * from qa_payroll_population.payroll_periods loop
+   select count(*) into n from qa_payroll_population.payroll_period_population_gaps(p.id) where employee_id='00000000-0000-0000-0000-000000000010';
+   if n<>(case when p.legal_entity_id='b54bb901-3790-4e55-8ab1-571768b44665' then 1 else 0 end) then raise exception 'Superseded employer leaked into candidates'; end if;
+ end loop;
+ -- Employees with no timeline/employer link must not become global blockers.
+ insert into qa_payroll_population.employees values('00000000-0000-0000-0000-000000000020','2026-01-01');
+ for p in select * from qa_payroll_population.payroll_periods loop
+   if exists(select 1 from qa_payroll_population.payroll_period_population_gaps(p.id) where employee_id='00000000-0000-0000-0000-000000000020') then raise exception 'Global unlinked legacy employee became Payroll blocker'; end if;
+ end loop;
 end $qa$;
-select 'PASS: four complete September populations; unknown non-member; employer; Joined Date; inactive exclusion; corrected cutover' as result;
+select 'PASS: four September populations; linked non-member; unlinked legacy exclusion; A/B employer ambiguity; superseded/audit-only exclusion; Joined Date; inactive; correction' as result;
 rollback;
