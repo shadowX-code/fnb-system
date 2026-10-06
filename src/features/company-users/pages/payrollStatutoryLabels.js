@@ -18,3 +18,19 @@ export const statutorySchemeLabel = (scheme, state) => {
   if (scheme === 'pcb') return 'Applicable · monthly confirmation';
   return categories[scheme]?.find(c=>c.value===state.category)?.label || 'Confirmed';
 };
+
+// Compact exception copy; detailed canonical issue guidance stays in Employee Review.
+export const statutoryReviewSummary = (scheme, state, pcbConfirmed = false) => {
+  const name = statutoryName(scheme);
+  if (scheme === 'pcb' && state?.applicable && !pcbConfirmed) return 'PCB / MTD confirmation required';
+  const issue = String(state?.issue || '').split(':')[0];
+  const reasons = {
+    lindung_participation_unconfirmed: 'status unconfirmed',
+    lindung_designated_employer_missing: 'contributing employer required',
+    lindung_designated_employer_mismatch: 'employer designation needs review',
+    lindung_rate_pack_unavailable: 'rate pack unavailable',
+    lindung_employee_evidence_changed: 'coverage evidence changed',
+    lindung_june_mandatory_evidence_required: 'June evidence required',
+  };
+  return `${name} ${reasons[issue] || (state?.state === 'confirmation_required' ? 'coverage unconfirmed' : 'setup required')}`;
+};

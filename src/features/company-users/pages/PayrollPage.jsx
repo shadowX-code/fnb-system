@@ -254,6 +254,7 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
   const remainingGates = finalizationGates(state, run?.foundation_only, runRead?.calculating).filter(gate => !gate.ready).length;
   const commandTotals = payrollReviewSummary(commandRows);
   const readyCount = commandTotals.readyCount;
+  const preparationReady = commandRows.length > 0 && readyCount === commandRows.length && !runRead?.calculating;
   const displayMoney = value => value == null ? "Pending" : money(value);
   const approverName = run?.finalized_by_name || (employeeSnapshot?.runId === run?.id && employeeSnapshot?.approverName) || (data.employees || []).find((item) => item.id === run?.finalized_by_employee_id)?.name || "Authorized approver";
   const yearOptions = [...new Set([String(new Date().getFullYear()), ...(history || []).map((item) => item.period_start?.slice(0, 4)).filter(Boolean)])]
@@ -280,12 +281,15 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
       ]} /> : <p className="p-6 text-sm text-text-secondary">No Payroll Runs match these filters.</p>}</Card>
   </div>;
   return <div className="space-y-4">
-    <section aria-label="Payroll Run context" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface/80 p-3">
-      <button type="button" className="h-10 whitespace-nowrap text-sm font-semibold text-primary" onClick={() => setOpenRunId("")}>‹ Payroll Runs</button>
-      <SelectField className="w-full sm:w-[230px]" label="Legal Entity" value={entityId} onChange={value => changeRunContext(value, month)} options={(data.legal_entities || []).map(item => ({ value: item.id, label: item.display_name || item.name }))} />
-      <MonthPickerField className="w-full sm:w-[180px]" label="Pay Period" value={month} onChange={value => changeRunContext(entityId, value)} />
+    <section aria-label="Payroll Run context" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border bg-surface px-3 py-2">
+      <button type="button" className="h-9 whitespace-nowrap text-sm font-semibold text-primary hover:underline" onClick={() => setOpenRunId("")}>‹ Payroll Runs</button>
+      <div aria-hidden="true" className="hidden h-8 border-l border-border sm:block" />
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+      <SelectField className="w-full sm:w-[230px]" buttonClassName="!h-9 !min-h-9" ariaLabel="Legal Entity" value={entityId} onChange={value => changeRunContext(value, month)} options={(data.legal_entities || []).map(item => ({ value: item.id, label: item.display_name || item.name }))} />
+      <MonthPickerField className="w-full sm:w-[180px]" ariaLabel="Pay Period" value={month} onChange={value => changeRunContext(entityId, value)} />
+      </div>
     </section>
-    <Card className="space-y-4 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">{new Date(`${month}-01T12:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" })} Payroll</h2>
+    <Card className="space-y-3 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">{new Date(`${month}-01T12:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" })} Payroll</h2>
       {run && <p className="text-sm text-text-secondary">Revision {run.revision}{run.supersedes_run_id ? " · Correction" : ""}</p>}
       {run && <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><Badge tone={["ready", "finalized", "paid"].includes(run.status) ? "success" : "warning"}>{label(run.status)}</Badge><span>{`${employeeCount ?? (commandRows.length || "—")} employees`}</span>
         {!["finalized", "paid"].includes(run.status) && <span>{commandRows.length ? `${readyCount} / ${commandRows.length} employees ready` : "Checking employee preparation…"}</span>}
@@ -312,7 +316,9 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
       className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${step === index ? "bg-primary text-white" : "text-text-secondary hover:bg-surface-muted"}`}><span className="mr-2 text-xs opacity-70">{index + 1}.</span>{name}</button>)}</nav>
       {step !== 2 && <>
         <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} canManage={canManage && mutable} canViewLeave={canViewLeave} canEditEmployee={canEditEmployee} bankRead={bankRead} onChanged={reload} runRead={runRead} focusEmployeeId={focusEmployeeId} stage={step === 1 ? "review" : "prepare"} />
-        {step === 0 && <div className="flex justify-end"><button className="btn-primary" type="button" onClick={() => setStep(1)}>Review Payroll <ChevronRight size={16} /></button></div>}
+        {step === 0 && <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-text-secondary">{runRead?.calculating ? "Updating employee preparation…" : preparationReady ? "Employee preparation is ready for review." : commandRows.length ? "Employee preparation is incomplete." : "Employee preparation is being checked."}</p>
+          <button className={preparationReady ? "btn-primary" : "btn-secondary"} type="button" onClick={() => setStep(1)}>{preparationReady ? "Review Payroll" : "Continue to Review"} <ChevronRight size={16} /></button></div>}
       </>}
       {step === 2 && <PayrollFinalizationReadiness employees={data.employees} canEditEmployee={canEditEmployee} run={run} read={runRead} readiness={state} allReady={allReady} canFinalize={canFinalize && (run.status === "ready" || (canManage && ["draft", "review_required"].includes(run.status)))} busy={busy} onResolve={setStep} onFinalize={() => requestTransition(run.id, "finalized")} bankRead={bankRead} />}
 

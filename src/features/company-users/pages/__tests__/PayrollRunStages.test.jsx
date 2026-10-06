@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 const mocks=vi.hoisted(()=>({bank:vi.fn(),history:vi.fn(),readRunEvidence:vi.fn(),recalculateEmployee:vi.fn()}));
 vi.mock("../../../../services/employeeService.js",()=>({employeeService:{readBankInfo:mocks.bank}}));
 vi.mock("../../../../services/payrollService.js",()=>({payrollService:{readRunHistory:mocks.history,readRunEvidence:mocks.readRunEvidence,recalculateEmployee:mocks.recalculateEmployee}}));
@@ -55,4 +55,27 @@ it("switches open Run context without substituting the month and offers an empty
  expect(screen.queryByText('No Payroll Run exists for this Legal Entity and pay period.')).toBeNull();
  fireEvent.click(screen.getByRole('button',{name:'‹ Payroll Runs'}));
  await screen.findByText('No Payroll Runs match these filters.');
+});
+
+it("keeps Prepare exceptions concise, detailed guidance in Review and recovery conditional", async () => {
+ mocks.bank.mockResolvedValue([]);
+ const refresh=vi.fn().mockResolvedValue({});
+ const schemes={epf:{state:'not_applicable',applicable:false},socso:{state:'not_applicable',applicable:false},eis:{state:'not_applicable',applicable:false},pcb:{state:'not_applicable',applicable:false},lindung:{state:'confirmation_required',issue:'lindung_participation_unconfirmed:2026-09-01'}};
+ const evidence={time:[],pcb:{results:[]},preparation:{results:[{employee_id:'employee',projection:{status:'review_required'},statutory_setup:{complete:false,schemes}}]},calculation:{results:[{employee_id:'employee',status:'review_required'}]},statutory:{results:[{employee_id:'employee',status:'review_required'}]}};
+ const props={data:{legal_entities:[{id:'entity',name:'QA'}],employees:[{id:'employee',name:'QA Employee'}],periods:[{legal_entity_id:'entity',period_start:'2026-09-01',runs:[{id:'run',status:'draft'}]}]},entityId:'entity',month:'2026-09',openRunId:'run',step:0,canManage:true,setStep:vi.fn(),runRead:{data:evidence,refresh}};
+ const {rerender}=render(<RunsTab {...props}/>);
+ const table=await screen.findByRole('table');
+ expect(within(table).getByText('LINDUNG 24 Jam status unconfirmed')).toBeTruthy();
+ expect(within(table).queryByText(/Open Manage Statutory Setup/)).toBeNull();
+ expect(screen.queryByRole('button',{name:'Refresh time evidence'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Retry Evidence Sync'})).toBeNull();
+ expect(screen.getByRole('button',{name:'Continue to Review'}).className).toBe('btn-secondary');
+ fireEvent.click(within(table).getByRole('button',{name:'Resolve statutory issues for QA Employee'}));
+ expect(within(screen.getByRole('dialog')).getByText(/Open Manage Statutory Setup/)).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Close',exact:true}));
+ rerender(<RunsTab {...props} runRead={{...props.runRead,error:new Error('read failed')}}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Retry Evidence Sync'}));
+ await waitFor(()=>expect(refresh).toHaveBeenCalledTimes(1));
+ rerender(<RunsTab {...props}/>);
+ expect(screen.queryByRole('button',{name:'Retry Evidence Sync'})).toBeNull();
 });

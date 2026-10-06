@@ -1186,7 +1186,13 @@ previously committed calculations may finish, while explicit daily decisions con
 through the existing fast, audited command. Finish/Return resumes coalesced automatic
 calculation. Financial totals remain pending while stale or membership is unresolved.
 Run membership blockers appear once in the header, independently of employee preparation
-progress and actionable review items.
+progress and actionable review items. Prepare shows compact statutory exceptions with
+Resolve actions into Employee Review, which retains the detailed explanation. Normal
+time evidence revalidates through Run reads, input changes, review return and window
+focus; manual evidence synchronization is recovery-only after a failed read or canonical
+unreconciled-day count. Genuine source updates retain explicit Reconcile & Review.
+Prepare progression remains available while incomplete, using Continue to Review until
+employee preparation is ready; it does not certify Run finalization readiness.
 
 Prepare and Review retain the same employee surface and shared Run evidence across
 stage changes. Finalization Readiness consumes that same read, separates employee

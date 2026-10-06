@@ -17,7 +17,7 @@ import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "./Payro
 import PayrollPayslipAction from './PayrollPayslipAction.jsx';
 import { Eye } from 'lucide-react';
 import { canonicalPathForRoute } from '../../../app/routeOwnership.js';
-import { statutoryName } from "./payrollStatutoryLabels.js";
+import { statutoryName, statutoryReviewSummary } from "./payrollStatutoryLabels.js";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { payComponentIsConfigured, payrollEmployeeResult, payrollReviewRows, payrollIssueLabel, payrollStatutoryCell, payrollTimeNeedsReview, payrollConfirmedUnpaidEvidence } from "./payrollRunPresentation.js";
 
@@ -146,11 +146,13 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     } catch (cause) { setError(cause.message); }
     finally { setBusy(false); }
   };
-  const reconcile = async () => {
+  const unsynchronizedDays = runRead?.data?.readiness?.time?.unreconciled || 0;
+  const synchronizationError = runRead?.error || (!runRead && !evidence && error);
+  const retryEvidence = async () => {
     setBusy(true); setError("");
     try {
       const end = periodEnd(month);
-      await payrollService.reconcileTime(entityId, `${month}-01`, end < currentDate() ? end : currentDate());
+      if (unsynchronizedDays > 0) await payrollService.reconcileTime(entityId, `${month}-01`, end < currentDate() ? end : currentDate());
       await refresh();
     } catch (cause) { setError(cause.message || "Unable to reconcile time evidence."); }
     finally { setBusy(false); }
@@ -222,9 +224,11 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         !schemes[scheme] || !["confirmed", "not_applicable"].includes(schemes[scheme].state)
         || (scheme === "pcb" && schemes.pcb.applicable && !row.pcb?.confirmation));
       const applicable = ["epf", "socso", "lindung", "eis"].filter((scheme) => schemes[scheme]?.applicable).map((scheme) => statutoryName(scheme));
-      return <div className="text-xs"><strong>{issues.length ? `${issues.length} statutory issue${issues.length === 1 ? "" : "s"}` : `Ready${applicable.length ? ` · ${applicable.join(" / ")}` : ""}`}</strong>
-        <small className="block text-text-secondary">{schemes.pcb?.applicable === false ? "PCB N/A" : row.pcb?.confirmation ? "PCB confirmed" : "PCB confirmation required"}</small>
-        {schemes.lindung?.issue && <small className="block text-amber-700">{payrollIssueLabel(schemes.lindung.issue)}</small>}
+      return <div className="space-y-1 text-xs">
+        {issues.length ? <>
+          {issues.map(scheme => <p key={scheme} className="text-text-primary">{statutoryReviewSummary(scheme, schemes[scheme], Boolean(row.pcb?.confirmation))}</p>)}
+          <button type="button" className="font-semibold text-primary hover:underline" aria-label={`Resolve statutory issues for ${row.name}`} onClick={() => setEmployeeId(row.id)}>Resolve →</button>
+        </> : <><strong>Ready</strong><small className="block text-text-secondary">{applicable.join(" / ") || "Not Applicable"}{schemes.pcb?.applicable === false ? " · PCB N/A" : " · PCB confirmed"}</small></>}
         {row.statutory?.is_stale && <small className="block text-text-secondary">Calculation pending</small>}</div>;
     } },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Need Attention" : "Ready"}</Badge> },
@@ -232,8 +236,11 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   ];
   return <div className="space-y-4">
     <Card className="flex flex-wrap items-center justify-between gap-3 p-4"><div><h3 className="text-lg font-bold">{stage === "review" ? "Review Payroll" : "Prepare Payroll"}</h3>
-      <p className="text-sm text-text-secondary">{rows.length} included · {rows.filter((row) => row.needsReview).length} need attention. Resolve only exceptions; clean evidence needs no manual approval.</p></div>
-      {active && stage !== "review" && <button type="button" className="btn-secondary" disabled={busy} onClick={reconcile}>{busy ? "Reconciling…" : "Refresh time evidence"}</button>}</Card>
+      <p className="text-sm text-text-secondary">{rows.length} employees · {rows.filter(row => !row.needsReview).length} ready · {rows.filter(row => row.needsReview).length} need attention</p></div></Card>
+    {(synchronizationError || unsynchronizedDays > 0) && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+      <p>{synchronizationError ? "Payroll evidence could not be synchronized." : `${unsynchronizedDays} day${unsynchronizedDays === 1 ? "" : "s"} of time evidence need synchronization.`}</p>
+      {(unsynchronizedDays === 0 || active) && <button type="button" className="btn-secondary" disabled={busy || runRead?.calculating} onClick={retryEvidence}>{busy ? "Synchronizing…" : "Retry Evidence Sync"}</button>}
+    </div>}
     {stage === "review" && <AdminFilterToolbar ariaLabel="Payroll review filters" compact denseFields searchAfterFilters
       filters={<><SelectField label="Status" ariaLabel="Review status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, { value: "ready", label: "Ready" }, { value: "attention", label: "Need Attention" }]} />
         <SelectField label="Pay Basis" ariaLabel="Review pay basis" value={basisFilter} onChange={setBasisFilter} options={[{ value: "all", label: "All" }, { value: "monthly", label: "Monthly" }, { value: "hourly", label: "Hourly" }]} />
