@@ -1,8 +1,9 @@
+import { meaningfulSpeech } from "../../../supabase/functions/recruitment-realtime/orientation.ts";
 // Provider owns ordinary VAD -> response -> interruption. This adapter observes
 // liveness; it never retries a candidate turn or waits for playback to schedule it.
 export class OpenAIInterviewConversation {
-  constructor({send, onRecovery, onTool, onCompletion, trace = () => {}}) {
-    Object.assign(this, {send, onRecovery, onTool, onCompletion:onCompletion||(()=>{}), trace});
+  constructor({send, onRecovery, onTool, onCompletion, onOrientation = () => {}, trace = () => {}}) {
+    Object.assign(this, {send, onRecovery, onTool, onCompletion:onCompletion||(()=>{}), onOrientation, trace});
     this.responses = new Map(); this.turns = new Map(); this.tools = new Map();
     this.cancelled = new Set(); this.revision = 0; this.closed = false;
     this.speaking = false; this.playing = false; this.owner = null;
@@ -43,6 +44,11 @@ export class OpenAIInterviewConversation {
       if (this.owner === e.item_id && !this.turns.get(e.item_id).responded)
         this.watch(`turn:${e.item_id}`, "next_response_timeout");
     }
+    if (e.type === "conversation.item.input_audio_transcription.completed" && this.introductionPending && e.item_id === this.owner && this.revision > (this.orientationPresentedRevision ?? 0) && meaningfulSpeech(e.transcript || "")) {
+      this.introductionPending = false;
+      this.orientationConfirmed = true;
+      this.updateContext(this.instructions);
+    }
     if (e.type === "response.created") {
       if (this.responses.has(id)) return false;
       const kind = e.response.metadata?.feedx_kind;
@@ -52,7 +58,7 @@ export class OpenAIInterviewConversation {
       }
       const tool = kind === "tool" ? this.tools.get(e.response.metadata.call_id) : null;
       const stale = kind === "entry" ? this.entryRevision !== this.revision : kind === "tool" && (!tool || tool.revision !== this.revision);
-      this.responses.set(id, {revision:this.revision,done:false,kind,closing:tool?.result?.can_finish === true});
+      this.responses.set(id, {itemId:null,revision:this.revision,done:false,kind,closing:tool?.result?.can_finish === true});
       if (stale) { this.cancelled.add(id); this.send({type:"response.cancel",response_id:id}); return false; }
       this.unwatch("entry"); this.unwatch("tool-response");
       if (this.owner) {
@@ -60,14 +66,18 @@ export class OpenAIInterviewConversation {
       }
       this.watch(`response:${id}`, "response_generation_timeout", 60000);
     }
+    if (e.type === "response.output_item.added" && e.item?.type === "message") {
+      const response = this.responses.get(id);
+      if (response) response.itemId = e.item.id;
+    }
     if (id && this.cancelled.has(id)) return ["output_audio_buffer.cleared", "output_audio_buffer.stopped", "response.done"].includes(e.type);
     if (e.type === "response.done") {
       const response = this.responses.get(id);
-      if (response) response.done = true;
+      if (response) { response.done = true; response.status = e.response.status; }
       this.unwatch(`response:${id}`);
       if (e.response.status === "cancelled") this.cancelled.add(id);
       if (["failed","incomplete"].includes(e.response.status)) this.onRecovery("response_failed");
-      for (const tool of this.tools.values()) if (tool.responseId === id) this.continueTool(tool);
+      for (const tool of this.tools.values()) if (tool.responseId === id) tool.orientation ? this.settleOrientation(tool) : this.continueTool(tool);
     }
     if (e.type === "output_audio_buffer.started") {
       this.playing = true;
@@ -77,13 +87,27 @@ export class OpenAIInterviewConversation {
       this.playing = false; this.unwatch(`audio:${id}`);
       if (e.type === "output_audio_buffer.cleared") this.cancelled.add(id);
       const response = this.responses.get(id);
+      if (e.type === "output_audio_buffer.stopped" && response?.status === "completed" && !this.cancelled.has(id) && response.itemId)
+        response.delivered = true;
+      for (const tool of this.tools.values()) if (tool.orientation && tool.responseId === id) this.settleOrientation(tool);
       if (e.type === "output_audio_buffer.stopped" && response?.closing && response.revision === this.revision)
         queueMicrotask(()=>{if(!this.closed && response.revision===this.revision)this.onCompletion();});
     }
     if (e.type === "response.function_call_arguments.done" && !this.tools.has(e.call_id)) {
+      if (this.responses.get(id)?.revision !== this.revision) return false;
       const tool = {callId:e.call_id,responseId:id,revision:this.revision};
       this.tools.set(e.call_id, tool);
+      if (e.name === "confirm_orientation") {
+        tool.orientation = true;
+        this.settleOrientation(tool);
+        return true;
+      }
       if (e.name !== "request_completion") { this.onRecovery("unknown_interview_tool"); return false; }
+      if (this.orientationRequired || this.introductionPending) {
+        tool.result = {can_finish:false,reason:"Complete the pending orientation and self-introduction opportunity first. Never describe this internal check aloud."};
+        this.continueTool(tool);
+        return true;
+      }
       this.watch(`tool:${e.call_id}`, "completion_check_timeout", 60000);
       Promise.resolve().then(() => this.onTool(e)).then(result => {
         if (this.closed) return;
@@ -93,6 +117,22 @@ export class OpenAIInterviewConversation {
     }
     if (e.type === "error") this.onRecovery("provider_error");
     return true;
+  }
+  settleOrientation(tool) {
+    const response = this.responses.get(tool.responseId);
+    if (this.closed || tool.sent || tool.revision !== this.revision || this.cancelled.has(tool.responseId)
+      || !response?.done || !response.delivered || response.status !== "completed") return;
+    tool.sent = true;
+    if (this.orientationRequired) {
+      this.orientationRequired = false;
+      this.introductionPending = true;
+      this.orientationPresented = true;
+      this.orientationPresentedRevision = response.revision;
+      this.onOrientation({response_id:tool.responseId, item_id:response.itemId});
+      this.updateContext(this.instructions);
+    }
+    this.send({type:"conversation.item.create",item:{type:"function_call_output",call_id:tool.callId,output:JSON.stringify({orientation_delivered:true,next:"Listen for the self-introduction; do not repeat the opening."})}});
+    // No response.create: the next candidate speech remains provider-owned.
   }
   continueTool(tool) {
     if (this.closed || tool.sent || !tool.result || !this.responses.get(tool.responseId)?.done) return;
@@ -108,6 +148,11 @@ export class OpenAIInterviewConversation {
     this.send({type:"response.create",response:{metadata:{feedx_kind:"tool",call_id:tool.callId}}});
   }
   updateContext(instructions) {
+    if ((this.orientationConfirmed || this.orientationPresented) && instructions) instructions = instructions.replace(
+      /\[FEEDX ORIENTATION\][\s\S]*?\[\/FEEDX ORIENTATION\]/,
+      this.orientationConfirmed
+        ? "[FEEDX ORIENTATION]Orientation is complete. Never welcome or introduce the role again. Never call confirm_orientation again. Continue the current interview thread.[/FEEDX ORIENTATION]"
+        : "[FEEDX ORIENTATION]Orientation has been delivered. Never repeat the welcome, role scope or duration. Await a brief self-introduction; Hello/Hi/OK/Yes/嗯/好/lah alone does not change language. After meaningful introduction or explicit decline, reuse its evidence and continue naturally; establish Unknown preference before offering-specific scheduling. Never call confirm_orientation again.[/FEEDX ORIENTATION]");
     if (this.closed || !instructions || instructions === this.instructions) return;
     this.instructions = instructions;
     // Quiet configuration update: never create a response or replay conversation.

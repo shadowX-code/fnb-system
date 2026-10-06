@@ -1,0 +1,273 @@
+{
+  "attempt_id": "70456ad7-42ae-4429-a2a1-f7cf15144a60",
+  "profile": "Service Crew",
+  "version": 2,
+  "preferred_language": "zh",
+  "truncated_turns": [
+    1,
+    3,
+    34,
+    36
+  ],
+  "turns": [
+    {
+      "turn_number": 1,
+      "speaker": "ai",
+      "transcript": "Hello, 欢迎你来参加面试。我是 FeedX 的自动面试官。今天",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2sK12b5sMPc6ClkiSRI"
+    },
+    {
+      "turn_number": 2,
+      "speaker": "candidate",
+      "transcript": "Hello.",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2sL6sSJhrRbOcNKdK2z"
+    },
+    {
+      "turn_number": 3,
+      "speaker": "ai",
+      "transcript": "Hi there, thanks for joining. To get started, could you share a bit about any past",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2sNhwW2QKekWQsswahT"
+    },
+    {
+      "turn_number": 4,
+      "speaker": "candidate",
+      "transcript": "Hi there.",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2sOabqTQ8LjHCIgLa87"
+    },
+    {
+      "turn_number": 5,
+      "speaker": "ai",
+      "transcript": "Hi, thanks for being here. I'd like to hear about any customer-facing experience you have, whether in F&B or another field. What kind of responsibilities did you handle?",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2sPfYW6OuZNIR2ECF1U"
+    },
+    {
+      "turn_number": 6,
+      "speaker": "candidate",
+      "transcript": "你可以讲华语吗?",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2scGwQcTD3Um1gRhjAJ"
+    },
+    {
+      "turn_number": 7,
+      "speaker": "ai",
+      "transcript": "可以的，我们用华语交流。那你可以分享一下你过去在面对顾客的工作经验吗？比如你曾经负责什么样的任务？",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2sflf62jd7vbG8My3UN"
+    },
+    {
+      "turn_number": 8,
+      "speaker": "candidate",
+      "transcript": "之前做过三个月的餐饮店。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2t3rZBL5wa0AWMxPnUk"
+    },
+    {
+      "turn_number": 9,
+      "speaker": "candidate",
+      "transcript": "主要是service啦.",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2t7p90jl7eO8W8m0sUv"
+    },
+    {
+      "turn_number": 10,
+      "speaker": "ai",
+      "transcript": "了解，你当时在餐饮店做服务时，主要负责哪些具体的事情？例如点餐、上菜，还是处理顾客问题？",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2tAmiqjFEoH7MaKpTQW"
+    },
+    {
+      "turn_number": 11,
+      "speaker": "candidate",
+      "transcript": "简单餐菜处理顾客都有啊.",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2tLlBXJq0jQOokPEz72"
+    },
+    {
+      "turn_number": 12,
+      "speaker": "ai",
+      "transcript": "明白了，那当顾客有问题或者投诉的时候，你当时是怎么和他们沟通的？",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2tOkzdWzAuefzxmbezG"
+    },
+    {
+      "turn_number": 13,
+      "speaker": "candidate",
+      "transcript": "跟他们道歉，然后具体看是什么问题，然后跟同事之间去解决。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2tXzeV6Pm9f29ZMJR7u"
+    },
+    {
+      "turn_number": 14,
+      "speaker": "ai",
+      "transcript": "好的，听起来你会先道歉并和同事协调处理。那我想了解一下，你什么时候可以开始上班呢？比如你是否需要提前通知现有工作，或者有具体的日期安排？",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2tin0GDNDKgQTpxljmg"
+    },
+    {
+      "turn_number": 15,
+      "speaker": "candidate",
+      "transcript": "我是打算月尾才上班，然后大概做三个月左右。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2tyE54aUBGzHLMELgwG"
+    },
+    {
+      "turn_number": 16,
+      "speaker": "ai",
+      "transcript": "好的，那你的计划是下个月可以开始，并且打算工作大约三个月，对吗？想确认一下在这段时间内，你能不能接受我们的工作时间安排：每天早上7点半到下午5点，一周工作六天，有一天休息。你对这样的时间安排有没有什么困难或限制呢？",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2u638NRglu2zkXUhkok"
+    },
+    {
+      "turn_number": 17,
+      "speaker": "candidate",
+      "transcript": "我是找part time的.",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2uSq4Keu731WJgglcId"
+    },
+    {
+      "turn_number": 18,
+      "speaker": "ai",
+      "transcript": "明白，如果是兼职的话，具体可以安排的时间就很重要。那你平时哪几天有空，周末能不能上班？每天大概可以工作到几点呢？",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2uV60ELOZKk4M5GNirE"
+    },
+    {
+      "turn_number": 19,
+      "speaker": "candidate",
+      "transcript": "平常都ok的。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2v8IeHWbBcz9vyDs33J"
+    },
+    {
+      "turn_number": 20,
+      "speaker": "ai",
+      "transcript": "好的，平日都没问题听起来很灵活。那周末如果需要你来班，你觉得可以吗？",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2vC0XuO5Ux1FwI7XImO"
+    },
+    {
+      "turn_number": 21,
+      "speaker": "candidate",
+      "transcript": "多摸是可以的。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2vie2IkUWfambfMZoQJ"
+    },
+    {
+      "turn_number": 22,
+      "speaker": "ai",
+      "transcript": "了解了，那你的时间安排我们大致清楚。现在我想听听你有没有什么问题想问关于这份工作或安排的？有的话请随时提出来。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2vkRff0iyTQKMf8fL4K"
+    },
+    {
+      "turn_number": 23,
+      "speaker": "candidate",
+      "transcript": "主要这份工作是做什么?",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2vyToHxUsnxnn9s1RSC"
+    },
+    {
+      "turn_number": 24,
+      "speaker": "ai",
+      "transcript": "这份工作是在餐饮店里做服务，包括欢迎客人、点餐、上菜，还有跟厨房沟通，以及在忙的时候帮同事一块儿照顾顾客。你如果还有其他想了解的细节，可以再问我，不确认的部分我也会让招聘团队跟你解释。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2w1mpF7h1MuPGAmRMDa"
+    },
+    {
+      "turn_number": 25,
+      "speaker": "candidate",
+      "transcript": "那这个salary怎样算?",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2wKc95s1SrdNBvgKMZs"
+    },
+    {
+      "turn_number": 26,
+      "speaker": "ai",
+      "transcript": "这个兼职的薪资是按小时计算，每小时是8令吉，每个月7号通过银行发薪。如果是工作满8小时，就会有一小时无薪的用餐时间，还有一份员工餐。具体薪水范围或其他细节，主管会最后确认。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2wQyA1UQqtCNnHe2TVt"
+    },
+    {
+      "turn_number": 27,
+      "speaker": "candidate",
+      "transcript": "Hmm...",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2x1bfs2SokRxdOiNheB"
+    },
+    {
+      "turn_number": 28,
+      "speaker": "ai",
+      "transcript": "如果你还想了解其他方面，比如工作安排或者休息时间，都可以问我。有不确定的地方，我会让招聘团队再跟你说明。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2x29oBJ42wBhoO42BIG"
+    },
+    {
+      "turn_number": 29,
+      "speaker": "candidate",
+      "transcript": "你们是在哪里啊，你的店。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2xE1pabDuySMFTYbqUi"
+    },
+    {
+      "turn_number": 30,
+      "speaker": "ai",
+      "transcript": "我们的地点在霹雳州彭吉兰和巴西布帖一带。如果还有其他细节需要确认，招聘团队之后也会再和你沟通。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2xHmrLMq547u9LZfcrA"
+    },
+    {
+      "turn_number": 31,
+      "speaker": "candidate",
+      "transcript": "有EPF吗你们?",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2xYwwSYKHvvCbtKxy8S"
+    },
+    {
+      "turn_number": 32,
+      "speaker": "ai",
+      "transcript": "兼职的安排是没有提供 EPF 的，这是目前的招聘信息。如果你需要更详细的解释，招聘团队可以进一步说明。 现在你还有其他想了解的问题吗？",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2xaBLPfL56XczELjVEK"
+    },
+    {
+      "turn_number": 33,
+      "speaker": "candidate",
+      "transcript": "那工作时间一定是要每天工作?",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2xsonisr17xF5YfCWH2"
+    },
+    {
+      "turn_number": 34,
+      "speaker": "ai",
+      "transcript": "兼职的话没有",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2xw65XcOWRe0iZIuPwu"
+    },
+    {
+      "turn_number": 35,
+      "speaker": "candidate",
+      "transcript": "I see tanya.",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2xwxADaLVFrB9M4L9fF"
+    },
+    {
+      "turn_number": 36,
+      "speaker": "ai",
+      "transcript": "兼职的情况下，实际的班表可以跟主管协商，并不一定每天都上班，主要看店里的需求和你的时间安排。具体的班次你可以在面谈时跟主管讨论。今天我们聊到的内容差不多了，我这边要向系统申请结束面试流程，稍等一下。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2xxNMTS8BrNn38nnLCw"
+    },
+    {
+      "turn_number": 37,
+      "speaker": "ai",
+      "transcript": "系统已经确认了。感谢你今天的时间，接下来招聘团队会审核你的面试内容，然后再联系你。谢谢你，祝你有个愉快的一天，我们再见。",
+      "provider_generation": 1,
+      "provider_item_id": "item_EW2y3WnhKj6BDb4HHN40l"
+    }
+  ]
+}

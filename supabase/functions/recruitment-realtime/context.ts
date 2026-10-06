@@ -1,3 +1,4 @@
+import { orientationComplete, orientationPresented } from "./orientation.ts";
 import type { InterviewContext } from "./prompt.ts";
 
 // Build quiet updates exclusively from canonical server evidence. Never allocate
@@ -8,6 +9,7 @@ export function continuationContext(
   config: any,
   opening: any,
   annotations: any[],
+  traces: any[] = [],
 ): InterviewContext {
   const truncated = new Set(
     annotations
@@ -25,6 +27,12 @@ export function continuationContext(
     employment_preference: opening.employment_preference || "unknown",
     current_findings: state.current_findings || [],
     generation: attempt.provider_generation,
+    orientation_presented: orientationPresented(state.turns, annotations, traces),
+    orientation_complete: orientationComplete(state.turns, annotations, traces)
+      // Older sessions predate the presentation checkpoint: preserve genuine
+      // established interviews, but never treat short greetings as progress.
+      || (!traces.some(t => t.record?.phase === "orientation_pending")
+        && state.topics.some((t: any) => t.state !== "unresolved")),
     preferred_language: attempt.preferred_language,
     opening: {
       title: opening.opening_title_snapshot,

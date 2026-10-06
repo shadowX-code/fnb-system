@@ -56,6 +56,7 @@ Deno.serve(async (request) => {
   if (!tokenPattern.test(token) || !uuidPattern.test(clientId))
     return json(request, { error: "Interview request is invalid." }, 400);
 
+  const orientationEnabled = body.orientation_version === "receipt-v1";
   const url = Deno.env.get("SUPABASE_URL") || Deno.env.get("PROJECT_URL");
   const serviceKey =
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
@@ -93,6 +94,7 @@ Deno.serve(async (request) => {
       { data: config },
       { data: opening },
       { data: annotations, error: annotationError },
+      { data: traces, error: traceError },
     ] = await Promise.all([
       service
         .from("recruitment_interview_configs")
@@ -112,8 +114,10 @@ Deno.serve(async (request) => {
         .from("recruitment_transcript_annotations")
         .select("provider_generation,provider_item_id,kind")
         .eq("attempt_id", state.attempt_id),
+      service.from("recruitment_realtime_traces").select("provider_generation,record")
+        .eq("attempt_id", state.attempt_id).in("record->>phase", ["orientation_pending", "orientation_complete"]),
     ]);
-    if (!config || !opening || annotationError)
+    if (!config || !opening || annotationError || traceError)
       return json(request, { error: "Interview context unavailable." }, 503);
     // Revalidate ownership after the reads; a replaced browser must not receive
     // a new context update for the current generation.
@@ -128,11 +132,11 @@ Deno.serve(async (request) => {
       current?.paused_at
     )
       return json(request, { error: "Interview was replaced." }, 409);
+    const context = continuationContext(state, attempt, config, opening, annotations || [], traces || []);
+    if (!orientationEnabled) { delete context.orientation_complete; delete context.orientation_presented; }
     return json(request, {
       generation: attempt.provider_generation,
-      instructions: interviewInstructions(
-        continuationContext(state, attempt, config, opening, annotations || []),
-      ),
+      instructions: interviewInstructions(context),
     });
   }
   const { data, error } = await service.rpc(
@@ -182,6 +186,16 @@ Deno.serve(async (request) => {
   );
   if (durableError)
     return json(request, { error: "Interview context unavailable." }, 503);
+  const [{ data: annotations, error: annotationError }, { data: traces, error: traceError }] = await Promise.all([
+    service.from("recruitment_transcript_annotations").select("provider_generation,provider_item_id,kind").eq("attempt_id", context.attempt_id),
+    service.from("recruitment_realtime_traces").select("provider_generation,record").eq("attempt_id", context.attempt_id).in("record->>phase", ["orientation_pending", "orientation_complete"]),
+  ]);
+  if (annotationError || traceError) return json(request, {error:"Interview context unavailable."}, 503);
+  const continuation = continuationContext(durable, {provider_generation:context.generation,preferred_language:context.preferred_language},
+    {...context,interview_profile:context.interview_profile},
+    {...context.opening, employment_preference:context.employment_preference}, annotations || [], traces || []);
+  if (orientationEnabled) { context.orientation_complete = continuation.orientation_complete; context.orientation_presented = continuation.orientation_presented; }
+  context.turns = continuation.turns;
   context.current_findings = durable.current_findings || [];
   context.job_facts = durable.job_facts || context.job_facts;
   context.scenarios = context.scenarios.map((s: any) => ({
@@ -212,6 +226,11 @@ Deno.serve(async (request) => {
       model: "gpt-realtime-1.5",
       output_modalities: ["audio"],
       tools: [
+        ...(orientationEnabled ? [{
+          type:"function",name:"confirm_orientation",
+          description:"Silently confirm presentation only in the same response after speaking the workplace, position, confirmed role scope, approximate duration and self-introduction invitation. Then listen, without more speech. Never use a short Hello/Hi/OK as a substitute for the required orientation. This is not evidence coverage or completion permission.",
+          parameters:{type:"object",properties:{},required:[],additionalProperties:false},
+        }] : []),
         {
           type: "function",
           name: "request_completion",
@@ -285,6 +304,9 @@ Deno.serve(async (request) => {
     value: secret.value,
     expires_at: secret.expires_at,
     generation: context.generation,
+    orientation_required: orientationEnabled && !context.orientation_complete && !context.orientation_presented,
+    introduction_pending: orientationEnabled && context.orientation_presented && !context.orientation_complete,
+    conversation_instructions: interviewInstructions(context),
     first_response_instructions: firstInterviewResponse(context),
     max_ends_at: context.max_ends_at,
   });
