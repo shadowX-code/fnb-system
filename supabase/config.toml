@@ -14,3 +14,7 @@ verify_jwt = false
 
 [functions.recruitment-report]
 verify_jwt = false
+
+[functions.recruitment-voice-lab]
+# Staging-only, validates Admin Auth and canonical recruitment.manage permission.
+verify_jwt = false

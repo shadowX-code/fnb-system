@@ -18,6 +18,7 @@ import {
 import Modal from "../../components/feedback/Modal.jsx";
 import AdminSegmentedControl from "../../components/forms/AdminSegmentedControl.jsx";
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
+import RecruitmentVoiceLab, { voiceLabAvailable } from "./RecruitmentVoiceLab.jsx";
 import InterviewProfileSettings from "./InterviewProfileSettings.jsx";
 import RecruitmentEvidenceReview from "./RecruitmentEvidenceReview.jsx";
 import { recruitmentService } from "./recruitmentService.js";
@@ -461,6 +462,7 @@ export default function RecruitmentPage({ auth }) {
     [statusFilter, setStatusFilter] = useState("all"),
     [workplaceFilter, setWorkplaceFilter] = useState("all"),
     [positionFilter, setPositionFilter] = useState("all");
+  const [voiceLabOpen, setVoiceLabOpen] = useState(new URLSearchParams(window.location.search).get("voiceLab") === "1");
   const [formOpening, setFormOpening] = useState(undefined),
     [profilesOpen, setProfilesOpen] = useState(false),
     [applicationForm, setApplicationForm] = useState(false);
@@ -677,6 +679,7 @@ export default function RecruitmentPage({ auth }) {
       ))}
     </ul>
   );
+  if (voiceLabOpen && canManage && voiceLabAvailable()) return <div className="recruitment-workspace"><RecruitmentVoiceLab onClose={() => setVoiceLabOpen(false)} /></div>;
   if (profilesOpen && data)
     return (
       <div className="recruitment-workspace">
@@ -712,6 +715,8 @@ export default function RecruitmentPage({ auth }) {
         }
         secondaryActions={
           !openingId ? (
+            <div className="flex gap-2">
+            {canManage && voiceLabAvailable() && <button type="button" className="btn-secondary" onClick={() => setVoiceLabOpen(true)}>Voice Lab</button>}
             <button
               type="button"
               className="btn-secondary"
@@ -719,6 +724,7 @@ export default function RecruitmentPage({ auth }) {
             >
               Interview Profiles
             </button>
+            </div>
           ) : null
         }
         primaryActions={
