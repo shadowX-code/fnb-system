@@ -216,11 +216,11 @@ describe("Payroll Control Center", () => {
   render(<PayrollPage auth={{}}/>);
   await screen.findByRole('heading',{name:'September 2026 Payroll'});
   fireEvent.click(screen.getByRole('tab',{name:'Payroll Profiles'}));
-  fireEvent.click(screen.getByRole('button',{name:'QA Employer'}));
-  fireEvent.click(screen.getByRole('button',{name:'Second Employer',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:'Legal Entity',exact:true}));
+  fireEvent.click(screen.getByRole('option',{name:'Second Employer',exact:true}));
   for(const tab of ['Payroll Runs','Settings','Overview','Payroll Profiles']){
    fireEvent.click(screen.getByRole('tab',{name:tab,exact:true}));
-   await screen.findByRole('button',{name:'Second Employer',exact:true});
+   expect(screen.getByRole('button',{name:'Legal Entity',exact:true}).textContent).toContain('Second Employer');
   }
   expect(mocks.readRunHistory).toHaveBeenCalledWith('entity-2');
  });

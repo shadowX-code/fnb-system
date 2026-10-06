@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 const mocks=vi.hoisted(()=>({bank:vi.fn(),history:vi.fn(),readRunEvidence:vi.fn(),recalculateEmployee:vi.fn()}));
@@ -26,4 +27,32 @@ it("reuses run evidence and bank batch through Prepare, Review, Finalize and Res
  await screen.findByRole('button',{name:'View Time for QA Employee'});
  expect(mocks.bank).toHaveBeenCalledTimes(1);expect(mocks.history).not.toHaveBeenCalled();
  expect(mocks.readRunEvidence).not.toHaveBeenCalled();expect(mocks.recalculateEmployee).not.toHaveBeenCalled();
+});
+
+it("switches open Run context without substituting the month and offers an empty period", async () => {
+ mocks.bank.mockResolvedValue([]); mocks.history.mockResolvedValue([]);
+ const data={legal_entities:[{id:'a',name:'Company A'},{id:'b',name:'Company B'},{id:'empty',name:'No Run Company'}],employees:[],periods:[
+  {legal_entity_id:'a',period_start:'2026-09-01',runs:[{id:'a-run',revision:1,status:'draft'}]},
+  {legal_entity_id:'b',period_start:'2026-09-01',runs:[{id:'b-run',revision:3,status:'draft'}]},
+  {legal_entity_id:'empty',period_start:'2026-08-01',runs:[{id:'old-run',revision:1,status:'draft'}]}]};
+ function Workspace(){
+  const [entityId,setEntity]=useState('a'),[month,setMonth]=useState('2026-09'),[openRunId,setOpenRunId]=useState('a-run'),[step,setStep]=useState(0);
+  return <RunsTab data={data} entityId={entityId} setEntityId={value=>{setEntity(value);setOpenRunId('');}} month={month} setMonth={setMonth} openRunId={openRunId} setOpenRunId={setOpenRunId} step={step} setStep={setStep} canManage runRead={{data:{}}} />;
+ }
+ render(<Workspace/>);
+ fireEvent.click(screen.getByRole('button',{name:'Legal Entity',exact:true}));
+ fireEvent.click(screen.getByRole('option',{name:'Company B',exact:true}));
+ expect(screen.getByText('Revision 3')).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Pay Period'}).textContent).toContain('September 2026');
+ fireEvent.click(screen.getByRole('button',{name:'Legal Entity',exact:true}));
+ fireEvent.click(screen.getByRole('option',{name:'No Run Company',exact:true}));
+ expect(screen.getByText('No Payroll Run exists for this Legal Entity and pay period.')).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Pay Period'}).textContent).toContain('September 2026');
+ expect(screen.queryByText('Revision 1')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Pay Period'}));
+ fireEvent.click(screen.getByRole('gridcell',{name:'Aug'}));
+ expect(screen.getByText('Revision 1')).toBeTruthy();
+ expect(screen.queryByText('No Payroll Run exists for this Legal Entity and pay period.')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'‹ Payroll Runs'}));
+ await screen.findByText('No Payroll Runs match these filters.');
 });

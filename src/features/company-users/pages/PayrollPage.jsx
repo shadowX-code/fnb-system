@@ -205,6 +205,17 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
   const period = (data.periods || []).find((item) => item.legal_entity_id === entityId && item.period_start?.slice(0, 7) === month);
   const runs = [...(period?.runs || [])].sort((a, b) => Number(b.revision) - Number(a.revision));
   const run = runs.find((item) => item.id === openRunId);
+  const changeRunContext = (nextEntityId, nextMonth) => {
+    const nextPeriod = (data.periods || []).find(item => item.legal_entity_id === nextEntityId && item.period_start?.slice(0, 7) === nextMonth);
+    const nextRuns = [...(nextPeriod?.runs || [])].sort((a, b) => Number(b.revision) - Number(a.revision));
+    const nextRun = nextRuns.find(item => ["draft", "review_required", "ready"].includes(item.status)) || nextRuns[0];
+    setEntityId(nextEntityId);
+    setMonth(nextMonth);
+    setOpenRunId(nextRun?.id || "new");
+    setStep(["finalized", "paid"].includes(nextRun?.status) ? 2 : 0);
+    setReason(""); setError(""); setPendingTransition(null); setTransitionReason("");
+    setFocusEmployeeId(""); setEmployeeSnapshot(null);
+  };
   const create = async (supersedesRunId = null) => {
     setBusy(true); setError("");
     try {
@@ -269,9 +280,13 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
       ]} /> : <p className="p-6 text-sm text-text-secondary">No Payroll Runs match these filters.</p>}</Card>
   </div>;
   return <div className="space-y-4">
-    <button type="button" className="text-sm font-semibold text-primary" onClick={() => setOpenRunId("")}>← Payroll Run history</button>
+    <section aria-label="Payroll Run context" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface/80 p-3">
+      <button type="button" className="h-10 whitespace-nowrap text-sm font-semibold text-primary" onClick={() => setOpenRunId("")}>‹ Payroll Runs</button>
+      <SelectField className="w-full sm:w-[230px]" label="Legal Entity" value={entityId} onChange={value => changeRunContext(value, month)} options={(data.legal_entities || []).map(item => ({ value: item.id, label: item.display_name || item.name }))} />
+      <MonthPickerField className="w-full sm:w-[180px]" label="Pay Period" value={month} onChange={value => changeRunContext(entityId, value)} />
+    </section>
     <Card className="space-y-4 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">{new Date(`${month}-01T12:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" })} Payroll</h2>
-      <p className="text-sm text-text-secondary">{entityName(data.legal_entities || [], entityId)}{run ? ` · Revision ${run.revision}${run.supersedes_run_id ? " · Correction" : ""}` : ""}</p>
+      {run && <p className="text-sm text-text-secondary">Revision {run.revision}{run.supersedes_run_id ? " · Correction" : ""}</p>}
       {run && <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><Badge tone={["ready", "finalized", "paid"].includes(run.status) ? "success" : "warning"}>{label(run.status)}</Badge><span>{`${employeeCount ?? (commandRows.length || "—")} employees`}</span>
         {!["finalized", "paid"].includes(run.status) && <span>{commandRows.length ? `${readyCount} / ${commandRows.length} employees ready` : "Checking employee preparation…"}</span>}
         {mutable && <span className="font-semibold">Run readiness: {allReady ? "Ready" : `${remainingGates || 1} blocker${remainingGates === 1 ? "" : "s"} remaining`}</span>}</div>}</div>
@@ -282,12 +297,12 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
       {run && step !== 2 && <><dl className="grid grid-cols-2 gap-4 border-t border-border pt-3 lg:grid-cols-4">{[["Gross Payroll", commandTotals.gross], ["Employee Deductions", commandTotals.deductions], ["Net Payroll", commandTotals.net], ["Employer Cost", commandTotals.employerCost]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 font-bold tabular-nums">{displayMoney(state?.calculation?.employment_issue || runRead?.calculating ? null : value)}</dd></div>)}</dl>
         {["finalized", "paid"].includes(run.status) ? <p className="text-xs text-text-secondary">Finalized {run.finalized_at ? new Date(run.finalized_at).toLocaleString() : "—"} · {approverName}. Read-only; changes require a Correction Revision.</p> : !allReady && <p className="text-xs text-text-secondary">Totals remain pending until required evidence is resolved.</p>}</>}
     </Card>
-    {!run && canManage && <Card className="grid gap-4 p-5 sm:grid-cols-2"><MonthPickerField label="Pay Period" value={month} onChange={setMonth} />
-      <SelectField label="Legal Entity" value={entityId} onChange={setEntityId} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />
+    {!run && <Card className="grid gap-4 p-5 sm:grid-cols-2">
+      {!runs.length && <p className="text-sm text-text-secondary sm:col-span-2">No Payroll Run exists for this Legal Entity and pay period.</p>}
       {runs.length ? <div className="sm:col-span-2"><p className="text-sm text-text-secondary">This period already has a Payroll Run. Continue its current revision instead of creating a duplicate.</p>
         <button className="btn-primary mt-3" type="button" onClick={() => { setOpenRunId(runs.find((item) => ["draft", "review_required", "ready"].includes(item.status))?.id || runs[0].id); setStep(0); }}>Open existing run</button></div>
-        : <><AdminFormField label="Start reason" required><input className="control" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Monthly payroll preparation" /></AdminFormField>
-          <div className="flex items-end"><button className="btn-primary" type="button" disabled={busy || !reason.trim() || !entityId} onClick={() => create()}><Plus size={15} /> Start Payroll</button></div></>}</Card>}
+        : canManage ? <><AdminFormField label="Start reason" required><input className="control" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Monthly payroll preparation" /></AdminFormField>
+          <div className="flex items-end"><button className="btn-primary" type="button" disabled={busy || !reason.trim() || !entityId} onClick={() => create()}><Plus size={15} /> Start Payroll</button></div></> : <p className="text-sm text-text-secondary">An authorized Payroll manager can prepare this period.</p>}</Card>}
     {run?.status === "finalized" && canManage && !runs.some((item) => ["draft", "review_required", "ready"].includes(item.status)) && <Card className="flex flex-wrap items-end gap-3 p-4"><AdminFormField label="Correction reason" required><input className="control" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Historical entitlement correction" /></AdminFormField>
       <button className="btn-secondary" type="button" disabled={busy || !reason.trim()} onClick={() => create(period.current_finalized_run_id || run.id)}>Create Correction Draft</button></Card>}
     {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}

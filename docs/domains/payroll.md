@@ -1164,7 +1164,10 @@ Pay-rule versions have a different canonical key: `(rule_code, pay_basis, effect
 The Payroll workspace owns one authorized Legal Entity selection across Overview,
 Profiles, Runs and Settings. Refresh retains that selection only while it remains
 in the scoped canonical entity list; unavailable selections fall back to an accessible
-entity. Tab changes do not reset the company or payroll month.
+entity. Tab changes do not reset the company or payroll month. Open Runs expose a
+compact context bar with Payroll Runs, Legal Entity and Pay Period controls. Switching
+entity preserves the selected month and opens its current Run, or a preparation/empty
+state when none exists; it never substitutes another pay period.
 
 Open runs consume `payroll_run_evidence_read`, a side-effect-free, transaction-local
 bundle of preparation, current calculation/statutory versions, canonical readiness,
