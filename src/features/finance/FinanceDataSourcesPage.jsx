@@ -94,7 +94,7 @@ export function FinanceDataSources({ state }) {
   const Panel = panels[section];
   return <>
     <section className="finance-source-health" aria-label="Data health"><h2>Financial data readiness</h2><dl>{readiness.summary.map((item) => <div key={item.label}><dt>{item.label}</dt><dd><strong>{item.value}</strong><span>{item.detail}</span></dd></div>)}</dl><details className="finance-source-issues"><summary>Known readiness blockers</summary><ul>{readiness.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul></details></section>
-    <AdminSegmentedControl label="Data source concerns" value={section} onChange={setSection} options={sections.map((label) => ({ value: label, label, panelId: 'finance-data-source-panel' }))} />
+    <AdminSegmentedControl className="finance-source-tabs" label="Data source concerns" value={section} onChange={setSection} options={sections.map((label) => ({ value: label, label, panelId: 'finance-data-source-panel' }))} />
     <div id="finance-data-source-panel" role="tabpanel" aria-label={section} className="finance-source-panel"><Panel state={state} /></div>
   </>;
 }
