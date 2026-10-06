@@ -2,8 +2,20 @@ import {
   invitationAction,
   currentInvitation,
 } from "./invitationPresentation.js";
+import AdminSummaryGrid from "../../components/ui/AdminSummaryGrid.jsx";
+import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
+import {
+  BriefcaseBusiness,
+  Users,
+  AudioLines,
+  ClipboardCheck,
+} from "lucide-react";
 import DataTable from "../../components/tables/DataTable.jsx";
-import { preferenceLabels, interviewStateLabel, formatRecruitmentTime } from "./candidateOperations.js";
+import {
+  preferenceLabels,
+  interviewStateLabel,
+  formatRecruitmentTime,
+} from "./candidateOperations.js";
 import OpeningOfferings, { JobContextFields } from "./OpeningOfferings.jsx";
 import { useEffect, useState } from "react";
 import SelectField from "../../components/forms/SelectField.jsx";
@@ -83,7 +95,15 @@ const eventLabels = {
   manager_decision: "Application decision",
 };
 
-function OpeningForm({ opening, data, busy, onSave, onClose, inline = false, onViewProfile }) {
+function OpeningForm({
+  opening,
+  data,
+  busy,
+  onSave,
+  onClose,
+  inline = false,
+  onViewProfile,
+}) {
   const [draft, setDraft] = useState(() =>
     structuredClone(
       opening || {
@@ -113,11 +133,12 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false, onV
   const patchRequirements = (key, value) =>
     patchConfig("opening_requirements", { ...requirements, [key]: value });
   const workplaceValue = draft.outlet_id || draft.workplace;
-  async function submit() {
+  async function submit(status = draft.status) {
     setError("");
     try {
       await onSave({
         ...draft,
+        status,
         outlet_id: data.outlets.some((row) => row.id === workplaceValue)
           ? workplaceValue
           : null,
@@ -130,337 +151,439 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false, onV
       setError(cause.message || "Unable to save opening.");
     }
   }
-  const Surface = inline ? SetupSurface : Modal;
+  const Surface = SetupSurface;
   return (
     <Surface
-      title={opening ? "Edit opening" : "New opening"}
+      title={opening ? "Edit job opening" : "Create job opening"}
       description="Confirm the role and employment terms, then choose how candidates should be interviewed."
       size="xl"
       onClose={onClose}
-      footer={editing ?
-        <>
-          <button type="button" className="btn-secondary" onClick={() => { if (inline) { setDraft(structuredClone(opening)); setEditing(false); setError(""); } else onClose(); }}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={busy}
-            onClick={submit}
-          >
-            Save opening
-          </button>
-        </> : null
+      footer={
+        editing ? (
+          <>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                if (inline) {
+                  setDraft(structuredClone(opening));
+                  setEditing(false);
+                  setError("");
+                } else onClose();
+              }}
+            >
+              Cancel
+            </button>
+            {draft.status === "draft" ? (
+              <>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={busy}
+                  onClick={() => submit("draft")}
+                >
+                  Save draft
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={busy}
+                  onClick={() => submit("open")}
+                >
+                  Open job
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={busy}
+                onClick={() => submit()}
+              >
+                Save changes
+              </button>
+            )}
+          </>
+        ) : null
       }
     >
-      <div className="recruitment-setup-header">
-        <div><strong>{draft.title || "New opening"}</strong><p>{profile ? `${profile.name} v${profile.version}` : "Choose an Interview Profile"} · {draft.status}</p></div>
-        {inline && !editing && <div className="flex gap-2"><button type="button" className="btn-secondary" onClick={onViewProfile}>View profile</button><button type="button" className="btn-primary" onClick={() => setEditing(true)}>Edit setup</button></div>}
-      </div>
-      <fieldset disabled={!editing || busy} className="recruitment-setup-fields">
-      <div className="recruitment-form recruitment-config-layout">
-        <fieldset className="recruitment-opening-header-fields"><legend>Opening Header</legend><div className="recruitment-form-grid">            <AdminFormField label="Job-facing title" required>
-              <input
-                className={fieldClass}
-                value={draft.title}
-                onChange={(e) => patch("title", e.target.value)}
-              />
-            </AdminFormField>
-            <AdminFormField label="Status">
-              <SelectField
-                value={draft.status}
-                onChange={(value) => patch("status", value)}
-                ariaLabel="Status"
-                placeholder="Select status"
-                options={[
-                  { value: "draft", label: "Draft" },
-                  { value: "open", label: "Open" },
-                  { value: "closed", label: "Closed" },
-                ]}
-              />
-            </AdminFormField>
-</div></fieldset>
-        <div className="recruitment-config-main">
-        <fieldset>
-          <legend>Role & Workplace</legend>
-          <div className="recruitment-form-grid">
-            <AdminFormField label="Position" required>
-              <SelectField
-                value={draft.position_id}
-                onChange={(value) => patch("position_id", value)}
-                ariaLabel="Position"
-                placeholder="Select position"
-                searchable
-                options={data.positions.map((row) => ({
-                  value: row.id,
-                  label: row.name,
-                }))}
-              />
-            </AdminFormField>
-            <AdminFormField label="Workplace" required>
-              <SelectField
-                value={workplaceValue}
-                onChange={(value) => {
-                  patch("outlet_id", value);
-                  patch("workplace", value);
-                  const location = data.outlets.find(
-                    (row) => row.id === value,
-                  )?.candidate_location;
-                  if (location && !draft.config.job_context?.location)
-                    patchConfig("job_context", {
-                      ...draft.config.job_context,
-                      location,
-                    });
-                }}
-                ariaLabel="Workplace"
-                placeholder="Select workplace"
-                searchable
-                options={[
-                  ...data.outlets.map((row) => ({
-                    value: row.id,
-                    label: row.name,
-                  })),
-                  { value: "Factory", label: "Factory" },
-                  { value: "Management", label: "Management" },
-                ]}
-              />
-            </AdminFormField>
-            <AdminFormField label="Legal employer" required>
-              <SelectField
-                value={draft.legal_entity_id}
-                onChange={(value) => patch("legal_entity_id", value)}
-                ariaLabel="Legal employer"
-                placeholder="Select legal employer"
-                searchable
-                options={data.legal_entities.map((row) => ({
-                  value: row.id,
-                  label: row.name,
-                }))}
-              />
-            </AdminFormField>
-          </div>
-          <details className="recruitment-workplace-details"><summary>Confirmed workplace context</summary>        <JobContextFields
-          value={draft.config.job_context || {}}
-          onChange={(value) => patchConfig("job_context", value)}
-          description={draft.description}
-          onDescription={(value) => patch("description", value)}
-        />
-</details>
-        </fieldset>
-        {Object.keys(jobFacts).length > 0 && (
-          <fieldset>
-            <legend>Existing confirmed facts</legend>
-            <p className="recruitment-config-note">
-              These facts remain available to existing invitations. Transfer
-              offering-specific terms into the offerings below before removing
-              them from this new configuration.
+      {inline && (
+        <div className="recruitment-setup-header">
+          <div>
+            <strong>{draft.title || "Create job opening"}</strong>
+            <p>
+              {profile
+                ? `${profile.name} v${profile.version}`
+                : "Choose an Interview Profile"}{" "}
+              · {draft.status}
             </p>
-            <details>
-              <summary>Review existing information</summary>
-              <div className="recruitment-form-grid">
-                {Object.entries(jobFacts).map(([key, value]) => (
-                  <AdminFormField key={key} label={key.replaceAll("_", " ")}>
-                    <input
-                      className={fieldClass}
-                      value={value}
-                      onChange={(e) => {
-                        const next = { ...jobFacts };
-                        if (e.target.value.trim()) next[key] = e.target.value;
-                        else delete next[key];
-                        patchConfig("job_facts", next);
-                      }}
-                    />
-                  </AdminFormField>
-                ))}
-              </div>
-            </details>
-          </fieldset>
-        )}
-        <OpeningOfferings
-          value={draft.config.employment_offerings || []}
-          onChange={(value) => patchConfig("employment_offerings", value)}
-        />
-        <fieldset>
-          <legend>Hiring Requirements</legend>
-          <p className="recruitment-config-note">
-            What the interviewer actively verifies. These requirements stay
-            separate from facts shared with candidates.
-          </p>
-          <div className="recruitment-form-grid">
-            <AdminFormField label="Weekend availability">
-              <SelectField
-                value={requirements.weekend_required ? "required" : "flexible"}
-                onChange={(value) =>
-                  patchRequirements("weekend_required", value === "required")
-                }
-                ariaLabel="Weekend availability"
-                placeholder="Weekend availability"
-                options={[
-                  { value: "flexible", label: "Discuss availability" },
-                  { value: "required", label: "Weekend availability required" },
-                ]}
-              />
-            </AdminFormField>
-            <AdminFormField label="Closing shift requirement / time">
-              <input
-                className={fieldClass}
-                maxLength={240}
-                value={requirements.closing_shift || ""}
-                onChange={(e) =>
-                  patchRequirements("closing_shift", e.target.value)
-                }
-              />
-            </AdminFormField>
-            <AdminFormField
-              label="Preferred start timing"
-              className="md:col-span-2"
-            >
-              <input
-                className={fieldClass}
-                maxLength={240}
-                value={requirements.preferred_start || ""}
-                onChange={(e) =>
-                  patchRequirements("preferred_start", e.target.value)
-                }
-              />
-            </AdminFormField>
           </div>
-        </fieldset>
+          {inline && !editing && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={onViewProfile}
+              >
+                View profile
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setEditing(true)}
+              >
+                Edit setup
+              </button>
+            </div>
+          )}
         </div>
-        <aside className="recruitment-config-aside">
-        <fieldset>
-          <legend>Interview Configuration</legend>
-          <p className="recruitment-config-note">How this role is interviewed. Employment terms and hiring requirements stay in the main configuration.</p>
-          <div className="recruitment-form-grid">
-            <AdminFormField
-              label="Interview Profile"
-              required
-              className="md:col-span-2"
-              helper="This version is pinned when an invitation is issued."
-            >
-              <SelectField
-                value={draft.config.interview_profile_id || ""}
-                onChange={(value) => patchConfig("interview_profile_id", value)}
-                ariaLabel="Interview Profile"
-                placeholder="Select profile version"
-                searchable
-                options={data.profiles.map((p) => ({
-                  value: p.id,
-                  label: `${p.name} v${p.version}`,
-                  description: `${p.definition.target_minutes}–${p.definition.max_minutes} min · ${p.definition.evidence_areas.length} evidence areas · ${p.definition.scenarios.length} scenarios`,
-                }))}
-              />
-            </AdminFormField>
-            {profile && (
-              <p className="md:col-span-2 text-sm text-text-secondary">
-                {profile.definition.evidence_areas
-                  .map((a) => a.name)
-                  .join(" · ")}
-                <br />
-                Target {profile.definition.target_minutes} min · Maximum{" "}
-                {profile.definition.max_minutes} min
-              </p>
+      )}
+      <fieldset
+        disabled={!editing || busy}
+        className="recruitment-setup-fields"
+      >
+        <div className="recruitment-form recruitment-config-layout">
+          <div className="recruitment-config-main">
+            <fieldset>
+              <legend>
+                <span className="recruitment-section-number">01</span> Role &
+                Workplace
+              </legend>
+              <div className="recruitment-form-grid">
+                {" "}
+                <AdminFormField label="Job-facing title" required>
+                  <input
+                    className={fieldClass}
+                    value={draft.title}
+                    onChange={(e) => patch("title", e.target.value)}
+                  />
+                </AdminFormField>
+                <AdminFormField label="Status">
+                  <SelectField
+                    value={draft.status}
+                    onChange={(value) => patch("status", value)}
+                    ariaLabel="Status"
+                    placeholder="Select status"
+                    options={[
+                      { value: "draft", label: "Draft" },
+                      { value: "open", label: "Open" },
+                      { value: "closed", label: "Closed" },
+                    ]}
+                  />
+                </AdminFormField>
+                <AdminFormField label="Position" required>
+                  <SelectField
+                    value={draft.position_id}
+                    onChange={(value) => patch("position_id", value)}
+                    ariaLabel="Position"
+                    placeholder="Select position"
+                    searchable
+                    options={data.positions.map((row) => ({
+                      value: row.id,
+                      label: row.name,
+                    }))}
+                  />
+                </AdminFormField>
+                <AdminFormField label="Workplace" required>
+                  <SelectField
+                    value={workplaceValue}
+                    onChange={(value) => {
+                      patch("outlet_id", value);
+                      patch("workplace", value);
+                      const location = data.outlets.find(
+                        (row) => row.id === value,
+                      )?.candidate_location;
+                      if (location && !draft.config.job_context?.location)
+                        patchConfig("job_context", {
+                          ...draft.config.job_context,
+                          location,
+                        });
+                    }}
+                    ariaLabel="Workplace"
+                    placeholder="Select workplace"
+                    searchable
+                    options={[
+                      ...data.outlets.map((row) => ({
+                        value: row.id,
+                        label: row.name,
+                      })),
+                      { value: "Factory", label: "Factory" },
+                      { value: "Management", label: "Management" },
+                    ]}
+                  />
+                </AdminFormField>
+                <AdminFormField label="Legal employer" required>
+                  <SelectField
+                    value={draft.legal_entity_id}
+                    onChange={(value) => patch("legal_entity_id", value)}
+                    ariaLabel="Legal employer"
+                    placeholder="Select legal employer"
+                    searchable
+                    options={data.legal_entities.map((row) => ({
+                      value: row.id,
+                      label: row.name,
+                    }))}
+                  />
+                </AdminFormField>
+              </div>
+            </fieldset>
+            {Object.keys(jobFacts).length > 0 && (
+              <fieldset>
+                <legend>Existing confirmed facts</legend>
+                <p className="recruitment-config-note">
+                  These facts remain available to existing invitations. Transfer
+                  offering-specific terms into the offerings below before
+                  removing them from this new configuration.
+                </p>
+                <details>
+                  <summary>Review existing information</summary>
+                  <div className="recruitment-form-grid">
+                    {Object.entries(jobFacts).map(([key, value]) => (
+                      <AdminFormField
+                        key={key}
+                        label={key.replaceAll("_", " ")}
+                      >
+                        <input
+                          className={fieldClass}
+                          value={value}
+                          onChange={(e) => {
+                            const next = { ...jobFacts };
+                            if (e.target.value.trim())
+                              next[key] = e.target.value;
+                            else delete next[key];
+                            patchConfig("job_facts", next);
+                          }}
+                        />
+                      </AdminFormField>
+                    ))}
+                  </div>
+                </details>
+              </fieldset>
             )}
+            <OpeningOfferings
+              value={draft.config.employment_offerings || []}
+              onChange={(value) => patchConfig("employment_offerings", value)}
+            />
+            <JobContextFields
+              title={
+                <>
+                  <span className="recruitment-section-number">03</span> Job /
+                  Workplace Information
+                </>
+              }
+              value={draft.config.job_context || {}}
+              onChange={(value) => patchConfig("job_context", value)}
+              description={draft.description}
+              onDescription={(value) => patch("description", value)}
+            />
+            <fieldset>
+              <legend>
+                <span className="recruitment-section-number">04</span> Hiring
+                Requirements
+              </legend>
+              <p className="recruitment-config-note">
+                What the interviewer actively verifies. These requirements stay
+                separate from facts shared with candidates.
+              </p>
+              <div className="recruitment-form-grid">
+                <AdminFormField label="Weekend availability">
+                  <SelectField
+                    value={
+                      requirements.weekend_required ? "required" : "flexible"
+                    }
+                    onChange={(value) =>
+                      patchRequirements(
+                        "weekend_required",
+                        value === "required",
+                      )
+                    }
+                    ariaLabel="Weekend availability"
+                    placeholder="Weekend availability"
+                    options={[
+                      { value: "flexible", label: "Discuss availability" },
+                      {
+                        value: "required",
+                        label: "Weekend availability required",
+                      },
+                    ]}
+                  />
+                </AdminFormField>
+                <AdminFormField label="Closing shift requirement / time">
+                  <input
+                    className={fieldClass}
+                    maxLength={240}
+                    value={requirements.closing_shift || ""}
+                    onChange={(e) =>
+                      patchRequirements("closing_shift", e.target.value)
+                    }
+                  />
+                </AdminFormField>
+                <AdminFormField
+                  label="Preferred start timing"
+                  className="md:col-span-2"
+                >
+                  <input
+                    className={fieldClass}
+                    maxLength={240}
+                    value={requirements.preferred_start || ""}
+                    onChange={(e) =>
+                      patchRequirements("preferred_start", e.target.value)
+                    }
+                  />
+                </AdminFormField>
+              </div>
+            </fieldset>
           </div>
-        </fieldset>
-        {editing && <button type="button" className="btn-secondary" disabled={!profile || !onViewProfile} onClick={onViewProfile}>View profile</button>}
-        <fieldset>
-          <legend>Additional Settings</legend>
-          <details>
-            <summary>Language & candidate guidance</summary>
-            <div className="grid gap-4 mt-3">
-              {!profile && (
-                <details className="md:col-span-2">
-                  <summary className="cursor-pointer text-sm text-text-secondary">
-                    Existing interview configuration
-                  </summary>
-                  <div className="mt-3 grid gap-3">
-                    <AdminFormField label="Evidence topics">
-                      <textarea
-                        className={fieldClass}
-                        value={(draft.config.required_topics || []).join("\n")}
-                        onChange={(e) =>
-                          patchConfig(
-                            "required_topics",
-                            e.target.value.split("\n").filter(Boolean),
-                          )
-                        }
-                      />
-                    </AdminFormField>
-                    <AdminFormField label="Scenario briefs">
-                      <textarea
-                        className={fieldClass}
-                        value={(draft.config.scenario_briefs || []).join("\n")}
-                        onChange={(e) =>
-                          patchConfig(
-                            "scenario_briefs",
-                            e.target.value.split("\n").filter(Boolean),
-                          )
-                        }
-                      />
-                    </AdminFormField>
-                    <AdminFormField label="Interview guidance">
-                      <textarea
-                        className={fieldClass}
-                        value={draft.config.interview_instructions}
-                        onChange={(e) =>
-                          patchConfig("interview_instructions", e.target.value)
-                        }
-                      />
-                    </AdminFormField>
-                    <div className="grid grid-cols-2 gap-3">
-                      {["target_minutes", "max_minutes"].map((key) => (
-                        <AdminFormField
-                          key={key}
-                          label={
-                            key === "target_minutes"
-                              ? "Target minutes"
-                              : "Maximum minutes"
-                          }
-                        >
-                          <input
-                            type="number"
+          <aside className="recruitment-config-aside">
+            <fieldset>
+              <legend>Interview Configuration</legend>
+              <p className="recruitment-config-note">
+                How this role is interviewed. Employment terms and hiring
+                requirements stay in the main configuration.
+              </p>
+              <div className="recruitment-form-grid">
+                <AdminFormField
+                  label="Interview Profile"
+                  required
+                  className="md:col-span-2"
+                  helper="This version is pinned when an invitation is issued."
+                >
+                  <SelectField
+                    value={draft.config.interview_profile_id || ""}
+                    onChange={(value) =>
+                      patchConfig("interview_profile_id", value)
+                    }
+                    ariaLabel="Interview Profile"
+                    placeholder="Select profile version"
+                    searchable
+                    options={data.profiles.map((p) => ({
+                      value: p.id,
+                      label: `${p.name} v${p.version}`,
+                      description: `${p.definition.target_minutes}–${p.definition.max_minutes} min · ${p.definition.evidence_areas.length} evidence areas · ${p.definition.scenarios.length} scenarios`,
+                    }))}
+                  />
+                </AdminFormField>
+                {profile && (
+                  <p className="md:col-span-2 text-sm text-text-secondary">
+                    {profile.definition.evidence_areas.length} evidence areas ·{" "}
+                    {profile.definition.scenarios.length} scenarios
+                    <br />
+                    Target {profile.definition.target_minutes} min · Maximum{" "}
+                    {profile.definition.max_minutes} min
+                  </p>
+                )}
+              </div>
+            </fieldset>
+            {profile && (
+              <details className="recruitment-profile-preview">
+                <summary>View profile</summary>
+                <OpeningPlan opening={draft} profile={profile} />
+              </details>
+            )}
+            <fieldset>
+              <legend>Additional Settings</legend>
+              <details>
+                <summary>Language & candidate guidance</summary>
+                <div className="grid gap-4 mt-3">
+                  {!profile && (
+                    <details className="md:col-span-2">
+                      <summary className="cursor-pointer text-sm text-text-secondary">
+                        Existing interview configuration
+                      </summary>
+                      <div className="mt-3 grid gap-3">
+                        <AdminFormField label="Evidence topics">
+                          <textarea
                             className={fieldClass}
-                            value={draft.config[key]}
+                            value={(draft.config.required_topics || []).join(
+                              "\n",
+                            )}
                             onChange={(e) =>
-                              patchConfig(key, Number(e.target.value))
+                              patchConfig(
+                                "required_topics",
+                                e.target.value.split("\n").filter(Boolean),
+                              )
                             }
                           />
                         </AdminFormField>
-                      ))}
-                    </div>
-                  </div>
-                </details>
-              )}
-              <AdminFormField
-                label="Language guidance"
-                className="md:col-span-2"
-              >
-                <textarea
-                  className={fieldClass}
-                  value={draft.config.language_guidance}
-                  onChange={(e) =>
-                    patchConfig("language_guidance", e.target.value)
-                  }
-                />
-              </AdminFormField>
-              <AdminFormField
-                label="Candidate instructions"
-                className="md:col-span-2"
-              >
-                <textarea
-                  className={fieldClass}
-                  value={draft.config.candidate_instructions}
-                  onChange={(e) =>
-                    patchConfig("candidate_instructions", e.target.value)
-                  }
-                />
-              </AdminFormField>
-            </div>
-          </details>
-        </fieldset>
-        </aside>
-      </div>
+                        <AdminFormField label="Scenario briefs">
+                          <textarea
+                            className={fieldClass}
+                            value={(draft.config.scenario_briefs || []).join(
+                              "\n",
+                            )}
+                            onChange={(e) =>
+                              patchConfig(
+                                "scenario_briefs",
+                                e.target.value.split("\n").filter(Boolean),
+                              )
+                            }
+                          />
+                        </AdminFormField>
+                        <AdminFormField label="Interview guidance">
+                          <textarea
+                            className={fieldClass}
+                            value={draft.config.interview_instructions}
+                            onChange={(e) =>
+                              patchConfig(
+                                "interview_instructions",
+                                e.target.value,
+                              )
+                            }
+                          />
+                        </AdminFormField>
+                        <div className="grid grid-cols-2 gap-3">
+                          {["target_minutes", "max_minutes"].map((key) => (
+                            <AdminFormField
+                              key={key}
+                              label={
+                                key === "target_minutes"
+                                  ? "Target minutes"
+                                  : "Maximum minutes"
+                              }
+                            >
+                              <input
+                                type="number"
+                                className={fieldClass}
+                                value={draft.config[key]}
+                                onChange={(e) =>
+                                  patchConfig(key, Number(e.target.value))
+                                }
+                              />
+                            </AdminFormField>
+                          ))}
+                        </div>
+                      </div>
+                    </details>
+                  )}
+                  <AdminFormField
+                    label="Language guidance"
+                    className="md:col-span-2"
+                  >
+                    <textarea
+                      className={fieldClass}
+                      value={draft.config.language_guidance}
+                      onChange={(e) =>
+                        patchConfig("language_guidance", e.target.value)
+                      }
+                    />
+                  </AdminFormField>
+                  <AdminFormField
+                    label="Candidate instructions"
+                    className="md:col-span-2"
+                  >
+                    <textarea
+                      className={fieldClass}
+                      value={draft.config.candidate_instructions}
+                      onChange={(e) =>
+                        patchConfig("candidate_instructions", e.target.value)
+                      }
+                    />
+                  </AdminFormField>
+                </div>
+              </details>
+            </fieldset>
+          </aside>
+        </div>
       </fieldset>
       {error ? (
         <p role="alert" className="mt-4 text-red-700">
@@ -489,7 +612,7 @@ export default function RecruitmentPage({ auth }) {
     [includeQa, setIncludeQa] = useState(false),
     [includeClosed, setIncludeClosed] = useState(false);
   const [search, setSearch] = useState(""),
-    [statusFilter, setStatusFilter] = useState("all"),
+    [statusFilter, setStatusFilter] = useState("open"),
     [workplaceFilter, setWorkplaceFilter] = useState("all"),
     [positionFilter, setPositionFilter] = useState("all");
   const [voiceLabOpen, setVoiceLabOpen] = useState(
@@ -520,8 +643,16 @@ export default function RecruitmentPage({ auth }) {
     auth?.hasPermission?.("recruitment.manage") ||
       auth?.permissions?.includes?.("recruitment.manage"),
   );
-  const [candidateSearch, setCandidateSearch] = useState(""), [offeringFilter, setOfferingFilter] = useState("all");
-  const query = { openingId, stage, page, includeQa, search: candidateSearch, offering: offeringFilter };
+  const [candidateSearch, setCandidateSearch] = useState(""),
+    [offeringFilter, setOfferingFilter] = useState("all");
+  const query = {
+    openingId,
+    stage,
+    page,
+    includeQa,
+    search: candidateSearch,
+    offering: offeringFilter,
+  };
   async function load() {
     const next = await recruitmentService.workspace(query);
     setData(next);
@@ -734,6 +865,29 @@ export default function RecruitmentPage({ auth }) {
         />
       </div>
     );
+  if (formOpening !== undefined && data)
+    return (
+      <div className="recruitment-workspace">
+        <button
+          type="button"
+          className="btn-ghost justify-self-start"
+          onClick={() => setFormOpening(undefined)}
+        >
+          ← Recruitment
+        </button>
+        <PageHeader
+          title={formOpening ? "Edit job opening" : "Create job opening"}
+          description="Set up the role, employment terms and interview configuration."
+        />
+        <OpeningForm
+          opening={formOpening}
+          data={data}
+          busy={busy}
+          onSave={(o) => mutate(() => recruitmentService.saveOpening(o))}
+          onClose={() => setFormOpening(undefined)}
+        />
+      </div>
+    );
   return (
     <div className="recruitment-workspace">
       {openingId && (
@@ -784,7 +938,7 @@ export default function RecruitmentPage({ auth }) {
                 openingId ? setApplicationForm(true) : setFormOpening(null)
               }
             >
-              {openingId ? "Add candidate" : "New opening"}
+              {openingId ? "Add candidate" : "Create job opening"}
             </button>
           ) : null
         }
@@ -798,20 +952,31 @@ export default function RecruitmentPage({ auth }) {
         </p>
       )}
       {!openingId && data && (
-        <RecruitmentMetrics
+        <AdminSummaryGrid
+          ariaLabel="Recruitment summary"
           items={[
-            { label: "Open roles", value: data.summary.open_roles },
             {
-              label: "Candidates",
-              value: data.openings.reduce((n, o) => n + o.pipeline.total, 0),
+              label: "Open jobs",
+              value: data.summary.open_roles,
+              icon: BriefcaseBusiness,
             },
-            { label: "Interviewing", value: data.summary.interviewing },
+            {
+              label: "Active candidates",
+              value: data.summary.active_candidates ?? "—",
+              helper: "Excludes hired and rejected",
+              icon: Users,
+            },
+            {
+              label: "Interviewing",
+              value: data.summary.interviewing,
+              icon: AudioLines,
+            },
             {
               label: "Needs review",
               value: data.summary.needs_review,
-              attention: true,
+              icon: ClipboardCheck,
+              tone: data.summary.needs_review ? "warning" : "neutral",
             },
-            { label: "Shortlisted", value: data.summary.shortlisted },
           ]}
         />
       )}
@@ -830,13 +995,12 @@ export default function RecruitmentPage({ auth }) {
           Retry
         </button>
       ) : !openingId ? (
-        <div className="recruitment-layout">
-          <RecruitmentSection
-            title={includeClosed ? "All openings" : "Active openings"}
-            className="is-list"
-            description={`${visibleOpenings.length} ${visibleOpenings.length === 1 ? "opening" : "openings"} in this view`}
-          >
-            <div className="recruitment-toolbar">
+        <>
+          <AdminFilterToolbar
+            compact
+            denseFields
+            ariaLabel="Job filters"
+            search={
               <AdminSearchField
                 label="Search openings"
                 ariaLabel="Search openings"
@@ -844,171 +1008,268 @@ export default function RecruitmentPage({ auth }) {
                 value={search}
                 onChange={setSearch}
               />
-              <SelectField
-                value={statusFilter}
-                onChange={(value) => setStatusFilter(value)}
-                ariaLabel="Opening status"
-                placeholder="All statuses"
-                options={[
-                  { value: "all", label: "All statuses" },
-                  { value: "open", label: "Open" },
-                  { value: "draft", label: "Draft" },
-                  ...(includeClosed
-                    ? [{ value: "closed", label: "Closed" }]
-                    : []),
-                ]}
-              />
-              <SelectField
-                value={workplaceFilter}
-                onChange={(value) => setWorkplaceFilter(value)}
-                ariaLabel="Workplace filter"
-                placeholder="All workplaces"
-                searchable
-                options={[
-                  { value: "all", label: "All workplaces" },
-                  ...[...new Set(data.openings.map((o) => o.workplace))].map(
-                    (w) => ({ value: w, label: w }),
-                  ),
-                ]}
-              />
-              <SelectField
-                value={positionFilter}
-                onChange={(value) => setPositionFilter(value)}
-                ariaLabel="Position filter"
-                placeholder="All positions"
-                searchable
-                options={[
-                  { value: "all", label: "All positions" },
-                  ...data.positions
-                    .filter((p) =>
-                      data.openings.some((o) => o.position_id === p.id),
-                    )
-                    .map((p) => ({ value: p.id, label: p.name })),
-                ]}
-              />
-            </div>
-            {visibleOpenings.map((o) => (
-              <button
-                key={o.id}
-                type="button"
-                className="recruitment-opening-row"
-                aria-label={`Open opening: ${o.title}`}
-                onClick={() => selectOpening(o.id)}
-              >
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <strong>{o.title}</strong>
-                    <RecruitmentState value={o.status} />
-                  </div>
-                  <p>
-                    {o.workplace} ·{" "}
-                    {o.profile
-                      ? `${o.profile.name} v${o.profile.version}`
-                      : "Opening interview plan"}
-                  </p>
-                </div>
-                <div className="recruitment-row-pipeline">
-                  <span>
-                    <b>{o.pipeline.total}</b>Candidates
-                  </span>
-                  <span>
-                    <b>{o.pipeline.interviewing}</b>Interviewing
-                  </span>
-                  <span>
-                    <b>{o.pipeline.needs_review}</b>
-                    {o.pipeline.needs_review > 0 ? (
-                      <RecruitmentState value="needs_review">
-                        Needs review
-                      </RecruitmentState>
-                    ) : (
-                      "Needs review"
-                    )}
-                  </span>
-                  <span>
-                    <b>{o.pipeline.shortlisted}</b>Shortlisted
-                  </span>
-                </div>
-                <span aria-hidden="true">→</span>
-              </button>
-            ))}
-            {!visibleOpenings.length && (
-              <div className="px-5">
-                <RecruitmentEmpty>
-                  {data.openings.length
-                    ? "No openings match these filters. Adjust your search or filters."
-                    : "No openings yet. Create an opening to begin recruitment."}
-                </RecruitmentEmpty>
-              </div>
-            )}
-            <div className="recruitment-toolbar border-b-0 text-xs text-text-secondary">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="admin-checkbox"
-                  checked={includeClosed}
-                  onChange={(e) => {
-                    setIncludeClosed(e.target.checked);
-                    if (!e.target.checked) setStatusFilter("all");
-                  }}
+            }
+            filters={
+              <>
+                <SelectField
+                  label="Status"
+                  value={statusFilter}
+                  onChange={(value) => setStatusFilter(value)}
+                  ariaLabel="Opening status"
+                  placeholder="All statuses"
+                  options={[
+                    { value: "all", label: "All statuses" },
+                    { value: "open", label: "Open" },
+                    { value: "draft", label: "Draft" },
+                    ...(includeClosed
+                      ? [{ value: "closed", label: "Closed" }]
+                      : []),
+                  ]}
                 />
-                Include closed
-              </label>
-              <label className="flex items-center gap-2 ml-auto">
-                <input
-                  type="checkbox"
-                  className="admin-checkbox"
-                  checked={includeQa}
-                  onChange={(e) => setIncludeQa(e.target.checked)}
+                <SelectField
+                  label="Workplace"
+                  value={workplaceFilter}
+                  onChange={(value) => setWorkplaceFilter(value)}
+                  ariaLabel="Workplace filter"
+                  placeholder="All workplaces"
+                  searchable
+                  options={[
+                    { value: "all", label: "All workplaces" },
+                    ...[...new Set(data.openings.map((o) => o.workplace))].map(
+                      (w) => ({ value: w, label: w }),
+                    ),
+                  ]}
                 />
-                Include QA openings
-              </label>
-            </div>
-          </RecruitmentSection>
-          <aside className="grid gap-5">
-            <RecruitmentSection title="Needs attention">
-              {data.openings
-                .filter(
-                  (o) =>
-                    (includeClosed || o.status !== "closed") &&
-                    (o.pipeline.needs_review > 0 || o.pipeline.invited > 0),
-                )
-                .map((o) => (
-                  <button
-                    key={o.id}
-                    className="recruitment-attention-row"
-                    onClick={() =>
-                      attention(
-                        o.pipeline.needs_review ? "needs_review" : "invited",
-                        o.id,
+                <SelectField
+                  label="Position"
+                  value={positionFilter}
+                  onChange={(value) => setPositionFilter(value)}
+                  ariaLabel="Position filter"
+                  placeholder="All positions"
+                  searchable
+                  options={[
+                    { value: "all", label: "All positions" },
+                    ...data.positions
+                      .filter((p) =>
+                        data.openings.some((o) => o.position_id === p.id),
                       )
-                    }
-                  >
-                    <span>
-                      {o.title}
-                      <small>
-                        {o.pipeline.needs_review
-                          ? `${o.pipeline.needs_review} ${o.pipeline.needs_review === 1 ? "interview" : "interviews"} ready for review`
-                          : `${o.pipeline.invited} invitations to follow up`}
-                      </small>
-                    </span>
-                    <span aria-hidden="true">→</span>
-                  </button>
-                ))}
-              {!data.openings.some(
-                (o) => o.pipeline.needs_review || o.pipeline.invited,
-              ) && (
-                <RecruitmentEmpty>
-                  No interviews awaiting review or invitation follow-up.
-                </RecruitmentEmpty>
+                      .map((p) => ({ value: p.id, label: p.name })),
+                  ]}
+                />
+              </>
+            }
+            moreFilters={
+              <div className="grid gap-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="admin-checkbox"
+                    checked={includeClosed}
+                    onChange={(e) => {
+                      setIncludeClosed(e.target.checked);
+                      if (!e.target.checked) setStatusFilter("all");
+                    }}
+                  />
+                  Include closed
+                </label>
+                <label className="flex items-center gap-2 ml-auto">
+                  <input
+                    type="checkbox"
+                    className="admin-checkbox"
+                    checked={includeQa}
+                    onChange={(e) => setIncludeQa(e.target.checked)}
+                  />
+                  Include QA openings
+                </label>
+              </div>
+            }
+          />
+          <div className="recruitment-layout">
+            <RecruitmentSection
+              title={
+                includeClosed
+                  ? "All jobs"
+                  : statusFilter === "open"
+                    ? "Open jobs"
+                    : "Jobs"
+              }
+              className="is-list"
+              description={`${visibleOpenings.length} ${visibleOpenings.length === 1 ? "opening" : "openings"} in this view`}
+            >
+              <DataTable
+                density="compact"
+                minWidth={700}
+                rows={visibleOpenings}
+                getRowKey={(o) => o.id}
+                tableClassName="recruitment-jobs-table"
+                columns={[
+                  {
+                    key: "job",
+                    header: "Job",
+                    render: (o) => (
+                      <div>
+                        <button
+                          type="button"
+                          className="btn-ghost !p-0 font-semibold text-left"
+                          aria-label={`Open opening: ${o.title}`}
+                          onClick={() => selectOpening(o.id)}
+                        >
+                          {o.title}
+                        </button>
+                        <p className="text-xs text-text-secondary mt-1">
+                          {o.profile
+                            ? `${o.profile.name} v${o.profile.version}`
+                            : "Interview plan"}
+                        </p>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: "workplace",
+                    header: "Workplace",
+                    render: (o) => (
+                      <div>
+                        <span>{o.workplace}</span>
+                        <p className="text-xs text-text-secondary mt-1">
+                          {(o.config.employment_offerings || [])
+                            .map((f) => f.employment_type?.replaceAll("_", " "))
+                            .join(" · ") || "Offerings not configured"}
+                        </p>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: "candidates",
+                    header: "Candidates",
+                    render: (o) => o.pipeline.total,
+                  },
+                  {
+                    key: "interviewing",
+                    header: "Interviewing",
+                    render: (o) => o.pipeline.interviewing,
+                  },
+                  {
+                    key: "review",
+                    header: "Needs review",
+                    render: (o) =>
+                      o.pipeline.needs_review ? (
+                        <button
+                          className="btn-ghost !p-0"
+                          onClick={() => attention("needs_review", o.id)}
+                        >
+                          <RecruitmentState value="needs_review">
+                            {o.pipeline.needs_review} Review →
+                          </RecruitmentState>
+                        </button>
+                      ) : (
+                        <span className="text-text-muted">0</span>
+                      ),
+                  },
+                  {
+                    key: "status",
+                    header: "Status",
+                    render: (o) => <RecruitmentState value={o.status} />,
+                  },
+                ]}
+              />
+              {!visibleOpenings.length && (
+                <div className="px-5">
+                  <RecruitmentEmpty>
+                    {data.openings.length
+                      ? "No openings match these filters. Adjust your search or filters."
+                      : "No openings yet. Create an opening to begin recruitment."}
+                  </RecruitmentEmpty>
+                </div>
               )}
             </RecruitmentSection>
-            {data.activity.length > 0 && (
-              <RecruitmentSection title="Recent activity">
-                {activity}
+            <aside className="grid gap-5">
+              <RecruitmentSection title="Needs attention">
+                {data.openings
+                  .filter((o) => includeClosed || o.status !== "closed")
+                  .flatMap((o) =>
+                    [
+                      o.pipeline.needs_review > 0 && {
+                        opening: o,
+                        stage: "needs_review",
+                        count: o.pipeline.needs_review,
+                        label: "Interviews ready for review",
+                      },
+                      o.pipeline.invited > 0 && {
+                        opening: o,
+                        stage: "invited",
+                        count: o.pipeline.invited,
+                        label: "Invitation follow-up",
+                      },
+                    ].filter(Boolean),
+                  )
+                  .sort(
+                    (a, b) =>
+                      (a.stage === "needs_review" ? 0 : 1) -
+                      (b.stage === "needs_review" ? 0 : 1),
+                  )
+                  .map((item) => (
+                    <button
+                      key={`${item.opening.id}-${item.stage}`}
+                      className="recruitment-attention-row"
+                      onClick={() => attention(item.stage, item.opening.id)}
+                    >
+                      <span>
+                        <strong>{item.label}</strong>
+                        <small>
+                          {item.opening.title} · {item.count} candidates
+                        </small>
+                      </span>
+                      <span aria-hidden="true">→</span>
+                    </button>
+                  ))}
+                {data.applications
+                  .filter(
+                    (row) =>
+                      row.attempt_status === "interrupted" ||
+                      ["partial", "invalid", "failed"].includes(
+                        row.recording_state,
+                      ),
+                  )
+                  .map((row) => (
+                    <button
+                      key={row.id}
+                      className="recruitment-attention-row"
+                      onClick={() => setReviewApplication(row)}
+                    >
+                      <span>
+                        {row.name}
+                        <small>
+                          {row.attempt_status === "interrupted"
+                            ? "Interview interrupted"
+                            : `Recording ${row.recording_state}`}
+                        </small>
+                      </span>
+                      <span>Check →</span>
+                    </button>
+                  ))}
+                {!data.openings.some(
+                  (o) => o.pipeline.needs_review || o.pipeline.invited,
+                ) &&
+                  !data.applications.some(
+                    (row) =>
+                      row.attempt_status === "interrupted" ||
+                      ["partial", "invalid", "failed"].includes(
+                        row.recording_state,
+                      ),
+                  ) && (
+                    <RecruitmentEmpty>
+                      No interviews awaiting review or invitation follow-up.
+                    </RecruitmentEmpty>
+                  )}
               </RecruitmentSection>
-            )}
-          </aside>
-        </div>
+              {data.activity.length > 0 && (
+                <RecruitmentSection title="Recent activity">
+                  {activity}
+                </RecruitmentSection>
+              )}
+            </aside>
+          </div>
+        </>
       ) : !opening ? (
         <RecruitmentEmpty>
           This opening is unavailable in the current view.
@@ -1026,7 +1287,12 @@ export default function RecruitmentPage({ auth }) {
                 { value: "setup", label: "Setup" },
               ]}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {(opening.config.employment_offerings || []).map((o) => (
+                <span key={o.id} className="text-xs text-text-secondary">
+                  {o.employment_type?.replaceAll("_", " ")}
+                </span>
+              ))}
               <RecruitmentState value={opening.status} />
               <span className="text-xs text-text-secondary">
                 {profile
@@ -1049,9 +1315,93 @@ export default function RecruitmentPage({ auth }) {
                     ),
                 }))}
               />
-              <div className="recruitment-form-grid">
+              <div className="recruitment-opening-dashboard">
+                <div className="grid gap-4">
+                  <RecruitmentSection
+                    title="Needs attention"
+                    description="Next actions for this job"
+                  >
+                    {opening.pipeline.needs_review > 0 && (
+                      <button
+                        className="recruitment-attention-row"
+                        onClick={() => attention("needs_review")}
+                      >
+                        <span>
+                          Interviews ready for review
+                          <small>
+                            {opening.pipeline.needs_review} candidates awaiting
+                            a manager decision
+                          </small>
+                        </span>
+                        <RecruitmentState value="needs_review">
+                          Review →
+                        </RecruitmentState>
+                      </button>
+                    )}
+                    {opening.pipeline.invited > 0 && (
+                      <button
+                        className="recruitment-attention-row"
+                        onClick={() => attention("invited")}
+                      >
+                        <span>
+                          Invitation follow-up
+                          <small>
+                            {opening.pipeline.invited} invited candidates
+                          </small>
+                        </span>
+                        <span>View →</span>
+                      </button>
+                    )}
+                    {data.applications
+                      .filter(
+                        (row) =>
+                          row.attempt_status === "interrupted" ||
+                          ["partial", "invalid", "failed"].includes(
+                            row.recording_state,
+                          ),
+                      )
+                      .map((row) => (
+                        <button
+                          key={row.id}
+                          className="recruitment-attention-row"
+                          onClick={() => setReviewApplication(row)}
+                        >
+                          <span>
+                            {row.name}
+                            <small>
+                              {row.attempt_status === "interrupted"
+                                ? "Interview interrupted"
+                                : `Recording ${row.recording_state}`}
+                            </small>
+                          </span>
+                          <span>Check →</span>
+                        </button>
+                      ))}
+                    {!opening.pipeline.needs_review &&
+                      !opening.pipeline.invited &&
+                      !data.applications.some(
+                        (row) =>
+                          row.attempt_status === "interrupted" ||
+                          ["partial", "invalid", "failed"].includes(
+                            row.recording_state,
+                          ),
+                      ) && (
+                        <RecruitmentEmpty>
+                          No interviews or invitations need attention.
+                        </RecruitmentEmpty>
+                      )}
+                  </RecruitmentSection>
+                  {data.activity.length > 0 && (
+                    <RecruitmentSection
+                      title="Recent activity"
+                      className="recruitment-secondary"
+                    >
+                      {activity}
+                    </RecruitmentSection>
+                  )}
+                </div>
                 <RecruitmentSection
-                  title="Opening details"
+                  title="Job at a glance"
                   action={
                     canManage && (
                       <button
@@ -1071,221 +1421,342 @@ export default function RecruitmentPage({ auth }) {
                     <dt>Employer</dt>
                     <dd>{employer}</dd>
                   </dl>
-                  {opening.description && (
-                    <p className="mt-4 text-sm text-text-secondary">
-                      {opening.description}
+                  <div className="recruitment-glance-offerings">
+                    {(opening.config.employment_offerings || []).map((o) => (
+                      <div key={o.id}>
+                        <strong>
+                          {o.employment_type?.replaceAll("_", " ")}
+                        </strong>
+                        <p>
+                          {o.amount_min != null
+                            ? `${o.currency || "MYR"} ${Number(o.amount_min).toLocaleString("en-MY")}${o.amount_max != null ? `–${Number(o.amount_max).toLocaleString("en-MY")}` : ""} / ${o.compensation_type === "hourly" ? "hour" : "month"}`
+                            : "Compensation unconfirmed"}
+                        </p>
+                        {o.schedule && <p>{o.schedule}</p>}
+                      </div>
+                    ))}
+                  </div>
+                  {opening.config.job_context?.operating_start && (
+                    <p className="text-sm text-text-secondary my-3">
+                      Operating hours:{" "}
+                      {opening.config.job_context.operating_start}
+                      {opening.config.job_context.operating_end
+                        ? `–${opening.config.job_context.operating_end}`
+                        : ""}
                     </p>
                   )}
-                </RecruitmentSection>
-                <RecruitmentSection
-                  title="Interview plan"
-                  action={
-                    profile && (
-                      <button
-                        className="btn-ghost"
-                        onClick={() => setProfilesOpen(true)}
-                      >
-                        View profiles →
-                      </button>
-                    )
-                  }
-                >
                   <OpeningPlan opening={opening} profile={profile} />
-                </RecruitmentSection>
-                <RecruitmentSection title="Needs attention">
-                  {opening.pipeline.needs_review > 0 && (
-                    <button
-                      className="recruitment-attention-row"
-                      onClick={() => attention("needs_review")}
-                    >
-                      <span>Interviews ready for review</span>
-                      <RecruitmentState value="needs_review">
-                        {opening.pipeline.needs_review} →
-                      </RecruitmentState>
-                    </button>
-                  )}
-                  {opening.pipeline.invited > 0 && (
-                    <button
-                      className="recruitment-attention-row"
-                      onClick={() => attention("invited")}
-                    >
-                      <span>Invited candidates</span>
-                      <strong>{opening.pipeline.invited} →</strong>
-                    </button>
-                  )}
-                  {!opening.pipeline.needs_review &&
-                    !opening.pipeline.invited && (
-                      <RecruitmentEmpty>
-                        No interviews awaiting review or invitation follow-up.
-                      </RecruitmentEmpty>
-                    )}
-                </RecruitmentSection>
-                <RecruitmentSection title="Recent activity">
-                  {data.activity.length ? (
-                    activity
-                  ) : (
-                    <RecruitmentEmpty>
-                      No recent activity for this opening.
-                    </RecruitmentEmpty>
-                  )}
                 </RecruitmentSection>
               </div>
             </>
           )}
           {tab === "candidates" && (
             <>
-              <div className="overflow-x-auto">
-                <AdminSegmentedControl
-                  value={stage}
-                  onChange={(value) => {
-                    setStage(value);
-                    setPage(1);
-                  }}
-                  label="Candidate stage"
-                  options={filterOptions}
-                />
-              </div>
-              <div className="recruitment-candidate-filters"><AdminSearchField value={candidateSearch} onChange={value => {setCandidateSearch(value.slice(0,120));setPage(1);}} placeholder="Search candidates" ariaLabel="Search candidates"/><SelectField value={offeringFilter} onChange={value=>{setOfferingFilter(value);setPage(1);}} ariaLabel="Offering filter" options={[{value:"all",label:"All offerings"},...Object.entries(preferenceLabels).map(([value,label])=>({value,label}))]}/></div>
+              <AdminFilterToolbar
+                compact
+                denseFields
+                ariaLabel="Candidate filters"
+                search={
+                  <AdminSearchField
+                    label="Search candidates"
+                    value={candidateSearch}
+                    onChange={(value) => {
+                      setCandidateSearch(value.slice(0, 120));
+                      setPage(1);
+                    }}
+                    placeholder="Search candidates"
+                    ariaLabel="Search candidates"
+                  />
+                }
+                filters={
+                  <>
+                    <SelectField
+                      label="Stage"
+                      value={stage}
+                      onChange={(value) => {
+                        setStage(value);
+                        setPage(1);
+                      }}
+                      ariaLabel="Candidate stage"
+                      options={filterOptions}
+                    />
+                    <SelectField
+                      label="Offering"
+                      value={offeringFilter}
+                      onChange={(value) => {
+                        setOfferingFilter(value);
+                        setPage(1);
+                      }}
+                      ariaLabel="Offering filter"
+                      options={[
+                        { value: "all", label: "All offerings" },
+                        ...Object.entries(preferenceLabels).map(
+                          ([value, label]) => ({ value, label }),
+                        ),
+                      ]}
+                    />
+                  </>
+                }
+              />
               <RecruitmentSection
                 title="Candidates"
                 description={`${data.applications_total} ${data.applications_total === 1 ? "candidate" : "candidates"} · Application stage, interview evidence and requirement fit`}
                 className="is-list"
               >
-                <DataTable minWidth="100%" density="compact" tableClassName="recruitment-candidates-table" rows={data.applications} getRowKey={row => row.id} columns={[
-                  {key:"candidate",header:"Candidate",render:row=>(<>                    <button
-                      className="recruitment-candidate-identity"
-                      onClick={() => setReviewApplication(row)}
-                    >
-                      <span className="recruitment-avatar" aria-hidden="true">
-                        {row.name
-                          .split(" ")
-                          .map((x) => x[0])
-                          .slice(0, 2)
-                          .join("")}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm break-words">
-                          {row.name}
-                        </p>
-                        <p className="text-xs text-text-secondary mt-1">
-                          {row.contact}
-                        </p>
-                      </div>
-                    </button>
-<small className="recruitment-row-meta">Registered {formatRecruitmentTime(row.registered_at)}</small></>)},
-                  {key:"offering",header:"Offering",render:row=>preferenceLabels[row.employment_preference] || "Unknown"},
-                  {key:"stage",header:"Stage",render:row=><RecruitmentState value={row.stage}>{stages[row.stage]}</RecruitmentState>},
-                  {key:"invitation",header:"Invitation",priority:"secondary",render:row=>(<div className="recruitment-cell-stack"><span>{!row.issued_at ? "Not invited" : row.revoked_at ? "Revoked" : Date.parse(row.expires_at)<Date.now() ? "Expired" : "Active"}</span>{row.issued_at && <small>{formatRecruitmentTime(row.issued_at)}</small>}{row.stage === "invited" && row.expires_at && <small>Expires {formatRecruitmentTime(row.expires_at)}</small>}</div>)},
-                  {key:"interview",header:"Interview",render:row=>(<div className="recruitment-cell-stack"><span>{interviewStateLabel(row.attempt_status)}</span>{(row.completed_at || row.started_at) && <small>{formatRecruitmentTime(row.completed_at || row.started_at)}</small>}{row.duration_seconds != null && <small>{Math.floor(row.duration_seconds/60)}m {Math.floor(row.duration_seconds%60)}s elapsed</small>}</div>)},
-                  {key:"evidence",header:"Fit / Evidence",priority:"secondary",render:row=>(<div className="recruitment-cell-stack">{row.recording_state && !["complete","not_started"].includes(row.recording_state) && <RecruitmentState value={row.recording_state}>Recording {row.recording_state}</RecruitmentState>}<CandidateFitSummary application={row} revision={data}/></div>)},
-                  {key:"action",header:"Action",render:row=>(                    <div className="recruitment-candidate-actions flex items-center gap-1">
-                      <button
-                        className="btn-secondary"
-                        disabled={busy}
-                        data-action={invitationAction(
-                          row,
-                          canManage,
-                          opening.status,
-                        )}
-                        onClick={(event) =>
-                          candidateAction(
-                            row,
-                            event.currentTarget.dataset.action,
-                          )
-                        }
-                      >
-                        {invitationAction(row, canManage, opening.status) ===
-                        "issue"
-                          ? "Issue interview link"
-                          : invitationAction(row, canManage, opening.status) ===
-                              "copy"
-                            ? "Copy link"
-                            : "Review"}
-                      </button>
-                      {canManage &&
-                        !["hired", "rejected"].includes(row.decision_state) && (
-                          <ActionMenu
-                            open={actionMenuId === row.id}
-                            onOpenChange={(open) =>
-                              setActionMenuId(open ? row.id : null)
-                            }
-                            ariaLabel={`Actions for ${row.name}`}
-                            trigger={({ toggle, open, ariaLabel }) => (
-                              <button
-                                type="button"
-                                className="icon-btn"
-                                aria-label={ariaLabel}
-                                aria-haspopup="menu"
-                                aria-expanded={open}
-                                onClick={toggle}
-                              >
-                                •••
-                              </button>
-                            )}
+                <DataTable
+                  minWidth="100%"
+                  density="compact"
+                  tableClassName="recruitment-candidates-table"
+                  rows={data.applications}
+                  getRowKey={(row) => row.id}
+                  columns={[
+                    {
+                      key: "candidate",
+                      header: "Candidate",
+                      render: (row) => (
+                        <>
+                          {" "}
+                          <button
+                            className="recruitment-candidate-identity"
+                            onClick={() => setReviewApplication(row)}
                           >
-                            <div
-                              role="menu"
-                              aria-label={`Actions for ${row.name}`}
+                            <span
+                              className="recruitment-avatar"
+                              aria-hidden="true"
                             >
-                              {currentInvitation(row, issuedLinks) && (
-                                <a
-                                  role="menuitem"
-                                  href={currentInvitation(row, issuedLinks).url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  Open interview link
-                                </a>
-                              )}
-                              <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => {
-                                  setActionMenuId(null);
-                                  setReviewApplication(row);
-                                }}
-                              >
-                                Review application
-                              </button>
-                              {opening.status === "open" && (
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  disabled={busy}
-                                  onClick={() => {
-                                    setActionMenuId(null);
-                                    issue(row);
-                                  }}
-                                >
-                                  {row.issued_at
-                                    ? "Reissue interview link"
-                                    : "Issue interview link"}
-                                </button>
-                              )}
-                              {row.issued_at && !row.revoked_at && (
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  className="is-danger"
-                                  disabled={busy}
-                                  onClick={() => {
-                                    setActionMenuId(null);
-                                    mutate(() =>
-                                      recruitmentService.revokeInvitation(
-                                        row.id,
-                                      ),
-                                    ).catch(() => {});
-                                  }}
-                                >
-                                  Revoke invitation
-                                </button>
-                              )}
+                              {row.name
+                                .split(" ")
+                                .map((x) => x[0])
+                                .slice(0, 2)
+                                .join("")}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm break-words">
+                                {row.name}
+                              </p>
+                              <p className="text-xs text-text-secondary mt-1">
+                                {row.contact}
+                              </p>
                             </div>
-                          </ActionMenu>
-                        )}
-                    </div>
-)}
-                ]} />
+                          </button>
+                          <small className="recruitment-row-meta">
+                            Registered{" "}
+                            {formatRecruitmentTime(row.registered_at)}
+                          </small>
+                        </>
+                      ),
+                    },
+                    {
+                      key: "offering",
+                      header: "Offering",
+                      render: (row) =>
+                        preferenceLabels[row.employment_preference] ||
+                        "Unknown",
+                    },
+                    {
+                      key: "stage",
+                      header: "Stage",
+                      render: (row) => (
+                        <RecruitmentState value={row.stage}>
+                          {stages[row.stage]}
+                        </RecruitmentState>
+                      ),
+                    },
+                    {
+                      key: "invitation",
+                      header: "Invitation",
+                      priority: "secondary",
+                      render: (row) => (
+                        <div className="recruitment-cell-stack">
+                          <span>
+                            {!row.issued_at
+                              ? "Not invited"
+                              : row.revoked_at
+                                ? "Revoked"
+                                : Date.parse(row.expires_at) < Date.now()
+                                  ? "Expired"
+                                  : "Active"}
+                          </span>
+                          {row.issued_at && (
+                            <small>
+                              {formatRecruitmentTime(row.issued_at)}
+                            </small>
+                          )}
+                          {row.stage === "invited" && row.expires_at && (
+                            <small>
+                              Expires {formatRecruitmentTime(row.expires_at)}
+                            </small>
+                          )}
+                        </div>
+                      ),
+                    },
+                    {
+                      key: "interview",
+                      header: "Interview",
+                      render: (row) => (
+                        <div className="recruitment-cell-stack">
+                          <span>{interviewStateLabel(row.attempt_status)}</span>
+                          {(row.completed_at || row.started_at) && (
+                            <small>
+                              {formatRecruitmentTime(
+                                row.completed_at || row.started_at,
+                              )}
+                            </small>
+                          )}
+                          {row.duration_seconds != null && (
+                            <small>
+                              {Math.floor(row.duration_seconds / 60)}m{" "}
+                              {Math.floor(row.duration_seconds % 60)}s elapsed
+                            </small>
+                          )}
+                        </div>
+                      ),
+                    },
+                    {
+                      key: "evidence",
+                      header: "Fit / Evidence",
+                      priority: "secondary",
+                      render: (row) => (
+                        <div className="recruitment-cell-stack">
+                          {row.recording_state &&
+                            !["complete", "not_started"].includes(
+                              row.recording_state,
+                            ) && (
+                              <RecruitmentState value={row.recording_state}>
+                                Recording {row.recording_state}
+                              </RecruitmentState>
+                            )}
+                          <CandidateFitSummary
+                            application={row}
+                            revision={data}
+                          />
+                        </div>
+                      ),
+                    },
+                    {
+                      key: "action",
+                      header: "Action",
+                      render: (row) => (
+                        <div className="recruitment-candidate-actions flex items-center gap-1">
+                          <button
+                            className="btn-secondary"
+                            disabled={busy}
+                            data-action={invitationAction(
+                              row,
+                              canManage,
+                              opening.status,
+                            )}
+                            onClick={(event) =>
+                              candidateAction(
+                                row,
+                                event.currentTarget.dataset.action,
+                              )
+                            }
+                          >
+                            {invitationAction(
+                              row,
+                              canManage,
+                              opening.status,
+                            ) === "issue"
+                              ? "Issue interview link"
+                              : invitationAction(
+                                    row,
+                                    canManage,
+                                    opening.status,
+                                  ) === "copy"
+                                ? "Copy link"
+                                : "Review"}
+                          </button>
+                          {canManage &&
+                            !["hired", "rejected"].includes(
+                              row.decision_state,
+                            ) && (
+                              <ActionMenu
+                                open={actionMenuId === row.id}
+                                onOpenChange={(open) =>
+                                  setActionMenuId(open ? row.id : null)
+                                }
+                                ariaLabel={`Actions for ${row.name}`}
+                                trigger={({ toggle, open, ariaLabel }) => (
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    aria-label={ariaLabel}
+                                    aria-haspopup="menu"
+                                    aria-expanded={open}
+                                    onClick={toggle}
+                                  >
+                                    •••
+                                  </button>
+                                )}
+                              >
+                                <div
+                                  role="menu"
+                                  aria-label={`Actions for ${row.name}`}
+                                >
+                                  {currentInvitation(row, issuedLinks) && (
+                                    <a
+                                      role="menuitem"
+                                      href={
+                                        currentInvitation(row, issuedLinks).url
+                                      }
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      Open interview link
+                                    </a>
+                                  )}
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={() => {
+                                      setActionMenuId(null);
+                                      setReviewApplication(row);
+                                    }}
+                                  >
+                                    Review application
+                                  </button>
+                                  {opening.status === "open" && (
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      disabled={busy}
+                                      onClick={() => {
+                                        setActionMenuId(null);
+                                        issue(row);
+                                      }}
+                                    >
+                                      {row.issued_at
+                                        ? "Reissue interview link"
+                                        : "Issue interview link"}
+                                    </button>
+                                  )}
+                                  {row.issued_at && !row.revoked_at && (
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      className="is-danger"
+                                      disabled={busy}
+                                      onClick={() => {
+                                        setActionMenuId(null);
+                                        mutate(() =>
+                                          recruitmentService.revokeInvitation(
+                                            row.id,
+                                          ),
+                                        ).catch(() => {});
+                                      }}
+                                    >
+                                      Revoke invitation
+                                    </button>
+                                  )}
+                                </div>
+                              </ActionMenu>
+                            )}
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
                 {!data.applications.length && (
                   <div className="px-5">
                     <RecruitmentEmpty>
@@ -1336,15 +1807,6 @@ export default function RecruitmentPage({ auth }) {
               </RecruitmentSection>
             ))}
         </>
-      )}
-      {formOpening !== undefined && data && (
-        <OpeningForm
-          opening={formOpening}
-          data={data}
-          busy={busy}
-          onSave={(o) => mutate(() => recruitmentService.saveOpening(o))}
-          onClose={() => setFormOpening(undefined)}
-        />
       )}
       {applicationForm && data ? (
         <Modal
@@ -1420,7 +1882,18 @@ export default function RecruitmentPage({ auth }) {
                 />
               </AdminFormField>
             ) : null}
-            <AdminFormField label="Employment preference"><SelectField ariaLabel="Employment preference" value={applicant.employment_preference || "unknown"} onChange={value=>setApplicant({...applicant,employment_preference:value})} options={Object.entries(preferenceLabels).map(([value,label])=>({value,label}))}/></AdminFormField>
+            <AdminFormField label="Employment preference">
+              <SelectField
+                ariaLabel="Employment preference"
+                value={applicant.employment_preference || "unknown"}
+                onChange={(value) =>
+                  setApplicant({ ...applicant, employment_preference: value })
+                }
+                options={Object.entries(preferenceLabels).map(
+                  ([value, label]) => ({ value, label }),
+                )}
+              />
+            </AdminFormField>
             {!selectedApplicant ? (
               <>
                 <AdminFormField label="Full name" required>

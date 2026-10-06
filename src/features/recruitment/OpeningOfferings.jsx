@@ -19,7 +19,14 @@ export const days = [
   { value: "sun", label: "Sun" },
 ];
 function Field({ label, value, onChange, type = "text", helper }) {
-  if (type === "time") return <TimePickerField label={label} value={value || ""} onChange={v=>onChange(v || undefined)} />;
+  if (type === "time")
+    return (
+      <TimePickerField
+        label={label}
+        value={value || ""}
+        onChange={(v) => onChange(v || undefined)}
+      />
+    );
   return (
     <AdminFormField label={label} helper={helper}>
       <input
@@ -71,6 +78,7 @@ function Choice({ label, value, onChange, options }) {
   );
 }
 export function JobContextFields({
+  title = "Job / Workplace Context",
   value,
   onChange,
   description,
@@ -85,7 +93,7 @@ export function JobContextFields({
   };
   return (
     <fieldset>
-      <legend>Job / Workplace Context</legend>
+      <legend>{title}</legend>
       <p className="recruitment-config-note">
         Confirmed facts the interviewer may share. Blank information stays
         unconfirmed.
@@ -102,11 +110,16 @@ export function JobContextFields({
           value={description}
           onChange={(v) => onDescription(v || "")}
         />
-        <AdminFormField as="div" label="Operating days" className="md:col-span-2">
+        <AdminFormField
+          as="div"
+          label="Operating days"
+          className="md:col-span-2"
+        >
           <div className="recruitment-days">
             {days.map((d) => (
-              <label key={d.value} className="admin-checkbox">
+              <label key={d.value} className="inline-flex items-center gap-2 text-sm">
                 <input
+                  className="admin-checkbox"
                   type="checkbox"
                   checked={(value.operating_days || []).includes(d.value)}
                   onChange={(e) =>
@@ -163,7 +176,10 @@ export default function OpeningOfferings({ value = [], onChange }) {
   }
   return (
     <fieldset className="recruitment-offerings">
-      <legend>Employment Offerings</legend>
+      <legend>
+        <span className="recruitment-section-number">02</span> Employment
+        Offerings
+      </legend>
       <p className="recruitment-config-note">
         Configure the terms candidates can ask about. Both offerings use the
         same Interview Profile. Missing terms remain unconfirmed.
@@ -173,19 +189,23 @@ export default function OpeningOfferings({ value = [], onChange }) {
         const six = hourlyExplanation(o, 6),
           ten = hourlyExplanation(o, 10);
         return (
-          <details
-            key={o.id}
-            className="recruitment-offering"
-
-          >
+          <details key={o.id} className="recruitment-offering">
             <summary>
-              <div className="recruitment-offering-summary"><strong>{types[o.employment_type] || "Employment offering"}</strong>
-              <span className="text-text-secondary">
-                {o.amount_min !== undefined
-                  ? `${o.currency || ""} ${Number(o.amount_min).toLocaleString("en-MY")}${o.amount_max !== undefined ? `–${Number(o.amount_max).toLocaleString("en-MY")}` : ""} / ${o.compensation_type === "hourly" ? "hour" : "month"}`
-                  : "Compensation unconfirmed"}
-              </span>
-              <small>{o.working_start && o.working_end ? `${o.working_start}–${o.working_end}${o.rest_days_per_week !== undefined ? ` · ${o.rest_days_per_week} rest day/week` : ""}` : o.schedule || "Schedule unconfirmed"}</small></div>
+              <div className="recruitment-offering-summary">
+                <strong>
+                  {types[o.employment_type] || "Employment offering"}
+                </strong>
+                <span className="text-text-secondary">
+                  {o.amount_min !== undefined
+                    ? `${o.currency || ""} ${Number(o.amount_min).toLocaleString("en-MY")}${o.amount_max !== undefined ? `–${Number(o.amount_max).toLocaleString("en-MY")}` : ""} / ${o.compensation_type === "hourly" ? "hour" : "month"}`
+                    : "Compensation unconfirmed"}
+                </span>
+                <small>
+                  {o.working_start && o.working_end
+                    ? `${o.working_start}–${o.working_end}${o.rest_days_per_week !== undefined ? ` · ${o.rest_days_per_week} rest day/week` : ""}`
+                    : o.schedule || "Schedule unconfirmed"}
+                </small>
+              </div>
             </summary>
             <div className="recruitment-offering-body">
               <div className="recruitment-form-grid">

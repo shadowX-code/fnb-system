@@ -79,7 +79,13 @@ const opening = {
 const data = {
   profiles: [profile],
   openings: [opening],
-  summary: { open_roles: 1, interviewing: 1, needs_review: 1, shortlisted: 0 },
+  summary: {
+    open_roles: 1,
+    active_candidates: 3,
+    interviewing: 1,
+    needs_review: 1,
+    shortlisted: 0,
+  },
   positions: [{ id: "position1", name: "Crew" }],
   outlets: [],
   legal_entities: [{ id: "entity1", name: "FeedX" }],
@@ -99,7 +105,10 @@ const data = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
-  qa.workspace.mockResolvedValue(structuredClone(data));
+  qa.workspace.mockImplementation(async (query) => ({
+    ...structuredClone(data),
+    applications_total: query.stage === "hired" ? 0 : data.applications_total,
+  }));
   qa.saveOpening.mockResolvedValue("opening1");
   qa.publishProfile.mockResolvedValue("profile2");
 });
@@ -107,7 +116,7 @@ afterEach(cleanup);
 const auth = { hasPermission: () => true };
 async function enter() {
   render(<RecruitmentPage auth={auth} />);
-  await screen.findByRole("heading", { name: "Active openings" });
+  await screen.findByRole("heading", { name: "Open jobs" });
   await screen.findByRole("button", { name: /^Open opening: Service Crew/ });
   fireEvent.click(
     screen.getByRole("button", { name: /^Open opening: Service Crew/ }),
@@ -128,7 +137,9 @@ describe("opening-centred Recruitment workspace", () => {
         openingId: "opening1",
         stage: "needs_review",
         page: 1,
-        includeQa: false, search: "", offering: "all",
+        includeQa: false,
+        search: "",
+        offering: "all",
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: /^Candidate A/ }));
@@ -137,6 +148,8 @@ describe("opening-centred Recruitment workspace", () => {
   });
   it("uses server-scoped filters and only opts into QA openings explicitly", async () => {
     render(<RecruitmentPage auth={auth} />);
+    await screen.findByRole("heading", { name: "Open jobs" });
+    fireEvent.click(screen.getByRole("button", { name: "More filters" }));
     await screen.findByRole("checkbox", { name: "Include QA openings" });
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Include QA openings" }),
@@ -146,7 +159,9 @@ describe("opening-centred Recruitment workspace", () => {
         openingId: null,
         stage: "all",
         page: 1,
-        includeQa: true, search: "", offering: "all",
+        includeQa: true,
+        search: "",
+        offering: "all",
       }),
     );
   });
@@ -168,18 +183,20 @@ describe("opening-centred Recruitment workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Opening status" }));
     fireEvent.click(screen.getByRole("option", { name: "Open", exact: true }));
     expect(screen.getByRole("button", { name: /^Open opening:/ })).toBeTruthy();
-    expect(qa.workspace).toHaveBeenCalledOnce();
+    expect(
+      qa.workspace.mock.calls.filter(([query]) => query.stage !== "hired"),
+    ).toHaveLength(1);
   });
   it("saves a profile reference and opening requirements through the canonical RPC", async () => {
     await enter();
     fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
-    fireEvent.click(screen.getByRole("button", {name:"Edit setup"}));
+    fireEvent.click(screen.getByRole("button", { name: "Edit setup" }));
 
     fireEvent.change(
       screen.getByLabelText("Closing shift requirement / time"),
       { target: { value: "Midnight" } },
     );
-    fireEvent.click(screen.getByRole("button", { name: "Save opening" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(qa.saveOpening).toHaveBeenCalled());
     expect(qa.saveOpening.mock.calls[0][0].config).toMatchObject({
       interview_profile_id: "profile1",
@@ -188,8 +205,10 @@ describe("opening-centred Recruitment workspace", () => {
   });
   it("hides management controls from view-only readers", async () => {
     render(<RecruitmentPage auth={{ hasPermission: () => false }} />);
-    await screen.findByRole("heading", { name: "Active openings" });
-    expect(screen.queryByRole("button", { name: "New opening" })).toBeNull();
+    await screen.findByRole("heading", { name: "Open jobs" });
+    expect(
+      screen.queryByRole("button", { name: "Create job opening" }),
+    ).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Interview Profiles" }));
     fireEvent.click(screen.getByRole("button", { name: "View profile" }));
     expect(
@@ -198,7 +217,7 @@ describe("opening-centred Recruitment workspace", () => {
   });
   it("publishes explicitly as a new version without opening mutation", async () => {
     render(<RecruitmentPage auth={auth} />);
-    await screen.findByRole("heading", { name: "Active openings" });
+    await screen.findByRole("heading", { name: "Open jobs" });
     fireEvent.click(screen.getByRole("button", { name: "Interview Profiles" }));
     fireEvent.click(screen.getByRole("button", { name: "View profile" }));
     fireEvent.click(
@@ -349,7 +368,9 @@ describe("application invitation journey", () => {
         openingId: "opening1",
         stage,
         page: 1,
-        includeQa: false, search: "", offering: "all",
+        includeQa: false,
+        search: "",
+        offering: "all",
       }),
     );
   });
@@ -383,23 +404,91 @@ it("an invitation expiring after render cannot turn a Copy tap into automatic re
     clock.mockRestore();
   }
 });
-it("opens Setup read-only, edits explicitly and cancels without saving",async()=>{
- await enter();fireEvent.click(screen.getByRole("tab",{name:"Setup"}));
- expect(screen.queryByRole("button",{name:"Save opening"})).toBeNull();
- expect(screen.getByLabelText(/Job-facing title/).disabled).toBe(false); // native disabled ancestor is authoritative
- expect(screen.getByLabelText(/Job-facing title/).closest("fieldset[disabled]")).not.toBeNull();
- fireEvent.click(screen.getByRole("button",{name:"Edit setup"}));
- fireEvent.change(screen.getByLabelText(/Job-facing title/),{target:{value:"Unsaved name"}});
- fireEvent.click(screen.getByRole("button",{name:"Cancel"}));
- expect(screen.getByLabelText(/Job-facing title/).value).toBe("Service Crew");
- expect(qa.saveOpening).not.toHaveBeenCalled();
+it("opens Setup read-only, edits explicitly and cancels without saving", async () => {
+  await enter();
+  fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+  expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+  expect(screen.getByLabelText(/Job-facing title/).disabled).toBe(false); // native disabled ancestor is authoritative
+  expect(
+    screen.getByLabelText(/Job-facing title/).closest("fieldset[disabled]"),
+  ).not.toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Edit setup" }));
+  fireEvent.change(screen.getByLabelText(/Job-facing title/), {
+    target: { value: "Unsaved name" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.getByLabelText(/Job-facing title/).value).toBe("Service Crew");
+  expect(qa.saveOpening).not.toHaveBeenCalled();
 });
-it("uses server search and offering filters before pagination, with quiet normal recording health",async()=>{
- const fixture=structuredClone(data);fixture.applications[0].recording_state="complete";fixture.applications[0].employment_preference="both";qa.workspace.mockResolvedValue(fixture);
- await enter();fireEvent.click(screen.getByRole("tab",{name:"Candidates"}));
- expect(screen.getByRole("table")).toBeTruthy();expect(screen.queryByText("Recording complete")).toBeNull();expect(screen.getByRole("cell",{name:"Both"})).toBeTruthy();
- fireEvent.change(screen.getByRole("searchbox",{name:"Search candidates"}),{target:{value:"Candidate"}});
- await waitFor(()=>expect(qa.workspace).toHaveBeenLastCalledWith(expect.objectContaining({search:"Candidate",page:1})));
- fireEvent.click(screen.getByRole("button",{name:"Offering filter"}));fireEvent.click(screen.getByRole("option",{name:"Both",exact:true}));
- await waitFor(()=>expect(qa.workspace).toHaveBeenLastCalledWith(expect.objectContaining({offering:"both",page:1})));
+it("uses server search and offering filters before pagination, with quiet normal recording health", async () => {
+  const fixture = structuredClone(data);
+  fixture.applications[0].recording_state = "complete";
+  fixture.applications[0].employment_preference = "both";
+  qa.workspace.mockResolvedValue(fixture);
+  await enter();
+  fireEvent.click(screen.getByRole("tab", { name: "Candidates" }));
+  expect(screen.getByRole("table")).toBeTruthy();
+  expect(screen.queryByText("Recording complete")).toBeNull();
+  expect(screen.getByRole("cell", { name: "Both" })).toBeTruthy();
+  fireEvent.change(
+    screen.getByRole("searchbox", { name: "Search candidates" }),
+    { target: { value: "Candidate" } },
+  );
+  await waitFor(() =>
+    expect(qa.workspace).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "Candidate", page: 1 }),
+    ),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Offering filter" }));
+  fireEvent.click(screen.getByRole("option", { name: "Both", exact: true }));
+  await waitFor(() =>
+    expect(qa.workspace).toHaveBeenLastCalledWith(
+      expect.objectContaining({ offering: "both", page: 1 }),
+    ),
+  );
+});
+
+it("creates a job in a workspace with explicit draft/open actions through the existing authority", async () => {
+  render(<RecruitmentPage auth={auth} />);
+  await screen.findByRole("heading", { name: "Open jobs" });
+  fireEvent.click(screen.getByRole("button", { name: "Create job opening" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(
+    screen.getByRole("heading", { name: "Create job opening" }),
+  ).toBeTruthy();
+  expect(screen.getByText("Job / Workplace Information")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Save draft" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Open job" })).toBeTruthy();
+  fireEvent.change(screen.getByLabelText(/Job-facing title/), {
+    target: { value: "Test Crew" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  await waitFor(() =>
+    expect(qa.saveOpening).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Test Crew", status: "draft" }),
+    ),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Create job opening" }));
+  fireEvent.change(screen.getByLabelText(/Job-facing title/), {
+    target: { value: "Open Crew" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Open job" }));
+  await waitFor(() =>
+    expect(qa.saveOpening).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Open Crew", status: "open" }),
+    ),
+  );
+});
+it("uses four shared summary cards and puts canonical filters outside operational tables", async () => {
+  render(<RecruitmentPage auth={auth} />);
+  await screen.findByRole("heading", { name: "Open jobs" });
+  const summary = screen.getByLabelText("Recruitment summary");
+  expect(summary.querySelectorAll("[data-admin-summary-card]")).toHaveLength(4);
+  expect(
+    screen
+      .getByRole("region", { name: "Job filters" })
+      .closest(".recruitment-section"),
+  ).toBeNull();
+  expect(screen.getByRole("table")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Reconnect AI" })).toBeNull();
 });

@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import AdminSummaryGrid from "../../components/ui/AdminSummaryGrid.jsx";
+import { AudioLines, ListChecks, ClipboardCheck, Video } from "lucide-react";
 import SelectField from "../../components/forms/SelectField.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
-import { candidateTimeline, preferenceLabels, formatRecruitmentTime } from "./candidateOperations.js";
+import {
+  candidateTimeline,
+  preferenceLabels,
+  formatRecruitmentTime,
+} from "./candidateOperations.js";
 import { RecruitmentState } from "./RecruitmentPresentation.jsx";
 import {
   reviewAreas,
@@ -240,12 +246,11 @@ export default function RecruitmentEvidenceReview({
             aria-label="Application review sections"
           >
             {[
-              ["review-summary", "Summary"],
+              ["review-overview", "Overview"],
               ["opening-requirements-heading", "Requirements"],
               ["interview-evidence-heading", "Evidence"],
-              ["review-followup", "Follow-up"],
-              ["review-original", "Original evidence"],
-              ["review-decision", "Manager decision"],
+              ["review-original", "Interview"],
+              ["review-decision", "Decision"],
             ].map(([id, text]) => (
               <button
                 key={id}
@@ -261,7 +266,11 @@ export default function RecruitmentEvidenceReview({
             ))}
           </nav>
           <div className="recruitment-review-main">
-            <header className="space-y-2 border-b border-border pb-5">
+            <header
+              id="review-overview"
+              tabIndex={-1}
+              className="space-y-2 border-b border-border pb-5"
+            >
               {data.attempts.length > 1 && (
                 <AdminFormField label="Interview attempt">
                   <SelectField
@@ -279,64 +288,122 @@ export default function RecruitmentEvidenceReview({
                   />
                 </AdminFormField>
               )}
-              <AdminFormField label="Employment preference"><SelectField ariaLabel="Employment preference" disabled={!data.can_manage || busy || ["hired","rejected"].includes(data.application.decision_state)} value={data.application.employment_preference || "unknown"} onChange={value=>act(()=>recruitmentService.setPreference(application.id,value))} options={Object.entries(preferenceLabels).map(([value,label])=>({value,label}))}/></AdminFormField>
-              <h3 className="text-lg font-semibold">
-                {data.attempt?.profile_name || data.candidate.full_name}
-              </h3>
-              <p>
-                {data.application.opening_title_snapshot} ·{" "}
-                {data.application.workplace_snapshot}
-              </p>
-              <div className="recruitment-review-health">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <span>Application</span>
-                  <RecruitmentState value={state}>
-                    {decisionLabels[state]}
-                  </RecruitmentState>
+                  <h3 className="text-lg font-semibold">
+                    {data.attempt?.profile_name || data.candidate.full_name}
+                  </h3>
+                  <p className="text-sm text-text-secondary mt-1">
+                    {preferenceLabels[data.application.employment_preference] ||
+                      "Unknown preference"}{" "}
+                    · {data.application.opening_title_snapshot} ·{" "}
+                    {data.application.workplace_snapshot}
+                  </p>
                 </div>
-                <div>
-                  <span>Interview outcome</span>
-                  <RecruitmentState
-                    value={data.attempt?.status || "registered"}
-                  >
-                    {data.attempt?.status === "failed"
-                      ? "Evidence incomplete"
-                      : data.attempt?.status?.replaceAll("_", " ") ||
-                        "Not started"}
-                  </RecruitmentState>
-                </div>
-                <div>
-                  <span>Recording</span>
-                  <RecruitmentState
-                    value={data.attempt?.recording_state || "registered"}
-                  >
-                    {data.attempt?.recording_state || "Not started"}
-                  </RecruitmentState>
-                </div>
-                <div>
-                  <span>Report</span>
-                  <RecruitmentState value={report?.status || "registered"}>
-                    {report?.status || "Not generated"}
-                  </RecruitmentState>
-                </div>
+                <RecruitmentState value={state}>
+                  {decisionLabels[state]}
+                </RecruitmentState>
               </div>
-              <p className="text-xs text-text-secondary">
-                {data.events.filter((e) => e.action === "recording_gap").length}{" "}
-                disclosed recording gaps
-                {data.units.some((u) => u.status === "invalid")
-                  ? " · Recording unit unavailable"
-                  : ""}
-              </p>
-              <p className="text-sm text-text-secondary">
-                Transcript{" "}
-                {data.annotations.some((a) => a.kind === "transcription_failed")
-                  ? "has disclosed gaps"
-                  : data.turns.some((t) => t.speaker === "candidate")
-                    ? "available"
-                    : "unavailable"}
-                . Evidence coverage describes what is understood; requirement
-                fit is assessed separately.
-              </p>
+              <details className="recruitment-review-preference">
+                <summary>Update employment preference</summary>{" "}
+                <AdminFormField label="Employment preference">
+                  <SelectField
+                    ariaLabel="Employment preference"
+                    disabled={
+                      !data.can_manage ||
+                      busy ||
+                      ["hired", "rejected"].includes(
+                        data.application.decision_state,
+                      )
+                    }
+                    value={data.application.employment_preference || "unknown"}
+                    onChange={(value) =>
+                      act(() =>
+                        recruitmentService.setPreference(application.id, value),
+                      )
+                    }
+                    options={Object.entries(preferenceLabels).map(
+                      ([value, label]) => ({ value, label }),
+                    )}
+                  />
+                </AdminFormField>
+              </details>
+              <AdminSummaryGrid
+                variant="compact"
+                ariaLabel="Review snapshot"
+                className="recruitment-review-snapshot"
+                items={[
+                  {
+                    label: "Interview",
+                    icon: AudioLines,
+                    value:
+                      data.attempt?.status === "failed"
+                        ? "Incomplete"
+                        : ["completed", "partial"].includes(
+                              data.attempt?.status,
+                            )
+                          ? "Completed"
+                          : data.attempt?.status?.replaceAll("_", " ") ||
+                            "Not started",
+                    helper: [
+                      data.attempt?.interview_started_at &&
+                      data.attempt?.interview_ended_at
+                        ? `${Math.max(0, Math.round((Date.parse(data.attempt.interview_ended_at) - Date.parse(data.attempt.interview_started_at)) / 60000))} min elapsed`
+                        : null,
+                      data.attempt?.interview_ended_at
+                        ? formatRecruitmentTime(data.attempt.interview_ended_at)
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · "),
+                    helperClassName: "whitespace-normal leading-relaxed",
+                    valueClassName: "text-sm font-semibold",
+                  },
+                  {
+                    label: "Requirement fit",
+                    icon: ListChecks,
+                    value:
+                      report?.status === "ready" &&
+                      report.body.opening_requirements?.length
+                        ? `${report.body.opening_requirements.filter((f) => f.state === "meets").length} / ${report.body.opening_requirements.length} meets`
+                        : "Not assessed",
+                    helper:
+                      report?.status === "ready" &&
+                      report.body.opening_requirements?.length
+                        ? `${report.body.opening_requirements.filter((f) => f.state === "does_not_meet").length} does not meet · ${report.body.opening_requirements.filter((f) => f.state === "unclear").length} unclear`
+                        : "Explicit job requirements",
+                    helperClassName: "whitespace-normal leading-relaxed",
+                    valueClassName: "text-sm font-semibold",
+                  },
+                  {
+                    label: "Evidence",
+                    icon: ClipboardCheck,
+                    value: `${areas.filter((a) => a.state === "covered").length} Covered`,
+                    helper: `${areas.filter((a) => a.state === "partial").length} Partial · ${areas.filter((a) => a.state === "unresolved").length} Unresolved`,
+                    helperClassName: "whitespace-normal leading-relaxed",
+                    valueClassName: "text-sm font-semibold",
+                  },
+                  {
+                    label: "Recording",
+                    icon: Video,
+                    value: data.attempt?.recording_state || "Not started",
+                    helper: data.events.filter(
+                      (e) => e.action === "recording_gap",
+                    ).length
+                      ? `${data.events.filter((e) => e.action === "recording_gap").length} disclosed gaps`
+                      : "Original evidence",
+                    tone: ["failed", "invalid"].includes(
+                      data.attempt?.recording_state,
+                    )
+                      ? "danger"
+                      : data.attempt?.recording_state === "partial"
+                        ? "warning"
+                        : "neutral",
+                    helperClassName: "whitespace-normal leading-relaxed",
+                    valueClassName: "text-sm font-semibold",
+                  },
+                ]}
+              />
             </header>
             {!data.launch_ready && (
               <p
@@ -365,7 +432,7 @@ export default function RecruitmentEvidenceReview({
               {!report ? (
                 <p className="my-3 text-text-secondary">
                   {finalized
-                    ? "Generate the evidence report for this finalized interview."
+                    ? "Interview summary is being prepared. Original evidence remains available."
                     : "The report becomes available after the interview is finalized."}
                 </p>
               ) : (
@@ -414,46 +481,53 @@ export default function RecruitmentEvidenceReview({
                     <p>
                       {report.status === "failed"
                         ? "Report generation failed. Transcript and recordings remain available."
-                        : "Report generation is queued or in progress. Refresh or continue generation."}
+                        : "Interview summary is being prepared. Original evidence remains available."}
                     </p>
                   )}
                 </>
               )}
               {finalized && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(!report ||
-                    ["queued", "generating"].includes(report.status)) && (
-                    <button
-                      disabled={busy}
-                      className="btn-secondary"
-                      onClick={() => generate()}
-                    >
-                      {busy ? "Generating…" : "Generate interview report"}
-                    </button>
-                  )}
-                  {["ready", "unusable"].includes(report?.status) &&
-                    data.can_manage && (
+                <details className="mt-3 text-sm">
+                  <summary className="cursor-pointer text-text-secondary">
+                    Report actions & versions
+                  </summary>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(!report ||
+                      ["queued", "generating"].includes(report.status)) && (
                       <button
-                        className="btn-secondary"
                         disabled={busy}
-                        onClick={() => generate(true)}
-                      >
-                        Generate new version
-                      </button>
-                    )}
-                  {["ready", "unusable"].includes(report?.status) &&
-                    data.can_manage && (
-                      <button
                         className="btn-secondary"
-                        disabled={busy || !!report.reviews}
-                        onClick={() =>
-                          act(() => recruitmentService.reviewReport(report.id))
-                        }
+                        onClick={() => generate()}
                       >
-                        {report.reviews ? "Reviewed" : "Mark report reviewed"}
+                        {busy ? "Generating…" : "Generate interview report"}
                       </button>
                     )}
-                </div>
+                    {["ready", "unusable"].includes(report?.status) &&
+                      data.can_manage && (
+                        <button
+                          className="btn-secondary"
+                          disabled={busy}
+                          onClick={() => generate(true)}
+                        >
+                          Generate new version
+                        </button>
+                      )}
+                    {["ready", "unusable"].includes(report?.status) &&
+                      data.can_manage && (
+                        <button
+                          className="btn-secondary"
+                          disabled={busy || !!report.reviews}
+                          onClick={() =>
+                            act(() =>
+                              recruitmentService.reviewReport(report.id),
+                            )
+                          }
+                        >
+                          {report.reviews ? "Reviewed" : "Mark report reviewed"}
+                        </button>
+                      )}
+                  </div>
+                </details>
               )}
             </section>
             <section
@@ -469,8 +543,7 @@ export default function RecruitmentEvidenceReview({
                 Opening Requirements
               </h3>
               <p className="mt-1 text-sm text-text-muted">
-                Evidence fit for this opening only. Covered evidence can still
-                conflict with a requirement.
+                Evidence for this job’s explicit requirements.
               </p>
               {!requirements.length && (
                 <p className="mt-3 text-sm text-text-secondary">
@@ -486,7 +559,10 @@ export default function RecruitmentEvidenceReview({
                         )
                       : null;
                   return (
-                    <div key={r.key} className="py-3">
+                    <div
+                      key={r.key}
+                      className="recruitment-requirement-row py-3"
+                    >
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <p className="font-medium text-sm">{r.requirement}</p>
                         <RecruitmentState
@@ -498,7 +574,7 @@ export default function RecruitmentEvidenceReview({
                         {fit?.finding.text ||
                           (report?.status === "ready"
                             ? "This historical report does not assess requirement fit. Generate a new version to evaluate cited evidence."
-                            : "Requirement fit awaits a finalized evidence report; no fit is inferred from coverage.")}
+                            : "Awaiting evidence assessment.")}
                       </p>
                       {fit?.finding.evidence.length > 0 && (
                         <details className="mt-1 text-sm">
@@ -815,7 +891,22 @@ export default function RecruitmentEvidenceReview({
                 ))}
               </div>
             </details>
-            <details className="recruitment-lifecycle"><summary>Candidate timeline</summary><ol>{candidateTimeline(data).map(entry=><li key={entry.key}><div><strong>{entry.label}</strong>{entry.detail && <span>{entry.detail}</span>}</div><time dateTime={entry.at}>{formatRecruitmentTime(entry.at)}</time></li>)}</ol></details>
+            <details className="recruitment-lifecycle">
+              <summary>Candidate timeline</summary>
+              <ol>
+                {candidateTimeline(data).map((entry) => (
+                  <li key={entry.key}>
+                    <div>
+                      <strong>{entry.label}</strong>
+                      {entry.detail && <span>{entry.detail}</span>}
+                    </div>
+                    <time dateTime={entry.at}>
+                      {formatRecruitmentTime(entry.at)}
+                    </time>
+                  </li>
+                ))}
+              </ol>
+            </details>
             <section
               id="review-decision"
               ref={decisionSection}

@@ -18,6 +18,7 @@ export default function MetricCard({
   presentation = "default",
   action,
   valueClassName = "",
+  helperClassName = "",
   className = "",
   iconClassName = "",
 }) {
@@ -72,7 +73,7 @@ export default function MetricCard({
       </div>
       <div className={`mt-0.5 min-w-0 break-words tracking-tight text-text-primary ${valueBaseClass} ${valueClass}`}>{value}</div>
       {helper || subtitle || trend ? <div className="mt-0.5 flex items-center justify-between gap-2 text-xs">
-        <span className="min-w-0 truncate text-text-secondary">{helper || subtitle}</span>
+        <span className={`min-w-0 text-text-secondary ${helperClassName || "truncate"}`}>{helper || subtitle}</span>
         {trend ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
       </div> : null}
       {action ? <div className="mt-1">{action}</div> : null}

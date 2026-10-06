@@ -30,3 +30,9 @@ describe("AdminSummaryGrid", () => {
     expect(container.querySelectorAll("[data-admin-summary-card]")).toHaveLength(5);
   });
 });
+
+it("allows explicit wrapping of factual summary helper text without changing other cards",()=>{
+ const {container}=render(<AdminSummaryGrid items={[{label:"Evidence health",value:"Partial",helper:"Two disclosed gaps",helperClassName:"whitespace-normal leading-relaxed"}]}/>);
+ expect(screen.getByText("Two disclosed gaps").className).toContain("whitespace-normal");
+ expect(container.querySelector("[data-admin-summary-card]")).toBeTruthy();
+});
