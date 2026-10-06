@@ -291,8 +291,8 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
     </section>
     <section aria-label="Payroll Run Header"><Card className="space-y-3 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">{new Date(`${month}-01T12:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" })} Payroll</h2>
       {run && <p className="text-sm text-text-secondary">Revision {run.revision}{run.supersedes_run_id ? " · Correction" : ""}</p>}
-      {run && <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><Badge tone={["ready", "finalized", "paid"].includes(run.status) ? "success" : "warning"}>{label(run.status)}</Badge><span>{`${employeeCount ?? (commandRows.length || "—")} employees`}</span>
-        {!["finalized", "paid"].includes(run.status) && <span>{commandRows.length ? `${readyCount} / ${commandRows.length} employees ready` : "Checking employee preparation…"}</span>}
+      {run && <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><Badge tone={["ready", "finalized", "paid"].includes(run.status) ? "success" : "warning"}>{label(run.status)}</Badge>{["finalized", "paid"].includes(run.status) && <span>{`${employeeCount ?? (commandRows.length || "—")} employees`}</span>}
+        {!["finalized", "paid"].includes(run.status) && <span>{commandRows.length ? `Employee readiness: ${readyCount} / ${commandRows.length} ready` : "Checking employee preparation…"}</span>}
         {mutable && step !== 2 && <span className="font-semibold">Run readiness: {allReady ? "Ready" : `${remainingGates || 1} blocker${remainingGates === 1 ? "" : "s"} remaining`}</span>}</div>}</div>
       <div className="flex flex-wrap gap-2">
         {runs.length > 1 && <SelectField ariaLabel="Payroll revision" value={run?.id || ""} onChange={(value) => { setOpenRunId(value); setStep(runs.find((item) => item.id === value)?.status === "finalized" ? 2 : 0); }} options={runs.map((item) => ({ value: item.id, label: `Revision ${item.revision} · ${label(item.status)}` }))} />}
@@ -303,11 +303,11 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
       {run && !["finalized", "paid"].includes(run.status) && <nav aria-label="Payroll Run stages" className="border-t border-border pt-3"><ol className="flex items-center gap-2 sm:gap-4">{runSteps.map((name, index) => {
         const complete = index === 0 ? preparationReady : index === 1 ? allReady : false;
         const current = step === index;
-        const status = current ? "Current" : complete ? "Completed" : "Upcoming";
+        const status = current ? "Current" : complete ? "Completed" : "Pending";
         return <li key={name} className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4"><button type="button" aria-current={current ? "step" : undefined} aria-label={`${name} · ${status}`} onClick={() => setStep(index)}
           className={`flex items-center gap-2 rounded-md px-1 py-1 text-left text-sm ${current ? "font-bold text-primary" : complete ? "text-primary" : "text-text-secondary"}`}>
           <span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs ${current ? "border-primary bg-primary/10" : complete ? "border-primary" : "border-border"}`}>{complete && !current ? <Check size={14} /> : index + 1}</span>
-          <span>{name}<small className="block text-xs font-normal">{status}</small></span></button>{index < 2 && <span aria-hidden="true" className="h-px flex-1 bg-border" />}</li>;
+          <span><span className="block text-base font-bold leading-tight">{name}</span><small className="mt-0.5 block text-xs font-normal text-text-secondary">{status}</small></span></button>{index < 2 && <span aria-hidden="true" className="h-px flex-1 bg-border" />}</li>;
       })}</ol></nav>}
     </Card></section>
     {!run && <Card className="grid gap-4 p-5 sm:grid-cols-2">
@@ -324,8 +324,7 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
     {run && !["finalized", "paid"].includes(run.status) && <>
       {step !== 2 && <>
         <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} canManage={canManage && mutable} canViewLeave={canViewLeave} canEditEmployee={canEditEmployee} bankRead={bankRead} onChanged={reload} runRead={runRead} focusEmployeeId={focusEmployeeId} stage={step === 1 ? "review" : "prepare"} />
-        {step === 0 && <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-text-secondary">{runRead?.calculating ? "Updating employee preparation…" : preparationReady ? "Employee preparation is ready for review." : commandRows.length ? "Employee preparation is incomplete." : "Employee preparation is being checked."}</p>
+        {step === 0 && <div className="flex justify-end">
           <button className={preparationReady ? "btn-primary" : "btn-secondary"} type="button" onClick={() => setStep(1)}>{preparationReady ? "Review Payroll" : "Continue to Review"} <ChevronRight size={16} /></button></div>}
       </>}
       {step === 2 && <PayrollFinalizationReadiness employees={data.employees} canEditEmployee={canEditEmployee} run={run} read={runRead} readiness={state} allReady={allReady} canFinalize={canFinalize && (run.status === "ready" || (canManage && ["draft", "review_required"].includes(run.status)))} busy={busy} onResolve={setStep} onFinalize={() => requestTransition(run.id, "finalized")} bankRead={bankRead} />}

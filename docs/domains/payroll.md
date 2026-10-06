@@ -1195,7 +1195,7 @@ Prepare progression remains available while incomplete, using Continue to Review
 employee preparation is ready; it does not certify Run finalization readiness.
 
 The Run Header owns title/status/readiness and a connected Prepare → Review →
-Finalize stepper. Current, completed (canonical readiness) and upcoming states are
+Finalize stepper. Current, completed (canonical readiness) and pending states are
 explicit; visiting a stage does not certify completion. Prepare and Review begin
 with operational content, without repeated headings/counts. Finalize uses one
 confirmation panel containing canonical financial totals, readiness checklist,
