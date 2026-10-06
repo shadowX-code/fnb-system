@@ -25,6 +25,7 @@ export type FinanceDataset = FinanceRequest & { metrics: Record<string, MetricRe
 /** Adapters return validated canonical evidence, never credentials or raw vendor payloads. */
 export interface AccountingProvider {
   id: string;
+  profitDriverModel?: ProfitDriverModel;
   capabilities: Record<Capability, CapabilityState>;
   readOverview(request: FinanceRequest): Promise<FinanceDataset>;
   readStatement?(request: FinanceRequest & { kind: Statement['kind'] }): Promise<Statement | null>;
@@ -49,4 +50,16 @@ export type FinanceDataSources = {
   connections: FinancialConnectionView[]; authorityPeriods: AuthorityPeriod[];
   mappingReadiness: MappingReadiness[]; reconciliations: ReconciliationComparison[];
   operationalSource: { providerId: string; label: string; capabilities: Record<Capability, CapabilityState> };
+};
+
+
+// Analysis is a read-only projection of validated metric evidence, not accounting reconstruction.
+export type ProfitDriverModel = { label: string; drivers: ('revenue' | 'cogs' | 'labour' | 'opex')[] };
+export type AnalysisMetric = MetricResult & { inputProvenance?: Provenance[] };
+export type AnalysisDataset = Omit<FinanceDataset, 'metrics'> & { metrics: Record<string, AnalysisMetric> };
+export type AnalysisPair = { current: AnalysisDataset; previous: AnalysisDataset };
+export type OutletPosition = { x: number | null; y: number | null; zone: string; reason: string | null };
+export type FinanceAnalysis = AnalysisPair & {
+  comparisonPeriod: Period; lag: number; profitDriverModel: ProfitDriverModel | null;
+  outlets: { id: string; name: string; pair: AnalysisPair | null; position?: OutletPosition; history: (OutletPosition & { period: Period })[]; error: string | null }[];
 };

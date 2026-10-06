@@ -39,6 +39,7 @@ import { GuestAiDeveloperPage, GuestAiDevicesPage, GuestAiInteractionsPage, Gues
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 // Keep one component identity per feature, including all of its route aliases.
+const FinanceAnalysisPage = lazy(() => import("../features/finance/FinanceAnalysisPage.jsx"));
 const FinanceDataSourcesPage = lazy(() => import("../features/finance/FinanceDataSourcesPage.jsx"));
 const FinanceWorkspacePage = lazy(() => import("../features/finance/FinanceWorkspacePage.jsx"));
 const FactoryWorkspacePage = lazy(() => import("../features/factory/pages/FactoryWorkspacePage.jsx"));
@@ -64,7 +65,7 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 export const routeDetails = {
   finance_data_sources: { description: "Financial source connection, authority, mapping, reconciliation and readiness.", component: FinanceDataSourcesPage },
   finance_overview: { description: "Finance overview foundation.", component: FinanceWorkspacePage, props: { section: "overview" } },
-  finance_analysis: { description: "Finance analysis foundation.", component: FinanceWorkspacePage, props: { section: "analysis" } },
+  finance_analysis: { description: "Business performance and evidence-backed profit drivers.", component: FinanceAnalysisPage },
   finance_costs: { description: "Finance costs foundation.", component: FinanceWorkspacePage, props: { section: "costs" } },
   finance_cash: { description: "Finance cash foundation.", component: FinanceWorkspacePage, props: { section: "cash" } },
   finance_planning: { description: "Finance planning foundation.", component: FinanceWorkspacePage, props: { section: "planning" } },

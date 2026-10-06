@@ -5,6 +5,7 @@ import { metricResults } from '../metrics.js';
 // Existing RPC evidence remains the authority. No account ledger or legal-entity scope is inferred.
 export const operationalProvider = {
   id: 'feedx_reporting',
+  profitDriverModel: { label: 'Operational EBITDA · purchase-based COGS; labour is not separately classified', drivers: ['revenue', 'cogs', 'opex'] },
   capabilities: capabilities({ profit_loss_report: 'partial', account_balances: 'unsupported', balance_sheet_report: 'unsupported', cash_flow_report: 'unsupported', journal_lines: 'unsupported' }),
   async readOverview(request) {
     validatePeriod(request.period);

@@ -9,6 +9,7 @@ import { getAccessibleOutletOptions } from '../../utils/accessControl.js';
 import { money, periodLabel } from '../reports/components/reportingFormatters.js';
 import { navigateAdminRoute } from '../../app/routeOwnership.js';
 import { financeDemoEnabled, getFinanceProvider, readFinanceOverview } from './financeService.js';
+import { financialValue as amount, financialSemantics as semantic, currentFinanceMonth as currentMonth } from './presentation.js';
 import { monthlyPeriod } from './foundation.js';
 import { overviewDataStatus } from './dataSources.js';
 import { metricRegistry } from './metrics.js';
@@ -35,12 +36,6 @@ export function FinanceDataStatus({ dataset, loading, error }) {
     <button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_data_sources')}>Data Sources <ArrowRight size={15} /></button>
   </section>;
 }
-function currentMonth() {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
-  return `${parts.find((p) => p.type === 'year').value}-${parts.find((p) => p.type === 'month').value}`;
-}
-function amount(metric) { return metric?.unit === 'percent' ? metric.value === null ? '—' : `${metric.value.toFixed(1)}%` : money({ amount: metric?.value, presence: metric?.value === null || metric?.value === undefined ? 'missing' : 'present' }); }
-function semantic(metric) { return [...new Set(metric?.provenance?.map((p) => p.semantic) ?? [])].map((s) => s[0] + s.slice(1).toLowerCase()).join(' / ') || 'Unavailable'; }
 function Comparison({ metric }) {
   const prior = metric?.comparison;
   if (metric?.value === null || !Number.isFinite(prior?.value)) return <span>Prior period unavailable</span>;

@@ -21,6 +21,7 @@ export function createFixtureProvider({ development = false } = {}) {
   const supported = capabilities({ account_balances: 'partial', financial_dimensions: 'supported', profit_loss_report: 'supported', chart_of_accounts: 'partial', transactions: 'unsupported', journal_lines: 'unsupported', inventory_valuation: 'unsupported', balance_sheet_report: 'unsupported', cash_flow_report: 'unsupported', incremental_sync: 'unsupported', webhooks: 'unsupported' });
   return {
     id: 'development_fixture', capabilities: supported,
+    profitDriverModel: { label: 'Development illustration · Revenue − COGS − Labour − OPEX', drivers: ['revenue', 'cogs', 'labour', 'opex'] },
     async readOverview(request) {
       validatePeriod(request.period);
       if (request.currency !== 'MYR' || !fixtureScopes.some((scope) => scope.id === request.scope.id && scope.kind === request.scope.kind)) throw new Error('Unknown financial demo scope');

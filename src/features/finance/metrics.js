@@ -39,6 +39,38 @@ export function calculateDemoMetrics(inputs) {
   values.gross_profit = values.revenue - values.cogs;
   values.prime_cost = values.cogs + values.labour;
   values.ebitda = values.gross_profit - values.labour - values.opex;
-  for (const [id, numerator] of [['gross_margin', 'gross_profit'], ['labour_percent', 'labour'], ['prime_cost_percent', 'prime_cost'], ['opex_percent', 'opex'], ['ebitda_margin', 'ebitda']]) values[id] = values.revenue === 0 ? null : values[numerator] / values.revenue * 100;
+  for (const [id, numerator] of [['gross_margin', 'gross_profit'], ['labour_percent', 'labour'], ['prime_cost_percent', 'prime_cost'], ['opex_percent', 'opex'], ['ebitda_margin', 'ebitda']]) values[id] = ratioValue(values[numerator], values.revenue);
   return values;
+}
+
+/** Read-only diagnostics share the metric registry. Never reconstruct EBITDA or accounting COGS. */
+export function ratioValue(numerator, denominator) {
+  const value = Number.isFinite(numerator) && Number.isFinite(denominator) && denominator !== 0 ? numerator / denominator * 100 : null;
+  return Number.isFinite(value) ? value : null;
+}
+export function analysisMargin(dataset) {
+  const existing = dataset.metrics.ebitda_margin;
+  if (existing.value !== null) return existing;
+  const profit = dataset.metrics.ebitda, revenue = dataset.metrics.revenue;
+  const value = revenue.value > 0 ? ratioValue(profit.value, revenue.value) : null;
+  const available = value !== null && profit.completeness === 'complete' && revenue.completeness === 'complete' && revenue.value > 0;
+  return {
+    ...existing, value: available ? value : null,
+    inputProvenance: available ? [...profit.provenance, ...revenue.provenance] : [],
+    completeness: available ? 'complete' : 'unavailable',
+    provenance: available ? [...profit.provenance, ...revenue.provenance].map((source) => ({ ...source, semantic: 'DERIVED' })) : [],
+    reason: available ? 'Derived EBITDA ÷ Revenue; retains the input EBITDA basis. Operational inputs are not accounting Actual.' : 'EBITDA Margin needs complete EBITDA and positive Revenue.',
+  };
+}
+export function metricMovement(current, previous) {
+  const semantics = (metric) => [...new Set((metric.inputProvenance ?? metric.provenance).map((source) => source.semantic))].sort().join(',');
+  if (current.value === null || previous.value === null || current.completeness !== 'complete' || previous.completeness !== 'complete') return { value: null, reason: 'Complete evidence is required in both periods.' };
+  if (semantics(current) !== semantics(previous)) return { value: null, reason: 'The periods use different evidence semantics.' };
+  const value = current.value - previous.value;
+  return { value: Number.isFinite(value) ? value : null, reason: Number.isFinite(value) ? null : 'Movement exceeds the supported range.' };
+}
+export function revenueGrowth(current, previous) {
+  const movement = metricMovement(current, previous);
+  const value = movement.value !== null && previous.value > 0 ? ratioValue(movement.value, previous.value) : null;
+  return { value, reason: movement.reason ?? (previous.value > 0 ? value === null ? 'Revenue growth exceeds the supported range.' : null : 'Revenue growth needs positive comparison Revenue.') };
 }

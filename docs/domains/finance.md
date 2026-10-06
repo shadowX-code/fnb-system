@@ -2,7 +2,7 @@
 
 ## Ownership And Phase 1 Boundary
 
-Finance is the canonical Admin workspace for financial statements, analysis, intelligence and future planning. Its primary Finance navigation is Overview, Analysis, Costs, Cash, Planning and Statements; secondary Manage contains Data Sources at `/finance/data-sources`. Analysis, Costs, Cash and Planning intentionally expose foundation states, not completed future products. Restaurant retains operational financial input, purchasing and the existing Reporting authority described in `restaurant-finance-and-purchasing.md`.
+Finance is the canonical Admin workspace for financial statements, analysis, intelligence and future planning. Its primary Finance navigation is Overview, Analysis, Costs, Cash, Planning and Statements; secondary Manage contains Data Sources at `/finance/data-sources`. Costs, Cash and Planning intentionally expose foundation states, not completed future products. Restaurant retains operational financial input, purchasing and the existing Reporting authority described in `restaurant-finance-and-purchasing.md`.
 
 Phase 1 introduces read/adapter contracts and executable validation policy under `src/features/finance/`; it introduces no persistent accounting ledger, credential storage, ingestion mutation or provider integration. People `legal_entities`, existing outlets, suppliers, products and UOMs remain their canonical masters. Finance contracts reference their IDs. Group and provider dimension bindings are financial context, not a second outlet master. A provider tenant must bind to a legal entity; a provider location is a financial dimension and may represent an outlet, central kitchen, warehouse, corporate unit or department.
 
@@ -48,6 +48,20 @@ Overview exposes source semantics, source-evidence freshness and completeness al
 
 Overview uses financial-state hierarchy, a prominent EBITDA result, compact typography-led measures, a Profit Flow and progressive source/definition disclosure. Missing measures are visible, not zero or extrapolation. Finance statements is the convergence entry point: its P&L link opens the single existing Reports component/service for Monthly and Yearly/YTD reporting. Legacy Restaurant Reports and Outlet P&L remain functional. Balance Sheet and Cash Flow expose unavailable states until their authorities are validated. No duplicated P&L renderer or changed Reporting calculation is introduced.
 
+## Analysis: Business Performance And Profit Drivers
+
+Phase 2A replaces Analysis's foundation state with a read-only performance workspace at the existing `/finance/analysis` owner. It retains `reports.view`, authorized outlet scope and original Reporting calculations. Current and comparison periods are complete calendar-month request shapes; comparison must precede current. Presets cover previous month and the same month last year, with an explicit custom prior month. These requests do not imply an accounting month-close state.
+
+`analysis.js` reads and validates both periods through the Phase 1 adapter boundary. Overall scope totals remain the provider's scope read, never sums of browser outlet rows. Outlet reads use only eligible caller-visible master identities and retain server permission/outlet checks. Reads are deduplicated and concurrency-bounded; failed outlet/history reads remain explicit and stale requests cannot replace a new selection.
+
+The existing metric registry owns diagnostic subtraction, Revenue Growth and ratio arithmetic. Original canonical amounts and accounting metrics remain unchanged. The Analysis-only EBITDA Margin projection uses existing complete EBITDA and positive Revenue, carries Derived provenance plus original input provenance, and preserves the input EBITDA basis. It does not infer accounting Actual, accounting Gross Margin, Prime Cost or labour from operational reporting. Incomplete, missing, nonpositive-denominator, nonfinite and incompatible-semantic comparisons remain unavailable. Development fixtures exercise the same read/provenance boundary and are never enabled in release builds.
+
+Profit Driver Explorer starts at canonical EBITDA movement. A provider may declare its supported driver relationship; signed contributions are displayed only if complete inputs tie to canonical EBITDA in both periods and their comparisons are compatible. The operational relationship uses Revenue minus purchase-based COGS minus recorded OPEX; separately classified Labour remains unavailable. Accounting illustration uses the registry's Revenue/COGS/Labour/OPEX relationship. Missing or unexplained relationships are unresolved, not residuals silently assigned to a driver. Attribution explains arithmetic movement, not business causation.
+
+Outlet Performance Field plots Revenue Growth against EBITDA Margin for eligible outlets with sufficient evidence. Zero growth and zero margin define operating zones without assumed health targets; boundary values are explicit. All eligible outlets remain in the accessible selection table, including unpositioned or failed reads. Three monthly trajectory observations use the selected comparison lag, connecting only adjacent validated points; missing history is never bridged. Coincident points retain true coordinates. Non-outlet dimensions are not plotted as outlets.
+
+`AnalysisContext.jsx` owns the reusable Explain / Compare / Break down interaction grammar. Metric, driver and outlet selection retain one analysis context, exposing definitions, completeness, provenance, period comparison and available outlet/input breakdowns inline near the selection. No chatbot or permanent generic insight sidebar is introduced. Deeper classifications and product, supplier, labour, cash, forecast, simulation and planning analysis remain unavailable. Costs, Cash and Planning retain their foundation states.
+
 ## Gates Before A Real Accounting Adapter
 
 - Validate actual provider capabilities, statement/balance semantics, journal coverage, currencies, pagination, revisions and historical retrieval against evidence.
@@ -56,4 +70,4 @@ Overview uses financial-state hierarchy, a prominent EBITDA result, compact typo
 - Reconcile representative P&L/Balance Sheet/balance periods to authoritative provider reports, with explicit gaps, corrections and provider-switch continuity.
 - Define Finance-specific grants if product access needs diverge from existing `reports.view`. Phase 1 reuses that grant and its server outlet scope; it grants no additional data access.
 
-Bukku integration, secrets, forecasting, Profit Levers, scenario planning, supplier/labour/product intelligence and capital/dividend planning are outside Phase 1.
+Bukku integration, secrets, forecasting, Profit Levers, scenario planning, supplier/labour/product intelligence and capital/dividend planning remain outside Phase 1 and Phase 2A.

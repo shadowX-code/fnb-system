@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-07 — Finance Analysis Phase 2A
+
+Finance Analysis now provides period performance, evidence-backed EBITDA driver exploration, a Revenue Growth / EBITDA Margin outlet field, and selected-context Explain / Compare / Break down actions. Diagnostic ratios and movements reuse the Finance registry and retain original provenance; missing evidence and history gaps remain explicit. Reporting amounts and authority, accounting integration, Costs/Cash/Planning and provider credentials are unchanged. Canonical owner: docs/domains/finance.md.
+
 ## 2026-10-04 — Unified PH Pay Treatment
 
 Default PH Pay Treatment and occurrence review now share Statutory, Company, Custom or zero cash intent. Company reuses existing date-effective Additional Pay formulas, with no layered payment. Canonical preview/Gross/Payslip reconciliation, independent PH OT, audited correction and retained Leave compatibility are preserved. Normal review omits internal statutory forms and acknowledgement controls; compliance warnings remain server-owned audit evidence. Canonical owner: docs/domains/payroll.md.
