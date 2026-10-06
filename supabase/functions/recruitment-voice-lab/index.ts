@@ -59,7 +59,7 @@ Deno.serve(async request => {
     const secret = await response.json();
     if (!secret.value) return error(request, "Voice samples are unavailable.", 502);
     const audio = await generate(secret.value, request.signal);
-    return new Response(audio, {headers: {...headers(request), "Content-Type": "audio/wav"}});
+    return new Response(audio, {headers: {...headers(request), "Content-Type": "application/octet-stream", "Content-Disposition": "inline; filename=voice-sample.wav"}});
   } catch (cause) {
     return error(request, cause instanceof Error && cause.message === "Choose an available voice and language." ? cause.message : "Voice sample failed or timed out. Please retry.", cause instanceof Error && cause.message === "Choose an available voice and language." ? 400 : 502);
   }

@@ -24,7 +24,7 @@ export default function RecruitmentVoiceLab({onClose}) {
         if (failure) { const detail = await failure.context?.json?.().catch(() => null); throw new Error(detail?.error || "Voice sample unavailable. Please retry."); }
         if (!(data instanceof Blob) || data.size < 44) throw new Error("Voice sample incomplete. Please retry.");
         if (operation.current !== controller) return;
-        url = URL.createObjectURL(data); cache.current.set(id, url); setReady(current => ({...current, [id]: true}));
+        url = URL.createObjectURL(new Blob([data], {type: "audio/wav"})); cache.current.set(id, url); setReady(current => ({...current, [id]: true}));
       }
       if (operation.current !== controller) return;
       audio.current.src = url;
