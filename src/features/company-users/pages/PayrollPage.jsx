@@ -1,3 +1,4 @@
+import RecordViewAction from "../../../components/ui/RecordViewAction.jsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronRight, Plus, Check, Minus, TriangleAlert, Clock } from "lucide-react";
 import InfoTooltip from "../../../components/ui/InfoTooltip.jsx";
@@ -122,7 +123,7 @@ export function ProfilesTab({ data, canManage, reload, entityId, onEntityChanged
     } },
     { key: "pay_change", header: "Last Pay Change", className: "hidden 2xl:table-cell whitespace-nowrap", headerClassName: "hidden 2xl:table-cell", render: row => registryDate(lastPayChange(row.profile?.compensation, today())) },
     { key: "status", header: "Status", render: (row) => <Badge tone={setupState(row) === "Ready" ? "success" : "warning"}>{setupState(row)}</Badge> },
-    { key: "open", header: "Action", align: "right", render: (row) => <button className="text-primary" type="button" aria-label={`View ${row.name} payroll setup`} onClick={() => setSelectedId(row.id)}><ChevronRight size={16} /></button> },
+    { key: "open", header: "Action", align: "right", render: (row) => <RecordViewAction label={`View ${row.name} payroll setup`} onClick={() => setSelectedId(row.id)} /> },
   ];
   const versions = selected?.compensation || [];
   const current = effective(versions);
@@ -277,7 +278,7 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
         { key: "revision", header: "Revision", render: (row) => <span>v{row.revision}{row.status === "finalized" && !row.current ? <small className="block text-text-secondary">Superseded</small> : row.current ? <small className="block text-primary">Current</small> : null}</span> },
         { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "finalized" ? "success" : "warning"}>{label(row.status)}</Badge> },
         { key: "finalized", header: "Finalized Date", render: (row) => row.finalized_at?.slice(0, 10) || "—" },
-        { key: "action", header: "Action", render: (row) => <button type="button" className="font-semibold text-primary" onClick={() => { setMonth(row.period_start.slice(0, 7)); setOpenRunId(row.run_id); setStep(row.status === "finalized" ? 2 : 0); }}>{row.status === "finalized" ? "View" : "Continue"}</button> },
+        { key: "action", header: "Action", render: (row) => row.status === "finalized" ? <RecordViewAction label={`View ${row.period_start.slice(0, 7)} Payroll revision ${row.revision}`} onClick={() => { setMonth(row.period_start.slice(0, 7)); setOpenRunId(row.run_id); setStep(2); }} /> : <button type="button" className="font-semibold text-primary" onClick={() => { setMonth(row.period_start.slice(0, 7)); setOpenRunId(row.run_id); setStep(0); }}>Continue</button> },
       ]} /> : <p className="p-6 text-sm text-text-secondary">No Payroll Runs match these filters.</p>}</Card>
   </div>;
   return <div className="space-y-4">
@@ -400,7 +401,7 @@ export function Overview({ data, canManage, canEditEmployee, entityId, month, ru
       { key: "period", header: "Period", render: item => <strong>{new Intl.DateTimeFormat("en-MY", {month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(`${item.period_start}T00:00:00Z`))}</strong> },
       { key: "status", header: "Status", render: item => <Badge tone={["finalized","paid","ready"].includes(item.status) ? "success" : "neutral"}>{label(item.status)}</Badge> },
       { key: "net", header: "Net Pay", align: "right", render: item => item.net_pay == null ? "—" : money(item.net_pay) },
-      { key: "action", header: "Action", render: item => <button className="font-semibold text-primary" type="button" onClick={() => onOpenRun(["finalized","paid"].includes(item.status) ? 2 : 0, {legal_entity_id:entityId,period_start:item.period_start}, item.run_id)}>View</button> },
+      { key: "action", header: "Action", render: item => <RecordViewAction label={`View ${item.period_start.slice(0, 7)} Payroll revision ${item.revision}`} onClick={() => onOpenRun(["finalized","paid"].includes(item.status) ? 2 : 0, {legal_entity_id:entityId,period_start:item.period_start}, item.run_id)} /> },
     ]} rows={recent} getRowKey={item => item.run_id} /> : <p className="p-4 text-sm text-text-secondary">No previous runs for this Legal Entity.</p>}</Card>
   </div>;
 }
@@ -509,7 +510,7 @@ function SettingsTab({ data, canManage, reload, entityId, onEntityChanged }) {
             return <InfoTooltip label={`${scheme.toUpperCase()} wage base: ${value === "included" ? "Included" : value === "excluded" ? "Excluded" : "Setup required"}`}><Icon size={16} aria-hidden="true" className={value === "included" ? "text-emerald-700" : value === "excluded" ? "text-text-secondary" : "text-amber-700"} /></InfoTooltip>;
           } })),
           { key: "status", header: "Status", render: (item) => <Badge tone={!item.is_active ? "neutral" : undetermined(item) ? "warning" : "success"}>{!item.is_active ? "Inactive" : undetermined(item) ? "Setup Required" : "Active"}</Badge> },
-          { key: "actions", header: "Actions", render: (item) => <button className="font-semibold text-primary" type="button" onClick={() => setSelectedComponentId(item.id)}>View</button> },
+          { key: "actions", header: "Actions", render: (item) => <RecordViewAction label={`View ${item.name} pay component`} onClick={() => setSelectedComponentId(item.id)} /> },
         ]} rows={components} getRowKey={(item) => item.id} onRowClick={(item) => { setSelectedComponentId(item.id); setEditingComponent(false); }} /> : <p className="p-6 text-sm text-text-secondary">No pay components configured.</p>}</Card>
       : <div className="space-y-4"><PayrollAnnualHolidays data={data} canManage={canManageHolidays} selectedCompany={entityId} onCompanyChanged={onEntityChanged} onChanged={reload}
         onAddHoliday={() => { setEditingHolidayId(""); setAdding(true); }} onViewHoliday={setSelectedHolidayId} />

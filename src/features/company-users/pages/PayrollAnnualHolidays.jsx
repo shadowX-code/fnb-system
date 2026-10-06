@@ -1,3 +1,4 @@
+import RecordViewAction from "../../../components/ui/RecordViewAction.jsx";
 import { useEffect, useState } from "react";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -119,7 +120,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
       {annual?.policies?.length ? annual.policies.map(p => <p key={p.id} className="py-2">{p.name} · Revision {p.revision} · {p.status} · {p.selected_holiday_ids.length} selected</p>) : <p className="py-2 text-text-secondary">No company policy versions yet.</p>}
       {(annual?.history || []).map(e => <p key={e.id} className="py-1 text-xs text-text-secondary">{e.occurred_at} · {e.event_type.replaceAll("_", " ")}</p>)}
       <h5 className="mt-3 font-semibold">Historical / exceptional definitions ({exceptional.length})</h5><p className="my-2 text-xs text-text-secondary">Retained source evidence. These are not automatically selected Company Paid Holidays.</p>
-      {exceptional.length ? <div className="divide-y divide-border">{exceptional.map(h => <div key={h.id} className="flex items-center justify-between gap-3 py-2 text-sm"><div><strong>{h.name}</strong><p className="text-text-secondary">{h.holiday_date} · {h.scope === "outlet" ? "Outlet definition" : "Historical company definition"}</p></div><button type="button" className="text-primary" onClick={() => onViewHoliday(h.id)}>View</button></div>)}</div> : <p className="py-2 text-text-secondary">No historical or exceptional definitions.</p>}
+      {exceptional.length ? <div className="divide-y divide-border">{exceptional.map(h => <div key={h.id} className="flex items-center justify-between gap-3 py-2 text-sm"><div><strong>{h.name}</strong><p className="text-text-secondary">{h.holiday_date} · {h.scope === "outlet" ? "Outlet definition" : "Historical company definition"}</p></div><RecordViewAction label={`View ${h.name} holiday definition`} onClick={() => onViewHoliday(h.id)} /></div>)}</div> : <p className="py-2 text-text-secondary">No historical or exceptional definitions.</p>}
     </section>
   </>;
   return <Card className="overflow-hidden">

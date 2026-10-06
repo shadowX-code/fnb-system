@@ -106,7 +106,7 @@ describe('Payroll employee setup',()=>{
     render(<Components date="2026-09-26" profile={{id:'p',employee_name:'QA',recurring:[{id:'v1',component_id:'c',effective_from:'2026-01-01',amount:100,is_active:true,reason:'Original'},{id:'v2',component_id:'c',effective_from:'2026-10-01',amount:200,is_active:true,reason:'Scheduled'}]}}
       components={[{id:'c',name:'Allowance',component_type:'allowance',is_active:true}]} onClose={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.getByText('Scheduled change')).not.toBeNull();
-    fireEvent.click(screen.getByRole('button',{name:'View'}));
+    fireEvent.click(screen.getByRole('button',{name:'View Allowance history'}));
     expect(screen.getByText('Future Changes')).not.toBeNull();
     expect(screen.getByText('Effective-dated History')).not.toBeNull();
     fireEvent.click(screen.getByRole('button',{name:'Stop Component'}));

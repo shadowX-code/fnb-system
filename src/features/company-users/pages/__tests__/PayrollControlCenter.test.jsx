@@ -114,8 +114,8 @@ describe("Payroll Control Center", () => {
     const open=vi.fn();
     render(<Overview data={fixture} entityId="entity-1" month="2026-09" canManage onOpenRun={open} />);
     await screen.findByText("August 2026");
-    expect(screen.getAllByRole("button",{name:"View",exact:true})).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button",{name:"View",exact:true}));
+    expect(screen.getAllByRole("button",{name:"View 2026-08 Payroll revision 2",exact:true})).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button",{name:"View 2026-08 Payroll revision 2",exact:true}));
     expect(open).toHaveBeenCalledWith(2,{legal_entity_id:"entity-1",period_start:"2026-08-01"},"current");
   });
   it("shows scheme-specific component treatment and explicit segmented choices without technical identity", async () => {
@@ -172,7 +172,7 @@ describe("Payroll Control Center", () => {
     await screen.findByRole("heading", { name: "September 2026 Payroll" });
     fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     await screen.findByText("Basic Salary");
-    fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /View .* rule/ })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Create New Version" }));
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(screen.getByRole("dialog").textContent).toContain("Effective From");

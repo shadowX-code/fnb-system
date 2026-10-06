@@ -15,7 +15,7 @@ import { payrollService } from "../../../services/payrollService.js";
 import PayrollPayableTimeReview from "./PayrollPayableTimeReview.jsx";
 import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "./PayrollMonthlyBasicBreakdown.jsx";
 import PayrollPayslipAction from './PayrollPayslipAction.jsx';
-import { Eye } from 'lucide-react';
+import RecordViewAction from "../../../components/ui/RecordViewAction.jsx";
 import { canonicalPathForRoute } from '../../../app/routeOwnership.js';
 import { statutoryName, statutoryReviewSummary } from "./payrollStatutoryLabels.js";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
@@ -209,7 +209,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     { key: "employer", header: "Employer Cost", align: "right", render: row => <span className="tabular-nums">{row.result.statutoryCurrent ? money(row.statutory.total_employer_cost) : 'Pending'}</span> },
     { key: "bank", header: "Bank", render: row => <PayrollEmployeeBankInfo result={bankFor(row)} employeeName={row.name} canEdit={canEditEmployee} onRetry={bankAuthority.refresh} /> },
     { key: "status", header: "Status", render: row => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Pending Review" : "Ready"}</Badge> },
-    { key: "action", header: "Actions", width: "1%", className: "whitespace-nowrap", render: row => <div className="inline-flex items-center gap-2 whitespace-nowrap"><button type="button" className="icon-btn" aria-label={`View Payroll for ${row.name}`} title="View Payroll" onClick={event => { event.stopPropagation(); setEmployeeId(row.id); }}><Eye size={16} aria-hidden="true" /></button><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
+    { key: "action", header: "Actions", width: "1%", className: "whitespace-nowrap", render: row => <div className="inline-flex items-center gap-2 whitespace-nowrap"><RecordViewAction label={`View Payroll for ${row.name}`} title="View Payroll" onClick={event => { event.stopPropagation(); setEmployeeId(row.id); }} /><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
   ];
   const columns = stage === "review" ? reviewColumns : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><small className="block text-text-secondary">{row.employee_code || "—"}</small></div> },

@@ -56,7 +56,7 @@ export default function PayrollFinalizedRecord({ run, onSnapshot, commandHeader 
     { key: "net", header: "Net Pay", align: "right", render: row => <strong>{money(row.statutory?.net_pay)}</strong> },
     { key: "bank", header: "Bank Info", render: row => <PayrollEmployeeBankInfo result={bankFor(row)} employeeName={row.employee_name} onRetry={() => setBankRetry(value => value + 1)} /> },
     { key: "status", header: "Status", render: () => <Badge tone="success">Finalized</Badge> },
-    { key: "action", header: "Action", render: row => row.calculation && row.statutory ? <div className="inline-flex gap-1"><button type="button" className="btn-secondary" onClick={() => setSelected(row)}><Eye size={16} aria-hidden="true" />View</button><PayrollPayslipAction runId={run.id} employeeId={row.employee_id} /></div> : <span className="text-xs text-text-secondary">Financial snapshot unavailable</span> },
+    { key: "action", header: "Action", render: row => row.calculation && row.statutory ? <div className="inline-flex gap-1"><RecordViewAction label={`View finalized Payroll for ${row.employee_name}`} onClick={() => setSelected(row)} /><PayrollPayslipAction runId={run.id} employeeId={row.employee_id} /></div> : <span className="text-xs text-text-secondary">Financial snapshot unavailable</span> },
   ];
   return <div className="space-y-4">
     {!commandHeader && <Card className="p-5"><h3 className="text-lg font-bold">Payroll Record</h3>
@@ -74,4 +74,4 @@ export default function PayrollFinalizedRecord({ run, onSnapshot, commandHeader 
     {selected && viewTime && <PayrollPayableTimeReview employee={{name:selected.employee_name,time:selected.time || [],pay:selected.calculation?.inputs?.compensation_start,calculation:selected.calculation,result:{earningsAvailable:true}}} month={record.period.period_start.slice(0,7)} canManage={false} frozen onClose={() => setViewTime(false)} />}
   </div>;
 }
-import { Eye } from 'lucide-react';
+import RecordViewAction from "../../../components/ui/RecordViewAction.jsx";

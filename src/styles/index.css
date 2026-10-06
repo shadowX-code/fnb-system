@@ -3009,9 +3009,10 @@
 .admin-action-menu [role=menuitem].is-danger { margin-top:4px; border-top:1px solid var(--theme-border); border-radius:0 0 6px 6px; }
 @media (prefers-reduced-motion:reduce) { .admin-select-trigger>svg { transition:none; } }
 
-/* Action contrast is separate from the brighter brand accent. */
-:root { --theme-action-primary:#15803d; --theme-action-primary-hover:#166534; }
-.btn-primary:not(:disabled) { background-color:var(--theme-action-primary); }
+/* Shared primary actions follow the brand token, with an accessible foreground. */
+:root { --theme-action-primary:var(--theme-primary); --theme-action-primary-hover:var(--theme-primary-hover); --theme-action-primary-foreground:#052e16; }
+.btn-primary { line-height:var(--leading-body-ui); white-space:nowrap; }
+.btn-primary:not(:disabled) { background-color:var(--theme-action-primary); color:var(--theme-action-primary-foreground); }
 .btn-primary:not(:disabled):hover { background-color:var(--theme-action-primary-hover); }
 .btn-primary:disabled { background:var(--theme-subtle); color:var(--theme-muted); box-shadow:none; }
 .admin-select-option[aria-selected=true] { color:var(--factory-success-text); }
