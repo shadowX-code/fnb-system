@@ -1,5 +1,11 @@
 # FeedX Development Log
 
+## 2026-10-07 — Finance Phase 2C: Cash & Working Capital Intelligence
+
+- Replaced Cash's foundation with canonical position/diagnostics, a selectable capital cycle, shared contextual exploration and separate profit/cash/working-capital movement.
+- Added a validated optional dated liquidity schedule with complete-coverage gates, Forecast checkpoints and explicit missing/partial evidence; no expense-derived commitments or accounting reconstruction.
+- Preserved Reporting authority and provider-neutral provenance, authorized scope and DEV fixture isolation. Provider/bank integration, Planning, Statements convergence and Production remain outside this phase. Canonical owner: docs/domains/finance.md.
+
 ## 2026-10-07 — Finance Phase 2B: Costs Intelligence
 
 - Replaced the Costs foundation with selectable revenue-to-profit flow, cost state, material Revenue-share movements and deterministic cost growth/ratio observations.

@@ -1,4 +1,5 @@
 import { capabilityKeys, capabilityStates, financialClassifications, previousPeriod, sourceSemantics, sourceIdentityKey, validatePeriod } from './foundation.js';
+import { validateLiquiditySchedule } from './cash.js';
 import { metricRegistry } from './metrics.js';
 import { operationalProvider } from './providers/operationalProvider.js';
 
@@ -38,6 +39,7 @@ export function validateDataset(dataset, request, { allowDemo = false } = {}) {
       }
     }
   }
+  if (dataset.liquiditySchedule !== undefined) validateLiquiditySchedule(dataset.liquiditySchedule, dataset);
   if (!Array.isArray(dataset.statements)) throw new Error('Invalid canonical statements');
   dataset.statements.forEach((statement) => validateStatement(statement, request, { allowDemo, demo: dataset.demo }));
   return dataset;

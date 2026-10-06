@@ -18,10 +18,10 @@ export type BalanceSnapshot = { provenance: Provenance; scope: Scope; accountIde
 export type SyncState = { connectionId: string; resource: Capability; cursor: string | null; lastSuccessAt: string | null; status: 'idle' | 'running' | 'failed'; errorCode?: string };
 export type Completeness = 'complete' | 'partial' | 'unavailable' | 'unverified';
 export type Reconciliation = { status: 'reconciled' | 'unreconciled' | 'unverified'; evidence: SourceIdentity[]; checkedAt: string | null };
-export type MetricResult = { id: string; value: number | null; unit: 'money' | 'percent'; currency: string; scope: Scope; period: Period; provenance: Provenance[]; completeness: Completeness; reason: string | null; comparison: { value: number | null; period: Period; provenance: Provenance[]; completeness: Completeness } | null; target: { value: number; source: string } | null };
+export type MetricResult = { id: string; value: number | null; unit: 'money' | 'percent' | 'ratio' | 'days'; currency: string; scope: Scope; period: Period; provenance: Provenance[]; completeness: Completeness; reason: string | null; comparison: { value: number | null; period: Period; provenance: Provenance[]; completeness: Completeness } | null; target: { value: number; source: string } | null };
 export type Statement = { kind: 'profit_loss' | 'balance_sheet' | 'cash_flow'; provenance: Provenance[]; scope: Scope; period: Period; currency: string; completeness: Completeness; reconciliation: Reconciliation; lines: { accountIdentity?: SourceIdentity; classificationId: string | null; label: string; amount: number | null }[] };
 export type FinanceRequest = { scope: Scope; period: Period; currency: string };
-export type FinanceDataset = FinanceRequest & { metrics: Record<string, MetricResult>; classifications?: MetricResult[]; statements: Statement[]; capabilities: Record<Capability, CapabilityState>; sourceLabel: string; demo: boolean };
+export type FinanceDataset = FinanceRequest & { metrics: Record<string, MetricResult>; classifications?: MetricResult[]; liquiditySchedule?: LiquiditySchedule; statements: Statement[]; capabilities: Record<Capability, CapabilityState>; sourceLabel: string; demo: boolean };
 /** Adapters return validated canonical evidence, never credentials or raw vendor payloads. */
 export interface AccountingProvider {
   id: string;
@@ -63,3 +63,7 @@ export type FinanceAnalysis = AnalysisPair & {
   comparisonPeriod: Period; lag: number; profitDriverModel: ProfitDriverModel | null;
   outlets: { id: string; name: string; pair: AnalysisPair | null; position?: OutletPosition; history: (OutletPosition & { period: Period })[]; error: string | null }[];
 };
+
+/** Coverage is a provider assertion for the entire dated horizon, not the sum of known events. */
+export type CashEvent = { id: string; date: string; label: string; direction: 'inflow' | 'outflow'; kind: 'receivable' | 'supplier' | 'payroll' | 'rent' | 'tax' | 'debt' | 'other'; amount: number | null; completeness: Completeness; provenance: Provenance[]; reason: string | null };
+export type LiquiditySchedule = { scope: Scope; currency: string; asOf: string; horizon: Period; completeness: Completeness; provenance: Provenance[]; reason: string | null; events: CashEvent[] };

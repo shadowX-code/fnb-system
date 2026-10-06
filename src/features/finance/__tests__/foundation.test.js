@@ -34,7 +34,7 @@ describe('Finance evidence boundary', () => {
   });
   it('carries missing evidence without manufacturing zeros or working capital', () => {
     const metrics = metricResults(request);
-    expect(Object.keys(metrics)).toHaveLength(17);
+    expect(Object.keys(metrics)).toHaveLength(35);
     expect(metrics.cash.value).toBeNull();
     expect(metrics.working_capital.completeness).toBe('unavailable');
     expect(metricRegistry.working_capital.definition).toContain('Current assets');
@@ -48,7 +48,7 @@ describe('Finance evidence boundary', () => {
     expect(entity.metrics.prime_cost.value).toBe(247210);
     expect(entity.metrics.cash.provenance.every((source) => source.demo)).toBe(true);
     expect(entity.metrics.revenue.comparison.value).toBe(419250);
-    expect(entity.metrics.working_capital.value).toBeNull();
+    expect(entity.metrics.working_capital.value).toBe(276860);
     const group = await provider.readOverview({ ...request, scope: { kind: 'group', id: 'demo-group' } });
     expect(group.metrics.revenue.value).toBe(562000);
     expect(group.metrics.revenue.provenance).toHaveLength(4);

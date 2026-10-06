@@ -1,5 +1,5 @@
 import { capabilities, financialClassifications, validatePeriod } from '../foundation.js';
-import { metricResults, calculateDemoMetrics } from '../metrics.js';
+import { metricResults, calculateDemoMetrics, calculateDemoCashInputs } from '../metrics.js';
 
 export const fixtureScopes = Object.freeze([
   { value: 'group:demo-group', label: 'Demo Group · 2 legal entities', kind: 'group', id: 'demo-group' },
@@ -18,7 +18,7 @@ const rows = [
 ];
 export function createFixtureProvider({ development = false } = {}) {
   if (!development) throw new Error('Financial demo is available only in development');
-  const supported = capabilities({ account_balances: 'partial', financial_dimensions: 'supported', profit_loss_report: 'supported', chart_of_accounts: 'partial', transactions: 'unsupported', journal_lines: 'unsupported', inventory_valuation: 'unsupported', balance_sheet_report: 'unsupported', cash_flow_report: 'unsupported', incremental_sync: 'unsupported', webhooks: 'unsupported' });
+  const supported = capabilities({ account_balances: 'partial', financial_dimensions: 'supported', profit_loss_report: 'supported', chart_of_accounts: 'partial', transactions: 'unsupported', journal_lines: 'unsupported', inventory_valuation: 'supported', balance_sheet_report: 'unsupported', cash_flow_report: 'unsupported', incremental_sync: 'unsupported', webhooks: 'unsupported' });
   return {
     id: 'development_fixture', capabilities: supported,
     profitDriverModel: { label: 'Development illustration · Revenue − COGS − Labour − OPEX', drivers: ['revenue', 'cogs', 'labour', 'opex'] },
@@ -28,7 +28,7 @@ export function createFixtureProvider({ development = false } = {}) {
       const selected = rows.filter((row) => request.scope.kind === 'group' || (request.scope.kind === 'legal_entity' && row.entity === request.scope.id) || (request.scope.kind === 'outlet' && row.outlet === request.scope.id) || (request.scope.kind === 'dimension' && row.dimension === request.scope.id));
       const factor = 1 + (Number(request.period.start.slice(5, 7)) - 9) * 0.025;
       const values = Object.fromEntries(['revenue', 'cogs', 'labour', 'opex', 'cash', 'ap', 'ar'].map((id) => [id, Math.round(selected.reduce((sum, row) => sum + row[id], 0) * factor)]));
-      Object.assign(values, calculateDemoMetrics(values));
+      Object.assign(values, calculateDemoMetrics(values), calculateDemoCashInputs(values));
       const provenance = selected.map((row) => ({ identity: { providerId: 'development_fixture', connectionId: `demo-${row.entity}`, externalId: `${row.outlet ?? row.dimension}:${request.period.start}`, revision: '1' }, semantic: 'ACTUAL', demo: true, observedAt: '2026-10-01T02:00:00Z', evidenceAt: `${request.period.end}T23:59:59Z` }));
       const derived = ['cogs_percent', 'gross_profit', 'prime_cost', 'ebitda', 'gross_margin', 'labour_percent', 'prime_cost_percent', 'opex_percent', 'ebitda_margin'];
       const evidence = Object.fromEntries(Object.entries(values).map(([id, value]) => [id, { value, completeness: 'complete', provenance: provenance.map((source) => ({ ...source, semantic: derived.includes(id) ? 'DERIVED' : 'ACTUAL' })), reason: 'Development demo evidence; not business records' }]));
@@ -45,7 +45,17 @@ export function createFixtureProvider({ development = false } = {}) {
           return { ...metrics[parent], id: child.id, value, reason: 'Development classified illustration; not business records' };
         });
       });
-      return { ...request, metrics, classifications, capabilities: supported, sourceLabel: 'Development demo · illustrative accounting evidence', demo: true, statements: [{ kind: 'profit_loss', provenance, scope: request.scope, period: request.period, currency: 'MYR', completeness: 'complete', reconciliation: { status: 'unverified', evidence: [], checkedAt: null }, lines: ['revenue', 'cogs', 'gross_profit', 'labour', 'opex', 'ebitda'].map((id) => ({ classificationId: ['revenue', 'cogs', 'labour', 'opex'].includes(id) ? id : null, label: id, amount: metrics[id].value })) }] };
+      const date = (offset) => new Date(Date.parse(request.period.end) + offset * 86400000).toISOString().slice(0, 10);
+      const forecastSource = (externalId) => provenance.map((source) => ({ ...source, semantic: 'FORECAST', identity: { ...source.identity, externalId: `${source.identity.externalId}:${externalId}` } }));
+      const liquiditySchedule = { scope: request.scope, currency: request.currency, asOf: request.period.end, horizon: { start: date(1), end: date(30) }, completeness: 'complete', provenance: forecastSource('coverage'), reason: 'Complete illustrative 30-day schedule; not business commitments.', events: [
+        { id: 'supplier', date: date(5), label: 'Illustrative supplier commitment', direction: 'outflow', kind: 'supplier', amount: 30000 },
+        { id: 'rent', date: date(5), label: 'Illustrative rent commitment', direction: 'outflow', kind: 'rent', amount: 12000 },
+        { id: 'payroll', date: date(12), label: 'Illustrative payroll commitment', direction: 'outflow', kind: 'payroll', amount: 60000 },
+        { id: 'collection', date: date(19), label: 'Illustrative scheduled collection', direction: 'inflow', kind: 'receivable', amount: 45000 },
+        { id: 'tax', date: date(24), label: 'Illustrative tax commitment', direction: 'outflow', kind: 'tax', amount: 8000 },
+        { id: 'debt', date: date(28), label: 'Illustrative debt payment', direction: 'outflow', kind: 'debt', amount: 6000 },
+      ].map((event) => ({ ...event, completeness: 'complete', provenance: forecastSource(event.id), reason: 'Development illustration; not inferred from recognized expenses.' })) };
+      return { ...request, metrics, classifications, liquiditySchedule, capabilities: supported, sourceLabel: 'Development demo · illustrative accounting evidence', demo: true, statements: [{ kind: 'profit_loss', provenance, scope: request.scope, period: request.period, currency: 'MYR', completeness: 'complete', reconciliation: { status: 'unverified', evidence: [], checkedAt: null }, lines: ['revenue', 'cogs', 'gross_profit', 'labour', 'opex', 'ebitda'].map((id) => ({ classificationId: ['revenue', 'cogs', 'labour', 'opex'].includes(id) ? id : null, label: id, amount: metrics[id].value })) }] };
     },
     async readStatement(request) {
       if (request.kind !== 'profit_loss') return null;

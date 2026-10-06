@@ -1,12 +1,16 @@
 import { money, periodLabel } from '../reports/components/reportingFormatters.js';
 export function financialValue(metric) {
   if (metric?.value === null || metric?.value === undefined) return '—';
+  if (metric.unit === 'days') return `${metric.value.toFixed(1)} days`;
+  if (metric.unit === 'ratio') return `${metric.value.toFixed(2)}×`;
   return metric.unit === 'percent' ? `${metric.value.toFixed(1)}%` : money({ amount: metric.value, presence: 'present' });
 }
 export function movementValue(movement, unit = 'money') {
   if (movement.value === null) return 'Unavailable';
-  const displayZero = unit === 'percent' && Number(Math.abs(movement.value).toFixed(1)) === 0;
+  const displayZero = ['percent', 'days', 'ratio'].includes(unit) && Number(Math.abs(movement.value).toFixed(unit === 'ratio' ? 2 : 1)) === 0;
   const sign = displayZero ? '' : movement.value > 0 ? '+' : movement.value < 0 ? '−' : '';
+  if (unit === 'days') return `${sign}${Math.abs(movement.value).toFixed(1)} days`;
+  if (unit === 'ratio') return `${sign}${Math.abs(movement.value).toFixed(2)}×`;
   return unit === 'percent' ? `${sign}${Math.abs(movement.value).toFixed(1)} pp` : `${sign}${money({ amount: Math.abs(movement.value), presence: 'present' })}`;
 }
 export function financialSemantics(metric) {
