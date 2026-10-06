@@ -25,6 +25,8 @@ describe("28-turn physical regression planner", () => {
     expect(prompt).toContain("not isolated borrowed words");
     expect(prompt).toContain("An explicit language request switches immediately");
     expect(prompt).toContain("Preserve the current question/scenario thread");
+    expect(prompt).toContain("The starting preference no longer applies");
+    expect(prompt).not.toContain("Greeting / ambiguity fallback language only: Mandarin");
     expect(prompt).toContain(c.turns[0].transcript);
     expect(prompt).toContain("never replay as speech");
     expect(prompt).toContain("Do not invent missing speech");

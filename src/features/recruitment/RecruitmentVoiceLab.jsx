@@ -38,7 +38,7 @@ export default function RecruitmentVoiceLab({onClose}) {
     <PageHeader section="Staging only" title="Interviewer Voice Lab" description="Compare one interviewer across languages. Voice selection awaits human listening; the live interviewer remains marin." />
     <RecruitmentSection title="Controlled opening sample">
       <div className="p-4 grid gap-4">
-        <AdminSegmentedControl ariaLabel="Sample language" value={language} onChange={changeLanguage} options={languages} />
+        <AdminSegmentedControl label="Sample language" value={language} onChange={changeLanguage} options={languages} />
         <p className="text-sm text-text-secondary max-w-prose" lang={language === "zh" || language === "yue" ? "zh" : language}>{samples[language]}</p>
         <p className="text-xs text-text-secondary">Listen for calm Malaysian pacing, warm professional delivery and natural pronunciation. Compare the same sample; no candidate data or microphone is used. Cantonese quality requires human listening.</p>
       </div>
