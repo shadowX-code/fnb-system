@@ -278,7 +278,7 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
         { key: "revision", header: "Revision", render: (row) => <span>v{row.revision}{row.status === "finalized" && !row.current ? <small className="block text-text-secondary">Superseded</small> : row.current ? <small className="block text-primary">Current</small> : null}</span> },
         { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "finalized" ? "success" : "warning"}>{label(row.status)}</Badge> },
         { key: "finalized", header: "Finalized Date", render: (row) => row.finalized_at?.slice(0, 10) || "—" },
-        { key: "action", header: "Action", render: (row) => row.status === "finalized" ? <RecordViewAction label={`View ${row.period_start.slice(0, 7)} Payroll revision ${row.revision}`} onClick={() => { setMonth(row.period_start.slice(0, 7)); setOpenRunId(row.run_id); setStep(2); }} /> : <button type="button" className="font-semibold text-primary" onClick={() => { setMonth(row.period_start.slice(0, 7)); setOpenRunId(row.run_id); setStep(0); }}>Continue</button> },
+        { key: "action", header: "Action", render: (row) => row.status === "finalized" ? <RecordViewAction label={`View ${row.period_start.slice(0, 7)} Payroll revision ${row.revision}`} onClick={() => { setMonth(row.period_start.slice(0, 7)); setOpenRunId(row.run_id); setStep(2); }} /> : <button type="button" className="btn-secondary whitespace-nowrap" onClick={() => { setMonth(row.period_start.slice(0, 7)); setOpenRunId(row.run_id); setStep(0); }}>Continue</button> },
       ]} /> : <p className="p-6 text-sm text-text-secondary">No Payroll Runs match these filters.</p>}</Card>
   </div>;
   return <div className="space-y-4">
