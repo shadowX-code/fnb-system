@@ -75,3 +75,16 @@ it('only requests authorized outlet evidence and recovers from a read failure', 
   expect(spy.mock.calls.some(([query]) => query.outletId === 'hidden')).toBe(false);
   expect(screen.queryByText('Hidden outlet')).toBeNull();
 });
+
+it('preserves selected context when equivalent auth/store wrappers rerender', async () => {
+  const spy = vi.spyOn(reportingService, 'getMonthlyScopeFinancialReport').mockResolvedValue({ financials: Object.fromEntries(['revenue', 'purchaseBasedCogs', 'opex', 'netProfit'].map((field) => [field, { amount: null, presence: 'missing' }])) });
+  const props = () => ({ auth: { roleOutletIds: ['allowed'] }, store: { outlets: [{ id: 'allowed', name: 'Allowed outlet' }] } });
+  const view = render(<FinanceAnalysisPage {...props()} />);
+  await screen.findByRole('heading', { name: 'Profit Driver Explorer' });
+  fireEvent.click(screen.getByRole('button', { name: 'Allowed outlet', exact: true }));
+  expect(screen.getByRole('region', { name: 'Selected outlet performance' })).toBeTruthy();
+  const reads = spy.mock.calls.length;
+  view.rerender(<FinanceAnalysisPage {...props()} />);
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Selected outlet performance' })).toBeTruthy());
+  expect(spy).toHaveBeenCalledTimes(reads);
+});

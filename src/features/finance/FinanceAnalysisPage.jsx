@@ -72,7 +72,10 @@ export default function FinanceAnalysisPage({ store = {}, auth }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
-  const outlets = useMemo(() => getAccessibleOutlets(auth, store.outlets ?? []).map((outlet) => ({ id: outlet.id, name: outlet.name })), [auth, store.outlets]);
+  // Auth/store wrappers can rerender when shared controls open. Only changed authorized identities
+  // or labels invalidate this read; equal scope must preserve the user's analytical selection.
+  const outletSignature = JSON.stringify(getAccessibleOutlets(auth, store.outlets ?? []).map((outlet) => ({ id: outlet.id, name: outlet.name })));
+  const outlets = useMemo(() => JSON.parse(outletSignature), [outletSignature]);
   const comparisonMonth = comparisonMode === 'custom' ? customMonth : shiftMonth(monthlyPeriod(month), comparisonMode === 'year' ? -12 : -1).start.slice(0, 7);
   useEffect(() => {
     if (!financeDemoEnabled || mode !== 'demo') return;
