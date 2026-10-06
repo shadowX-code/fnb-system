@@ -636,16 +636,20 @@ effective employment end evidence. Today's Employee Legal Employer, status,
 type, position and workplace are not historical authority. A missing Joined
 Date prevents authoritative membership and is surfaced as a run-level Setup
 Required condition rather than silently treating an unverified month as payable.
-Population completeness checks every employee and date, including records not yet
-included in the Run. A missing dated assignment or active assignment without a Legal
-Employer cannot establish inclusion/exclusion and blocks all potentially affected
-entities. Verified inactive days and dated assignments to another employer establish
-exclusion; Joined Date after the period establishes no period overlap. Today's employer,
-status and workplace never exclude unknown historical records. There is no fixed
-cutover-date blocker: explicitly verified historical assignments can cover earlier
-periods. The authenticated preparation read exposes exact unresolved date ranges and
-missing fields only for accessible employees; inaccessible records still block the
-Run without disclosing identity. Finalized membership/snapshots remain pinned.
+Population completeness examines dated People evidence beyond current Run members,
+but only gaps plausibly linked to the Run's Legal Entity block it. For each unresolved
+date, the nearest effective known Legal Employer before and after that date defines
+the candidate entities. A gap between two employers remains blocking for both;
+records with no canonical employer association do not block unrelated company Runs.
+Superseded revisions and audit-only corrected cutover observations are excluded by
+the canonical People resolver. Candidate association never proves historical
+membership or backfills an assignment; inclusion remains the existing period authority.
+Verified inactive days and dated assignments to another employer establish exclusion;
+Joined Date after the period establishes no period overlap. Today's mutable employer,
+status and workplace do not establish historical evidence. There is no fixed cutover-date
+blocker. The authenticated preparation read exposes exact unresolved ranges/missing
+fields only for accessible candidates; inaccessible candidates still block their Run
+without disclosing identity. Finalized membership/snapshots remain pinned.
 A verified mid-period
 assignment change that the current Payroll model cannot represent as one
 employer/identity also remains Review Required with People revision evidence.
