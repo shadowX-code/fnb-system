@@ -20,8 +20,10 @@ it("reuses run evidence and bank batch through Prepare, Review, Finalize and Res
  expect(screen.queryByText('Loading monthly employee evidence…')).toBeNull();
  expect(screen.getAllByRole('columnheader').map(el=>el.textContent).slice(-3)).toEqual(['Bank','Status','Actions']);
  expect(screen.getByRole('button',{name:'Draft Payslip'}).querySelector('svg')).toBeNull();
+ expect(screen.getByRole('button',{name:'Draft Payslip'}).classList.contains('whitespace-nowrap')).toBe(true);
+ expect(within(screen.getByRole('region',{name:'Payroll Run Header'})).getByRole('navigation',{name:'Payroll Run stages'})).toBeTruthy();
  rerender(<RunsTab {...props} step={2}/>);
- expect(screen.getByRole('heading',{name:'Finalization Readiness'})).toBeTruthy();expect(screen.getByRole('button',{name:'Finalize Payroll'}).disabled).toBe(true);
+ expect(screen.getByRole('heading',{name:'Finalize Payroll'})).toBeTruthy();expect(screen.getByRole('button',{name:'Finalize Payroll'}).disabled).toBe(true);
  fireEvent.click(screen.getByRole('button',{name:'Resolve Employment History Required'}));expect(props.setStep).toHaveBeenCalledWith(0);
  rerender(<RunsTab {...props} step={0}/>);
  await screen.findByRole('button',{name:'View Time for QA Employee'});

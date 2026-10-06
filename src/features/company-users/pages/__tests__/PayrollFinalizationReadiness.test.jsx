@@ -26,6 +26,8 @@ it("statutory resolution goes to Review and changing calculations stay blocked",
  const onResolve=vi.fn();
  render(<Finalization run={{}} read={{...read,calculating:true}} readiness={{...readiness,statutory:{ready:false}}} allReady={false} canFinalize onResolve={onResolve}/>);
  fireEvent.click(screen.getByRole("button",{name:"Resolve Statutory"}));expect(onResolve).toHaveBeenCalledWith(1);
- expect(screen.getAllByText("Pending").length).toBe(4);
+ expect(screen.getByRole("heading",{name:"Finalize Payroll"})).toBeTruthy();
+ expect(screen.queryByRole("heading",{name:"Finalization Readiness"})).toBeNull();
+ expect(screen.queryByText("Gross Payroll")).toBeNull();
  expect(finalizationGates({...readiness,time:{ready:false,period_in_progress:true}},false).find(g=>g.key==='period').ready).toBe(false);
 });

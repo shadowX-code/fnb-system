@@ -23,7 +23,7 @@ export default function PayrollPayslipAction({ runId, employeeId, draft = false 
   }
   const title = draft ? 'Draft Payslip' : 'Payslip';
   return <>
-    <button type="button" className="btn-secondary" disabled={busy} onClick={event => { event.stopPropagation(); load(); }}>{!draft && <FileText size={16} aria-hidden="true" />}{title}</button>
+    <button type="button" className="btn-secondary whitespace-nowrap shrink-0" disabled={busy} onClick={event => { event.stopPropagation(); load(); }}>{!draft && <FileText size={16} aria-hidden="true" />}{title}</button>
     {open && <Modal title={title} size="xl" description={draft ? 'DRAFT · NOT FINAL · Admin preview of the current calculation.' : 'Private document from the finalized Payroll snapshot.'}
       onClose={close} footer={<button type="button" className="btn-secondary" onClick={close}>Close</button>}>
       {busy && <p role="status">Opening payslip…</p>}

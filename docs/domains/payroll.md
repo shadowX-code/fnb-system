@@ -1194,6 +1194,12 @@ unreconciled-day count. Genuine source updates retain explicit Reconcile & Revie
 Prepare progression remains available while incomplete, using Continue to Review until
 employee preparation is ready; it does not certify Run finalization readiness.
 
+The Run Header owns title/status/readiness, financial totals and integrated stage
+navigation across Prepare, Review and Finalize. Each stage uses one lightweight content
+heading and attention/required-item summary; Finalize presents its canonical checklist
+without repeating the header totals. Payslip actions retain canonical secondary-button
+typography and a single-line label alongside the icon-only Employee View action.
+
 Prepare and Review retain the same employee surface and shared Run evidence across
 stage changes. Finalization Readiness consumes that same read, separates employee
 preparation progress from Run gates and routes unresolved gates back to Prepare or

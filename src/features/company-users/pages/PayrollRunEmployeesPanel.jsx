@@ -1,3 +1,4 @@
+import PayrollStageHeading from "./PayrollStageHeading.jsx";
 import PayrollPhStatutory from "./PayrollPhStatutory.jsx";
 import FoundationForm from "./PayrollCompensationForm.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -211,7 +212,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     { key: "employer", header: "Employer Cost", align: "right", render: row => <span className="tabular-nums">{row.result.statutoryCurrent ? money(row.statutory.total_employer_cost) : 'Pending'}</span> },
     { key: "bank", header: "Bank", render: row => <PayrollEmployeeBankInfo result={bankFor(row)} employeeName={row.name} canEdit={canEditEmployee} onRetry={bankAuthority.refresh} /> },
     { key: "status", header: "Status", render: row => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Pending Review" : "Ready"}</Badge> },
-    { key: "action", header: "Actions", render: row => <div className="inline-flex gap-1"><button type="button" className="icon-btn" aria-label={`View Payroll for ${row.name}`} title="View Payroll" onClick={event => { event.stopPropagation(); setEmployeeId(row.id); }}><Eye size={16} aria-hidden="true" /></button><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
+    { key: "action", header: "Actions", width: "1%", className: "whitespace-nowrap", render: row => <div className="inline-flex items-center gap-2 whitespace-nowrap"><button type="button" className="icon-btn" aria-label={`View Payroll for ${row.name}`} title="View Payroll" onClick={event => { event.stopPropagation(); setEmployeeId(row.id); }}><Eye size={16} aria-hidden="true" /></button><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
   ];
   const columns = stage === "review" ? reviewColumns : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><small className="block text-text-secondary">{row.employee_code || "—"}</small></div> },
@@ -234,9 +235,9 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     { key: "status", header: "Status", render: (row) => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Need Attention" : "Ready"}</Badge> },
     { key: "action", header: "Action", render: (row) => <button type="button" className="font-semibold text-primary" onClick={() => setEmployeeId(row.id)}>Review</button> },
   ];
-  return <div className="space-y-4">
-    <Card className="flex flex-wrap items-center justify-between gap-3 p-4"><div><h3 className="text-lg font-bold">{stage === "review" ? "Review Payroll" : "Prepare Payroll"}</h3>
-      <p className="text-sm text-text-secondary">{rows.length} employees · {rows.filter(row => !row.needsReview).length} ready · {rows.filter(row => row.needsReview).length} need attention</p></div></Card>
+  return <div className="space-y-3">
+    <PayrollStageHeading title={stage === "review" ? "Review Payroll" : "Prepare Payroll"}
+      summary={evidence?.scope === scope ? `${rows.length} employees · ${rows.filter(row => !row.needsReview).length} ready · ${rows.filter(row => row.needsReview).length} need attention` : "Checking employee preparation…"} />
     {(synchronizationError || unsynchronizedDays > 0) && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
       <p>{synchronizationError ? "Payroll evidence could not be synchronized." : `${unsynchronizedDays} day${unsynchronizedDays === 1 ? "" : "s"} of time evidence need synchronization.`}</p>
       {(unsynchronizedDays === 0 || active) && <button type="button" className="btn-secondary" disabled={busy || runRead?.calculating} onClick={retryEvidence}>{busy ? "Synchronizing…" : "Retry Evidence Sync"}</button>}

@@ -289,7 +289,7 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
       <MonthPickerField className="w-full sm:w-[180px]" ariaLabel="Pay Period" value={month} onChange={value => changeRunContext(entityId, value)} />
       </div>
     </section>
-    <Card className="space-y-3 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">{new Date(`${month}-01T12:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" })} Payroll</h2>
+    <section aria-label="Payroll Run Header"><Card className="space-y-3 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold">{new Date(`${month}-01T12:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" })} Payroll</h2>
       {run && <p className="text-sm text-text-secondary">Revision {run.revision}{run.supersedes_run_id ? " · Correction" : ""}</p>}
       {run && <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><Badge tone={["ready", "finalized", "paid"].includes(run.status) ? "success" : "warning"}>{label(run.status)}</Badge><span>{`${employeeCount ?? (commandRows.length || "—")} employees`}</span>
         {!["finalized", "paid"].includes(run.status) && <span>{commandRows.length ? `${readyCount} / ${commandRows.length} employees ready` : "Checking employee preparation…"}</span>}
@@ -298,9 +298,11 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
         {runs.length > 1 && <SelectField ariaLabel="Payroll revision" value={run?.id || ""} onChange={(value) => { setOpenRunId(value); setStep(runs.find((item) => item.id === value)?.status === "finalized" ? 2 : 0); }} options={runs.map((item) => ({ value: item.id, label: `Revision ${item.revision} · ${label(item.status)}` }))} />}
       </div></div>
       {step !== 2 && state?.calculation?.employment_issue && <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><PayrollEmploymentHistoryRequired issue={state.calculation.employment_issue} preparation={runRead?.data?.preparation} employees={data.employees} canEditEmployee={canEditEmployee} /></div>}
-      {run && step !== 2 && <><dl className="grid grid-cols-2 gap-4 border-t border-border pt-3 lg:grid-cols-4">{[["Gross Payroll", commandTotals.gross], ["Employee Deductions", commandTotals.deductions], ["Net Payroll", commandTotals.net], ["Employer Cost", commandTotals.employerCost]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 font-bold tabular-nums">{displayMoney(state?.calculation?.employment_issue || runRead?.calculating ? null : value)}</dd></div>)}</dl>
+      {run && <><dl className="grid grid-cols-2 gap-4 border-t border-border pt-3 lg:grid-cols-4">{[["Gross Payroll", commandTotals.gross], ["Employee Deductions", commandTotals.deductions], ["Net Payroll", commandTotals.net], ["Employer Cost", commandTotals.employerCost]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 font-bold tabular-nums">{displayMoney(state?.calculation?.employment_issue || runRead?.calculating ? null : value)}</dd></div>)}</dl>
         {["finalized", "paid"].includes(run.status) ? <p className="text-xs text-text-secondary">Finalized {run.finalized_at ? new Date(run.finalized_at).toLocaleString() : "—"} · {approverName}. Read-only; changes require a Correction Revision.</p> : !allReady && <p className="text-xs text-text-secondary">Totals remain pending until required evidence is resolved.</p>}</>}
-    </Card>
+      {run && !["finalized", "paid"].includes(run.status) && <nav aria-label="Payroll Run stages" className="grid gap-1 border-t border-border pt-3 sm:grid-cols-3">{runSteps.map((name, index) => <button key={name} type="button" aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}
+      className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${step === index ? "bg-primary text-white" : "text-text-secondary hover:bg-surface-muted"}`}><span className="mr-2 text-xs opacity-70">{index + 1}.</span>{name}</button>)}</nav>}
+    </Card></section>
     {!run && <Card className="grid gap-4 p-5 sm:grid-cols-2">
       {!runs.length && <p className="text-sm text-text-secondary sm:col-span-2">No Payroll Run exists for this Legal Entity and pay period.</p>}
       {runs.length ? <div className="sm:col-span-2"><p className="text-sm text-text-secondary">This period already has a Payroll Run. Continue its current revision instead of creating a duplicate.</p>
@@ -312,8 +314,7 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
     {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
     {state?.error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">Readiness could not be checked. Reload before changing Run status.</p>}
     {run && ["finalized", "paid"].includes(run.status) && <PayrollFinalizedRecord run={run} commandHeader onSnapshot={setEmployeeSnapshot} />}
-    {run && !["finalized", "paid"].includes(run.status) && <><nav aria-label="Payroll Run stages" className="grid gap-1 rounded-xl border border-border bg-surface p-1 sm:grid-cols-3">{runSteps.map((name, index) => <button key={name} type="button" onClick={() => setStep(index)}
-      className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${step === index ? "bg-primary text-white" : "text-text-secondary hover:bg-surface-muted"}`}><span className="mr-2 text-xs opacity-70">{index + 1}.</span>{name}</button>)}</nav>
+    {run && !["finalized", "paid"].includes(run.status) && <>
       {step !== 2 && <>
         <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} canManage={canManage && mutable} canViewLeave={canViewLeave} canEditEmployee={canEditEmployee} bankRead={bankRead} onChanged={reload} runRead={runRead} focusEmployeeId={focusEmployeeId} stage={step === 1 ? "review" : "prepare"} />
         {step === 0 && <div className="flex flex-wrap items-center justify-between gap-3">
