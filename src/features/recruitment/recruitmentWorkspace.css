@@ -724,6 +724,90 @@
   width: 100%;
   height: 36px;
 }
-.recruitment-metric-action{display:flex;flex-direction:column;gap:5px;width:100%;height:100%;text-align:left;color:inherit;border:0;background:transparent;border-radius:6px;cursor:pointer}
-.recruitment-metric-action>span{font-size:12px;color:var(--theme-text-secondary)}.recruitment-metric-action>strong{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums}
-.recruitment-metric-action:hover>span{text-decoration:underline}.recruitment-metric-action:focus-visible{outline:2px solid var(--theme-primary);outline-offset:4px}
+.recruitment-metric-action {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  height: 100%;
+  text-align: left;
+  color: inherit;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.recruitment-metric-action > span {
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+}
+.recruitment-metric-action > strong {
+  font-size: 26px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.recruitment-metric-action:hover > span {
+  text-decoration: underline;
+}
+.recruitment-metric-action:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 4px;
+}
+
+/* Opening configuration uses the shared field/selection grammar. */
+.recruitment-config-note {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--theme-muted);
+  margin-bottom: 1rem;
+  max-width: 75ch;
+}
+.recruitment-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.recruitment-config-details {
+  border-top: 1px solid var(--theme-border);
+  padding-block: 1rem;
+  margin-top: 0.75rem;
+}
+.recruitment-config-details > summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+.recruitment-offering {
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-md, 0.75rem);
+  margin-bottom: 0.75rem;
+}
+.recruitment-offering > summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: var(--theme-surface-nested);
+}
+.recruitment-offering > summary::before {
+  content: "+";
+  color: var(--theme-muted);
+}
+.recruitment-offering[open] > summary::before {
+  content: "−";
+}
+.recruitment-offering-body {
+  padding: 1rem;
+}
+.recruitment-pay-preview {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  padding: 0.75rem;
+  border-left: 2px solid var(--theme-primary);
+  background: var(--theme-surface-nested);
+}

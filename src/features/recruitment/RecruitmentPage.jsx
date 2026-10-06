@@ -2,6 +2,7 @@ import {
   invitationAction,
   currentInvitation,
 } from "./invitationPresentation.js";
+import OpeningOfferings, { JobContextFields } from "./OpeningOfferings.jsx";
 import { useEffect, useState } from "react";
 import SelectField from "../../components/forms/SelectField.jsx";
 import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
@@ -18,7 +19,9 @@ import {
 import Modal from "../../components/feedback/Modal.jsx";
 import AdminSegmentedControl from "../../components/forms/AdminSegmentedControl.jsx";
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
-import RecruitmentVoiceLab, { voiceLabAvailable } from "./RecruitmentVoiceLab.jsx";
+import RecruitmentVoiceLab, {
+  voiceLabAvailable,
+} from "./RecruitmentVoiceLab.jsx";
 import InterviewProfileSettings from "./InterviewProfileSettings.jsx";
 import RecruitmentEvidenceReview from "./RecruitmentEvidenceReview.jsx";
 import { recruitmentService } from "./recruitmentService.js";
@@ -128,7 +131,7 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
   return (
     <Surface
       title={opening ? "Edit opening" : "New opening"}
-      description="Interview topics describe evidence to collect; the AI will choose its questions conversationally."
+      description="Confirm the role and employment terms, then choose how candidates should be interviewed."
       size="xl"
       onClose={onClose}
       footer={
@@ -149,7 +152,7 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
     >
       <div className="recruitment-form">
         <fieldset>
-          <legend>Opening</legend>
+          <legend>Opening Basics</legend>
           <div className="recruitment-form-grid">
             <AdminFormField label="Job-facing title" required>
               <input
@@ -177,6 +180,14 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
                 onChange={(value) => {
                   patch("outlet_id", value);
                   patch("workplace", value);
+                  const location = data.outlets.find(
+                    (row) => row.id === value,
+                  )?.candidate_location;
+                  if (location && !draft.config.job_context?.location)
+                    patchConfig("job_context", {
+                      ...draft.config.job_context,
+                      location,
+                    });
                 }}
                 ariaLabel="Workplace"
                 placeholder="Select workplace"
@@ -219,49 +230,47 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
             </AdminFormField>
           </div>
         </fieldset>
+        <JobContextFields
+          value={draft.config.job_context || {}}
+          onChange={(value) => patchConfig("job_context", value)}
+          description={draft.description}
+          onDescription={(value) => patch("description", value)}
+        />
+        {Object.keys(jobFacts).length > 0 && (
+          <fieldset>
+            <legend>Existing confirmed facts</legend>
+            <p className="recruitment-config-note">
+              These facts remain available to existing invitations. Transfer
+              offering-specific terms into the offerings below before removing
+              them from this new configuration.
+            </p>
+            <details>
+              <summary>Review existing information</summary>
+              <div className="recruitment-form-grid">
+                {Object.entries(jobFacts).map(([key, value]) => (
+                  <AdminFormField key={key} label={key.replaceAll("_", " ")}>
+                    <input
+                      className={fieldClass}
+                      value={value}
+                      onChange={(e) => {
+                        const next = { ...jobFacts };
+                        if (e.target.value.trim()) next[key] = e.target.value;
+                        else delete next[key];
+                        patchConfig("job_facts", next);
+                      }}
+                    />
+                  </AdminFormField>
+                ))}
+              </div>
+            </details>
+          </fieldset>
+        )}
+        <OpeningOfferings
+          value={draft.config.employment_offerings || []}
+          onChange={(value) => patchConfig("employment_offerings", value)}
+        />
         <fieldset>
-          <legend>Job Information</legend>
-          <p className="text-sm text-text-secondary mb-3">
-            Confirmed information for candidates only. Leave unconfirmed details
-            blank. Position, workplace and employer use the masters above;
-            employee contracts and payroll remain separate.
-          </p>
-          <div className="recruitment-form-grid">
-            <AdminFormField label="Job scope">
-              <input
-                className={fieldClass}
-                value={draft.description}
-                onChange={(e) => patch("description", e.target.value)}
-              />
-            </AdminFormField>
-            {Object.entries({
-              employment_type: "Offered employment type",
-              offered_salary:
-                "Offered salary / range (include currency and pay period)",
-              working_hours: "Working / operating hours",
-              shift_arrangement: "Shift arrangement",
-              public_holidays: "Public-holiday expectation",
-              benefits: "Confirmed benefits",
-              additional_facts: "Other approved job information",
-            }).map(([key, label]) => (
-              <AdminFormField key={key} label={label}>
-                <input
-                  className={fieldClass}
-                  maxLength={1000}
-                  value={jobFacts[key] || ""}
-                  onChange={(e) => {
-                    const next = { ...jobFacts };
-                    if (e.target.value.trim()) next[key] = e.target.value;
-                    else delete next[key];
-                    patchConfig("job_facts", next);
-                  }}
-                />
-              </AdminFormField>
-            ))}
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend>Interview</legend>
+          <legend>Interview Profile</legend>
           <div className="recruitment-form-grid">
             <AdminFormField
               label="Interview Profile"
@@ -296,6 +305,10 @@ function OpeningForm({ opening, data, busy, onSave, onClose, inline = false }) {
         </fieldset>
         <fieldset>
           <legend>Interview Requirements</legend>
+          <p className="recruitment-config-note">
+            What the interviewer actively verifies. These requirements stay
+            separate from facts shared with candidates.
+          </p>
           <div className="recruitment-form-grid">
             <AdminFormField label="Weekend availability">
               <SelectField
@@ -462,7 +475,9 @@ export default function RecruitmentPage({ auth }) {
     [statusFilter, setStatusFilter] = useState("all"),
     [workplaceFilter, setWorkplaceFilter] = useState("all"),
     [positionFilter, setPositionFilter] = useState("all");
-  const [voiceLabOpen, setVoiceLabOpen] = useState(new URLSearchParams(window.location.search).get("voiceLab") === "1");
+  const [voiceLabOpen, setVoiceLabOpen] = useState(
+    new URLSearchParams(window.location.search).get("voiceLab") === "1",
+  );
   const [formOpening, setFormOpening] = useState(undefined),
     [profilesOpen, setProfilesOpen] = useState(false),
     [applicationForm, setApplicationForm] = useState(false);
@@ -679,7 +694,12 @@ export default function RecruitmentPage({ auth }) {
       ))}
     </ul>
   );
-  if (voiceLabOpen && canManage && voiceLabAvailable()) return <div className="recruitment-workspace"><RecruitmentVoiceLab onClose={() => setVoiceLabOpen(false)} /></div>;
+  if (voiceLabOpen && canManage && voiceLabAvailable())
+    return (
+      <div className="recruitment-workspace">
+        <RecruitmentVoiceLab onClose={() => setVoiceLabOpen(false)} />
+      </div>
+    );
   if (profilesOpen && data)
     return (
       <div className="recruitment-workspace">
@@ -716,14 +736,22 @@ export default function RecruitmentPage({ auth }) {
         secondaryActions={
           !openingId ? (
             <div className="flex gap-2">
-            {canManage && voiceLabAvailable() && <button type="button" className="btn-secondary" onClick={() => setVoiceLabOpen(true)}>Voice Lab</button>}
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => setProfilesOpen(true)}
-            >
-              Interview Profiles
-            </button>
+              {canManage && voiceLabAvailable() && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setVoiceLabOpen(true)}
+                >
+                  Voice Lab
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setProfilesOpen(true)}
+              >
+                Interview Profiles
+              </button>
             </div>
           ) : null
         }

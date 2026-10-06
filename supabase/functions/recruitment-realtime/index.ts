@@ -97,7 +97,7 @@ Deno.serve(async (request) => {
       service
         .from("recruitment_interview_configs")
         .select(
-          "job_facts,target_minutes,required_topics,scenario_briefs,language_guidance,interview_instructions,opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition)",
+          "job_facts,job_context,employment_offerings,target_minutes,required_topics,scenario_briefs,language_guidance,interview_instructions,opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition)",
         )
         .eq("id", attempt.config_version_id)
         .single(),
@@ -155,7 +155,7 @@ Deno.serve(async (request) => {
   const { data: role } = await service
     .from("recruitment_interview_attempts")
     .select(
-      "preferred_language,application:recruitment_applications(position_snapshot,workplace_snapshot),config:recruitment_interview_configs(job_facts,opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition))",
+      "preferred_language,application:recruitment_applications(position_snapshot,workplace_snapshot),config:recruitment_interview_configs(job_facts,job_context,employment_offerings,opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition))",
     )
     .eq("id", context.attempt_id)
     .single();
@@ -168,6 +168,8 @@ Deno.serve(async (request) => {
     };
   if (role?.config) {
     context.job_facts = role.config.job_facts;
+    context.job_context = role.config.job_context;
+    context.employment_offerings = role.config.employment_offerings;
     context.interview_profile = role.config.interview_profile;
     context.opening_requirements = role.config.opening_requirements;
   }
