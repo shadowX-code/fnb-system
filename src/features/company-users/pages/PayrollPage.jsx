@@ -22,6 +22,7 @@ import FoundationForm from "./PayrollCompensationForm.jsx";
 export { default as FoundationForm } from "./PayrollCompensationForm.jsx";
 import { effectivePay, effectivePayVersions } from "./payrollCompensationPresentation.js";
 import PayrollPhProfile from "./PayrollPhProfile.jsx";
+import PayrollEmploymentHistoryRequired from "./PayrollEmploymentHistoryRequired.jsx";
 import PayrollFinalizationReadiness, { finalizationGates } from "./PayrollFinalizationReadiness.jsx";
 import { useEmployeeBankRead } from "./useEmployeeBankRead.js";
 import PayrollRunEmployeesPanel from "./PayrollRunEmployeesPanel.jsx";
@@ -277,7 +278,7 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
       <div className="flex flex-wrap gap-2">
         {runs.length > 1 && <SelectField ariaLabel="Payroll revision" value={run?.id || ""} onChange={(value) => { setOpenRunId(value); setStep(runs.find((item) => item.id === value)?.status === "finalized" ? 2 : 0); }} options={runs.map((item) => ({ value: item.id, label: `Revision ${item.revision} · ${label(item.status)}` }))} />}
       </div></div>
-      {step !== 2 && state?.calculation?.employment_issue && <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>Membership unresolved</strong><p className="mt-1">{payrollIssueLabel(state.calculation.employment_issue)}</p></div>}
+      {step !== 2 && state?.calculation?.employment_issue && <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><PayrollEmploymentHistoryRequired issue={state.calculation.employment_issue} preparation={runRead?.data?.preparation} employees={data.employees} canEditEmployee={canEditEmployee} /></div>}
       {run && step !== 2 && <><dl className="grid grid-cols-2 gap-4 border-t border-border pt-3 lg:grid-cols-4">{[["Gross Payroll", commandTotals.gross], ["Employee Deductions", commandTotals.deductions], ["Net Payroll", commandTotals.net], ["Employer Cost", commandTotals.employerCost]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 font-bold tabular-nums">{displayMoney(state?.calculation?.employment_issue || runRead?.calculating ? null : value)}</dd></div>)}</dl>
         {["finalized", "paid"].includes(run.status) ? <p className="text-xs text-text-secondary">Finalized {run.finalized_at ? new Date(run.finalized_at).toLocaleString() : "—"} · {approverName}. Read-only; changes require a Correction Revision.</p> : !allReady && <p className="text-xs text-text-secondary">Totals remain pending until required evidence is resolved.</p>}</>}
     </Card>
@@ -298,7 +299,7 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
         <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} canManage={canManage && mutable} canViewLeave={canViewLeave} canEditEmployee={canEditEmployee} bankRead={bankRead} onChanged={reload} runRead={runRead} focusEmployeeId={focusEmployeeId} stage={step === 1 ? "review" : "prepare"} />
         {step === 0 && <div className="flex justify-end"><button className="btn-primary" type="button" onClick={() => setStep(1)}>Review Payroll <ChevronRight size={16} /></button></div>}
       </>}
-      {step === 2 && <PayrollFinalizationReadiness run={run} read={runRead} readiness={state} allReady={allReady} canFinalize={canFinalize && (run.status === "ready" || (canManage && ["draft", "review_required"].includes(run.status)))} busy={busy} onResolve={setStep} onFinalize={() => requestTransition(run.id, "finalized")} bankRead={bankRead} />}
+      {step === 2 && <PayrollFinalizationReadiness employees={data.employees} canEditEmployee={canEditEmployee} run={run} read={runRead} readiness={state} allReady={allReady} canFinalize={canFinalize && (run.status === "ready" || (canManage && ["draft", "review_required"].includes(run.status)))} busy={busy} onResolve={setStep} onFinalize={() => requestTransition(run.id, "finalized")} bankRead={bankRead} />}
 
     </>}
     {pendingTransition && <Modal title={`${label(pendingTransition.status)} Payroll Run`}
@@ -314,7 +315,7 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
   </div>;
 }
 
-export function Overview({ data, canManage, entityId, month, run, readiness, onOpenRun, onOpenEmployees, runRead }) {
+export function Overview({ data, canManage, canEditEmployee, entityId, month, run, readiness, onOpenRun, onOpenEmployees, runRead }) {
   const [history, setHistory] = useState(null);
   const localRead = usePayrollRunRead(run, data, !runRead, canManage);
   const sharedRead = runRead || localRead;
@@ -360,7 +361,7 @@ export function Overview({ data, canManage, entityId, month, run, readiness, onO
       <div className="min-w-0"><h2 className="text-xl font-bold text-text-primary">{periodTitle} Payroll</h2><p className="mt-1 text-sm text-text-secondary">{entityName(data.legal_entities || [], entityId)}</p>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm"><Badge tone={finalized || run?.status === "ready" ? "success" : run ? "warning" : "neutral"}>{run ? label(run.status) : "Not started"}</Badge><span>{`${employeeCount} employees`}</span></div></div>
       <button className="btn-primary" type="button" disabled={!canManage && !run} onClick={() => onOpenRun(finalized ? 2 : 0)}>{finalized ? "View Finalized Payroll" : run ? "Continue Payroll" : "Start Payroll"} <ChevronRight size={16} /></button></div>
-      {employmentIssue && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>Membership unresolved</strong><p className="mt-1">{payrollIssueLabel(employmentIssue)}</p></div>}
+      {employmentIssue && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><PayrollEmploymentHistoryRequired issue={employmentIssue} preparation={details?.preparation} employees={data.employees} canEditEmployee={canEditEmployee} /></div>}
       <div className="mt-4 border-t border-border pt-3"><p className="text-sm font-semibold" aria-live="polite">{readyCount != null ? `${readyCount} Ready · ${needCount} Need Attention` : detailError || readiness?.error ? "Readiness unavailable · Open Payroll to retry" : run ? "Checking employee readiness…" : "Start Payroll to assess employee readiness"}</p>
         {employeeCount > 0 && readyCount != null && <progress className="mt-2 h-1.5 w-full accent-primary" aria-label="Payroll employee readiness" value={readyCount} max={employeeCount} />}</div>
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border pt-4 sm:grid-cols-4">{metrics.map(([name, value]) => <div key={name} className="min-w-0"><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 break-words text-lg font-bold tabular-nums">{value}</dd></div>)}</dl>
@@ -593,7 +594,7 @@ export default function PayrollPage({ auth }) {
           {tab === "overview" && <AdminFilterToolbar compact ariaLabel="Payroll context"
             outlet={<SelectField label="Legal Entity" value={entityId} onChange={changeEntity} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
             period={<MonthPickerField label="Pay Period" value={month} onChange={(value) => { setMonth(value); setOpenRunId(""); }} />} />}
-          {tab === "overview" && <Overview data={data} canManage={canManage} entityId={entityId} month={month} run={activeRun} readiness={readiness?.runId === activeRun?.id ? readiness : null} onOpenRun={openRun} onOpenEmployees={() => setTab("employees")} runRead={runRead} />}
+          {tab === "overview" && <Overview data={data} canManage={canManage} canEditEmployee={canEdit(auth, "employees")} entityId={entityId} month={month} run={activeRun} readiness={readiness?.runId === activeRun?.id ? readiness : null} onOpenRun={openRun} onOpenEmployees={() => setTab("employees")} runRead={runRead} />}
           {tab === "employees" && <ProfilesTab data={data} canManage={canManage} reload={reload} entityId={entityId} onEntityChanged={changeEntity} />}
           {tab === "runs" && <RunsTab data={data} canManage={canManage} canViewLeave={hasPermission(auth, "crew_leave.view")} canEditEmployee={canEdit(auth, "employees")} canFinalize={canFinalize} reload={reload} entityId={entityId} setEntityId={changeEntity} month={month} setMonth={setMonth} step={runStep} setStep={setRunStep} openRunId={openRunId} setOpenRunId={setOpenRunId} readiness={readiness} runRead={runRead} />}
           {tab === "settings" && <SettingsTab data={data} canManage={canManage} reload={reload} entityId={entityId} onEntityChanged={changeEntity} />}

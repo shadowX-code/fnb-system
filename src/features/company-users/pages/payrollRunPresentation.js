@@ -95,7 +95,7 @@ export function payrollIssueLabel(issue, context = {}) {
   };
   if (phReasons[code]) return `${phReasons[code]}${detail ? ` · ${detail}` : ""}`;
   if (code === "pay_history_missing") return `Pay history missing · ${range(detail)}`;
-  if (code === "employment_history_unresolved") return `Employment assignment history unresolved · ${range(detail)}`;
+  if (code === "employment_history_unresolved") return `Historical employment is unverified for ${range(detail)}.`;
   if (code === "component_proration_policy_required" || code === "component_multiple_amounts_requires_review") {
     const component = context.components?.find(c => c.id === detail);
     return `${component?.name || "Recurring component"} · ${code === "component_proration_policy_required" ? "Component proration policy required" : "Multiple amounts in one period require review"}`;
@@ -126,7 +126,7 @@ export function payrollIssueLabel(issue, context = {}) {
     lindung_june_mandatory_evidence_required: "June 2026 LINDUNG contributions are mandatory. Confirm June evidence; later opt-out does not cancel June.",
     lindung_employee_evidence_changed: "Employee nationality changed since LINDUNG confirmation. Reverify worker coverage evidence.",
     lindung_negative_wage_base: "LINDUNG contributable wages are negative; review earning and unpaid-time evidence.",
-    employment_joined_date_missing: "Joined Date is required to resolve period employment",
+    employment_joined_date_missing: "Joined Date is missing; historical employment for this payroll period cannot be verified.",
     employment_assignment_requires_review: "Period employment assignment requires review",
     legal_employer_unresolved: "Legal Employer is unresolved for this period",
     mid_period_employment_change: "Employment assignment changes during this period; review employer and identity",

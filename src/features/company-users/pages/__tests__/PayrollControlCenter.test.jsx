@@ -20,7 +20,7 @@ vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {
   readHolidayApplicability: mocks.readHolidayApplicability,
   readHolidayHistory: mocks.readHolidayHistory, readRunHistory: mocks.readRunHistory,
 } }));
-vi.mock("../../../../utils/accessControl.js", () => ({ hasPermission: () => true }));
+vi.mock("../../../../utils/accessControl.js", () => ({ hasPermission: () => true, canEdit: () => true }));
 
 import PayrollPage, { Overview } from "../PayrollPage.jsx";
 
@@ -93,8 +93,8 @@ describe("Payroll Control Center", () => {
     render(<Overview data={fixture} entityId="entity-1" month="2026-09" run={fixture.periods[0].runs[0]}
       readiness={{calculation:{ready:false,employment_issue:"employment_joined_date_missing"}}}
       canManage onOpenRun={vi.fn()} onOpenEmployees={vi.fn()} />);
-    await screen.findByText("Membership unresolved");
-    expect(screen.getAllByText("Joined Date is required to resolve period employment").length).toBeGreaterThan(0);
+    await screen.findByText("Employment History Required");
+    expect(screen.getAllByText("Joined Date is missing; historical employment for this payroll period cannot be verified.").length).toBeGreaterThan(0);
     expect(screen.queryByText("0 Ready · 0 Need Attention")).toBeNull();
   });
   it("uses canonical financial totals when all employee results are current", async () => {
