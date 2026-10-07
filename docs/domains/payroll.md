@@ -586,8 +586,11 @@ separate.
 
 The People Payroll route requires `payroll.view`. Profile mutation requires
 `payroll.manage` plus employee scope; finalization requires
-`payroll.finalize`. Legal-Entity-wide runs and settings additionally
-require a protected Owner/Admin role. The new permissions are seeded only
+`payroll.finalize`. Legal-Entity-wide runs require an active Admin identity,
+the requested Payroll permission and All Outlets scope through the shared
+`payroll_can_manage_entity` authority; role names are not an additional gate.
+Selected-outlet scope does not authorize complete entity aggregates. Settings
+retain their separate protected Owner/Admin checks. The permissions are seeded only
 for Owner/Admin, not copied from Employees visibility. Public Payroll tables
 have RLS enabled and no direct client table privileges; authenticated Admins
 use narrow SECURITY DEFINER commands. All commands derive identity, enforce
