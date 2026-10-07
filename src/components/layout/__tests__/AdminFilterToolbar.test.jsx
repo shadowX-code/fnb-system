@@ -48,7 +48,7 @@ describe("AdminFilterToolbar", () => {
     localStorage.clear();
     const view = render(<CrewAdminOutletProvider outlets={outlets}><OutletHarness /></CrewAdminOutletProvider>);
     fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
-    fireEvent.click(screen.getByRole("button", { name: "Hola Hola" }));
+    fireEvent.click(screen.getByRole("option", { name: "Hola Hola" }));
     expect(localStorage.getItem(CREW_ADMIN_OUTLET_STORAGE_KEY)).toBe("outlet-2");
     view.rerender(<CrewAdminOutletProvider outlets={[outlets[0]]}><OutletHarness /></CrewAdminOutletProvider>);
     expect(screen.getByText("outlet-1")).not.toBeNull();

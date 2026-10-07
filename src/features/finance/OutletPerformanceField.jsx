@@ -10,7 +10,7 @@ export default function OutletPerformanceField({ outlets, selectedId, onSelect, 
   const yBound = Math.max(10, ...values.map((point) => Math.abs(point.y))) * 1.2;
   const x = (value) => 64 + (value + xBound) / (2 * xBound) * 672;
   const y = (value) => 34 + (yBound - value) / (2 * yBound) * 332;
-  return <section className="finance-outlet-field" aria-labelledby="finance-outlet-field-title">
+  return <section data-workspace-surface="analysis" className="finance-outlet-field" aria-labelledby="finance-outlet-field-title">
     <div className="finance-analysis-heading"><div><h2 id="finance-outlet-field-title">Outlet Performance Field</h2><p>Revenue growth meets profitability. Select an outlet to investigate its performance.</p></div><label className="finance-analysis-history"><input type="checkbox" checked={showHistory} onChange={(event) => setShowHistory(event.target.checked)} />Show 3-month trajectories</label></div>
     {<><div className="finance-outlet-canvas">
       <svg viewBox="0 0 800 466" role="group" aria-label="Outlet revenue growth and EBITDA margin field">

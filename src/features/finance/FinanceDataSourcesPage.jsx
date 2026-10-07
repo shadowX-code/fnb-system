@@ -1,7 +1,8 @@
 import { FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { useEffect, useState } from 'react';
 import { Link2, ShieldCheck } from 'lucide-react';
-import PageHeader from '../../components/layout/PageHeader.jsx';
+import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
+import FinancePreviewBoundary from './FinancePreviewBoundary.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import { money } from '../reports/components/reportingFormatters.js';
@@ -101,7 +102,7 @@ export function FinanceDataSources({ state }) {
     <div id="finance-data-source-panel" role="tabpanel" aria-label={section} className="finance-source-panel"><Panel state={state} /></div>
   </>;
 }
-export default function FinanceDataSourcesPage() {
+function LiveFinanceDataSourcesPage() {
   const [state, setState] = useState(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -111,9 +112,10 @@ export default function FinanceDataSourcesPage() {
     readFinanceDataSources().then((next) => { if (active) setState(next); }).catch(() => { if (active) setError('Financial source status could not be loaded.'); });
     return () => { active = false; };
   }, [attempt]);
-  return <div className="finance-workspace space-y-5">
-    <PageHeader section="Finance · Manage" title="Data Sources" description="Manage where financial evidence comes from and whether it is usable." primaryActions={<button type="button" className="btn-secondary" disabled aria-describedby="finance-connect-availability"><Link2 size={15} />Connect provider</button>} />
+  return <WorkspacePage className="finance-workspace" section="Finance · Manage" title="Data Sources" description="Manage where financial evidence comes from and whether it is usable." actions={<button type="button" className="btn-secondary" disabled aria-describedby="finance-connect-availability"><Link2 size={15} />Connect provider</button>}>
     <p id="finance-connect-availability" className="sr-only">Accounting connections are not available yet. FeedX operational reporting remains available.</p>
     <AsyncDataSurface loading={!state && !error} error={error} hasData={Boolean(state)} onRetry={() => setAttempt((value) => value + 1)}>{state ? <FinanceDataSources state={state} /> : null}</AsyncDataSurface>
-  </div>;
+  </WorkspacePage>;
 }
+
+export default function FinanceDataSourcesPage(props) { return <FinancePreviewBoundary auth={props.auth} section="data_sources"><LiveFinanceDataSourcesPage /></FinancePreviewBoundary>; }

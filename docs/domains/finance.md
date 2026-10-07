@@ -115,3 +115,9 @@ Period movement separates EBITDA, closing cash/Working Capital changes and suppl
 - Define Finance-specific grants if product access needs diverge from existing `reports.view`. Phase 1 reuses that grant and its server outlet scope; it grants no additional data access.
 
 Bukku integration, secrets, forecasting, Profit Levers, scenario planning, supplier/labour/product intelligence and capital/dividend planning remain outside Phase 1 and Phases 2A–2C.
+
+## Shared Admin Shell Pilot
+
+Finance consumes the canonical analytical `AppShell` and shared `WorkspacePage` context header/canvas defined in platform architecture. Overview, Analysis, Costs, Cash and Data Sources colocate page identity, existing scope/period controls and relevant actions. Financial projections, financial/evidence components, route ownership and reads retain their established authorities. Statements and Planning retain their existing bounded behavior within the shared page composition.
+
+The owner Design Preview action is a context-header command. Data Sources remains actual, read-only source administration even while analytical preview is enabled; its header explicitly identifies that boundary. Simulated analysis creates no connection, mapping, authority assignment or reconciliation evidence. Preview continues to be excluded from Production builds and gated to the canonical Staging host and owner role.

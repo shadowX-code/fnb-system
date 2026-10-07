@@ -646,6 +646,7 @@ function AdminApp() {
   return (
     <>
       <AppShell
+        presentation={workspace === "finance" ? "analytical" : "standard"}
         activeRoute={activeRoute}
         activeRouteId={activeRouteId}
         sections={accessibleSections}

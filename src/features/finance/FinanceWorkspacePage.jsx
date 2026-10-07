@@ -3,7 +3,7 @@ import { ProfitArchitecture } from './FinanceAnalyticalVisuals.jsx';
 import { FinanceReadiness, FinanceDisclosure, FinanceMissing, FinanceContext, FinanceProvenance } from './FinanceVisualSystem.jsx';
 import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
-import PageHeader from '../../components/layout/PageHeader.jsx';
+import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import MonthPickerField from '../../components/forms/MonthPickerField.jsx';
@@ -61,13 +61,13 @@ export function FinanceOverview({ dataset }) {
   const available = primary.filter((id) => metrics[id].value !== null).length;
   return <div className="finance-overview">
     {dataset.demo ? <div className="finance-demo" role="status">Development demo · All figures are illustrative. No business records are used.</div> : null}
-    <section className="finance-state" aria-label="Financial state">
+    <section data-workspace-surface="summary" className="finance-state" aria-label="Financial state">
       <div><span className="finance-label">Financial state · {periodLabel({ year: Number(dataset.period.start.slice(0, 4)), month: Number(dataset.period.start.slice(5, 7)) })}</span><h2>{dataset.demo ? 'Profit, with context.' : available < primary.length ? 'A partial financial picture.' : 'Your financial position.'}</h2><p>{dataset.sourceLabel}. {available} of {primary.length} Overview measures available.</p></div>
       <div className="finance-primary-state"><Metric metric={metrics.ebitda} prominent /><Metric metric={metrics.ebitda_margin} /></div>
     </section>
     <div className="finance-measures">{primary.filter((id) => !['ebitda', 'ebitda_margin'].includes(id) && metrics[id].value !== null).map((id) => <Metric key={id} metric={metrics[id]} />)}</div>
     <FinanceMissing ids={primary} metrics={metrics} registry={metricRegistry} />
-    <section className="finance-flow" aria-labelledby="finance-flow-title">
+    <section data-workspace-surface="analysis" className="finance-flow" aria-labelledby="finance-flow-title">
       <div className="finance-section-heading"><div><h3 id="finance-flow-title">Profit Architecture</h3><p>{dataset.demo ? 'Revenue flows through cost of goods, labour and operating expense to EBITDA.' : 'Existing Reporting EBITDA retains its operational calculation. Missing accounting inputs are shown explicitly.'}</p></div><span className="finance-label">Profit Flow</span></div>
       <ProfitArchitecture dataset={dataset} selectedId={selectedId} onSelect={setSelectedId} />
       <p className="finance-analysis-muted">{dataset.demo ? 'Development illustration · supplied revenue and cost inputs retain their disclosed basis.' : 'Operational EBITDA retains purchase-based COGS. Labour is not separately established; no missing input is inferred or deducted again.'}</p>
@@ -115,17 +115,15 @@ function LiveFinanceWorkspacePage({ section = 'overview', store = {}, auth }) {
     getFinanceProvider(mode).then((provider) => readFinanceOverview(provider, request, { allowDemo: financeDemoEnabled && mode === 'demo' })).then((result) => { if (active) setDataset(result); }).catch((failure) => { if (active) setError(failure.message || 'Finance is unavailable.'); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [mode, month, outletId, demoScope, demoOptions, section, attempt]);
-  return <div className="finance-workspace space-y-5">
-    <PageHeader section="Finance" title={sectionLabels[section]} description={sectionDescriptions[section]} />
-    {section === 'overview' ? <>
-      <AdminFilterToolbar>
+  return <WorkspacePage className="finance-workspace" section="Finance" title={sectionLabels[section]} description={sectionDescriptions[section]} controls={section === 'overview' ? <AdminFilterToolbar>
         {financeDemoEnabled ? <SelectField label="Evidence" value={mode} onChange={setMode} options={[{ value: 'operational', label: 'FeedX operational' }, { value: 'demo', label: 'Development demo' }]} /> : null}
         <SelectField label={mode === 'demo' ? 'Demo scope' : 'Outlet scope'} value={mode === 'demo' ? demoScope : outletId} onChange={mode === 'demo' ? setDemoScope : setOutletId} options={mode === 'demo' ? demoOptions : outletOptions} />
         <MonthPickerField label="Period" value={month} onChange={setMonth} />
-      </AdminFilterToolbar>
+      </AdminFilterToolbar> : null}>
+    {section === 'overview' ? <>
       <AsyncDataSurface loading={loading} error={error} hasData={Boolean(dataset)} isEmpty={!dataset} emptyTitle="Select financial evidence" emptyDescription="Choose a scope to review its financial state." onRetry={() => setAttempt((value) => value + 1)}>{dataset ? <><FinanceOverview dataset={dataset} /><FinanceDataStatus dataset={dataset} loading={loading} error={error} /></> : null}</AsyncDataSurface>
     </> : section === 'statements' ? <StatementsFoundation /> : <section className="finance-future"><h2>Foundation established</h2><p>This workspace will become available once its financial evidence and authority are validated.</p><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_overview')}>Review financial state <ArrowRight size={15} /></button></section>}
-  </div>;
+  </WorkspacePage>;
 }
 
 export default function FinanceWorkspacePage(props) { const section=props.section ?? "overview"; return section === "overview" ? <FinancePreviewBoundary auth={props.auth} section={section}><LiveFinanceWorkspacePage {...props}/></FinancePreviewBoundary> : <LiveFinanceWorkspacePage {...props}/>; }

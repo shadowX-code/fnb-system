@@ -21,7 +21,7 @@ function PerformanceStrip({ pair, onSelect }) {
 }
 function ProfitDriverExplorer({ pair, model, selectedMetric, onSelect }) {
   const movement = profitMovement(pair, model);
-  return <section className="finance-driver-explorer" aria-labelledby="finance-driver-title">
+  return <section data-workspace-surface="analysis" className="finance-driver-explorer" aria-labelledby="finance-driver-title">
     <div className="finance-analysis-heading"><div><h2 id="finance-driver-title">Driver Contribution</h2><p>Follow EBITDA movement into the evidence behind it.</p></div><span className="finance-analysis-muted">{financialPeriod(pair.previous.period)} → {financialPeriod(pair.current.period)}</span></div>
     <DriverContribution movement={movement} selectedId={selectedMetric} onSelect={onSelect} />
     {movement.total.value === null && movement.rows.every(row=>row.contribution === null) ? <FinanceReadiness title="Profit movement not ready">Comparable EBITDA and validated driver evidence are required to position contributions.</FinanceReadiness> : null}

@@ -1,3 +1,4 @@
+import "../components/layout/workspace.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Clock3, Download, Eye, EyeOff, Factory, FileText, FlaskConical, Gauge, KeyRound, LogOut, Link2, Menu, MessageSquareText, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShieldCheck, ShoppingCart, Sparkles, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
 import Modal from "../components/feedback/Modal.jsx";
@@ -960,7 +961,7 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
   );
 }
 
-export default function AppShell({ activeRoute, activeRouteId, sections, workspace = "restaurant", workspaceOptions = [], onWorkspaceChange, onNavigate, children, store, auth, onLogout, onNotify }) {
+export default function AppShell({ presentation = "standard", activeRoute, activeRouteId, sections, workspace = "restaurant", workspaceOptions = [], onWorkspaceChange, onNavigate, children, store, auth, onLogout, onNotify }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState("All");
   const [notificationContext, setNotificationContext] = useState({});
@@ -1314,14 +1315,14 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
         )}
       </div>
 
-      <div className="relative px-3 pb-2">
+      <div className="admin-shell-workspace-picker relative px-3 pb-2">
         <button className="flex w-full items-center justify-between rounded-xl border border-border bg-slate-50 px-3 py-2.5 text-left transition hover:border-primary/30 hover:bg-white" type="button" aria-expanded={workspaceMenuOpen} onClick={() => setWorkspaceMenuOpen((value) => !value)}>
           <span><span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Workspace</span><span className="mt-0.5 block text-sm font-bold text-text-primary">{workspaceOptions.find((option) => option.id === workspace)?.label ?? "Restaurant"}</span></span><ChevronDown size={16} className={`text-text-muted transition-transform ${workspaceMenuOpen ? "rotate-180" : ""}`} />
         </button>
         {workspaceMenuOpen ? <div className="absolute inset-x-3 top-[76px] z-20 rounded-xl border border-border bg-surface p-1.5 shadow-lg">{workspaceOptions.map((option) => { const Icon = option.id === "finance" ? Wallet : option.id === "guest_ai" ? Sparkles : option.id === "crew" ? Users : option.id === "factory" ? Factory : Building2; const active = workspace === option.id; return <button key={option.id} className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition ${active ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`} type="button" onClick={() => { setWorkspaceMenuOpen(false); onWorkspaceChange?.(option.id); }}><Icon size={16} /><span><span className="block text-sm font-bold">{option.label}</span><span className="block text-xs font-medium opacity-75">{option.detail}</span></span>{active ? <Check className="ml-auto" size={15} /> : null}</button>; })}</div> : null}
       </div>
 
-      <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-2.5">
+      <nav aria-label="Workspace navigation" className="admin-shell-navigation flex-1 space-y-2 overflow-y-auto px-3 py-2.5">
         {sections.map((section) => {
           const isOpen = openSections[section.label] ?? section.label === activeSectionLabel;
           return (
@@ -1350,6 +1351,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
                     <button
                       key={item.id}
                       type="button"
+                      aria-current={active ? "page" : undefined}
                       onClick={() => handleNavigate(item.id)}
                       className={`relative flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-[13px] font-medium leading-5 transition duration-150 ${
                         active
@@ -1417,7 +1419,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
   );
 
   return (
-    <div className="min-h-screen bg-app-bg text-text-primary">
+    <div className={`admin-shell min-h-screen bg-app-bg text-text-primary ${presentation === "analytical" ? "admin-shell-analytical" : ""}`} data-admin-shell={presentation}>
       {myProfileOpen ? <MyProfileModal auth={auth} onClose={() => setMyProfileOpen(false)} /> : null}
       {changePasswordOpen ? (
         <ChangePasswordModal
@@ -1444,12 +1446,12 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
       >
         {sidebarContent(true)}
       </aside>
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[236px] border-r border-border bg-sidebar lg:flex lg:flex-col">
+      <aside className="admin-shell-rail fixed inset-y-0 left-0 z-30 hidden w-[236px] border-r border-border bg-sidebar lg:flex lg:flex-col">
         {sidebarContent(false)}
       </aside>
 
-      <div className="lg:pl-[236px]">
-        <header className="sticky top-0 z-20 border-b border-border bg-app-bg/95 backdrop-blur">
+      <div className="admin-shell-body lg:pl-[236px]">
+        <header className="admin-shell-utility sticky top-0 z-20 border-b border-border bg-app-bg/95 backdrop-blur">
           <div className="flex h-11 items-center justify-between gap-4 px-4 sm:px-5 lg:px-6">
             <button
               ref={mobileMenuButtonRef}
@@ -1463,7 +1465,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
             </button>
             <div className="min-w-0">
               <div className="type-caption font-semibold uppercase tracking-[0.12em] text-text-secondary">
-                Smart Operations Workspace
+                {presentation === "analytical" ? <><span>FeedX</span><span aria-hidden="true"> / </span><span>{workspaceOptions.find(option => option.id === workspace)?.label ?? workspace}</span></> : "Smart Operations Workspace"}
               </div>
             </div>
             <div className="relative ml-auto flex items-center gap-2">
@@ -1545,8 +1547,8 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
           </div>
         </header>
 
-        <main className="px-4 py-3 sm:px-5 lg:px-6">
-          <div className="mx-auto max-w-[1440px]">
+        <main className="admin-shell-main px-4 py-3 sm:px-5 lg:px-6">
+          <div className="admin-shell-page-frame mx-auto max-w-[1440px]">
             {children}
           </div>
         </main>

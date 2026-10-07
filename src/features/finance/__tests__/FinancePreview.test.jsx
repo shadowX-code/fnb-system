@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import FinanceDataSourcesPage from '../FinanceDataSourcesPage.jsx';
 import FinancePreviewBoundary, { financePreviewGate } from '../FinancePreviewBoundary.jsx';
 import { reportingService } from '../../../services/reportingService.js';
 import { createFixtureProvider } from '../providers/fixtureProvider.js';
@@ -28,4 +29,14 @@ it('does not accept simulated evidence as canonical truth',async()=>{
   const request={scope:{kind:'group',id:'demo-group'},period:monthlyPeriod('2026-10'),currency:'MYR'};
   const dataset=await createFixtureProvider({development:true}).readOverview(request);
   expect(()=>validateDataset(dataset,request)).toThrow('Financial scope or evidence mismatch');
+});
+
+it('keeps Data Sources actual readiness and disabled connection actions while analytical Design Preview is on',async()=>{
+  sessionStorage.setItem('feedx-finance-design-preview','on');
+  render(<FinanceDataSourcesPage auth={{profile:{role_name:'owner'}}}/>);
+  await screen.findByRole('heading',{name:'No accounting provider connected'});
+  expect(screen.getByText(/Data Sources shows actual source readiness/)).toBeTruthy();
+  expect(screen.getByRole('button',{name:'Connect provider'}).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button',{name:'Exit Design Preview'}));
+  expect(screen.getByRole('heading',{name:'No accounting provider connected'})).toBeTruthy();
 });

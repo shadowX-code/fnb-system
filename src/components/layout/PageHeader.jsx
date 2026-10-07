@@ -7,6 +7,7 @@ export default function PageHeader({
   primaryActions,
   breadcrumbs,
   metadata,
+  variant,
 }) {
   const groupedActions = secondaryActions || primaryActions;
   const actionContent = groupedActions ? (
@@ -33,7 +34,7 @@ export default function PageHeader({
   );
 
   return (
-    <div className="space-y-3">
+    <div className={`space-y-3 ${variant === "context" ? "admin-context-identity" : ""}`} data-page-header>
       {breadcrumbs?.length ? (
         <nav aria-label="Breadcrumb" className="text-xs text-text-secondary">
           <ol className="flex flex-wrap items-center gap-1">

@@ -1,6 +1,6 @@
 import FinancePreviewBoundary from './FinancePreviewBoundary.jsx';
 import { useEffect, useMemo, useState } from 'react';
-import PageHeader from '../../components/layout/PageHeader.jsx';
+import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import MonthPickerField from '../../components/forms/MonthPickerField.jsx';
@@ -45,17 +45,15 @@ function LiveFinanceComparisonWorkspace({ store = {}, auth, title, description, 
     getFinanceProvider(mode).then((provider) => readFinanceAnalysis(provider, request, { comparisonPeriod: monthlyPeriod(comparisonMonth), outlets: includeOutlets ? eligible : [], allowDemo: financeDemoEnabled && mode === 'demo', signal: controller.signal })).then((result) => { if (!controller.signal.aborted) setAnalysis(result); }).catch((failure) => { if (!controller.signal.aborted) setError(failure.message === 'Choose a complete comparison month before the current period.' ? failure.message : 'Financial evidence could not be loaded. Retry the read or review Data Sources.'); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [mode, month, comparisonMonth, outletId, demoScope, demoScopes, outlets, attempt, includeOutlets]);
-  return <div className="finance-workspace finance-analysis-page space-y-5">
-    <PageHeader section="Finance" title={title} description={description} />
-    <AdminFilterToolbar>
+  return <WorkspacePage className="finance-workspace finance-analysis-page" section="Finance" title={title} description={description} controls={<AdminFilterToolbar>
       {financeDemoEnabled ? <SelectField label="Evidence" value={mode} onChange={setMode} options={[{ value: 'operational', label: 'FeedX operational' }, { value: 'demo', label: 'Development demo' }]} /> : null}
       <SelectField label={mode === 'demo' ? 'Demo scope' : 'Outlet scope'} value={mode === 'demo' ? demoScope : outletId} onChange={mode === 'demo' ? setDemoScope : setOutletId} options={mode === 'demo' ? demoScopes : [{ value: 'all', label: 'All authorized outlets' }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]} />
       <MonthPickerField label="Current period" value={month} onChange={setMonth} />
       <SelectField label="Compare with" value={comparisonMode} onChange={setComparisonMode} options={[{ value: 'previous', label: 'Previous month' }, { value: 'year', label: 'Same month last year' }, { value: 'custom', label: 'Selected month' }]} />
       {comparisonMode === 'custom' ? <MonthPickerField label="Comparison period" value={customMonth} onChange={setCustomMonth} /> : null}
-    </AdminFilterToolbar>
+    </AdminFilterToolbar>}>
     <AsyncDataSurface loading={loading} error={error} hasData={Boolean(analysis)} loadingRows={6} onRetry={() => setAttempt((value) => value + 1)}>{analysis ? <div key={`${mode}:${month}:${comparisonMonth}:${outletId}:${demoScope}`}>{children(analysis)}</div> : null}</AsyncDataSurface>
-  </div>;
+  </WorkspacePage>;
 }
 
 export default function FinanceComparisonWorkspace(props) { return <FinancePreviewBoundary auth={props.auth} section={props.title.toLowerCase()}><LiveFinanceComparisonWorkspace {...props}/></FinancePreviewBoundary>; }
