@@ -32,7 +32,7 @@ const fileBase64 = file => new Promise((resolve, reject) => {
 });
 
 // This is source preparation/review only. Publication delegates to Annual Calendar.
-export default function PayrollHolidayImport({ year, geography = "", outletId = null, calendarPublished = false, onPublished, onCandidateChanged, advancedContent, operational = false, onCandidatesChanged }) {
+export default function PayrollHolidayImport({ canPublish = false, year, geography = "", outletId = null, calendarPublished = false, onPublished, onCandidateChanged, advancedContent, operational = false, onCandidatesChanged }) {
   const [candidates, setCandidates] = useState(null);
   const [includeQa, setIncludeQa] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -157,7 +157,7 @@ export default function PayrollHolidayImport({ year, geography = "", outletId = 
     {selected && <Modal title={selected.status === "needs_review" ? "Review Proposed Holiday Calendar" : `Review ${year} Holiday Calendar`} size="xl" onClose={close} footer={<><button className="btn-secondary" disabled={busy} onClick={close}>Close</button>
       {(selected.status === "fetched" || verifiedRows.length > 0) && <button className="btn-primary" disabled={busy || (!transcription.trim() && !verifiedRows.length)} onClick={() => perform(async () => { await payrollService.parseHolidayCandidate(selected.id, transcription.trim() ? JSON.parse(transcription) : verifiedRows.map(r => ({ ...r, scope: r.state_code === "national" ? "national" : "state", state_code: r.state_code === "national" ? null : r.state_code }))); setVerifiedRows([]); setTranscription(""); })}>{scopedReview ? "Save Reviewed Dates" : "Review Holiday Changes"}</button>}
       {!scopedReview && reviewable && <button className="btn-primary" disabled={busy || !allReviewed || !attested} onClick={() => perform(() => payrollService.reviewHolidayCandidate(selected.id, selected.revision, decisions, true))}>Confirm Calendar Review</button>}
-      {!scopedReview && selected.status === "approved" && selected.proposal_metadata?.document_role !== "supplement" && <button className="btn-primary" disabled={busy} onClick={() => perform(async () => { await payrollService.publishHolidayCandidate(selected.id, selected.revision); setSelected(null); onPublished?.(); })}>Publish Holiday Calendar</button>}
+      {!scopedReview && selected.status === "approved" && selected.proposal_metadata?.document_role !== "supplement" && <button className="btn-primary" disabled={!canPublish || busy} onClick={() => perform(async () => { await payrollService.publishHolidayCandidate(selected.id, selected.revision); setSelected(null); onPublished?.(); })}>Publish Holiday Calendar</button>}
     </>}>
       <p className="mb-3 text-sm text-text-secondary">Malaysia · {geography ? geography === "national" ? "National" : malaysiaStateName(geography) : "All applicable states"}</p>
       <p className="mb-3 font-semibold">Official source: {title(selected)}</p>{scopedReview && <button type="button" className="btn-secondary mb-3" disabled={busy} onClick={()=>viewSource()}>View Official Source</button>}

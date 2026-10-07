@@ -1,3 +1,5 @@
+import { payrollCapabilities } from "../payrollCapabilities.js";
+const allPayroll = payrollCapabilities(() => true);
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 const mocks = vi.hoisted(() => ({ readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), saveDraftAdjustment: vi.fn(), decideTime: vi.fn() }));
@@ -12,7 +14,7 @@ beforeEach(() => {
   mocks.readPcb.mockResolvedValue({ results: [{ employee_id: "employee", applicable: false }] });
   mocks.readPreparation.mockResolvedValue({ results: [{ employee_id: "employee", time_relevant: false, projection: { status: "ready", lines: [] }, statutory_setup: { schemes: { pcb: { applicable: false, state: "not_applicable" } } } }] });
 });
-const props = { run: { id: "run", status: "draft" }, entityId: "entity", month: "2026-09", canManage: true, data: { employees: [{ id: "employee", name: "QA Employee" }], profiles: [{ employee_id: "employee", compensation: [{ effective_from: "2026-01-01", pay_basis: "monthly", basic_salary: 2000 }], statutory: [{ effective_from: "2026-01-01", pcb_applicable: false }] }] } };
+const props = { run: { id: "run", status: "draft" }, entityId: "entity", month: "2026-09", permissions: allPayroll, data: { employees: [{ id: "employee", name: "QA Employee" }], profiles: [{ employee_id: "employee", compensation: [{ effective_from: "2026-01-01", pay_basis: "monthly", basic_salary: 2000 }], statutory: [{ effective_from: "2026-01-01", pcb_applicable: false }] }] } };
 it("keeps monthly time irrelevant and displays persisted deductions before calculation", async () => {
   render(<PayrollRunEmployeesPanel {...props} />);
   expect(screen.queryByRole("button", { name: "All", exact: true })).toBeNull();
@@ -138,7 +140,7 @@ it("uses a compact processing table and keeps bank absence informational", async
   const snapshot=vi.fn();
   render(<PayrollRunEmployeesPanel {...props} stage="review" onSnapshot={snapshot} />);
   await screen.findByText("QA Employee");
-  expect(screen.getAllByRole("columnheader").map(item=>item.textContent)).toEqual(["Employee","Pay Basis","Basic / Hours","Gross","EPF","SOCSO","EIS","PCB","Deductions","Net Pay","Employer Cost","Bank","Status","Actions"]);
+  expect(screen.getAllByRole("columnheader").map(item=>item.textContent)).toEqual(["Employee","Pay Basis","Basic / Hours","Gross","EPF","SOCSO","LINDUNG 24 Jam","EIS","PCB","Deductions","Net Pay","Employer Cost","Bank","Status","Actions"]);
   expect(screen.queryByText("Missing")).toBeNull();
   expect(screen.getByText(/EE RM\s*100.00/)).toBeTruthy();
   expect(screen.getByText(/ER RM\s*200.00/)).toBeTruthy();
@@ -185,10 +187,10 @@ it.each([false, true])("uses only frozen LINDUNG evidence in finalized Review (p
   await screen.findByText("QA Employee");
   fireEvent.click(screen.getByRole("button",{name:"View Payroll for QA Employee",exact:true}));
   if(present) {
-    expect(screen.getByText("LINDUNG 24 Jam")).toBeTruthy();
+    expect(screen.getAllByText("LINDUNG 24 Jam")).toHaveLength(2);
     expect(screen.getByText("Participating")).toBeTruthy();
     expect(screen.getAllByText(/14.65/).length).toBeGreaterThan(0);
-  } else expect(screen.queryByText("LINDUNG 24 Jam")).toBeNull();
+  } else { expect(screen.getAllByText("LINDUNG 24 Jam")).toHaveLength(1); expect(screen.queryByText("Participating")).toBeNull(); }
 });
 
 it('preserves employee and active exception when the shared run projection refreshes',async()=>{

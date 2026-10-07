@@ -1,3 +1,4 @@
+import { payrollCapabilities } from "./payrollCapabilities.js";
 import RecordViewAction from "../../../components/ui/RecordViewAction.jsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronRight, Plus, Check, Minus, TriangleAlert, Clock } from "lucide-react";
@@ -79,7 +80,7 @@ function RegistryScheme({ scheme, state }) {
   return <InfoTooltip label={description}><Icon size={16} aria-hidden="true" className={scheduled ? "text-primary" : notApplicable ? "text-text-secondary" : resolved ? "text-emerald-700" : "text-amber-700"} /></InfoTooltip>;
 }
 
-export function ProfilesTab({ data, canManage, reload, entityId, onEntityChanged }) {
+export function ProfilesTab({ data, permissions = {}, reload, entityId, onEntityChanged }) {
   const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState("");
   const [setupEmployeeId, setSetupEmployeeId] = useState("");
@@ -135,11 +136,16 @@ export function ProfilesTab({ data, canManage, reload, entityId, onEntityChanged
       outlet={<SelectField label="Legal Entity" value={entityFilter} onChange={(value) => { setEntityFilter(value); setSelectedId(""); }} options={entities.map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
       search={<AdminSearchField label="Search" value={search} onChange={setSearch} placeholder="Employee name or code" />}
       filters={<><SelectField label="Employment Status" value={employmentFilter} onChange={setEmploymentFilter} options={[{value:"all",label:"All employment"}, ...["active", "resigned", "terminated"].map(value=>({value,label:label(value)}))]} /><SelectField label="Status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, ...["Ready", "Scheduled Change", "Confirmation Required", "Setup Required"].map((value) => ({ value, label: value }))]} /></>}
-      primaryActions={canManage && rows.some((row) => !row.profile) ? <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(""); setForm("create"); }}><Plus size={16} /> Set Up Employee</button> : null} />
+      primaryActions={permissions.setup && permissions.statutory && rows.some((row) => !row.profile) ? <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(""); setForm("create"); }}><Plus size={16} /> Set Up Employee</button> : null} />
     <Card>{visibleRows.length ? <DataTable columns={columns} rows={visibleRows} getRowKey={(row) => row.id}
       density="compact" tableClassName="!min-w-0" onRowClick={(row) => setSelectedId(row.id)} /> : <div className="p-8 text-center text-sm text-text-secondary">No employees match these filters.</div>}</Card>
     <Drawer open={Boolean(selectedEmployee) && !form} title={selectedEmployee?.name} eyebrow="Payroll employee" description={`${entityName(entities, selectedEmployee?.legal_entity_id)} · ${selectedEmployee?.workplace || "Workplace not set"}`} onClose={() => setSelectedId("")}
-      footer={canManage && selectedEmployee ? <div className="flex flex-wrap justify-end gap-2">{selected ? <><button className="btn-secondary" type="button" onClick={() => setForm("compensation")}>Edit Pay</button><button className="btn-secondary" type="button" onClick={() => setForm("statutory")}>Manage Statutory Setup</button><details className="text-sm"><summary>Advanced compliance</summary><button className="btn-secondary" type="button" onClick={() => setForm("ph_profile")}>PH Pay Profile</button></details><button className="btn-primary" type="button" onClick={() => setForm("recurring")}>Manage Components</button></> : <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(selectedEmployee.id); setForm("create"); }}>Set Up Employee</button>}</div> : null}>
+      footer={selectedEmployee ? <div className="flex flex-wrap justify-end gap-2">{selected ? <>
+        {permissions.setup && <button className="btn-secondary" type="button" onClick={() => setForm("compensation")}>Edit Pay</button>}
+        {permissions.statutory && <button className="btn-secondary" type="button" onClick={() => setForm("statutory")}>Manage Statutory Setup</button>}
+        {permissions.statutory && <details className="text-sm"><summary>Advanced compliance</summary><button className="btn-secondary" type="button" onClick={() => setForm("ph_profile")}>PH Pay Profile</button></details>}
+        {permissions.setup && <button className="btn-primary" type="button" onClick={() => setForm("recurring")}>Manage Components</button>}
+      </> : permissions.setup && permissions.statutory && <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(selectedEmployee.id); setForm("create"); }}>Set Up Employee</button>}</div> : null}>
       {selectedEmployee && <div className="space-y-5">
       <Badge tone={selected ? setupState({ profile: selected }) === "Ready" ? "success" : "warning" : "warning"}>{setupState({ profile: selected })}</Badge>
       {!selected && <p className="text-sm text-text-secondary">Pay has not been set up for this employee. Open Set Up Employee to create the first effective-dated profile.</p>}
@@ -183,7 +189,7 @@ export function ProfilesTab({ data, canManage, reload, entityId, onEntityChanged
 
 const runSteps = ["Prepare", "Review", "Finalize"];
 
-export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFinalize, reload, entityId, setEntityId, month, setMonth, step, setStep, openRunId, setOpenRunId, readiness, runRead }) {
+export function RunsTab({ data, permissions = {}, canViewLeave, canEditEmployee, canFinalize, reload, entityId, setEntityId, month, setMonth, step, setStep, openRunId, setOpenRunId, readiness, runRead }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -267,7 +273,7 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
       outlet={<SelectField label="Legal Entity" value={entityId} onChange={(value) => { setOpenRunId(""); setEntityId(value); }} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
       filters={<><SelectField label="Year" value={year} onChange={setYear} options={yearOptions} />
         <SelectField label="Status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, ...["draft", "review_required", "ready", "finalized", "paid"].map((value) => ({ value, label: label(value) }))]} /></>}
-      primaryActions={canManage ? <button className="btn-primary" type="button" onClick={() => setOpenRunId("new")}><Plus size={16} /> Start Payroll</button> : null} />
+      primaryActions={permissions.prepare ? <button className="btn-primary" type="button" onClick={() => setOpenRunId("new")}><Plus size={16} /> Start Payroll</button> : null} />
     {historyError && <p role="alert" className="text-sm text-rose-700">{historyError}</p>}
     <Card>{!history && !historyError ? <p className="p-6 text-sm text-text-secondary">Loading Payroll history…</p>
       : historyRows.length ? <DataTable density="compact" rows={historyRows} getRowKey={(row) => row.run_id} columns={[
@@ -315,20 +321,20 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
       {!runs.length && <p className="text-sm text-text-secondary sm:col-span-2">No Payroll Run exists for this Legal Entity and pay period.</p>}
       {runs.length ? <div className="sm:col-span-2"><p className="text-sm text-text-secondary">This period already has a Payroll Run. Continue its current revision instead of creating a duplicate.</p>
         <button className="btn-primary mt-3" type="button" onClick={() => { setOpenRunId(runs.find((item) => ["draft", "review_required", "ready"].includes(item.status))?.id || runs[0].id); setStep(0); }}>Open existing run</button></div>
-        : canManage ? <><AdminFormField label="Start reason" required><input className="control" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Monthly payroll preparation" /></AdminFormField>
+        : permissions.prepare ? <><AdminFormField label="Start reason" required><input className="control" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Monthly payroll preparation" /></AdminFormField>
           <div className="flex items-end"><button className="btn-primary" type="button" disabled={busy || !reason.trim() || !entityId} onClick={() => create()}><Plus size={15} /> Start Payroll</button></div></> : <p className="text-sm text-text-secondary">An authorized Payroll manager can prepare this period.</p>}</Card>}
-    {run?.status === "finalized" && canManage && !runs.some((item) => ["draft", "review_required", "ready"].includes(item.status)) && <Card className="flex flex-wrap items-end gap-3 p-4"><AdminFormField label="Correction reason" required><input className="control" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Historical entitlement correction" /></AdminFormField>
+    {run?.status === "finalized" && permissions.prepare && !runs.some((item) => ["draft", "review_required", "ready"].includes(item.status)) && <Card className="flex flex-wrap items-end gap-3 p-4"><AdminFormField label="Correction reason" required><input className="control" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Historical entitlement correction" /></AdminFormField>
       <button className="btn-secondary" type="button" disabled={busy || !reason.trim()} onClick={() => create(period.current_finalized_run_id || run.id)}>Create Correction Draft</button></Card>}
     {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
     {state?.error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">Readiness could not be checked. Reload before changing Run status.</p>}
     {run && ["finalized", "paid"].includes(run.status) && <PayrollFinalizedRecord run={run} commandHeader onSnapshot={setEmployeeSnapshot} />}
     {run && !["finalized", "paid"].includes(run.status) && <>
       {step !== 2 && <>
-        <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} canManage={canManage && mutable} canViewLeave={canViewLeave} canEditEmployee={canEditEmployee} bankRead={bankRead} onChanged={reload} runRead={runRead} focusEmployeeId={focusEmployeeId} stage={step === 1 ? "review" : "prepare"} />
+        <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} permissions={permissions} canViewLeave={canViewLeave} canEditEmployee={canEditEmployee} bankRead={bankRead} onChanged={reload} runRead={runRead} focusEmployeeId={focusEmployeeId} stage={step === 1 ? "review" : "prepare"} />
         {step === 0 && <div className="flex justify-end">
           <button className={preparationReady ? "btn-primary" : "btn-secondary"} type="button" onClick={() => setStep(1)}>{preparationReady ? "Review Payroll" : "Continue to Review"} <ChevronRight size={16} /></button></div>}
       </>}
-      {step === 2 && <PayrollFinalizationReadiness employees={data.employees} canEditEmployee={canEditEmployee} run={run} read={runRead} readiness={state} allReady={allReady} canFinalize={canFinalize && (run.status === "ready" || (canManage && ["draft", "review_required"].includes(run.status)))} busy={busy} onResolve={setStep} onFinalize={() => requestTransition(run.id, "finalized")} bankRead={bankRead} />}
+      {step === 2 && <PayrollFinalizationReadiness employees={data.employees} canEditEmployee={canEditEmployee} run={run} read={runRead} readiness={state} allReady={allReady} canFinalize={canFinalize && (run.status === "ready" || (permissions.prepare && ["draft", "review_required"].includes(run.status)))} busy={busy} onResolve={setStep} onFinalize={() => requestTransition(run.id, "finalized")} bankRead={bankRead} />}
 
     </>}
     {pendingTransition && <Modal title={`${label(pendingTransition.status)} Payroll Run`}
@@ -344,9 +350,9 @@ export function RunsTab({ data, canManage, canViewLeave, canEditEmployee, canFin
   </div>;
 }
 
-export function Overview({ data, canManage, canEditEmployee, entityId, month, run, readiness, onOpenRun, onOpenEmployees, runRead }) {
+export function Overview({ data, permissions = {}, canEditEmployee, entityId, month, run, readiness, onOpenRun, onOpenEmployees, runRead }) {
   const [history, setHistory] = useState(null);
-  const localRead = usePayrollRunRead(run, data, !runRead, canManage);
+  const localRead = usePayrollRunRead(run, data, !runRead, permissions.recalculate);
   const sharedRead = runRead || localRead;
   const details = sharedRead.data;
   const detailError = (runRead || localRead).error;
@@ -389,13 +395,13 @@ export function Overview({ data, canManage, canEditEmployee, entityId, month, ru
     <Card className="p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0"><h2 className="text-xl font-bold text-text-primary">{periodTitle} Payroll</h2><p className="mt-1 text-sm text-text-secondary">{entityName(data.legal_entities || [], entityId)}</p>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm"><Badge tone={finalized || run?.status === "ready" ? "success" : run ? "warning" : "neutral"}>{run ? label(run.status) : "Not started"}</Badge><span>{`${employeeCount} employees`}</span></div></div>
-      <button className="btn-primary" type="button" disabled={!canManage && !run} onClick={() => onOpenRun(finalized ? 2 : 0)}>{finalized ? "View Finalized Payroll" : run ? "Continue Payroll" : "Start Payroll"} <ChevronRight size={16} /></button></div>
+      <button className="btn-primary" type="button" disabled={!permissions.prepare && !run} onClick={() => onOpenRun(finalized ? 2 : 0)}>{finalized ? "View Finalized Payroll" : run ? "Continue Payroll" : "Start Payroll"} <ChevronRight size={16} /></button></div>
       {employmentIssue && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><PayrollEmploymentHistoryRequired issue={employmentIssue} preparation={details?.preparation} employees={data.employees} canEditEmployee={canEditEmployee} /></div>}
       <div className="mt-4 border-t border-border pt-3"><p className="text-sm font-semibold" aria-live="polite">{readyCount != null ? `${readyCount} Ready · ${needCount} Need Attention` : detailError || readiness?.error ? "Readiness unavailable · Open Payroll to retry" : run ? "Checking employee readiness…" : "Start Payroll to assess employee readiness"}</p>
         {employeeCount > 0 && readyCount != null && <progress className="mt-2 h-1.5 w-full accent-primary" aria-label="Payroll employee readiness" value={readyCount} max={employeeCount} />}</div>
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border pt-4 sm:grid-cols-4">{metrics.map(([name, value]) => <div key={name} className="min-w-0"><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 break-words text-lg font-bold tabular-nums">{value}</dd></div>)}</dl>
     </Card>
-    {canManage && Object.entries(sharedRead.calculationErrors || {}).map(([id, message]) => <div key={id} role="alert" className="text-sm text-rose-700">{data.employees?.find(employee => employee.id === id)?.name || 'Employee'}: {message} <button className="btn-secondary" type="button" disabled={sharedRead.calculating} onClick={() => sharedRead.retryCalculation(id)}>Retry Calculation</button></div>)}
+    {permissions.recalculate && Object.entries(sharedRead.calculationErrors || {}).map(([id, message]) => <div key={id} role="alert" className="text-sm text-rose-700">{data.employees?.find(employee => employee.id === id)?.name || 'Employee'}: {message} <button className="btn-secondary" type="button" disabled={sharedRead.calculating} onClick={() => sharedRead.retryCalculation(id)}>Retry Calculation</button></div>)}
     <Card title="Needs Attention"><div className="divide-y divide-border px-4">{attention.length ? attention.map(item => <div key={item.group} className="flex items-center justify-between gap-4 py-3 text-sm"><div className="min-w-0"><h3 className="font-semibold">{item.group}</h3><p className="mt-0.5 text-text-secondary">{item.label}</p></div><button className="btn-secondary shrink-0" type="button" aria-label={`Review ${item.group}`} onClick={item.open}>Review <ChevronRight size={14} /></button></div>) : <p className="py-4 text-sm text-text-secondary">{finalized ? "Payroll finalized. The current revision is read-only; any correction creates a new revision." : detailError || readiness?.error ? "Unable to check readiness. Open Payroll to review." : run && !rows ? "Checking items needing attention…" : run ? "No known blockers for this period. Review the run before finalization." : "Start a run to assess payable time, calculations and statutory readiness."}</p>}</div></Card>
     <Card title="Recent Payroll Runs">{historyError ? <p role="alert" className="p-4 text-sm">Unable to load recent Payroll Runs.</p> : history === null ? <p className="p-4 text-sm text-text-secondary">Loading recent runs…</p> : recent.length ? <DataTable density="compact" columns={[
       { key: "period", header: "Period", render: item => <strong>{new Intl.DateTimeFormat("en-MY", {month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(`${item.period_start}T00:00:00Z`))}</strong> },
@@ -406,13 +412,13 @@ export function Overview({ data, canManage, canEditEmployee, entityId, month, ru
   </div>;
 }
 
-function SettingsTab({ data, canManage, reload, entityId, onEntityChanged }) {
+function SettingsTab({ data, permissions = {}, reload, entityId, onEntityChanged }) {
 
   const [schedules, setSchedules] = useState(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
-  const canManageComponents = canManage && data.settings_authority?.components === true;
-  const canManageHolidays = canManage && data.settings_authority?.holidays === true;
+  const canManageComponents = permissions.configure && data.settings_authority?.components === true;
+  const canManageHolidays = permissions.configure_holidays && data.settings_authority?.holidays === true;
   const [mode, setMode] = useState("rules");
   const [adding, setAdding] = useState(false);
   const [editingHolidayId, setEditingHolidayId] = useState("");
@@ -499,7 +505,7 @@ function SettingsTab({ data, canManage, reload, entityId, onEntityChanged }) {
       <div className="mt-4 divide-y divide-border">{[["EPF", "Automatic", "Automatic calculation · employee category required"], ["SOCSO", "Automatic", "Automatic calculation · employee category required"], ["EIS", "Automatic", "Automatic calculation · employee category required"], ["PCB / MTD", "Manual confirmation", "Confirmed by an authorized Admin per employee and pay period"]].map(([name, method, note]) =>
         <div key={name} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"><div><strong>{name}</strong><small className="block text-text-secondary">{note}</small></div><Badge tone={method === "Automatic" ? "success" : "warning"}>{method}</Badge></div>)}</div></Card>
       <button className="font-semibold text-primary" onClick={async()=>{ setScheduleOpen(true);setScheduleError("");try {setSchedules(await payrollService.readStatutorySchedules());}catch(e){setScheduleError(e.message);} }}>View Calculation Basis / Schedule</button>
-      <PayrollPayRulesPanel canManage={canManage} /></div>
+      <PayrollPayRulesPanel canManage={permissions.configure} /></div>
       : mode === "components" ? <Card className="overflow-hidden"><div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-4"><div><h3 className="text-lg font-bold">Allowances & Deductions</h3><p className="text-sm text-text-secondary">Statutory wage treatment must be explicit before a run is ready.</p></div>
         {canManageComponents && <button className="btn-primary" type="button" onClick={() => { setEditingHolidayId(""); setAdding(true); }}><Plus size={16} /> Add Component</button>}</div>
         {components.length ? <DataTable density="compact" columns={[
@@ -512,9 +518,9 @@ function SettingsTab({ data, canManage, reload, entityId, onEntityChanged }) {
           { key: "status", header: "Status", render: (item) => <Badge tone={!item.is_active ? "neutral" : undetermined(item) ? "warning" : "success"}>{!item.is_active ? "Inactive" : undetermined(item) ? "Setup Required" : "Active"}</Badge> },
           { key: "actions", header: "Actions", render: (item) => <RecordViewAction label={`View ${item.name} pay component`} onClick={() => setSelectedComponentId(item.id)} /> },
         ]} rows={components} getRowKey={(item) => item.id} onRowClick={(item) => { setSelectedComponentId(item.id); setEditingComponent(false); }} /> : <p className="p-6 text-sm text-text-secondary">No pay components configured.</p>}</Card>
-      : <div className="space-y-4"><PayrollAnnualHolidays data={data} canManage={canManageHolidays} selectedCompany={entityId} onCompanyChanged={onEntityChanged} onChanged={reload}
+      : <div className="space-y-4"><PayrollAnnualHolidays data={data} canManage={canManageHolidays} canPublish={permissions.publish_holidays} selectedCompany={entityId} onCompanyChanged={onEntityChanged} onChanged={reload}
         onAddHoliday={() => { setEditingHolidayId(""); setAdding(true); }} onViewHoliday={setSelectedHolidayId} />
-        <PayrollPhPolicy entities={data.legal_entities || []} canManage={canManageHolidays} selectedCompany={entityId} onCompanyChanged={onEntityChanged} onChanged={reload} /></div>}
+        <PayrollPhPolicy entities={data.legal_entities || []} canManage={permissions.configure && data.settings_authority?.components && data.settings_authority?.ph_default} selectedCompany={entityId} onCompanyChanged={onEntityChanged} onChanged={reload} /></div>}
     {adding && <Modal title={mode === "components" ? "Add Pay Component" : editingHolidayId ? "Edit Public Holiday" : "Add Public Holiday"} size="lg" onClose={() => !busy && setAdding(false)} footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setAdding(false)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || !draft.name || (mode === "components" ? ["epf", "socso", "eis", "pcb"].some((key) => draft[key] === "undetermined") : !draft.sourceNote || (editingHolidayId && !draft.reason) || (draft.scope === "state" && !draft.stateCode) || (draft.scope === "outlet" && !draft.outletId))} onClick={save}>{busy ? "Saving…" : mode === "components" ? "Add Component" : editingHolidayId ? "Save Changes" : "Add Holiday"}</button></>}>
       {mode === "components" ? <div className="grid gap-3 sm:grid-cols-2">
         <h3 className="sm:col-span-2 text-sm font-bold">Basic Information</h3>
@@ -589,7 +595,7 @@ export default function PayrollPage({ auth }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const canView = hasPermission(auth, "payroll.view");
-  const canManage = hasPermission(auth, "payroll.manage");
+  const permissions = payrollCapabilities(code => hasPermission(auth, code));
   const canFinalize = hasPermission(auth, "payroll.finalize");
   const reload = useCallback(async () => {
     setLoading(true); setError("");
@@ -602,7 +608,7 @@ export default function PayrollPage({ auth }) {
   const activeRun = useMemo(() => (period?.runs || []).find((item) => item.id === openRunId)
     || (period?.runs || []).find((item) => ["draft", "review_required", "ready"].includes(item.status))
     || [...(period?.runs || [])].sort((a, b) => Number(b.revision) - Number(a.revision))[0], [period, openRunId]);
-  const runRead = usePayrollRunRead(activeRun, data, tab === "overview" || (tab === "runs" && Boolean(openRunId)), canManage);
+  const runRead = usePayrollRunRead(activeRun, data, tab === "overview" || (tab === "runs" && Boolean(openRunId)), permissions.recalculate);
   const readiness = activeRun?.id && runRead.data?.readiness
     ? {...runRead.data.readiness, runId:activeRun.id} : runRead.error ? {runId:activeRun?.id,error:true} : null;
   const changeEntity = value => {
@@ -623,10 +629,10 @@ export default function PayrollPage({ auth }) {
           {tab === "overview" && <AdminFilterToolbar compact ariaLabel="Payroll context"
             outlet={<SelectField label="Legal Entity" value={entityId} onChange={changeEntity} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
             period={<MonthPickerField label="Pay Period" value={month} onChange={(value) => { setMonth(value); setOpenRunId(""); }} />} />}
-          {tab === "overview" && <Overview data={data} canManage={canManage} canEditEmployee={canEdit(auth, "employees")} entityId={entityId} month={month} run={activeRun} readiness={readiness?.runId === activeRun?.id ? readiness : null} onOpenRun={openRun} onOpenEmployees={() => setTab("employees")} runRead={runRead} />}
-          {tab === "employees" && <ProfilesTab data={data} canManage={canManage} reload={reload} entityId={entityId} onEntityChanged={changeEntity} />}
-          {tab === "runs" && <RunsTab data={data} canManage={canManage} canViewLeave={hasPermission(auth, "crew_leave.view")} canEditEmployee={canEdit(auth, "employees")} canFinalize={canFinalize} reload={reload} entityId={entityId} setEntityId={changeEntity} month={month} setMonth={setMonth} step={runStep} setStep={setRunStep} openRunId={openRunId} setOpenRunId={setOpenRunId} readiness={readiness} runRead={runRead} />}
-          {tab === "settings" && <SettingsTab data={data} canManage={canManage} reload={reload} entityId={entityId} onEntityChanged={changeEntity} />}
+          {tab === "overview" && <Overview data={data} permissions={permissions} canEditEmployee={canEdit(auth, "employees")} entityId={entityId} month={month} run={activeRun} readiness={readiness?.runId === activeRun?.id ? readiness : null} onOpenRun={openRun} onOpenEmployees={() => setTab("employees")} runRead={runRead} />}
+          {tab === "employees" && <ProfilesTab data={data} permissions={permissions} reload={reload} entityId={entityId} onEntityChanged={changeEntity} />}
+          {tab === "runs" && <RunsTab data={data} permissions={permissions} canViewLeave={hasPermission(auth, "crew_leave.view")} canEditEmployee={canEdit(auth, "employees")} canFinalize={canFinalize} reload={reload} entityId={entityId} setEntityId={changeEntity} month={month} setMonth={setMonth} step={runStep} setStep={setRunStep} openRunId={openRunId} setOpenRunId={setOpenRunId} readiness={readiness} runRead={runRead} />}
+          {tab === "settings" && <SettingsTab data={data} permissions={permissions} reload={reload} entityId={entityId} onEntityChanged={changeEntity} />}
         </>}
   </div>;
 }

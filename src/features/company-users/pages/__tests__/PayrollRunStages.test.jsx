@@ -1,3 +1,5 @@
+import { payrollCapabilities } from "../payrollCapabilities.js";
+const allPayroll = payrollCapabilities(() => true);
 import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -11,7 +13,7 @@ it("reuses run evidence and bank batch through Prepare, Review, Finalize and Res
  const evidence={time:[],pcb:{results:[]},preparation:{results:[{employee_id:'employee',projection:{status:'ready'},statutory_setup:{complete:true,schemes:Object.fromEntries(['epf','socso','lindung','eis','pcb'].map(scheme=>[scheme,{state:'confirmed',applicable:true}]))}}]},
  calculation:{results:[{employee_id:'employee',status:'ready',gross_earnings:2000}],adjustments:[]},statutory:{results:[{employee_id:'employee',status:'ready',net_pay:1696,non_statutory_deductions:10,total_employer_cost:2301,employer_statutory_cost:301,lines:[{scheme:'epf',employee_amount:220,employer_amount:260},{scheme:'socso',employee_amount:10,employer_amount:35},{scheme:'lindung',employee_amount:15,employer_amount:0},{scheme:'eis',employee_amount:4,employer_amount:6},{scheme:'pcb',employee_amount:45,employer_amount:0}]}]}};
  const props={data:{legal_entities:[{id:'entity',name:'QA'}],employees:[{id:'employee',name:'QA Employee'}],periods:[{legal_entity_id:'entity',period_start:'2026-09-01',runs:[{id:'run',status:'draft'}]}]},
- entityId:'entity',month:'2026-09',openRunId:'run',canManage:true,canFinalize:true,canEditEmployee:true,setStep:vi.fn(),runRead:{data:evidence,setTimeReviewActive:vi.fn()},readiness:{runId:'run',time:{ready:true},calculation:{ready:false,employees:1,employment_issue:'employment_history_unresolved',uncalculated:0,review_required:0,stale:0},statutory:{ready:true}}};
+ entityId:'entity',month:'2026-09',openRunId:'run',permissions:allPayroll,canFinalize:true,canEditEmployee:true,setStep:vi.fn(),runRead:{data:evidence,setTimeReviewActive:vi.fn()},readiness:{runId:'run',time:{ready:true},calculation:{ready:false,employees:1,employment_issue:'employment_history_unresolved',uncalculated:0,review_required:0,stale:0},statutory:{ready:true}}};
  const {rerender}=render(<RunsTab {...props} step={0}/>);
  await screen.findByRole('button',{name:'View time evidence for QA Employee'}); await waitFor(()=>expect(mocks.bank).toHaveBeenCalledTimes(1));
  expect(screen.getByText('Employee readiness: 1 / 1 ready')).toBeTruthy();expect(screen.getByText('Run readiness: 1 blocker remaining')).toBeTruthy();
@@ -52,7 +54,7 @@ it("switches open Run context without substituting the month and offers an empty
   {legal_entity_id:'empty',period_start:'2026-08-01',runs:[{id:'old-run',revision:1,status:'draft'}]}]};
  function Workspace(){
   const [entityId,setEntity]=useState('a'),[month,setMonth]=useState('2026-09'),[openRunId,setOpenRunId]=useState('a-run'),[step,setStep]=useState(0);
-  return <RunsTab data={data} entityId={entityId} setEntityId={value=>{setEntity(value);setOpenRunId('');}} month={month} setMonth={setMonth} openRunId={openRunId} setOpenRunId={setOpenRunId} step={step} setStep={setStep} canManage runRead={{data:{}}} />;
+  return <RunsTab data={data} entityId={entityId} setEntityId={value=>{setEntity(value);setOpenRunId('');}} month={month} setMonth={setMonth} openRunId={openRunId} setOpenRunId={setOpenRunId} step={step} setStep={setStep} permissions={allPayroll} runRead={{data:{}}} />;
  }
  render(<Workspace/>);
  fireEvent.click(screen.getByRole('button',{name:'Legal Entity',exact:true}));
@@ -77,7 +79,7 @@ it("keeps Prepare exceptions concise, detailed guidance in Review and recovery c
  const refresh=vi.fn().mockResolvedValue({});
  const schemes={epf:{state:'not_applicable',applicable:false},socso:{state:'not_applicable',applicable:false},eis:{state:'not_applicable',applicable:false},pcb:{state:'not_applicable',applicable:false},lindung:{state:'confirmation_required',issue:'lindung_participation_unconfirmed:2026-09-01'}};
  const evidence={time:[],pcb:{results:[]},preparation:{results:[{employee_id:'employee',projection:{status:'review_required'},statutory_setup:{complete:false,schemes}}]},calculation:{results:[{employee_id:'employee',status:'review_required'}]},statutory:{results:[{employee_id:'employee',status:'review_required'}]}};
- const props={data:{legal_entities:[{id:'entity',name:'QA'}],employees:[{id:'employee',name:'QA Employee'}],periods:[{legal_entity_id:'entity',period_start:'2026-09-01',runs:[{id:'run',status:'draft'}]}]},entityId:'entity',month:'2026-09',openRunId:'run',step:0,canManage:true,setStep:vi.fn(),runRead:{data:evidence,refresh}};
+ const props={data:{legal_entities:[{id:'entity',name:'QA'}],employees:[{id:'employee',name:'QA Employee'}],periods:[{legal_entity_id:'entity',period_start:'2026-09-01',runs:[{id:'run',status:'draft'}]}]},entityId:'entity',month:'2026-09',openRunId:'run',step:0,permissions:allPayroll,setStep:vi.fn(),runRead:{data:evidence,refresh}};
  const {rerender}=render(<RunsTab {...props}/>);
  const table=await screen.findByRole('table');
  expect(within(table).getByText('LINDUNG 24 Jam status unconfirmed')).toBeTruthy();
