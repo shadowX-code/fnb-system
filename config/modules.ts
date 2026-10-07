@@ -5,7 +5,6 @@ export type ModuleAction =
   | "prepare"
   | "review_time"
   | "treat_ph"
-  | "adjust"
   | "configure"
   | "configure_holidays"
   | "publish_holidays"
@@ -63,7 +62,6 @@ export const permissionActionOrder: ModuleAction[] = [
   "prepare",
   "review_time",
   "treat_ph",
-  "adjust",
   "configure",
   "configure_holidays",
   "publish_holidays",
@@ -108,7 +106,6 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   prepare: "Prepare Payroll Runs",
   review_time: "Review Payroll Time",
   treat_ph: "Confirm PH Pay Treatment",
-  adjust: "Adjust Payroll",
   configure: "Configure Payroll",
   configure_holidays: "Configure Payroll Holiday Calendar",
   publish_holidays: "Publish Payroll Holiday Calendar",
