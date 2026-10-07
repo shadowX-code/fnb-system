@@ -91,7 +91,7 @@ function ContributionCanvas({ width, movement, pair, selectedId, selectedStage, 
           <text x={x+barWidth/2} y={available ? Math.max(17,Math.min(y,z)-10) : top} textAnchor="middle" className="chart-value" style={{fontSize:compact ? 11 : 13}}>{value === null ? '—' : endpoint ? financeChartMoney(value) : `${value > 0 ? '+' : value < 0 ? '−' : ''}${financeChartMoney(Math.abs(value))}`}</text>
           <text x={x+barWidth/2} y={bottom+24} textAnchor="middle" className="chart-label" style={{fontSize:11}}>{endpoint ? stage.id === 'previous' ? 'Previous' : 'Current' : stage.label}</text>
           {endpoint ? <text x={x+barWidth/2} y={bottom+40} textAnchor="middle">EBITDA</text> : !stage.included ? <text x={x+barWidth/2} y={bottom+40} textAnchor="middle">Outside basis</text> : null}
-          <rect x={x-4} y="16" width={barWidth+8} height={height-36} rx="4" className="chart-focus"/>
+          <rect x={x-4} y={available ? Math.min(y,z)-4 : top+8} width={barWidth+8} height={available ? Math.max(1,Math.abs(y-z))+8 : bottom-top-4} rx="4" className="chart-focus"/>
         </>}
       </FinanceMark>;
     })}
