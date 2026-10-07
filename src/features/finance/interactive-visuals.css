@@ -41,3 +41,5 @@
 .finance-workspace .finance-chart-mark.is-receded:is(:hover,:focus-visible) :is(rect,circle,path):not([fill=transparent]) { opacity:1; }
 
 .finance-workspace .finance-chart-mark.is-partitioned.is-receded:is(:hover,:focus-visible) text { fill:white!important; }
+
+@media(max-width:640px) { .finance-presentation .finance-workspace .finance-profit-structure .finance-chart-ledger { grid-template-columns:repeat(2,minmax(0,1fr)); } }

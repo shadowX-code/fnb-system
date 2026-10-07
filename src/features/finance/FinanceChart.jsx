@@ -1,11 +1,11 @@
-import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import './interactive-visuals.css';
 
 const ChartContext = createContext(null);
 
 /** A measured SVG canvas. Coordinates and type stay legible in narrow analytical columns. */
 export function FinanceChart({ label, height = 300, children, className = '', dataKey }) {
-  const ref = useRef(null), tooltipId = useId();
+  const ref = useRef(null), tooltipRef = useRef(null), tooltipId = useId();
   const [width, setWidth] = useState(640), [tip, setTip] = useState(null);
   useEffect(() => {
     if (!ref.current || typeof ResizeObserver === 'undefined') return;
@@ -13,14 +13,20 @@ export function FinanceChart({ label, height = 300, children, className = '', da
     observer.observe(ref.current);
     return () => observer.disconnect();
   }, []);
-  useEffect(() => setTip(null), [dataKey]);
+  useEffect(() => setTip(null), [dataKey, width]);
+  useLayoutEffect(() => {
+    if (!tip || !tooltipRef.current) return;
+    const height = tooltipRef.current.getBoundingClientRect().height;
+    const y = tip.above >= height + 8 ? tip.above - height - 8 : tip.below + 8;
+    if (tip.y !== y) setTip(current => ({...current, y}));
+  }, [tip]);
   const show = (element, content, owner) => {
     const host = ref.current.getBoundingClientRect(), mark = element.getBoundingClientRect();
-    setTip({ content, owner, x: Math.max(8, Math.min(host.width - 232, mark.left - host.left + mark.width / 2 - 108)), y: Math.max(4, mark.top - host.top - 78) });
+    setTip({ content, owner, above: mark.top - host.top, below: mark.bottom - host.top, x: Math.max(8, Math.min(host.width - 232, mark.left - host.left + mark.width / 2 - 108)), y: Math.max(4, mark.top - host.top - 78) });
   };
   return <ChartContext.Provider value={{ show, hide: () => setTip(null), tooltipId, owner: tip?.owner }}><div ref={ref} className={`finance-chart ${className}`} onKeyDown={e => { if (e.key === 'Escape') setTip(null); }}>
     <svg viewBox={`0 0 ${width} ${height}`} role="group" aria-label={label}>{children(width, height)}</svg>
-    {tip ? <div id={tooltipId} role="tooltip" className="finance-chart-tooltip" style={{ left: tip.x, top: tip.y }}>{tip.content}</div> : null}
+    {tip ? <div ref={tooltipRef} id={tooltipId} role="tooltip" className="finance-chart-tooltip" style={{ left: tip.x, top: tip.y }}>{tip.content}</div> : null}
   </div></ChartContext.Provider>;
 }
 
