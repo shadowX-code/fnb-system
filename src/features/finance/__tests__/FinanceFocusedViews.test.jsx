@@ -31,6 +31,9 @@ it('switches cost evidence geometry without adding reads or financial values', a
   const pair = await fixture(), before = JSON.stringify(pair);
   render(<FinanceCosts analysis={pair}/>);
   expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
+  expect(screen.getByRole('button',{name:'Explore COGS layer'})).toBeTruthy();
+  const pressure = screen.getByRole('group',{name:'Cost growth relative to Revenue and margin impact'});
+  expect(pressure.textContent).toContain('-0.06');
   fireEvent.click(screen.getByRole('tab',{name:'Structure'}));
   expect(screen.queryByRole('group',{name:'Cost growth relative to Revenue and margin impact'})).toBeNull();
   fireEvent.keyDown(screen.getByRole('button',{name:'Investigate COGS structure'}),{key:'Enter'});
