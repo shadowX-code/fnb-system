@@ -6,7 +6,7 @@ export function financialValue(metric) {
   return metric.unit === 'percent' ? `${metric.value.toFixed(1)}%` : money({ amount: metric.value, presence: 'present' });
 }
 export function movementValue(movement, unit = 'money') {
-  if (movement.value === null) return 'Unavailable';
+  if (movement.value === null) return '—';
   const displayZero = ['percent', 'days', 'ratio'].includes(unit) && Number(Math.abs(movement.value).toFixed(unit === 'ratio' ? 2 : 1)) === 0;
   const sign = displayZero ? '' : movement.value > 0 ? '+' : movement.value < 0 ? '−' : '';
   if (unit === 'days') return `${sign}${Math.abs(movement.value).toFixed(1)} days`;
@@ -29,5 +29,5 @@ export function costObservation(row, label) {
   return `${label} ${spend}. ${ratio}`;
 }
 export function growthValue(growth) {
-  return growth.value === null ? 'Unavailable' : `${growth.value > 0 ? '+' : ''}${growth.value.toFixed(1)}%`;
+  return growth.value === null ? '—' : `${growth.value > 0 ? '+' : ''}${growth.value.toFixed(1)}%`;
 }
