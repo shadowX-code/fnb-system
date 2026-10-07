@@ -12,7 +12,7 @@ import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { hasPermission } from "../../../utils/accessControl.js";
-import { legalEntityService } from "../../../services/legalEntityService.js";
+import { legalEntityService, normalizeLegalEntityFields } from "../../../services/legalEntityService.js";
 import { navigateAdminRoute, resolveAdminLocation } from "../../../app/routeOwnership.js";
 import LegalEntityContractWorkspacePage from "./LegalEntityContractWorkspacePage.jsx";
 
@@ -33,11 +33,12 @@ function entityName(entity) {
 }
 
 function LegalEntityFormModal({ entity, onClose, onSaved, ui }) {
-  const [draft, setDraft] = useState(() => ({ ...emptyEntity(), ...entity }));
+  const [draft, setDraft] = useState(() => normalizeLegalEntityFields({ ...emptyEntity(), ...entity }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const isNew = !draft.id;
-  const valid = draft.legal_company_name.trim() && draft.company_registration_no.trim() && draft.registered_address.trim();
+  const normalized = normalizeLegalEntityFields(draft);
+  const valid = normalized.legal_company_name && normalized.company_registration_no && normalized.registered_address;
   const linkedEmployees = Number(draft.linked_employee_count || 0);
 
   function patch(key, value) {
@@ -48,13 +49,7 @@ function LegalEntityFormModal({ entity, onClose, onSaved, ui }) {
     setBusy(true);
     setError("");
     try {
-      const saved = await legalEntityService.save({
-        ...draft,
-        legal_company_name: draft.legal_company_name.trim(),
-        company_registration_no: draft.company_registration_no.trim(),
-        registered_address: draft.registered_address.trim(),
-        display_name: draft.display_name.trim(),
-      });
+      const saved = await legalEntityService.save(normalized);
       await onSaved(saved);
       ui?.notify?.({ title: isNew ? "Legal entity added" : "Legal entity updated", message: entityName(saved) });
       onClose();
