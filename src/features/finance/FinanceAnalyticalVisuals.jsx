@@ -47,7 +47,7 @@ export function ProfitArchitecture({ dataset, selectedId, onSelect }) {
   </div>;
 }
 /** Projection of validated attribution only; never establishes a new profit relationship. */
-function ContributionCanvas({ width, movement, pair, selectedId, onSelect, compact }) {
+function ContributionCanvas({ width, movement, pair, selectedId, selectedStage, onSelect, compact }) {
   const previous = pair?.previous.metrics.ebitda.value, current = pair?.current.metrics.ebitda.value;
   const reconciled = movement.attributable && Number.isFinite(previous) && Number.isFinite(current);
   let position = previous;
@@ -59,8 +59,8 @@ function ContributionCanvas({ width, movement, pair, selectedId, onSelect, compa
   const stages = [{ id: 'previous', metricId: 'ebitda', label: 'Previous EBITDA', from: 0, to: Number.isFinite(previous) ? previous : null }, ...drivers.map(row => ({ ...row, metricId: row.id, label: row.id === 'labour' ? 'Labour' : metricRegistry[row.id].label })), { id: 'current', metricId: 'ebitda', label: 'Current EBITDA', from: 0, to: Number.isFinite(current) ? current : null }];
   const values = stages.flatMap(stage => stage.to === null ? [] : [stage.from, stage.to]);
   const low = Math.min(0, ...values), high = Math.max(1, ...values), span = high - low;
-  const mobile = width < 560, height = mobile ? 414 : compact ? 272 : 326;
-  const left = mobile ? 102 : 56, right = width - 12, top = 28, bottom = height - 68;
+  const mobile = width < 560, height = mobile ? 414 : compact ? 292 : 346;
+  const left = mobile ? 102 : 56, right = width - 12, top = 28, bottom = height - (mobile ? 68 : 90);
   const scale = amount => mobile ? left + (amount - low) / span * (right - left) : bottom - (amount - low) / span * (bottom - top);
   const column = (right - left) / stages.length;
   const geometry = useFinanceGeometry(Object.fromEntries(stages.map((stage,index) => [stage.id, mobile ? [scale(stage.from ?? 0), scale(stage.to ?? 0), 38 + index * 59] : [left + column * index + column * .15, scale(stage.from ?? 0), scale(stage.to ?? 0), column * .7]])));
@@ -72,13 +72,13 @@ function ContributionCanvas({ width, movement, pair, selectedId, onSelect, compa
     }) : null}
     {stages.map(stage => {
       const endpoint = ['previous','current'].includes(stage.id), available = stage.to !== null && (endpoint || stage.included);
-      const coordinates = geometry[stage.id], selected = stage.id !== 'previous' && selectedId === stage.metricId;
+      const coordinates = geometry[stage.id], selected = selectedId === stage.metricId && (endpoint ? stage.id === (selectedStage === 'previous' ? 'previous' : 'current') : true);
       const label = stage.id === 'previous' ? 'Explore previous EBITDA' : stage.id === 'current' ? 'Explore EBITDA movement' : `Explore ${metricRegistry[stage.id].label} driver`;
       const value = endpoint ? stage.to : reconciled && stage.included ? stage.contribution : null;
       const description = endpoint ? financialValue({value:stage.to,unit:'money'}) : !stage.included ? 'Outside this EBITDA basis' : value === null ? 'Comparable contribution evidence required' : `${movementValue({value})} · ${value < 0 ? 'Reduces' : 'Supports'} EBITDA`;
       const color = endpoint ? 'chart-cash' : stage.contribution < 0 ? 'chart-pressure' : 'chart-support';
       const [x,y,z,barWidth] = coordinates;
-      return <FinanceMark key={stage.id} label={label} selected={selected} dimmed={Boolean(selectedId) && stage.metricId !== selectedId} onSelect={() => onSelect(stage.metricId)} tooltip={<FinanceChartTip title={stage.label}>{description}{stage.id === 'previous' ? ' · comparison period' : ''}</FinanceChartTip>}>
+      return <FinanceMark key={stage.id} label={label} selected={selected} dimmed={Boolean(selectedId) && stage.metricId !== selectedId} onSelect={() => onSelect(stage.metricId, endpoint ? stage.id : 'driver')} tooltip={<FinanceChartTip title={stage.label}>{description}{stage.id === 'previous' ? ' · comparison period' : ''}</FinanceChartTip>}>
         {mobile ? <>
           <rect x="0" y={z-22} width={width} height="44" fill="transparent" />
           <text x="0" y={z-3} className="chart-label" style={{fontSize:11}}>{endpoint ? stage.id === 'previous' ? 'Previous' : 'Current' : stage.label}</text>
@@ -98,8 +98,8 @@ function ContributionCanvas({ width, movement, pair, selectedId, onSelect, compa
     <text x={mobile ? 0 : left} y={height-24} className="chart-annotation">EBITDA movement {movementValue(movement.total)}</text>{!reconciled ? <text x={mobile ? 0 : left} y={height-8}>Attribution not ready</text> : null}
   </>;
 }
-export function DriverContribution({ movement, pair, selectedId, onSelect, compact = false }) {
-  return <FinanceChart label="Driver Contribution" dataKey={JSON.stringify([movement,pair?.previous.metrics.ebitda.value,pair?.current.metrics.ebitda.value])} height={width => width < 560 ? 414 : compact ? 272 : 326}>{width => <ContributionCanvas width={width} movement={movement} pair={pair} selectedId={selectedId} onSelect={onSelect} compact={compact}/>}</FinanceChart>;
+export function DriverContribution({ movement, pair, selectedId, selectedStage, onSelect, compact = false }) {
+  return <FinanceChart label="Driver Contribution" dataKey={JSON.stringify([movement,pair?.previous.metrics.ebitda.value,pair?.current.metrics.ebitda.value])} height={width => width < 560 ? 414 : compact ? 292 : 346}>{width => <ContributionCanvas width={width} movement={movement} pair={pair} selectedId={selectedId} selectedStage={selectedStage} onSelect={onSelect} compact={compact}/>}</FinanceChart>;
 }
 function PressureCanvas({ width, rows, selectedId, onSelect }) {
   const ready = rows.filter(row => row.growth.value !== null && row.revenueGrowth.value !== null && row.ratioMovement.value !== null);

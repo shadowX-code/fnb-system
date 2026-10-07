@@ -39,7 +39,7 @@ it('bridge preserves ordered endpoints, precise signed contributions and respons
  act(()=>resize([{contentRect:{width:288}}]));
  expect(chart.getAttribute('viewBox')).toBe('0 0 288 414');
  fireEvent.keyDown(cost,{key:'Enter'});
- expect(onSelect).toHaveBeenCalledWith('cogs');
+ expect(onSelect).toHaveBeenCalledWith('cogs','driver');
 });
 it('withholds bridge relationships when attribution is incomplete',async()=>{
  const pair=await readFinanceAnalysis(createFixtureProvider({development:true}),request,{allowDemo:true});
@@ -72,4 +72,17 @@ it('respects excluded labour and displays negative EBITDA without changing the v
  expect(screen.getByRole('tooltip').textContent).toMatch(/-RM\s25\.00/);
  expect(view.container.querySelectorAll('[data-bridge-connector]')).toHaveLength(5);
  expect(JSON.stringify(pair)).toBe(before);
+});
+
+it('selecting Previous EBITDA opens its comparison and emphasizes only that endpoint in both bridge consumers',async()=>{
+ const provider=createFixtureProvider({development:true}), pair=await readFinanceAnalysis(provider,request,{allowDemo:true}), dataset=await readFinanceOverview(provider,request,{allowDemo:true});
+ for(const [Component,props] of [[FinanceOverview,{dataset}],[FinanceAnalysis,{analysis:pair}]]) {
+  const view=render(<Component {...props}/>);
+  fireEvent.keyDown(screen.getByRole('button',{name:'Explore previous EBITDA'}),{key:'Enter'});
+  expect(screen.getByRole('button',{name:'Explore previous EBITDA'}).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('button',{name:'Explore EBITDA movement'}).getAttribute('aria-pressed')).toBe('false');
+  expect(screen.getByRole('tab',{name:'Compare'}).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByRole('tabpanel',{name:'Compare'}).textContent).toContain('149,870');
+  view.unmount();
+ }
 });

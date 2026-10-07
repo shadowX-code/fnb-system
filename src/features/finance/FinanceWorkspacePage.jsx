@@ -52,6 +52,7 @@ function Comparison({ metric }) {
 export function FinanceOverview({ dataset }) {
   const metrics = dataset.metrics;
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedStage, setSelectedStage] = useState(null);
   const previous = dataset.comparisonDataset ?? { ...dataset, metrics: Object.fromEntries(Object.entries(metrics).map(([id, metric]) => [id, { ...metric, value: null, completeness: 'unavailable' }])) };
   const pair = { current: dataset, previous, profitDriverModel: dataset.profitDriverModel };
   const movement = profitMovement(pair, dataset.profitDriverModel);
@@ -64,7 +65,7 @@ export function FinanceOverview({ dataset }) {
     <AdminSummaryGrid variant="compact" ariaLabel="Financial state" items={financeSummaryItems(pair, ['ebitda', 'revenue', 'gross_margin', 'prime_cost', 'cash'], { primary: ['ebitda'], supporting: { ebitda: `${amount(metrics.ebitda_margin)} EBITDA margin` } })} />
     <FinanceMissing ids={primary} metrics={metrics} registry={metricRegistry} />
     <FinanceAnalysisSurface label="What changed" subtitle="EBITDA movement · Revenue, COGS, Labour and OPEX">
-      <DriverContribution compact pair={pair} movement={movement} selectedId={selectedId} onSelect={setSelectedId} />
+      <DriverContribution compact pair={pair} movement={movement} selectedId={selectedId} selectedStage={selectedStage} onSelect={(id, stage) => { setSelectedId(id); setSelectedStage(stage); if (stage === 'previous') setAction('Compare'); }} />
       {!movement.attributable ? <FinanceReadiness title="Profit movement not ready">Comparable evidence and a validated EBITDA relationship are required.</FinanceReadiness> : null}
       {selectedId ?       <FinanceContext label={metricRegistry[selectedId].label} regionLabel="Selected movement context" action={action} onAction={setAction} evidence={<FinanceDisclosure label={`Evidence & definition for ${metricRegistry[selectedId].label}`}><p>{metricRegistry[selectedId].definition}</p><p>{semantic(metrics[selectedId])} · {metrics[selectedId].completeness} · {metrics[selectedId].reason}</p><FinanceProvenance metric={metrics[selectedId]} />{metrics[selectedId].comparison ? <><p>Previous month · {metrics[selectedId].comparison.completeness}</p><FinanceProvenance metric={metrics[selectedId].comparison} /></> : null}</FinanceDisclosure>}>{action === 'Explain' ? <p><strong>{amount(metrics[selectedId])}</strong> · {metrics[selectedId].reason || metricRegistry[selectedId].definition}</p> : action === 'Compare' ? <p><Comparison metric={metrics[selectedId]} /></p> : <div className="finance-analysis-inputs">{metricRegistry[selectedId].dependencies.map((id) => <button type="button" className="btn-secondary" key={id} onClick={() => setSelectedId(id)}>{metricRegistry[id].label} · {amount(metrics[id])}</button>)}{!metricRegistry[selectedId].dependencies.length ? <p>Finer source evidence is not supplied.</p> : null}</div>}</FinanceContext> : null}
     </FinanceAnalysisSurface>
