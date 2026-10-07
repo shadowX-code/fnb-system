@@ -1095,6 +1095,23 @@ export function getModuleLabel(moduleId: string) {
   return getModuleById(moduleId)?.label ?? moduleId;
 }
 
+// Presentation only: codes, enabled actions and authority remain unchanged.
+export const permissionPresentationOverrides: Record<string, { label: string; description: string }> = {
+  "crew_leave_settings.manage": {
+    label: "Configure Leave Policies",
+    description: "Configure outlet-scoped leave policies and their effective history.",
+  },
+  "factory_petty_cash.manage": {
+    label: "Configure Petty Cash Categories",
+    description: "Configure Factory Petty Cash categories.",
+  },
+};
+
+export function getPermissionLabel(moduleId: string, action: ModuleAction) {
+  return permissionPresentationOverrides[permissionCode(moduleId, action)]?.label
+    ?? `${permissionActionLabels[action]} ${getModuleLabel(moduleId)}`;
+}
+
 export function getPermissionDefinitions() {
   return moduleRegistry.flatMap((module) =>
     enabledActions(module).map((action) => ({
@@ -1102,7 +1119,8 @@ export function getPermissionDefinitions() {
       module: module.label,
       section: module.section,
       action,
-      description: `${permissionActionLabels[action]} ${module.label}.`,
+      description: permissionPresentationOverrides[permissionCode(module.id, action)]?.description
+        ?? `${permissionActionLabels[action]} ${module.label}.`,
     })),
   );
 }
@@ -1113,7 +1131,7 @@ export function getPermissionGroups() {
       enabledActions(module).map((action) => [
         action,
         {
-          label: `${permissionActionLabels[action]} ${module.label}`,
+          label: getPermissionLabel(module.id, action),
           codes: action === "view" ? [permissionCode(module.id, action)] : [permissionCode(module.id, "view"), permissionCode(module.id, action)],
         },
       ]),
