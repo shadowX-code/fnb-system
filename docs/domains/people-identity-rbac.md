@@ -53,6 +53,12 @@ The Employee Master Workplace is the canonical workforce-belonging relationship.
 Role permissions grant module/action authority. `roles.outlet_access_type` and `role_outlets` scope Restaurant data only: a role with one or more Restaurant-scoped permissions must use All or Selected Outlets, while a role with no Restaurant-scoped permission has explicit `none` Restaurant outlet scope and no `role_outlets` rows. Factory, Crew, People, System, and Guest authority never depends on Restaurant outlet scope; FeedX does not create a Factory Access, All Factories, or workspace-scope parallel model. The canonical permission catalog marks whether each permission requires Restaurant outlet scope, and the trusted role-save authority derives and validates the applicable mode server-side.
 Role configuration is saved through the trusted authority so permission replacement is atomic and auditable. Every requested permission must exist in the catalog and appear in the returned persisted snapshot; a missing code rejects the whole save. The authority records the actor, request ID, and actual before/after role configuration in the same transaction. The editor reports success only after the returned permission set matches its submitted set.
 
+Permission labels may be overridden per code in the shared module registry without
+changing authority. `crew_leave_settings.manage` is presented as **Configure Leave
+Policies** and `factory_petty_cash.manage` as **Configure Petty Cash Categories**.
+Their IDs, grants, scope and server checks are unchanged; other Manage permissions
+retain their existing labels and semantics.
+
 The module registry defines available capabilities; roles grant permission to them but do not redefine route ownership.
 UI gating mirrors authority for usability while RLS and trusted functions enforce access.
 
