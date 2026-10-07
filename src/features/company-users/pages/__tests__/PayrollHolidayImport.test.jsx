@@ -8,7 +8,7 @@ const candidate = { id: "candidate", status: "needs_review", revision: 2, source
 beforeEach(() => { vi.clearAllMocks(); service.readHolidayUpdateCheck.mockResolvedValue(null); service.readHolidayCandidates.mockResolvedValue([candidate]); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it("keeps operational updates outside the single grouped secondary entry", async () => {
-  render(<PayrollHolidayImport year="2027" advancedContent={<section>Calendar Maintenance and History</section>} />);
+  render(<PayrollHolidayImport canPublish year="2027" advancedContent={<section>Calendar Maintenance and History</section>} />);
   await screen.findByRole("button", { name: "Review Update" });
   const advanced = screen.getByText("Advanced & History").closest("details");
   expect(advanced.contains(screen.getByRole("button", { name: "Add Official Source Manually" }))).toBe(true);
@@ -20,13 +20,13 @@ it("keeps operational updates outside the single grouped secondary entry", async
 });
 it("does not show an unavailable-source action after the calendar is published", async () => {
   service.readHolidayCandidates.mockResolvedValue([]);
-  render(<PayrollHolidayImport year="2027" calendarPublished />);
+  render(<PayrollHolidayImport canPublish year="2027" calendarPublished />);
   await screen.findByText("Holiday calendar published. Continue with paid holiday selection.");
   expect(screen.queryByRole("button", { name: "Get Official Calendar" })).toBeNull();
 });
 it("captures an uploaded source artifact with retry identity but never publishes from capture", async () => {
   vi.stubGlobal("FileReader", class { readAsDataURL() { this.result = "data:application/pdf;base64,JVBERi0="; this.onload(); } });
-  render(<PayrollHolidayImport year="2027" />);
+  render(<PayrollHolidayImport canPublish year="2027" />);
   fireEvent.click(screen.getByRole("button", { name: "Add Official Source Manually" }));
   fireEvent.change(screen.getByLabelText(/Official source URL/), { target: { value: "https://www.kabinet.gov.my/verified-source.pdf" } });
   fireEvent.change(screen.getByLabelText(/Source reference/), { target: { value: "Verified document reference" } });
@@ -41,7 +41,7 @@ it("stops counting accepted exceptions as needing review after approval", () => 
   expect(holidayDiffSummary([{ ...row, state: "changed" }], { 1: { action: "accept" } }).review).toBe(1);
 });
 it("requires exception review and complete-source confirmation before approval, then separate publication", async () => {
-  const published = vi.fn(); render(<PayrollHolidayImport year="2027" onPublished={published} />);
+  const published = vi.fn(); render(<PayrollHolidayImport canPublish year="2027" onPublished={published} />);
   fireEvent.click(await screen.findByRole("button", { name: "Review Update", exact: true }));
   expect(screen.getByText(/Perak · New/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Confirm Calendar Review" }).disabled).toBe(true);
@@ -60,7 +60,7 @@ it("requires exception review and complete-source confirmation before approval, 
 });
 it("does not require matched row review; missing remains explicit and blocked cannot be approved", async () => {
   service.readHolidayCandidates.mockResolvedValue([{ ...candidate, rows: [{ ...row, state: "matched" }, { ...row, key: "2", state: "blocked", issue: "Uncertain source" }] }]);
-  render(<PayrollHolidayImport year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review Update", exact: true }));
+  render(<PayrollHolidayImport canPublish year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review Update", exact: true }));
   expect(screen.queryByLabelText("Verified against source")).toBeNull();
   expect(screen.queryByText("Matched holidays (1)")).toBeNull();
   expect(screen.getByRole("button", { name: "Confirm Classification" }).disabled).toBe(true);
@@ -70,7 +70,7 @@ it("does not require matched row review; missing remains explicit and blocked ca
 });
 it("explicitly retains missing evidence and requires a correction remark", async () => {
   service.readHolidayCandidates.mockResolvedValue([{ ...candidate, rows: [{ ...row, state: "missing", row: null, previous: { holiday: { ...row.row, holiday_date: row.row.date } } }, { ...row, key: "2", state: "changed", previous: { holiday: { name: "Previous", holiday_date: "2027-01-09", scope: "national" } } }] }]);
-  render(<PayrollHolidayImport year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review Update", exact: true }));
+  render(<PayrollHolidayImport canPublish year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review Update", exact: true }));
   fireEvent.click(screen.getByLabelText(/I have reviewed/));
   expect(screen.getByRole("button", { name: "Confirm Calendar Review" }).disabled).toBe(true);
   fireEvent.change(screen.getByLabelText(/Correction remark/), { target: { value: "Official correction" } });
@@ -83,7 +83,7 @@ it("only exposes unresolved exceptions, retaining blocked and incomplete correct
 });
 it("does not guess a classification when authoritative evidence supplies none", async () => {
   service.readHolidayCandidates.mockResolvedValue([{ ...candidate, rows: [{ ...row, row: { ...row.row, kind: null } }] }]);
-  render(<PayrollHolidayImport year="2027" />);
+  render(<PayrollHolidayImport canPublish year="2027" />);
   fireEvent.click(await screen.findByRole("button", { name: "Review Calendar Exceptions" }));
   expect(screen.getByRole("button", { name: "Confirm Classification" }).disabled).toBe(true);
   expect(screen.getByText("Source classification: Review Required")).toBeTruthy();
@@ -91,7 +91,7 @@ it("does not guess a classification when authoritative evidence supplies none", 
 });
 it("keeps a failed confirmation visible and never publishes as a fallback", async () => {
   service.reviewHolidayCandidate.mockRejectedValueOnce(new Error("Calendar changed. Refresh review."));
-  render(<PayrollHolidayImport year="2027" />);
+  render(<PayrollHolidayImport canPublish year="2027" />);
   fireEvent.click(await screen.findByRole("button", { name: "Review Calendar Exceptions" }));
   fireEvent.click(screen.getByRole("button", { name: "Confirm Classification" }));
   await screen.findByRole("alert");
@@ -101,7 +101,7 @@ it("keeps a failed confirmation visible and never publishes as a fallback", asyn
 });
 it("parsing is separate from approval/publication and invalid transcription reports a real error", async () => {
   service.readHolidayCandidates.mockResolvedValue([{ ...candidate, status: "fetched", rows: [] }]);
-  render(<PayrollHolidayImport year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review Update", exact: true }));
+  render(<PayrollHolidayImport canPublish year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review Update", exact: true }));
   fireEvent.change(screen.getByLabelText(/Verified holiday transcription/), { target: { value: "invalid JSON" } });
   fireEvent.click(screen.getByRole("button", { name: "Review Holiday Changes" }));
   await screen.findByRole("alert");
@@ -110,7 +110,7 @@ it("parsing is separate from approval/publication and invalid transcription repo
 });
 it("checks official sources on explicit intent only, reuses review and does not publish", async () => {
   service.readHolidayCandidates.mockResolvedValue([]);
-  const view = render(<PayrollHolidayImport year="2027" geography="MY-08" />);
+  const view = render(<PayrollHolidayImport canPublish year="2027" geography="MY-08" />);
   await waitFor(() => expect(screen.getByRole("button", { name: "Check Official Updates" }).disabled).toBe(false));
   expect(service.checkOfficialHolidayUpdates).not.toHaveBeenCalled();
   service.readHolidayUpdateCheck.mockResolvedValue({ completed_at: "2026-09-27T01:00:00Z", result: { status: "updates_found", sources: [] } });
@@ -121,27 +121,27 @@ it("checks official sources on explicit intent only, reuses review and does not 
   fireEvent.click(screen.getByRole("button", { name: "Review Update" }));
   expect(screen.getByRole("button", { name: "View Official Document" })).toBeTruthy();
   expect(service.publishHolidayCandidate).not.toHaveBeenCalled();
-  view.rerender(<PayrollHolidayImport year="2028" geography="MY-10" />);
+  view.rerender(<PayrollHolidayImport canPublish year="2028" geography="MY-10" />);
   await waitFor(() => expect(service.readHolidayUpdateCheck).toHaveBeenCalledWith("2028", "MY-10"));
 });
 it("shows a persisted no-update result without offering publication or manual source entry", async () => {
   service.readHolidayCandidates.mockResolvedValue([]);
   service.readHolidayUpdateCheck.mockResolvedValue({ completed_at: "2026-09-27T01:00:00Z", result: { status: "no_updates", sources: [] } });
-  render(<PayrollHolidayImport year="2027" />);
+  render(<PayrollHolidayImport canPublish year="2027" />);
   await screen.findByText("No updates found");
   expect(screen.queryByRole("button", { name: "Publish Calendar" })).toBeNull();
   expect(service.checkOfficialHolidayUpdates).not.toHaveBeenCalled();
 });
 it("defaults QA off and clears stale year/outlet-independent candidate state", async () => {
-  const view = render(<PayrollHolidayImport year="2027" />); await screen.findByRole("button", { name: "Review Update", exact: true });
+  const view = render(<PayrollHolidayImport canPublish year="2027" />); await screen.findByRole("button", { name: "Review Update", exact: true });
   expect(service.readHolidayCandidates).toHaveBeenCalledWith("2027", false);
-  view.rerender(<PayrollHolidayImport year="2026" />);
+  view.rerender(<PayrollHolidayImport canPublish year="2026" canPublish />);
   await waitFor(() => expect(service.readHolidayCandidates).toHaveBeenCalledWith("2026", false));
 });
 it("keeps pre-reviewed source dates visible and requests only exceptional classification", async () => {
  const required={...row,key:'2',classification_review:true,row:{...row.row,name:'Mandatory candidate',suggested_kind:'required'}};
  service.readHolidayCandidates.mockResolvedValue([{...candidate,proposal_metadata:{parser:'bkpp_proposal_v1',document_role:'annual'},rows:[row,required],decisions:{1:{action:'accept'}}}]);
- render(<PayrollHolidayImport year="2027" />);
+ render(<PayrollHolidayImport canPublish year="2027" />);
  fireEvent.click(await screen.findByRole('button',{name:'Review Calendar Exceptions'}));
  expect(screen.getByRole('region',{name:'Proposed Holiday Calendar'})).toBeTruthy();
  expect(screen.getAllByText('QA ONLY holiday')).toHaveLength(1);
@@ -151,7 +151,7 @@ it("keeps pre-reviewed source dates visible and requests only exceptional classi
 });
 it("never offers annual publication for a supplementary gazette", async () => {
  service.readHolidayCandidates.mockResolvedValue([{...candidate,status:'approved',proposal_metadata:{document_role:'supplement'},decisions:{1:{action:'accept'}}}]);
- render(<PayrollHolidayImport year="2027" />);
+ render(<PayrollHolidayImport canPublish year="2027" />);
  fireEvent.click(await screen.findByRole('button',{name:'Review Update',exact:true}));
  expect(screen.queryByRole('button',{name:'Publish Holiday Calendar'})).toBeNull();
 });
@@ -163,7 +163,7 @@ it("explicitly confirms applicable dates without exposing internal uncertainty o
   service.confirmHolidayDate.mockImplementation(async () => {
     service.readHolidayCandidates.mockResolvedValue([{ ...source, revision: 3, decisions: { 1: { action: "accept" } }, rows: [{ ...uncertain, state: "new", issue: null, date_resolution: { official_reference: "Official confirmation page 2" } }] }]);
   });
-  render(<PayrollHolidayImport year="2027" operational geography="MY-08" outletId="workplace" />);
+  render(<PayrollHolidayImport canPublish year="2027" operational geography="MY-08" outletId="workplace" />);
   fireEvent.click(await screen.findByRole("button", { name: "Review Applicable Exceptions" }));
   fireEvent.click(screen.getByRole("button", { name: "Review uncertain dates" }));
   expect(screen.queryByLabelText("Unresolved condition / correction evidence")).toBeNull();

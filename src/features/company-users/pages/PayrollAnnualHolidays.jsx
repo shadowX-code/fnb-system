@@ -30,7 +30,7 @@ export function annualCalendarEntries(holidays, year, previous = []) {
   });
 }
 
-export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, onViewHoliday, onCompanyChanged, onChanged, selectedCompany }) {
+export default function PayrollAnnualHolidays({ data, canManage, canPublish = false, onAddHoliday, onViewHoliday, onCompanyChanged, onChanged, selectedCompany }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(String(currentYear));
   const [annual, setAnnual] = useState(null);
@@ -105,6 +105,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
     finally { setBusy(false); }
   };
   const editable = canManage && annual?.can_manage;
+  const publishable = editable && canPublish && annual?.can_publish;
   const calendarReady = draft.entries?.length > 0 && draft.entries.every(e => e.kind && e.source_reference.trim()
     && (e.kind !== "substitute" || e.substitutes_holiday_id));
   const policyCalendar = calendars.find(c => c.id === draft.calendarId);
@@ -131,7 +132,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
     </div>
     {error && !editing && <div role="alert" className="p-4 text-sm text-rose-700">{error}<button type="button" className="ml-3 text-primary" onClick={() => setRefresh(n => n + 1)}>Retry</button></div>}
     {!annual && !error ? <p className="p-4 text-sm text-text-secondary">Loading annual calendar…</p> : annual && <>
-      <PayrollHolidayWorkflow operation={operation} onOperationChanged={setOperation} year={year} annual={annual} editable={editable} advancedContent={advancedContent} onAdditionalReview={setAdditionalReview} onPublished={() => { setRefresh(n=>n+1); onChanged?.(); }} />
+      <PayrollHolidayWorkflow operation={operation} onOperationChanged={setOperation} year={year} annual={annual} editable={editable} canPublish={publishable} advancedContent={advancedContent} onAdditionalReview={setAdditionalReview} onPublished={() => { setRefresh(n=>n+1); onChanged?.(); }} />
       <section className="p-4">
         <details className="mt-3 text-sm"><summary className="cursor-pointer text-primary">Manage exceptions</summary><p className="my-2 text-text-secondary">Explicit company/outlet calendars retain their own scope. Changing an existing scope requires a separate policy; it is never silently reassigned.</p>
           <SelectField label="Review company selection" value={company} onChange={value => { setCompany(value); }} options={[...(selectedCompany == null ? [{ value: "all", label: "All applicable companies" }] : []), ...(data.legal_entities || []).filter(e => e.is_active !== false).map(e => ({ value: e.id, label: entityName(e) }))]} />
@@ -141,7 +142,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
       </section>
       {!editable && <details className="border-t border-border p-4 text-sm"><summary className="cursor-pointer text-text-secondary">Advanced &amp; History</summary>{advancedContent}</details>}
     </>}
-    {additionalReview && <Modal title="Review Additional Paid Entitlement" size="lg" onClose={() => !busy && setAdditionalReview(null)} footer={<><button className="btn-secondary" disabled={busy} onClick={() => setAdditionalReview(null)}>Cancel</button><button className="btn-primary" disabled={busy || !additionalReview.attested || !additionalReview.reference.trim()} onClick={async () => {
+    {additionalReview && <Modal title="Review Additional Paid Entitlement" size="lg" onClose={() => !busy && setAdditionalReview(null)} footer={<><button className="btn-secondary" disabled={busy} onClick={() => setAdditionalReview(null)}>Cancel</button><button className="btn-primary" disabled={!publishable || busy || !additionalReview.attested || !additionalReview.reference.trim()} onClick={async () => {
       setBusy(true); setError("");
       try { await payrollService.confirmAdditionalHoliday(additionalReview); setAdditionalReview(null); setRefresh(n => n + 1); onChanged?.(); }
       catch (cause) { setError(cause.message); } finally { setBusy(false); }
@@ -160,7 +161,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
     {editing && <Modal size="xl" title={editing === "calendar" ? "Override Holiday Classification" : "Select Paid Holidays"}
       onClose={() => !busy && setEditing(null)} footer={<><button className="btn-secondary" disabled={busy} onClick={() => setEditing(null)}>Cancel</button>
         {(editing !== "policy" || draft.exception) && <button className="btn-secondary" disabled={busy || !canSave} onClick={() => save(false)}>Save Draft</button>}
-        <button className="btn-primary" disabled={busy || !canSave || (editing === "calendar" && !draft.complete)} onClick={() => save(true)}>{busy ? "Saving…" : "Publish"}</button></>}>
+        <button className="btn-primary" disabled={!publishable || busy || !canSave || (editing === "calendar" && !draft.complete)} onClick={() => save(true)}>{busy ? "Saving…" : "Publish"}</button></>}>
       {editing === "calendar" ? <div className="space-y-4">
         <p className="text-sm text-text-secondary">Source maintenance only. Select the holiday to override; all other reviewed classifications are preserved.</p>
         <SelectField label="Holiday to override" value={draft.overrideId} onChange={id => patch("overrideId", id)} options={draft.entries.map(e => ({ value: e.holiday_id, label: `${e.holiday.name} · ${e.holiday.holiday_date}` }))} />

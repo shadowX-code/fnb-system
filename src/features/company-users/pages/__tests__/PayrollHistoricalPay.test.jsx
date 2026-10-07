@@ -1,3 +1,5 @@
+import { payrollCapabilities } from "../payrollCapabilities.js";
+const allPayroll = payrollCapabilities(() => true);
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import FoundationForm from '../PayrollCompensationForm.jsx';
@@ -12,9 +14,9 @@ const data={legal_entities:[{id:'le',name:'Employer'}],employees:[{id:'emp',name
 it('keeps former employees discoverable by historical employer and status',()=>{
  render(<ProfilesTab data={data} reload={vi.fn()}/>);
  expect(screen.getByText('Former Employee')).toBeTruthy();expect(screen.getByText(/Ended 30 Sep.* 2026/)).toBeTruthy();
- fireEvent.click(screen.getByRole('button',{name:'All employment'}));fireEvent.click(screen.getByRole('button',{name:'Active',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Employment Status'}));fireEvent.click(screen.getByRole('option',{name:'Active',exact:true}));
  expect(screen.queryByText('Former Employee')).toBeNull();
- fireEvent.click(screen.getByRole('button',{name:'Active',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Resigned',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Employment Status',exact:true}));fireEvent.click(screen.getByRole('option',{name:'Resigned',exact:true}));
  expect(screen.getByText('Former Employee')).toBeTruthy();
 });
 it('requires explicit historical rate/date/reason without using later pay',async()=>{
@@ -34,7 +36,7 @@ it('same-date correction resolves latest revision while future pay stays unchang
 it('Run Set up pay saves through shared authority, refreshes the same employee and retains Review',async()=>{
  const refresh=vi.fn().mockResolvedValue({}); const changed=vi.fn();
  const runRead={refresh,data:{calculation:{results:[]},statutory:{results:[]},preparation:{results:[{employee_id:'emp',employment:{identity:{legal_entity_id:'le',workplace:'Outlet'}},projection:{status:'review_required',issues:['missing_effective_compensation_or_proration_policy'],inputs:{compensation_start:null,compensation_end:null},lines:[]},statutory_setup:{schemes:{}}}]}}};
- render(<PayrollRunEmployeesPanel run={{id:'run',status:'draft'}} entityId="le" month="2026-09" canManage data={data} runRead={runRead} onChanged={changed}/>);
+ render(<PayrollRunEmployeesPanel run={{id:'run',status:'draft'}} entityId="le" month="2026-09" permissions={allPayroll} data={data} runRead={runRead} onChanged={changed}/>);
  await screen.findByText('Former Employee');fireEvent.click(screen.getByRole('button',{name:'Review',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Set up pay',exact:true}));
  fireEvent.change(screen.getByRole('spinbutton'),{target:{value:'3000'}});fireEvent.change(screen.getByRole('textbox',{name:/Reason/}),{target:{value:'Verified historical pay'}});fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));
  await waitFor(()=>expect(refresh).toHaveBeenCalledWith({retryEmployeeId:'emp'}));

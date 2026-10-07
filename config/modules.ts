@@ -1,5 +1,15 @@
 export type ModuleAction =
   | "view"
+  | "setup"
+  | "statutory"
+  | "prepare"
+  | "review_time"
+  | "treat_ph"
+  | "adjust"
+  | "configure"
+  | "configure_holidays"
+  | "publish_holidays"
+  | "record_payment"
   | "create"
   | "edit"
   | "delete"
@@ -46,6 +56,17 @@ export type AppModule = {
 
 export const permissionActionOrder: ModuleAction[] = [
   "view",
+  "setup",
+  "statutory",
+  "prepare",
+  "review_time",
+  "treat_ph",
+  "adjust",
+  "configure",
+  "configure_holidays",
+  "publish_holidays",
+  "record_payment",
+
   "create",
   "edit",
   "delete",
@@ -80,6 +101,17 @@ export const permissionActionOrder: ModuleAction[] = [
 
 export const permissionActionLabels: Record<ModuleAction, string> = {
   view: "View",
+  setup: "Set Up Payroll Pay",
+  statutory: "Confirm Payroll Statutory Setup",
+  prepare: "Prepare Payroll Runs",
+  review_time: "Review Payroll Time",
+  treat_ph: "Confirm PH Pay Treatment",
+  adjust: "Adjust Payroll",
+  configure: "Configure Payroll",
+  configure_holidays: "Configure Payroll Holiday Calendar",
+  publish_holidays: "Publish Payroll Holiday Calendar",
+  record_payment: "Record Payroll Payment",
+
   create: "Create",
   edit: "Edit",
   delete: "Delete",
@@ -300,7 +332,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/people/payroll",
     icon: "wallet",
     sidebar: true,
-    permissions: { view: true, manage: true, finalize: true },
+    permissions: { view: true, setup: true, statutory: true, prepare: true, review_time: true, treat_ph: true, adjust: true, configure: true, configure_holidays: true, publish_holidays: true, record_payment: true, finalize: true },
   },
   {
     id: "employee_compliance",
@@ -1095,8 +1127,19 @@ export function getModuleLabel(moduleId: string) {
   return getModuleById(moduleId)?.label ?? moduleId;
 }
 
-// Presentation only: codes, enabled actions and authority remain unchanged.
+// Canonical permission presentation; authority is owned by each corresponding server command.
 export const permissionPresentationOverrides: Record<string, { label: string; description: string }> = {
+  "payroll.setup": { label: "Set Up Payroll Pay", description: "Create and correct effective compensation and recurring employee components." },
+  "payroll.statutory": { label: "Confirm Payroll Statutory Setup", description: "Confirm effective statutory setup, PCB and reusable PH statutory evidence." },
+  "payroll.prepare": { label: "Prepare Payroll Runs", description: "Create and prepare open Payroll Runs, including governed correction Runs." },
+  "payroll.review_time": { label: "Review Payroll Time", description: "Review, correct and reconcile open payable-time evidence." },
+  "payroll.treat_ph": { label: "Confirm PH Pay Treatment", description: "Confirm and correct open Public Holiday occurrence treatments." },
+  "payroll.adjust": { label: "Adjust Payroll", description: "Append and reverse open Run component adjustments." },
+  "payroll.configure": { label: "Configure Payroll", description: "Configure components, wage classifications, pricing rules and default PH treatment." },
+  "payroll.configure_holidays": { label: "Configure Payroll Holiday Calendar", description: "Capture and review official sources, proposed dates and calendar/policy drafts." },
+  "payroll.publish_holidays": { label: "Publish Payroll Holiday Calendar", description: "Publish/retire paid-holiday authority and confirm additional gazetted entitlement; calendar configuration is also required." },
+  "payroll.record_payment": { label: "Record Payroll Payment", description: "Record and reverse settlement evidence for current finalized Payroll." },
+
   "crew_leave_settings.manage": {
     label: "Configure Leave Policies",
     description: "Configure outlet-scoped leave policies and their effective history.",

@@ -14,7 +14,7 @@ const rows = Array.from({ length: 11 }, (_,i) => ({key:String(i+1),state:"new",c
 const candidate = { id:"candidate",revision:2,proposal_metadata:{document_role:"annual"},rows:[...rows,{key:"12",state:"blocked",row:{date:"2026-02-01",name:"Unrelated KL holiday",scope:"state",state_code:"MY-14",kind:"gazetted"}}],decisions:Object.fromEntries(rows.slice(5).map(r=>[r.key,{action:"accept",origin:"verified_source_extraction"}])) };
 beforeEach(()=>{vi.clearAllMocks();fixture.candidate=candidate;service.readHolidayOperation.mockResolvedValue({outlets:[],geographies:["MY-08"],unverified_count:0});service.publishHolidayOperation.mockResolvedValue({calendar_id:"calendar",policy_id:"policy"});});
 afterEach(cleanup);
-const show = () => render(<PayrollHolidayWorkflow year="2026" annual={{calendars:[],policies:[]}} editable onPublished={vi.fn()} />);
+const show = () => render(<PayrollHolidayWorkflow year="2026" canPublish annual={{calendars:[],policies:[]}} editable canPublish onPublished={vi.fn()} />);
 it("takes Perak from official update to one explicit publish without unrelated-state review",async()=>{
  show(); await screen.findByText("Applicable holiday 1");
  expect(screen.queryByText("Unrelated KL holiday")).toBeNull();
@@ -52,7 +52,7 @@ it("uses canonical snapshot classifications and keeps missing historical evidenc
 it("shows additional gazetted entitlements separately from six company choices",async()=>{
  fixture.candidate=null;
  const entries=rows.map((r,i)=>({holiday_id:r.key,kind:i<5?"required":"gazetted",holiday:{holiday_date:r.row.date,name:r.row.name,scope:r.row.scope,state_code:r.row.state_code}}));
- render(<PayrollHolidayWorkflow year="2026" annual={{calendars:[{id:"calendar",status:"published",entries}],policies:[{id:"policy",is_default:true,selected_holiday_ids:rows.map(r=>r.key)}],additional_entries:[{holiday_id:"extra",holiday:{holiday_date:"2026-03-20",name:"Extra gazette",scope:"state",state_code:"MY-08"}}]}} editable onPublished={vi.fn()} />);
+ render(<PayrollHolidayWorkflow year="2026" canPublish annual={{calendars:[{id:"calendar",status:"published",entries}],policies:[{id:"policy",is_default:true,selected_holiday_ids:rows.map(r=>r.key)}],additional_entries:[{holiday_id:"extra",holiday:{holiday_date:"2026-03-20",name:"Extra gazette",scope:"state",state_code:"MY-08"}}]}} editable canPublish onPublished={vi.fn()} />);
  await screen.findByText("Applicable holiday 1");fireEvent.click(screen.getByRole("button",{name:"Select Company Holidays",exact:true}));
  expect(screen.getByText(/6\/6 company holidays selected/)).toBeTruthy();expect(screen.getByText("Extra gazette")).toBeTruthy();expect(screen.queryByLabelText("Select Extra gazette")).toBeNull();
  fireEvent.click(screen.getByRole("button",{name:"Review Calendar",exact:true}));

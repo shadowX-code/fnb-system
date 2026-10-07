@@ -146,3 +146,5 @@ Outlet State/Federal Territory remains location authority for state-specific Pub
 Holidays. Outlet Law Coverage has no active table, RPC, application or fallback path.
 Its applied migrations remain immutable history. Retirement locks/checks the empty
 coverage table and aborts if any confirmation exists; evidence is never converted.
+
+Payroll uses independent workflow grants in the shared catalog and Role Matrix; see [Payroll workflow permissions](payroll.md#payroll-workflow-permissions). The retired `payroll.manage` catalog record is historical only and cannot be submitted in a new role configuration. Migration preserves explicit existing grants through an audited mapping without changing scope. Protected Owner/Admin semantics remain unchanged.

@@ -1,3 +1,5 @@
+import { payrollCapabilities } from "../payrollCapabilities.js";
+const allPayroll = payrollCapabilities(() => true);
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -63,6 +65,7 @@ describe("Payroll Control Center", () => {
     render(<PayrollPage auth={{}} />);
     await screen.findByRole("button",{name:/Continue Payroll/});
     fireEvent.click(screen.getByRole("button",{name:/Continue Payroll/}));
+    fireEvent.click(await screen.findByRole("button",{name:/^Finalize ·/}));
     const finalize=await screen.findByRole("button",{name:"Finalize Payroll",exact:true});
     await waitFor(()=>expect(finalize.disabled).toBe(false));
     expect(screen.getAllByRole("button",{name:"Finalize Payroll",exact:true})).toHaveLength(1);
@@ -80,7 +83,7 @@ describe("Payroll Control Center", () => {
     mocks.readCalculation.mockResolvedValue({results:[{employee_id:"a",status:"ready",gross_earnings:2000}]});
     mocks.readStatutory.mockResolvedValue({results:[{employee_id:"a",status:"ready",net_pay:1800,non_statutory_deductions:0,lines:[{employee_amount:200}],total_employer_cost:2250}]});
     const open = vi.fn();
-    render(<Overview data={fixture} entityId="entity-1" month="2026-09" run={fixture.periods[0].runs[0]} canManage onOpenRun={open} onOpenEmployees={vi.fn()} />);
+    render(<Overview data={fixture} entityId="entity-1" month="2026-09" run={fixture.periods[0].runs[0]} permissions={allPayroll} onOpenRun={open} onOpenEmployees={vi.fn()} />);
     await screen.findByText("1 Ready · 1 Need Attention");
     expect(screen.getByText("1 employee needs time reconciliation")).toBeTruthy();
     expect(screen.getByText("1 employee needs statutory review")).toBeTruthy();
@@ -92,7 +95,7 @@ describe("Payroll Control Center", () => {
   it("does not present unresolved period membership as zero employees ready", async () => {
     render(<Overview data={fixture} entityId="entity-1" month="2026-09" run={fixture.periods[0].runs[0]}
       readiness={{calculation:{ready:false,employment_issue:"employment_joined_date_missing"}}}
-      canManage onOpenRun={vi.fn()} onOpenEmployees={vi.fn()} />);
+      permissions={allPayroll} onOpenRun={vi.fn()} onOpenEmployees={vi.fn()} />);
     await screen.findByText("Employment History Required");
     expect(screen.getAllByText("Joined Date is missing; historical employment for this payroll period cannot be verified.").length).toBeGreaterThan(0);
     expect(screen.queryByText("0 Ready · 0 Need Attention")).toBeNull();
@@ -101,7 +104,7 @@ describe("Payroll Control Center", () => {
     mocks.readPreparation.mockResolvedValue({results:[{employee_id:"a",projection:{status:"ready"},statutory_setup:{complete:true}}]});
     mocks.readCalculation.mockResolvedValue({results:[{employee_id:"a",status:"ready",gross_earnings:2000}]});
     mocks.readStatutory.mockResolvedValue({results:[{employee_id:"a",status:"ready",net_pay:1750,non_statutory_deductions:50,lines:[{employee_amount:200}],total_employer_cost:2260}]});
-    render(<Overview data={{...fixture,profiles:[{employee_id:"employee-1"}]}} entityId="entity-1" month="2026-09" run={fixture.periods[0].runs[0]} canManage onOpenRun={vi.fn()} />);
+    render(<Overview data={{...fixture,profiles:[{employee_id:"employee-1"}]}} entityId="entity-1" month="2026-09" run={fixture.periods[0].runs[0]} permissions={allPayroll} onOpenRun={vi.fn()} />);
     await screen.findByText("1 Ready · 0 Need Attention");
     const statement = screen.getByText("Gross Payroll").closest("dl").textContent.replaceAll("\u00a0"," ");
     expect(statement).toContain("RM 2,000.00"); expect(statement).toContain("RM 250.00"); expect(statement).toContain("RM 1,750.00"); expect(statement).toContain("RM 2,260.00");
@@ -112,7 +115,7 @@ describe("Payroll Control Center", () => {
       {run_id:"current",period_start:"2026-08-01",revision:2,status:"finalized",current:true,net_pay:1100},
     ]);
     const open=vi.fn();
-    render(<Overview data={fixture} entityId="entity-1" month="2026-09" canManage onOpenRun={open} />);
+    render(<Overview data={fixture} entityId="entity-1" month="2026-09" permissions={allPayroll} onOpenRun={open} />);
     await screen.findByText("August 2026");
     expect(screen.getAllByRole("button",{name:"View 2026-08 Payroll revision 2",exact:true})).toHaveLength(1);
     fireEvent.click(screen.getByRole("button",{name:"View 2026-08 Payroll revision 2",exact:true}));
@@ -150,7 +153,7 @@ describe("Payroll Control Center", () => {
     await screen.findByText("Review time readiness for this period");
     fireEvent.click(screen.getByRole("button", { name: "Review Time & Attendance" }));
     expect(screen.getByRole("navigation", { name: "Payroll Run stages" })).not.toBeNull();
-    await screen.findByRole("heading", { name: "Prepare Payroll" });
+    await screen.findByRole("button", { name: /^Prepare · Current/ });
     expect(mocks.readPreparation).toHaveBeenCalledWith("run-1");
   });
 
@@ -188,9 +191,8 @@ describe("Payroll Control Center", () => {
     expect(screen.getByRole("button", { name: /View Finalized Payroll/ })).not.toBeNull();
     expect(screen.getByText("Payroll finalized. The current revision is read-only; any correction creates a new revision.")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /View Finalized Payroll/ }));
-    await screen.findByText(/Read-only; changes require a Correction Revision/);
     expect(mocks.readFinalizedRecord).toHaveBeenCalledWith("run-final");
-    await screen.findByText(/QA Approver/);
+    await screen.findByText("Revision 2");
     expect(screen.queryByRole("button", { name: "Finalize Payroll" })).toBeNull();
   });
 

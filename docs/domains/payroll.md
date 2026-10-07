@@ -584,8 +584,7 @@ separate.
 
 ## Permissions and Security
 
-The People Payroll route requires `payroll.view`. Profile mutation requires
-`payroll.manage` plus employee scope; finalization requires
+The People Payroll route requires `payroll.view`. Payroll commands require the workflow grants below plus existing scope; finalization requires
 `payroll.finalize`. Legal-Entity-wide runs require an active Admin identity,
 the requested Payroll permission and All Outlets scope through the shared
 `payroll_can_manage_entity` authority; role names are not an additional gate.
@@ -1276,3 +1275,22 @@ Confirmed unpaid-absence and approved unpaid-leave evidence remain confirmed whe
 ## PH decision evidence compatibility
 
 Persisted PH reviews retain their original source snapshot and fingerprint. The review lifecycle verifies that binding, then compares canonical context with only absent/null `employment_jurisdiction` treated equivalently for pre-column history. A schema-only nullable-field addition does not reopen a confirmed decision. Non-null jurisdiction changes and every other context change remain fail-closed. Current confirmation/quote fingerprints remain exact for concurrency; this compatibility does not rewrite decisions, approve new treatments or alter finalized snapshots.
+
+### Payroll Workflow Permissions
+
+`payroll.manage` is retired from active Role Matrix selection and trusted role saves. Its historical catalog identity remains for audit references. The forward migration maps each existing explicit grant to all ten workflow grants, logs before/after permissions, and leaves outlet/entity scope unchanged. `payroll.view` and `payroll.finalize` remain separate.
+
+| Grant | Authority |
+| --- | --- |
+| `payroll.setup` | Effective compensation, historical corrections, profile creation and recurring employee components |
+| `payroll.statutory` | Statutory setup, LINDUNG, PCB confirmation and reusable PH compliance evidence |
+| `payroll.prepare` | Open Run creation/preparation, correction Drafts and non-final transitions |
+| `payroll.review_time` | Audited payable-time decisions, corrections and source reconciliation |
+| `payroll.treat_ph` | PH occurrence treatment and correction |
+| `payroll.adjust` | Append/reverse open Run adjustments |
+| `payroll.configure` | Components, wage classifications, calculation rules and default PH treatment |
+| `payroll.configure_holidays` | Official source capture/review, date resolution, calendar and selection drafts |
+| `payroll.publish_holidays` | Publication/retirement and additional gazetted entitlement, together with calendar configuration |
+| `payroll.record_payment` | Current finalized Run settlement recording/reversal |
+
+Initial setup atomically writes pay and statutory evidence, so requires both setup and statutory grants. A PH treatment that changes payable time also requires time-review authority. Authorized input editors can invoke canonical recalculation; this does not grant another business mutation or bypass entity/outlet scope. Automated time-source synchronization requires preparation or time review. Existing owner/Admin restrictions for global settings, finalized guards, snapshots and controlled corrections remain unchanged. No command accepts legacy manage as a substitute for a workflow grant.
