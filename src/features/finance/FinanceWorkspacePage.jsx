@@ -126,4 +126,4 @@ function LiveFinanceWorkspacePage({ section = 'overview', store = {}, auth }) {
   </WorkspacePage>;
 }
 
-export default function FinanceWorkspacePage(props) { const section=props.section ?? "overview"; return section === "overview" ? <FinancePreviewBoundary auth={props.auth} section={section}><LiveFinanceWorkspacePage {...props}/></FinancePreviewBoundary> : <LiveFinanceWorkspacePage {...props}/>; }
+export default function FinanceWorkspacePage(props) { const section=props.section ?? "overview"; return <FinancePreviewBoundary auth={props.auth} section={section}><LiveFinanceWorkspacePage {...props}/></FinancePreviewBoundary>; }

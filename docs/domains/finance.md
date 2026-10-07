@@ -116,8 +116,8 @@ Period movement separates EBITDA, closing cash/Working Capital changes and suppl
 
 Bukku integration, secrets, forecasting, Profit Levers, scenario planning, supplier/labour/product intelligence and capital/dividend planning remain outside Phase 1 and Phases 2A–2C.
 
-## Shared Admin Shell Pilot
+## Canonical Admin Page Composition
 
-Finance consumes the canonical analytical `AppShell` and shared `WorkspacePage` context header/canvas defined in platform architecture. Overview, Analysis, Costs, Cash and Data Sources colocate page identity, existing scope/period controls and relevant actions. Financial projections, financial/evidence components, route ownership and reads retain their established authorities. Statements and Planning retain their existing bounded behavior within the shared page composition.
+Finance uses the same standard `AppShell` as Factory and other Admin workspaces. Shared `WorkspacePage` composes the canonical `PageHeader` identity and actions, then a separate `AdminFilterToolbar` surface for relevant scope, period and comparison controls, followed by specialized domain content. The shell owns page width, alignment, application bar, sidebar and responsive navigation. Finance visualization CSS remains scoped to domain content and does not strip shared control surfaces or restyle page identity.
 
-The owner Design Preview action is a context-header command. Data Sources remains actual, read-only source administration even while analytical preview is enabled; its header explicitly identifies that boundary. Simulated analysis creates no connection, mapping, authority assignment or reconciliation evidence. Preview continues to be excluded from Production builds and gated to the canonical Staging host and owner role.
+The owner Design Preview action belongs to the canonical page header. Simulation notices remain explicit. Data Sources retains actual read-only source administration in preview; Planning and Statements retain their established foundations without simulated planning or invented accounting statements. Preview creates no connection, mapping, authority assignment or reconciliation evidence, remains excluded from Production builds and is gated to the canonical Staging host and owner role. Finance calculations, read contracts and evidence owners remain unchanged.

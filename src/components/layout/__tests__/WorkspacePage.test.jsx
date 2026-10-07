@@ -11,19 +11,22 @@ function Selection() {
   const [selected,setSelected]=useState(false);
   return <WorkspacePage section="Finance" title="Analysis" controls={<AdminFilterToolbar><SelectField label="Scope" value={scope} onChange={setScope} options={[{value:'all',label:'All outlets'},{value:'one',label:'One outlet'}]}/></AdminFilterToolbar>}><WorkspaceSurface><button aria-pressed={selected} onClick={()=>setSelected(!selected)}>Selected driver</button><output>{scope}</output></WorkspaceSurface></WorkspacePage>;
 }
-it('colocates identity, controls and feature actions without resetting scope or selected canvas state',()=>{
+it('uses canonical header actions followed by a separate control surface without resetting scope or selected content state',()=>{
   const content=<Selection/>;
   const view=render(<WorkspacePageActionsProvider actions={<button>Preview</button>}>{content}</WorkspacePageActionsProvider>);
   const header=screen.getByRole('banner',{name:'Analysis context'});
   expect(within(header).getByRole('heading',{name:'Analysis'})).toBeTruthy();
-  fireEvent.click(within(header).getByRole('button',{name:'Scope'}));
+  expect(within(header).queryByRole('button',{name:'Scope'})).toBeNull();
+  expect(document.querySelector('[data-admin-filter-toolbar]').previousElementSibling).toBe(header);
+  fireEvent.click(screen.getByRole('button',{name:'Scope'}));
   fireEvent.click(screen.getByRole('option',{name:'One outlet'}));
   fireEvent.click(screen.getByRole('button',{name:'Selected driver'}));
   view.rerender(<WorkspacePageActionsProvider actions={<button>Exit preview</button>} notice="Simulated evidence">{content}</WorkspacePageActionsProvider>);
   expect(screen.getByRole('button',{name:'Selected driver'}).getAttribute('aria-pressed')).toBe('true');
   expect(screen.getByText('one')).toBeTruthy();
   expect(within(header).getByRole('button',{name:'Exit preview'})).toBeTruthy();
-  expect(within(header).getByText('Simulated evidence')).toBeTruthy();
+  expect(screen.getByText('Simulated evidence').getAttribute('role')).toBe('status');
+  expect(document.querySelector('[data-workspace-content]').contains(screen.getByRole('button',{name:'Scope'}))).toBe(false);
 });
 it('keeps the standard shell default and existing navigation callbacks when analytical presentation is selected',()=>{
   const navigate=vi.fn();
