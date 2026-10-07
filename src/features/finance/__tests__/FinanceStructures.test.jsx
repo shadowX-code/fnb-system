@@ -16,7 +16,7 @@ it('retains muted analytical structures without fabricating points, bars or proj
   expect(screen.getByRole('heading',{name:'What changed'})).toBeTruthy();
   expect(document.querySelectorAll('.finance-profit-structure svg .chart-support, .finance-profit-structure svg .chart-pressure')).toHaveLength(0);
   view.unmount();view=render(<FinanceAnalysis analysis={pair}/>);
-  expect(screen.getByRole('group',{name:'Driver Contribution'}).querySelectorAll('[role=button]')).toHaveLength(5);
+  expect(screen.getByRole('group',{name:'Driver Contribution'}).querySelectorAll('[role=button]')).toHaveLength(6);
   expect(screen.getByRole('group',{name:'Driver Contribution'}).querySelectorAll('.chart-support, .chart-pressure, .chart-cash')).toHaveLength(0);
   fireEvent.click(screen.getByRole('tab',{name:'Outlets'}));
   expect(screen.queryByRole('group',{name:'Driver Contribution'})).toBeNull();

@@ -123,6 +123,4 @@
 }
 
 /* Canonical DashboardSection owns the focused surface; charts are interior content. */
-.finance-presentation .finance-workspace .finance-focused-surface { min-width:0; }
-.finance-presentation .finance-workspace .finance-focused-surface :is(.finance-driver-explorer,.finance-outlet-field,.finance-margin-map,.finance-cash-section) { border-top:0; padding-top:0; margin-top:0; }
-.finance-presentation .finance-workspace .finance-focused-surface .finance-analysis-context { background:transparent; border:0; border-top:1px solid var(--finance-line); border-radius:0; padding:16px 0 0; margin-bottom:0; }
+.finance-presentation .finance-workspace [data-admin-analytical-surface] :is(.finance-driver-explorer,.finance-outlet-field,.finance-margin-map,.finance-cash-section) { border-top:0; padding-top:0; margin-top:0; }

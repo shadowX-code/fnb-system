@@ -1,7 +1,6 @@
 /* Shared Finance canvas. Domain evidence and metric owners remain unchanged. */
 .finance-workspace { --finance-ink: var(--text-primary, #172b3a); --finance-muted: var(--text-secondary, #475569); --finance-line: var(--theme-border, #dce3e8); --finance-focus: var(--analysis-selected, #245e51); }
 .finance-workspace .finance-overview, .finance-workspace .finance-analysis-body, .finance-workspace .finance-source-panel { background: transparent; border-radius: 0; padding: 12px 0; }
-.finance-workspace h2, .finance-workspace h3 { letter-spacing: -.025em; }
 .finance-workspace .finance-state { border: 0; align-items: center; padding: 18px 0 12px; }
 .finance-workspace .finance-state h2 { font-size: 28px; margin: 8px 0; }
 .finance-workspace .finance-state p { font-size: 13px; margin-top: 8px; }
@@ -93,7 +92,6 @@
 .finance-workspace .finance-source-intro h2 { font-size: 24px; font-weight: 600; }
 .finance-workspace .finance-source-intro p { font-size: 13px; color: var(--finance-muted); margin-top: 8px; max-width: 65ch; line-height: 1.65; }
 .finance-workspace .finance-source-health { padding: 0; border: 0; }
-.finance-workspace button:focus-visible, .finance-workspace summary:focus-visible { outline: 2px solid var(--finance-focus); outline-offset: 3px; }
 @media (max-width: 640px) {
  .finance-workspace .finance-overview, .finance-workspace .finance-analysis-body, .finance-workspace .finance-source-panel { padding: 8px 0; }
  .finance-workspace .finance-state { gap: 20px; }

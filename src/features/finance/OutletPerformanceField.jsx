@@ -3,11 +3,11 @@ import { useState } from 'react';
 import { FinanceChart, FinanceMark, FinanceChartTip, useFinanceGeometry, placeFinanceLabels } from './FinanceChart.jsx';
 import { financialPeriod } from './presentation.js';
 function rate(value) { return value === null ? 'Unavailable' : `${value.toFixed(1)}%`; }
-export default function OutletPerformanceField({ outlets, selectedId, onSelect, lag }) {
+export default function OutletPerformanceField({ outlets, selectedId, onSelect, lag, embedded = false }) {
   const [showHistory, setShowHistory] = useState(false);
   const plotted = outlets.filter((outlet) => outlet.position?.x !== null && outlet.position?.x !== undefined && outlet.position?.y !== null && outlet.position?.y !== undefined);
   return <section data-workspace-surface="analysis" className="finance-outlet-field" aria-labelledby="finance-outlet-field-title">
-    <div className="finance-analysis-heading"><div><h2 id="finance-outlet-field-title">Outlet Performance Field</h2><p>Revenue growth meets profitability. Select an outlet to investigate its performance.</p></div><label className="finance-analysis-history"><input type="checkbox" checked={showHistory} onChange={(event) => setShowHistory(event.target.checked)} />Show 3-month trajectories</label></div>
+    <div className="finance-analysis-heading"><div>{!embedded ? <h2 id="finance-outlet-field-title">Outlet Performance Field</h2> : null}<p id={embedded ? "finance-outlet-field-title" : undefined}>Revenue growth meets profitability. Select an outlet to investigate its performance.</p></div><label className="finance-analysis-history"><input type="checkbox" checked={showHistory} onChange={(event) => setShowHistory(event.target.checked)} />Show 3-month trajectories</label></div>
     <div className="finance-outlet-canvas"><FinanceChart label="Outlet revenue growth and EBITDA margin field" dataKey={JSON.stringify(plotted.map(outlet=>[outlet.id,outlet.position.x,outlet.position.y]))} height={344}>{width => <PerformanceCanvas width={width} plotted={plotted} selectedId={selectedId} onSelect={onSelect} showHistory={showHistory} />}</FinanceChart></div>
     {!plotted.length ? <FinanceReadiness title="No outlets can be positioned yet">Complete current Revenue and EBITDA, plus positive comparison Revenue, are required for each point.</FinanceReadiness> : null}
     <p className="finance-analysis-muted">Zones use zero growth and zero EBITDA margin, not a target. {plotted.length} of {outlets.length} eligible outlets positioned. Trajectories compare each month with {lag} month{lag === 1 ? '' : 's'} earlier; missing observations are not connected. Coincident points keep their true coordinates; select any outlet below.</p>

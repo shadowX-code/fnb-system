@@ -47,3 +47,6 @@
 .finance-presentation .finance-workspace .finance-analysis-investigation > * { min-width:0; }
 .finance-workspace .finance-outlet-field .finance-analysis-table-wrap { max-width:100%; }
 .finance-workspace .finance-outlet-field .finance-analysis-table th button { min-height:44px; padding:8px 4px; }
+
+/* A range fill follows the supplied stepped trajectory; its baseline is the chart range. */
+.finance-workspace .finance-chart .finance-timeline-area { fill:var(--finance-cash); opacity:.06; }

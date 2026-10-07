@@ -25,7 +25,7 @@ export function FinanceChart({ label, height = 300, children, className = '', da
     setTip({ content, owner, above: mark.top - host.top, below: mark.bottom - host.top, x: Math.max(8, Math.min(host.width - 232, mark.left - host.left + mark.width / 2 - 108)), y: Math.max(4, mark.top - host.top - 78) });
   };
   return <ChartContext.Provider value={{ show, hide: () => setTip(null), tooltipId, owner: tip?.owner }}><div ref={ref} className={`finance-chart ${className}`} onKeyDown={e => { if (e.key === 'Escape') setTip(null); }}>
-    <svg viewBox={`0 0 ${width} ${height}`} role="group" aria-label={label}>{children(width, height)}</svg>
+    <svg viewBox={`0 0 ${width} ${typeof height === 'function' ? height(width) : height}`} role="group" aria-label={label}>{children(width, height)}</svg>
     {tip ? <div ref={tooltipRef} id={tooltipId} role="tooltip" className="finance-chart-tooltip" style={{ left: tip.x, top: tip.y }}>{tip.content}</div> : null}
   </div></ChartContext.Provider>;
 }

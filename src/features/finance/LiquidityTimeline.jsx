@@ -3,12 +3,12 @@ import { FinanceChart, FinanceMark, FinanceChartTip, useFinanceGeometry, placeFi
 import { financialValue } from './presentation.js';
 
 const eventMetric = (event) => ({ value: event.amount, unit: 'money' });
-export default function LiquidityTimeline({ model, selectedEventId, onEvent, onCash }) {
+export default function LiquidityTimeline({ model, selectedEventId, onEvent, onCash, embedded = false }) {
   const { cash, schedule, rows, lowest, constrained, largestCollection, largestCommitment } = model;
   // Coordinate projection of validated checkpoints; no additional financial forecast is calculated here.
   const points = model.projected ? [{date:schedule.asOf, position:cash}, ...rows, ...(rows.at(-1)?.date !== schedule.horizon.end ? [{date:schedule.horizon.end,position:rows.at(-1)?.position ?? cash}] : [])] : [];
   return <section className="finance-cash-section finance-liquidity" aria-labelledby="finance-liquidity-title">
-    <div className="finance-analysis-heading"><div><h2 id="finance-liquidity-title">Liquidity timeline</h2><p>{schedule ? `${schedule.horizon.start} to ${schedule.horizon.end} · ${schedule.completeness} schedule coverage` : 'Opening position → dated collections & commitments → expected cash'}</p></div><span className="finance-cash-basis">{model.projected ? 'Forecast · end-of-day checkpoints' : 'Expected positions unavailable'}</span></div>
+    <div className="finance-analysis-heading"><div>{!embedded ? <h2 id="finance-liquidity-title">Liquidity timeline</h2> : null}<p id={embedded ? "finance-liquidity-title" : undefined}>{schedule ? `${schedule.horizon.start} to ${schedule.horizon.end} · ${schedule.completeness} schedule coverage` : 'Opening position → dated collections & commitments → expected cash'}</p></div><span className="finance-cash-basis">{model.projected ? 'Forecast · end-of-day checkpoints' : 'Expected positions unavailable'}</span></div>
     <FinanceChart label="Horizontal Liquidity Timeline" dataKey={JSON.stringify([schedule, cash.value])} height={390}>{width => <TimelineCanvas width={width} model={model} points={points} selectedEventId={selectedEventId} onEvent={onEvent} onCash={onCash}/>}</FinanceChart>
     {model.projected ? <dl className="finance-timeline-readout"><div><dt>Expected lowest point</dt><dd>{financialValue(lowest.position)}<small>{lowest.date} · Forecast</small></dd></div><div><dt>Closing expected cash</dt><dd>{financialValue(points.at(-1).position)}<small>{schedule.horizon.end} · Forecast</small></dd></div></dl> : null}
     <div className="finance-timeline-selectors" aria-label="Select dated cash evidence">{rows.flatMap(row=>row.events).map(event=><button type="button" key={event.id} aria-pressed={selectedEventId===event.id} onClick={()=>onEvent(event)}><span>{event.date.slice(5)} · {event.kind}</span><strong>{event.direction==='inflow'?'+':'−'}{financialValue(eventMetric(event))}</strong></button>)}</div>
@@ -41,7 +41,7 @@ function TimelineCanvas({ width, model, points, selectedEventId, onEvent, onCash
   return <><path d={`M${left} ${top}V${bottom}H${right}`} className="chart-axis"/>
     {model.projected ? <>
       {[0,.5,1].map(tick => <g key={tick}><path d={`M${left} ${bottom-tick*(bottom-top)}H${right}`} className="chart-grid"/><text x={left-8} y={bottom-tick*(bottom-top)+4} textAnchor="end" style={{fontSize:10}}>{financeChartMoney(low+tick*(high-low))}</text></g>)}
-      <path d={path} className="finance-timeline-path"/>
+      <path d={`${path}V${bottom}H${left}Z`} className="finance-timeline-area"/><path d={path} className="finance-timeline-path"/>
       {points.map((point,index) => { const [px,py] = geometry[`checkpoint:${index}`]; return <circle key={point.date} cx={px} cy={py} r="3" className="chart-cash"/>; })}
       <FinanceMark label="Explore opening book cash" onSelect={onCash} tooltip={<FinanceChartTip title="Opening book cash">{schedule.asOf} · {financialValue(model.cash)} · Accounting position</FinanceChartTip>} transform={`translate(${geometry['checkpoint:0'].join(' ')})`}><circle r="22" fill="transparent"/><circle r="4" className="chart-cash"/><circle r="8" className="chart-focus"/></FinanceMark>
       {lowestPoint ? <g aria-label={`Lowest expected cash ${financialValue(lowest.position)} on ${lowest.date}`}><circle cx={lowestPoint[0]} cy={lowestPoint[1]} r="7" className="chart-cash"/><path d={`M${lowestPoint[0]} ${lowestPoint[1]+10}V${bottom}`} className="chart-grid"/><text x={Math.max(left+8,Math.min(right-98,lowestPoint[0]-42))} y={Math.max(24,lowestPoint[1]-18)} className="chart-annotation">Lowest · {financeChartMoney(lowest.position.value)}</text></g> : null}

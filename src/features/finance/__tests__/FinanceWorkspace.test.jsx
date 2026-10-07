@@ -36,11 +36,11 @@ it('shows unavailable accounting measures alongside operational reporting', asyn
   const financials = Object.fromEntries(['revenue', 'purchaseBasedCogs', 'opex', 'netProfit'].map((key) => [key, { amount: 50, presence: 'present' }]));
   vi.spyOn(reportingService, 'getMonthlyScopeFinancialReport').mockResolvedValue({ financials });
   render(<FinanceWorkspacePage auth={{ hasPermission: () => true, isProtectedRole: true }} store={{ outlets: [] }} />);
-  await waitFor(() => expect(screen.getByRole('heading', { name: 'A partial financial picture.' })).toBeTruthy());
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Financial state' })).toBeTruthy());
   const gaps = screen.getByText(/Missing evidence ·/).closest('details');
   expect(gaps.open).toBe(false);
   expect(gaps.textContent).toContain('Gross Margin');
-  expect(document.querySelector('.finance-measures').textContent).not.toContain('Unavailable');
+  expect(screen.getByRole('region', { name: 'Financial state' }).textContent).not.toContain('Unavailable');
   expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull();
   expect(screen.getByRole('region', { name: 'Financial data status' }).textContent).toContain('source timestamp unavailable');
   fireEvent.click(screen.getByRole('button', { name: 'Data Sources' }));

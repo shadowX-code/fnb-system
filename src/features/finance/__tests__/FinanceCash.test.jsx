@@ -43,7 +43,7 @@ it('recovers canonical read failure and keeps live missing balances distinct fro
   await screen.findByRole('heading', { name: 'Liquidity timeline' });
   expect(screen.getByText('Dated liquidity evidence not ready')).toBeTruthy();
   expect(screen.queryByRole('list', { name: 'Liquidity evidence required' })).toBeNull();
-  expect(screen.getByText('Cash position not ready')).toBeTruthy();
+  expect(screen.getByRole('region', { name: 'Current financial position' }).querySelectorAll('[data-metric-state=unavailable]')).toHaveLength(6);
   fireEvent.click(screen.getByText('Compare supplied profit, balances & cash flows'));
   expect(screen.queryByText('Hidden')).toBeNull();
   expect(spy.mock.calls.every(([query]) => query.outletId === null)).toBe(true);
@@ -53,7 +53,7 @@ it('keeps partial cash position values visible while disclosing missing balances
   const data = await fixture();
   data.current.metrics.debt = { ...data.current.metrics.debt, value: null, completeness: 'unavailable', provenance: [] };
   render(<FinanceCash analysis={data} />);
-  const position = document.querySelector('.finance-cash-position');
+  const position = screen.getByRole('region', { name: 'Current financial position' });
   expect(position.textContent).toContain('Cash');
   expect(position.textContent).not.toContain('Unavailable');
   expect(screen.queryByText('Cash position not ready')).toBeNull();

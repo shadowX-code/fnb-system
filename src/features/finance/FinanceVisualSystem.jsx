@@ -1,15 +1,14 @@
-import { useId } from 'react';
-import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
+import { AdminAnalyticalContext, AdminAnalyticalReadiness, AdminEvidenceDisclosure } from '../../components/layout/AdminAnalyticalSurface.jsx';
 import { ArrowRight } from 'lucide-react';
 import { navigateAdminRoute } from '../../app/routeOwnership.js';
 import './visual-system.css';
 
 /** Presentation only: evidence presence never establishes source authority. */
 export function FinanceReadiness({ title = 'Evidence not ready', children }) {
-  return <div className="finance-readiness" role="status"><div><strong>{title}</strong><p>{children}</p></div><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_data_sources')}>Review Data Sources <ArrowRight size={14} /></button></div>;
+  return <AdminAnalyticalReadiness title={title} action={<button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_data_sources')}>Review Data Sources <ArrowRight size={14} /></button>}>{children}</AdminAnalyticalReadiness>;
 }
 export function FinanceDisclosure({ label, children, open }) {
-  return <details className="finance-disclosure" open={open}><summary>{label}</summary><div>{children}</div></details>;
+  return <AdminEvidenceDisclosure label={label} open={open}>{children}</AdminEvidenceDisclosure>;
 }
 export function FinanceMissing({ ids, metrics, registry }) {
   const missing = ids.filter((id) => metrics[id].value === null);
@@ -18,8 +17,7 @@ export function FinanceMissing({ ids, metrics, registry }) {
 
 export const financeActions = Object.freeze(['Explain', 'Compare', 'Break down']);
 export function FinanceContext({ label, preamble, action, onAction, children, evidence, regionLabel = 'Selected analysis context', controlLabel = 'Analysis actions' }) {
-  const panelId = useId();
-  return <section data-workspace-surface="context" className="finance-analysis-context" aria-label={regionLabel}><div className="finance-analysis-heading"><div>{preamble ? <p className="finance-analysis-muted">{preamble}</p> : null}<h3>{label}</h3></div><AdminSegmentedControl label={controlLabel} className="finance-analysis-actions" value={action} onChange={onAction} options={financeActions.map((label) => ({ label, value: label, panelId }))} /></div><div id={panelId} role="tabpanel" aria-label={action} className="finance-analysis-action-content"><div key={`${label}:${action}`} className="finance-chart-context-change">{children}</div></div>{evidence}</section>;
+  return <AdminAnalyticalContext label={label} preamble={preamble} action={action} onAction={onAction} actions={financeActions} evidence={evidence} regionLabel={regionLabel} controlLabel={controlLabel}>{children}</AdminAnalyticalContext>;
 }
 
 export function FinanceProvenance({ metric }) {

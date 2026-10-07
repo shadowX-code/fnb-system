@@ -10,6 +10,11 @@ export default function MetricCard({
   icon: Icon,
   status,
   sparklineData,
+  sparklineLabel,
+  delta,
+  deltaTone = "neutral",
+  supportingValue,
+  state = "ready",
   insight,
   onClick,
   active = false,
@@ -49,9 +54,12 @@ export default function MetricCard({
       : tone === "success"
         ? "bg-emerald-50 text-emerald-700"
         : "bg-primary/8 text-primary/80";
-  // Reserved for a future labeled mini-sparkline. Do not render decorative bars
-  // unless the chart has clear labels, interaction, and trend meaning.
-  void sparklineData;
+  const deltaColor = deltaTone === "positive" ? "text-emerald-700" : deltaTone === "negative" ? "text-rose-700" : "text-text-secondary";
+  // Only dated, explicitly labeled evidence can become a miniature trend.
+  const points = state === "ready" && sparklineLabel && Array.isArray(sparklineData) && sparklineData.length > 1 && sparklineData.every(point => point?.label && Number.isFinite(point.value)) ? sparklineData : null;
+  const low = points ? Math.min(...points.map(point => point.value)) : 0;
+  const range = points ? Math.max(...points.map(point => point.value)) - low : 0;
+  const path = points?.map((point, index) => `${index ? "L" : "M"}${4 + index / (points.length - 1) * 112},${28 - (range ? (point.value - low) / range : .5) * 24}`).join(" ");
 
   return (
     <Component
@@ -61,6 +69,8 @@ export default function MetricCard({
       onClick={onClick}
       aria-label={ariaLabel}
       aria-pressed={onClick ? active : undefined}
+      aria-busy={state === "loading" || undefined}
+      data-metric-state={state}
       data-admin-summary-card={isSummary ? "true" : undefined}
     >
       <div className="flex items-start justify-between gap-1.5">
@@ -74,10 +84,13 @@ export default function MetricCard({
         </div>
         {status ? <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 type-micro font-semibold text-text-secondary">{status}</span> : null}
       </div>
-      <div className={`mt-0.5 min-w-0 break-words tracking-tight text-text-primary ${valueBaseClass} ${valueClass}`}>{value}</div>
-      {helper || subtitle || trend ? <div className="mt-0.5 flex items-center justify-between gap-2 text-xs">
+      <div className={`mt-0.5 min-w-0 break-words tracking-tight text-text-primary ${valueBaseClass} ${valueClass}`}>{state === "loading" ? <span className="motion-safe:animate-pulse text-text-muted" aria-label="Loading value">—</span> : state === "unavailable" ? <span aria-label="Evidence not ready">—</span> : value}</div>
+      {supportingValue && state === "ready" ? <div className="type-caption text-text-secondary">{supportingValue}</div> : null}
+      {delta && state === "ready" ? <div className={`type-caption font-semibold ${deltaColor}`}>{delta}</div> : null}
+      {points ? <svg viewBox="0 0 120 32" className="h-8 w-full text-primary" role="img" aria-label={sparklineLabel}><title>{points.map(point => `${point.label}: ${point.value}`).join("; ")}</title><path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" /></svg> : null}
+      {helper || subtitle || (trend && state === "ready") ? <div className="mt-0.5 flex items-center justify-between gap-2 text-xs">
         <span className={`min-w-0 text-text-secondary ${helperClassName || "truncate"}`}>{helper || subtitle}</span>
-        {trend ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
+        {trend && state === "ready" ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
       </div> : null}
       {action ? <div className="mt-1">{action}</div> : null}
       {insight ? <div className="type-caption text-text-muted">{insight}</div> : null}

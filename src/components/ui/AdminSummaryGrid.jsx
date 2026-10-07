@@ -9,6 +9,7 @@ const standardColumns = {
 
 function gridColumns(variant, count) {
   if (variant === "compact") {
+    if (count === 6) return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6";
     if (count >= 5) return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5";
     if (count === 4) return "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4";
     return standardColumns[["one", "two", "three"][Math.max(count - 1, 0)]];
