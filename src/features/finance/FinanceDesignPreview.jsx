@@ -1,0 +1,21 @@
+import { useEffect, useState } from 'react';
+import PageHeader from '../../components/layout/PageHeader.jsx';
+import MonthPickerField from '../../components/forms/MonthPickerField.jsx';
+import SelectField from '../../components/forms/SelectField.jsx';
+import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
+import { createFixtureProvider, fixtureScopes } from './providers/fixtureProvider.js';
+import { monthlyPeriod } from './foundation.js';
+import { readFinanceAnalysis } from './analysis.js';
+import { readFinanceOverview } from './financeService.js';
+import { FinanceOverview } from './FinanceWorkspacePage.jsx';
+import { FinanceAnalysis } from './FinanceAnalysisPage.jsx';
+import { FinanceCosts } from './FinanceCostsPage.jsx';
+import { FinanceCash } from './FinanceCashPage.jsx';
+const views = { analysis: FinanceAnalysis, costs: FinanceCosts, cash: FinanceCash };
+// Separate presentation tree. This never calls Reporting, persists data or supplies canonical financial state.
+export default function FinanceDesignPreview({ section }) {
+  const [month,setMonth]=useState('2026-10'), [scope,setScope]=useState('group:demo-group'), [data,setData]=useState(null), [error,setError]=useState('');
+  useEffect(()=>{let active=true;setData(null);setError('');const selected=fixtureScopes.find(entry=>entry.value===scope);const request={scope:{kind:selected.kind,id:selected.id,...(selected.legalEntityId?{legalEntityId:selected.legalEntityId}:{})},period:monthlyPeriod(month),currency:'MYR'};const provider=createFixtureProvider({development:true});const read=section==='overview'?readFinanceOverview(provider,request,{allowDemo:true}):readFinanceAnalysis(provider,request,{allowDemo:true,outlets:section==='analysis'?fixtureScopes.filter(entry=>entry.kind==='outlet').map(entry=>({id:entry.id,name:entry.label,legalEntityId:entry.legalEntityId})):[]});read.then(result=>{if(active)setData(result);}).catch(()=>{if(active)setError('Simulated evidence could not be loaded.');});return()=>{active=false;};},[month,scope,section]);
+  const View=views[section];
+  return <div className="finance-workspace finance-analysis-page space-y-5"><PageHeader section="Finance" title={section[0].toUpperCase()+section.slice(1)} description="Design Preview · simulated financial evidence, never business records."/><AdminFilterToolbar><SelectField label="Simulated scope" value={scope} onChange={setScope} options={fixtureScopes}/><MonthPickerField label="Preview period" value={month} onChange={setMonth}/></AdminFilterToolbar>{error?<p role="alert">{error}</p>:data?section==='overview'?<FinanceOverview key={`${month}:${scope}`} dataset={data}/>:<View key={`${month}:${scope}`} analysis={data}/>:<p role="status">Loading simulated evidence…</p>}</div>;
+}

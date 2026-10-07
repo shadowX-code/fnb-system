@@ -32,7 +32,7 @@ it('renders known partial events without manufacturing expected positions or low
   render(<FinanceCash analysis={data} />);
   expect(screen.getByRole('list', { name: 'Dated liquidity checkpoints' }).textContent).toContain('Incomplete coverage');
   expect(screen.getByText('Expected positions unavailable')).toBeTruthy();
-  expect(screen.getByText('Expected lowest point').parentElement.textContent).toContain('Unavailable');
+  expect(screen.getByText('Lowest checkpoint evidence').parentElement.textContent).toContain('Unavailable');
 });
 it('recovers canonical read failure and keeps live missing balances distinct from supplied profit', async () => {
   const spy = vi.spyOn(reportingService, 'getMonthlyScopeFinancialReport').mockRejectedValueOnce(new Error('failed')).mockResolvedValue({ financials: { revenue: { amount: 100, presence: 'present' }, purchaseBasedCogs: { amount: 30, presence: 'present' }, opex: { amount: 20, presence: 'present' }, netProfit: { amount: 50, presence: 'present' } } });

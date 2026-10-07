@@ -1,3 +1,4 @@
+import FinancePreviewBoundary from './FinancePreviewBoundary.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '../../components/layout/PageHeader.jsx';
 import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
@@ -11,7 +12,7 @@ import { readFinanceAnalysis, shiftMonth } from './analysis.js';
 import { currentFinanceMonth } from './presentation.js';
 import './finance.css';
 import './analysis.css';
-export default function FinanceComparisonWorkspace({ store = {}, auth, title, description, includeOutlets = false, children }) {
+function LiveFinanceComparisonWorkspace({ store = {}, auth, title, description, includeOutlets = false, children }) {
   const [mode, setMode] = useState('operational');
   const [month, setMonth] = useState(currentFinanceMonth);
   const [comparisonMode, setComparisonMode] = useState('previous');
@@ -56,3 +57,5 @@ export default function FinanceComparisonWorkspace({ store = {}, auth, title, de
     <AsyncDataSurface loading={loading} error={error} hasData={Boolean(analysis)} loadingRows={6} onRetry={() => setAttempt((value) => value + 1)}>{analysis ? <div key={`${mode}:${month}:${comparisonMonth}:${outletId}:${demoScope}`}>{children(analysis)}</div> : null}</AsyncDataSurface>
   </div>;
 }
+
+export default function FinanceComparisonWorkspace(props) { return <FinancePreviewBoundary auth={props.auth} section={props.title.toLowerCase()}><LiveFinanceComparisonWorkspace {...props}/></FinancePreviewBoundary>; }

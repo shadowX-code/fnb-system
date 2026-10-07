@@ -1,3 +1,5 @@
+import FinancePreviewBoundary from './FinancePreviewBoundary.jsx';
+import { ProfitArchitecture } from './FinanceAnalyticalVisuals.jsx';
 import { FinanceReadiness, FinanceDisclosure, FinanceMissing, FinanceContext, FinanceProvenance } from './FinanceVisualSystem.jsx';
 import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
@@ -55,20 +57,19 @@ export function FinanceOverview({ dataset }) {
   const [selectedId, setSelectedId] = useState('ebitda');
   const [action, setAction] = useState('Explain');
 
-  const flow = ['revenue', 'cogs', 'gross_profit', 'labour', 'opex', 'ebitda'];
   const primary = ['revenue', 'gross_margin', 'prime_cost', 'ebitda', 'ebitda_margin', 'cash'];
   const available = primary.filter((id) => metrics[id].value !== null).length;
   return <div className="finance-overview">
     {dataset.demo ? <div className="finance-demo" role="status">Development demo · All figures are illustrative. No business records are used.</div> : null}
     <section className="finance-state" aria-label="Financial state">
       <div><span className="finance-label">Financial state · {periodLabel({ year: Number(dataset.period.start.slice(0, 4)), month: Number(dataset.period.start.slice(5, 7)) })}</span><h2>{dataset.demo ? 'Profit, with context.' : available < primary.length ? 'A partial financial picture.' : 'Your financial position.'}</h2><p>{dataset.sourceLabel}. {available} of {primary.length} Overview measures available.</p></div>
-      <Metric metric={metrics.ebitda} prominent />
+      <div className="finance-primary-state"><Metric metric={metrics.ebitda} prominent /><Metric metric={metrics.ebitda_margin} /></div>
     </section>
-    <div className="finance-measures">{primary.filter((id) => id !== 'ebitda' && metrics[id].value !== null).map((id) => <Metric key={id} metric={metrics[id]} />)}</div>
+    <div className="finance-measures">{primary.filter((id) => !['ebitda', 'ebitda_margin'].includes(id) && metrics[id].value !== null).map((id) => <Metric key={id} metric={metrics[id]} />)}</div>
     <FinanceMissing ids={primary} metrics={metrics} registry={metricRegistry} />
     <section className="finance-flow" aria-labelledby="finance-flow-title">
-      <div className="finance-section-heading"><div><h3 id="finance-flow-title">How your profit is made</h3><p>{dataset.demo ? 'Revenue flows through cost of goods, labour and operating expense to EBITDA.' : 'Existing Reporting EBITDA retains its operational calculation. Missing accounting inputs are shown explicitly.'}</p></div><span className="finance-label">Profit Flow</span></div>
-      {flow.every((id) => metrics[id].value === null) ? <FinanceReadiness title="Profit Flow not ready">Revenue and supplied cost evidence are required to show your financial relationships.</FinanceReadiness> : <div className="finance-profit-map"><button type="button" className="finance-profit-source" aria-label="Explore Revenue flow" aria-pressed={selectedId === 'revenue'} onClick={() => setSelectedId('revenue')}><span>Revenue</span><strong>{amount(metrics.revenue)}</strong></button><div className="finance-profit-layers">{flow.filter((id) => !['revenue', 'ebitda'].includes(id)).map((id) => <button key={id} type="button" className={metrics[id].value === null ? 'is-unresolved' : ''} aria-label={`Explore ${metricRegistry[id].label} flow`} aria-pressed={selectedId === id} onClick={() => setSelectedId(id)}><span>{metricRegistry[id].label}</span><strong>{metrics[id].value === null ? 'Evidence needed' : amount(metrics[id])}</strong></button>)}</div><button type="button" className="finance-profit-result" aria-label="Explore EBITDA flow" aria-pressed={selectedId === 'ebitda'} onClick={() => setSelectedId('ebitda')}><span>EBITDA</span><strong>{amount(metrics.ebitda)}</strong></button></div>}
+      <div className="finance-section-heading"><div><h3 id="finance-flow-title">Profit Architecture</h3><p>{dataset.demo ? 'Revenue flows through cost of goods, labour and operating expense to EBITDA.' : 'Existing Reporting EBITDA retains its operational calculation. Missing accounting inputs are shown explicitly.'}</p></div><span className="finance-label">Profit Flow</span></div>
+      <ProfitArchitecture dataset={dataset} selectedId={selectedId} onSelect={setSelectedId} />
       <p className="finance-analysis-muted">{dataset.demo ? 'Development illustration · supplied revenue and cost inputs retain their disclosed basis.' : 'Operational EBITDA retains purchase-based COGS. Labour is not separately established; no missing input is inferred or deducted again.'}</p>
       <FinanceContext label={metricRegistry[selectedId].label} regionLabel="Selected Profit Flow context" action={action} onAction={setAction} evidence={<FinanceDisclosure label={`Evidence & definition for ${metricRegistry[selectedId].label}`}><p>{metricRegistry[selectedId].definition}</p><p>{semantic(metrics[selectedId])} · {metrics[selectedId].completeness} · {metrics[selectedId].reason}</p><FinanceProvenance metric={metrics[selectedId]} />{metrics[selectedId].comparison ? <><p>Previous month · {metrics[selectedId].comparison.completeness}</p><FinanceProvenance metric={metrics[selectedId].comparison} /></> : null}</FinanceDisclosure>}>{action === 'Explain' ? <p>{metrics[selectedId].reason || metricRegistry[selectedId].definition}</p> : action === 'Compare' ? <p><Comparison metric={metrics[selectedId]} /></p> : <div className="finance-analysis-inputs">{metricRegistry[selectedId].dependencies.map((id) => <button type="button" className="btn-secondary" key={id} onClick={() => setSelectedId(id)}>{metricRegistry[id].label} · {amount(metrics[id])}</button>)}{!metricRegistry[selectedId].dependencies.length ? <p>Finer source evidence is not supplied.</p> : null}</div>}</FinanceContext>
     </section>
@@ -87,7 +88,7 @@ function StatementsFoundation() {
     <div className="finance-statement-row"><div><h3>Cash Flow</h3><p>Awaiting validated accounting evidence and cash-flow classifications.</p></div><span className="finance-semantic">Unavailable</span></div>
   </section>;
 }
-export default function FinanceWorkspacePage({ section = 'overview', store = {}, auth }) {
+function LiveFinanceWorkspacePage({ section = 'overview', store = {}, auth }) {
   const [mode, setMode] = useState('operational');
   const [month, setMonth] = useState(currentMonth);
   const [outletId, setOutletId] = useState('all');
@@ -122,8 +123,9 @@ export default function FinanceWorkspacePage({ section = 'overview', store = {},
         <SelectField label={mode === 'demo' ? 'Demo scope' : 'Outlet scope'} value={mode === 'demo' ? demoScope : outletId} onChange={mode === 'demo' ? setDemoScope : setOutletId} options={mode === 'demo' ? demoOptions : outletOptions} />
         <MonthPickerField label="Period" value={month} onChange={setMonth} />
       </AdminFilterToolbar>
-      <FinanceDataStatus dataset={dataset} loading={loading} error={error} />
-      <AsyncDataSurface loading={loading} error={error} hasData={Boolean(dataset)} isEmpty={!dataset} emptyTitle="Select financial evidence" emptyDescription="Choose a scope to review its financial state." onRetry={() => setAttempt((value) => value + 1)}>{dataset ? <FinanceOverview dataset={dataset} /> : null}</AsyncDataSurface>
+      <AsyncDataSurface loading={loading} error={error} hasData={Boolean(dataset)} isEmpty={!dataset} emptyTitle="Select financial evidence" emptyDescription="Choose a scope to review its financial state." onRetry={() => setAttempt((value) => value + 1)}>{dataset ? <><FinanceOverview dataset={dataset} /><FinanceDataStatus dataset={dataset} loading={loading} error={error} /></> : null}</AsyncDataSurface>
     </> : section === 'statements' ? <StatementsFoundation /> : <section className="finance-future"><h2>Foundation established</h2><p>This workspace will become available once its financial evidence and authority are validated.</p><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_overview')}>Review financial state <ArrowRight size={15} /></button></section>}
   </div>;
 }
+
+export default function FinanceWorkspacePage(props) { const section=props.section ?? "overview"; return section === "overview" ? <FinancePreviewBoundary auth={props.auth} section={section}><LiveFinanceWorkspacePage {...props}/></FinancePreviewBoundary> : <LiveFinanceWorkspacePage {...props}/>; }

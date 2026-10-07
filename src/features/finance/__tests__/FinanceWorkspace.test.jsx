@@ -22,7 +22,7 @@ it('renders demo semantics and progressive disclosure without an accounting bala
   const dataset = await createFixtureProvider({ development: true }).readOverview({ scope: { kind: 'group', id: 'demo-group' }, period: monthlyPeriod('2026-09'), currency: 'MYR' });
   render(<FinanceOverview dataset={dataset} />);
   expect(screen.getByRole('status').textContent).toContain('illustrative');
-  expect(screen.getByRole('heading', { name: 'How your profit is made' })).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Profit Architecture' })).toBeTruthy();
   expect(screen.getByText('Source, freshness & metric definitions').closest('details').open).toBe(false);
 });
 it('links Statements to the existing Reports owner', () => {
