@@ -21,8 +21,8 @@ it('registers Finance IA with existing Reporting permissions and canonical paths
 it('renders demo semantics and progressive disclosure without an accounting balance invention', async () => {
   const dataset = await createFixtureProvider({ development: true }).readOverview({ scope: { kind: 'group', id: 'demo-group' }, period: monthlyPeriod('2026-09'), currency: 'MYR' });
   render(<FinanceOverview dataset={dataset} />);
-  expect(screen.getByRole('status').textContent).toContain('illustrative');
-  expect(screen.getByRole('heading', { name: 'Profit Architecture' })).toBeTruthy();
+  expect(screen.getAllByRole('status')[0].textContent).toContain('illustrative');
+  expect(screen.getByRole('heading', { name: 'What changed' })).toBeTruthy();
   expect(screen.getByText('Source, freshness & metric definitions').closest('details').open).toBe(false);
 });
 it('links Statements to the existing Reports owner', () => {
@@ -51,8 +51,8 @@ it('attaches shared contextual actions to Profit Flow selection and retains disc
   const dataset = await provider.readOverview({ scope: { kind: 'group', id: 'demo-group' }, period: monthlyPeriod('2026-09'), currency: 'MYR' });
   const before = JSON.stringify(dataset);
   render(<FinanceOverview dataset={dataset} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Explore COGS flow' }));
-  expect(screen.getByRole('region', { name: 'Selected Profit Flow context' }).textContent).toContain('COGS');
+  fireEvent.click(screen.getByRole('button', { name: 'Explore COGS driver' }));
+  expect(screen.getByRole('region', { name: 'Selected movement context' }).textContent).toContain('COGS');
   fireEvent.keyDown(screen.getByRole('tab', { name: 'Explain' }), { key: 'ArrowRight' });
   expect(screen.getByRole('tabpanel', { name: 'Compare' }).textContent).toContain('Prior period unavailable');
   expect(screen.getByText('Evidence & definition for COGS').closest('details').textContent).toContain('Development illustration');

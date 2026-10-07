@@ -72,6 +72,7 @@ it('only requests authorized outlet evidence and recovers from a read failure', 
   expect(await screen.findByRole('alert')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Retry', exact: true }));
   await waitFor(() => expect(screen.getByRole('heading', { name: 'Driver Contribution' })).toBeTruthy());
+  fireEvent.click(screen.getByRole('tab', { name: 'Outlets' }));
   expect(screen.getByText('No outlets can be positioned yet')).toBeTruthy();
   expect(spy.mock.calls.some(([query]) => query.outletId === 'hidden')).toBe(false);
   expect(screen.queryByText('Hidden outlet')).toBeNull();
@@ -82,6 +83,7 @@ it('preserves selected context when equivalent auth/store wrappers rerender', as
   const props = () => ({ auth: { roleOutletIds: ['allowed'] }, store: { outlets: [{ id: 'allowed', name: 'Allowed outlet' }] } });
   const view = render(<FinanceAnalysisPage {...props()} />);
   await screen.findByRole('heading', { name: 'Driver Contribution' });
+  fireEvent.click(screen.getByRole('tab', { name: 'Outlets' }));
   fireEvent.click(screen.getByText('Outlet detail · 0 positioned / 1 eligible'));
   fireEvent.click(screen.getByRole('button', { name: 'Allowed outlet', exact: true }));
   expect(screen.getByRole('region', { name: 'Selected outlet performance' })).toBeTruthy();

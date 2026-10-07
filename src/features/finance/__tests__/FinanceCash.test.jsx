@@ -13,19 +13,21 @@ async function fixture() { return readFinanceAnalysis(createFixtureProvider({ de
 it('owns Cash and preserves shared contextual actions through cycle and expected-event selection', async () => {
   expect(routeDetails.finance_cash.component).not.toBe(routeDetails.finance_overview.component);
   render(<FinanceCash analysis={await fixture()} />);
+  fireEvent.click(screen.getByRole('tab', { name: 'Working Capital' }));
   fireEvent.click(screen.getByRole('button', { name: 'Explore Accounts Receivable stage' }));
   fireEvent.click(screen.getByRole('tab', { name: 'Break down' }));
-  expect(screen.getByRole('tabpanel').textContent).toContain('Aggregate receivables');
-  fireEvent.click(screen.getByRole('tabpanel').querySelector('button'));
+  expect(screen.getByRole('tabpanel', { name: 'Break down' }).textContent).toContain('Aggregate receivables');
+  fireEvent.click(screen.getByRole('tabpanel', { name: 'Break down' }).querySelector('button'));
   expect(screen.getByRole('heading', { name: 'AR Days', exact: true })).toBeTruthy();
   fireEvent.keyDown(screen.getByRole('tab', { name: 'Break down' }), { key: 'ArrowLeft' });
-  expect(screen.getByRole('tabpanel').textContent).toContain('days');
+  expect(screen.getByRole('tabpanel', { name: 'Compare' }).textContent).toContain('days');
+  fireEvent.click(screen.getByRole('tab', { name: 'Liquidity' }));
   fireEvent.click(screen.getByRole('button', { name: 'Investigate Illustrative payroll commitment' }));
   expect(screen.getByRole('heading', { name: 'Illustrative payroll commitment' })).toBeTruthy();
-  expect(screen.getByRole('tabpanel').textContent).toContain('No matched historical comparison');
+  expect(screen.getByRole('tabpanel', { name: 'Compare' }).textContent).toContain('No matched historical comparison');
   fireEvent.click(screen.getByRole('tab', { name: 'Explain' }));
-  expect(screen.getByRole('tabpanel').textContent).toContain('2026-10-12');
-  expect(screen.getByRole('tabpanel').textContent).toContain('Forecast');
+  expect(screen.getByRole('tabpanel', { name: 'Explain' }).textContent).toContain('2026-10-12');
+  expect(screen.getByRole('tabpanel', { name: 'Explain' }).textContent).toContain('Forecast');
 });
 it('renders known partial events without manufacturing expected positions or lowest point', async () => {
   const data = await fixture(); data.current.liquiditySchedule.completeness = 'partial';

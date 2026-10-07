@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { FinanceOverview } from '../FinanceWorkspacePage.jsx';
+import { ProfitArchitecture } from '../FinanceAnalyticalVisuals.jsx';
 import { FinanceAnalysis } from '../FinanceAnalysisPage.jsx';
 import { FinanceCosts } from '../FinanceCostsPage.jsx';
 import { FinanceCash } from '../FinanceCashPage.jsx';
@@ -31,15 +31,15 @@ it('focus discloses precise evidence, keyboard selection emphasizes the same obj
 });
 it('profit partitions consume supplied inputs, retain every amount, and withhold proportional geometry for incompatible evidence',async()=>{
   const analysis=await fixture(), before=JSON.stringify(analysis);
-  const view=render(<FinanceOverview dataset={analysis.current}/>);
+  const view=render(<ProfitArchitecture dataset={analysis.current} onSelect={()=>{}}/>);
   const chart=screen.getByRole('group',{name:'Revenue consumption and retained profit structure'});
   expect(chart.querySelectorAll('.chart-pressure')).toHaveLength(3);
   const cogs=within(chart).getByRole('button',{name:'Explore COGS flow'});
   fireEvent.click(cogs);
-  expect(screen.getByRole('region',{name:'Selected Profit Flow context'}).textContent).toContain('COGS');
+  expect(within(chart).getByRole('button',{name:'Explore COGS flow'})).toBeTruthy();
   expect(JSON.stringify(analysis)).toBe(before);
   const partial={...analysis.current,metrics:{...analysis.current.metrics,labour:{...analysis.current.metrics.labour,value:null,completeness:'unavailable'}}};
-  view.rerender(<FinanceOverview dataset={partial}/>);
+  view.rerender(<ProfitArchitecture dataset={partial} onSelect={()=>{}}/>);
   expect(chart.querySelectorAll('.chart-pressure')).toHaveLength(0);
   expect(chart.querySelectorAll('.chart-pending')).toHaveLength(6);
 });
@@ -47,6 +47,7 @@ it('cost drill replaces field objects with supplied classifications and retains 
   render(<FinanceCosts analysis={await fixture()}/>);
   const chart=screen.getByRole('group',{name:'Cost growth relative to Revenue and margin impact'});
   expect(within(chart).getByRole('button',{name:'Investigate COGS pressure'})).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'Investigate COGS',exact:true}));
   fireEvent.click(screen.getByRole('tab',{name:'Break down'}));
   expect(within(chart).queryByRole('button',{name:'Investigate COGS pressure'})).toBeNull();
   const food=within(chart).getByRole('button',{name:'Investigate Food pressure'});
@@ -101,6 +102,7 @@ it('uses a bounded geometry transition without delaying selection or retaining r
 });
 it('returns preserved outlet context to the scope when the next read has no evidence for that outlet',async()=>{
   const analysis=await fixture(), view=render(<FinanceAnalysis analysis={analysis}/>);
+  fireEvent.click(screen.getByRole('tab',{name:'Outlets'}));
   fireEvent.click(screen.getByRole('button',{name:/^Demo KL: revenue growth/}));
   expect(screen.getByRole('region',{name:'Selected outlet performance'})).toBeTruthy();
   view.rerender(<FinanceAnalysis analysis={{...analysis,outlets:[]}}/>);

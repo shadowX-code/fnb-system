@@ -46,25 +46,25 @@ export function ProfitArchitecture({ dataset, selectedId, onSelect }) {
     {missing ? <FinanceReadiness title="Profit Architecture evidence not ready">Revenue and supplied cost evidence are required. Muted layers describe the financial structure only.</FinanceReadiness> : !partitioned ? <p className="finance-analysis-muted">Structural slots only · proportional partitions require complete, compatible inputs that reconcile. Supplied amounts retain their own basis.</p> : <p className="finance-analysis-muted">Partitions use supplied amounts relative to Revenue. COGS is consumed first; Labour and OPEX consume Gross Profit, leaving EBITDA.</p>}
   </div>;
 }
-function ContributionCanvas({ width, movement, selectedId, onSelect }) {
+function ContributionCanvas({ width, movement, selectedId, onSelect, compact }) {
   const bound = Math.max(1, ...movement.rows.map(row => Math.abs(row.contribution ?? 0)), Math.abs(movement.total.value ?? 0));
   const left = 64, right = width - 18, zero = left + (right - left) / 2, half = (right - left) / 2;
-  const rows = [...movement.rows, { id: 'ebitda', contribution: movement.total.value, included: true }];
+  const rows = compact ? movement.rows : [...movement.rows, { id: 'ebitda', contribution: movement.total.value, included: true }];
   const geometry = useFinanceGeometry(Object.fromEntries(rows.map((row, index) => [row.id, [zero + Math.min(0, row.contribution ?? 0) / bound * half, 46 + index * 44, Math.abs(row.contribution ?? 0) / bound * half]])));
   return <><text x={zero - 8} y="16" textAnchor="end">← Reduces</text><text x={zero + 8} y="16">Supports →</text><path d={`M${zero} 27V${46 + rows.length * 44 - 12}`} className="chart-axis" />
     {rows.map((row, index) => {
       const [x, y, length] = geometry[row.id], label = row.id === 'ebitda' ? 'Net EBITDA' : row.id === 'labour' ? 'Labour' : metricRegistry[row.id].label;
       return <FinanceMark key={row.id} label={row.id === 'ebitda' ? 'Explore EBITDA movement' : `Explore ${metricRegistry[row.id].label} driver`} selected={selectedId === row.id} dimmed={Boolean(selectedId) && selectedId !== row.id} onSelect={() => onSelect(row.id)} tooltip={<FinanceChartTip title={label}>{row.contribution === null ? row.included ? 'Comparable contribution evidence required' : 'Outside this EBITDA basis' : `${movementValue({ value: row.contribution })} · ${row.contribution < 0 ? 'Reduces' : 'Supports'} EBITDA`}</FinanceChartTip>}>
-        <rect x="0" y={y - 14} width={width} height="42" fill="transparent" />
+        <rect x="0" y={y - 14} width={width} height="44" fill="transparent" />
         <text x="0" y={y + 4} className="chart-label" style={{fontSize:10}}>{label}</text>
         {row.contribution === null ? <rect x={left} y={y - 9} width={right - left} height="18" className="chart-pending" /> : <><rect x={x} y={y - 9} width={Math.max(1, length)} height="18" rx="2" className={row.id === 'ebitda' ? 'chart-cash' : row.contribution < 0 ? 'chart-pressure' : 'chart-support'} /><text x={zero} y={y + 23} textAnchor="middle">{movementValue({value:row.contribution})}</text></>}
         <rect x={left - 3} y={y - 13} width={right - left + 6} height="39" rx="3" className="chart-focus" />
         {index === rows.length - 1 ? <path d={`M0 ${y - 19}H${width}`} className="chart-grid" /> : null}
       </FinanceMark>;
-    })}</>;
+    })}{compact ? <text x={zero} y="228" textAnchor="middle">Net EBITDA {movementValue(movement.total)}</text> : null}</>;
 }
-export function DriverContribution({ movement, selectedId, onSelect }) {
-  return <FinanceChart label="Driver Contribution" dataKey={JSON.stringify(movement)} height={movement.rows.length * 44 + 100}>{width => <ContributionCanvas width={width} movement={movement} selectedId={selectedId} onSelect={onSelect} />}</FinanceChart>;
+export function DriverContribution({ movement, selectedId, onSelect, compact = false }) {
+  return <FinanceChart label="Driver Contribution" dataKey={JSON.stringify(movement)} height={movement.rows.length * 44 + (compact ? 64 : 100)}>{width => <ContributionCanvas width={width} movement={movement} selectedId={selectedId} onSelect={onSelect} compact={compact} />}</FinanceChart>;
 }
 function PressureCanvas({ width, rows, selectedId, onSelect }) {
   const ready = rows.filter(row => row.growth.value !== null && row.revenueGrowth.value !== null && row.ratioMovement.value !== null);

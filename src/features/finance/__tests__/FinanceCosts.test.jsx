@@ -14,6 +14,7 @@ it('owns Costs separately and provides a coherent parent / classification drill 
   window.history.replaceState(null, '', '/finance/costs');
   render(<FinanceCosts analysis={await fixture()} />);
   expect(screen.getByRole('heading', { name: 'Margin Pressure Map' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Investigate COGS', exact: true }));
   fireEvent.click(screen.getByRole('tab', { name: 'Break down' }));
   fireEvent.click(screen.getByRole('button', { name: 'Investigate Food', exact: true }));
   expect(screen.getByRole('navigation', { name: 'Cost drill path' }).textContent).toContain('COGS/Food');
@@ -33,10 +34,10 @@ it('keeps unavailable labour and classifications explicit for live operational e
   }
   pair.profitDriverModel = { label: 'Operational basis', drivers: ['revenue', 'cogs', 'opex'] };
   render(<FinanceCosts analysis={pair} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Explore Labour Cost layer' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Investigate Labour Cost', exact: true }));
   fireEvent.click(screen.getByRole('tab', { name: 'Break down' }));
-  expect(screen.getByRole('tabpanel').textContent).toContain('No validated classified evidence');
-  expect(screen.getByRole('button', { name: 'Explore Labour Cost layer' }).textContent).toContain('—');
+  expect(screen.getByRole('tabpanel', { name: 'Break down' }).textContent).toContain('No validated classified evidence');
+  expect(screen.getByRole('tabpanel', { name: 'Break down' }).textContent).toContain('No account amounts');
 });
 it('requests only the chosen canonical scope and comparison, preserves context and recovers read failure', async () => {
   const spy = vi.spyOn(reportingService, 'getMonthlyScopeFinancialReport').mockRejectedValueOnce(new Error('failed')).mockResolvedValue({ financials: Object.fromEntries(['revenue', 'purchaseBasedCogs', 'opex', 'netProfit'].map((field) => [field, { amount: null, presence: 'missing' }])) });
@@ -45,8 +46,7 @@ it('requests only the chosen canonical scope and comparison, preserves context a
   await screen.findByRole('alert'); fireEvent.click(screen.getByRole('button', { name: 'Retry', exact: true }));
   await screen.findByRole('heading', { name: 'Margin Pressure Map' });
   expect(screen.getByText('Margin pressure evidence not ready')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Explore OPEX layer' }).textContent).toContain('—');
-  fireEvent.click(screen.getByRole('tab', { name: 'Break down' }));
+  expect(screen.queryByRole('region', { name: 'Selected analysis context' })).toBeNull();
   fireEvent.click(screen.getByText('Movement method & evidence'));
   fireEvent.click(screen.getByRole('button', { name: 'Investigate OPEX' }));
   fireEvent.click(screen.getByRole('tab', { name: 'Compare' }));

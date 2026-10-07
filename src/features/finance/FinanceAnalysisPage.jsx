@@ -1,3 +1,4 @@
+import FinanceAnalysisSurface from './FinanceAnalysisSurface.jsx';
 import { DriverContribution } from './FinanceAnalyticalVisuals.jsx';
 import { FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { FinanceReadiness, FinanceMissing } from './FinanceVisualSystem.jsx';
@@ -29,12 +30,14 @@ function ProfitDriverExplorer({ pair, model, selectedMetric, onSelect }) {
   </section>;
 }
 export function FinanceAnalysis({ analysis }) {
+  const [view, setView] = useState('Profit Drivers');
+  const [hasSelection, setHasSelection] = useState(false);
   const [selection, setSelection] = useState({ metricId: 'ebitda', outletId: null, origin: 'driver' });
   const [action, setAction] = useState('Explain');
   const outlet = analysis.outlets.find((entry) => entry.id === selection.outletId && entry.pair);
   const pair = outlet?.pair ?? analysis;
-  const selectMetric = (metricId, origin = 'driver') => { setSelection((value) => ({ ...value, metricId, origin })); };
-  const context = <AnalysisContext pair={pair} metricId={selection.metricId} outletLabel={outlet?.name} action={action} onAction={setAction} outlets={analysis.outlets} onOutlet={(id) => setSelection((value) => ({ ...value, outletId: id, origin: 'outlet' }))} onMetric={(id) => selectMetric(id, selection.origin)} />;
+  const selectMetric = (metricId, origin = 'driver') => { setHasSelection(true); setSelection((value) => ({ ...value, metricId, origin })); };
+  const context = <AnalysisContext pair={pair} metricId={selection.metricId} outletLabel={outlet?.name} action={action} onAction={setAction} outlets={analysis.outlets} onOutlet={(id) => { setHasSelection(true); setSelection((value) => ({ ...value, outletId: id, origin: 'outlet' })); }} onMetric={(id) => selectMetric(id, selection.origin)} />;
   const total = metricMovement(pair.current.metrics.ebitda, pair.previous.metrics.ebitda);
   return <div className="finance-analysis-body">
     {analysis.current.demo ? <p className="finance-demo" role="status">Development demo · All figures are illustrative. No business records are used.</p> : null}
@@ -44,8 +47,10 @@ export function FinanceAnalysis({ analysis }) {
       <PerformanceStrip pair={pair} onSelect={(id) => selectMetric(id, 'performance')} />
       <FinanceDisclosure label="Performance source & completeness"><p>{pair.current.sourceLabel} · {analysis.current.demo ? 'illustrative evidence' : 'live authorized evidence'}. Monthly evidence is not a closed accounting period. Missing Gross Margin or Prime Cost requires validated accounting COGS and labour evidence.</p><p>Source freshness remains unverified when evidence timestamps are unavailable. Read time is not source freshness. Analytical EBITDA Margin is derived only from complete EBITDA and positive Revenue; the underlying EBITDA definition is retained.</p><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_data_sources')}>Review Data Sources <ArrowRight size={14} /></button></FinanceDisclosure>
     </div>
-    <ProfitDriverExplorer pair={pair} model={analysis.profitDriverModel} selectedMetric={selection.metricId} onSelect={selectMetric} />
-    <div className="finance-analysis-investigation"><OutletPerformanceField outlets={analysis.outlets} selectedId={outlet?.id ?? null} lag={analysis.lag} onSelect={(id) => setSelection(value=>({...value,outletId:id,origin:'outlet'}))} /><section className="finance-analysis-context-slot" aria-label={outlet ? 'Selected outlet performance' : 'Selected scope performance'}>{outlet ? <p className="finance-analysis-muted">Revenue Growth {outlet.position?.x === null || outlet.position?.x === undefined ? '—' : `${outlet.position.x.toFixed(1)}%`}</p> : null}{context}</section></div>
+    <FinanceAnalysisSurface label="Analysis view" modes={['Profit Drivers', 'Outlets']} value={view} onChange={value => { setView(value); setHasSelection(false); }}>
+      {view === 'Profit Drivers' ? <ProfitDriverExplorer pair={pair} model={analysis.profitDriverModel} selectedMetric={hasSelection ? selection.metricId : null} onSelect={selectMetric} /> : <OutletPerformanceField outlets={analysis.outlets} selectedId={hasSelection ? outlet?.id ?? null : null} lag={analysis.lag} onSelect={id => { setHasSelection(true); setSelection(value => ({...value,outletId:id,origin:'outlet'})); }} />}
+      {hasSelection ? <section aria-label={outlet ? 'Selected outlet performance' : 'Selected scope performance'}>{outlet ? <p className="finance-analysis-muted">Revenue Growth {outlet.position?.x == null ? '—' : `${outlet.position.x.toFixed(1)}%`}</p> : null}{context}</section> : null}
+    </FinanceAnalysisSurface>
   </div>;
 }
 export default function FinanceAnalysisPage(props) {

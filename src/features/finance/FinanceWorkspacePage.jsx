@@ -1,5 +1,8 @@
+import FinanceAnalysisSurface from './FinanceAnalysisSurface.jsx';
+import { profitMovement } from './analysis.js';
+import { costIntelligence } from './costs.js';
 import FinancePreviewBoundary from './FinancePreviewBoundary.jsx';
-import { ProfitArchitecture } from './FinanceAnalyticalVisuals.jsx';
+import { DriverContribution } from './FinanceAnalyticalVisuals.jsx';
 import { FinanceReadiness, FinanceDisclosure, FinanceMissing, FinanceContext, FinanceProvenance } from './FinanceVisualSystem.jsx';
 import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
@@ -54,7 +57,11 @@ function Metric({ metric, prominent = false }) {
 }
 export function FinanceOverview({ dataset }) {
   const metrics = dataset.metrics;
-  const [selectedId, setSelectedId] = useState('ebitda');
+  const [selectedId, setSelectedId] = useState(null);
+  const previous = dataset.comparisonDataset ?? { ...dataset, metrics: Object.fromEntries(Object.entries(metrics).map(([id, metric]) => [id, { ...metric, value: null, completeness: 'unavailable' }])) };
+  const pair = { current: dataset, previous, profitDriverModel: dataset.profitDriverModel };
+  const movement = profitMovement(pair, dataset.profitDriverModel);
+  const attention = costIntelligence(pair).rows.filter(row => row.direction === 'pressure');
   const [action, setAction] = useState('Explain');
 
   const primary = ['revenue', 'gross_margin', 'prime_cost', 'ebitda', 'ebitda_margin', 'cash'];
@@ -67,12 +74,13 @@ export function FinanceOverview({ dataset }) {
     </section>
     <div className="finance-measures">{primary.filter((id) => !['ebitda', 'ebitda_margin'].includes(id) && metrics[id].value !== null).map((id) => <Metric key={id} metric={metrics[id]} />)}</div>
     <FinanceMissing ids={primary} metrics={metrics} registry={metricRegistry} />
-    <section data-workspace-surface="analysis" className="finance-flow" aria-labelledby="finance-flow-title">
-      <div className="finance-section-heading"><div><h3 id="finance-flow-title">Profit Architecture</h3><p>{dataset.demo ? 'Revenue flows through cost of goods, labour and operating expense to EBITDA.' : 'Existing Reporting EBITDA retains its operational calculation. Missing accounting inputs are shown explicitly.'}</p></div><span className="finance-label">Profit Flow</span></div>
-      <ProfitArchitecture dataset={dataset} selectedId={selectedId} onSelect={setSelectedId} />
-      <p className="finance-analysis-muted">{dataset.demo ? 'Development illustration · supplied revenue and cost inputs retain their disclosed basis.' : 'Operational EBITDA retains purchase-based COGS. Labour is not separately established; no missing input is inferred or deducted again.'}</p>
-      <FinanceContext label={metricRegistry[selectedId].label} regionLabel="Selected Profit Flow context" action={action} onAction={setAction} evidence={<FinanceDisclosure label={`Evidence & definition for ${metricRegistry[selectedId].label}`}><p>{metricRegistry[selectedId].definition}</p><p>{semantic(metrics[selectedId])} · {metrics[selectedId].completeness} · {metrics[selectedId].reason}</p><FinanceProvenance metric={metrics[selectedId]} />{metrics[selectedId].comparison ? <><p>Previous month · {metrics[selectedId].comparison.completeness}</p><FinanceProvenance metric={metrics[selectedId].comparison} /></> : null}</FinanceDisclosure>}>{action === 'Explain' ? <p>{metrics[selectedId].reason || metricRegistry[selectedId].definition}</p> : action === 'Compare' ? <p><Comparison metric={metrics[selectedId]} /></p> : <div className="finance-analysis-inputs">{metricRegistry[selectedId].dependencies.map((id) => <button type="button" className="btn-secondary" key={id} onClick={() => setSelectedId(id)}>{metricRegistry[id].label} · {amount(metrics[id])}</button>)}{!metricRegistry[selectedId].dependencies.length ? <p>Finer source evidence is not supplied.</p> : null}</div>}</FinanceContext>
-    </section>
+    <FinanceAnalysisSurface label="What changed">
+      <div className="finance-section-heading"><div><h3>What changed</h3><p>EBITDA movement · Revenue, COGS, Labour and OPEX</p></div></div>
+      <DriverContribution compact movement={movement} selectedId={selectedId} onSelect={setSelectedId} />
+      {!movement.attributable ? <FinanceReadiness title="Profit movement not ready">Comparable evidence and a validated EBITDA relationship are required.</FinanceReadiness> : null}
+      {selectedId ?       <FinanceContext label={metricRegistry[selectedId].label} regionLabel="Selected movement context" action={action} onAction={setAction} evidence={<FinanceDisclosure label={`Evidence & definition for ${metricRegistry[selectedId].label}`}><p>{metricRegistry[selectedId].definition}</p><p>{semantic(metrics[selectedId])} · {metrics[selectedId].completeness} · {metrics[selectedId].reason}</p><FinanceProvenance metric={metrics[selectedId]} />{metrics[selectedId].comparison ? <><p>Previous month · {metrics[selectedId].comparison.completeness}</p><FinanceProvenance metric={metrics[selectedId].comparison} /></> : null}</FinanceDisclosure>}>{action === 'Explain' ? <p><strong>{amount(metrics[selectedId])}</strong> · {metrics[selectedId].reason || metricRegistry[selectedId].definition}</p> : action === 'Compare' ? <p><Comparison metric={metrics[selectedId]} /></p> : <div className="finance-analysis-inputs">{metricRegistry[selectedId].dependencies.map((id) => <button type="button" className="btn-secondary" key={id} onClick={() => setSelectedId(id)}>{metricRegistry[id].label} · {amount(metrics[id])}</button>)}{!metricRegistry[selectedId].dependencies.length ? <p>Finer source evidence is not supplied.</p> : null}</div>}</FinanceContext> : null}
+    </FinanceAnalysisSurface>
+    {attention.length ? <section aria-label="Needs attention"><h3>Needs attention</h3><ul>{attention.map(row => <li key={row.id}>{metricRegistry[row.id].label} share of Revenue increased {row.ratioMovement.value.toFixed(1)}pp. <button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_costs')}>Review Costs</button></li>)}</ul></section> : null}
     <nav className="finance-paths" aria-label="Continue financial investigation">{[['analysis', 'Analysis', 'What changed & why'], ['costs', 'Costs', 'Where margin is consumed'], ['cash', 'Cash', 'Liquidity & capital conversion']].map(([route, label, detail]) => <button type="button" key={route} onClick={() => navigateAdminRoute(`finance_${route}`)}><strong>{label}</strong><span>{detail}</span><ArrowRight size={16} /></button>)}</nav>
     <FinanceDisclosure label="Source, freshness & metric definitions"><p>Values are {dataset.demo ? 'development illustrations' : 'authorized operational evidence'}. Actual means book-of-record evidence; Operational means FeedX records; Derived means a disclosed calculation; Forecast means a planning value. Accounting statements retain their own authority.</p>
       <p>{dataset.demo ? 'Fixture timestamp is fixed for reproducible development.' : 'Loaded time records this read. Source freshness is unverified until source timestamps are available.'} Reconciliation: unverified.</p>

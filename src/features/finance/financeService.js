@@ -65,5 +65,5 @@ export async function readFinanceOverview(provider, request, options) {
   const [current, previous] = await Promise.all([provider.readOverview(request), provider.readOverview({ ...request, period: comparisonPeriod })]);
   validateDataset(current, request, options);
   validateDataset(previous, { ...request, period: comparisonPeriod }, options);
-  return { ...current, metrics: Object.fromEntries(Object.entries(current.metrics).map(([id, metric]) => [id, { ...metric, comparison: { value: previous.metrics[id].value, period: comparisonPeriod, provenance: previous.metrics[id].provenance, completeness: previous.metrics[id].completeness } }])) };
+  return { ...current, comparisonDataset: previous, profitDriverModel: provider.profitDriverModel ?? null, metrics: Object.fromEntries(Object.entries(current.metrics).map(([id, metric]) => [id, { ...metric, comparison: { value: previous.metrics[id].value, period: comparisonPeriod, provenance: previous.metrics[id].provenance, completeness: previous.metrics[id].completeness } }])) };
 }

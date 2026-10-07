@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { FinanceOverview } from '../FinanceWorkspacePage.jsx';
 import { FinanceAnalysis } from '../FinanceAnalysisPage.jsx';
 import { FinanceCosts } from '../FinanceCostsPage.jsx';
@@ -13,11 +13,13 @@ it('retains muted analytical structures without fabricating points, bars or proj
   for(const dataset of [pair.current,pair.previous]){for(const metric of Object.values(dataset.metrics)){metric.value=null;metric.completeness='unavailable';metric.provenance=[];}delete dataset.classifications;delete dataset.liquiditySchedule;}
   const before=JSON.stringify(pair);
   let view=render(<FinanceOverview dataset={pair.current}/>);
-  expect(screen.getByRole('region',{name:'Profit Architecture'})).toBeTruthy();
+  expect(screen.getByRole('heading',{name:'What changed'})).toBeTruthy();
   expect(document.querySelectorAll('.finance-profit-structure svg .chart-support, .finance-profit-structure svg .chart-pressure')).toHaveLength(0);
   view.unmount();view=render(<FinanceAnalysis analysis={pair}/>);
   expect(screen.getByRole('group',{name:'Driver Contribution'}).querySelectorAll('[role=button]')).toHaveLength(5);
   expect(screen.getByRole('group',{name:'Driver Contribution'}).querySelectorAll('.chart-support, .chart-pressure, .chart-cash')).toHaveLength(0);
+  fireEvent.click(screen.getByRole('tab',{name:'Outlets'}));
+  expect(screen.queryByRole('group',{name:'Driver Contribution'})).toBeNull();
   expect(screen.getByRole('group',{name:'Outlet revenue growth and EBITDA margin field'})).toBeTruthy();
   expect(document.querySelectorAll('.finance-field-point')).toHaveLength(0);
   view.unmount();view=render(<FinanceCosts analysis={pair}/>);
@@ -26,6 +28,8 @@ it('retains muted analytical structures without fabricating points, bars or proj
   view.unmount();render(<FinanceCash analysis={pair}/>);
   expect(screen.getByRole('group',{name:'Horizontal Liquidity Timeline'})).toBeTruthy();
   expect(document.querySelectorAll('.finance-timeline-path')).toHaveLength(0);
+  fireEvent.click(screen.getByRole('tab',{name:'Working Capital'}));
+  expect(screen.queryByRole('group',{name:'Horizontal Liquidity Timeline'})).toBeNull();
   expect(screen.getByRole('group',{name:'Working Capital Flow relationships'}).querySelectorAll('.chart-pending')).toHaveLength(5);
   expect(JSON.stringify(pair)).toBe(before);
 });

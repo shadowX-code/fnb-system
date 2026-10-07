@@ -1,3 +1,5 @@
+import CostEvidenceVisual from './CostEvidenceVisual.jsx';
+import FinanceAnalysisSurface from './FinanceAnalysisSurface.jsx';
 import { MarginPressureMap } from './FinanceAnalyticalVisuals.jsx';
 import { FinanceReadiness, FinanceDisclosure, FinanceMissing } from './FinanceVisualSystem.jsx';
 import { useState } from 'react';
@@ -19,6 +21,8 @@ function MovementRows({ rows, selectedId, onSelect, title = 'Cost layer movement
 }
 export function FinanceCosts({ analysis }) {
   const model = costIntelligence(analysis);
+  const [view, setView] = useState('Pressure');
+  const [hasSelection, setHasSelection] = useState(false);
   const [selectionId, setSelectedId] = useState('cogs');
   const selectionParent = selectionId.split('.')[0];
   const selectedId = selectionId.includes('.') && !costChildren(analysis, selectionParent, analysis.profitDriverModel).rows.some(row=>row.id === selectionId) ? selectionParent : selectionId;
@@ -29,7 +33,7 @@ export function FinanceCosts({ analysis }) {
   const pair = child?.pair ?? analysis;
   const label = child?.label ?? metricRegistry[selectedId].label;
   const row = child ?? model.rows.find((entry) => entry.id === selectedId) ?? costDiagnostic(pair, selectedId);
-  const select = (id) => setSelectedId(id);
+  const select = id => { setHasSelection(true); setSelectedId(id); };
   const rootCost = ['cogs', 'labour', 'opex'].includes(selectedId);
   const isCost = rootCost || Boolean(child) || selectedId === 'prime_cost';
   const definition = child ? { label, definition: `Validated ${label} evidence within ${metricRegistry[parentId].label}; retains the supplied parent cost basis.`, dependencies: [] } : undefined;
@@ -40,7 +44,7 @@ export function FinanceCosts({ analysis }) {
   const comparison = <><div className="finance-analysis-table-wrap"><table className="finance-analysis-table"><caption>{label} · period comparison</caption><thead><tr><th>Period</th><th>Amount</th><th>Revenue share</th><th>Evidence</th></tr></thead><tbody>{[[pair.previous, row.previous, row.previousRatio], [pair.current, row.current, row.currentRatio]].map(([dataset, metric, ratio]) => <tr key={dataset.period.start}><td>{financialPeriod(dataset.period)}</td><td>{financialValue(metric)}</td><td>{selectedId === 'revenue' ? 'Revenue base' : financialValue(ratio)}</td><td>{financialSemantics(metric)} · {metric.completeness}</td></tr>)}</tbody></table></div><p>Amount movement: {movementValue(row.movement)}</p>{isCost && (row.current.value !== null || row.previous.value !== null) ? <CostMovement row={row} /> : null}</>;
   // Break down replaces the analytical field with the supplied next level, in the same canvas.
   const drillRows = costChildren(analysis, parentId, analysis.profitDriverModel).rows;
-  const drilling = (action === 'Break down' || Boolean(child)) && drillRows.length > 0;
+  const drilling = hasSelection && (action === 'Break down' || Boolean(child)) && drillRows.length > 0;
   const pressureRows = drilling ? drillRows : model.rows;
   const total = metricMovement(analysis.current.metrics.ebitda, analysis.previous.metrics.ebitda);
   return <div className="finance-analysis-body finance-costs-body">
@@ -48,14 +52,17 @@ export function FinanceCosts({ analysis }) {
     <div className="finance-analysis-heading"><div><p className="finance-analysis-muted">{financialPeriod(analysis.current.period)} compared with {financialPeriod(analysis.previous.period)}</p><h2>Cost & margin state</h2></div><span className="finance-cost-ebitda">EBITDA movement <strong>{movementValue(total)}</strong></span></div>
     <CostState pair={analysis} onSelect={select} />
     <FinanceDisclosure label="Cost source & completeness"><p>{analysis.current.sourceLabel}. Ratios use complete, compatible cost evidence and positive Revenue. Operational purchase-based COGS is not accounting COGS; missing Gross Profit, Labour and Prime Cost are not inferred. Read time does not establish source freshness.</p><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_data_sources')}>Review Data Sources <ArrowRight size={14} /></button></FinanceDisclosure>
-    <div className="finance-cost-investigation"><MarginPressureMap rows={pressureRows} selectedId={selectedId} onSelect={select} /><section className="finance-cost-movements"><h2>Cost Movements</h2><ol className="finance-pressure-list">{pressureRows.map(row=><li key={row.id}><button type="button" aria-label={`Explore ${row.label ?? metricRegistry[row.id].label} layer`} aria-pressed={selectedId===row.id} onClick={()=>select(row.id)}><strong>{row.label ?? metricRegistry[row.id].label}</strong><span>{row.ratioMovement.value === null ? '—' : movementValue(row.ratioMovement,'percent')}</span><span>{financialValue(row.current)}</span></button></li>)}</ol></section></div>
+    <FinanceAnalysisSurface label="Cost analysis view" modes={['Pressure', 'Structure', 'Trend']} value={view} onChange={value => { setView(value); setHasSelection(false); setAction('Explain'); }}>
+    {view === 'Pressure' ? <><MarginPressureMap rows={pressureRows} selectedId={hasSelection ? selectedId : null} onSelect={select} /><section className="finance-cost-movements"><h2>Cost Movements</h2><ol className="finance-pressure-list">{pressureRows.filter(row => row.direction !== 'stable' && row.direction !== 'unavailable').map(row => <li key={row.id}><button type="button" aria-label={`Explore ${row.label ?? metricRegistry[row.id].label} layer`} aria-pressed={hasSelection && selectedId === row.id} onClick={() => select(row.id)}><strong>{row.label ?? metricRegistry[row.id].label}</strong><span>{movementValue(row.ratioMovement,'percent')}</span><span>{financialValue(row.current)}</span></button></li>)}</ol></section></> : <><h2>{view === 'Structure' ? 'Cost structure' : 'Cost trend'}</h2><p className="finance-analysis-muted">{view === 'Structure' ? 'Supplied cost layers and their share of Revenue. Prime Cost overlaps COGS and Labour.' : 'Current period versus the selected comparison; no intervening history is inferred.'}</p><CostEvidenceVisual rows={pressureRows} view={view} selectedId={hasSelection ? selectedId : null} onSelect={select} pair={analysis} />{pressureRows.every(row => row.current.value === null && row.previous.value === null) ? <FinanceReadiness>Comparable cost evidence is required. The cost layers remain available for investigation.</FinanceReadiness> : null}</>}
+    {hasSelection ? <>
     <section className="finance-cost-exploration" aria-label="Cost driver exploration"><nav aria-label="Cost drill path"><button type="button" onClick={() => select('cogs')}>Costs</button><span aria-hidden="true">/</span>{child ? <><button type="button" onClick={() => select(parentId)}>{metricRegistry[parentId].label}</button><span aria-hidden="true">/</span></> : null}<span aria-current="page">{label}</span></nav>
       <AnalysisContext pair={pair} metricId={selectedId} definition={definition} action={action} onAction={setAction} onMetric={select} explanation={isCost ? explanation : undefined} comparison={comparison} breakdown={breakdown} />
     </section>
-    <section className="finance-cost-leaks" aria-labelledby="finance-cost-leaks-title"><div className="finance-analysis-heading"><div><h2 id="finance-cost-leaks-title">Margin pressure & improvements</h2><p>Revenue-share movement, then amount movement. Prime Cost overlaps COGS and Labour and is not counted again.</p></div></div>
+    </> : null}
+    <section className="finance-cost-leaks" aria-label="Cost methodology and evidence">
       <FinanceDisclosure label="Parent cost movements"><ol className="finance-pressure-list">{model.rows.filter((row) => row.current.value !== null || row.previous.value !== null).map((row) => <li key={row.id}><button type="button" aria-pressed={parentId === row.id} onClick={() => select(row.id)}><strong>{metricRegistry[row.id].label}</strong><span>{movementValue(row.ratioMovement, 'percent')}</span><span>{movementValue(row.movement)}</span><ArrowRight size={14} /></button></li>)}</ol></FinanceDisclosure><FinanceDisclosure label="Movement method & evidence"><MovementRows rows={model.rows} selectedId={parentId} onSelect={select} /></FinanceDisclosure>
       <FinanceDisclosure label="Contribution & ranking basis">      <p className="finance-analysis-muted">{model.attribution.reason || 'Signed contributions reconcile to the supplied EBITDA movement; Revenue movement is shown separately.'} Revenue contribution: {movementValue({ value: model.attribution.rows.find((entry) => entry.id === 'revenue')?.contribution ?? null })}. Classification contributions require a complete partition of the parent in both periods. Broadly stable share means less than 0.1pp movement; it is not a margin target.</p></FinanceDisclosure>
-    </section>
+    </section></FinanceAnalysisSurface>
   </div>;
 }
 export default function FinanceCostsPage(props) {
