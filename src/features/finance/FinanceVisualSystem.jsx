@@ -19,7 +19,7 @@ export function FinanceMissing({ ids, metrics, registry }) {
 export const financeActions = Object.freeze(['Explain', 'Compare', 'Break down']);
 export function FinanceContext({ label, preamble, action, onAction, children, evidence, regionLabel = 'Selected analysis context', controlLabel = 'Analysis actions' }) {
   const panelId = useId();
-  return <section data-workspace-surface="context" className="finance-analysis-context" aria-label={regionLabel}><div className="finance-analysis-heading"><div>{preamble ? <p className="finance-analysis-muted">{preamble}</p> : null}<h3>{label}</h3></div><AdminSegmentedControl label={controlLabel} className="finance-analysis-actions" value={action} onChange={onAction} options={financeActions.map((label) => ({ label, value: label, panelId }))} /></div><div id={panelId} role="tabpanel" aria-label={action} className="finance-analysis-action-content">{children}</div>{evidence}</section>;
+  return <section data-workspace-surface="context" className="finance-analysis-context" aria-label={regionLabel}><div className="finance-analysis-heading"><div>{preamble ? <p className="finance-analysis-muted">{preamble}</p> : null}<h3>{label}</h3></div><AdminSegmentedControl label={controlLabel} className="finance-analysis-actions" value={action} onChange={onAction} options={financeActions.map((label) => ({ label, value: label, panelId }))} /></div><div id={panelId} role="tabpanel" aria-label={action} className="finance-analysis-action-content"><div key={`${label}:${action}`} className="finance-chart-context-change">{children}</div></div>{evidence}</section>;
 }
 
 export function FinanceProvenance({ metric }) {

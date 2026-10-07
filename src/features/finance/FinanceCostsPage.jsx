@@ -19,7 +19,9 @@ function MovementRows({ rows, selectedId, onSelect, title = 'Cost layer movement
 }
 export function FinanceCosts({ analysis }) {
   const model = costIntelligence(analysis);
-  const [selectedId, setSelectedId] = useState('cogs');
+  const [selectionId, setSelectedId] = useState('cogs');
+  const selectionParent = selectionId.split('.')[0];
+  const selectedId = selectionId.includes('.') && !costChildren(analysis, selectionParent, analysis.profitDriverModel).rows.some(row=>row.id === selectionId) ? selectionParent : selectionId;
   const [action, setAction] = useState('Explain');
   const parentId = selectedId.includes('.') ? selectedId.split('.')[0] : selectedId;
   const classified = costChildren(analysis, parentId, analysis.profitDriverModel);
@@ -36,7 +38,10 @@ export function FinanceCosts({ analysis }) {
   </>;
   const explanation = <><p>{costObservation(row, label)}</p><p>{row.current.reason || definition?.definition || metricRegistry[selectedId].definition}</p>{isCost && (row.current.value !== null || row.previous.value !== null) ? <CostMovement row={row} /> : null}<p className="finance-analysis-muted">Next investigation: {rootCost ? 'break down the available classifications, then compare their cost share.' : child ? 'return to the parent layer to compare the remaining classifications.' : 'select a cost layer in the map to examine its available evidence.'} Movements describe financial relationships; they do not establish business causes.</p></>;
   const comparison = <><div className="finance-analysis-table-wrap"><table className="finance-analysis-table"><caption>{label} · period comparison</caption><thead><tr><th>Period</th><th>Amount</th><th>Revenue share</th><th>Evidence</th></tr></thead><tbody>{[[pair.previous, row.previous, row.previousRatio], [pair.current, row.current, row.currentRatio]].map(([dataset, metric, ratio]) => <tr key={dataset.period.start}><td>{financialPeriod(dataset.period)}</td><td>{financialValue(metric)}</td><td>{selectedId === 'revenue' ? 'Revenue base' : financialValue(ratio)}</td><td>{financialSemantics(metric)} · {metric.completeness}</td></tr>)}</tbody></table></div><p>Amount movement: {movementValue(row.movement)}</p>{isCost && (row.current.value !== null || row.previous.value !== null) ? <CostMovement row={row} /> : null}</>;
-  const pressureRows = model.rows.flatMap(root => { const children = costChildren(analysis, root.id, analysis.profitDriverModel).rows; return children.length ? children : [root]; });
+  // Break down replaces the analytical field with the supplied next level, in the same canvas.
+  const drillRows = costChildren(analysis, parentId, analysis.profitDriverModel).rows;
+  const drilling = (action === 'Break down' || Boolean(child)) && drillRows.length > 0;
+  const pressureRows = drilling ? drillRows : model.rows;
   const total = metricMovement(analysis.current.metrics.ebitda, analysis.previous.metrics.ebitda);
   return <div className="finance-analysis-body finance-costs-body">
     {analysis.current.demo ? <p className="finance-demo" role="status">Development demo · All figures and classifications are illustrative. No business records are used.</p> : null}

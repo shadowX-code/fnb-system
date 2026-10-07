@@ -1,0 +1,43 @@
+/* Shared Finance visualization interaction; never styles the Admin shell or controls. */
+.finance-workspace .finance-chart { position:relative; min-width:0; width:100%; margin:12px 0; }
+.finance-presentation .finance-workspace .finance-chart > svg { display:block; width:100%; height:auto; max-height:none; overflow:visible; }
+.finance-workspace .finance-chart svg text { font-family:inherit; font-size:11px; fill:var(--finance-muted,#61717c); }
+.finance-workspace .finance-chart .chart-label { fill:var(--finance-ink,#173442); font-weight:600; font-size:12px; }
+.finance-workspace .finance-chart .chart-value { fill:var(--finance-ink,#173442); font-weight:600; font-size:13px; font-variant-numeric:tabular-nums; }
+.finance-workspace .finance-chart .chart-axis { stroke:var(--finance-line,#d7e2e8); fill:none; stroke-width:1; vector-effect:non-scaling-stroke; }
+.finance-workspace .finance-chart .chart-grid { stroke:var(--finance-line,#d7e2e8); stroke-dasharray:3 5; fill:none; opacity:.7; }
+.finance-workspace .finance-chart .chart-surface { fill:var(--theme-surface-muted,#f3f7f8); }
+.finance-workspace .finance-chart .chart-pending { fill:none; stroke:var(--finance-line,#d7e2e8); stroke-dasharray:4 4; }
+.finance-workspace .finance-chart .chart-support { fill:var(--finance-success,#176b5b); }
+.finance-workspace .finance-chart .chart-pressure { fill:var(--finance-pressure,#b43667); }
+.finance-workspace .finance-chart .chart-cash { fill:var(--finance-cash,#16728a); }
+.finance-workspace .finance-chart .chart-link { fill:none; stroke:var(--finance-muted,#61717c); stroke-width:1.5; opacity:.35; transition:opacity 180ms ease-out,stroke 180ms ease-out; }
+.finance-workspace .finance-chart .chart-link.is-active { stroke:var(--finance-cash,#16728a); stroke-width:2; opacity:1; }
+.finance-workspace .finance-chart-mark { cursor:pointer; outline:none; opacity:1; transition:opacity 180ms ease-out; }
+.finance-workspace .finance-chart-mark.is-receded { opacity:.35; }
+.finance-workspace .finance-chart-mark:is(:hover,:focus-visible) { opacity:1; }
+.finance-workspace .finance-chart .chart-focus { fill:none; stroke:var(--finance-focus,#176b5b); stroke-width:2; opacity:0; transition:opacity 180ms ease-out; }
+.finance-workspace .finance-chart-mark:is(:hover,:focus-visible,.is-selected) .chart-focus { opacity:1; }
+.finance-workspace .finance-chart .chart-point { stroke:var(--surface,white); stroke-width:2; }
+.finance-workspace .finance-chart-tooltip { position:absolute; z-index:5; width:224px; max-width:calc(100% - 16px); padding:9px 12px; border:1px solid var(--finance-line,#d7e2e8); border-radius:5px; background:var(--surface,white); color:var(--finance-ink,#173442); box-shadow:0 4px 12px #132f4014; font-size:12px; pointer-events:none; line-height:1.5; }
+.finance-workspace .finance-chart-tooltip strong,.finance-workspace .finance-chart-tooltip span { display:block; }
+.finance-workspace .finance-chart-tooltip span { color:var(--finance-muted,#61717c); font-size:11px; }
+.finance-workspace .finance-chart-ledger { display:flex; flex-wrap:wrap; gap:4px 12px; margin:8px 0; padding:0; list-style:none; }
+.finance-presentation .finance-workspace .finance-chart-ledger button { min-height:44px; display:flex; flex-direction:column; gap:3px; padding:6px 8px; border-radius:4px; text-align:left; font-size:11px; }
+.finance-workspace .finance-chart-ledger button strong { font-size:13px; font-variant-numeric:tabular-nums; }
+.finance-workspace .finance-chart-ledger button[aria-pressed=true] { background:var(--theme-surface-muted,#f3f7f8); box-shadow:inset 0 0 0 1px var(--finance-focus,#176b5b); }
+.finance-workspace .finance-chart-ledger button:focus-visible { outline:2px solid var(--finance-focus,#176b5b); outline-offset:2px; }
+.finance-presentation .finance-workspace .finance-outlet-canvas { display:block; overflow:visible; padding:0; }
+.finance-presentation .finance-workspace .finance-outlet-zones { display:none; }
+.finance-workspace .finance-chart .chart-annotation { font-weight:600; fill:var(--finance-cash,#16728a); }
+.finance-workspace .finance-chart-context-change { animation:finance-context-enter 180ms ease-out; }
+@keyframes finance-context-enter { from { opacity:.55; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+@media (prefers-reduced-motion:reduce) { .finance-workspace .finance-chart *, .finance-workspace .finance-chart-context-change { transition:none!important; animation:none!important; } }
+.finance-presentation .finance-workspace .finance-profit-structure .finance-chart-ledger { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px 12px; margin:8px 0; }
+.finance-presentation .finance-workspace .finance-profit-structure .finance-chart-ledger li { display:block; padding:0; border:0; }
+.finance-workspace .finance-chart-mark.is-receded { opacity:1; }
+.finance-workspace .finance-chart-mark.is-receded :is(rect,circle,path):not([fill=transparent]):not(.chart-focus) { opacity:.28; }
+.finance-workspace .finance-chart-mark.is-receded text { fill:var(--finance-ink,#173442)!important; }
+.finance-workspace .finance-chart-mark.is-receded:is(:hover,:focus-visible) :is(rect,circle,path):not([fill=transparent]) { opacity:1; }
+
+.finance-workspace .finance-chart-mark.is-partitioned.is-receded:is(:hover,:focus-visible) text { fill:white!important; }

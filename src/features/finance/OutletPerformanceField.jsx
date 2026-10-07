@@ -1,45 +1,14 @@
 import { FinanceReadiness, FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { useState } from 'react';
+import { FinanceChart, FinanceMark, FinanceChartTip, useFinanceGeometry, placeFinanceLabels } from './FinanceChart.jsx';
 import { financialPeriod } from './presentation.js';
 function rate(value) { return value === null ? 'Unavailable' : `${value.toFixed(1)}%`; }
 export default function OutletPerformanceField({ outlets, selectedId, onSelect, lag }) {
   const [showHistory, setShowHistory] = useState(false);
   const plotted = outlets.filter((outlet) => outlet.position?.x !== null && outlet.position?.x !== undefined && outlet.position?.y !== null && outlet.position?.y !== undefined);
-  const values = plotted.flatMap((outlet) => showHistory ? outlet.history.filter((point) => point.x !== null && point.y !== null) : [outlet.position]);
-  const xBound = Math.max(10, ...values.map((point) => Math.abs(point.x))) * 1.2;
-  const yBound = Math.max(10, ...values.map((point) => Math.abs(point.y))) * 1.2;
-  const x = (value) => 64 + (value + xBound) / (2 * xBound) * 672;
-  const y = (value) => 34 + (yBound - value) / (2 * yBound) * 332;
   return <section data-workspace-surface="analysis" className="finance-outlet-field" aria-labelledby="finance-outlet-field-title">
     <div className="finance-analysis-heading"><div><h2 id="finance-outlet-field-title">Outlet Performance Field</h2><p>Revenue growth meets profitability. Select an outlet to investigate its performance.</p></div><label className="finance-analysis-history"><input type="checkbox" checked={showHistory} onChange={(event) => setShowHistory(event.target.checked)} />Show 3-month trajectories</label></div>
-    {<><div className="finance-outlet-canvas">
-      <svg viewBox="0 0 800 466" role="group" aria-label="Outlet revenue growth and EBITDA margin field">
-        <title>Revenue Growth on the horizontal axis; EBITDA Margin on the vertical axis</title>
-        <rect x="64" y="34" width="672" height="332" className="finance-map-base"/><rect x="400" y="34" width="336" height="166" className="finance-map-support"/><rect x="64" y="200" width="336" height="166" className="finance-map-pressure"/>
-        <path d="M400 34V366M64 200H736" className="finance-field-axis" />
-        <text x="80" y="22" className="finance-field-zone">Profitable but slowing</text><text x="720" y="22" textAnchor="end" className="finance-field-zone">Growing & profitable</text>
-        <text x="80" y="423" className="finance-field-zone">Needs attention</text><text x="720" y="423" textAnchor="end" className="finance-field-zone">Growing with margin pressure</text>
-        <text x="400" y="455" textAnchor="middle" className="finance-field-axis-label">Revenue Growth →</text><text x="18" y="200" textAnchor="middle" transform="rotate(-90 18 200)" className="finance-field-axis-label">EBITDA Margin →</text>
-        <text x="64" y="387" className="finance-field-tick">−{xBound.toFixed(1)}%</text><text x="400" y="387" textAnchor="middle" className="finance-field-tick">0%</text><text x="736" y="387" textAnchor="end" className="finance-field-tick">+{xBound.toFixed(1)}%</text>
-        <text x="54" y="40" textAnchor="end" className="finance-field-tick">{yBound.toFixed(1)}%</text><text x="54" y="204" textAnchor="end" className="finance-field-tick">0%</text><text x="54" y="366" textAnchor="end" className="finance-field-tick">−{yBound.toFixed(1)}%</text>
-        {plotted.map((outlet) => {
-          const active = outlet.id === selectedId;
-          // Connect adjacent validated observations only. Never bridge a missing history point.
-          const paths = outlet.history.slice(1).flatMap((point, index) => {
-            const prior = outlet.history[index];
-            return point.x !== null && point.y !== null && prior.x !== null && prior.y !== null ? [`M${x(prior.x)},${y(prior.y)}L${x(point.x)},${y(point.y)}`] : [];
-          });
-          return <g key={outlet.id} className={active ? 'finance-field-outlet is-selected' : plotted.length === 1 ? 'finance-field-outlet has-label' : 'finance-field-outlet'}>
-            {showHistory ? <g aria-hidden="true">{paths.map((path, index) => <path key={index} d={path} className="finance-field-trajectory" />)}{outlet.history.filter((point) => point.x !== null && point.y !== null).slice(0, -1).map((point) => <circle key={point.period.start} cx={x(point.x)} cy={y(point.y)} r="3" className="finance-field-history-point"><title>{financialPeriod(point.period)} · growth {rate(point.x)} · margin {rate(point.y)}</title></circle>)}</g> : null}
-            <g role="button" tabIndex="0" aria-pressed={active} aria-label={`${outlet.name}: revenue growth ${rate(outlet.position.x)}, EBITDA margin ${rate(outlet.position.y)}, ${outlet.position.zone}`} onClick={() => onSelect(outlet.id)} onKeyDown={(event) => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); onSelect(outlet.id); } }}>
-              <circle cx={x(outlet.position.x)} cy={y(outlet.position.y)} r="26" fill="transparent" />
-              <circle cx={x(outlet.position.x)} cy={y(outlet.position.y)} r={active ? '10' : '7'} className="finance-field-point" />
-              <text x={x(outlet.position.x) + (x(outlet.position.x) > 600 ? -18 : 18)} y={y(outlet.position.y) + 4} textAnchor={x(outlet.position.x) > 600 ? "end" : "start"} className="finance-field-outlet-name">{outlet.name.length > 25 ? `${outlet.name.slice(0, 23)}…` : outlet.name}</text>
-            </g>
-          </g>;
-        })}
-      </svg>
-    </div><div className="finance-outlet-zones" aria-label="Outlet operating zones">{['Growing & profitable', 'Profitable but slowing', 'Growing with margin pressure', 'Needs attention', 'On the growth / profit boundary'].filter((zone) => zone !== 'On the growth / profit boundary' || plotted.some((outlet) => outlet.position.zone === zone)).map((zone) => <section key={zone}><h3>{zone}</h3>{plotted.filter((outlet) => outlet.position.zone === zone).map((outlet) => <button type="button" key={outlet.id} aria-pressed={selectedId === outlet.id} onClick={() => onSelect(outlet.id)}><strong>{outlet.name}</strong><span>Growth {rate(outlet.position.x)} · Margin {rate(outlet.position.y)}</span></button>)}{!plotted.some((outlet) => outlet.position.zone === zone) ? <span>No positioned outlets</span> : null}</section>)}</div></> }
+    <div className="finance-outlet-canvas"><FinanceChart label="Outlet revenue growth and EBITDA margin field" dataKey={JSON.stringify(plotted.map(outlet=>[outlet.id,outlet.position.x,outlet.position.y]))} height={344}>{width => <PerformanceCanvas width={width} plotted={plotted} selectedId={selectedId} onSelect={onSelect} showHistory={showHistory} />}</FinanceChart></div>
     {!plotted.length ? <FinanceReadiness title="No outlets can be positioned yet">Complete current Revenue and EBITDA, plus positive comparison Revenue, are required for each point.</FinanceReadiness> : null}
     <p className="finance-analysis-muted">Zones use zero growth and zero EBITDA margin, not a target. {plotted.length} of {outlets.length} eligible outlets positioned. Trajectories compare each month with {lag} month{lag === 1 ? '' : 's'} earlier; missing observations are not connected. Coincident points keep their true coordinates; select any outlet below.</p>
     <FinanceDisclosure label={`Outlet detail · ${plotted.length} positioned / ${outlets.length} eligible`}>
@@ -48,4 +17,33 @@ export default function OutletPerformanceField({ outlets, selectedId, onSelect, 
     {!outlets.length ? <p className="finance-analysis-muted">No eligible outlets are available in this scope. Non-outlet dimensions are not plotted as outlets.</p> : null}
     {showHistory && selectedId ? <FinanceDisclosure label="Selected outlet trajectory evidence"><ul>{outlets.find((outlet) => outlet.id === selectedId)?.history.map((point) => <li key={point.period.start}>{financialPeriod(point.period)} · growth {rate(point.x)} · margin {rate(point.y)}{point.reason ? ` · ${point.reason}` : ''}</li>)}</ul></FinanceDisclosure> : null}
   </section>;
+}
+
+function PerformanceCanvas({ width, plotted, selectedId, onSelect, showHistory }) {
+  const values = plotted.flatMap(outlet => showHistory ? outlet.history.filter(point => point.x !== null && point.y !== null) : [outlet.position]);
+  const xb = Math.max(10, ...values.map(point => Math.abs(point.x))) * 1.2;
+  const yb = Math.max(10, ...values.map(point => Math.abs(point.y))) * 1.2;
+  const left = 52, right = width - 20, top = 40, bottom = 270, cx = (left + right) / 2, cy = (top + bottom) / 2;
+  const x = value => cx + value / xb * (right - left) / 2, y = value => cy - value / yb * (bottom - top) / 2;
+  const target = Object.fromEntries(plotted.flatMap(outlet => [[outlet.id, [x(outlet.position.x), y(outlet.position.y)]], ...outlet.history.flatMap((point,index) => point.x !== null && point.y !== null ? [[`${outlet.id}:history:${index}`, [x(point.x), y(point.y)]]] : [])]));
+  const geometry = useFinanceGeometry(target);
+  const labels = placeFinanceLabels(plotted.map(outlet => ({id:outlet.id,label:outlet.name,x:geometry[outlet.id][0],y:geometry[outlet.id][1]})), width, top, bottom, selectedId);
+  return <><rect x={left} y={top} width={right-left} height={bottom-top} className="chart-surface"/><rect x={cx} y={top} width={right-cx} height={cy-top} className="finance-map-support"/><rect x={left} y={cy} width={cx-left} height={bottom-cy} className="finance-map-pressure"/>
+    <text x={left} y="22">{width < 400 ? 'Profitable / slowing' : 'Profitable but slowing'}</text><text x={right} y="22" textAnchor="end">{width < 400 ? 'Growing / profitable' : 'Growing & profitable'}</text>
+    {[-1,-.5,0,.5,1].map(tick => <g key={tick}><path d={`M${x(tick*xb)} ${top}V${bottom}M${left} ${y(tick*yb)}H${right}`} className={tick === 0 ? 'chart-axis' : 'chart-grid'}/><text x={x(tick*xb)} y={bottom+18} textAnchor="middle">{(tick*xb).toFixed(0)}%</text><text x={left-7} y={y(tick*yb)+4} textAnchor="end">{(tick*yb).toFixed(0)}%</text></g>)}
+    <text x={left} y="312">Needs attention</text><text x={right} y="312" textAnchor="end">{width < 400 ? 'Growing / pressure' : 'Growing with margin pressure'}</text><text x={cx} y="336" textAnchor="middle">Revenue Growth →</text><text x="11" y={cy} transform={`rotate(-90 11 ${cy})`} textAnchor="middle">EBITDA Margin →</text>
+    {[...plotted].sort((a,b) => Number(a.id === selectedId)-Number(b.id === selectedId)).map(outlet => {
+      const active = outlet.id === selectedId, [px,py] = geometry[outlet.id];
+      const paths = outlet.history.slice(1).flatMap((point,index) => {
+        const prior = geometry[`${outlet.id}:history:${index}`], current = geometry[`${outlet.id}:history:${index+1}`];
+        return prior && current ? [`M${prior.join(',')}L${current.join(',')}`] : [];
+      });
+      return <FinanceMark key={outlet.id} label={`${outlet.name}: revenue growth ${rate(outlet.position.x)}, EBITDA margin ${rate(outlet.position.y)}, ${outlet.position.zone}`} selected={active} dimmed={Boolean(selectedId) && !active} onSelect={() => onSelect(outlet.id)} tooltip={<FinanceChartTip title={outlet.name}>Revenue growth {outlet.position.x.toFixed(2)}% · EBITDA margin {outlet.position.y.toFixed(2)}% · {outlet.position.zone}</FinanceChartTip>}>
+        {showHistory ? <g aria-hidden="true">{paths.map((path,index) => <path key={index} d={path} className={`chart-link ${active ? 'is-active' : ''}`}/>)}{outlet.history.slice(0,-1).map((point,index) => geometry[`${outlet.id}:history:${index}`] ? <circle key={index} cx={geometry[`${outlet.id}:history:${index}`][0]} cy={geometry[`${outlet.id}:history:${index}`][1]} r="3" className="chart-cash"/> : null)}</g> : null}
+        {active ? <path d={`M${left} ${py}H${px}V${bottom}`} className="chart-grid"/> : null}
+        <circle cx={px} cy={py} r="22" fill="transparent"/><circle cx={px} cy={py} r={active ? 9 : 7} className="finance-field-point chart-point chart-support"/><circle cx={px} cy={py} r="13" className="chart-focus"/>
+        {labels[outlet.id] ? <path d={`M${px} ${py}L${labels[outlet.id].x-3} ${labels[outlet.id].y-4}`} className={`chart-link ${active ? 'is-active' : ''}`}/> : null}
+        {labels[outlet.id] ? <text x={labels[outlet.id].x} y={labels[outlet.id].y} className="chart-label" style={{fontSize:11,pointerEvents:'none'}}>{outlet.name.length > 23 ? `${outlet.name.slice(0,21)}…` : outlet.name}</text> : null}
+      </FinanceMark>;
+    })}</>;
 }

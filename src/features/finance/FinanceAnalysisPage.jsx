@@ -31,7 +31,7 @@ function ProfitDriverExplorer({ pair, model, selectedMetric, onSelect }) {
 export function FinanceAnalysis({ analysis }) {
   const [selection, setSelection] = useState({ metricId: 'ebitda', outletId: null, origin: 'driver' });
   const [action, setAction] = useState('Explain');
-  const outlet = analysis.outlets.find((entry) => entry.id === selection.outletId);
+  const outlet = analysis.outlets.find((entry) => entry.id === selection.outletId && entry.pair);
   const pair = outlet?.pair ?? analysis;
   const selectMetric = (metricId, origin = 'driver') => { setSelection((value) => ({ ...value, metricId, origin })); };
   const context = <AnalysisContext pair={pair} metricId={selection.metricId} outletLabel={outlet?.name} action={action} onAction={setAction} outlets={analysis.outlets} onOutlet={(id) => setSelection((value) => ({ ...value, outletId: id, origin: 'outlet' }))} onMetric={(id) => selectMetric(id, selection.origin)} />;
@@ -45,7 +45,7 @@ export function FinanceAnalysis({ analysis }) {
       <FinanceDisclosure label="Performance source & completeness"><p>{pair.current.sourceLabel} · {analysis.current.demo ? 'illustrative evidence' : 'live authorized evidence'}. Monthly evidence is not a closed accounting period. Missing Gross Margin or Prime Cost requires validated accounting COGS and labour evidence.</p><p>Source freshness remains unverified when evidence timestamps are unavailable. Read time is not source freshness. Analytical EBITDA Margin is derived only from complete EBITDA and positive Revenue; the underlying EBITDA definition is retained.</p><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_data_sources')}>Review Data Sources <ArrowRight size={14} /></button></FinanceDisclosure>
     </div>
     <ProfitDriverExplorer pair={pair} model={analysis.profitDriverModel} selectedMetric={selection.metricId} onSelect={selectMetric} />
-    <div className="finance-analysis-investigation"><OutletPerformanceField outlets={analysis.outlets} selectedId={selection.outletId} lag={analysis.lag} onSelect={(id) => setSelection(value=>({...value,outletId:id,origin:'outlet'}))} /><section className="finance-analysis-context-slot" aria-label={outlet ? 'Selected outlet performance' : 'Selected scope performance'}>{outlet ? <p className="finance-analysis-muted">Revenue Growth {outlet.position?.x === null || outlet.position?.x === undefined ? '—' : `${outlet.position.x.toFixed(1)}%`}</p> : null}{context}</section></div>
+    <div className="finance-analysis-investigation"><OutletPerformanceField outlets={analysis.outlets} selectedId={outlet?.id ?? null} lag={analysis.lag} onSelect={(id) => setSelection(value=>({...value,outletId:id,origin:'outlet'}))} /><section className="finance-analysis-context-slot" aria-label={outlet ? 'Selected outlet performance' : 'Selected scope performance'}>{outlet ? <p className="finance-analysis-muted">Revenue Growth {outlet.position?.x === null || outlet.position?.x === undefined ? '—' : `${outlet.position.x.toFixed(1)}%`}</p> : null}{context}</section></div>
   </div>;
 }
 export default function FinanceAnalysisPage(props) {
