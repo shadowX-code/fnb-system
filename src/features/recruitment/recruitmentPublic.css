@@ -83,3 +83,13 @@
 @keyframes candidate-voice{to{transform:scaleY(.4)}}@keyframes candidate-turn{to{transform:rotate(382deg)}}
 @media(prefers-reduced-motion:reduce){.candidate-room *{animation:none!important;transition:none!important}}
 @media(max-width:500px){.recruitment-public{padding:0;display:block}.recruitment-public-card{min-height:100dvh;border:0;border-radius:0;box-shadow:none}.recruitment-public section{padding:24px 20px}.recruitment-public-header{padding:18px 20px}.recruitment-public section.candidate-room{min-height:calc(100dvh - 69px);padding:20px}.candidate-presence{padding-top:34px}.candidate-orb{width:160px;height:160px}.candidate-self-view{width:88px;height:112px}.candidate-readiness>div{padding:10px}.recruitment-public h1{font-size:26px}}
+/* Public preparation is a light surface regardless of the Admin theme. Reuse
+   shared FeedX button grammar with the same semantic theme tokens. */
+.recruitment-public{--theme-primary:#087b5b;--theme-primary-hover:#066549;--theme-primary-soft:#eef8f4;--theme-text:#152a28;--theme-muted:#526865;--theme-border:#d7e3dd;--theme-surface:#fff;--theme-surface-raised:#fff;--theme-surface-muted:#f3f7f5;color-scheme:light}
+.recruitment-public:not(:has(.candidate-room)) .btn-secondary{background:var(--theme-surface-raised);color:var(--theme-text);border:1px solid var(--theme-border);box-shadow:none}
+.recruitment-public .candidate-languages button[aria-pressed=true],.recruitment-public .candidate-interface-language button[aria-pressed=true]{background:var(--theme-primary-soft);border-color:var(--theme-primary);color:#076b4f}
+.candidate-interface-language{display:flex;gap:6px}.recruitment-public .candidate-interface-language button{min-height:40px;padding:8px 12px;font-size:13px}
+.recruitment-public .btn-secondary:focus-visible,.recruitment-public .btn-primary:focus-visible{outline:2px solid var(--theme-primary);outline-offset:3px}
+.recruitment-public .recruitment-checkbox{margin-top:0}
+@media(max-width:500px){.candidate-languages{margin:20px 0}.recruitment-public .candidate-role{margin:20px 0;padding:16px}.recruitment-details{gap:12px}.candidate-identity,.candidate-language-summary{padding-top:16px;margin:16px 0}.recruitment-consent{margin:16px 0;padding:16px 0}}
+.recruitment-public-card:has(.candidate-room) .candidate-interface-language,.recruitment-public-card:has(.candidate-complete) .candidate-interface-language{display:none}

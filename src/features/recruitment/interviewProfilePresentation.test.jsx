@@ -42,7 +42,7 @@ describe("Interview plan presentation", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "View Service Crew profile" }),
     );
-    expect(screen.getByRole("heading", { name: "Evidence Plan" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Assessment Areas" })).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "Completion Rules" }),
     ).toBeTruthy();
@@ -50,11 +50,11 @@ describe("Interview plan presentation", () => {
       screen.queryByRole("button", { name: "Prepare next version" }),
     ).toBeNull();
     expect(screen.getByText("Version 2 · Latest")).toBeTruthy();
-    const summary = screen.getByText("Customer Handling").closest("summary");
+    const summary = screen.getAllByText("Customer Handling").find(n => n.closest("summary")).closest("summary");
     expect(summary.parentElement.open).toBe(false);
     fireEvent.click(summary);
     expect(
-      within(summary.parentElement).getByText("Follow-up trigger"),
+      within(summary.parentElement).getByText("Follow-up signals"),
     ).toBeTruthy();
     fireEvent.click(
       screen.getByRole("button", { name: /Version 1.*Published/ }),

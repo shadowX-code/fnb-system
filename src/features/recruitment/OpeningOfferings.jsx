@@ -152,9 +152,9 @@ export function JobContextFields({
         />
       </div>
       <details className="recruitment-config-details">
-        <summary>Other shared confirmed facts</summary>
+        <summary>Additional Job Information</summary>
         <Field
-          label="Shared job facts"
+          label="Additional confirmed facts"
           value={value.shared_facts}
           onChange={(v) => set("shared_facts", v)}
         />

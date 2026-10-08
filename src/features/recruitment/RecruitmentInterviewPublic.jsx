@@ -9,13 +9,13 @@ import {
   Mic,
   Wifi,
   Check,
-  ShieldCheck,
   ArrowRight,
 } from "lucide-react";
 import { recruitmentService } from "./recruitmentService.js";
 import RecruitmentInterviewSession from "./RecruitmentInterviewSession.jsx";
 import { useInterviewDevices } from "./useInterviewDevices.js";
 import { interviewLanguages, languageLabel } from "./interviewPresentation.js";
+import { preparationText, consentPresentation, preparationDeviceError } from "./candidatePreparation.js";
 import "./recruitmentPublic.css";
 
 const tokenFromPath = () =>
@@ -44,6 +44,12 @@ export default function RecruitmentInterviewPublic() {
   const [error, setError] = useState(""),
     [readinessBusy, setReadinessBusy] = useState(false),
     [online, setOnline] = useState(navigator.onLine);
+  const [interfaceLanguage, setInterfaceLanguage] = useState(() => {
+    try { return localStorage.getItem("feedx-interview-interface") === "zh" ? "zh" : "en"; }
+    catch { return "en"; }
+  });
+  const t = preparationText[interfaceLanguage];
+  const consentCopy = consentPresentation(entry?.consent_copy, interfaceLanguage);
   const devices = useInterviewDevices();
   useEffect(() => {
     const changed = () => setOnline(navigator.onLine);
@@ -143,9 +149,9 @@ export default function RecruitmentInterviewPublic() {
   }
   const getReady = ({ start, preparing = false } = {}) => (
     <section className="candidate-preparation">
-      <h1>Get ready</h1>
+      <h1>{t.getReady}</h1>
       <p>
-        Find a quiet, comfortable place. Speak briefly to check your microphone.
+        {t.deviceGuidance}
       </p>
       <div className="candidate-camera">
         <video
@@ -154,36 +160,36 @@ export default function RecruitmentInterviewPublic() {
           autoPlay
           playsInline
           muted
-          aria-label="Camera preview"
+          aria-label={t.cameraPreview}
         />
         {devices.state.status !== "ready" && (
           <span className="candidate-camera-placeholder">
-            <Camera size={28} /> Your camera preview
+            <Camera size={28} /> {t.cameraPreview}
           </span>
         )}
       </div>
       <div className="candidate-readiness" role="status">
         <div>
           <Camera size={18} />
-          <strong>Camera</strong>
+          <strong>{t.camera}</strong>
           <span>
             {devices.state.status === "ready"
-              ? "Ready"
+              ? t.ready
               : devices.state.status === "checking"
-                ? "Checking…"
-                : "Not ready"}
+                ? t.checking
+                : t.notReady}
           </span>
         </div>
         <div>
           <Mic size={18} />
-          <strong>Microphone</strong>
+          <strong>{t.microphone}</strong>
           <span>
-            {devices.state.status === "ready" ? "Ready" : "Not ready"}
+            {devices.state.status === "ready" ? t.ready : t.notReady}
           </span>
           <div
             className="recruitment-meter"
             role="meter"
-            aria-label="Microphone activity"
+            aria-label={t.microphoneActivity}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(devices.state.level * 100)}
@@ -193,13 +199,13 @@ export default function RecruitmentInterviewPublic() {
         </div>
         <div>
           <Wifi size={18} />
-          <strong>Connection</strong>
-          <span>{online ? "Browser online" : "Offline"}</span>
+          <strong>{t.connection}</strong>
+          <span>{online ? t.online : t.offline}</span>
         </div>
       </div>
       {devices.state.error && (
         <p className="recruitment-error" role="alert">
-          {devices.state.error}
+          {preparationDeviceError(devices.state.error, interfaceLanguage)}
         </p>
       )}
       {devices.state.status !== "ready" && (
@@ -209,13 +215,13 @@ export default function RecruitmentInterviewPublic() {
           onClick={() => devices.start()}
         >
           {devices.state.status === "checking"
-            ? "Opening camera & microphone…"
-            : "Enable camera & microphone"}
+            ? t.openingDevices
+            : t.enableDevices}
         </button>
       )}
       <div className="candidate-language-summary">
         <div>
-          <span>Interview language</span>
+          <span>{t.interviewLanguage}</span>
           <strong>{languageLabel(entry.preferred_language)}</strong>
         </div>
         <button
@@ -223,18 +229,14 @@ export default function RecruitmentInterviewPublic() {
           disabled={busy}
           onClick={() => setDetails(true)}
         >
-          Change
+          {t.change}
         </button>
       </div>
       <div className="recruitment-consent">
-        <h2>
-          <ShieldCheck size={20} />{" "}
-          {entry.consent_copy?.title || "About this interview"}
-        </h2>
-        {entry.consent_copy?.body?.map((text) => (
-          <p key={text}>{text}</p>
-        ))}
-        {entry.consent_copy?.notice && <p>{entry.consent_copy.notice}</p>}
+        {/* Current bilingual copy includes the automated disclosure in the
+            consent itself. Historical pinned copies retain their disclosure. */}
+        {consentCopy.body?.map(text => <p key={text}>{text}</p>)}
+        {consentCopy.notice && <p>{consentCopy.notice}</p>}
         {entry.consent_copy?.consent ? (
           <label className="recruitment-checkbox">
             <input
@@ -255,14 +257,14 @@ export default function RecruitmentInterviewPublic() {
                 }
               }}
             />
-            <span>{entry.consent_copy.consent}</span>
+            <span>{consentCopy.consent}</span>
           </label>
         ) : (
-          <p>Please contact your recruiter; consent is not available yet.</p>
+          <p>{t.consentUnavailable}</p>
         )}
         {entry.consented && (
           <p className="recruitment-saved" role="status">
-            <Check size={15} /> Consent recorded
+            <Check size={15} /> {t.consentRecorded}
           </p>
         )}
       </div>
@@ -280,7 +282,7 @@ export default function RecruitmentInterviewPublic() {
             className="btn-secondary"
             onClick={() => run(() => recruitmentService.ready(token))}
           >
-            Retry readiness check
+            {t.retryReadiness}
           </button>
         )}
       <button
@@ -296,27 +298,31 @@ export default function RecruitmentInterviewPublic() {
         }
         onClick={start}
       >
-        Start interview <ArrowRight size={18} />
+        {t.start} <ArrowRight size={18} />
       </button>
       <p className="recruitment-hint">
-        Recording begins when you start. Keep this page open and your screen
-        active.
+        {t.keepOpen}
       </p>
     </section>
   );
   return (
-    <main className="recruitment-public">
+    <main className="recruitment-public" data-resolved-theme="light" lang={interfaceLanguage === "zh" ? "zh-Hans" : "en"}>
       <div className="recruitment-public-card">
         <header className="recruitment-public-header">
           <span className="recruitment-mark">FeedX</span>
-          <span>Interview</span>
+          <div className="candidate-interface-language" role="group" aria-label="Interface language / 界面语言">
+            {[['en', 'EN'], ['zh', '中文']].map(([value,label]) => <button key={value} type="button" className="btn-secondary" aria-pressed={interfaceLanguage === value} onClick={() => {
+              setInterfaceLanguage(value);
+              try { localStorage.setItem("feedx-interview-interface",value); } catch { /* Optional presentation preference. */ }
+            }}>{label}</button>)}
+          </div>
         </header>
         {entry === null ? (
           <section>
             <h1>
               {bootstrapError
-                ? "Could not load your interview"
-                : "Preparing interview…"}
+                ? t.loadError
+                : t.preparing}
             </h1>
             {bootstrapError && (
               <>
@@ -325,23 +331,22 @@ export default function RecruitmentInterviewPublic() {
                   className="btn-primary"
                   onClick={() => setBootstrapRevision((x) => x + 1)}
                 >
-                  Try again
+                  {t.retry}
                 </button>
               </>
             )}
           </section>
         ) : !entry.available ? (
           <section>
-            <h1>Interview link unavailable</h1>
+            <h1>{t.linkUnavailable}</h1>
             <p>
-              This link may have expired, been revoked, or the opening may have
-              closed. Please contact your recruiter.
+              {t.linkUnavailableReason}
             </p>
           </section>
         ) : entry.status === "invited" || details ? (
           <section className="candidate-details">
-            <h1>Interview details</h1>
-            <p>Let’s get you ready for your interview.</p>
+            <h1>{t.details}</h1>
+            <p>{t.detailsGuidance}</p>
             <div className="candidate-role">
               <h2>{entry.job.position || entry.job.title}</h2>
               {entry.job.title !== entry.job.position && (
@@ -350,32 +355,30 @@ export default function RecruitmentInterviewPublic() {
               <dl className="recruitment-details">
                 <div>
                   <dt>
-                    <MapPin size={17} /> Workplace
+                    <MapPin size={17} /> {t.workplace}
                   </dt>
                   <dd>{entry.job.workplace}</dd>
                 </div>
                 <div>
                   <dt>
-                    <Clock size={17} /> Expected duration
+                    <Clock size={17} /> {t.duration}
                   </dt>
-                  <dd>About {entry.job.target_minutes} minutes</dd>
+                  <dd>{t.minutes(entry.job.target_minutes)}</dd>
                 </div>
                 <div>
                   <dt>
-                    <MessageCircle size={17} /> What to expect
+                    <MessageCircle size={17} /> {t.whatToExpect}
                   </dt>
                   <dd>
-                    A conversation about your experience and working with the
-                    team.
+                    {t.conversation}
                   </dd>
                 </div>
               </dl>
             </div>
             <fieldset className="candidate-languages">
-              <legend>Preferred interview language</legend>
+              <legend>{t.preferredLanguage}</legend>
               <p>
-                This is your starting language. You can switch languages
-                naturally during the interview.
+                {t.languageGuidance}
               </p>
               <div>
                 {interviewLanguages.map((option) => (
@@ -397,7 +400,7 @@ export default function RecruitmentInterviewPublic() {
               <div>
                 <UserRound size={20} />
                 <div>
-                  <span>Your details</span>
+                  <span>{t.yourDetails}</span>
                   <strong>{name}</strong>
                   <p>{contact}</p>
                 </div>
@@ -408,14 +411,14 @@ export default function RecruitmentInterviewPublic() {
                   disabled={busy}
                   onClick={() => setEditing(!editing)}
                 >
-                  {editing ? "Done" : "Edit"}
+                  {editing ? t.done : t.edit}
                 </button>
               )}
             </div>
             {editing && entry.status === "invited" && (
               <div className="candidate-edit">
                 <label>
-                  Candidate name
+                  {t.name}
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -424,7 +427,7 @@ export default function RecruitmentInterviewPublic() {
                   />
                 </label>
                 <label>
-                  Contact number
+                  {t.contact}
                   <input
                     value={contact}
                     onChange={(e) => setContact(e.target.value)}
@@ -452,7 +455,7 @@ export default function RecruitmentInterviewPublic() {
               }
               onClick={continueDetails}
             >
-              {busy ? "Saving…" : "Continue"}
+              {busy ? t.saving : t.continue}
               <ArrowRight size={18} />
             </button>
           </section>

@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const qa=vi.hoisted(()=>({begin:vi.fn(),interruption:vi.fn(),captures:[],transports:[],state:vi.fn(),activation:vi.fn(),recordStart:vi.fn(),flush:vi.fn(),connect:vi.fn(),heartbeat:vi.fn(),claim:vi.fn()}));
+const qa=vi.hoisted(()=>({begin:vi.fn(),interruption:vi.fn(),captures:[],transports:[],state:vi.fn(),activation:vi.fn(),recordStart:vi.fn(),flush:vi.fn(),connect:vi.fn(),heartbeat:vi.fn(),claim:vi.fn(),finish:vi.fn(),entry:vi.fn(),evidence:vi.fn()}));
 vi.mock("./interviewClient.js",()=>({acquireInterviewClient:qa.claim}));
 vi.mock("./recruitmentService.js",()=>({recruitmentService:{
-  begin:qa.begin, recoverBegin:qa.begin,recoveryState:qa.state,recoverPause:qa.interruption,observeRecovery:vi.fn().mockResolvedValue(),interruption:qa.interruption, heartbeat:qa.heartbeat,
+  begin:qa.begin, recoverBegin:qa.begin,recoveryState:qa.state,recoverPause:qa.interruption,observeRecovery:vi.fn().mockResolvedValue(),interruption:qa.interruption, heartbeat:qa.heartbeat,finish:qa.finish,publicEntry:qa.entry,evidence:qa.evidence,
 }}));
 vi.mock("./interviewRecordingStore.js",()=>({interviewLocalKey:async()=>"partition"}));
 vi.mock("./InterviewRecording.js",()=>({InterviewRecording:class {
@@ -16,6 +16,7 @@ vi.mock("./InterviewRecording.js",()=>({InterviewRecording:class {
 }}));
 vi.mock("./RecruitmentRealtimeSession.js",()=>({RecruitmentRealtimeSession:class {
   constructor(props) { this.props=props; qa.transports.push(this); }
+  async refreshContext() {}
   async flush() {return qa.flush();}
   async connect() {await qa.connect(); this.props.onStatus?.("connected");}
   close() {this.closed=true;}
@@ -32,9 +33,9 @@ beforeEach(()=>{
   vi.spyOn(document,"hidden","get").mockReturnValue(false);
 });
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.useRealTimers();});
-function mount() {
+function mount(status="interviewing",renderPreparation) {
   const devices={start:vi.fn().mockResolvedValue({getTracks:()=>["audio","video"].map(kind=>({kind,readyState:"live",muted:false,addEventListener:vi.fn(),removeEventListener:vi.fn(),stop:vi.fn()}))}),stop:vi.fn(),streamRef:{current:{}},previewRef:{current:null}};
-  render(<RecruitmentInterviewSession token={"a".repeat(64)} entry={{status:"interviewing"}} devices={devices}/>);
+  render(<RecruitmentInterviewSession token={"a".repeat(64)} entry={{status}} devices={devices} renderPreparation={renderPreparation}/>);
   return devices;
 }
 it("refresh presents explicit resume and reconnects without waiting for old evidence upload",async()=>{
@@ -84,16 +85,16 @@ it("a never-settling capture acquisition becomes visible retryable recovery; ret
   expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
   expect(qa.begin).toHaveBeenCalledTimes(2);
 });
-it("repeated Resume replaces pending client work and stale results cannot take ownership",async()=>{
-  let stale;
-  qa.begin.mockImplementationOnce(()=>new Promise(resolve=>{stale=resolve;}));mount();
+it("repeated Continue cannot allocate a competing pending generation",async()=>{
+  let release;
+  qa.begin.mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));mount();
   const button=screen.getByRole("button",{name:"Continue interview"});
   fireEvent.click(button);
   await waitFor(()=>expect(qa.begin).toHaveBeenCalledTimes(1));
-  fireEvent.click(button);await screen.findByRole("button",{name:"Finish interview"});
-  expect(qa.begin).toHaveBeenCalledTimes(2);
-  await act(async()=>stale({status:"finalizing"}));
-  expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+  fireEvent.click(button);
+  expect(qa.begin).toHaveBeenCalledTimes(1);
+  await act(async()=>release({status:"starting",started_at:new Date().toISOString(),max_ends_at:new Date(Date.now()+600000).toISOString()}));
+  await screen.findByRole("button",{name:"Finish interview"});
   expect(qa.captures.filter(c=>c.recorder.state==="recording")).toHaveLength(1);
 });
 it("cold refresh discards pending in-memory media/transport rather than joining it",async()=>{
@@ -220,4 +221,32 @@ it("pre-start preparation remount preserves checked devices and Start invokes na
   fireEvent.click(screen.getByRole("button",{name:"Start interview"}));
   expect(devices.start).toHaveBeenCalledOnce();expect(qa.activation).toHaveBeenCalledOnce();
   await screen.findByRole("button",{name:"Finish interview"});
+});
+
+it("initial preparation has no Continue action and duplicate startup taps cannot allocate another generation",async()=>{
+ let connected;qa.connect.mockImplementationOnce(()=>new Promise(resolve=>connected=resolve));
+ const devices=mount("ready",({start})=><button onClick={start}>Start interview</button>);
+ const button=screen.getByRole("button",{name:"Start interview"});
+ fireEvent.click(button);fireEvent.click(button);
+ await waitFor(()=>expect(qa.connect).toHaveBeenCalledOnce());
+ expect(screen.queryByRole("button",{name:"Continue interview"})).toBeNull();
+ expect(qa.begin).toHaveBeenCalledOnce();expect(devices.start).toHaveBeenCalledOnce();
+ await act(async()=>connected());await screen.findByRole("button",{name:"Finish interview"});
+});
+it("physical closing automatically reconciles canonical completion despite pending upload without another utterance",async()=>{
+ vi.useFakeTimers();qa.finish.mockResolvedValue({status:"finalizing"});qa.evidence.mockResolvedValue({can_finish:true});
+ let finished=false;qa.entry.mockImplementation(async()=>({available:true,status:finished?"completed":"finalizing",recording_state:"complete",completed_at:"2026-10-06T17:10:36Z"}));
+ mount();await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Continue interview"})));
+ await act(async()=>{await qa.transports.at(-1).props.onTool();qa.transports.at(-1).props.onCompletion();});
+ expect(screen.getByText("Submitting your responses")).toBeTruthy();expect(screen.queryByRole("button",{name:"Continue interview"})).toBeNull();
+ await act(async()=>{finished=true;await vi.advanceTimersByTimeAsync(32000);});
+ expect(screen.getByRole("heading",{name:"Interview complete"})).toBeTruthy();expect(qa.finish).toHaveBeenCalledOnce();
+});
+it("server denied completion returns to a genuinely resumable state rather than false Complete",async()=>{
+ qa.finish.mockRejectedValue(Object.assign(Error("Required interview topics remain."),{cause:{code:"55000"}}));qa.evidence.mockResolvedValue({can_finish:true});
+ mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"Finish interview"});
+ await act(async()=>{await qa.transports.at(-1).props.onTool();qa.transports.at(-1).props.onCompletion();});
+ expect(await screen.findByRole("button",{name:"Continue interview"})).toBeTruthy();
+ expect(screen.getByRole("alert").textContent).toContain("still needs more information");
+ expect(screen.queryByRole("heading",{name:"Interview complete"})).toBeNull();
 });

@@ -194,6 +194,13 @@ export default function RecruitmentInterviewSession({
         onResult: acceptSubmission,
       });
     } catch (cause) {
+      if (cause.cause?.code === "55000" || cause.code === "55000") {
+        finishing.current = false;
+        setSubmissionState("IDLE");
+        pause("completion_not_authorized");
+        setError("The interview still needs more information. Continue interview to finish the conversation, or save a partial interview.");
+        return;
+      }
       setError(
         cause.message ||
           "Submission could not be confirmed. Retry with a stable connection.",
@@ -319,7 +326,7 @@ export default function RecruitmentInterviewSession({
       setError("Return to this page before resuming.");
       return;
     }
-    if (machine.current.state === "RESUMED") return;
+    if (["RESUMED", "RECOVERING"].includes(machine.current.state) || finishing.current) return;
     let activation, mediaPromise;
     let operation;
     try {
@@ -807,6 +814,7 @@ export default function RecruitmentInterviewSession({
       recording.current?.stop("page_closed").catch(() => {});
     };
   }, [token]);
+  const submitting = submissionState === "PENDING" || status === "finalizing";
   const terminal =
     ["completed", "partial", "failed"].includes(status) || !!terminalReason;
   if (
@@ -842,41 +850,19 @@ export default function RecruitmentInterviewSession({
           status={
             submissionState === "SUBMISSION_REQUIRED"
               ? "submission_required"
-              : status
+              : submitting ? "finalizing" : status
           }
           recovering={recoveryView.state === "RECOVERING"}
           recordingStatus={recordingStatus}
           elapsed={elapsed}
           previewRef={preview}
         >
-          {status === "ready" ||
-          (["starting", "interviewing", "interrupted"].includes(status) &&
-            !session.current) ? (
-            <button
-              className="btn-primary"
-              disabled={finishing.current}
-              onClick={start}
-            >
-              {status === "ready" ? "Start interview" : "Continue interview"}
-            </button>
-          ) : null}
-          {status === "interrupted" && session.current ? (
-            <button
-              className="btn-primary"
-              disabled={finishing.current}
-              onClick={start}
-            >
+          {!submitting && recoveryView.state === "RECOVERY_REQUIRED" && status === "interrupted" && (
+            <button className="btn-primary" disabled={busy || finishing.current} onClick={start}>
               Continue interview
             </button>
-          ) : null}
-          {recoveryView.state === "RECOVERING" &&
-          status === "starting" &&
-          session.current ? (
-            <button className="btn-primary" onClick={start}>
-              Continue interview
-            </button>
-          ) : null}
-          {recoveryView.state === "RESUMED" &&
+          )}
+          {!submitting && recoveryView.state === "RESUMED" &&
           status === "interviewing" &&
           session.current ? (
             <div className="recruitment-actions">
@@ -913,7 +899,7 @@ export default function RecruitmentInterviewSession({
               </button>
             </div>
           ) : null}
-          {status === "interrupted" && session.current ? (
+          {!submitting && recoveryView.state !== "RECOVERING" && status === "interrupted" && session.current ? (
             <button
               className="btn-secondary"
               disabled={busy}

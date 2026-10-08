@@ -59,7 +59,7 @@ it("late tool result cannot take a newer automatically-owned candidate turn",asy
 });
 it("intentional completion is authorized and waits for its own closing audio",async()=>{
  tool.mockResolvedValue({can_finish:true});speech();commit();created();event({type:"response.function_call_arguments.done",response_id:"response",call_id:"call",name:"request_completion"});done();await vi.advanceTimersByTimeAsync(1);
- created("closing",{feedx_kind:"tool",call_id:"call"});event({type:"output_audio_buffer.stopped",response_id:"response"});expect(completion).not.toHaveBeenCalled();event({type:"output_audio_buffer.stopped",response_id:"closing"});await vi.advanceTimersByTimeAsync(0);expect(completion).toHaveBeenCalledOnce();
+ created("closing",{feedx_kind:"tool",call_id:"call"});done("closing");event({type:"output_audio_buffer.stopped",response_id:"response"});expect(completion).not.toHaveBeenCalled();event({type:"output_audio_buffer.stopped",response_id:"closing"});await vi.advanceTimersByTimeAsync(0);expect(completion).toHaveBeenCalledOnce();
 });
 it("automatic response and tool continuation cannot compete",async()=>{
  speech();commit();created();event({type:"response.function_call_arguments.done",response_id:"response",call_id:"call",name:"request_completion"});
@@ -93,4 +93,19 @@ it("replays the saved physical interruption sequence without client response sch
  expect(send.mock.calls.filter(([e])=>e.type==="response.create")).toHaveLength(1);
  expect(send.mock.calls.filter(([e])=>e.type==="output_audio_buffer.clear")).toHaveLength(0);
  expect(recovery).not.toHaveBeenCalled();
+});
+
+it.each(["drain-first","done-first"])("authorized closing converges exactly once in %s event order without another utterance",async order=>{
+ tool.mockResolvedValue({can_finish:true});speech();commit();created();event({type:"response.function_call_arguments.done",response_id:"response",call_id:"close-call",name:"request_completion"});done();await vi.advanceTimersByTimeAsync(1);
+ created("closing",{feedx_kind:"tool",call_id:"close-call"});
+ const drain=()=>event({type:"output_audio_buffer.stopped",response_id:"closing"});
+ if(order==="drain-first"){drain();expect(completion).not.toHaveBeenCalled();done("closing");}else{done("closing");expect(completion).not.toHaveBeenCalled();drain();}
+ await vi.advanceTimersByTimeAsync(0);drain();done("closing");await vi.advanceTimersByTimeAsync(0);
+ expect(completion).toHaveBeenCalledOnce();
+ expect(send.mock.calls.filter(([e])=>e.type==="response.create")).toHaveLength(1);
+});
+it("a cancelled authorized closing never auto-submits",async()=>{
+ tool.mockResolvedValue({can_finish:true});speech();commit();created();event({type:"response.function_call_arguments.done",response_id:"response",call_id:"close-call",name:"request_completion"});done();await vi.advanceTimersByTimeAsync(1);
+ created("closing",{feedx_kind:"tool",call_id:"close-call"});done("closing","cancelled");event({type:"output_audio_buffer.stopped",response_id:"closing"});await vi.advanceTimersByTimeAsync(0);
+ expect(completion).not.toHaveBeenCalled();
 });

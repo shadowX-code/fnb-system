@@ -7,6 +7,7 @@ import {
   fireEvent,
   waitFor,
   cleanup,
+  within,
 } from "@testing-library/react";
 import {
   initialPresence,
@@ -61,6 +62,7 @@ const base = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   mocks.entry = structuredClone(base);
   mocks.publicEntry.mockImplementation(async () => mocks.entry);
   mocks.language.mockImplementation(async (_, language) => ({
@@ -80,7 +82,7 @@ describe("candidate preparation gates", () => {
     await screen.findByText("Interview details");
     expect(screen.getByText("Candidate")).toBeTruthy();
     for (const label of ["English", "Bahasa Melayu", "中文", "粤语"])
-      expect(screen.getByRole("button", { name: label })).toBeTruthy();
+      expect(within(screen.getByRole("group", {name:"Preferred interview language"})).getByRole("button", { name: label })).toBeTruthy();
     expect(screen.queryByLabelText("Candidate name")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Edit", exact: true }));
     expect(screen.getByLabelText("Candidate name")).toBeTruthy();
@@ -269,8 +271,8 @@ describe("canonical language context", () => {
         language_guidance: "",
         interview_instructions: "",
       });
-      expect(prompt).toContain(`Selected starting language: ${expected}`);
-      expect(prompt).toContain("never a language restriction");
+      expect(prompt).toContain(`Greeting / ambiguity fallback language only: ${expected}`);
+      expect(prompt).toContain("never a restriction or evaluation signal");
     }
   });
   it("quiet canonical context preserves preference without replaying history", async () => {
@@ -300,4 +302,29 @@ it("shared checkbox styling belongs to the input, leaving the consent label touc
   const checkbox = await screen.findByRole("checkbox");
   expect(checkbox.className).toContain("admin-checkbox");
   expect(checkbox.closest("label").className).not.toContain("admin-checkbox");
+});
+
+it("interface translation never changes spoken preference and persists canonical bilingual consent", async () => {
+  mocks.entry.consent_copy = {body:[],consent:"I understand the automated interviewer and consent to recruitment recording.",translations:{zh:{body:[],consent:"我了解自动面试官，并同意录制摄像头、麦克风及回答，供招聘审核。"}}};
+  render(<Public />);
+  await screen.findByText("Interview details");
+  fireEvent.click(within(screen.getByRole("group",{name:"Interface language / 界面语言"})).getByRole("button",{name:"中文"}));
+  expect(screen.getByRole("heading",{name:"面试详情"})).toBeTruthy();
+  expect(mocks.language).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button",{name:"继续",exact:true}));
+  await screen.findByText("准备面试");
+  expect(mocks.language).toHaveBeenCalledWith("","en");
+  expect(screen.getByRole("button",{name:"开启摄像头和麦克风"})).toBeTruthy();
+  expect(screen.getByRole("checkbox").closest("label").textContent).toContain("摄像头、麦克风及回答");
+  expect(screen.queryByText("I understand the automated interviewer and consent to recruitment recording.")).toBeNull();
+  mocks.consent.mockResolvedValue({...mocks.entry,status:"consented",consented:true});
+  fireEvent.click(screen.getByRole("checkbox"));
+  await waitFor(()=>expect(mocks.consent).toHaveBeenCalledWith("","pinned-copy"));
+  expect(localStorage.getItem("feedx-interview-interface")).toBe("zh");
+});
+it("submission replaces live speech and camera presentation while preserving retry state", () => {
+  render(<Room entry={base} presence={{...initialPresence,prompt:"Old goodbye",state:"speaking"}} status="finalizing" recordingStatus="pending" elapsed={386} />);
+  expect(screen.getByText("Submitting your responses")).toBeTruthy();
+  expect(screen.queryByText("Old goodbye")).toBeNull();
+  expect(screen.queryByLabelText("Your interview camera")).toBeNull();
 });

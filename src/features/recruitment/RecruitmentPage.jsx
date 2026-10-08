@@ -245,8 +245,7 @@ function OpeningForm({
           <div className="recruitment-config-main">
             <fieldset>
               <legend>
-                <span className="recruitment-section-number">01</span> Role &
-                Workplace
+                <span className="recruitment-section-number">01</span> Job & Employment Terms
               </legend>
               <div className="recruitment-form-grid">
                 {" "}
@@ -377,8 +376,7 @@ function OpeningForm({
             />
             <fieldset>
               <legend>
-                <span className="recruitment-section-number">04</span> Hiring
-                Requirements
+                <span className="recruitment-section-number">04</span> Job Requirements
               </legend>
               <p className="recruitment-config-note">
                 What the interviewer actively verifies. These requirements stay
@@ -435,10 +433,9 @@ function OpeningForm({
           </div>
           <aside className="recruitment-config-aside">
             <fieldset>
-              <legend>Interview Configuration</legend>
+              <legend>Interview Plan</legend>
               <p className="recruitment-config-note">
-                How this role is interviewed. Employment terms and hiring
-                requirements stay in the main configuration.
+                Role-specific assessment areas and conversational strategy. This plan explores job-related behavior; job facts explain the offer and job requirements define conditions to verify.
               </p>
               <div className="recruitment-form-grid">
                 <AdminFormField
@@ -458,13 +455,13 @@ function OpeningForm({
                     options={data.profiles.map((p) => ({
                       value: p.id,
                       label: `${p.name} v${p.version}`,
-                      description: `${p.definition.target_minutes}–${p.definition.max_minutes} min · ${p.definition.evidence_areas.length} evidence areas · ${p.definition.scenarios.length} scenarios`,
+                      description: `${p.definition.target_minutes}–${p.definition.max_minutes} min · ${p.definition.evidence_areas.length} assessment areas · ${p.definition.scenarios.length} scenarios`,
                     }))}
                   />
                 </AdminFormField>
                 {profile && (
                   <p className="md:col-span-2 text-sm text-text-secondary">
-                    {profile.definition.evidence_areas.length} evidence areas ·{" "}
+                    {profile.definition.evidence_areas.length} assessment areas ·{" "}
                     {profile.definition.scenarios.length} scenarios
                     <br />
                     Target {profile.definition.target_minutes} min · Maximum{" "}

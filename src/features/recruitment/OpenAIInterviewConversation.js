@@ -65,6 +65,7 @@ export class OpenAIInterviewConversation {
         this.turns.set(this.owner, {responded:true}); this.unwatch(`turn:${this.owner}`);
       }
       this.watch(`response:${id}`, "response_generation_timeout", 60000);
+      if (tool?.result?.can_finish) this.watch(`closing:${id}`, "closing_audio_timeout", 90000);
     }
     if (e.type === "response.output_item.added" && e.item?.type === "message") {
       const response = this.responses.get(id);
@@ -73,10 +74,11 @@ export class OpenAIInterviewConversation {
     if (id && this.cancelled.has(id)) return ["output_audio_buffer.cleared", "output_audio_buffer.stopped", "response.done"].includes(e.type);
     if (e.type === "response.done") {
       const response = this.responses.get(id);
-      if (response) { response.done = true; response.status = e.response.status; }
+      if (response) { response.done = true; response.status = e.response.status; response.cancelled ||= e.response.status === "cancelled"; }
       this.unwatch(`response:${id}`);
       if (e.response.status === "cancelled") this.cancelled.add(id);
       if (["failed","incomplete"].includes(e.response.status)) this.onRecovery("response_failed");
+      this.settleCompletion(response);
       for (const tool of this.tools.values()) if (tool.responseId === id) tool.orientation ? this.settleOrientation(tool) : this.continueTool(tool);
     }
     if (e.type === "output_audio_buffer.started") {
@@ -85,13 +87,13 @@ export class OpenAIInterviewConversation {
     }
     if (["output_audio_buffer.stopped","output_audio_buffer.cleared"].includes(e.type)) {
       this.playing = false; this.unwatch(`audio:${id}`);
-      if (e.type === "output_audio_buffer.cleared") this.cancelled.add(id);
+      if (e.type === "output_audio_buffer.cleared") { this.cancelled.add(id); const r = this.responses.get(id); if(r) r.cancelled = true; }
       const response = this.responses.get(id);
-      if (e.type === "output_audio_buffer.stopped" && response?.status === "completed" && !this.cancelled.has(id) && response.itemId)
+      if (e.type === "output_audio_buffer.stopped" && response) response.drained = true;
+      if (response?.drained && response.status === "completed" && !this.cancelled.has(id) && response.itemId)
         response.delivered = true;
       for (const tool of this.tools.values()) if (tool.orientation && tool.responseId === id) this.settleOrientation(tool);
-      if (e.type === "output_audio_buffer.stopped" && response?.closing && response.revision === this.revision)
-        queueMicrotask(()=>{if(!this.closed && response.revision===this.revision)this.onCompletion();});
+      this.settleCompletion(response);
     }
     if (e.type === "response.function_call_arguments.done" && !this.tools.has(e.call_id)) {
       if (this.responses.get(id)?.revision !== this.revision) return false;
@@ -117,6 +119,14 @@ export class OpenAIInterviewConversation {
     }
     if (e.type === "error") this.onRecovery("provider_error");
     return true;
+  }
+  settleCompletion(response) {
+    // Provider generation and audio drain may arrive in either order. Only one
+    // successfully generated, drained authorized closing can submit the attempt.
+    if (!response?.closing || response.cancelled || response.completionSent || !response.drained || !response.done || response.status !== "completed" || response.revision !== this.revision || this.closed) return;
+    response.completionSent = true;
+    for (const [id, owned] of this.responses) if (owned === response) this.unwatch(`closing:${id}`);
+    queueMicrotask(() => { if (!this.closed && response.revision === this.revision) this.onCompletion(); });
   }
   settleOrientation(tool) {
     const response = this.responses.get(tool.responseId);
