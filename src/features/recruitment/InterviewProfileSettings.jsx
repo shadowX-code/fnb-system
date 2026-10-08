@@ -1,6 +1,7 @@
 import InterviewIntelligenceBuilder from "./InterviewIntelligenceBuilder.jsx";
 import { profileDraft } from "./serviceCrewV2.js";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { recruitmentService } from "./recruitmentService.js";
 import PageHeader from "../../components/layout/PageHeader.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
 import {
@@ -19,35 +20,119 @@ export default function InterviewProfileSettings({
   const [versionId, setVersionId] = useState(null),
     [editing, setEditing] = useState(false),
     [draft, setDraft] = useState(null),
-    [error, setError] = useState("");
-  const selected = profiles.find((p) => p.id === versionId);
+    [saved, setSaved] = useState(null),
+    [drafts, setDrafts] = useState([]),
+    [loading, setLoading] = useState(true),
+    [pending, setPending] = useState(false),
+    [error, setError] = useState(""),
+    [conflict, setConflict] = useState(false);
+  const operation = useRef(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    recruitmentService
+      .profileDrafts(controller.signal)
+      .then((rows) => {
+        if (!controller.signal.aborted) setDrafts(rows);
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted) setError(e.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+  const selected =
+    profiles.find((p) => p.id === versionId) ||
+    drafts.find((p) => p.id === versionId);
   const families = [...new Set(profiles.map((p) => p.name))].map((name) =>
     profiles
       .filter((p) => p.name === name)
       .sort((a, b) => b.version - a.version),
   );
   const versions = selected
-    ? families.find((f) => f[0].name === selected.name)
+    ? families.find((f) => f[0].name === selected.name) || []
     : [];
   const latest = versions[0];
+  const isDraft = selected?.status === "draft";
+  const dirty =
+    editing &&
+    JSON.stringify(draft) !== JSON.stringify(profileDraft(saved?.definition));
+  const locked = busy || pending || loading;
   function library() {
     setVersionId(null);
     setEditing(false);
     setError("");
+    setConflict(false);
   }
-  function view(id) {
+  function view(id, rows = drafts) {
+    const record = rows.find((p) => p.id === id);
     setVersionId(id);
-    setEditing(false);
+    setEditing(Boolean(record && canManage));
+    setSaved(record || null);
+    setDraft(record ? profileDraft(record.definition) : null);
     setError("");
+    setConflict(false);
   }
-  async function publish() {
+  async function run(action) {
+    if (operation.current) return;
+    operation.current = true;
+    setPending(true);
     setError("");
     try {
-      await onPublish(draft, latest.version);
-      library();
+      await action();
     } catch (e) {
       setError(e.message);
+      setConflict(e.cause?.code === "40001");
+    } finally {
+      operation.current = false;
+      setPending(false);
     }
+  }
+  function remember(record) {
+    setDrafts((rows) => [record, ...rows.filter((r) => r.id !== record.id)]);
+    setSaved(record);
+    setDraft(profileDraft(record.definition));
+    setVersionId(record.id);
+    setEditing(true);
+    setConflict(false);
+  }
+  function prepare() {
+    return run(async () =>
+      remember(
+        await recruitmentService.prepareProfileDraft(
+          latest.profile_key,
+          latest.version,
+        ),
+      ),
+    );
+  }
+  function save() {
+    return run(async () =>
+      remember(
+        await recruitmentService.saveProfileDraft(
+          saved.id,
+          saved.revision,
+          draft,
+        ),
+      ),
+    );
+  }
+  function reload() {
+    return run(async () => {
+      const rows = await recruitmentService.profileDrafts();
+      setDrafts(rows);
+      if (versionId && rows.some((p) => p.id === versionId))
+        view(versionId, rows);
+      else library();
+    });
+  }
+  function publish() {
+    return run(async () => {
+      await onPublish(saved.id, saved.revision);
+      setDrafts(await recruitmentService.profileDrafts());
+      library();
+    });
   }
   const current = editing ? draft : selected?.definition;
   return (
@@ -70,11 +155,14 @@ export default function InterviewProfileSettings({
           selected ? (
             <>
               <RecruitmentState
-                value={editing ? "draft" : selected.status || "published"}
+                value={isDraft ? "draft" : selected.status || "published"}
               />
               <span>
-                Version {editing ? latest.version + 1 : selected.version}
-                {!editing && selected.id === latest.id ? " · Latest" : ""}
+                Version {selected.version}
+                {!isDraft && selected.id === latest?.id ? " · Latest" : ""}
+                {isDraft
+                  ? ` · ${dirty ? "Unsaved changes" : "Saved draft"}`
+                  : ""}
               </span>
               <span>
                 Target {current.target_minutes} min · Maximum{" "}
@@ -89,36 +177,56 @@ export default function InterviewProfileSettings({
               <>
                 <button
                   className="btn-secondary"
-                  disabled={busy}
-                  onClick={() => setEditing(false)}
+                  disabled={locked}
+                  onClick={() => view(latest.id)}
                 >
-                  Discard draft
+                  View published version
+                </button>
+                <button
+                  className="btn-secondary"
+                  disabled={locked || !dirty || conflict}
+                  onClick={save}
+                >
+                  Save Draft
                 </button>
                 <button
                   className="btn-primary"
-                  disabled={busy}
+                  disabled={locked || dirty || conflict}
                   onClick={publish}
                 >
-                  Publish {latest.name} v{latest.version + 1}
+                  Publish {selected.name} v{selected.version}
                 </button>
               </>
             ) : (
               <button
                 className="btn-secondary"
-                onClick={() => {
-                  setDraft(profileDraft(latest.definition));
-                  setEditing(true);
-                }}
+                disabled={locked}
+                onClick={prepare}
               >
-                Prepare next version
+                {drafts.some((p) => p.name === selected.name)
+                  ? "Resume draft"
+                  : "Prepare next version"}
               </button>
             )
           ) : null
         }
       />
       {error && (
-        <p role="alert" className="text-red-700">
+        <div role="alert" className="text-red-700">
           {error}
+          <button className="btn-secondary" disabled={pending} onClick={reload}>
+            {conflict
+              ? "Discard local edits and reload saved draft"
+              : "Reload drafts"}
+          </button>
+        </div>
+      )}
+      {loading && <p role="status">Loading saved drafts…</p>}
+      {editing && (
+        <p className="text-sm text-text-secondary" role="status">
+          {dirty
+            ? "Unsaved changes. Save Draft before leaving or publishing."
+            : "Draft saved. You can return later to continue editing. Publication is a separate action."}
         </p>
       )}
       {!selected ? (
@@ -130,7 +238,7 @@ export default function InterviewProfileSettings({
           <DataTable
             density="compact"
             minWidth={700}
-            rows={families.map((f) => f[0])}
+            rows={[...drafts, ...families.map((f) => f[0])]}
             getRowKey={(p) => p.id}
             tableClassName="recruitment-profile-table"
             onRowClick={(p) => view(p.id)}
@@ -150,11 +258,16 @@ export default function InterviewProfileSettings({
               },
               {
                 key: "version",
-                header: "Published version",
+                header: "Version",
                 render: (p) => (
                   <div className="recruitment-cell-stack">
                     <RecruitmentState value={p.status || "published"} />
-                    <span>Version {p.version} · Latest</span>
+                    <span>
+                      Version {p.version}
+                      {p.status === "draft"
+                        ? " · Saved draft"
+                        : " · Latest published"}
+                    </span>
                   </div>
                 ),
               },
@@ -164,11 +277,12 @@ export default function InterviewProfileSettings({
                 render: (p) => (
                   <div className="recruitment-cell-stack">
                     <span>
-                      {p.definition.evidence_areas.length} assessment areas
+                      {(p.definition.evidence_areas || []).length} assessment
+                      areas
                     </span>
                     <span>
-                      {p.definition.scenarios.length}{" "}
-                      {p.definition.scenarios.length === 1
+                      {(p.definition.scenarios || []).length}{" "}
+                      {(p.definition.scenarios || []).length === 1
                         ? "scenario"
                         : "scenarios"}
                     </span>
@@ -193,10 +307,12 @@ export default function InterviewProfileSettings({
                 render: (p) => (
                   <button
                     className="btn-secondary"
-                    aria-label={`View ${p.name} profile`}
+                    aria-label={`${p.status === "draft" && canManage ? "Resume" : "View"} ${p.name}${p.status === "draft" ? " draft" : " profile"}`}
                     onClick={() => view(p.id)}
                   >
-                    View
+                    {p.status === "draft" && canManage
+                      ? "Resume draft"
+                      : "View"}
                   </button>
                 ),
               },
@@ -210,12 +326,15 @@ export default function InterviewProfileSettings({
         </RecruitmentSection>
       ) : (
         <>
-          <InterviewIntelligenceBuilder
-            definition={current}
-            onChange={editing ? setDraft : undefined}
-            version={editing ? latest.version + 1 : selected.version}
-          />
-          {!editing && (
+          <fieldset disabled={locked || conflict} className="min-w-0">
+            <InterviewIntelligenceBuilder
+              definition={current}
+              onChange={editing ? setDraft : undefined}
+              version={selected.version}
+              unpublished={isDraft}
+            />
+          </fieldset>
+          {!isDraft && (
             <section
               className="recruitment-profile-history"
               aria-labelledby="profile-history-title"

@@ -18,6 +18,7 @@ export default function InterviewIntelligenceBuilder({
   definition,
   onChange,
   version,
+  unpublished = false,
 }) {
   const editable = !!onChange;
   const patch = (key, value) => onChange({ ...definition, [key]: value });
@@ -290,7 +291,7 @@ export default function InterviewIntelligenceBuilder({
       </section>
       <p className="text-xs text-text-secondary">
         Version {version} ·{" "}
-        {editable
+        {editable || unpublished
           ? "Unpublished draft — publication creates a new version."
           : "Published and immutable — existing invitations keep this version."}
       </p>
