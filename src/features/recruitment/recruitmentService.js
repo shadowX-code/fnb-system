@@ -8,6 +8,30 @@ async function call(name, args, signal) {
   return data;
 }
 
+// Bound draft requests even if authentication or a network dependency never settles.
+// The server revision remains authoritative after any ambiguous timeout.
+async function profileDraftCall(name, args, signal) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort, {once:true});
+  if (signal?.aborted) controller.abort();
+  let timer;
+  try {
+    return await Promise.race([
+      call(name, args, controller.signal),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error("The draft request timed out. Reload saved drafts before retrying; your local edits have been kept."));
+          controller.abort();
+        }, 15000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
 export const recruitmentService = {
   generateReport: async (applicationId, requestId, newVersion = false, attemptId = null) => {
     const {data,error} = await supabase.functions.invoke("recruitment-report", {body:{application_id:applicationId,request_id:requestId,new_version:newVersion,attempt_id:attemptId}});
@@ -17,10 +41,10 @@ export const recruitmentService = {
   decide: ({applicationId,requestId,expectedState,decision,reason,hire,reportId}) => call("recruitment_decide", {p_application_id:applicationId,p_request_id:requestId,p_expected_state:expectedState,p_decision:decision,p_reason:reason,p_hire:hire,p_report_id:reportId}),
   workspace: ({openingId=null,stage="all",page=1,includeQa=false,search="",offering="all"}={}) => call("recruitment_workspace", {p_opening_id:openingId,p_stage:stage,p_page:page,p_include_qa:includeQa,p_search:search,p_offering:offering}),
   setPreference: (applicationId, preference) => call("recruitment_set_preference", {p_application_id:applicationId,p_preference:preference}),
-  profileDrafts: (signal) => call("recruitment_profile_drafts", {}, signal),
-  prepareProfileDraft: (key, version) => call("recruitment_prepare_profile_draft", {p_profile_key:key,p_expected_version:version}),
-  saveProfileDraft: (id, revision, definition) => call("recruitment_save_profile_draft", {p_draft_id:id,p_expected_revision:revision,p_definition:definition}),
-  publishProfileDraft: (id, revision) => call("recruitment_publish_profile_draft", {p_draft_id:id,p_expected_revision:revision}),
+  profileDrafts: (signal) => profileDraftCall("recruitment_profile_drafts", {}, signal),
+  prepareProfileDraft: (key, version) => profileDraftCall("recruitment_prepare_profile_draft", {p_profile_key:key,p_expected_version:version}),
+  saveProfileDraft: (id, revision, definition) => profileDraftCall("recruitment_save_profile_draft", {p_draft_id:id,p_expected_revision:revision,p_definition:definition}),
+  publishProfileDraft: (id, revision) => profileDraftCall("recruitment_publish_profile_draft", {p_draft_id:id,p_expected_revision:revision}),
   publishProfile: (definition, expectedVersion) => call("recruitment_publish_profile", {p_definition:definition,p_expected_version:expectedVersion}),
   adminData: (page = 1) => call("recruitment_admin_data", { p_page: page, p_page_size: 20 }),
   findApplicants: (query) => call("recruitment_find_applicants", { p_query: query }),

@@ -83,7 +83,7 @@ export default function InterviewProfileSettings({
       await action();
     } catch (e) {
       setError(e.message);
-      setConflict(e.cause?.code === "40001");
+      setConflict(["PT409", "40001"].includes(e.cause?.code));
     } finally {
       operation.current = false;
       setPending(false);

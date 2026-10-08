@@ -43,7 +43,7 @@ beforeEach(() => {
     async (id, revision, definition) => {
       if (revision !== stored.revision)
         throw Object.assign(new Error("A newer draft has been saved."), {
-          cause: { code: "40001" },
+          cause: { code: "PT409" },
         });
       stored = {
         ...stored,
