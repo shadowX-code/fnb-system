@@ -1,3 +1,6 @@
+import FinanceOverviewCharts from './FinanceOverviewCharts.jsx';
+import { overviewHistory } from './overviewDashboard.js';
+import { BarChart3, Banknote, Percent, Receipt, Wallet } from 'lucide-react';
 import AdminSummaryGrid from '../../components/ui/AdminSummaryGrid.jsx';
 import { financeSummaryItems } from './summaryItems.js';
 import FinanceAnalysisSurface from './FinanceAnalysisSurface.jsx';
@@ -13,7 +16,7 @@ import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import MonthPickerField from '../../components/forms/MonthPickerField.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
-import { getAccessibleOutletOptions } from '../../utils/accessControl.js';
+import { getAccessibleOutletOptions, getAccessibleOutlets } from '../../utils/accessControl.js';
 import { money, periodLabel } from '../reports/components/reportingFormatters.js';
 import { navigateAdminRoute } from '../../app/routeOwnership.js';
 import { financeDemoEnabled, getFinanceProvider, readFinanceOverview } from './financeService.js';
@@ -25,7 +28,7 @@ import './finance.css';
 
 const sectionLabels = { overview: 'Overview', analysis: 'Analysis', costs: 'Costs', cash: 'Cash', planning: 'Planning', statements: 'Statements' };
 const sectionDescriptions = {
-  overview: 'Financial state, its sources, and how your profit is made.',
+  overview: 'Financial performance at a glance.',
   analysis: 'Understand what is driving growth and profitability.',
   costs: 'Find where margin is being gained or lost.',
   cash: 'Understand liquidity, commitments and working capital.',
@@ -59,18 +62,24 @@ export function FinanceOverview({ dataset }) {
   const attention = costIntelligence(pair).rows.filter(row => row.direction === 'pressure');
   const [action, setAction] = useState('Explain');
 
+  const history = overviewHistory(dataset);
+  const icons = {ebitda:BarChart3,revenue:Banknote,gross_margin:Percent,prime_cost:Receipt,cash:Wallet};
+  const cards = financeSummaryItems(pair, ['ebitda', 'revenue', 'gross_margin', 'prime_cost', 'cash'], { primary: ['ebitda'], supporting: { ebitda: `${amount(metrics.ebitda_margin)} EBITDA margin` } }).map(item => {
+    const points = history.map(row => ({label: row.period.start, value: row.dataset?.metrics[item.key]?.completeness === 'complete' ? row.dataset.metrics[item.key].value : null}));
+    return {...item, icon:icons[item.key], supportingValue: item.supportingValue ?? (previous.metrics[item.key]?.value !== null ? `${amount(previous.metrics[item.key])} previous month` : null), sparklineData:points, sparklineLabel:`${item.label} monthly evidence`};
+  });
   const primary = ['revenue', 'gross_margin', 'prime_cost', 'ebitda', 'ebitda_margin', 'cash'];
   return <div className="finance-overview">
     {dataset.demo ? <div className="finance-demo" role="status">Development demo · All figures are illustrative. No business records are used.</div> : null}
-    <AdminSummaryGrid variant="compact" ariaLabel="Financial state" items={financeSummaryItems(pair, ['ebitda', 'revenue', 'gross_margin', 'prime_cost', 'cash'], { primary: ['ebitda'], supporting: { ebitda: `${amount(metrics.ebitda_margin)} EBITDA margin` } })} />
+    <AdminSummaryGrid variant="compact" ariaLabel="Financial state" items={cards} />
     <FinanceMissing ids={primary} metrics={metrics} registry={metricRegistry} />
-    <FinanceAnalysisSurface label="What changed" subtitle="EBITDA movement · Revenue, COGS, Labour and OPEX">
+    <FinanceOverviewCharts dataset={dataset}/>
+    <FinanceAnalysisSurface expandable label="What changed this month?" subtitle="EBITDA movement · Revenue, COGS, Labour and OPEX">
       <DriverContribution compact pair={pair} movement={movement} selectedId={selectedId} selectedStage={selectedStage} onSelect={(id, stage) => { setSelectedId(id); setSelectedStage(stage); if (stage === 'previous') setAction('Compare'); }} />
       {!movement.attributable ? <FinanceReadiness title="Profit movement not ready">Comparable evidence and a validated EBITDA relationship are required.</FinanceReadiness> : null}
       {selectedId ?       <FinanceContext label={metricRegistry[selectedId].label} regionLabel="Selected movement context" action={action} onAction={setAction} evidence={<FinanceDisclosure label={`Evidence & definition for ${metricRegistry[selectedId].label}`}><p>{metricRegistry[selectedId].definition}</p><p>{semantic(metrics[selectedId])} · {metrics[selectedId].completeness} · {metrics[selectedId].reason}</p><FinanceProvenance metric={metrics[selectedId]} />{metrics[selectedId].comparison ? <><p>Previous month · {metrics[selectedId].comparison.completeness}</p><FinanceProvenance metric={metrics[selectedId].comparison} /></> : null}</FinanceDisclosure>}>{action === 'Explain' ? <p><strong>{amount(metrics[selectedId])}</strong> · {metrics[selectedId].reason || metricRegistry[selectedId].definition}</p> : action === 'Compare' ? <p><Comparison metric={metrics[selectedId]} /></p> : <div className="finance-analysis-inputs">{metricRegistry[selectedId].dependencies.map((id) => <button type="button" className="btn-secondary" key={id} onClick={() => setSelectedId(id)}>{metricRegistry[id].label} · {amount(metrics[id])}</button>)}{!metricRegistry[selectedId].dependencies.length ? <p>Finer source evidence is not supplied.</p> : null}</div>}</FinanceContext> : null}
     </FinanceAnalysisSurface>
     {attention.length ? <section aria-label="Needs attention"><h3>Needs attention</h3><ul>{attention.map(row => <li key={row.id}>{metricRegistry[row.id].label} share of Revenue increased {row.ratioMovement.value.toFixed(1)}pp. <button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_costs')}>Review Costs</button></li>)}</ul></section> : null}
-    <nav className="finance-paths" aria-label="Continue financial investigation">{[['analysis', 'Analysis', 'What changed & why'], ['costs', 'Costs', 'Where margin is consumed'], ['cash', 'Cash', 'Liquidity & capital conversion']].map(([route, label, detail]) => <button type="button" key={route} onClick={() => navigateAdminRoute(`finance_${route}`)}><strong>{label}</strong><span>{detail}</span><ArrowRight size={16} /></button>)}</nav>
     <FinanceDisclosure label="Source, freshness & metric definitions"><p>Values are {dataset.demo ? 'development illustrations' : 'authorized operational evidence'}. Actual means book-of-record evidence; Operational means FeedX records; Derived means a disclosed calculation; Forecast means a planning value. Accounting statements retain their own authority.</p>
       <p>{dataset.demo ? 'Fixture timestamp is fixed for reproducible development.' : 'Loaded time records this read. Source freshness is unverified until source timestamps are available.'} Reconciliation: unverified.</p>
       <dl>{Object.entries(metrics).map(([id, metric]) => <div key={id}><dt>{metricRegistry[id].label}</dt><dd>{metric.reason || metricRegistry[id].definition}<br />{metric.completeness} · {semantic(metric)}{metric.provenance[0]?.observedAt ? ` · Loaded ${metric.provenance[0].observedAt}` : ''}</dd></div>)}</dl>
@@ -105,12 +114,13 @@ function LiveFinanceWorkspacePage({ section = 'overview', store = {}, auth }) {
   useEffect(() => {
     if (section !== 'overview') return;
     let active = true;
+    const controller = new AbortController();
     setLoading(true); setError(''); setDataset(null);
     const scope = mode === 'demo' ? demoOptions.find((option) => option.value === demoScope) : outletId === 'all' ? { kind: 'authorized_outlets', id: null } : { kind: 'outlet', id: outletId };
     if (!scope) { setLoading(false); return; }
     const request = { scope: { kind: scope.kind, id: scope.id, ...(scope.legalEntityId ? { legalEntityId: scope.legalEntityId } : {}) }, period: monthlyPeriod(month), currency: 'MYR' };
-    getFinanceProvider(mode).then((provider) => readFinanceOverview(provider, request, { allowDemo: financeDemoEnabled && mode === 'demo' })).then((result) => { if (active) setDataset(result); }).catch((failure) => { if (active) setError(failure.message || 'Finance is unavailable.'); }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    getFinanceProvider(mode).then((provider) => readFinanceOverview(provider, request, { signal: controller.signal, allowDemo: financeDemoEnabled && mode === 'demo', outlets: mode === 'demo' ? demoOptions.filter(entry => entry.kind === 'outlet').map(entry => ({id: entry.id, name: entry.label, legalEntityId: entry.legalEntityId})) : getAccessibleOutlets(auth, store.outlets ?? []) })).then((result) => { if (active) setDataset(result); }).catch((failure) => { if (active) setError(failure.message || 'Finance is unavailable.'); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; controller.abort(); };
   }, [mode, month, outletId, demoScope, demoOptions, section, attempt]);
   return <WorkspacePage className="finance-workspace" section="Finance" title={sectionLabels[section]} description={sectionDescriptions[section]} controls={section === 'overview' ? <AdminFilterToolbar outlet={<SelectField label={mode === 'demo' ? 'Demo scope' : 'Outlet scope'} value={mode === 'demo' ? demoScope : outletId} onChange={mode === 'demo' ? setDemoScope : setOutletId} options={mode === 'demo' ? demoOptions : outletOptions} />} period={<MonthPickerField label="Period" value={month} onChange={setMonth} />}>
         {financeDemoEnabled ? <SelectField label="Evidence" value={mode} onChange={setMode} options={[{ value: 'operational', label: 'FeedX operational' }, { value: 'demo', label: 'Development demo' }]} /> : null}

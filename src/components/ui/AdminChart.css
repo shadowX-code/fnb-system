@@ -1,0 +1,8 @@
+.admin-chart {position:relative;min-width:0;width:100%;margin:12px 0;}
+.admin-chart > svg {display:block;width:100%;height:auto;overflow:visible;}
+.admin-chart-mark {cursor:pointer;outline:none;transition:opacity 180ms ease-out;}
+.admin-chart-tooltip {position:absolute;z-index:5;width:224px;max-width:calc(100% - 16px);padding:9px 12px;border:1px solid var(--border,#d7e2e8);border-radius:6px;background:var(--surface,white);color:var(--text-primary,#173442);font-size:12px;pointer-events:none;line-height:1.5;}
+.admin-chart-tooltip strong,.admin-chart-tooltip span {display:block;}
+.admin-chart-tooltip span {color:var(--text-secondary,#526473);}
+@media(prefers-reduced-motion:reduce){.admin-chart * {transition:none!important;animation:none!important;}}
+

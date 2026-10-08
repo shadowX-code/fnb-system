@@ -1,12 +1,14 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
+import './AdminAnalyticalSurface.css';
 import DashboardSection from './DashboardSection.jsx';
 import AdminSegmentedControl from '../forms/AdminSegmentedControl.jsx';
 
 /** Shared Admin analytical frame; domains own visualizations, evidence and selection. */
-export default function AdminAnalyticalSurface({ label, title = label, subtitle, modes, value, onChange, actions, children, evidence, readiness, loading = false, loadingLabel = 'Loading analysis…' }) {
+export default function AdminAnalyticalSurface({ label, title = label, subtitle, modes, value, onChange, actions, children, evidence, readiness, loading = false, loadingLabel = 'Loading analysis…', expandable = false, defaultExpanded = false }) {
   const panelId = useId();
-  return <DashboardSection title={title} subtitle={subtitle} action={modes || actions ? <>{modes ? <AdminSegmentedControl label={label} value={value} onChange={onChange} options={modes.map(mode => typeof mode === 'string' ? { value: mode, label: mode, panelId } : { ...mode, panelId })} /> : null}{actions}</> : null} className="min-w-0" contentClassName="min-w-0">
-    <div data-admin-analytical-surface="true" aria-busy={loading || undefined} id={panelId} role={modes ? 'tabpanel' : undefined} aria-label={modes ? value : label} className="min-w-0">{children}{loading ? <AdminAnalyticalReadiness title={loadingLabel} /> : readiness}{evidence}</div>
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  return <DashboardSection title={expandable ? <button type="button" className="flex min-h-11 items-center gap-3 text-left focus-visible:outline-primary" aria-expanded={expanded} aria-controls={panelId} onClick={() => setExpanded(value => !value)}>{title}<span aria-hidden="true">{expanded ? '−' : '+'}</span></button> : title} subtitle={subtitle} action={modes || actions ? <>{modes ? <AdminSegmentedControl label={label} value={value} onChange={onChange} options={modes.map(mode => typeof mode === 'string' ? { value: mode, label: mode, panelId } : { ...mode, panelId })} /> : null}{actions}</> : null} className="min-w-0" contentClassName="min-w-0">
+    <div data-admin-analytical-surface="true" hidden={expandable && !expanded} aria-busy={loading || undefined} id={panelId} role={modes ? 'tabpanel' : undefined} aria-label={modes ? value : label} className={`min-w-0 ${expandable && expanded ? 'admin-analysis-disclosure' : ''}`}>{children}{loading ? <AdminAnalyticalReadiness title={loadingLabel} /> : readiness}{evidence}</div>
   </DashboardSection>;
 }
 export function AdminAnalyticalContext({ label, preamble, action, onAction, actions, children, evidence, regionLabel = 'Selected analysis context', controlLabel = 'Analysis actions' }) {

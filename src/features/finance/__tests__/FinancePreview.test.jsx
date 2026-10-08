@@ -19,7 +19,7 @@ it('replaces the presentation tree with simulated evidence and never reads Repor
   const reporting=vi.spyOn(reportingService,'getMonthlyScopeFinancialReport');
   sessionStorage.setItem('feedx-finance-design-preview','on');
   render(<FinancePreviewBoundary auth={{profile:{role_name:'owner'}}} section="overview"><p>Canonical tree</p></FinancePreviewBoundary>);
-  await screen.findByRole('heading',{name:'What changed'}, {timeout:5000});
+  await screen.findByRole('heading',{name:/What changed this month/}, {timeout:5000});
   expect(screen.queryByText('Canonical tree')).toBeNull();
   expect(screen.getByText('Simulated evidence · isolated from financial records')).toBeTruthy();
   expect(reporting).not.toHaveBeenCalled();
@@ -56,7 +56,8 @@ it.each(['planning','statements'])('keeps the %s foundation when Design Preview 
 it('preserves selection across simulated scope reads while hiding previous-scope evidence',async()=>{
   sessionStorage.setItem('feedx-finance-design-preview','on');
   render(<FinancePreviewBoundary auth={{profile:{role_name:'owner'}}} section="overview"><p>Canonical tree</p></FinancePreviewBoundary>);
-  await screen.findByRole('heading',{name:'What changed'}, {timeout:5000});
+  await screen.findByRole('heading',{name:/What changed this month/}, {timeout:5000});
+  fireEvent.click(screen.getByRole('button',{name:/What changed this month/}));
   fireEvent.click(screen.getByRole('button',{name:'Explore COGS driver'}));
   fireEvent.click(screen.getByRole('button',{name:'Simulated scope'}));
   fireEvent.click(screen.getByRole('option',{name:'Demo · Kuala Lumpur',exact:true}));

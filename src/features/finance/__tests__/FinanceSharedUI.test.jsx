@@ -18,7 +18,7 @@ it('all four pages use canonical summary and analytical owners with unchanged ev
   const view=render(<Component {...props}/>);
   expect(within(screen.getByRole('region',{name:label})).getAllByText(/RM |%/).length).toBeGreaterThan(0);
   expect(screen.getByRole('region',{name:label}).querySelectorAll('[data-admin-summary-card]')).toHaveLength(count);
-  expect(view.container.querySelectorAll('[data-admin-analytical-surface]')).toHaveLength(1);
+  expect(view.container.querySelectorAll('[data-admin-analytical-surface]')).toHaveLength(Component === FinanceOverview ? 5 : 1);
   expect(view.container.querySelectorAll('.finance-metric,.finance-performance-strip')).toHaveLength(0);
   view.unmount();
  }
@@ -78,6 +78,7 @@ it('selecting Previous EBITDA opens its comparison and emphasizes only that endp
  const provider=createFixtureProvider({development:true}), pair=await readFinanceAnalysis(provider,request,{allowDemo:true}), dataset=await readFinanceOverview(provider,request,{allowDemo:true});
  for(const [Component,props] of [[FinanceOverview,{dataset}],[FinanceAnalysis,{analysis:pair}]]) {
   const view=render(<Component {...props}/>);
+  if (Component === FinanceOverview) fireEvent.click(screen.getByRole('button',{name:/What changed this month/}));
   fireEvent.keyDown(screen.getByRole('button',{name:'Explore previous EBITDA'}),{key:'Enter'});
   expect(screen.getByRole('button',{name:'Explore previous EBITDA'}).getAttribute('aria-pressed')).toBe('true');
   expect(screen.getByRole('button',{name:'Explore EBITDA movement'}).getAttribute('aria-pressed')).toBe('false');

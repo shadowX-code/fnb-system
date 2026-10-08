@@ -13,7 +13,7 @@ it('retains muted analytical structures without fabricating points, bars or proj
   for(const dataset of [pair.current,pair.previous]){for(const metric of Object.values(dataset.metrics)){metric.value=null;metric.completeness='unavailable';metric.provenance=[];}delete dataset.classifications;delete dataset.liquiditySchedule;}
   const before=JSON.stringify(pair);
   let view=render(<FinanceOverview dataset={pair.current}/>);
-  expect(screen.getByRole('heading',{name:'What changed'})).toBeTruthy();
+  expect(screen.getByRole('heading',{name:/What changed this month/})).toBeTruthy();
   expect(document.querySelectorAll('.finance-profit-structure svg .chart-support, .finance-profit-structure svg .chart-pressure')).toHaveLength(0);
   view.unmount();view=render(<FinanceAnalysis analysis={pair}/>);
   expect(screen.getByRole('group',{name:'Driver Contribution'}).querySelectorAll('[role=button]')).toHaveLength(6);

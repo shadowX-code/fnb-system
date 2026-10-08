@@ -60,10 +60,43 @@ export async function readFinanceStatement(provider, request, options) {
   const statement = await provider.readStatement(request);
   return statement ? validateStatement(statement, request, { ...options, demo: statement.provenance?.[0]?.demo }) : null;
 }
-export async function readFinanceOverview(provider, request, options) {
+/** Overview history is bounded, deduplicated and validated through the same provider boundary. */
+export async function readFinanceOverview(provider, request, options = {}) {
+  const { outlets = [], signal } = options;
+  const cache = new Map(), queue = []; let active = 0;
+  const read = (scope, period) => {
+    const key = JSON.stringify([scope, period]);
+    if (!cache.has(key)) cache.set(key, new Promise((resolve, reject) => {
+      const run = async () => {
+        active++;
+        try {
+          if (signal?.aborted) throw new DOMException('Finance read cancelled', 'AbortError');
+          const query = { ...request, scope, period };
+          resolve(validateDataset(await provider.readOverview(query), query, options));
+        } catch (error) { reject(error); }
+        finally { active--; queue.shift()?.(); }
+      };
+      if (active < 4) run(); else queue.push(run);
+    }));
+    return cache.get(key);
+  };
   const comparisonPeriod = previousPeriod(request.period);
-  const [current, previous] = await Promise.all([provider.readOverview(request), provider.readOverview({ ...request, period: comparisonPeriod })]);
-  validateDataset(current, request, options);
-  validateDataset(previous, { ...request, period: comparisonPeriod }, options);
-  return { ...current, comparisonDataset: previous, profitDriverModel: provider.profitDriverModel ?? null, metrics: Object.fromEntries(Object.entries(current.metrics).map(([id, metric]) => [id, { ...metric, comparison: { value: previous.metrics[id].value, period: comparisonPeriod, provenance: previous.metrics[id].provenance, completeness: previous.metrics[id].completeness } }])) };
+  const [current, previous] = await Promise.all([read(request.scope, request.period), read(request.scope, comparisonPeriod)]);
+  const periods = [request.period];
+  for (let index = 1; index < 12; index++) periods.unshift(previousPeriod(periods[0]));
+  const history = await Promise.all(periods.map(async period => {
+    try { return { period, dataset: await read(request.scope, period) }; }
+    catch { return { period, dataset: null }; }
+  }));
+  const eligible = [...new Map(outlets.filter(outlet => outlet.id && outlet.name
+    && (request.scope.kind !== 'outlet' || request.scope.id === outlet.id)
+    && (request.scope.kind !== 'legal_entity' || request.scope.id === outlet.legalEntityId)
+    && request.scope.kind !== 'dimension').map(outlet => [outlet.id, outlet])).values()];
+  const outletResults = await Promise.all(eligible.map(async outlet => {
+    const scope = { kind: 'outlet', id: outlet.id, ...(outlet.legalEntityId ? { legalEntityId: outlet.legalEntityId } : {}) };
+    try { return { ...outlet, dataset: await read(scope, request.period) }; }
+    catch { return { ...outlet, dataset: null }; }
+  }));
+  return { ...current, history, outlets: outletResults, comparisonDataset: previous, profitDriverModel: provider.profitDriverModel ?? null,
+    metrics: Object.fromEntries(Object.entries(current.metrics).map(([id, metric]) => [id, { ...metric, comparison: { value: previous.metrics[id].value, period: comparisonPeriod, provenance: previous.metrics[id].provenance, completeness: previous.metrics[id].completeness } }])) };
 }

@@ -28,8 +28,8 @@ function ProfitDriverExplorer({ pair, model, selectedMetric, selectedStage, onSe
     <p className="finance-analysis-muted">{movement.label}. {movement.reason || 'Contributions tie to EBITDA movement in both periods. This explains arithmetic movement, not business causation.'}</p>
   </section>;
 }
-export function FinanceAnalysis({ analysis }) {
-  const [view, setView] = useState('Profit Drivers');
+export function FinanceAnalysis({ analysis, initialView = 'Profit Drivers' }) {
+  const [view, setView] = useState(initialView);
   const [hasSelection, setHasSelection] = useState(false);
   const [selection, setSelection] = useState({ metricId: 'ebitda', outletId: null, origin: 'driver' });
   const [action, setAction] = useState('Explain');
@@ -53,5 +53,5 @@ export function FinanceAnalysis({ analysis }) {
   </div>;
 }
 export default function FinanceAnalysisPage(props) {
-  return <FinanceComparisonWorkspace {...props} title="Analysis" description="Understand what changed, what drove it, and where to investigate next." includeOutlets>{(analysis) => <FinanceAnalysis analysis={analysis} />}</FinanceComparisonWorkspace>;
+  return <FinanceComparisonWorkspace {...props} title="Analysis" description="Understand what changed, what drove it, and where to investigate next." includeOutlets>{(analysis, initial) => <FinanceAnalysis initialView={initial?.view} analysis={analysis} />}</FinanceComparisonWorkspace>;
 }

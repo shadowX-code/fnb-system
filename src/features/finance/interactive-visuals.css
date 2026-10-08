@@ -19,9 +19,6 @@
 .finance-workspace .finance-chart .chart-focus { fill:none; stroke:var(--finance-focus,#176b5b); stroke-width:2; opacity:0; transition:opacity 180ms ease-out; }
 .finance-workspace .finance-chart-mark:is(:hover,:focus-visible,.is-selected) .chart-focus { opacity:1; }
 .finance-workspace .finance-chart .chart-point { stroke:var(--surface,white); stroke-width:2; }
-.finance-workspace .finance-chart-tooltip { position:absolute; z-index:5; width:224px; max-width:calc(100% - 16px); padding:9px 12px; border:1px solid var(--finance-line,#d7e2e8); border-radius:5px; background:var(--surface,white); color:var(--finance-ink,#173442); box-shadow:0 4px 12px #132f4014; font-size:12px; pointer-events:none; line-height:1.5; }
-.finance-workspace .finance-chart-tooltip strong,.finance-workspace .finance-chart-tooltip span { display:block; }
-.finance-workspace .finance-chart-tooltip span { color:var(--finance-muted,#61717c); font-size:11px; }
 .finance-workspace .finance-chart-ledger { display:flex; flex-wrap:wrap; gap:4px 12px; margin:8px 0; padding:0; list-style:none; }
 .finance-presentation .finance-workspace .finance-chart-ledger button { min-height:44px; display:flex; flex-direction:column; gap:3px; padding:6px 8px; border-radius:4px; text-align:left; font-size:11px; }
 .finance-workspace .finance-chart-ledger button strong { font-size:13px; font-variant-numeric:tabular-nums; }

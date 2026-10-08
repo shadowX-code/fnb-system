@@ -22,7 +22,7 @@ it('renders demo semantics and progressive disclosure without an accounting bala
   const dataset = await createFixtureProvider({ development: true }).readOverview({ scope: { kind: 'group', id: 'demo-group' }, period: monthlyPeriod('2026-09'), currency: 'MYR' });
   render(<FinanceOverview dataset={dataset} />);
   expect(screen.getAllByRole('status')[0].textContent).toContain('illustrative');
-  expect(screen.getByRole('heading', { name: 'What changed' })).toBeTruthy();
+  expect(screen.getByRole('heading', { name: /What changed this month/ })).toBeTruthy();
   expect(screen.getByText('Source, freshness & metric definitions').closest('details').open).toBe(false);
 });
 it('links Statements to the existing Reports owner', () => {
@@ -51,6 +51,7 @@ it('attaches shared contextual actions to Profit Flow selection and retains disc
   const dataset = await provider.readOverview({ scope: { kind: 'group', id: 'demo-group' }, period: monthlyPeriod('2026-09'), currency: 'MYR' });
   const before = JSON.stringify(dataset);
   render(<FinanceOverview dataset={dataset} />);
+  fireEvent.click(screen.getByRole('button', { name: /What changed this month/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Explore COGS driver' }));
   expect(screen.getByRole('region', { name: 'Selected movement context' }).textContent).toContain('COGS');
   fireEvent.keyDown(screen.getByRole('tab', { name: 'Explain' }), { key: 'ArrowRight' });

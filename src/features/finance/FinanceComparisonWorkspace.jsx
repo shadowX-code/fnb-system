@@ -1,3 +1,4 @@
+import { useOverviewAnalysisIntent } from './overviewNavigation.js';
 import FinancePreviewBoundary from './FinancePreviewBoundary.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
@@ -13,11 +14,12 @@ import { currentFinanceMonth } from './presentation.js';
 import './finance.css';
 import './analysis.css';
 function LiveFinanceComparisonWorkspace({ store = {}, auth, title, description, includeOutlets = false, children }) {
+  const initial=useOverviewAnalysisIntent(false,title==='Analysis');
   const [mode, setMode] = useState('operational');
-  const [month, setMonth] = useState(currentFinanceMonth);
+  const [month, setMonth] = useState(initial?.month ?? currentFinanceMonth);
   const [comparisonMode, setComparisonMode] = useState('previous');
   const [customMonth, setCustomMonth] = useState(() => previousPeriod(monthlyPeriod(currentFinanceMonth())).start.slice(0, 7));
-  const [outletId, setOutletId] = useState('all');
+  const [outletId, setOutletId] = useState(initial?.scope.kind === 'outlet' ? initial.scope.id : 'all');
   const [demoScope, setDemoScope] = useState('group:demo-group');
   const [demoScopes, setDemoScopes] = useState([]);
   const [analysis, setAnalysis] = useState(null);
@@ -50,7 +52,7 @@ function LiveFinanceComparisonWorkspace({ store = {}, auth, title, description, 
       <SelectField label="Compare with" value={comparisonMode} onChange={setComparisonMode} options={[{ value: 'previous', label: 'Previous month' }, { value: 'year', label: 'Same month last year' }, { value: 'custom', label: 'Selected month' }]} />
       {comparisonMode === 'custom' ? <MonthPickerField label="Comparison period" value={customMonth} onChange={setCustomMonth} /> : null}
     </AdminFilterToolbar>}>
-    <AsyncDataSurface loading={loading} error={error} hasData={Boolean(analysis)} loadingRows={6} onRetry={() => setAttempt((value) => value + 1)}>{analysis ? <div key={`${mode}:${month}:${comparisonMonth}:${outletId}:${demoScope}`}>{children(analysis)}</div> : null}</AsyncDataSurface>
+    <AsyncDataSurface loading={loading} error={error} hasData={Boolean(analysis)} loadingRows={6} onRetry={() => setAttempt((value) => value + 1)}>{analysis ? <div key={`${mode}:${month}:${comparisonMonth}:${outletId}:${demoScope}`}>{children(analysis, initial)}</div> : null}</AsyncDataSurface>
   </WorkspacePage>;
 }
 
