@@ -29,7 +29,7 @@ export function AdminChart({ label, height = 300, children, className = '', data
   const show = (element, content, owner, anchor, interaction) => {
     // Layout/scroll can put another mark beneath a stationary pointer. Keyboard inspection keeps authority.
     const focused = document.activeElement;
-    if (interaction === 'pointer' && focused !== element && focused?.matches('[data-admin-chart-mark],[data-admin-chart-inspection]')) return false;
+    if (interaction === 'pointer' && focused !== element && focused?.matches('[data-admin-chart-mark][data-keyboard-focus=true],[data-admin-chart-inspection]')) return false;
     const host = ref.current.getBoundingClientRect();
     const svg = element.ownerSVGElement, scale = host.width / Number(svg?.getAttribute('viewBox')?.split(' ')[2] || host.width || 1);
     const mark = anchor ? {left:host.left+anchor.x*scale,top:host.top+anchor.y*scale,bottom:host.top+anchor.y*scale,width:0} : element.getBoundingClientRect();
@@ -49,7 +49,7 @@ export function AdminChartMark({ label, tooltip, selected, dimmed, onSelect, onI
   return <g {...geometry} data-admin-chart-mark="true" data-keyboard-focus={keyboard ? "true" : "false"} role="button" tabIndex={0} aria-label={label} aria-pressed={Boolean(selected)} aria-describedby={chart.owner === owner ? chart.tooltipId : undefined}
     className={`admin-chart-mark ${selected ? 'is-selected' : ''} ${dimmed ? 'is-receded' : ''} ${className}`}
     onPointerDown={() => setKeyboard(false)}
-    onPointerEnter={e => { if (chart.show(e.currentTarget, tooltip, owner, tooltipAnchor, 'pointer')) onInspect?.(true); }} onPointerLeave={e => { if (e.pointerType !== 'touch' && document.activeElement !== e.currentTarget && chart.owner === owner) { chart.hide(owner); onInspect?.(false); } }}
+    onPointerEnter={e => { if (chart.show(e.currentTarget, tooltip, owner, tooltipAnchor, 'pointer')) onInspect?.(true); }} onPointerLeave={e => { if (e.pointerType !== 'touch' && (document.activeElement !== e.currentTarget || !keyboard) && chart.owner === owner) { chart.hide(owner); onInspect?.(false); } }}
     onFocus={e => { chart.show(e.currentTarget, tooltip, owner, tooltipAnchor); onInspect?.(true); }} onBlur={() => { setKeyboard(true); chart.hide(owner); onInspect?.(false); }}
     onClick={e => { onSelect(); chart.show(e.currentTarget, tooltip, owner, tooltipAnchor); }}
     onKeyDown={e => {

@@ -52,3 +52,10 @@ it('separates pointer focus from keyboard focus without losing persistent select
  expect(mark.dataset.keyboardFocus).toBe('false');expect(mark.getAttribute('aria-pressed')).toBe('true');
  fireEvent.keyDown(mark,{key:'Enter'});expect(mark.dataset.keyboardFocus).toBe('true');expect(screen.getByRole('tooltip')).toBeTruthy();
 });
+
+it('allows mouse inspection beside a pointer-selected object while keeping selection',()=>{
+ render(<AdminChart label="Inspection">{()=>['A','B'].map(label=><AdminChartMark key={label} label={label} selected={label==='A'} tooltip={`${label} detail`} onSelect={()=>{}}><rect width="44" height="44"/></AdminChartMark>)}</AdminChart>);
+ const first=screen.getByRole('button',{name:'A'}),second=screen.getByRole('button',{name:'B'});
+ fireEvent.pointerDown(first);act(()=>first.focus());fireEvent.pointerEnter(second,{pointerType:'mouse'});
+ expect(screen.getByRole('tooltip').textContent).toBe('B detail');expect(first.getAttribute('aria-pressed')).toBe('true');
+});
