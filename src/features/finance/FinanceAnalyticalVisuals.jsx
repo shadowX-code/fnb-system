@@ -1,6 +1,6 @@
 import {adminChartScale} from '../../components/ui/AdminChart.jsx';
 import { FinanceReadiness } from './FinanceVisualSystem.jsx';
-import { FinanceChart, FinanceMark, FinanceChartTip, useFinanceGeometry, placeFinanceLabels, financeChartMoney, financeMetricColor, financeChartColors } from './FinanceChart.jsx';
+import { FinanceChart, FinanceMark, FinanceChartTip, useFinanceGeometry, placeFinanceLabels, financeChartMoney, financeMetricColor, financeChartColors, financeChartMovement } from './FinanceChart.jsx';
 import { metricRegistry, compatibleMetricBasis } from './metrics.js';
 import { costRatio } from './costs.js';
 import { financialValue, movementValue } from './presentation.js';
@@ -98,7 +98,7 @@ function ContributionCanvas({ width, movement, pair, selectedId, selectedStage, 
       </FinanceMark>;
     })}
     <text x={mobile ? 0 : left} y={height-42}>Cumulative EBITDA · RM · focused range</text>
-    <text x={mobile ? 0 : left} y={height-24} className="chart-annotation">EBITDA movement {movementValue(movement.total)}</text>{!reconciled ? <text x={mobile ? 0 : left} y={height-8}>Attribution not ready</text> : null}
+    <text x={mobile ? 0 : left} y={height-24} className="chart-annotation" style={{fill:financeChartColors.ebitda}}>EBITDA movement {movementValue(movement.total)}</text>{!reconciled ? <text x={mobile ? 0 : left} y={height-8}>Attribution not ready</text> : null}
   </>;
 }
 export function DriverContribution({ movement, pair, selectedId, selectedStage, onSelect, compact = false }) {
@@ -117,7 +117,7 @@ function PressureCanvas({ width, rows, selectedId, onSelect }) {
     {[-1,-.5,0,.5,1].map(tick => <g key={tick}><path d={`M${middle+tick*(right-left)/2} ${top}V${bottom}M${left} ${center-tick*(bottom-top)/2}H${right}`} className={tick === 0 ? 'chart-axis' : 'chart-grid'} /><text x={middle+tick*(right-left)/2} y={bottom+18} textAnchor="middle">{ready.length ? `${(tick*xb).toFixed(xb < 1 ? 2 : 1)}` : tick === 0 ? '0' : '—'}</text><text x={left-7} y={center-tick*(bottom-top)/2+4} textAnchor="end">{ready.length ? (tick*yb).toFixed(2) : tick === 0 ? '0' : '—'}</text></g>)}
     <text x={middle} y="310" textAnchor="middle">Cost growth − Revenue growth · pp</text><text x="11" y={center} textAnchor="middle" transform={`rotate(-90 11 ${center})`}>Cost share change · pp</text>
     {ready.filter(row => row.id === selectedId).map(row => { const [x,y] = geometry[row.id]; return <g key={`guides:${row.id}`} aria-hidden="true"><path d={`M${left} ${y}H${x}V${bottom}`} className="chart-link is-active"/></g>; })}
-    {[...ready].sort((a,b) => Number(a.id === selectedId) - Number(b.id === selectedId)).map(row => { const [x,y,r] = geometry[row.id], label = row.label ?? metricRegistry[row.id].label; return <FinanceMark key={row.id} label={`Investigate ${label} pressure`} selected={row.id === selectedId} dimmed={Boolean(selectedId) && row.id !== selectedId && !row.id.startsWith(`${selectedId}.`)} onSelect={() => onSelect(row.id)} transform={`translate(${x} ${y})`} tooltip={<FinanceChartTip title={label} rows={[{label:'Cost',value:financialValue(row.current),color:financeMetricColor(row.id)},{label:'Cost growth',value:`${row.growth.value.toFixed(2)}%`},{label:'Revenue growth',value:`${row.revenueGrowth.value.toFixed(2)}%`},{label:'Share change',value:`${row.ratioMovement.value>0?'+':''}${row.ratioMovement.value.toFixed(3)} pp`}]} note="Point area reflects cost materiality."/>}>
+    {[...ready].sort((a,b) => Number(a.id === selectedId) - Number(b.id === selectedId)).map(row => { const [x,y,r] = geometry[row.id], label = row.label ?? metricRegistry[row.id].label; return <FinanceMark key={row.id} label={`Investigate ${label} pressure`} selected={row.id === selectedId} dimmed={Boolean(selectedId) && row.id !== selectedId && !row.id.startsWith(`${selectedId}.`)} onSelect={() => onSelect(row.id)} transform={`translate(${x} ${y})`} tooltip={<FinanceChartTip title={label} rows={[{label:'Cost',value:financialValue(row.current),color:financeMetricColor(row.id)},{label:'Cost growth',value:`${row.growth.value.toFixed(2)}%`},{label:'Revenue growth',value:`${row.revenueGrowth.value.toFixed(2)}%`},{label:'Share change',value:`${financeChartMovement(row.ratioMovement.value,3)} pp`}]} note="Point size indicates relative cost materiality."/>}>
       <circle r={Math.max(22,r+5)} fill="transparent"/><circle r={r} className="chart-point" fill={financeMetricColor(row.id)}/><circle r={r+4} className="chart-focus"/>{labels[row.id] ? <path d={`M0 0L${labels[row.id].x-x-3} ${labels[row.id].y-y-4}`} className={`chart-link ${row.id===selectedId ? 'is-active' : ''}`}/> : null}{labels[row.id] ? <text x={labels[row.id].x-x} y={labels[row.id].y-y} className="chart-label" style={{fontSize:11,pointerEvents:'none'}}>{label.length > 23 ? `${label.slice(0,21)}…` : label}</text> : null}
     </FinanceMark>; })}</>;
 }

@@ -5,7 +5,7 @@ import { ProfitArchitecture } from '../FinanceAnalyticalVisuals.jsx';
 import { FinanceAnalysis } from '../FinanceAnalysisPage.jsx';
 import { FinanceCosts } from '../FinanceCostsPage.jsx';
 import { FinanceCash } from '../FinanceCashPage.jsx';
-import { FinanceChart, useFinanceGeometry } from '../FinanceChart.jsx';
+import { FinanceChart, financeChartMovement, useFinanceGeometry } from '../FinanceChart.jsx';
 import { readFinanceAnalysis } from '../analysis.js';
 import { createFixtureProvider } from '../providers/fixtureProvider.js';
 import { monthlyPeriod } from '../foundation.js';
@@ -108,4 +108,11 @@ it('returns preserved outlet context to the scope when the next read has no evid
   view.rerender(<FinanceAnalysis analysis={{...analysis,outlets:[]}}/>);
   expect(screen.queryByRole('region',{name:'Selected outlet performance'})).toBeNull();
   expect(screen.getByRole('region',{name:'Selected scope performance'})).toBeTruthy();
+});
+
+it('formats rounded share movement neutrally without losing precise evidence',()=>{
+ expect(financeChartMovement(-0.000000001,3)).toBe('0.000');
+ expect(financeChartMovement(-.125,3)).toBe('-0.125');
+ expect(financeChartMovement(.125,3)).toBe('+0.125');
+ expect(financeChartMovement(null)).toBe('—');
 });
