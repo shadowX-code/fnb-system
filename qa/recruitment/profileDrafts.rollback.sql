@@ -14,8 +14,8 @@ begin
  d:=recruitment_save_profile_draft((d->>'id')::uuid,(d->>'revision')::integer,v3);
  if d->'definition'<>v3 then raise exception 'Full definition roundtrip lost data'; end if;
  if not exists(select 1 from jsonb_array_elements(recruitment_profile_drafts()) x where x->>'id'=d->>'id' and x->'definition'=v3) then raise exception 'Saved draft cannot be resumed'; end if;
- begin perform recruitment_save_profile_draft((d->>'id')::uuid,1,v3||'{"role_context":"stale overwrite"}'); raise exception 'Stale save accepted'; exception when sqlstate '40001' then null; end;
- begin perform recruitment_publish_profile_draft((d->>'id')::uuid,1); raise exception 'Stale publication accepted'; exception when sqlstate '40001' then null; end;
+ begin perform recruitment_save_profile_draft((d->>'id')::uuid,1,v3||'{"role_context":"stale overwrite"}'); raise exception 'Stale save accepted'; exception when sqlstate 'PT409' then null; end;
+ begin perform recruitment_publish_profile_draft((d->>'id')::uuid,1); raise exception 'Stale publication accepted'; exception when sqlstate 'PT409' then null; end;
  begin perform recruitment_publish_profile(v3,2); raise exception 'Legacy bypass accepted'; exception when sqlstate '55000' then null; end;
  original:=d;
  d:=recruitment_save_profile_draft((d->>'id')::uuid,(d->>'revision')::integer,jsonb_set(v3,'{evidence_areas,0,rubric,levels,0,criteria}','""'));
