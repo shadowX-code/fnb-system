@@ -49,7 +49,7 @@ export function profitMovement(pair, model) {
   };
 }
 /** Cache identical reads; bound concurrency. Each outlet read retains the existing server scope check. */
-export async function readFinanceAnalysis(provider, request, { comparisonPeriod = previousPeriod(request.period), outlets = [], allowDemo = false, signal } = {}) {
+export async function readFinanceAnalysis(provider, request, { comparisonPeriod = previousPeriod(request.period), outlets = [], includeHistory = false, allowDemo = false, signal } = {}) {
   validatePeriod(request.period); validatePeriod(comparisonPeriod);
   const isMonth = (period) => period.start.endsWith('-01') && monthlyPeriod(period.start.slice(0, 7)).end === period.end;
   if (!isMonth(request.period) || !isMonth(comparisonPeriod) || comparisonPeriod.end >= request.period.start) throw new Error('Choose a complete comparison month before the current period.');
@@ -79,6 +79,12 @@ export async function readFinanceAnalysis(provider, request, { comparisonPeriod 
     return analysisPair(current, previous);
   };
   const scopePair = await pairFor(request.scope, request.period, comparisonPeriod);
+  // Thirteen observations support twelve visible months plus the first month's comparison.
+  // Reuse the validated, concurrency-limited cache; Costs/Cash do not request this history.
+  const historyRead = includeHistory ? Promise.all(Array.from({length:13}, (_, index) => shiftMonth(request.period, index-12)).map(async period => {
+    try { return {period, dataset:await read(request.scope, period)}; }
+    catch { return {period, dataset:null}; }
+  })) : Promise.resolve([]);
   const eligible = [...new Map(outlets.filter((outlet) => outlet.id && outlet.name && (request.scope.kind !== 'outlet' || outlet.id === request.scope.id) && (request.scope.kind !== 'legal_entity' || outlet.legalEntityId === request.scope.id) && request.scope.kind !== 'dimension').map((outlet) => [outlet.id, outlet])).values()];
   const results = await Promise.all(eligible.map(async (outlet) => {
     const scope = { kind: 'outlet', id: outlet.id, ...(outlet.legalEntityId ? { legalEntityId: outlet.legalEntityId } : {}) };
@@ -94,5 +100,5 @@ export async function readFinanceAnalysis(provider, request, { comparisonPeriod 
     }));
     return { ...outlet, pair, position: outletPosition(pair), history, error: null };
   }));
-  return { ...scopePair, outlets: results, comparisonPeriod, lag, profitDriverModel: provider.profitDriverModel ?? null };
+  return { ...scopePair, history: await historyRead, outlets: results, comparisonPeriod, lag, profitDriverModel: provider.profitDriverModel ?? null };
 }

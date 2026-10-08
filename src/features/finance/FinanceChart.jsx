@@ -1,5 +1,5 @@
 import './interactive-visuals.css';
-import { adminChartColors, AdminChart, AdminChartMark, AdminChartTooltipContent, useAdminChartGeometry } from '../../components/ui/AdminChart.jsx';
+import { adminChartCategoryColors, adminChartColors, AdminChart, AdminChartMark, AdminChartTooltipContent, useAdminChartGeometry } from '../../components/ui/AdminChart.jsx';
 export function FinanceChart(props) { return <AdminChart {...props} className={`finance-chart ${props.className ?? ''}`} />; }
 export function FinanceMark(props) { return <AdminChartMark {...props} className={`finance-chart-mark ${props.className ?? ''}`} />; }
 export const useFinanceGeometry = useAdminChartGeometry;
@@ -33,3 +33,6 @@ export const financeMetricColor = id => financeChartColors[id.split('.')[0]] ?? 
 export function financeChartMovement(value, digits = 2) {
   return value === null || value === undefined ? '—' : new Intl.NumberFormat('en-MY',{minimumFractionDigits:digits,maximumFractionDigits:digits,signDisplay:'exceptZero'}).format(value);
 }
+
+/** Revenue composition categories carry identity, never automatic warning status. */
+export const financeConversionColors = Object.freeze({cogs:adminChartCategoryColors.coral,labour:adminChartCategoryColors.azure,opex:adminChartCategoryColors.slate,ebitda:adminChartCategoryColors.emerald});

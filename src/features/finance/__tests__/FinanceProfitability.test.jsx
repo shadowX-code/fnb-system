@@ -1,0 +1,57 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { FinanceAnalysis } from '../FinanceAnalysisPage.jsx';
+import { readFinanceAnalysis } from '../analysis.js';
+import { createFixtureProvider } from '../providers/fixtureProvider.js';
+import { monthlyPeriod } from '../foundation.js';
+import { overviewHistory } from '../overviewDashboard.js';
+afterEach(cleanup);
+const request = {scope:{kind:'group',id:'demo-group'},period:monthlyPeriod('2026-10'),currency:'MYR'};
+const fixture = options => readFinanceAnalysis(createFixtureProvider({development:true}), request, {allowDemo:true,includeHistory:true,...options});
+it('bounds, deduplicates and validates selected-scope history without adding reads to other consumers', async () => {
+  const base = createFixtureProvider({development:true});
+  let active=0, peak=0;
+  const provider={...base,readOverview:vi.fn(async query=>{active++;peak=Math.max(peak,active);try{await Promise.resolve();const value=await base.readOverview(query);if(query.period.start==='2026-06-01') value.scope={kind:'group',id:'wrong-scope'};return value;}finally{active--;}})};
+  const analysis=await readFinanceAnalysis(provider,request,{includeHistory:true,allowDemo:true});
+  expect(analysis.history).toHaveLength(13);
+  expect(provider.readOverview).toHaveBeenCalledTimes(13);
+  expect(peak).toBeLessThanOrEqual(4);
+  expect(provider.readOverview.mock.calls.every(([query])=>JSON.stringify(query.scope)===JSON.stringify(request.scope))).toBe(true);
+  expect(overviewHistory({...analysis.current,history:analysis.history},12).find(row=>row.period.start==='2026-06-01').ebitda_margin).toBeNull();
+  provider.readOverview.mockClear();
+  const costs=await readFinanceAnalysis(provider,request,{allowDemo:true});
+  expect(costs.history).toEqual([]);expect(provider.readOverview).toHaveBeenCalledTimes(2);
+});
+it('keeps modes exclusive, preserves month nodes, and investigates the selected historical month rather than current values', async () => {
+  const analysis=await fixture(), before=JSON.stringify(analysis);
+  render(<FinanceAnalysis analysis={analysis}/>);
+  fireEvent.click(screen.getByRole('tab',{name:'Profitability'}));
+  const chart=screen.getByRole('group',{name:'Monthly EBITDA Margin history'});
+  expect(screen.queryByRole('group',{name:'Driver Contribution'})).toBeNull();
+  expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
+  const july=within(chart).getByRole('button',{name:'July 2026 EBITDA Margin'});
+  fireEvent.focus(july);expect(screen.getByRole('tooltip').textContent).toContain('vs June 2026');
+  fireEvent.keyDown(july,{key:'Enter'});
+  fireEvent.click(screen.getByRole('tab',{name:'12M'}));
+  expect(within(chart).getAllByRole('button')).toHaveLength(12);
+  expect(within(chart).getByRole('button',{name:'July 2026 EBITDA Margin'})).toBe(july);
+  fireEvent.click(screen.getByRole('tab',{name:'Compare',exact:true}));
+  const context=screen.getByRole('region',{name:'Selected analysis context'});
+  expect(context.textContent).toContain('July 2026');expect(context.textContent).toContain('June 2026');expect(context.textContent).not.toContain('October 2026');
+  fireEvent.click(screen.getByRole('tab',{name:'Break down',exact:true}));
+  fireEvent.click(within(context).getByRole('button',{name:/^Revenue/}));
+  expect(context.textContent).toContain('Revenue');
+  fireEvent.click(screen.getByRole('tab',{name:'Outlets'}));
+  expect(screen.queryByRole('group',{name:'Monthly EBITDA Margin history'})).toBeNull();
+  expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
+  expect(JSON.stringify(analysis)).toBe(before);
+});
+it('retains muted monthly structure and readiness when margin evidence is incomplete',async()=>{
+  const analysis=await fixture();
+  for(const entry of analysis.history) {entry.dataset.metrics.revenue.value=null;entry.dataset.metrics.revenue.completeness='unavailable';entry.dataset.metrics.ebitda_margin.value=null;entry.dataset.metrics.ebitda_margin.completeness='unavailable';}
+  render(<FinanceAnalysis analysis={analysis}/>);
+  fireEvent.click(screen.getByRole('tab',{name:'Profitability'}));
+  expect(screen.getByRole('group',{name:'Monthly EBITDA Margin history'}).querySelector('.chart-pending')).toBeTruthy();
+  expect(screen.getByText('Monthly evidence not ready')).toBeTruthy();
+  expect(screen.queryByRole('button',{name:'July 2026 EBITDA Margin'})).toBeNull();
+});

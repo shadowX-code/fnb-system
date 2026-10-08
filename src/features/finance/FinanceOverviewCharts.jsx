@@ -1,9 +1,9 @@
 import { useId, useState } from 'react';
-import { AdminChartArea, adminChartLinePath, AdminChartCrosshair, AdminChartValueLabel, adminChartScale } from '../../components/ui/AdminChart.jsx';
+import { FinanceMonthlyTrendCanvas, FinanceHistoryEvidence } from './FinanceMonthlyTrend.jsx';
 import { ArrowRight } from 'lucide-react';
 import AdminAnalyticalSurface from '../../components/layout/AdminAnalyticalSurface.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
-import { FinanceChart, FinanceMark, FinanceChartTip, financeChartColors, financeChartMoney, useFinanceGeometry } from './FinanceChart.jsx';
+import { FinanceChart, FinanceMark, FinanceChartTip, financeChartColors, financeConversionColors, financeChartMoney, useFinanceGeometry } from './FinanceChart.jsx';
 import { FinanceReadiness, FinanceDisclosure, FinanceProvenance } from './FinanceVisualSystem.jsx';
 import { financialValue, financialPeriod, movementValue } from './presentation.js';
 import { metricRegistry, metricMovement } from './metrics.js';
@@ -12,49 +12,6 @@ import { openOverviewAnalysis } from './overviewNavigation.js';
 
 const colors = financeChartColors;
 const format = (value, percent) => value === null ? '—' : percent ? `${value.toFixed(1)}%` : financeChartMoney(value);
-const dateLabel = period => new Intl.DateTimeFormat('en-MY',{month:'short',year:'2-digit',timeZone:'UTC'}).format(new Date(`${period.start}T00:00:00Z`));
-function TrendCanvas({width, rows, ids, percent, selected, onSelect}) {
-  const [inspected,setInspected] = useState(null);
-  const left = width < 400 ? 46 : 58, right = 20, top = 32, bottom = 204, usable = width-left-right;
-  const values = rows.flatMap(row => ids.map(id => row[id])).filter(Number.isFinite);
-  const {min,max,ticks} = adminChartScale(values, width<420?3:4);
-  const y = value => bottom-(value-min)/(max-min)*(bottom-top), x = index => left+index/Math.max(1,rows.length-1)*usable;
-  const target = Object.fromEntries(rows.flatMap((row,index) => ids.filter(id => row[id] !== null).map(id => [`${row.period.start}:${id}`,[x(index),y(row[id])]])));
-  const geometry = useFinanceGeometry(target);
-  const path = id => adminChartLinePath(rows.map(row => geometry[`${row.period.start}:${id}`]));
-  const labelEvery = Math.max(1,Math.ceil(rows.length/(width<420?3:6)));
-  return <>
-    {ticks.map(value => {const cy=y(value);return <g key={value}><line x1={left} x2={width-right} y1={cy} y2={cy} className="chart-grid"/>{values.length ? <text x={left-8} y={cy+4} textAnchor="end">{format(value,percent)}</text> : null}</g>;})}
-    <path d={`M${left},${top}V${bottom}H${width-right}`} className="chart-axis"/>
-    {rows.map((row,index) => index===0 || index===rows.length-1 || (index%labelEvery===0 && x(index)-left>=64 && width-right-x(index)>=64) ? <text key={row.period.start} x={x(index)} y={bottom+24} textAnchor={index===0?'start':index===rows.length-1?'end':'middle'}>{dateLabel(row.period)}</text> : null)}
-    {!values.length ? <path d={`M${left},${top+80}H${width-right} M${left},${top+130}H${width-right}`} className="chart-pending"/> : null}
-    {ids.map(id => <AdminChartArea key={id} color={colors[id]} opacity={selected?.75:1} d={rows.map((row,index)=>{const point=geometry[`${row.period.start}:${id}`], next=geometry[`${rows[index+1]?.period.start}:${id}`];return point&&next?`M${point[0]},${y(0)}L${point[0]},${point[1]}L${next[0]},${next[1]}L${next[0]},${y(0)}Z`:'';}).join(' ')}/>)}
-    {ids.map(id => <path key={id} d={path(id)} fill="none" stroke={colors[id]} strokeWidth="2.5" vectorEffect="non-scaling-stroke" className="admin-chart-series" opacity={selected ? .75 : 1}/>)}
-    <AdminChartCrosshair x={rows.findIndex(row=>row.period.start===(inspected??selected))>=0 ? x(rows.findIndex(row=>row.period.start===(inspected??selected))) : null} top={top} bottom={bottom}/>
-    {rows.map((row,index) => {
-      if(!ids.some(id=>geometry[`${row.period.start}:${id}`]))return null;
-      const cx=x(index), half=usable/Math.max(1,rows.length-1)/2, cy=Math.min(...ids.map(id=>geometry[`${row.period.start}:${id}`]?.[1]).filter(Number.isFinite));
-      return <FinanceMark key={row.period.start} tooltipAnchor={{x:cx,y:cy}} label={`${financialPeriod(row.period)} ${ids.map(id=>metricRegistry[id].label).join(' and ')}`} selected={selected===row.period.start} dimmed={Boolean(selected)&&selected!==row.period.start} onInspect={active=>setInspected(active?row.period.start:null)} onSelect={()=>onSelect(selected===row.period.start?null:row.period.start)} tooltip={<FinanceChartTip title={financialPeriod(row.period)} rows={ids.map(key=>({label:metricRegistry[key].label,value:financialValue({value:row[key],unit:percent?'percent':'money'}),color:colors[key]}))} note={row.dataset?.sourceLabel}/>}>
-        <rect className="chart-inspection-band" x={Math.max(left,cx-half)} y={top-12} width={Math.min(width-right,cx+half)-Math.max(left,cx-half)} height={bottom-top+24} />
-        <rect x={Math.max(left,cx-half)} y={top-12} width={Math.min(width-right,cx+half)-Math.max(left,cx-half)} height={bottom-top+24} fill="transparent"/>
-        {ids.map(id=>{const point=geometry[`${row.period.start}:${id}`];return point ? <g key={id} pointerEvents="none"><circle cx={point[0]} cy={point[1]} r={selected===row.period.start||inspected===row.period.start?5:index===rows.length-1?4:2.5} fill={colors[id]} className="chart-point"/><circle cx={point[0]} cy={point[1]} r="8" className="chart-focus"/></g>:null;})}
-      </FinanceMark>;
-    })}
-    {(() => {
-      const occupied=[];
-      return ids.map(id=>{const last=rows.at(-1), point=last&&geometry[`${last.period.start}:${id}`];if(!point)return null;
-        let labelY=point[1]-14;
-        while(occupied.some(y=>Math.abs(y-labelY)<28))labelY+=28;
-        labelY=Math.min(bottom+10,Math.max(20,labelY));occupied.push(labelY);
-        return <g key={id} pointerEvents="none">{Math.abs(labelY-(point[1]-10))>1?<line x1={point[0]} x2={width-right} y1={point[1]} y2={labelY-4} stroke={colors[id]} strokeWidth="1"/>:null}<AdminChartValueLabel x={width-right} y={labelY} color={colors[id]} value={format(last[id],percent)}/></g>;
-      });
-    })()}
-
-  </>;
-}
-function HistoryEvidence({rows,ids}) {
-  return <FinanceDisclosure label="Monthly values & source evidence"><div className="overflow-x-auto"><table className="w-full type-caption text-left"><thead><tr><th className="py-2">Period</th>{ids.map(id=><th key={id} className="px-2">{metricRegistry[id].label}</th>)}</tr></thead><tbody>{rows.map(row=><tr key={row.period.start}><th className="py-2 font-medium">{financialPeriod(row.period)}</th>{ids.map(id=><td key={id} className="px-2">{financialValue({value:row[id],unit:id==='ebitda_margin'?'percent':'money'})}</td>)}</tr>)}</tbody></table></div><p>Each month retains its provider evidence; missing or incompatible observations are gaps.</p>{rows.filter(row=>row.dataset).map(row=><details key={row.period.start}><summary>{financialPeriod(row.period)} source</summary>{ids.map(id=><FinanceProvenance key={id} metric={row.dataset.metrics[id]}/>)}</details>)}</FinanceDisclosure>;
-}
 function Trend({dataset, cash=false}) {
   const [range,setRange]=useState('6M'),[view,setView]=useState('Amount'),[selected,setSelected]=useState(null);
   const rows=overviewHistory(dataset,range==='6M'?6:12), percent=!cash&&view==='Margin %',ids=cash?['cash']:percent?['ebitda_margin']:['revenue','ebitda'];
@@ -63,11 +20,11 @@ function Trend({dataset, cash=false}) {
   const movement=cash&&dataset.comparisonDataset ? metricMovement(dataset.metrics.cash,dataset.comparisonDataset.metrics.cash) : null;
   return <AdminAnalyticalSurface label={cash?'Cash Position Trend':'Revenue & EBITDA Trend'} subtitle={cash?'Monthly closing book-cash balance.':'Monthly financial performance over time.'} actions={<div className="flex flex-wrap gap-2">{!cash?<AdminSegmentedControl label="Trend units" value={view} onChange={value=>{setView(value);setSelected(null);}} options={['Amount','Margin %'].map(value=>({value,label:value}))}/>:null}<AdminSegmentedControl label={cash?'Cash history':'Performance history'} value={range} onChange={value=>{setRange(value);setSelected(null);}} options={['6M','12M'].map(value=>({value,label:value}))}/></div>}>
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 type-caption text-text-secondary">{ids.map(id=><span key={id} className="inline-flex items-center gap-2"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{background:colors[id]}}/>{metricRegistry[id].label} ({percent?'%':'RM'})</span>)}{cash&&movement?.value!==null&&movement ? <strong className="ml-auto text-text-primary">{movementValue(movement,'money')} vs previous month</strong>:null}</div>
-    <FinanceChart label={cash?'Monthly closing book-cash history':'Monthly Revenue and EBITDA history'} height={246} dataKey={`${dataset.period.start}:${dataset.scope.id}:${view}:${range}`}>{width=><TrendCanvas width={width} rows={rows} ids={ids} percent={percent} selected={selected} onSelect={setSelected}/>}</FinanceChart>
+    <FinanceChart label={cash?'Monthly closing book-cash history':'Monthly Revenue and EBITDA history'} height={246} dataKey={`${dataset.period.start}:${dataset.scope.id}:${view}:${range}`}>{width=><FinanceMonthlyTrendCanvas width={width} rows={rows} ids={ids} percent={percent} selected={selected} onSelect={setSelected}/>}</FinanceChart>
     {selectedRow ? <p role="status" className="type-caption text-text-secondary">{financialPeriod(selectedRow.period)} · {ids.map(id=>`${metricRegistry[id].label} ${financialValue({value:selectedRow[id],unit:percent?'percent':'money'})}`).join(' · ')}</p>:null}
     {known<rows.length||rows.length===0 ? <FinanceReadiness title={known?'Partial monthly evidence':'Monthly evidence not ready'}>Only complete, compatible months are plotted. Review Data Sources for history coverage.</FinanceReadiness>:null}
     {cash?<p className="type-caption text-text-secondary">Book cash from financial records does not establish available bank funds.</p>:null}
-    <HistoryEvidence rows={rows} ids={ids}/>
+    <FinanceHistoryEvidence rows={rows} ids={ids}/>
   </AdminAnalyticalSurface>;
 }
 function ConversionCanvas({width, projection, selected, onSelect}) {
@@ -80,9 +37,9 @@ function ConversionCanvas({width, projection, selected, onSelect}) {
   const geometry = useFinanceGeometry(Object.fromEntries(projection.complete ? slots.map(row => [row.id,[row.x,row.width]]) : []));
   return <><defs><clipPath id={projection.clipId}><rect x="12" y="20" width={width-24} height="46" rx="5"/></clipPath></defs>{slots.map(row => {
     const [x,w] = geometry[row.id] ?? [row.x,row.width];
-    return <FinanceMark key={row.id} label={`Inspect ${metricRegistry[row.id].label} conversion`} selected={selected===row.id} dimmed={Boolean(selected)&&selected!==row.id} onSelect={()=>onSelect(row.id)} tooltip={<FinanceChartTip title={metricRegistry[row.id].label} rows={[{label:'Amount',value:financialValue(row.metric),color:colors[row.id]},{label:'Revenue share',value:projection.complete?`${row.share.toFixed(2)}%`:'Not validated'}]}/>}>
-      <rect x={x} y="20" width={Math.max(0,w)} height="46" clipPath={`url(#${projection.clipId})`} stroke="white" strokeWidth="1" fill={projection.complete?colors[row.id]:'none'} className={projection.complete?'':'chart-pending'}/>
-      {projection.complete&&w>45?<text x={x+w/2} y="48" textAnchor="middle" style={{fill:'white',fontWeight:600}}>{row.share.toFixed(1)}%</text>:null}
+    return <FinanceMark key={row.id} label={`Inspect ${metricRegistry[row.id].label} conversion`} selected={selected===row.id} dimmed={Boolean(selected)&&selected!==row.id} onSelect={()=>onSelect(row.id)} tooltip={<FinanceChartTip title={metricRegistry[row.id].label} rows={[{label:'Amount',value:financialValue(row.metric),color:financeConversionColors[row.id]},{label:'Revenue share',value:projection.complete?`${row.share.toFixed(2)}%`:'Not validated'}]}/>}>
+      <rect x={x} y="20" width={Math.max(0,w)} height="46" clipPath={`url(#${projection.clipId})`} stroke="white" strokeWidth="1" fill={projection.complete?financeConversionColors[row.id]:'none'} className={projection.complete?'':'chart-pending'}/>
+      {projection.complete&&w>45?<text x={x+w/2} y="48" textAnchor="middle" style={{fill:'var(--color-text-primary, #132638)',fontWeight:600}}>{row.share.toFixed(1)}%</text>:null}
       <rect x={x+2} y="17" width={Math.max(0,w-4)} height="52" className="chart-focus"/>
     </FinanceMark>;
   })}</>;
@@ -93,7 +50,7 @@ function Conversion({dataset}) {
     <FinanceChart label="100 percent Revenue composition" height={86} dataKey={`${dataset.period.start}:${dataset.scope.id}`}>
       {width=><ConversionCanvas width={width} projection={projection} selected={selected} onSelect={setSelected}/>}
     </FinanceChart>
-    <ul className="divide-y divide-border">{projection.rows.map(row=><li key={row.id}><button type="button" className="flex min-h-11 w-full items-center gap-2 py-2 text-left type-body-sm focus-visible:outline-primary" aria-pressed={selected===row.id} onClick={()=>setSelected(row.id)}><span className="h-2.5 w-2.5 rounded-full shrink-0" style={{background:colors[row.id]}}/><span className="flex-1">{metricRegistry[row.id].label}</span><strong>{row.share===null?'—':`${row.share.toFixed(1)}%`}</strong><span className="ml-3 text-text-secondary tabular-nums">{financialValue(row.metric)}</span></button></li>)}</ul>
+    <ul className="divide-y divide-border">{projection.rows.map(row=><li key={row.id}><button type="button" className="flex min-h-11 w-full items-center gap-2 py-2 text-left type-body-sm focus-visible:outline-primary" aria-pressed={selected===row.id} onClick={()=>setSelected(row.id)}><span className="h-2.5 w-2.5 rounded-full shrink-0" style={{background:financeConversionColors[row.id]}}/><span className="flex-1">{metricRegistry[row.id].label}</span><strong>{row.share===null?'—':`${row.share.toFixed(1)}%`}</strong><span className="ml-3 text-text-secondary tabular-nums">{financialValue(row.metric)}</span></button></li>)}</ul>
     {!projection.complete?<FinanceReadiness title="Partial composition evidence">A 100% split needs complete, separate COGS, Labour, OPEX and EBITDA that reconcile to Revenue. Supplied amounts keep their own basis.</FinanceReadiness>:<p className="mt-2 type-caption text-text-secondary">Complete, compatible inputs reconcile to 100% of Revenue.</p>}
     {selected?<FinanceDisclosure label={`${metricRegistry[selected].label} definition & evidence`} open><p>{metricRegistry[selected].definition}</p><FinanceProvenance metric={dataset.metrics[selected]}/></FinanceDisclosure>:null}
   </AdminAnalyticalSurface>;

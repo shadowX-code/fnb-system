@@ -158,3 +158,6 @@ export function adminChartLinePath(points) {
   let connected = false;
   return points.map(point => {if(!point || !point.every(Number.isFinite)){connected=false;return '';}const segment=`${connected?'L':'M'}${point.join(',')}`;connected=true;return segment;}).join(' ');
 }
+
+/** Category identity palette; independent of signed movement semantics. */
+export const adminChartCategoryColors = Object.freeze({coral:"var(--chart-category-coral)",azure:"var(--chart-category-azure)",slate:"var(--chart-category-slate)",emerald:"var(--chart-category-emerald)"});

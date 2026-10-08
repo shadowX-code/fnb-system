@@ -1,4 +1,4 @@
-:root {--chart-emerald:#00865b;--chart-azure:#0875c4;--chart-coral:#ce4058;--chart-violet:#8053dc;--chart-slate:#64748b;}
+:root {--chart-category-coral:#F04452;--chart-category-azure:#139FE6;--chart-category-slate:#94A3B8;--chart-category-emerald:#16A765;--chart-emerald:#00865b;--chart-azure:#0875c4;--chart-coral:#ce4058;--chart-violet:#8053dc;--chart-slate:#64748b;}
 .admin-chart {position:relative;min-width:0;width:100%;margin:12px 0;}
 .admin-chart > svg {display:block;width:100%;height:auto;overflow:visible;}
 .admin-chart-mark {cursor:pointer;outline:none;transition:opacity 180ms ease-out;}

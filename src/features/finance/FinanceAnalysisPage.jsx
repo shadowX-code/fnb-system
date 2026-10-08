@@ -12,6 +12,7 @@ import { metricMovement, metricRegistry } from './metrics.js';
 import { performanceIds, profitMovement } from './analysis.js';
 import { financialPeriod, financialSemantics, financialValue, movementValue } from './presentation.js';
 import AnalysisContext from './AnalysisContext.jsx';
+import FinanceProfitability from './FinanceProfitability.jsx';
 import OutletPerformanceField from './OutletPerformanceField.jsx';
 import './finance.css';
 import './analysis.css';
@@ -43,12 +44,12 @@ export function FinanceAnalysis({ analysis, initialView = 'Profit Drivers' }) {
     <div className="finance-analysis-state">
       <div className="finance-analysis-heading"><div><p className="finance-analysis-muted">{financialPeriod(pair.current.period)} compared with {financialPeriod(pair.previous.period)}</p><h2>{outlet ? outlet.name : 'Business performance'}</h2></div>{outlet ? <button type="button" className="btn-secondary" onClick={() => setSelection({ metricId: 'ebitda', outletId: null, origin: 'driver' })}><RotateCcw size={14} />Return to scope</button> : null}</div>
       <p className="finance-analysis-summary">{total.value === null ? 'EBITDA movement is unavailable for this comparison.' : total.value === 0 ? 'EBITDA is unchanged between these periods.' : `EBITDA ${total.value > 0 ? 'increased' : 'decreased'} by ${financialValue({ value: Math.abs(total.value), unit: 'money' })}.`}</p>
-      <PerformanceStrip pair={pair} selectedId={hasSelection ? selection.metricId : null} onSelect={(id) => selectMetric(id, 'performance')} />
+      <PerformanceStrip pair={pair} selectedId={hasSelection ? selection.metricId : null} onSelect={(id) => { if (view === 'Profitability') setView('Profit Drivers'); selectMetric(id, 'performance'); }} />
       <FinanceDisclosure label="Performance source & completeness"><p>{pair.current.sourceLabel} · {analysis.current.demo ? 'illustrative evidence' : 'live authorized evidence'}. Monthly evidence is not a closed accounting period. Missing Gross Margin or Prime Cost requires validated accounting COGS and labour evidence.</p><p>Source freshness remains unverified when evidence timestamps are unavailable. Read time is not source freshness. Analytical EBITDA Margin is derived only from complete EBITDA and positive Revenue; the underlying EBITDA definition is retained.</p><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_data_sources')}>Review Data Sources <ArrowRight size={14} /></button></FinanceDisclosure>
     </div>
-    <FinanceAnalysisSurface label="Analysis view" title={view === 'Profit Drivers' ? 'Driver Contribution' : 'Outlet Performance Field'} modes={['Profit Drivers', 'Outlets']} value={view} onChange={value => { setView(value); setHasSelection(false); }}>
-      {view === 'Profit Drivers' ? <ProfitDriverExplorer pair={pair} model={analysis.profitDriverModel} selectedMetric={hasSelection ? selection.metricId : null} selectedStage={selection.origin} onSelect={selectMetric} /> : <OutletPerformanceField embedded outlets={analysis.outlets} selectedId={hasSelection ? outlet?.id ?? null : null} lag={analysis.lag} onSelect={id => { setHasSelection(true); setSelection(value => ({...value,outletId:id,origin:'outlet'})); }} />}
-      {hasSelection ? <section aria-label={outlet ? 'Selected outlet performance' : 'Selected scope performance'}>{outlet ? <p className="finance-analysis-muted">Revenue Growth {outlet.position?.x == null ? '—' : `${outlet.position.x.toFixed(1)}%`}</p> : null}{context}</section> : null}
+    <FinanceAnalysisSurface label="Analysis view" title={view === 'Profitability' ? 'EBITDA Margin Trend' : view === 'Profit Drivers' ? 'Driver Contribution' : 'Outlet Performance Field'} modes={['Profit Drivers', 'Outlets', 'Profitability']} value={view} onChange={value => { setView(value); setHasSelection(false); if (value === 'Profitability') setSelection({metricId:'ebitda_margin',outletId:null,origin:'performance'}); }}>
+      {view === 'Profitability' ? <FinanceProfitability analysis={analysis}/> : view === 'Profit Drivers' ? <ProfitDriverExplorer pair={pair} model={analysis.profitDriverModel} selectedMetric={hasSelection ? selection.metricId : null} selectedStage={selection.origin} onSelect={selectMetric} /> : <OutletPerformanceField embedded outlets={analysis.outlets} selectedId={hasSelection ? outlet?.id ?? null : null} lag={analysis.lag} onSelect={id => { setHasSelection(true); setSelection(value => ({...value,outletId:id,origin:'outlet'})); }} />}
+      {hasSelection && view !== 'Profitability' ? <section aria-label={outlet ? 'Selected outlet performance' : 'Selected scope performance'}>{outlet ? <p className="finance-analysis-muted">Revenue Growth {outlet.position?.x == null ? '—' : `${outlet.position.x.toFixed(1)}%`}</p> : null}{context}</section> : null}
     </FinanceAnalysisSurface>
   </div>;
 }
