@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import './AdminChart.css';
 
@@ -5,7 +6,7 @@ const ChartContext = createContext(null);
 
 /** A measured SVG canvas. Coordinates and type stay legible in narrow analytical columns. */
 export function AdminChart({ label, height = 300, children, className = '', dataKey }) {
-  const ref = useRef(null), tooltipRef = useRef(null), tooltipId = useId();
+  const ref = useRef(null), tooltipId = useId();
   const [width, setWidth] = useState(640), [tip, setTip] = useState(null);
   useEffect(() => {
     if (!ref.current || typeof ResizeObserver === 'undefined') return;
@@ -19,12 +20,12 @@ export function AdminChart({ label, height = 300, children, className = '', data
     document.addEventListener('focusin', focus);
     return () => document.removeEventListener('focusin', focus);
   }, []);
-  useLayoutEffect(() => {
-    if (!tip || !tooltipRef.current) return;
-    const height = tooltipRef.current.getBoundingClientRect().height;
-    const y = tip.above >= height + 8 ? tip.above - height - 8 : tip.below + 8;
-    if (tip.y !== y) setTip(current => ({...current, y}));
-  }, [tip?.content, tip?.above, tip?.below]);
+  useEffect(() => {
+    const dismiss = () => setTip(null);
+    window.addEventListener('scroll', dismiss, true);
+    window.addEventListener('resize', dismiss);
+    return () => { window.removeEventListener('scroll', dismiss, true); window.removeEventListener('resize', dismiss); };
+  }, []);
   const show = (element, content, owner, anchor, interaction) => {
     // Layout/scroll can put another mark beneath a stationary pointer. Keyboard inspection keeps authority.
     const focused = document.activeElement;
@@ -32,24 +33,27 @@ export function AdminChart({ label, height = 300, children, className = '', data
     const host = ref.current.getBoundingClientRect();
     const svg = element.ownerSVGElement, scale = host.width / Number(svg?.getAttribute('viewBox')?.split(' ')[2] || host.width || 1);
     const mark = anchor ? {left:host.left+anchor.x*scale,top:host.top+anchor.y*scale,bottom:host.top+anchor.y*scale,width:0} : element.getBoundingClientRect();
-    setTip({ content, owner, above: mark.top - host.top, below: mark.bottom - host.top, x: Math.max(8, Math.min(host.width - 232, mark.left - host.left + mark.width / 2 - 108)), y: Math.max(4, mark.top - host.top - 78) });
+    setTip({content, owner, anchor:{x:mark.left+mark.width/2,top:anchor ? mark.top : (mark.top+mark.bottom)/2,bottom:anchor ? mark.bottom : (mark.top+mark.bottom)/2}});
     return true;
   };
   return <ChartContext.Provider value={{ show, hide: owner => setTip(current => !owner || current?.owner === owner ? null : current), tooltipId, owner: tip?.owner }}><div ref={ref} className={`admin-chart ${className}`} onKeyDown={e => { if (e.key === 'Escape') setTip(null); }}>
     <svg viewBox={`0 0 ${width} ${typeof height === 'function' ? height(width) : height}`} role="group" aria-label={label}>{children(width, height)}</svg>
-    {tip ? <div ref={tooltipRef} id={tooltipId} role="tooltip" className="admin-chart-tooltip" style={{ left: tip.x, top: tip.y }}>{tip.content}</div> : null}
+    {tip ? <AdminChartFloatingTooltip id={tooltipId} anchor={tip.anchor}>{tip.content}</AdminChartFloatingTooltip> : null}
   </div></ChartContext.Provider>;
 }
 
 /** Pointer, keyboard and touch all select the same canonical object and context. */
 export function AdminChartMark({ label, tooltip, selected, dimmed, onSelect, onInspect, tooltipAnchor, children, className = '', ...geometry }) {
   const chart = useContext(ChartContext), owner = useId();
-  return <g {...geometry} data-admin-chart-mark="true" role="button" tabIndex={0} aria-label={label} aria-pressed={Boolean(selected)} aria-describedby={chart.owner === owner ? chart.tooltipId : undefined}
+  const [keyboard, setKeyboard] = useState(true);
+  return <g {...geometry} data-admin-chart-mark="true" data-keyboard-focus={keyboard ? "true" : "false"} role="button" tabIndex={0} aria-label={label} aria-pressed={Boolean(selected)} aria-describedby={chart.owner === owner ? chart.tooltipId : undefined}
     className={`admin-chart-mark ${selected ? 'is-selected' : ''} ${dimmed ? 'is-receded' : ''} ${className}`}
+    onPointerDown={() => setKeyboard(false)}
     onPointerEnter={e => { if (chart.show(e.currentTarget, tooltip, owner, tooltipAnchor, 'pointer')) onInspect?.(true); }} onPointerLeave={e => { if (e.pointerType !== 'touch' && document.activeElement !== e.currentTarget && chart.owner === owner) { chart.hide(owner); onInspect?.(false); } }}
-    onFocus={e => { chart.show(e.currentTarget, tooltip, owner, tooltipAnchor); onInspect?.(true); }} onBlur={() => { chart.hide(owner); onInspect?.(false); }}
+    onFocus={e => { chart.show(e.currentTarget, tooltip, owner, tooltipAnchor); onInspect?.(true); }} onBlur={() => { setKeyboard(true); chart.hide(owner); onInspect?.(false); }}
     onClick={e => { onSelect(); chart.show(e.currentTarget, tooltip, owner, tooltipAnchor); }}
     onKeyDown={e => {
+      setKeyboard(true);
       if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key)) {
         e.preventDefault();
         const marks = [...e.currentTarget.closest('svg').querySelectorAll('[data-admin-chart-mark]')];
@@ -90,9 +94,13 @@ export function useAdminChartGeometry(target) {
 }
 
 
-/** Rounded, zero-inclusive quantitative ticks; this changes display scales, never measures. */
-export function adminChartScale(values, intervals = 4) {
-  const finite = values.filter(Number.isFinite), low = Math.min(0, ...finite), high = Math.max(0, ...finite);
+/** Rounded quantitative ticks. Amount encodings include zero; level markers may use an explicit focused range. */
+export function adminChartScale(values, intervals = 4, {includeZero = true} = {}) {
+  const finite = values.filter(Number.isFinite);
+  const extent = finite.length ? finite : [0,1];
+  const padding = includeZero ? 0 : (Math.max(...extent)-Math.min(...extent) || Math.max(1,Math.abs(extent[0])*.02))*.15;
+  const low = includeZero ? Math.min(0,...extent) : Math.min(...extent)-padding;
+  const high = includeZero ? Math.max(0,...extent) : Math.max(...extent)+padding;
   const raw = (high - low || 1) / intervals, power = 10 ** Math.floor(Math.log10(raw));
   const normalized = raw / power;
   const step = (normalized < 1.25 ? 1 : normalized < 2.25 ? 2 : normalized < 3.75 ? 2.5 : normalized < 7.5 ? 5 : 10) * power;
@@ -114,4 +122,24 @@ export function AdminChartTooltipContent({title, rows, note, children}) {
 export function AdminChartValueLabel({x,y,value,color}) {
   const width=value.length*6.5+16;
   return <g aria-hidden="true" pointerEvents="none" className="admin-chart-value-label"><rect x={x-width} y={y-18} width={width} height="23" rx="4" fill={color}/><text x={x-8} y={y-3} textAnchor="end">{value}</text></g>;
+}
+
+/** Measured floating inspection stays within the viewport at every edge. */
+export function adminChartTooltipPosition(anchor, box, viewport) {
+  const gutter = 8;
+  const x = Math.max(gutter, Math.min(viewport.width-box.width-gutter, anchor.x-box.width/2));
+  const above = anchor.top-box.height-gutter;
+  const y = Math.max(gutter, Math.min(viewport.height-box.height-gutter, above >= gutter ? above : anchor.bottom+gutter));
+  return {x,y};
+}
+
+/** One floating inspection owner for full charts and miniature trends. */
+export function AdminChartFloatingTooltip({id, anchor, children}) {
+  const ref = useRef(null), [position,setPosition] = useState({x:8,y:8});
+  useLayoutEffect(() => {
+    const box = ref.current.getBoundingClientRect();
+    const next = adminChartTooltipPosition(anchor,box,{width:window.innerWidth,height:window.innerHeight});
+    setPosition(current => current.x === next.x && current.y === next.y ? current : next);
+  }, [anchor,children]);
+  return createPortal(<div ref={ref} id={id} role="tooltip" className="admin-chart-tooltip" style={{left:position.x,top:position.y}}>{children}</div>,document.body);
 }

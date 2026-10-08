@@ -16,8 +16,6 @@
 .finance-workspace .finance-chart-mark { cursor:pointer; outline:none; opacity:1; transition:opacity 180ms ease-out; }
 .finance-workspace .finance-chart-mark.is-receded { opacity:.35; }
 .finance-workspace .finance-chart-mark:is(:hover,:focus-visible) { opacity:1; }
-.finance-workspace .finance-chart .chart-focus { fill:none; stroke:var(--finance-focus,#176b5b); stroke-width:2; opacity:0; transition:opacity 180ms ease-out; }
-.finance-workspace .finance-chart-mark:is(:hover,:focus-visible,.is-selected) .chart-focus { opacity:1; }
 .finance-workspace .finance-chart .chart-point { stroke:var(--surface,white); stroke-width:2; }
 .finance-workspace .finance-chart-ledger { display:flex; flex-wrap:wrap; gap:4px 12px; margin:8px 0; padding:0; list-style:none; }
 .finance-presentation .finance-workspace .finance-chart-ledger button { min-height:44px; display:flex; flex-direction:column; gap:3px; padding:6px 8px; border-radius:4px; text-align:left; font-size:11px; }

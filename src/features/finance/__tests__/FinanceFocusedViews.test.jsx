@@ -49,8 +49,7 @@ it('summarizes existing validated attribution and suppresses unsupported attenti
   const before = JSON.stringify(dataset);
   render(<FinanceOverview dataset={dataset}/>);
   expect(screen.queryByRole('group',{name:'Revenue consumption and retained profit structure'})).toBeNull();
-  expect(screen.queryByRole('group',{name:'Driver Contribution'})).toBeNull();
-  fireEvent.click(screen.getByRole('button',{name:/What changed this month/}));
+  expect(screen.getByRole('button',{name:/What changed this month/}).getAttribute('aria-expanded')).toBe('true');
   expect(screen.getByRole('group',{name:'Driver Contribution'}).textContent).toContain('3,747');
   expect(screen.queryByRole('region',{name:'Needs attention'})).toBeNull();
   expect(screen.queryByRole('region',{name:'Selected movement context'})).toBeNull();

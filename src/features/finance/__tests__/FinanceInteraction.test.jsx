@@ -16,7 +16,7 @@ it('focus discloses precise evidence, keyboard selection emphasizes the same obj
   render(<FinanceAnalysis analysis={await fixture()}/>);
   const driver = screen.getByRole('button',{name:'Explore Revenue driver'});
   fireEvent.focus(driver);
-  expect(screen.getByRole('tooltip').textContent).toContain('Supports EBITDA');
+  expect(screen.getByRole('tooltip').textContent).toContain('Cumulative EBITDA');
   expect(driver.getAttribute('aria-describedby')).toBe(screen.getByRole('tooltip').id);
   fireEvent.keyDown(driver,{key:' '});
   expect(driver.getAttribute('aria-pressed')).toBe('true');

@@ -35,7 +35,7 @@ it('bridge preserves ordered endpoints, precise signed contributions and respons
  const cost=within(chart).getByRole('button',{name:'Explore COGS driver'});
  fireEvent.focus(cost);
  expect(screen.getByRole('tooltip').textContent).toContain('4,404');
- expect(screen.getByRole('tooltip').textContent).toContain('Reduces EBITDA');
+ expect(screen.getByRole('tooltip').textContent).toContain('Cumulative EBITDA');
  act(()=>resize([{contentRect:{width:288}}]));
  expect(chart.getAttribute('viewBox')).toBe('0 0 288 414');
  fireEvent.keyDown(cost,{key:'Enter'});
@@ -78,7 +78,6 @@ it('selecting Previous EBITDA opens its comparison and emphasizes only that endp
  const provider=createFixtureProvider({development:true}), pair=await readFinanceAnalysis(provider,request,{allowDemo:true}), dataset=await readFinanceOverview(provider,request,{allowDemo:true});
  for(const [Component,props] of [[FinanceOverview,{dataset}],[FinanceAnalysis,{analysis:pair}]]) {
   const view=render(<Component {...props}/>);
-  if (Component === FinanceOverview) fireEvent.click(screen.getByRole('button',{name:/What changed this month/}));
   fireEvent.keyDown(screen.getByRole('button',{name:'Explore previous EBITDA'}),{key:'Enter'});
   expect(screen.getByRole('button',{name:'Explore previous EBITDA'}).getAttribute('aria-pressed')).toBe('true');
   expect(screen.getByRole('button',{name:'Explore EBITDA movement'}).getAttribute('aria-pressed')).toBe('false');

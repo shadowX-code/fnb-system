@@ -51,7 +51,6 @@ it('attaches shared contextual actions to Profit Flow selection and retains disc
   const dataset = await provider.readOverview({ scope: { kind: 'group', id: 'demo-group' }, period: monthlyPeriod('2026-09'), currency: 'MYR' });
   const before = JSON.stringify(dataset);
   render(<FinanceOverview dataset={dataset} />);
-  fireEvent.click(screen.getByRole('button', { name: /What changed this month/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Explore COGS driver' }));
   expect(screen.getByRole('region', { name: 'Selected movement context' }).textContent).toContain('COGS');
   fireEvent.keyDown(screen.getByRole('tab', { name: 'Explain' }), { key: 'ArrowRight' });

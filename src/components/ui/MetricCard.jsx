@@ -10,6 +10,7 @@ export default function MetricCard({
   variant,
   icon: Icon,
   status,
+  evidenceStatus,
   sparklineData,
   sparklineLabel,
   sparklineFormatValue,
@@ -31,6 +32,7 @@ export default function MetricCard({
   className = "",
   iconClassName = "",
 }) {
+  const evidenceWarning = ["partial", "stale", "unverified"].includes(evidenceStatus?.state) ? evidenceStatus.label || evidenceStatus.state : null;
   const trendColor = tone === "danger" ? "text-rose-600" : tone === "warning" ? "text-amber-600" : "text-emerald-600";
   const Component = onClick ? "button" : "div";
   const compactVariant = variant === "compact";
@@ -94,6 +96,7 @@ export default function MetricCard({
         <span className={`min-w-0 text-text-secondary ${helperClassName || "truncate"}`}>{helper || subtitle}</span>
         {trend && state === "ready" ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
       </div> : null}
+      {evidenceWarning ? <div className="type-caption font-medium text-amber-700" role="status">{evidenceWarning}</div> : null}
       {action ? <div className="mt-1">{action}</div> : null}
       {insight ? <div className="type-caption text-text-muted">{insight}</div> : null}
     </Component>

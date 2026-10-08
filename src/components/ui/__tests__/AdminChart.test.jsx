@@ -1,6 +1,6 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {act,cleanup,fireEvent,render,screen} from '@testing-library/react';
-import {AdminChart,AdminChartMark,adminChartScale,useAdminChartGeometry} from '../AdminChart.jsx';
+import {AdminChart,AdminChartMark,adminChartTooltipPosition,adminChartScale,useAdminChartGeometry} from '../AdminChart.jsx';
 import MetricCard from '../MetricCard.jsx';
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 it('uses zero-inclusive readable scales for positive, negative, constant and tiny evidence',()=>{
@@ -28,4 +28,27 @@ it('keeps keyboard inspection authoritative across chart surfaces and clears pri
  fireEvent.pointerEnter(first,{pointerType:'mouse'});expect(screen.getByRole('tooltip').textContent).toBe('First exact value');
  act(()=>second.focus());expect(screen.getAllByRole('tooltip')).toHaveLength(1);expect(screen.getByRole('tooltip').textContent).toBe('Second exact value');
  fireEvent.pointerEnter(first,{pointerType:'mouse'});fireEvent.pointerLeave(first,{pointerType:'mouse'});expect(screen.getByRole('tooltip').textContent).toBe('Second exact value');
+});
+
+it('clamps measured tooltip dimensions to every viewport edge',()=>{
+ for(const anchor of [{x:0,top:0,bottom:0},{x:320,top:630,bottom:640},{x:150,top:300,bottom:310}]){
+  const {x,y}=adminChartTooltipPosition(anchor,{width:200,height:90},{width:320,height:640});
+  expect(x).toBeGreaterThanOrEqual(8);expect(x+200).toBeLessThanOrEqual(312);expect(y).toBeGreaterThanOrEqual(8);expect(y+90).toBeLessThanOrEqual(632);
+ }
+});
+it('supports a focused position scale while retaining zero-inclusive amount scales',()=>{
+ const focused=adminChartScale([149870,163920,153617],3,{includeZero:false});expect(focused.min).toBeGreaterThan(0);expect(focused.max).toBeGreaterThan(163920);
+ expect(adminChartScale([149870,163920]).min).toBe(0);
+});
+it('hides routine evidence metadata while retaining material warnings and generic helper text',()=>{
+ const view=render(<MetricCard label="Revenue" value="RM 100" evidenceStatus={{state:'complete',label:'Actual · complete'}} helper="Compared with September"/>);
+ expect(screen.queryByText('Actual · complete')).toBeNull();expect(screen.getByText('Compared with September')).toBeTruthy();
+ for(const state of ['partial','stale','unverified']){view.rerender(<MetricCard label="Revenue" value="RM 100" evidenceStatus={{state,label:state}}/>);expect(screen.getByRole('status').textContent).toBe(state);}
+});
+
+it('separates pointer focus from keyboard focus without losing persistent selection',()=>{
+ render(<AdminChart label="Focus">{()=> <AdminChartMark label="Balance" selected tooltip="Balance detail" onSelect={()=>{}}><rect className="chart-focus" width="44" height="44"/></AdminChartMark>}</AdminChart>);
+ const mark=screen.getByRole('button',{name:'Balance'});fireEvent.pointerDown(mark);fireEvent.focus(mark);
+ expect(mark.dataset.keyboardFocus).toBe('false');expect(mark.getAttribute('aria-pressed')).toBe('true');
+ fireEvent.keyDown(mark,{key:'Enter'});expect(mark.dataset.keyboardFocus).toBe('true');expect(screen.getByRole('tooltip')).toBeTruthy();
 });

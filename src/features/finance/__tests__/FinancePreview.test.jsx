@@ -57,7 +57,6 @@ it('preserves selection across simulated scope reads while hiding previous-scope
   sessionStorage.setItem('feedx-finance-design-preview','on');
   render(<FinancePreviewBoundary auth={{profile:{role_name:'owner'}}} section="overview"><p>Canonical tree</p></FinancePreviewBoundary>);
   await screen.findByRole('heading',{name:/What changed this month/}, {timeout:5000});
-  fireEvent.click(screen.getByRole('button',{name:/What changed this month/}));
   fireEvent.click(screen.getByRole('button',{name:'Explore COGS driver'}));
   fireEvent.click(screen.getByRole('button',{name:'Simulated scope'}));
   fireEvent.click(screen.getByRole('option',{name:'Demo · Kuala Lumpur',exact:true}));

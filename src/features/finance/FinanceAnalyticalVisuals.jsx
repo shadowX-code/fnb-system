@@ -57,16 +57,17 @@ function ContributionCanvas({ width, movement, pair, selectedId, selectedStage, 
     if (reconciled && row.included) position += row.contribution;
     return { ...row, from: reconciled ? from : null, to: reconciled ? position : null };
   });
-  const stages = [{ id: 'previous', metricId: 'ebitda', label: 'Previous EBITDA', from: 0, to: Number.isFinite(previous) ? previous : null }, ...drivers.map(row => ({ ...row, metricId: row.id, label: row.id === 'labour' ? 'Labour' : metricRegistry[row.id].label })), { id: 'current', metricId: 'ebitda', label: 'Current EBITDA', from: 0, to: Number.isFinite(current) ? current : null }];
+  const stages = [{ id: 'previous', metricId: 'ebitda', label: 'Previous EBITDA', from: previous, to: Number.isFinite(previous) ? previous : null }, ...drivers.map(row => ({ ...row, metricId: row.id, label: row.id === 'labour' ? 'Labour' : metricRegistry[row.id].label })), { id: 'current', metricId: 'ebitda', label: 'Current EBITDA', from: current, to: Number.isFinite(current) ? current : null }];
   const values = stages.flatMap(stage => stage.to === null ? [] : [stage.from, stage.to]);
-  const {min:low,max:high,ticks} = adminChartScale(values, 3), span = high - low;
+  const {min:low,max:high,ticks} = adminChartScale(values, 3, {includeZero:false}), span = high - low;
   const mobile = width < 560, height = mobile ? 414 : compact ? 292 : 346;
-  const left = mobile ? 102 : 56, right = width - 12, top = 28, bottom = height - (mobile ? 68 : 90);
+  const left = mobile ? 102 : 56, right = width - 12, top = 28, bottom = height - (mobile ? 68 : 100);
   const scale = amount => mobile ? left + (amount - low) / span * (right - left) : bottom - (amount - low) / span * (bottom - top);
   const column = (right - left) / stages.length;
   const geometry = useFinanceGeometry(Object.fromEntries(stages.map((stage,index) => [stage.id, mobile ? [scale(stage.from ?? 0), scale(stage.to ?? 0), 38 + index * 59] : [left + column * index + column * .23, scale(stage.from ?? 0), scale(stage.to ?? 0), column * .54]])));
   return <>
-    {!mobile ? ticks.map(tick => <g key={tick}><path d={`M${left} ${scale(tick)}H${right}`} className="chart-grid"/><text x={left-7} y={scale(tick)+4} textAnchor="end">{values.length ? financeChartMoney(tick) : tick === 0 ? '0' : '—'}</text></g>) : <><path d={`M${scale(0)} 18V366`} className="chart-axis"/><text x={left} y="14">{values.length ? financeChartMoney(low) : '—'}</text><text x={right} y="14" textAnchor="end">{values.length ? financeChartMoney(high) : '—'}</text></>}
+    {mobile ? [ticks[0],ticks.at(-1)].map(tick => <g key={tick}><path d={`M${scale(tick)} 16V${bottom}`} className="chart-grid"/><text x={scale(tick)} y={height-56} textAnchor="middle" style={{fontSize:10}}>{financeChartMoney(tick)}</text></g>) : null}
+    {!mobile ? [ticks[0],ticks.at(-1)].map(tick => <g key={tick}><path d={`M${left} ${scale(tick)}H${right}`} className="chart-grid"/><text x={left-7} y={scale(tick)+4} textAnchor="end">{values.length ? financeChartMoney(tick) : tick === 0 ? '0' : '—'}</text></g>) : <><path d={`M${scale(0)} 18V366`} className="chart-axis"/><text x={left} y="14">{values.length ? financeChartMoney(low) : '—'}</text><text x={right} y="14" textAnchor="end">{values.length ? financeChartMoney(high) : '—'}</text></>}
     {reconciled ? stages.slice(0,-1).map((stage,index) => {
       const here = geometry[stage.id], next = geometry[stages[index+1].id];
       return <path key={stage.id} data-bridge-connector="true" d={mobile ? `M${here[1]} ${here[2]+9}V${next[2]-9}` : `M${here[0]+here[3]} ${here[2]}H${next[0]}`} className={`chart-link ${selectedId && (stage.metricId===selectedId || stages[index+1].metricId===selectedId) ? 'is-active' : ''}`}/>;
@@ -79,23 +80,24 @@ function ContributionCanvas({ width, movement, pair, selectedId, selectedStage, 
       const description = endpoint ? financialValue({value:stage.to,unit:'money'}) : !stage.included ? 'Outside this EBITDA basis' : value === null ? 'Comparable contribution evidence required' : `${movementValue({value})} · ${value < 0 ? 'Reduces' : 'Supports'} EBITDA · ${financialValue({value:stage.from,unit:'money'})} → ${financialValue({value:stage.to,unit:'money'})}`;
       const color = endpoint ? stage.id === 'previous' ? 'chart-opening' : 'chart-cash' : stage.contribution < 0 ? 'chart-pressure' : 'chart-support';
       const [x,y,z,barWidth] = coordinates;
-      return <FinanceMark key={stage.id} label={label} selected={selected} dimmed={Boolean(selectedId) && !selected} onSelect={() => onSelect(stage.metricId, endpoint ? stage.id : 'driver')} tooltip={<FinanceChartTip title={stage.label}>{description}{stage.id === 'previous' ? ' · comparison period' : ''}</FinanceChartTip>}>
+      return <FinanceMark key={stage.id} label={label} selected={selected} dimmed={Boolean(selectedId) && !selected} onSelect={() => onSelect(stage.metricId, endpoint ? stage.id : 'driver')} tooltipAnchor={mobile ? {x:y,y:z} : {x:x+barWidth/2,y:z}} tooltip={<FinanceChartTip title={stage.label} rows={available ? endpoint ? [{label:'EBITDA',value:financialValue({value:stage.to,unit:'money'})}] : [{label:'Contribution',value:movementValue({value})},{label:'Cumulative EBITDA',value:financialValue({value:stage.to,unit:'money'})}] : undefined}>{available ? null : description}</FinanceChartTip>}>
         {mobile ? <>
           <rect x="0" y={z-22} width={width} height="44" fill="transparent" />
           <text x="0" y={z-3} className="chart-label" style={{fontSize:11}}>{endpoint ? stage.id === 'previous' ? 'Previous' : 'Current' : stage.label}</text>
           <text x="0" y={z+13} style={{fontSize:10}}>{value === null ? '—' : endpoint ? financeChartMoney(value) : `${value > 0 ? '+' : value < 0 ? '−' : ''}${financeChartMoney(Math.abs(value))}`}</text>
-          {available ? <rect x={Math.min(x,y)} y={z-9} width={Math.max(1,Math.abs(y-x))} height="18" rx="3" className={color}/> : <rect x={left} y={z-9} width={right-left} height="18" rx="3" className="chart-pending"/>}
+          {available && endpoint ? <g className={color}><path d={`M${y} ${z-12}V${z+12}`} stroke={stage.id === 'current' ? '#16728a' : '#a8b5c4'} strokeWidth="3"/><circle cx={y} cy={z} r={stage.id === 'current' ? 6 : 4}/></g> : available ? <rect x={Math.min(x,y)} y={z-9} width={Math.max(1,Math.abs(y-x))} height="18" rx="3" className={color}/> : <rect x={left} y={z-9} width={right-left} height="18" rx="3" className="chart-pending"/>}
           <rect x="0" y={z-22} width={width} height="44" rx="4" className="chart-focus"/>
         </> : <>
           <rect x={x-4} y="16" width={barWidth+8} height={height-36} fill="transparent"/>
-          {available ? <rect x={x} y={Math.min(y,z)} width={barWidth} height={Math.max(1,Math.abs(y-z))} rx="3" className={color}/> : <rect x={x} y={top+12} width={barWidth} height={bottom-top-12} rx="3" className="chart-pending"/>}
-          <text x={x+barWidth/2} y={available ? Math.max(17,Math.min(y,z)-10) : top} textAnchor="middle" className="chart-value" style={{fontSize:compact ? 11 : 13}}>{value === null ? '—' : endpoint ? financeChartMoney(value) : `${value > 0 ? '+' : value < 0 ? '−' : ''}${financeChartMoney(Math.abs(value))}`}</text>
+          {available && endpoint ? <g className={color}><rect x={x} y={z-2} width={barWidth} height="4" rx="2"/><circle cx={x+barWidth/2} cy={z} r={stage.id === 'current' ? 6 : 4}/></g> : available ? <rect x={x} y={Math.min(y,z)} width={barWidth} height={Math.max(1,Math.abs(y-z))} rx="3" className={color}/> : <rect x={x} y={top+12} width={barWidth} height={bottom-top-12} rx="3" className="chart-pending"/>}
+          <text x={x+barWidth/2} y={available ? Math.max(17,Math.min(y,z)-10) : top} textAnchor="middle" className="chart-value" style={{fontSize:compact ? 11 : 13,...(stage.id === 'current' ? {fill:'#16728a',fontWeight:700} : {})}}>{value === null ? '—' : endpoint ? financeChartMoney(value) : `${value > 0 ? '+' : value < 0 ? '−' : ''}${financeChartMoney(Math.abs(value))}`}</text>
           <text x={x+barWidth/2} y={bottom+24} textAnchor="middle" className="chart-label" style={{fontSize:11}}>{endpoint ? stage.id === 'previous' ? 'Previous' : 'Current' : stage.label}</text>
           {endpoint ? <text x={x+barWidth/2} y={bottom+40} textAnchor="middle">EBITDA</text> : !stage.included ? <text x={x+barWidth/2} y={bottom+40} textAnchor="middle">Outside basis</text> : null}
           <rect x={x-4} y={available ? Math.min(y,z)-4 : top+8} width={barWidth+8} height={available ? Math.max(1,Math.abs(y-z))+8 : bottom-top-4} rx="4" className="chart-focus"/>
         </>}
       </FinanceMark>;
     })}
+    <text x={mobile ? 0 : left} y={height-42}>Cumulative EBITDA · RM · focused range</text>
     <text x={mobile ? 0 : left} y={height-24} className="chart-annotation">EBITDA movement {movementValue(movement.total)}</text>{!reconciled ? <text x={mobile ? 0 : left} y={height-8}>Attribution not ready</text> : null}
   </>;
 }
