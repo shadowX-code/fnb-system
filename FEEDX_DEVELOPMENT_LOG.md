@@ -1,5 +1,11 @@
 # FeedX Development Log
 
+## 2026-10-09 — Persistent Recruitment Profile drafts
+
+- Added permission-checked server drafts with one active draft per profile family, complete definition persistence and revision-based stale-edit rejection.
+- Kept explicit validated publication under the existing immutable version authority; published pins and historical reports remain unchanged.
+- Profile Library resumes saved drafts across sessions. Service Crew V3 remains an unpublished draft. Canonical owner: docs/domains/recruitment.md.
+
 ## 2026-10-07 — Finance Phase 2C: Cash & Working Capital Intelligence
 
 - Replaced Cash's foundation with canonical position/diagnostics, a selectable capital cycle, shared contextual exploration and separate profit/cash/working-capital movement.

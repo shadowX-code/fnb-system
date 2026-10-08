@@ -12,7 +12,10 @@ import { continuationContext } from "../../../supabase/functions/recruitment-rea
 const qa = vi.hoisted(() => ({
   workspace: vi.fn(),
   saveOpening: vi.fn(),
-  publishProfile: vi.fn(),
+  publishProfileDraft: vi.fn(),
+  profileDrafts: vi.fn(),
+  prepareProfileDraft: vi.fn(),
+  saveProfileDraft: vi.fn(),
   issueInvitation: vi.fn(),
   registerApplication: vi.fn(),
   findApplicants: vi.fn(),
@@ -110,7 +113,10 @@ beforeEach(() => {
     applications_total: query.stage === "hired" ? 0 : data.applications_total,
   }));
   qa.saveOpening.mockResolvedValue("opening1");
-  qa.publishProfile.mockResolvedValue("profile2");
+  qa.profileDrafts.mockResolvedValue([]);
+  qa.prepareProfileDraft.mockResolvedValue({...profile,id:"draft2",version:2,status:"draft",revision:1});
+  qa.saveProfileDraft.mockImplementation(async(id,revision,definition)=>({...profile,id,version:2,status:"draft",revision:revision+1,definition}));
+  qa.publishProfileDraft.mockResolvedValue("profile2");
 });
 afterEach(cleanup);
 const auth = { hasPermission: () => true };
@@ -222,21 +228,17 @@ describe("opening-centred Recruitment workspace", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "View Service Crew profile" }),
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Prepare next version" }),
-    );
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Prepare next version"}).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Prepare next version" }));
+    await screen.findByRole("button",{name:"Save Draft"});
     fireEvent.change(screen.getByLabelText("Role context"), {
       target: { value: "Revised role context" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Publish Service Crew v2" }),
-    );
-    await waitFor(() =>
-      expect(qa.publishProfile).toHaveBeenCalledWith(
-        expect.objectContaining({ role_context: "Revised role context" }),
-        1,
-      ),
-    );
+    fireEvent.click(screen.getByRole("button",{name:"Save Draft"}));
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Publish Service Crew v2"}).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Publish Service Crew v2" }));
+    await waitFor(() => expect(qa.publishProfileDraft).toHaveBeenCalledWith("draft2",2));
+    expect(qa.saveProfileDraft).toHaveBeenCalledWith("draft2",1,expect.objectContaining({role_context:"Revised role context"}));
     expect(qa.saveOpening).not.toHaveBeenCalled();
   });
 });

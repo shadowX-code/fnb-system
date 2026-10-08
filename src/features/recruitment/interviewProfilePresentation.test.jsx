@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import InterviewProfileSettings from "./InterviewProfileSettings.jsx";
 import { serviceCrewV2 } from "./serviceCrewV2.js";
+vi.mock("./recruitmentService.js",()=>({recruitmentService:{profileDrafts:vi.fn().mockResolvedValue([])}}));
 afterEach(cleanup);
 const profiles = [
   {
@@ -67,32 +68,5 @@ describe("Interview plan presentation", () => {
     expect(
       screen.getByRole("heading", { name: "Profile library" }),
     ).toBeTruthy();
-  });
-  it("next-version edits are local, discard preserves immutable published guidance, and publication remains explicit", () => {
-    const publish = vi.fn();
-    render(
-      <InterviewProfileSettings
-        profiles={profiles}
-        canManage
-        onPublish={publish}
-        onClose={() => {}}
-      />,
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "View Service Crew profile" }),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Prepare next version" }),
-    );
-    fireEvent.change(screen.getByRole("textbox", { name: "Role context" }), {
-      target: { value: "Local draft only" },
-    });
-    expect(publish).not.toHaveBeenCalled();
-    expect(profiles[1].definition.role_context).not.toBe("Local draft only");
-    expect(
-      screen.getByRole("button", { name: "Publish Service Crew v3" }),
-    ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
-    expect(screen.getByText(profiles[1].definition.role_context)).toBeTruthy();
   });
 });

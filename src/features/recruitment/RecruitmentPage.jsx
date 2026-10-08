@@ -861,8 +861,8 @@ export default function RecruitmentPage({ auth }) {
           profiles={data.profiles}
           busy={busy}
           canManage={canManage}
-          onPublish={(definition, version) =>
-            mutate(() => recruitmentService.publishProfile(definition, version))
+          onPublish={(id, revision) =>
+            mutate(() => recruitmentService.publishProfileDraft(id, revision))
           }
           onClose={() => setProfilesOpen(false)}
         />
