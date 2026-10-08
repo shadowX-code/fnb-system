@@ -29,8 +29,8 @@
 .finance-cost-ratio-path small { color: var(--analysis-muted); font-size: 12px; }
 .finance-cost-ratio-path strong { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .finance-cost-ratio-effect { border-left: 1px solid var(--analysis-line); padding-left: 18px; margin-left: 12px; }
-.finance-cost-movement.is-pressure .finance-cost-ratio-effect strong { color: #805315; }
-.finance-cost-movement.is-improvement .finance-cost-ratio-effect strong { color: var(--analysis-selected); }
+.finance-cost-movement.is-pressure .finance-cost-ratio-effect strong { color: var(--chart-coral); }
+.finance-cost-movement.is-improvement .finance-cost-ratio-effect strong { color: var(--chart-emerald); }
 .finance-cost-growth { display: flex; flex-wrap: wrap; gap: 20px 40px; margin: 12px 0; font-size: 13px; }
 .finance-cost-growth > div { display: flex; gap: 10px; }
 .finance-cost-growth dt { color: var(--analysis-muted); }

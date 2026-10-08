@@ -13,6 +13,7 @@ export default function MetricCard({
   evidenceStatus,
   sparklineData,
   sparklineLabel,
+  sparklineColor,
   sparklineFormatValue,
   sparklinePlacement = "footer",
   delta,
@@ -62,7 +63,7 @@ export default function MetricCard({
   const deltaColor = deltaTone === "positive" ? "text-emerald-700" : deltaTone === "negative" ? "text-rose-700" : "text-text-secondary";
   // Only dated, explicitly labeled evidence can become a miniature trend.
   const points = state === "ready" && sparklineLabel && Array.isArray(sparklineData) && sparklineData.length > 1 && sparklineData.every(point => point?.label && Number.isFinite(point.value)) ? sparklineData : null;
-  const sparkline = points ? <AdminSparkline points={points} label={sparklineLabel} formatValue={sparklineFormatValue} className={`${sparklinePlacement === "inline" ? "h-5 w-16 shrink-0" : "h-8 w-full"} ${deltaColor}`}/> : null;
+  const sparkline = points ? <AdminSparkline color={sparklineColor} points={points} label={sparklineLabel} formatValue={sparklineFormatValue} className={`${sparklinePlacement === "inline" ? "h-5 w-16 shrink-0" : "h-8 w-full"} ${deltaColor}`}/> : null;
 
   return (
     <Component

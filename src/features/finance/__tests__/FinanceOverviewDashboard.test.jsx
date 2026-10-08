@@ -40,7 +40,7 @@ it('renders four charts, switches units/history and expands the existing bridge 
  fireEvent.click(screen.getByRole('tab',{name:'Margin %'}));expect(trend.querySelectorAll('[role=button]')).toHaveLength(12);
  fireEvent.focus(within(trend).getAllByRole('button')[0]);expect(screen.getByRole('tooltip').textContent).toContain('%');expect(screen.getByRole('tooltip').textContent).not.toContain('RM');
  fireEvent.keyDown(trend,{key:'Escape'});expect(screen.queryByRole('tooltip')).toBeNull();
- expect(screen.getByRole('group',{name:'Driver Contribution'})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:/What changed this month/}));expect(screen.queryByRole('group',{name:'Driver Contribution'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:/What changed this month/}));
+ expect(screen.getByRole('group',{name:'Driver Contribution'})).toBeTruthy();expect(screen.queryByRole('button',{name:/What changed this month/})).toBeNull();
  expect(screen.getByText(/does not establish available bank funds/)).toBeTruthy();expect(JSON.stringify(dataset)).toBe(before);
 });
 it('preserves selected period/outlet when opening Analysis and separates simulated from live intent',async()=>{
@@ -88,9 +88,10 @@ it('keeps simulated seasonal history reconciled and varied across the year bound
  expect(rows.find(row=>row.period.start==='2026-01-01').revenue/rows.find(row=>row.period.start==='2025-12-01').revenue).toBeGreaterThan(.75);
 });
 
-it('opens the movement section on remount while permitting manual collapse',async()=>{
- const dataset=await read();let view=render(<FinanceOverview dataset={dataset}/>);
- const toggle=screen.getByRole('button',{name:/What changed this month/});expect(toggle.getAttribute('aria-expanded')).toBe('true');
- fireEvent.click(toggle);expect(toggle.getAttribute('aria-expanded')).toBe('false');view.unmount();
- view=render(<FinanceOverview dataset={dataset}/>);expect(screen.getByRole('button',{name:/What changed this month/}).getAttribute('aria-expanded')).toBe('true');
+it('keeps the movement bridge permanently visible across remounts',async()=>{
+ const dataset=await read();const view=render(<FinanceOverview dataset={dataset}/>);
+ expect(screen.getByRole('heading',{name:'What changed this month?'})).toBeTruthy();
+ expect(screen.queryByRole('button',{name:/What changed this month/})).toBeNull();
+ expect(screen.getByRole('group',{name:'Driver Contribution'})).toBeTruthy();view.unmount();
+ render(<FinanceOverview dataset={dataset}/>);expect(screen.getByRole('group',{name:'Driver Contribution'})).toBeTruthy();
 });

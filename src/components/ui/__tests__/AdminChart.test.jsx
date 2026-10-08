@@ -1,6 +1,6 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {act,cleanup,fireEvent,render,screen} from '@testing-library/react';
-import {AdminChart,AdminChartMark,adminChartTooltipPosition,adminChartScale,useAdminChartGeometry} from '../AdminChart.jsx';
+import {adminChartLinePath,AdminChart,AdminChartMark,adminChartTooltipPosition,adminChartScale,useAdminChartGeometry} from '../AdminChart.jsx';
 import MetricCard from '../MetricCard.jsx';
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 it('uses zero-inclusive readable scales for positive, negative, constant and tiny evidence',()=>{
@@ -58,4 +58,8 @@ it('allows mouse inspection beside a pointer-selected object while keeping selec
  const first=screen.getByRole('button',{name:'A'}),second=screen.getByRole('button',{name:'B'});
  fireEvent.pointerDown(first);act(()=>first.focus());fireEvent.pointerEnter(second,{pointerType:'mouse'});
  expect(screen.getByRole('tooltip').textContent).toBe('B detail');expect(first.getAttribute('aria-pressed')).toBe('true');
+});
+
+it('retains exact observations and disconnects missing/nonfinite series coordinates',()=>{
+ expect(adminChartLinePath([[0,10],[20,5],null,[60,9],[80,NaN],[100,3]])).toBe('M0,10 L20,5  M60,9  M100,3');
 });

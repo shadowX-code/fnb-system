@@ -1,3 +1,4 @@
+:root {--chart-emerald:#00865b;--chart-azure:#0875c4;--chart-coral:#ce4058;--chart-violet:#8053dc;--chart-slate:#64748b;}
 .admin-chart {position:relative;min-width:0;width:100%;margin:12px 0;}
 .admin-chart > svg {display:block;width:100%;height:auto;overflow:visible;}
 .admin-chart-mark {cursor:pointer;outline:none;transition:opacity 180ms ease-out;}
@@ -17,7 +18,7 @@
 
 /* Quantitative hierarchy shared by domain charts. */
 .admin-chart svg text {font-family:inherit;font-size:11px;font-variant-numeric:tabular-nums;}
-.admin-chart .chart-grid {stroke:var(--border,#d7e2e8);stroke-width:1;opacity:.55;fill:none;vector-effect:non-scaling-stroke;}
+.admin-chart .chart-grid {stroke:var(--border,#d7e2e8);stroke-width:1;opacity:.4;fill:none;vector-effect:non-scaling-stroke;}
 .admin-chart .chart-axis {stroke:var(--border,#d7e2e8);stroke-width:1;fill:none;vector-effect:non-scaling-stroke;}
 .admin-chart-tooltip {box-shadow:0 3px 12px rgb(17 35 47 / .08);}
 .admin-chart-tooltip-title {padding-bottom:4px;color:var(--text-primary,#173442);}
@@ -40,3 +41,6 @@
 .admin-chart-mark.is-selected .chart-point {stroke:var(--text-primary,#173442);stroke-width:3;}
 .admin-chart-mark:is(:hover,.is-selected) :is(rect,circle,path)[fill]:not([fill=transparent]):not([fill=none]):not(.chart-focus) {filter:brightness(.93);}
 .admin-chart-mark.is-selected :is(rect,circle)[fill]:not([fill=transparent]):not([fill=none]):not(.chart-focus) {stroke:var(--text-primary,#173442);stroke-width:2;}
+
+.admin-chart .chart-result {fill:var(--chart-azure);}
+.admin-chart-mark.is-selected .chart-result {stroke:var(--text-primary);stroke-width:2;}

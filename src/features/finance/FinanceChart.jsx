@@ -1,5 +1,5 @@
 import './interactive-visuals.css';
-import { AdminChart, AdminChartMark, AdminChartTooltipContent, useAdminChartGeometry } from '../../components/ui/AdminChart.jsx';
+import { adminChartColors, AdminChart, AdminChartMark, AdminChartTooltipContent, useAdminChartGeometry } from '../../components/ui/AdminChart.jsx';
 export function FinanceChart(props) { return <AdminChart {...props} className={`finance-chart ${props.className ?? ''}`} />; }
 export function FinanceMark(props) { return <AdminChartMark {...props} className={`finance-chart-mark ${props.className ?? ''}`} />; }
 export const useFinanceGeometry = useAdminChartGeometry;
@@ -26,4 +26,5 @@ export function FinanceChartTip(props) { return <AdminChartTooltipContent {...pr
 export function financeChartMoney(value) { return value === null || value === undefined ? '—' : `RM ${new Intl.NumberFormat('en-MY', {notation:'compact',maximumFractionDigits:1}).format(value)}`; }
 
 /** Stable Finance series semantics; shared Admin primitives stay domain-neutral. */
-export const financeChartColors = Object.freeze({revenue:'#00825f',ebitda:'#087fca',cash:'#007f91',ebitda_margin:'#087fca',cogs:'#bd3568',labour:'#efb2c8',opex:'#a8b5c4'});
+export const financeChartColors = Object.freeze({revenue:adminChartColors.emerald,ebitda:adminChartColors.azure,cash:adminChartColors.violet,ebitda_margin:adminChartColors.azure,cogs:adminChartColors.violet,labour:adminChartColors.azure,opex:adminChartColors.slate,gross_margin:adminChartColors.violet,prime_cost:adminChartColors.slate,inventory:adminChartColors.slate,ar:adminChartColors.azure,ap:adminChartColors.violet});
+export const financeMetricColor = id => financeChartColors[id.split('.')[0]] ?? adminChartColors.slate;

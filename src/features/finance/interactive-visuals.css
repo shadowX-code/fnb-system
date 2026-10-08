@@ -5,7 +5,7 @@
 .finance-workspace .finance-chart .chart-label { fill:var(--finance-ink,#173442); font-weight:600; font-size:12px; }
 .finance-workspace .finance-chart .chart-value { fill:var(--finance-ink,#173442); font-weight:600; font-size:13px; font-variant-numeric:tabular-nums; }
 .finance-workspace .finance-chart .chart-axis { stroke:var(--finance-line,#d7e2e8); fill:none; stroke-width:1; vector-effect:non-scaling-stroke; }
-.finance-workspace .finance-chart .chart-grid { stroke:var(--finance-line,#d7e2e8); fill:none; opacity:.55; }
+.finance-workspace .finance-chart .chart-grid { stroke:var(--finance-line,#d7e2e8); fill:none; opacity:.4; }
 .finance-workspace .finance-chart .chart-surface { fill:var(--theme-surface-muted,#f3f7f8); }
 .finance-workspace .finance-chart .chart-pending { fill:none; stroke:var(--finance-line,#d7e2e8); stroke-dasharray:4 4; }
 .finance-workspace .finance-chart .chart-support { fill:var(--finance-success,#176b5b); }
@@ -26,7 +26,7 @@
 .finance-presentation .finance-workspace .finance-outlet-zones { display:none; }
 .finance-workspace .finance-chart .chart-annotation { font-weight:600; fill:var(--finance-cash,#16728a); }
 .finance-workspace .finance-chart-context-change { animation:finance-context-enter 180ms ease-out; }
-@keyframes finance-context-enter { from { opacity:.55; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+@keyframes finance-context-enter { from { opacity:.4; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
 @media (prefers-reduced-motion:reduce) { .finance-workspace .finance-chart *, .finance-workspace .finance-chart-context-change { transition:none!important; animation:none!important; } }
 .finance-presentation .finance-workspace .finance-profit-structure .finance-chart-ledger { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px 12px; margin:8px 0; }
 .finance-presentation .finance-workspace .finance-profit-structure .finance-chart-ledger li { display:block; padding:0; border:0; }
@@ -44,8 +44,11 @@
 .finance-workspace .finance-outlet-field .finance-analysis-table th button { min-height:44px; padding:8px 4px; }
 
 /* A range fill follows the supplied stepped trajectory; its baseline is the chart range. */
-.finance-workspace .finance-chart .finance-timeline-area { fill:var(--finance-cash); opacity:.06; }
+
 
 .finance-workspace .finance-chart .admin-chart-value-label text {fill:white;font-size:11px;font-weight:600;}
 
-.finance-workspace .finance-chart .chart-opening {fill:#a8b5c4;}
+.finance-workspace .finance-chart .chart-opening {fill:var(--chart-slate);}
+
+.finance-workspace .finance-chart .chart-capital-node {fill:currentColor;fill-opacity:.065;stroke:currentColor;stroke-opacity:.4;stroke-width:1.5;transition:fill-opacity 180ms ease-out,stroke-opacity 180ms ease-out;}
+.finance-workspace .finance-chart-mark:is(:hover,.is-selected) .chart-capital-node {fill-opacity:.14;stroke-opacity:1;}

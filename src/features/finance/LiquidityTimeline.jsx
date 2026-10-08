@@ -1,5 +1,7 @@
+import {useState} from 'react';
+import {AdminChartArea, AdminChartCrosshair} from '../../components/ui/AdminChart.jsx';
 import { FinanceReadiness, FinanceDisclosure } from './FinanceVisualSystem.jsx';
-import { FinanceChart, FinanceMark, FinanceChartTip, useFinanceGeometry, placeFinanceLabels, financeChartMoney } from './FinanceChart.jsx';
+import { FinanceChart, FinanceMark, FinanceChartTip, useFinanceGeometry, placeFinanceLabels, financeChartMoney, financeChartColors } from './FinanceChart.jsx';
 import { financialValue } from './presentation.js';
 
 const eventMetric = (event) => ({ value: event.amount, unit: 'money' });
@@ -25,6 +27,7 @@ export default function LiquidityTimeline({ model, selectedEventId, onEvent, onC
 
 function TimelineCanvas({ width, model, points, selectedEventId, onEvent, onCash }) {
   const { schedule, rows, lowest } = model;
+  const [inspected,setInspected] = useState(null);
   const values = points.map(point => point.position.value), minimum = values.length ? Math.min(...values) : 0, maximum = values.length ? Math.max(...values) : 1, range = Math.max(1, maximum-minimum);
   const low = minimum-range*.15, high = maximum+range*.15;
   const left = 58, right = width-20, top = 40, bottom = 228;
@@ -40,14 +43,15 @@ function TimelineCanvas({ width, model, points, selectedEventId, onEvent, onCash
   const annotations = placeFinanceLabels(events.filter(event => event.id === selectedEventId || event.id === model.largestCollection?.id || event.id === model.largestCommitment?.id).map(event => ({id:event.id,label:event.label,x:geometry[event.id][0],y:geometry[event.id][1]})),width,258,384,selectedEventId);
   return <><path d={`M${left} ${top}V${bottom}H${right}`} className="chart-axis"/>
     {model.projected ? <>
-      {[0,.5,1].map(tick => <g key={tick}><path d={`M${left} ${bottom-tick*(bottom-top)}H${right}`} className="chart-grid"/><text x={left-8} y={bottom-tick*(bottom-top)+4} textAnchor="end" style={{fontSize:10}}>{financeChartMoney(low+tick*(high-low))}</text></g>)}
-      <path d={`${path}V${bottom}H${left}Z`} className="finance-timeline-area"/><path d={path} className="finance-timeline-path"/>
+      {[0,.5,1].map(tick => <g key={tick}><path d={`M${left} ${bottom-tick*(bottom-top)}H${right}`} className="chart-grid"/><text x={left-8} y={bottom-tick*(bottom-top)+4} textAnchor="end" style={{fontSize:11}}>{financeChartMoney(low+tick*(high-low))}</text></g>)}
+      <AdminChartArea d={`${path}V${bottom}H${left}Z`} color={financeChartColors.cash}/><path d={path} className="finance-timeline-path"/>
       {points.map((point,index) => { const [px,py] = geometry[`checkpoint:${index}`]; return <circle key={point.date} cx={px} cy={py} r="3" className="chart-cash"/>; })}
-      <FinanceMark label="Explore opening book cash" onSelect={onCash} tooltip={<FinanceChartTip title="Opening book cash">{schedule.asOf} · {financialValue(model.cash)} · Accounting position</FinanceChartTip>} transform={`translate(${geometry['checkpoint:0'].join(' ')})`}><circle r="22" fill="transparent"/><circle r="4" className="chart-cash"/><circle r="8" className="chart-focus"/></FinanceMark>
+      <FinanceMark label="Explore opening book cash" onSelect={onCash} tooltip={<FinanceChartTip title="Opening book cash" rows={[{label:schedule.asOf,value:financialValue(model.cash),color:financeChartColors.cash}]} note="Accounting position; not available bank funds."/>} transform={`translate(${geometry['checkpoint:0'].join(' ')})`}><circle r="22" fill="transparent"/><circle r="4" className="chart-cash"/><circle r="8" className="chart-focus"/></FinanceMark>
       {lowestPoint ? <g aria-label={`Lowest expected cash ${financialValue(lowest.position)} on ${lowest.date}`}><circle cx={lowestPoint[0]} cy={lowestPoint[1]} r="7" className="chart-cash"/><path d={`M${lowestPoint[0]} ${lowestPoint[1]+10}V${bottom}`} className="chart-grid"/><text x={Math.max(left+8,Math.min(right-98,lowestPoint[0]-42))} y={Math.max(24,lowestPoint[1]-18)} className="chart-annotation">Lowest · {financeChartMoney(lowest.position.value)}</text></g> : null}
     </> : <><path d={`M${left} 130H${right}`} className="chart-grid"/><text x={left} y="68">Opening position</text><text x={right} y="218" textAnchor="end">Expected position</text></>}
     {schedule ? [0,.25,.5,.75,1].map(tick => { const date = new Date(start+tick*(end-start)).toISOString().slice(0,10); return <g key={tick}><path d={`M${left+tick*(right-left)} ${bottom}v5`} className="chart-axis"/><text x={left+tick*(right-left)} y="249" textAnchor="middle">{date.slice(5)}</text></g>; }) : <><text x={left} y="249">Opening</text><text x={right} y="249" textAnchor="end">Horizon</text></>}
-    {events.map(event => { const [px,py,checkpointY] = geometry[event.id], active = event.id === selectedEventId; return <FinanceMark key={event.id} label={`Select ${event.label} on timeline`} selected={active} dimmed={Boolean(selectedEventId) && !active} onSelect={() => onEvent(event)} tooltip={<FinanceChartTip title={event.label}>{event.date} · {event.direction === 'inflow' ? '+' : '−'}{financialValue(eventMetric(event))} · Forecast · {event.completeness}</FinanceChartTip>}>
+    <AdminChartCrosshair x={geometry[inspected??selectedEventId]?.[0]??null} top={top} bottom={bottom}/>
+    {events.map(event => { const [px,py,checkpointY] = geometry[event.id], active = event.id === selectedEventId; return <FinanceMark key={event.id} label={`Select ${event.label} on timeline`} selected={active} dimmed={Boolean(selectedEventId) && !active} onSelect={() => onEvent(event)} onInspect={active=>setInspected(active?event.id:null)} tooltipAnchor={{x:px,y:py}} tooltip={<FinanceChartTip title={event.label} rows={[{label:'Date',value:event.date},{label:event.direction==='inflow'?'Expected in':'Expected out',value:financialValue(eventMetric(event)),color:event.direction==='inflow'?'var(--chart-emerald)':'var(--chart-coral)'}]} note={`Forecast · ${event.completeness}`}/>}>
       <path d={`M${px} ${checkpointY}V${py-9}`} className={`chart-link ${active ? 'is-active' : ''}`}/><circle cx={px} cy={py} r="22" fill="transparent"/><circle cx={px} cy={py} r="7" className={`chart-point ${event.direction === 'inflow' ? 'chart-support' : 'chart-pressure'}`}/><circle cx={px} cy={py} r="12" className="chart-focus"/>
       <text x={px} y={py+4} textAnchor="middle" style={{fill:'white',fontSize:10,pointerEvents:'none'}}>{event.direction === 'inflow' ? '+' : '−'}</text>
       {annotations[event.id] ? <text x={annotations[event.id].x} y={annotations[event.id].y} className="chart-label" style={{fontSize:10,pointerEvents:'none'}}>{event.kind}</text> : null}

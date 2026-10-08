@@ -1,3 +1,4 @@
+import { financeMetricColor } from './FinanceChart.jsx';
 import FinanceOverviewCharts from './FinanceOverviewCharts.jsx';
 import { overviewHistory } from './overviewDashboard.js';
 import { BarChart3, Banknote, Percent, Receipt, Wallet } from 'lucide-react';
@@ -73,7 +74,7 @@ export function FinanceOverview({ dataset }) {
     });
     // A ratio unchanged at its displayed precision does not earn an exaggerated sparkline.
     const meaningful = item.key !== 'gross_margin' || new Set(points.map(point=>point.value?.toFixed(1))).size > 1;
-    return {...item, icon:icons[item.key], iconClassName:iconTones[item.key], supportingValue:item.supportingValue ?? (previous.metrics[item.key]?.value !== null ? `${amount(previous.metrics[item.key])} previous month` : null), sparklineData:meaningful?points:null, sparklineLabel:`${item.label} monthly evidence`, sparklinePlacement:'inline', sparklineFormatValue:value=>amount({value,unit:metrics[item.key].unit})};
+    return {...item, icon:icons[item.key], iconClassName:iconTones[item.key], supportingValue:item.supportingValue ?? (previous.metrics[item.key]?.value !== null ? `${amount(previous.metrics[item.key])} previous month` : null), sparklineData:meaningful?points:null, sparklineColor:financeMetricColor(item.key), sparklineLabel:`${item.label} monthly evidence`, sparklinePlacement:'inline', sparklineFormatValue:value=>amount({value,unit:metrics[item.key].unit})};
   });
   const primary = ['revenue', 'gross_margin', 'prime_cost', 'ebitda', 'ebitda_margin', 'cash'];
   return <div className="finance-overview">
@@ -81,7 +82,7 @@ export function FinanceOverview({ dataset }) {
     <AdminSummaryGrid variant="compact" ariaLabel="Financial state" className="mb-6" items={cards} />
     <FinanceMissing ids={primary} metrics={metrics} registry={metricRegistry} />
     <FinanceOverviewCharts dataset={dataset}/>
-    <FinanceAnalysisSurface expandable defaultExpanded label="What changed this month?" subtitle="EBITDA movement · Revenue, COGS, Labour and OPEX">
+    <FinanceAnalysisSurface label="What changed this month?" subtitle="EBITDA movement · Revenue, COGS, Labour and OPEX">
       <DriverContribution compact pair={pair} movement={movement} selectedId={selectedId} selectedStage={selectedStage} onSelect={(id, stage) => { setSelectedId(id); setSelectedStage(stage); if (stage === 'previous') setAction('Compare'); }} />
       {!movement.attributable ? <FinanceReadiness title="Profit movement not ready">Comparable evidence and a validated EBITDA relationship are required.</FinanceReadiness> : null}
       {selectedId ?       <FinanceContext label={metricRegistry[selectedId].label} regionLabel="Selected movement context" action={action} onAction={setAction} evidence={<FinanceDisclosure label={`Evidence & definition for ${metricRegistry[selectedId].label}`}><p>{metricRegistry[selectedId].definition}</p><p>{semantic(metrics[selectedId])} · {metrics[selectedId].completeness} · {metrics[selectedId].reason}</p><FinanceProvenance metric={metrics[selectedId]} />{metrics[selectedId].comparison ? <><p>Previous month · {metrics[selectedId].comparison.completeness}</p><FinanceProvenance metric={metrics[selectedId].comparison} /></> : null}</FinanceDisclosure>}>{action === 'Explain' ? <p><strong>{amount(metrics[selectedId])}</strong> · {metrics[selectedId].reason || metricRegistry[selectedId].definition}</p> : action === 'Compare' ? <p><Comparison metric={metrics[selectedId]} /></p> : <div className="finance-analysis-inputs">{metricRegistry[selectedId].dependencies.map((id) => <button type="button" className="btn-secondary" key={id} onClick={() => setSelectedId(id)}>{metricRegistry[id].label} · {amount(metrics[id])}</button>)}{!metricRegistry[selectedId].dependencies.length ? <p>Finer source evidence is not supplied.</p> : null}</div>}</FinanceContext> : null}

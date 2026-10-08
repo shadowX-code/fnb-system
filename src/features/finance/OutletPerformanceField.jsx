@@ -1,6 +1,6 @@
 import { FinanceReadiness, FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { useState } from 'react';
-import { FinanceChart, FinanceMark, FinanceChartTip, useFinanceGeometry, placeFinanceLabels } from './FinanceChart.jsx';
+import { FinanceChart, FinanceMark, FinanceChartTip, useFinanceGeometry, placeFinanceLabels, financeChartColors } from './FinanceChart.jsx';
 import { financialPeriod } from './presentation.js';
 function rate(value) { return value === null ? 'Unavailable' : `${value.toFixed(1)}%`; }
 export default function OutletPerformanceField({ outlets, selectedId, onSelect, lag, embedded = false }) {
@@ -38,10 +38,10 @@ function PerformanceCanvas({ width, plotted, selectedId, onSelect, showHistory }
         const prior = geometry[`${outlet.id}:history:${index}`], current = geometry[`${outlet.id}:history:${index+1}`];
         return prior && current ? [`M${prior.join(',')}L${current.join(',')}`] : [];
       });
-      return <FinanceMark key={outlet.id} label={`${outlet.name}: revenue growth ${rate(outlet.position.x)}, EBITDA margin ${rate(outlet.position.y)}, ${outlet.position.zone}`} selected={active} dimmed={Boolean(selectedId) && !active} onSelect={() => onSelect(outlet.id)} tooltip={<FinanceChartTip title={outlet.name}>Revenue growth {outlet.position.x.toFixed(2)}% · EBITDA margin {outlet.position.y.toFixed(2)}% · {outlet.position.zone}</FinanceChartTip>}>
-        {showHistory ? <g aria-hidden="true">{paths.map((path,index) => <path key={index} d={path} className={`chart-link ${active ? 'is-active' : ''}`}/>)}{outlet.history.slice(0,-1).map((point,index) => geometry[`${outlet.id}:history:${index}`] ? <circle key={index} cx={geometry[`${outlet.id}:history:${index}`][0]} cy={geometry[`${outlet.id}:history:${index}`][1]} r="3" className="chart-cash"/> : null)}</g> : null}
+      return <FinanceMark key={outlet.id} label={`${outlet.name}: revenue growth ${rate(outlet.position.x)}, EBITDA margin ${rate(outlet.position.y)}, ${outlet.position.zone}`} selected={active} dimmed={Boolean(selectedId) && !active} onSelect={() => onSelect(outlet.id)} tooltip={<FinanceChartTip title={outlet.name} rows={[{label:'Revenue growth',value:`${outlet.position.x.toFixed(2)}%`,color:financeChartColors.revenue},{label:'EBITDA margin',value:`${outlet.position.y.toFixed(2)}%`,color:financeChartColors.ebitda}]} note={outlet.position.zone}/>}>
+        {showHistory ? <g aria-hidden="true">{paths.map((path,index) => <path key={index} d={path} className={`chart-link ${active ? 'is-active' : ''}`}/>)}{outlet.history.slice(0,-1).map((point,index) => geometry[`${outlet.id}:history:${index}`] ? <circle key={index} cx={geometry[`${outlet.id}:history:${index}`][0]} cy={geometry[`${outlet.id}:history:${index}`][1]} r="3" fill={financeChartColors.ebitda} className="chart-point"/> : null)}</g> : null}
         {active ? <path d={`M${left} ${py}H${px}V${bottom}`} className="chart-grid"/> : null}
-        <circle cx={px} cy={py} r="22" fill="transparent"/><circle cx={px} cy={py} r={active ? 9 : 7} className="finance-field-point chart-point chart-support"/><circle cx={px} cy={py} r="13" className="chart-focus"/>
+        <circle cx={px} cy={py} r="22" fill="transparent"/><circle cx={px} cy={py} r={active ? 9 : 7} className="finance-field-point chart-point" style={{fill:outlet.position.y<0?'var(--chart-coral)':financeChartColors.ebitda}}/><circle cx={px} cy={py} r="13" className="chart-focus"/>
         {labels[outlet.id] ? <path d={`M${px} ${py}L${labels[outlet.id].x-3} ${labels[outlet.id].y-4}`} className={`chart-link ${active ? 'is-active' : ''}`}/> : null}
         {labels[outlet.id] ? <text x={labels[outlet.id].x} y={labels[outlet.id].y} className="chart-label" style={{fontSize:11,pointerEvents:'none'}}>{outlet.name.length > 23 ? `${outlet.name.slice(0,21)}…` : outlet.name}</text> : null}
       </FinanceMark>;

@@ -143,3 +143,18 @@ export function AdminChartFloatingTooltip({id, anchor, children}) {
   }, [anchor,children]);
   return createPortal(<div ref={ref} id={id} role="tooltip" className="admin-chart-tooltip" style={{left:position.x,top:position.y}}>{children}</div>,document.body);
 }
+
+/** Stable series identities. Movement semantics are chosen by each domain adapter. */
+export const adminChartColors = Object.freeze({emerald:'var(--chart-emerald)',azure:'var(--chart-azure)',coral:'var(--chart-coral)',violet:'var(--chart-violet)',slate:'var(--chart-slate)'});
+
+/** A subtle depth cue, never an additional data series. Keep the supplied path and baseline exact. */
+export function AdminChartArea({ d, color, opacity = 1 }) {
+  const id = useId();
+  return <g aria-hidden="true" pointerEvents="none" opacity={opacity}><defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity=".18"/><stop offset="100%" stopColor={color} stopOpacity=".015"/></linearGradient></defs><path d={d} fill={`url(#${id})`}/></g>;
+}
+
+/** Linear observations with explicit gaps; no interpolated observations or overshoot. */
+export function adminChartLinePath(points) {
+  let connected = false;
+  return points.map(point => {if(!point || !point.every(Number.isFinite)){connected=false;return '';}const segment=`${connected?'L':'M'}${point.join(',')}`;connected=true;return segment;}).join(' ');
+}
