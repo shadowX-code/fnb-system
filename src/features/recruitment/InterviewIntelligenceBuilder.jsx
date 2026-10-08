@@ -105,6 +105,14 @@ export default function InterviewIntelligenceBuilder({
                 )}
               </AdminFormField>
             ))}
+            {key === "evidence_areas" && <details className="md:col-span-2 recruitment-config-details">
+              <summary>Optional rubric assessment{item.rubric ? " · 4 criterion levels" : " · Not configured"}</summary>
+              <p className="my-2 text-sm text-text-secondary">Define observable job-related behavior for each level. Missing evidence stays unscored. Coverage and job fit remain separate. Published rubrics apply only to interviews pinned to that future version.</p>
+              {editable && <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="admin-checkbox" checked={!!item.rubric} onChange={e=>{const next={...item};if(e.target.checked)next.rubric={levels:[1,2,3,4].map(level=>({level,criteria:""}))};else delete next.rubric;patch(key,definition[key].map((a,i)=>i===index?next:a));}} />Enable criterion-based assessment</label>}
+              {item.rubric?.levels.map((level,i)=><AdminFormField key={level.level} label={`Level ${level.level} criteria`}>
+                {editable ? <textarea className="control w-full" rows={2} minLength={20} maxLength={800} value={level.criteria} onChange={e=>update("rubric",{levels:item.rubric.levels.map((l,j)=>i===j?{...l,criteria:e.target.value}:l)})} /> : <p className="text-sm">{level.criteria}</p>}
+              </AdminFormField>)}
+            </details>}
             {key === "scenarios" && (
               <>
                 <AdminFormField label="Assessment areas" as="div">

@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
           scenarios: source.scenarios,
           annotations: source.annotations,
           gaps: source.gaps,
+          ...(source.assessment_plan ? { assessment_plan: source.assessment_plan } : {}),
         }),
         text: {
           format: {

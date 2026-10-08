@@ -1,3 +1,4 @@
+import ConfirmedInformationEntries from "./ConfirmedInformationEntries.jsx";
 import {
   invitationAction,
   currentInvitation,
@@ -245,7 +246,7 @@ function OpeningForm({
           <div className="recruitment-config-main">
             <fieldset>
               <legend>
-                <span className="recruitment-section-number">01</span> Job & Employment Terms
+                <span className="recruitment-section-number">01</span> Role & Workplace
               </legend>
               <div className="recruitment-form-grid">
                 {" "}
@@ -325,39 +326,6 @@ function OpeningForm({
                 </AdminFormField>
               </div>
             </fieldset>
-            {Object.keys(jobFacts).length > 0 && (
-              <fieldset>
-                <legend>Existing confirmed facts</legend>
-                <p className="recruitment-config-note">
-                  These facts remain available to existing invitations. Transfer
-                  offering-specific terms into the offerings below before
-                  removing them from this new configuration.
-                </p>
-                <details>
-                  <summary>Review existing information</summary>
-                  <div className="recruitment-form-grid">
-                    {Object.entries(jobFacts).map(([key, value]) => (
-                      <AdminFormField
-                        key={key}
-                        label={key.replaceAll("_", " ")}
-                      >
-                        <input
-                          className={fieldClass}
-                          value={value}
-                          onChange={(e) => {
-                            const next = { ...jobFacts };
-                            if (e.target.value.trim())
-                              next[key] = e.target.value;
-                            else delete next[key];
-                            patchConfig("job_facts", next);
-                          }}
-                        />
-                      </AdminFormField>
-                    ))}
-                  </div>
-                </details>
-              </fieldset>
-            )}
             <OpeningOfferings
               value={draft.config.employment_offerings || []}
               onChange={(value) => patchConfig("employment_offerings", value)}
@@ -365,18 +333,17 @@ function OpeningForm({
             <JobContextFields
               title={
                 <>
-                  <span className="recruitment-section-number">03</span> Job /
-                  Workplace Information
+                  <span className="recruitment-section-number">03</span> Job Information & Requirements
                 </>
               }
               value={draft.config.job_context || {}}
               onChange={(value) => patchConfig("job_context", value)}
               description={draft.description}
               onDescription={(value) => patch("description", value)}
-            />
+            >
             <fieldset>
               <legend>
-                <span className="recruitment-section-number">04</span> Job Requirements
+                Job Requirements
               </legend>
               <p className="recruitment-config-note">
                 What the interviewer actively verifies. These requirements stay
@@ -430,10 +397,11 @@ function OpeningForm({
                 </AdminFormField>
               </div>
             </fieldset>
+            </JobContextFields>
           </div>
           <aside className="recruitment-config-aside">
             <fieldset>
-              <legend>Interview Plan</legend>
+              <legend><span className="recruitment-section-number">04</span> Interview Configuration</legend>
               <p className="recruitment-config-note">
                 Role-specific assessment areas and conversational strategy. This plan explores job-related behavior; job facts explain the offer and job requirements define conditions to verify.
               </p>
@@ -477,7 +445,51 @@ function OpeningForm({
               </details>
             )}
             <fieldset>
-              <legend>Additional Settings</legend>
+              <legend><span className="recruitment-section-number">05</span> Additional Information</legend>
+            {Object.keys(jobFacts).length > 0 && (
+              <details className="recruitment-config-details">
+                <summary>Existing confirmed facts</summary>
+                <p className="recruitment-config-note">
+                  These facts remain available to existing invitations. Transfer
+                  offering-specific terms into the offerings below before
+                  removing them from this new configuration.
+                </p>
+                <details>
+                  <summary>Review existing information</summary>
+                  <div className="recruitment-form-grid">
+                    {Object.entries(jobFacts).map(([key, value]) => (
+                      <AdminFormField
+                        key={key}
+                        label={key.replaceAll("_", " ")}
+                      >
+                        <input
+                          className={fieldClass}
+                          value={value}
+                          onChange={(e) => {
+                            const next = { ...jobFacts };
+                            if (e.target.value.trim())
+                              next[key] = e.target.value;
+                            else delete next[key];
+                            patchConfig("job_facts", next);
+                          }}
+                        />
+                      </AdminFormField>
+                    ))}
+                  </div>
+                </details>
+              </details>
+            )}
+              <details className="recruitment-config-details">
+                <summary>Confirmed information</summary>
+                <ConfirmedInformationEntries value={[
+                  ...(draft.config.job_context?.shared_facts ? [{topic:"Additional job information",information:draft.config.job_context.shared_facts}] : []),
+                  ...(draft.config.job_context?.additional_information || [])
+                ]} onChange={entries => {
+                  const context = {...draft.config.job_context, additional_information:entries};
+                  delete context.shared_facts;
+                  patchConfig("job_context", context);
+                }} />
+              </details>
               <details>
                 <summary>Language & candidate guidance</summary>
                 <div className="grid gap-4 mt-3">
