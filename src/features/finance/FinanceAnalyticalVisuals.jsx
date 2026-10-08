@@ -1,3 +1,4 @@
+import {adminChartScale} from '../../components/ui/AdminChart.jsx';
 import { FinanceReadiness } from './FinanceVisualSystem.jsx';
 import { FinanceChart, FinanceMark, FinanceChartTip, useFinanceGeometry, placeFinanceLabels, financeChartMoney } from './FinanceChart.jsx';
 import { metricRegistry, compatibleMetricBasis } from './metrics.js';
@@ -58,27 +59,27 @@ function ContributionCanvas({ width, movement, pair, selectedId, selectedStage, 
   });
   const stages = [{ id: 'previous', metricId: 'ebitda', label: 'Previous EBITDA', from: 0, to: Number.isFinite(previous) ? previous : null }, ...drivers.map(row => ({ ...row, metricId: row.id, label: row.id === 'labour' ? 'Labour' : metricRegistry[row.id].label })), { id: 'current', metricId: 'ebitda', label: 'Current EBITDA', from: 0, to: Number.isFinite(current) ? current : null }];
   const values = stages.flatMap(stage => stage.to === null ? [] : [stage.from, stage.to]);
-  const low = Math.min(0, ...values), high = Math.max(1, ...values), span = high - low;
+  const {min:low,max:high,ticks} = adminChartScale(values, 3), span = high - low;
   const mobile = width < 560, height = mobile ? 414 : compact ? 292 : 346;
   const left = mobile ? 102 : 56, right = width - 12, top = 28, bottom = height - (mobile ? 68 : 90);
   const scale = amount => mobile ? left + (amount - low) / span * (right - left) : bottom - (amount - low) / span * (bottom - top);
   const column = (right - left) / stages.length;
   const geometry = useFinanceGeometry(Object.fromEntries(stages.map((stage,index) => [stage.id, mobile ? [scale(stage.from ?? 0), scale(stage.to ?? 0), 38 + index * 59] : [left + column * index + column * .15, scale(stage.from ?? 0), scale(stage.to ?? 0), column * .7]])));
   return <>
-    {!mobile ? [0,.5,1].map(tick => <g key={tick}><path d={`M${left} ${scale(low + span * tick)}H${right}`} className="chart-grid"/><text x={left-7} y={scale(low + span * tick)+4} textAnchor="end">{values.length ? financeChartMoney(low + span * tick) : tick === 0 ? '0' : '—'}</text></g>) : <><path d={`M${scale(0)} 18V366`} className="chart-axis"/><text x={left} y="14">{values.length ? financeChartMoney(low) : '—'}</text><text x={right} y="14" textAnchor="end">{values.length ? financeChartMoney(high) : '—'}</text></>}
+    {!mobile ? ticks.map(tick => <g key={tick}><path d={`M${left} ${scale(tick)}H${right}`} className="chart-grid"/><text x={left-7} y={scale(tick)+4} textAnchor="end">{values.length ? financeChartMoney(tick) : tick === 0 ? '0' : '—'}</text></g>) : <><path d={`M${scale(0)} 18V366`} className="chart-axis"/><text x={left} y="14">{values.length ? financeChartMoney(low) : '—'}</text><text x={right} y="14" textAnchor="end">{values.length ? financeChartMoney(high) : '—'}</text></>}
     {reconciled ? stages.slice(0,-1).map((stage,index) => {
       const here = geometry[stage.id], next = geometry[stages[index+1].id];
-      return <path key={stage.id} data-bridge-connector="true" d={mobile ? `M${here[1]} ${here[2]+9}V${next[2]-9}` : `M${here[0]+here[3]} ${here[2]}H${next[0]}`} className="chart-link"/>;
+      return <path key={stage.id} data-bridge-connector="true" d={mobile ? `M${here[1]} ${here[2]+9}V${next[2]-9}` : `M${here[0]+here[3]} ${here[2]}H${next[0]}`} className={`chart-link ${selectedId && (stage.metricId===selectedId || stages[index+1].metricId===selectedId) ? 'is-active' : ''}`}/>;
     }) : null}
     {stages.map(stage => {
       const endpoint = ['previous','current'].includes(stage.id), available = stage.to !== null && (endpoint || stage.included);
       const coordinates = geometry[stage.id], selected = selectedId === stage.metricId && (endpoint ? stage.id === (selectedStage === 'previous' ? 'previous' : 'current') : true);
       const label = stage.id === 'previous' ? 'Explore previous EBITDA' : stage.id === 'current' ? 'Explore EBITDA movement' : `Explore ${metricRegistry[stage.id].label} driver`;
       const value = endpoint ? stage.to : reconciled && stage.included ? stage.contribution : null;
-      const description = endpoint ? financialValue({value:stage.to,unit:'money'}) : !stage.included ? 'Outside this EBITDA basis' : value === null ? 'Comparable contribution evidence required' : `${movementValue({value})} · ${value < 0 ? 'Reduces' : 'Supports'} EBITDA`;
+      const description = endpoint ? financialValue({value:stage.to,unit:'money'}) : !stage.included ? 'Outside this EBITDA basis' : value === null ? 'Comparable contribution evidence required' : `${movementValue({value})} · ${value < 0 ? 'Reduces' : 'Supports'} EBITDA · ${financialValue({value:stage.from,unit:'money'})} → ${financialValue({value:stage.to,unit:'money'})}`;
       const color = endpoint ? 'chart-cash' : stage.contribution < 0 ? 'chart-pressure' : 'chart-support';
       const [x,y,z,barWidth] = coordinates;
-      return <FinanceMark key={stage.id} label={label} selected={selected} dimmed={Boolean(selectedId) && stage.metricId !== selectedId} onSelect={() => onSelect(stage.metricId, endpoint ? stage.id : 'driver')} tooltip={<FinanceChartTip title={stage.label}>{description}{stage.id === 'previous' ? ' · comparison period' : ''}</FinanceChartTip>}>
+      return <FinanceMark key={stage.id} label={label} selected={selected} dimmed={Boolean(selectedId) && !selected} onSelect={() => onSelect(stage.metricId, endpoint ? stage.id : 'driver')} tooltip={<FinanceChartTip title={stage.label}>{description}{stage.id === 'previous' ? ' · comparison period' : ''}</FinanceChartTip>}>
         {mobile ? <>
           <rect x="0" y={z-22} width={width} height="44" fill="transparent" />
           <text x="0" y={z-3} className="chart-label" style={{fontSize:11}}>{endpoint ? stage.id === 'previous' ? 'Previous' : 'Current' : stage.label}</text>

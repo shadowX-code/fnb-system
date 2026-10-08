@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AdminChartCrosshair, adminChartScale } from '../../components/ui/AdminChart.jsx';
 import { ArrowRight } from 'lucide-react';
 import AdminAnalyticalSurface from '../../components/layout/AdminAnalyticalSurface.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
@@ -13,26 +14,41 @@ const colors = { revenue:'#008b65', ebitda:'#087fca', cash:'#00869b', ebitda_mar
 const format = (value, percent) => value === null ? '—' : percent ? `${value.toFixed(1)}%` : financeChartMoney(value);
 const dateLabel = period => new Intl.DateTimeFormat('en-MY',{month:'short',year:'2-digit',timeZone:'UTC'}).format(new Date(`${period.start}T00:00:00Z`));
 function TrendCanvas({width, rows, ids, percent, selected, onSelect}) {
-  const left = width < 400 ? 46 : 58, right = 20, top = 50, bottom = 204, usable = width-left-right;
-  const values = rows.flatMap(row => ids.map(id => row[id])).filter(value => Number.isFinite(value));
-  const rawMax = Math.max(0,...values), rawMin = Math.min(0,...values);
-  const step = 10 ** Math.floor(Math.log10(Math.max(1,rawMax-rawMin))) / 2;
-  const max = Math.max(step,Math.ceil(rawMax / step)*step), min = Math.floor(rawMin / step)*step;
+  const [inspected,setInspected] = useState(null);
+  const left = width < 400 ? 46 : 58, right = 20, top = 28, bottom = 204, usable = width-left-right;
+  const values = rows.flatMap(row => ids.map(id => row[id])).filter(Number.isFinite);
+  const {min,max,ticks} = adminChartScale(values);
   const y = value => bottom-(value-min)/(max-min)*(bottom-top), x = index => left+index/Math.max(1,rows.length-1)*usable;
   const target = Object.fromEntries(rows.flatMap((row,index) => ids.filter(id => row[id] !== null).map(id => [`${row.period.start}:${id}`,[x(index),y(row[id])]])));
   const geometry = useFinanceGeometry(target);
   const path = id => {let connected=false;return rows.map(row => {const point=geometry[`${row.period.start}:${id}`];if(!point){connected=false;return '';}const segment=`${connected?'L':'M'}${point[0]},${point[1]}`;connected=true;return segment;}).join(' ');};
   const labelEvery = Math.max(1,Math.ceil(rows.length/(width<420?3:6)));
   return <>
-    {[0,1,2,3,4].map(index => {const value=min+(max-min)*index/4, cy=y(value);return <g key={index}><line x1={left} x2={width-right} y1={cy} y2={cy} className="chart-grid"/>{values.length ? <text x={left-8} y={cy+4} textAnchor="end">{format(value,percent)}</text> : null}</g>;})}
+    {ticks.map(value => {const cy=y(value);return <g key={value}><line x1={left} x2={width-right} y1={cy} y2={cy} className="chart-grid"/>{values.length ? <text x={left-8} y={cy+4} textAnchor="end">{format(value,percent)}</text> : null}</g>;})}
     <path d={`M${left},${top}V${bottom}H${width-right}`} className="chart-axis"/>
     {rows.map((row,index) => index===0 || index===rows.length-1 || (index%labelEvery===0 && x(index)-left>=64 && width-right-x(index)>=64) ? <text key={row.period.start} x={x(index)} y={bottom+24} textAnchor={index===0?'start':index===rows.length-1?'end':'middle'}>{dateLabel(row.period)}</text> : null)}
     {!values.length ? <path d={`M${left},${top+80}H${width-right} M${left},${top+130}H${width-right}`} className="chart-pending"/> : null}
-    {ids.map(id => <path key={id} d={path(id)} fill="none" stroke={colors[id]} strokeWidth="2.3" vectorEffect="non-scaling-stroke"/>)}
-    {rows.map(row => ids.map(id => {const point=geometry[`${row.period.start}:${id}`];if(!point)return null;const [cx,cy]=point;return <FinanceMark key={`${row.period.start}:${id}`} label={`${financialPeriod(row.period)} ${metricRegistry[id].label}`} selected={selected===row.period.start} dimmed={Boolean(selected)&&selected!==row.period.start} onSelect={()=>onSelect(row.period.start)} tooltip={<FinanceChartTip title={financialPeriod(row.period)}>{ids.map(key=>`${metricRegistry[key].label}: ${financialValue({value:row[key],unit:percent?'percent':'money'})}`).join(' · ')} · {row.dataset?.sourceLabel}</FinanceChartTip>}>
-      <circle cx={cx} cy={cy} r="22" fill="transparent"/><circle cx={cx} cy={cy} r="4" fill={colors[id]} className="chart-point"/><circle cx={cx} cy={cy} r="8" className="chart-focus"/>
-    </FinanceMark>;}))}
-    {ids.map((id,index) => {const last=rows.at(-1), point=last&&geometry[`${last.period.start}:${id}`];return point ? <text key={id} x={width-right} y={point[1]-10} textAnchor="end" style={{fill:colors[id],fontWeight:600}}>{metricRegistry[id].label} {format(last[id],percent)}</text> : null;})}
+    {ids.length===1 && ids[0]==='cash' ? rows.map((row,index)=>{const point=geometry[`${row.period.start}:cash`], next=geometry[`${rows[index+1]?.period.start}:cash`];return point&&next?<path key={row.period.start} d={`M${point[0]},${y(0)}L${point[0]},${point[1]}L${next[0]},${next[1]}L${next[0]},${y(0)}Z`} fill={colors.cash} opacity={selected?.06:.08} pointerEvents="none"/>:null;}):null}
+    {ids.map(id => <path key={id} d={path(id)} fill="none" stroke={colors[id]} strokeWidth="2.3" vectorEffect="non-scaling-stroke" className="admin-chart-series" opacity={selected ? .5 : 1}/>)}
+    <AdminChartCrosshair x={rows.findIndex(row=>row.period.start===(inspected??selected))>=0 ? x(rows.findIndex(row=>row.period.start===(inspected??selected))) : null} top={top} bottom={bottom}/>
+    {rows.map((row,index) => {
+      if(!ids.some(id=>geometry[`${row.period.start}:${id}`]))return null;
+      const cx=x(index), half=usable/Math.max(1,rows.length-1)/2, cy=Math.min(...ids.map(id=>geometry[`${row.period.start}:${id}`]?.[1]).filter(Number.isFinite));
+      return <FinanceMark key={row.period.start} tooltipAnchor={{x:cx,y:cy}} label={`${financialPeriod(row.period)} ${ids.map(id=>metricRegistry[id].label).join(' and ')}`} selected={selected===row.period.start} dimmed={Boolean(selected)&&selected!==row.period.start} onInspect={active=>setInspected(active?row.period.start:null)} onSelect={()=>onSelect(selected===row.period.start?null:row.period.start)} tooltip={<FinanceChartTip title={financialPeriod(row.period)}>{ids.map(key=>`${metricRegistry[key].label}: ${financialValue({value:row[key],unit:percent?'percent':'money'})}`).join(' · ')} · {row.dataset?.sourceLabel}</FinanceChartTip>}>
+        <rect x={Math.max(left,cx-half)} y={top-12} width={Math.min(width-right,cx+half)-Math.max(left,cx-half)} height={bottom-top+24} fill="transparent"/>
+        {ids.map(id=>{const point=geometry[`${row.period.start}:${id}`];return point ? <g key={id} pointerEvents="none"><circle cx={point[0]} cy={point[1]} r={selected===row.period.start||inspected===row.period.start?5:3.5} fill={colors[id]} className="chart-point"/><circle cx={point[0]} cy={point[1]} r="8" className="chart-focus"/></g>:null;})}
+      </FinanceMark>;
+    })}
+    {(() => {
+      const occupied=[];
+      return ids.map(id=>{const last=rows.at(-1), point=last&&geometry[`${last.period.start}:${id}`];if(!point)return null;
+        let labelY=point[1]-10;
+        while(occupied.some(y=>Math.abs(y-labelY)<18))labelY+=18;
+        labelY=Math.min(bottom+10,Math.max(14,labelY));occupied.push(labelY);
+        return <g key={id} pointerEvents="none">{Math.abs(labelY-(point[1]-10))>1?<line x1={point[0]} x2={width-right} y1={point[1]} y2={labelY-4} stroke={colors[id]} strokeWidth="1"/>:null}<text x={width-right} y={labelY} textAnchor="end" style={{fill:colors[id],fontWeight:600}}>{metricRegistry[id].label} {format(last[id],percent)}</text></g>;
+      });
+    })()}
+
   </>;
 }
 function HistoryEvidence({rows,ids}) {
@@ -64,8 +80,8 @@ function ConversionCanvas({width, projection, selected, onSelect}) {
   return slots.map(row => {
     const [x,w] = geometry[row.id] ?? [row.x,row.width];
     return <FinanceMark key={row.id} label={`Inspect ${metricRegistry[row.id].label} conversion`} selected={selected===row.id} dimmed={Boolean(selected)&&selected!==row.id} onSelect={()=>onSelect(row.id)} tooltip={<FinanceChartTip title={metricRegistry[row.id].label}>{financialValue(row.metric)} · {projection.complete?`${row.share.toFixed(2)}% of Revenue`:'Composition not validated'}</FinanceChartTip>}>
-      <rect x={x} y="20" width={Math.max(0,w)} height="46" fill={projection.complete?row.id==='ebitda'?colors.revenue:colors[row.id]:'none'} className={projection.complete?'':'chart-pending'}/>
-      {projection.complete&&w>45?<text x={x+w/2} y="48" textAnchor="middle" style={{fill:row.id==='labour'?'#54293a':'white',fontWeight:600}}>{row.share.toFixed(1)}%</text>:null}
+      <rect x={x} y="20" width={Math.max(0,w)} height="46" stroke="white" strokeWidth="1" fill={projection.complete?row.id==='ebitda'?colors.revenue:colors[row.id]:'none'} className={projection.complete?'':'chart-pending'}/>
+      {projection.complete&&w>45?<text x={x+w/2} y="48" textAnchor="middle" style={{fill:['labour','opex'].includes(row.id)?'#253342':'white',fontWeight:600}}>{row.share.toFixed(1)}%</text>:null}
       <rect x={x+2} y="17" width={Math.max(0,w-4)} height="52" className="chart-focus"/>
     </FinanceMark>;
   });
@@ -87,8 +103,8 @@ function OutletCanvas({width,rows,selected,onSelect}) {
   const y=v=>bottom-(v-low)/(high-low)*(bottom-top),band=space/Math.max(1,rows.length),zero=y(0);
   const target=Object.fromEntries(rows.filter(row=>row.value!==null).map((row,index)=>[row.id,vertical?[left+index*band+band*.2,y(Math.max(0,row.value)),band*.6,Math.abs(y(row.value)-zero)]:[110+(Math.min(0,row.value)-low)/(high-low)*(width-132),28+index*54,Math.abs(row.value)/(high-low)*(width-132),24]]));
   const geometry=useFinanceGeometry(target);
-  if(!vertical)return <>{low<0?<line x1={110-low/(high-low)*(width-132)} x2={110-low/(high-low)*(width-132)} y1="24" y2={rows.length*54} className="chart-axis"/>:null}{rows.map((row,index)=><FinanceMark key={row.id} label={`Select ${row.name} outlet`} selected={selected===row.id} dimmed={Boolean(selected)&&selected!==row.id} onSelect={()=>onSelect(row.id)} tooltip={<FinanceChartTip title={row.name}>{financialValue(row.metric)} EBITDA margin · {row.dataset?.sourceLabel??'Evidence not ready'}</FinanceChartTip>}><text x="4" y={43+index*54}>{row.name.replace('Demo · ','').slice(0,15)+(row.name.replace('Demo · ','').length>15?'…':'')}</text>{row.value!==null?<rect x={geometry[row.id][0]} y={geometry[row.id][1]} width={geometry[row.id][2]} height={geometry[row.id][3]} fill={colors.revenue}/>:<rect x="110" y={28+index*54} width={width-132} height="24" className="chart-pending"/>}<text x={width-6} y={20+index*54} textAnchor="end" className="chart-value">{format(row.value,true)}</text><rect x="1" y={12+index*54} width={width-2} height="44" className="chart-focus"/></FinanceMark>)}</>;
-  return <>{[0,1,2,3,4].map(index=>{const value=low+(high-low)*index/4;return <g key={index}><line x1={left} x2={width-right} y1={y(value)} y2={y(value)} className="chart-grid"/>{values.length ? <text x={left-8} y={y(value)+4} textAnchor="end">{value.toFixed(0)}%</text> : null}</g>;})}<line x1={left} x2={width-right} y1={zero} y2={zero} className="chart-axis"/>{rows.map((row,index)=>{const g=geometry[row.id];return <FinanceMark key={row.id} label={`Select ${row.name} outlet`} selected={selected===row.id} dimmed={Boolean(selected)&&selected!==row.id} onSelect={()=>onSelect(row.id)} tooltip={<FinanceChartTip title={row.name}>{financialValue(row.metric)} EBITDA margin · {row.dataset?.sourceLabel??'Evidence not ready'}</FinanceChartTip>}><rect x={g?.[0]??left+index*band+band*.2} y={g?.[1]??bottom-50} width={g?.[2]??band*.6} height={g?.[3]??50} fill={g?colors.revenue:'none'} className={g?'':'chart-pending'}/><text x={left+(index+.5)*band} y={(g?.[1]??bottom-50)-10} textAnchor="middle" className="chart-value">{format(row.value,true)}</text><text x={left+(index+.5)*band} y={bottom+24} textAnchor="middle">{row.name.replace('Demo · ','').slice(0,17)+(row.name.replace('Demo · ','').length>17?'…':'')}</text><rect x={left+index*band+2} y={top} width={band-4} height={bottom-top+4} className="chart-focus"/></FinanceMark>;})}</>;
+  if(!vertical)return <>{low<0?<line x1={110-low/(high-low)*(width-132)} x2={110-low/(high-low)*(width-132)} y1="24" y2={rows.length*54} className="chart-axis"/>:null}{rows.map((row,index)=><FinanceMark key={row.id} label={`Select ${row.name} outlet`} selected={selected===row.id} dimmed={Boolean(selected)&&selected!==row.id} onSelect={()=>onSelect(row.id)} tooltip={<FinanceChartTip title={row.name}>{financialValue(row.metric)} EBITDA margin · {row.dataset?.sourceLabel??'Evidence not ready'}</FinanceChartTip>}><rect x="0" y={12+index*54} width={width} height="44" fill="transparent"/><text x="4" y={43+index*54}>{row.name.replace('Demo · ','').slice(0,15)+(row.name.replace('Demo · ','').length>15?'…':'')}</text>{row.value!==null?<rect x={geometry[row.id][0]} y={geometry[row.id][1]} width={geometry[row.id][2]} height={geometry[row.id][3]} rx="3" fill={colors.revenue}/>:<rect x="110" y={28+index*54} width={width-132} height="24" className="chart-pending"/>}<text x={width-6} y={20+index*54} textAnchor="end" className="chart-value">{format(row.value,true)}</text><rect x="1" y={12+index*54} width={width-2} height="44" className="chart-focus"/></FinanceMark>)}</>;
+  return <>{[0,1,2,3,4].map(index=>{const value=low+(high-low)*index/4;return <g key={index}><line x1={left} x2={width-right} y1={y(value)} y2={y(value)} className="chart-grid"/>{values.length ? <text x={left-8} y={y(value)+4} textAnchor="end">{value.toFixed(0)}%</text> : null}</g>;})}<line x1={left} x2={width-right} y1={zero} y2={zero} className="chart-axis"/>{rows.map((row,index)=>{const g=geometry[row.id];return <FinanceMark key={row.id} label={`Select ${row.name} outlet`} selected={selected===row.id} dimmed={Boolean(selected)&&selected!==row.id} onSelect={()=>onSelect(row.id)} tooltip={<FinanceChartTip title={row.name}>{financialValue(row.metric)} EBITDA margin · {row.dataset?.sourceLabel??'Evidence not ready'}</FinanceChartTip>}><rect x={left+index*band} y={top} width={band} height={bottom-top+30} fill="transparent"/><rect x={g?.[0]??left+index*band+band*.2} y={g?.[1]??bottom-50} width={g?.[2]??band*.6} height={g?.[3]??50} rx="3" fill={g?colors.revenue:'none'} className={g?'':'chart-pending'}/><text x={left+(index+.5)*band} y={(g?.[1]??bottom-50)-10} textAnchor="middle" className="chart-value">{format(row.value,true)}</text><text x={left+(index+.5)*band} y={bottom+24} textAnchor="middle">{row.name.replace('Demo · ','').slice(0,17)+(row.name.replace('Demo · ','').length>17?'…':'')}</text><rect x={left+index*band+2} y={top} width={band-4} height={bottom-top+4} className="chart-focus"/></FinanceMark>;})}</>;
 }
 function Outlets({dataset}) {
   const all=overviewOutlets(dataset),rows=all.slice(0,6),[selected,setSelected]=useState(null),outlet=all.find(row=>row.id===selected);

@@ -6,3 +6,12 @@
 .admin-chart-tooltip span {color:var(--text-secondary,#526473);}
 @media(prefers-reduced-motion:reduce){.admin-chart * {transition:none!important;animation:none!important;}}
 
+
+.admin-chart-crosshair {stroke:var(--text-secondary,#526473);stroke-width:1;stroke-dasharray:3 4;pointer-events:none;}
+.admin-chart-series {transition:opacity 180ms ease-out;stroke-linejoin:round;stroke-linecap:round;}
+.admin-chart-mark:hover .chart-point,.admin-chart-mark:focus-visible .chart-point {stroke-width:3;}
+.admin-chart-mark:focus-visible {outline:none;}
+.admin-chart-sparkline {position:relative;display:block;}
+.admin-chart-sparkline svg {display:block;width:100%;height:100%;overflow:visible;outline:none;}
+.admin-chart-sparkline svg:focus-visible {outline:2px solid var(--primary,#008b65);outline-offset:3px;border-radius:3px;}
+.admin-chart-sparkline .admin-chart-tooltip {left:auto;right:0;top:calc(100% + 8px);width:190px;max-width:none;}

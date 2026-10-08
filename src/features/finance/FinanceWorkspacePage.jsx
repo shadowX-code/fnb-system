@@ -73,7 +73,7 @@ export function FinanceOverview({ dataset }) {
     });
     // A ratio unchanged at its displayed precision does not earn an exaggerated sparkline.
     const meaningful = item.key !== 'gross_margin' || new Set(points.map(point=>point.value?.toFixed(1))).size > 1;
-    return {...item, icon:icons[item.key], iconClassName:iconTones[item.key], supportingValue:item.supportingValue ?? (previous.metrics[item.key]?.value !== null ? `${amount(previous.metrics[item.key])} previous month` : null), sparklineData:meaningful?points:null, sparklineLabel:`${item.label} monthly evidence`, sparklinePlacement:'inline'};
+    return {...item, icon:icons[item.key], iconClassName:iconTones[item.key], supportingValue:item.supportingValue ?? (previous.metrics[item.key]?.value !== null ? `${amount(previous.metrics[item.key])} previous month` : null), sparklineData:meaningful?points:null, sparklineLabel:`${item.label} monthly evidence`, sparklinePlacement:'inline', sparklineFormatValue:value=>amount({value,unit:metrics[item.key].unit})};
   });
   const primary = ['revenue', 'gross_margin', 'prime_cost', 'ebitda', 'ebitda_margin', 'cash'];
   return <div className="finance-overview">
@@ -111,6 +111,9 @@ function LiveFinanceWorkspacePage({ section = 'overview', store = {}, auth }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  const [datasetKey,setDatasetKey] = useState(null);
+  const requestKey = JSON.stringify([mode,month,outletId,demoScope,section,attempt]);
+  const currentDataset = datasetKey === requestKey && !error;
   const outletOptions = [{ value: 'all', label: 'All authorized outlets' }, ...getAccessibleOutletOptions(auth, store.outlets ?? [], { includeAll: false })];
   useEffect(() => {
     if (!financeDemoEnabled || mode !== 'demo') return;
@@ -122,18 +125,19 @@ function LiveFinanceWorkspacePage({ section = 'overview', store = {}, auth }) {
     if (section !== 'overview') return;
     let active = true;
     const controller = new AbortController();
-    setLoading(true); setError(''); setDataset(null);
+    setLoading(true); setError('');
     const scope = mode === 'demo' ? demoOptions.find((option) => option.value === demoScope) : outletId === 'all' ? { kind: 'authorized_outlets', id: null } : { kind: 'outlet', id: outletId };
     if (!scope) { setLoading(false); return; }
     const request = { scope: { kind: scope.kind, id: scope.id, ...(scope.legalEntityId ? { legalEntityId: scope.legalEntityId } : {}) }, period: monthlyPeriod(month), currency: 'MYR' };
-    getFinanceProvider(mode).then((provider) => readFinanceOverview(provider, request, { signal: controller.signal, allowDemo: financeDemoEnabled && mode === 'demo', outlets: mode === 'demo' ? demoOptions.filter(entry => entry.kind === 'outlet').map(entry => ({id: entry.id, name: entry.label, legalEntityId: entry.legalEntityId})) : getAccessibleOutlets(auth, store.outlets ?? []) })).then((result) => { if (active) setDataset(result); }).catch((failure) => { if (active) setError(failure.message || 'Finance is unavailable.'); }).finally(() => { if (active) setLoading(false); });
+    getFinanceProvider(mode).then((provider) => readFinanceOverview(provider, request, { signal: controller.signal, allowDemo: financeDemoEnabled && mode === 'demo', outlets: mode === 'demo' ? demoOptions.filter(entry => entry.kind === 'outlet').map(entry => ({id: entry.id, name: entry.label, legalEntityId: entry.legalEntityId})) : getAccessibleOutlets(auth, store.outlets ?? []) })).then((result) => { if (active) { setDataset(result); setDatasetKey(requestKey); } }).catch((failure) => { if (active) setError(failure.message || 'Finance is unavailable.'); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; controller.abort(); };
   }, [mode, month, outletId, demoScope, demoOptions, section, attempt]);
   return <WorkspacePage className="finance-workspace" section="Finance" title={sectionLabels[section]} description={sectionDescriptions[section]} controls={section === 'overview' ? <AdminFilterToolbar outlet={<SelectField label={mode === 'demo' ? 'Demo scope' : 'Outlet scope'} value={mode === 'demo' ? demoScope : outletId} onChange={mode === 'demo' ? setDemoScope : setOutletId} options={mode === 'demo' ? demoOptions : outletOptions} />} period={<MonthPickerField label="Period" value={month} onChange={setMonth} />}>
         {financeDemoEnabled ? <SelectField label="Evidence" value={mode} onChange={setMode} options={[{ value: 'operational', label: 'FeedX operational' }, { value: 'demo', label: 'Development demo' }]} /> : null}
       </AdminFilterToolbar> : null}>
     {section === 'overview' ? <>
-      <AsyncDataSurface loading={loading} error={error} hasData={Boolean(dataset)} isEmpty={!dataset} emptyTitle="Select financial evidence" emptyDescription="Choose a scope to review its financial state." onRetry={() => setAttempt((value) => value + 1)}>{dataset ? <><FinanceOverview dataset={dataset} /><FinanceDataStatus dataset={dataset} loading={loading} error={error} /></> : null}</AsyncDataSurface>
+      <AsyncDataSurface loading={loading} error={error} hasData={Boolean(dataset) && currentDataset} isEmpty={!dataset} emptyTitle="Select financial evidence" emptyDescription="Choose a scope to review its financial state." onRetry={() => setAttempt((value) => value + 1)}/>
+      {dataset ? <div hidden={!currentDataset || loading}><FinanceOverview dataset={dataset}/><FinanceDataStatus dataset={dataset} loading={loading} error={error}/></div> : null}
     </> : section === 'statements' ? <StatementsFoundation /> : <section className="finance-future"><h2>Foundation established</h2><p>This workspace will become available once its financial evidence and authority are validated.</p><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_overview')}>Review financial state <ArrowRight size={15} /></button></section>}
   </WorkspacePage>;
 }

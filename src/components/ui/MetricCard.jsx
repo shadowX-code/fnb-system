@@ -1,3 +1,4 @@
+import AdminSparkline from './AdminSparkline.jsx';
 export default function MetricCard({
   label,
   title,
@@ -11,6 +12,7 @@ export default function MetricCard({
   status,
   sparklineData,
   sparklineLabel,
+  sparklineFormatValue,
   sparklinePlacement = "footer",
   delta,
   deltaTone = "neutral",
@@ -58,11 +60,7 @@ export default function MetricCard({
   const deltaColor = deltaTone === "positive" ? "text-emerald-700" : deltaTone === "negative" ? "text-rose-700" : "text-text-secondary";
   // Only dated, explicitly labeled evidence can become a miniature trend.
   const points = state === "ready" && sparklineLabel && Array.isArray(sparklineData) && sparklineData.length > 1 && sparklineData.every(point => point?.label && Number.isFinite(point.value)) ? sparklineData : null;
-  const low = points ? Math.min(...points.map(point => point.value)) : 0;
-  const range = points ? Math.max(...points.map(point => point.value)) - low : 0;
-  const path = points?.map((point, index) => `${index ? "L" : "M"}${4 + index / (points.length - 1) * 112},${28 - (range ? (point.value - low) / range : .5) * 24}`).join(" ");
-
-  const sparkline = points ? <svg viewBox="0 0 120 32" className={`${sparklinePlacement === "inline" ? "h-5 w-16 shrink-0" : "h-8 w-full"} text-primary`} role="img" aria-label={sparklineLabel}><title>{points.map(point => `${point.label}: ${point.value}`).join("; ")}</title><path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" /></svg> : null;
+  const sparkline = points ? <AdminSparkline points={points} label={sparklineLabel} formatValue={sparklineFormatValue} className={`${sparklinePlacement === "inline" ? "h-5 w-16 shrink-0" : "h-8 w-full"} ${deltaColor}`}/> : null;
 
   return (
     <Component

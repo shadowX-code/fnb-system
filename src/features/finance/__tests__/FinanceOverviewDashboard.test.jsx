@@ -35,8 +35,8 @@ it('renders four charts, switches units/history and expands the existing bridge 
  expect(screen.getByRole('region',{name:'Financial state'}).querySelectorAll('[data-admin-summary-card]')).toHaveLength(5);
  for(const title of ['Revenue & EBITDA Trend','Profit Conversion','Outlet Performance','Cash Position Trend'])expect(screen.getByRole('heading',{name:title})).toBeTruthy();
  expect(screen.queryByRole('navigation',{name:'Continue financial investigation'})).toBeNull();
- const trend=screen.getByRole('group',{name:'Monthly Revenue and EBITDA history'});expect(trend.querySelectorAll('[role=button]')).toHaveLength(12);
- fireEvent.click(screen.getByRole('tablist',{name:'Performance history'}).querySelectorAll('[role=tab]')[1]);expect(trend.querySelectorAll('[role=button]')).toHaveLength(24);
+ const trend=screen.getByRole('group',{name:'Monthly Revenue and EBITDA history'});expect(trend.querySelectorAll('[role=button]')).toHaveLength(6);
+ fireEvent.click(screen.getByRole('tablist',{name:'Performance history'}).querySelectorAll('[role=tab]')[1]);expect(trend.querySelectorAll('[role=button]')).toHaveLength(12);
  fireEvent.click(screen.getByRole('tab',{name:'Margin %'}));expect(trend.querySelectorAll('[role=button]')).toHaveLength(12);
  fireEvent.focus(within(trend).getAllByRole('button')[0]);expect(screen.getByRole('tooltip').textContent).toContain('%');expect(screen.getByRole('tooltip').textContent).not.toContain('RM');
  fireEvent.keyDown(trend,{key:'Escape'});expect(screen.queryByRole('tooltip')).toBeNull();
@@ -61,4 +61,14 @@ it('keeps first/latest month labels apart in a narrow chart and omits immaterial
  expect(labels).toEqual(['May 26','Jul 26','Oct 26']);
  expect(screen.queryByRole('img',{name:'Gross Margin monthly evidence'})).toBeNull();
  expect(screen.getByRole('img',{name:'Cash monthly evidence'})).toBeTruthy();
+});
+
+it('inspects full month bands with exact shared tooltips and keeps observations mounted across range changes',async()=>{
+ const dataset=await read();render(<FinanceOverview dataset={dataset}/>);
+ const trend=screen.getByRole('group',{name:'Monthly Revenue and EBITDA history'}), october=within(trend).getByRole('button',{name:'October 2026 Revenue and EBITDA'});
+ fireEvent.pointerEnter(october,{pointerType:'mouse'});expect(screen.getByRole('tooltip').textContent).toContain('576,050.00');expect(trend.querySelector('.admin-chart-crosshair')).toBeTruthy();
+ fireEvent.click(october);expect(october.getAttribute('aria-pressed')).toBe('true');expect(trend.querySelector('.admin-chart-series').getAttribute('opacity')).toBe('0.5');
+ fireEvent.click(within(screen.getByRole('tablist',{name:'Performance history'})).getByRole('tab',{name:'12M'}));
+ expect(within(trend).getByRole('button',{name:'October 2026 Revenue and EBITDA'})).toBe(october);
+ expect(screen.queryByRole('tooltip')).toBeNull();
 });

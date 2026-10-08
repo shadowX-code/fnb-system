@@ -7,11 +7,12 @@ export function financeSummaryItems(pair, ids, { primary = [], selectedId, onSel
     const metric = pair.current.metrics[id];
     const movement = pair.previous?.metrics[id] ? metricMovement(metric, pair.previous.metrics[id]) : { value: null };
     // Cost/balance increases alone do not establish improvement. Preserve neutral semantics.
+    const visibleMovement = movement.value !== null && (metric.unit === 'percent' ? Math.abs(movement.value) >= .05 : Math.abs(movement.value) >= .005);
     const performance = ['ebitda', 'ebitda_margin', 'revenue', 'gross_margin'].includes(id);
     return { key: id, label: metricRegistry[id].label, value: financialValue(metric),
       state: metric.value === null ? 'unavailable' : 'ready', emphasis: primary.includes(id) ? 'primary' : 'normal',
       delta: movement.value === null ? null : `${movementValue(movement, metric.unit)} vs previous period`,
-      deltaTone: performance && movement.value ? movement.value > 0 ? 'positive' : 'negative' : 'neutral',
+      deltaTone: performance && visibleMovement ? movement.value > 0 ? 'positive' : 'negative' : 'neutral',
       supportingValue: supporting[id], helper: metric.value === null ? null : `${financialSemantics(metric)} · ${metric.completeness}`,
       helperClassName: 'whitespace-normal leading-relaxed',
       ...(onSelect ? { onClick: () => onSelect(id), active: selectedId === id } : {}),
