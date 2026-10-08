@@ -11,6 +11,7 @@ export default function MetricCard({
   status,
   sparklineData,
   sparklineLabel,
+  sparklinePlacement = "footer",
   delta,
   deltaTone = "neutral",
   supportingValue,
@@ -61,6 +62,8 @@ export default function MetricCard({
   const range = points ? Math.max(...points.map(point => point.value)) - low : 0;
   const path = points?.map((point, index) => `${index ? "L" : "M"}${4 + index / (points.length - 1) * 112},${28 - (range ? (point.value - low) / range : .5) * 24}`).join(" ");
 
+  const sparkline = points ? <svg viewBox="0 0 120 32" className={`${sparklinePlacement === "inline" ? "h-5 w-16 shrink-0" : "h-8 w-full"} text-primary`} role="img" aria-label={sparklineLabel}><title>{points.map(point => `${point.label}: ${point.value}`).join("; ")}</title><path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" /></svg> : null;
+
   return (
     <Component
       className={`card flex w-full flex-col justify-between gap-1.5 text-left transition-colors duration-150 ${sizeClass} ${hoverClass} ${emphasisClass} ${active ? "ring-2 ring-primary/20" : ""} ${!isSummary && resolvedTone === "warning" && resolvedEmphasis === "normal" ? "bg-amber-50/20" : !isSummary && resolvedTone === "danger" && resolvedEmphasis === "normal" ? "bg-rose-50/20" : ""} ${className}`}
@@ -82,12 +85,13 @@ export default function MetricCard({
           ) : null}
           <div className={`${compactVariant || isSummary ? "text-[11px]" : "text-xs"} truncate font-medium ${isSummary ? "tracking-normal" : "uppercase tracking-[0.06em]"} text-text-secondary`}>{label || title}</div>
         </div>
+        {sparklinePlacement === "inline" ? sparkline : null}
         {status ? <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 type-micro font-semibold text-text-secondary">{status}</span> : null}
       </div>
       <div className={`mt-0.5 min-w-0 break-words tracking-tight text-text-primary ${valueBaseClass} ${valueClass}`}>{state === "loading" ? <span className="motion-safe:animate-pulse text-text-muted" aria-label="Loading value">—</span> : state === "unavailable" ? <span aria-label="Evidence not ready">—</span> : value}</div>
       {supportingValue && state === "ready" ? <div className="type-caption text-text-secondary">{supportingValue}</div> : null}
       {delta && state === "ready" ? <div className={`type-caption font-semibold ${deltaColor}`}>{delta}</div> : null}
-      {points ? <svg viewBox="0 0 120 32" className="h-8 w-full text-primary" role="img" aria-label={sparklineLabel}><title>{points.map(point => `${point.label}: ${point.value}`).join("; ")}</title><path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" /></svg> : null}
+      {sparklinePlacement !== "inline" ? sparkline : null}
       {helper || subtitle || (trend && state === "ready") ? <div className="mt-0.5 flex items-center justify-between gap-2 text-xs">
         <span className={`min-w-0 text-text-secondary ${helperClassName || "truncate"}`}>{helper || subtitle}</span>
         {trend && state === "ready" ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
