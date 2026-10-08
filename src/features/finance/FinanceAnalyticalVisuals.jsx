@@ -64,7 +64,7 @@ function ContributionCanvas({ width, movement, pair, selectedId, selectedStage, 
   const left = mobile ? 102 : 56, right = width - 12, top = 28, bottom = height - (mobile ? 68 : 90);
   const scale = amount => mobile ? left + (amount - low) / span * (right - left) : bottom - (amount - low) / span * (bottom - top);
   const column = (right - left) / stages.length;
-  const geometry = useFinanceGeometry(Object.fromEntries(stages.map((stage,index) => [stage.id, mobile ? [scale(stage.from ?? 0), scale(stage.to ?? 0), 38 + index * 59] : [left + column * index + column * .15, scale(stage.from ?? 0), scale(stage.to ?? 0), column * .7]])));
+  const geometry = useFinanceGeometry(Object.fromEntries(stages.map((stage,index) => [stage.id, mobile ? [scale(stage.from ?? 0), scale(stage.to ?? 0), 38 + index * 59] : [left + column * index + column * .23, scale(stage.from ?? 0), scale(stage.to ?? 0), column * .54]])));
   return <>
     {!mobile ? ticks.map(tick => <g key={tick}><path d={`M${left} ${scale(tick)}H${right}`} className="chart-grid"/><text x={left-7} y={scale(tick)+4} textAnchor="end">{values.length ? financeChartMoney(tick) : tick === 0 ? '0' : '—'}</text></g>) : <><path d={`M${scale(0)} 18V366`} className="chart-axis"/><text x={left} y="14">{values.length ? financeChartMoney(low) : '—'}</text><text x={right} y="14" textAnchor="end">{values.length ? financeChartMoney(high) : '—'}</text></>}
     {reconciled ? stages.slice(0,-1).map((stage,index) => {
@@ -77,7 +77,7 @@ function ContributionCanvas({ width, movement, pair, selectedId, selectedStage, 
       const label = stage.id === 'previous' ? 'Explore previous EBITDA' : stage.id === 'current' ? 'Explore EBITDA movement' : `Explore ${metricRegistry[stage.id].label} driver`;
       const value = endpoint ? stage.to : reconciled && stage.included ? stage.contribution : null;
       const description = endpoint ? financialValue({value:stage.to,unit:'money'}) : !stage.included ? 'Outside this EBITDA basis' : value === null ? 'Comparable contribution evidence required' : `${movementValue({value})} · ${value < 0 ? 'Reduces' : 'Supports'} EBITDA · ${financialValue({value:stage.from,unit:'money'})} → ${financialValue({value:stage.to,unit:'money'})}`;
-      const color = endpoint ? 'chart-cash' : stage.contribution < 0 ? 'chart-pressure' : 'chart-support';
+      const color = endpoint ? stage.id === 'previous' ? 'chart-opening' : 'chart-cash' : stage.contribution < 0 ? 'chart-pressure' : 'chart-support';
       const [x,y,z,barWidth] = coordinates;
       return <FinanceMark key={stage.id} label={label} selected={selected} dimmed={Boolean(selectedId) && !selected} onSelect={() => onSelect(stage.metricId, endpoint ? stage.id : 'driver')} tooltip={<FinanceChartTip title={stage.label}>{description}{stage.id === 'previous' ? ' · comparison period' : ''}</FinanceChartTip>}>
         {mobile ? <>

@@ -13,8 +13,8 @@ export default function AdminSparkline({points, label, formatValue = String, cla
       onPointerMove={inspectPointer} onClick={e=>{e.stopPropagation();inspectPointer(e);}} onFocus={()=>setInspected(points.length-1)} onBlur={()=>setInspected(null)}
       onKeyDown={e=>{if(e.key==='Escape'){setInspected(null);return;}if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();e.stopPropagation();setInspected(index=>e.key==='Home'?0:e.key==='End'?points.length-1:Math.max(0,Math.min(points.length-1,(index??points.length-1)+(e.key==='ArrowLeft'?-1:1))));}}}>
       <title>{points.map(point=>`${point.label}: ${formatValue(point.value)}`).join('; ')} · zero-inclusive scale</title>
-      <path d={points.map((point,index)=>`${index?'L':'M'}${geometry[point.label].join(',')}`).join(' ')} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke"/>
-      <circle cx={last[0]} cy={last[1]} r="2" fill="currentColor"/>
+      <path d={points.map((point,index)=>`${index?'L':'M'}${geometry[point.label].join(',')}`).join(' ')} fill="none" stroke="currentColor" strokeWidth="1.8" vectorEffect="non-scaling-stroke"/>
+      <circle cx={last[0]} cy={last[1]} r="2.6" fill="currentColor"/>
       {active?<circle cx={geometry[active.label][0]} cy={geometry[active.label][1]} r="3" fill="white" stroke="currentColor" strokeWidth="1.5"/>:null}
     </svg>
     {active?<span role="tooltip" id={id} className="admin-chart-tooltip"><strong>{active.label}</strong><span>{formatValue(active.value)}</span></span>:null}

@@ -1,5 +1,5 @@
 import './interactive-visuals.css';
-import { AdminChart, AdminChartMark, useAdminChartGeometry } from '../../components/ui/AdminChart.jsx';
+import { AdminChart, AdminChartMark, AdminChartTooltipContent, useAdminChartGeometry } from '../../components/ui/AdminChart.jsx';
 export function FinanceChart(props) { return <AdminChart {...props} className={`finance-chart ${props.className ?? ''}`} />; }
 export function FinanceMark(props) { return <AdminChartMark {...props} className={`finance-chart-mark ${props.className ?? ''}`} />; }
 export const useFinanceGeometry = useAdminChartGeometry;
@@ -20,7 +20,10 @@ export function placeFinanceLabels(points, width, top, bottom, selectedId) {
   return labels;
 }
 
-export function FinanceChartTip({ title, children }) { return <><strong>{title}</strong><span>{children}</span></>; }
+export function FinanceChartTip(props) { return <AdminChartTooltipContent {...props}/>; }
 
 /** Axis/stage shorthand only; precise amounts stay in tooltips and evidence. */
 export function financeChartMoney(value) { return value === null || value === undefined ? '—' : `RM ${new Intl.NumberFormat('en-MY', {notation:'compact',maximumFractionDigits:1}).format(value)}`; }
+
+/** Stable Finance series semantics; shared Admin primitives stay domain-neutral. */
+export const financeChartColors = Object.freeze({revenue:'#00825f',ebitda:'#087fca',cash:'#007f91',ebitda_margin:'#087fca',cogs:'#bd3568',labour:'#efb2c8',opex:'#a8b5c4'});

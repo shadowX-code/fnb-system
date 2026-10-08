@@ -104,3 +104,14 @@ export function adminChartScale(values, intervals = 4) {
 export function AdminChartCrosshair({x, top, bottom}) {
   return Number.isFinite(x) ? <line aria-hidden="true" className="admin-chart-crosshair" x1={x} x2={x} y1={top} y2={bottom}/> : null;
 }
+
+/** Shared exact-value inspection anatomy; domain adapters own values, units and evidence. */
+export function AdminChartTooltipContent({title, rows, note, children}) {
+  return <><strong className="admin-chart-tooltip-title">{title}</strong>{rows?.map(row=><div className="admin-chart-tooltip-row" key={row.label}><span><i aria-hidden="true" style={{background:row.color}}/>{row.label}</span><b>{row.value}</b></div>)}{children?<span>{children}</span>:null}{note?<small className="admin-chart-tooltip-note">{note}</small>:null}</>;
+}
+
+/** Current values sit above their true coordinates; callers manage collisions. */
+export function AdminChartValueLabel({x,y,value,color}) {
+  const width=value.length*6.5+16;
+  return <g aria-hidden="true" pointerEvents="none" className="admin-chart-value-label"><rect x={x-width} y={y-18} width={width} height="23" rx="4" fill={color}/><text x={x-8} y={y-3} textAnchor="end">{value}</text></g>;
+}

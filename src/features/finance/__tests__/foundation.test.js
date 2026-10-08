@@ -47,7 +47,7 @@ describe('Finance evidence boundary', () => {
     expect(entity.metrics.ebitda.value).toBe(106290);
     expect(entity.metrics.prime_cost.value).toBe(247210);
     expect(entity.metrics.cash.provenance.every((source) => source.demo)).toBe(true);
-    expect(entity.metrics.revenue.comparison.value).toBe(419250);
+    expect(entity.metrics.revenue.comparison.value).toBe(434300);
     expect(entity.metrics.working_capital.value).toBe(276860);
     const group = await provider.readOverview({ ...request, scope: { kind: 'group', id: 'demo-group' } });
     expect(group.metrics.revenue.value).toBe(562000);

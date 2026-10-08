@@ -50,7 +50,7 @@ it('preserves selected period/outlet when opening Analysis and separates simulat
  const live=render(<Probe demo={false}/>);expect(screen.getByText('none')).toBeTruthy();live.unmount();render(<Probe demo/>);expect(screen.getByText('2026-10:demo-pj')).toBeTruthy();
 });
 
-it('keeps first/latest month labels apart in a narrow chart and omits immaterial ratio sparklines',async()=>{
+it('keeps first/latest month labels apart in a narrow chart and retains dated ratio sparklines when history varies',async()=>{
  const dataset=await read();const resize=[];
  vi.stubGlobal('ResizeObserver',class{constructor(callback){resize.push(callback);}observe(){}disconnect(){}});
  const {act}=await import('@testing-library/react');
@@ -59,7 +59,7 @@ it('keeps first/latest month labels apart in a narrow chart and omits immaterial
  const trend=screen.getByRole('group',{name:'Monthly Revenue and EBITDA history'});
  const labels=[...trend.querySelectorAll('text')].map(node=>node.textContent).filter(text=>/^(May|Jun|Jul|Aug|Sept|Oct) 26$/.test(text));
  expect(labels).toEqual(['May 26','Jul 26','Oct 26']);
- expect(screen.queryByRole('img',{name:'Gross Margin monthly evidence'})).toBeNull();
+ expect(screen.getByRole('img',{name:'Gross Margin monthly evidence'})).toBeTruthy();
  expect(screen.getByRole('img',{name:'Cash monthly evidence'})).toBeTruthy();
 });
 
@@ -67,8 +67,23 @@ it('inspects full month bands with exact shared tooltips and keeps observations 
  const dataset=await read();render(<FinanceOverview dataset={dataset}/>);
  const trend=screen.getByRole('group',{name:'Monthly Revenue and EBITDA history'}), october=within(trend).getByRole('button',{name:'October 2026 Revenue and EBITDA'});
  fireEvent.pointerEnter(october,{pointerType:'mouse'});expect(screen.getByRole('tooltip').textContent).toContain('576,050.00');expect(trend.querySelector('.admin-chart-crosshair')).toBeTruthy();
- fireEvent.click(october);expect(october.getAttribute('aria-pressed')).toBe('true');expect(trend.querySelector('.admin-chart-series').getAttribute('opacity')).toBe('0.5');
+ fireEvent.click(october);expect(october.getAttribute('aria-pressed')).toBe('true');expect(trend.querySelector('.admin-chart-series').getAttribute('opacity')).toBe('0.75');
  fireEvent.click(within(screen.getByRole('tablist',{name:'Performance history'})).getByRole('tab',{name:'12M'}));
  expect(within(trend).getByRole('button',{name:'October 2026 Revenue and EBITDA'})).toBe(october);
  expect(screen.queryByRole('tooltip')).toBeNull();
+});
+
+it('keeps simulated seasonal history reconciled and varied across the year boundary',async()=>{
+ const dataset=await read(), rows=overviewHistory(dataset,12);
+ expect(rows).toHaveLength(12);
+ expect(new Set(rows.map(row=>row.ebitda_margin.toFixed(1))).size).toBeGreaterThan(4);
+ expect(rows.some((row,index)=>index>0 && row.cash<rows[index-1].cash)).toBe(true);
+ for(const row of rows){
+  expect(profitConversion({...row.dataset,profitDriverModel:dataset.profitDriverModel}).complete).toBe(true);
+  const m=row.dataset.metrics;
+  expect(m.revenue.value-m.cogs.value-m.labour.value-m.opex.value).toBe(m.ebitda.value);
+  expect(m.cash.provenance.every(source=>source.demo)).toBe(true);
+ }
+ expect(rows.at(-2).revenue).toBe(562000);expect(rows.at(-1).ebitda).toBe(153617);
+ expect(rows.find(row=>row.period.start==='2026-01-01').revenue/rows.find(row=>row.period.start==='2025-12-01').revenue).toBeGreaterThan(.75);
 });

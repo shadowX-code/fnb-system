@@ -26,8 +26,19 @@ export function createFixtureProvider({ development = false } = {}) {
       validatePeriod(request.period);
       if (request.currency !== 'MYR' || !fixtureScopes.some((scope) => scope.id === request.scope.id && scope.kind === request.scope.kind)) throw new Error('Unknown financial demo scope');
       const selected = rows.filter((row) => request.scope.kind === 'group' || (request.scope.kind === 'legal_entity' && row.entity === request.scope.id) || (request.scope.kind === 'outlet' && row.outlet === request.scope.id) || (request.scope.kind === 'dimension' && row.dimension === request.scope.id));
-      const factor = 1 + (Number(request.period.start.slice(5, 7)) - 9) * 0.025;
-      const values = Object.fromEntries(['revenue', 'cogs', 'labour', 'opex', 'cash', 'ap', 'ar'].map((id) => [id, Math.round(selected.reduce((sum, row) => sum + row[id], 0) * factor)]));
+      // DEV-only seasonal history. Independent input profiles exercise real margin/cash variation;
+      // derived amounts still come exclusively from the metric registry below.
+      const month = Number(request.period.start.slice(5, 7)) - 1;
+      const profiles = {
+        revenue: [.88,.84,.93,.90,.96,1.02,.95,1.01,1,1.025,1.06,1.12],
+        cogs: [.91,.88,.95,.94,.98,1.01,.99,1.03,1,1.025,1.045,1.09],
+        labour: [.95,.94,.98,.97,1,1.02,1.01,1.015,1,1.025,1.035,1.06],
+        opex: [.97,1.02,.96,1.01,.98,1.04,1.02,1.01,1,1.025,1.04,1.07],
+        cash: [.79,.75,.86,.82,.88,.91,.85,.96,1,1.025,1.04,1.10],
+      };
+      const yearFactor = 1.04 ** (Number(request.period.start.slice(0, 4)) - 2026);
+      const values = Object.fromEntries(['revenue', 'cogs', 'labour', 'opex', 'cash', 'ap', 'ar'].map(id =>
+        [id, Math.round(selected.reduce((sum, row) => sum + row[id], 0) * (profiles[id] ?? profiles.revenue)[month] * yearFactor)]));
       Object.assign(values, calculateDemoMetrics(values), calculateDemoCashInputs(values));
       const provenance = selected.map((row) => ({ identity: { providerId: 'development_fixture', connectionId: `demo-${row.entity}`, externalId: `${row.outlet ?? row.dimension}:${request.period.start}`, revision: '1' }, semantic: 'ACTUAL', demo: true, observedAt: '2026-10-01T02:00:00Z', evidenceAt: `${request.period.end}T23:59:59Z` }));
       const derived = ['cogs_percent', 'gross_profit', 'prime_cost', 'ebitda', 'gross_margin', 'labour_percent', 'prime_cost_percent', 'opex_percent', 'ebitda_margin'];

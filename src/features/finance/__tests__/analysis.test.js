@@ -12,10 +12,10 @@ it('reads arbitrary prior months and original canonical metrics through the deve
   const provider = createFixtureProvider({ development: true });
   const result = await readFinanceAnalysis(provider, request, { comparisonPeriod, outlets: demoOutlets, allowDemo: true });
   expect(result.current.metrics.revenue.value).toBe(562000);
-  expect(result.previous.metrics.revenue.value).toBe(547950);
+  expect(result.previous.metrics.revenue.value).toBe(567620);
   expect(result.outlets).toHaveLength(2);
   expect(result.outlets[0].history.map((entry) => entry.period.start)).toEqual(['2026-07-01', '2026-08-01', '2026-09-01']);
-  expect(result.outlets[0].position.zone).toBe('Growing & profitable');
+  expect(result.outlets[0].position.zone).toBe('Profitable but slowing');
   const movement = profitMovement(result, result.profitDriverModel);
   expect(movement.attributable).toBe(true);
   expect(movement.rows.reduce((sum, row) => sum + row.contribution, 0)).toBeCloseTo(movement.total.value);
