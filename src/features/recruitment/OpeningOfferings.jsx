@@ -83,6 +83,7 @@ export function JobContextFields({
   onChange,
   description,
   onDescription,
+  children,
 }) {
   const set = (key, v) => {
     const next = { ...value };
@@ -151,14 +152,7 @@ export function JobContextFields({
           onChange={(v) => set("operating_end", v)}
         />
       </div>
-      <details className="recruitment-config-details">
-        <summary>Additional Job Information</summary>
-        <Field
-          label="Additional confirmed facts"
-          value={value.shared_facts}
-          onChange={(v) => set("shared_facts", v)}
-        />
-      </details>
+      {children}
     </fieldset>
   );
 }

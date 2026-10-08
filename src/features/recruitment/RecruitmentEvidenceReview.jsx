@@ -1,3 +1,4 @@
+import AdminSegmentedControl from "../../components/forms/AdminSegmentedControl.jsx";
 import { useEffect, useRef, useState } from "react";
 import AdminSummaryGrid from "../../components/ui/AdminSummaryGrid.jsx";
 import { AudioLines, ListChecks, ClipboardCheck, Video } from "lucide-react";
@@ -76,6 +77,7 @@ export default function RecruitmentEvidenceReview({
   onClose,
   onChanged,
 }) {
+  const [section, setSection] = useState("overview");
   const [data, setData] = useState(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -153,6 +155,7 @@ export default function RecruitmentEvidenceReview({
     });
   }
   function showTurn(id) {
+    setSection("evidence");
     if (transcriptSection.current) transcriptSection.current.open = true;
     setFocusTurn(id);
     requestAnimationFrame(() => {
@@ -161,12 +164,13 @@ export default function RecruitmentEvidenceReview({
     });
   }
   function showRecording(ref) {
+    setSection("evidence");
     if (recordingSection.current) recordingSection.current.open = true;
-    const video = videoRefs.current[ref.unit_id];
+    requestAnimationFrame(() => { const video = videoRefs.current[ref.unit_id];
     if (video) {
       video.scrollIntoView({ behavior: "smooth", block: "center" });
       video.currentTime = ref.offset_seconds;
-    }
+    }});
   }
 
   async function saveDecision() {
@@ -222,7 +226,8 @@ export default function RecruitmentEvidenceReview({
             <button
               className="btn-primary"
               onClick={() => {
-                decisionSection.current?.scrollIntoView({ block: "start" });
+                setSection("decision");
+                requestAnimationFrame(() => decisionSection.current?.scrollIntoView({ block: "start" }));
                 decisionSection.current?.focus({ preventScroll: true });
               }}
             >
@@ -241,29 +246,10 @@ export default function RecruitmentEvidenceReview({
         <p>Loading application…</p>
       ) : (
         <div className="recruitment-review-content">
-          <nav
-            className="recruitment-review-nav"
-            aria-label="Application review sections"
-          >
-            {[
-              ["review-overview", "Overview"],
-              ["opening-requirements-heading", "Requirements"],
-              ["interview-evidence-heading", "Evidence"],
-              ["review-original", "Interview"],
-              ["review-decision", "Decision"],
-            ].map(([id, text]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  const target = document.getElementById(id);
-                  target?.scrollIntoView({ block: "start" });
-                  target?.focus({ preventScroll: true });
-                }}
-              >
-                {text}
-              </button>
-            ))}
+          <nav className="recruitment-review-sections" aria-label="Application review sections">
+            <AdminSegmentedControl value={section} onChange={setSection} label="Application review" options={[
+              {value:"overview",label:"Overview"}, {value:"assessment",label:"Assessment"}, {value:"fit",label:"Job Fit"}, {value:"evidence",label:"Interview Evidence"}, {value:"decision",label:"Decision"}
+            ]} />
           </nav>
           <div className="recruitment-review-main">
             <header
@@ -414,7 +400,7 @@ export default function RecruitmentEvidenceReview({
                 is still required. Synthetic QA only.
               </p>
             )}
-            <section id="review-summary" tabIndex={-1}>
+            <section hidden={section!=="overview"} id="review-summary" tabIndex={-1}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-semibold">AI Interview Summary</h3>
                 {data.reports.length > 1 && (
@@ -530,7 +516,27 @@ export default function RecruitmentEvidenceReview({
                 </details>
               )}
             </section>
+            {section==="overview" && <section className="space-y-3" aria-label="Assessment and constraints">
+              {report?.body?.assessments?.length>0 && <><h3 className="font-semibold">Assessment overview</h3><div className="divide-y divide-border">{report.body.assessments.map(a=><div key={a.index} className="flex items-start justify-between gap-3 py-2 text-sm"><span><strong>{a.area}</strong><span className="mt-1 block text-text-secondary">{a.finding.text}</span></span><span className="shrink-0 font-medium">{a.status==="assessed"?`Level ${a.level} / 4`:"Insufficient Evidence"}</span></div>)}</div><button className="btn-secondary" onClick={()=>setSection("assessment")}>Inspect criteria & evidence</button></>}
+              {report?.body?.opening_requirements?.some(r=>r.state==="does_not_meet") && <><h3 className="font-semibold">Established constraints</h3>{report.body.opening_requirements.filter(r=>r.state==="does_not_meet").map(r=><p key={r.key} className="text-sm text-text-secondary">{r.finding.text}</p>)}<button className="text-sm text-primary underline" onClick={()=>setSection("fit")}>Inspect job fit & sources</button></>}
+            </section>}
+            <section hidden={section!=="assessment"} aria-label="Rubric assessment">
+              <h3 className="font-semibold">Job-related Assessment</h3>
+              <p className="mt-1 text-sm text-text-secondary">Demonstrated behavior against the pinned profile’s criteria. Coverage describes understanding, not assessment level. Missing evidence is unscored.</p>
+              {!(source?.assessment_plan || data.interview_profile?.definition?.evidence_areas?.some(a=>a.rubric)) && <p className="my-3 text-sm text-text-secondary">No rubric was published for this interview’s profile version. Historical evidence has not been scored.</p>}
+              <div className="divide-y divide-border">{areas.map(area=>{
+                const assessment = report?.status==="ready" ? report.body.assessments?.find(a=>a.index===area.topic_index) : null;
+                const rubric = source?.assessment_plan?.areas.find(a=>a.index===area.topic_index)?.rubric || data.interview_profile?.definition?.evidence_areas?.[area.topic_index]?.rubric;
+                return <div key={area.topic_index} className="py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-semibold">{area.topic}</h4><span className="text-sm font-medium">{assessment?.status==="assessed"?`Level ${assessment.level} / 4`:assessment?"Insufficient Evidence":rubric?"Awaiting assessment":"No rubric in this version"}</span></div>
+                  {assessment && <><p className="mt-1 text-sm text-text-secondary">{assessment.finding.text}</p>{assessment.criterion && <p className="mt-2 text-sm">Criterion: {assessment.criterion}</p>}<details className="mt-2 text-sm"><summary>Supporting evidence · {assessment.finding.evidence.length}</summary><Finding finding={assessment.finding} showTurn={showTurn} showRecording={showRecording}/></details></>}
+                  {rubric && <details className="mt-2 text-sm"><summary>Role-specific rubric</summary><ol className="mt-2 space-y-2">{rubric.levels.map(l=><li key={l.level}><strong>Level {l.level}</strong> · {l.criteria}</li>)}</ol></details>}
+                </div>;
+              })}</div>
+              <p className="mt-3 text-xs text-text-muted">AI-assisted assessment requires human review. No overall score or hiring recommendation.</p>
+            </section>
             <section
+              hidden={section!=="fit"}
               id="review-requirements"
               tabIndex={-1}
               aria-labelledby="opening-requirements-heading"
@@ -593,7 +599,7 @@ export default function RecruitmentEvidenceReview({
                 })}
               </div>
             </section>
-            <section aria-labelledby="interview-evidence-heading">
+            <section hidden={section!=="evidence"} aria-labelledby="interview-evidence-heading">
               <h3
                 tabIndex={-1}
                 id="interview-evidence-heading"
@@ -736,7 +742,7 @@ export default function RecruitmentEvidenceReview({
                   </details>
                 ))}
             </section>
-            <section id="review-followup" tabIndex={-1}>
+            <section hidden={section!=="overview"} id="review-followup" tabIndex={-1}>
               <h3 className="text-base font-semibold">
                 Unresolved / Follow-up
               </h3>
@@ -777,7 +783,7 @@ export default function RecruitmentEvidenceReview({
                 </p>
               )}
             </section>
-            <section className="border-t border-border pt-5">
+            <div hidden={section!=="evidence"}><section className="border-t border-border pt-5">
               <h3
                 id="review-original"
                 tabIndex={-1}
@@ -907,7 +913,9 @@ export default function RecruitmentEvidenceReview({
                 ))}
               </ol>
             </details>
+            </div>
             <section
+              hidden={section!=="decision"}
               id="review-decision"
               ref={decisionSection}
               tabIndex={-1}

@@ -1222,3 +1222,9 @@
     gap: 8px;
   }
 }
+
+/* Review uses the shared compact tab grammar; one focused panel at a time. */
+.recruitment-review-content { display: block; }
+.recruitment-review-sections { position: sticky; top: 0; z-index: 1; padding: 0.5rem 1.25rem; background: var(--theme-surface-raised); border-bottom: 1px solid var(--theme-border); }
+.recruitment-review-main [hidden] { display: none; }
+.recruitment-config-layout fieldset fieldset { padding: 1rem 0 0; border: 0; border-top: 1px solid var(--theme-border); border-radius: 0; background: transparent; }

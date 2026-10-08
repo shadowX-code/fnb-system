@@ -456,7 +456,7 @@ it("creates a job in a workspace with explicit draft/open actions through the ex
   fireEvent.click(screen.getByRole("button", { name: "Create Job" }));
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.getByRole("heading", { name: "Create Job" })).toBeTruthy();
-  expect(screen.getByText("Job / Workplace Information")).toBeTruthy();
+  expect(screen.getByText("Job Information & Requirements")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Save draft" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Open job" })).toBeTruthy();
   fireEvent.change(screen.getByLabelText(/Job-facing title/), {
