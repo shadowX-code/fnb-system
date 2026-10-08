@@ -6,7 +6,7 @@ import {createFixtureProvider,fixtureScopes} from '../providers/fixtureProvider.
 import {monthlyPeriod} from '../foundation.js';
 import {overviewHistory,profitConversion} from '../overviewDashboard.js';
 import {useOverviewAnalysisIntent} from '../overviewNavigation.js';
-afterEach(cleanup);
+afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 const request={scope:{kind:'group',id:'demo-group'},period:monthlyPeriod('2026-10'),currency:'MYR'};
 const outlets=fixtureScopes.filter(row=>row.kind==='outlet').map(row=>({id:row.id,name:row.label,legalEntityId:row.legalEntityId}));
 const read=()=>readFinanceOverview(createFixtureProvider({development:true}),request,{allowDemo:true,outlets});
@@ -48,4 +48,17 @@ it('preserves selected period/outlet when opening Analysis and separates simulat
  fireEvent.keyDown(screen.getByRole('button',{name:'Select Demo · Petaling Jaya outlet'}),{key:'Enter'});fireEvent.click(screen.getByRole('button',{name:'Open Analysis'}));expect(window.location.pathname).toBe('/finance/analysis');cleanup();
  function Probe({demo}){const intent=useOverviewAnalysisIntent(demo);return <p>{intent?`${intent.month}:${intent.scope.id}`:'none'}</p>;}
  const live=render(<Probe demo={false}/>);expect(screen.getByText('none')).toBeTruthy();live.unmount();render(<Probe demo/>);expect(screen.getByText('2026-10:demo-pj')).toBeTruthy();
+});
+
+it('keeps first/latest month labels apart in a narrow chart and omits immaterial ratio sparklines',async()=>{
+ const dataset=await read();const resize=[];
+ vi.stubGlobal('ResizeObserver',class{constructor(callback){resize.push(callback);}observe(){}disconnect(){}});
+ const {act}=await import('@testing-library/react');
+ render(<FinanceOverview dataset={dataset}/>);
+ act(()=>resize.forEach(callback=>callback([{contentRect:{width:272}}])));
+ const trend=screen.getByRole('group',{name:'Monthly Revenue and EBITDA history'});
+ const labels=[...trend.querySelectorAll('text')].map(node=>node.textContent).filter(text=>/^(May|Jun|Jul|Aug|Sept|Oct) 26$/.test(text));
+ expect(labels).toEqual(['May 26','Jul 26','Oct 26']);
+ expect(screen.queryByRole('img',{name:'Gross Margin monthly evidence'})).toBeNull();
+ expect(screen.getByRole('img',{name:'Cash monthly evidence'})).toBeTruthy();
 });
