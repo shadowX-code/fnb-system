@@ -14,19 +14,28 @@ export function AdminChart({ label, height = 300, children, className = '', data
     return () => observer.disconnect();
   }, []);
   useEffect(() => setTip(null), [dataKey, width]);
+  useEffect(() => {
+    const focus = event => { if (!ref.current?.contains(event.target)) setTip(null); };
+    document.addEventListener('focusin', focus);
+    return () => document.removeEventListener('focusin', focus);
+  }, []);
   useLayoutEffect(() => {
     if (!tip || !tooltipRef.current) return;
     const height = tooltipRef.current.getBoundingClientRect().height;
     const y = tip.above >= height + 8 ? tip.above - height - 8 : tip.below + 8;
     if (tip.y !== y) setTip(current => ({...current, y}));
   }, [tip?.content, tip?.above, tip?.below]);
-  const show = (element, content, owner, anchor) => {
+  const show = (element, content, owner, anchor, interaction) => {
+    // Layout/scroll can put another mark beneath a stationary pointer. Keyboard inspection keeps authority.
+    const focused = document.activeElement;
+    if (interaction === 'pointer' && focused !== element && focused?.matches('[data-admin-chart-mark],[data-admin-chart-inspection]')) return false;
     const host = ref.current.getBoundingClientRect();
     const svg = element.ownerSVGElement, scale = host.width / Number(svg?.getAttribute('viewBox')?.split(' ')[2] || host.width || 1);
     const mark = anchor ? {left:host.left+anchor.x*scale,top:host.top+anchor.y*scale,bottom:host.top+anchor.y*scale,width:0} : element.getBoundingClientRect();
     setTip({ content, owner, above: mark.top - host.top, below: mark.bottom - host.top, x: Math.max(8, Math.min(host.width - 232, mark.left - host.left + mark.width / 2 - 108)), y: Math.max(4, mark.top - host.top - 78) });
+    return true;
   };
-  return <ChartContext.Provider value={{ show, hide: () => setTip(null), tooltipId, owner: tip?.owner }}><div ref={ref} className={`admin-chart ${className}`} onKeyDown={e => { if (e.key === 'Escape') setTip(null); }}>
+  return <ChartContext.Provider value={{ show, hide: owner => setTip(current => !owner || current?.owner === owner ? null : current), tooltipId, owner: tip?.owner }}><div ref={ref} className={`admin-chart ${className}`} onKeyDown={e => { if (e.key === 'Escape') setTip(null); }}>
     <svg viewBox={`0 0 ${width} ${typeof height === 'function' ? height(width) : height}`} role="group" aria-label={label}>{children(width, height)}</svg>
     {tip ? <div ref={tooltipRef} id={tooltipId} role="tooltip" className="admin-chart-tooltip" style={{ left: tip.x, top: tip.y }}>{tip.content}</div> : null}
   </div></ChartContext.Provider>;
@@ -37,8 +46,8 @@ export function AdminChartMark({ label, tooltip, selected, dimmed, onSelect, onI
   const chart = useContext(ChartContext), owner = useId();
   return <g {...geometry} data-admin-chart-mark="true" role="button" tabIndex={0} aria-label={label} aria-pressed={Boolean(selected)} aria-describedby={chart.owner === owner ? chart.tooltipId : undefined}
     className={`admin-chart-mark ${selected ? 'is-selected' : ''} ${dimmed ? 'is-receded' : ''} ${className}`}
-    onPointerEnter={e => { chart.show(e.currentTarget, tooltip, owner, tooltipAnchor); onInspect?.(true); }} onPointerLeave={e => { if (e.pointerType !== 'touch') { chart.hide(); onInspect?.(false); } }}
-    onFocus={e => { chart.show(e.currentTarget, tooltip, owner, tooltipAnchor); onInspect?.(true); }} onBlur={() => { chart.hide(); onInspect?.(false); }}
+    onPointerEnter={e => { if (chart.show(e.currentTarget, tooltip, owner, tooltipAnchor, 'pointer')) onInspect?.(true); }} onPointerLeave={e => { if (e.pointerType !== 'touch' && document.activeElement !== e.currentTarget && chart.owner === owner) { chart.hide(owner); onInspect?.(false); } }}
+    onFocus={e => { chart.show(e.currentTarget, tooltip, owner, tooltipAnchor); onInspect?.(true); }} onBlur={() => { chart.hide(owner); onInspect?.(false); }}
     onClick={e => { onSelect(); chart.show(e.currentTarget, tooltip, owner, tooltipAnchor); }}
     onKeyDown={e => {
       if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key)) {

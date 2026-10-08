@@ -7,9 +7,9 @@ export default function AdminSparkline({points, label, formatValue = String, cla
   const min=Math.min(0,...points.map(point=>point.value)), max=Math.max(0,...points.map(point=>point.value));
   const geometry=useAdminChartGeometry(Object.fromEntries(points.map((point,index)=>[point.label,[4+index/(points.length-1)*112,28-(point.value-min)/(max-min||1)*24]])));
   const active=points[inspected], last=geometry[points.at(-1).label];
-  const inspectPointer=e=>{const box=e.currentTarget.getBoundingClientRect();setInspected(Math.max(0,Math.min(points.length-1,Math.round(((e.clientX-box.left)/box.width*120-4)/112*(points.length-1)))));};
+  const inspectPointer=e=>{if(document.activeElement!==e.currentTarget && document.activeElement?.matches('[data-admin-chart-mark],[data-admin-chart-inspection]'))return;const box=e.currentTarget.getBoundingClientRect();setInspected(Math.max(0,Math.min(points.length-1,Math.round(((e.clientX-box.left)/box.width*120-4)/112*(points.length-1)))));};
   return <span className={`admin-chart-sparkline ${className}`} onPointerLeave={()=>setInspected(null)}>
-    <svg viewBox="0 0 120 32" role="img" tabIndex={0} aria-label={label} aria-describedby={active?id:undefined}
+    <svg data-admin-chart-inspection="true" viewBox="0 0 120 32" role="img" tabIndex={0} aria-label={label} aria-describedby={active?id:undefined}
       onPointerMove={inspectPointer} onClick={e=>{e.stopPropagation();inspectPointer(e);}} onFocus={()=>setInspected(points.length-1)} onBlur={()=>setInspected(null)}
       onKeyDown={e=>{if(e.key==='Escape'){setInspected(null);return;}if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();e.stopPropagation();setInspected(index=>e.key==='Home'?0:e.key==='End'?points.length-1:Math.max(0,Math.min(points.length-1,(index??points.length-1)+(e.key==='ArrowLeft'?-1:1))));}}}>
       <title>{points.map(point=>`${point.label}: ${formatValue(point.value)}`).join('; ')} · zero-inclusive scale</title>

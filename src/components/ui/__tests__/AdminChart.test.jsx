@@ -11,7 +11,7 @@ it('uses zero-inclusive readable scales for positive, negative, constant and tin
 });
 it('navigates canonical marks with arrows and selects through the same keyboard/touch callback',()=>{
  const select=vi.fn();render(<AdminChart label="Evidence">{()=>['May','June'].map(label=><AdminChartMark key={label} label={label} tooltip={<span>{label} exact 123.45</span>} onSelect={()=>select(label)}><rect width="44" height="44"/></AdminChartMark>)}</AdminChart>);
- const may=screen.getByRole('button',{name:'May'}),june=screen.getByRole('button',{name:'June'});act(()=>may.focus());fireEvent.keyDown(may,{key:'ArrowRight'});expect(document.activeElement).toBe(june);expect(screen.getByRole('tooltip').textContent).toContain('June exact');fireEvent.keyDown(june,{key:'Enter'});expect(select).toHaveBeenLastCalledWith('June');fireEvent.click(may);expect(select).toHaveBeenLastCalledWith('May');fireEvent.keyDown(may,{key:'Escape'});expect(screen.queryByRole('tooltip')).toBeNull();
+ const may=screen.getByRole('button',{name:'May'}),june=screen.getByRole('button',{name:'June'});act(()=>may.focus());fireEvent.keyDown(may,{key:'ArrowRight'});expect(document.activeElement).toBe(june);expect(screen.getByRole('tooltip').textContent).toContain('June exact');fireEvent.pointerEnter(may,{pointerType:'mouse'});expect(screen.getByRole('tooltip').textContent).toContain('June exact');fireEvent.pointerLeave(may,{pointerType:'mouse'});expect(screen.getByRole('tooltip').textContent).toContain('June exact');fireEvent.keyDown(june,{key:'Enter'});expect(select).toHaveBeenLastCalledWith('June');fireEvent.click(may);expect(select).toHaveBeenLastCalledWith('May');fireEvent.keyDown(may,{key:'Escape'});expect(screen.queryByRole('tooltip')).toBeNull();
 });
 it('does not schedule motion for unchanged geometry or reduced-motion evidence updates',()=>{
  const raf=vi.fn();vi.stubGlobal('requestAnimationFrame',raf);vi.stubGlobal('cancelAnimationFrame',vi.fn());vi.stubGlobal('matchMedia',()=>({matches:true}));
@@ -21,4 +21,11 @@ it('does not schedule motion for unchanged geometry or reduced-motion evidence u
 it('retains zero-inclusive spark geometry and exposes exact dated values through focus and arrows',()=>{
  render(<MetricCard label="Cash" value="RM 100" sparklineLabel="Cash history" sparklineFormatValue={value=>`RM ${value.toFixed(2)}`} sparklineData={[{label:'Sep',value:99},{label:'Oct',value:100}]}/>);
  const spark=screen.getByRole('img',{name:'Cash history'});expect(spark.querySelector('path').getAttribute('d')).toContain('4,4.24');fireEvent.focus(spark);expect(screen.getByRole('tooltip').textContent).toContain('OctRM 100.00');fireEvent.keyDown(spark,{key:'ArrowLeft'});expect(screen.getByRole('tooltip').textContent).toContain('SepRM 99.00');fireEvent.keyDown(spark,{key:'Escape'});expect(screen.queryByRole('tooltip')).toBeNull();
+});
+it('keeps keyboard inspection authoritative across chart surfaces and clears prior hover tips',()=>{
+ render(<><AdminChart label="First">{()=> <AdminChartMark label="First mark" tooltip="First exact value" onSelect={()=>{}}><rect width="44" height="44"/></AdminChartMark>}</AdminChart><AdminChart label="Second">{()=> <AdminChartMark label="Second mark" tooltip="Second exact value" onSelect={()=>{}}><rect width="44" height="44"/></AdminChartMark>}</AdminChart></>);
+ const first=screen.getByRole('button',{name:'First mark'}),second=screen.getByRole('button',{name:'Second mark'});
+ fireEvent.pointerEnter(first,{pointerType:'mouse'});expect(screen.getByRole('tooltip').textContent).toBe('First exact value');
+ act(()=>second.focus());expect(screen.getAllByRole('tooltip')).toHaveLength(1);expect(screen.getByRole('tooltip').textContent).toBe('Second exact value');
+ fireEvent.pointerEnter(first,{pointerType:'mouse'});fireEvent.pointerLeave(first,{pointerType:'mouse'});expect(screen.getByRole('tooltip').textContent).toBe('Second exact value');
 });
