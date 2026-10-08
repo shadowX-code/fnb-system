@@ -31,9 +31,9 @@
 .finance-presentation .finance-workspace .finance-profit-structure .finance-chart-ledger { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px 12px; margin:8px 0; }
 .finance-presentation .finance-workspace .finance-profit-structure .finance-chart-ledger li { display:block; padding:0; border:0; }
 .finance-workspace .finance-chart-mark.is-receded { opacity:1; }
-.finance-workspace .finance-chart-mark.is-receded :is(rect,circle,path):not([fill=transparent]):not(.chart-focus) { opacity:.28; }
+.finance-workspace .finance-chart-mark.is-receded :is(rect,circle,path):not([fill=transparent]):not(.chart-focus):not(.chart-inspection-band) { opacity:.28; }
 .finance-workspace .finance-chart-mark.is-receded text { fill:var(--finance-ink,#173442)!important; }
-.finance-workspace .finance-chart-mark.is-receded:is(:hover,:focus-visible) :is(rect,circle,path):not([fill=transparent]) { opacity:1; }
+.finance-workspace .finance-chart-mark.is-receded:is(:hover,:focus-visible) :is(rect,circle,path):not([fill=transparent]):not(.chart-focus):not(.chart-inspection-band) { opacity:1; }
 
 .finance-workspace .finance-chart-mark.is-partitioned.is-receded:is(:hover,:focus-visible) text { fill:white!important; }
 
