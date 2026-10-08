@@ -18,8 +18,8 @@ it('retains muted analytical structures without fabricating points, bars or proj
   view.unmount();view=render(<FinanceAnalysis analysis={pair}/>);
   expect(screen.getByRole('group',{name:'Driver Contribution'}).querySelectorAll('[role=button]')).toHaveLength(6);
   expect(screen.getByRole('group',{name:'Driver Contribution'}).querySelectorAll('.chart-support, .chart-pressure, .chart-cash')).toHaveLength(0);
-  fireEvent.click(screen.getByRole('tab',{name:'Outlets'}));
-  expect(screen.queryByRole('group',{name:'Driver Contribution'})).toBeNull();
+  expect(screen.getByRole('group',{name:'Driver Contribution'})).toBeTruthy();
+  expect(screen.getByRole('group',{name:'Monthly EBITDA Margin history'})).toBeTruthy();
   expect(screen.getByRole('group',{name:'Outlet revenue growth and EBITDA margin field'})).toBeTruthy();
   expect(document.querySelectorAll('.finance-field-point')).toHaveLength(0);
   view.unmount();view=render(<FinanceCosts analysis={pair}/>);

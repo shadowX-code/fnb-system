@@ -102,12 +102,11 @@ it('uses a bounded geometry transition without delaying selection or retaining r
 });
 it('returns preserved outlet context to the scope when the next read has no evidence for that outlet',async()=>{
   const analysis=await fixture(), view=render(<FinanceAnalysis analysis={analysis}/>);
-  fireEvent.click(screen.getByRole('tab',{name:'Outlets'}));
   fireEvent.click(screen.getByRole('button',{name:/^Demo KL: revenue growth/}));
   expect(screen.getByRole('region',{name:'Selected outlet performance'})).toBeTruthy();
   view.rerender(<FinanceAnalysis analysis={{...analysis,outlets:[]}}/>);
   expect(screen.queryByRole('region',{name:'Selected outlet performance'})).toBeNull();
-  expect(screen.getByRole('region',{name:'Selected scope performance'})).toBeTruthy();
+  expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
 });
 
 it('formats rounded share movement neutrally without losing precise evidence',()=>{

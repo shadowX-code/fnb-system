@@ -7,6 +7,7 @@ import { analysisPair, shiftMonth } from './analysis.js';
 import { FinanceReadiness } from './FinanceVisualSystem.jsx';
 import { metricMovement } from './metrics.js';
 import { financialPeriod, movementValue } from './presentation.js';
+import FinanceAnalysisSurface from './FinanceAnalysisSurface.jsx';
 import AnalysisContext from './AnalysisContext.jsx';
 
 /** Selected toolbar scope, validated monthly metrics, and the existing margin definition. */
@@ -28,17 +29,13 @@ export default function FinanceProfitability({ analysis }) {
     return [{label:`vs ${financialPeriod(preceding.period)}`,value:movementValue(movement,'percent')}];
   };
   const select = period => { setSelected(period); setMetricId('ebitda_margin'); setAction('Explain'); };
-  return <>
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="type-body-sm text-text-secondary">Monthly EBITDA margin · selected scope. Select a month to investigate its preceding-month comparison.</p>
-      <AdminSegmentedControl label="Profitability history" value={range} onChange={value => { setRange(value); if (!rows.slice(-6).some(entry => entry.period.start === selected) && value === '6M') setSelected(null); }} options={['6M','12M'].map(value => ({value,label:value}))}/>
-    </div>
+  return <FinanceAnalysisSurface label="Profitability Trend" subtitle="Monthly EBITDA margin · selected scope" actions={<AdminSegmentedControl label="Profitability history" value={range} onChange={value => { setRange(value); if (!rows.slice(-6).some(entry => entry.period.start === selected) && value === '6M') setSelected(null); }} options={['6M','12M'].map(value => ({value,label:value}))}/>}>
     <div className="flex items-center gap-2 type-caption text-text-secondary"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{background:financeChartColors.ebitda_margin}}/>EBITDA Margin (%)</div>
-    <FinanceChart label="Monthly EBITDA Margin history" height={246} dataKey={`${analysis.current.period.start}:${analysis.current.scope.id}:${range}`}>
-      {width => <FinanceMonthlyTrendCanvas width={width} rows={rows} ids={['ebitda_margin']} percent selected={selected} onSelect={select} tooltipRows={tooltipRows}/>}
+    <FinanceChart label="Monthly EBITDA Margin history" height={344} dataKey={`${analysis.current.period.start}:${analysis.current.scope.id}:${range}`}>
+      {width => <FinanceMonthlyTrendCanvas width={width} height={344} rows={rows} ids={['ebitda_margin']} percent selected={selected} onSelect={select} tooltipRows={tooltipRows}/>}
     </FinanceChart>
     {known < rows.length || !rows.length ? <FinanceReadiness title={known ? 'Partial monthly evidence' : 'Monthly evidence not ready'}>Only complete EBITDA and positive Revenue on compatible evidence bases are plotted. Review Data Sources for history coverage.</FinanceReadiness> : null}
     {selectedPair ? <AnalysisContext pair={selectedPair} metricId={metricId} action={action} onAction={setAction} onMetric={setMetricId}/> : row ? <FinanceReadiness title="Monthly comparison not ready">{financialPeriod(row.period)} has no validated preceding-month dataset. Review Data Sources for comparison coverage.</FinanceReadiness> : null}
     <FinanceHistoryEvidence rows={rows} ids={['ebitda_margin']}/>
-  </>;
+  </FinanceAnalysisSurface>;
 }

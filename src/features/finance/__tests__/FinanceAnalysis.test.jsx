@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import FinanceAnalysisPage, { FinanceAnalysis } from '../FinanceAnalysisPage.jsx';
 import OutletPerformanceField from '../OutletPerformanceField.jsx';
@@ -9,8 +9,8 @@ import { monthlyPeriod } from '../foundation.js';
 import { routeDetails } from '../../../app/routes.jsx';
 import { reportingService } from '../../../services/reportingService.js';
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
-async function fixture() {
-  return readFinanceAnalysis(createFixtureProvider({ development: true }), { scope: { kind: 'group', id: 'demo-group' }, period: monthlyPeriod('2026-09'), currency: 'MYR' }, { allowDemo: true, outlets: [{ id: 'demo-kl', name: 'Demo KL', legalEntityId: 'demo-entity-a' }, { id: 'demo-pj', name: 'Demo PJ', legalEntityId: 'demo-entity-a' }] });
+async function fixture(options = {}) {
+  return readFinanceAnalysis(createFixtureProvider({ development: true }), { scope: { kind: 'group', id: 'demo-group' }, period: monthlyPeriod('2026-09'), currency: 'MYR' }, { ...options, allowDemo: true, outlets: [{ id: 'demo-kl', name: 'Demo KL', legalEntityId: 'demo-entity-a' }, { id: 'demo-pj', name: 'Demo PJ', legalEntityId: 'demo-entity-a' }] });
 }
 it('routes Analysis to its own lazy implementation', () => {
   expect(routeDetails.finance_analysis.component).not.toBe(routeDetails.finance_overview.component);
@@ -19,7 +19,7 @@ it('routes Analysis to its own lazy implementation', () => {
 it('explores drivers, actions and outlets in one context without navigation', async () => {
   window.history.replaceState(null, '', '/finance/analysis');
   render(<FinanceAnalysis analysis={await fixture()} />);
-  expect(screen.getByRole('status').textContent).toContain('illustrative');
+  expect(screen.getByText(/Development demo · All figures/)).toBeTruthy();
   const driver = screen.getByRole('button', { name: 'Explore Revenue driver' });
   fireEvent.click(driver);
   const context = screen.getByRole('region', { name: 'Selected analysis context' });
@@ -29,7 +29,7 @@ it('explores drivers, actions and outlets in one context without navigation', as
   fireEvent.keyDown(screen.getByRole('tab', { name: 'Compare' }), { key: 'ArrowRight' });
   expect(screen.getByRole('tabpanel', { name: 'Break down' })).toBeTruthy();
   fireEvent.click(screen.getAllByRole('button', { name: 'Demo KL', exact: true })[0]);
-  expect(screen.getByRole('region', { name: 'Selected outlet performance' }).textContent).toContain('Revenue Growth');
+  expect(screen.getByRole('region', { name: 'Selected scope performance' }).textContent).toContain('Demo KL');
   expect(screen.getByRole('region', { name: 'Selected analysis context' }).textContent).toContain('Revenue');
   expect(screen.getByRole('region', { name: 'Selected analysis context' }).textContent).toContain('Demo KL');
   expect(window.location.pathname).toBe('/finance/analysis');
@@ -71,8 +71,7 @@ it('only requests authorized outlet evidence and recovers from a read failure', 
   render(<FinanceAnalysisPage auth={{ roleOutletIds: ['allowed'] }} store={{ outlets: [{ id: 'allowed', name: 'Allowed outlet' }, { id: 'hidden', name: 'Hidden outlet' }] }} />);
   expect(await screen.findByRole('alert')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Retry', exact: true }));
-  await waitFor(() => expect(screen.getByRole('heading', { name: 'Driver Contribution' })).toBeTruthy());
-  fireEvent.click(screen.getByRole('tab', { name: 'Outlets' }));
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'Profit Drivers' })).toBeTruthy());
   expect(screen.getByText('No outlets can be positioned yet')).toBeTruthy();
   expect(spy.mock.calls.some(([query]) => query.outletId === 'hidden')).toBe(false);
   expect(screen.queryByText('Hidden outlet')).toBeNull();
@@ -82,8 +81,7 @@ it('preserves selected context when equivalent auth/store wrappers rerender', as
   const spy = vi.spyOn(reportingService, 'getMonthlyScopeFinancialReport').mockResolvedValue({ financials: Object.fromEntries(['revenue', 'purchaseBasedCogs', 'opex', 'netProfit'].map((field) => [field, { amount: null, presence: 'missing' }])) });
   const props = () => ({ auth: { roleOutletIds: ['allowed'] }, store: { outlets: [{ id: 'allowed', name: 'Allowed outlet' }] } });
   const view = render(<FinanceAnalysisPage {...props()} />);
-  await screen.findByRole('heading', { name: 'Driver Contribution' });
-  fireEvent.click(screen.getByRole('tab', { name: 'Outlets' }));
+  await screen.findByRole('heading', { name: 'Profit Drivers' });
   fireEvent.click(screen.getByText('Outlet detail · 0 positioned / 1 eligible'));
   fireEvent.click(screen.getByRole('button', { name: 'Allowed outlet', exact: true }));
   expect(screen.getByRole('region', { name: 'Selected outlet performance' })).toBeTruthy();
@@ -91,4 +89,40 @@ it('preserves selected context when equivalent auth/store wrappers rerender', as
   view.rerender(<FinanceAnalysisPage {...props()} />);
   await waitFor(() => expect(screen.getByRole('region', { name: 'Selected outlet performance' })).toBeTruthy());
   expect(spy).toHaveBeenCalledTimes(reads);
+});
+
+it('retains all three selections independently while summaries keep toolbar scope', async () => {
+  const analysis = await fixture({includeHistory:true}), before = JSON.stringify(analysis);
+  render(<FinanceAnalysis analysis={analysis}/>);
+  const summary = screen.getByRole('region',{name:'Financial performance'});
+  const summaryBefore = summary.textContent;
+  expect(summary.querySelectorAll('[data-admin-summary-card]')).toHaveLength(5);
+  expect(summary.querySelectorAll('svg.lucide')).toHaveLength(5);
+  expect(within(summary).getByText('EBITDA Margin')).toBeTruthy();
+  expect(screen.queryByRole('heading',{name:'Business performance'})).toBeNull();
+  expect(screen.queryByRole('tab',{name:'Outlets'})).toBeNull();
+  const driver = screen.getByRole('group',{name:'Driver Contribution'});
+  const field = screen.getByRole('group',{name:'Outlet revenue growth and EBITDA margin field'});
+  const trend = screen.getByRole('group',{name:'Monthly EBITDA Margin history'});
+  const drivers = within(driver.closest('[data-admin-analytical-surface]'));
+  const outlets = within(field.closest('[data-admin-analytical-surface]'));
+  const profitability = within(trend.closest('[data-admin-analytical-surface]'));
+  fireEvent.click(screen.getByRole('button',{name:'Explore Revenue driver'}));
+  fireEvent.click(drivers.getByRole('tab',{name:'Compare'}));
+  fireEvent.keyDown(within(field).getByRole('button',{name:/^Demo KL: revenue growth/}),{key:'Enter'});
+  fireEvent.click(outlets.getByRole('tab',{name:'Break down'}));
+  fireEvent.click(within(trend).getByRole('button',{name:'July 2026 EBITDA Margin'}));
+  fireEvent.click(profitability.getByRole('tab',{name:'Compare'}));
+  expect(drivers.getByRole('tabpanel',{name:'Compare'}).textContent).toContain('September 2026');
+  expect(drivers.getByRole('heading',{name:'Revenue'})).toBeTruthy();
+  expect(outlets.getByRole('region',{name:'Selected analysis context'}).textContent).toContain('Demo KL');
+  expect(outlets.getByRole('tabpanel',{name:'Break down'})).toBeTruthy();
+  expect(profitability.getByRole('tabpanel',{name:'Compare'}).textContent).toContain('July 2026');
+  expect(profitability.getByRole('tabpanel',{name:'Compare'}).textContent).not.toContain('September 2026');
+  fireEvent.click(screen.getByRole('checkbox',{name:/Show 3-month/}));
+  fireEvent.click(screen.getByRole('tab',{name:'12M'}));
+  expect(screen.getByRole('group',{name:'Driver Contribution'})).toBe(driver);
+  expect(summary.textContent).toBe(summaryBefore);
+  expect(screen.getAllByRole('region',{name:'Selected analysis context'})).toHaveLength(3);
+  expect(JSON.stringify(analysis)).toBe(before);
 });
