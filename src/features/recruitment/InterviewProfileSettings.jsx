@@ -160,11 +160,11 @@ export default function InterviewProfileSettings({
               },
               {
                 key: "evidence",
-                header: "Evidence plan",
+                header: "Assessment plan",
                 render: (p) => (
                   <div className="recruitment-cell-stack">
                     <span>
-                      {p.definition.evidence_areas.length} evidence areas
+                      {p.definition.evidence_areas.length} assessment areas
                     </span>
                     <span>
                       {p.definition.scenarios.length}{" "}

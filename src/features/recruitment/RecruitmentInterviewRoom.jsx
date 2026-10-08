@@ -110,13 +110,13 @@ export default function RecruitmentInterviewRoom({
           {state === "listening" ? " · You can speak now" : ""}
         </p>
       </div>
-      {presence.prompt && (
+      {!["finalizing", "submission_required"].includes(status) && presence.prompt && (
         <div className="candidate-prompt">
           <span>FeedX Interviewer</span>
           <p>{presence.prompt}</p>
         </div>
       )}
-      <div className="candidate-self-view">
+      {!["finalizing", "submission_required"].includes(status) && <div className="candidate-self-view">
         <video
           ref={previewRef}
           autoPlay
@@ -129,11 +129,12 @@ export default function RecruitmentInterviewRoom({
           You
         </span>
       </div>
+      }
       <div className="candidate-room-controls">{children}</div>
-      <p className="recruitment-hint">
+      {!["finalizing", "submission_required"].includes(status) && <p className="recruitment-hint">
         Keep this page open and your screen active. If interrupted, continue
         here with your saved answers.
-      </p>
+      </p>}
     </section>
   );
 }

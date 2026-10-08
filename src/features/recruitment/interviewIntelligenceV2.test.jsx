@@ -8,7 +8,7 @@ import { continuationContext } from "../../../supabase/functions/recruitment-rea
 afterEach(cleanup);
 describe("Interview Intelligence V2", () => {
   it("five existing areas, cross-area guidance, optional delayed-food scenario and no auto publication", () => {
-    const definition = profileDraft({ evidence_areas: [] });
+    const definition = profileDraft(serviceCrewV2);
     expect(definition.evidence_areas).toHaveLength(5);
     expect(
       definition.evidence_areas.filter((a) => a.priority === "Core"),
@@ -27,7 +27,7 @@ describe("Interview Intelligence V2", () => {
       />,
     );
     fireEvent.click(screen.getAllByText("Customer Handling")[0]);
-    fireEvent.change(screen.getAllByLabelText("Goal")[0], {
+    fireEvent.change(screen.getAllByLabelText("Assessment goal")[0], {
       target: { value: "Understand customer communication in practice" },
     });
     expect(change.mock.calls[0][0].evidence_areas[0].goal).toContain(
@@ -127,4 +127,18 @@ it("submission retry presentation never says Submitting or pretends recording is
   expect(screen.queryByText(/Submitting/)).toBeNull();
   expect(screen.queryByText("● Recording")).toBeNull();
   expect(screen.getAllByText(/Submission needs attention/)).toHaveLength(1);
+});
+
+it("generic area names and scenario links are draft-owned, not Service Crew hardcoding", () => {
+  const definition = structuredClone(serviceCrewV2), change = vi.fn();
+  render(<InterviewIntelligenceBuilder definition={definition} onChange={change} version={3} />);
+  fireEvent.change(screen.getAllByLabelText("Area name")[0],{target:{value:"Communication"}});
+  expect(change.mock.lastCall[0].evidence_areas[0].name).toBe("Communication");
+  expect(change.mock.lastCall[0].scenarios[0].evidence_areas).toContain("Communication");
+  expect(definition.evidence_areas[0].name).toBe("Customer Handling");
+  fireEvent.click(screen.getByRole("button",{name:"Add assessment area"}));
+  expect(change.mock.lastCall[0].evidence_areas).toHaveLength(6);
+  const legacy = profileDraft({evidence_areas:[{name:"Responsibility",priority:"Core",intent:"Own actions and follow-through in a work situation."}],scenarios:[]});
+  expect(legacy.evidence_areas.map(a=>a.name)).toEqual(["Responsibility"]);
+  expect(legacy.evidence_areas[0].goal).toContain("follow-through");
 });

@@ -89,7 +89,11 @@ export const serviceCrewV2 = {
   max_minutes: 15,
 };
 export function profileDraft(definition) {
-  if (!definition.intelligence_version) return structuredClone(serviceCrewV2);
+  if (!definition.intelligence_version) return {
+    ...structuredClone(definition), intelligence_version:2,
+    evidence_areas:(definition.evidence_areas || []).map(a => ({...a,goal:a.goal || a.intent || "",evidence_guidance:a.evidence_guidance || "",follow_up_signals:a.follow_up_signals || "",stop_condition:a.stop_condition || ""})),
+    scenarios:(definition.scenarios || []).map(s => typeof s === "string" ? {brief:s,required:true,evidence_areas:[]} : structuredClone(s)),
+  };
   return structuredClone(definition);
 }
 export const scenarioBrief = (scenario) =>

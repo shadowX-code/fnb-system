@@ -2,10 +2,10 @@ import AdminFormField from "../../components/forms/AdminFormField.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import { RecruitmentState } from "./RecruitmentPresentation.jsx";
 const areaFields = {
-  goal: "Goal",
-  evidence_guidance: "Evidence guidance",
-  follow_up_signals: "Follow-up trigger",
-  stop_condition: "Stop condition",
+  goal: "Assessment goal",
+  evidence_guidance: "Useful behavioral evidence",
+  follow_up_signals: "Follow-up signals",
+  stop_condition: "Sufficient evidence / stop condition",
 };
 const scenarioFields = {
   brief: "Situation",
@@ -58,6 +58,19 @@ export default function InterviewIntelligenceBuilder({
             </span>
           </summary>
           <div className="recruitment-plan-detail-body grid gap-4 md:grid-cols-2">
+            {key === "evidence_areas" && <>
+              <AdminFormField label="Area name" as={editable ? "label" : "div"}>
+                {editable ? <input className="control w-full" maxLength={160} value={item.name} onChange={e => {
+                  const name = e.target.value;
+                  // Scenario links use canonical area names; rename atomically in the draft.
+                  onChange({...definition, evidence_areas: definition.evidence_areas.map((a,i) => i === index ? {...a,name} : a),
+                    scenarios: definition.scenarios.map(s => typeof s === "string" ? s : {...s,evidence_areas:(s.evidence_areas || []).map(n => n === item.name ? name : n)})});
+                }} /> : <p className="text-sm">{item.name}</p>}
+              </AdminFormField>
+              <AdminFormField label="Linked scenarios" as="div">
+                <p className="text-sm text-text-secondary">{definition.scenarios.filter(s => typeof s !== "string" && (s.evidence_areas || []).includes(item.name)).map(s => s.brief).join(" · ") || "None — optional; link areas in Scenarios below."}</p>
+              </AdminFormField>
+            </>}
             {editable && key === "evidence_areas" && (
               <AdminFormField label="Priority">
                 <SelectField
@@ -94,7 +107,7 @@ export default function InterviewIntelligenceBuilder({
             ))}
             {key === "scenarios" && (
               <>
-                <AdminFormField label="Evidence areas" as="div">
+                <AdminFormField label="Assessment areas" as="div">
                   {editable ? (
                     <div className="space-y-2">
                       {definition.evidence_areas.map((a) => (
@@ -177,12 +190,16 @@ export default function InterviewIntelligenceBuilder({
     <div className="recruitment-profile-plan">
       {text("role_context", "Role context")}
       <section className="recruitment-profile-section">
-        <h2>Evidence Plan</h2>
+        <h2>Assessment Areas</h2>
         <p className="text-xs text-text-secondary mb-3">
-          One answer may support several areas. Expand an area to inspect its
-          evidence guidance.
+          Define observable job-related behavior, not personality or speaking style. One answer may support several areas. Coverage describes understanding, not requirement fit.
         </p>
         {objects("evidence_areas", areaFields)}
+        {editable && definition.evidence_areas.length < 30 && <button type="button" className="btn-secondary mt-3" onClick={() => {
+          let n = definition.evidence_areas.length + 1;
+          while(definition.evidence_areas.some(a => a.name === `New area ${n}`)) n++;
+          patch("evidence_areas",[...definition.evidence_areas,{name:`New area ${n}`,priority:"Important",goal:"",evidence_guidance:"",follow_up_signals:"",stop_condition:""}]);
+        }}>Add assessment area</button>}
       </section>
       <section className="recruitment-profile-section">
         <h2>Scenarios</h2>
