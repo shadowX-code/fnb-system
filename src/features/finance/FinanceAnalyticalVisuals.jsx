@@ -66,8 +66,8 @@ function ContributionCanvas({ width, movement, pair, selectedId, selectedStage, 
   const column = (right - left) / stages.length;
   const geometry = useFinanceGeometry(Object.fromEntries(stages.map((stage,index) => [stage.id, mobile ? [scale(stage.from ?? 0), scale(stage.to ?? 0), 38 + index * 59] : [left + column * index + column * .23, scale(stage.from ?? 0), scale(stage.to ?? 0), column * .54]])));
   return <>
-    {mobile ? [ticks[0],ticks.at(-1)].map(tick => <g key={tick}><path d={`M${scale(tick)} 16V${bottom}`} className="chart-grid"/><text x={scale(tick)} y={height-56} textAnchor="middle" style={{fontSize:10}}>{financeChartMoney(tick)}</text></g>) : null}
-    {!mobile ? [ticks[0],ticks.at(-1)].map(tick => <g key={tick}><path d={`M${left} ${scale(tick)}H${right}`} className="chart-grid"/><text x={left-7} y={scale(tick)+4} textAnchor="end">{values.length ? financeChartMoney(tick) : tick === 0 ? '0' : '—'}</text></g>) : <><path d={`M${scale(0)} 18V366`} className="chart-axis"/><text x={left} y="14">{values.length ? financeChartMoney(low) : '—'}</text><text x={right} y="14" textAnchor="end">{values.length ? financeChartMoney(high) : '—'}</text></>}
+    {mobile ? [ticks[0],ticks.at(-1)].map(tick => <g key={tick}><path d={`M${scale(tick)} 16V${bottom}`} className="chart-grid"/><text x={scale(tick)} y={height-56} textAnchor="middle" style={{fontSize:10}}>{values.length ? financeChartMoney(tick) : '—'}</text></g>) : null}
+    {!mobile ? ticks.map(tick => <g key={tick}><path d={`M${left} ${scale(tick)}H${right}`} className="chart-grid"/><text x={left-7} y={scale(tick)+4} textAnchor="end">{values.length ? financeChartMoney(tick) : tick === 0 ? '0' : '—'}</text></g>) : null}
     {reconciled ? stages.slice(0,-1).map((stage,index) => {
       const here = geometry[stage.id], next = geometry[stages[index+1].id];
       return <path key={stage.id} data-bridge-connector="true" d={mobile ? `M${here[1]} ${here[2]+9}V${next[2]-9}` : `M${here[0]+here[3]} ${here[2]}H${next[0]}`} className={`chart-link ${selectedId && (stage.metricId===selectedId || stages[index+1].metricId===selectedId) ? 'is-active' : ''}`}/>;
