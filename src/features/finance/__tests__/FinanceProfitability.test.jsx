@@ -22,12 +22,11 @@ it('bounds, deduplicates and validates selected-scope history without adding rea
   const costs=await readFinanceAnalysis(provider,request,{allowDemo:true});
   expect(costs.history).toEqual([]);expect(provider.readOverview).toHaveBeenCalledTimes(2);
 });
-it('keeps modes exclusive, preserves month nodes, and investigates the selected historical month rather than current values', async () => {
+it('keeps sections independent, preserves month nodes, and investigates the selected historical month rather than current values', async () => {
   const analysis=await fixture(), before=JSON.stringify(analysis);
   render(<FinanceAnalysis analysis={analysis}/>);
-  fireEvent.click(screen.getByRole('tab',{name:'Profitability'}));
   const chart=screen.getByRole('group',{name:'Monthly EBITDA Margin history'});
-  expect(screen.queryByRole('group',{name:'Driver Contribution'})).toBeNull();
+  expect(screen.getByRole('group',{name:'Driver Contribution'})).toBeTruthy();
   expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
   const july=within(chart).getByRole('button',{name:'July 2026 EBITDA Margin'});
   fireEvent.focus(july);expect(screen.getByRole('tooltip').textContent).toContain('vs June 2026');
@@ -41,16 +40,19 @@ it('keeps modes exclusive, preserves month nodes, and investigates the selected 
   fireEvent.click(screen.getByRole('tab',{name:'Break down',exact:true}));
   fireEvent.click(within(context).getByRole('button',{name:/^Revenue/}));
   expect(context.textContent).toContain('Revenue');
-  fireEvent.click(screen.getByRole('tab',{name:'Outlets'}));
-  expect(screen.queryByRole('group',{name:'Monthly EBITDA Margin history'})).toBeNull();
-  expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Explore Revenue driver'}));
+  const contexts=screen.getAllByRole('region',{name:'Selected analysis context'});
+  expect(contexts).toHaveLength(2);
+  expect(contexts[0].textContent).toContain('October 2026');
+  expect(contexts[1]).toBe(context);
+  expect(context.textContent).toContain('July 2026');
+  expect(within(context).getByRole('tab',{name:'Break down'}).getAttribute('aria-selected')).toBe('true');
   expect(JSON.stringify(analysis)).toBe(before);
 });
 it('retains muted monthly structure and readiness when margin evidence is incomplete',async()=>{
   const analysis=await fixture();
   for(const entry of analysis.history) {entry.dataset.metrics.revenue.value=null;entry.dataset.metrics.revenue.completeness='unavailable';entry.dataset.metrics.ebitda_margin.value=null;entry.dataset.metrics.ebitda_margin.completeness='unavailable';}
   render(<FinanceAnalysis analysis={analysis}/>);
-  fireEvent.click(screen.getByRole('tab',{name:'Profitability'}));
   expect(screen.getByRole('group',{name:'Monthly EBITDA Margin history'}).querySelector('.chart-pending')).toBeTruthy();
   expect(screen.getByText('Monthly evidence not ready')).toBeTruthy();
   expect(screen.queryByRole('button',{name:'July 2026 EBITDA Margin'})).toBeNull();

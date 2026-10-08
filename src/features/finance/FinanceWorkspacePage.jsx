@@ -1,9 +1,6 @@
-import { financeMetricColor } from './FinanceChart.jsx';
 import FinanceOverviewCharts from './FinanceOverviewCharts.jsx';
-import { overviewHistory } from './overviewDashboard.js';
-import { BarChart3, Banknote, Percent, Receipt, Wallet } from 'lucide-react';
 import AdminSummaryGrid from '../../components/ui/AdminSummaryGrid.jsx';
-import { financeSummaryItems } from './summaryItems.js';
+import { financeDashboardSummaryItems } from './summaryItems.js';
 import FinanceAnalysisSurface from './FinanceAnalysisSurface.jsx';
 import { profitMovement } from './analysis.js';
 import { costIntelligence } from './costs.js';
@@ -24,7 +21,7 @@ import { financeDemoEnabled, getFinanceProvider, readFinanceOverview } from './f
 import { financialValue as amount, financialSemantics as semantic, currentFinanceMonth as currentMonth } from './presentation.js';
 import { monthlyPeriod } from './foundation.js';
 import { overviewDataStatus } from './dataSources.js';
-import { compatibleMetricBasis, metricRegistry } from './metrics.js';
+import { metricRegistry } from './metrics.js';
 import './finance.css';
 
 const sectionLabels = { overview: 'Overview', analysis: 'Analysis', costs: 'Costs', cash: 'Cash', planning: 'Planning', statements: 'Statements' };
@@ -63,19 +60,7 @@ export function FinanceOverview({ dataset }) {
   const attention = costIntelligence(pair).rows.filter(row => row.direction === 'pressure');
   const [action, setAction] = useState('Explain');
 
-  const history = overviewHistory(dataset);
-  const icons = {ebitda:BarChart3,revenue:Banknote,gross_margin:Percent,prime_cost:Receipt,cash:Wallet};
-  const iconTones = {ebitda:'bg-emerald-50 text-emerald-700',revenue:'bg-blue-50 text-blue-700',gross_margin:'bg-violet-50 text-violet-700',prime_cost:'bg-rose-50 text-rose-700',cash:'bg-cyan-50 text-cyan-700'};
-  const cards = financeSummaryItems(pair, ['ebitda', 'revenue', 'gross_margin', 'prime_cost', 'cash'], { primary: ['ebitda'], supporting: { ebitda: `${amount(metrics.ebitda_margin)} EBITDA margin` } }).map(item => {
-    const points = history.map(row => {
-      const metric = row.dataset?.metrics[item.key];
-      const value = ['revenue','ebitda','cash'].includes(item.key) ? row[item.key] : metric?.completeness === 'complete' && compatibleMetricBasis(metric,metrics[item.key]) ? metric.value : null;
-      return {label:row.period.start,value};
-    });
-    // A ratio unchanged at its displayed precision does not earn an exaggerated sparkline.
-    const meaningful = item.key !== 'gross_margin' || new Set(points.map(point=>point.value?.toFixed(1))).size > 1;
-    return {...item, icon:icons[item.key], iconClassName:iconTones[item.key], supportingValue:item.supportingValue ?? (previous.metrics[item.key]?.value !== null ? `${amount(previous.metrics[item.key])} previous month` : null), sparklineData:meaningful?points:null, sparklineColor:financeMetricColor(item.key), sparklineLabel:`${item.label} monthly evidence`, sparklinePlacement:'inline', sparklineFormatValue:value=>amount({value,unit:metrics[item.key].unit})};
-  });
+  const cards = financeDashboardSummaryItems(pair, ['ebitda', 'revenue', 'gross_margin', 'prime_cost', 'cash'], { primary: ['ebitda'], supporting: { ebitda: `${amount(metrics.ebitda_margin)} EBITDA margin` } });
   const primary = ['revenue', 'gross_margin', 'prime_cost', 'ebitda', 'ebitda_margin', 'cash'];
   return <div className="finance-overview">
     {dataset.demo ? <div className="finance-demo" role="status">Development demo · All figures are illustrative. No business records are used.</div> : null}

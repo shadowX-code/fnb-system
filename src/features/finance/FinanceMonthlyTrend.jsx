@@ -7,9 +7,9 @@ import { analysisMargin, metricRegistry } from './metrics.js';
 const colors = financeChartColors;
 const format = (value, percent) => value === null ? '—' : percent ? `${value.toFixed(1)}%` : financeChartMoney(value);
 const dateLabel = period => new Intl.DateTimeFormat('en-MY',{month:'short',year:'2-digit',timeZone:'UTC'}).format(new Date(`${period.start}T00:00:00Z`));
-export function FinanceMonthlyTrendCanvas({width, rows, ids, percent, selected, onSelect, tooltipRows}) {
+export function FinanceMonthlyTrendCanvas({width, height = 246, rows, ids, percent, selected, onSelect, tooltipRows}) {
   const [inspected,setInspected] = useState(null);
-  const left = width < 400 ? 46 : 58, right = 20, top = 32, bottom = 204, usable = width-left-right;
+  const left = width < 400 ? 46 : 58, right = 20, top = 32, bottom = height - 42, usable = width-left-right;
   const values = rows.flatMap(row => ids.map(id => row[id])).filter(Number.isFinite);
   const {min,max,ticks} = adminChartScale(values, width<420?3:4);
   const y = value => bottom-(value-min)/(max-min)*(bottom-top), x = index => left+index/Math.max(1,rows.length-1)*usable;

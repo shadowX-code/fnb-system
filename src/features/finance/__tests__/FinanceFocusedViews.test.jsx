@@ -11,14 +11,14 @@ import { monthlyPeriod } from '../foundation.js';
 afterEach(cleanup);
 const request = { scope: { kind: 'group', id: 'demo-group' }, period: monthlyPeriod('2026-10'), currency: 'MYR' };
 const fixture = () => readFinanceAnalysis(createFixtureProvider({development:true}), request, {allowDemo:true});
-it('keeps one analytical mode mounted and discloses context only after selection', async () => {
+it('keeps Analysis sections mounted independently and Cash modes exclusive', async () => {
   const pair = await fixture();
   const view = render(<FinanceAnalysis analysis={pair}/>);
   expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
-  expect(screen.queryByRole('group',{name:'Outlet revenue growth and EBITDA margin field'})).toBeNull();
-  fireEvent.keyDown(screen.getByRole('tab',{name:'Profit Drivers'}),{key:'ArrowRight'});
-  expect(screen.queryByRole('group',{name:'Driver Contribution'})).toBeNull();
-  expect(screen.getByRole('tabpanel',{name:'Outlets'})).toBeTruthy();
+  expect(screen.getByRole('group',{name:'Outlet revenue growth and EBITDA margin field'})).toBeTruthy();
+  expect(screen.getByRole('group',{name:'Driver Contribution'})).toBeTruthy();
+  expect(screen.getByRole('group',{name:'Monthly EBITDA Margin history'})).toBeTruthy();
+  expect(screen.queryByRole('tab',{name:'Profit Drivers'})).toBeNull();
   view.unmount();render(<FinanceCash analysis={pair}/>);
   expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
   expect(screen.queryByRole('group',{name:'Working Capital Flow relationships'})).toBeNull();
