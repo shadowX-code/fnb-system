@@ -59,3 +59,11 @@ Machine telemetry, advanced finite-capacity scheduling, and external MES integra
 # Operational completion attribution
 
 Completed Production is attributed to its recorded `end_date` and `end_time` in `Asia/Kuala_Lumpur`. `completed_at` remains audit metadata for when the completion was recorded, and is not used for operational daily or monthly reporting.
+
+## Monthly Production Performance
+
+Production Overview consumes the read-only, RLS-preserving `factory_get_production_monthly_performance(date)` projection with `factory_production.view` authority. It uses the canonical operational completion function, never Planning quantities or audit timestamps. A completed Job Order counts once (the latest completed Production record if legacy replay rows exist). Actual output uses the canonical actual-output field precedence; only mass units (kg or converted g) contribute to kg totals, never packs or assumed litre density.
+
+Productivity is eligible actual kg divided by summed valid recorded JO-hours from Production start to end. Missing, zero or negative durations are excluded along with their output from this ratio; the monthly ratio is weighted by summed hours, not averaged daily ratios. Overlapping JO durations remain JO-hours, not factory operating hours, OEE or target efficiency.
+
+The trend averages the latest seven days with completed production, carrying up to six prior production days across month boundaries. Limited history uses the available days; a window with unresolved output is unavailable. Past dates without production are zero, future dates are unmeasured, and missing output is explicitly incomplete. Records without a complete Production End are disclosed as unattributed historical runs and are not assigned an invented date. Existing operational KPIs, pipeline and Recent Activity are independent and unchanged.

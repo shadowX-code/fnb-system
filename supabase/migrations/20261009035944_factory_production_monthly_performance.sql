@@ -1,0 +1,70 @@
+-- Read-only analytics. Production End and Production RLS remain canonical.
+create function public.factory_get_production_monthly_performance(p_month date)
+returns jsonb
+language plpgsql stable security invoker
+set search_path = public, pg_temp
+as $$
+declare result jsonb;
+begin
+  if auth.uid() is null or not public.current_user_has_permission('factory_production.view') then
+    raise exception using errcode = '42501', message = 'Missing permission to view Production performance.';
+  end if;
+  if p_month is null then
+    raise exception using errcode = '22023', message = 'Select a valid month.';
+  end if;
+  with params as (
+    select date_trunc('month', p_month)::date as month_start,
+      (date_trunc('month', p_month) + interval '1 month')::date as month_end,
+      timezone('Asia/Kuala_Lumpur', now())::date as today
+  ), completed as materialized (
+    select p.id, p.job_order_id,
+      public.factory_production_operational_completion_at(p.end_date, p.end_time) as end_at,
+      public.factory_production_operational_completion_at(p.production_date, p.start_time) as start_at,
+      coalesce(p.actual_output_qty, p.good_output_qty, p.actual_produced_qty, p.produced_quantity) as output_qty,
+      lower(btrim(p.uom)) as uom
+    from public.factory_productions p where lower(p.status) = 'completed'
+  ), runs as (
+    -- A completed JO is one run. Replayed legacy rows must not double-count it.
+    select distinct on (coalesce(job_order_id, id)) *
+    from completed order by coalesce(job_order_id, id), end_at desc nulls last, id
+  ), measured as (
+    select (end_at at time zone 'Asia/Kuala_Lumpur')::date as day,
+      case when output_qty >= 0 and output_qty::text not in ('NaN','Infinity','-Infinity') then
+        case when uom in ('kg','kilogram','kilograms') then output_qty
+          when uom in ('g','gram','grams') then output_qty / 1000 end end as output_kg,
+      case when end_at > start_at then extract(epoch from end_at - start_at) / 3600 end as jo_hours
+    from runs
+  ), daily as (
+    select day, count(*) as completed_runs, sum(output_kg) as output_kg,
+      count(*) filter (where output_kg is null) as missing_output_runs,
+      count(*) filter (where jo_hours is null) as invalid_duration_runs,
+      count(*) filter (where output_kg is not null and jo_hours is not null) as productivity_runs,
+      sum(output_kg) filter (where jo_hours is not null) as productivity_output_kg,
+      sum(jo_hours) filter (where output_kg is not null) as jo_hours
+    from measured cross join params
+    where day < params.month_end and day <= params.today group by day
+  ), prior as (
+    select * from daily where day < (select month_start from params) order by day desc limit 6
+  ), scope as (
+    select * from daily where day >= (select month_start from params)
+    union all select * from prior
+  ), rolling as (
+    select *, count(*) over window_days as average_days,
+      case when sum(missing_output_runs) over window_days = 0 then
+        avg(output_kg) over window_days end as moving_average_kg
+    from scope window window_days as (order by day rows between 6 preceding and current row)
+  )
+  select jsonb_build_object(
+    'month', to_char(params.month_start, 'YYYY-MM'), 'today', params.today,
+    'unattributed_runs', (select count(*) from runs where end_at is null),
+    'days', coalesce((select jsonb_agg(to_jsonb(rolling) order by day) from rolling
+      where day >= params.month_start), '[]'::jsonb)
+  ) into result from params;
+  return result;
+end;
+$$;
+
+revoke all on function public.factory_get_production_monthly_performance(date) from public, anon;
+grant execute on function public.factory_get_production_monthly_performance(date) to authenticated;
+comment on function public.factory_get_production_monthly_performance(date) is
+  'Actual completed JO output and valid summed JO-hours by Malaysia Production End date; latest seven production-day average, never Planning targets or factory operating hours.';
