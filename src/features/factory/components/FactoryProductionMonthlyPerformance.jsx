@@ -116,7 +116,11 @@ export default function FactoryProductionMonthlyPerformance({ enabled, refreshKe
           {mode === "output" ? <><span className="flex items-center gap-2"><i className="h-2 w-2 rounded-sm" style={{ background: outputColor }} />Daily output</span><span className="flex items-center gap-2"><i className="h-0.5 w-4" style={{ background: averageColor }} />7-production-day average</span></> : mode === "calendar" ? <span>Daily output (kg) · — Future · N/A Incomplete</span> : <span>{number(model.hours)} summed JO-hours · {model.productivityRuns}/{model.completedRuns} runs eligible</span>}
         </div>
         <ProductionPerformanceChart days={model.days} mode={mode} month={month} onSelectDay={setSelectedDay} />
-        {selectedDay && model.days.some(day => day.day === selectedDay) ? <FactoryDailyProductionModal day={model.days.find(day => day.day === selectedDay)} onClose={closeDay} onViewResult={onViewResult ? run => { closeDay(); onViewResult({ id: run.job_order_id, job_order_no: run.job_order_no, product_name: run.finished_good_name, status: "completed" }); } : undefined} /> : null}
+        {selectedDay && model.days.some(day => day.day === selectedDay) ? <FactoryDailyProductionModal day={model.days.find(day => day.day === selectedDay)} onClose={closeDay} onViewResult={onViewResult ? async run => {
+          const reference = await factoryService.getFactoryAuditReference({ reference_id: run.job_order_id, reference_type: "job_order" });
+          await onViewResult(reference.value);
+          closeDay();
+        } : undefined} /> : null}
         <p className="text-xs text-text-secondary">{mode === "productivity" ? "Output from runs with valid durations ÷ summed JO-hours; not factory operating hours." : mode === "output" ? "Malaysia Production End date · Average spans the latest 7 production days, including prior months; fewer when history is limited." : "Malaysia Production End date · Past days without completed production show 0."}</p>
         {model.invalidDurationRuns > 0 || model.missingOutputRuns > 0 || model.unattributedRuns > 0 ? <p role="note" className="mt-2 text-xs text-text-secondary">{model.invalidDurationRuns > 0 ? `${model.invalidDurationRuns} runs excluded from productivity: missing or invalid duration. ` : ""}{model.missingOutputRuns > 0 ? `${model.missingOutputRuns} runs lack valid kg output; totals include known output only. ` : ""}{model.unattributedRuns > 0 ? `${model.unattributedRuns} historical runs have no complete Production End and cannot be attributed to a month.` : ""}</p> : null}
       </>}
