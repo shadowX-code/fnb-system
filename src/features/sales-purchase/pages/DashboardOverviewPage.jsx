@@ -321,6 +321,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
   }, [activeOutlets, selectedOutletId]);
 
   const productScopeKey = `${year}-${month}:${scopeOutletIds.join("|")}`;
+  const productReadPending = opsData.scopeKey !== productScopeKey || opsData.loading;
   useEffect(() => {
     if (!scopeOutletIds.length) {
       setOpsData((current) => ({ ...current, productReports: [], productItems: [], productError: null, scopeKey: productScopeKey, loading: false }));
@@ -541,7 +542,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
     allAlerts.length ? `${allAlerts.length} unresolved alert${allAlerts.length === 1 ? "" : "s"} detected.` : "No priority alerts detected.",
     overdueMaintenance.length ? `${overdueMaintenance.length} maintenance item${overdueMaintenance.length === 1 ? "" : "s"} overdue.` : "",
     !hasMonthlySales ? "Sales input is missing for this month." : "",
-    !currentReportIds.length ? "Product analytics is not uploaded for this month." : "",
+    productReadPending ? "Product analytics is loading." : opsData.productError ? "Product analytics is unavailable." : !currentReportIds.length ? "Product analytics is not uploaded for this month." : "",
   ].filter(Boolean).slice(0, 3).join(" ");
 
   return (
@@ -834,7 +835,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
           action={<button className="text-xs font-bold text-primary" type="button" onClick={() => ui?.navigate?.("product_analytics")}>View Product Analytics</button>}
         >
           <div className="space-y-3 p-4">
-            {opsData.scopeKey !== productScopeKey || opsData.loading ? (
+            {productReadPending ? (
               <div role="status">Loading complete product signals…</div>
             ) : opsData.productError ? (
               <div role="alert">{opsData.productError} Product signals are unavailable. Reload to retry.</div>

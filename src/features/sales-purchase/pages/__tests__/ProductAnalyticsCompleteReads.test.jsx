@@ -17,6 +17,7 @@ vi.mock("../../../../lib/supabase.ts", () => ({ supabase: { from(table) {
         return 0;
       });
       db.ranges.push({ table, start, end, count: rows.length });
+      if (table === "product_sales_reports" && db.mode === "report-error") return { data: null, count: null, error: { message: "Report read failed" } };
       if (table === "product_sales_items" && db.mode === "pending") await db.pending;
       return { data: rows.slice(start, (db.mode === "short" || (db.mode === "year-short" && rows.length === 1843)) && table === "product_sales_items" ? start + 20 : end + 1), count: rows.length, error: null };
     },
@@ -116,6 +117,13 @@ describe("Complete Product Analytics consumers", () => {
     await waitFor(() => expect(within(signals()).queryByText("Loading complete product signals…")).toBeNull());
     expect(within(signals()).getAllByText("September fixture").length).toBeGreaterThan(0);
     expect(db.ranges.filter(row => row.table === "product_sales_items" && row.start === 1500)).toHaveLength(1);
+    expect(screen.getAllByText(/RM\s*312,742/).length).toBeGreaterThan(0);
+  });
+  it("does not label failed Dashboard report reads as missing uploads", async () => {
+    vi.setSystemTime(new Date("2026-09-30T04:00:00Z")); db.mode = "report-error";
+    mount(DashboardOverviewPage);
+    await waitFor(() => expect(within(signals()).getByRole("alert")).toBeTruthy());
+    expect(screen.queryByText(/Product analytics is not uploaded for this month/)).toBeNull();
     expect(screen.getAllByText(/RM\s*312,742/).length).toBeGreaterThan(0);
   });
   it("withholds incomplete Dashboard product signals while preserving Sales Input KPIs", async () => {
