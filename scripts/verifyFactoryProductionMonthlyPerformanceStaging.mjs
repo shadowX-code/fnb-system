@@ -1,6 +1,6 @@
 // Emits a read-only PostgreSQL regression query using the migration's actual projection.
 import { readFileSync } from "node:fs";
-const sql = readFileSync(new URL("../supabase/migrations/20261009043040_factory_production_daily_drilldown.sql", import.meta.url), "utf8");
+const sql = readFileSync(new URL("../supabase/migrations/20261009043918_factory_production_daily_drilldown_uom_owner.sql", import.meta.url), "utf8");
 const fixtures = `fixtures as (
   select md5(key)::uuid id, md5(job)::uuid job_order_id, status,
     start_date::date production_date, start_time::time start_time,
@@ -29,11 +29,11 @@ const fixtures = `fixtures as (
     ('next-month','q','completed','2026-10-01','08:00','2026-10-01','10:00','1000','kg')
   ) f(key,job,status,start_date,start_time,end_date,end_time,qty,uom)
 ), fixture_jobs as (
-  select distinct job_order_id id, 'JO-fixture'::text job_order_no, md5('sku')::uuid finished_good_id, 'Fixture Sauce'::text product_name from fixtures
+  select distinct job_order_id id, 'JO-fixture'::text job_order_no, md5('sku')::uuid finished_good_id, 'Fixture Sauce'::text product_name, 'litre'::text uom from fixtures
 ), fixture_skus as (
   select md5('sku')::uuid id, md5('family')::uuid product_family_id,
     'Fixture Sauce'::text product_name_en, 'Fixture Sauce'::text product_name,
-    'S16'::text product_code, '60g Pack'::text variant_name, 60::numeric pack_size_qty, 'g'::text pack_size_uom
+    'S16'::text product_code, '60g Pack'::text variant_name, 60::numeric pack_size_qty, 'g'::text pack_size_uom, 'pack'::text uom
 ), fixture_families as (
   select md5('family')::uuid id, 'Fixture Sauce'::text name_en, null::text name_cn
 ),`;
