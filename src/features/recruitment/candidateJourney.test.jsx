@@ -67,7 +67,7 @@ beforeEach(() => {
   mocks.publicEntry.mockImplementation(async () => mocks.entry);
   mocks.language.mockImplementation(async (_, language) => ({
     ...mocks.entry,
-    preferred_language: language,
+    preferred_language: (mocks.entry.preferred_language = language),
   }));
   mocks.confirmProfile.mockImplementation(async () => ({
     ...mocks.entry,
@@ -300,8 +300,8 @@ it("shared checkbox styling belongs to the input, leaving the consent label touc
   mocks.entry = { ...base, status: "profile_confirmed" };
   render(<Public />);
   const checkbox = await screen.findByRole("checkbox");
-  expect(checkbox.className).toContain("admin-checkbox");
-  expect(checkbox.closest("label").className).not.toContain("admin-checkbox");
+  expect(checkbox.className).toContain("candidate-checkbox");
+  expect(checkbox.closest("label").className).not.toContain("candidate-checkbox");
 });
 
 it("interface translation never changes spoken preference and persists canonical bilingual consent", async () => {
@@ -327,4 +327,31 @@ it("submission replaces live speech and camera presentation while preserving ret
   expect(screen.getByText("Submitting your responses")).toBeTruthy();
   expect(screen.queryByText("Old goodbye")).toBeNull();
   expect(screen.queryByLabelText("Your interview camera")).toBeNull();
+});
+
+
+it("Mandarin survives confirmation and refresh independently from English page language", async () => {
+  const view = render(<Public />);
+  await screen.findByText("Interview details");
+  fireEvent.click(within(screen.getByRole("group", {name: "Preferred interview language"})).getByRole("button", {name:"中文"}));
+  fireEvent.click(screen.getByRole("button", {name:"Continue",exact:true}));
+  await screen.findByText("Get ready");
+  expect(screen.getByText("Spoken interview language").parentElement.textContent).toContain("中文");
+  expect(screen.getByText("Page language")).toBeTruthy();
+  expect(mocks.language).toHaveBeenCalledWith("", "zh");
+  mocks.entry.status = "profile_confirmed";
+  view.unmount();
+  render(<Public />);
+  await screen.findByText("Get ready");
+  expect(screen.getByText("Spoken interview language").parentElement.textContent).toContain("中文");
+});
+it("Chinese page preference survives refresh without changing spoken English, and saved consent has no redundant confirmation", async () => {
+  localStorage.setItem("feedx-interview-interface", "zh");
+  mocks.entry = {...base,status:"ready",consented:true};
+  render(<Public />);
+  await screen.findByText("准备面试");
+  expect(screen.getByText("面试对话语言").parentElement.textContent).toContain("English");
+  expect(screen.queryByText("已记录同意")).toBeNull();
+  expect(screen.getByRole("checkbox").checked).toBe(true);
+  expect(mocks.language).not.toHaveBeenCalled();
 });

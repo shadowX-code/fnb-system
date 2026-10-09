@@ -1,3 +1,4 @@
+@import "./candidateControls.css";
 .recruitment-public{--candidate-ink:#152a28;--candidate-muted:#526865;--candidate-line:#e0e8e5;min-height:100dvh;background:#eff3f2;color:var(--candidate-ink);padding:36px 20px;font-family:inherit;display:grid;place-items:center}
 .recruitment-public-card{width:min(100%,600px);background:#fff;border:1px solid var(--candidate-line);border-radius:20px;overflow:hidden;box-shadow:0 8px 36px #153a2e08}
 .recruitment-public-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;border-bottom:1px solid var(--candidate-line);color:var(--candidate-muted);font-size:14px;font-weight:600}
@@ -6,7 +7,6 @@
 .recruitment-public h1{font-size:28px;line-height:1.2;letter-spacing:-.035em;font-weight:750;margin:0 0 12px}
 .recruitment-public h2{font-size:18px;line-height:1.35;font-weight:700;margin:0 0 8px}
 .recruitment-public p{line-height:1.55;color:var(--candidate-muted);margin:0 0 18px;font-size:15px;overflow-wrap:anywhere}
-.recruitment-public .btn-primary,.recruitment-public .btn-secondary{min-height:48px;padding:12px 18px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;gap:10px;font-size:15px}
 .recruitment-full{width:100%;margin-top:20px}
 .recruitment-public .candidate-role{border:1px solid var(--candidate-line);border-radius:14px;padding:20px;margin:24px 0}
 .candidate-role>p{font-size:13px;margin-bottom:16px}
@@ -17,7 +17,6 @@
 .candidate-languages legend{font-weight:650;font-size:15px;margin-bottom:8px}
 .candidate-languages>p{font-size:13px;margin-bottom:14px}
 .candidate-languages>div{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.candidate-languages button[aria-pressed=true]{background:#eef8f4;border-color:#218868;color:#076b4f}
 .candidate-identity,.candidate-language-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--candidate-line);padding-top:20px;margin:20px 0}
 .candidate-identity>div{display:flex;align-items:center;gap:12px;min-width:0}
 .candidate-identity>div>div{min-width:0}
@@ -41,10 +40,8 @@
 .recruitment-consent p{font-size:14px}
 .recruitment-public .recruitment-checkbox{display:flex;align-items:flex-start;gap:12px;line-height:1.55;font-size:14px;margin-top:20px}
 .recruitment-checkbox input{flex:none;margin-top:2px}
-.recruitment-public .recruitment-saved{display:flex;gap:6px;color:#16704f;margin:10px 0 0;font-size:13px}
 .recruitment-public .recruitment-hint{font-size:12px;margin:16px 0 0;color:var(--candidate-muted)}
 .recruitment-public .recruitment-error{color:#b02d39;font-size:14px;margin:16px 0 0}
-.recruitment-public input:focus-visible{outline:3px solid #64b397;outline-offset:3px}
 .recruitment-public section.candidate-room{background:#092c2b;color:#f1f7f4;position:relative;min-height:700px;display:flex;flex-direction:column;padding:24px}
 .recruitment-public-card:has(.candidate-room) .recruitment-public-header{background:#092c2b;border-color:#31534d;color:#b3cfc3}
 .recruitment-public-card:has(.candidate-room) .recruitment-mark{color:#f4f9f6}
@@ -71,8 +68,6 @@
 .candidate-self-view video{width:100%;height:100%;object-fit:cover}
 .candidate-self-view>span{display:flex;gap:5px;align-items:center;position:absolute;left:7px;bottom:7px;background:#071e1dc7;border-radius:5px;padding:4px;font-size:11px}
 .candidate-room-controls{margin-top:auto;display:grid;gap:12px}
-.candidate-room-controls .btn-primary{width:100%}
-.candidate-room-controls .btn-secondary{background:#244641;color:#e4f1eb;border-color:#50796b}
 .recruitment-actions{display:flex;flex-wrap:wrap;gap:10px}.recruitment-actions>button{flex:1}
 .recruitment-public .candidate-room-controls p,.recruitment-public .candidate-room>.recruitment-hint{color:#c1d6cd;font-size:12px}
 .recruitment-public .candidate-room-controls .recruitment-error{color:#ffc6c8}
@@ -86,10 +81,14 @@
 /* Public preparation is a light surface regardless of the Admin theme. Reuse
    shared FeedX button grammar with the same semantic theme tokens. */
 .recruitment-public{--theme-primary:#087b5b;--theme-primary-hover:#066549;--theme-primary-soft:#eef8f4;--theme-text:#152a28;--theme-muted:#526865;--theme-border:#d7e3dd;--theme-surface:#fff;--theme-surface-raised:#fff;--theme-surface-muted:#f3f7f5;color-scheme:light}
-.recruitment-public:not(:has(.candidate-room)) .btn-secondary{background:var(--theme-surface-raised);color:var(--theme-text);border:1px solid var(--theme-border);box-shadow:none}
-.recruitment-public .candidate-languages button[aria-pressed=true],.recruitment-public .candidate-interface-language button[aria-pressed=true]{background:var(--theme-primary-soft);border-color:var(--theme-primary);color:#076b4f}
-.candidate-interface-language{display:flex;gap:6px}.recruitment-public .candidate-interface-language button{min-height:40px;padding:8px 12px;font-size:13px}
-.recruitment-public .btn-secondary:focus-visible,.recruitment-public .btn-primary:focus-visible{outline:2px solid var(--theme-primary);outline-offset:3px}
+.recruitment-public .candidate-interface-language button{min-height:44px;padding:8px 12px;font-size:13px}
 .recruitment-public .recruitment-checkbox{margin-top:0}
 @media(max-width:500px){.candidate-languages{margin:20px 0}.recruitment-public .candidate-role{margin:20px 0;padding:16px}.recruitment-details{gap:12px}.candidate-identity,.candidate-language-summary{padding-top:16px;margin:16px 0}.recruitment-consent{margin:16px 0;padding:16px 0}}
 .recruitment-public-card:has(.candidate-room) .candidate-interface-language,.recruitment-public-card:has(.candidate-complete) .candidate-interface-language{display:none}
+
+.candidate-interface-language{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.candidate-interface-language>span{font-size:12px}
+.candidate-interface-language>div{display:flex;gap:6px}
+.candidate-interface-language .candidate-button{padding:8px 12px;font-size:13px}
+
+.recruitment-public .candidate-edit input:focus-visible{outline:3px solid var(--theme-primary);outline-offset:3px}
