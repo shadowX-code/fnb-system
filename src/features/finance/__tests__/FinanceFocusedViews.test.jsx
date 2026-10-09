@@ -33,6 +33,8 @@ it('keeps cost analyses and selected contexts independent without mutating evide
   expect(screen.queryByRole('tab',{name:'Structure'})).toBeNull();
   expect(screen.getByRole('group',{name:'Cost growth relative to Revenue and margin impact'})).toBeTruthy();
   expect(screen.getByRole('group',{name:'100 percent Revenue composition'})).toBeTruthy();
+  expect(screen.queryByText('Partial composition evidence')).toBeNull();
+  expect(screen.getByRole('group',{name:'100 percent Revenue composition'}).querySelectorAll('.chart-pending')).toHaveLength(0);
   expect(screen.getByRole('group',{name:'Monthly cost history'})).toBeTruthy();
   const pressure = document.querySelector('[data-admin-analytical-surface][aria-label="Margin Pressure Map"]');
   const structure = document.querySelector('[data-admin-analytical-surface][aria-label="Cost Structure"]');
