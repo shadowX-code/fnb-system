@@ -6,6 +6,7 @@ vi.mock("../../../../lib/supabase.ts", () => ({ supabase: { from(table) {
   let filters = [], orders = [];
   const query = {
     select(_fields, options) { expect(options?.count).toBe("exact"); return query; },
+    eq(column, value) { filters.push([column, [value]]); return query; },
     in(column, values) { filters.push([column, values]); return query; },
     order(column, options) { orders.push([column, options.ascending]); return query; },
     async range(start, end) {
@@ -16,10 +17,11 @@ vi.mock("../../../../lib/supabase.ts", () => ({ supabase: { from(table) {
         }
         return 0;
       });
-      db.ranges.push({ table, start, end, count: rows.length });
+      db.ranges.push({ table, start, end, count: rows.length, reportIds: filters.find(([column]) => column === "report_id")?.[1] });
       if (table === "product_sales_reports" && db.mode === "report-error") return { data: null, count: null, error: { message: "Report read failed" } };
       if (table === "product_sales_items" && db.mode === "pending") await db.pending;
-      return { data: rows.slice(start, (db.mode === "short" || (db.mode === "year-short" && rows.length === 1843)) && table === "product_sales_items" ? start + 20 : end + 1), count: rows.length, error: null };
+      if (db.mode === "year-short" && table === "product_sales_items" && filters.some(([column, values]) => column === "report_id" && values.includes("7-FC"))) return { data: [], count: rows.length, error: null };
+      return { data: rows.slice(start, db.mode === "short" && table === "product_sales_items" ? start + 20 : end + 1), count: rows.length, error: null };
     },
   };
   return query;
@@ -63,15 +65,16 @@ describe("Complete Product Analytics consumers", () => {
     expect(result).toHaveLength(1842);
     expect(september).toHaveLength(904);
     expect(september.reduce((sum, row) => sum + row.nett_sales, 0)).toBeCloseTo(315595.24, 2);
-    expect(db.ranges.map(row => row.start)).toEqual([0, 500, 1000, 1500]);
+    expect(db.ranges).toHaveLength(8);
+    expect(db.ranges.every(row => row.reportIds.length === 1 && row.start === 0)).toBe(true);
     expect(outlets.reduce((sum, outlet) => sum + getNetSales(store().salesRecords, outlet.id, 9, 2026), 0)).toBeCloseTo(312741.64, 2);
   });
   it("renders September totals only after both comparison and yearly complete reads", async () => {
     mount(ProductAnalyticsPage);
     await screen.findByText("Total Net Sales");
     expect(screen.getAllByText(/RM\s*315,595/).length).toBeGreaterThan(0);
-    // Period+comparison and yearly each traverse all four item pages.
-    expect(db.ranges.filter(row => row.table === "product_sales_items" && row.start === 1500)).toHaveLength(2);
+    // Period+comparison and yearly each complete all eight scoped reports.
+    expect(db.ranges.filter(row => row.table === "product_sales_items")).toHaveLength(16);
     expect(screen.getByRole("button", { name: /Export/ }).disabled).toBe(false);
   });
   it("withholds product KPIs and export while loading, then on a short page", async () => {
@@ -94,7 +97,7 @@ describe("Complete Product Analytics consumers", () => {
     mount(ProductAnalyticsPage);
     await screen.findByRole("alert");
     expect(screen.queryByText("Total Net Sales")).toBeNull();
-    expect(db.ranges.some(row => row.count === 1842 && row.start === 1500)).toBe(true);
+    expect(db.ranges.filter(row => row.table === "product_sales_items" && row.reportIds[0] !== "7-FC").length).toBeGreaterThanOrEqual(8);
   });
   it("does not let a late read overwrite a new outlet scope", async () => {
     let release;
@@ -108,7 +111,7 @@ describe("Complete Product Analytics consumers", () => {
     expect(result.current.data).toHaveLength(0);
     await waitFor(() => expect(result.current.data).toHaveLength(232));
     release();
-    await waitFor(() => expect(db.ranges.some(row => row.count === 1842 && row.start === 1500)).toBe(true));
+    await waitFor(() => expect(db.ranges).toHaveLength(9));
     expect(result.current.data).toHaveLength(232);
   });
   it("keeps Dashboard financial sales separate while completely reading product widgets", async () => {
@@ -116,7 +119,7 @@ describe("Complete Product Analytics consumers", () => {
     mount(DashboardOverviewPage);
     await waitFor(() => expect(within(signals()).queryByText("Loading complete product signals…")).toBeNull());
     expect(within(signals()).getAllByText("September fixture").length).toBeGreaterThan(0);
-    expect(db.ranges.filter(row => row.table === "product_sales_items" && row.start === 1500)).toHaveLength(1);
+    expect(db.ranges.filter(row => row.table === "product_sales_items")).toHaveLength(8);
     expect(screen.getAllByText(/RM\s*312,742/).length).toBeGreaterThan(0);
   });
   it("does not label failed Dashboard report reads as missing uploads", async () => {

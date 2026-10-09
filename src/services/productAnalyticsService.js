@@ -56,11 +56,28 @@ export const productAnalyticsService = {
   },
   async listCompleteItemsByReportIds(reportIds = []) {
     if (!reportIds.length) return [];
-    // Bound query size without weakening each chunk's exact completeness check.
-    const chunks = [];
-    for (let i = 0; i < reportIds.length; i += 100) chunks.push(reportIds.slice(i, i + 100));
-    const results = await Promise.all(chunks.map(ids => readCompleteInventoryRows("product_sales_items", {select: itemFields, in: {report_id: ids}, order: "nett_sales", ascending: false})));
-    return results.flatMap(result => result.data.map(mapItem));
+    // Exact counts over a whole year can time out under RLS. Keep each read
+    // indexed by one report, including reports larger than a page, and bound
+    // concurrency so yearly/current/comparison reads do not flood the API.
+    const reportScope = [...new Set(reportIds)];
+    const rows = [];
+    const seen = new Set();
+    for (let i = 0; i < reportScope.length; i += 3) {
+      const batch = reportScope.slice(i, i + 3);
+      const results = await Promise.all(batch.map(reportId => readCompleteInventoryRows("product_sales_items", {
+        select: itemFields, eq: {report_id: reportId}, order: "nett_sales", ascending: false,
+      })));
+      results.forEach((result, index) => {
+        for (const row of result.data) {
+          if (row.report_id !== batch[index] || seen.has(row.id)) {
+            throw Object.assign(new Error("product_sales_items: invalid or overlapping report scope. Refresh to retry."), { readState: "incomplete" });
+          }
+          seen.add(row.id);
+          rows.push(mapItem(row));
+        }
+      });
+    }
+    return rows.sort((a, b) => b.nett_sales - a.nett_sales || a.id.localeCompare(b.id));
   },
   async listReports({ outletIds = [] } = {}) {
     let query = supabase
