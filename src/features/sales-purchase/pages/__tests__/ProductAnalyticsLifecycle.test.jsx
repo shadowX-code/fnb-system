@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  service: { listReports: vi.fn(), listItemsByReportIds: vi.fn(), findReport: vi.fn(), replaceReport: vi.fn(), deleteReport: vi.fn() },
+  service: { listCompleteReports: vi.fn(), listCompleteItemsByReportIds: vi.fn(), findReport: vi.fn(), replaceReport: vi.fn(), deleteReport: vi.fn() },
 }));
 
 vi.mock("../../../../services/productAnalyticsService.js", () => ({ productAnalyticsService: mocks.service }));
@@ -26,8 +26,8 @@ function mount(permissions, reports = []) {
 
 beforeEach(() => {
   Object.values(mocks.service).forEach((mock) => mock.mockReset());
-  mocks.service.listReports.mockResolvedValue([]);
-  mocks.service.listItemsByReportIds.mockResolvedValue([]);
+  mocks.service.listCompleteReports.mockResolvedValue([]);
+  mocks.service.listCompleteItemsByReportIds.mockResolvedValue([]);
   mocks.service.findReport.mockResolvedValue(null);
   mocks.service.replaceReport.mockResolvedValue(report);
   mocks.service.deleteReport.mockResolvedValue(true);
@@ -51,9 +51,9 @@ describe("Product Analytics mounted lifecycle guards", () => {
   });
 
   it("uses parent page confirmation, delete service, local report removal, and notification for an authorized explicit delete", async () => {
-    mocks.service.listReports.mockResolvedValue([report]);
+    mocks.service.listCompleteReports.mockResolvedValue([report]);
     const ui = mount(["product_analytics.view", "product_analytics.upload", "product_analytics.manage"]);
-    await waitFor(() => expect(mocks.service.listReports).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.service.listCompleteReports).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("button", { name: "Upload History" }));
     await screen.findByText("july.csv");
 
@@ -61,18 +61,18 @@ describe("Product Analytics mounted lifecycle guards", () => {
     await waitFor(() => expect(mocks.service.deleteReport).toHaveBeenCalledWith(report));
     expect(ui.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Delete product report?", confirmLabel: "Delete", danger: true }));
     expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Product report deleted" }));
-    expect(mocks.service.listReports).toHaveBeenCalledTimes(1);
+    expect(mocks.service.listCompleteReports).toHaveBeenCalledTimes(1);
   });
 
   it("refreshes the page-owned report list and notifies only after an authorized upload succeeds", async () => {
-    mocks.service.listReports.mockResolvedValueOnce([]).mockResolvedValueOnce([report]);
+    mocks.service.listCompleteReports.mockResolvedValueOnce([]).mockResolvedValueOnce([report]);
     const ui = mount(["product_analytics.view", "product_analytics.upload"]);
     await screen.findByText("No product sales report uploaded yet.");
     fireEvent.click(screen.getByRole("button", { name: "Upload Report" }));
     const modal = screen.getByRole("heading", { name: "Upload Product Sales Report" }).closest(".fixed");
-    const outletSelect = within(modal).getByRole("button", { name: "Select" });
+    const outletSelect = within(modal).getByRole("button", { name: "Outlet *" });
     fireEvent.click(outletSelect);
-    fireEvent.click(screen.getByRole("button", { name: "KL Central" }));
+    fireEvent.click(screen.getByRole("option", { name: "KL Central" }));
 
     const file = new File(["Product Name,Quantity,Nett Sales\nNasi Lemak,10,115"], "july.csv", { type: "text/csv" });
     Object.defineProperty(file, "text", { value: async () => "Product Name,Quantity,Nett Sales\nNasi Lemak,10,115" });
@@ -83,21 +83,21 @@ describe("Product Analytics mounted lifecycle guards", () => {
     await waitFor(() => expect(mocks.service.replaceReport).toHaveBeenCalledTimes(1));
     expect(mocks.service.findReport).toHaveBeenCalledTimes(1);
     expect(mocks.service.replaceReport).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-1", fileName: "july.csv", existingReportId: null, requestId: expect.any(String), items: [expect.objectContaining({ product_name: "Nasi Lemak", quantity: 10, nett_sales: 115 })] }));
-    await waitFor(() => expect(mocks.service.listReports).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mocks.service.listCompleteReports).toHaveBeenCalledTimes(2));
     expect(screen.queryByRole("heading", { name: "Upload Product Sales Report" })).toBeNull();
     expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Product report uploaded" }));
   });
 
   it("confirms and submits a replacement through the same trusted save bridge", async () => {
-    mocks.service.listReports.mockResolvedValueOnce([report]).mockResolvedValueOnce([{ ...report, id: "report-2", file_name: "replacement.csv" }]);
+    mocks.service.listCompleteReports.mockResolvedValueOnce([report]).mockResolvedValueOnce([{ ...report, id: "report-2", file_name: "replacement.csv" }]);
     mocks.service.findReport.mockResolvedValue(report);
     mocks.service.replaceReport.mockResolvedValue({ ...report, id: "report-2", file_name: "replacement.csv" });
     const ui = mount(["product_analytics.view", "product_analytics.upload", "product_analytics.manage"]);
-    await waitFor(() => expect(mocks.service.listReports).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.service.listCompleteReports).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("button", { name: "Upload Report" }));
     const modal = screen.getByRole("heading", { name: "Upload Product Sales Report" }).closest(".fixed");
-    fireEvent.click(within(modal).getByRole("button", { name: "Select" }));
-    fireEvent.click(screen.getByRole("button", { name: "KL Central" }));
+    fireEvent.click(within(modal).getByRole("button", { name: "Outlet *" }));
+    fireEvent.click(screen.getByRole("option", { name: "KL Central" }));
     const file = new File(["Product Name,Quantity,Nett Sales\nNasi Lemak,10,115"], "replacement.csv", { type: "text/csv" });
     Object.defineProperty(file, "text", { value: async () => "Product Name,Quantity,Nett Sales\nNasi Lemak,10,115" });
     fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
@@ -110,15 +110,15 @@ describe("Product Analytics mounted lifecycle guards", () => {
   });
 
   it("keeps an authorized replace modal open, reports failure, and permits retry without a false list refresh", async () => {
-    mocks.service.listReports.mockResolvedValue([report]);
+    mocks.service.listCompleteReports.mockResolvedValue([report]);
     mocks.service.findReport.mockResolvedValue(report);
     mocks.service.replaceReport.mockRejectedValueOnce(new Error("replacement header failed")).mockResolvedValueOnce(report);
     const ui = mount(["product_analytics.view", "product_analytics.upload", "product_analytics.manage"]);
-    await waitFor(() => expect(mocks.service.listReports).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.service.listCompleteReports).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("button", { name: "Upload Report" }));
     const modal = screen.getByRole("heading", { name: "Upload Product Sales Report" }).closest(".fixed");
-    fireEvent.click(within(modal).getByRole("button", { name: "Select" }));
-    fireEvent.click(screen.getByRole("button", { name: "KL Central" }));
+    fireEvent.click(within(modal).getByRole("button", { name: "Outlet *" }));
+    fireEvent.click(screen.getByRole("option", { name: "KL Central" }));
     const file = new File(["Product Name,Quantity,Nett Sales\nNasi Lemak,10,115"], "july.csv", { type: "text/csv" });
     Object.defineProperty(file, "text", { value: async () => "Product Name,Quantity,Nett Sales\nNasi Lemak,10,115" });
     fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
@@ -128,7 +128,7 @@ describe("Product Analytics mounted lifecycle guards", () => {
     await waitFor(() => expect(mocks.service.replaceReport).toHaveBeenCalledTimes(1));
     expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Unable to upload report", tone: "error" }));
     expect(screen.getByRole("heading", { name: "Upload Product Sales Report" })).toBeTruthy();
-    expect(mocks.service.listReports).toHaveBeenCalledTimes(1);
+    expect(mocks.service.listCompleteReports).toHaveBeenCalledTimes(1);
     const requestId = mocks.service.replaceReport.mock.calls[0][0].requestId;
 
     fireEvent.click(within(modal).getByRole("button", { name: "Upload Report" }));
@@ -143,8 +143,8 @@ describe("Product Analytics mounted lifecycle guards", () => {
     await screen.findByText("No product sales report uploaded yet.");
     fireEvent.click(screen.getByRole("button", { name: "Upload Report" }));
     const modal = screen.getByRole("heading", { name: "Upload Product Sales Report" }).closest(".fixed");
-    fireEvent.click(within(modal).getByRole("button", { name: "Select" }));
-    fireEvent.click(screen.getByRole("button", { name: "KL Central" }));
+    fireEvent.click(within(modal).getByRole("button", { name: "Outlet *" }));
+    fireEvent.click(screen.getByRole("option", { name: "KL Central" }));
     const file = new File(["Product Name,Quantity,Nett Sales\nNasi Lemak,10,115"], "july.csv", { type: "text/csv" });
     Object.defineProperty(file, "text", { value: async () => "Product Name,Quantity,Nett Sales\nNasi Lemak,10,115" });
     fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
@@ -159,13 +159,13 @@ describe("Product Analytics mounted lifecycle guards", () => {
   });
 
   it("keeps successful persistence truthful when the follow-up report refresh fails", async () => {
-    mocks.service.listReports.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error("list refresh failed"));
+    mocks.service.listCompleteReports.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error("list refresh failed"));
     const ui = mount(["product_analytics.view", "product_analytics.upload"]);
     await screen.findByText("No product sales report uploaded yet.");
     fireEvent.click(screen.getByRole("button", { name: "Upload Report" }));
     const modal = screen.getByRole("heading", { name: "Upload Product Sales Report" }).closest(".fixed");
-    fireEvent.click(within(modal).getByRole("button", { name: "Select" }));
-    fireEvent.click(screen.getByRole("button", { name: "KL Central" }));
+    fireEvent.click(within(modal).getByRole("button", { name: "Outlet *" }));
+    fireEvent.click(screen.getByRole("option", { name: "KL Central" }));
     const file = new File(["Product Name,Quantity,Nett Sales\nNasi Lemak,10,115"], "july.csv", { type: "text/csv" });
     Object.defineProperty(file, "text", { value: async () => "Product Name,Quantity,Nett Sales\nNasi Lemak,10,115" });
     fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });

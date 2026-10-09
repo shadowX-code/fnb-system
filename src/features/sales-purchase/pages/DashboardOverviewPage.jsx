@@ -300,6 +300,8 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
     employees: [],
     loading: true,
     errors: [],
+    productError: null,
+    scopeKey: null,
   });
 
   const [year, month] = selectedPeriod.split("-").map(Number);
@@ -318,9 +320,10 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
     }
   }, [activeOutlets, selectedOutletId]);
 
+  const productScopeKey = `${year}-${month}:${scopeOutletIds.join("|")}`;
   useEffect(() => {
     if (!scopeOutletIds.length) {
-      setOpsData((current) => ({ ...current, loading: false }));
+      setOpsData((current) => ({ ...current, productReports: [], productItems: [], productError: null, scopeKey: productScopeKey, loading: false }));
       return undefined;
     }
     let ignore = false;
@@ -333,7 +336,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
         assetTrackingService.listAssets(selectedOutletId === "all" ? "all" : selectedOutletId),
         assetTrackingService.listInspections("", selectedOutletId === "all" ? "" : selectedOutletId),
         assetTrackingService.listMaintenanceRecords("", selectedOutletId === "all" ? "" : selectedOutletId),
-        productAnalyticsService.listReports({ outletIds: scopeOutletIds }),
+        productAnalyticsService.listCompleteReports({ outletIds: scopeOutletIds }),
         employeeService.listEmployees(),
         Promise.all(rosterRequests),
       ]);
@@ -346,10 +349,12 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
       const previous = getPreviousPeriod(month, year);
       const previousReports = reports.filter((report) => scopeOutletIds.includes(report.outlet_id) && report.report_month === previous.month && report.report_year === previous.year);
       let productItems = [];
+      let productError = results[3].status === "rejected" ? "Product reports could not be loaded completely." : null;
       try {
-        productItems = await productAnalyticsService.listItemsByReportIds([...current, ...previousReports].map((report) => report.id));
+        productItems = await productAnalyticsService.listCompleteItemsByReportIds([...current, ...previousReports].map((report) => report.id));
       } catch (error) {
-        errors.push(error?.message || "Product analytics details could not be loaded.");
+        productError = "Product sales could not be loaded completely.";
+        errors.push(error?.message || productError);
       }
       if (ignore) return;
       const scoped = (rows) => rows.filter((row) => !row.outlet_id || scopeOutletIds.includes(row.outlet_id));
@@ -359,6 +364,8 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
         maintenance: results[2].status === "fulfilled" ? scoped(results[2].value) : [],
         productReports: reports,
         productItems,
+        productError,
+        scopeKey: productScopeKey,
         employees: results[4].status === "fulfilled" ? results[4].value : [],
         rosters: results[5].status === "fulfilled" ? results[5].value.flat().filter((row) => scopeOutletIds.includes(row.outlet_id)) : [],
         loading: false,
@@ -827,7 +834,11 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
           action={<button className="text-xs font-bold text-primary" type="button" onClick={() => ui?.navigate?.("product_analytics")}>View Product Analytics</button>}
         >
           <div className="space-y-3 p-4">
-            {!currentReportIds.length ? (
+            {opsData.scopeKey !== productScopeKey || opsData.loading ? (
+              <div role="status">Loading complete product signals…</div>
+            ) : opsData.productError ? (
+              <div role="alert">{opsData.productError} Product signals are unavailable. Reload to retry.</div>
+            ) : !currentReportIds.length ? (
               <EmptyState title="No product report uploaded for this month." message="Upload a POS product sales report in Product Analytics to activate product signals." />
             ) : (
               [
