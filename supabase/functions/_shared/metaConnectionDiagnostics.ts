@@ -29,7 +29,7 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
  let publishingEvidence:any;
  if(publishingChecks) {
   const required=connection.channel==='facebook'?['pages_manage_posts','pages_read_engagement']:['instagram_basic','instagram_content_publish','pages_read_engagement'];
-  publishingEvidence={eligibility:'unverified',required_scopes:required,missing_scopes:required.filter(s=>!tokenEvidence.granted_scopes.includes(s)),page_id:null,can_post:null,page_tasks:[],page_tasks_verified:false,professional_account_type:null,quota_usage:null,quota_total:null,blockers:['page_tasks_unverified']};
+  publishingEvidence={eligibility:'unverified',required_scopes:required,missing_scopes:required.filter(s=>!tokenEvidence.granted_scopes.includes(s)),page_id:null,can_post:null,page_tasks:[],page_tasks_verified:false,professional_account_verified:false,quota_usage:null,quota_total:null,blockers:['page_tasks_unverified']};
   // /me resolves the retained PAGE credential, including when bound to linked Instagram.
   // Neither a successful read nor can_post substitutes for the documented Page task requirement.
   const pageId=typeof identity?.id==='string'&&/^\d{1,30}$/.test(identity.id)?identity.id:null;
@@ -45,8 +45,8 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
     const link=await read('linked_instagram_identity',pageId,token,{fields:'id,instagram_business_account{id}'});
     identityMatches=String(link?.id)===pageId&&String(link?.instagram_business_account?.id)===id;
     if(identityMatches) {
-     const professional=await read('instagram_professional_account',id,token,{fields:'id,account_type'});
-     if(String(professional?.id)===id&&['BUSINESS','MEDIA_CREATOR'].includes(professional?.account_type))publishingEvidence.professional_account_type=professional.account_type;
+     const professional=await read('instagram_account_identity',id,token,{fields:'id'});
+     publishingEvidence.professional_account_verified=String(professional?.id)===id;
      const limit=await read('instagram_publishing_limit',id+'/content_publishing_limit',token,{fields:'quota_usage,config'});
      const row=limit?.data?.[0];
      if(Number.isSafeInteger(row?.quota_usage)&&row.quota_usage>=0)publishingEvidence.quota_usage=row.quota_usage;

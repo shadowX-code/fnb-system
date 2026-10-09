@@ -32,11 +32,11 @@ describe('read-only Meta connection diagnostics',()=>{
   const transport=vi.fn().mockResolvedValueOnce(response({data:{is_valid:true,app_id:'123',type:'PAGE',profile_id:'111',scopes:['instagram_basic','instagram_content_publish','pages_read_engagement'],expires_at:0}}))
    .mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({data:[]}))
    .mockResolvedValueOnce(response({id:'111',can_post:true})).mockResolvedValueOnce(response({error:{code:100,message:'private-subject unknown tasks field'}},400))
-   .mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:'333'}})).mockResolvedValueOnce(response({id:'333',account_type:'BUSINESS'}))
+   .mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:'333'}})).mockResolvedValueOnce(response({id:'333'}))
    .mockResolvedValueOnce(response({data:[{quota_usage:0,config:{quota_total:100}}]}));
   const connection={provider_account_id:'333',channel:'instagram',capabilities:{publishing:false,execution_enabled:false}},before=JSON.stringify(connection),guard=vi.fn();
   const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',connection,'token-secret',guard,true);
-  expect(result.credential_identity_matches).toBe(true);expect(result.publishing_evidence).toMatchObject({eligibility:'unverified',page_id:'111',can_post:true,page_tasks_verified:false,professional_account_type:'BUSINESS',quota_usage:0,quota_total:100,missing_scopes:[],blockers:['page_tasks_unverified']});
+  expect(result.credential_identity_matches).toBe(true);expect(result.publishing_evidence).toMatchObject({eligibility:'unverified',page_id:'111',can_post:true,page_tasks_verified:false,professional_account_verified:true,quota_usage:0,quota_total:100,missing_scopes:[],blockers:['page_tasks_unverified']});
   expect(result.publishing_enabled).toBe(false);expect(JSON.stringify(connection)).toBe(before);expect(guard).toHaveBeenCalledTimes(8);
   expect(transport.mock.calls.every(([,init])=>init.method==='GET')).toBe(true);
   expect(result.evidence.find(r=>r.check==='page_tasks_field')).toMatchObject({http_status:400,graph_error_code:100});
