@@ -26,7 +26,7 @@ function DayTooltip({ day }) {
     { label: "Productivity", value: day.productivity == null ? "Unavailable" : `${number(day.productivity)} kg/JO-hour` },
     { label: "Valid JO-hours", value: number(day.jo_hours) },
     ...(day.moving_average_kg != null ? [{ label: `${day.average_days}-production-day avg`, value: `${number(day.moving_average_kg)} kg`, color: averageColor }] : []),
-  ]} note={day.state === "future" ? "No output attributed yet." : `${day.productivity_runs || 0} runs with valid output and duration.${day.invalid_duration_runs ? ` ${day.invalid_duration_runs} missing/invalid durations excluded.` : ""}${day.missing_output_runs ? ` ${day.missing_output_runs} runs without valid kg output.` : ""}`} />;
+  ]} note={day.state === "future" ? "No output attributed yet." : `${day.productivity_runs || 0} ${Number(day.productivity_runs) === 1 ? "run" : "runs"} with valid output and duration.${day.invalid_duration_runs ? ` ${day.invalid_duration_runs} missing/invalid durations excluded.` : ""}${day.missing_output_runs ? ` ${day.missing_output_runs} ${Number(day.missing_output_runs) === 1 ? "run" : "runs"} without valid kg output.` : ""}`} />;
 }
 
 export function ProductionPerformanceChart({ days, mode, month }) {
@@ -41,13 +41,14 @@ export function ProductionPerformanceChart({ days, mode, month }) {
       const left = 48, right = 12, top = 16, bottom = 210;
       const step = (width - left - right) / days.length;
       const value = day => mode === "productivity" ? day.productivity : day.output_kg;
-      const scale = adminChartScale(days.flatMap(day => [value(day), ...(mode === "output" ? [Number(day.moving_average_kg ?? NaN)] : [])]));
+      const values = days.flatMap(day => [value(day), ...(mode === "output" ? [Number(day.moving_average_kg ?? NaN)] : [])]);
+      const scale = adminChartScale(values.some(value => Number.isFinite(value) && value > 0) ? values : [0, 1]);
       const y = value => bottom - value / scale.max * (bottom - top);
       const cellWidth = width / 7, cellHeight = Math.max(48, Math.min(62, cellWidth));
       const averagePoints = days.filter(day => day.completed_runs > 0 && day.state !== "future").map(day => day.moving_average_kg == null ? null : [left + (day.number - .5) * step, y(Number(day.moving_average_kg))]);
       return <>
         {calendar ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label, index) => <text key={label} x={(index + .5) * cellWidth} y={14} textAnchor="middle" fill={muted}>{label}</text>) : <>
-          {scale.ticks.map(tick => <g key={tick}><line className="chart-grid" x1={left} x2={width - right} y1={y(tick)} y2={y(tick)} /><text x={left - 8} y={y(tick) + 4} fill={muted} textAnchor="end">{new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(tick)}</text></g>)}
+          {scale.ticks.map(tick => <g key={tick}><line className="chart-grid" x1={left} x2={width - right} y1={y(tick)} y2={y(tick)} /><text x={left - 8} y={y(tick) + 4} fill={muted} textAnchor="end">{new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 2 }).format(tick)}</text></g>)}
           <text x={left} y={10} fill={muted}>{mode === "productivity" ? "kg/JO-hour" : "kg"}</text>
         </>}
         {days.map((day, index) => {
