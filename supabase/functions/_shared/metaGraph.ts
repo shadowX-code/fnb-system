@@ -1,5 +1,6 @@
 import { META_REDIRECT, META_SCOPES } from './metaSecurity.ts';
 // Only explicitly selected non-secret fields may enter diagnostics. Never log provider bodies.
+export type MetaResponseEvidence={graph_error_subcode:number|null;error_permissions:string[]};
 export type MetaDiagnostic = Record<string, string | number | boolean | null | string[]>;
 const diagnosticScopes=new Set([...META_SCOPES,'public_profile','email','business_management','pages_manage_metadata','pages_messaging','ads_read','ads_management']);
 const diagnosticTasks=new Set(['ADVERTISE','ANALYZE','CREATE_CONTENT','MANAGE','MESSAGING','MODERATE','PROFILE_PLUS_ADVERTISE','PROFILE_PLUS_ANALYZE','PROFILE_PLUS_CREATE_CONTENT','PROFILE_PLUS_FULL_CONTROL','PROFILE_PLUS_MANAGE','PROFILE_PLUS_MESSAGING','PROFILE_PLUS_MODERATE']);
@@ -14,7 +15,7 @@ export class MetaGraph {
   if(!/^v\d+\.0$/.test(config.version))throw new MetaError('meta_version_not_configured');
  }
  private report(event:MetaDiagnostic) {try{this.diagnostic?.(event);}catch{/* Diagnostics must not change authorization behavior. */}}
- async request(path:string,token:string,params:Record<string,any>={},method='GET',inspect?:(status:number|null,code:number|null)=>void):Promise<any> {
+ async request(path:string,token:string,params:Record<string,any>={},method='GET',inspect?:(status:number|null,code:number|null,evidence?:MetaResponseEvidence)=>void):Promise<any> {
   if(!/^\/?(?:\d+(?:_\d+)?|me|oauth|debug_token)(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
   const url=new URL(`https://graph.facebook.com/${this.config.version}/${path.replace(/^\//,'')}`);
   const form=new URLSearchParams();for(const [key,value] of Object.entries(params))if(value!==undefined&&value!==null)form.set(key,typeof value==='object'?JSON.stringify(value):String(value));
@@ -38,7 +39,7 @@ export class MetaGraph {
    if(['me/accounts','me/permissions'].includes(path))this.report({event:'graph_response',endpoint:path,http_status:response.status,graph_error_code:null,returned_count:null,data_shape:'unreadable'});
    throw new MetaError('meta_response_unreadable',method!=='GET',method==='GET');
   }
-  inspect?.(response.status,Number.isSafeInteger(body?.error?.code)?body.error.code:null);
+  inspect?.(response.status,Number.isSafeInteger(body?.error?.code)?body.error.code:null,{graph_error_subcode:Number.isSafeInteger(body?.error?.error_subcode)?body.error.error_subcode:null,error_permissions:[...diagnosticScopes,'pages_read_user_content'].filter(scope=>new RegExp(`\\b${scope}\\b`).test(String(body?.error?.message||'')))});
   if(['me/accounts','me/permissions'].includes(path))this.report({event:'graph_response',endpoint:path,http_status:response.status,graph_error_code:Number.isSafeInteger(body.error?.code)?body.error.code:null,returned_count:Array.isArray(body.data)?body.data.length:null,data_shape:Array.isArray(body.data)?'array':body.error?'error':'unexpected'});
   if(!response.ok||body.error) {
    const code=Number(body.error?.code); const auth=[10,190,200].includes(code);

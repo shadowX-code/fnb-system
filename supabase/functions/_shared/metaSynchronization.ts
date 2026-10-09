@@ -1,8 +1,9 @@
 import { MetaError, MetaGraph } from './metaGraph.ts';
+export const facebookPostFields='id,message,created_time,permalink_url,shares,likes.limit(0).summary(true),comments.limit(0).summary(true)';
 export async function readMetaPosts(graph:MetaGraph,connection:any,token:string,guard:()=>Promise<void>):Promise<{posts:any[];after:string|null}> {
  await guard();
  const fb=connection.channel==='facebook';
- const result=await graph.request(`${connection.provider_account_id}/${fb?'posts':'media'}`,token,{fields:fb?'id,message,created_time,permalink_url,shares,likes.limit(0).summary(true),comments.limit(0).summary(true)':'id,caption,timestamp,permalink,like_count,comments_count',limit:2,after:connection.sync_after||undefined});
+ const result=await graph.request(`${connection.provider_account_id}/${fb?'posts':'media'}`,token,{fields:fb?facebookPostFields:'id,caption,timestamp,permalink,like_count,comments_count',limit:2,after:connection.sync_after||undefined});
  const posts=[];
  for(const row of result.data||[]) {
   if(!/^\d+(?:_\d+)?$/.test(String(row.id)))continue;

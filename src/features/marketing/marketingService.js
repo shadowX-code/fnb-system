@@ -22,6 +22,7 @@ export const marketingService = {
   pendingMeta: (organizationId, brandId) => rpc('marketing_meta_pending', { p_org: organizationId, p_brand: brandId }),
   authorizeMeta: (organizationId, brandId) => meta('authorize', { organizationId, brandId }),
   bindMeta: (sessionId, accountId, channel) => meta('bind', { sessionId, accountId, channel }),
+  diagnoseMeta: connectionId => meta('diagnose', { connectionId }),
   disconnectMeta: connectionId => rpc('marketing_meta_disconnect', { p_connection: connectionId }),
   syncMeta: connectionId => rpc('marketing_meta_request_sync', { p_connection: connectionId }),
   execute: (requestId, content, connections) => rpc('marketing_authorize_execution', { p_request: requestId, p_content: content.id, p_revision: content.revision, p_connections: connections }),
