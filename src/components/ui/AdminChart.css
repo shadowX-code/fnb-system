@@ -1,0 +1,46 @@
+:root {--chart-category-coral:#F04452;--chart-category-azure:#139FE6;--chart-category-slate:#94A3B8;--chart-category-emerald:#16A765;--chart-emerald:#00865b;--chart-azure:#0875c4;--chart-coral:#ce4058;--chart-violet:#8053dc;--chart-slate:#64748b;}
+.admin-chart {position:relative;min-width:0;width:100%;margin:12px 0;}
+.admin-chart > svg {display:block;width:100%;height:auto;overflow:visible;}
+.admin-chart-mark {cursor:pointer;outline:none;transition:opacity 180ms ease-out;}
+.admin-chart-tooltip {position:fixed;z-index:100;width:max-content;max-width:min(260px,calc(100vw - 16px));padding:8px 10px;border:1px solid var(--border,#d7e2e8);border-radius:6px;background:var(--surface,white);color:var(--text-primary,#173442);font-size:12px;pointer-events:none;line-height:1.35;}
+.admin-chart-tooltip strong,.admin-chart-tooltip span {display:block;}
+.admin-chart-tooltip span {color:var(--text-secondary,#526473);}
+@media(prefers-reduced-motion:reduce){.admin-chart * {transition:none!important;animation:none!important;}}
+
+
+.admin-chart-crosshair {stroke:var(--text-secondary,#526473);stroke-width:1;stroke-dasharray:3 4;pointer-events:none;}
+.admin-chart-series {transition:opacity 180ms ease-out;stroke-linejoin:round;stroke-linecap:round;}
+.admin-chart-mark:hover .chart-point,.admin-chart-mark:focus-visible .chart-point {stroke-width:3;}
+.admin-chart-mark:focus-visible {outline:none;}
+.admin-chart-sparkline {position:relative;display:block;}
+.admin-chart-sparkline svg {display:block;width:100%;height:100%;overflow:visible;outline:none;}
+.admin-chart-sparkline svg:focus-visible {outline:2px solid var(--primary,#008b65);outline-offset:3px;border-radius:3px;}
+
+/* Quantitative hierarchy shared by domain charts. */
+.admin-chart svg text {font-family:inherit;font-size:11px;font-variant-numeric:tabular-nums;}
+.admin-chart .chart-grid {stroke:var(--border,#d7e2e8);stroke-width:1;opacity:.4;fill:none;vector-effect:non-scaling-stroke;}
+.admin-chart .chart-axis {stroke:var(--border,#d7e2e8);stroke-width:1;fill:none;vector-effect:non-scaling-stroke;}
+.admin-chart-tooltip {box-shadow:0 3px 12px rgb(17 35 47 / .08);}
+.admin-chart-tooltip-title {padding-bottom:4px;color:var(--text-primary,#173442);}
+.admin-chart-tooltip-row {display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:2px 0;}
+.admin-chart-tooltip-row > span {display:flex;gap:6px;align-items:center;}
+.admin-chart-tooltip-row i {width:7px;height:7px;border-radius:50%;flex:none;}
+.admin-chart-tooltip-row b {white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums;}
+.admin-chart-tooltip-note {display:block;margin-top:7px;padding-top:7px;border-top:1px solid var(--border,#d7e2e8);font-size:10px;line-height:1.4;color:var(--text-secondary,#526473);}
+.admin-chart .admin-chart-value-label text {fill:white;font-weight:600;font-size:11px;}
+.admin-chart .chart-inspection-band {fill:var(--text-secondary,#526473);opacity:0;transition:opacity 180ms ease-out;pointer-events:none;}
+.admin-chart-mark:is(:hover,:focus-visible,.is-selected) .chart-inspection-band {opacity:.045;}
+.admin-chart-mark .chart-point {transition:r 180ms ease-out,opacity 180ms ease-out;}
+.admin-chart-sparkline path {stroke-linecap:round;stroke-linejoin:round;}
+
+/* Hit-area outlines communicate keyboard location only, never mouse inspection. */
+.admin-chart .chart-focus {fill:none;stroke:var(--primary,#176b5b);stroke-width:2;opacity:0;pointer-events:none;transition:opacity 180ms ease-out;}
+.admin-chart-mark[data-keyboard-focus=true]:focus-visible .chart-focus {opacity:1;}
+.admin-chart-mark:is(:hover,.is-selected) :is(.chart-support,.chart-pressure,.chart-cash,.chart-opening) {filter:brightness(.93);}
+.admin-chart-mark.is-selected :is(.chart-support,.chart-pressure,.chart-cash,.chart-opening) {stroke:var(--text-primary,#173442);stroke-width:2;}
+.admin-chart-mark.is-selected .chart-point {stroke:var(--text-primary,#173442);stroke-width:3;}
+.admin-chart-mark:is(:hover,.is-selected) :is(rect,circle,path)[fill]:not([fill=transparent]):not([fill=none]):not(.chart-focus) {filter:brightness(.93);}
+.admin-chart-mark.is-selected :is(rect,circle)[fill]:not([fill=transparent]):not([fill=none]):not(.chart-focus) {stroke:var(--text-primary,#173442);stroke-width:2;}
+
+.admin-chart .chart-result {fill:var(--chart-azure);}
+.admin-chart-mark.is-selected .chart-result {stroke:var(--text-primary);stroke-width:2;}
