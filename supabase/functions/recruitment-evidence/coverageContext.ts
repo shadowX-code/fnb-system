@@ -1,9 +1,10 @@
+import { conversationProfile } from "../_shared/recruitmentConversationPlan.ts";
 // Model assessment uses explicit canonical indices and scenario policy, not raw
 // persistence rows. The server still validates every resulting citation.
 export function coverageInput(context: any, turns: any[]) {
   const definition = context.interview_profile?.definition;
   return {
-    interview_profile: context.interview_profile,
+    interview_profile: conversationProfile(context.interview_profile),
     opening_requirements: context.opening_requirements,
     topics: context.topics.map((t: any) => ({ index: t.topic_index, topic: t.topic })),
     scenarios: context.scenarios.map((s: any) => {
