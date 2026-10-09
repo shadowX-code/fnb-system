@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ read: vi.fn() }));
-vi.mock("../../../../services/factoryService.js", async importOriginal => ({ ...await importOriginal(), factoryService: { getProductionMonthlyPerformance: mocks.read } }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), reference: vi.fn() }));
+vi.mock("../../../../services/factoryService.js", async importOriginal => ({ ...await importOriginal(), factoryService: { getProductionMonthlyPerformance: mocks.read, getFactoryAuditReference: mocks.reference } }));
 import FactoryProductionMonthlyPerformance, { ProductionPerformanceChart } from "../FactoryProductionMonthlyPerformance.jsx";
 const data = month => ({ month, today: "2026-10-09", unattributed_runs: 0, days: [{ day: `${month}-01`, completed_runs: 2, output_kg: 60, jo_hours: 3, productivity_output_kg: 60, productivity_runs: 2, moving_average_kg: 60, average_days: 1, records: [
   { production_id: "p1", job_order_id: "j1", job_order_no: "JO-fixture-01", finished_good_name: "Sauce A", sku_code: "S01", variant_name: "1kg Pack", output_kg: 40, actual_pack_qty: 40, start_at: `${month}-01T00:00:00+08:00`, end_at: `${month}-01T02:00:00+08:00`, jo_hours: 2 },
@@ -43,12 +43,29 @@ describe("Monthly Production Performance", () => {
   });
   it("reuses the existing completed Job Order result owner", async () => {
     const onViewResult = vi.fn();
+    const job = { id: "j1", job_order_no: "JO-fixture-01", target_qty: 40, finished_good: { sku_code: "S01" }, status: "completed" };
+    mocks.reference.mockResolvedValue({ type: "job_order", value: job });
     render(<FactoryProductionMonthlyPerformance enabled onViewResult={onViewResult} />);
     await screen.findByText("60 kg");
     fireEvent.click(screen.getByRole("button", { name: /60 kg; 2 completed runs/ }));
     fireEvent.click(screen.getByRole("button", { name: "View Production result for JO-fixture-01" }));
-    expect(onViewResult).toHaveBeenCalledWith({ id: "j1", job_order_no: "JO-fixture-01", product_name: "Sauce A", status: "completed" });
+    await waitFor(() => expect(onViewResult).toHaveBeenCalledWith(job));
+    expect(mocks.reference).toHaveBeenCalledWith({ reference_id: "j1", reference_type: "job_order" });
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+  it("keeps the drill-down open with a retry message when canonical Job Order hydration fails", async () => {
+    mocks.reference.mockRejectedValue(new Error("network"));
+    const onViewResult = vi.fn();
+    render(<FactoryProductionMonthlyPerformance enabled onViewResult={onViewResult} />);
+    await screen.findByText("60 kg");
+    fireEvent.click(screen.getByRole("button", { name: /60 kg; 2 completed runs/ }));
+    const action = screen.getByRole("button", { name: "View Production result for JO-fixture-01" });
+    fireEvent.click(action);
+    fireEvent.click(action);
+    expect(mocks.reference).toHaveBeenCalledTimes(1);
+    expect((await screen.findByRole("alert")).textContent).toContain("Unable to open Production result. Please retry.");
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(onViewResult).not.toHaveBeenCalled();
   });
   it("labels fractional productivity ticks accurately and keeps empty scales meaningful", () => {
     const view = render(<ProductionPerformanceChart month="2026-09" mode="productivity" days={[{ day: "2026-09-01", number: 1, state: "recorded", completed_runs: 1, productivity: .99 }]} />);
