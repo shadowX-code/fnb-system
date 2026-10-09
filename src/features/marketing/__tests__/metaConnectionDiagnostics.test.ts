@@ -28,6 +28,29 @@ describe('read-only Meta connection diagnostics',()=>{
  it('does not call Meta when authority or generation guard fails',async()=>{
   const transport=vi.fn();await expect(diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',{provider_account_id:'111',channel:'facebook'},'token',async()=>{throw new Error('scope revoked');})).rejects.toThrow();expect(transport).not.toHaveBeenCalled();
  });
+ it('checks Instagram through the retained Page identity without inferring publishing tasks',async()=>{
+  const transport=vi.fn().mockResolvedValueOnce(response({data:{is_valid:true,app_id:'123',type:'PAGE',profile_id:'111',scopes:['instagram_basic','instagram_content_publish','pages_read_engagement'],expires_at:0}}))
+   .mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({data:[]}))
+   .mockResolvedValueOnce(response({id:'111',can_post:true})).mockResolvedValueOnce(response({error:{code:100,message:'private-subject unknown tasks field'}},400))
+   .mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:'333'}})).mockResolvedValueOnce(response({id:'333',account_type:'BUSINESS'}))
+   .mockResolvedValueOnce(response({data:[{quota_usage:0,config:{quota_total:100}}]}));
+  const connection={provider_account_id:'333',channel:'instagram',capabilities:{publishing:false,execution_enabled:false}},before=JSON.stringify(connection),guard=vi.fn();
+  const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',connection,'token-secret',guard,true);
+  expect(result.credential_identity_matches).toBe(true);expect(result.publishing_evidence).toMatchObject({eligibility:'unverified',page_id:'111',can_post:true,page_tasks_verified:false,professional_account_type:'BUSINESS',quota_usage:0,quota_total:100,missing_scopes:[],blockers:['page_tasks_unverified']});
+  expect(result.publishing_enabled).toBe(false);expect(JSON.stringify(connection)).toBe(before);expect(guard).toHaveBeenCalledTimes(8);
+  expect(transport.mock.calls.every(([,init])=>init.method==='GET')).toBe(true);
+  expect(result.evidence.find(r=>r.check==='page_tasks_field')).toMatchObject({http_status:400,graph_error_code:100});
+  for(const forbidden of ['token-secret','private-subject','app-token'])expect(JSON.stringify(result)).not.toContain(forbidden);
+ });
+ it('does not inspect an unrelated Instagram account or use a wrong-app token for Page probes',async()=>{
+  const transport=vi.fn().mockResolvedValueOnce(response({data:{is_valid:true,app_id:'123',type:'PAGE',expires_at:0}})).mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({data:[]}))
+   .mockResolvedValueOnce(response({id:'111',can_post:true})).mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:'999'}}));
+  const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',{provider_account_id:'333',channel:'instagram'},'token',vi.fn(),true);
+  expect(result.credential_identity_matches).toBe(false);expect(result.publishing_evidence.blockers).toContain('credential_account_unverified');expect(transport).toHaveBeenCalledTimes(6);
+  const invalid=vi.fn().mockResolvedValueOnce(response({data:{is_valid:true,app_id:'999',type:'PAGE',expires_at:0}})).mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({data:[]}));
+  const denied=await diagnoseMetaConnection(new MetaGraph(config,invalid),'123','app-token',{provider_account_id:'111',channel:'facebook'},'token',vi.fn(),true);
+  expect(denied.publishing_evidence.blockers).toContain('page_credential_unverified');expect(invalid).toHaveBeenCalledTimes(3);
+ });
  it('requires verified Page token, application, identity, expiry and core read before retry',()=>{
   const connection={channel:'facebook',status:'error',error_code:'meta_permission_or_token_invalid',provider_account_id:'111',expires_at:'2099-01-01'};
   const result={account_id:'111',token:{valid:true,app_matches:true,type:'PAGE',expiry_in_future:true},credential_identity_matches:true,evidence:[{check:'facebook_sync',success:true}]};

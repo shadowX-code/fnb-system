@@ -49,6 +49,16 @@ describe('Meta capability UI', () => {
   await waitFor(()=>expect(marketingService.retryMetaSync).toHaveBeenCalledWith('conn'));
   expect(marketingService.bindMeta).not.toHaveBeenCalled();expect(marketingService.authorizeMeta).not.toHaveBeenCalled();expect(marketingService.execute).not.toHaveBeenCalled();
  });
+ it('shows positive Page posting evidence without offering execution when tasks remain unverified',async()=>{
+  marketingService.metaConfiguration.mockResolvedValue({configured:true,missing:[]});
+  marketingService.integrations.mockResolvedValue({connections:[{...connection,capabilities:{posts:true,publishing:false,execution_enabled:false}}]});
+  marketingService.diagnoseMeta.mockResolvedValue({channel:'facebook',token:{type:'PAGE',valid:true},credential_identity_matches:true,publishing_evidence:{page_id:'111',can_post:true,missing_scopes:[]},evidence:[]});
+  render(<MetaConnections organizationId="org" brandId="brand" brands={[]} />);
+  fireEvent.click(await screen.findByRole('button',{name:'Check connection'}));
+  await screen.findByText(/Can post true · Linked-Page MANAGE \/ CREATE_CONTENT tasks unverified/);
+  expect(screen.getByText(/Publishing unavailable · External execution disabled/)).toBeTruthy();
+  expect(marketingService.execute).not.toHaveBeenCalled();expect(marketingService.authorizeMeta).not.toHaveBeenCalled();
+ });
  it('requires explicit approval and passes the reviewed revision and accounts to server authority', async () => {
   marketingService.integrations.mockResolvedValue({ connections: [connection] });marketingService.execute.mockResolvedValue({});
   const content = { id: 'content', organization_id: 'org', brand_id: 'brand', revision: 4, status: 'scheduled', scheduled_at: '2099-01-01T00:00:00Z', payload: { variants: [{ channel: 'facebook', format: 'text' }] } }, complete = vi.fn();
