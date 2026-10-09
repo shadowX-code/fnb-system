@@ -18,3 +18,11 @@ verify_jwt = false
 [functions.recruitment-voice-lab]
 # Staging-only, validates Admin Auth and canonical recruitment.manage permission.
 verify_jwt = false
+
+[functions.marketing-meta]
+# Public Meta callbacks verify state/HMAC; all Admin commands verify Supabase Auth and canonical brand/action scope.
+verify_jwt = false
+
+[functions.marketing-worker]
+# Scheduler uses a private worker secret; browser commands use canonical authenticated RPCs.
+verify_jwt = false

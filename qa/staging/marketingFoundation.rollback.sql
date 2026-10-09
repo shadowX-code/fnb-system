@@ -2,7 +2,7 @@
 -- Run only against verified ujkzdaaadnvcfayuldmh; no provider call is made.
 begin;
 -- Do not run the global claim rehearsal alongside configured live accounts.
-do $$begin assert not exists(select 1 from public.marketing_connections where status='production_authorized'),'Worker QA requires no configured live Marketing connection';end;$$;
+do $$begin assert not exists(select 1 from public.marketing_connections where capabilities->>'execution_enabled'='true'),'Worker QA requires no configured live Marketing connection';end;$$;
 create temporary table marketing_qa_ids(key text primary key,id uuid);
 grant select,insert,update on marketing_qa_ids to authenticated;
 do $$
@@ -112,23 +112,26 @@ do $$declare result jsonb; denied boolean:=false;begin
 end;$$;
 reset role;
 set local role service_role;
-do $$begin assert public.marketing_claim_job() is null,'No job may execute without production authorization';end;$$;
+do $$begin assert public.marketing_claim_job() is null,'No job may execute without explicit execution authorization';end;$$;
 reset role;
 -- Exercise worker leases without a provider receipt or any network request.
 -- Connection/reference values below are rollback-only fixtures, never real credentials.
 update public.marketing_content set status='scheduled' where id=(select id from marketing_qa_ids where key='content');
 update public.marketing_jobs set state='blocked',due_at=now()-interval '1 minute' where content_id=(select id from marketing_qa_ids where key='content');
-insert into public.marketing_connections(organization_id,brand_id,channel,status,capabilities,expires_at)
-select (select id from marketing_qa_ids where key='org'),(select id from marketing_qa_ids where key='brand'),'facebook','test_authorized','{"publishing":true}',now()+interval '1 day';
+insert into public.marketing_connections(organization_id,brand_id,channel,status,capabilities,expires_at,provider_account_id)
+select (select id from marketing_qa_ids where key='org'),(select id from marketing_qa_ids where key='brand'),'facebook','test_authorized','{"publishing":true,"execution_enabled":true,"formats":["text"]}',now()+interval '1 day','90000001';
 insert into marketing_private.credentials select id,'rollback-only-unusable-reference' from public.marketing_connections where organization_id=(select id from marketing_qa_ids where key='org');
 set local role service_role;
-do $$begin assert public.marketing_claim_job() is null,'Test authorization cannot claim live jobs';end;$$;
+do $$begin assert public.marketing_claim_job() is null,'Test connection cannot release a backlog without exact execution approval';end;$$;
 reset role;
 update public.marketing_connections set status='production_authorized',expires_at=now()-interval '1 minute' where organization_id=(select id from marketing_qa_ids where key='org');
 set local role service_role;
 do $$begin assert public.marketing_claim_job() is null,'Expired authorization cannot claim jobs';end;$$;
 reset role;
-update public.marketing_connections set expires_at=now()+interval '1 day' where organization_id=(select id from marketing_qa_ids where key='org');
+update public.marketing_connections set status='test_authorized',expires_at=now()+interval '1 day' where organization_id=(select id from marketing_qa_ids where key='org');
+insert into marketing_qa_ids select 'worker_connection',id from public.marketing_connections where organization_id=(select id from marketing_qa_ids where key='org');
+set local role authenticated;
+select public.marketing_authorize_execution(gen_random_uuid(),(select id from marketing_qa_ids where key='content'),2,array[(select id from marketing_qa_ids where key='worker_connection')]);
 set local role service_role;
 do $$declare job jsonb; denied boolean:=false;begin
  job:=public.marketing_claim_job();

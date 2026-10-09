@@ -6,7 +6,25 @@ async function rpc(name, args = {}) {
   throwSupabaseError(`marketing.${name}`, error);
   return data;
 }
+const metaBase = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/marketing-meta`;
+async function meta(command, body) {
+  const { data, error } = await supabase.functions.invoke(`marketing-meta/${command}`, { body });
+  if (error) {
+    let message = 'Meta connection could not be completed. Reload or reconnect and try again.';
+    if (error.context instanceof Response) { try { const value = await error.context.json(); message = value.error || message; } catch {} }
+    throw new Error(message);
+  }
+  return data;
+}
 export const marketingService = {
+  async metaConfiguration() { const response = await fetch(`${metaBase}/configuration`, { cache: 'no-store' }); if (!response.ok) throw new Error('Meta configuration could not be checked.'); return response.json(); },
+  integrations: (organizationId, brandId, surface = 'settings', page = 1) => rpc('marketing_integrations', { p_org: organizationId, p_brand: brandId || null, p_surface: surface, p_page: page }),
+  pendingMeta: (organizationId, brandId) => rpc('marketing_meta_pending', { p_org: organizationId, p_brand: brandId }),
+  authorizeMeta: (organizationId, brandId) => meta('authorize', { organizationId, brandId }),
+  bindMeta: (sessionId, accountId, channel) => meta('bind', { sessionId, accountId, channel }),
+  disconnectMeta: connectionId => rpc('marketing_meta_disconnect', { p_connection: connectionId }),
+  syncMeta: connectionId => rpc('marketing_meta_request_sync', { p_connection: connectionId }),
+  execute: (requestId, content, connections) => rpc('marketing_authorize_execution', { p_request: requestId, p_content: content.id, p_revision: content.revision, p_connections: connections }),
   context: () => rpc('marketing_context'),
   detail: contentId => rpc('marketing_content_detail', { p_content: contentId }),
   read: ({ organizationId, brandId, section, from = null, to = null, page = 1, pageSize = 20 }) => rpc('marketing_read', {

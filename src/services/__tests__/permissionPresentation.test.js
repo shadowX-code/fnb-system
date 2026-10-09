@@ -11,7 +11,7 @@ describe('permission presentation overrides', () => {
       expect(cell.codes).toEqual([`${id}.view`, code]);
       expect(getPermissionDefinitions().find(row => row.code === code).description).toBe(presentation.description);
     }
-    expect(Object.keys(permissionPresentationOverrides).filter(code => !code.startsWith('payroll.'))).toEqual(['crew_leave_settings.manage', 'factory_petty_cash.manage']);
+    expect(Object.keys(permissionPresentationOverrides).filter(code => !code.startsWith('payroll.'))).toEqual(['marketing_settings.configure', 'marketing_settings.manage', 'platform_organizations.manage', 'marketing_content.publish', 'marketing_content.execute', 'crew_leave_settings.manage', 'factory_petty_cash.manage']);
     expect(permissionActionLabels.manage).toBe('Manage');
     expect(groups.find(row => row.key === 'payroll').actions.manage).toBeUndefined();
     expect(groups.find(row => row.key === 'payroll').actions.prepare.label).toBe('Prepare Payroll Runs');

@@ -11,7 +11,7 @@ describe('native Marketing foundation',()=>{
   it('reports unavailable evidence without invented social metrics',async()=>{
     render(<MarketingWorkspacePage/>);
     await screen.findByRole('heading',{name:'Evidence availability'});
-    expect(screen.getByText(/Social reach, engagement, conversions and provider costs are unavailable/)).toBeTruthy();
+    expect(screen.getByText(/Conversions and provider costs remain unavailable/)).toBeTruthy();
     expect(screen.queryByText(/Connected successfully|Published successfully/)).toBeNull();
   });
   it('shows explicit organization initialization only with platform permission',async()=>{

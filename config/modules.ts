@@ -22,6 +22,7 @@ export type ModuleAction =
   | "adjust"
   | "finalize"
   | "publish"
+  | "execute"
   | "moderate"
   | "mark_paid"
   | "assess"
@@ -80,6 +81,7 @@ export const permissionActionOrder: ModuleAction[] = [
   "adjust",
   "finalize",
   "publish",
+  "execute",
   "moderate",
   "mark_paid",
   "assess",
@@ -124,6 +126,7 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   adjust: "Adjust",
   finalize: "Finalize",
   publish: "Publish",
+  execute: "Authorize External Publishing",
   moderate: "Moderate",
   mark_paid: "Mark Paid",
   assess: "Assess",
@@ -204,7 +207,7 @@ export const moduleRegistry: AppModule[] = [
   { id: "marketing_workspace", section: "Marketing", label: "Marketing Workspace", route: "/marketing", sidebar: false, routable: false, workspace: "marketing", permissions: { access: true } },
   { id: "platform_organizations", section: "System", label: "Organization & Brand Structure", route: "/system/organizations", sidebar: false, routable: false, workspace: "marketing", permissions: { manage: true } },
   { id: "marketing_overview", section: "Overview", label: "Overview", route: "/marketing/overview", icon: "marketing_overview", sidebar: true, workspace: "marketing", permissions: { view: true } },
-  { id: "marketing_content", section: "Content Studio", label: "Content Library", route: "/marketing/content", icon: "marketing_content", sidebar: true, workspace: "marketing", permissions: { view: true, create: true, edit: true, review: true, approve: true, publish: true, cancel: true, upload: true } },
+  { id: "marketing_content", section: "Content Studio", label: "Content Library", route: "/marketing/content", icon: "marketing_content", sidebar: true, workspace: "marketing", permissions: { view: true, create: true, edit: true, review: true, approve: true, publish: true, execute: true, cancel: true, upload: true } },
   { id: "marketing_calendar", section: "Content Studio", label: "Calendar", route: "/marketing/calendar", icon: "marketing_calendar", sidebar: true, workspace: "marketing", permissions: { view: true } },
   { id: "marketing_analytics", section: "Analytics", label: "Analytics", route: "/marketing/analytics", icon: "marketing_analytics", sidebar: true, workspace: "marketing", permissions: { view: true } },
   { id: "marketing_settings", section: "Settings", label: "Brand Knowledge & Connections", route: "/marketing/settings", icon: "marketing_settings", sidebar: true, workspace: "marketing", permissions: { view: true, manage: true, configure: true } },
@@ -1238,7 +1241,8 @@ export const permissionPresentationOverrides: Record<string, { label: string; de
   "marketing_settings.configure": { label: "Configure Marketing Access & Integrations", description: "Configure Marketing brand scope and authorized integrations." },
   "marketing_settings.manage": { label: "Manage Brand Knowledge", description: "Manage brand knowledge with provenance." },
   "platform_organizations.manage": { label: "Manage Organizations & Brands", description: "Manage shared organization, brand, membership and outlet relationships." },
-  "marketing_content.publish": { label: "Schedule & Publish Marketing Content", description: "Schedule approved revisions and authorize eligible publishing." },
+  "marketing_content.publish": { label: "Schedule Marketing Content", description: "Plan publishing of approved revisions." },
+  "marketing_content.execute": { label: "Authorize External Publishing", description: "Approve execution of an exact revision to enabled brand accounts." },
   "payroll.setup": { label: "Set Up Payroll Pay", description: "Create and correct effective compensation and recurring employee components." },
   "payroll.statutory": { label: "Confirm Payroll Statutory Setup", description: "Confirm effective statutory setup, PCB and reusable PH statutory evidence." },
   "payroll.prepare": { label: "Prepare Payroll Runs", description: "Create and prepare open Payroll Runs, including governed correction Runs." },
