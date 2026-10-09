@@ -28,3 +28,9 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
  }else await read('instagram_media',id+'/media',token,{fields:'id',limit:2});
  return {account_id:id,channel:connection.channel,token:tokenEvidence,credential_identity_matches:identityMatches,page_tasks_verified:connection.capabilities?.page_tasks_verified===true,publishing_enabled:connection.capabilities?.execution_enabled===true&&connection.capabilities?.publishing===true,evidence};
 }
+
+export function verifiedFacebookRead(result:any,connection:any):boolean {
+ return connection.channel==='facebook'&&connection.status==='error'&&connection.error_code==='meta_permission_or_token_invalid'&&Date.parse(connection.expires_at)>Date.now()
+ &&result.account_id===connection.provider_account_id&&result.token.valid===true&&result.token.app_matches===true&&result.token.type==='PAGE'&&result.token.expiry_in_future===true&&result.credential_identity_matches===true
+ &&result.evidence.some((r:any)=>r.check==='facebook_sync'&&r.success===true);
+}

@@ -1,7 +1,7 @@
 import { webcrypto } from 'node:crypto';
 import { describe,it,expect,vi,beforeEach,afterEach } from 'vitest';
 import { MetaGraph } from '../../../../supabase/functions/_shared/metaGraph.ts';
-import { diagnoseMetaConnection } from '../../../../supabase/functions/_shared/metaConnectionDiagnostics.ts';
+import { diagnoseMetaConnection, verifiedFacebookRead } from '../../../../supabase/functions/_shared/metaConnectionDiagnostics.ts';
 const config={appId:'123',appSecret:'secret',configId:'456',version:'v26.0'};
 const response=(v:any,status=200)=>new Response(JSON.stringify(v),{status});
 describe('read-only Meta connection diagnostics',()=>{
@@ -27,5 +27,13 @@ describe('read-only Meta connection diagnostics',()=>{
  });
  it('does not call Meta when authority or generation guard fails',async()=>{
   const transport=vi.fn();await expect(diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',{provider_account_id:'111',channel:'facebook'},'token',async()=>{throw new Error('scope revoked');})).rejects.toThrow();expect(transport).not.toHaveBeenCalled();
+ });
+ it('requires verified Page token, application, identity, expiry and core read before retry',()=>{
+  const connection={channel:'facebook',status:'error',error_code:'meta_permission_or_token_invalid',provider_account_id:'111',expires_at:'2099-01-01'};
+  const result={account_id:'111',token:{valid:true,app_matches:true,type:'PAGE',expiry_in_future:true},credential_identity_matches:true,evidence:[{check:'facebook_sync',success:true}]};
+  expect(verifiedFacebookRead(result,connection)).toBe(true);
+  for(const patch of [{valid:false},{app_matches:false},{type:'USER'},{expiry_in_future:false}])expect(verifiedFacebookRead({...result,token:{...result.token,...patch}},connection)).toBe(false);
+  for(const patch of [{credential_identity_matches:false},{account_id:'999'},{evidence:[{check:'facebook_sync',success:false}]}])expect(verifiedFacebookRead({...result,...patch},connection)).toBe(false);
+  expect(verifiedFacebookRead(result,{...connection,channel:'instagram'})).toBe(false);
  });
 });

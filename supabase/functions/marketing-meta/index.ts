@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { META_BASE, META_REDIRECT, META_SCOPES, STAGING_ORIGIN, STAGING_SUPABASE, authorizationUrl, connectionBinding, hash, nonce, seal, unseal, verifySignedRequest } from '../_shared/metaSecurity.ts';
 import { testAccountEnabled } from '../_shared/metaPublishing.ts';
-import { diagnoseMetaConnection } from '../_shared/metaConnectionDiagnostics.ts';
+import { diagnoseMetaConnection, verifiedFacebookRead } from '../_shared/metaConnectionDiagnostics.ts';
 import { MetaGraph } from '../_shared/metaGraph.ts';
 const names=['MARKETING_META_APP_ID','MARKETING_META_APP_SECRET','MARKETING_META_LOGIN_CONFIG_ID','MARKETING_META_GRAPH_VERSION','MARKETING_META_TOKEN_ENCRYPTION_KEY'];
 const env=(name:string)=>Deno.env.get(name)||'';
@@ -35,7 +35,7 @@ Deno.serve(async(req)=>{
    return json(req,deletion?{url:`${META_BASE}/deletion-status/${confirmation}`,confirmation_code:confirmation}:{success:true});
   }
   let caller:any=null,user:any=null;
-  if(req.method==='POST'&&['/authorize','/bind','/diagnose'].includes(path)) {
+  if(req.method==='POST'&&['/authorize','/bind','/diagnose','/retry-sync'].includes(path)) {
    const bearer=req.headers.get('authorization')||'';if(!bearer.startsWith('Bearer '))return json(req,{error:'Sign in to Marketing.'},401);
    caller=createClient(STAGING_SUPABASE,env('SUPABASE_ANON_KEY'),{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
    const identity=await caller.auth.getUser();user=identity.data.user;if(identity.error||!user)return json(req,{error:'Sign in to Marketing.'},401);
@@ -56,13 +56,18 @@ Deno.serve(async(req)=>{
    const redirect=new URL(`${STAGING_ORIGIN}/marketing/settings`);redirect.searchParams.set('meta_result',result);redirect.searchParams.set('marketing_org',session.organization_id);redirect.searchParams.set('marketing_brand',session.brand_id);
    return new Response(null,{status:303,headers:{...headers(req),Location:redirect.toString()}});
   }
-  if(req.method!=='POST'||!['/authorize','/bind','/diagnose'].includes(path))return json(req,{error:'Endpoint unavailable.'},404);
+  if(req.method!=='POST'||!['/authorize','/bind','/diagnose','/retry-sync'].includes(path))return json(req,{error:'Endpoint unavailable.'},404);
   const raw=await req.text();if(raw.length>10000)return json(req,{error:'Request too large.'},413);const body=JSON.parse(raw);
-  if(path==='/diagnose') {
+  if(path==='/diagnose'||path==='/retry-sync') {
    const material=await call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user.id});
    const credential=await unseal(material.sealed_token,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
    const guard=async()=>{const current=await call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user.id});if(current.credential_generation!==material.credential_generation)throw new Error('connection_changed');};
-   return json(req,await diagnoseMetaConnection(graph,config.appId,`${config.appId}|${config.appSecret}`,material,credential.token,guard));
+   const result=await diagnoseMetaConnection(graph,config.appId,`${config.appId}|${config.appSecret}`,material,credential.token,guard);
+   if(path==='/retry-sync') {
+    if(!verifiedFacebookRead(result,material))return json(req,{error:'Facebook read access could not be verified. Check connection details.'},409);
+    await call(service,'marketing_meta_retry_sync_verified',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation});
+   }
+   return json(req,result);
   }
   if(path==='/authorize') {
    const state=nonce();await call(caller,'marketing_meta_begin',{p_org:body.organizationId,p_brand:body.brandId,p_state_hash:await hash(state),p_redirect_uri:META_REDIRECT});

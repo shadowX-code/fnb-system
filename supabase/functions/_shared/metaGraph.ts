@@ -7,7 +7,7 @@ const diagnosticTasks=new Set(['ADVERTISE','ANALYZE','CREATE_CONTENT','MANAGE','
 const numericId=(value:unknown)=>typeof value==='string'&&/^\d{1,30}$/.test(value)?value:typeof value==='number'&&Number.isSafeInteger(value)&&value>0?String(value):null;
 const selected=(values:unknown,allowed:Set<string>):string[]=>Array.isArray(values)?values.filter((v):v is string=>typeof v==='string'&&allowed.has(v)):[];
 export class MetaError extends Error {
- constructor(public code:string,public uncertain=false,public retryable=false) { super(code); }
+ constructor(public code:string,public uncertain=false,public retryable=false,public graphCode?:number) { super(code); }
 }
 export type MetaConfig={appId:string;appSecret:string;configId:string;version:string};
 export class MetaGraph {
@@ -44,7 +44,7 @@ export class MetaGraph {
   if(!response.ok||body.error) {
    const code=Number(body.error?.code); const auth=[10,190,200].includes(code);
    // Errors do not include raw messages, tokens, URLs or provider response bodies.
-   throw new MetaError(auth?'meta_permission_or_token_invalid':`meta_error_${Number.isFinite(code)?code:response.status}`,method!=='GET'&&response.status>=500,Boolean(body.error?.is_transient)||response.status===429||response.status>=500);
+   throw new MetaError(auth?'meta_permission_or_token_invalid':`meta_error_${Number.isFinite(code)?code:response.status}`,method!=='GET'&&response.status>=500,Boolean(body.error?.is_transient)||response.status===429||response.status>=500,Number.isFinite(code)?code:undefined);
   }
   return body;
  }
