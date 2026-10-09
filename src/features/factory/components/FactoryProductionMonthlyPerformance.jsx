@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Card from "../../../components/ui/Card.jsx";
 import { AdminChart, AdminChartMark, AdminChartTooltipContent, adminChartColors, adminChartLinePath, adminChartScale } from "../../../components/ui/AdminChart.jsx";
 import { factoryService } from "../../../services/factoryService.js";
 import FactoryMonthPicker from "./FactoryMonthPicker.jsx";
 import FactorySegmentedControl from "./FactorySegmentedControl.jsx";
+import FactoryDailyProductionModal from "./FactoryDailyProductionModal.jsx";
 import { factoryMonthLabel, formatFactoryReadableDate, malaysiaBusinessMonthInput, shiftFactoryMonth } from "../utils/factoryDates.js";
 import { monthlyPerformanceModel, performanceNumber as number } from "../utils/productionMonthlyPerformance.js";
 
@@ -29,7 +30,7 @@ function DayTooltip({ day }) {
   ]} note={day.state === "future" ? "No output attributed yet." : `${day.productivity_runs || 0} ${Number(day.productivity_runs) === 1 ? "run" : "runs"} with valid output and duration.${day.invalid_duration_runs ? ` ${day.invalid_duration_runs} missing/invalid durations excluded.` : ""}${day.missing_output_runs ? ` ${day.missing_output_runs} ${Number(day.missing_output_runs) === 1 ? "run" : "runs"} without valid kg output.` : ""}`} />;
 }
 
-export function ProductionPerformanceChart({ days, mode, month }) {
+export function ProductionPerformanceChart({ days, mode, month, onSelectDay }) {
   const [selected, setSelected] = useState(null);
   useEffect(() => setSelected(null), [month, mode]);
   const calendar = mode === "calendar";
@@ -59,7 +60,7 @@ export function ProductionPerformanceChart({ days, mode, month }) {
           const markHeight = calendar ? cellHeight - 5 : bottom - top;
           const amount = value(day);
           const fill = day.state === "future" ? "var(--surface)" : day.state === "missing" ? "var(--border)" : outputColor;
-          return <AdminChartMark key={day.day} label={`${formatFactoryReadableDate(day.day)}: ${dayLabel(day)}; ${day.completed_runs} completed runs${mode === "productivity" ? `; ${number(day.productivity)} kg per JO-hour` : ""}`} tooltip={<DayTooltip day={day} />} selected={selected === day.day} onSelect={() => setSelected(day.day)}>
+          return <AdminChartMark key={day.day} label={`${formatFactoryReadableDate(day.day)}: ${dayLabel(day)}; ${day.completed_runs} completed runs${mode === "productivity" ? `; ${number(day.productivity)} kg per JO-hour` : ""}`} tooltip={<DayTooltip day={day} />} selected={selected === day.day} onSelect={() => { setSelected(day.day); onSelectDay?.(day.day); }}>
             {calendar ? <>
               <rect x={x} y={cy} width={markWidth} height={markHeight} rx={4} fill="var(--surface)" stroke="var(--border)" />
               <rect x={x} y={cy} width={markWidth} height={markHeight} rx={4} fill={fill} opacity={day.state === "recorded" ? .06 + .34 * (day.output_kg || 0) / maxOutput : .3} />
@@ -80,11 +81,14 @@ export function ProductionPerformanceChart({ days, mode, month }) {
   </AdminChart>;
 }
 
-export default function FactoryProductionMonthlyPerformance({ enabled, refreshKey }) {
+export default function FactoryProductionMonthlyPerformance({ enabled, refreshKey, onViewResult }) {
   const [month, setMonth] = useState(malaysiaBusinessMonthInput);
   const [mode, setMode] = useState("output");
   const [retry, setRetry] = useState(0);
   const [state, setState] = useState({ loading: true });
+  const [selectedDay, setSelectedDay] = useState(null);
+  const closeDay = useCallback(() => setSelectedDay(null), []);
+  useEffect(closeDay, [month, closeDay]);
   useEffect(() => {
     if (!enabled) return;
     let current = true;
@@ -111,7 +115,8 @@ export default function FactoryProductionMonthlyPerformance({ enabled, refreshKe
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-text-secondary">
           {mode === "output" ? <><span className="flex items-center gap-2"><i className="h-2 w-2 rounded-sm" style={{ background: outputColor }} />Daily output</span><span className="flex items-center gap-2"><i className="h-0.5 w-4" style={{ background: averageColor }} />7-production-day average</span></> : mode === "calendar" ? <span>Daily output (kg) · — Future · N/A Incomplete</span> : <span>{number(model.hours)} summed JO-hours · {model.productivityRuns}/{model.completedRuns} runs eligible</span>}
         </div>
-        <ProductionPerformanceChart days={model.days} mode={mode} month={month} />
+        <ProductionPerformanceChart days={model.days} mode={mode} month={month} onSelectDay={setSelectedDay} />
+        {selectedDay && model.days.some(day => day.day === selectedDay) ? <FactoryDailyProductionModal day={model.days.find(day => day.day === selectedDay)} onClose={closeDay} onViewResult={onViewResult ? run => { closeDay(); onViewResult({ id: run.job_order_id, job_order_no: run.job_order_no, product_name: run.finished_good_name, status: "completed" }); } : undefined} /> : null}
         <p className="text-xs text-text-secondary">{mode === "productivity" ? "Output from runs with valid durations ÷ summed JO-hours; not factory operating hours." : mode === "output" ? "Malaysia Production End date · Average spans the latest 7 production days, including prior months; fewer when history is limited." : "Malaysia Production End date · Past days without completed production show 0."}</p>
         {model.invalidDurationRuns > 0 || model.missingOutputRuns > 0 || model.unattributedRuns > 0 ? <p role="note" className="mt-2 text-xs text-text-secondary">{model.invalidDurationRuns > 0 ? `${model.invalidDurationRuns} runs excluded from productivity: missing or invalid duration. ` : ""}{model.missingOutputRuns > 0 ? `${model.missingOutputRuns} runs lack valid kg output; totals include known output only. ` : ""}{model.unattributedRuns > 0 ? `${model.unattributedRuns} historical runs have no complete Production End and cannot be attributed to a month.` : ""}</p> : null}
       </>}

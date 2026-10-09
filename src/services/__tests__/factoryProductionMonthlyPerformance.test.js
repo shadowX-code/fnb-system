@@ -21,4 +21,8 @@ describe("Monthly Production service contract", () => {
     mocks.rpc.mockResolvedValue({ data: { month: "2026-08", days: [] }, error: null });
     await expect(factoryService.getProductionMonthlyPerformance("2026-09")).rejects.toThrow("unavailable");
   });
+  it("rejects missing contributing runs instead of showing a misleading empty drill-down", async () => {
+    mocks.rpc.mockResolvedValue({ data: { month: "2026-09", today: "2026-10-09", days: [{ day: "2026-09-01", completed_runs: 2, records: [] }] }, error: null });
+    await expect(factoryService.getProductionMonthlyPerformance("2026-09")).rejects.toThrow("Production detail is unavailable");
+  });
 });

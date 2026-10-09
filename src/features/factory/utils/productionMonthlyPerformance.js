@@ -8,6 +8,7 @@ export function monthlyPerformanceModel(snapshot) {
     const future = day > snapshot.today;
     return {
       ...row, day, number: index + 1,
+      records: future ? [] : row?.records || [],
       state: future ? "future" : row?.missing_output_runs > 0 ? "missing" : "recorded",
       completed_runs: future ? 0 : Number(row?.completed_runs || 0),
       output_kg: future || row?.missing_output_runs > 0 ? null : Number(row?.output_kg || 0),

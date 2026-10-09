@@ -2268,6 +2268,7 @@ const factoryServiceDefinition = {
     const { data, error } = await request;
     throwSupabaseError("factory.production.monthly_performance", error);
     if (data?.month !== month || !Array.isArray(data.days) || !data.today) throw new Error("Production performance is unavailable. Please retry.");
+    if (data.days.some(day => !Array.isArray(day.records) || day.records.length !== Number(day.completed_runs))) throw new Error("Production detail is unavailable. Please retry.");
     return data;
   },
 
