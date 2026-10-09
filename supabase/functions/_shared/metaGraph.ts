@@ -14,7 +14,7 @@ export class MetaGraph {
   if(!/^v\d+\.0$/.test(config.version))throw new MetaError('meta_version_not_configured');
  }
  private report(event:MetaDiagnostic) {try{this.diagnostic?.(event);}catch{/* Diagnostics must not change authorization behavior. */}}
- async request(path:string,token:string,params:Record<string,any>={},method='GET'):Promise<any> {
+ async request(path:string,token:string,params:Record<string,any>={},method='GET',inspect?:(status:number|null,code:number|null)=>void):Promise<any> {
   if(!/^\/?(?:\d+(?:_\d+)?|me|oauth|debug_token)(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
   const url=new URL(`https://graph.facebook.com/${this.config.version}/${path.replace(/^\//,'')}`);
   const form=new URLSearchParams();for(const [key,value] of Object.entries(params))if(value!==undefined&&value!==null)form.set(key,typeof value==='object'?JSON.stringify(value):String(value));
@@ -27,15 +27,18 @@ export class MetaGraph {
   let response:Response;
   try { response=await this.transport(url,{method,headers:{...(token?{Authorization:`Bearer ${token}`}:{ }),...(method!=='GET'?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body:method==='GET'?undefined:form.toString(),signal:AbortSignal.timeout(20000),redirect:'error'}); }
   catch {
+   inspect?.(null,null);
    if(['me/accounts','me/permissions'].includes(path))this.report({event:'graph_response',endpoint:path,http_status:null,graph_error_code:null,returned_count:null,data_shape:'no_response'});
    throw new MetaError('meta_response_uncertain',method!=='GET',method==='GET');
   }
   let body:any;
   try { const text=await response.text();if(text.length>2000000)throw new Error();body=JSON.parse(text); }
   catch {
+   inspect?.(response.status,null);
    if(['me/accounts','me/permissions'].includes(path))this.report({event:'graph_response',endpoint:path,http_status:response.status,graph_error_code:null,returned_count:null,data_shape:'unreadable'});
    throw new MetaError('meta_response_unreadable',method!=='GET',method==='GET');
   }
+  inspect?.(response.status,Number.isSafeInteger(body?.error?.code)?body.error.code:null);
   if(['me/accounts','me/permissions'].includes(path))this.report({event:'graph_response',endpoint:path,http_status:response.status,graph_error_code:Number.isSafeInteger(body.error?.code)?body.error.code:null,returned_count:Array.isArray(body.data)?body.data.length:null,data_shape:Array.isArray(body.data)?'array':body.error?'error':'unexpected'});
   if(!response.ok||body.error) {
    const code=Number(body.error?.code); const auth=[10,190,200].includes(code);
@@ -93,6 +96,25 @@ export class MetaGraph {
    if(!after||page===9)throw new MetaError('account_discovery_limit_reached');
   }
   this.report({event:'discovery_complete',facebook_count:accounts.filter(a=>a.channel==='facebook').length,instagram_count:accounts.filter(a=>a.channel==='instagram').length});
+  if(this.diagnostic&&!accounts.length) {
+   // Diagnostic reads only: results cannot become connected accounts or replace Page task checks.
+   const probe=async(label:string,path:string,params:Record<string,any>)=>{
+    try {
+     const value=await this.request(path,long.access_token,params,'GET',(status,code)=>this.report({event:'visibility_probe_response',endpoint:label,http_status:status,graph_error_code:code}));
+     return value;
+    }catch(error){this.report({event:'visibility_probe_failed',endpoint:label,reason:error instanceof MetaError?error.code:'unexpected_response_handling_error'});return null;}
+   };
+   for(const [label,path,fields] of [['minimal_accounts','me/accounts','id,tasks'],['authorized_user_accounts',`${debug.user_id}/accounts`,'id,tasks,access_token,instagram_business_account{id}']]) {
+    const value=await probe(label,path,{fields,limit:50});
+    if(value)this.report({event:'visibility_probe_list',endpoint:label,returned_count:Array.isArray(value.data)?value.data.length:null,page_ids:Array.isArray(value.data)?value.data.map((r:any)=>numericId(r?.id)).filter((v:string|null):v is string=>v!==null):[],more_available:Boolean(value.paging?.next)});
+    for(const row of Array.isArray(value?.data)?value.data:[])this.report({event:'visibility_probe_candidate',endpoint:label,page_id:numericId(row?.id),tasks:selected(row?.tasks,diagnosticTasks),page_token_available:typeof row?.access_token==='string',instagram_id:numericId(row?.instagram_business_account?.id)});
+   }
+   const targets=[...new Set<string>((Array.isArray(debug.granular_scopes)?debug.granular_scopes:[]).filter((g:any)=>g?.scope==='pages_show_list').flatMap((g:any)=>Array.isArray(g.target_ids)?g.target_ids.map(numericId).filter((v:string|null):v is string=>v!==null):[]))].slice(0,2);
+   for(const id of targets) {
+    const value=await probe('granted_page_node',id,{fields:'id,access_token,instagram_business_account{id}'});
+    if(value)this.report({event:'visibility_probe_page',requested_page_id:id,returned_page_id:numericId(value.id),identity_matches:String(value.id)===id,page_token_available:typeof value.access_token==='string',instagram_id:numericId(value.instagram_business_account?.id)});
+   }
+  }
   return {userId:String(debug.user_id),expiresAt,accounts,tokens};
  }
 }

@@ -50,12 +50,25 @@ describe('official Meta OAuth adapter',()=>{
    expect(events.filter(e=>e.event==='page_candidate')).toHaveLength(0);
    expect(events).toContainEqual(expect.objectContaining(response.status===200?{event:'graph_response',endpoint:'me/accounts',http_status:200,returned_count:0}:{event:'graph_response',endpoint:'me/accounts',http_status:403,graph_error_code:200}));
    expect(JSON.stringify(events)).not.toContain('raw-secret-error');
-   expect(events.at(-1).event).toBe(response.status===200?'discovery_complete':'discovery_failed');
+   expect(events.some(e=>e.event===(response.status===200?'discovery_complete':'discovery_failed'))).toBe(true);
   }
  });
  it('keeps diagnostic failures and permission inspection failures from changing authorization behavior',async()=>{
   const transport=vi.fn().mockResolvedValueOnce(reply({access_token:'short'})).mockResolvedValueOnce(reply({access_token:'long',expires_in:3600}))
    .mockResolvedValueOnce(reply({data:{is_valid:true,app_id:'123',user_id:'789',scopes:['pages_show_list']}})).mockResolvedValueOnce(reply({error:{code:10}},403)).mockResolvedValueOnce(reply({data:[]}));
   expect((await new MetaGraph(config,transport,()=>{throw new Error('logging unavailable');}).exchange('code')).accounts).toEqual([]);
+ });
+ it('probes existing grant targets read-only without adopting accounts or logging the personal subject',async()=>{
+  const events:any[]=[],transport=vi.fn().mockResolvedValueOnce(reply({access_token:'short-secret'})).mockResolvedValueOnce(reply({access_token:'long-secret',expires_in:3600}))
+   .mockResolvedValueOnce(reply({data:{is_valid:true,app_id:'123',user_id:'789',scopes:['pages_show_list'],granular_scopes:[{scope:'pages_show_list',target_ids:['111']}]}}))
+   .mockResolvedValueOnce(reply({data:[]})).mockResolvedValueOnce(reply({data:[]})).mockResolvedValueOnce(reply({data:[]}))
+   .mockResolvedValueOnce(reply({data:[{id:'111',tasks:['CREATE_CONTENT'],access_token:'page-secret',instagram_business_account:{id:'222'}}]}))
+   .mockResolvedValueOnce(reply({id:'111',access_token:'page-secret',instagram_business_account:{id:'222'}}));
+  const result=await new MetaGraph(config,transport,e=>events.push(e)).exchange('code');
+  expect(result.accounts).toEqual([]);expect(result.tokens).toEqual({});
+  expect(events).toContainEqual(expect.objectContaining({event:'visibility_probe_candidate',endpoint:'authorized_user_accounts',page_id:'111',tasks:['CREATE_CONTENT'],page_token_available:true,instagram_id:'222'}));
+  expect(events).toContainEqual(expect.objectContaining({event:'visibility_probe_page',requested_page_id:'111',returned_page_id:'111',identity_matches:true,instagram_id:'222'}));
+  for(const secret of ['short-secret','long-secret','page-secret','789',config.appSecret])expect(JSON.stringify(events)).not.toContain(secret);
+  expect(transport.mock.calls.every(([,init])=>init.method==='GET')).toBe(true);
  });
 });
