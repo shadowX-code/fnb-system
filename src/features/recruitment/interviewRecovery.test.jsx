@@ -18,7 +18,7 @@ vi.mock("./RecruitmentRealtimeSession.js",()=>({RecruitmentRealtimeSession:class
   constructor(props) { this.props=props; qa.transports.push(this); }
   async refreshContext() {}
   async flush() {return qa.flush();}
-  async connect() {await qa.connect(); this.props.onStatus?.("connected");}
+  async connect({signal}={}) {signal?.addEventListener("abort",()=>this.close(),{once:true});await qa.connect(); if(!this.closed)this.props.onStatus?.("connected");}
   close() {this.closed=true;}
 }}));
 import RecruitmentInterviewSession from "./RecruitmentInterviewSession.jsx";
@@ -181,7 +181,7 @@ it("repeated Resume shares one pending tab identity without a competing own-tab 
  const button=screen.getByRole("button",{name:"Continue interview"});fireEvent.click(button);fireEvent.click(button);
  await waitFor(()=>expect(resolveClaim).toBeTypeOf("function"));
  await act(async()=>resolveClaim({clientId:"stable-client",release:vi.fn()}));
- await screen.findByRole("button",{name:"Finish interview"});expect(qa.claim).toHaveBeenCalledTimes(1);expect(devices.start).toHaveBeenCalledTimes(2);
+ await screen.findByRole("button",{name:"Finish interview"});expect(qa.claim).toHaveBeenCalledTimes(1);expect(devices.start).toHaveBeenCalledTimes(1);
  expect(qa.begin).toHaveBeenCalledTimes(1);
 });
 
@@ -200,12 +200,20 @@ it("dead AI transport abandons capture and exposes only fresh-generation Continu
  expect(qa.transports.at(-1)).not.toBe(old);
  expect(qa.captures.filter(c=>c.recorder.state==="recording")).toHaveLength(1);
 });
-it("hung fresh provider setup never publishes an active screen and replacement ignores it",async()=>{
- qa.connect.mockImplementationOnce(()=>new Promise(()=>{}));mount();
- fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await waitFor(()=>expect(qa.connect).toHaveBeenCalledTimes(1));
- expect(screen.queryByRole("button",{name:"Finish interview"})).toBeNull();expect(screen.queryByRole("button",{name:"Reconnect AI"})).toBeNull();
- const old=qa.transports.at(-1);fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"Finish interview"});
- expect(old.closed).toBe(true);act(()=>old.props.onStatus("disconnected"));expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+it("hung fresh provider setup returns to recovery after its bounded timeout",async()=>{
+ vi.useFakeTimers();qa.connect.mockImplementationOnce(()=>new Promise(()=>{}));mount();
+ await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Continue interview"})));
+ expect(qa.connect).toHaveBeenCalledOnce();
+ expect(screen.queryByRole("button",{name:"Finish interview"})).toBeNull();
+ expect(screen.queryByRole("button",{name:"Continue interview"})).toBeNull();
+ const old=qa.transports.at(-1);
+ await act(async()=>vi.advanceTimersByTimeAsync(31000));
+ expect(screen.getByRole("button",{name:"Continue interview"})).toBeTruthy();
+ expect(old.closed).toBe(true);
+ await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Continue interview"})));
+ expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+ act(()=>old.props.onStatus("disconnected"));
+ expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
 });
 it("interviewer audio failure uses the same Continue action rather than separate audio management",async()=>{
  mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"Finish interview"});
@@ -249,4 +257,27 @@ it("server denied completion returns to a genuinely resumable state rather than 
  expect(await screen.findByRole("button",{name:"Continue interview"})).toBeTruthy();
  expect(screen.getByRole("alert").textContent).toContain("still needs more information");
  expect(screen.queryByRole("heading",{name:"Interview complete"})).toBeNull();
+});
+it('Finish shows checking immediately, blocks duplicate actions, then exposes authoritative denial',async()=>{
+ let checked;qa.evidence.mockImplementationOnce(()=>new Promise(resolve=>checked=resolve));
+ mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ fireEvent.click(screen.getByRole('button',{name:'Finish interview'}));
+ expect(screen.getByRole('button',{name:'Checking completion…'}).disabled).toBe(true);
+ expect(screen.getByRole('button',{name:'Stop and save partial interview'}).disabled).toBe(true);
+ await waitFor(()=>expect(checked).toBeTypeOf('function'));
+ await act(async()=>checked({can_finish:false}));
+ expect(screen.getByRole('alert').textContent).toContain('still needs more information');
+ expect(qa.finish).not.toHaveBeenCalled();
+});
+it('partial stop confirms once and shows submission immediately while evidence uploads remain pending',async()=>{
+ vi.useFakeTimers();qa.finish.mockResolvedValue({status:'finalizing'});qa.entry.mockResolvedValue({available:true,status:'partial',recording_state:'partial'});
+ mount();await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Continue interview'})));
+ fireEvent.click(screen.getByRole('button',{name:'Stop and save partial interview'}));
+ expect(screen.getByRole('alertdialog',{name:'Save partial interview'})).toBeTruthy();expect(qa.finish).not.toHaveBeenCalled();
+ const confirm=screen.getByRole('button',{name:'Confirm stop and save'});fireEvent.click(confirm);fireEvent.click(confirm);
+ expect(screen.getByText('Submitting your responses')).toBeTruthy();
+ await act(async()=>vi.advanceTimersByTimeAsync(31000));
+ expect(qa.finish).toHaveBeenCalledOnce();
+ expect(qa.finish.mock.calls[0][2]).toBe('candidate_stop');
+ expect(screen.getByText(/saved with partial evidence/)).toBeTruthy();
 });

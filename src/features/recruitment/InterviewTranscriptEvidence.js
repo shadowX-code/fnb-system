@@ -10,9 +10,26 @@ export class InterviewTranscriptEvidence {
     this.startedAt=Date.parse(startedAt);this.persistence=Promise.resolve();
     this.times=new Map();this.completedItems=new Set();this.itemOrder=new Map();
     this.pendingFinal=new Map();this.aiFinals=new Map();this.responseItems=new Map();
+    this.inputBoundaries=new Map();this.outputActive=new Set();
     this.receipts=new Map();this.cancelled=new Set();this.order=0;this.generation=0;
   }
   observe(event) {
+    if (event.type === "output_audio_buffer.started") { this.outputActive.add(event.response_id); this.interruptionBoundary = false; }
+    if (event.type === "input_audio_buffer.speech_started") {
+      this.inputBoundaries.set(event.item_id, {started:true, overlap:this.outputActive.size > 0 || this.interruptionBoundary === true});
+    }
+    // Provider clear may precede speech_started at the same audio boundary.
+    if (event.type === "output_audio_buffer.cleared") this.interruptionBoundary = true;
+    if (event.type === "input_audio_buffer.speech_started") this.interruptionBoundary = false;
+    if (["output_audio_buffer.stopped","output_audio_buffer.cleared"].includes(event.type)) this.outputActive.delete(event.response_id);
+    if (event.type === "input_audio_buffer.speech_stopped") {
+      const boundary = this.inputBoundaries.get(event.item_id);
+      if (boundary) boundary.stopped = true;
+    }
+    if (event.type === "input_audio_buffer.committed") {
+      const boundary = this.inputBoundaries.get(event.item_id);
+      if (boundary) boundary.committed = true;
+    }
     if (event.type === "response.output_item.added" && event.item?.type === "message") {
       const items = this.responseItems.get(event.response_id) || [];
       items.push(event.item.id);
@@ -64,6 +81,11 @@ export class InterviewTranscriptEvidence {
       event.item_id &&
       event.transcript?.trim()
     ) {
+      const boundary = this.inputBoundaries.get(event.item_id);
+      // VAD/commit is provenance, not speaker attestation. Overlap is retained
+      // conservatively as unverified, including genuine barge-in, for review.
+      if (!boundary?.started || !boundary?.stopped || !boundary?.committed || boundary.overlap)
+        this.queueAnnotation(event.item_id, "unverified_candidate");
       this.saveFinal({
         itemId: event.item_id,
         speaker: "candidate",
@@ -81,6 +103,10 @@ export class InterviewTranscriptEvidence {
         this.saveFinal(final).catch(()=>this.onStatus("transcript-pending"));
       } else this.aiFinals.set(event.item_id,final);
     }
+  }
+  candidateEligible(itemId) {
+    const b = this.inputBoundaries.get(itemId);
+    return Boolean(b?.started && b.stopped && b.committed && !b.overlap);
   }
   async saveFinal({ itemId, speaker, transcript }) {
     const order = this.itemOrder.get(itemId);
@@ -120,7 +146,10 @@ export class InterviewTranscriptEvidence {
       await this.persistence;
       try {
         const items = await interviewTranscriptQueue.list(this.attemptKey);
-        for (const item of items.filter(item => item.kind !== "realtime_trace")) {
+        const durable = items.filter(item => item.kind !== "realtime_trace");
+        // IndexedDB key order is not insertion order. Exclusions must reach the
+        // server before their transcript can become intelligence input.
+        for (const item of [...durable.filter(item => item.kind), ...durable.filter(item => !item.kind)]) {
           if (item.kind)
             await recruitmentService.annotation(
               this.token,

@@ -37,7 +37,7 @@ export function useInterviewDevices() {
     try {
       // Native request is the first hardware operation in the Resume gesture.
       // Recovery avoids optional device/processing constraints on WebKit reacquisition.
-      const request = navigator.mediaDevices.getUserMedia(meter ? { video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: microphoneId ? { deviceId: { exact: microphoneId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true } } : {video: {facingMode:"user"}, audio:true});
+      const request = navigator.mediaDevices.getUserMedia(meter ? { video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: microphoneId ? { deviceId: { exact: microphoneId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true } } : {video: {facingMode:"user"}, audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
       if (meter && (window.AudioContext || window.webkitAudioContext)) {
         meterContext = new (window.AudioContext || window.webkitAudioContext)();
         meterActivation = bounded(meterContext.resume(), "Microphone check", {signal,timeoutMs:5000});

@@ -78,7 +78,9 @@ export default function RecruitmentEvidenceReview({
   onChanged,
 }) {
   const [section, setSection] = useState("overview");
-  const [data, setData] = useState(null),
+  const [disputedTurn, setDisputedTurn] = useState(null),
+    [disputeReason, setDisputeReason] = useState(""),
+    [data, setData] = useState(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [reportId, setReportId] = useState(""),
@@ -126,7 +128,7 @@ export default function RecruitmentEvidenceReview({
   const report =
     data?.reports.find((r) => r.id === reportId) || data?.reports[0];
   const source = report?.source_snapshot;
-  const turns = source?.turns || data?.turns || [],
+  const turns = data?.turns || source?.turns || [],
     scenarios =
       source?.config.scenario_briefs ||
       data?.scenarios.map((s) => s.brief) ||
@@ -802,7 +804,7 @@ export default function RecruitmentEvidenceReview({
                 Transcript · {turns.length} turns
               </summary>
               <p className="text-sm text-text-muted">
-                Provider text is relayed by the browser. Interrupted AI speech
+                Provider text is relayed by the browser, not independently verified candidate speech. Unverified candidate turns are excluded from intelligence. Interrupted AI speech
                 may include unplayed words. Recording links seek to approximate
                 context, not exact word timing.
               </p>
@@ -823,12 +825,22 @@ export default function RecruitmentEvidenceReview({
                       (a) =>
                         a.provider_generation === t.provider_generation &&
                         a.provider_item_id === t.provider_item_id &&
-                        a.kind === "truncated",
+                        ["truncated", "unverified_candidate"].includes(a.kind),
                     )
-                      ? " · AI interrupted"
+                      ? (t.speaker === "candidate" ? " · Unverified candidate attribution · excluded from intelligence" : " · AI interrupted")
                       : ""}
                   </p>
                   <p className="whitespace-pre-wrap">{t.transcript}</p>
+                  {t.speaker === "candidate" && data.can_manage && !data.annotations.some(a => a.provider_generation === t.provider_generation && a.provider_item_id === t.provider_item_id && a.kind === "unverified_candidate") && (
+                    <button className="text-xs underline" disabled={busy} onClick={() => {setDisputedTurn(t.id);setDisputeReason("");}}>Dispute attribution · Turn {t.turn_number}</button>
+                  )}
+                  {disputedTurn === t.id && <section role="group" aria-label="Disputed candidate attribution" className="mt-2">
+                    <p className="text-sm">Preserve this turn and exclude it from future intelligence. Existing reports remain unchanged.</p>
+                    <AdminFormField label="Reason"><textarea aria-label="Attribution dispute reason" value={disputeReason} onChange={e=>setDisputeReason(e.target.value)} maxLength={500}/></AdminFormField>
+                    <button disabled={busy || disputeReason.trim().length<10} onClick={()=>act(async()=>{await recruitmentService.disputeTranscript(t.id,disputeReason);setDisputedTurn(null);})}>Confirm unverified attribution</button>
+                    <button disabled={busy} onClick={()=>setDisputedTurn(null)}>Cancel</button>
+                  </section>}
+
                 </div>
               ))}
             </details>

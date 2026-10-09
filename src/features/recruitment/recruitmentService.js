@@ -33,6 +33,7 @@ async function profileDraftCall(name, args, signal) {
 }
 
 export const recruitmentService = {
+  disputeTranscript: (turnId, reason) => call("recruitment_dispute_transcript", {p_turn_id:turnId,p_reason:reason}),
   generateReport: async (applicationId, requestId, newVersion = false, attemptId = null) => {
     const {data,error} = await supabase.functions.invoke("recruitment-report", {body:{application_id:applicationId,request_id:requestId,new_version:newVersion,attempt_id:attemptId}});
     if(error){const detail=await error.context?.json?.().catch(()=>null);throw new Error(detail?.error||"Report generation unavailable.");} return data;

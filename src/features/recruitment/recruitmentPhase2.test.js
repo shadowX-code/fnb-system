@@ -1,3 +1,4 @@
+import v4Physical from "../../../qa/recruitment/v4Physical.fixture.json";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   boxes,
@@ -201,4 +202,56 @@ it("provider-cleared audio is annotated even if text final arrives afterwards",a
  session.consume(JSON.stringify({type:"output_audio_buffer.cleared",response_id:"r"}));
  session.consume(JSON.stringify({type:"response.output_audio_transcript.done",response_id:"r",item_id:"a",transcript:"Unfinished question"}));
  await session.persistence;expect(interviewTranscriptQueue.put.mock.calls.some(([t])=>t.itemId==="a" && t.kind==="truncated")).toBe(true);session.close();
+});
+it('V4 disputed input overlapping cleared opening is retained with exclusion before transcript persistence',async()=>{
+ vi.clearAllMocks();
+ const session=new RecruitmentRealtimeSession({token:'a'.repeat(64),clientId:'client',startedAt:new Date().toISOString(),audioElement:{},onStatus:vi.fn()});
+ session.attemptKey='physical-v4';session.generation=1;
+ session.consume(JSON.stringify({type:'output_audio_buffer.started',response_id:'opening'}));
+ session.consume(JSON.stringify({type:'output_audio_buffer.cleared',response_id:'opening'}));
+ for(const type of ['speech_started','speech_stopped','committed']) session.consume(JSON.stringify({type:'input_audio_buffer.'+type,item_id:'disputed'}));
+ session.consume(JSON.stringify({type:'conversation.item.input_audio_transcription.completed',item_id:'disputed',transcript:'Apa pengalaman kerja awak dalam industri makanan dan minuman?'}));
+ await session.persistence;
+ const records=interviewTranscriptQueue.put.mock.calls.map(([r])=>r);
+ expect(records.some(r=>r.itemId==='disputed'&&r.kind==='unverified_candidate')).toBe(true);
+ expect(records.some(r=>r.itemId==='disputed'&&r.speaker==='candidate')).toBe(true);
+ expect(records.findIndex(r=>r.kind==='unverified_candidate')).toBeLessThan(records.findIndex(r=>r.speaker==='candidate'));
+ session.close();
+});
+it('transcription without native input boundaries is never silently verified',async()=>{
+ vi.clearAllMocks();
+ const session=new RecruitmentRealtimeSession({token:'a'.repeat(64),clientId:'client',startedAt:new Date().toISOString(),audioElement:{}});
+ session.attemptKey='missing-boundary';session.generation=1;
+ session.consume(JSON.stringify({type:'input_audio_buffer.committed',item_id:'ghost'}));
+ session.consume(JSON.stringify({type:'conversation.item.input_audio_transcription.completed',item_id:'ghost',transcript:'Invented answer'}));
+ await session.persistence;
+ expect(interviewTranscriptQueue.put.mock.calls.some(([r])=>r.kind==='unverified_candidate')).toBe(true);session.close();
+});
+
+it('original V4 clear/start/commit sequence quarantines the disputed T2 without deleting it',async()=>{
+ vi.clearAllMocks();
+ const session=new RecruitmentRealtimeSession({token:'a'.repeat(64),clientId:'client',startedAt:new Date().toISOString(),audioElement:{}});
+ session.attemptKey='physical-fixture';session.generation=1;
+ const disputed=v4Physical.turns.find(t=>t.turn_number===2);
+ for(const event of v4Physical.events.filter(e=>e.elapsed_ms<=13374)) {
+  // Bounded diagnostics retain identifiers/status but not complete provider payloads.
+  // Replay the exact audio/input boundaries; missing payloads are not invented.
+  if(event.type.startsWith('output_audio_buffer.') || event.type.startsWith('input_audio_buffer.')) session.consume(JSON.stringify(event));
+ }
+ session.consume(JSON.stringify({type:'conversation.item.input_audio_transcription.completed',item_id:disputed.provider_item_id,transcript:disputed.transcript}));
+ await session.persistence;
+ const saved=interviewTranscriptQueue.put.mock.calls.map(([r])=>r);
+ expect(saved.some(r=>r.itemId===disputed.provider_item_id && r.kind==='unverified_candidate')).toBe(true);
+ expect(saved.some(r=>r.transcript===disputed.transcript)).toBe(true);
+ expect(session.evidence.candidateEligible(disputed.provider_item_id)).toBe(false);
+ session.close();
+});
+it('durable exclusion reaches the server before a turn even when IndexedDB returns text first',async()=>{
+ vi.clearAllMocks();
+ const session=new RecruitmentRealtimeSession({token:'a'.repeat(64),clientId:'client',startedAt:new Date().toISOString(),audioElement:{}});
+ session.attemptKey='ordering';session.generation=1;
+ interviewTranscriptQueue.list.mockResolvedValueOnce([{key:'text',itemId:'t',speaker:'candidate',generation:1},{key:'annotation',itemId:'t',kind:'unverified_candidate',generation:1,elapsedMs:1}]).mockResolvedValueOnce([]);
+ await session.flush();
+ expect(recruitmentService.annotation.mock.invocationCallOrder[0]).toBeLessThan(recruitmentService.transcriptTurn.mock.invocationCallOrder[0]);
+ session.close();
 });

@@ -2,8 +2,8 @@ import { meaningfulSpeech } from "../../../supabase/functions/recruitment-realti
 // Provider owns ordinary VAD -> response -> interruption. This adapter observes
 // liveness; it never retries a candidate turn or waits for playback to schedule it.
 export class OpenAIInterviewConversation {
-  constructor({send, onRecovery, onTool, onCompletion, onOrientation = () => {}, trace = () => {}}) {
-    Object.assign(this, {send, onRecovery, onTool, onCompletion:onCompletion||(()=>{}), onOrientation, trace});
+  constructor({send, onRecovery, onTool, onCompletion, onOrientation = () => {}, trace = () => {}, candidateEligible = () => true}) {
+    Object.assign(this, {send, onRecovery, onTool, onCompletion:onCompletion||(()=>{}), onOrientation, trace, candidateEligible});
     this.responses = new Map(); this.turns = new Map(); this.tools = new Map();
     this.cancelled = new Set(); this.revision = 0; this.closed = false;
     this.speaking = false; this.playing = false; this.owner = null;
@@ -44,7 +44,7 @@ export class OpenAIInterviewConversation {
       if (this.owner === e.item_id && !this.turns.get(e.item_id).responded)
         this.watch(`turn:${e.item_id}`, "next_response_timeout");
     }
-    if (e.type === "conversation.item.input_audio_transcription.completed" && this.introductionPending && e.item_id === this.owner && this.revision > (this.orientationPresentedRevision ?? 0) && meaningfulSpeech(e.transcript || "")) {
+    if (e.type === "conversation.item.input_audio_transcription.completed" && this.candidateEligible(e.item_id) && this.introductionPending && e.item_id === this.owner && this.revision > (this.orientationPresentedRevision ?? 0) && meaningfulSpeech(e.transcript || "")) {
       this.introductionPending = false;
       this.orientationConfirmed = true;
       this.updateContext(this.instructions);
@@ -78,6 +78,7 @@ export class OpenAIInterviewConversation {
       this.unwatch(`response:${id}`);
       if (e.response.status === "cancelled") this.cancelled.add(id);
       if (["failed","incomplete"].includes(e.response.status)) this.onRecovery("response_failed");
+      if (response?.drained && response.status === "completed" && !response.cancelled && response.itemId) response.delivered = true;
       this.settleCompletion(response);
       for (const tool of this.tools.values()) if (tool.responseId === id) tool.orientation ? this.settleOrientation(tool) : this.continueTool(tool);
     }
@@ -101,6 +102,7 @@ export class OpenAIInterviewConversation {
       this.tools.set(e.call_id, tool);
       if (e.name === "confirm_orientation") {
         tool.orientation = true;
+        this.watch("orientation:" + tool.callId, "orientation_audio_timeout", 15000);
         this.settleOrientation(tool);
         return true;
       }
@@ -130,9 +132,18 @@ export class OpenAIInterviewConversation {
   }
   settleOrientation(tool) {
     const response = this.responses.get(tool.responseId);
+    // Tool-only output is not proof of delivered orientation audio.
+    if (!tool.sent && response?.done && !response.itemId && tool.revision === this.revision && !this.closed) {
+      this.unwatch("orientation:" + tool.callId);
+      tool.orientation = false;
+      tool.result = {orientation_delivered:false,reason:"No orientation audio was delivered. In the current language, finish only the missing opening details and one brief introduction invitation. Never claim the interrupted opening was heard."};
+      this.continueTool(tool);
+      return;
+    }
     if (this.closed || tool.sent || tool.revision !== this.revision || this.cancelled.has(tool.responseId)
       || !response?.done || !response.delivered || response.status !== "completed") return;
     tool.sent = true;
+    this.unwatch("orientation:" + tool.callId);
     if (this.orientationRequired) {
       this.orientationRequired = false;
       this.introductionPending = true;

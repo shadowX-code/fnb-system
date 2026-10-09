@@ -77,3 +77,25 @@ it('a late transcript preceding the delivered opening cannot complete the introd
  s.emit('conversation.item.input_audio_transcription.completed',{item_id:'early',transcript:'I worked in a cafe.'});
  expect(s.a.introductionPending).toBe(true);
 });
+it('V4 physical tool-only checkpoint cannot wait forever for audio that never existed',()=>{
+ const s=setup();
+ s.response('opening');s.emit('output_audio_buffer.started',{response_id:'opening'});
+ s.candidate('disputed');s.emit('output_audio_buffer.cleared',{response_id:'opening'});
+ s.emit('response.done',{response:{id:'opening',status:'cancelled'}});
+ s.emit('response.created',{response:{id:'tool-only'}});
+ s.emit('response.function_call_arguments.done',{response_id:'tool-only',call_id:'confirm',name:'confirm_orientation'});
+ s.emit('response.done',{response:{id:'tool-only',status:'completed'}});
+ expect(s.receipt).not.toHaveBeenCalled();
+ expect(s.send.mock.calls.filter(([e])=>e.type==='response.create')).toHaveLength(1);
+ expect(s.send.mock.calls.find(([e])=>e.type==='conversation.item.create')?.[0].item.output).toContain('orientation_delivered":false');
+ s.emit('response.done',{response:{id:'tool-only',status:'completed'}});
+ expect(s.send.mock.calls.filter(([e])=>e.type==='response.create')).toHaveLength(1);
+});
+it('orientation audio drain before response.done advances exactly once',()=>{
+ const s=setup();s.response('opening');
+ s.emit('response.function_call_arguments.done',{response_id:'opening',call_id:'confirm',name:'confirm_orientation'});
+ s.emit('output_audio_buffer.stopped',{response_id:'opening'});
+ s.emit('response.done',{response:{id:'opening',status:'completed'}});
+ expect(s.receipt).toHaveBeenCalledOnce();
+ expect(s.a.orientationRequired).toBe(false);
+});

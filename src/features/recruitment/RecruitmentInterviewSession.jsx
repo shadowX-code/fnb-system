@@ -53,7 +53,9 @@ export default function RecruitmentInterviewSession({
     }),
     [terminalReason, setTerminalReason] = useState(""),
     [recoveryNotice, setRecoveryNotice] = useState("");
-  const [presence, setPresence] = useState(initialPresence),
+  const [actionState, setActionState] = useState("IDLE"),
+    [partialConfirm, setPartialConfirm] = useState(false),
+    [presence, setPresence] = useState(initialPresence),
     [completedAt, setCompletedAt] = useState(entry.completed_at);
   const [submissionState, setSubmissionState] = useState(
     entry.status === "finalizing" ? "PENDING" : "IDLE",
@@ -65,6 +67,7 @@ export default function RecruitmentInterviewSession({
     session = useRef(null),
     finishing = useRef(false),
     finishReason = useRef(null),
+    actionOwner = useRef(null),
     paused = useRef(false),
     maxTimer = useRef(null),
     statusRef = useRef(status);
@@ -151,6 +154,36 @@ export default function RecruitmentInterviewSession({
     setError("");
     setSubmissionState("COMPLETE");
   }
+  async function requestFinish() {
+    if (actionOwner.current || finishing.current) return;
+    const owner = crypto.randomUUID();
+    actionOwner.current = owner;
+    setActionState("CHECKING"); setBusy(true); setError(""); setPartialConfirm(false);
+    observe("recovery.command", {stage:"finish.clicked",request_id:owner});
+    try {
+      const result = await bounded(assess(), "Checking interview completion", {timeoutMs:45000});
+      if (actionOwner.current !== owner) return;
+      if (!result) throw Error("The interviewer is unavailable. Continue interview or stop and save a partial interview.");
+      if (result.can_finish) await finalize(result.max_reached ? "max_duration" : "coverage");
+      else {
+        observe("recovery.command", {stage:"finish.denied",request_id:owner});
+        setError("The interviewer still needs more information. Continue the conversation, or choose Stop and save partial interview.");
+      }
+    } catch (cause) {
+      if (actionOwner.current === owner) {
+        observe("recovery.command", {stage:"finish.failed",code:cause.code || "completion_check_failed",request_id:owner});
+        setError(cause.message || "Could not check completion. Try again or stop and save a partial interview.");
+      }
+    } finally {
+      if (actionOwner.current === owner) {actionOwner.current=null;setActionState("IDLE");setBusy(false);}
+    }
+  }
+  async function confirmPartialStop() {
+    if (actionOwner.current || finishing.current) return;
+    actionOwner.current = crypto.randomUUID();
+    setPartialConfirm(false);
+    try { await finalize("candidate_stop"); } finally { actionOwner.current=null; }
+  }
   async function finalize(reason) {
     if (finishing.current) return;
     finishing.current = true;
@@ -158,6 +191,9 @@ export default function RecruitmentInterviewSession({
     setBusy(true);
     setError("");
     setSubmissionState("PENDING");
+    setActionState("SUBMITTING");
+    setPartialConfirm(false);
+    observe("recovery.command", {stage:"submission.requested",code:reason});
     ai.current?.close();
     clearTimeout(maxTimer.current);
     try {
@@ -166,6 +202,7 @@ export default function RecruitmentInterviewSession({
         "Saving interview outcome",
         { timeoutMs: 15000 },
       );
+      observe("recovery.command", {stage:"submission.accepted"});
       setStatus("finalizing");
       clearTimeout(maxTimer.current);
       ai.current?.close();
@@ -194,6 +231,7 @@ export default function RecruitmentInterviewSession({
         onResult: acceptSubmission,
       });
     } catch (cause) {
+      observe("recovery.command", {stage:"submission.failed",code:cause.cause?.code || cause.code || "submission_failed"});
       if (cause.cause?.code === "55000" || cause.code === "55000") {
         finishing.current = false;
         setSubmissionState("IDLE");
@@ -211,6 +249,7 @@ export default function RecruitmentInterviewSession({
       setSubmissionState("SUBMISSION_REQUIRED");
     } finally {
       finishing.current = false;
+      setActionState("IDLE");
       setBusy(false);
     }
   }
@@ -869,31 +908,14 @@ export default function RecruitmentInterviewSession({
               <button
                 className="candidate-button is-secondary"
                 disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    const result = await assess();
-                    if (result?.can_finish)
-                      await finalize(
-                        result.max_reached ? "max_duration" : "coverage",
-                      );
-                    else
-                      setError(
-                        "The interviewer has a few more questions. Please continue, or stop and save the responses you have given.",
-                      );
-                  } catch (c) {
-                    setError(c.message);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
+                onClick={requestFinish}
               >
-                Finish interview
+                {actionState === "CHECKING" ? "Checking completion…" : "Finish interview"}
               </button>
               <button
                 className="candidate-button is-secondary"
                 disabled={busy}
-                onClick={() => finalize("candidate_stop")}
+                onClick={() => { if (!actionOwner.current && !finishing.current) { setPartialConfirm(true); setError(""); observe("recovery.command", {stage:"partial.confirmation"}); } }}
               >
                 Stop and save partial interview
               </button>
@@ -903,7 +925,7 @@ export default function RecruitmentInterviewSession({
             <button
               className="candidate-button is-secondary"
               disabled={busy}
-              onClick={() => finalize("candidate_stop")}
+              onClick={() => { if (!actionOwner.current && !finishing.current) { setPartialConfirm(true); setError(""); observe("recovery.command", {stage:"partial.confirmation"}); } }}
             >
               Stop and save partial interview
             </button>
@@ -919,6 +941,14 @@ export default function RecruitmentInterviewSession({
             </button>
           ) : null}
 
+          {partialConfirm && !submitting && (
+            <section role="alertdialog" aria-label="Save partial interview">
+              <p>Your saved responses will be submitted as an incomplete interview. Recording gaps remain visible to the hiring team.</p>
+              <button className="candidate-button is-primary" disabled={busy} onClick={confirmPartialStop}>Confirm stop and save</button>
+              <button className="candidate-button is-secondary" disabled={busy} onClick={() => setPartialConfirm(false)}>Keep interviewing</button>
+            </section>
+          )}
+          {actionState === "CHECKING" && <p role="status" aria-live="polite">Checking whether your interview can finish. Your recording continues.</p>}
           {recoveryView.state === "RECOVERING" && (
             <p role="status">
               {recoveryLabels[recoveryView.stage] || "Preparing your interview"}

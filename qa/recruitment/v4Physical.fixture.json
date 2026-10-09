@@ -1,0 +1,330 @@
+{
+  "attempt_id": "73709e06-80ae-4142-9629-e4444eb99824",
+  "turns": [
+    {
+      "turn_number": 1,
+      "speaker": "ai",
+      "transcript": "你好，欢迎参加面试。这次是应聘Happiness Kopitiam Ipoh的Service Crew岗位，我是FeedX的自动面试官。这个职位主要负责迎接客人、处理点单、与厨房沟通并在忙碌的时候支持团队。面试大约会持续10分钟左右。先请你简单介绍一下自己吧。",
+      "provider_item_id": "item_EX4lmwdl3NtMFtflO22m7",
+      "provider_generation": 1
+    },
+    {
+      "turn_number": 2,
+      "speaker": "candidate",
+      "transcript": "Apa pengalaman kerja awak dalam industri makanan dan minuman?",
+      "provider_item_id": "item_EX4lrtEurlGDNVtMYhrEo",
+      "provider_generation": 1
+    },
+    {
+      "turn_number": 3,
+      "speaker": "candidate",
+      "transcript": "Hello.",
+      "provider_item_id": "item_EX4mCG0deGijYvtLDzLpp",
+      "provider_generation": 1
+    },
+    {
+      "turn_number": 4,
+      "speaker": "ai",
+      "transcript": "我在听，请你继续刚才的自我介绍。",
+      "provider_item_id": "item_EX4mEsWfe7Ga5DzbcymZX",
+      "provider_generation": 1
+    },
+    {
+      "turn_number": 5,
+      "speaker": "candidate",
+      "transcript": "你刚才卡了，你有没有讲完?",
+      "provider_item_id": "item_EX4mMTd1q8KugFKZOBUXe",
+      "provider_generation": 1
+    },
+    {
+      "turn_number": 6,
+      "speaker": "ai",
+      "transcript": "刚才已经介绍完了，现在想请你简单说说自己的背景，比如有没有相关的工作经验或其他可转移的经验。",
+      "provider_item_id": "item_EX4mPqygVpt6aNG4a4La1",
+      "provider_generation": 1
+    },
+    {
+      "turn_number": 7,
+      "speaker": "candidate",
+      "transcript": "你刚才开始都没有说出声音。",
+      "provider_item_id": "item_EX4maacmmqYi4zcUUZgDU",
+      "provider_generation": 1
+    },
+    {
+      "turn_number": 8,
+      "speaker": "ai",
+      "transcript": "现在我们可以正常交流了，想请你简单介绍一下自己的背景，看看有没有相关的工作或其他经验可以转移过来。",
+      "provider_item_id": "item_EX4mefliVFZa74XSMz4OT",
+      "provider_generation": 1
+    },
+    {
+      "turn_number": 9,
+      "speaker": "candidate",
+      "transcript": "什么叫转移过来?",
+      "provider_item_id": "item_EX4mn6xeWbMs0VmMtgbSK",
+      "provider_generation": 1
+    },
+    {
+      "turn_number": 10,
+      "speaker": "ai",
+      "transcript": "转移经验指的是你以前在其他行业或工作中学到的技能，可以用在餐饮服务上。比如在零售、志愿服务或学校社团里跟顾客沟通、处理问题，这些能力都能用在服务员的工作上。那你有没有类似的经历可以分享一下呢？",
+      "provider_item_id": "item_EX4moRtkpw2Eze2laawB6",
+      "provider_generation": 1
+    }
+  ],
+  "events": [
+    {
+      "type": "playback.waiting",
+      "owner": null,
+      "phase": "browser",
+      "status": null,
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 5434,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "playback.playing",
+      "owner": null,
+      "phase": "browser",
+      "status": null,
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 5449,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "transport.connected",
+      "owner": null,
+      "phase": "orientation_pending",
+      "status": null,
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 6303,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "client.response.create",
+      "owner": "session:1",
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 6303,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.created",
+      "owner": "session:1",
+      "phase": null,
+      "status": "in_progress",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 7135,
+      "response_id": "resp_EX4lmtBL3kCKjkXPA0PZY",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.output_item.added",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EX4lmwdl3NtMFtflO22m7",
+      "playing": false,
+      "elapsed_ms": 7400,
+      "response_id": "resp_EX4lmtBL3kCKjkXPA0PZY",
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 7625,
+      "response_id": "resp_EX4lmtBL3kCKjkXPA0PZY",
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.cleared",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 11361,
+      "response_id": "resp_EX4lmtBL3kCKjkXPA0PZY",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.speech_started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EX4lrtEurlGDNVtMYhrEo",
+      "playing": true,
+      "elapsed_ms": 11361,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "conversation.item.truncated",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EX4lmwdl3NtMFtflO22m7",
+      "playing": false,
+      "elapsed_ms": 11409,
+      "response_id": null,
+      "audio_end_ms": 3740
+    },
+    {
+      "type": "response.done",
+      "owner": "session:1",
+      "phase": null,
+      "status": "cancelled",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 11409,
+      "response_id": "resp_EX4lmtBL3kCKjkXPA0PZY",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EX4lrtEurlGDNVtMYhrEo",
+      "playing": false,
+      "elapsed_ms": 12068,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.speech_stopped",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EX4lrtEurlGDNVtMYhrEo",
+      "playing": false,
+      "elapsed_ms": 12068,
+      "response_id": null,
+      "audio_end_ms": 5800
+    },
+    {
+      "type": "response.created",
+      "owner": null,
+      "phase": null,
+      "status": "in_progress",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 12073,
+      "response_id": "resp_EX4lrcvX8yiYGUnXkkmYN",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.output_item.added",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EX4lrJZMtEqQxJIJoKkWe",
+      "playing": false,
+      "elapsed_ms": 12428,
+      "response_id": "resp_EX4lrcvX8yiYGUnXkkmYN",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.function_call_arguments.done",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EX4lrJZMtEqQxJIJoKkWe",
+      "playing": false,
+      "elapsed_ms": 12451,
+      "response_id": "resp_EX4lrcvX8yiYGUnXkkmYN",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.done",
+      "owner": null,
+      "phase": null,
+      "status": "completed",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 12455,
+      "response_id": "resp_EX4lrcvX8yiYGUnXkkmYN",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.speech_started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EX4mCG0deGijYvtLDzLpp",
+      "playing": false,
+      "elapsed_ms": 32420,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.speech_stopped",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EX4mCG0deGijYvtLDzLpp",
+      "playing": false,
+      "elapsed_ms": 35036,
+      "response_id": null,
+      "audio_end_ms": 27100
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EX4mCG0deGijYvtLDzLpp",
+      "playing": false,
+      "elapsed_ms": 35040,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.created",
+      "owner": null,
+      "phase": null,
+      "status": "in_progress",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 35043,
+      "response_id": "resp_EX4mEpuGOBe6cdprtZ26I",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.output_item.added",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EX4mEsWfe7Ga5DzbcymZX",
+      "playing": false,
+      "elapsed_ms": 35406,
+      "response_id": "resp_EX4mEpuGOBe6cdprtZ26I",
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 35612,
+      "response_id": "resp_EX4mEpuGOBe6cdprtZ26I",
+      "audio_end_ms": null
+    }
+  ]
+}

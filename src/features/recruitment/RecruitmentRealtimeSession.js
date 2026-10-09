@@ -34,7 +34,7 @@ export class RecruitmentRealtimeSession {
     this.generation = 0;
     this.closed = false;
     this.flushing = false;
-    this.conversation = new OpenAIInterviewConversation({send:event=>this.send(event), onTool, onCompletion,
+    this.conversation = new OpenAIInterviewConversation({candidateEligible:itemId=>this.evidence.candidateEligible(itemId),send:event=>this.send(event), onTool, onCompletion,
       onOrientation:receipt=>this.trace({type:"output_audio_buffer.stopped",phase:"orientation_complete",...receipt}),
       onRecovery:reason=>{this.trace({type:"transport.disconnected",status:reason});this.disconnected();}});
     this.audioPlaying = false;
@@ -72,8 +72,12 @@ export class RecruitmentRealtimeSession {
     this.evidence.pendingFinal.clear();
     const peer = new RTCPeerConnection();
     this.peer = peer;
-    this.playbackListeners = ["playing", "pause", "waiting", "stalled", "ended"].map(type => {
-      const listener = () => { if (!this.closed && this.peer === peer) this.trace({type:`playback.${type}`,phase:"browser"}); };
+    this.playbackListeners = ["playing", "pause", "waiting", "stalled", "ended", "error"].map(type => {
+      const listener = () => {
+        if (this.closed || this.peer !== peer) return;
+        this.trace({type:"playback." + (type === "error" ? "blocked" : type),phase:"browser"});
+        if (["pause","stalled","error"].includes(type) && this.audioPlaying) this.disconnected();
+      };
       this.audioElement.addEventListener?.(type, listener);
       return {type, listener};
     });
@@ -182,6 +186,8 @@ export class RecruitmentRealtimeSession {
     }
     if (this.closed) return;
     this.trace(event);
+    if (event.type.startsWith("conversation.item.input_audio_transcription."))
+      this.trace({type:"input_audio_buffer.committed",item_id:event.item_id,phase:event.type.endsWith("completed") ? "transcription_completed" : "transcription_failed"});
     const accepted = this.conversation.event(event);
     this.audioPlaying = this.conversation.playing;
     this.evidence.cancelled=this.conversation.cancelled;

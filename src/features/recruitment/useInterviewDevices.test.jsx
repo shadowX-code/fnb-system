@@ -6,9 +6,9 @@ const track=kind=>({kind,readyState:'live',muted:false,stop:vi.fn(),getSettings:
 const stream=()=>{const tracks=[track('audio'),track('video')];return {getTracks:()=>tracks,getVideoTracks:()=>tracks.filter(t=>t.kind==='video'),getAudioTracks:()=>tracks.filter(t=>t.kind==='audio')};};
 beforeEach(()=>{acquire=vi.fn();vi.stubGlobal('cancelAnimationFrame',vi.fn());Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:acquire}});});
 afterEach(()=>{cleanup();vi.useRealTimers();vi.restoreAllMocks();vi.unstubAllGlobals();});
-it('recovery requests unconstrained processing with fresh native tracks synchronously',async()=>{
+it('fresh native recovery capture retains echo protection synchronously',async()=>{
  const fresh=stream();acquire.mockResolvedValue(fresh);const {result}=renderHook(()=>useInterviewDevices());let request;
- act(()=>{request=result.current.start({meter:false});expect(acquire).toHaveBeenCalledWith({video:{facingMode:'user'},audio:true});});
+ act(()=>{request=result.current.start({meter:false});expect(acquire).toHaveBeenCalledWith({video:{facingMode:'user'},audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});});
  await act(async()=>expect(await request).toBe(fresh));
 });
 it('propagates native denial distinctly, with actual evidence',async()=>{
