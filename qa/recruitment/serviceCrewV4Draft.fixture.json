@@ -1,0 +1,178 @@
+{
+  "profile_name": "Service Crew",
+  "version": 4,
+  "status": "draft",
+  "base_profile_id": "271b2d65-aa61-469f-a0ac-b2b89ec30f4d",
+  "definition": {
+    "scenarios": [
+      {
+        "brief": "A customer complains that their food is taking too long. How would you respond and work with your team?",
+        "purpose": "Understand practical guest communication and team coordination during a delayed order. Reuse only the competencies actually demonstrated; one scenario need not establish all five.",
+        "required": false,
+        "when_to_use": "Use when sufficient equivalent real-world evidence is missing. Skip when the candidate already described handling a comparable delayed-order complaint.",
+        "evidence_areas": [
+          "Customer Service",
+          "Communication",
+          "Teamwork",
+          "Responsibility",
+          "Adaptability"
+        ],
+        "stop_condition": "Their proposed actions and communication are clear enough to understand. Equivalent real-world evidence can satisfy this optional scenario.",
+        "follow_up_guidance": "Ask a useful follow-up about their own communication, checking with the kitchen or escalation only where unclear."
+      }
+    ],
+    "max_minutes": 15,
+    "role_context": "Service Crew in a Malaysian F&B outlet: welcome guests, take and serve orders, communicate with the kitchen, respond to customer needs and support colleagues during busy service.",
+    "evidence_areas": [
+      {
+        "goal": "Understand the quality of the candidate’s actions when identifying and responding to a guest’s practical needs or complaint.",
+        "name": "Customer Service",
+        "rubric": {
+          "levels": [
+            {
+              "level": 1,
+              "criteria": "In a concrete example or scenario, dismisses a guest’s stated concern, blames the guest or refuses an available basic check or appropriate referral, leaving the issue without a practical next step. Absence of an example alone does not demonstrate this level."
+            },
+            {
+              "level": 2,
+              "criteria": "In a concrete example or scenario, acknowledges the guest’s practical concern and takes a relevant basic action, such as checking the order or seeking appropriate help. Describes accurate available information or a basic next step for the guest. This establishes an initial response; coordinated resolution or follow-through is not required for this level."
+            },
+            {
+              "level": 3,
+              "criteria": "Checks the relevant facts and clarifies the concern when needed, explains a realistic next step or wait estimate without unsupported promises, and arranges who will update the guest or escalate if the concern remains unresolved. The response forms a practical resolution plan rather than only an initial check."
+            },
+            {
+              "level": 4,
+              "criteria": "Demonstrates the level-3 actions and follows the issue through: coordinates proportionate help, offers only authorized options, keeps the guest updated and checks whether the agreed resolution addressed the concern."
+            }
+          ]
+        },
+        "priority": "Core",
+        "stop_condition": "Stop when their own actions and customer response or intended next step are understandable. Reuse a complaint example across areas. Coverage may be Covered at any rubric level; vague or unreliable evidence remains unscored rather than a low level.",
+        "evidence_guidance": "A specific example from F&B, retail, volunteering, school or community service, or a realistic scenario: listening, checking the issue, taking a proportionate action, setting accurate expectations and checking resolution. Assess actions, not warmth, accent or prior job title.",
+        "follow_up_signals": "The candidate names a service value without describing actions; the customer need or their own contribution is unclear; a promised outcome is outside their authority. Clarify the useful missing detail once, or use the delayed-food scenario."
+      },
+      {
+        "goal": "Understand how effectively the candidate shares accurate, relevant work information and checks mutual understanding during service.",
+        "name": "Communication",
+        "rubric": {
+          "levels": [
+            {
+              "level": 1,
+              "criteria": "In a concrete work situation, passes on a known incorrect order or instruction, or leaves a material misunderstanding uncorrected despite recognizing it, with no appropriate clarification or handover. Language errors alone do not establish this level."
+            },
+            {
+              "level": 2,
+              "criteria": "In a specific example or scenario, shares essential accurate order, request, timing or task information with the relevant guest or colleague. The stated message and recipient are clear; this establishes a basic useful update, without requiring an observed misunderstanding or failed handover."
+            },
+            {
+              "level": 3,
+              "criteria": "Makes the information usable for the next service action: shares the relevant details and confirms understanding or provides a clear actionable handover/update. Clarifies an ambiguous request when ambiguity actually arises; an invented misunderstanding is not required."
+            },
+            {
+              "level": 4,
+              "criteria": "Demonstrates level-3 communication across relevant people when information changes: identifies a concrete information gap, checks the corrected details and keeps the guest and team aligned on the next action."
+            }
+          ]
+        },
+        "priority": "Important",
+        "stop_condition": "Stop once the relevant message, recipient and clarification or handover action are clear. A concise answer can be sufficient. Normal code-switching, pauses and grammatical errors do not lower a level; unreliable behavioral evidence is Insufficient Evidence.",
+        "evidence_guidance": "Their specific explanation, order confirmation, handover, update or clarification and how they checked understanding. Transferable and scenario evidence count. Judge information and actions, never accent, language fluency, confidence, voice or speaking style.",
+        "follow_up_signals": "A material instruction, timing or handover is ambiguous; they describe telling someone without saying what mattered; a misunderstanding has no clarification. Ask one useful content-focused follow-up, not a language test."
+      },
+      {
+        "goal": "Understand the candidate’s practical contribution to coordinating service and helping colleagues resolve a shared task or difficulty.",
+        "name": "Teamwork",
+        "rubric": {
+          "levels": [
+            {
+              "level": 1,
+              "criteria": "In a specific shared task, knowingly withholds necessary work information, obstructs an agreed handover or abandons an assigned service task without communicating, leaving a colleague unable to coordinate. A short or vague answer is not evidence of this behavior."
+            },
+            {
+              "level": 2,
+              "criteria": "In a specific shared task or scenario, describes their own relevant contribution: completes an agreed part or gives practical help in response to a colleague’s need. Their action and its connection to the shared task are clear. An observed conflict, failed handover or competing task is not required."
+            },
+            {
+              "level": 3,
+              "criteria": "Coordinates the shared work beyond their own task: agrees who does what, shares information needed by colleagues and offers or requests appropriate help while maintaining essential service responsibilities. The described actions contribute to a clear shared next step or outcome."
+            },
+            {
+              "level": 4,
+              "criteria": "Demonstrates the level-3 actions and adjusts coordination during pressure or disagreement: agrees priorities with colleagues, redistributes help appropriately and checks that the shared handover or service task is completed."
+            }
+          ]
+        },
+        "priority": "Important",
+        "stop_condition": "Stop when their contribution and coordination are understandable. Do not demand a separate teamwork story if another answer already establishes it. After one useful probe, move on; Important evidence may remain Partial and assessment unscored.",
+        "evidence_guidance": "Their own actions during a rush, handover, shared task or disagreement: coordinating responsibilities, offering appropriate help, sharing essential information and seeking support. Accept retail, school, volunteering, family-event or scenario examples.",
+        "follow_up_signals": "Only “we” statements leave their contribution unclear; help would abandon an essential task; coordination or disagreement remains materially ambiguous. Clarify their own action once and reuse existing customer-service evidence."
+      },
+      {
+        "goal": "Understand how the candidate checks assigned work, responds to a concrete mistake or task risk, and follows an appropriate escalation or handover through.",
+        "name": "Responsibility",
+        "rubric": {
+          "levels": [
+            {
+              "level": 1,
+              "criteria": "In a concrete task or scenario, recognizes a material order error or service/safety risk but deliberately continues that task unchanged without an available correction, warning or appropriate escalation. This describes the stated action, not honesty or personality."
+            },
+            {
+              "level": 2,
+              "criteria": "In a specific task or scenario, describes their own relevant work check, basic correction or timely report of a task problem to the appropriate person. The task and action are clear and within their authority. A demonstrated unfinished follow-up or procedure failure is not required."
+            },
+            {
+              "level": 3,
+              "criteria": "Takes ownership of the practical next step: checks the assigned work, corrects an identified issue within authority or communicates a clear escalation/handover when further help is needed, and identifies how the task will be completed safely. A task error is not required when a concrete check and safe handover establish the behavior."
+            },
+            {
+              "level": 4,
+              "criteria": "Demonstrates the level-3 actions and verifies that the correction or handover was completed, communicating an actionable process/check improvement to the appropriate colleague without exceeding authority."
+            }
+          ]
+        },
+        "priority": "Important",
+        "stop_condition": "Stop when the task, checking/corrective action and escalation or handover are clear enough to interpret. Do not infer responsibility from availability, employment preference, personal circumstances or unsupported claims. Missing evidence stays unscored.",
+        "evidence_guidance": "Specific task checks, correction of an order/task error, timely reporting, relevant safety/procedure steps or a clear handover. Assess demonstrated work actions only; do not label honesty, character or personality. Transferable and scenario evidence are valid.",
+        "follow_up_signals": "A task error has no correction or handover; their own responsibility or authority is unclear; an action would bypass a relevant safety rule. Clarify a material next step once without accusing the candidate or demanding a confession."
+      },
+      {
+        "goal": "Understand how the candidate changes a practical service approach when priorities, instructions or available resources change.",
+        "name": "Adaptability",
+        "rubric": {
+          "levels": [
+            {
+              "level": 1,
+              "criteria": "In a specific changed task, recognizes that the previous instruction or approach is no longer workable but continues it without an available clarification or safe adjustment, or describes an unsafe shortcut instead of seeking appropriate help."
+            },
+            {
+              "level": 2,
+              "criteria": "In a concrete changed task or scenario, identifies what changed in the instruction, priority or available resource and makes a relevant safe basic adjustment. The original situation, change and own action are clear. An observed priority conflict or unfamiliar-step failure is not required."
+            },
+            {
+              "level": 3,
+              "criteria": "Clarifies the changed need when necessary, chooses and explains safe revised priorities or service steps and informs affected people. Seeks appropriate guidance when the adjustment involves unfamiliar work. The adjustment responds to the actual change rather than merely repeating the original action."
+            },
+            {
+              "level": 4,
+              "criteria": "Demonstrates the level-3 actions, checks whether the adjustment is working, and revises the practical plan with the team when further information changes, while respecting training, service procedures and authority."
+            }
+          ]
+        },
+        "priority": "Important",
+        "stop_condition": "Stop when the change, adjustment and relevant limits are understandable. Reuse a rush or complaint answer. Willingness to work late or accept a different employment type is Job Fit/preference, not adaptability; insufficient evidence stays unscored.",
+        "evidence_guidance": "A concrete changed order, rush, unavailable item, unfamiliar task or feedback situation: clarifying what changed, choosing safe priorities, seeking needed help and adjusting the action. Transferable or scenario evidence counts; this is not a prediction of potential.",
+        "follow_up_signals": "“I can adapt” has no actions; a changed priority or safe response is unclear; their proposed change exceeds training or authority. Ask one useful practical clarification or reuse the complaint scenario, rather than repeating the same probe."
+      }
+    ],
+    "target_minutes": 10,
+    "follow_up_guidance": "Choose the next useful move: deepen a relevant thread, clarify material ambiguity, verify an actual contradiction once, use a scenario if real evidence is insufficient, or transition when sufficient. Reuse evidence across areas; never ask dedicated questions for covered areas. Prioritize material opening requirements and unresolved Core evidence within remaining time. Accept transferable experience. Keep one concise question at a time, acknowledge naturally and avoid repetitive praise. Near the end invite candidate questions, answer only confirmed job facts and identify unknowns for the hiring team. After evidence and candidate Q&A, request server completion and close naturally. These are reasoning guidance, never scores or mandatory answer checklists. Preserve the natural orientation: welcome the candidate, briefly introduce the confirmed opening/role and approximate duration, then invite a brief background introduction. Reuse evidence volunteered there. Follow the candidate’s meaningful current language naturally without assessing fluency. Usually probe a vague answer once; repeated low-information answers reduce the value of that thread. Important areas may remain Partial. Use a concise scenario only when useful, not a scripted sequence. Coverage measures understanding, not behavior quality: Covered can support any defensible level; Partial can support a level only where the stated behavior is reliable. Use Insufficient Evidence with no level when reliable behavioral assessment is impossible, including missing, ambiguous, contradictory or unusable evidence; absence is not level 1. Require cited candidate evidence and the literal role-specific rubric for every assessment. Do not derive competency levels from Employment Preference, availability, start timing or opening requirements; reuse and clarify those through the existing Application/Job Fit authorities when material. Never infer personality, honesty, intelligence, potential or suitability from accent, voice, appearance, language fluency or speaking style. No weights, totals, percentages, rankings or hiring recommendations. Answer candidate questions from confirmed opening/offering facts only, keep unknowns explicit, offer Q&A before requesting server completion, and close naturally only with permission.",
+    "completion_criteria": {
+      "Core": "covered",
+      "Optional": "unresolved",
+      "Important": "partial",
+      "scenarios": "answered"
+    },
+    "intelligence_version": 2
+  }
+}

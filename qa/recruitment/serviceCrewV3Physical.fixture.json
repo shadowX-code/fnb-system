@@ -1,0 +1,389 @@
+{
+  "profile_name": "Service Crew",
+  "profile_version": 3,
+  "target_minutes": 10,
+  "max_minutes": 15,
+  "duration_seconds": 306.567,
+  "completion_reason": "coverage",
+  "coverage": [
+    "covered",
+    "covered",
+    "covered",
+    "partial",
+    "partial"
+  ],
+  "truncated_turns": [
+    24,
+    26
+  ],
+  "turns": [
+    {
+      "id": 691,
+      "speaker": "ai",
+      "transcript": "你好，欢迎参加我们这场面试。我在这里作为 FeedX 的自动面试官，今天的职位是 Happiness Kopitiam Ipoh 的服务员，主要就是在餐厅欢迎客人、点单和配合团队服务。整个面试大约会进行十分钟左右。方便的话，你先简单介绍一下自己吧。",
+      "turn_number": 1,
+      "elapsed_end_ms": 26588
+    },
+    {
+      "id": 692,
+      "speaker": "candidate",
+      "transcript": "我叫Isaac.",
+      "turn_number": 2,
+      "elapsed_end_ms": 33962
+    },
+    {
+      "id": 693,
+      "speaker": "ai",
+      "transcript": "Isaac, 那你可以说说看你过去有没有在餐饮、零售或者其他服务类工作的经验吗？如果没有，也可以分享一些你觉得能转移过来的经验。",
+      "turn_number": 3,
+      "elapsed_end_ms": 44766
+    },
+    {
+      "id": 694,
+      "speaker": "candidate",
+      "transcript": "之前有做过几个月的餐厅吗?",
+      "turn_number": 4,
+      "elapsed_end_ms": 53809
+    },
+    {
+      "id": 695,
+      "speaker": "ai",
+      "transcript": "好的，那你是比较想找全职还是兼职的工作，或者两种都可以考虑呢？",
+      "turn_number": 5,
+      "elapsed_end_ms": 60345
+    },
+    {
+      "id": 696,
+      "speaker": "candidate",
+      "transcript": "两种都可以考虑。",
+      "turn_number": 6,
+      "elapsed_end_ms": 64270
+    },
+    {
+      "id": 697,
+      "speaker": "ai",
+      "transcript": "明白，那接下来想听你分享一个具体的例子：在你那几个月餐厅的经历里，有没有遇过客人有问题或者不满的时候？你当时是怎么处理的，可以和我聊聊吗？",
+      "turn_number": 7,
+      "elapsed_end_ms": 75906
+    },
+    {
+      "id": 698,
+      "speaker": "candidate",
+      "transcript": "客人...",
+      "turn_number": 8,
+      "elapsed_end_ms": 83530
+    },
+    {
+      "id": 699,
+      "speaker": "candidate",
+      "transcript": "有时候出餐很慢，厨房煮得很慢，顾客就不满意，然后需要我们去沟通。",
+      "turn_number": 9,
+      "elapsed_end_ms": 92737
+    },
+    {
+      "id": 700,
+      "speaker": "ai",
+      "transcript": "那这种情况下你具体会怎么做呢？比如你会怎么和客人沟通，又会怎样和厨房确认和跟进？",
+      "turn_number": 10,
+      "elapsed_end_ms": 100346
+    },
+    {
+      "id": 701,
+      "speaker": "candidate",
+      "transcript": "跟顾客说不好意思，然后去厨房查看他的订单还有多久可以处理好。",
+      "turn_number": 11,
+      "elapsed_end_ms": 112239
+    },
+    {
+      "id": 702,
+      "speaker": "ai",
+      "transcript": "了解，那查完之后你会怎么把情况告诉客人，或者和团队配合确保事情解决呢？",
+      "turn_number": 12,
+      "elapsed_end_ms": 119106
+    },
+    {
+      "id": 703,
+      "speaker": "candidate",
+      "transcript": "你就告诉顾客还有多久时间会好哦。",
+      "turn_number": 13,
+      "elapsed_end_ms": 132314
+    },
+    {
+      "id": 704,
+      "speaker": "ai",
+      "transcript": "这样做很直接，谢谢你的分享。那查完订单后如果还需要更久，你会怎么和厨房协调，或者寻求同事的帮助来应对这种情况呢？",
+      "turn_number": 14,
+      "elapsed_end_ms": 142347
+    },
+    {
+      "id": 705,
+      "speaker": "candidate",
+      "transcript": "就直接跟客人说吧.",
+      "turn_number": 15,
+      "elapsed_end_ms": 149482
+    },
+    {
+      "id": 706,
+      "speaker": "ai",
+      "transcript": "明白，如果只是转告客人时间，我们就先到这里吧。接下来想了解你是怎么支持团队的。比如在忙的时候，除了查订单、告知客人，你有没有和同事一起分工、互相帮助的经历？",
+      "turn_number": 16,
+      "elapsed_end_ms": 163045
+    },
+    {
+      "id": 707,
+      "speaker": "candidate",
+      "transcript": "就大家分工洗厕所啊、抹桌子收桌子啊、收钱啊这样子咯。",
+      "turn_number": 17,
+      "elapsed_end_ms": 176301
+    },
+    {
+      "id": 708,
+      "speaker": "ai",
+      "transcript": "这些工作分配听起来蛮多样的，那在忙的时候你自己会主动挑哪些任务，或者帮同事解决什么问题吗？",
+      "turn_number": 18,
+      "elapsed_end_ms": 184885
+    },
+    {
+      "id": 709,
+      "speaker": "candidate",
+      "transcript": "就看同事有什么需求才帮忙吧。",
+      "turn_number": 19,
+      "elapsed_end_ms": 205022
+    },
+    {
+      "id": 710,
+      "speaker": "ai",
+      "transcript": "我了解了。我们已经聊到很多关于你和顾客、团队配合的部分，接下来想给你机会问问你对这份工作有什么想了解的。比如工作时间、薪资范围、休息安排这些，我可以根据确认的资料回答你。如果有些细节还没确定，我也会告诉你由主管来说明。你现在有什么问题想先了解的吗？",
+      "turn_number": 20,
+      "elapsed_end_ms": 227724
+    },
+    {
+      "id": 711,
+      "speaker": "candidate",
+      "transcript": "我想了解这个工作时间和薪资怎样算呢?",
+      "turn_number": 21,
+      "elapsed_end_ms": 234600
+    },
+    {
+      "id": 712,
+      "speaker": "ai",
+      "transcript": "好的，我们这里有全职和兼职两种安排。全职的工作时间是早上七点半到下午五点，每周工作六天，有一天休息日，中间有一小时的用餐时间。薪资每月在 RM1,800 到 RM2,200 之间，具体金额由主管根据你的经验来确定。\n\n兼职的话时间比较灵活，你提供自己的空档，主管会根据需要安排，没有最低的工作时数，每小时 RM8。如果一天工作满八小时，会有一小时的午餐时间和一份员工餐，低于八小时就没有这些休息和餐食。\n\n这两个安排都有双倍公共假日薪资。你对哪一种安排比较有兴趣，或者还有什么想了解的吗？",
+      "turn_number": 22,
+      "elapsed_end_ms": 280163
+    },
+    {
+      "id": 713,
+      "speaker": "candidate",
+      "transcript": "可能兼职吧。兼职是没有员工餐吗?",
+      "turn_number": 23,
+      "elapsed_end_ms": 289294
+    },
+    {
+      "id": 714,
+      "speaker": "ai",
+      "transcript": "兼职的话，如果你一天工作到八小时或以上，就会有一小时的用餐时间和一份员工餐。如果当天工作时数低于八小时，那就没有用餐时间和",
+      "turn_number": 24,
+      "elapsed_end_ms": 290948
+    },
+    {
+      "id": 715,
+      "speaker": "candidate",
+      "transcript": "Ruben eat",
+      "turn_number": 25,
+      "elapsed_end_ms": 294282
+    },
+    {
+      "id": 716,
+      "speaker": "ai",
+      "transcript": "如果你一天工作不到八小时，兼职是没有用餐时间和员工餐的；超过八小时就会有。",
+      "turn_number": 26,
+      "elapsed_end_ms": 295277
+    },
+    {
+      "id": 717,
+      "speaker": "candidate",
+      "transcript": "Boleh?",
+      "turn_number": 27,
+      "elapsed_end_ms": 296770
+    },
+    {
+      "id": 718,
+      "speaker": "ai",
+      "transcript": "好的，谢谢你的时间和分享，招聘团队会审核这次面试，之后会再联系你。那就先到这里，再见。",
+      "turn_number": 28,
+      "elapsed_end_ms": 306463
+    }
+  ],
+  "profile": {
+    "scenarios": [
+      {
+        "brief": "A customer complains that their food is taking too long. How would you respond and work with your team?",
+        "purpose": "Understand practical guest communication and team coordination during a delayed order. Reuse only the competencies actually demonstrated; one scenario need not establish all five.",
+        "required": false,
+        "when_to_use": "Use when sufficient equivalent real-world evidence is missing. Skip when the candidate already described handling a comparable delayed-order complaint.",
+        "evidence_areas": [
+          "Customer Service",
+          "Communication",
+          "Teamwork",
+          "Responsibility",
+          "Adaptability"
+        ],
+        "stop_condition": "Their proposed actions and communication are clear enough to understand. Equivalent real-world evidence can satisfy this optional scenario.",
+        "follow_up_guidance": "Ask a useful follow-up about their own communication, checking with the kitchen or escalation only where unclear."
+      }
+    ],
+    "max_minutes": 15,
+    "role_context": "Service Crew in a Malaysian F&B outlet: welcome guests, take and serve orders, communicate with the kitchen, respond to customer needs and support colleagues during busy service.",
+    "evidence_areas": [
+      {
+        "goal": "Understand the quality of the candidate’s actions when identifying and responding to a guest’s practical needs or complaint.",
+        "name": "Customer Service",
+        "rubric": {
+          "levels": [
+            {
+              "level": 1,
+              "criteria": "In a concrete example or scenario, dismisses a guest’s stated concern, blames the guest or refuses an available basic check or appropriate referral, leaving the issue without a practical next step. Absence of an example alone does not demonstrate this level."
+            },
+            {
+              "level": 2,
+              "criteria": "Acknowledges the guest’s concern and describes one relevant basic action, such as checking an order or calling a colleague, but the demonstrated response lacks a useful update or a clear next step for an unresolved concern."
+            },
+            {
+              "level": 3,
+              "criteria": "Clarifies the concern, checks relevant facts with the right colleague, explains a realistic next step or wait estimate without unsupported promises, and arranges an appropriate update or escalation."
+            },
+            {
+              "level": 4,
+              "criteria": "Demonstrates the level-3 actions and follows the issue through: coordinates proportionate help, offers only authorized options, keeps the guest updated and checks whether the agreed resolution addressed the concern."
+            }
+          ]
+        },
+        "priority": "Core",
+        "stop_condition": "Stop when their own actions and customer response or intended next step are understandable. Reuse a complaint example across areas. Coverage may be Covered at any rubric level; vague or unreliable evidence remains unscored rather than a low level.",
+        "evidence_guidance": "A specific example from F&B, retail, volunteering, school or community service, or a realistic scenario: listening, checking the issue, taking a proportionate action, setting accurate expectations and checking resolution. Assess actions, not warmth, accent or prior job title.",
+        "follow_up_signals": "The candidate names a service value without describing actions; the customer need or their own contribution is unclear; a promised outcome is outside their authority. Clarify the useful missing detail once, or use the delayed-food scenario."
+      },
+      {
+        "goal": "Understand how effectively the candidate shares accurate, relevant work information and checks mutual understanding during service.",
+        "name": "Communication",
+        "rubric": {
+          "levels": [
+            {
+              "level": 1,
+              "criteria": "In a concrete work situation, passes on a known incorrect order or instruction, or leaves a material misunderstanding uncorrected despite recognizing it, with no appropriate clarification or handover. Language errors alone do not establish this level."
+            },
+            {
+              "level": 2,
+              "criteria": "Shares the essential order, request or task information with the relevant person, but the demonstrated handover omits an important detail or does not resolve an identified ambiguity or misunderstanding."
+            },
+            {
+              "level": 3,
+              "criteria": "Shares accurate relevant details, checks an ambiguous request or order, and confirms understanding or gives a usable handover/update to the appropriate guest or colleague."
+            },
+            {
+              "level": 4,
+              "criteria": "Demonstrates the level-3 actions across the relevant people, identifies a likely information gap, confirms the corrected details and keeps the guest and team aligned when an order or service situation changes."
+            }
+          ]
+        },
+        "priority": "Important",
+        "stop_condition": "Stop once the relevant message, recipient and clarification or handover action are clear. A concise answer can be sufficient. Normal code-switching, pauses and grammatical errors do not lower a level; unreliable behavioral evidence is Insufficient Evidence.",
+        "evidence_guidance": "Their specific explanation, order confirmation, handover, update or clarification and how they checked understanding. Transferable and scenario evidence count. Judge information and actions, never accent, language fluency, confidence, voice or speaking style.",
+        "follow_up_signals": "A material instruction, timing or handover is ambiguous; they describe telling someone without saying what mattered; a misunderstanding has no clarification. Ask one useful content-focused follow-up, not a language test."
+      },
+      {
+        "goal": "Understand the candidate’s practical contribution to coordinating service and helping colleagues resolve a shared task or difficulty.",
+        "name": "Teamwork",
+        "rubric": {
+          "levels": [
+            {
+              "level": 1,
+              "criteria": "In a specific shared task, knowingly withholds necessary work information, obstructs an agreed handover or abandons an assigned service task without communicating, leaving a colleague unable to coordinate. A short or vague answer is not evidence of this behavior."
+            },
+            {
+              "level": 2,
+              "criteria": "Completes their own part or helps when asked, but the demonstrated response leaves an identified overlap, handover or competing task without clear coordination with colleagues."
+            },
+            {
+              "level": 3,
+              "criteria": "Coordinates who does what, shares relevant service information, offers or requests practical help and protects essential tasks while contributing to a shared outcome."
+            },
+            {
+              "level": 4,
+              "criteria": "Demonstrates the level-3 actions and adjusts coordination during pressure or disagreement: agrees priorities with colleagues, redistributes help appropriately and checks that the shared handover or service task is completed."
+            }
+          ]
+        },
+        "priority": "Important",
+        "stop_condition": "Stop when their contribution and coordination are understandable. Do not demand a separate teamwork story if another answer already establishes it. After one useful probe, move on; Important evidence may remain Partial and assessment unscored.",
+        "evidence_guidance": "Their own actions during a rush, handover, shared task or disagreement: coordinating responsibilities, offering appropriate help, sharing essential information and seeking support. Accept retail, school, volunteering, family-event or scenario examples.",
+        "follow_up_signals": "Only “we” statements leave their contribution unclear; help would abandon an essential task; coordination or disagreement remains materially ambiguous. Clarify their own action once and reuse existing customer-service evidence."
+      },
+      {
+        "goal": "Understand how the candidate checks assigned work, responds to a concrete mistake or task risk, and follows an appropriate escalation or handover through.",
+        "name": "Responsibility",
+        "rubric": {
+          "levels": [
+            {
+              "level": 1,
+              "criteria": "In a concrete task or scenario, recognizes a material order error or service/safety risk but deliberately continues that task unchanged without an available correction, warning or appropriate escalation. This describes the stated action, not honesty or personality."
+            },
+            {
+              "level": 2,
+              "criteria": "Recognizes the task problem and describes a basic correction or report, but the demonstrated action leaves a material follow-up, relevant procedure or handover unfinished or unclear."
+            },
+            {
+              "level": 3,
+              "criteria": "Checks the assigned task, takes an appropriate correction within authority, communicates a material issue promptly and gives a clear escalation or handover when further help is needed."
+            },
+            {
+              "level": 4,
+              "criteria": "Demonstrates the level-3 actions and verifies that the correction or handover was completed, communicating an actionable process/check improvement to the appropriate colleague without exceeding authority."
+            }
+          ]
+        },
+        "priority": "Important",
+        "stop_condition": "Stop when the task, checking/corrective action and escalation or handover are clear enough to interpret. Do not infer responsibility from availability, employment preference, personal circumstances or unsupported claims. Missing evidence stays unscored.",
+        "evidence_guidance": "Specific task checks, correction of an order/task error, timely reporting, relevant safety/procedure steps or a clear handover. Assess demonstrated work actions only; do not label honesty, character or personality. Transferable and scenario evidence are valid.",
+        "follow_up_signals": "A task error has no correction or handover; their own responsibility or authority is unclear; an action would bypass a relevant safety rule. Clarify a material next step once without accusing the candidate or demanding a confession."
+      },
+      {
+        "goal": "Understand how the candidate changes a practical service approach when priorities, instructions or available resources change.",
+        "name": "Adaptability",
+        "rubric": {
+          "levels": [
+            {
+              "level": 1,
+              "criteria": "In a specific changed task, recognizes that the previous instruction or approach is no longer workable but continues it without an available clarification or safe adjustment, or describes an unsafe shortcut instead of seeking appropriate help."
+            },
+            {
+              "level": 2,
+              "criteria": "Accepts a revised instruction and makes a basic change, but the demonstrated response leaves an identified priority conflict or unfamiliar step unresolved without appropriate clarification."
+            },
+            {
+              "level": 3,
+              "criteria": "Clarifies the changed need, adjusts safe task priorities or service steps, and seeks appropriate guidance for unfamiliar work while keeping affected colleagues or guests informed."
+            },
+            {
+              "level": 4,
+              "criteria": "Demonstrates the level-3 actions, checks whether the adjustment is working, and revises the practical plan with the team when further information changes, while respecting training, service procedures and authority."
+            }
+          ]
+        },
+        "priority": "Important",
+        "stop_condition": "Stop when the change, adjustment and relevant limits are understandable. Reuse a rush or complaint answer. Willingness to work late or accept a different employment type is Job Fit/preference, not adaptability; insufficient evidence stays unscored.",
+        "evidence_guidance": "A concrete changed order, rush, unavailable item, unfamiliar task or feedback situation: clarifying what changed, choosing safe priorities, seeking needed help and adjusting the action. Transferable or scenario evidence counts; this is not a prediction of potential.",
+        "follow_up_signals": "“I can adapt” has no actions; a changed priority or safe response is unclear; their proposed change exceeds training or authority. Ask one useful practical clarification or reuse the complaint scenario, rather than repeating the same probe."
+      }
+    ],
+    "target_minutes": 10,
+    "follow_up_guidance": "Choose the next useful move: deepen a relevant thread, clarify material ambiguity, verify an actual contradiction once, use a scenario if real evidence is insufficient, or transition when sufficient. Reuse evidence across areas; never ask dedicated questions for covered areas. Prioritize material opening requirements and unresolved Core evidence within remaining time. Accept transferable experience. Keep one concise question at a time, acknowledge naturally and avoid repetitive praise. Near the end invite candidate questions, answer only confirmed job facts and identify unknowns for the hiring team. After evidence and candidate Q&A, request server completion and close naturally. These are reasoning guidance, never scores or mandatory answer checklists. Preserve the natural orientation: welcome the candidate, briefly introduce the confirmed opening/role and approximate duration, then invite a brief background introduction. Reuse evidence volunteered there. Follow the candidate’s meaningful current language naturally without assessing fluency. Usually probe a vague answer once; repeated low-information answers reduce the value of that thread. Important areas may remain Partial. Use a concise scenario only when useful, not a scripted sequence. Coverage measures understanding, not behavior quality: Covered can support any defensible level; Partial can support a level only where the stated behavior is reliable. Use Insufficient Evidence with no level when reliable behavioral assessment is impossible, including missing, ambiguous, contradictory or unusable evidence; absence is not level 1. Require cited candidate evidence and the literal role-specific rubric for every assessment. Do not derive competency levels from Employment Preference, availability, start timing or opening requirements; reuse and clarify those through the existing Application/Job Fit authorities when material. Never infer personality, honesty, intelligence, potential or suitability from accent, voice, appearance, language fluency or speaking style. No weights, totals, percentages, rankings or hiring recommendations. Answer candidate questions from confirmed opening/offering facts only, keep unknowns explicit, offer Q&A before requesting server completion, and close naturally only with permission.",
+    "completion_criteria": {
+      "Core": "covered",
+      "Optional": "unresolved",
+      "Important": "partial",
+      "scenarios": "answered"
+    },
+    "intelligence_version": 2
+  }
+}
