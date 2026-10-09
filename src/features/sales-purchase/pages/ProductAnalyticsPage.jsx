@@ -15,6 +15,7 @@ import MetricCard from "../../../components/ui/MetricCard.jsx";
 import { months } from "../data/mockData.js";
 import { monthLabel, percentageChange, toCurrency, toPercent } from "../utils/analytics.js";
 import { canExport, canManage, getAccessibleOutletOptions, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { useCompleteProductItems } from "../hooks/useCompleteProductItems.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { buildDynamicYearOptions, yearsFromRecords } from "../../../utils/yearOptions.js";
 
@@ -714,8 +715,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const [year, setYear] = useState(defaultPeriod.year);
   const [compareMode, setCompareMode] = useState("previous");
   const [reports, setReports] = useState([]);
-  const [items, setItems] = useState([]);
-  const [yearItems, setYearItems] = useState([]);
+  const [reportRead, setReportRead] = useState({ key: null, error: null });
   const [loading, setLoading] = useState(true);
   const [uploadModal, setUploadModal] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -742,15 +742,27 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const previous = useMemo(() => (month === 1 ? { month: 12, year: year - 1 } : { month: month - 1, year }), [month, year]);
   const comparePeriod = useMemo(() => (compareMode === "previous" ? previous : null), [compareMode, previous]);
 
+  const reportScopeKey = activeOutlets.map((outlet) => outlet.id).sort().join("|");
   useEffect(() => {
-    if (!activeOutlets.length) return undefined;
+    if (!activeOutlets.length) {
+      setReports([]);
+      setReportRead({ key: reportScopeKey, error: null });
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     setLoading(true);
-    productAnalyticsService.listReports({ outletIds: activeOutlets.map((outlet) => outlet.id) })
+    productAnalyticsService.listCompleteReports({ outletIds: activeOutlets.map((outlet) => outlet.id) })
       .then((nextReports) => {
-        if (!cancelled) setReports(nextReports);
+        if (!cancelled) {
+          setReports(nextReports);
+          setReportRead({ key: reportScopeKey, error: null });
+        }
       })
       .catch((error) => {
+        if (cancelled) return;
+        setReports([]);
+        setReportRead({ key: reportScopeKey, error: error.message || "Product reports could not be loaded completely." });
         console.error("Unable to load product reports", error);
         ui.notify({ title: "Unable to load product analytics", message: error.message, tone: "error" });
       })
@@ -766,32 +778,12 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const compareReports = useMemo(() => comparePeriod ? reports.filter((report) => outletIds.includes(report.outlet_id) && report.report_month === comparePeriod.month && report.report_year === comparePeriod.year) : [], [comparePeriod, outletIds, reports]);
   const yearReports = useMemo(() => reports.filter((report) => outletIds.includes(report.outlet_id) && report.report_year === year), [outletIds, reports, year]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const reportIds = [...new Set([...currentReports, ...compareReports].map((report) => report.id))];
-    productAnalyticsService.listItemsByReportIds(reportIds)
-      .then((nextItems) => {
-        if (!cancelled) setItems(nextItems);
-      })
-      .catch((error) => {
-        console.error("Unable to load product sales items", error);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentReports, compareReports]);
-
-  useEffect(() => {
-    let cancelled = false;
-    productAnalyticsService.listItemsByReportIds(yearReports.map((report) => report.id))
-      .then((nextItems) => {
-        if (!cancelled) setYearItems(nextItems);
-      })
-      .catch((error) => console.error("Unable to load product trend items", error));
-    return () => {
-      cancelled = true;
-    };
-  }, [yearReports]);
+  const periodRead = useCompleteProductItems([...currentReports, ...compareReports].map((report) => report.id), reports);
+  const yearRead = useCompleteProductItems(yearReports.map((report) => report.id), reports);
+  const items = periodRead.data;
+  const yearItems = yearRead.data;
+  const analyticsError = reportRead.error || periodRead.error || yearRead.error;
+  const analyticsReady = !loading && reportRead.key === reportScopeKey && !periodRead.loading && !yearRead.loading && !analyticsError;
 
   const currentReportIds = new Set(currentReports.map((report) => report.id));
   const compareReportIds = new Set(compareReports.map((report) => report.id));
@@ -954,10 +946,12 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
       });
       let refreshError = null;
       try {
-        const nextReports = await productAnalyticsService.listReports({ outletIds: activeOutlets.map((outlet) => outlet.id) });
+        const nextReports = await productAnalyticsService.listCompleteReports({ outletIds: activeOutlets.map((outlet) => outlet.id) });
         setReports(nextReports);
+        setReportRead({ key: reportScopeKey, error: null });
       } catch (error) {
         refreshError = error;
+        setReportRead({ key: reportScopeKey, error: "Product reports could not be loaded completely." });
         console.error("Unable to refresh product reports after save", error);
         setReports((currentReports) => [
           ...currentReports.filter((item) => item.outlet_id !== report.outlet_id || item.report_month !== report.report_month || item.report_year !== report.report_year),
@@ -991,6 +985,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   }
 
   function exportCurrent() {
+    if (!analyticsReady) return;
     if (!canExportReport) return notifyPermissionDenied(ui, "export product analytics");
     downloadCsv(`product-analytics-${monthLabel(month)}-${year}.csv`, [
       ["Product", "Variant", "Category", "Quantity", "Net Sales", "Contribution"],
@@ -1020,7 +1015,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         actions={
           <div className="flex flex-wrap gap-2">
             <button className="btn-secondary" type="button" onClick={() => setHistoryOpen(true)}><History size={16} /> Upload History</button>
-            {canExportReport ? <button className="btn-secondary" type="button" onClick={exportCurrent}><Download size={16} /> Export</button> : null}
+            {canExportReport ? <button className="btn-secondary" type="button" disabled={!analyticsReady} onClick={exportCurrent}><Download size={16} /> Export</button> : null}
             {canUpload ? <button className="btn-primary" type="button" onClick={openUploadModal}><Upload size={16} /> Upload Report</button> : <Badge tone="neutral">Read-only access</Badge>}
           </div>
         }
@@ -1054,7 +1049,13 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         </div>
       ) : null}
 
-      {!loading && !currentItems.length ? (
+      {!analyticsReady ? (
+        <div className="card p-6" role={analyticsError ? "alert" : "status"}>
+          <p>{analyticsError ? "Product analytics could not be loaded completely. No product totals are shown." : "Loading complete product analytics…"}</p>
+          {analyticsError ? <button className="btn-secondary mt-3" type="button" onClick={() => window.location.reload()}>Reload</button> : null}
+        </div>
+      ) : <>
+      {!currentItems.length ? (
         <div className="card border-dashed p-8 text-center">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary"><FileSpreadsheet size={22} /></div>
           <h2 className="mt-3 text-lg font-bold text-text-primary">No product sales report uploaded yet.</h2>
@@ -1343,6 +1344,8 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
           </div>
         </Modal>
       ) : null}
+
+      </>}
 
       {uploadModal ? (
         <Modal
