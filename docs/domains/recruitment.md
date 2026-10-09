@@ -204,3 +204,5 @@ Report failures retain bounded stage-specific codes (provider, response parsing,
 Report provider schemas bind `turn_ids` to candidate database IDs from the immutable report source. Display turn numbers, foreign IDs and AI turns cannot be generated as citations; Edge and database citation validation remain independent enforcement.
 
 Rubric assessment requires all material conditions of a literal criterion to be demonstrated. Missing follow-up detail does not establish an observed conflict, failed handover or misunderstanding; when no criterion is defensible the report remains Insufficient Evidence. Provider output uses separate assessed/interpretation/level and insufficient/unresolved/null schema branches matching trusted validation.
+
+The report validator conservatively keeps an explicitly absence-based low-level model finding unscored (Insufficient Evidence), preserving its reason and citations. This guard never assigns a different numeric level or changes coverage/fit; it does not replace human semantic review.

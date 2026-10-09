@@ -228,6 +228,12 @@ export function validateReport(
       const criterion = area.rubric.levels.find((l:any)=>l.level===row.level);
       const finding = enrich(row.finding);
       if (finding.text.length>700 || (row.status==="assessed" && (!criterion || !finding.evidence.length || finding.kind!=="interpretation")) || (row.status==="insufficient_evidence" && (row.level!==null || finding.kind!=="unresolved"))) throw Error("Unsupported rubric assessment");
+      // Fail closed when the model itself justifies a low level with absent evidence.
+      // This never assigns a different level: it preserves citations and marks uncertainty unscored.
+      const absenceBased = row.status === "assessed" && row.level <= 2 &&
+        /\b(lacks? evidence|no evidence|does not provide evidence|does not demonstrate|details.{0,30}(limited|missing))\b/i.test(finding.text);
+      if (absenceBased) return {index:area.index,area:area.name,status:"insufficient_evidence",level:null,criterion:null,
+        finding:{...finding,kind:"unresolved",text:`Insufficient evidence for a defensible rubric level. ${finding.text}`}};
       return {index:area.index,area:area.name,status:row.status,level:row.level,criterion:row.status==="assessed"?criterion.criteria:null,finding};
     });
     (result as any).assessment_profile = {id:plan.profile_id,version:plan.version};

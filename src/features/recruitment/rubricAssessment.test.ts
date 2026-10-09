@@ -33,3 +33,11 @@ it("provider assessment branches agree with trusted assessed/insufficient contra
  expect(missing.properties.level).toEqual({type:"null"});
  expect(missing.properties.finding.properties.kind.enum).toEqual(["unresolved"]);
 });
+
+it("keeps a provider's explicitly absence-based low assessment unscored with its citations",()=>{
+ const body=raw();body.assessments[0].finding.text="Helps colleagues but lacks evidence of a coordination conflict.";
+ const result:any=validateReport(body,source,"recruitment-report-v4");
+ expect(result.assessments[0]).toMatchObject({status:"insufficient_evidence",level:null,criterion:null,finding:{kind:"unresolved",evidence:[{turn_id:21}]}});
+ expect(result.topics[0].state).toBe("covered");
+ expect(result.assessments[0].finding.text).toContain("lacks evidence");
+});
