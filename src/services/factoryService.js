@@ -2261,6 +2261,16 @@ const factoryServiceDefinition = {
     };
   },
 
+  async getProductionMonthlyPerformance(month, { signal } = {}) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(month))) throw new Error("Select a valid month.");
+    let request = supabase.rpc("factory_get_production_monthly_performance", { p_month: `${month}-01` });
+    if (signal) request = request.abortSignal(signal);
+    const { data, error } = await request;
+    throwSupabaseError("factory.production.monthly_performance", error);
+    if (data?.month !== month || !Array.isArray(data.days) || !data.today) throw new Error("Production performance is unavailable. Please retry.");
+    return data;
+  },
+
   async listOperationalJobOrders({ date, includeProductions = true } = {}) {
     if (strictDateValue(date) === null) throw new Error("Enter a valid operational date.");
     const dueReleaseResult = await supabase.rpc("factory_release_due_job_orders");
