@@ -1,4 +1,5 @@
 import { META_REDIRECT, META_SCOPES } from './metaSecurity.ts';
+import { resolvePageRoleTasks } from './metaPageTasks.ts';
 // Only explicitly selected non-secret fields may enter diagnostics. Never log provider bodies.
 export type MetaResponseEvidence={graph_error_subcode:number|null;error_permissions:string[]};
 export type MetaDiagnostic = Record<string, string | number | boolean | null | string[]>;
@@ -77,7 +78,7 @@ export class MetaGraph {
   }
   if(!scopes.has('pages_show_list'))throw new MetaError('pages_show_list_not_granted');
   const accounts:any[]=[], tokens:Record<string,string>={};let after:string|undefined;
-  const acceptPage=(row:any,source:'accounts'|'granted_page_node',expectedId?:string)=>{
+  const acceptPage=async(row:any,source:'accounts'|'granted_page_node',expectedId?:string)=>{
    const id=numericId(row?.id),hasToken=typeof row?.access_token==='string'&&row.access_token.length>0;
    const ig=row?.instagram_business_account;
    const decision=!id?'rejected_invalid_page_id':expectedId&&id!==expectedId?'rejected_page_identity_mismatch':!hasToken?'rejected_missing_page_token':'accepted';
@@ -85,19 +86,30 @@ export class MetaGraph {
    if(decision!=='accepted')return;
    // A grant target and Page token establish read access, never a content-management task.
    row={...row,id,tasks:source==='accounts'&&Array.isArray(row.tasks)?row.tasks:[]};
+   let taskSource=source==='accounts'&&row.tasks.length?'accounts':null;
+   let taskState=taskSource?'verified':'unverified';
+   if(!taskSource&&scopes.has('pages_read_engagement')) {
+    const result=await resolvePageRoleTasks(id!,String(debug.user_id),async(path,params)=>{
+     try{return await this.request(path,row.access_token,params,'GET',(status,code)=>this.report({event:'page_roles_response',page_id:id,http_status:status,graph_error_code:code}));}
+     catch{return null;}
+    });
+    this.report({event:'page_roles_evidence',page_id:id,state:result.state,tasks:result.tasks,reason:result.reason});
+    if(result.state!=='unverified'){row.tasks=result.tasks;taskSource='page_roles';taskState=result.state;}
+   }
    const permitted=(scope:string)=>scopes.has(scope)&&(!(debug.granular_scopes||[]).some((g:any)=>g.scope===scope&&g.target_ids?.length)|| (debug.granular_scopes||[]).some((g:any)=>g.scope===scope&&g.target_ids?.some((id:string)=>[row.id,row.instagram_business_account?.id].includes(id))));
-   const create=(row.tasks||[]).some((x:string)=>['CREATE_CONTENT','MANAGE','PROFILE_PLUS_CREATE_CONTENT','PROFILE_PLUS_FULL_CONTROL'].includes(x));
-   const fb={id:row.id,name:String(row.name||'Facebook Page').slice(0,200),channel:'facebook',capabilities:{publishing:permitted('pages_manage_posts')&&permitted('pages_read_engagement')&&create,posts:permitted('pages_read_engagement'),insights:permitted('read_insights'),formats:['text','image','carousel'],granted_scopes:[...scopes],discovery_path:source,page_tasks_verified:source==='accounts'&&row.tasks.length>0}};
+   const create=taskState!=='not_granted'&&(row.tasks||[]).some((x:string)=>['CREATE_CONTENT','MANAGE','PROFILE_PLUS_CREATE_CONTENT','PROFILE_PLUS_FULL_CONTROL'].includes(x));
+   const taskEvidence={page_tasks_verified:taskSource!==null,page_tasks: selected(row.tasks,diagnosticTasks),page_task_source:taskSource,page_task_state:taskState==='unverified'?'unverified':create?'verified':'not_granted'};
+   const fb={id:row.id,name:String(row.name||'Facebook Page').slice(0,200),channel:'facebook',capabilities:{publishing:permitted('pages_manage_posts')&&permitted('pages_read_engagement')&&create,posts:permitted('pages_read_engagement'),insights:permitted('read_insights'),formats:['text','image','carousel'],granted_scopes:[...scopes],discovery_path:source,...taskEvidence}};
    accounts.push(fb);tokens[`facebook:${row.id}`]=row.access_token;
    if(ig&&numericId(ig.id)) {
-    accounts.push({id:ig.id,name:String(ig.username||`${row.name} Instagram`).slice(0,200),channel:'instagram',capabilities:{publishing:permitted('instagram_basic')&&permitted('instagram_content_publish')&&permitted('pages_read_engagement')&&create,posts:permitted('instagram_basic'),insights:permitted('instagram_manage_insights'),formats:['image','carousel','reel'],granted_scopes:[...scopes],discovery_path:source,page_tasks_verified:source==='accounts'&&row.tasks.length>0},page_id:row.id});
+    accounts.push({id:ig.id,name:String(ig.username||`${row.name} Instagram`).slice(0,200),channel:'instagram',capabilities:{publishing:permitted('instagram_basic')&&permitted('instagram_content_publish')&&permitted('pages_read_engagement')&&create,posts:permitted('instagram_basic'),insights:permitted('instagram_manage_insights'),formats:['image','carousel','reel'],granted_scopes:[...scopes],discovery_path:source,...taskEvidence},page_id:row.id});
     tokens[`instagram:${ig.id}`]=row.access_token;
    }
   };
   for(let page=0;page<10;page++) {
    const result=await this.request('me/accounts',long.access_token,{fields:'id,name,access_token,tasks,instagram_business_account{id,username}',limit:50,after});
    if(!Array.isArray(result.data))throw new MetaError('account_discovery_invalid_response');
-   for(const row of result.data)acceptPage(row,'accounts');
+   for(const row of result.data)await acceptPage(row,'accounts');
    after=result.paging?.cursors?.after;if(!result.paging?.next)break;
    if(!after||page===9)throw new MetaError('account_discovery_limit_reached');
   }
@@ -122,7 +134,7 @@ export class MetaGraph {
    for(const id of targets) {
     try {
      const value=await this.request(id,long.access_token,{fields:'id,name,access_token,instagram_business_account{id,username}'},'GET',(status,code)=>this.report({event:'granted_page_response',requested_page_id:id,http_status:status,graph_error_code:code}));
-     acceptPage(value,'granted_page_node',id);
+     await acceptPage(value,'granted_page_node',id);
     }catch(error){this.report({event:'granted_page_failed',requested_page_id:id,reason:error instanceof MetaError?error.code:'unexpected_response_handling_error'});}
    }
   }

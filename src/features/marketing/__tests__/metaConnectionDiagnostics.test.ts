@@ -29,7 +29,7 @@ describe('read-only Meta connection diagnostics',()=>{
   const transport=vi.fn();await expect(diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',{provider_account_id:'111',channel:'facebook'},'token',async()=>{throw new Error('scope revoked');})).rejects.toThrow();expect(transport).not.toHaveBeenCalled();
  });
  it('checks Instagram through the retained Page identity without inferring publishing tasks',async()=>{
-  const transport=vi.fn().mockResolvedValueOnce(response({data:{is_valid:true,app_id:'123',type:'PAGE',profile_id:'111',scopes:['instagram_basic','instagram_content_publish','pages_read_engagement'],expires_at:0}}))
+  const transport=vi.fn().mockResolvedValueOnce(response({data:{is_valid:true,app_id:'123',type:'PAGE',profile_id:'111',user_id:'789',scopes:['instagram_basic','instagram_content_publish','pages_read_engagement'],expires_at:0}}))
    .mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({data:[]}))
    .mockResolvedValueOnce(response({id:'111',can_post:true})).mockResolvedValueOnce(response({error:{code:100,message:'private-subject unknown tasks field'}},400))
    .mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:'333'}})).mockResolvedValueOnce(response({id:'333'}))
@@ -39,11 +39,11 @@ describe('read-only Meta connection diagnostics',()=>{
   expect(result.credential_identity_matches).toBe(true);expect(result.publishing_evidence).toMatchObject({eligibility:'unverified',page_id:'111',can_post:true,page_tasks_verified:false,professional_account_verified:true,quota_usage:0,quota_total:100,missing_scopes:[],blockers:['page_tasks_unverified']});
   expect(result.publishing_enabled).toBe(false);expect(JSON.stringify(connection)).toBe(before);expect(guard).toHaveBeenCalledTimes(8);
   expect(transport.mock.calls.every(([,init])=>init.method==='GET')).toBe(true);
-  expect(result.evidence.find(r=>r.check==='page_tasks_field')).toMatchObject({http_status:400,graph_error_code:100});
+  expect(result.evidence.find(r=>r.check==='authorizer_page_roles')).toMatchObject({http_status:400,graph_error_code:100});
   for(const forbidden of ['token-secret','private-subject','app-token'])expect(JSON.stringify(result)).not.toContain(forbidden);
  });
  it('does not inspect an unrelated Instagram account or use a wrong-app token for Page probes',async()=>{
-  const transport=vi.fn().mockResolvedValueOnce(response({data:{is_valid:true,app_id:'123',type:'PAGE',expires_at:0}})).mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({data:[]}))
+  const transport=vi.fn().mockResolvedValueOnce(response({data:{is_valid:true,app_id:'123',type:'PAGE',user_id:'789',expires_at:0}})).mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({data:[]}))
    .mockResolvedValueOnce(response({id:'111',can_post:true})).mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:'999'}}));
   const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',{provider_account_id:'333',channel:'instagram'},'token',vi.fn(),true);
   expect(result.credential_identity_matches).toBe(false);expect(result.publishing_evidence.blockers).toContain('credential_account_unverified');expect(transport).toHaveBeenCalledTimes(6);
@@ -58,5 +58,17 @@ describe('read-only Meta connection diagnostics',()=>{
   for(const patch of [{valid:false},{app_matches:false},{type:'USER'},{expiry_in_future:false}])expect(verifiedFacebookRead({...result,token:{...result.token,...patch}},connection)).toBe(false);
   for(const patch of [{credential_identity_matches:false},{account_id:'999'},{evidence:[{check:'facebook_sync',success:false}]}])expect(verifiedFacebookRead({...result,...patch},connection)).toBe(false);
   expect(verifiedFacebookRead(result,{...connection,channel:'instagram'})).toBe(false);
+ });
+ it('can verify actual content tasks without changing execution, but rejects a different granular target',async()=>{
+  for(const targets of [null,['999']]) {
+   const transport=vi.fn().mockResolvedValueOnce(response({data:{is_valid:true,app_id:'123',type:'PAGE',user_id:'789',scopes:['pages_manage_posts','pages_read_engagement'],expires_at:0,granular_scopes:targets?[{scope:'pages_manage_posts',target_ids:targets}]:[]}}))
+    .mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({data:[]})).mockResolvedValueOnce(response({id:'111',can_post:true}))
+    .mockResolvedValueOnce(response({data:[{id:'789',is_active:true,tasks:['CREATE_CONTENT']}]}));
+   const connection={provider_account_id:'111',channel:'facebook',capabilities:{publishing:false,execution_enabled:false}},before=JSON.stringify(connection);
+   const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',connection,'secret-token',vi.fn(),true);
+   expect(result.publishing_evidence.page_tasks_verified).toBe(true);expect(result.publishing_evidence.eligibility).toBe(targets?'unverified':'verified');
+   expect(result.publishing_enabled).toBe(false);expect(JSON.stringify(connection)).toBe(before);
+   expect(JSON.stringify(result)).not.toContain('789');
+  }
  });
 });

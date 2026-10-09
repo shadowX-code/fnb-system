@@ -1,6 +1,7 @@
 import { MetaGraph, MetaError } from './metaGraph.ts';
 import { META_SCOPES } from './metaSecurity.ts';
 import { facebookPostFields } from './metaSynchronization.ts';
+import { resolvePageRoleTasks } from './metaPageTasks.ts';
 // Fixed GETs only. No provider bodies, messages, personal subjects or credentials leave this module.
 export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appToken:string,connection:any,token:string,guard:()=>Promise<void>,publishingChecks=false) {
  const id=connection.provider_account_id;
@@ -35,12 +36,16 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
   const pageId=typeof identity?.id==='string'&&/^\d{1,30}$/.test(identity.id)?identity.id:null;
   if(tokenEvidence.valid&&tokenEvidence.app_matches&&tokenEvidence.type==='PAGE'&&tokenEvidence.expiry_in_future&&pageId&&(connection.channel==='instagram'||identityMatches)) {
    publishingEvidence.page_id=pageId;
+   publishingEvidence.scope_target_mismatches=required.filter(scope=>Array.isArray(debug?.granular_scopes)&&debug.granular_scopes.some((g:any)=>g?.scope===scope&&Array.isArray(g.target_ids)&&g.target_ids.length>0)&&!debug.granular_scopes.some((g:any)=>g?.scope===scope&&Array.isArray(g.target_ids)&&g.target_ids.some((target:unknown)=>[pageId,id].includes(String(target)))));
    const page=await read('page_posting_capability',pageId,token,{fields:'id,can_post'});
    if(String(page?.id)===pageId&&typeof page?.can_post==='boolean')publishingEvidence.can_post=page.can_post;
-   // This explicit diagnostic distinguishes an absent/unsupported Page field from denied tasks.
-   // Only account enumeration establishes app-user tasks; this probe never changes authority.
-   const tasks=await read('page_tasks_field',pageId,token,{fields:'id,tasks'});
-   if(String(tasks?.id)===pageId&&Array.isArray(tasks?.tasks))publishingEvidence.page_tasks=tasks.tasks.filter((s:unknown)=>['MANAGE','CREATE_CONTENT','PROFILE_PLUS_MANAGE','PROFILE_PLUS_CREATE_CONTENT','PROFILE_PLUS_FULL_CONTROL','ANALYZE','ADVERTISE','MESSAGING','MODERATE'].includes(String(s)));
+   const tasks=await resolvePageRoleTasks(pageId,String(debug?.user_id||''),(path,params)=>read('authorizer_page_roles',path,token,params));
+   publishingEvidence.page_tasks=tasks.tasks;
+   publishingEvidence.page_tasks_verified=tasks.state!=='unverified';
+   publishingEvidence.page_task_source=tasks.source;
+   publishingEvidence.page_task_state=tasks.state;
+   publishingEvidence.page_task_reason=tasks.reason;
+   publishingEvidence.blockers=tasks.state==='unverified'?['page_tasks_unverified']:tasks.can_create?[]:['content_task_not_granted'];
    if(connection.channel==='instagram') {
     const link=await read('linked_instagram_identity',pageId,token,{fields:'id,instagram_business_account{id}'});
     identityMatches=String(link?.id)===pageId&&String(link?.instagram_business_account?.id)===id;
@@ -56,7 +61,10 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
   }
   if(!identityMatches)publishingEvidence.blockers.push('credential_account_unverified');
   if(publishingEvidence.missing_scopes.length)publishingEvidence.blockers.push('required_scopes_missing');
+  if(publishingEvidence.scope_target_mismatches?.length)publishingEvidence.blockers.push('required_scope_target_unavailable');
   if(!tokenEvidence.valid||!tokenEvidence.app_matches||tokenEvidence.type!=='PAGE'||!tokenEvidence.expiry_in_future)publishingEvidence.blockers.push('page_credential_unverified');
+  if(connection.channel==='instagram'&&!publishingEvidence.professional_account_verified)publishingEvidence.blockers.push('professional_account_unverified');
+  publishingEvidence.eligibility=publishingEvidence.blockers.length===0?'verified':publishingEvidence.page_task_state==='not_granted'?'not_granted':'unverified';
  }
  return {account_id:id,channel:connection.channel,token:tokenEvidence,credential_identity_matches:identityMatches,page_tasks_verified:connection.capabilities?.page_tasks_verified===true,publishing_enabled:connection.capabilities?.execution_enabled===true&&connection.capabilities?.publishing===true,...(publishingEvidence?{publishing_evidence:publishingEvidence}:{}),evidence};
 }

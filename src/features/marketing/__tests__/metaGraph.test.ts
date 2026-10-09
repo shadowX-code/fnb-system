@@ -106,4 +106,15 @@ describe('official Meta OAuth adapter',()=>{
   await expect(new MetaGraph(config,malformed).exchange('code')).rejects.toMatchObject({code:'account_discovery_invalid_response'});
   expect(malformed).toHaveBeenCalledTimes(4);
  });
+ it('resolves direct-grant publishing through exact authorizer roles while preserving channel scope restrictions',async()=>{
+  const transport=vi.fn().mockResolvedValueOnce(reply({access_token:'short'})).mockResolvedValueOnce(reply({access_token:'long',expires_in:3600}))
+   .mockResolvedValueOnce(reply({data:{is_valid:true,app_id:'123',user_id:'789',scopes:['pages_show_list','pages_read_engagement','pages_manage_posts','instagram_basic','instagram_content_publish'],granular_scopes:[{scope:'pages_show_list',target_ids:['111']},{scope:'pages_manage_posts',target_ids:['999']}]}}))
+   .mockResolvedValueOnce(reply({data:[]})).mockResolvedValueOnce(reply({id:'111',access_token:'page-token',instagram_business_account:{id:'222'}}))
+   .mockResolvedValueOnce(reply({data:[{id:'789',is_active:true,tasks:['CREATE_CONTENT']}]}));
+  const result=await new MetaGraph(config,transport).exchange('code');
+  expect(result.accounts[0].capabilities).toMatchObject({publishing:false,page_task_source:'page_roles',page_tasks_verified:true});
+  expect(result.accounts[1].capabilities).toMatchObject({publishing:true,page_task_source:'page_roles',page_tasks:['CREATE_CONTENT']});
+  expect(new URL(transport.mock.calls[5][0]).searchParams.get('uid')).toBe('789');
+  expect(JSON.stringify(result.accounts)).not.toContain('789');expect(JSON.stringify(result.accounts)).not.toContain('page-token');
+ });
 });
