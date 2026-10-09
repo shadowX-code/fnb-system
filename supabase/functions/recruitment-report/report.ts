@@ -231,7 +231,7 @@ export function validateReport(
       // Fail closed when the model itself justifies a low level with absent evidence.
       // This never assigns a different level: it preserves citations and marks uncertainty unscored.
       const absenceBased = row.status === "assessed" && row.level <= 2 &&
-        /\b(lacks? evidence|no evidence|does not provide evidence|does not demonstrate|details.{0,30}(limited|missing))\b/i.test(finding.text);
+        /\b(lacks? evidence|no (detailed )?evidence|does not (provide evidence|show evidence|demonstrate|describe)|not described|details.{0,30}(limited|missing))\b/i.test(finding.text);
       if (absenceBased) return {index:area.index,area:area.name,status:"insufficient_evidence",level:null,criterion:null,
         finding:{...finding,kind:"unresolved",text:`Insufficient evidence for a defensible rubric level. ${finding.text}`}};
       return {index:area.index,area:area.name,status:row.status,level:row.level,criterion:row.status==="assessed"?criterion.criteria:null,finding};
