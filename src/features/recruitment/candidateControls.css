@@ -32,7 +32,7 @@
     background: var(--theme-primary-hover);
     border-color: var(--theme-primary-hover);
   }
-  .recruitment-public .candidate-button.is-secondary:hover:not(:disabled) {
+  .recruitment-public .candidate-button.is-secondary:hover:not(:disabled):not([aria-pressed="true"]) {
     background: var(--theme-surface-muted);
   }
 }
