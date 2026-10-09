@@ -202,3 +202,5 @@ Public candidate controls share a theme-isolated FeedX token contract for primar
 Report failures retain bounded stage-specific codes (provider, response parsing, report/rubric/citation validation or persistence), without logging candidate text or raw provider/database errors. Managers may create a new report version after a failed generation; failed versions and their source snapshots remain preserved.
 
 Report provider schemas bind `turn_ids` to candidate database IDs from the immutable report source. Display turn numbers, foreign IDs and AI turns cannot be generated as citations; Edge and database citation validation remain independent enforcement.
+
+Rubric assessment requires all material conditions of a literal criterion to be demonstrated. Missing follow-up detail does not establish an observed conflict, failed handover or misunderstanding; when no criterion is defensible the report remains Insufficient Evidence. Provider output uses separate assessed/interpretation/level and insufficient/unresolved/null schema branches matching trusted validation.
