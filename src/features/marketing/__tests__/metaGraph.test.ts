@@ -58,17 +58,52 @@ describe('official Meta OAuth adapter',()=>{
    .mockResolvedValueOnce(reply({data:{is_valid:true,app_id:'123',user_id:'789',scopes:['pages_show_list']}})).mockResolvedValueOnce(reply({error:{code:10}},403)).mockResolvedValueOnce(reply({data:[]}));
   expect((await new MetaGraph(config,transport,()=>{throw new Error('logging unavailable');}).exchange('code')).accounts).toEqual([]);
  });
- it('probes existing grant targets read-only without adopting accounts or logging the personal subject',async()=>{
+ it('keeps alternative lists diagnostic-only and accepts exact grant targets read-only without logging the personal subject',async()=>{
   const events:any[]=[],transport=vi.fn().mockResolvedValueOnce(reply({access_token:'short-secret'})).mockResolvedValueOnce(reply({access_token:'long-secret',expires_in:3600}))
    .mockResolvedValueOnce(reply({data:{is_valid:true,app_id:'123',user_id:'789',scopes:['pages_show_list'],granular_scopes:[{scope:'pages_show_list',target_ids:['111']}]}}))
    .mockResolvedValueOnce(reply({data:[]})).mockResolvedValueOnce(reply({data:[]})).mockResolvedValueOnce(reply({data:[]}))
    .mockResolvedValueOnce(reply({data:[{id:'111',tasks:['CREATE_CONTENT'],access_token:'page-secret',instagram_business_account:{id:'222'}}]}))
    .mockResolvedValueOnce(reply({id:'111',access_token:'page-secret',instagram_business_account:{id:'222'}}));
   const result=await new MetaGraph(config,transport,e=>events.push(e)).exchange('code');
-  expect(result.accounts).toEqual([]);expect(result.tokens).toEqual({});
+  expect(result.accounts.map(a=>a.id)).toEqual(['111','222']);expect(result.tokens['facebook:111']).toBe('page-secret');
+  expect(result.accounts.every(a=>a.capabilities.publishing===false&&a.capabilities.page_tasks_verified===false)).toBe(true);
   expect(events).toContainEqual(expect.objectContaining({event:'visibility_probe_candidate',endpoint:'authorized_user_accounts',page_id:'111',tasks:['CREATE_CONTENT'],page_token_available:true,instagram_id:'222'}));
-  expect(events).toContainEqual(expect.objectContaining({event:'visibility_probe_page',requested_page_id:'111',returned_page_id:'111',identity_matches:true,instagram_id:'222'}));
+  expect(events).toContainEqual(expect.objectContaining({event:'page_candidate',source:'granted_page_node',requested_page_id:'111',page_id:'111',decision:'accepted',tasks:[],instagram_id:'222'}));
   for(const secret of ['short-secret','long-secret','page-secret','789',config.appSecret])expect(JSON.stringify(events)).not.toContain(secret);
   expect(transport.mock.calls.every(([,init])=>init.method==='GET')).toBe(true);
+ });
+ it('discovers only explicitly granted Page identities and never infers publishing tasks',async()=>{
+  const scopes=['pages_show_list','pages_read_engagement','pages_manage_posts','instagram_basic','instagram_content_publish','read_insights','instagram_manage_insights'];
+  const make=(value:any,grants:any=[{scope:'pages_show_list',target_ids:['111']}])=>vi.fn()
+   .mockResolvedValueOnce(reply({access_token:'short'})).mockResolvedValueOnce(reply({access_token:'long',expires_in:3600}))
+   .mockResolvedValueOnce(reply({data:{is_valid:true,app_id:'123',user_id:'789',scopes,granular_scopes:grants}}))
+   .mockResolvedValueOnce(reply({data:[]})).mockResolvedValueOnce(reply(value));
+  const good=make({id:'111',access_token:'page-token',tasks:['MANAGE'],instagram_business_account:{id:'222'}});
+  const result=await new MetaGraph(config,good).exchange('code');
+  expect(result.accounts).toHaveLength(2);
+  for(const account of result.accounts)expect(account.capabilities).toMatchObject({publishing:false,posts:true,insights:true,page_tasks_verified:false,discovery_path:'granted_page_node'});
+  expect(JSON.stringify(result.accounts)).not.toContain('page-token');
+  expect(new URL(good.mock.calls[4][0]).pathname).toBe('/v26.0/111');
+  for(const value of [{id:'999',access_token:'page-token'},{id:'111'},{id:'111',access_token:''},{id:'invalid',access_token:'page-token'},{error:{code:200}}]) {
+   const rejected=await new MetaGraph(config,make(value)).exchange('code');
+   expect(rejected.accounts).toEqual([]);expect(rejected.tokens).toEqual({});
+  }
+  for(const grants of [[],[{scope:'pages_manage_posts',target_ids:['111']}],[{scope:'pages_show_list',target_ids:['not-a-numeric-id']}]] ) {
+   const transport=make({id:'111',access_token:'page-token'},grants);
+   expect((await new MetaGraph(config,transport).exchange('code')).accounts).toEqual([]);
+   expect(transport).toHaveBeenCalledTimes(4);
+  }
+ });
+ it('retains granular read restrictions on the direct grant fallback and rejects malformed enumeration',async()=>{
+  const transport=vi.fn().mockResolvedValueOnce(reply({access_token:'short'})).mockResolvedValueOnce(reply({access_token:'long',expires_in:3600}))
+   .mockResolvedValueOnce(reply({data:{is_valid:true,app_id:'123',user_id:'789',scopes:['pages_show_list','pages_read_engagement','instagram_basic'],granular_scopes:[{scope:'pages_show_list',target_ids:['111']},{scope:'instagram_basic',target_ids:['999']}]}}))
+   .mockResolvedValueOnce(reply({data:[]})).mockResolvedValueOnce(reply({id:'111',access_token:'page-token',instagram_business_account:{id:'222'}}));
+  const result=await new MetaGraph(config,transport).exchange('code');
+  expect(result.accounts[0].capabilities.posts).toBe(true);expect(result.accounts[1].capabilities.posts).toBe(false);
+  const malformed=vi.fn().mockResolvedValueOnce(reply({access_token:'short'})).mockResolvedValueOnce(reply({access_token:'long',expires_in:3600}))
+   .mockResolvedValueOnce(reply({data:{is_valid:true,app_id:'123',user_id:'789',scopes:['pages_show_list'],granular_scopes:[{scope:'pages_show_list',target_ids:['111']}]}}))
+   .mockResolvedValueOnce(reply({data:{id:'111'}}));
+  await expect(new MetaGraph(config,malformed).exchange('code')).rejects.toMatchObject({code:'account_discovery_invalid_response'});
+  expect(malformed).toHaveBeenCalledTimes(4);
  });
 });

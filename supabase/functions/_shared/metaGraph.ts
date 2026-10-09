@@ -76,26 +76,30 @@ export class MetaGraph {
   }
   if(!scopes.has('pages_show_list'))throw new MetaError('pages_show_list_not_granted');
   const accounts:any[]=[], tokens:Record<string,string>={};let after:string|undefined;
+  const acceptPage=(row:any,source:'accounts'|'granted_page_node',expectedId?:string)=>{
+   const id=numericId(row?.id),hasToken=typeof row?.access_token==='string'&&row.access_token.length>0;
+   const ig=row?.instagram_business_account;
+   const decision=!id?'rejected_invalid_page_id':expectedId&&id!==expectedId?'rejected_page_identity_mismatch':!hasToken?'rejected_missing_page_token':'accepted';
+   this.report({event:'page_candidate',source,page_id:id,requested_page_id:expectedId||null,id_type:typeof row?.id,tasks:source==='accounts'?selected(row?.tasks,diagnosticTasks):[],unrecognized_task_count:source==='accounts'&&Array.isArray(row?.tasks)?row.tasks.filter((v:unknown)=>!diagnosticTasks.has(String(v))).length:0,decision,instagram_status:!ig?'not_linked':numericId(ig.id)?'linked_professional_account':'rejected_invalid_instagram_id',instagram_id:numericId(ig?.id)});
+   if(decision!=='accepted')return;
+   // A grant target and Page token establish read access, never a content-management task.
+   row={...row,id,tasks:source==='accounts'&&Array.isArray(row.tasks)?row.tasks:[]};
+   const permitted=(scope:string)=>scopes.has(scope)&&(!(debug.granular_scopes||[]).some((g:any)=>g.scope===scope&&g.target_ids?.length)|| (debug.granular_scopes||[]).some((g:any)=>g.scope===scope&&g.target_ids?.some((id:string)=>[row.id,row.instagram_business_account?.id].includes(id))));
+   const create=(row.tasks||[]).some((x:string)=>['CREATE_CONTENT','MANAGE','PROFILE_PLUS_CREATE_CONTENT','PROFILE_PLUS_FULL_CONTROL'].includes(x));
+   const fb={id:row.id,name:String(row.name||'Facebook Page').slice(0,200),channel:'facebook',capabilities:{publishing:permitted('pages_manage_posts')&&permitted('pages_read_engagement')&&create,posts:permitted('pages_read_engagement'),insights:permitted('read_insights'),formats:['text','image','carousel'],granted_scopes:[...scopes],discovery_path:source,page_tasks_verified:source==='accounts'&&row.tasks.length>0}};
+   accounts.push(fb);tokens[`facebook:${row.id}`]=row.access_token;
+   if(ig&&numericId(ig.id)) {
+    accounts.push({id:ig.id,name:String(ig.username||`${row.name} Instagram`).slice(0,200),channel:'instagram',capabilities:{publishing:permitted('instagram_basic')&&permitted('instagram_content_publish')&&permitted('pages_read_engagement')&&create,posts:permitted('instagram_basic'),insights:permitted('instagram_manage_insights'),formats:['image','carousel','reel'],granted_scopes:[...scopes],discovery_path:source,page_tasks_verified:source==='accounts'&&row.tasks.length>0},page_id:row.id});
+    tokens[`instagram:${ig.id}`]=row.access_token;
+   }
+  };
   for(let page=0;page<10;page++) {
    const result=await this.request('me/accounts',long.access_token,{fields:'id,name,access_token,tasks,instagram_business_account{id,username}',limit:50,after});
-   for(const row of result.data||[]) {
-    const validId=/^\d+$/.test(row.id), hasToken=typeof row.access_token==='string';
-    const ig=row.instagram_business_account;
-    this.report({event:'page_candidate',page_id:numericId(row.id),id_type:typeof row.id,tasks:selected(row.tasks,diagnosticTasks),unrecognized_task_count:Array.isArray(row.tasks)?row.tasks.filter((v:unknown)=>!diagnosticTasks.has(String(v))).length:0,decision:!validId?'rejected_invalid_page_id':!hasToken?'rejected_missing_page_token':'accepted',instagram_status:!ig?'not_linked':/^\d+$/.test(ig.id)?'linked_professional_account':'rejected_invalid_instagram_id',instagram_id:numericId(ig?.id)});
-    if(!/^\d+$/.test(row.id)||typeof row.access_token!=='string')continue;
-    const permitted=(scope:string)=>scopes.has(scope)&&(!(debug.granular_scopes||[]).some((g:any)=>g.scope===scope&&g.target_ids?.length)|| (debug.granular_scopes||[]).some((g:any)=>g.scope===scope&&g.target_ids?.some((id:string)=>[row.id,row.instagram_business_account?.id].includes(id))));
-    const create=(row.tasks||[]).some((x:string)=>['CREATE_CONTENT','MANAGE','PROFILE_PLUS_CREATE_CONTENT','PROFILE_PLUS_FULL_CONTROL'].includes(x));
-    const fb={id:row.id,name:String(row.name||'Facebook Page').slice(0,200),channel:'facebook',capabilities:{publishing:permitted('pages_manage_posts')&&permitted('pages_read_engagement')&&create,posts:permitted('pages_read_engagement'),insights:permitted('read_insights'),formats:['text','image','carousel'],granted_scopes:[...scopes]}};
-    accounts.push(fb);tokens[`facebook:${row.id}`]=row.access_token;
-    if(ig&&/^\d+$/.test(ig.id)) {
-     accounts.push({id:ig.id,name:String(ig.username||`${row.name} Instagram`).slice(0,200),channel:'instagram',capabilities:{publishing:permitted('instagram_basic')&&permitted('instagram_content_publish')&&permitted('pages_read_engagement')&&create,posts:permitted('instagram_basic'),insights:permitted('instagram_manage_insights'),formats:['image','carousel','reel'],granted_scopes:[...scopes]},page_id:row.id});
-     tokens[`instagram:${ig.id}`]=row.access_token;
-    }
-   }
+   if(!Array.isArray(result.data))throw new MetaError('account_discovery_invalid_response');
+   for(const row of result.data)acceptPage(row,'accounts');
    after=result.paging?.cursors?.after;if(!result.paging?.next)break;
    if(!after||page===9)throw new MetaError('account_discovery_limit_reached');
   }
-  this.report({event:'discovery_complete',facebook_count:accounts.filter(a=>a.channel==='facebook').length,instagram_count:accounts.filter(a=>a.channel==='instagram').length});
   if(this.diagnostic&&!accounts.length) {
    // Diagnostic reads only: results cannot become connected accounts or replace Page task checks.
    const probe=async(label:string,path:string,params:Record<string,any>)=>{
@@ -109,12 +113,19 @@ export class MetaGraph {
     if(value)this.report({event:'visibility_probe_list',endpoint:label,returned_count:Array.isArray(value.data)?value.data.length:null,page_ids:Array.isArray(value.data)?value.data.map((r:any)=>numericId(r?.id)).filter((v:string|null):v is string=>v!==null):[],more_available:Boolean(value.paging?.next)});
     for(const row of Array.isArray(value?.data)?value.data:[])this.report({event:'visibility_probe_candidate',endpoint:label,page_id:numericId(row?.id),tasks:selected(row?.tasks,diagnosticTasks),page_token_available:typeof row?.access_token==='string',instagram_id:numericId(row?.instagram_business_account?.id)});
    }
-   const targets=[...new Set<string>((Array.isArray(debug.granular_scopes)?debug.granular_scopes:[]).filter((g:any)=>g?.scope==='pages_show_list').flatMap((g:any)=>Array.isArray(g.target_ids)?g.target_ids.map(numericId).filter((v:string|null):v is string=>v!==null):[]))].slice(0,2);
+  }
+  if(!accounts.length) {
+   // Only server-verified, explicitly granted Page IDs may be queried. No caller-supplied IDs.
+   const targets=[...new Set<string>((Array.isArray(debug.granular_scopes)?debug.granular_scopes:[]).filter((g:any)=>g?.scope==='pages_show_list').flatMap((g:any)=>Array.isArray(g.target_ids)?g.target_ids.map(numericId).filter((v:string|null):v is string=>v!==null):[]))];
+   if(targets.length>50)throw new MetaError('account_discovery_limit_reached');
    for(const id of targets) {
-    const value=await probe('granted_page_node',id,{fields:'id,access_token,instagram_business_account{id}'});
-    if(value)this.report({event:'visibility_probe_page',requested_page_id:id,returned_page_id:numericId(value.id),identity_matches:String(value.id)===id,page_token_available:typeof value.access_token==='string',instagram_id:numericId(value.instagram_business_account?.id)});
+    try {
+     const value=await this.request(id,long.access_token,{fields:'id,name,access_token,instagram_business_account{id,username}'},'GET',(status,code)=>this.report({event:'granted_page_response',requested_page_id:id,http_status:status,graph_error_code:code}));
+     acceptPage(value,'granted_page_node',id);
+    }catch(error){this.report({event:'granted_page_failed',requested_page_id:id,reason:error instanceof MetaError?error.code:'unexpected_response_handling_error'});}
    }
   }
+  this.report({event:'discovery_complete',facebook_count:accounts.filter(a=>a.channel==='facebook').length,instagram_count:accounts.filter(a=>a.channel==='instagram').length});
   return {userId:String(debug.user_id),expiresAt,accounts,tokens};
  }
 }
