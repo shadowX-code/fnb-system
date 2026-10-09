@@ -16,10 +16,10 @@ export function profitConversion(dataset) {
   return { complete, rows:rows.map(row => ({...row,share:complete ? row.share : null})) };
 }
 /** Never connect different evidence bases or substitute current evidence for a historical gap. */
-export function overviewHistory(dataset, count = 6) {
+export function overviewHistory(dataset, count = 6, ids = ['revenue','ebitda','cash','ebitda_margin']) {
   return (dataset.history ?? []).slice(-count).map(entry => {
     const metrics = entry.dataset?.metrics;
-    const values = Object.fromEntries(['revenue','ebitda','cash','ebitda_margin'].map(id => {
+    const values = Object.fromEntries(ids.map(id => {
       const metric = metrics ? id === 'ebitda_margin' ? analysisMargin(entry.dataset) : metrics[id] : null;
       const reference = id === 'ebitda_margin' ? analysisMargin(dataset) : dataset.metrics[id];
       const actualCash = id !== 'cash' || metric?.provenance.every(source => source.semantic === 'ACTUAL');

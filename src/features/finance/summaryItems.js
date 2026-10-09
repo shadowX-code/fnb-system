@@ -1,4 +1,4 @@
-import { BarChart3, Banknote, Percent, Receipt, Wallet } from 'lucide-react';
+import { BarChart3, Banknote, Percent, Receipt, Wallet, Users, Building2, ArrowLeftRight, HandCoins, Boxes, CreditCard, Landmark } from 'lucide-react';
 import { financeMetricColor } from './FinanceChart.jsx';
 import { overviewHistory } from './overviewDashboard.js';
 import { compatibleMetricBasis, metricMovement, metricRegistry } from './metrics.js';
@@ -23,10 +23,10 @@ export function financeSummaryItems(pair, ids, { primary = [], selectedId, onSel
   });
 }
 
-const icons = {ebitda:BarChart3,ebitda_margin:Percent,revenue:Banknote,gross_margin:Percent,prime_cost:Receipt,cash:Wallet};
-const tones = {ebitda:'bg-emerald-50 text-emerald-700',ebitda_margin:'bg-blue-50 text-blue-700',revenue:'bg-blue-50 text-blue-700',gross_margin:'bg-violet-50 text-violet-700',prime_cost:'bg-rose-50 text-rose-700',cash:'bg-cyan-50 text-cyan-700'};
+const icons = {ebitda:BarChart3,ebitda_margin:Percent,revenue:Banknote,gross_margin:Percent,prime_cost:Receipt,cash:Wallet,cogs:Receipt,labour:Users,opex:Building2,working_capital:ArrowLeftRight,ar:HandCoins,inventory:Boxes,ap:CreditCard,debt:Landmark};
+const tones = {ebitda:'bg-emerald-50 text-emerald-700',ebitda_margin:'bg-blue-50 text-blue-700',revenue:'bg-blue-50 text-blue-700',gross_margin:'bg-violet-50 text-violet-700',prime_cost:'bg-rose-50 text-rose-700',cash:'bg-cyan-50 text-cyan-700',cogs:'bg-rose-50 text-rose-700',labour:'bg-blue-50 text-blue-700',opex:'bg-slate-100 text-slate-700',working_capital:'bg-violet-50 text-violet-700',ar:'bg-blue-50 text-blue-700',inventory:'bg-slate-100 text-slate-700',ap:'bg-violet-50 text-violet-700',debt:'bg-slate-100 text-slate-700'};
 
-/** Overview and Analysis share presentation data; the canonical Admin cards own rendering. */
+/** Finance pages share presentation data; the canonical Admin cards own rendering. */
 export function financeDashboardSummaryItems(pair, ids, { history = pair.current.history, comparisonLabel = 'previous month', ...options } = {}) {
   const metrics = pair.current.metrics;
   const rows = overviewHistory({...pair.current, history});

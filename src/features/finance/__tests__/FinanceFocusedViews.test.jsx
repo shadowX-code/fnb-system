@@ -11,7 +11,7 @@ import { monthlyPeriod } from '../foundation.js';
 afterEach(cleanup);
 const request = { scope: { kind: 'group', id: 'demo-group' }, period: monthlyPeriod('2026-10'), currency: 'MYR' };
 const fixture = () => readFinanceAnalysis(createFixtureProvider({development:true}), request, {allowDemo:true});
-it('keeps Analysis sections mounted independently and Cash modes exclusive', async () => {
+it('keeps Analysis sections mounted independently and Cash analyses independent', async () => {
   const pair = await fixture();
   const view = render(<FinanceAnalysis analysis={pair}/>);
   expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
@@ -21,27 +21,25 @@ it('keeps Analysis sections mounted independently and Cash modes exclusive', asy
   expect(screen.queryByRole('tab',{name:'Profit Drivers'})).toBeNull();
   view.unmount();render(<FinanceCash analysis={pair}/>);
   expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
-  expect(screen.queryByRole('group',{name:'Working Capital Flow relationships'})).toBeNull();
-  fireEvent.click(screen.getByRole('tab',{name:'Working Capital'}));
-  expect(screen.queryByRole('group',{name:'Horizontal Liquidity Timeline'})).toBeNull();
+  expect(screen.getByRole('group',{name:'Working Capital Flow relationships'})).toBeTruthy();
+  expect(screen.getByRole('group',{name:'Horizontal Liquidity Timeline'})).toBeTruthy();
   fireEvent.keyDown(screen.getByRole('button',{name:'Explore Accounts Receivable stage'}),{key:'Enter'});
-  expect(within(screen.getByRole('tabpanel',{name:'Working Capital'})).getByRole('region',{name:'Selected analysis context'})).toBeTruthy();
+  expect(within(document.querySelector('[data-admin-analytical-surface][aria-label="Working Capital Flow"]')).getByRole('region',{name:'Selected analysis context'})).toBeTruthy();
 });
-it('switches cost evidence geometry without adding reads or financial values', async () => {
+it('keeps cost analyses and selected contexts independent without mutating evidence', async () => {
   const pair = await fixture(), before = JSON.stringify(pair);
   render(<FinanceCosts analysis={pair}/>);
   expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
-  expect(screen.getByRole('button',{name:'Explore COGS layer'})).toBeTruthy();
-  const pressure = screen.getByRole('group',{name:'Cost growth relative to Revenue and margin impact'});
-  expect(pressure.textContent).toContain('-0.06');
-  fireEvent.click(screen.getByRole('tab',{name:'Structure'}));
-  expect(screen.queryByRole('group',{name:'Cost growth relative to Revenue and margin impact'})).toBeNull();
-  fireEvent.keyDown(screen.getByRole('button',{name:'Investigate COGS structure'}),{key:'Enter'});
-  expect(within(screen.getByRole('tabpanel',{name:'Structure'})).getByRole('region',{name:'Selected analysis context'})).toBeTruthy();
-  fireEvent.click(screen.getByRole('tab',{name:'Trend'}));
-  expect(screen.queryByRole('region',{name:'Selected analysis context'})).toBeNull();
-  expect(screen.queryByRole('group',{name:'Cost structure evidence'})).toBeNull();
-  expect(screen.getByRole('group',{name:'Cost trend evidence'})).toBeTruthy();
+  expect(screen.queryByRole('tab',{name:'Structure'})).toBeNull();
+  expect(screen.getByRole('group',{name:'Cost growth relative to Revenue and margin impact'})).toBeTruthy();
+  expect(screen.getByRole('group',{name:'100 percent Revenue composition'})).toBeTruthy();
+  expect(screen.getByRole('group',{name:'Monthly cost history'})).toBeTruthy();
+  const pressure = document.querySelector('[data-admin-analytical-surface][aria-label="Margin Pressure Map"]');
+  const structure = document.querySelector('[data-admin-analytical-surface][aria-label="Cost Structure"]');
+  fireEvent.click(within(pressure).getByRole('button',{name:'Explore COGS layer'}));
+  fireEvent.keyDown(within(structure).getByRole('button',{name:'Inspect Labour Cost conversion'}),{key:'Enter'});
+  expect(within(pressure).getByRole('region',{name:'Selected analysis context'}).textContent).toContain('COGS');
+  expect(within(structure).getByRole('region',{name:'Selected analysis context'}).textContent).toContain('Labour Cost');
   expect(JSON.stringify(pair)).toBe(before);
 });
 it('summarizes existing validated attribution and suppresses unsupported attention issues', async () => {

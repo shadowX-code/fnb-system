@@ -1,9 +1,12 @@
+import DashboardSection from '../../components/layout/DashboardSection.jsx';
+import FinanceAnalysisSurface from './FinanceAnalysisSurface.jsx';
+import StatusBadge from '../../components/ui/StatusBadge.jsx';
+import EmptyState from '../../components/feedback/EmptyState.jsx';
 import { FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { useEffect, useState } from 'react';
 import { Link2, ShieldCheck } from 'lucide-react';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import FinancePreviewBoundary from './FinancePreviewBoundary.jsx';
-import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import { money } from '../reports/components/reportingFormatters.js';
 import { metricRegistry } from './metrics.js';
@@ -31,16 +34,16 @@ function Capabilities({ values }) {
   return <dl className="finance-source-facts">{Object.entries(values).map(([id, state]) => <div key={id}><dt>{capabilityLabels[id] ?? id}</dt><dd>{state}</dd></div>)}</dl>;
 }
 function FoundationNotice({ title, children }) {
-  return <div className="finance-source-empty"><h3>{title}</h3><p>{children}</p></div>;
+  return <EmptyState className="mt-4" title={title} description={children} icon={ShieldCheck} />;
 }
 function ConnectionSection({ state }) {
   return <section aria-label="Accounting connections">
     <div className="finance-section-heading"><div><h2>Accounting connections</h2><p>Provider access, legal entity binding and retained history.</p></div><Link2 size={20} aria-hidden="true" /></div>
-    {!state.connections.length ? <p className="finance-source-note">Connect and validate an accounting provider to establish its legal entity binding and retained history.</p> : state.connections.map((entry) => {
+    {!state.connections.length ? <EmptyState className="my-4" title="No accounting provider connected" description="Operational reporting is available. Accounting statements and balances require validated provider evidence." icon={Link2} /> : state.connections.map((entry) => {
       const periods = state.authorityPeriods.filter((period) => period.connectionId === entry.connection.id);
       const successfulSyncs = entry.sync.map((sync) => sync.lastSuccessAt).filter((value) => Number.isFinite(Date.parse(value))).sort((a, b) => Date.parse(a) - Date.parse(b));
       return <article key={entry.connection.id} className="finance-source-connection">
-        <div className="finance-section-heading"><h3>{entry.providerLabel}</h3><span className="finance-semantic">{entry.status === 'historical' ? 'Historical' : 'Active'} · {entry.state}</span></div>
+        <div className="finance-section-heading"><h3>{entry.providerLabel}</h3><StatusBadge status="neutral">{entry.status === 'historical' ? 'Historical' : 'Active'} · {entry.state}</StatusBadge></div>
         <dl className="finance-source-facts">
           <div><dt>Legal entity</dt><dd>{entry.legalEntityLabel}</dd></div>
           <div><dt>Last successful sync</dt><dd>{timestamp(successfulSyncs.at(-1))}</dd></div>
@@ -52,7 +55,7 @@ function ConnectionSection({ state }) {
         <div className="finance-source-actions" aria-label={`${entry.providerLabel} future actions`}>{connectionActions.filter((action) => action.id !== 'connect').map((action) => <button key={action.id} type="button" className="btn-secondary" disabled aria-describedby="finance-connection-boundary">{action.label}</button>)}</div>
       </article>;
     })}
-    <p id="finance-connection-boundary" className="finance-source-note">Connection setup and accounting sync are not available yet. Provider actions will be enabled here once their evidence and access controls are validated.</p>
+    <p id="finance-connection-boundary" className="finance-source-note">Provider setup and accounting sync are not available. Actions remain disabled.</p>
     <FinanceDisclosure label="FeedX operational source capabilities"><p>{state.operationalSource.label} supplies the existing outlet-scoped management P&L. It is separate from an accounting provider connection.</p><Capabilities values={state.operationalSource.capabilities} /></FinanceDisclosure>
   </section>;
 }
@@ -77,7 +80,7 @@ function MappingSection({ state }) {
   return <section aria-label="Mapping readiness"><h2>Mapping readiness</h2><p className="finance-source-note">Mappings connect provider identities to existing FeedX owners. Counts are shown only when provider records have been assessed.</p>
     {Object.entries(mappingLabels).map(([kind, label]) => {
       const evidence = state.mappingReadiness.filter((entry) => entry.kind === kind);
-      return <div key={kind} className="finance-source-mapping"><h3>{label}</h3>{!evidence.length ? <p>Not assessed · no provider mapping evidence.</p> : evidence.map((entry) => {
+      return <div key={kind} className="finance-source-mapping"><h3>{label}</h3>{!evidence.length ? <p className="flex flex-wrap items-center gap-2"><StatusBadge status="neutral">Not assessed</StatusBadge><span>No provider mapping evidence.</span></p> : evidence.map((entry) => {
         const connection = state.connections.find((source) => source.connection.id === entry.connectionId);
         return <div key={`${entry.connectionId}:${entry.scope.kind}:${entry.scope.id}:${entry.period.start}`}><strong>{entry.mapped} mapped · {entry.unresolved} unresolved</strong><p>{connection?.providerLabel ?? 'Source unavailable'} · {connection?.legalEntityLabel ?? 'Binding unavailable'} · {entry.scopeLabel ?? entry.scope.kind.replaceAll("_", " ")} · {periodLabel(entry.period)}</p></div>;
       })}</div>;
@@ -86,7 +89,7 @@ function MappingSection({ state }) {
 }
 function ReconciliationSection({ state }) {
   return <section aria-label="Financial reconciliation"><h2>Reconciliation</h2><p className="finance-source-note">Compare validated accounting evidence with FeedX for a specific period and financial measure.</p>
-    {!state.reconciliations.length ? <FoundationNotice title="No validated reconciliation evidence">Period, source, metric or balance, difference and reconciliation state will appear here when comparable evidence is available. No accounting comparison has been created.</FoundationNotice> : <div className="finance-source-table-wrap"><table className="finance-source-table"><caption className="sr-only">Validated financial comparisons</caption><thead><tr><th>Period</th><th>Source</th><th>Metric / balance</th><th>Difference</th><th>State</th></tr></thead><tbody>{state.reconciliations.map((entry, index) => <tr key={`${entry.connectionId}:${entry.metricId}:${index}`}><td>{periodLabel(entry.period)}</td><td>{entry.sourceLabel}</td><td>{metricRegistry[entry.metricId]?.label ?? entry.metricId}</td><td>{difference(entry)}</td><td>{entry.reconciliation.status}</td></tr>)}</tbody></table></div>}
+    {!state.reconciliations.length ? <FoundationNotice title="No validated reconciliation evidence">Comparable accounting evidence is required for a validated period, measure and difference.</FoundationNotice> : <div className="finance-source-table-wrap"><table className="finance-source-table"><caption className="sr-only">Validated financial comparisons</caption><thead><tr><th>Period</th><th>Source</th><th>Metric / balance</th><th>Difference</th><th>State</th></tr></thead><tbody>{state.reconciliations.map((entry, index) => <tr key={`${entry.connectionId}:${entry.metricId}:${index}`}><td>{periodLabel(entry.period)}</td><td>{entry.sourceLabel}</td><td>{metricRegistry[entry.metricId]?.label ?? entry.metricId}</td><td>{difference(entry)}</td><td>{entry.reconciliation.status}</td></tr>)}</tbody></table></div>}
   </section>;
 }
 export function FinanceDataSources({ state }) {
@@ -94,13 +97,13 @@ export function FinanceDataSources({ state }) {
   const readiness = dataSourceReadiness(state);
   const panels = { Connection: ConnectionSection, Authority: AuthoritySection, Mapping: MappingSection, Reconciliation: ReconciliationSection };
   const Panel = panels[section];
-  return <>
-    {!state.connections.length ? <div className="finance-source-intro"><h2>No accounting provider connected</h2><p>Operational reporting is available. Accounting statements, balances and mapping await validated provider evidence.</p></div> : null}
-    <FinanceDisclosure label="Financial data readiness">    <section className="finance-source-health" aria-label="Data health"><h2>Financial data readiness</h2><dl>{readiness.summary.map((item) => <div key={item.label}><dt>{item.label}</dt><dd><strong>{item.value}</strong><span>{item.detail}</span></dd></div>)}</dl><FinanceDisclosure label="Known readiness blockers"><ul>{readiness.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul></FinanceDisclosure></section>
-</FinanceDisclosure>
-    <AdminSegmentedControl className="finance-source-tabs" label="Data source concerns" value={section} onChange={setSection} options={sections.map((label) => ({ value: label, label, panelId: 'finance-data-source-panel' }))} />
-    <div id="finance-data-source-panel" role="tabpanel" aria-label={section} className="finance-source-panel"><Panel state={state} /></div>
-  </>;
+  return <div className="grid min-w-0 gap-6">
+    <DashboardSection title="Financial data readiness" subtitle="Operational reporting and accounting evidence retain separate authority." action={<StatusBadge status={state.connections.length ? 'info' : 'neutral'}>{state.connections.length ? 'Provider evidence retained' : 'No provider connected'}</StatusBadge>}>
+      <dl className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-5" aria-label="Data health">{readiness.summary.map(item => <div key={item.label} className="min-w-0"><dt className="type-caption text-text-secondary">{item.label}</dt><dd className="mt-2"><strong className="block type-body-sm text-text-primary">{item.value}</strong><span className="mt-1 block type-caption leading-relaxed text-text-secondary">{item.detail}</span></dd></div>)}</dl>
+      {readiness.issues.length ? <FinanceDisclosure label="Known readiness blockers"><ul className="list-disc space-y-2 pl-4">{readiness.issues.map(issue => <li key={issue}>{issue}</li>)}</ul><div className="flex flex-wrap gap-2">{sections.map(tab => <button type="button" key={tab} className="btn-secondary" onClick={() => setSection(tab)}>Review {tab}</button>)}</div></FinanceDisclosure> : null}
+    </DashboardSection>
+    <FinanceAnalysisSurface label="Data source concerns" title="Source management" subtitle="Connection status, authority coverage and evidence controls" modes={sections} value={section} onChange={setSection}><Panel state={state}/></FinanceAnalysisSurface>
+  </div>;
 }
 function LiveFinanceDataSourcesPage() {
   const [state, setState] = useState(null);

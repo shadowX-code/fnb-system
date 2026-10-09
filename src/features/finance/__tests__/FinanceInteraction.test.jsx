@@ -33,7 +33,7 @@ it('profit partitions consume supplied inputs, retain every amount, and withhold
   const analysis=await fixture(), before=JSON.stringify(analysis);
   const view=render(<ProfitArchitecture dataset={analysis.current} onSelect={()=>{}}/>);
   const chart=screen.getByRole('group',{name:'Revenue consumption and retained profit structure'});
-  expect(within(chart).getByRole('button',{name:'Explore COGS flow'}).querySelector('rect').getAttribute('fill')).toBe('var(--chart-violet)');
+  expect(within(chart).getByRole('button',{name:'Explore COGS flow'}).querySelector('rect').getAttribute('fill')).toBe('var(--chart-category-coral)');
   const cogs=within(chart).getByRole('button',{name:'Explore COGS flow'});
   fireEvent.click(cogs);
   expect(within(chart).getByRole('button',{name:'Explore COGS flow'})).toBeTruthy();

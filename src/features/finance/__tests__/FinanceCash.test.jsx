@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import FinanceCashPage, { FinanceCash } from '../FinanceCashPage.jsx';
 import { readFinanceAnalysis } from '../analysis.js';
 import { createFixtureProvider } from '../providers/fixtureProvider.js';
@@ -13,7 +13,6 @@ async function fixture() { return readFinanceAnalysis(createFixtureProvider({ de
 it('owns Cash and preserves shared contextual actions through cycle and expected-event selection', async () => {
   expect(routeDetails.finance_cash.component).not.toBe(routeDetails.finance_overview.component);
   render(<FinanceCash analysis={await fixture()} />);
-  fireEvent.click(screen.getByRole('tab', { name: 'Working Capital' }));
   fireEvent.click(screen.getByRole('button', { name: 'Explore Accounts Receivable stage' }));
   fireEvent.click(screen.getByRole('tab', { name: 'Break down' }));
   expect(screen.getByRole('tabpanel', { name: 'Break down' }).textContent).toContain('Aggregate receivables');
@@ -21,13 +20,16 @@ it('owns Cash and preserves shared contextual actions through cycle and expected
   expect(screen.getByRole('heading', { name: 'AR Days', exact: true })).toBeTruthy();
   fireEvent.keyDown(screen.getByRole('tab', { name: 'Break down' }), { key: 'ArrowLeft' });
   expect(screen.getByRole('tabpanel', { name: 'Compare' }).textContent).toContain('days');
-  fireEvent.click(screen.getByRole('tab', { name: 'Liquidity' }));
   fireEvent.click(screen.getByRole('button', { name: 'Investigate Illustrative payroll commitment' }));
-  expect(screen.getByRole('heading', { name: 'Illustrative payroll commitment' })).toBeTruthy();
-  expect(screen.getByRole('tabpanel', { name: 'Compare' }).textContent).toContain('No matched historical comparison');
-  fireEvent.click(screen.getByRole('tab', { name: 'Explain' }));
-  expect(screen.getByRole('tabpanel', { name: 'Explain' }).textContent).toContain('2026-10-12');
-  expect(screen.getByRole('tabpanel', { name: 'Explain' }).textContent).toContain('Forecast');
+  const liquidity = within(document.querySelector('[data-admin-analytical-surface][aria-label="Liquidity timeline"]'));
+  expect(liquidity.getByRole('heading', { name: 'Illustrative payroll commitment' })).toBeTruthy();
+  fireEvent.click(liquidity.getByRole('tab', { name: 'Compare' }));
+  expect(liquidity.getByRole('tabpanel', { name: 'Compare' }).textContent).toContain('No matched historical comparison');
+  fireEvent.click(liquidity.getByRole('tab', { name: 'Explain' }));
+  expect(liquidity.getByRole('tabpanel', { name: 'Explain' }).textContent).toContain('2026-10-12');
+  expect(liquidity.getByRole('tabpanel', { name: 'Explain' }).textContent).toContain('Forecast');
+  const working = within(document.querySelector('[data-admin-analytical-surface][aria-label="Working Capital Flow"]'));
+  expect(working.getByRole('tabpanel', {name:'Compare'}).textContent).toContain('days');
 });
 it('renders known partial events without manufacturing expected positions or lowest point', async () => {
   const data = await fixture(); data.current.liquiditySchedule.completeness = 'partial';

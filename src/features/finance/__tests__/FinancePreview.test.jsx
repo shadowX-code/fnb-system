@@ -35,11 +35,11 @@ it('does not accept simulated evidence as canonical truth',async()=>{
 it('keeps Data Sources actual readiness and disabled connection actions while analytical Design Preview is on',async()=>{
   sessionStorage.setItem('feedx-finance-design-preview','on');
   render(<FinanceDataSourcesPage auth={{profile:{role_name:'owner'}}}/>);
-  await screen.findByRole('heading',{name:'No accounting provider connected'});
+  await screen.findByText('No accounting provider connected');
   expect(screen.getByText(/Data Sources shows actual source readiness/)).toBeTruthy();
   expect(screen.getByRole('button',{name:'Connect provider'}).disabled).toBe(true);
   fireEvent.click(screen.getByRole('button',{name:'Exit Design Preview'}));
-  expect(screen.getByRole('heading',{name:'No accounting provider connected'})).toBeTruthy();
+  expect(screen.getByText('No accounting provider connected')).toBeTruthy();
 });
 
 it.each(['planning','statements'])('keeps the %s foundation when Design Preview is enabled', async (section) => {
@@ -47,10 +47,10 @@ it.each(['planning','statements'])('keeps the %s foundation when Design Preview 
   sessionStorage.setItem('feedx-finance-design-preview', 'on');
   render(<FinanceWorkspacePage section={section} auth={{profile:{role_name:'owner'}}}/>);
   expect(screen.getByText(/retains its established foundation/)).toBeTruthy();
-  expect(screen.getByRole('heading', {name: section === 'planning' ? 'Foundation established' : 'Financial statements'})).toBeTruthy();
+  expect(screen.getByRole('heading', {name: section === 'planning' ? 'Planning readiness' : 'Profit & Loss'})).toBeTruthy();
   expect(reporting).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', {name: 'Exit Design Preview'}));
-  expect(screen.getByRole('heading', {name: section === 'planning' ? 'Foundation established' : 'Financial statements'})).toBeTruthy();
+  expect(screen.getByRole('heading', {name: section === 'planning' ? 'Planning readiness' : 'Profit & Loss'})).toBeTruthy();
 });
 
 it('preserves selection across simulated scope reads while hiding previous-scope evidence',async()=>{

@@ -28,17 +28,17 @@ it('keeps the current management read honest with no connected accounting eviden
   expect(state.connections).toEqual([]);
   expect(readiness.summary.map((item) => item.value)).toEqual(['Not connected', 'Not assigned', 'Not assessed', 'Not assessed', 'Assessment incomplete']);
   render(<FinanceDataSources state={state} />);
-  expect(screen.getByRole('heading', { name: 'No accounting provider connected' })).toBeTruthy();
+  expect(screen.getByText('No accounting provider connected')).toBeTruthy();
   fireEvent.click(screen.getByRole('tab', { name: 'Mapping' }));
-  expect(screen.getAllByText('Not assessed · no provider mapping evidence.')).toHaveLength(4);
+  expect(screen.getAllByText('No provider mapping evidence.')).toHaveLength(4);
   expect(screen.queryByText(/0 mapped/)).toBeNull();
   fireEvent.click(screen.getByRole('tab', { name: 'Reconciliation' }));
-  expect(screen.getByRole('heading', { name: 'No validated reconciliation evidence' })).toBeTruthy();
+  expect(screen.getByText('No validated reconciliation evidence')).toBeTruthy();
 });
 it('exposes a disabled connection boundary with no mutation action', async () => {
   render(<FinanceDataSourcesPage />);
   expect((await screen.findByRole('button', { name: 'Connect provider' })).disabled).toBe(true);
-  expect(await screen.findByRole('heading', { name: 'No accounting provider connected' })).toBeTruthy();
+  expect(await screen.findByText('No accounting provider connected')).toBeTruthy();
 });
 it('retains historical connections and their original effective periods', () => {
   const state = historicalState();
@@ -66,7 +66,7 @@ it('shows actual mapping counts and preserves currency, missing differences and 
   render(<FinanceDataSources state={state} />);
   fireEvent.click(screen.getByRole('tab', { name: 'Mapping' }));
   expect(screen.getByText('12 mapped · 3 unresolved')).toBeTruthy();
-  expect(screen.getAllByText('Not assessed · no provider mapping evidence.')).toHaveLength(3);
+  expect(screen.getAllByText('No provider mapping evidence.')).toHaveLength(3);
   fireEvent.keyDown(screen.getByRole('tab', { name: 'Mapping' }), { key: 'ArrowRight' });
   expect(screen.getByRole('tab', { name: 'Reconciliation' }).getAttribute('aria-selected')).toBe('true');
   expect(screen.getByRole('cell', { name: /25.00/ }).textContent).toContain('US$');

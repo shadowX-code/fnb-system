@@ -1,3 +1,4 @@
+import { FinancePlanningReadiness, FinanceStatements } from './FinanceReadinessPages.jsx';
 import FinanceOverviewCharts from './FinanceOverviewCharts.jsx';
 import AdminSummaryGrid from '../../components/ui/AdminSummaryGrid.jsx';
 import { financeDashboardSummaryItems } from './summaryItems.js';
@@ -82,13 +83,6 @@ export function FinanceOverview({ dataset }) {
     </FinanceDisclosure>
   </div>;
 }
-function StatementsFoundation() {
-  return <section className="finance-foundation"><h2>Financial statements</h2><p>Accounting statements and operational management reporting retain separate source authority.</p>
-    <div className="finance-statement-row"><div><h3>Profit & Loss</h3><p>Monthly and Yearly/YTD management P&L remain available through the existing Reporting service.</p><span className="finance-semantic">Operational · Purchase-based COGS</span></div><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('reports')}>Open Monthly / Yearly P&L <ArrowRight size={15} /></button></div>
-    <div className="finance-statement-row"><div><h3>Balance Sheet</h3><p>Awaiting a validated provider statement or authoritative account balances.</p></div><span className="finance-semantic">Unavailable</span></div>
-    <div className="finance-statement-row"><div><h3>Cash Flow</h3><p>Awaiting validated accounting evidence and cash-flow classifications.</p></div><span className="finance-semantic">Unavailable</span></div>
-  </section>;
-}
 function LiveFinanceWorkspacePage({ section = 'overview', store = {}, auth }) {
   const [mode, setMode] = useState('operational');
   const [month, setMonth] = useState(currentMonth);
@@ -126,7 +120,7 @@ function LiveFinanceWorkspacePage({ section = 'overview', store = {}, auth }) {
     {section === 'overview' ? <>
       <AsyncDataSurface loading={loading} error={error} hasData={Boolean(dataset) && currentDataset} isEmpty={!dataset} emptyTitle="Select financial evidence" emptyDescription="Choose a scope to review its financial state." onRetry={() => setAttempt((value) => value + 1)}/>
       {dataset ? <div hidden={!currentDataset || loading}><FinanceOverview dataset={dataset}/><FinanceDataStatus dataset={dataset} loading={loading} error={error}/></div> : null}
-    </> : section === 'statements' ? <StatementsFoundation /> : <section className="finance-future"><h2>Foundation established</h2><p>This workspace will become available once its financial evidence and authority are validated.</p><button type="button" className="btn-secondary" onClick={() => navigateAdminRoute('finance_overview')}>Review financial state <ArrowRight size={15} /></button></section>}
+    </> : section === 'statements' ? <FinanceStatements /> : <FinancePlanningReadiness /> }
   </WorkspacePage>;
 }
 

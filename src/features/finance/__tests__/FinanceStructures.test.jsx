@@ -28,8 +28,7 @@ it('retains muted analytical structures without fabricating points, bars or proj
   view.unmount();render(<FinanceCash analysis={pair}/>);
   expect(screen.getByRole('group',{name:'Horizontal Liquidity Timeline'})).toBeTruthy();
   expect(document.querySelectorAll('.finance-timeline-path')).toHaveLength(0);
-  fireEvent.click(screen.getByRole('tab',{name:'Working Capital'}));
-  expect(screen.queryByRole('group',{name:'Horizontal Liquidity Timeline'})).toBeNull();
+  expect(screen.getByRole('group',{name:'Horizontal Liquidity Timeline'})).toBeTruthy();
   expect(screen.getByRole('group',{name:'Working Capital Flow relationships'}).querySelectorAll('.chart-pending')).toHaveLength(5);
   expect(JSON.stringify(pair)).toBe(before);
 });
