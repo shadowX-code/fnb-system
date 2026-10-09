@@ -184,6 +184,7 @@ export const workspaceSwitcherOptions: Array<{
 export const moduleSectionOrder = [
   "Overview",
   "Content Studio",
+  "Inbox",
   "Analytics",
   "Settings",
   "Finance",

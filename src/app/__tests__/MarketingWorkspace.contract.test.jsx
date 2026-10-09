@@ -16,6 +16,7 @@ describe('Marketing workspace ownership',()=>{
     expect(pages.find(p=>p.id==='marketing_inbox').permissions).toEqual({view:true,manage:true,reply:true,approve:true,configure:true,ai:true});
     expect(getPermissionDefinitions().filter(p=>p.code.startsWith('marketing_inbox.')).map(p=>p.code)).toEqual(expect.arrayContaining(['marketing_inbox.view','marketing_inbox.manage','marketing_inbox.reply','marketing_inbox.approve','marketing_inbox.configure','marketing_inbox.ai']));
     expect(getPermissionDefinitions().filter(p=>p.code.startsWith('marketing_inbox.'))).toHaveLength(6);
+    expect(getSidebarSections('marketing').map(s=>s.label)).toEqual(['Overview','Content Studio','Inbox','Analytics','Settings']);
     expect(getSidebarSections('restaurant').flatMap(s=>s.items).some(i=>i.id?.startsWith('marketing_'))).toBe(false);
     expect(roleHasRestaurantPermissions(['marketing_content.publish','platform_organizations.manage'])).toBe(false);
   });

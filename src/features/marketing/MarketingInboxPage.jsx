@@ -41,14 +41,14 @@ function State({ value }) {
 function Field({ label: caption, ...props }) {
   return (
     <AdminFormField label={caption}>
-      <input className="input" {...props} />
+      <input className="control" {...props} />
     </AdminFormField>
   );
 }
 function Area({ label: caption, ...props }) {
   return (
     <AdminFormField label={caption}>
-      <textarea className="input" rows={4} {...props} />
+      <textarea className="control" rows={4} {...props} />
     </AdminFormField>
   );
 }
@@ -620,8 +620,11 @@ export default function MarketingInboxPage() {
                     </div>
                     {d.status === "approved" && (
                       <p className="text-sm text-text-secondary">
-                        Approved for this history version. Delivery blocked:
-                        live messaging is disabled.
+                        {d.source_version === c.version
+                          ? "Approval recorded for this history version."
+                          : "Historical approval; conversation history changed."}
+                        {" "}
+                        Delivery blocked: live messaging is disabled.
                       </p>
                     )}
                   </article>

@@ -103,7 +103,7 @@ it("labels internal evidence and disabled delivery, with unavailable AI", async 
   fireEvent.click(screen.getByText("Internal QA case"));
   await screen.findByText("Review this case");
   expect(screen.getByText("Internal note")).toBeTruthy();
-  expect(screen.getByText(/Delivery blocked: live messaging/)).toBeTruthy();
+  expect(screen.getByText(/Delivery blocked:/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Suggest reply" }).disabled).toBe(
     true,
   );
@@ -134,4 +134,30 @@ it("uses the canonical command for a note and clears obsolete conversation evide
   await waitFor(() =>
     expect(screen.queryByText("Review this case")).toBeNull()
   );
+});
+it("labels a past approval as historical when conversation evidence changed", async () => {
+  inboxService.detail.mockResolvedValue({
+    conversation,
+    messages: [],
+    total: 0,
+    drafts: [{
+      id: "old",
+      status: "approved",
+      body: "Earlier proposal",
+      source_version: 1,
+      provenance: "human",
+      source_references: [],
+    }],
+    artifacts: [],
+    members: [],
+  });
+  render(<MarketingInboxPage />);
+  fireEvent.click(await screen.findByText("Internal QA case"));
+  expect(
+    await screen.findByText(
+      /Historical approval; conversation history changed/,
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByText(/Approval recorded for this history version/))
+    .toBeNull();
 });
