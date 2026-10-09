@@ -1,0 +1,51 @@
+# Marketing
+
+## Scope And Status
+
+Marketing is one native FeedX Admin workspace for organization-wide and brand-scoped marketing. It shares Supabase Auth, canonical employee roles, the Workspace Launcher, module registry, pathname owner and Admin design system. It is separate from Restaurant navigation. Brands are data scope, never independent workspaces.
+
+The implemented foundation has organization/brand setup, explicit memberships and role brand scope, Brand Knowledge, private uploaded media, Facebook/Instagram creative variants, content review/approval, planned timezone-aware schedules with blocked delivery visibility, monthly/weekly calendar and saved-record analytics. Meta OAuth and network publishing/synchronization are not connected; no successful delivery is simulated. AI Creative Director, Inbox, Audience/WhatsApp and Ads remain later phases.
+
+## Ownership
+
+Platform owns `organizations`, `organization_memberships`, `organization_outlets`, `brands` and `brand_outlets`. `outlets` retains operational ownership; `legal_entities` remains People’s legal-employer master and is not a tenant or brand. Setup does not infer brands from outlet names or backfill existing people/outlets into organizations. An authorized manager creates an organization and receives its first membership; further membership and brand/outlet mappings are explicit. One outlet belongs to one organization; brand targeting refers to canonical outlets inside that organization. A brand may target several outlets, and an outlet may be used by more than one brand within that organization.
+
+Marketing owns Knowledge, Content, assets, approvals, connection metadata, publishing jobs and its audit/request ledgers. Future Campaign, Conversation, Audience and AI responsibilities remain distinct from Content. These boundaries are not a new customer master. `factory_customers` represents Factory business customers and is not a restaurant member/CRM authority. No restaurant customer/member or loyalty balance authority was established during discovery; Phase 4 must resolve its integration before audience implementation. Anonymous Crew feedback and Factory product-feedback respondents do not establish customer identity or messaging consent.
+
+Finance/Reporting remains the authority for financial calculations and source semantics. Marketing has no financial or loyalty mutation permissions. Future consumers must use authorized owner-provided read contracts and retain outlet permission boundaries, missing evidence and conversion/attribution distinctions. Organization-wide Marketing reads mean the caller’s authorized brands within one organization, not unrestricted whole-database aggregation. This foundation isolates Marketing data; it does not retrofit tenancy into all existing FeedX domains or implement public onboarding/billing.
+
+## Identity And Permissions
+
+Every Marketing RPC derives an active employee through the exact `employees.auth_user_id` link and validates active role, `marketing_workspace.access`, action permission, organization membership and applicable brand scope. Crew sessions cannot enter this authority. Owner/Admin retains canonical role action authority but can see only organizations in which that employee has explicit membership. Other roles default to no brand data until `marketing_role_scopes`/`marketing_role_brands` grants All or Selected Brands. Organization membership alone never grants Marketing action permissions.
+
+Action permissions live in the canonical permission catalog/module registry. Content separates view/create/edit/upload/review/approve/publish/cancel. Calendar, Overview, Analytics and Settings have independent view permissions; knowledge management and integration/scope configuration are separate. Marketing permissions do not require Restaurant outlet scope. Changing role brand scope requires both `roles.edit` and `marketing_settings.configure`; it cannot grant beyond the caller’s scope. Shared structure management requires `platform_organizations.manage`, membership of the affected organization, and canonical outlet access for mapping. Adding an existing employee also requires `employees.view`; canonical role/Auth assignments are never replaced.
+
+Exposed business tables enable RLS and revoke browser/anonymous direct access. Trusted RPCs are the sole client read/mutation path. The private Storage bucket has scoped read and uploader-bound prepared insert policies; it permits no replacement or deletion of historical media. Private helper functions and credentials are outside browser grants. No token or credential is returned in connection metadata.
+
+## Content Authority
+
+A creative concept has one immutable revision payload containing title, canonical outlet targets and one Facebook and/or one Instagram variant. Each variant records format, caption and pinned ready asset IDs from the same brand. Instagram text-only content is rejected; image/reel needs one compatible asset, carousel needs two to ten images. Caption limits and MIME compatibility are validated server-side. Media dimensions, duration and account-specific publishing restrictions require the actual provider adapter before any external execution; registered MIME and byte size alone do not establish full platform compatibility.
+
+Lifecycle: Draft → Review → Approved → Scheduled → Published, with Rejected, Failed and Cancelled outcomes. Submit requires complete captions/media. Approval binds the exact current revision. A material edit appends a revision, returns to Draft, clears approval and cancels unexecuted jobs. Stale expected revisions fail. Published records cannot be edited; partial/uncertain external delivery blocks material edits and cancellation until reconciliation. Rejection retains its reason in append-only audit evidence.
+
+Content commands use server actor, request UUID and payload fingerprint. An exact retry returns the prior result; changed payload/actor for the same UUID fails. Permission and scope are rechecked before returning a retry. Creation and scheduling therefore do not duplicate records/jobs under retries. State checks and row locks serialize approval/scheduling/edit/cancellation. The schedule pins an approved revision, UTC instant and IANA timezone. Browser conversion rejects DST gaps and overlaps. Schedules currently create durable Blocked jobs with `provider_not_authorized`, zero attempts and no provider receipt; this is a publishing plan, not delivered content.
+
+## Publishing And Integration Boundary
+
+`marketing_jobs` retains one job per content revision/channel, attempt count, lease, due instant, outcome, bounded failure code and provider post ID. Service-only claim/finish contracts require live production-authorized connection capability, unexpired credentials, current approved revision and current authorizer membership/permissions/brand scope. Claim uses a locked content row and skip-locked selection; completion/cancellation use the same lock order. Retryable failure backs off with at most five attempts. An expired or uncertain request moves to Reconciling rather than automatic resend. Successful completion requires a provider receipt; repeated matching completion is idempotent.
+
+No active worker, Cron publishing invocation or Meta account is enabled by this foundation. OAuth, publishing and insight capabilities remain false until the actual server adapters are delivered and verified with app credentials, exact redirect URLs and official account/platform permissions. The server-only interfaces in `supabase/functions/_shared/marketingProviders.ts` distinguish unavailable/test/production authorization; test capability cannot create a Published receipt. Timeouts become uncertain rather than fabricated failure/success. Future OAuth must use single-use, actor/org/brand-bound state and server-side credential exchange. `marketing_private.credentials` stores only a server reference, with no browser schema/table privileges; concrete credential storage/rotation is an external configuration dependency.
+
+Provider adapters own supported formats, official API requests, uncertain-response reconciliation, platform/media restrictions, synchronization pagination and insight evidence. A mere interface is not a connected provider. Meta App Review is not needed for the local content/approval/scheduling workflow; production network capability is a separate gate. No customer messages, ads or spending actions are implemented.
+
+## Knowledge And Evidence
+
+Knowledge saves use expected revision protection and preserve the submitted profile in audit history. Each field distinguishes `verified_brand_fact` (explicit human brand assertion), referenced `external_research` and unverified `ai_suggestion`. External research requires an HTTPS source; UI retains the observation time. No research or AI content is fabricated by the foundation.
+
+Overview/Analytics counts are saved FeedX workflow facts. Reach, engagement, conversions, modeled attribution and provider costs are unavailable rather than zero. No AI insight or incremental-revenue claim is shown without supporting evidence. Reads are bounded/paged; calendar requests cover at most 42 days and use the declared view timezone. Scope/session changes discard obsolete responses.
+
+## Verification And Phase Boundary
+
+This is L3 work: route/module regressions, timezone and capability tests, production build, SQL grant/scope/lifecycle rehearsal and authenticated canonical Staging UI verification are required. `qa/staging/marketingFoundation.rollback.sql` uses disposable identities/records inside one rollback transaction and calls no provider. Verification evidence and Phase 0 ownership mapping are recorded under `qa/staging/marketingFoundation.md`.
+
+Before Phase 2, complete Phase 1 verification and resolve actual Meta OAuth/worker configuration where external execution is requested. Phase 2 scope is specialized AI planning/creative orchestration, evidence-retaining permitted research, multilingual drafts/scripts/storyboards and human-approved transfer into the same Content revision authority. Existing Recruitment/Crew AI credentials or Guest AI prototype endpoints do not imply authorization or a shared Marketing provider. Inbox, consent/CRM, WhatsApp and Ads remain gated to their later phases.

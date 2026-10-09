@@ -51,7 +51,7 @@ export type AppModule = {
   routable?: boolean;
   // Consumer routes may reuse an existing permission without introducing a second grant.
   readPermission?: string;
-  workspace?: "restaurant" | "factory" | "crew" | "guest_ai" | "finance";
+  workspace?: "restaurant" | "factory" | "crew" | "guest_ai" | "finance" | "marketing";
   permissions: Partial<Record<ModuleAction, boolean>>;
 };
 
@@ -143,11 +143,12 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   export: "Export",
 };
 
-export type WorkspaceKey = "restaurant" | "factory" | "crew" | "guest_ai" | "finance";
+export type WorkspaceKey = "restaurant" | "factory" | "crew" | "guest_ai" | "finance" | "marketing";
 
 export const workspaceLabels: Record<WorkspaceKey, string> = {
   restaurant: "Restaurant",
   finance: "Finance",
+  marketing: "Marketing",
   factory: "Factory",
   crew: "Crew",
   guest_ai: "Guest AI",
@@ -165,6 +166,7 @@ export const workspaceSwitcherOptions: Array<{
 }> = [
   { id: "restaurant", label: "Restaurant", detail: "Store Operations" },
   { id: "finance", label: "Finance", detail: "Financial state & statements", permission: "reports.view" },
+  { id: "marketing", label: "Marketing", detail: "Brands, content & engagement", permission: "marketing_workspace.access" },
   { id: "factory", label: "Factory", detail: "Production Operations" },
   { id: "crew", label: "Crew", detail: "People, learning & workforce" },
   { id: "guest_ai", label: "Guest AI", detail: "AI Guest Experience", permission: "guest_ai.access" },
@@ -172,6 +174,9 @@ export const workspaceSwitcherOptions: Array<{
 
 export const moduleSectionOrder = [
   "Overview",
+  "Content Studio",
+  "Analytics",
+  "Settings",
   "Finance",
   "Manage",
   "Sales",
@@ -196,6 +201,13 @@ export const moduleSectionOrder = [
 ];
 
 export const moduleRegistry: AppModule[] = [
+  { id: "marketing_workspace", section: "Marketing", label: "Marketing Workspace", route: "/marketing", sidebar: false, routable: false, workspace: "marketing", permissions: { access: true } },
+  { id: "platform_organizations", section: "System", label: "Organization & Brand Structure", route: "/system/organizations", sidebar: false, routable: false, workspace: "marketing", permissions: { manage: true } },
+  { id: "marketing_overview", section: "Overview", label: "Overview", route: "/marketing/overview", icon: "marketing_overview", sidebar: true, workspace: "marketing", permissions: { view: true } },
+  { id: "marketing_content", section: "Content Studio", label: "Content Library", route: "/marketing/content", icon: "marketing_content", sidebar: true, workspace: "marketing", permissions: { view: true, create: true, edit: true, review: true, approve: true, publish: true, cancel: true, upload: true } },
+  { id: "marketing_calendar", section: "Content Studio", label: "Calendar", route: "/marketing/calendar", icon: "marketing_calendar", sidebar: true, workspace: "marketing", permissions: { view: true } },
+  { id: "marketing_analytics", section: "Analytics", label: "Analytics", route: "/marketing/analytics", icon: "marketing_analytics", sidebar: true, workspace: "marketing", permissions: { view: true } },
+  { id: "marketing_settings", section: "Settings", label: "Brand Knowledge & Connections", route: "/marketing/settings", icon: "marketing_settings", sidebar: true, workspace: "marketing", permissions: { view: true, manage: true, configure: true } },
   { id: "finance_overview", section: "Finance", label: "Overview", route: "/finance/overview", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
   { id: "finance_analysis", section: "Finance", label: "Analysis", route: "/finance/analysis", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
   { id: "finance_costs", section: "Finance", label: "Costs", route: "/finance/costs", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
@@ -1223,6 +1235,10 @@ export function getModuleLabel(moduleId: string) {
 
 // Canonical permission presentation; authority is owned by each corresponding server command.
 export const permissionPresentationOverrides: Record<string, { label: string; description: string }> = {
+  "marketing_settings.configure": { label: "Configure Marketing Access & Integrations", description: "Configure Marketing brand scope and authorized integrations." },
+  "marketing_settings.manage": { label: "Manage Brand Knowledge", description: "Manage brand knowledge with provenance." },
+  "platform_organizations.manage": { label: "Manage Organizations & Brands", description: "Manage shared organization, brand, membership and outlet relationships." },
+  "marketing_content.publish": { label: "Schedule & Publish Marketing Content", description: "Schedule approved revisions and authorize eligible publishing." },
   "payroll.setup": { label: "Set Up Payroll Pay", description: "Create and correct effective compensation and recurring employee components." },
   "payroll.statutory": { label: "Confirm Payroll Statutory Setup", description: "Confirm effective statutory setup, PCB and reusable PH statutory evidence." },
   "payroll.prepare": { label: "Prepare Payroll Runs", description: "Create and prepare open Payroll Runs, including governed correction Runs." },

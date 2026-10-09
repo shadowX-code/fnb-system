@@ -69,6 +69,8 @@ Never trust a client-supplied actor, role, permission, or ownership field.
 Employee role assignment and employee/Auth linkage use their canonical controlled paths.
 Role configuration changes use the established trusted save authority.
 
+Marketing adds explicit organization membership and role brand scope to the canonical Admin identity/action checks. Its business tables are RPC-only with direct browser grants revoked; private media is prepared and finalized through the same brand authority. Publishing claims/completions are service-only and revalidate the approving authorizer and pinned revision. See `../domains/marketing.md`.
+
 ## Immutable Evidence And Versions
 
 Finalized business evidence is append-only or changed through an explicit reversal, correction, superseding version, or controlled reopen lifecycle.

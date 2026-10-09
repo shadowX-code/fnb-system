@@ -15,6 +15,10 @@ Choose by durable ownership: architecture docs own cross-domain foundations; dom
 
 ## Canonical Domains
 
+### Marketing
+
+- [`domains/marketing.md`](domains/marketing.md): native Marketing workspace, brand scope, knowledge provenance, content approvals, private media, planned publishing and integration capability boundaries.
+
 ### Restaurant And Shared Administration
 
 - [`domains/finance.md`](domains/finance.md): Finance workspace, canonical financial read contracts, provider capabilities, historical authority policy, metrics, development fixture and statement convergence.

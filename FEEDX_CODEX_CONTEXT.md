@@ -10,6 +10,7 @@ FeedX is an F&B operations platform built around dependable operational state, c
 
 - Restaurant owns operational financial input, purchasing, inventory, assets, people administration, and existing related reporting.
 - Finance owns financial statements, financial analysis, intelligence and future planning; its foundation consumes existing operational Reporting without replacing accounting authority.
+- Marketing owns brand knowledge, creative content and marketing engagement lifecycles within one organization/brand-scoped workspace; shared Platform organization/brand records do not replace legal employers or outlets.
 - Crew owns employee-facing workforce, daily operations, learning, performance, reward, and localization workflows.
 - Factory owns production, warehouse operations, and factory master data.
 - Guest AI is a bounded prototype that may share FeedX hosting and infrastructure but must remain isolated from Restaurant, Crew, and Factory business data and lifecycles unless an explicit integration contract is approved.

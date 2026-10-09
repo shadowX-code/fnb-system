@@ -47,6 +47,7 @@ const FinanceWorkspacePage = lazy(() => import("../features/finance/FinanceWorks
 const FactoryWorkspacePage = lazy(() => import("../features/factory/pages/FactoryWorkspacePage.jsx"));
 const InventoryControlPage = lazy(() => import("../features/sales-purchase/pages/InventoryControlPage.jsx"));
 const AssetTrackingPage = lazy(() => import("../features/sales-purchase/pages/AssetTrackingPage.jsx"));
+const MarketingWorkspacePage = lazy(() => import("../features/marketing/MarketingWorkspacePage.jsx"));
 const RecruitmentPage = lazy(() => import("../features/recruitment/RecruitmentPage.jsx"));
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -65,6 +66,11 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 }
 
 export const routeDetails = {
+  marketing_overview: { component: MarketingWorkspacePage, props: { section: "overview" }, permission: "marketing_workspace.access AND marketing_overview.view", description: "Brand publishing activity and action center." },
+  marketing_content: { component: MarketingWorkspacePage, props: { section: "content" }, permission: "marketing_workspace.access AND marketing_content.view", description: "Versioned creative content, review and publishing." },
+  marketing_calendar: { component: MarketingWorkspacePage, props: { section: "calendar" }, permission: "marketing_workspace.access AND marketing_calendar.view", description: "Multi-brand content calendar." },
+  marketing_analytics: { component: MarketingWorkspacePage, props: { section: "analytics" }, permission: "marketing_workspace.access AND marketing_analytics.view", description: "Publishing outcomes and available evidence." },
+  marketing_settings: { component: MarketingWorkspacePage, props: { section: "settings" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Brand knowledge, access and connection readiness." },
   finance_data_sources: { description: "Financial source connection, authority, mapping, reconciliation and readiness.", component: FinanceDataSourcesPage },
   finance_overview: { description: "Finance overview foundation.", component: FinanceWorkspacePage, props: { section: "overview" } },
   finance_analysis: { description: "Business performance and evidence-backed profit drivers.", component: FinanceAnalysisPage },

@@ -149,7 +149,7 @@ function filterSectionsByPermission(sections, routes, auth) {
 
 function routePermissionAllowed(auth, permission) {
   if (!permission) return true;
-  return String(permission).split(" OR ").some((code) => auth.hasPermission(code.trim()));
+  return String(permission).split(" OR ").some((clause) => clause.split(" AND ").every((code) => auth.hasPermission(code.trim())));
 }
 
 const BOOTSTRAP_LOADS = [
@@ -298,7 +298,7 @@ function AdminApp() {
     if (routeWorkspace !== "restaurant") return routeWorkspace;
     try {
       const saved = localStorage.getItem("feedx.workspace");
-      return ["restaurant", "factory", "crew", "guest_ai", "finance"].includes(saved) ? saved : "restaurant";
+      return ["restaurant", "factory", "crew", "guest_ai", "finance", "marketing"].includes(saved) ? saved : "restaurant";
     } catch {
       return "restaurant";
     }

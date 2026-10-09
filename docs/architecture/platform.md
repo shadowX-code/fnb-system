@@ -40,10 +40,11 @@ Do not force-push `main` or `dev` during routine integration or cleanup. Reconci
 
 ## Workspace Ownership
 
-FeedX currently exposes five workspaces:
+FeedX currently exposes six workspaces:
 
 - Restaurant: operational financial input, purchasing, inventory, assets, people administration, and existing reporting.
 - Finance: Overview, Analysis, Costs, Cash, Planning and Statements under Finance; Data Sources under secondary Manage owns read-only source administration at `/finance/data-sources`. Phase 1 reuses `reports.view` and existing Reporting outlet scope.
+- Marketing: one organization/brand-scoped workspace under `/marketing/*`, with its own navigation and `marketing_workspace.access` plus granular module permissions. It reuses Admin Auth and shell; brands are data scope rather than separate workspaces.
 - Crew: workforce, operations, learning, performance/reward, and localized Crew experiences.
 - Factory: production, warehouse, and factory-owned master data.
 - Guest AI: a bounded prototype module with minimal coupling to FeedX business domains.
@@ -51,6 +52,10 @@ FeedX currently exposes five workspaces:
 `config/modules.ts` is the canonical module and navigation registry.
 Current route composition and ownership are defined by the application route configuration and route contract tests.
 Documentation groupings must not create a second module or routing registry.
+
+### Shared Organization And Brand Ownership
+
+Platform owns additive `organizations`, canonical employee `organization_memberships`, `organization_outlets`, `brands` and `brand_outlets`. Legal Entities remains the People legal-employer authority; outlets remain operational records. Organization/brand relationships and memberships are explicit and are not inferred from existing names or employer assignments. Marketing consumes these shared records with its own role/action and brand scope. This isolates Marketing data without claiming tenant isolation for every legacy FeedX domain. The [Marketing domain](../domains/marketing.md) owns Marketing lifecycles and integrations.
 
 ## Shared Shell
 
