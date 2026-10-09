@@ -22,8 +22,8 @@ Documentation owner: `docs/domains/marketing.md`; shared boundaries: `docs/archi
 
 ## Verified automated and database behavior
 
-- 24 relevant test files / 90 tests pass, including route ownership, launcher, role contracts, Marketing component scope fencing, timezone/DST conversion and provider fail-closed handling. Production build passes (existing large-chunk warning).
-- Three append-only Marketing migrations applied to the verified Staging ref. The third fixes a job-claim alias/unused-variable ambiguity discovered by rehearsal.
+- 25 relevant test files / 100 tests pass, including route ownership, launcher, role contracts, Marketing component scope fencing, timezone/DST conversion and provider fail-closed handling. Production build passes (existing large-chunk warning).
+- Four append-only Marketing migrations applied to the verified Staging ref. The third fixes a job-claim alias/unused-variable ambiguity discovered by rehearsal. The fourth enforces canonical employee visibility, protects hidden role brand grants and attaches all delivery states to the displayed calendar page (including pages beyond 100 jobs).
 - `marketingFoundation.rollback.sql` passes using an authenticated fixture employee and custom role, actual canonical RPCs and service-only worker calls, within one rolled-back transaction.
 - Tenant/brand denial, direct table denial, anonymous/private-credential grants, revoked membership and protected service boundaries verified.
 - Exact content retry identity, changed-payload denial, stale revisions, version-bound approval/invalidation, review/rejection, schedule/calendar/audit, cancellation, knowledge revision/provenance verified.
@@ -34,10 +34,12 @@ Documentation owner: `docs/domains/marketing.md`; shared boundaries: `docs/archi
 
 ## Canonical UI verification
 
+Authenticated checks passed at `bbea4c65813f712c0e97dbcf87f041377c9969f0` / `dpl_7qFQvmtWHvnykjngtWtjozwgBUFy`: launcher entry, independent Marketing navigation, Overview/Content/Calendar/Analytics/Settings routes, explicit empty organization membership, opening/dismissing setup form, desktop and narrow viewport (no page overflow), separate Restaurant return navigation and no captured console errors. No real ownership or membership was changed.
+
 Deliver through clean `dev` and Vercel Git Integration, run `verify:staging-vercel-target`, confirm READY alias SHA, and verify with the existing authenticated Staging Admin session. Check launcher, independent Marketing navigation, all five routes, explicit empty membership/setup state, representative Restaurant return navigation, narrow viewport layout and console errors. UI mutation of real ownership is intentionally deferred until explicit real organization/brand setup; mutation authority is covered by rollback fixtures above.
 
 ## Remaining dependency and next scope
 
-Phase 1 locally verifiable foundation is delivered. Official Meta OAuth exchange, server credential vault/configuration, test-account network adapter, publishing worker, social synchronization and platform insights remain unconnected and unverified. Schedules remain visibly Blocked, never Published. Connection metadata distinguishes test and production authorization; neither is seeded.
+Phase 1 locally verifiable foundation is delivered. The user selected Meta test-account OAuth and publishing as the next integration; app ID, test accounts and server-secret configuration names have been requested and are still required. Official Meta OAuth exchange, server credential vault/configuration, test-account network adapter, publishing worker, social synchronization and platform insights remain unconnected and unverified. Schedules remain visibly Blocked, never Published. Connection metadata distinguishes test and production authorization; neither is seeded.
 
 Phase 2 begins with an explicitly authorized Marketing AI provider and permitted research configuration, then planner/creative capabilities, EN/ZH/BM drafts, scripts/storyboards, source freshness and approved integration into Content revisions. No Inbox, audience/customer master, WhatsApp, Ads, spending, SaaS billing or public onboarding is implemented early.

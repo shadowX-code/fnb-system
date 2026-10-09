@@ -6,11 +6,11 @@ do $$begin assert not exists(select 1 from public.marketing_connections where st
 create temporary table marketing_qa_ids(key text primary key,id uuid);
 grant select,insert,update on marketing_qa_ids to authenticated;
 do $$
-declare u uuid:=gen_random_uuid(); e uuid:=gen_random_uuid(); r uuid:=gen_random_uuid(); o uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); other_b uuid:=gen_random_uuid(); other_o uuid:=gen_random_uuid();
+declare u uuid:=gen_random_uuid(); e uuid:=gen_random_uuid(); r uuid:=gen_random_uuid(); o uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); other_b uuid:=gen_random_uuid(); other_o uuid:=gen_random_uuid(); other_u uuid:=gen_random_uuid(); other_e uuid:=gen_random_uuid();
 begin
  insert into auth.users(id,email,aud,role) values(u,'marketing-rollback-'||u::text||'@example.invalid','authenticated','authenticated');
  insert into public.roles(id,name,is_active,outlet_access_type) values(r,'qa_marketing_'||r::text,true,'none');
- insert into public.role_permissions(role_id,permission_id) select r,id from public.permissions where code like 'marketing_%' or code='platform_organizations.manage' or code in ('roles.create','roles.edit','roles.view');
+ insert into public.role_permissions(role_id,permission_id) select r,id from public.permissions where code like 'marketing_%' or code='platform_organizations.manage' or code in ('roles.create','roles.edit','roles.view','employees.view');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated')::text,true);
  insert into public.employees(id,auth_user_id,full_name,email,role_id,enable_system_login,access_state,is_active,workplace)
  values(e,u,'QA Marketing Rollback','marketing-rollback-'||u::text||'@example.invalid',r,true,'active',true,'Management');
@@ -19,6 +19,9 @@ begin
  insert into public.brands(id,organization_id,name) values(b,o,'QA Authorized Brand'),(other_b,o,'QA Restricted Brand');
  insert into public.marketing_role_scopes values(o,r,false);
  insert into public.marketing_role_brands values(o,r,b);
+ insert into auth.users(id,email,aud,role) values(other_u,'marketing-scope-'||other_u::text||'@example.invalid','authenticated','authenticated');
+ insert into public.employees(id,auth_user_id,full_name,email,role_id,enable_system_login,access_state,is_active,workplace) values(other_e,other_u,'QA Out of People Scope','marketing-scope-'||other_u::text||'@example.invalid',r,true,'active',true,'Management');
+ insert into marketing_qa_ids values('other_employee',other_e);
  insert into marketing_qa_ids values('user',u),('employee',e),('role',r),('org',o),('brand',b),('other_brand',other_b),('other_org',other_o);
 end; $$;
 set local role authenticated;
@@ -72,6 +75,7 @@ begin
  blocked:=false;begin perform public.marketing_finalize_asset((media->>'id')::uuid);exception when others then blocked:=true;end;assert blocked,'Missing object cannot finalize';
  result:=public.save_role_configuration(gen_random_uuid(),jsonb_build_object('name','qa_marketing_saved_'||req,'is_active',true,'outlet_access_type','none'),array['marketing_workspace.access','marketing_content.view'],'{}'::uuid[]);
  configured_role:=(result->'role'->>'id')::uuid;
+ insert into marketing_qa_ids values('configured_role',configured_role);
  assert configured_role is not null and jsonb_array_length(result->'permissions')=2,'Canonical role save must persist exact Marketing permissions';
  perform public.marketing_set_role_scope(o,configured_role,false,array[b]);
  blocked:=false;begin perform public.marketing_set_role_scope(o,configured_role,true,'{}'::uuid[]);exception when insufficient_privilege then blocked:=true;end;assert blocked,'Selected-brand manager cannot grant future all-brand authority';
@@ -83,7 +87,29 @@ begin
  result:=public.marketing_listing(o,b,'approvals',2,20);assert jsonb_array_length(result->'rows')=5,'Older approvals must remain reachable';
  result:=public.marketing_listing(o,b,'jobs');assert result->>'total_count'='1','Job list total must be canonical';
  result:=public.marketing_setup_options(o);assert jsonb_typeof(result->'roles')='array','Setup options contract';
+ assert jsonb_array_length(result->'employees')=1 and result->'employees'->0->>'id'=(select id::text from marketing_qa_ids where key='employee'),'Employee picker must respect canonical People visibility';
+ blocked:=false;begin perform public.platform_organization_command('add_member',o,jsonb_build_object('employee_id',(select id from marketing_qa_ids where key='other_employee')));exception when insufficient_privilege then blocked:=true;end;assert blocked,'Membership insertion must enforce target visibility';
+ for i in 1..105 loop
+  result:=public.marketing_content_command(gen_random_uuid(),'save',o,b,null,0,jsonb_build_object('title','QA calendar job '||i,'outlet_ids','[]'::jsonb,'variants','[{"channel":"facebook","format":"text","caption":"QA calendar caption","asset_ids":[]}]'::jsonb));
+  perform public.marketing_content_command(gen_random_uuid(),'review',o,b,(result->>'id')::uuid,1);
+  perform public.marketing_content_command(gen_random_uuid(),'approve',o,b,(result->>'id')::uuid,1);
+  perform public.marketing_content_command(gen_random_uuid(),'schedule',o,b,(result->>'id')::uuid,1,jsonb_build_object('scheduled_at',now()+interval '1 day','timezone','Asia/Kuala_Lumpur'));
+ end loop;
+ result:=public.marketing_read(o,b,'calendar',now(),now()+interval '2 days',6,20);
+ assert result->>'total'='106' and jsonb_array_length(result->'rows')=6 and jsonb_array_length(result->'jobs')=6,'Every paged calendar record needs its delivery state beyond 100 jobs';
+ assert not exists(select 1 from jsonb_array_elements(result->'jobs') job where not exists(select 1 from jsonb_array_elements(result->'rows') row where row->>'id'=job->>'content_id')),'Calendar jobs must match displayed records';
 end; $$;
+reset role;
+-- Existing grants outside the manager's brands are neither disclosed nor overwritten.
+delete from public.marketing_role_brands where role_id=(select id from marketing_qa_ids where key='configured_role');
+insert into public.marketing_role_brands select (select id from marketing_qa_ids where key='org'),(select id from marketing_qa_ids where key='configured_role'),(select id from marketing_qa_ids where key='other_brand');
+set local role authenticated;
+do $$declare result jsonb; denied boolean:=false;begin
+ result:=public.marketing_read((select id from marketing_qa_ids where key='org'),null,'settings');
+ assert not exists(select 1 from jsonb_array_elements(result->'role_scopes') s where s->>'role_id'=(select id::text from marketing_qa_ids where key='configured_role')),'Hidden brand grants cannot leak through Settings';
+ begin perform public.marketing_set_role_scope((select id from marketing_qa_ids where key='org'),(select id from marketing_qa_ids where key='configured_role'),false,array[(select id from marketing_qa_ids where key='brand')]);exception when insufficient_privilege then denied:=true;end;
+ assert denied,'A brand manager cannot overwrite role grants outside their management scope';
+end;$$;
 reset role;
 set local role service_role;
 do $$begin assert public.marketing_claim_job() is null,'No job may execute without production authorization';end;$$;
