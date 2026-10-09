@@ -127,5 +127,16 @@ do $$declare s uuid:=(select id from marketing_qa_ids where key='reconnect');beg
  assert public.marketing_meta_connection_material((select id from marketing_qa_ids where key='connection')) is not null,'Older removal event cannot erase later consent';
 end;$$;
 reset role;
+-- Recover a known completed checkpoint after a lease crash; never repeat a pending write.
+update public.marketing_connections set capabilities=capabilities||'{"execution_enabled":true}' where id=(select id from marketing_qa_ids where key='connection');
+update public.marketing_jobs set state='leased',external_authorized_at=now(),connection_generation=3,provider_state='{"objects":{"photo_0":"901"}}',due_at=now()-interval '1 minute',lease_expires_at=now()-interval '1 minute' where id=(select id from marketing_qa_ids where key='job');
+set local role service_role;
+do $$declare j jsonb;begin
+ j:=public.marketing_claim_job();assert j->>'state'='leased' and j->'provider_state'->'objects'->>'photo_0'='901','Known completed checkpoint must resume without recreating media';
+ perform public.marketing_job_checkpoint((j->>'id')::uuid,(j->>'lease_token')::uuid,'{"pending":"publish"}');
+ perform public.marketing_finish_job((j->>'id')::uuid,(j->>'lease_token')::uuid,'permanent_failure',null,'qa_failure_after_lost_write');
+ assert public.marketing_claim_job() is null,'A failure cannot unlock a pending uncertain write';
+end;$$;
+reset role;
 rollback;
 select 'Marketing Meta OAuth/execution/privacy rollback rehearsal passed' result;

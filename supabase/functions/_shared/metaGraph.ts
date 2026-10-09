@@ -11,6 +11,11 @@ export class MetaGraph {
   if(!/^\/?(?:\d+(?:_\d+)?|me|oauth|debug_token)(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
   const url=new URL(`https://graph.facebook.com/${this.config.version}/${path.replace(/^\//,'')}`);
   const form=new URLSearchParams();for(const [key,value] of Object.entries(params))if(value!==undefined&&value!==null)form.set(key,typeof value==='object'?JSON.stringify(value):String(value));
+  if(token&&token!==`${this.config.appId}|${this.config.appSecret}`) {
+   const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(this.config.appSecret),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+   const proof=await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(token));
+   form.set('appsecret_proof',Array.from(new Uint8Array(proof),b=>b.toString(16).padStart(2,'0')).join(''));
+  }
   if(method==='GET')url.search=form.toString();
   let response:Response;
   try { response=await this.transport(url,{method,headers:{...(token?{Authorization:`Bearer ${token}`}:{ }),...(method!=='GET'?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body:method==='GET'?undefined:form.toString(),signal:AbortSignal.timeout(20000),redirect:'error'}); }
@@ -50,7 +55,7 @@ export class MetaGraph {
     accounts.push(fb);tokens[`facebook:${row.id}`]=row.access_token;
     const ig=row.instagram_business_account;
     if(ig&&/^\d+$/.test(ig.id)) {
-     accounts.push({id:ig.id,name:String(ig.username||`${row.name} Instagram`).slice(0,200),channel:'instagram',capabilities:{publishing:permitted('instagram_basic')&&permitted('instagram_content_publish')&&create,posts:permitted('instagram_basic'),insights:permitted('instagram_manage_insights'),formats:['image','carousel','reel'],granted_scopes:[...scopes]},page_id:row.id});
+     accounts.push({id:ig.id,name:String(ig.username||`${row.name} Instagram`).slice(0,200),channel:'instagram',capabilities:{publishing:permitted('instagram_basic')&&permitted('instagram_content_publish')&&permitted('pages_read_engagement')&&create,posts:permitted('instagram_basic'),insights:permitted('instagram_manage_insights'),formats:['image','carousel','reel'],granted_scopes:[...scopes]},page_id:row.id});
      tokens[`instagram:${ig.id}`]=row.access_token;
     }
    }
