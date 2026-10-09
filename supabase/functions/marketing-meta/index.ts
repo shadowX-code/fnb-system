@@ -40,7 +40,7 @@ Deno.serve(async(req)=>{
    const identity=await caller.auth.getUser();user=identity.data.user;if(identity.error||!user)return json(req,{error:'Sign in to Marketing.'},401);
   }
   if(missing.length)return json(req,{error:'Meta server configuration is incomplete.',missing},503);
-  const graph=new MetaGraph(config);
+  const graph=new MetaGraph(config,fetch,path==='/callback'?event=>console.info(JSON.stringify({tag:'marketing_meta_discovery_v1',...event})):undefined);
   if(path==='/callback'&&req.method==='GET') {
    const query=new URL(req.url).searchParams;const state=query.get('state')||'';
    if(!/^[A-Za-z0-9_-]{43}$/.test(state))return json(req,{error:'Invalid authorization state.'},400);

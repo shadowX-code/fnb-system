@@ -38,6 +38,8 @@ Post sync uses fixed official Graph endpoints and opaque cursors, two posts per 
 
 ## Verification
 
+Discovery diagnostics: filter Staging `marketing-meta` function logs for `marketing_meta_discovery_v1` over the single fresh OAuth attempt's time window. `graph_response` for `me/accounts` distinguishes an empty successful response, a Graph denial, unreadable data and absent transport response. `page_candidate` records recognized tasks, numeric linked Instagram identity and `accepted`, `rejected_invalid_page_id` or `rejected_missing_page_token`. Compare all returned Page IDs with the intended test Page before accepting any identity or registering an allowlist. These logs contain no credential/profile fields and do not alter acceptance, capability or execution checks.
+
 - Focused adapter/UI/security tests: OAuth app/grant/expiry verification, AES-GCM binding and rotation, signature forgery, safe endpoint construction, durable upload/publishing steps, lost-response retries, persistence failures after acceptance, processing polls, media byte checks, missing metrics, expired UI and explicit reviewed-revision approval.
 - Deno checks pass for both Edge Functions; Vite build passes.
 - `marketingMeta.rollback.sql` passes on linked Staging: single-use state, hidden brand and redirect denial, service-only credentials/bind/checkpoints, actor-bound discovery, idempotent selection, no backlog release, server execution gate, exact retry approval, durable receipt requirement, uncertainty freeze, disconnect/erasure and privilege boundaries. All fixtures roll back and call no provider.
