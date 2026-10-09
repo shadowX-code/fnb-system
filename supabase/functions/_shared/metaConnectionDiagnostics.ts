@@ -1,9 +1,9 @@
 import { MetaGraph, MetaError } from './metaGraph.ts';
 import { META_SCOPES } from './metaSecurity.ts';
 import { facebookPostFields } from './metaSynchronization.ts';
-import { resolvePageRoleTasks } from './metaPageTasks.ts';
+import { resolvePageRoleTasks, resolveBusinessPageTasks, type AuthorizerAssignment } from './metaPageTasks.ts';
 // Fixed GETs only. No provider bodies, messages, personal subjects or credentials leave this module.
-export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appToken:string,connection:any,token:string,guard:()=>Promise<void>,publishingChecks=false) {
+export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appToken:string,connection:any,token:string,guard:()=>Promise<void>,publishingChecks=false,assignment?:AuthorizerAssignment) {
  const id=connection.provider_account_id;
  if(!/^\d{1,30}$/.test(id))throw new MetaError('invalid_meta_account');
  const evidence:any[]=[];
@@ -39,7 +39,8 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
    publishingEvidence.scope_target_mismatches=required.filter(scope=>Array.isArray(debug?.granular_scopes)&&debug.granular_scopes.some((g:any)=>g?.scope===scope&&Array.isArray(g.target_ids)&&g.target_ids.length>0)&&!debug.granular_scopes.some((g:any)=>g?.scope===scope&&Array.isArray(g.target_ids)&&g.target_ids.some((target:unknown)=>[pageId,id].includes(String(target)))));
    const page=await read('page_posting_capability',pageId,token,{fields:'id,can_post'});
    if(String(page?.id)===pageId&&typeof page?.can_post==='boolean')publishingEvidence.can_post=page.can_post;
-   const tasks=await resolvePageRoleTasks(pageId,String(debug?.user_id||''),(path,params)=>read('authorizer_page_roles',path,token,params));
+   let tasks=await resolvePageRoleTasks(pageId,String(debug?.user_id||''),(path,params)=>read('authorizer_page_roles',path,token,params));
+   if(tasks.state==='unverified'&&tokenEvidence.granted_scopes.includes('pages_manage_metadata')&&assignment&&(!(debug.granular_scopes||[]).some((g:any)=>g.scope==='pages_manage_metadata'&&g.target_ids?.length)||(debug.granular_scopes||[]).some((g:any)=>g.scope==='pages_manage_metadata'&&g.target_ids?.includes(pageId))))tasks=await resolveBusinessPageTasks(pageId,String(debug?.user_id||''),assignment,(path,params)=>read('authorizer_page_assignment',path,token,params));
    publishingEvidence.page_tasks=tasks.tasks;
    publishingEvidence.page_tasks_verified=tasks.state!=='unverified';
    publishingEvidence.page_task_source=tasks.source;

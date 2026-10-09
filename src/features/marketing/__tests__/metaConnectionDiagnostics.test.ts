@@ -71,4 +71,16 @@ describe('read-only Meta connection diagnostics',()=>{
    expect(JSON.stringify(result)).not.toContain('789');
   }
  });
+ it('revalidates encrypted business mapping against the current Page-token authorizer without exposing identity',async()=>{
+  for(const subject of ['789','999']) {
+   const transport=vi.fn().mockResolvedValueOnce(response({data:{is_valid:true,app_id:'123',type:'PAGE',user_id:'789',scopes:['pages_manage_posts','pages_read_engagement','pages_manage_metadata'],expires_at:0}}))
+    .mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({data:[]})).mockResolvedValueOnce(response({id:'111',can_post:true})).mockResolvedValueOnce(response({data:[]}))
+    .mockResolvedValueOnce(response({data:[{id:'555',tasks:['CREATE_CONTENT']}]}));
+   const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',{provider_account_id:'111',channel:'facebook',capabilities:{execution_enabled:false,publishing:false}},'secret-token',vi.fn(),true,{subject,businessId:'777',businessUserId:'555'});
+   expect(result.publishing_evidence.eligibility).toBe(subject==='789'?'verified':'unverified');
+   expect(result.publishing_enabled).toBe(false);expect(JSON.stringify(result)).not.toMatch(/789|555|secret-token/);
+   expect(transport).toHaveBeenCalledTimes(subject==='789'?6:5);
+  }
+ });
+
 });

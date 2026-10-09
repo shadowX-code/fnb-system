@@ -1,5 +1,5 @@
 import { META_REDIRECT, META_SCOPES } from './metaSecurity.ts';
-import { resolvePageRoleTasks } from './metaPageTasks.ts';
+import { resolvePageRoleTasks, discoverAuthorizerAssignments, resolveBusinessPageTasks, type AuthorizerAssignment } from './metaPageTasks.ts';
 // Only explicitly selected non-secret fields may enter diagnostics. Never log provider bodies.
 export type MetaResponseEvidence={graph_error_subcode:number|null;error_permissions:string[]};
 export type MetaDiagnostic = Record<string, string | number | boolean | null | string[]>;
@@ -49,11 +49,11 @@ export class MetaGraph {
   }
   return body;
  }
- async exchange(code:string):Promise<{userId:string;expiresAt:string;accounts:any[];tokens:Record<string,string>}> {
+ async exchange(code:string):Promise<{userId:string;expiresAt:string;accounts:any[];tokens:Record<string,string>;authorizerAssignments:Record<string,AuthorizerAssignment>}> {
   try {return await this.discover(code);}
   catch(error) {this.report({event:'discovery_failed',reason:error instanceof MetaError?error.code:'unexpected_response_handling_error'});throw error;}
  }
- private async discover(code:string):Promise<{userId:string;expiresAt:string;accounts:any[];tokens:Record<string,string>}> {
+ private async discover(code:string):Promise<{userId:string;expiresAt:string;accounts:any[];tokens:Record<string,string>;authorizerAssignments:Record<string,AuthorizerAssignment>}> {
   if(!code||code.length>4096)throw new MetaError('invalid_oauth_code');
   const short=await this.request('oauth/access_token','',{client_id:this.config.appId,client_secret:this.config.appSecret,redirect_uri:META_REDIRECT,code});
   if(typeof short.access_token!=='string')throw new MetaError('missing_oauth_token');
@@ -77,7 +77,15 @@ export class MetaGraph {
    for(const grant of Array.isArray(debug.granular_scopes)?debug.granular_scopes:[])if(diagnosticScopes.has(grant?.scope))this.report({event:'granular_targets',scope:grant.scope,account_ids:Array.isArray(grant.target_ids)?grant.target_ids.map(numericId).filter((v:string|null):v is string=>v!==null):[]});
   }
   if(!scopes.has('pages_show_list'))throw new MetaError('pages_show_list_not_granted');
-  const accounts:any[]=[], tokens:Record<string,string>={};let after:string|undefined;
+  const accounts:any[]=[], tokens:Record<string,string>={},authorizerAssignments:Record<string,AuthorizerAssignment>={};let after:string|undefined;
+  let mapped:AuthorizerAssignment[]|undefined;
+  const businessMappings=async()=>{
+   if(mapped)return mapped;
+   mapped=await discoverAuthorizerAssignments(String(debug.user_id),async(path,params)=>{
+    try{return await this.request(path,long.access_token,params,'GET',(status,code,detail)=>this.report({event:'authorizer_business_mapping_response',http_status:status,graph_error_code:code,graph_error_subcode:detail?.graph_error_subcode??null,error_permissions:detail?.error_permissions||[]}));}catch{return null;}
+   });
+   this.report({event:'authorizer_business_mapping',mapped_business_count:mapped.length});return mapped;
+  };
   const acceptPage=async(row:any,source:'accounts'|'granted_page_node',expectedId?:string)=>{
    const id=numericId(row?.id),hasToken=typeof row?.access_token==='string'&&row.access_token.length>0;
    const ig=row?.instagram_business_account;
@@ -95,6 +103,20 @@ export class MetaGraph {
     });
     this.report({event:'page_roles_evidence',page_id:id,state:result.state,tasks:result.tasks,reason:result.reason});
     if(result.state!=='unverified'){row.tasks=result.tasks;taskSource='page_roles';taskState=result.state;}
+   }
+   if(!taskSource&&debug.type==='USER'&&scopes.has('pages_manage_metadata')&&(!(debug.granular_scopes||[]).some((g:any)=>g.scope==='pages_manage_metadata'&&g.target_ids?.length)||(debug.granular_scopes||[]).some((g:any)=>g.scope==='pages_manage_metadata'&&g.target_ids?.includes(id)))) {
+    for(const assignment of await businessMappings()) {
+     const result=await resolveBusinessPageTasks(id!,String(debug.user_id),assignment,async(path,params)=>{
+      try{return await this.request(path,row.access_token,params,'GET',(status,code,detail)=>this.report({event:'page_assignment_response',page_id:id,business_id:assignment.businessId,http_status:status,graph_error_code:code,graph_error_subcode:detail?.graph_error_subcode??null,error_permissions:detail?.error_permissions||[]}));}catch{return null;}
+     });
+     this.report({event:'page_assignment_evidence',page_id:id,business_id:assignment.businessId,state:result.state,tasks:result.tasks,reason:result.reason});
+     if(result.state!=='unverified') {
+      row.tasks=result.tasks;taskSource=result.source;taskState=result.state;
+      authorizerAssignments[`facebook:${id}`]=assignment;
+      if(numericId(ig?.id))authorizerAssignments[`instagram:${ig.id}`]=assignment;
+      break;
+     }
+    }
    }
    const permitted=(scope:string)=>scopes.has(scope)&&(!(debug.granular_scopes||[]).some((g:any)=>g.scope===scope&&g.target_ids?.length)|| (debug.granular_scopes||[]).some((g:any)=>g.scope===scope&&g.target_ids?.some((id:string)=>[row.id,row.instagram_business_account?.id].includes(id))));
    const create=taskState!=='not_granted'&&(row.tasks||[]).some((x:string)=>['CREATE_CONTENT','MANAGE','PROFILE_PLUS_CREATE_CONTENT','PROFILE_PLUS_FULL_CONTROL'].includes(x));
@@ -139,6 +161,6 @@ export class MetaGraph {
    }
   }
   this.report({event:'discovery_complete',facebook_count:accounts.filter(a=>a.channel==='facebook').length,instagram_count:accounts.filter(a=>a.channel==='instagram').length});
-  return {userId:String(debug.user_id),expiresAt,accounts,tokens};
+  return {userId:String(debug.user_id),expiresAt,accounts,tokens,authorizerAssignments};
  }
 }

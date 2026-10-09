@@ -3,7 +3,7 @@ export const STAGING_ORIGIN = 'https://fnb-system-staging.vercel.app';
 export const STAGING_SUPABASE = 'https://ujkzdaaadnvcfayuldmh.supabase.co';
 export const META_BASE = `${STAGING_SUPABASE}/functions/v1/marketing-meta`;
 export const META_REDIRECT = `${META_BASE}/callback`;
-export const META_SCOPES = ['pages_show_list','pages_read_engagement','pages_manage_posts','instagram_basic','instagram_content_publish','read_insights','instagram_manage_insights'];
+export const META_SCOPES = ['pages_show_list','pages_read_engagement','pages_manage_posts','instagram_basic','instagram_content_publish','read_insights','instagram_manage_insights','pages_manage_metadata'];
 export function base64url(bytes: Uint8Array): string { const parts:string[]=[];for(let i=0;i<bytes.length;i+=32768)parts.push(String.fromCharCode(...bytes.subarray(i,i+32768)));return btoa(parts.join('')).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,''); }
 export function unbase64(value: string): Uint8Array<ArrayBuffer> {
  if (!/^[A-Za-z0-9_+/=-]+$/.test(value)) throw new Error('Invalid encoding.');

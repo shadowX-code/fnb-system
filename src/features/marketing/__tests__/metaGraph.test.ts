@@ -117,4 +117,25 @@ describe('official Meta OAuth adapter',()=>{
   expect(new URL(transport.mock.calls[5][0]).searchParams.get('uid')).toBe('789');
   expect(JSON.stringify(result.accounts)).not.toContain('789');expect(JSON.stringify(result.accounts)).not.toContain('page-token');
  });
+ it('resolves business assignments using fresh User mapping and a Page token, preserving channel scope boundaries',async()=>{
+  for(const mapping of [{id:'555',business:{id:'777'}},null]) {
+   const transport=vi.fn().mockResolvedValueOnce(reply({access_token:'short'})).mockResolvedValueOnce(reply({access_token:'long',expires_in:3600}))
+    .mockResolvedValueOnce(reply({data:{is_valid:true,app_id:'123',type:'USER',user_id:'789',scopes:['pages_show_list','pages_read_engagement','pages_manage_posts','instagram_basic','instagram_content_publish','pages_manage_metadata'],granular_scopes:[{scope:'pages_show_list',target_ids:['111']},{scope:'pages_manage_posts',target_ids:['999']}]}}))
+    .mockResolvedValueOnce(reply({data:[]})).mockResolvedValueOnce(reply({id:'111',access_token:'page-token',instagram_business_account:{id:'222'}}))
+    .mockResolvedValueOnce(reply({data:[]})).mockResolvedValueOnce(reply({data:mapping?[mapping]:[]}))
+    .mockResolvedValueOnce(reply({data:[{id:'555',tasks:['MANAGE']}]}));
+   const result=await new MetaGraph(config,transport).exchange('code');
+   expect(result.accounts[0].capabilities.publishing).toBe(false);
+   expect(result.accounts[1].capabilities.publishing).toBe(Boolean(mapping));
+   expect(JSON.stringify(result.accounts)).not.toMatch(/789|555|page-token/);
+   if(mapping) {
+    expect(result.authorizerAssignments['instagram:222']).toEqual({subject:'789',businessId:'777',businessUserId:'555'});
+    expect(new URL(transport.mock.calls[6][0]).pathname).toBe('/v26.0/789/business_users');
+    expect(transport.mock.calls[6][1].headers.Authorization).toBe('Bearer long');
+    expect(new URL(transport.mock.calls[7][0]).searchParams.get('business')).toBe('777');
+    expect(transport.mock.calls[7][1].headers.Authorization).toBe('Bearer page-token');
+   }else expect(result.authorizerAssignments).toEqual({});
+  }
+ });
+
 });

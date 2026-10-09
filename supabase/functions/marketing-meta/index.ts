@@ -1,6 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { META_BASE, META_REDIRECT, META_SCOPES, STAGING_ORIGIN, STAGING_SUPABASE, authorizationUrl, connectionBinding, hash, nonce, seal, unseal, verifySignedRequest } from '../_shared/metaSecurity.ts';
-import { testAccountEnabled } from '../_shared/metaPublishing.ts';
 import { diagnoseMetaConnection, verifiedFacebookRead } from '../_shared/metaConnectionDiagnostics.ts';
 import { MetaGraph } from '../_shared/metaGraph.ts';
 const names=['MARKETING_META_APP_ID','MARKETING_META_APP_SECRET','MARKETING_META_LOGIN_CONFIG_ID','MARKETING_META_GRAPH_VERSION','MARKETING_META_TOKEN_ENCRYPTION_KEY'];
@@ -62,7 +61,7 @@ Deno.serve(async(req)=>{
    const material=await call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user.id});
    const credential=await unseal(material.sealed_token,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
    const guard=async()=>{const current=await call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user.id});if(current.credential_generation!==material.credential_generation)throw new Error('connection_changed');};
-   const result=await diagnoseMetaConnection(graph,config.appId,`${config.appId}|${config.appSecret}`,material,credential.token,guard,path==='/diagnose');
+   const result=await diagnoseMetaConnection(graph,config.appId,`${config.appId}|${config.appSecret}`,material,credential.token,guard,path==='/diagnose',credential.authorizerAssignment);
    if(path==='/retry-sync') {
     if(!verifiedFacebookRead(result,material))return json(req,{error:'Facebook read access could not be verified. Check connection details.'},409);
     await call(service,'marketing_meta_retry_sync_verified',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation});
@@ -79,9 +78,10 @@ Deno.serve(async(req)=>{
   const token=account&&discovery.tokens[`${account.channel}:${account.id}`];if(!token||Date.parse(discovery.expiresAt)<=Date.now())return json(req,{error:'Reconnect Meta to select this account.'},409);
   const verified=await graph.request(account.id,token,{fields:account.channel==='facebook'?'id,name':'id,username'});
   if(String(verified.id)!==account.id)return json(req,{error:'Meta account identity could not be verified.'},409);
-  const sealed=await seal({token},key,connectionBinding({brand_id:session.brand_id,channel:account.channel,provider_account_id:account.id}));
+  const sealed=await seal({token,authorizerAssignment:discovery.authorizerAssignments?.[`${account.channel}:${account.id}`]},key,connectionBinding({brand_id:session.brand_id,channel:account.channel,provider_account_id:account.id}));
   const connection=await call(service,'marketing_meta_bind',{p_session:session.id,p_auth_user:user.id,p_account_id:account.id,p_channel:account.channel,p_sealed:sealed,p_expiry:discovery.expiresAt,p_mode:'test'});
-  const enabled=testAccountEnabled(connection.provider_account_id,env('MARKETING_META_TEST_ACCOUNT_IDS'));
+  // Fresh consent and task eligibility never grant external execution.
+  const enabled=false;
   await call(service,'marketing_meta_execution_policy',{p_connection:connection.id,p_generation:connection.credential_generation,p_enabled:enabled});
   return json(req,{connection:{...connection,capabilities:{...connection.capabilities,execution_enabled:enabled}}});
  }catch {return json(req,{error:'Meta request could not be completed. Reload or reconnect and try again.'},400);}
