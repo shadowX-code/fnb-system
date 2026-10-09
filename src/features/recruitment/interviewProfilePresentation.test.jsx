@@ -44,9 +44,8 @@ describe("Interview plan presentation", () => {
       screen.getByRole("button", { name: "View Service Crew profile" }),
     );
     expect(screen.getByRole("heading", { name: "Assessment Areas" })).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "Completion Rules" }),
-    ).toBeTruthy();
+    fireEvent.click(screen.getByText(/Completion & duration settings/));
+    expect(screen.getByRole("heading", { name: "Completion Rules" })).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: "Prepare next version" }),
     ).toBeNull();
