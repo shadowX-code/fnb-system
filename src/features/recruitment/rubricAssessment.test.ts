@@ -17,10 +17,19 @@ describe("Pinned optional rubric assessment",()=>{
 
 it("binds every report citation to candidate source IDs, never display numbers or AI IDs",()=>{
  const schema:any=reportSchemaForSource("recruitment-report-v4",source);
- expect(schema.properties.assessments.items.properties.finding.properties.turn_ids.items.enum).toEqual([21]);
+ expect(schema.properties.assessments.items.anyOf[0].properties.finding.properties.turn_ids.items.enum).toEqual([21]);
  expect(schema.properties.candidate_snapshot.items.properties.turn_ids.items.enum).toEqual([21]);
  expect(schema.properties.topics.items.properties.finding.properties.turn_ids.items.enum).toEqual([21]);
  expect(schema.properties.scenarios.items.properties.finding.properties.turn_ids.items.enum).toEqual([21]);
  expect(schema.properties.opening_requirements.items.properties.finding.properties.turn_ids.items.enum).toEqual([21]);
  expect(reportSchemaForVersion("recruitment-report-v4").properties.candidate_snapshot.items.properties.turn_ids.items).not.toHaveProperty("enum");
+});
+
+it("provider assessment branches agree with trusted assessed/insufficient contracts",()=>{
+ const schema:any=reportSchemaForSource("recruitment-report-v4",source);
+ const [assessed,missing]=schema.properties.assessments.items.anyOf;
+ expect(assessed.properties.status.enum).toEqual(["assessed"]);
+ expect(assessed.properties.finding.properties.kind.enum).toEqual(["interpretation"]);
+ expect(missing.properties.level).toEqual({type:"null"});
+ expect(missing.properties.finding.properties.kind.enum).toEqual(["unresolved"]);
 });
