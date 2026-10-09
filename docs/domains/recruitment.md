@@ -200,3 +200,5 @@ Profile Builder prioritizes role context, area goals/priorities and scenarios. C
 Public candidate controls share a theme-isolated FeedX token contract for primary, secondary, selected, disabled, loading and focus states; Admin dark-theme selectors do not style candidate controls. Page language is locally persisted and explicitly labeled separately from the server-owned spoken interview preference, which remains visible on Get Ready. Switching either choice never implicitly changes the other.
 
 Report failures retain bounded stage-specific codes (provider, response parsing, report/rubric/citation validation or persistence), without logging candidate text or raw provider/database errors. Managers may create a new report version after a failed generation; failed versions and their source snapshots remain preserved.
+
+Report provider schemas bind `turn_ids` to candidate database IDs from the immutable report source. Display turn numbers, foreign IDs and AI turns cannot be generated as citations; Edge and database citation validation remain independent enforcement.

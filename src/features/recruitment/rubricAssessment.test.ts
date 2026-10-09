@@ -1,5 +1,5 @@
 import { describe,it,expect } from "vitest";
-import { validateReport,reportSchemaForVersion,instructionsForVersion } from "../../../supabase/functions/recruitment-report/report.ts";
+import { validateReport,reportSchemaForVersion,instructionsForVersion,reportSchemaForSource } from "../../../supabase/functions/recruitment-report/report.ts";
 const levels=[1,2,3,4].map(level=>({level,criteria:`Observable customer handling criterion ${level}: a distinct role-related behavior.`}));
 const source={attempt:{status:"completed",recording_state:"complete"},config:{required_topics:["Customer Handling"],scenario_briefs:[],opening_requirements:{}},turns:[{id:21,turn_number:1,speaker:"candidate",transcript:"I checked the order and explained the wait.",elapsed_end_ms:1000},{id:22,speaker:"ai"}],topics:[{topic_index:0,state:"covered"}],units:[],gaps:[],annotations:[],assessment_plan:{profile_id:"future",version:3,areas:[{index:0,name:"Customer Handling",rubric:{levels}}]}};
 const finding=(kind="interpretation",ids=[21])=>({text:"Explains a concrete order-checking response.",kind,turn_ids:ids});
@@ -13,4 +13,14 @@ describe("Pinned optional rubric assessment",()=>{
  it("cannot fabricate rubric assessments on historical reports",()=>expect(()=>validateReport(raw(),source,"recruitment-report-v3")).toThrow("Historical"));
  it("does not turn insufficient evidence into a low score",()=>{const body=raw();body.assessments[0].status="insufficient_evidence";expect(()=>validateReport(body,source,"recruitment-report-v4")).toThrow();});
  it("extends only the v4 schema and keeps no overall score/rank",()=>{expect(reportSchemaForVersion("recruitment-report-v3").properties).not.toHaveProperty("assessments");expect(reportSchemaForVersion("recruitment-report-v4").properties).toHaveProperty("assessments");expect(instructionsForVersion("recruitment-report-v4")).toContain("Missing");});
+});
+
+it("binds every report citation to candidate source IDs, never display numbers or AI IDs",()=>{
+ const schema:any=reportSchemaForSource("recruitment-report-v4",source);
+ expect(schema.properties.assessments.items.properties.finding.properties.turn_ids.items.enum).toEqual([21]);
+ expect(schema.properties.candidate_snapshot.items.properties.turn_ids.items.enum).toEqual([21]);
+ expect(schema.properties.topics.items.properties.finding.properties.turn_ids.items.enum).toEqual([21]);
+ expect(schema.properties.scenarios.items.properties.finding.properties.turn_ids.items.enum).toEqual([21]);
+ expect(schema.properties.opening_requirements.items.properties.finding.properties.turn_ids.items.enum).toEqual([21]);
+ expect(reportSchemaForVersion("recruitment-report-v4").properties.candidate_snapshot.items.properties.turn_ids.items).not.toHaveProperty("enum");
 });
