@@ -488,7 +488,7 @@ export default function RecruitmentEvidenceReview({
                         {busy ? "Generating…" : "Generate interview report"}
                       </button>
                     )}
-                    {["ready", "unusable"].includes(report?.status) &&
+                    {["ready", "unusable", "failed"].includes(report?.status) &&
                       data.can_manage && (
                         <button
                           className="btn-secondary"

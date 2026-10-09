@@ -4,6 +4,7 @@ import {
   reportSchemaForVersion,
   validateReport,
 } from "./report.ts";
+import { classifyReportFailure } from "./diagnostics.ts";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -32,6 +33,9 @@ Deno.serve(async (req) => {
     return data;
   };
   let claim: any;
+  let stage = "claim";
+  let providerStatus: number | undefined;
+  let responseId: string | undefined;
   try {
     const input = await req.json(),
       authorization = req.headers.get("authorization");
@@ -57,6 +61,7 @@ Deno.serve(async (req) => {
     claim = await rpc("recruitment_report_claim", { p_report_id: reportId });
     if (claim.status !== "claimed")
       return json({ report_id: reportId, status: claim.status });
+    stage = "provider";
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) throw Error("Provider unavailable");
     // No candidate profile, employee data, recording URLs, audio or video enter the model.
@@ -93,8 +98,11 @@ Deno.serve(async (req) => {
         max_output_tokens: 9000,
       }),
     });
+    providerStatus = provider.status;
     if (!provider.ok) throw Error("Provider request failed");
+    stage = "response_parsing";
     const output = await provider.json();
+    responseId = output.id;
     if (output.status !== "completed")
       throw Error("Provider report incomplete");
     const text = output.output
@@ -102,7 +110,10 @@ Deno.serve(async (req) => {
       .filter((x: any) => x.type === "output_text")
       .map((x: any) => x.text)
       .join("");
-    const body = validateReport(JSON.parse(text), source, claim.prompt_version);
+    const parsed = JSON.parse(text);
+    stage = "validation";
+    const body = validateReport(parsed, source, claim.prompt_version);
+    stage = "persistence";
     await rpc("recruitment_report_finish", {
       p_report_id: claim.id,
       p_generation_id: claim.generation_id,
@@ -111,17 +122,21 @@ Deno.serve(async (req) => {
       p_error_code: null,
     });
     return json({ report_id: claim.id, status: "ready" });
-  } catch {
+  } catch (error) {
+    const code = classifyReportFailure(stage, error, providerStatus);
+    // Only bounded stage/code/status metadata. Never log prompts, transcript, output or raw errors.
+    console.error(JSON.stringify({event:"recruitment_report_failure",stage,code,provider_status:providerStatus}));
     if (claim?.status === "claimed")
       await rpc("recruitment_report_finish", {
         p_report_id: claim.id,
         p_generation_id: claim.generation_id,
         p_body: null,
-        p_response_id: null,
-        p_error_code: "generation_failed",
-      }).catch(() => {});
+        p_response_id: responseId || null,
+        p_error_code: code,
+      }).catch(() => console.error(JSON.stringify({event:"recruitment_report_failure",stage:"failure_persistence",code:"persistence_failed"})));
     return json(
       {
+        error_code: code,
         error:
           "Report unavailable. Existing evidence is retained; a manager can request a new version.",
       },

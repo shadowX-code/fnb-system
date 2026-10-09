@@ -198,3 +198,5 @@ Assessment areas are unordered evidence goals, never sequential question turns. 
 Profile Builder prioritizes role context, area goals/priorities and scenarios. Collection guidance, evaluation rubrics, global strategy and completion/duration settings remain available through progressive disclosure. Disclosure changes do not mutate drafts, published versions or pins.
 
 Public candidate controls share a theme-isolated FeedX token contract for primary, secondary, selected, disabled, loading and focus states; Admin dark-theme selectors do not style candidate controls. Page language is locally persisted and explicitly labeled separately from the server-owned spoken interview preference, which remains visible on Get Ready. Switching either choice never implicitly changes the other.
+
+Report failures retain bounded stage-specific codes (provider, response parsing, report/rubric/citation validation or persistence), without logging candidate text or raw provider/database errors. Managers may create a new report version after a failed generation; failed versions and their source snapshots remain preserved.

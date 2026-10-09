@@ -3,7 +3,7 @@ import { render, screen, waitFor, fireEvent, cleanup } from "@testing-library/re
 import { validateReport, explicitRequirements } from "../../../supabase/functions/recruitment-report/report.ts";
 import { reviewAreas } from "./reviewIntelligence.js";
 import Review from "./RecruitmentEvidenceReview.jsx";
-const service = vi.hoisted(() => ({ managerEvidence: vi.fn(), decide: vi.fn() }));
+const service = vi.hoisted(() => ({ managerEvidence: vi.fn(), decide: vi.fn(), generateReport: vi.fn() }));
 vi.mock("./recruitmentService.js", () => ({ recruitmentService: service }));
 const turns = [
   { id: 330, turn_number: 14, speaker: "candidate", transcript: "平日只能上午至下午工作，周末整天都可以。", elapsed_end_ms: 90000 },
@@ -32,3 +32,13 @@ describe("Manager review progressive disclosure",()=>{
 
 it("shows unscored historical areas separately from fit and evidence",async()=>{service.managerEvidence.mockResolvedValue(data());render(<Review application={{id:"application",name:"Tester"}} onClose={()=>{}}/>);await screen.findByRole("tab",{name:"Assessment"});fireEvent.click(screen.getByRole("tab",{name:"Assessment"}));expect(screen.getByText(/Historical evidence has not been scored/)).toBeTruthy();expect(screen.getByText("No rubric in this version")).toBeTruthy();expect(screen.getByRole("tab",{name:"Assessment"}).getAttribute("aria-selected")).toBe("true");expect(screen.getByText("Opening Requirements").closest("section").hidden).toBe(true);});
 it("renders trusted rubric results with criterion/source drilldown, never calculates a total",async()=>{const d=data();d.reports[0].source_snapshot={...source,assessment_plan:{profile_id:"future",version:3,areas:[{index:0,name:"Shift Flexibility",rubric:{levels:[1,2,3,4].map(level=>({level,criteria:`Role-specific criterion ${level}`}))}}]}};d.reports[0].body.assessments=[{index:0,area:"Shift Flexibility",status:"assessed",level:2,criterion:"Role-specific criterion 2",finding:{text:"States concrete shift constraints.",kind:"interpretation",evidence:[{turn_id:330,turn_number:18,recordings:[]}]}}];service.managerEvidence.mockResolvedValue(d);render(<Review application={{id:"application",name:"Tester"}} onClose={()=>{}}/>);await screen.findByRole("tab",{name:"Assessment"});fireEvent.click(screen.getByRole("tab",{name:"Assessment"}));expect(screen.getByText("Criterion: Role-specific criterion 2")).toBeTruthy();expect(screen.queryByText(/overall candidate score|recommended hire/i)).toBeNull();fireEvent.click(screen.getAllByRole("button",{name:"Turn 18"})[0]);expect(screen.getByRole("tab",{name:"Interview Evidence"}).getAttribute("aria-selected")).toBe("true");expect(service.decide).not.toHaveBeenCalled();});
+
+it("retries failed reports only as a new authorized version",async()=>{
+ const d=data();d.reports[0]={...d.reports[0],status:"failed",body:null};
+ service.managerEvidence.mockResolvedValue(d);service.generateReport.mockResolvedValue({status:"ready"});
+ render(<Review application={{id:"application",name:"Tester"}} onClose={()=>{}}/>);
+ const retry=await screen.findByRole("button",{name:"Generate new version"});
+ fireEvent.click(retry);
+ await waitFor(()=>expect(service.generateReport).toHaveBeenCalledWith("application",expect.any(String),true,null));
+ expect(d.reports[0].status).toBe("failed");expect(service.decide).not.toHaveBeenCalled();
+});
