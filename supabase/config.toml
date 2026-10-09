@@ -26,3 +26,7 @@ verify_jwt = false
 [functions.marketing-worker]
 # Scheduler uses a private worker secret; browser commands use canonical authenticated RPCs.
 verify_jwt = false
+
+[functions.marketing-inbox]
+# Signed Meta webhook or canonical Auth/action/brand verification in the function.
+verify_jwt = false

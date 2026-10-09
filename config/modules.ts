@@ -39,7 +39,9 @@ export type ModuleAction =
   | "enable_login"
   | "reset_password"
   | "access"
-  | "developer";
+  | "developer"
+  | "reply"
+  | "ai";
 
 export type AppModule = {
   id: string;
@@ -96,6 +98,8 @@ export const permissionActionOrder: ModuleAction[] = [
   "record_collection",
   "cancel",
   "manage",
+  "reply",
+  "ai",
   "import",
   "upload",
   "export",
@@ -141,6 +145,8 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   record_collection: "Record Collection",
   cancel: "Cancel",
   manage: "Manage",
+  reply: "Prepare Replies",
+  ai: "Request AI Suggestions",
   import: "Import",
   upload: "Upload",
   export: "Export",
@@ -209,6 +215,7 @@ export const moduleRegistry: AppModule[] = [
   { id: "marketing_overview", section: "Overview", label: "Overview", route: "/marketing/overview", icon: "marketing_overview", sidebar: true, workspace: "marketing", permissions: { view: true } },
   { id: "marketing_content", section: "Content Studio", label: "Content Library", route: "/marketing/content", icon: "marketing_content", sidebar: true, workspace: "marketing", permissions: { view: true, create: true, edit: true, review: true, approve: true, publish: true, execute: true, cancel: true, upload: true } },
   { id: "marketing_calendar", section: "Content Studio", label: "Calendar", route: "/marketing/calendar", icon: "marketing_calendar", sidebar: true, workspace: "marketing", permissions: { view: true } },
+  { id: "marketing_inbox", section: "Inbox", label: "Unified Inbox", route: "/marketing/inbox", icon: "marketing_inbox", sidebar: true, workspace: "marketing", permissions: { view: true, manage: true, reply: true, approve: true, configure: true, ai: true } },
   { id: "marketing_analytics", section: "Analytics", label: "Analytics", route: "/marketing/analytics", icon: "marketing_analytics", sidebar: true, workspace: "marketing", permissions: { view: true } },
   { id: "marketing_settings", section: "Settings", label: "Brand Knowledge & Connections", route: "/marketing/settings", icon: "marketing_settings", sidebar: true, workspace: "marketing", permissions: { view: true, manage: true, configure: true } },
   { id: "finance_overview", section: "Finance", label: "Overview", route: "/finance/overview", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
@@ -1238,6 +1245,8 @@ export function getModuleLabel(moduleId: string) {
 
 // Canonical permission presentation; authority is owned by each corresponding server command.
 export const permissionPresentationOverrides: Record<string, { label: string; description: string }> = {
+  "marketing_inbox.configure": { label: "Configure Inbox FAQ & AI", description: "Configure brand FAQ preview plans and explicit AI consent; no external sending authority." },
+  "marketing_inbox.approve": { label: "Approve Inbox Evidence", description: "Approve exact reply, knowledge, FAQ and AI proposal revisions; messages remain unsent." },
   "marketing_settings.configure": { label: "Configure Marketing Access & Integrations", description: "Configure Marketing brand scope and authorized integrations." },
   "marketing_settings.manage": { label: "Manage Brand Knowledge", description: "Manage brand knowledge with provenance." },
   "platform_organizations.manage": { label: "Manage Organizations & Brands", description: "Manage shared organization, brand, membership and outlet relationships." },

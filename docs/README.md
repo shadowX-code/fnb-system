@@ -17,7 +17,7 @@ Choose by durable ownership: architecture docs own cross-domain foundations; dom
 
 ### Marketing
 
-- [`domains/marketing.md`](domains/marketing.md): native Marketing workspace, brand scope, knowledge provenance, content approvals, private media, planned publishing and integration capability boundaries.
+- [`domains/marketing.md`](domains/marketing.md): native Marketing workspace, brand scope, knowledge provenance, content approvals, private media, publishing, unified conversations, approved reply/FAQ/AI proposals and integration capability boundaries.
 
 ### Restaurant And Shared Administration
 

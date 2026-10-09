@@ -12,7 +12,7 @@ import { isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue } from 
 import { canAccessOutlet, hasPermission } from "../utils/accessControl.js";
 
 const iconMap = {
-  marketing_overview: Gauge, marketing_content: FileText, marketing_calendar: CalendarDays, marketing_analytics: BarChart3, marketing_settings: Settings,
+  marketing_inbox: MessageSquareText, marketing_overview: Gauge, marketing_content: FileText, marketing_calendar: CalendarDays, marketing_analytics: BarChart3, marketing_settings: Settings,
   finance_data_sources: Link2, finance_overview: Gauge, finance_analysis: BarChart3, finance_costs: Wallet, finance_cash: Wallet, finance_planning: CalendarDays, finance_statements: FileText,
   "guest-ai-device-console": Bot,
   "guest-ai-overview": Sparkles,

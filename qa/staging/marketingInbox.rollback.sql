@@ -1,0 +1,115 @@
+-- Staging-only L3 rehearsal. Every fixture and mutation is rolled back.
+-- Run only against verified ujkzdaaadnvcfayuldmh; no provider call is made.
+begin;
+create temporary table marketing_qa_ids(key text primary key,id uuid);
+grant select,insert,update on marketing_qa_ids to authenticated;
+do $$
+declare u uuid:=gen_random_uuid(); e uuid:=gen_random_uuid(); r uuid:=gen_random_uuid(); o uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); other_b uuid:=gen_random_uuid(); other_o uuid:=gen_random_uuid(); other_u uuid:=gen_random_uuid(); other_e uuid:=gen_random_uuid();
+begin
+ insert into auth.users(id,email,aud,role) values(u,'marketing-rollback-'||u::text||'@example.invalid','authenticated','authenticated');
+ insert into public.roles(id,name,is_active,outlet_access_type) values(r,'qa_marketing_'||r::text,true,'none');
+ insert into public.role_permissions(role_id,permission_id) select r,id from public.permissions where code like 'marketing_%' or code='platform_organizations.manage' or code in ('roles.create','roles.edit','roles.view','employees.view');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated')::text,true);
+ insert into public.employees(id,auth_user_id,full_name,email,role_id,enable_system_login,access_state,is_active,workplace)
+ values(e,u,'QA Marketing Rollback','marketing-rollback-'||u::text||'@example.invalid',r,true,'active',true,'Management');
+ insert into public.organizations(id,name) values(o,'QA Marketing Organization'),(other_o,'QA Other Tenant');
+ insert into public.organization_memberships values(o,e);
+ insert into public.brands(id,organization_id,name) values(b,o,'QA Authorized Brand'),(other_b,o,'QA Restricted Brand');
+ insert into public.marketing_role_scopes values(o,r,false);
+ insert into public.marketing_role_brands values(o,r,b);
+ insert into auth.users(id,email,aud,role) values(other_u,'marketing-scope-'||other_u::text||'@example.invalid','authenticated','authenticated');
+ insert into public.employees(id,auth_user_id,full_name,email,role_id,enable_system_login,access_state,is_active,workplace) values(other_e,other_u,'QA Out of People Scope','marketing-scope-'||other_u::text||'@example.invalid',r,true,'active',true,'Management');
+ insert into marketing_qa_ids values('other_employee',other_e);
+ insert into marketing_qa_ids values('user',u),('employee',e),('role',r),('org',o),('brand',b),('other_brand',other_b),('other_org',other_o);
+end; $$;
+set local role authenticated;
+select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from marketing_qa_ids where key='user'),'role','authenticated')::text,true);
+do $$declare o uuid:=(select id from marketing_qa_ids where key='org');b uuid:=(select id from marketing_qa_ids where key='brand');c uuid;req uuid:=gen_random_uuid();r jsonb;d uuid;faq uuid;denied boolean;i integer;
+begin
+ r:=public.marketing_inbox_command(req,o,b,null,0,'create','{"title":"Internal QA case"}');c:=(r->'conversation'->>'id')::uuid;
+ assert public.marketing_inbox_command(req,o,b,null,0,'create','{"title":"Internal QA case"}')=r,'Idempotency';
+ denied:=false;begin perform public.marketing_inbox_command(req,o,b,null,0,'create','{"title":"Changed"}');exception when others then denied:=true;end;assert denied,'Changed retry intent must fail';
+ insert into marketing_qa_ids values('conversation',c);
+ denied:=false;begin perform public.marketing_inbox_read(o,(select id from marketing_qa_ids where key='other_brand'));exception when insufficient_privilege then denied:=true;end;assert denied,'Cross-brand read';
+ denied:=false;begin perform public.marketing_inbox_read((select id from marketing_qa_ids where key='other_org'));exception when insufficient_privilege then denied:=true;end;assert denied,'Cross-tenant read';
+ denied:=false;begin execute 'select * from public.marketing_conversations';exception when insufficient_privilege then denied:=true;end;assert denied,'Direct read denied';
+ denied:=false;begin perform public.marketing_inbox_command(gen_random_uuid(),o,b,c,1,'update',jsonb_build_object('status','open','priority','low','takeover',false,'tags','[]'::jsonb,'assigned_to',(select id from marketing_qa_ids where key='other_employee')));exception when others then denied:=true;end;assert denied,'Scoped assignment';
+ denied:=false;begin perform public.marketing_inbox_command(gen_random_uuid(),o,b,c,null,'note','{"body":"version omitted"}');exception when serialization_failure then denied:=true;end;assert denied,'Null version cannot bypass concurrency';
+ denied:=false;begin perform public.marketing_inbox_read(o,b,p_size=>null);exception when others then denied:=true;end;assert denied,'Null size cannot bypass bounds';
+ r:=public.marketing_inbox_command(gen_random_uuid(),o,b,c,1,'note','{"body":"投诉 退款 过敏 食物中毒"}');assert jsonb_array_length(r->'conversation'->'escalation_reasons')=4 and r->'conversation'->>'priority'='urgent','Multilingual risk escalation';
+ denied:=false;begin perform public.marketing_inbox_command(gen_random_uuid(),o,b,c,1,'note','{"body":"stale"}');exception when serialization_failure then denied:=true;end;assert denied,'Stale case evidence';
+ r:=public.marketing_inbox_command(gen_random_uuid(),o,b,c,2,'clear_escalation','{"reason":"Human reviewed internal QA example."}');assert r->'conversation'->>'takeover'='true','Human takeover retained';
+ r:=public.marketing_inbox_command(gen_random_uuid(),o,b,c,3,'draft','{"body":"Prepared human reply, not sent."}');d:=(r->'draft'->>'id')::uuid;
+ perform public.marketing_inbox_command(gen_random_uuid(),o,b,c,3,'review_reply',jsonb_build_object('draft_id',d));
+ r:=public.marketing_inbox_command(gen_random_uuid(),o,b,c,3,'approve_reply',jsonb_build_object('draft_id',d));assert r->>'external_sent'='false' and r->'draft'->>'status'='approved','Review does not send';
+ perform public.marketing_save_knowledge(b,0,'{"rules":{"text":"Opening hours are 10:00–18:00.","provenance":"verified_brand_fact"},"voice":{"text":"Be friendly.","provenance":"ai_suggestion"}}');
+ perform public.marketing_inbox_configure(gen_random_uuid(),b,1,'approve_knowledge');
+ perform public.marketing_inbox_configure(gen_random_uuid(),b,0,'policy','{"automation_mode":"faq","ai_allowed":true}');
+ r:=public.marketing_inbox_configure(gen_random_uuid(),b,0,'save_faq','{"question":"When are you open?","answer":"10:00–18:00.","language":"EN","reference_keys":["rules"]}');faq:=(r->>'id')::uuid;
+ perform public.marketing_inbox_configure(gen_random_uuid(),b,1,'approve_faq',jsonb_build_object('id',faq));
+ r:=public.marketing_inbox_faq_preview(c,'When are you open?');assert r->>'state'='human_takeover' and r->'faq'->>'id'=faq::text,'Human takeover pauses FAQ';
+ perform public.marketing_inbox_command(gen_random_uuid(),o,b,c,3,'update','{"status":"open","priority":"normal","takeover":false,"tags":["qa"]}');
+ r:=public.marketing_inbox_faq_preview(c,'  When   are you open? ');assert r->>'state'='faq_ready' and r->>'sending_enabled'='false','Conservative FAQ preview';
+ assert public.marketing_inbox_faq_preview(c,'Please refund')->>'state'='escalate','Sensitive FAQ escalates';
+ assert public.marketing_inbox_faq_preview(c,'Unknown question')->>'state'='human_required','Unknown FAQ hands over';
+ r:=public.marketing_inbox_command(gen_random_uuid(),o,b,c,4,'faq_draft',jsonb_build_object('faq_id',faq));d:=(r->'draft'->>'id')::uuid;
+ perform public.marketing_inbox_command(gen_random_uuid(),o,b,c,4,'review_reply',jsonb_build_object('draft_id',d));
+ perform public.marketing_save_knowledge(b,1,'{"rules":{"text":"Opening hours changed to 11:00–18:00.","provenance":"verified_brand_fact"}}');
+ denied:=false;begin perform public.marketing_inbox_command(gen_random_uuid(),o,b,c,4,'approve_reply',jsonb_build_object('draft_id',d));exception when others then denied:=true;end;assert denied,'Knowledge changes invalidate approval';
+ perform public.marketing_inbox_configure(gen_random_uuid(),b,2,'approve_knowledge');
+ r:=public.marketing_inbox_configure(gen_random_uuid(),b,0,'save_faq','{"question":"Allergens?","answer":"Ask about allergies.","language":"EN","reference_keys":["rules"]}');
+ denied:=false;begin perform public.marketing_inbox_configure(gen_random_uuid(),b,1,'approve_faq',jsonb_build_object('id',r->>'id'));exception when others then denied:=true;end;assert denied,'Sensitive FAQ cannot auto-reply';
+ req:=gen_random_uuid();perform public.marketing_inbox_ai_prepare(req,c,4,'summary');insert into marketing_qa_ids values('ai_request',req);
+ assert public.marketing_inbox_ai_prepare(req,c,4,'summary')->>'state'='prepared','AI prepare retries do not create runs';
+ req:=gen_random_uuid();perform public.marketing_inbox_ai_prepare(req,c,4,'reply');insert into marketing_qa_ids values('stale_ai_request',req);
+ for i in 1..25 loop perform public.marketing_inbox_command(gen_random_uuid(),o,b,null,0,'create',jsonb_build_object('title','Paged QA case '||i));end loop;
+ r:=public.marketing_inbox_read(o,b,p_page=>2);assert r->>'total'='26' and jsonb_array_length(r->'rows')=6,'Full bounded paging';
+end;$$;
+reset role;
+do $$declare b uuid:=(select id from marketing_qa_ids where key='brand');o uuid:=(select id from marketing_qa_ids where key='org');conn uuid:=gen_random_uuid();event jsonb;result jsonb;c public.marketing_conversations;claims jsonb;a jsonb;req uuid:=(select id from marketing_qa_ids where key='ai_request');denied boolean;
+begin
+ assert (select count(*) from public.marketing_reply_outbox where draft_id in(select d.id from public.marketing_reply_drafts d join public.marketing_conversations cv on cv.id=d.conversation_id where cv.brand_id=b))=1,'Approved draft is blocked';
+ assert not exists(select 1 from public.marketing_reply_outbox where state<>'blocked' or provider_message_id is not null),'No sent state possible';
+ insert into public.marketing_connections(id,organization_id,brand_id,channel,provider_account_id,account_name,status,expires_at,capabilities) values(conn,o,b,'facebook','999999999999','QA isolated account','test_authorized',now()+interval '1 day','{"granted_scopes":["pages_messaging"]}');
+ insert into marketing_qa_ids values('connection',conn);
+ event:=jsonb_build_object('channel','facebook','account_id','999999999999','peer_id','777','kind','incoming','event_id','qa-mid1','body','Hello','occurred_at',now()-interval '2 hours');
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ result:=public.marketing_inbox_enqueue(jsonb_build_array(event));assert result->>'accepted'='1','Durable queue';
+ result:=public.marketing_inbox_enqueue(jsonb_build_array(event));assert result->>'duplicates'='1','Webhook replay';
+ result:=public.marketing_inbox_process_events();assert result->>'processed'='0','Unverified receives cannot create history';
+ assert not exists(select 1 from public.marketing_conversations where connection_id=conn),'No fabricated social conversation';
+ -- Only this rolled-back fixture has verified authority. Real Meta bindings are untouched.
+ insert into marketing_private.inbox_authority(connection_id,generation,receive_verified,webhook_verified) select conn,credential_generation,true,true from public.marketing_connections where id=conn;
+ update marketing_private.inbox_events set state='pending' where connection_id=conn;
+ result:=public.marketing_inbox_process_events();assert result->>'processed'='1','Verified fixture drains';
+ select * into c from public.marketing_conversations where connection_id=conn;assert c.last_inbound_at=(event->>'occurred_at')::timestamptz,'Inbound window';
+ perform public.marketing_inbox_enqueue(jsonb_build_array(event||jsonb_build_object('event_id','qa-mid2','occurred_at',now()-interval '5 hours')));perform public.marketing_inbox_process_events();
+ assert (select last_inbound_at from public.marketing_conversations where id=c.id)=c.last_inbound_at,'Out-of-order cannot extend window';
+ perform public.marketing_inbox_enqueue(jsonb_build_array(event||jsonb_build_object('kind','echo','event_id','qa-echo','occurred_at',now())));perform public.marketing_inbox_process_events();
+ assert (select last_inbound_at from public.marketing_conversations where id=c.id)=c.last_inbound_at,'Echo cannot open window';
+ perform public.marketing_inbox_enqueue(jsonb_build_array(event||jsonb_build_object('event_id','qa-risk','body','refund, keracunan and allergies')));perform public.marketing_inbox_process_events();
+ assert (select cardinality(escalation_reasons) from public.marketing_conversations where id=c.id)=3,'Webhook escalates';
+ claims:=public.marketing_inbox_ai_claim(req,(select id from marketing_qa_ids where key='employee'));assert claims->>'lease' is not null,'AI claim';assert not claims->'facts' ? 'voice','Unapproved suggestions excluded';
+ assert public.marketing_inbox_ai_claim(req,(select id from marketing_qa_ids where key='employee')) is null,'No double provider call';
+ a:=public.marketing_inbox_ai_finish(req,(claims->>'lease')::uuid,'{"text":"Human recorded an internal escalation and prepared a reply.","question":"","language":"EN","reference_keys":[],"human_required":false}','fixture-model',10,20);assert a->>'state'='completed','Verified AI proposal persisted';insert into marketing_qa_ids values('artifact',(a->>'artifact_id')::uuid);
+ req:=(select id from marketing_qa_ids where key='stale_ai_request');claims:=public.marketing_inbox_ai_claim(req,(select id from marketing_qa_ids where key='employee'));
+ -- Canonical knowledge edit makes the in-flight answer obsolete, without touching its conversation.
+ update public.marketing_knowledge set revision=revision+1 where brand_id=b;
+ a:=public.marketing_inbox_ai_finish(req,(claims->>'lease')::uuid,'{"text":"Opening hours are 11:00–18:00.","question":"","language":"EN","reference_keys":["rules"],"human_required":false}','fixture-model',12,8);
+ assert a->>'state'='superseded','In-flight knowledge edit invalidates AI';
+ assert (select input_tokens from marketing_private.inbox_ai_runs where request_id=req)=12,'Stale provider usage retained';
+ update public.marketing_knowledge set revision=revision-1 where brand_id=b;
+
+end;$$;
+set local role authenticated;
+select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from marketing_qa_ids where key='user'),'role','authenticated')::text,true);
+do $$declare c uuid:=(select id from marketing_qa_ids where key='conversation');a uuid:=(select id from marketing_qa_ids where key='artifact');r jsonb;denied boolean;
+begin
+ r:=public.marketing_inbox_review_ai(a,true);assert r->>'state'='approved','Summary requires human approval';
+ assert public.marketing_inbox_detail(c)->'conversation'->>'summary' is not null,'Approved summary visible';
+ denied:=false;begin perform public.marketing_inbox_enqueue('[]');exception when insufficient_privilege then denied:=true;end;assert denied,'Browser cannot manufacture webhook events';
+ denied:=false;begin perform public.marketing_inbox_ai_claim(gen_random_uuid(),public.marketing_inbox_actor());exception when insufficient_privilege then denied:=true;end;assert denied,'Browser cannot claim AI service authority';
+end;$$;
+reset role;
+select 'Marketing Inbox L3 scope, retry, escalation, knowledge, approval, webhook and AI contracts passed; all fixtures rolled back.' as result;
+rollback;
