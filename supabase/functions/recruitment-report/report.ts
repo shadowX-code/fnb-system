@@ -233,7 +233,7 @@ export function validateReport(
       const absenceBased = row.status === "assessed" && row.level <= 2 &&
         /\b(lacks? evidence|no (detailed )?evidence|does not (provide evidence|show evidence|demonstrate|describe)|not described|details.{0,30}(limited|missing))\b/i.test(finding.text);
       if (absenceBased) return {index:area.index,area:area.name,status:"insufficient_evidence",level:null,criterion:null,
-        finding:{...finding,kind:"unresolved",text:`Insufficient evidence for a defensible rubric level. ${finding.text}`}};
+        finding:{...finding,kind:"unresolved"}};
       return {index:area.index,area:area.name,status:row.status,level:row.level,criterion:row.status==="assessed"?criterion.criteria:null,finding};
     });
     (result as any).assessment_profile = {id:plan.profile_id,version:plan.version};
