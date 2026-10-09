@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-const sql = readFileSync(new URL("../../../../../supabase/migrations/20261009043040_factory_production_daily_drilldown.sql", import.meta.url), "utf8");
+const sql = readFileSync(new URL("../../../../../supabase/migrations/20261009043918_factory_production_daily_drilldown_uom_owner.sql", import.meta.url), "utf8");
 describe("Daily drill-down uses the monthly read authority", () => {
   it("extends the one snapshot without bypassing RLS or mutating records", () => {
     expect(sql).toContain("create or replace function public.factory_get_production_monthly_performance");
@@ -20,5 +20,7 @@ describe("Daily drill-down uses the monthly read authority", () => {
     expect(sql).toContain("order by end_at, id");
     expect(sql).not.toMatch(/completed_at|manufacturing_date|target_/);
     expect(sql.match(/from public.factory_productions/g)).toHaveLength(1);
+    expect(sql).toContain("case when runs.uom in");
+    expect(sql).not.toMatch(/when uom in/);
   });
 });
