@@ -858,7 +858,7 @@ export default function RecruitmentInterviewSession({
           previewRef={preview}
         >
           {!submitting && recoveryView.state === "RECOVERY_REQUIRED" && status === "interrupted" && (
-            <button className="btn-primary" disabled={busy || finishing.current} onClick={start}>
+            <button className="candidate-button is-primary" disabled={busy || finishing.current} onClick={start}>
               Continue interview
             </button>
           )}
@@ -867,7 +867,7 @@ export default function RecruitmentInterviewSession({
           session.current ? (
             <div className="recruitment-actions">
               <button
-                className="btn-secondary"
+                className="candidate-button is-secondary"
                 disabled={busy}
                 onClick={async () => {
                   setBusy(true);
@@ -891,7 +891,7 @@ export default function RecruitmentInterviewSession({
                 Finish interview
               </button>
               <button
-                className="btn-secondary"
+                className="candidate-button is-secondary"
                 disabled={busy}
                 onClick={() => finalize("candidate_stop")}
               >
@@ -901,7 +901,7 @@ export default function RecruitmentInterviewSession({
           ) : null}
           {!submitting && recoveryView.state !== "RECOVERING" && status === "interrupted" && session.current ? (
             <button
-              className="btn-secondary"
+              className="candidate-button is-secondary"
               disabled={busy}
               onClick={() => finalize("candidate_stop")}
             >
@@ -911,7 +911,7 @@ export default function RecruitmentInterviewSession({
           {status === "finalizing" &&
           submissionState === "SUBMISSION_REQUIRED" ? (
             <button
-              className="btn-primary"
+              className="candidate-button is-primary"
               disabled={busy}
               onClick={retryFinalization}
             >

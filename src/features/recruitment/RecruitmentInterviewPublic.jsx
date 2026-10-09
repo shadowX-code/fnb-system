@@ -92,6 +92,7 @@ export default function RecruitmentInterviewPublic() {
         timeoutMs: 15000,
       });
       setEntry(value);
+      if (value?.preferred_language) setLanguage(value.preferred_language);
       return true;
     } catch (c) {
       setError(c.message || "Could not save. Please try again.");
@@ -210,7 +211,7 @@ export default function RecruitmentInterviewPublic() {
       )}
       {devices.state.status !== "ready" && (
         <button
-          className="btn-secondary recruitment-full"
+          className="candidate-button is-secondary recruitment-full"
           disabled={devices.state.status === "checking"}
           onClick={() => devices.start()}
         >
@@ -225,7 +226,7 @@ export default function RecruitmentInterviewPublic() {
           <strong>{languageLabel(entry.preferred_language)}</strong>
         </div>
         <button
-          className="btn-secondary"
+          className="candidate-button is-secondary"
           disabled={busy}
           onClick={() => setDetails(true)}
         >
@@ -233,14 +234,13 @@ export default function RecruitmentInterviewPublic() {
         </button>
       </div>
       <div className="recruitment-consent">
-        {/* Current bilingual copy includes the automated disclosure in the
-            consent itself. Historical pinned copies retain their disclosure. */}
+        {/* Display the canonical versioned disclosure and acceptance snapshot. */}
         {consentCopy.body?.map(text => <p key={text}>{text}</p>)}
         {consentCopy.notice && <p>{consentCopy.notice}</p>}
         {entry.consent_copy?.consent ? (
           <label className="recruitment-checkbox">
             <input
-              className="admin-checkbox"
+              className="candidate-checkbox"
               type="checkbox"
               checked={!!entry.consented || consentSelected}
               disabled={
@@ -262,11 +262,7 @@ export default function RecruitmentInterviewPublic() {
         ) : (
           <p>{t.consentUnavailable}</p>
         )}
-        {entry.consented && (
-          <p className="recruitment-saved" role="status">
-            <Check size={15} /> {t.consentRecorded}
-          </p>
-        )}
+
       </div>
       {error && (
         <p role="alert" className="recruitment-error">
@@ -279,14 +275,14 @@ export default function RecruitmentInterviewPublic() {
         !busy &&
         !readinessBusy && (
           <button
-            className="btn-secondary"
+            className="candidate-button is-secondary"
             onClick={() => run(() => recruitmentService.ready(token))}
           >
             {t.retryReadiness}
           </button>
         )}
       <button
-        className="btn-primary recruitment-full"
+        className="candidate-button is-primary recruitment-full"
         disabled={
           busy ||
           readinessBusy ||
@@ -310,12 +306,12 @@ export default function RecruitmentInterviewPublic() {
       <div className="recruitment-public-card">
         <header className="recruitment-public-header">
           <span className="recruitment-mark">FeedX</span>
-          <div className="candidate-interface-language" role="group" aria-label="Interface language / 界面语言">
-            {[['en', 'EN'], ['zh', '中文']].map(([value,label]) => <button key={value} type="button" className="btn-secondary" aria-pressed={interfaceLanguage === value} onClick={() => {
+          <div className="candidate-interface-language"><span>{t.interfaceLanguage}</span><div role="group" aria-label="Interface language / 界面语言">
+            {[['en', 'EN'], ['zh', '中文']].map(([value,label]) => <button key={value} type="button" className="candidate-button is-secondary" aria-pressed={interfaceLanguage === value} onClick={() => {
               setInterfaceLanguage(value);
               try { localStorage.setItem("feedx-interview-interface",value); } catch { /* Optional presentation preference. */ }
             }}>{label}</button>)}
-          </div>
+          </div></div>
         </header>
         {entry === null ? (
           <section>
@@ -328,7 +324,7 @@ export default function RecruitmentInterviewPublic() {
               <>
                 <p role="alert">{bootstrapError}</p>
                 <button
-                  className="btn-primary"
+                  className="candidate-button is-primary"
                   onClick={() => setBootstrapRevision((x) => x + 1)}
                 >
                   {t.retry}
@@ -384,7 +380,7 @@ export default function RecruitmentInterviewPublic() {
                 {interviewLanguages.map((option) => (
                   <button
                     key={option.value}
-                    className="btn-secondary"
+                    className="candidate-button is-secondary"
                     type="button"
                     aria-pressed={language === option.value}
                     disabled={busy}
@@ -407,7 +403,7 @@ export default function RecruitmentInterviewPublic() {
               </div>
               {entry.status === "invited" && (
                 <button
-                  className="btn-secondary"
+                  className="candidate-button is-secondary"
                   disabled={busy}
                   onClick={() => setEditing(!editing)}
                 >
@@ -449,7 +445,7 @@ export default function RecruitmentInterviewPublic() {
               </p>
             )}
             <button
-              className="btn-primary recruitment-full"
+              className="candidate-button is-primary recruitment-full"
               disabled={
                 busy || name.trim().length < 2 || contact.trim().length < 5
               }

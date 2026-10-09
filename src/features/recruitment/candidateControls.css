@@ -1,0 +1,83 @@
+/* Shared public-candidate controls. Independent of Admin theme selectors,
+   using the candidate surface's FeedX semantic tokens in every state. */
+.recruitment-public .candidate-button {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 48px;
+  height: auto;
+  padding: 12px 18px;
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.recruitment-public .candidate-button.is-primary {
+  background: var(--theme-primary);
+  border-color: var(--theme-primary);
+  color: #fff;
+}
+@media (hover: hover) {
+  .recruitment-public .candidate-button.is-primary:hover:not(:disabled) {
+    background: var(--theme-primary-hover);
+    border-color: var(--theme-primary-hover);
+  }
+  .recruitment-public .candidate-button.is-secondary:hover:not(:disabled) {
+    background: var(--theme-surface-muted);
+  }
+}
+.recruitment-public .candidate-button:active:not(:disabled) {
+  border-color: var(--theme-primary);
+}
+.recruitment-public .candidate-button[aria-pressed="true"] {
+  background: var(--theme-primary-soft);
+  border-color: var(--theme-primary);
+  color: var(--theme-primary-hover);
+}
+.recruitment-public .candidate-button:disabled {
+  background: var(--theme-surface-muted);
+  border-color: var(--theme-border);
+  color: var(--theme-muted);
+  opacity: 1;
+  cursor: not-allowed;
+}
+.recruitment-public .candidate-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--theme-muted);
+  border-radius: 4px;
+  background: var(--theme-surface);
+  cursor: pointer;
+}
+.recruitment-public .candidate-checkbox:checked {
+  background: var(--theme-primary);
+  border-color: var(--theme-primary);
+}
+.recruitment-public .candidate-checkbox:checked::after {
+  content: "";
+  width: 10px;
+  height: 6px;
+  border: solid #fff;
+  border-width: 0 0 2px 2px;
+  transform: rotate(-45deg) translateY(-1px);
+}
+.recruitment-public .candidate-checkbox:disabled { cursor: default; opacity: 1; }
+.recruitment-public :is(.candidate-button,.candidate-checkbox):focus-visible {
+  outline: 3px solid var(--theme-primary);
+  outline-offset: 3px;
+}
+.candidate-room-controls .candidate-button { width: 100%; }
