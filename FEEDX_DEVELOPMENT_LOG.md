@@ -1,5 +1,11 @@
 # FeedX Development Log
 
+## 2026-10-10 — Marketing Phase 2 internal Inbox and connector boundaries
+
+- Delivered scoped unread tracking, comment ingestion contracts, intent/language annotations, opt-out takeover enforcement, default Suggest mode and evidence-based Inbox analytics on canonical Staging.
+- Reused Marketing conversation/reply/FAQ/AI authorities; external delivery remains blocked pending independent Meta messaging permissions, webhook verification and bounded acceptance. Existing verified Social Publishing authority and disabled execution were preserved.
+- Focused tests, rollback authority checks, build/type checks and authenticated internal-case UI acceptance passed. Narrow-mobile viewport acceptance and real AI/messaging remain pending; no Production or later phase work. Canonical owner: docs/domains/marketing.md; evidence: qa/staging/marketingInbox.md.
+
 ## 2026-10-09 — Persistent Recruitment Profile drafts
 
 - Added permission-checked server drafts with one active draft per profile family, complete definition persistence and revision-based stale-edit rejection.
