@@ -73,6 +73,7 @@ begin
  perform public.marketing_privacy_complete_followup(receipt,'verified_expired','verified_deleted',v);
  assert public.marketing_meta_deletion_status(receipt)->>'status'='completed','Completion requires verified followup';
  denied:=false;begin perform public.marketing_inbox_privacy_erase_verified(gen_random_uuid(),b,fresh,repeat('e',64),v);exception when others then denied:=true;end;assert denied,'Wrong organization denied';
+ update public.marketing_conversations set opted_out=true where id=fresh;
  perform public.marketing_inbox_privacy_erase_verified(o,b,fresh,repeat('e',64),v);
  perform public.marketing_inbox_privacy_erase_verified(o,b,fresh,repeat('e',64),v);
  assert not exists(select 1 from public.marketing_conversations where id=fresh),'Verified peer deletion';
@@ -80,6 +81,8 @@ begin
  insert into marketing_private.inbox_events(event_key,connection_id,generation,payload,fingerprint)
  values('qa-erasure-replayed',x,2,jsonb_build_object('peer_id','77771','body','QA replay must not persist','occurred_at',stamp),'qa');
  assert (select payload='{}'::jsonb and error_code='privacy_erased' from marketing_private.inbox_events where event_key='qa-erasure-replayed'),'Replay body scrubbed before storage';
+ insert into public.marketing_conversations(id,organization_id,brand_id,channel,connection_id,connection_generation,participant_key,title,takeover) values(gen_random_uuid(),o,b,'facebook',x,2,'77771','QA later inbound',false);
+ assert exists(select 1 from public.marketing_conversations where connection_id=x and connection_generation=2 and opted_out and takeover),'Later inbound preserves minimal opt-out';
 
  -- The exact new grant callback revokes its credentials, but not internal records.
  perform public.marketing_meta_removal_once(repeat('f',64),'999995',true,repeat('1',64),now());
