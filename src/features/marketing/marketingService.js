@@ -27,6 +27,9 @@ export const marketingService = {
   disconnectMeta: connectionId => rpc('marketing_meta_disconnect', { p_connection: connectionId }),
   syncMeta: connectionId => rpc('marketing_meta_request_sync', { p_connection: connectionId }),
   execute: (requestId, content, connections) => rpc('marketing_authorize_execution', { p_request: requestId, p_content: content.id, p_revision: content.revision, p_connections: connections }),
+  contentManagement: ({ organizationId, brandId, from = null, to = null, search = '', channel = '', status = '', sort = 'date_desc', group = '', page = 1, pageSize = 20, view = 'list' }) => rpc('marketing_content_management', {
+    p_org: organizationId, p_brand: brandId || null, p_from: from, p_to: to, p_search: search, p_channel: channel, p_status: status, p_sort: sort, p_group: group, p_page: page, p_page_size: pageSize, p_view: view,
+  }),
   context: () => rpc('marketing_context'),
   detail: contentId => rpc('marketing_content_detail', { p_content: contentId }),
   read: ({ organizationId, brandId, section, from = null, to = null, page = 1, pageSize = 20 }) => rpc('marketing_read', {

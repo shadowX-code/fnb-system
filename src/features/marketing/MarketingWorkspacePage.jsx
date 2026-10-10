@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Plus, Upload, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
@@ -11,15 +11,17 @@ import Modal from '../../components/feedback/Modal.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import AdminPagination, { useAdminPagedQuery } from '../../components/tables/AdminPagination.jsx';
 import { marketingService } from './marketingService.js';
-import { calendarRange, localInput, scheduleInstant } from './marketingCalendar.js';
+import { localInput, scheduleInstant } from './marketingCalendar.js';
 import './marketing.css';
+import { contentStatusLabel } from './contentManagement.js';
+import ContentManagement from './ContentManagement.jsx';
 import { MetaConnections, PublishAuthorization, SocialEvidence } from './MetaIntegrationPanels.jsx';
 
-const labels = { overview: 'Overview', content: 'Content Library', calendar: 'Calendar', analytics: 'Analytics', settings: 'Brand Knowledge & Connections' };
+const labels = { overview: 'Overview', content: 'Content Library', calendar: 'Content Management', analytics: 'Analytics', settings: 'Brand Knowledge & Connections' };
 const descriptions = {
   overview: 'Publishing activity, approvals and delivery actions across your brands.',
   content: 'Create channel variants, review exact revisions and plan publishing.',
-  calendar: 'Review your publishing plan by brand and timezone.',
+  calendar: '',
   analytics: 'Verified workflow outcomes and the evidence available to Marketing.',
   settings: 'Manage brand knowledge, shared ownership and connection readiness.',
 };
@@ -27,7 +29,7 @@ const emptyContext = { organizations: [], brands: [] };
 const fields = ['positioning','audience','voice','identity','menu','products','pricing','rules','references'];
 const titleCase = value => value.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 const statusTone = status => ['approved','published','ready'].includes(status) ? 'success' : ['failed','rejected','blocked'].includes(status) ? 'danger' : ['review','scheduled'].includes(status) ? 'warning' : 'neutral';
-function Status({ value }) { return <Badge tone={statusTone(value)}>{titleCase(value)}</Badge>; }
+function Status({ value }) { return <Badge tone={statusTone(value)}>{contentStatusLabel(value)}</Badge>; }
 function Stamp({ value, timezone }) { return value ? <time dateTime={value}>{new Intl.DateTimeFormat('en-MY', { timeZone: timezone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))}</time> : <span>Unscheduled</span>; }
 const newPayload = () => ({ title: '', outlet_ids: [], variants: [{ channel: 'facebook', format: 'text', caption: '', asset_ids: [] }] });
 
@@ -46,8 +48,6 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
   const [refresh, setRefresh] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [mode, setMode] = useState('month');
-  const [anchor, setAnchor] = useState(() => localInput(new Date(), 'Asia/Kuala_Lumpur').slice(0,10));
   const [modal, setModal] = useState(null);
   const [detail, setDetail] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -58,8 +58,7 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
   const brands = context.brands.filter(b => b.organization_id === organizationId);
   const brand = brands.find(b => b.id === brandId);
   const timezone = brand?.timezone || 'Asia/Kuala_Lumpur';
-  const range = useMemo(() => calendarRange(anchor, mode, timezone), [anchor, mode, timezone]);
-  const key = JSON.stringify([organizationId,brandId,section,page,pageSize,section==='calendar' ? range : null,refresh,auth.user?.id]);
+  const key = JSON.stringify([organizationId,brandId,section,page,pageSize,refresh,auth.user?.id]);
   const data = read?.key === key ? read.data : null;
 
   useEffect(() => {
@@ -81,13 +80,13 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
     let live = true;
     setLoading(Boolean(organizationId)); setError(''); setSetup(null);
     if (!organizationId || booting) return () => { live = false; };
-    marketingService.read({ organizationId, brandId, section, from: range.from, to: range.to, page, pageSize })
+    (section === 'calendar' ? Promise.resolve({rows:[],assets:[],jobs:[],total:0}) : marketingService.read({ organizationId, brandId, section, page, pageSize }))
       .then(result => { if (live) setRead({ key, data: result }); })
       .catch(e => { if (live) setError(e.message); }).finally(() => { if (live) setLoading(false); });
     if (section === 'settings') marketingService.setup(organizationId).then(result => { if (live) setSetup(result); }).catch(e => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [key, booting]);
-  useEffect(() => { setPage(1); setModal(null); request.current = null; setNotice(''); }, [organizationId, brandId, section]);
+  useEffect(() => { setPage(1); setModal(null); request.current = null; setNotice(''); }, [organizationId, brandId, section, auth.user?.id]);
   useEffect(() => { if(data && page>Math.max(1,Math.ceil(data.total/pageSize)))setPage(Math.max(1,Math.ceil(data.total/pageSize))); },[data?.total,page,pageSize]);
   useEffect(() => { if (brandId && !brands.some(b => b.id === brandId) && !booting) setBrandId(''); }, [context, organizationId, brandId, booting]);
   useEffect(() => {
@@ -118,8 +117,6 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
   const scopeControls = <AdminFilterToolbar ariaLabel="Marketing scope" filters={<>
     <SelectField label="Organization" value={organizationId} onChange={value => { if (!busy) { setOrganizationId(value); setBrandId(''); } }} options={context.organizations.map(o => ({ value:o.id,label:o.name }))} />
     <SelectField label="Brand" value={brandId} onChange={value => { if (!busy) setBrandId(value); }} options={[{value:'',label:'All authorized brands'},...brands.map(b=>({value:b.id,label:b.name}))]} />
-    {section === 'calendar' ? <SelectField label="Calendar view" value={mode} onChange={value => {setMode(value);setPage(1);}} options={[{value:'month',label:'Month'},{value:'week',label:'Week'}]} /> : null}
-    {section === 'calendar' ? <AdminFormField label="Calendar date"><input className="input" type="date" value={anchor} required onChange={e=>{if(e.target.value){setAnchor(e.target.value);setPage(1);}}} /></AdminFormField> : null}
   </>} />;
   const actions = <>
     {section==='content' && brand && can('marketing_content.create') ? <button className="btn-primary" disabled={busy} onClick={()=>open({type:'content',content:null,payload:newPayload()})}><Plus size={15}/> New draft</button> : null}
@@ -148,11 +145,7 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
           <MarketingListPanel organizationId={organizationId} brandId={brandId} kind="assets" refresh={refresh} emptyTitle="No uploaded brand media" renderRows={rows=>rows.map(a=><div className="marketing-row" key={a.id}><span><strong>{a.filename}</strong><small>{a.mime_type} · {(a.size_bytes/1024/1024).toFixed(1)} MB</small></span><button className="btn-secondary" disabled={busy} onClick={()=>mutate(async()=>{const url=await marketingService.assetUrl(a);window.open(url,'_blank','noopener,noreferrer');},'Media opened with a temporary private link.')}><ExternalLink size={14}/> Open</button></div>)}/>
         </section>
       </> : null}
-      {data && section==='calendar' ? <>
-        <p className="text-sm text-text-secondary">{timezone} · {data.total} scheduled records in this range. A saved schedule is a plan; each channel’s delivery state is shown separately.</p>
-        <div className="marketing-calendar" aria-label={`${titleCase(mode)} publishing calendar`}>{range.days.map(day=><section className="marketing-calendar-day" key={day}><h2>{new Intl.DateTimeFormat('en-MY',{timeZone:'UTC',weekday:'short',day:'numeric',month:'short'}).format(new Date(`${day}T12:00:00Z`))}</h2>{data.rows.filter(c=>localInput(new Date(c.scheduled_at),timezone).startsWith(day)).map(c=><button className="marketing-calendar-post" key={c.id} onClick={()=>open({type:'review',content:c})}><strong>{c.payload.title}</strong><small>{c.brand_name}</small><Status value={c.status}/><small>{data.jobs.filter(j=>j.content_id===c.id&&j.revision===c.revision).map(j=>`${titleCase(j.channel)}: ${titleCase(j.state)}`).join(' · ')}</small></button>)}</section>)}</div>
-        <AdminPagination page={page} pageSize={pageSize} total={data.total} loading={loading||busy} onPageChange={setPage} onPageSizeChange={size=>{setPageSize(size);setPage(1);}} noun="scheduled records"/>
-      </> : null}
+      {data && section==='calendar' ? <ContentManagement key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} refresh={refresh} open={open} command={command} busy={busy} can={can}/> : null}
       {data && section==='settings' ? <Settings data={data} setup={setup} brands={brands} brand={brand} can={can} busy={busy} open={open} actorId={context.actor_employee_id} removeMember={employeeId=>mutate(()=>marketingService.structure('remove_member',organizationId,{employee_id:employeeId}),'Organization membership removed.')}/> : null}
     </AsyncDataSurface>
     {section==='settings' && !booting ? <MetaConnections key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} brands={brands}/> : null}
@@ -198,20 +191,20 @@ function Settings({data,setup,brands,brand,can,busy,open,actorId,removeMember}) 
 }
 function ModalBody({modal,setModal,brands,brand,setup,assets,can,detail,onExecutionComplete}) {
   const change=patch=>setModal(current=>({...current,...patch}));
-  const field=(label,key,type='text')=><AdminFormField label={label}><input className="input" type={type} value={modal[key]||''} onChange={e=>change({[key]:e.target.value})}/></AdminFormField>;
+  const field=(label,key,type='text')=><AdminFormField label={label}><input className="control" type={type} value={modal[key]||''} onChange={e=>change({[key]:e.target.value})}/></AdminFormField>;
   if(modal.type==='organization')return field('Organization name','name');
   if(modal.type==='brand')return <div className="space-y-4">{field('Brand name','name')}{field('Timezone','timezone')}<Checks label="Target outlets" values={modal.outlets} onChange={outlets=>change({outlets})} options={setup?.outlets||[]}/><p className="text-sm text-text-secondary">No selected outlets means brand-wide content without outlet targeting. Outlet ownership remains canonical.</p></div>;
   if(modal.type==='member')return <SelectField label="FeedX employee" value={modal.employeeId} onChange={employeeId=>change({employeeId})} options={[{value:'',label:'Select employee'},...(setup?.employees||[]).map(e=>({value:e.id,label:e.name}))]}/>;
   if(modal.type==='scope')return <div className="space-y-4"><SelectField label="Role" value={modal.roleId} onChange={roleId=>change({roleId})} options={[{value:'',label:'Select role'},...(setup?.roles||[]).map(r=>({value:r.id,label:r.name}))]}/><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={modal.all} onChange={e=>change({all:e.target.checked})}/>All brands in this organization</label>{!modal.all?<Checks label="Authorized brands" values={modal.brands} onChange={values=>change({brands:values})} options={brands}/>:null}</div>;
   if(modal.type==='schedule')return <div className="space-y-4"><p className="text-sm">Scheduling pins revision {modal.content.revision}. Execution requires a separate approval of this exact revision to enabled Meta accounts.</p>{field('Publishing time','local','datetime-local')}{field('Timezone','timezone')}</div>;
-  if(modal.type==='knowledge')return <div className="space-y-5">{fields.map(f=>{const entry=modal.profile[f]||{text:'',provenance:'verified_brand_fact'};const update=patch=>change({profile:{...modal.profile,[f]:{...entry,...patch}}});return <div className="space-y-2" key={f}><AdminFormField label={titleCase(f)}><textarea className="input min-h-20" value={entry.text} onChange={e=>update({text:e.target.value})} maxLength={8000}/></AdminFormField><SelectField label={`${titleCase(f)} provenance`} value={entry.provenance} onChange={provenance=>update({provenance})} options={[{value:'verified_brand_fact',label:'Verified brand fact (human assertion)'},{value:'external_research',label:'External research'},{value:'ai_suggestion',label:'AI suggestion (unverified)'}]}/>{entry.provenance==='external_research'?<AdminFormField label="Source URL"><input className="input" type="url" value={entry.source_url||''} onChange={e=>update({source_url:e.target.value,observed_at:new Date().toISOString()})}/></AdminFormField>:null}</div>;})}</div>;
-  if(modal.type==='review')return <div className="space-y-4"><h3 className="font-semibold">{modal.content.payload.title}</h3><p className="text-sm">Revision {modal.content.revision} · <Status value={modal.content.status}/></p>{modal.content.payload.variants.map(v=><section className="marketing-knowledge" key={v.channel}><h3>{titleCase(v.channel)} · {titleCase(v.format)}</h3><p className="whitespace-pre-wrap">{v.caption}</p><small>{v.asset_ids.length} pinned media assets · {modal.content.payload.outlet_ids.length} outlet targets</small>{v.asset_ids.map(id=>{const a=assets.find(a=>a.id===id);return a?<AssetPreview key={id} asset={a}/>:<p key={id}>Media details unavailable.</p>;})}</section>)}<PublishAuthorization key={`${modal.content.id}:${modal.content.revision}`} content={modal.content} onComplete={onExecutionComplete}/>{modal.content.status==='review'&&can('marketing_content.approve')?<AdminFormField label="Rejection reason (required to reject)"><textarea className="input" value={modal.reason||''} onChange={e=>change({reason:e.target.value})}/></AdminFormField>:null}{detail?<section className="space-y-2"><h3 className="text-sm font-semibold">Recent audit history</h3>{detail.events.map((e,i)=><p className="text-xs text-text-secondary" key={i}>{titleCase(e.action)} · Revision {e.details.revision||'—'} · {new Intl.DateTimeFormat('en-MY',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Kuala_Lumpur'}).format(new Date(e.created_at))}{e.details.reason?` · ${e.details.reason}`:''}</p>)}</section>:null}</div>;
+  if(modal.type==='knowledge')return <div className="space-y-5">{fields.map(f=>{const entry=modal.profile[f]||{text:'',provenance:'verified_brand_fact'};const update=patch=>change({profile:{...modal.profile,[f]:{...entry,...patch}}});return <div className="space-y-2" key={f}><AdminFormField label={titleCase(f)}><textarea className="control min-h-20" value={entry.text} onChange={e=>update({text:e.target.value})} maxLength={8000}/></AdminFormField><SelectField label={`${titleCase(f)} provenance`} value={entry.provenance} onChange={provenance=>update({provenance})} options={[{value:'verified_brand_fact',label:'Verified brand fact (human assertion)'},{value:'external_research',label:'External research'},{value:'ai_suggestion',label:'AI suggestion (unverified)'}]}/>{entry.provenance==='external_research'?<AdminFormField label="Source URL"><input className="control" type="url" value={entry.source_url||''} onChange={e=>update({source_url:e.target.value,observed_at:new Date().toISOString()})}/></AdminFormField>:null}</div>;})}</div>;
+  if(modal.type==='review')return <div className="space-y-4"><h3 className="font-semibold">{modal.content.payload.title}</h3><div className="text-xs text-text-secondary space-y-1"><p>Planned: <Stamp value={modal.content.payload.planned_at} timezone={modal.content.payload.planned_timezone||'Asia/Kuala_Lumpur'}/></p><p>Scheduled: <Stamp value={modal.content.scheduled_at} timezone={modal.content.schedule_timezone||'Asia/Kuala_Lumpur'}/></p>{modal.content.channels?.map(v=><p key={v.channel}>{titleCase(v.channel)} · Actual publication: {v.actual_at?<Stamp value={v.actual_at} timezone="Asia/Kuala_Lumpur"/>:'Unavailable'} · {v.job_state?titleCase(v.job_state):'No delivery job'}{v.provider_post_id?` · Platform post ${v.provider_post_id}`:''}</p>)}</div><p className="text-sm">Revision {modal.content.revision} · <Status value={modal.content.status}/></p>{modal.content.payload.variants.map(v=><section className="marketing-knowledge" key={v.channel}><h3>{titleCase(v.channel)} · {titleCase(v.format)}</h3><p className="whitespace-pre-wrap">{v.caption}</p><small>{v.asset_ids.length} pinned media assets · {modal.content.payload.outlet_ids.length} outlet targets</small>{v.asset_ids.map(id=>{const a=assets.find(a=>a.id===id);return a?<AssetPreview key={id} asset={a}/>:<p key={id}>Media details unavailable.</p>;})}</section>)}<PublishAuthorization key={`${modal.content.id}:${modal.content.revision}`} content={modal.content} onComplete={onExecutionComplete}/>{modal.content.status==='review'&&can('marketing_content.approve')?<AdminFormField label="Rejection reason (required to reject)"><textarea className="control" value={modal.reason||''} onChange={e=>change({reason:e.target.value})}/></AdminFormField>:null}{detail?<section className="space-y-2"><h3 className="text-sm font-semibold">Recent audit history</h3>{detail.events.map((e,i)=><p className="text-xs text-text-secondary" key={i}>{titleCase(e.action)} · Revision {e.details.revision||'—'} · {new Intl.DateTimeFormat('en-MY',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Kuala_Lumpur'}).format(new Date(e.created_at))}{e.details.reason?` · ${e.details.reason}`:''}</p>)}</section>:null}</div>;
   if(modal.type==='content') {
     const payload=modal.payload;
     const update=patch=>change({payload:{...payload,...patch}});
     const variant=(index,patch)=>update({variants:payload.variants.map((v,i)=>i===index?{...v,...patch}:v)});
     const currentBrand=brands.find(b=>b.id===(modal.content?.brand_id||brand?.id));
-    return <div className="space-y-5"><AdminFormField label="Creative concept title" required><input className="input" value={payload.title} maxLength={200} onChange={e=>update({title:e.target.value})}/></AdminFormField><Checks label="Outlet targets" values={payload.outlet_ids} onChange={outlet_ids=>update({outlet_ids})} options={(currentBrand?.outlet_ids||[]).map(id=>({id,name:currentBrand?.outlets?.find(o=>o.id===id)?.name||'Brand outlet'}))}/><fieldset className="space-y-2"><legend className="text-sm font-semibold">Channels</legend>{['facebook','instagram'].map(channel=><label className="mr-4 inline-flex items-center gap-2 text-sm" key={channel}><input type="checkbox" checked={payload.variants.some(v=>v.channel===channel)} onChange={e=>update({variants:e.target.checked?[...payload.variants,{channel,format:channel==='instagram'?'image':'text',caption:'',asset_ids:[]}]:payload.variants.filter(v=>v.channel!==channel)})}/>{titleCase(channel)}</label>)}</fieldset>{payload.variants.map((v,index)=><section className="marketing-variant" key={v.channel}><h3>{titleCase(v.channel)} variant</h3><SelectField label={`${titleCase(v.channel)} format`} value={v.format} onChange={format=>variant(index,{format,asset_ids:[]})} options={['text','image','carousel','reel'].filter(format=>v.channel!=='instagram'||format!=='text').map(format=>({value:format,label:titleCase(format)}))}/><AdminFormField label={`${titleCase(v.channel)} caption`} helper={v.channel==='instagram'?'Up to 2,200 characters.':'Up to 63,206 characters.'}><textarea className="input min-h-28" value={v.caption} maxLength={v.channel==='instagram'?2200:63206} onChange={e=>variant(index,{caption:e.target.value})}/></AdminFormField>{v.format!=='text'?<MarketingAssetPicker brand={currentBrand} format={v.format} values={v.asset_ids} onChange={asset_ids=>variant(index,{asset_ids})}/>:null}<p className="text-xs text-text-secondary">{v.format==='carousel'?'Choose 2–10 images.':v.format==='reel'?'Choose one MP4 video. Platform duration and aspect ratio checks are required before external publishing.':v.format==='image'?'Choose one image. Platform media validation is required before external publishing.':'Facebook text post.'}</p></section>)}</div>;
+    return <div className="space-y-5"><AdminFormField label="Creative concept title" required><input className="control" value={payload.title} maxLength={200} onChange={e=>update({title:e.target.value})}/></AdminFormField><AdminFormField label="Planned publishing date" helper="Optional · Asia/Kuala_Lumpur"><input className="control" type="datetime-local" value={payload.planned_at ? localInput(new Date(payload.planned_at),'Asia/Kuala_Lumpur') : ''} onChange={e=>{try{update({planned_at:e.target.value?scheduleInstant(e.target.value,'Asia/Kuala_Lumpur'):null,planned_timezone:'Asia/Kuala_Lumpur'});}catch{ /* Incomplete native date input. */ }}} /></AdminFormField><Checks label="Outlet targets" values={payload.outlet_ids} onChange={outlet_ids=>update({outlet_ids})} options={(currentBrand?.outlet_ids||[]).map(id=>({id,name:currentBrand?.outlets?.find(o=>o.id===id)?.name||'Brand outlet'}))}/><fieldset className="space-y-2"><legend className="text-sm font-semibold">Channels</legend>{['facebook','instagram'].map(channel=><label className="mr-4 inline-flex items-center gap-2 text-sm" key={channel}><input type="checkbox" checked={payload.variants.some(v=>v.channel===channel)} onChange={e=>update({variants:e.target.checked?[...payload.variants,{channel,format:channel==='instagram'?'image':'text',caption:'',asset_ids:[]}]:payload.variants.filter(v=>v.channel!==channel)})}/>{titleCase(channel)}</label>)}</fieldset>{payload.variants.map((v,index)=><section className="marketing-variant" key={v.channel}><h3>{titleCase(v.channel)} variant</h3><SelectField label={`${titleCase(v.channel)} format`} value={v.format} onChange={format=>variant(index,{format,asset_ids:[]})} options={['text','image','carousel','reel'].filter(format=>v.channel!=='instagram'||format!=='text').map(format=>({value:format,label:titleCase(format)}))}/><AdminFormField label={`${titleCase(v.channel)} caption`} helper={v.channel==='instagram'?'Up to 2,200 characters.':'Up to 63,206 characters.'}><textarea className="control min-h-28" value={v.caption} maxLength={v.channel==='instagram'?2200:63206} onChange={e=>variant(index,{caption:e.target.value})}/></AdminFormField>{v.format!=='text'?<MarketingAssetPicker brand={currentBrand} format={v.format} values={v.asset_ids} onChange={asset_ids=>variant(index,{asset_ids})}/>:null}<p className="text-xs text-text-secondary">{v.format==='carousel'?'Choose 2–10 images.':v.format==='reel'?'Choose one MP4 video. Platform duration and aspect ratio checks are required before external publishing.':v.format==='image'?'Choose one image. Platform media validation is required before external publishing.':'Facebook text post.'}</p></section>)}</div>;
   }
   return null;
 }

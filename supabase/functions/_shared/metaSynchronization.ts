@@ -31,7 +31,21 @@ export async function readMetaPosts(graph:MetaGraph,connection:any,token:string,
     for(const metric of ['reach','views']){const entry=insights.data?.find((x:any)=>x.name===metric);put(metric,entry?.total_value?.value??entry?.values?.[0]?.value);}
    }catch(error){if(error instanceof MetaError&&error.code==='meta_permission_or_token_invalid')throw error;unavailable.reach='platform_metric_unavailable';unavailable.views='platform_metric_unavailable';}
   }else if(!fb){unavailable.reach='permission_not_granted';unavailable.views='permission_not_granted';}
-  posts.push({id:String(row.id),caption:fb?row.message:row.caption,permalink:fb?row.permalink_url:row.permalink,published_at:fb?row.created_time:row.timestamp,metrics,unavailable_metrics:unavailable});
+  // Preview fields are optional: denied/unsupported previews never discard authorized posts.
+  let thumbnail:string|null=null;
+  await guard();
+  try {
+   const preview=await graph.request(String(row.id),token,{fields:fb?'full_picture':'media_type,media_url,thumbnail_url'});
+   const candidate=fb?preview?.full_picture:preview?.thumbnail_url||(preview?.media_type!=='VIDEO'?preview?.media_url:null);
+   if(typeof candidate==='string') {
+    let url:URL|null=null;try{url=new URL(candidate);}catch{/* Malformed optional preview. */}
+    if(url?.protocol==='https:'&&/(^|\.)(fbcdn\.net|cdninstagram\.com)$/.test(url.hostname)&&!/(access_token|authorization|appsecret)/i.test(candidate)&&candidate.length<=4096)thumbnail=candidate;
+   }
+  } catch(error) {
+   if(!(error instanceof MetaError)||error.graphCode===190||(error.code==='meta_permission_or_token_invalid'&&![10,200].includes(error.graphCode!)))throw error;
+   unavailable.preview='platform_preview_unavailable';
+  }
+  posts.push({thumbnail_url:thumbnail,id:String(row.id),caption:fb?row.message:row.caption,permalink:fb?row.permalink_url:row.permalink,published_at:fb?row.created_time:row.timestamp,metrics,unavailable_metrics:unavailable});
  }
  const after=result.paging?.next?result.paging?.cursors?.after:null;
  if(result.paging?.next&&!after)throw new MetaError('sync_cursor_unavailable',false,true);
