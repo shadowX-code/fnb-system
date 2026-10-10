@@ -29,6 +29,8 @@ export const inboxService = {
       status = "",
       channel = "",
       search = "",
+      assignee = "",
+      unread = false,
       page = 1,
       pageSize = 20,
     },
@@ -39,9 +41,13 @@ export const inboxService = {
       p_status: status,
       p_channel: channel,
       p_search: search,
+      p_assignee: assignee,
+      p_unread: unread,
       p_page: page,
       p_size: pageSize,
     }),
+  markRead: (id, through) => rpc("marketing_inbox_mark_read", {p_conversation:id,p_through:through}),
+  analytics: ({org,brand,channel="",start=null,end=null}) => rpc("marketing_inbox_analytics",{p_org:org,p_brand:brand||null,p_channel:channel,p_start:start,p_end:end}),
   detail: (id, page = 1) =>
     rpc("marketing_inbox_detail", {
       p_conversation: id,

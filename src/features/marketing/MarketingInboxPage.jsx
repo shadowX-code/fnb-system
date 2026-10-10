@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageSquareText, Plus, RefreshCw, ShieldAlert } from "lucide-react";
+import { MessageSquareText, Plus, RefreshCw, ShieldAlert, ArrowLeft } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import WorkspacePage from "../../components/layout/WorkspacePage.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
@@ -34,7 +34,7 @@ function State({ value }) {
         ? "success"
         : "neutral"}
     >
-      {label(value)}
+      {({permission_unavailable:"Permission required",connection_unavailable:"Unavailable",authorization_unverified:"Connected · Unverified",webhook_unverified:"Connected · Webhook unverified",receive_verified:"Operational"})[value]||label(value)}
     </Badge>
   );
 }
@@ -64,6 +64,7 @@ export default function MarketingInboxPage() {
     [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(20),
     [historyPage, setHistoryPage] = useState(1);
+  const [assignee,setAssignee]=useState(""),[unread,setUnread]=useState(false),[metrics,setMetrics]=useState(null),[analyticsStart,setAnalyticsStart]=useState(""),[analyticsEnd,setAnalyticsEnd]=useState("");
   const [selected, setSelected] = useState(""),
     [read, setRead] = useState(null),
     [detail, setDetail] = useState(null),
@@ -81,6 +82,8 @@ export default function MarketingInboxPage() {
       status,
       channel,
       search,
+      assignee,
+      unread,
       page,
       pageSize,
       refresh,
@@ -137,7 +140,7 @@ export default function MarketingInboxPage() {
         live = false;
       };
     }
-    inboxService.read({ org, brand, status, channel, search, page, pageSize })
+    inboxService.read({ org, brand, status, channel, search, assignee, unread, page, pageSize })
       .then((v) => {
         if (live) setRead({ key: listKey, data: v });
       }).catch((e) => {
@@ -155,7 +158,10 @@ export default function MarketingInboxPage() {
     setPreview(null);
     if (selected) {
       inboxService.detail(selected, historyPage).then((v) => {
-        if (live) setDetail({ key: detailKey, data: v });
+        if (live) {
+          setDetail({ key: detailKey, data: v });
+          if (historyPage===1 && v.read_through_sequence!==undefined) inboxService.markRead(selected,v.read_through_sequence).then(()=>{if(live)setRead(previous=>previous?{...previous,data:{...previous.data,rows:previous.data.rows.map(row=>row.id===selected?{...row,unread_count:0}:row)}}:previous);}).catch((e)=>{if(live)setError(e.message);});
+        }
       }).catch((e) => {
         if (live) setError(e.message);
       });
@@ -164,6 +170,11 @@ export default function MarketingInboxPage() {
       live = false;
     };
   }, [detailKey]);
+  useEffect(()=>{
+    let live=true;setMetrics(null);
+    if(org) inboxService.analytics({org,brand,channel,start:analyticsStart?`${analyticsStart}T00:00:00+08:00`:null,end:analyticsEnd?`${analyticsEnd}T00:00:00+08:00`:null}).then(v=>{if(live)setMetrics(v);}).catch(()=>{});
+    return ()=>{live=false;};
+  },[scope,channel,analyticsStart,analyticsEnd,refresh]);
   useEffect(() => {
     if (data && page > Math.max(1, Math.ceil(data.total / pageSize))) {
       setPage(Math.max(1, Math.ceil(data.total / pageSize)));
@@ -281,6 +292,8 @@ export default function MarketingInboxPage() {
         }}
         options={options(["internal", "facebook", "instagram"], "All channels")}
       />
+      <SelectField label="Assignee" value={assignee} onChange={v=>{setAssignee(v);setPage(1);setSelected("");}} options={[{value:"",label:"All assignees"},{value:"me",label:"Assigned to me"},{value:"unassigned",label:"Unassigned"},...(data?.members||[]).map(m=>({value:m.id,label:m.name}))]} />
+      <label className="marketing-inbox-check"><input type="checkbox" checked={unread} onChange={e=>{setUnread(e.target.checked);setPage(1);}}/>Unread only</label>
       <Field
         label="Search conversations"
         value={search}
@@ -297,7 +310,7 @@ export default function MarketingInboxPage() {
     <WorkspacePage
       section="Marketing"
       title="Unified Inbox"
-      description="Review brand conversations, prepare evidence-based replies and route sensitive cases to a person."
+      description="Conversations, approved replies and human handling."
       controls={controls}
       actions={
         <>
@@ -325,7 +338,7 @@ export default function MarketingInboxPage() {
                 setModal({
                   type: "settings",
                   policy: data?.policy ||
-                    { revision: 0, automation_mode: "off", ai_allowed: false },
+                    { revision: 0, automation_mode: "suggest", ai_allowed: false },
                 })}
             >
               FAQ & AI settings
@@ -338,12 +351,17 @@ export default function MarketingInboxPage() {
         <ShieldAlert size={18} />
         <p>
           Live messaging and automatic sending are disabled. Internal notes,
-          drafts and approvals never send to Facebook or Instagram. Publishing
-          remains Unverified.
+          drafts and approvals never send to Facebook or Instagram.
         </p>
       </div>
       {error && <p role="alert" className="text-danger">{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      <details className="marketing-inbox-analytics"><summary>Inbox performance</summary>
+        <div className="marketing-inbox-actions"><Field label="Conversations from" type="date" value={analyticsStart} onChange={e=>setAnalyticsStart(e.target.value)}/><Field label="Conversations before" type="date" value={analyticsEnd} onChange={e=>setAnalyticsEnd(e.target.value)}/></div>
+        <p>Conversations {metrics?.volume??"Unavailable"} · Unresolved {metrics?.unresolved??"Unavailable"} · Human handovers {metrics?.human_handovers??"Unavailable"}</p>
+        <p>Median first response {metrics?.first_response_seconds==null?"Unavailable":`${Math.round(metrics.first_response_seconds)}s`} · AI acceptance {metrics?.ai_acceptance_rate==null?"Unavailable":`${Math.round(metrics.ai_acceptance_rate*100)}%`} · Automation {metrics?.automation_rate==null?"Unavailable":`${Math.round(metrics.automation_rate*100)}%`}</p>
+        <small>Conversations created in the selected period · Asia/Kuala_Lumpur. Reply drafts are not sent responses.</small>
+      </details>
       <p className="text-sm text-text-secondary">
         AI usage in this scope: {data?.ai_usage?.requests ?? 0} requests ·{" "}
         {data?.ai_usage?.input_tokens ?? "Unavailable"} input /{" "}
@@ -357,7 +375,7 @@ export default function MarketingInboxPage() {
             <State value={v.state} />
             <p className="text-sm text-text-secondary">
               Receive: {v.receiving_verified ? "Verified" : "Unverified"}{" "}
-              · Send: Disabled{Object.entries(v.events || {}).filter((
+              · Send: Disabled · Comments: {label(v.comments?.state||"unverified")}{Object.entries(v.events || {}).filter((
                 [state, count],
               ) =>
                 state !== "processed" && count > 0
@@ -380,7 +398,7 @@ export default function MarketingInboxPage() {
           setPage(1);
         }}
       />
-      <div className="marketing-inbox-grid">
+      <div className={`marketing-inbox-grid ${selected?"has-selection":""}`}>
         <section
           className="card marketing-inbox-list"
           aria-label="Conversations"
@@ -409,8 +427,8 @@ export default function MarketingInboxPage() {
                 setPreview(null);
               }}
             >
-              <strong>{row.title}</strong>
-              <span>{row.brand_name} · {label(row.channel)}</span>
+              <strong>{row.title} {row.unread_count>0&&<Badge tone="warning">{row.unread_count} unread</Badge>}</strong>
+              <span>{row.brand_name} · {label(row.channel)}{row.medium==="comment"?" · Comment":""} · {label(row.intent||"unknown")}</span>
               <span>
                 <State value={row.status} /> <State value={row.priority} />
               </span>
@@ -440,6 +458,7 @@ export default function MarketingInboxPage() {
               <>
                 <div className="marketing-inbox-heading">
                   <div>
+                    <button className="btn-secondary marketing-inbox-back" onClick={()=>setSelected("")}><ArrowLeft size={16}/>Conversations</button>
                     <h2>{c.title}</h2>
                     <p>
                       {label(c.channel)} · <State value={c.status} />
@@ -710,7 +729,7 @@ export default function MarketingInboxPage() {
           {c
             ? (
               <>
-                <h2>Handling</h2>
+                <h2>Handling</h2><p>{label(c.medium||"dm")} · {label(c.intent||"unknown")} · {c.language||"EN"} · {c.classification_source==="ai"?"AI classification":"Rule classification"}</p>{c.opted_out&&<p role="status">Customer opted out. Automation paused.</p>}
                 <State value={c.takeover ? "human_takeover" : "faq_preview"} />
                 <p className="text-sm text-text-secondary">
                   {c.channel === "internal"
@@ -857,7 +876,7 @@ function InboxModal(
           <>
             <SelectField
               label="FAQ plan"
-              value={m.policy.automation_mode}
+              value={m.policy.automation_mode||"suggest"}
               onChange={(v) =>
                 set("policy", { ...m.policy, automation_mode: v })}
               options={options(["off", "suggest", "faq"])}

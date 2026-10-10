@@ -176,3 +176,10 @@ describe("Inbox integration contracts", () => {
     ).toThrow("authority");
   });
 });
+
+it("normalizes comments separately without opening a private messaging window",()=>{
+ const rows=normalizeInboxWebhook({object:"instagram",entry:[{id:"111",time:Math.floor(now/1000),changes:[{field:"comments",value:{id:"555",from:{id:"222",username:"private-name"},media:{id:"444"},text:"Harga?"}}]}]},now);
+ expect(rows[0]).toMatchObject({medium:"comment",thread_id:"444",event_id:"comment:555",peer_id:"222"});
+ expect(JSON.stringify(rows)).not.toContain("private-name");
+ expect(()=>normalizeInboxWebhook({object:"page",entry:[{id:"111",changes:[{field:"feed",value:{item:"comment",verb:"add",comment_id:"111_555",post_id:"111_444",from:{id:"222"},message:"Hello",created_time:Math.floor(now/1000)}}]}]},now)).not.toThrow();
+});

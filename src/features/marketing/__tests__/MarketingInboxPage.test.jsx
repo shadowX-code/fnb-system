@@ -33,6 +33,8 @@ vi.mock(
         "configuration",
         "suggest",
         "reviewAI",
+        "markRead",
+        "analytics",
       ].map((k) => [k, vi.fn()]),
     ),
   }),
@@ -51,6 +53,8 @@ const conversation = {
 };
 beforeEach(() => {
   vi.resetAllMocks();
+  inboxService.analytics.mockResolvedValue({volume:1,unresolved:1});
+  inboxService.markRead.mockResolvedValue(null);
   marketingService.context.mockResolvedValue({
     organizations: [{ id: "o", name: "Organization" }],
     brands: [{ id: "b", organization_id: "o", name: "Brand B" }, {
@@ -160,4 +164,14 @@ it("labels a past approval as historical when conversation evidence changed", as
   ).toBeTruthy();
   expect(screen.queryByText(/Approval recorded for this history version/))
     .toBeNull();
+});
+
+it('passes assignee/unread filters to the canonical read and shows unavailable response metrics',async()=>{
+ render(<MarketingInboxPage/>);
+ await screen.findByText('Internal QA case');
+ fireEvent.click(screen.getByRole('button',{name:'Assignee',exact:true}));
+ fireEvent.click(screen.getByRole('option',{name:'Assigned to me'}));
+ fireEvent.click(screen.getByLabelText('Unread only'));
+ await waitFor(()=>expect(inboxService.read).toHaveBeenLastCalledWith(expect.objectContaining({assignee:'me',unread:true,page:1})));
+ expect(screen.getByText(/Median first response Unavailable/)).toBeTruthy();
 });

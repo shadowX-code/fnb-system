@@ -111,5 +111,45 @@ begin
  denied:=false;begin perform public.marketing_inbox_ai_claim(gen_random_uuid(),public.marketing_inbox_actor());exception when insufficient_privilege then denied:=true;end;assert denied,'Browser cannot claim AI service authority';
 end;$$;
 reset role;
+reset role;
+do $$declare conn uuid:=(select id from marketing_qa_ids where key='connection');c uuid;actor uuid:=(select id from marketing_qa_ids where key='employee');event jsonb;
+begin
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ select id into c from public.marketing_conversations where connection_id=conn and medium='dm';
+ assert marketing_private.inbox_unread(c,actor)=3,'Inbound unread excludes echo';
+ insert into marketing_qa_ids values('social_conversation',c);
+ insert into marketing_qa_ids values('read_sequence',(select id from public.marketing_conversation_messages where conversation_id=c order by sequence desc limit 1));
+ update public.marketing_connections set capabilities=capabilities||'{"granted_scopes":["pages_messaging","pages_read_user_content"]}'::jsonb where id=conn;
+ insert into marketing_private.inbox_comment_authority(connection_id,generation,receive_verified,webhook_verified) select conn,credential_generation,true,true from public.marketing_connections where id=conn;
+ event:=jsonb_build_object('channel','facebook','account_id','999999999999','peer_id','777','kind','incoming','medium','comment','thread_id','999999999999_444','event_id','comment:555','body','Menu please','occurred_at',now());
+ perform public.marketing_inbox_enqueue(jsonb_build_array(event));perform public.marketing_inbox_process_events();
+ assert (select count(*) from public.marketing_conversations where connection_id=conn)=2,'Comments separate from DM with same identity';
+ assert (select last_inbound_at is null and intent='menu' from public.marketing_conversations where connection_id=conn and medium='comment'),'Comment cannot open DM window';
+ assert public.marketing_inbox_enqueue(jsonb_build_array(event))->>'duplicates'='1','Duplicate comment suppressed';
+ event:=event-'thread_id'||jsonb_build_object('medium','dm','event_id','optout','body','STOP','occurred_at',now());
+ perform public.marketing_inbox_enqueue(jsonb_build_array(event));perform public.marketing_inbox_process_events();
+ assert (select opted_out and takeover from public.marketing_conversations where id=c),'Opt-out enforced';
+ update public.marketing_conversations set takeover=false where id=c;
+ assert (select takeover from public.marketing_conversations where id=c),'Opt-out cannot be bypassed by takeover toggle';
+ assert not exists(select 1 from public.marketing_reply_outbox where state<>'blocked'),'Outbound records remain blocked';
+end;$$;
+set local role authenticated;
+select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from marketing_qa_ids where key='user'),'role','authenticated')::text,true);
+do $$declare c uuid:=(select id from marketing_qa_ids where key='social_conversation');o uuid:=(select id from marketing_qa_ids where key='org');b uuid:=(select id from marketing_qa_ids where key='brand');v jsonb;seq bigint;denied boolean;
+begin
+ v:=public.marketing_inbox_detail(c);seq:=(v->>'read_through_sequence')::bigint;
+ assert (v->>'unread_count')::integer=4,'Received messages count as unread';
+ perform public.marketing_inbox_mark_read(c,seq);
+ assert public.marketing_inbox_detail(c)->>'unread_count'='0','Read watermark applied';
+ perform public.marketing_inbox_mark_read(c,0);assert public.marketing_inbox_detail(c)->>'unread_count'='0','Old read cannot regress watermark';
+ denied:=false;begin perform public.marketing_inbox_mark_read(c,seq+1000);exception when others then denied:=true;end;assert denied,'Cannot pre-read future messages';
+ assert public.marketing_inbox_read(o,b,p_assignee=>'me')->>'total'='0','Assignee filter';
+ assert public.marketing_inbox_read(o,b,p_channel=>'facebook',p_unread=>true)->>'total'='1','Unread includes comment but read DM omitted';
+ assert public.marketing_inbox_read(o,b,p_search=>'Menu please')->>'total'='1','Message search';
+ v:=public.marketing_inbox_analytics(o,b,'facebook');assert v->>'volume'='2','Scoped conversation analytics';assert v->>'automation_rate' is null,'Unavailable automation is not zero';
+ denied:=false;begin execute 'select * from public.marketing_inbox_reads';exception when insufficient_privilege then denied:=true;end;assert denied,'Client table access denied';
+end;$$;
+reset role;
+
 select 'Marketing Inbox L3 scope, retry, escalation, knowledge, approval, webhook and AI contracts passed; all fixtures rolled back.' as result;
 rollback;
