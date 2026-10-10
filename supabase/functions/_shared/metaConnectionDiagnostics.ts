@@ -78,8 +78,11 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
     if(provenance==='unverified'&&businessId&&tokenEvidence.granted_scopes.includes('business_management')) {
      const mappings=await discoverAuthorizerAssignments(String(debug?.user_id||''),(path,params)=>read('authorizer_business_mapping',path,token,params));
      const mapped=mappings.find(m=>m.businessId===businessId);
+     publishingEvidence.business_authorizer_mapping_verified=!!mapped;
      if(mapped) {
       const result=await resolveBusinessPageTasks(pageId,String(debug?.user_id),mapped,(path,params)=>read('authorizer_business_assignment',path,token,params));
+      publishingEvidence.business_assignment_state=result.state;
+      publishingEvidence.business_assignment_reason=result.reason;
       if(result.state==='verified')provenance='business_manager';
      }
     }
