@@ -1,5 +1,5 @@
 import { MetaGraph, MetaError } from './metaGraph.ts';
-import { hash } from './metaSecurity.ts';
+import { hash, STAGING_SUPABASE } from './metaSecurity.ts';
 import { inboxConnectorContracts } from './metaInboxAdapters.ts';
 
 // Independent read-only messaging resolver. Never alters publishing authority.
@@ -12,6 +12,11 @@ export async function verifyInboxConnection(graph:MetaGraph, appId:string, appTo
  };
  const contract=inboxConnectorContracts[connection.channel as 'facebook'|'instagram'];
  if(!contract)throw new Error('unsupported_channel');
+ const appSubscriptions=await read(`${appId}/subscriptions`,appToken,{});
+ const object=connection.channel==='facebook'?'page':'instagram';
+ const appRowsForObject=Array.isArray(appSubscriptions?.data)?appSubscriptions.data.filter((s:any)=>s.object===object):[];
+ const appWebhook=appRowsForObject.length===1&&!appSubscriptions?.paging?.next?appRowsForObject[0]:null;
+ const appWebhookStatus={object,registered:!!appWebhook,active:appWebhook?.active===true,callback_matches:appWebhook?.callback_url===`${STAGING_SUPABASE}/functions/v1/marketing-inbox/webhook`,fields:Array.isArray(appWebhook?.fields)?appWebhook.fields.map((f:any)=>f.name).filter((s:string)=>contract.subscriptionFields.includes(s)):[]};
  const debug=(await read('debug_token',appToken,{input_token:credential.token}))?.data;
  const scopes=(Array.isArray(debug?.scopes)?debug.scopes:[]).filter((s:string)=>contract.requiredPermissions.includes(s));
  const missing=contract.requiredPermissions.filter(s=>!scopes.includes(s));
@@ -58,5 +63,5 @@ export async function verifyInboxConnection(graph:MetaGraph, appId:string, appTo
  const conversations=tokenVerified&&accountVerified&&!missing.length?await read(`${pageId}/conversations`,credential.token,{fields:'id,participants{id},messages.limit(10){id}',limit:20,...(connection.channel==='instagram'?{platform:'instagram'}:{})}):null;
  const verified=tokenVerified&&accountVerified&&targetsVerified&&!missing.length&&tasks.length>0&&Array.isArray(conversations?.data);
  const matched=inbound.filter(e=>e.account_id===connection.provider_account_id&&e.channel===connection.channel&&(conversations?.data||[]).some((row:any)=>row.participants?.data?.some((p:any)=>p.id===e.peer_id)&&row.messages?.data?.some((m:any)=>m.id===e.event_id))).map(e=>e.event_id);
- return {account_id:connection.provider_account_id,channel:connection.channel,page_id:pageId,token_verified:tokenVerified,account_verified:accountVerified,scope_targets_verified:targetsVerified,required_permissions:contract.requiredPermissions,missing_permissions:missing,page_tasks:tasks,task_source:source,authorization_verified:verified,subscriptions_verified:!missingSubscriptions.length,missing_subscriptions:missingSubscriptions,real_inbound_verified:matched.length>0,verified_inbound_ids:matched,evidence};
+ return {app_webhook:appWebhookStatus,account_id:connection.provider_account_id,channel:connection.channel,page_id:pageId,token_verified:tokenVerified,account_verified:accountVerified,scope_targets_verified:targetsVerified,required_permissions:contract.requiredPermissions,missing_permissions:missing,page_tasks:tasks,task_source:source,authorization_verified:verified,subscriptions_verified:!missingSubscriptions.length,missing_subscriptions:missingSubscriptions,real_inbound_verified:matched.length>0,verified_inbound_ids:matched,evidence};
 }

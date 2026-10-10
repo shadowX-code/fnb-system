@@ -387,7 +387,7 @@ export default function MarketingInboxPage() {
             {can('configure')&&<button className="btn-secondary" disabled={busy} onClick={()=>mutate({scope,connection:v.connection_id,command:'verify_messaging'},async()=>{
               const evidence=await inboxService.verifyConnection(v.connection_id);
               return evidence;
-            },evidence=>{setVerification({scope,evidence});return `Missing permissions: ${evidence.missing_permissions.join(', ')||'None'}. Missing subscriptions: ${evidence.missing_subscriptions.join(', ')||'None'}. Task evidence: ${evidence.task_source}. Real inbound: ${evidence.real_inbound_verified?'Verified':'Unverified'}. Sending stays disabled.`;})}>Verify messaging</button>}
+            },evidence=>{setVerification({scope,evidence});return `App callback: ${evidence.app_webhook?.registered && evidence.app_webhook.active && evidence.app_webhook.callback_matches ? 'Verified' : 'Unverified'}. Missing permissions: ${evidence.missing_permissions.join(', ')||'None'}. Missing subscriptions: ${evidence.missing_subscriptions.join(', ')||'None'}. Task evidence: ${evidence.task_source}. Real inbound: ${evidence.real_inbound_verified?'Verified':'Unverified'}. Sending stays disabled.`;})}>Verify messaging</button>}
           </div>
         ))}
       </div>

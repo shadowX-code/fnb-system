@@ -12,6 +12,12 @@ function graph(overrides:any={}) {
 }
 const verify=(g:any,c:any=connection,inbound:any[]=[])=>verifyInboxConnection(g,'444','test-app-token',c,{token:'test-page-token'},async()=>{},inbound);
 describe('independent messaging capability verification',()=>{
+ it('verifies the exact app callback without returning callback secrets or unrelated subscriptions',async()=>{
+  const result=await verify(graph({'444/subscriptions':{data:[{object:'page',active:true,callback_url:'https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/marketing-inbox/webhook',verify_token:'never-return-this',fields:[{name:'messages'},{name:'leadgen'}]}]}}));
+  expect(result.app_webhook).toEqual({object:'page',registered:true,active:true,callback_matches:true,fields:['messages']});
+  expect(JSON.stringify(result)).not.toContain('never-return-this');
+  expect((await verify(graph({'444/subscriptions':{data:[{object:'page',active:true,callback_url:'https://wrong.invalid',fields:[]}]}}))).app_webhook.callback_matches).toBe(false);
+ });
  it('requires explicit messaging tasks and real inbound matches, never read or posting success',async()=>{
   const result=await verify(graph());expect(result.authorization_verified).toBe(true);expect(result.real_inbound_verified).toBe(false);
   const posting=await verify(graph(),{...connection,capabilities:{...connection.capabilities,page_tasks:['MANAGE','CREATE_CONTENT']}});expect(posting.authorization_verified).toBe(false);
