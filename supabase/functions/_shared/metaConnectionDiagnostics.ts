@@ -89,7 +89,10 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
     // A current exact active person role can establish direct Page assignment.
     if(!snapshot&&tasks.source==='page_roles'&&tasks.state==='verified')provenance='direct_page';
     publishingEvidence.assignment_provenance=provenance;
-    if(provenance==='unverified')publishingEvidence.blockers.push('page_assignment_provenance_unverified');
+    if(provenance==='unverified') {
+     publishingEvidence.blockers.push('page_assignment_provenance_unverified');
+     if(publishingEvidence.business_assignment_reason)publishingEvidence.blockers.push(publishingEvidence.business_assignment_reason);
+    }
     if(provenance==='business_manager'&&!tokenEvidence.granted_scopes.some((s:string)=>['ads_read','ads_management'].includes(s)))publishingEvidence.blockers.push('business_manager_ads_read_required');
 
     const link=await read('linked_instagram_identity',pageId,token,{fields:'id,instagram_business_account{id}'});
