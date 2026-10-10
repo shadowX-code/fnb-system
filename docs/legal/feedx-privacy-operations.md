@@ -2,6 +2,8 @@
 
 Verified on Staging, 2026-10-10. This is an operational evidence register, not approval of a retention schedule or certification of legal compliance. Scope: existing Marketing, Meta and Inbox/AI authorities. Production and external Meta content are unchanged.
 
+Technical Staging privacy implementation was accepted and closed by the operator on 2026-10-10. Public Policy v1.0 was separately approved and published on 2026-10-11; [release evidence](feedx-privacy-public-release.md). Outstanding legal/operational decisions remain open. Neither event authorizes additional infrastructure, legal filings or Meta changes.
+
 ## Recovery and export inventory
 
 | Authority | Actual evidence | Retention / recovery consequence |
@@ -54,4 +56,6 @@ Apply Malaysia's [official cross-border transfer guidance](https://www.pdp.gov.m
 | Category retention approval | Existing immutable/finalized HR, recruitment, finance and content evidence cannot be purged by generic TTL. Accounting/tax seven-year and prescribed employment-register six-year anchors have distinct triggers; raw GPS/medical/interview/message/AI proposals remain separately assessed. Current backup window is seven days, not a statutory archive. | Finance/People/legal/Marketing: approve each category trigger, lawful exceptions, minimal evidence, hold/reversal workflow and custodian in [retention proposal](feedx-retention-proposal.md). **No automatic purging activated.** |
 | Transfers and processors | Actual primary services identified; public DPAs/default policies available. Accepted agreements, all support/drain locations, AI account controls and Malaysian transfer assessment unverified. | Operator/legal/security: obtain contractual evidence, subprocessor review and record transfer basis/safeguards. |
 | Export/restore operations | Independent journal and disposable logical replay verified. Manual/offsite export inventory and actual infrastructure quarantine/change-window ownership require owner attestation. | Platform/privacy operator: inventory custodians/copies, establish access restriction/change approvals and key recovery custody. No speculative physical restore of shared Staging. |
-| Privacy operations and release | Bilingual Staging review only; existing contact confirmed but responsible operator/request-verification procedures and breach response ownership need confirmation. | Operator/legal: appoint an operational custodian (not automatically a DPO), approve both languages/effective date and separately authorize public release/Meta metadata. |
+| Privacy operations and release | Bilingual policy v1.0 published with explicit approval; existing contact confirmed but responsible operator/request-verification procedures and breach response ownership need confirmation. | Operator/legal: appoint an operational custodian (not automatically a DPO), maintain privacy request handling ownership; any Meta metadata or app publication still needs separate authorization. Other legal decisions remain open. |
+
+Recovery/key custodians remain an explicit open decision: name primary/backup custodians, restricted key recovery, restore quarantine and reopening ownership. Verified infrastructure does not appoint those owners.

@@ -25,3 +25,17 @@ it("serves the complete static policy before the SPA fallback without authentica
     expect(document.getElementById(link.getAttribute("href").slice(1))).toBeTruthy();
   }
 });
+
+
+it("preserves the released policy and explicit public/Staging host boundary", () => {
+  expect(document.body.textContent).toContain("Version 1.0");
+  expect(document.body.textContent).toContain("currently verified on the Staging environment");
+  expect(document.querySelector('meta[name="robots"]')).toBeNull();
+  const route = config.routes.find(route => route.src === "/privacy/?");
+  const host = new RegExp(`^${route.has[0].value}$`);
+  expect(host.test("feedx.my")).toBe(true);
+  expect(host.test("fnb-system-staging.vercel.app")).toBe(true);
+  expect(host.test("os.feedx.my")).toBe(false);
+  expect(host.test("crew.feedx.my")).toBe(false);
+  expect(config.routes.find(route => route.src === "/privacy.html").dest).toBe("/index.html");
+});

@@ -1,6 +1,6 @@
 # FeedX FNB OS privacy-policy review
 
-Prepared 2026-10-10. Public document owner: Platform, in this existing FeedX repository/Vercel project. Canonical copy: `public/privacy.html` (complete English and Bahasa Malaysia). Proposed Production URL: `https://feedx.my/privacy`. Current state: Staging review only, not approved for Production or Meta app metadata/publication.
+Prepared 2026-10-10. Public document owner: Platform, in this existing FeedX repository/Vercel project. Canonical copy: `public/privacy.html` (complete English and Bahasa Malaysia). Published Production URL: `https://feedx.my/privacy`. Version 1.0 was explicitly approved and released on 11 October 2026. Legal/operational decisions remain open; Meta app metadata/publication remains unauthorized.
 
 ## Confirmed operator facts
 
@@ -36,3 +36,7 @@ Initial unauthenticated request to `https://feedx.my/privacy` returned HTTP 308 
 QA level: L3 for the trusted erasure/schema change, with rollback fixtures for exact grant/scope, derived data, cache/replay, legal holds, follow-up and access denial; focused Publishing/Inbox regression only. Static bilingual page uses proportional build/public-route/mobile checks. Production URL content remains pending an explicitly authorized release.
 
 Operational review update: [privacy operations and decision register](feedx-privacy-operations.md) records actual seven-day Staging backups without PITR, Singapore database/journal, Hobby hosting log rule and verified journal replay. Bilingual review version 3 describes recovery without claiming backup/provider expiry or active category purges. No public release or Meta app edit.
+
+## Approved publication — 11 October 2026
+
+[Release record](feedx-privacy-public-release.md) pins the exact approved policy bytes, effective publication date, Production SHA/deployment and smoke evidence. The notice is now public; historic preparation-only statements above describe the earlier review stage. Publication does not resolve any decision listed here or authorize Meta changes. Marketing/AI/recovery controls are expressly qualified as Staging-verified. No additional Production application functionality was released.

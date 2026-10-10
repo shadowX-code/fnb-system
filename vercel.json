@@ -2,7 +2,23 @@
   "routes": [
     {
       "src": "/privacy/?",
-      "dest": "/privacy.html"
+      "dest": "/privacy.html",
+      "has": [
+        {
+          "type": "host",
+          "value": "(feedx\\.my|fnb-system-staging\\.vercel\\.app)"
+        }
+      ]
+    },
+    {
+      "src": "/privacy.html",
+      "missing": [
+        {
+          "type": "host",
+          "value": "(feedx\\.my|fnb-system-staging\\.vercel\\.app)"
+        }
+      ],
+      "dest": "/index.html"
     },
     {
       "handle": "filesystem"
