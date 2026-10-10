@@ -41,6 +41,17 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
    if(String(page?.id)===pageId&&typeof page?.can_post==='boolean')publishingEvidence.can_post=page.can_post;
    let tasks=await resolvePageRoleTasks(pageId,String(debug?.user_id||''),(path,params)=>read('authorizer_page_roles',path,token,params));
    if(tasks.state==='unverified'&&tokenEvidence.granted_scopes.includes('pages_manage_metadata')&&assignment&&(!(debug.granular_scopes||[]).some((g:any)=>g.scope==='pages_manage_metadata'&&g.target_ids?.length)||(debug.granular_scopes||[]).some((g:any)=>g.scope==='pages_manage_metadata'&&g.target_ids?.includes(pageId))))tasks=await resolveBusinessPageTasks(pageId,String(debug?.user_id||''),assignment,(path,params)=>read('authorizer_page_assignment',path,token,params));
+   // Diagnostic only: the official assigned_users edge is guarded by MANAGE
+   // for Page tokens. Discover business context from the exact Page, never UI IDs.
+   // Success is not adopted as exact-authorizer task evidence without a mapping.
+   if(tasks.state==='unverified'&&!assignment&&tokenEvidence.granted_scopes.includes('pages_manage_metadata')) {
+    const owner=await read('page_business_context',pageId,token,{fields:'id,business{id}'});
+    const businessId=owner?.business?.id;
+    if(String(owner?.id)===pageId&&typeof businessId==='string'&&/^\d{1,30}$/.test(businessId)) {
+     const assigned=await read('page_assignment_visibility',pageId+'/assigned_users',token,{business:businessId,fields:'tasks',limit:1});
+     publishingEvidence.assignment_edge_accessible=Array.isArray(assigned?.data);
+    }else publishingEvidence.assignment_edge_accessible=null;
+   }
    publishingEvidence.page_tasks=tasks.tasks;
    publishingEvidence.page_tasks_verified=tasks.state!=='unverified';
    publishingEvidence.page_task_source=tasks.source;

@@ -56,7 +56,7 @@ export async function advanceMetaPublish(input:{graph:MetaGraph;accountId:string
   s.polls=(s.polls||0)+1;await checkpoint(s);
   if(s.polls>60||Date.now()-Date.parse(s.started_at!)>3600000)return {outcome:'permanent_failure',code:'meta_media_processing_expired'};
   return {outcome:'waiting',code:'meta_media_processing'};
- } catch(error) {return {outcome:'retryable_failure',code:error instanceof MetaError?error.code:'meta_status_unavailable'};}
+ } catch(error) {return {outcome:error instanceof MetaError&&!error.uncertain&&!error.retryable?'permanent_failure':'retryable_failure',code:error instanceof MetaError?error.code:'meta_status_unavailable'};}
 }
 export function testAccountEnabled(accountId:string,allowlist:string):boolean {
  return /^\d+$/.test(accountId)&&allowlist.split(',').map(s=>s.trim()).filter(s=>/^\d+$/.test(s)).includes(accountId);

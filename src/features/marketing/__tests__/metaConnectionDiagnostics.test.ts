@@ -51,6 +51,21 @@ describe('read-only Meta connection diagnostics',()=>{
   const denied=await diagnoseMetaConnection(new MetaGraph(config,invalid),'123','app-token',{provider_account_id:'111',channel:'facebook'},'token',vi.fn(),true);
   expect(denied.publishing_evidence.blockers).toContain('page_credential_unverified');expect(invalid).toHaveBeenCalledTimes(3);
  });
+ it('probes business assignment visibility without adopting another user or bypassing task evidence',async()=>{
+  for(const owner of [{id:'111',business:{id:'777'}},{id:'999',business:{id:'777'}},null]) {
+   const transport=vi.fn().mockResolvedValueOnce(response({data:{is_valid:true,app_id:'123',type:'PAGE',user_id:'789',scopes:['pages_manage_metadata','pages_manage_posts','pages_read_engagement'],expires_at:0}}))
+    .mockResolvedValueOnce(response({id:'111'})).mockResolvedValueOnce(response({data:[]})).mockResolvedValueOnce(response({id:'111',can_post:true}))
+    .mockResolvedValueOnce(response({data:[]})).mockResolvedValueOnce(response(owner))
+    .mockResolvedValueOnce(response({data:[{id:'555',tasks:['MANAGE'],name:'private-name'}]}));
+   const connection={provider_account_id:'111',channel:'facebook',capabilities:{publishing:false,execution_enabled:false}},before=JSON.stringify(connection);
+   const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','private-app-token',connection,'private-token',vi.fn(),true);
+   expect(result.publishing_evidence.eligibility).toBe('unverified');expect(result.publishing_enabled).toBe(false);expect(JSON.stringify(connection)).toBe(before);
+   expect(result.publishing_evidence.assignment_edge_accessible).toBe(owner?.id==='111'?true:null);
+   expect(transport).toHaveBeenCalledTimes(owner?.id==='111'?7:6);
+   for(const value of ['555','777','789','private-name','private-token','private-app-token'])expect(JSON.stringify(result)).not.toContain(value);
+   expect(transport.mock.calls.every(([,init])=>init.method==='GET')).toBe(true);
+  }
+ });
  it('requires verified Page token, application, identity, expiry and core read before retry',()=>{
   const connection={channel:'facebook',status:'error',error_code:'meta_permission_or_token_invalid',provider_account_id:'111',expires_at:'2099-01-01'};
   const result={account_id:'111',token:{valid:true,app_matches:true,type:'PAGE',expiry_in_future:true},credential_identity_matches:true,evidence:[{check:'facebook_sync',success:true}]};

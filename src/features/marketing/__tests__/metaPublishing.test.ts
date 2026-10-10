@@ -39,6 +39,24 @@ describe('durable Meta publishing',()=>{
   expect((await h.run()).outcome).toBe('retryable_failure');expect(h.getState().pending).toBeUndefined();
   h.guard.mockRejectedValue(new Error('scope revoked'));await h.run();expect(h.request).toHaveBeenCalledTimes(1);
  });
+ it('reports definitive token rejection as permanent during Instagram processing, preserving the container',async()=>{
+  const h=harness(vi.fn().mockResolvedValueOnce({id:'801'}).mockRejectedValueOnce(new MetaError('meta_permission_or_token_invalid',false,false,190)));
+  const patch={variant:{...variant,channel:'instagram',format:'image',asset_ids:['a']},mediaUrls:['https://example.invalid/a']};
+  expect((await h.run(patch)).outcome).toBe('waiting');
+  expect(await h.run(patch)).toEqual({outcome:'permanent_failure',code:'meta_permission_or_token_invalid'});
+  expect(h.getState().objects?.container).toBe('801');expect(h.getState().post_id).toBeUndefined();
+  expect(h.request.mock.calls.filter(([, , , method])=>method==='POST')).toHaveLength(1);
+ });
+ it('keeps transient Instagram status reads retryable and token rejection on writes receipt-free',async()=>{
+  const h=harness(vi.fn().mockResolvedValueOnce({id:'801'}).mockRejectedValueOnce(new MetaError('meta_error_4',false,true)));
+  const patch={variant:{...variant,channel:'instagram',format:'image',asset_ids:['a']},mediaUrls:['https://example.invalid/a']};
+  await h.run(patch);expect(await h.run(patch)).toEqual({outcome:'retryable_failure',code:'meta_error_4'});
+  for(const channel of ['facebook','instagram']) {
+   const rejected=harness(vi.fn().mockRejectedValue(new MetaError('meta_permission_or_token_invalid',false,false,190)));
+   expect(await rejected.run({variant:{...variant,channel,format:channel==='facebook'?'text':'image',asset_ids:channel==='facebook'?[]:['a']},mediaUrls:channel==='facebook'?[]:['https://example.invalid/a']})).toEqual({outcome:'permanent_failure',code:'meta_permission_or_token_invalid'});
+   expect(rejected.getState().pending).toBeUndefined();expect(rejected.getState().post_id).toBeUndefined();
+  }
+ });
  it('requires an exact explicit numeric test allowlist and validates actual media bytes',()=>{
   expect(testAccountEnabled('111','')).toBe(false);expect(testAccountEnabled('111','1111')).toBe(false);expect(testAccountEnabled('111','222, 111')).toBe(true);
   expect(()=>verifyMetaMedia(new TextEncoder().encode('not an image'),'image/jpeg','facebook')).toThrow('media_bytes_invalid');
