@@ -17,6 +17,12 @@ const now = Date.now(),
     message: { mid: "mid1", text: "Hello" },
   };
 describe("Inbox integration contracts", () => {
+  it("pins the latest customer question independently of earlier history and staff notes", () => {
+    const input = aiInput({kind:"reply",facts:{identity:"Approved brand"},history:[{kind:"incoming",text:"Brand name?"},{kind:"incoming",text:"Meal price?"},{kind:"note",text:"Staff note"}]});
+    expect(input.latest_customer_message).toBe("Meal price?");
+    expect(input.internal_test_question).toBe("");
+    expect(aiInput({kind:"reply",facts:{},history:[{kind:"note",text:"Brand name?"},{kind:"note",text:"Meal price?"}]}).internal_test_question).toBe("Meal price?");
+  });
   it("normalizes inbound and echo direction without profile or attachment URLs", () => {
     const rows = normalizeInboxWebhook({
       object: "page",

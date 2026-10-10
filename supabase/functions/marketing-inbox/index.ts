@@ -202,6 +202,7 @@ Deno.serve(async (req) => {
     return json({ error: "Invalid request." }, 400);
   }
   let claim: any;
+  let aiStage = "prepare";
   try {
     const prepared = await rpc(caller, "marketing_inbox_ai_prepare", {
       p_request: body.requestId,
@@ -218,11 +219,13 @@ Deno.serve(async (req) => {
       p_actor: actor,
     });
     if (!claim) return json({ state: "already_claimed_or_superseded" });
+    aiStage = "provider";
     const result = await requestInboxAI(
       claim,
       env("OPENAI_API_KEY"),
       env("MARKETING_AI_MODEL"),
     );
+    aiStage = "record";
     return json(
       await rpc(service, "marketing_inbox_ai_finish", {
         p_request: body.requestId,
@@ -233,7 +236,9 @@ Deno.serve(async (req) => {
         p_output: result.output,
       }),
     );
-  } catch {
+  } catch (error) {
+    const code = error instanceof Error && ["ai_provider_failed","ai_provider_incomplete","ai_evidence_invalid","ai_citations_missing","ai_shape_invalid","ai_intent_invalid","inbox_authority_rejected"].includes(error.message) ? error.message : "ai_unavailable";
+    console.warn("marketing_inbox_ai_failure", {stage: aiStage, code});
     if (claim) {
       try {
         await rpc(service, "marketing_inbox_ai_finish", {

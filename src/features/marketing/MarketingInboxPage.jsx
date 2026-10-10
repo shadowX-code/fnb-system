@@ -664,8 +664,6 @@ export default function MarketingInboxPage() {
                   Suggestions use approved facts. Human approval is required.
                   Provider:{" "}
                   {configuration?.ai_configured ? "Configured" : "Unavailable"}.
-                  Usage costs are unavailable until a pricing source is
-                  configured.
                 </p>
                 <div className="marketing-inbox-actions">
                   {can("ai") &&
