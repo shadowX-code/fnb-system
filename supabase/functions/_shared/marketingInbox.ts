@@ -217,7 +217,7 @@ export async function requestInboxAI(
     text: { type: "string", description: "For reply: the actual customer-facing answer, not an instruction, analysis or restatement of the question. For summary: the summary. For FAQ: the proposed answer." },
     question: { type: "string", description: "FAQ question only; empty for reply or summary." },
     language: { type: "string", enum: ["EN", "ZH", "BM"] },
-    reference_keys: { type: "array", items: { type: "string" } },
+    reference_keys: { type: "array", items: { type: "string", ...(Object.keys(input.facts).length ? {enum: Object.keys(input.facts)} : {}) }, maxItems: Object.keys(input.facts).length ? 9 : 0, description: "Approved fact keys supporting the answer only. Use an empty array for an unsupported-question fallback; never invent a reference key." },
     human_required: { type: "boolean" },
   };
   const response = await transport("https://api.openai.com/v1/responses", {
