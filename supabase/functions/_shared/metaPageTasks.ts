@@ -48,3 +48,15 @@ export async function resolveBusinessPageTasks(pageId:string,subject:string,assi
  if(!create&&matches[0].tasks.some((t:string)=>!['ADVERTISE','ANALYZE','MODERATE','MESSAGING'].includes(t)))return unknown('task_vocabulary_unrecognized');
  return {state:create?'verified':'not_granted',source:'page_assigned_users',tasks,can_create:create,reason:create?null:'content_task_not_granted'};
 }
+
+// The OAuth snapshot is server-owned and encrypted with its credential. An
+// empty business-excluding /roles edge cannot negate a verified /me/accounts edge.
+export type OAuthTaskEvidence={subject:string;pageId:string;businessId:string;generation:number;tokenHash:string;tasks:string[]};
+export function resolveOAuthTaskEvidence(e:OAuthTaskEvidence|undefined,current:{subject:string;pageId:string;businessId:string;generation:number;tokenHash:string}) {
+ const unknown=(reason:string)=>({state:'unverified',source:'oauth_accounts',tasks:[] as string[],can_create:false,reason});
+ if(!e)return unknown('oauth_task_snapshot_unavailable');
+ if(!numeric(e.subject)||!numeric(e.pageId)||!numeric(e.businessId)||e.subject!==current.subject||e.pageId!==current.pageId||e.businessId!==current.businessId||e.generation!==current.generation||e.tokenHash!==current.tokenHash)return unknown('oauth_task_binding_changed');
+ if(!Array.isArray(e.tasks)||!e.tasks.length||e.tasks.some(t=>typeof t!=='string'))return unknown('oauth_task_snapshot_incomplete');
+ const tasks=e.tasks.filter(t=>['MANAGE','CREATE_CONTENT'].includes(t));
+ return {state:tasks.length?'verified':'not_granted',source:'oauth_accounts',tasks,can_create:tasks.length>0,reason:tasks.length?null:'content_task_not_granted'};
+}

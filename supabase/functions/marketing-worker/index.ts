@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { STAGING_SUPABASE, connectionBinding, unseal, hash } from '../_shared/metaSecurity.ts';
 import { MetaError, MetaGraph } from '../_shared/metaGraph.ts';
 import { advanceMetaPublish, testAccountEnabled, verifyMetaMedia } from '../_shared/metaPublishing.ts';
+import { diagnoseMetaConnection } from '../_shared/metaConnectionDiagnostics.ts';
 import { readMetaPosts } from '../_shared/metaSynchronization.ts';
 const env=(name:string)=>Deno.env.get(name)||'';
 async function call(db:any,name:string,args:any={}) {const {data,error}=await db.rpc(name,args);if(error)throw new Error('marketing_authority_rejected');return data;}
@@ -35,6 +36,10 @@ Deno.serve(async(req)=>{
    let result:any;
    try {
     const connection=await guard(),token=await tokenFor(connection),variant=job.payload.variants.find((v:any)=>v.channel===job.channel);
+    const material=await call(db,'marketing_meta_connection_material',{p_connection:connection.id});
+    const retained=await unseal(material.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
+    const eligibility=await diagnoseMetaConnection(graph,env('MARKETING_META_APP_ID'),`${env('MARKETING_META_APP_ID')}|${env('MARKETING_META_APP_SECRET')}`,material,retained.token,async()=>{await guard();},true,retained.authorizerAssignment,retained.oauthTaskEvidence);
+    if(eligibility.publishing_evidence?.eligibility!=='verified')throw new MetaError('publishing_eligibility_unverified');
     if(!variant||!connection.capabilities.formats?.includes(variant.format))throw new MetaError('channel_format_unavailable');
     const state=job.provider_state||{},assets=await call(db,'marketing_job_assets',{p_job:job.id,p_lease:job.lease_token});
     const checkpoint=(s:any)=>call(db,'marketing_job_checkpoint',{p_job:job.id,p_lease:job.lease_token,p_state:s});
