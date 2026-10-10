@@ -25,6 +25,7 @@ begin
  insert into marketing_qa_ids values('user',u),('employee',e),('role',r),('org',o),('brand',b),('other_brand',other_b),('other_org',other_o);
 end; $$;
 set local role authenticated;
+select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','authenticated'))::text,true);
 select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from marketing_qa_ids where key='user'),'role','authenticated')::text,true);
 do $$
 declare o uuid:=(select id from marketing_qa_ids where key='org');b uuid:=(select id from marketing_qa_ids where key='brand');s jsonb;c jsonb;denied boolean;
@@ -42,6 +43,7 @@ begin
  perform public.marketing_content_command(gen_random_uuid(),'schedule',o,b,(c->>'id')::uuid,1,jsonb_build_object('scheduled_at',now()+interval '1 hour','timezone','Asia/Kuala_Lumpur'));
 end;$$;
 set local role service_role;
+select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','service_role'))::text,true);
 do $$
 declare s uuid:=(select id from marketing_qa_ids where key='oauth'); u uuid:=(select id from marketing_qa_ids where key='user');c jsonb;again jsonb;denied boolean;
 begin
@@ -57,6 +59,7 @@ begin
  assert public.marketing_claim_job() is null,'A connection must not release queued content';
 end;$$;
 set local role authenticated;
+select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','authenticated'))::text,true);
 do $$
 declare denied boolean;conn uuid:=(select id from marketing_qa_ids where key='connection');c uuid:=(select id from marketing_qa_ids where key='meta_content');result jsonb;
 begin
@@ -66,6 +69,7 @@ begin
  denied:=false;begin perform public.marketing_authorize_execution(gen_random_uuid(),c,1,array[conn]);exception when others then denied:=true;end;assert denied,'Server test-account policy must be required';
 end;$$;
 set local role service_role;
+select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','service_role'))::text,true);
 select public.marketing_meta_execution_policy((select id from marketing_qa_ids where key='connection'),1,true);
 do $$declare c jsonb;begin
  c:=public.marketing_meta_sync_claim();assert c is not null,'Authorized post sync must be claimable';
@@ -74,11 +78,13 @@ end;$$;
 reset role;
 update public.marketing_jobs set due_at=now()-interval '1 minute' where content_id=(select id from marketing_qa_ids where key='meta_content');
 set local role authenticated;
+select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','authenticated'))::text,true);
 do $$declare req uuid:=gen_random_uuid();result jsonb;again jsonb;begin
  result:=public.marketing_authorize_execution(req,(select id from marketing_qa_ids where key='meta_content'),1,array[(select id from marketing_qa_ids where key='connection')]);
  again:=public.marketing_authorize_execution(req,(select id from marketing_qa_ids where key='meta_content'),1,array[(select id from marketing_qa_ids where key='connection')]);assert result=again,'Execution approval retry must be idempotent';
 end;$$;
 set local role service_role;
+select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','service_role'))::text,true);
 do $$declare j jsonb;denied boolean;begin
  j:=public.marketing_claim_job();assert j->>'channel'='facebook','Approved enabled test job must be claimable';
  insert into marketing_qa_ids values('job',(j->>'id')::uuid),('lease',(j->>'lease_token')::uuid);
@@ -89,15 +95,17 @@ do $$declare j jsonb;denied boolean;begin
  assert public.marketing_claim_job() is null,'Uncertain writes must never be resent';
 end;$$;
 set local role authenticated;
+select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','authenticated'))::text,true);
 do $$declare denied boolean;begin
  denied:=false;begin perform public.marketing_content_command(gen_random_uuid(),'save',(select id from marketing_qa_ids where key='org'),(select id from marketing_qa_ids where key='brand'),(select id from marketing_qa_ids where key='meta_content'),1,'{"title":"Changed","outlet_ids":[],"variants":[{"channel":"facebook","format":"text","caption":"Changed","asset_ids":[]}]}');exception when others then denied:=true;end;assert denied,'Uncertainty must freeze material revisions';
  perform public.marketing_meta_disconnect((select id from marketing_qa_ids where key='connection'));
 end;$$;
 set local role service_role;
+select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','service_role'))::text,true);
 do $$declare denied boolean;begin
  assert public.marketing_meta_connection_material((select id from marketing_qa_ids where key='connection')) is null,'Disconnect removes token material';
  perform public.marketing_meta_removal_once(repeat('1',64),'789',true,repeat('d',64),now());
- assert public.marketing_meta_deletion_status(repeat('d',64))->>'status'='completed','Deletion confirmation must be available without identity data';
+ assert public.marketing_meta_deletion_status(repeat('d',64))->>'status'='local_completed_followup_pending','Deletion confirmation must distinguish unverified backup/provider handling';
  assert public.marketing_meta_deletion_status(repeat('e',64)) is null,'Unknown deletion code must not reveal anything';
 end;$$;
 reset role;
@@ -112,11 +120,13 @@ do $$begin
 end;$$;
 -- Reconnect through the same authority; a signed removal replay cannot erase this later grant.
 set local role authenticated;
+select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','authenticated'))::text,true);
 do $$declare s jsonb;begin
  s:=public.marketing_meta_begin((select id from marketing_qa_ids where key='org'),(select id from marketing_qa_ids where key='brand'),repeat('f',64),'https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/marketing-meta/callback');
  insert into marketing_qa_ids values('reconnect',(s->>'id')::uuid);
 end;$$;
 set local role service_role;
+select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','service_role'))::text,true);
 do $$declare s uuid:=(select id from marketing_qa_ids where key='reconnect');begin
  perform public.marketing_meta_consume(repeat('f',64));
  perform public.marketing_meta_stage(s,'789','{"ciphertext":"QA later grant"}','[{"id":"111","name":"Rollback Later Consent","channel":"facebook","capabilities":{"publishing":true,"posts":true,"formats":["text"]}}]');
@@ -131,6 +141,7 @@ reset role;
 update public.marketing_connections set capabilities=capabilities||'{"execution_enabled":true}' where id=(select id from marketing_qa_ids where key='connection');
 update public.marketing_jobs set state='leased',external_authorized_at=now(),connection_generation=3,provider_state='{"objects":{"photo_0":"901"}}',due_at=now()-interval '1 minute',lease_expires_at=now()-interval '1 minute' where id=(select id from marketing_qa_ids where key='job');
 set local role service_role;
+select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','service_role'))::text,true);
 do $$declare j jsonb;begin
  j:=public.marketing_claim_job();assert j->>'state'='leased' and j->'provider_state'->'objects'->>'photo_0'='901','Known completed checkpoint must resume without recreating media';
  perform public.marketing_job_checkpoint((j->>'id')::uuid,(j->>'lease_token')::uuid,'{"pending":"publish"}');
