@@ -393,6 +393,7 @@ export default function MarketingInboxPage() {
       </div>
       {verification?.scope===scope&&<details className="marketing-inbox-analytics"><summary>Meta verification details</summary>
         <p>Account: {verification.evidence.account_verified?'Verified':'Unverified'} · Token: {verification.evidence.token_verified?'Verified':'Unverified'} · Authorization: {verification.evidence.authorization_verified?'Verified':'Unverified'}</p>
+        {verification.evidence.app_webhook&&<p>App webhook ({verification.evidence.app_webhook.object}): {verification.evidence.app_webhook.registered?'Registered':'Absent'} · {verification.evidence.app_webhook.active?'Active':'Inactive'} · Callback destination: {verification.evidence.app_webhook.callback_matches?'Matches':'Unverified'} · Fields: {verification.evidence.app_webhook.fields.join(', ')||'None'}</p>}
         {verification.evidence.evidence.map((row,index)=><p className="text-sm" key={index}>{row.endpoint} · HTTP {row.http_status??'Unavailable'} · Graph {row.graph_error_code??'None'} / {row.graph_error_subcode??'None'}</p>)}
       </details>}
       <AdminPagination
