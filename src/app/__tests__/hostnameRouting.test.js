@@ -51,3 +51,10 @@ it("redirects only legacy Production Product Feedback routes to the dedicated pu
   expect(hostnameRoutingMiddleware(new Request("https://feedback.feedx.my/opaque-token"))).toBeUndefined();
   expect(hostnameRoutingMiddleware(new Request("https://feedback.feedx.my/#factory_dashboard"))).toBeUndefined();
 });
+
+it("permits only the public privacy path and canonicalizes its static-file alias", () => {
+  expect(hostnameRoutingMiddleware(new Request("https://feedx.my/privacy"))).toBeUndefined();
+  expect(hostnameRoutingMiddleware(new Request("https://feedx.my/privacy/?lang=ms"))).toBeUndefined();
+  expect(hostnameRoutingMiddleware(new Request("https://feedx.my/privacy/admin"))?.headers.get("location")).toBe("https://feedx.my/");
+  expect(hostnameRoutingMiddleware(new Request("https://feedx.my/privacy.html"))?.headers.get("location")).toBe("https://feedx.my/privacy");
+});
