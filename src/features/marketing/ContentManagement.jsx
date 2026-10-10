@@ -615,9 +615,46 @@ export default function ContentManagement(
             />
           </>
         }
-        activeFilters={search || from || to || channel || status
-          ? ["filters"]
-          : []}
+        activeFilters={[
+          search
+            ? {
+              key: "search",
+              label: "Search",
+              value: search,
+              onRemove: () => {
+                setSearch("");
+                setQuery("");
+              },
+            }
+            : null,
+          from
+            ? {
+              key: "from",
+              label: "From",
+              value: from,
+              onRemove: () => setFrom(""),
+            }
+            : null,
+          to
+            ? { key: "to", label: "To", value: to, onRemove: () => setTo("") }
+            : null,
+          channel
+            ? {
+              key: "channel",
+              label: "Channel",
+              value: contentStatusLabel(channel),
+              onRemove: () => setChannel(""),
+            }
+            : null,
+          status
+            ? {
+              key: "status",
+              label: "Status",
+              value: contentStatusLabel(status),
+              onRemove: () => setStatus(""),
+            }
+            : null,
+        ].filter(Boolean)}
         onClear={() => {
           setSearch("");
           setQuery("");

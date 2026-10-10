@@ -70,7 +70,7 @@ begin
  end loop;
  -- Same account/post across reconnect generations: one latest observation.
  insert into marketing_social_posts(organization_id,brand_id,connection_id,connection_generation,provider_account_id,provider_post_id,channel,caption,published_at,metrics,observed_at)
- values(o,b,conn,1,'1001','1001_1','facebook','Older duplicate','2026-05-10T03:00:00Z','{}',now()-interval '1 hour');
+ values(o,b,conn,1,null,'1001_1','facebook','Older duplicate','2026-05-10T03:00:00Z','{}',now()-interval '1 hour');
  -- Same post ID on a distinct channel account is NOT a duplicate.
  insert into marketing_connections(organization_id,brand_id,channel,provider_account_id,credential_generation) values(o,b,'instagram','1002',2) returning id into conn;
  insert into marketing_social_posts(organization_id,brand_id,connection_id,connection_generation,provider_account_id,provider_post_id,channel,caption,published_at)

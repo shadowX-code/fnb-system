@@ -146,3 +146,20 @@ it("expands per-channel evidence without adding execution actions", async () => 
     .toBeNull();
   expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
 });
+
+it("uses the shared active-filter contract and allows removing a filter", async () => {
+  render(<ContentManagement {...props} />);
+  await screen.findByRole("table");
+  fireEvent.change(screen.getByLabelText("From"), {
+    target: { value: "2026-05-21" },
+  });
+  const remove = await screen.findByRole("button", {
+    name: "Remove From filter",
+  });
+  expect(screen.queryByRole("button", { name: "Remove undefined filter" }))
+    .toBeNull();
+  fireEvent.click(remove);
+  await waitFor(() =>
+    expect(service.contentManagement.mock.calls.at(-1)[0].from).toBeNull()
+  );
+});
