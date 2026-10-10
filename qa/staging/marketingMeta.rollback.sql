@@ -1,6 +1,11 @@
 -- Staging-only L3 rehearsal. Every fixture and mutation is rolled back.
 -- Run only against verified ujkzdaaadnvcfayuldmh; no provider call is made.
 begin;
+
+-- A synthetic independent receipt is used ONLY in rollback contract QA; live Blob rehearsal is separate.
+create function pg_temp.qa_journal_ack(intent jsonb) returns void language plpgsql as $$begin
+ perform public.marketing_privacy_journal_ack(intent->>'id',encode(extensions.digest(intent->>'payload','sha256'),'hex'),'feedx/ujkzdaaadnvcfayuldmh/erasure/v1/'||(intent->>'id')||'.json');
+end;$$;
 -- Do not run the global claim rehearsal alongside configured live accounts.
 do $$begin assert not exists(select 1 from public.marketing_connections where capabilities->>'execution_enabled'='true'),'Global claim QA requires no enabled external accounts';end;$$;
 create temporary table marketing_qa_ids(key text primary key,id uuid);
@@ -104,6 +109,7 @@ set local role service_role;
 select set_config('request.jwt.claims',(coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb||jsonb_build_object('role','service_role'))::text,true);
 do $$declare denied boolean;begin
  assert public.marketing_meta_connection_material((select id from marketing_qa_ids where key='connection')) is null,'Disconnect removes token material';
+ perform pg_temp.qa_journal_ack(public.marketing_privacy_prepare_meta(repeat('1',64),'789',repeat('d',64),now()));
  perform public.marketing_meta_removal_once(repeat('1',64),'789',true,repeat('d',64),now());
  assert public.marketing_meta_deletion_status(repeat('d',64))->>'status'='local_completed_followup_pending','Deletion confirmation must distinguish unverified backup/provider handling';
  assert public.marketing_meta_deletion_status(repeat('e',64)) is null,'Unknown deletion code must not reveal anything';
@@ -133,6 +139,7 @@ do $$declare s uuid:=(select id from marketing_qa_ids where key='reconnect');beg
  perform public.marketing_meta_bind(s,(select id from marketing_qa_ids where key='user'),'111','facebook','{"ciphertext":"QA later grant"}',now()+interval '1 day','test');
  perform public.marketing_meta_removal_once(repeat('1',64),'789',true,repeat('2',64),now());
  assert public.marketing_meta_connection_material((select id from marketing_qa_ids where key='connection')) is not null,'Signed callback replay must preserve later consent';
+ perform pg_temp.qa_journal_ack(public.marketing_privacy_prepare_meta(repeat('3',64),'789',encode(extensions.digest('789:'||(now()-interval '5 minutes')::text,'sha256'),'hex'),now()-interval '5 minutes'));
  perform public.marketing_meta_removal_once(repeat('3',64),'789',false,null,now()-interval '5 minutes');
  assert public.marketing_meta_connection_material((select id from marketing_qa_ids where key='connection')) is not null,'Older removal event cannot erase later consent';
 end;$$;

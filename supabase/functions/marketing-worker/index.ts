@@ -4,6 +4,7 @@ import { MetaError, MetaGraph } from '../_shared/metaGraph.ts';
 import { advanceMetaPublish, testAccountEnabled, verifyMetaMedia } from '../_shared/metaPublishing.ts';
 import { diagnoseMetaConnection } from '../_shared/metaConnectionDiagnostics.ts';
 import { readMetaPosts } from '../_shared/metaSynchronization.ts';
+import { commitJournal } from '../_shared/privacyBlob.ts';
 const env=(name:string)=>Deno.env.get(name)||'';
 async function call(db:any,name:string,args:any={}) {const {data,error}=await db.rpc(name,args);if(error)throw new Error('marketing_authority_rejected');return data;}
 Deno.serve(async(req)=>{
@@ -16,6 +17,8 @@ Deno.serve(async(req)=>{
  if(!secret||!supplied||difference)return reply({error:'Scheduler authorization required.'},401);
  const db=createClient(STAGING_SUPABASE,env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSession:false,autoRefreshToken:false}});
  await call(db,'marketing_worker_health');
+ // Retain failed write-ahead intents for retry; journal failures never alter publishing gates.
+ try{for(const intent of await call(db,'marketing_privacy_journal_pending'))await commitJournal(db,intent);}catch{console.warn('marketing_privacy_journal_pending');}
  await call(db,'marketing_inbox_process_events',{p_limit:20});
  const configured=['MARKETING_META_APP_ID','MARKETING_META_APP_SECRET','MARKETING_META_LOGIN_CONFIG_ID','MARKETING_META_GRAPH_VERSION','MARKETING_META_TOKEN_ENCRYPTION_KEY'].every(n=>env(n));
  if(!configured){await call(db,'marketing_worker_health',{p_error:'meta_not_configured',p_completed:true});return reply({status:'blocked',reason:'meta_not_configured'});}

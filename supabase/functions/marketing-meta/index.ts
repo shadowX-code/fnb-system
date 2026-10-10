@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { META_BASE, META_REDIRECT, META_SCOPES, STAGING_ORIGIN, STAGING_SUPABASE, authorizationUrl, connectionBinding, hash, nonce, seal, unseal, verifySignedRequest } from '../_shared/metaSecurity.ts';
 import { diagnoseMetaConnection, verifiedFacebookRead } from '../_shared/metaConnectionDiagnostics.ts';
 import { MetaGraph } from '../_shared/metaGraph.ts';
+import { commitJournal } from '../_shared/privacyBlob.ts';
 const names=['MARKETING_META_APP_ID','MARKETING_META_APP_SECRET','MARKETING_META_LOGIN_CONFIG_ID','MARKETING_META_GRAPH_VERSION','MARKETING_META_TOKEN_ENCRYPTION_KEY'];
 const env=(name:string)=>Deno.env.get(name)||'';
 const origins=new Set([STAGING_ORIGIN,'http://localhost:5173']);
@@ -30,7 +31,11 @@ Deno.serve(async(req)=>{
    const signed=new URLSearchParams(raw).get('signed_request')||'';
    let subject;try{subject=await verifySignedRequest(signed,config.appSecret);}catch{return json(req,{error:'Invalid Meta signature.'},400);}
    const confirmation=nonce(),deletion=path==='/data-deletion';
-   await call(service,'marketing_meta_removal_once',{p_request_hash:await hash(signed),p_user_id:subject.user_id,p_deletion:deletion,p_confirmation_hash:deletion?await hash(confirmation):null,p_issued_at:new Date(subject.issued_at*1000).toISOString()});
+   const requestHash=await hash(signed),receipt=await hash(confirmation),issued=new Date(subject.issued_at*1000).toISOString();
+   // Persist authenticated recovery evidence outside database backups before any local erasure.
+   const intent=await call(service,'marketing_privacy_prepare_meta',{p_request:requestHash,p_user:subject.user_id,p_receipt:receipt,p_issued:issued});
+   try{await commitJournal(service,intent);}catch{return json(req,{error:'Deletion recovery journal is unavailable. Retry this request.'},503);}
+   await call(service,'marketing_meta_removal_once',{p_request_hash:requestHash,p_user_id:subject.user_id,p_deletion:deletion,p_confirmation_hash:receipt,p_issued_at:issued});
    return json(req,deletion?{url:`${META_BASE}/deletion-status/${confirmation}`,confirmation_code:confirmation}:{success:true});
   }
   let caller:any=null,user:any=null;

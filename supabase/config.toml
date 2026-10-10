@@ -30,3 +30,7 @@ verify_jwt = false
 [functions.marketing-inbox]
 # Signed Meta webhook or canonical Auth/action/brand verification in the function.
 verify_jwt = false
+
+[functions.marketing-privacy]
+# Restricted operator/restore endpoint authenticates the server-only worker secret.
+verify_jwt = false
