@@ -131,10 +131,11 @@ describe('generation-bound OAuth task evidence',()=>{
   }
  });
  it('confirms Business Manager provenance only for exact mapped-user tasks and requires ads_read separately',async()=>{
-  for(const ads of [false,true]) {
+  for(const ads of [false,true]) for(const reverse of [false,true]) {
    const transport=transportFor({scopes:[...debug.scopes,'instagram_basic','instagram_content_publish',...(ads?['ads_read']:[])]});
-   transport.mockResolvedValueOnce(response({data:[{id:'555',business:{id:'777'}}]})).mockResolvedValueOnce(response({data:[{id:'555',tasks:['CREATE_CONTENT']}]}))
-    .mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:'333'}})).mockResolvedValueOnce(response({id:'333'})).mockResolvedValueOnce(response({data:[{quota_usage:0,config:{quota_total:100}}]}));
+   transport.mockResolvedValueOnce(response({data:[{id:'555',business:{id:'777'}}]})).mockResolvedValueOnce(response({data:[{id:reverse?'999':'555',tasks:['CREATE_CONTENT']}]}));
+   if(reverse)transport.mockResolvedValueOnce(response({data:[{id:'111',tasks:['CREATE_CONTENT']}]}));
+   transport.mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:'333'}})).mockResolvedValueOnce(response({id:'333'})).mockResolvedValueOnce(response({data:[{quota_usage:0,config:{quota_total:100}}]}));
    const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',{...connection,provider_account_id:'333',channel:'instagram'},'retained-token',vi.fn(),true);
    expect(result.publishing_evidence.assignment_provenance).toBe('business_manager');expect(result.publishing_evidence.eligibility).toBe(ads?'verified':'unverified');
    expect(result.publishing_evidence.blockers).toEqual(ads?[]:['business_manager_ads_read_required']);expect(JSON.stringify(result)).not.toMatch(/789|555|777/);

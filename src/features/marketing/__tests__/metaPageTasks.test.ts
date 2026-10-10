@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {resolvePageRoleTasks,discoverAuthorizerAssignments,resolveBusinessPageTasks} from '../../../../supabase/functions/_shared/metaPageTasks.ts';
+import {resolvePageRoleTasks,discoverAuthorizerAssignments,resolveBusinessPageTasks,resolveBusinessUserPageTasks} from '../../../../supabase/functions/_shared/metaPageTasks.ts';
 describe('authorizing-user Page roles evidence',()=>{
  it('requires exact active authorizer and explicit content tasks',async()=>{
   const read=vi.fn().mockResolvedValue({data:[{id:'789',is_active:true,tasks:['MANAGE','ANALYZE'],name:'private-name'}]});
@@ -48,3 +48,14 @@ describe('business Page tasks for exact OAuth authorizer',()=>{
   expect((await resolveBusinessPageTasks('111','789',assignment,async()=>({data:[{id:'555',tasks:['MANAGE']}],paging:{next:'secret'}}))).state).toBe('unverified');
  });
 });
+
+ describe('exact Business User reverse Page assignment',()=>{
+ it('requires the mapped authorizer, exact Page and actual content tasks',async()=>{
+ const a={subject:'789',businessId:'777',businessUserId:'555'};
+ const read=vi.fn().mockResolvedValue({data:[{id:'111',tasks:['CREATE_CONTENT']}]});
+ expect(await resolveBusinessUserPageTasks('111','789',a,read)).toMatchObject({state:'verified',tasks:['CREATE_CONTENT']});
+ expect(read).toHaveBeenCalledWith('555/assigned_pages',{fields:'id,tasks',limit:50,after:undefined});
+ for(const v of [null,{data:[]},{data:[{id:'999',tasks:['MANAGE']}]},{data:[{id:'111',permitted_tasks:['MANAGE']}]},{data:[{id:'111',tasks:['PROFILE_PLUS_FULL_CONTROL']}]},{data:[{id:'111',tasks:['MANAGE']}],paging:{next:'private'}}])expect((await resolveBusinessUserPageTasks('111','789',a,async()=>v)).state).toBe('unverified');
+ const unused=vi.fn();expect((await resolveBusinessUserPageTasks('111','999',a,unused)).state).toBe('unverified');expect(unused).not.toHaveBeenCalled();
+ });
+ });

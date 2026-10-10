@@ -1,14 +1,14 @@
 import { MetaGraph, MetaError } from './metaGraph.ts';
 import { META_SCOPES, hash } from './metaSecurity.ts';
 import { facebookPostFields } from './metaSynchronization.ts';
-import { resolvePageRoleTasks, resolveBusinessPageTasks, type AuthorizerAssignment, type OAuthTaskEvidence, resolveOAuthTaskEvidence, discoverAuthorizerAssignments } from './metaPageTasks.ts';
+import { resolvePageRoleTasks, resolveBusinessPageTasks, resolveBusinessUserPageTasks, type AuthorizerAssignment, type OAuthTaskEvidence, resolveOAuthTaskEvidence, discoverAuthorizerAssignments } from './metaPageTasks.ts';
 // Fixed GETs only. No provider bodies, messages, personal subjects or credentials leave this module.
 export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appToken:string,connection:any,token:string,guard:()=>Promise<void>,publishingChecks=false,assignment?:AuthorizerAssignment, oauthEvidence?:OAuthTaskEvidence,onEvidence?:(e:OAuthTaskEvidence)=>Promise<void>) {
  const id=connection.provider_account_id;
  if(!/^\d{1,30}$/.test(id))throw new MetaError('invalid_meta_account');
  const evidence:any[]=[];
  const read=async(label:string,path:string,credential:string,params:any)=>{
-  await guard();let item:any={check:label,endpoint:path==='debug_token'?'debug_token':path==='me'?'me':path.endsWith('/business_users')?'authorizer/business_users':path,http_status:null,graph_error_code:null,graph_error_subcode:null,error_permissions:[]};
+  await guard();let item:any={check:label,endpoint:path==='debug_token'?'debug_token':path==='me'?'me':path.endsWith('/business_users')?'authorizer/business_users':path.endsWith('/assigned_pages')?'business_authorizer/assigned_pages':path,http_status:null,graph_error_code:null,graph_error_subcode:null,error_permissions:[]};
   try {
    const value=await graph.request(path,credential,params,'GET',(status,code,detail)=>{item={...item,http_status:status,graph_error_code:code,...detail};});
    item.success=true;
@@ -80,7 +80,8 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
      const mapped=mappings.find(m=>m.businessId===businessId);
      publishingEvidence.business_authorizer_mapping_verified=!!mapped;
      if(mapped) {
-      const result=await resolveBusinessPageTasks(pageId,String(debug?.user_id),mapped,(path,params)=>read('authorizer_business_assignment',path,token,params));
+      let result=await resolveBusinessPageTasks(pageId,String(debug?.user_id),mapped,(path,params)=>read('authorizer_business_assignment',path,token,params));
+      if(result.reason==='business_authorizer_not_returned')result=await resolveBusinessUserPageTasks(pageId,String(debug?.user_id),mapped,(path,params)=>read('authorizer_assigned_pages',path,token,params));
       publishingEvidence.business_assignment_state=result.state;
       publishingEvidence.business_assignment_reason=result.reason;
       if(result.state==='verified')provenance='business_manager';

@@ -52,6 +52,27 @@ export async function resolveBusinessPageTasks(pageId:string,subject:string,assi
 // The OAuth snapshot is server-owned and encrypted with its credential. An
 // empty business-excluding /roles edge cannot negate a verified /me/accounts edge.
 export type OAuthTaskEvidence={subject:string;pageId:string;businessId:string;generation:number;tokenHash:string;tasks:string[]};
+// Official reverse edge identifies the exact mapped Business User's Page,
+// avoiding any assumption that AssignedUser node IDs share another ID namespace.
+export async function resolveBusinessUserPageTasks(pageId:string,subject:string,assignment:AuthorizerAssignment|undefined,read:(path:string,params:Record<string,any>)=>Promise<any>) {
+ const unknown=(reason:string)=>({state:'unverified',source:'business_user_assigned_pages',tasks:[] as string[],can_create:false,reason});
+ if(!numeric(pageId)||!numeric(subject)||!assignment||assignment.subject!==subject||!numeric(assignment.businessId)||!numeric(assignment.businessUserId))return unknown('business_authorizer_mapping_unavailable');
+ const rows:any[]=[];let after:string|undefined;
+ for(let page=0;page<10;page++) {
+  const value=await read(`${assignment.businessUserId}/assigned_pages`,{fields:'id,tasks',limit:50,after});
+  if(!Array.isArray(value?.data))return unknown('business_user_page_edge_unavailable');
+  rows.push(...value.data);
+  if(!value.paging?.next)break;
+  after=value.paging?.cursors?.after;
+  if(typeof after!=='string'||!after||after.length>2048||page===9)return unknown('business_task_pagination_incomplete');
+ }
+ const matches=rows.filter(r=>r?.id===pageId);
+ if(!matches.length)return unknown('authorizer_assigned_page_not_returned');
+ if(matches.length!==1||!Array.isArray(matches[0].tasks)||matches[0].tasks.some((t:unknown)=>typeof t!=='string'))return unknown('business_task_evidence_incomplete');
+ const tasks=matches[0].tasks.filter((t:string)=>['MANAGE','CREATE_CONTENT'].includes(t));
+ if(!tasks.length)return unknown('business_content_tasks_unverified');
+ return {state:'verified',source:'business_user_assigned_pages',tasks,can_create:true,reason:null};
+}
 export function resolveOAuthTaskEvidence(e:OAuthTaskEvidence|undefined,current:{subject:string;pageId:string;businessId:string;generation:number;tokenHash:string}) {
  const unknown=(reason:string)=>({state:'unverified',source:'oauth_accounts',tasks:[] as string[],can_create:false,reason});
  if(!e)return unknown('oauth_task_snapshot_unavailable');
