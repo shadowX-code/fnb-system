@@ -35,7 +35,7 @@ it("isolates candidate interview paths on the dedicated host", () => {
   expect(hostnameRoutingMiddleware(new Request("https://interview.feedx.my/i/an-id"))?.status).toBe(404);
 });
 
-it("redirects every non-root public request to the public root while preserving OS and staging routes", () => {
+it("redirects unowned public paths to the public root while preserving OS and staging routes", () => {
   const publicResponse = hostnameRoutingMiddleware(new Request("https://feedx.my/login?next=dashboard"));
   expect(publicResponse.status).toBe(308);
   expect(publicResponse.headers.get("location")).toBe("https://feedx.my/");
@@ -48,6 +48,13 @@ it("redirects every non-root public request to the public root while preserving 
   expect(hostnameRoutingMiddleware(new Request("https://os.feedx.my/admin/deep-link"))).toBeUndefined();
   expect(hostnameRoutingMiddleware(new Request("https://feedx-os.vercel.app/login"))).toBeUndefined();
   expect(hostnameRoutingMiddleware(new Request("https://fnb-system-staging.vercel.app/login"))).toBeUndefined();
+});
+
+it("permits only the exact public privacy path and canonicalizes its static-file alias", () => {
+  expect(hostnameRoutingMiddleware(new Request("https://feedx.my/privacy"))).toBeUndefined();
+  expect(hostnameRoutingMiddleware(new Request("https://feedx.my/privacy/?lang=ms"))).toBeUndefined();
+  expect(hostnameRoutingMiddleware(new Request("https://feedx.my/privacy/admin"))?.headers.get("location")).toBe("https://feedx.my/");
+  expect(hostnameRoutingMiddleware(new Request("https://feedx.my/privacy.html"))?.headers.get("location")).toBe("https://feedx.my/privacy");
 });
 
 it("redirects only legacy Production Product Feedback routes to the dedicated public hostname", () => {
