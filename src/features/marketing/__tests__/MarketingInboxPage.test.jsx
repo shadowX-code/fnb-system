@@ -35,6 +35,8 @@ vi.mock(
         "reviewAI",
         "markRead",
         "analytics",
+        "verifyConnection",
+        "sendApproved",
       ].map((k) => [k, vi.fn()]),
     ),
   }),
@@ -107,7 +109,7 @@ it("labels internal evidence and disabled delivery, with unavailable AI", async 
   fireEvent.click(screen.getByText("Internal QA case"));
   await screen.findByText("Review this case");
   expect(screen.getByText("Internal note")).toBeTruthy();
-  expect(screen.getByText(/Delivery blocked:/)).toBeTruthy();
+  expect(screen.getByText(/Delivery: Blocked/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Suggest reply" }).disabled).toBe(
     true,
   );
@@ -174,4 +176,20 @@ it('passes assignee/unread filters to the canonical read and shows unavailable r
  fireEvent.click(screen.getByLabelText('Unread only'));
  await waitFor(()=>expect(inboxService.read).toHaveBeenLastCalledWith(expect.objectContaining({assignee:'me',unread:true,page:1})));
  expect(screen.getByText(/Median first response Unavailable/)).toBeTruthy();
+});
+
+it("requires a separate staff confirmation and hides sending after an uncertain attempt", async()=>{
+  const social={...conversation,channel:"facebook",title:"Authorized test DM"};
+  inboxService.configuration.mockResolvedValue({staff_send_configured:true});
+  inboxService.detail.mockResolvedValue({conversation:social,messages:[],total:0,drafts:[{id:"d",status:"approved",body:"Exact approved test reply",source_version:2,source_references:[]}],artifacts:[],members:[],window_open:true,channel_capability:{receiving_verified:true},outbox:[{draft_id:"d",state:"blocked"}]});
+  render(<MarketingInboxPage/>);
+  fireEvent.click(await screen.findByRole("button",{name:/Internal QA case/}));
+  fireEvent.click(await screen.findByRole("button",{name:"Send approved reply"}));
+  expect(inboxService.sendApproved).not.toHaveBeenCalled();
+  expect(screen.getByRole("button",{name:"Confirm send"})).toBeTruthy();
+  inboxService.sendApproved.mockResolvedValue({state:"reconciling"});
+  inboxService.detail.mockResolvedValue({...await inboxService.detail(),outbox:[{draft_id:"d",state:"reconciling"}]});
+  fireEvent.click(screen.getByRole("button",{name:"Confirm send"}));
+  await waitFor(()=>expect(screen.queryByRole("button",{name:"Send approved reply"})).toBeNull());
+  expect(inboxService.sendApproved).toHaveBeenCalledTimes(1);
 });

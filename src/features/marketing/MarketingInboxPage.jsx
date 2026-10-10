@@ -70,6 +70,7 @@ export default function MarketingInboxPage() {
     [detail, setDetail] = useState(null),
     [refresh, setRefresh] = useState(0),
     [configuration, setConfiguration] = useState(null);
+  const [verification,setVerification]=useState(null);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [loading, setLoading] = useState(false),
@@ -199,7 +200,7 @@ export default function MarketingInboxPage() {
       if (s !== activeScope.current || g !== generation.current) return;
       request.current = null;
       setModal(null);
-      setNotice(message);
+      setNotice(typeof message === "function" ? message(result) : message);
       setRefresh((r) => r + 1);
       if (intent.command === "create") setSelected(result.conversation.id);
     } catch (e) {
@@ -350,8 +351,8 @@ export default function MarketingInboxPage() {
       <div className="marketing-inbox-notice">
         <ShieldAlert size={18} />
         <p>
-          Live messaging and automatic sending are disabled. Internal notes,
-          drafts and approvals never send to Facebook or Instagram.
+          Automatic sending is disabled. Notes, drafts and approvals never send a message.
+          {configuration?.staff_send_configured ? " Staff sending is limited to approved test recipients." : " Outbound sending is disabled."}
         </p>
       </div>
       {error && <p role="alert" className="text-danger">{error}</p>}
@@ -366,7 +367,7 @@ export default function MarketingInboxPage() {
         AI usage in this scope: {data?.ai_usage?.requests ?? 0} requests ·{" "}
         {data?.ai_usage?.input_tokens ?? "Unavailable"} input /{" "}
         {data?.ai_usage?.output_tokens ?? "Unavailable"}{" "}
-        output tokens · Costs unavailable.
+        output tokens · {data?.ai_usage?.cost_available ? `Estimated USD ${Number(data.ai_usage.cost).toFixed(6)}` : "Costs unavailable"}.
       </p>
       <div className="marketing-inbox-capabilities">
         {data?.channels.map((v) => (
@@ -375,7 +376,7 @@ export default function MarketingInboxPage() {
             <State value={v.state} />
             <p className="text-sm text-text-secondary">
               Receive: {v.receiving_verified ? "Verified" : "Unverified"}{" "}
-              · Send: Disabled · Comments: {label(v.comments?.state||"unverified")}{Object.entries(v.events || {}).filter((
+              · Send: {configuration?.staff_send_configured && v.receiving_verified ? "Staff approval required" : "Disabled"} · Comments: {label(v.comments?.state||"unverified")}{Object.entries(v.events || {}).filter((
                 [state, count],
               ) =>
                 state !== "processed" && count > 0
@@ -383,9 +384,17 @@ export default function MarketingInboxPage() {
                 ` · ${count} ${label(state)} webhook events`
               ).join("")}
             </p>
+            {can('configure')&&<button className="btn-secondary" disabled={busy} onClick={()=>mutate({scope,connection:v.connection_id,command:'verify_messaging'},async()=>{
+              const evidence=await inboxService.verifyConnection(v.connection_id);
+              return evidence;
+            },evidence=>{setVerification({scope,evidence});return `Missing permissions: ${evidence.missing_permissions.join(', ')||'None'}. Missing subscriptions: ${evidence.missing_subscriptions.join(', ')||'None'}. Task evidence: ${evidence.task_source}. Real inbound: ${evidence.real_inbound_verified?'Verified':'Unverified'}. Sending stays disabled.`;})}>Verify messaging</button>}
           </div>
         ))}
       </div>
+      {verification?.scope===scope&&<details className="marketing-inbox-analytics"><summary>Meta verification details</summary>
+        <p>Account: {verification.evidence.account_verified?'Verified':'Unverified'} · Token: {verification.evidence.token_verified?'Verified':'Unverified'} · Authorization: {verification.evidence.authorization_verified?'Verified':'Unverified'}</p>
+        {verification.evidence.evidence.map((row,index)=><p className="text-sm" key={index}>{row.endpoint} · HTTP {row.http_status??'Unavailable'} · Graph {row.graph_error_code??'None'} / {row.graph_error_subcode??'None'}</p>)}
+      </details>}
       <AdminPagination
         page={page}
         pageSize={pageSize}
@@ -643,7 +652,9 @@ export default function MarketingInboxPage() {
                           ? "Approval recorded for this history version."
                           : "Historical approval; conversation history changed."}
                         {" "}
-                        Delivery blocked: live messaging is disabled.
+                        Delivery: {label(current.outbox?.find(o=>o.draft_id===d.id)?.state||'blocked')}.
+                        {current.outbox?.find(o=>o.draft_id===d.id)?.provider_message_id && <> Receipt: {current.outbox.find(o=>o.draft_id===d.id).provider_message_id}.</>}
+                        {configuration?.staff_send_configured && can('send') && current.window_open && current.channel_capability?.receiving_verified && ['blocked','prepared'].includes(current.outbox?.find(o=>o.draft_id===d.id)?.state||'blocked') && c.channel!=='internal' && d.source_version===c.version && <button className="btn-secondary" disabled={busy} onClick={()=>setModal({type:'send',draft:d})}>Send approved reply</button>}
                       </p>
                     )}
                   </article>
@@ -825,6 +836,7 @@ export default function MarketingInboxPage() {
             command={command}
             configure={configure}
             preview={faqPreview}
+            send={(draft)=>mutate({scope,command:'send',draft:draft.id},id=>inboxService.sendApproved(current.outbox?.find(o=>o.draft_id===draft.id)?.execution_request||id,draft.id),'Delivery attempt recorded. Review the receipt/status; do not resend an uncertain delivery.')}
           />
         </Modal>
       )}
@@ -832,14 +844,15 @@ export default function MarketingInboxPage() {
   );
 }
 function InboxModal(
-  { modal: m, setModal, busy, data, can, members, command, configure, preview },
+  { modal: m, setModal, busy, data, can, members, command, configure, preview, send },
 ) {
   const set = (k, v) => setModal((x) => ({ ...x, [k]: v }));
+  if(m.type==='send')return <div className="marketing-inbox-form"><p>This sends the exact approved reply to this conversation’s test recipient through its brand connection.</p><p>{m.draft.body}</p><button className="btn-primary" disabled={busy} onClick={()=>send(m.draft)}>Confirm send</button></div>;
   if (m.type === "settings") {
     return (
       <div className="marketing-inbox-form">
         <p>
-          All sending remains disabled. FAQ mode controls internal matching and
+          Automatic sending remains disabled. FAQ mode controls internal matching and
           proposed replies only.
         </p>
         <h3>Approved Brand Knowledge</h3>

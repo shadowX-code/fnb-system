@@ -68,8 +68,8 @@ describe("Inbox integration contracts", () => {
       entry: [{
         id: "111",
         messaging: [{
-          sender: { id: "111" },
-          recipient: { id: "222" },
+          sender: { id: "222" },
+          recipient: { id: "111" },
           timestamp: now,
           seen: { watermark: now },
         }],
@@ -83,6 +83,11 @@ describe("Inbox integration contracts", () => {
       false,
     );
     expect(standardWindowOpen(new Date(now - 1).toISOString(), now)).toBe(true);
+  });
+  it("accepts the official customer-to-Page delivery receipt without an event timestamp", () => {
+    const rows=normalizeInboxWebhook({object:"page",entry:[{id:"111",messaging:[{sender:{id:"222"},recipient:{id:"111"},delivery:{mids:["sent-mid"],watermark:now}}]}]},now);
+    expect(rows[0]).toMatchObject({kind:"delivery",peer_id:"222",account_id:"111",event_id:"sent-mid",occurred_at:new Date(now).toISOString()});
+    expect(()=>normalizeInboxWebhook({object:"page",entry:[{id:"111",messaging:[{sender:{id:"111"},recipient:{id:"222"},delivery:{mids:["sent-mid"],watermark:now}}]}]},now)).toThrow("account_identity_mismatch");
   });
   it("verifies the signature against exact raw bytes", async () => {
     const raw = new TextEncoder().encode('{"test":1}'),

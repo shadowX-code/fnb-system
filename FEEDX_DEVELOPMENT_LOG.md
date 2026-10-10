@@ -850,3 +850,8 @@ Completed repository/Staging domain mapping and the approved additive Platform o
 ## Marketing Phase 1 — Meta integration (Staging, 2026-10-10)
 
 Implemented official brand-bound Meta OAuth/callback, server-encrypted token lifecycle, reconnect/expiry/disconnect and signed privacy callbacks; added separate exact-revision external execution authority, test-account allowlist, durable checkpointed Facebook/Instagram publishing, authenticated Vault/Cron worker, paged social observations and capability UI. L3 rollback rehearsals and focused security/adapter/UI tests pass. External app secrets/test accounts remain required for live Meta verification; real brand publishing and Production remain disabled. See `docs/domains/marketing.md` and `qa/staging/marketingMeta.md`.
+
+
+## 2026-10-10 — Marketing Inbox Staging live-acceptance authorities
+
+Added independent read-only Meta messaging verification and a disabled-by-default, approved staff-reply execution path with canonical brand/send permission, exact approval and generation/window guards, durable pre-write lease and delivery/read reconciliation. Corrected receipt sender/recipient normalization using Meta's official example. Added GPT-5 mini usage-based USD estimates while preserving unknown cost states. Publishing authority/worker/execution is unchanged. Focused L3 rollback checks, unit/workflow tests, Edge type check and build passed; live Messenger/Instagram acceptance remains Pending external webhook setup, verified inbound and separately approved test sends.

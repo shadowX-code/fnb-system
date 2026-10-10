@@ -1,4 +1,4 @@
-/** Server-only adapters. No deployed send route: approved drafts remain in the blocked outbox.
+/** Server-only adapters. The staff-only route requires approved, allowlisted durable intent.
  * Fixed official endpoints; every write requires fresh operation-specific authority and durable intent.
  */
 import {messagingIntent} from './marketingInbox.ts';

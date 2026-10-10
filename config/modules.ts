@@ -40,6 +40,7 @@ export type ModuleAction =
   | "reset_password"
   | "access"
   | "developer"
+  | "send"
   | "reply"
   | "ai";
 
@@ -98,6 +99,7 @@ export const permissionActionOrder: ModuleAction[] = [
   "record_collection",
   "cancel",
   "manage",
+  "send",
   "reply",
   "ai",
   "import",
@@ -145,6 +147,7 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   record_collection: "Record Collection",
   cancel: "Cancel",
   manage: "Manage",
+  send: "Send Approved Replies",
   reply: "Prepare Replies",
   ai: "Request AI Suggestions",
   import: "Import",
@@ -216,7 +219,7 @@ export const moduleRegistry: AppModule[] = [
   { id: "marketing_overview", section: "Overview", label: "Overview", route: "/marketing/overview", icon: "marketing_overview", sidebar: true, workspace: "marketing", permissions: { view: true } },
   { id: "marketing_content", section: "Content Studio", label: "Content Library", route: "/marketing/content", icon: "marketing_content", sidebar: true, workspace: "marketing", permissions: { view: true, create: true, edit: true, review: true, approve: true, publish: true, execute: true, cancel: true, upload: true } },
   { id: "marketing_calendar", section: "Content Studio", label: "Content Management", route: "/marketing/calendar", icon: "marketing_calendar", sidebar: true, workspace: "marketing", permissions: { view: true } },
-  { id: "marketing_inbox", section: "Inbox", label: "Unified Inbox", route: "/marketing/inbox", icon: "marketing_inbox", sidebar: true, workspace: "marketing", permissions: { view: true, manage: true, reply: true, approve: true, configure: true, ai: true } },
+  { id: "marketing_inbox", section: "Inbox", label: "Unified Inbox", route: "/marketing/inbox", icon: "marketing_inbox", sidebar: true, workspace: "marketing", permissions: { view: true, manage: true, reply: true, approve: true, configure: true, ai: true, send: true } },
   { id: "marketing_analytics", section: "Analytics", label: "Analytics", route: "/marketing/analytics", icon: "marketing_analytics", sidebar: true, workspace: "marketing", permissions: { view: true } },
   { id: "marketing_settings", section: "Settings", label: "Brand Knowledge & Connections", route: "/marketing/settings", icon: "marketing_settings", sidebar: true, workspace: "marketing", permissions: { view: true, manage: true, configure: true } },
   { id: "finance_overview", section: "Finance", label: "Overview", route: "/finance/overview", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },

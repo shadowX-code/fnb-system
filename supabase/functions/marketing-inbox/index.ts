@@ -1,5 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
-import { STAGING_ORIGIN, STAGING_SUPABASE } from "../_shared/metaSecurity.ts";
+import { STAGING_ORIGIN, STAGING_SUPABASE, connectionBinding, unseal } from "../_shared/metaSecurity.ts";
+import { MetaGraph, MetaError } from "../_shared/metaGraph.ts";
+import { verifyInboxConnection } from "../_shared/metaInboxVerification.ts";
+import { advanceInboxDelivery, inboxConnectorContracts } from "../_shared/metaInboxAdapters.ts";
 import {
   normalizeInboxWebhook,
   requestInboxAI,
@@ -102,6 +105,7 @@ Deno.serve(async (req) => {
     }
     try {
       await rpc(service, "marketing_inbox_enqueue", { p_events: events });
+      await rpc(service, "marketing_inbox_signed_events", { p_events: events });
       return json({ received: true });
     } catch {
       return json({ error: "Durable acknowledgement unavailable." }, 503);
@@ -129,7 +133,59 @@ Deno.serve(async (req) => {
       ai_configured: configured,
       webhook_configured: Boolean(env("MARKETING_INBOX_WEBHOOK_VERIFY_TOKEN")),
       sending_enabled: false,
+      staff_send_configured: env('MARKETING_INBOX_SEND_ENABLED')==='true' && Boolean(env('MARKETING_INBOX_TEST_PEER_IDS')),
+      webhook_url: `${STAGING_SUPABASE}/functions/v1/marketing-inbox/webhook`,
+      connectors: inboxConnectorContracts,
     });
+  }
+  if (path==='/verify-connection' && req.method==='POST') {
+    try {
+      const raw=await req.text();if(raw.length>1000)return json({error:'Request too large.'},413);
+      const body=JSON.parse(raw);
+      const material=await rpc(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:identity.data.user.id});
+      if(!['622626120924115','17841473217923034'].includes(material.provider_account_id))return json({error:'Idamans Staging test scope only.'},403);
+      const credential=await unseal(material.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
+      const guard=async()=>{const current=await rpc(service,'marketing_meta_diagnostic_material',{p_connection:material.id,p_auth_user:identity.data.user.id});if(current.credential_generation!==material.credential_generation)throw new Error('connection_changed');};
+      const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')});
+      const inbound=await rpc(service,'marketing_inbox_verification_events',{p_connection:material.id,p_auth_user:identity.data.user.id});
+      const evidence=await verifyInboxConnection(graph,env('MARKETING_META_APP_ID'),`${env('MARKETING_META_APP_ID')}|${env('MARKETING_META_APP_SECRET')}`,material,credential,guard,inbound);
+      await guard();
+      const channel=await rpc(service,'marketing_inbox_record_verification',{p_connection:material.id,p_auth_user:identity.data.user.id,p_generation:material.credential_generation,p_evidence:evidence});
+      // No personal subjects, tokens, raw Graph payloads or message text in diagnostics.
+      const {verified_inbound_ids,...safe}=evidence;
+      return json({...safe,verified_inbound_count:verified_inbound_ids.length,capability:channel,sending_enabled:false});
+    }catch{return json({error:'Messaging verification unavailable. Check scope and connection.'},409);}
+  }
+  if (path==='/send-approved' && req.method==='POST') {
+    if(env('MARKETING_INBOX_SEND_ENABLED')!=='true'||!env('MARKETING_INBOX_TEST_PEER_IDS'))return json({error:'Staff sending is disabled pending explicit test approval.'},403);
+    let draftId:string|undefined,lease:string|undefined,ownsLease=false;
+    try {
+      const raw=await req.text();if(raw.length>1000)return json({error:'Request too large.'},413);
+      const body=JSON.parse(raw);draftId=body.draftId;
+      await rpc(caller,'marketing_inbox_prepare_send',{p_request:body.requestId,p_draft:draftId});
+      let material=await rpc(service,'marketing_inbox_send_material',{p_draft:draftId,p_auth_user:identity.data.user.id});
+      const conn=material.connection;
+      const allowed=env('MARKETING_INBOX_TEST_PEER_IDS').split(',').map(s=>s.trim());
+      if(!['622626120924115','17841473217923034'].includes(conn.provider_account_id)||!allowed.includes(material.recipient))return json({error:'This recipient is outside the approved test scope.'},403);
+      const credential=await unseal(conn.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(conn));
+      const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')});
+      const guard=async()=>{const current=await rpc(service,'marketing_inbox_send_material',{p_draft:draftId,p_auth_user:identity.data.user.id});if(current.connection.credential_generation!==conn.credential_generation)throw new Error('connection_changed');};
+      // Revalidate the independent operation immediately before attempting a write.
+      if(material.state==='prepared'){
+        const fresh=await verifyInboxConnection(graph,env('MARKETING_META_APP_ID'),`${env('MARKETING_META_APP_ID')}|${env('MARKETING_META_APP_SECRET')}`,conn,credential,guard);
+        if(!fresh.authorization_verified||!fresh.subscriptions_verified)throw new Error('messaging_authority_changed');
+      }
+      lease=material.lease;
+      const checkpoint=async(state:any)=>{const result=await rpc(service,'marketing_inbox_send_checkpoint',{p_draft:draftId,p_auth_user:identity.data.user.id,p_lease:lease||null,p_state:state});lease=result.lease;if(state.pending)ownsLease=true;};
+      const result=await advanceInboxDelivery({channel:conn.channel,authority:material.authority,recipient:material.recipient,text:material.text,state:material.receipt?{receipt:material.receipt}:material.state==='failed'?{failed:'provider_rejected'}:['pending','reconciling'].includes(material.state)?{pending:true}:{},guard,checkpoint,post:async(path,params)=>{
+        try{return await graph.request(path,credential.token,params,'POST');}catch(error){if(error instanceof MetaError&&!error.uncertain)throw Object.assign(new Error('provider_rejected'),{definitive:true});throw error;}
+      }});
+      if(result.state==='reconciling'&&lease&&ownsLease)await checkpoint({});
+      return json(result);
+    }catch{
+      if(draftId&&lease&&ownsLease)try{await rpc(service,'marketing_inbox_send_checkpoint',{p_draft:draftId,p_auth_user:identity.data.user.id,p_lease:lease,p_state:{}});}catch{}
+      return json({error:'Reply execution unavailable; check its delivery evidence before retrying.'},409);
+    }
   }
   if (path !== "/suggest" || req.method !== "POST") {
     return json({ error: "Endpoint unavailable." }, 404);
