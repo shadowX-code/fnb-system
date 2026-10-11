@@ -18,6 +18,7 @@ Deno.serve(async(req)=>{
  if(!secret||!supplied||difference)return reply({error:'Scheduler authorization required.'},401);
  const db=createClient(STAGING_SUPABASE,env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSession:false,autoRefreshToken:false}});
  await call(db,'marketing_worker_health');
+ await call(db,'marketing_ads_change_expire');
  // Retain failed write-ahead intents for retry; journal failures never alter publishing gates.
  try{for(const intent of await call(db,'marketing_privacy_journal_pending'))await commitJournal(db,intent);}catch{console.warn('marketing_privacy_journal_pending');}
  await call(db,'marketing_inbox_process_events',{p_limit:20});

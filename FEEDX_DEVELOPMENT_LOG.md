@@ -881,3 +881,7 @@ Added independent Meta Ad Account OAuth/binding using the canonical private cred
 Blocked the initial brand-owned Ads binding path after the confirmed shared-account ownership decision. Added organization-authorized read-only discovery previews using the existing encrypted OAuth session, with no external mutations or campaign attribution. Shared persistent ownership and explicit campaign mapping follow this dependency correction.
 
 Shared Ads ownership implemented with organization-only connection/authorization management and explicitly reviewed campaign attribution. Brand-scoped projections exclude unassigned/other-brand campaigns and full account totals. Focused rollback QA verified scope filtering, retry/CAS guards, synchronization, revocation and unchanged social grants. Live read-only Supreme discovery succeeded; no persistent account binding or campaign mapping was created.
+
+## 2026-10-11 — Controlled Marketing Ads authority
+
+Added immutable brand-scoped Ads revisions, exact configuration/creative/budget approval, paused native hierarchy creation adapters, approved campaign status/lifetime-budget changes and read-only receipt reconciliation. Existing organization-owned account attribution and read analytics/Copilot remain authoritative. Execution stays disabled and the current Meta connection requires `ads_management`; no permission expansion, ad mutation, spend or Production release is included. See `docs/domains/marketing.md` for the supported scope and provider concurrency boundary.

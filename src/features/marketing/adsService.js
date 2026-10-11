@@ -21,6 +21,18 @@ async function command(path, body) {
   return data;
 }
 export const adsService = {
+  changes: (org, brand) =>
+    rpc("marketing_ads_changes_read", { p_org: org, p_brand: brand || null }),
+  prepareChange: (body) => command("prepare-change", body),
+  transitionChange: (r, action) =>
+    rpc("marketing_ads_change_transition", {
+      p_request: r.id,
+      p_fingerprint: r.fingerprint,
+      p_action: action,
+    }),
+  reconcileChange: (r) => command("reconcile-change", { requestId: r.id }),
+  executeChange: (r) =>
+    command("execute-change", { requestId: r.id, fingerprint: r.fingerprint }),
   read: (org, brand, from, to) =>
     rpc("marketing_ads_read", {
       p_org: org,

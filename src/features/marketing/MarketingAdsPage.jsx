@@ -22,6 +22,7 @@ import {
   adsManagerUrl,
 } from "./adsPresentation.js";
 import AdsPerformanceTrend from "./AdsPerformanceTrend.jsx";
+import AdsManagement from "./AdsManagement.jsx";
 import AdsCopilot from "./AdsCopilot.jsx";
 import AdsReportingContext from "./AdsReportingContext.jsx";
 import AdsAttributionReview from "./AdsAttributionReview.jsx";
@@ -430,6 +431,7 @@ export default function MarketingAdsPage() {
           { value: "campaigns", label: "Campaigns" },
           { value: "accounts", label: "Ad Accounts" },
           { value: "copilot", label: "AI Copilot" },
+          { value: "management", label: "Manage Ads" },
         ]}
       />
       {notice && (
@@ -908,6 +910,17 @@ export default function MarketingAdsPage() {
               </details>
             )}
           </>
+        )}
+        {tab === "management" && (
+          <AdsManagement
+            key={`${org}:${brand}:${account}`}
+            org={org}
+            brand={brand}
+            brands={brands}
+            accounts={data?.accounts || []}
+            report={report}
+            can={can}
+          />
         )}
         {tab === "copilot" && (
           <AdsCopilot

@@ -11,6 +11,7 @@ import {
 } from "../_shared/metaSecurity.ts";
 import { MetaGraph, MetaError } from "../_shared/metaGraph.ts";
 import { verifyAdsAccount, readAdsReport } from "../_shared/metaAds.ts";
+import { bytesHash, executeAdsChange } from "../_shared/metaAdsManagement.ts";
 import { requestAdsAI, estimateAdsAICost } from "../_shared/marketingAdsAI.ts";
 const env = (n: string) => Deno.env.get(n) || "";
 Deno.serve(async (req) => {
@@ -72,6 +73,9 @@ Deno.serve(async (req) => {
         "/preview",
         "/copilot",
         "/capabilities",
+        "/prepare-change",
+        "/execute-change",
+        "/reconcile-change",
       ].includes(path)
     )
       return reply({ error: "Endpoint unavailable." }, 404);
@@ -80,8 +84,90 @@ Deno.serve(async (req) => {
         ai_available:
           env("MARKETING_ADS_AI_ENABLED") === "true" &&
           Boolean(env("OPENAI_API_KEY") && env("MARKETING_AI_MODEL")),
-        external_execution_enabled: false,
+        external_execution_enabled:
+          env("MARKETING_ADS_EXECUTION_ENABLED") === "true",
       });
+    if (path === "/prepare-change") {
+      const visible = await call(caller, "marketing_ads_changes_read", {
+        p_org: body.organizationId,
+        p_brand: body.brandId,
+      });
+      let mediaHash: string | null = null;
+      if (body.operation === "create") {
+        const asset = visible.assets.find(
+          (a: any) =>
+            a.id === body.configuration?.asset_id &&
+            a.brand_id === body.brandId,
+        );
+        if (!asset) throw new MetaError("ad_media_unavailable");
+        const { data, error } = await service.storage
+          .from("marketing-media")
+          .download(asset.object_path);
+        if (error || !data || data.size !== Number(asset.size_bytes))
+          throw new MetaError("ad_media_unavailable");
+        mediaHash = await bytesHash(new Uint8Array(await data.arrayBuffer()));
+      }
+      return reply(
+        await call(service, "marketing_ads_change_prepare", {
+          p_request: body.requestId,
+          p_auth_user: identity.user.id,
+          p_org: body.organizationId,
+          p_brand: body.brandId,
+          p_connection: body.connectionId,
+          p_operation: body.operation,
+          p_config: body.configuration,
+          p_media_hash: mediaHash,
+          p_previous: body.previousId || null,
+        }),
+      );
+    }
+    if (path === "/reconcile-change") {
+      const claim = await call(
+        service,
+        "marketing_ads_change_reconcile_claim",
+        { p_request: body.requestId, p_auth_user: identity.user.id },
+      );
+      const graph = new MetaGraph({
+        appId: env("MARKETING_META_APP_ID"),
+        appSecret: env("MARKETING_META_APP_SECRET"),
+        configId: env("MARKETING_META_LOGIN_CONFIG_ID"),
+        version: env("MARKETING_META_GRAPH_VERSION"),
+      });
+      return reply({
+        state: await executeAdsChange(service, graph, env, claim),
+      });
+    }
+    if (path === "/execute-change") {
+      if (
+        env("MARKETING_ADS_EXECUTION_ENABLED") !== "true" ||
+        !body.fingerprint ||
+        !env("MARKETING_ADS_EXECUTION_APPROVALS")
+          .split(",")
+          .includes(body.fingerprint)
+      )
+        return reply(
+          {
+            error:
+              "External advertising execution is disabled. This exact revision requires separate authorization.",
+          },
+          403,
+        );
+      const claim = await call(service, "marketing_ads_change_claim", {
+        p_request: body.requestId,
+        p_auth_user: identity.user.id,
+        p_fingerprint: body.fingerprint,
+      });
+      if (!claim) return reply({ state: "already_claimed" });
+      const graph = new MetaGraph({
+        appId: env("MARKETING_META_APP_ID"),
+        appSecret: env("MARKETING_META_APP_SECRET"),
+        configId: env("MARKETING_META_LOGIN_CONFIG_ID"),
+        version: env("MARKETING_META_GRAPH_VERSION"),
+      });
+      return reply({
+        state: await executeAdsChange(service, graph, env, claim),
+      });
+    }
     if (path === "/copilot") {
       if (
         env("MARKETING_ADS_AI_ENABLED") !== "true" ||
@@ -318,7 +404,9 @@ Deno.serve(async (req) => {
       meta_permission_or_token_invalid:
         "Meta authorization expired or does not permit this operation.",
       ads_request_rejected:
-        "Account selection changed or is no longer available. Refresh the page.",
+        "This advertising configuration is unavailable or changed. Check brand ownership, supported settings and the current revision.",
+      ad_media_unavailable:
+        "Choose an available image from this brand’s Content Library.",
     };
     return reply(
       {

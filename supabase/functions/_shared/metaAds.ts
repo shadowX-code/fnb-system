@@ -3,6 +3,14 @@ import { connectionBinding, unseal } from "./metaSecurity.ts";
 const id = (v: unknown) => typeof v === "string" && /^\d{1,30}$/.test(v);
 export const ADS_ACCOUNT_FIELDS =
   "id,account_id,name,currency,timezone_name,account_status,disable_reason,user_tasks";
+export const ADS_CONFIG_FIELDS = {
+  campaigns:
+    "id,name,objective,status,effective_status,daily_budget,lifetime_budget,start_time,stop_time,updated_time,special_ad_categories",
+  adsets:
+    "id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,start_time,end_time,targeting,optimization_goal,billing_event,attribution_spec,updated_time",
+  ads: "id,name,campaign_id,adset_id,status,effective_status,creative{id,name,object_story_spec,thumbnail_url},updated_time",
+};
+
 const tasks = new Set([
   "MANAGE",
   "ADVERTISE",
@@ -234,20 +242,7 @@ export async function readAdsReport(
   const base = `act_${account.id}`,
     warnings: Record<string, string> = {};
   const configs: Record<string, any[]> = {};
-  for (const [edge, fields] of [
-    [
-      "campaigns",
-      "id,name,objective,status,effective_status,daily_budget,lifetime_budget,start_time,stop_time,updated_time,special_ad_categories",
-    ],
-    [
-      "adsets",
-      "id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,start_time,end_time,targeting,optimization_goal,billing_event,attribution_spec,updated_time",
-    ],
-    [
-      "ads",
-      "id,name,campaign_id,adset_id,status,effective_status,creative{id,name,object_story_spec,thumbnail_url},updated_time",
-    ],
-  ]) {
+  for (const [edge, fields] of Object.entries(ADS_CONFIG_FIELDS)) {
     // A core configuration failure fails the job: never present a partial account as reconciled.
     configs[edge] = await adsPages(
       graph,
