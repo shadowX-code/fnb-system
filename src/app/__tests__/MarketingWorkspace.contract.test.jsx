@@ -4,6 +4,13 @@ import { adminRouteDefinitions } from '../routeOwnership.js';
 import { routeDetails } from '../routes.jsx';
 import { roleHasRestaurantPermissions } from '../../features/company-users/utils/roleAccess.js';
 describe('Marketing workspace ownership',()=>{
+  it('allows audience viewers into the unified page without granting campaign actions',()=>{
+    const permission=routeDetails.marketing_campaigns.permission;
+    const allows=codes=>permission.split(' OR ').some(clause=>clause.split(' AND ').every(code=>codes.includes(code)));
+    expect(allows(['marketing_workspace.access','marketing_audience.view'])).toBe(true);
+    expect(allows(['marketing_audience.view'])).toBe(false);
+    expect(allows(['marketing_workspace.access','marketing_campaigns.view'])).toBe(true);
+  });
   it('is one launcher workspace with independent routes and explicit action permissions',()=>{
     expect(workspaceSwitcherOptions.filter(w=>w.id==='marketing')).toEqual([{id:'marketing',label:'Marketing',detail:'Brands, content & engagement',permission:'marketing_workspace.access'}]);
     const pages=moduleRegistry.filter(m=>m.workspace==='marketing'&&m.sidebar);

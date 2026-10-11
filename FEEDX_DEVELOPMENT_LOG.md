@@ -868,3 +868,7 @@ Verified actual seven-day Pro database recovery without PITR and implemented an 
 ## 2026-10-11 — Marketing Hybrid WhatsApp Phase 3A/3B
 
 Added the explicitly approved Platform customer/contact identity and brand relationship authority, consumed by Marketing consent/suppression and segmentation. Shared campaign revisions/approval/recipient evidence use a manual Click-to-Chat adapter, with declared sender confirmation, per-action consent rechecks and distinct Staff Confirmed evidence. Cloud API sending, verified delivery/redemption, loyalty and financial authority remain unavailable. L3 rollback contracts and focused UI/Phase 1/2 regressions protect tenant boundaries and existing execution controls; only Staging delivery is authorized. Canonical boundaries: docs/architecture/platform.md and docs/domains/marketing.md.
+
+## 2026-10-11 — Reviewed shared customer import and Audience UI
+
+Refined the Phase 3 Customers, Segments, Campaigns and Sender Identities views. Added Platform-owned CSV/XLSX preview/commit commands that reuse the existing customer writer, require field-specific review, block cross-brand identity leakage, preserve consent/suppression and revalidate stale matches at commit. Repeated unchanged imports avoid customer writes. The existing route admits scoped Audience viewers without granting Campaign actions. Staging-only L3 SQL rehearsals use rolled-back disposable records; no external customers, messages or Production scope.
