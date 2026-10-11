@@ -58,8 +58,13 @@ export async function verifyInboxConnection(graph:MetaGraph, appId:string, appTo
  }
  const subscribed=pageId?await read(`${pageId}/subscribed_apps`,credential.token,{fields:'id,subscribed_fields',limit:100}):null;
  const appRows=Array.isArray(subscribed?.data)?subscribed.data.filter((r:any)=>String(r.id)===appId):[];
- const fields=appRows.length===1&&!subscribed?.paging?.next&&Array.isArray(appRows[0].subscribed_fields)?appRows[0].subscribed_fields.filter((s:string)=>contract.subscriptionFields.includes(s)):[];
- const missingSubscriptions=contract.subscriptionFields.filter(s=>!fields.includes(s));
+ // Facebook Login installs the messaging app on the linked Page. Instagram's
+ // messaging_seen belongs to the Instagram app object, not Page/subscribed_apps.
+ const fields=appRows.length===1&&!subscribed?.paging?.next&&Array.isArray(appRows[0].subscribed_fields)?appRows[0].subscribed_fields.filter((s:string)=>contract.pageSubscriptionFields.includes(s)):[];
+ const missingPageSubscriptions=contract.pageSubscriptionFields.filter(s=>!fields.includes(s));
+ const missingAppSubscriptions=contract.subscriptionFields.filter(s=>!appWebhookStatus.fields.includes(s));
+ const callbackVerified=appWebhookStatus.registered&&appWebhookStatus.active&&appWebhookStatus.callback_matches;
+ const missingSubscriptions=[...new Set([...missingPageSubscriptions,...missingAppSubscriptions,...(callbackVerified?[]:['app_callback'])])];
  const conversations=tokenVerified&&accountVerified&&!missing.length?await read(`${pageId}/conversations`,credential.token,{fields:'id,participants{id},messages.limit(10){id}',limit:20,...(connection.channel==='instagram'?{platform:'instagram'}:{})}):null;
  const verified=tokenVerified&&accountVerified&&targetsVerified&&!missing.length&&tasks.length>0&&Array.isArray(conversations?.data);
  const matched=inbound.filter(e=>e.account_id===connection.provider_account_id&&e.channel===connection.channel&&(conversations?.data||[]).some((row:any)=>row.participants?.data?.some((p:any)=>p.id===e.peer_id)&&row.messages?.data?.some((m:any)=>m.id===e.event_id))).map(e=>e.event_id);
