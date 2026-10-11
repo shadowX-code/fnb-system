@@ -48,5 +48,10 @@ begin
  denied:=false;begin perform public.marketing_inbox_profile_material(c,(select id from marketing_qa_ids where key='user'));exception when insufficient_privilege then denied:=true;end;assert denied,'Profile material is server-only';
 end;$$;
 reset role;
+do $$ begin
+ assert not coalesce(('{}'::jsonb->'page_tasks' ?| array['MODERATE','PROFILE_PLUS_MODERATE']),false),'Missing profile evidence denied';
+ assert not ('["MESSAGING"]'::jsonb ?| array['MODERATE','PROFILE_PLUS_MODERATE']),'Messaging never implies MODERATE';
+ assert '["MODERATE","MESSAGING"]'::jsonb ?| array['MODERATE','PROFILE_PLUS_MODERATE'],'Explicit profile task retained in full OAuth evidence';
+end;$$;
 select 'Scoped Inbox projection checks passed; all fixtures rolled back.' result;
 rollback;
