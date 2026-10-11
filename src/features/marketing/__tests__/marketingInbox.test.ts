@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   aiInput,
   inboxRisks,
+  inboxWebhookRejection,
   messagingIntent,
   normalizeInboxWebhook,
   requestInboxAI,
@@ -94,6 +95,17 @@ describe("Inbox integration contracts", () => {
     const rows=normalizeInboxWebhook({object:"page",entry:[{id:"111",messaging:[{sender:{id:"222"},recipient:{id:"111"},delivery:{mids:["sent-mid"],watermark:now}}]}]},now);
     expect(rows[0]).toMatchObject({kind:"delivery",peer_id:"222",account_id:"111",event_id:"sent-mid",occurred_at:new Date(now).toISOString()});
     expect(()=>normalizeInboxWebhook({object:"page",entry:[{id:"111",messaging:[{sender:{id:"111"},recipient:{id:"222"},delivery:{mids:["sent-mid"],watermark:now}}]}]},now)).toThrow("account_identity_mismatch");
+  });
+  it("retains Instagram's exact seen message ID rather than a read watermark", () => {
+    const event={sender:{id:"222"},recipient:{id:"111"},timestamp:now,read:{mid:"only-this-message"}};
+    const payload={object:"instagram",entry:[{id:"111",messaging:[event]}]};
+    expect(normalizeInboxWebhook(payload,now)[0]).toMatchObject({kind:"read",event_id:"only-this-message",occurred_at:new Date(now).toISOString()});
+    expect(()=>normalizeInboxWebhook({...payload,entry:[{id:"111",messaging:[{...event,read:{mid:""}}]}]},now)).toThrow("invalid_receipt");
+    expect(normalizeInboxWebhook({object:"page",entry:[{id:"111",messaging:[{...event,read:{watermark:now}}]}]},now)[0].event_id).toBe(`222:${now}`);
+  });
+  it("sanitizes rejection diagnostics including arbitrary errors and payloads", () => {
+    expect(inboxWebhookRejection({object:"instagram",token:"secret",entry:[incoming]},new Error("account_identity_mismatch"))).toEqual({event:"marketing_inbox_webhook_rejected",object:"instagram",reason:"account_identity_mismatch"});
+    expect(inboxWebhookRejection({object:"secret"},new Error("personal message secret"))).toEqual({event:"marketing_inbox_webhook_rejected",object:"unknown",reason:"invalid_contract"});
   });
   it("verifies the signature against exact raw bytes", async () => {
     const raw = new TextEncoder().encode('{"test":1}'),

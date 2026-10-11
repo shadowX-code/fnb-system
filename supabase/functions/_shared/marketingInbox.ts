@@ -134,10 +134,16 @@ export function normalizeInboxWebhook(
         if (!Number.isSafeInteger(watermark)) {
           throw new Error("invalid_receipt");
         }
+        const exactMid = payload.object === "instagram" ? receipt.mid : undefined;
+        if (exactMid !== undefined &&
+          (typeof exactMid !== "string" || !exactMid || exactMid.length > 300)) {
+          throw new Error("invalid_receipt");
+        }
         events.push({
           ...base,
           kind: "read",
-          event_id: `${peer}:${watermark}`,
+          // Instagram messaging_seen names one message; Messenger read uses a watermark.
+          event_id: exactMid ?? `${peer}:${watermark}`,
           body: "",
         });
       }
@@ -145,6 +151,15 @@ export function normalizeInboxWebhook(
     }
   }
   return events;
+}
+export function inboxWebhookRejection(payload: any, error: unknown) {
+  const reasons = ["invalid_webhook", "invalid_comment_contract", "webhook_batch_too_large",
+    "account_identity_mismatch", "invalid_message_id", "invalid_message_text",
+    "invalid_attachments", "invalid_receipt"];
+  const reason = error instanceof Error && reasons.includes(error.message)
+    ? error.message : "invalid_contract";
+  return { event: "marketing_inbox_webhook_rejected", object:
+    ["page", "instagram"].includes(payload?.object) ? payload.object : "unknown", reason };
 }
 export function standardWindowOpen(
   lastInbound: string | null,

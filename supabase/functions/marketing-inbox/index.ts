@@ -5,6 +5,7 @@ import { verifyInboxConnection } from "../_shared/metaInboxVerification.ts";
 import { advanceInboxDelivery, inboxConnectorContracts } from "../_shared/metaInboxAdapters.ts";
 import {
   normalizeInboxWebhook,
+  inboxWebhookRejection,
   requestInboxAI,
   verifyInboxSignature,
 } from "../_shared/marketingInbox.ts";
@@ -95,12 +96,13 @@ Deno.serve(async (req) => {
         env("MARKETING_META_APP_SECRET"),
       )
     ) return json({ error: "Invalid webhook signature." }, 401);
-    let events;
+    let events, payload;
     try {
-      events = normalizeInboxWebhook(
-        JSON.parse(new TextDecoder().decode(bytes)),
-      );
-    } catch {
+      payload = JSON.parse(new TextDecoder().decode(bytes));
+      events = normalizeInboxWebhook(payload);
+    } catch (error) {
+      // Fixed contract codes only, after HMAC verification. Never log payloads/peers/text.
+      console.warn(JSON.stringify(inboxWebhookRejection(payload, error)));
       return json({ error: "Invalid webhook contract." }, 400);
     }
     try {
