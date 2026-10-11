@@ -36,7 +36,11 @@ function MetricGrid({ row, previous, currency }) {
         <div key={key}>
           <dt>
             {label}
-            {row?.metrics?.[key]?.state === "estimated" ? " · estimated" : ""}
+            {row?.metrics?.[key]?.state === "estimated"
+              ? " · estimated"
+              : row?.metrics?.[key]?.state === "derived"
+                ? " · calculated"
+                : ""}
           </dt>
           <dd>{adsMetric(row?.metrics?.[key], key, currency)}</dd>
           {metricComparison(row?.metrics?.[key], previous?.metrics?.[key]) && (
