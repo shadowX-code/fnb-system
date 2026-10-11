@@ -6,8 +6,24 @@ import {
 import DataTable from "../../components/tables/DataTable.jsx";
 export default function AdsReportingContext({ report, brands }) {
   const rows = attributionSpend(report);
+  const coverage = report?.insights?.scope_coverage;
   return (
     <div className="space-y-3 mt-4">
+      {coverage && (
+        <p className="text-sm text-text-secondary">
+          Reported campaign spend:{" "}
+          {adsMetric(
+            { value: coverage.reported_spend },
+            "spend",
+            report.account.currency,
+          )}
+          {" · "}
+          {coverage.reported_campaigns}/{coverage.campaigns} confirmed campaigns
+          with insight rows.
+          {coverage.spend_campaigns < coverage.campaigns &&
+            " Complete brand totals are unavailable; missing data is not zero."}
+        </p>
+      )}
       {rows.length > 0 && (
         <details open className="ads-panel">
           <summary className="font-semibold">
