@@ -11,7 +11,7 @@ export default function AdsCopilot({
   canReview,
 }) {
   const [usage, setUsage] = useState(null),
-    [available, setAvailable] = useState(false),
+    [available, setAvailable] = useState(null),
     [runs, setRuns] = useState([]),
     [packet, setPacket] = useState(null),
     [error, setError] = useState(""),
@@ -21,27 +21,28 @@ export default function AdsCopilot({
   useEffect(() => {
     const seq = ++generation.current;
     setPacket(null);
+    setAvailable(null);
     setRuns([]);
     setUsage(null);
     setError("");
     if (!brand) return;
-    Promise.all([
+    Promise.allSettled([
       adsService.aiCapabilities(),
       adsService.aiRead(org, brand),
       adsService.copilotPrepare(org, brand, from, to),
       adsService.aiUsage(org, brand),
-    ])
-      .then(([config, rows, evidence, totals]) => {
-        if (seq === generation.current) {
-          setAvailable(config.ai_available);
-          setRuns(rows);
-          setPacket(evidence);
-          setUsage(totals);
-        }
-      })
-      .catch((e) => {
-        if (seq === generation.current) setError(e.message);
-      });
+    ]).then(([config, rows, evidence, totals]) => {
+      if (seq !== generation.current) return;
+      if (config.status === "fulfilled")
+        setAvailable(config.value.ai_available);
+      if (rows.status === "fulfilled") setRuns(rows.value);
+      if (evidence.status === "fulfilled") setPacket(evidence.value);
+      if (totals.status === "fulfilled") setUsage(totals.value);
+      const failure = [config, rows, evidence, totals].find(
+        (r) => r.status === "rejected",
+      );
+      if (failure) setError(failure.reason.message);
+    });
     return () => {
       generation.current++;
     };
@@ -85,7 +86,12 @@ export default function AdsCopilot({
               · {from}–{to}
             </p>
           )}
-          {!available && (
+          {available === null && (
+            <p role="status" className="text-sm text-text-secondary">
+              Checking AI availability…
+            </p>
+          )}
+          {available === false && (
             <p className="text-sm text-text-secondary">
               Ads AI provider is not enabled.
             </p>
