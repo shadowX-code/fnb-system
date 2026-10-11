@@ -335,7 +335,7 @@ export default function MarketingOutreachPage() {
     <label className="outreach-field">
       {label}
       <input
-        className="input"
+        className="control"
         type={type}
         value={form[key] || ""}
         onChange={(e) => field(key, e.target.value)}
@@ -393,7 +393,7 @@ export default function MarketingOutreachPage() {
                   <div className="outreach-actions">
                     <input
                       aria-label="Search customers"
-                      className="input"
+                      className="control"
                       placeholder="Search name or phone"
                       value={search}
                       onChange={(e) => {
@@ -1019,7 +1019,7 @@ export default function MarketingOutreachPage() {
                   <label className="outreach-field">
                     Caption
                     <textarea
-                      className="input"
+                      className="control"
                       rows={5}
                       value={form.caption || ""}
                       onChange={(e) => field("caption", e.target.value)}
