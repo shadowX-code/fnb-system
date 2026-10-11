@@ -136,3 +136,10 @@ describe("AdminFilterToolbar", () => {
     expect(container.querySelector('[data-admin-filter-role="search"]')).not.toBeNull();
   });
 });
+
+it("keeps a partial date bound visible after removing an active range filter",()=>{
+ render(<AdminFilterToolbar period={<FeedXDateRangePicker from="" to="2026-05-31" today="2026-10-12" onApply={vi.fn()}/>} />);
+ expect(screen.getByRole('button',{name:'Date Range'}).textContent).toContain('Until 31 May 2026');
+ cleanup();render(<AdminFilterToolbar period={<FeedXDateRangePicker from="2026-05-01" to="" today="2026-10-12" onApply={vi.fn()}/>} />);
+ expect(screen.getByRole('button',{name:'Date Range'}).textContent).toContain('From 1 May 2026');
+});
