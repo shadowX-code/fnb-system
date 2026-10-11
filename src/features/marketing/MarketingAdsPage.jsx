@@ -34,7 +34,9 @@ const today = () =>
     day: "2-digit",
   }).format(new Date());
 const defaultStart = () =>
-  new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
+  new Date(Date.parse(today() + "T00:00:00Z") - 29 * 86400000)
+    .toISOString()
+    .slice(0, 10);
 function MetricGrid({ row, previous, currency }) {
   return (
     <dl className="ads-metrics">
@@ -394,6 +396,12 @@ export default function MarketingAdsPage() {
       />
       <DatePickerField label="From" value={from} onChange={setFrom} />
       <DatePickerField label="To" value={to} onChange={setTo} />
+      <button
+        className="btn-secondary"
+        onClick={() => setRefresh((v) => v + 1)}
+      >
+        Refresh data
+      </button>
     </AdminFilterToolbar>
   );
   return (
@@ -806,6 +814,32 @@ export default function MarketingAdsPage() {
                         previous={insightFor(beforeReport, level, r.id)}
                         currency={active?.health?.currency}
                       />
+                      {resultType && (
+                        <dl className="ads-metrics">
+                          {columns
+                            .filter((c) =>
+                              ["actions", "cost_per_action_type"].includes(
+                                c.key,
+                              ),
+                            )
+                            .map((c) => (
+                              <div key={c.key}>
+                                <dt>
+                                  {c.header} · {resultType.replaceAll("_", " ")}
+                                </dt>
+                                <dd>{c.render(r)}</dd>
+                              </div>
+                            ))}
+                        </dl>
+                      )}
+                      <a
+                        className="text-sm text-primary"
+                        href={adsManagerUrl(active?.account_id, r.id, level)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Ads Manager ↗
+                      </a>
                       {level !== "ad" && (
                         <button
                           className="btn-secondary"
