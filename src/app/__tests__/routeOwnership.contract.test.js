@@ -19,6 +19,12 @@ import {
 import { moduleRegistry, moduleWorkspace } from "../../../config/modules.ts";
 
 describe("FeedX canonical route contract", () => {
+  it('retains CRM bookmarks under the canonical feature without granting campaign authority to customer viewers',()=>{
+    expect(resolveCanonicalPath('/marketing/audience').routeId).toBe('marketing_audience');
+    expect(resolveCanonicalPath('/marketing/customers').routeId).toBe('marketing_audience');
+    expect(resolveCanonicalPath('/marketing/whatsapp').routeId).toBe('marketing_campaigns');
+    expect(resolveCanonicalPath('/marketing/campaigns').routeId).toBe('marketing_crm_legacy');
+  });
   it('resolves submitted Stock Check and Audit results by identity under the existing permission', () => {
     const route = resolveCanonicalPath('/restaurant/inventory/stock-check/results/check-A');
     expect(route).toMatchObject({ definitionId: 'inventory-stock-check-result', routeId: 'inventory_stock_check', params: { checkId: 'check-A' } });

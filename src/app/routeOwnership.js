@@ -142,7 +142,7 @@ function moduleRouteDefinition(module) {
     routeId,
     canonicalPath: canonicalPathForModule(module),
     pathPattern: canonicalPathForModule(module),
-    pathAliases: Object.freeze(module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : []),
+    pathAliases: Object.freeze(module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : module.id === "marketing_audience" ? ["/marketing/audience"] : []),
     legacyHashPattern: routeId,
     legacyHashAliases: legacyHashAliasesFor(routeId, routeId),
     params: Object.freeze([]),

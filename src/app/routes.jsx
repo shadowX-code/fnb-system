@@ -70,7 +70,9 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 
 export const routeDetails = {
   marketing_ads: { component: MarketingAdsPage, permission: "marketing_workspace.access AND marketing_ads.view", description: "Brand Ad Accounts and verified Meta advertising performance." },
-  marketing_campaigns: { component: MarketingOutreachPage, permission: "marketing_workspace.access AND marketing_campaigns.view OR marketing_workspace.access AND marketing_audience.view", description: "Brand audiences, consent and staff-led WhatsApp campaigns." },
+  marketing_crm_legacy: { component: MarketingOutreachPage, props: { section: "legacy" }, permission: "marketing_workspace.access AND marketing_campaigns.view OR marketing_workspace.access AND marketing_audience.view", description: "Compatibility entry for existing CRM bookmarks." },
+  marketing_audience: { component: MarketingOutreachPage, props: { section: "customers" }, permission: "marketing_workspace.access AND marketing_audience.view", description: "Brand customer relationships, consent and segments." },
+  marketing_campaigns: { component: MarketingOutreachPage, props: { section: "whatsapp" }, permission: "marketing_workspace.access AND marketing_campaigns.view", description: "Approved campaigns and manual WhatsApp handling." },
   marketing_inbox: { component: MarketingInboxPage, permission: "marketing_workspace.access AND marketing_inbox.view", description: "Brand conversations, human handling and approved AI reply proposals." },
   marketing_overview: { component: MarketingWorkspacePage, props: { section: "overview" }, permission: "marketing_workspace.access AND marketing_overview.view", description: "Brand publishing activity and action center." },
   marketing_content: { component: MarketingWorkspacePage, props: { section: "content" }, permission: "marketing_workspace.access AND marketing_content.view", description: "Versioned creative content, review and publishing." },

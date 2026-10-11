@@ -13,7 +13,7 @@ import {
   whatsappDeliveryAdapters,
 } from "./whatsappDelivery.js";
 import "./outreach.css";
-import { Plus, Upload, ArrowLeft } from "lucide-react";
+import { Plus, Upload, ArrowLeft, Settings, Users } from "lucide-react";
 import AdminUnderlineTabs from "../../components/navigation/AdminUnderlineTabs.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
 import EmptyState from "../../components/feedback/EmptyState.jsx";
@@ -35,13 +35,16 @@ function CampaignImage({ asset }) {
  useEffect(()=>{let live=true;setUrl('');if(asset)marketingService.assetUrl(asset).then(value=>{if(live)setUrl(value);}).catch(()=>{});return()=>{live=false;};},[asset?.id]);
  return asset ? url ? <img src={url} alt={asset.filename} className="outreach-image"/> : <p>Image preview unavailable.</p> : null;
 }
-export default function MarketingOutreachPage() {
+export default function MarketingOutreachPage({ section: requestedSection = "customers" }) {
   const auth = useAuth(),
     can = (p) => auth.hasPermission(p),
+    section = requestedSection === "legacy" ? (can("marketing_audience.view") ? "customers" : "whatsapp") : requestedSection,
     [context, setContext] = useState({ organizations: [], brands: [] }),
     [org, setOrg] = useState(""),
     [brand, setBrand] = useState(""),
-    [tab, setTab] = useState(can("marketing_audience.view")?"customers":"campaigns"),
+    [tab, setTab] = useState(section === "whatsapp" ? "campaigns" : "customers"),
+    [campaignSearch,setCampaignSearch]=useState(""),
+    [campaignStatus,setCampaignStatus]=useState(""),
     [data, setData] = useState(null),
     [campaign, setCampaign] = useState(""),
     [page, setPage] = useState(1),
@@ -71,7 +74,11 @@ export default function MarketingOutreachPage() {
       .then((c) => {
         if (live) {
           setContext(c);
-          setOrg(c.organizations[0]?.id || "");
+          const query = new URLSearchParams(window.location.search);
+          const selectedOrg=c.organizations.find(o=>o.id===query.get("marketing_org"))?.id || c.organizations[0]?.id || "";
+          setOrg(selectedOrg);
+          const available=c.brands.filter(b=>b.organization_id===selectedOrg);
+          setBrand(available.find(b=>b.id===query.get("marketing_brand"))?.id || (available.length===1?available[0].id:""));
         }
       })
       .catch((e) => {
@@ -133,6 +140,9 @@ export default function MarketingOutreachPage() {
     setPage(1);
     setSearch("");
   }, [brand]);
+  useEffect(()=>{generation.current++;setBusy(false);setSender("");setSenderConfirmed(false);setSelectedRecipient("");setTab(section === "whatsapp" ? "campaigns" : "customers");setCampaign("");setPage(1);setSearch("");setModal(null);setImportOpen(false);setNotice("");},[section]);
+  const filteredCampaigns=(data?.campaigns||[]).filter(c=>(!campaignStatus||c.status===campaignStatus)&&(!campaignSearch||c.title.toLowerCase().includes(campaignSearch.toLowerCase())));
+  const crmLink=(path)=>`${path}?${new URLSearchParams({marketing_org:org,marketing_brand:brand})}`;
   const field = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   function show(type, initial = {}) {
     intent.current = null;
@@ -329,8 +339,8 @@ export default function MarketingOutreachPage() {
   return (
     <WorkspacePage
       section="Marketing"
-      title="Audience & Customers"
-      description="Manage customer relationships, consent and WhatsApp campaigns."
+      title={section === "whatsapp" ? "WhatsApp Message" : "Customers"}
+      description={section === "whatsapp" ? "Approved campaigns, handled personally by your team." : "Customer profiles, brand relationships and contact preferences."}
       actions={controls}
     >
       <div className="outreach">
@@ -342,15 +352,17 @@ export default function MarketingOutreachPage() {
         ) : null}
         {!brand ? (
           <section className="card p-5">
-            Select a brand to manage its audiences, consent and campaigns.
+            Select a brand to manage its customers and WhatsApp campaigns.
           </section>
         ) : (
           <>
-            <AdminUnderlineTabs value={tab} onChange={t=>{setTab(t);setPage(1);setSearch('')}} ariaLabel="Audience views" tabs={[
-              ...(can('marketing_audience.view')?[{value:'customers',label:'Customers'},{value:'segments',label:'Segments'}]:[]),
-              ...(can('marketing_campaigns.view')?[{value:'campaigns',label:'Campaigns'}]:[]),
-              {value:'senders',label:'Sender Identities'}
-            ]}/>
+            <div className="outreach-view-heading">
+              {section==='customers'?<AdminUnderlineTabs value={tab} onChange={setTab} ariaLabel="Customer views" tabs={[{value:'customers',label:'All customers'},{value:'segments',label:'Segments'}]}/>:<strong>{tab==='senders'?'WhatsApp settings':'Campaigns'}</strong>}
+              <div className="outreach-actions">
+                {section==='whatsapp'?<button className="btn-secondary" onClick={()=>{setTab(tab==='senders'?'campaigns':'senders');setCampaign('');setPage(1)}}>{tab==='senders'?<ArrowLeft size={15}/>:<Settings size={15}/>} {tab==='senders'?'Campaigns':'Sender settings'}</button>:null}
+                {can(section==='whatsapp'?'marketing_audience.view':'marketing_campaigns.view')?<a className="btn-secondary" href={crmLink(section==='whatsapp'?'/marketing/customers':'/marketing/whatsapp')}>{section==='whatsapp'?<Users size={15}/>:null}{section==='whatsapp'?'Customers':'WhatsApp campaigns'}</a>:null}
+              </div>
+            </div>
             <AsyncDataSurface loading={loading} error={null} hasData={!!data}>
               {data&&tab==='customers'?<MarketingCustomersView key={brand} org={org} brand={brand} data={data} can={can} refresh={refresh} show={show} onImport={()=>setImportOpen(true)}/>:null}
               {data&&tab==='segments'?<section>
@@ -370,16 +382,17 @@ export default function MarketingOutreachPage() {
                 <>
                   <section className="space-y-3">
                     <div className="outreach-section-heading">
-                      {active?<button className="btn-secondary" onClick={()=>{setCampaign('');setPage(1)}}><ArrowLeft size={15}/> All campaigns</button>:<p>{data.campaigns.length} campaigns<small>Approved content · manual WhatsApp delivery</small></p>}
+                      {active?<button className="btn-secondary" onClick={()=>{setCampaign('');setPage(1)}}><ArrowLeft size={15}/> All campaigns</button>:<p>{filteredCampaigns.length} campaigns<small>Manual WhatsApp delivery</small></p>}
                       {can('marketing_campaigns.manage')?<button className="btn-primary" onClick={()=>show('campaign',{caption:'Hi {name}, ',audience_id:data.audiences[0]?.id||''})}><Plus size={15}/> New campaign</button>:null}
                     </div>
-                    {!active&&data.campaigns.length?<OutreachCollection rows={data.campaigns} getRowKey={c=>c.id} columns={[
+                    {!active?<AdminFilterToolbar compact denseFields ariaLabel="Campaign filters" search={<input className="control" type="search" aria-label="Search campaigns" placeholder="Search campaigns" value={campaignSearch} onChange={e=>setCampaignSearch(e.target.value)}/>} filters={<SelectField label="Campaign status" value={campaignStatus} onChange={setCampaignStatus} options={[{value:'',label:'All statuses'},...['draft','review','approved','ready','cancelled'].map(value=>({value,label:names[value]}))]}/>}/>:null}
+                    {!active&&filteredCampaigns.length?<OutreachCollection rows={filteredCampaigns} getRowKey={c=>c.id} columns={[
                       {key:'title',header:'Campaign',render:c=><button className="outreach-name-button" onClick={()=>{setCampaign(c.id);setPage(1);setSelectedRecipient('')}}>{c.title}</button>},
                       {key:'status',header:'Status',render:c=><Badge tone={c.status==='approved'?'success':c.status==='review'?'warning':'default'}>{names[c.status]}</Badge>},
                       {key:'audience',header:'Audience size',render:c=>c.status==='ready'?c.recipient_count:c.audience_size??'Unavailable'},
                       {key:'progress',header:'Progress',render:c=>c.recipient_count?`${c.handled_count} / ${c.recipient_count} handled`:'Not queued'}
                     ]}/>:null}
-                    {!data.campaigns.length?<EmptyState title="No campaigns yet" description="Create a segment with consented customers, then draft a campaign for approval."/>:null}
+                    {!active&&!filteredCampaigns.length?<EmptyState title={data.campaigns.length?"No matching campaigns":"No campaigns yet"} description={data.campaigns.length?"Adjust your search or status filter.":"Choose a customer segment, then prepare a message for approval. Sending is always manual."}/>:null}
                     {active ? (
                       <>
                         <div className="outreach-actions">
@@ -387,7 +400,7 @@ export default function MarketingOutreachPage() {
                           <Badge>{names[active.status]}</Badge>
                           <span>Revision {active.revision}</span>
                         </div>
-                        <p className="outreach-caption">{active.caption}</p><CampaignImage asset={data.assets.find(a=>a.id===active.asset_id)}/>
+                        <div className="outreach-campaign-overview"><CampaignImage asset={data.assets.find(a=>a.id===active.asset_id)}/><div><h3>Message{active.approved_revision===active.revision?" · Approved":" · Draft"}</h3><p className="outreach-caption">{active.caption}</p><dl className="outreach-profile-grid"><div><dt>Audience</dt><dd>{data.audiences.find(a=>a.id===active.audience_id)?.name||"Unavailable"}</dd></div><div><dt>Recipients</dt><dd>{active.recipient_count||"Not queued"}</dd></div><div><dt>Delivery</dt><dd>Manual Click-to-Chat</dd></div></dl></div></div>
                         <div className="outreach-actions">
                           {can("marketing_campaigns.manage") &&
                           ["draft", "review", "approved", "ready"].includes(
@@ -468,10 +481,7 @@ export default function MarketingOutreachPage() {
                             </span>
                           ))}
                         </div>
-                        <p className="text-sm">
-                          Verified delivery: unavailable · Verified redemptions:
-                          unavailable
-                        </p>
+                        <details className="outreach-evidence"><summary>Results & delivery limits</summary><p>Verified delivery: unavailable · Verified redemptions: unavailable</p><p>Staff confirmations record manual handling, not WhatsApp delivery. Queued campaigns do not send automatically. Cloud API delivery is unavailable.</p></details>
                       </>
                     ) : null}
                   </section>
@@ -629,6 +639,13 @@ export default function MarketingOutreachPage() {
                       </div>
                     </section>
                   ) : null}
+                  {active&&data.recipients.length?<section aria-label="Campaign recipient results" className="space-y-3"><h3 className="text-sm font-semibold">Recipient results · current queue page</h3><OutreachCollection rows={data.recipients} getRowKey={r=>r.id} columns={[
+                    {key:'display_name',header:'Customer'},
+                    {key:'state',header:'Handling',render:r=><Badge tone={r.state==='staff_confirmed'?'success':r.state==='skipped'?'warning':'default'}>{names[r.state]}</Badge>},
+                    {key:'eligible',header:'Current consent',render:r=>r.eligible?'Eligible':'Contact blocked'},
+                    {key:'sender',header:'Sender',render:r=>data.senders.find(s=>s.id===r.sender_id)?.label||'Not selected'},
+                    {key:'result',header:'Result',render:r=>r.state==='staff_confirmed'?'Staff confirmation only':r.state==='skipped'?r.skip_reason||'Skipped':'Not confirmed'}
+                  ]}/></section>:null}
                 </>
               ) : null}
             </AsyncDataSurface>
