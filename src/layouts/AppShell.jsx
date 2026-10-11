@@ -1365,7 +1365,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
                       {active ? <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-primary/80 shadow-[0_0_8px_rgba(34,197,94,0.22)]" /> : null}
                       <Icon size={16} className={active ? "opacity-100" : "opacity-70"} />
                       <span className="truncate">{item.label}</span>
-                      {item.id === "marketing_inbox" && conversationReplyCount > 0 ? <span className="ml-auto rounded-full bg-primary/10 px-2 text-xs font-semibold text-primary" aria-label={`${conversationReplyCount} conversations need a staff reply`}>{conversationReplyCount > 99 ? "99+" : conversationReplyCount}</span> : null}
+                      {item.id === "marketing_inbox" && conversationReplyCount > 0 ? <span className="ml-auto rounded-full bg-primary/10 px-2 text-xs font-semibold text-primary" aria-label={`${conversationReplyCount} ${conversationReplyCount===1 ? "conversation needs" : "conversations need"} a staff reply`}>{conversationReplyCount > 99 ? "99+" : conversationReplyCount}</span> : null}
                     </button>
                   );
                 })}

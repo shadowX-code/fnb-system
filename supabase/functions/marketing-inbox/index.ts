@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
     }catch{return json({error:'Messaging verification unavailable. Check scope and connection.'},409);}
   }
   if(path==='/send-status' && req.method==='POST'){
-    try{const body=await req.json();const scope=await rpc(service,'marketing_inbox_staff_send_scope',{p_conversation:body.conversationId,p_auth_user:identity.data.user.id});
+    try{const raw=await req.text();if(raw.length>1000)return json({error:'Request too large.'},413);const body=JSON.parse(raw);const scope=await rpc(service,'marketing_inbox_staff_send_scope',{p_conversation:body.conversationId,p_auth_user:identity.data.user.id});
       return json({staff_send_configured:env('MARKETING_INBOX_SEND_ENABLED')==='true'&&Boolean(env('MARKETING_INBOX_TEST_PEER_IDS')),recipient_allowed:['622626120924115','17841473217923034'].includes(scope.account)&&env('MARKETING_INBOX_TEST_PEER_IDS').split(',').map(s=>s.trim()).includes(scope.peer)});
     }catch{return json({error:'Sending availability could not be checked.'},403);}
   }

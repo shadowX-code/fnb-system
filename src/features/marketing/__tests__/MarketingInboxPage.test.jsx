@@ -332,3 +332,15 @@ it('keeps direct replies disabled for excluded test recipients and unresolved se
  expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
  expect(inboxService.sendStaffReply).not.toHaveBeenCalled();
 });
+
+it('uses an editable AI proposal as a human-confirmed staff reply without autonomous execution',async()=>{
+ detail.reply_requires_approval=false;
+ detail.artifacts=[{id:'ai-one',kind:'reply',state:'proposed',source_version:2,body:{text:'Approved brand fact',human_required:false}}];
+ inboxService.configuration.mockResolvedValue({staff_send_configured:true});inboxService.sendStaffReply.mockResolvedValue({state:'sent'});
+ render(<MarketingInboxPage/>);await select();fireEvent.click(screen.getByRole('button',{name:'Use suggestion'}));
+ fireEvent.change(screen.getByLabelText('Reply'),{target:{value:'Edited by a person'}});
+ await waitFor(()=>expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(false));
+ expect(inboxService.sendStaffReply).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Send',exact:true}));
+ await waitFor(()=>expect(inboxService.sendStaffReply).toHaveBeenCalledWith(expect.any(String),conversation,'Edited by a person','ai-one'));
+ expect(inboxService.reviewAI).not.toHaveBeenCalled();
+});

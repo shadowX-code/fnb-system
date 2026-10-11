@@ -158,7 +158,10 @@ export default function MarketingInboxPage() {
     [busy, setBusy] = useState(false),
     [modal, setModal] = useState(null),
     [preview, setPreview] = useState(null);
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const scope = JSON.stringify([org, brand, auth.user?.id]),
+    listBaseKey=JSON.stringify([scope,status,channel,search,assignee,unread,page,pageSize]),
     listKey = JSON.stringify([
       scope,
       status,
@@ -180,7 +183,7 @@ export default function MarketingInboxPage() {
     generation = useRef(0),
     historyRef = useRef(null);
   const brands = context.brands.filter((b) => b.organization_id === org),
-    data = read?.key === listKey ? read.data : null,
+    data = read?.baseKey === listBaseKey ? read.data : null,
     current = detail?.baseKey === detailBaseKey ? detail.data : null,
     c = current?.conversation;
   useEffect(() => {
@@ -245,7 +248,7 @@ export default function MarketingInboxPage() {
         pageSize,
       })
       .then((v) => {
-        if (live) setRead({ key: listKey, data: v });
+        if (live) setRead({ key: listKey, baseKey:listBaseKey, data: v });
       })
       .catch((e) => {
         if (live) setError(e.message);
@@ -429,7 +432,7 @@ export default function MarketingInboxPage() {
   });
   useEffect(() => {
     const timer = setInterval(() => {
-      if (document.visibilityState !== "hidden" && !request.current)
+      if (document.visibilityState !== "hidden" && !busyRef.current)
         setRefresh((r) => r + 1);
     }, 30000);
     return () => clearInterval(timer);
