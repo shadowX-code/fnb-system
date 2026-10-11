@@ -43,6 +43,22 @@ export const adsService = {
       expectedGeneration,
       confirmOwnership: true,
     }),
+  reviewContext: (org) => rpc("marketing_ads_review_context", { p_org: org }),
+  copilotPrepare: (org, brand, from, to) =>
+    rpc("marketing_ads_copilot_prepare", {
+      p_org: org,
+      p_brand: brand,
+      p_from: from,
+      p_to: to,
+    }),
+  attributeBatch: (org, account, rows, brand, request) =>
+    rpc("marketing_ads_attribute_batch", {
+      p_org: org,
+      p_account: account,
+      p_rows: rows,
+      p_brand: brand || null,
+      p_request: request,
+    }),
   attribute: (org, account, campaign, brand, revision, request) =>
     rpc("marketing_ads_attribute", {
       p_org: org,

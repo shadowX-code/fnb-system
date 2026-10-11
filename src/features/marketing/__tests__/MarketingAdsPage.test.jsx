@@ -12,6 +12,9 @@ const { ads, service, auth } = vi.hoisted(() => ({
     read: vi.fn(),
     pending: vi.fn(),
     discovery: vi.fn(),
+    reviewContext: vi.fn(),
+    attributeBatch: vi.fn(),
+    copilotPrepare: vi.fn(),
     preview: vi.fn(),
     attribute: vi.fn(),
     authorize: vi.fn(),
@@ -36,6 +39,7 @@ beforeEach(() => {
   ads.read.mockResolvedValue({ accounts: [], reports: [], jobs: [] });
   ads.pending.mockResolvedValue([]);
   ads.discovery.mockResolvedValue([]);
+  ads.reviewContext.mockResolvedValue([]);
 });
 describe("Ads read-only workspace", () => {
   it("has meaningful unconnected state and never invents advertising metrics", async () => {

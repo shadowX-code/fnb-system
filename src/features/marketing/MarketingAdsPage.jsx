@@ -19,6 +19,7 @@ import {
   insightFor,
   adsManagerUrl,
 } from "./adsPresentation.js";
+import AdsAttributionReview from "./AdsAttributionReview.jsx";
 import "./ads.css";
 const today = () =>
   new Intl.DateTimeFormat("en-CA", {
@@ -93,6 +94,8 @@ export default function MarketingAdsPage() {
     [previous, setPrevious] = useState(null),
     [pending, setPending] = useState([]),
     [discoveries, setDiscoveries] = useState([]),
+    [identities, setIdentities] = useState([]),
+    [copilot, setCopilot] = useState(null),
     [tab, setTab] = useState("overview"),
     [account, setAccount] = useState(""),
     [level, setLevel] = useState("campaign"),
@@ -146,6 +149,8 @@ export default function MarketingAdsPage() {
     setData(null);
     setPrevious(null);
     setPending([]);
+    setIdentities([]);
+    setCopilot(null);
     const range = precedingPeriod(from, to);
     if (!range) {
       setLoading(false);
@@ -161,13 +166,15 @@ export default function MarketingAdsPage() {
       can("marketing_ads.connect")
         ? adsService.discovery(org).catch(() => [])
         : Promise.resolve([]),
+      adsService.reviewContext(org).catch(() => []),
     ])
-      .then(([current, before, sessions, reviews]) => {
+      .then(([current, before, sessions, reviews, socialIdentities]) => {
         if (seq !== generation.current) return;
         setData(current);
         setPrevious(before);
         setPending(sessions);
         setDiscoveries(reviews);
+        setIdentities(socialIdentities);
         setAccount((value) =>
           current.accounts.some((a) => a.id === value)
             ? value
@@ -400,6 +407,29 @@ export default function MarketingAdsPage() {
                   }
                 >
                   Review history
+                </button>
+              </div>
+            </section>
+          ))}
+        {data?.organization_access &&
+          !brand &&
+          data?.reports?.map((r) => (
+            <section className="ads-panel" key={`review:${r.connection_id}`}>
+              <div className="flex flex-wrap justify-between items-center gap-3">
+                <div>
+                  <strong>{r.payload.account.name}</strong>
+                  <p className="text-sm text-text-secondary">
+                    {r.payload.configs.campaigns.length} campaigns ·
+                    Organization attribution review
+                  </p>
+                </div>
+                <button
+                  className="btn-secondary"
+                  onClick={() =>
+                    setModal({ kind: "preview", report: r.payload })
+                  }
+                >
+                  Review campaign attribution
                 </button>
               </div>
             </section>
@@ -757,10 +787,70 @@ export default function MarketingAdsPage() {
           </>
         )}
         {tab === "copilot" && (
-          <EmptyState
-            title="AI Ads Copilot — advisory only"
-            description="Recommendations require an authorized Ad Account, verified performance and approved Brand Knowledge. Provider execution will be configured after read-only acceptance; AI cannot activate ads or change budgets."
-          />
+          <section className="ads-panel space-y-3">
+            <h2 className="font-semibold">
+              AI Ads Copilot · advisory preparation
+            </h2>
+            <p className="text-sm text-text-secondary">
+              Prepare approved brand facts and verified, explicitly attributed
+              performance for human-reviewed recommendations. Provider
+              generation is not enabled for Ads; no recommendation can change a
+              campaign or budget.
+            </p>
+            {can("marketing_ads.ai") && (
+              <button
+                className="btn-secondary"
+                disabled={!brand || busy || !report?.configs?.campaigns?.length}
+                onClick={async () => {
+                  const seq = generation.current;
+                  setBusy(true);
+                  setError("");
+                  try {
+                    const packet = await adsService.copilotPrepare(
+                      org,
+                      brand,
+                      from,
+                      to,
+                    );
+                    if (seq === generation.current) setCopilot(packet);
+                  } catch (e) {
+                    if (seq === generation.current) setError(e.message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Prepare recommendation evidence
+              </button>
+            )}
+            {!brand && (
+              <p className="text-sm text-text-secondary">
+                Choose a brand with confirmed campaign attribution.
+              </p>
+            )}
+            {copilot && (
+              <>
+                <p role="status" className="text-sm">
+                  Evidence prepared · Brand Knowledge revision{" "}
+                  {copilot.knowledge_revision}. Recommendations still require
+                  provider configuration and human review.
+                </p>
+                <dl className="space-y-2">
+                  {Object.entries(copilot.approved_facts).map(([key, fact]) => (
+                    <div key={key}>
+                      <dt className="text-xs text-text-secondary">{key}</dt>
+                      <dd className="text-sm">{fact.text}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className="text-sm text-text-secondary">
+                  {copilot.reporting.reports.length} verified reporting
+                  snapshots. Meta attribution is not verified FeedX revenue or
+                  ROI.
+                </p>
+              </>
+            )}
+          </section>
         )}
         {data?.jobs?.some((j) => ["failed", "cancelled"].includes(j.state)) && (
           <p className="text-sm text-text-secondary">
@@ -790,8 +880,9 @@ export default function MarketingAdsPage() {
         >
           <p className="text-sm text-text-secondary">
             {modal.report.account.name} · {modal.report.account.currency} ·{" "}
-            {modal.report.account.timezone}. No brand mappings or external
-            changes were created by discovery.
+            {modal.report.account.timezone}. Observed{" "}
+            {new Date(modal.report.observation).toLocaleString("en-MY")}. Meta
+            configuration remains authoritative.
           </p>
           <MetricGrid
             row={modal.report.insights.account?.[0]}
@@ -803,104 +894,20 @@ export default function MarketingAdsPage() {
             {modal.report.configs.ads.length} Ads. Brand attribution requires
             explicit organization review.
           </p>
-          <div className="ads-desktop">
-            <DataTable
-              columns={[
-                {
-                  key: "name",
-                  header: "Campaign",
-                  render: (c) => (
-                    <>
-                      <strong>{c.name}</strong>
-                      <small className="block">{c.id}</small>
-                    </>
-                  ),
-                },
-                {
-                  key: "brand",
-                  header: "FeedX brand",
-                  render: (c) =>
-                    context.brands.find((b) => b.id === c.feedx_brand_id)
-                      ?.name || "Unassigned",
-                },
-                {
-                  key: "status",
-                  header: "Meta status",
-                  render: (c) => c.effective_status,
-                },
-                {
-                  key: "identities",
-                  header: "Creative identities",
-                  render: (c) =>
-                    [
-                      ...new Set(
-                        modal.report.configs.ads
-                          .filter((a) => a.campaign_id === c.id)
-                          .flatMap((a) => [
-                            a.creative?.object_story_spec?.page_id,
-                            a.creative?.object_story_spec?.instagram_user_id,
-                          ])
-                          .filter(Boolean),
-                      ),
-                    ].join(" · ") || "Unavailable",
-                },
-                {
-                  key: "review",
-                  header: "Review",
-                  render: (c) =>
-                    can("marketing_ads.manage") && data?.organization_access ? (
-                      <button
-                        className="btn-secondary"
-                        onClick={() =>
-                          setModal({
-                            kind: "attribute",
-                            requestId: crypto.randomUUID(),
-                            campaign: c,
-                            report: modal.report,
-                            brand: c.feedx_brand_id || "",
-                          })
-                        }
-                      >
-                        Attribute
-                      </button>
-                    ) : null,
-                },
-              ]}
-              rows={modal.report.configs.campaigns}
-              getRowKey={(c) => c.id}
-            />
-          </div>
-          <div className="ads-mobile">
-            {modal.report.configs.campaigns.map((c) => (
-              <section className="ads-panel" key={c.id}>
-                <strong className="block break-words">{c.name}</strong>
-                <small className="block text-text-secondary">{c.id}</small>
-                <div className="flex justify-between gap-3 mt-3">
-                  <span>
-                    {context.brands.find((b) => b.id === c.feedx_brand_id)
-                      ?.name || "Unassigned"}
-                  </span>
-                  <Badge>{c.effective_status}</Badge>
-                </div>
-                {can("marketing_ads.manage") && data?.organization_access && (
-                  <button
-                    className="btn-secondary mt-3"
-                    onClick={() =>
-                      setModal({
-                        kind: "attribute",
-                        campaign: c,
-                        report: modal.report,
-                        brand: c.feedx_brand_id || "",
-                        requestId: crypto.randomUUID(),
-                      })
-                    }
-                  >
-                    Review attribution
-                  </button>
-                )}
-              </section>
-            ))}
-          </div>
+          <AdsAttributionReview
+            report={modal.report}
+            org={org}
+            brands={brands}
+            identities={identities}
+            canManage={can("marketing_ads.manage") && data?.organization_access}
+            onUpdated={() => {
+              setModal(null);
+              setRefresh((r) => r + 1);
+              setNotice(
+                "FeedX attribution updated. Meta advertising is unchanged.",
+              );
+            }}
+          />
           <details className="mt-4">
             <summary>Meta reporting evidence</summary>
             <pre className="overflow-auto text-xs max-h-60">
@@ -908,53 +915,6 @@ export default function MarketingAdsPage() {
               {modal.report.observation}
             </pre>
           </details>
-        </Modal>
-      )}
-      {modal?.kind === "attribute" && (
-        <Modal
-          title="Confirm campaign brand attribution"
-          onClose={() => setModal({ kind: "preview", report: modal.report })}
-          footer={
-            <button
-              className="btn-primary"
-              disabled={busy}
-              onClick={() =>
-                act(async () => {
-                  await adsService.attribute(
-                    org,
-                    modal.report.account.id,
-                    modal.campaign.id,
-                    modal.brand,
-                    modal.campaign.feedx_attribution_revision || 0,
-                    modal.requestId,
-                  );
-                  setModal(null);
-                  setNotice(
-                    "FeedX attribution updated. Meta advertising is unchanged.",
-                  );
-                })
-              }
-            >
-              Confirm attribution
-            </button>
-          }
-        >
-          <p>
-            {modal.campaign.name} ({modal.campaign.id})
-          </p>
-          <p className="text-sm text-text-secondary my-3">
-            Ad Sets and Ads inherit this brand. Reassignment changes FeedX
-            reporting visibility; it does not alter Meta.
-          </p>
-          <SelectField
-            label="FeedX brand"
-            value={modal.brand}
-            onChange={(value) => setModal({ ...modal, brand: value })}
-            options={[
-              { value: "", label: "Unassigned" },
-              ...brands.map((b) => ({ value: b.id, label: b.name })),
-            ]}
-          />
         </Modal>
       )}
       {modal?.kind === "bind" && (
@@ -971,8 +931,9 @@ export default function MarketingAdsPage() {
                     modal.session.id,
                     brand,
                     modal.a.id,
-                    data?.accounts.find((a) => a.account_id === modal.a.id)
-                      ?.generation ?? null,
+                    data?.accounts.find(
+                      (a) => (a.account_id || a.account_slot) === modal.a.id,
+                    )?.generation ?? null,
                   );
                   setModal(null);
                   setNotice(
