@@ -9,6 +9,8 @@ import {
   Image,
   Instagram,
   List,
+  MoreHorizontal,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
@@ -21,11 +23,15 @@ import AdminPagination, {
 } from "../../components/tables/AdminPagination.jsx";
 import AsyncDataSurface from "../../components/feedback/AsyncDataSurface.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
+import ActionMenu from "../../components/ui/ActionMenu.jsx";
+import DatePickerField from "../../components/forms/DatePickerField.jsx";
+import PostDetail from "./PostDetail.jsx";
 import Badge from "../../components/ui/Badge.jsx";
 import { marketingService } from "./marketingService.js";
 import { calendarRange, localInput } from "./marketingCalendar.js";
 import {
   CONTENT_TIMEZONE,
+  POST_METRICS, postMetric, metricReason, preferredMetricColumns, saveMetricColumns,
   contentBounds,
   contentMetric,
   contentStatusLabel,
@@ -157,20 +163,18 @@ function Thumbnail({ channel }) {
     </span>
   );
 }
-function Performance({ channel, published }) {
+function Performance({ channel, published, metricKeys = ["reach", "views", "interactions"] }) {
   if (!published) return <span className="cm-muted">—</span>;
   if (!channel) return <span className="cm-muted">Per channel below</span>;
   return (
     <span className="cm-performance">
-      {["reach", "engagement"].map((name) => {
-        const value = contentMetric(channel, name);
+      {metricKeys.map((name) => {
+        const value = postMetric(channel, name);
         return (
           <span key={name}>
-            <span>{contentStatusLabel(name)}</span>{" "}
+            <span>{POST_METRICS.find(m=>m.key===name)?.label || contentStatusLabel(name)}</span>{" "}
             <strong
-              title={name === "engagement"
-                ? "Recorded likes + comments, plus shares for Facebook; complete counts required."
-                : "Platform-reported post reach."}
+              title={metricReason(channel,name)||POST_METRICS.find(m=>m.key===name)?.description}
             >
               {value === null ? "Unavailable" : value.toLocaleString("en-MY")}
             </strong>
@@ -229,16 +233,21 @@ export default function ContentManagement(
   const [group, setGroup] = useState("");
   const [expanded, setExpanded] = useState({});
   const [external, setExternal] = useState(null);
+  const [metricColumns,setMetricColumns]=useState(()=>preferredMetricColumns(auth.user?.id));
+  const [columnsOpen,setColumnsOpen]=useState(false);
+  const [actionKey,setActionKey]=useState(null);
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search.trim()), 250);
     return () => clearTimeout(timer);
   }, [search]);
   useEffect(() => {
     setExternal(null);
+    setActionKey(null);
     setExpanded({});
   }, [organizationId, brandId, auth.user?.id]);
   useEffect(() => {
     setView(preferredContentView(auth.user?.id));
+    setMetricColumns(preferredMetricColumns(auth.user?.id));
   }, [auth.user?.id]);
   const bounds = useMemo(() => {
     try {
@@ -305,9 +314,9 @@ export default function ContentManagement(
       ["leased", "reconciling", "succeeded"].includes(v.job_state)
     );
     return (
-      <div className="cm-actions">
+      <ActionMenu open={actionKey===row.key} onOpenChange={value=>setActionKey(value?row.key:null)} ariaLabel={`Actions for ${row.title}`} trigger={({toggle,open})=><button className="icon-btn" aria-label={`Actions for ${row.title}`} aria-haspopup="menu" aria-expanded={open} onClick={toggle}><MoreHorizontal size={16}/></button>}><div className="cm-actions" onClick={()=>setActionKey(null)}>
         <button
-          className="btn-secondary"
+          className="admin-action-menu-item" role="menuitem"
           disabled={busy}
           onClick={() => show(row)}
         >
@@ -320,7 +329,7 @@ export default function ContentManagement(
                   can("marketing_content.edit")
                 ? (
                   <button
-                    className="btn-secondary"
+                    className="admin-action-menu-item" role="menuitem"
                     disabled={busy}
                     onClick={() =>
                       open({
@@ -337,7 +346,7 @@ export default function ContentManagement(
                   can("marketing_content.review")
                 ? (
                   <button
-                    className="btn-secondary"
+                    className="admin-action-menu-item" role="menuitem"
                     disabled={busy}
                     onClick={() => command("review", row)}
                   >
@@ -348,7 +357,7 @@ export default function ContentManagement(
               {row.status === "approved" && can("marketing_content.publish")
                 ? (
                   <button
-                    className="btn-secondary"
+                    className="admin-action-menu-item" role="menuitem"
                     disabled={busy}
                     onClick={() =>
                       open({
@@ -366,7 +375,7 @@ export default function ContentManagement(
                   can("marketing_content.cancel")
                 ? (
                   <button
-                    className="btn-secondary"
+                    className="admin-action-menu-item" role="menuitem"
                     disabled={busy}
                     onClick={() => command("cancel", row)}
                   >
@@ -377,11 +386,11 @@ export default function ContentManagement(
             </>
           )
           : null}
-      </div>
+      </div></ActionMenu>
     );
   }
   function contentCell(row, variant = null) {
-    const media = variant || row.channels[0];
+    const media = variant || row.channels.find(v=>v.thumbnail_url || v.asset?.mime_type?.startsWith("image/")) || row.channels[0];
     return (
       <div className="cm-content">
         <Thumbnail channel={media} />
@@ -399,7 +408,7 @@ export default function ContentManagement(
                   : row.channels[0]?.caption}
               </span>
             )
-            : <Evidence channel={variant} />}
+            : <span className="cm-muted">{variant.job_state ? contentStatusLabel(variant.job_state) : contentStatusLabel(variant.status)}</span>}
           {!variant && row.channels.length > 1
             ? (
               <button
@@ -447,7 +456,7 @@ export default function ContentManagement(
     {
       key: "content",
       header: "Content",
-      width: "31%",
+      width: "30%",
       render: (row) =>
         row.heading
           ? <strong>{row.heading}</strong>
@@ -456,7 +465,7 @@ export default function ContentManagement(
     {
       key: "brand",
       header: "Brand",
-      width: "12%",
+      width: "10%",
       render: (row) => row.heading ? null : <span>{row.brand_name}</span>,
     },
     {
@@ -488,20 +497,11 @@ export default function ContentManagement(
           ? null
           : <Status value={row.variant?.status || row.status} />,
     },
-    {
-      key: "performance",
-      header: "Performance",
-      width: "12%",
-      render: (row) =>
-        row.heading ? null : (
-          <Performance
-            channel={row.variant ||
-              (row.channels.length === 1 ? row.channels[0] : null)}
-            published={(row.variant?.status || row.status) === "published" ||
-              row.channels.some((v) => v.status === "published")}
-          />
-        ),
-    },
+    ...metricColumns.map(key=>({key, header:POST_METRICS.find(m=>m.key===key).label, width:"8%", align:"right",render:row=>{
+      if(row.heading)return null;
+      const v=row.variant||(row.channels.length===1?row.channels[0]:null),value=postMetric(v,key);
+      return <span className="cm-metric" title={v?metricReason(v,key)||POST_METRICS.find(m=>m.key===key).description:'Expand for channel-specific metrics'}>{value===null?'—':value.toLocaleString('en-MY')}</span>;
+    }})),
     {
       key: "actions",
       header: "Actions",
@@ -540,9 +540,7 @@ export default function ContentManagement(
             ),
           }]}
         />
-        <span className="cm-muted">
-          {current ? `${state.total} content records · ` : ""}Asia/Kuala_Lumpur
-        </span>
+        <div className="cm-heading-tools"><span className="cm-muted">{current ? `${state.total} content records · ` : ""}Asia/Kuala_Lumpur</span>{view==='list'?<ActionMenu open={columnsOpen} onOpenChange={setColumnsOpen} ariaLabel="Metric columns" width={224} trigger={({toggle,open})=><button className="btn-secondary" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><SlidersHorizontal size={14}/> Columns</button>}><fieldset className="cm-column-picker"><legend>Performance columns</legend>{POST_METRICS.filter(m=>!m.unit).map(m=><label key={m.key}><input type="checkbox" checked={metricColumns.includes(m.key)} onChange={e=>{const next=e.target.checked?[...metricColumns,m.key]:metricColumns.filter(k=>k!==m.key);setMetricColumns(next);saveMetricColumns(auth.user?.id,next)}}/>{m.label}</label>)}</fieldset></ActionMenu>:null}</div>
       </div>
       <AdminFilterToolbar
         compact
@@ -562,29 +560,8 @@ export default function ContentManagement(
         }
         filters={
           <>
-            <AdminFormField label="From">
-              <input
-                className="control"
-                type="date"
-                value={from}
-                onChange={(e) => {
-                  setFrom(e.target.value);
-                  if (view === "calendar" && e.target.value) {
-                    setAnchor(
-                      e.target.value,
-                    );
-                  }
-                }}
-              />
-            </AdminFormField>
-            <AdminFormField label="To">
-              <input
-                className="control"
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-              />
-            </AdminFormField>
+            <DatePickerField label="From" value={from} onChange={value=>{setFrom(value);if(view==='calendar'&&value)setAnchor(value)}}/>
+            <DatePickerField label="To" value={to} onChange={setTo}/>
             <SelectField
               label="Channel"
               value={channel}
@@ -770,6 +747,7 @@ export default function ContentManagement(
                           ))}
                         </div>
                         <Performance
+                            metricKeys={metricColumns}
                           channel={row.channels.length === 1
                             ? row.channels[0]
                             : null}
@@ -781,8 +759,9 @@ export default function ContentManagement(
                               <Channel value={v.channel} />
                               <Status value={v.status} />
                               <PublishDate row={row} channel={v} />
-                              <Evidence channel={v} />
+                              <span className="cm-muted">{contentStatusLabel(v.job_state || v.status)}</span>
                               <Performance
+                            metricKeys={metricColumns}
                                 channel={v}
                                 published={v.status === "published"}
                               />
@@ -848,7 +827,7 @@ export default function ContentManagement(
                         key={row.key}
                         onClick={() => show(row)}
                       >
-                        <Thumbnail channel={row.channels[0]} />
+                        <Thumbnail channel={row.channels.find(v=>v.thumbnail_url || v.asset?.mime_type?.startsWith("image/")) || row.channels[0]} />
                         <span className="cm-calendar-copy">
                           <strong>{row.title}</strong>
                           <small>
@@ -899,51 +878,8 @@ export default function ContentManagement(
         : null}
       {external
         ? (
-          <Modal
-            title="Published externally · Meta"
-            size="lg"
-            onClose={() => setExternal(null)}
-            footer={
-              <button
-                className="btn-secondary"
-                onClick={() => setExternal(null)}
-              >
-                Close
-              </button>
-            }
-          >
-            <div className="cm-external-detail">
-              <h3>{external.brand_name}</h3>
-              {external.channels.map((v) => (
-                <section key={v.channel}>
-                  <Channel value={v.channel} />
-                  <p>{v.caption || "No caption available."}</p>
-                  <Thumbnail channel={v} />
-                  <p>
-                    Published: {formatDate(v.actual_at)} ·{" "}
-                    {formatTime(v.actual_at)} (Asia/Kuala_Lumpur)
-                  </p>
-                  <Performance channel={v} published />
-                  <Evidence channel={v} />
-                  {safePermalink(v.permalink)
-                    ? (
-                      <a
-                        className="btn-secondary"
-                        href={safePermalink(v.permalink)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Open on {contentStatusLabel(v.channel)}
-                      </a>
-                    )
-                    : (
-                      <span className="cm-muted">
-                        Platform link unavailable
-                      </span>
-                    )}
-                </section>
-              ))}
-            </div>
+          <Modal title="Post details" placement="right" onClose={()=>setExternal(null)}>
+            <PostDetail content={external}/>
           </Modal>
         )
         : null}

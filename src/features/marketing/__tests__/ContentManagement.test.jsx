@@ -67,7 +67,7 @@ it("starts as a dense List, identifies external origin and opens a read-only det
     .toBeGreaterThan(0);
   expect(screen.getAllByText("0").length).toBeGreaterThan(0);
   expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
-  fireEvent.click(screen.getAllByRole("button", { name: "Details" })[0]);
+  fireEvent.click(screen.getAllByRole("button", { name: "Real external post" })[0]);
   expect(await screen.findByRole("dialog")).toBeTruthy();
   expect(screen.getByRole("link", { name: "Open on Instagram" })).toBeTruthy();
 });
@@ -80,11 +80,13 @@ it("shares filters across views and uses accurate day overflow rather than a pag
   render(<ContentManagement {...props} />);
   await screen.findByRole("table");
   fireEvent.change(screen.getByLabelText("From"), {
-    target: { value: "2026-05-01" },
+    target: { value: "1 May 2026" },
   });
   fireEvent.change(screen.getByLabelText("To"), {
-    target: { value: "2026-05-31" },
+    target: { value: "31 May 2026" },
   });
+  fireEvent.blur(screen.getByLabelText("From"));
+  fireEvent.blur(screen.getByLabelText("To"));
   fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
   fireEvent.change(screen.getByLabelText("Calendar date"), {
     target: { value: "2026-05-22" },
@@ -140,7 +142,7 @@ it("expands per-channel evidence without adding execution actions", async () => 
   fireEvent.click(
     screen.getAllByRole("button", { name: "2 channel variants" })[0],
   );
-  expect(screen.getAllByText(/Post 123/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Succeeded").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(0);
   expect(screen.queryByRole("button", { name: /Execute|Publish now/ }))
     .toBeNull();
@@ -151,8 +153,9 @@ it("uses the shared active-filter contract and allows removing a filter", async 
   render(<ContentManagement {...props} />);
   await screen.findByRole("table");
   fireEvent.change(screen.getByLabelText("From"), {
-    target: { value: "2026-05-21" },
+    target: { value: "21 May 2026" },
   });
+  fireEvent.blur(screen.getByLabelText("From"));
   const remove = await screen.findByRole("button", {
     name: "Remove From filter",
   });
@@ -162,4 +165,8 @@ it("uses the shared active-filter contract and allows removing a filter", async 
   await waitFor(() =>
     expect(service.contentManagement.mock.calls.at(-1)[0].from).toBeNull()
   );
+});
+
+it('persists configurable metric columns without changing shared records',async()=>{
+ render(<ContentManagement {...props}/>);await screen.findByRole('table');fireEvent.click(screen.getByRole('button',{name:'Columns'}));fireEvent.click(screen.getByRole('checkbox',{name:'Saves'}));expect(localStorage.getItem('admin.presentation.marketing.metrics.test-user')).toContain('saves');expect(screen.getByRole('columnheader',{name:'Saves'})).toBeTruthy();expect(service.contentManagement.mock.calls.at(-1)[0].view).toBe('list');
 });

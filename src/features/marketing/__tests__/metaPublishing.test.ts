@@ -66,7 +66,7 @@ describe('durable Meta publishing',()=>{
 });
 describe('source-backed synchronization',()=>{
  it('preserves unavailable metrics and follows only validated Graph cursors',async()=>{
-  const request=vi.fn().mockResolvedValueOnce({data:[{id:'801',caption:'Actual platform caption',timestamp:'2026-10-09T00:00:00Z',like_count:4,comments_count:0}],paging:{next:'https://untrusted.invalid/?token=secret',cursors:{after:'opaque-cursor'}}}).mockRejectedValueOnce(new MetaError('meta_error_100'));
+  const request=vi.fn().mockResolvedValueOnce({data:[{id:'801',caption:'Actual platform caption',timestamp:'2026-10-09T00:00:00Z',like_count:4,comments_count:0}],paging:{next:'https://untrusted.invalid/?token=secret',cursors:{after:'opaque-cursor'}}}).mockRejectedValue(new MetaError('meta_error_100',false,false,100));
   const result=await readMetaPosts({request} as any,{channel:'instagram',provider_account_id:'111',capabilities:{insights:true}},'unit',async()=>{});
   expect(result.after).toBe('opaque-cursor');expect(result.posts[0].metrics).toEqual({likes:4,comments:0});expect(result.posts[0].unavailable_metrics.reach).toBe('platform_metric_unavailable');expect(JSON.stringify(result)).not.toContain('secret');
  });
