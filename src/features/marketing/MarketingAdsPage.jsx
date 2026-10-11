@@ -365,7 +365,12 @@ export default function MarketingAdsPage() {
           setLevel("campaign");
         }}
       />
-</div><AdminFilterToolbar compact denseFields ariaLabel="Ads date filters" periodAfterFilters period={<FeedXDateRangePicker from={from} to={to} today={today()} onApply={({from,to})=>{setFrom(from);setTo(to)}}/>}>
+</div><AdminFilterToolbar compact denseFields ariaLabel="Ads date filters" secondaryActions={      <button
+        className="btn-secondary"
+        onClick={() => setRefresh((v) => v + 1)}
+      >
+        Refresh data
+      </button>} periodAfterFilters period={<FeedXDateRangePicker from={from} to={to} today={today()} onApply={({from,to})=>{setFrom(from);setTo(to)}}/>}>
       <SelectField
         label="Period"
         value={
@@ -396,12 +401,7 @@ export default function MarketingAdsPage() {
           { value: "90", label: "Last 90 days" },
         ]}
       />
-      <button
-        className="btn-secondary"
-        onClick={() => setRefresh((v) => v + 1)}
-      >
-        Refresh data
-      </button>
+
     </AdminFilterToolbar></div>
   );
   return (

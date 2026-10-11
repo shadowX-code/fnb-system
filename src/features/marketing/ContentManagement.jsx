@@ -370,7 +370,7 @@ export default function ContentManagement(
     {
       key: "content",
       header: "Content",
-      width: "30%",
+      width: "280px",
       render: (row) =>
         row.heading
           ? <strong>{row.heading}</strong>
@@ -379,7 +379,7 @@ export default function ContentManagement(
     {
       key: "channel",
       header: "Channel",
-      width: "11%",
+      width: "64px",
       render: (row) =>
         row.heading ? null : (
           <div className="cm-channels">
@@ -392,20 +392,20 @@ export default function ContentManagement(
     {
       key: "date",
       header: "Publish Date",
-      width: "14%",
+      width: "140px",
       render: (row) =>
         row.heading ? null : <PublishDate row={row} channel={row.variant} />,
     },
     {
       key: "status",
       header: "Status",
-      width: "11%",
+      width: "110px",
       render: (row) =>
         row.heading
           ? null
           : <Status value={row.variant?.status || row.status} />,
     },
-    ...metricColumns.map(key=>({key, header:POST_METRICS.find(m=>m.key===key).label, width:"90px", headerClassName:"whitespace-nowrap", align:"right",render:row=>{
+    ...metricColumns.map(key=>({key, header:POST_METRICS.find(m=>m.key===key).label, width:"76px", headerClassName:"whitespace-nowrap", align:"right",render:row=>{
       if(row.heading)return null;
       const v=row.variant||(row.channels.length===1?row.channels[0]:null),value=postMetric(v,key);
       return <span className="cm-metric" title={v?metricReason(v,key)||POST_METRICS.find(m=>m.key===key).description:'Expand for channel-specific metrics'}>{value===null?'—':value.toLocaleString('en-MY')}</span>;
@@ -413,7 +413,7 @@ export default function ContentManagement(
     {
       key: "actions",
       header: "Actions",
-      width: "74px",
+      width: "48px",
       render: (row) => row.heading || row.variant ? null : rowActions(row),
     },
   ];
@@ -618,7 +618,7 @@ export default function ContentManagement(
                   getRowProps={row => row.heading ? {} : { tabIndex: 0, "aria-label": `View ${row.title}`, onClick: () => show(row.parent), onKeyDown: event => { if (event.target === event.currentTarget && ["Enter", " "].includes(event.key)) { event.preventDefault(); show(row.parent); } } }}
                   density="compact"
                   columnSpacing="compact"
-                  minWidth={0}
+                  minWidth={642 + 76 * metricColumns.length}
                   tableClassName="cm-table"
                   getRowClassName={(row) =>
                     row.heading

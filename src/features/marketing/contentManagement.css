@@ -16,3 +16,5 @@
 .cm-channel-instagram{color:#D62976}
 .cm-table .cm-channel-facebook svg{color:#1877F2}
 .cm-table tr[tabindex]:focus-visible{outline:2px solid var(--theme-primary);outline-offset:-2px}
+
+.cm-table .cm-content{min-width:220px}.cm-table .cm-date,.cm-table .badge{white-space:nowrap}
