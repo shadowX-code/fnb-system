@@ -467,6 +467,14 @@ export async function executeAdsChange(
       );
     const code =
       error instanceof MetaError ? error.code : "ads_execution_interrupted";
+    // Preserve pending intent and accepted IDs; diagnostics never authorize a retry.
+    if (material && error instanceof MetaError && error.adsEvidence) {
+      try {
+        await call("marketing_ads_change_checkpoint", {
+          ...args, p_state: { ...material.change.provider_state, last_error: error.adsEvidence },
+        });
+      } catch { /* Evidence failure must not mask the original safe outcome. */ }
+    }
     const outcome =
       !material ||
       pending ||

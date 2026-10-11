@@ -602,6 +602,7 @@ export default function AdsManagement({
             }
             onExecute={() => act(() => adsService.executeChange(modal.row))}
             onReconcile={() => act(() => adsService.reconcileChange(modal.row))}
+            onValidate={() => act(() => adsService.validateAdSet(modal.row))}
           />
         </Modal>
       )}
@@ -618,10 +619,23 @@ function RevisionDetail({
   onTransition,
   onExecute,
   onReconcile,
+  onValidate,
 }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
+        {can("marketing_ads.manage") &&
+          r.state === "reconciling" &&
+          r.operation === "create" &&
+          r.provider_state?.pending === "adset" && (
+            <button
+              disabled={busy || !r.current}
+              className="btn-secondary"
+              onClick={onValidate}
+            >
+              Validate Ad Set without creating
+            </button>
+          )}
         <Badge>{r.state}</Badge>
         <Badge>Revision {r.revision}</Badge>
         <Badge>{r.brand}</Badge>
@@ -784,6 +798,16 @@ function RevisionDetail({
             : "This change did not complete. Review authorization and current Meta settings."}
         </p>
       )}
+      {r.events
+        ?.filter((e) => e.event === "validate_adset")
+        .slice(-1)
+        .map((e) => (
+          <p key={e.id} className="text-sm" role="status">
+            {e.evidence.valid
+              ? "Meta validation passed. Creation still requires separate authorization."
+              : `Meta validation did not pass: ${e.evidence.error?.error_user_title || e.evidence.error?.error_user_msg || e.evidence.error_code || "Review diagnostic evidence."}`}
+          </p>
+        ))}
       <a
         className="btn-secondary"
         href={adsManagerUrl(

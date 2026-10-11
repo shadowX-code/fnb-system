@@ -31,6 +31,8 @@ export const adsService = {
       p_action: action,
     }),
   reconcileChange: (r) => command("reconcile-change", { requestId: r.id }),
+  validateAdSet: (r) =>
+    command("validate-adset", { requestId: r.id, fingerprint: r.fingerprint }),
   executeChange: (r) =>
     command("execute-change", { requestId: r.id, fingerprint: r.fingerprint }),
   read: (org, brand, from, to) =>

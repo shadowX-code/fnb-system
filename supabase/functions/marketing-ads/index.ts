@@ -12,6 +12,7 @@ import {
 import { MetaGraph, MetaError } from "../_shared/metaGraph.ts";
 import { verifyAdsAccount, readAdsReport } from "../_shared/metaAds.ts";
 import { bytesHash, executeAdsChange } from "../_shared/metaAdsManagement.ts";
+import { validatePausedAdSet } from "../_shared/metaAdsValidation.ts";
 import { requestAdsAI, estimateAdsAICost } from "../_shared/marketingAdsAI.ts";
 const env = (n: string) => Deno.env.get(n) || "";
 Deno.serve(async (req) => {
@@ -76,6 +77,7 @@ Deno.serve(async (req) => {
         "/prepare-change",
         "/execute-change",
         "/reconcile-change",
+        "/validate-adset",
       ].includes(path)
     )
       return reply({ error: "Endpoint unavailable." }, 404);
@@ -87,6 +89,62 @@ Deno.serve(async (req) => {
         external_execution_enabled:
           env("MARKETING_ADS_EXECUTION_ENABLED") === "true",
       });
+    if (path === "/validate-adset") {
+      const args = {
+        p_request: body.requestId,
+        p_auth_user: identity.user.id,
+        p_fingerprint: body.fingerprint,
+      };
+      const material = await call(
+        service,
+        "marketing_ads_validation_material",
+        args,
+      );
+      const c = material.connection;
+      const grant = await unseal(
+        c.sealed_token,
+        [
+          env("MARKETING_META_TOKEN_ENCRYPTION_KEY"),
+          env("MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY"),
+        ],
+        connectionBinding(c),
+      );
+      const graph = new MetaGraph({
+        appId: env("MARKETING_META_APP_ID"),
+        appSecret: env("MARKETING_META_APP_SECRET"),
+        configId: env("MARKETING_META_LOGIN_CONFIG_ID"),
+        version: env("MARKETING_META_GRAPH_VERSION"),
+      });
+      const guard = async () => {
+        await call(service, "marketing_ads_validation_material", args);
+      };
+      const health = await verifyAdsAccount(
+        graph,
+        env("MARKETING_META_APP_ID"),
+        env("MARKETING_META_APP_SECRET"),
+        grant.token,
+        c.provider_account_id,
+        c.meta_user_id,
+        guard,
+      );
+      if (
+        !health.manage_verified ||
+        health.currency !== material.change.currency ||
+        health.timezone !== material.change.timezone
+      )
+        throw new MetaError("ad_account_authorization_changed");
+      const result = await validatePausedAdSet(
+        graph,
+        grant.token,
+        material.change,
+        guard,
+      );
+      await call(service, "marketing_ads_validation_record", {
+        ...args,
+        p_evidence: result,
+      });
+      return reply(result);
+    }
     if (path === "/prepare-change") {
       const visible = await call(caller, "marketing_ads_changes_read", {
         p_org: body.organizationId,

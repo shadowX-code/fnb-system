@@ -8,6 +8,7 @@ const { ads } = vi.hoisted(() => ({
     transitionChange: vi.fn(),
     prepareChange: vi.fn(),
     executeChange: vi.fn(),
+    validateAdSet: vi.fn(),
   },
 }));
 vi.mock("../adsService.js", () => ({ adsService: ads }));
@@ -40,6 +41,38 @@ beforeEach(() => {
   ads.aiCapabilities.mockResolvedValue({ external_execution_enabled: false });
 });
 describe("native Ads control surface", () => {
+  it("allows non-mutating validation for a known partial Ad Set failure while external execution stays disabled", async () => {
+    const row = {
+      id: "r",
+      brand_id: "brand",
+      connection_id: "conn",
+      account_id: "111",
+      revision: 1,
+      operation: "create",
+      maximum_budget: 1000,
+      state: "reconciling",
+      current: true,
+      configuration: { name: "Partial campaign" },
+      fingerprint: "pin",
+      provider_state: { pending: "adset", campaign_id: "222" },
+    };
+    ads.changes.mockResolvedValue({ changes: [row], assets: [], pages: [] });
+    ads.validateAdSet.mockResolvedValue({ valid: false });
+    render(<AdsManagement {...props} />);
+    await screen.findAllByText("Partial campaign");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Review revision" })[0],
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Validate Ad Set without creating" }),
+    );
+    await vi.waitFor(() =>
+      expect(ads.validateAdSet).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "r", fingerprint: "pin" }),
+      ),
+    );
+    expect(ads.executeChange).not.toHaveBeenCalled();
+  });
   it("prepares locally without invoking external execution and preserves compact canonical controls", async () => {
     render(<AdsManagement {...props} />);
     await screen.findByText("No advertising revisions");
