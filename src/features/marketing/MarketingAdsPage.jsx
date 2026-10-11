@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import WorkspacePage from "../../components/layout/WorkspacePage.jsx";
 import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import AdminUnderlineTabs from "../../components/navigation/AdminUnderlineTabs.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
@@ -667,12 +668,11 @@ export default function MarketingAdsPage() {
                   setParent("");
                 }}
               />
-              <input
-                className="input"
-                aria-label="Search advertising"
-                placeholder="Search names"
+              <AdminSearchField
+                label="Search advertising"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={setSearch}
+                placeholder="Search names"
               />
               {parent && (
                 <button className="btn-secondary" onClick={() => setParent("")}>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import DataTable from "../../components/tables/DataTable.jsx";
+import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
 import Badge from "../../components/ui/Badge.jsx";
@@ -89,18 +90,15 @@ export default function AdsAttributionReview({
   return (
     <div className="space-y-4 mt-4">
       <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_auto] gap-3 items-end">
-        <label className="min-w-0 text-xs">
-          Search campaigns
-          <input
-            className="input w-full"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Campaign name or ID"
-          />
-        </label>
+        <AdminSearchField
+          label="Search campaigns"
+          value={search}
+          onChange={(value) => {
+            setSearch(value);
+            setPage(1);
+          }}
+          placeholder="Campaign name or ID"
+        />
         <SelectField
           className="min-w-0"
           label="Evidence group"
