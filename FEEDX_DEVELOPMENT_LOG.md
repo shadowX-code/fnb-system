@@ -863,3 +863,8 @@ Extended the canonical signed Meta removal authority to generation-scoped Inbox 
 ## 2026-10-10 — Marketing privacy recovery readiness (Staging)
 
 Verified actual seven-day Pro database recovery without PITR and implemented an independent private encrypted erasure journal in Singapore. Canonical erasure now requires durable write/read-back evidence; restricted restore replay reconstructs suppression/receipt evidence and re-erases restored Inbox/AI/Meta grant data while respecting later grants and legal holds/releases. Actual disposable logical restore/Blob rehearsal and repeat idempotency passed; no real account content, category purge, Meta metadata or Production action. Processor/transfer and retention/DPO/controller decisions remain explicit in the operational legal register. Bilingual policy review updated to version 3, Staging only.
+
+
+## 2026-10-11 — Marketing Hybrid WhatsApp Phase 3A/3B
+
+Added the explicitly approved Platform customer/contact identity and brand relationship authority, consumed by Marketing consent/suppression and segmentation. Shared campaign revisions/approval/recipient evidence use a manual Click-to-Chat adapter, with declared sender confirmation, per-action consent rechecks and distinct Staff Confirmed evidence. Cloud API sending, verified delivery/redemption, loyalty and financial authority remain unavailable. L3 rollback contracts and focused UI/Phase 1/2 regressions protect tenant boundaries and existing execution controls; only Staging delivery is authorized. Canonical boundaries: docs/architecture/platform.md and docs/domains/marketing.md.

@@ -186,3 +186,8 @@ Shared `WorkspacePage` composes those existing owners and keeps feature controls
 The shared chart owner also defines Emerald/Azure/Coral/Violet/Slate tokens and `adminChartColors`; domain adapters assign metric identities and movement meaning. `AdminChartArea` provides a subtle gradient from the caller's exact path/baseline, while `adminChartLinePath` retains linear observations and explicit gaps. `MetricCard` accepts an optional series colour for its evidence-backed `AdminSparkline`, independently of delta semantics. Neither primitive manufactures missing observations or changes source values.
 
 Shared `AdminChart` category colours are separately owned from movement/series tokens. Consumers can encode metric identity without implying positive or negative status; Finance Profit Conversion supplies the pilot category mapping.
+
+
+### Shared Customer Identity
+
+The approved Marketing Phase 3A dependency adds Platform-owned `platform_customers` and explicit `platform_customer_brands`. These are organization-scoped customer/contact identities, separate from Factory business customers, employees, social conversation peers and legal employers. Creation and explicit sharing use `platform_customer_command` with canonical active employee/RBAC/organization/brand checks. Marketing consumes the identity and owns consent, suppression, segments and campaigns; this foundation creates no loyalty balance, sales transaction or redemption authority. Shared phone changes cannot be made through Marketing without a separately verified identity workflow. See the [Marketing domain](../domains/marketing.md) for consumer lifecycle boundaries.

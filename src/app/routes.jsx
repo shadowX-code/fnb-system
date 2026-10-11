@@ -47,6 +47,7 @@ const FinanceWorkspacePage = lazy(() => import("../features/finance/FinanceWorks
 const FactoryWorkspacePage = lazy(() => import("../features/factory/pages/FactoryWorkspacePage.jsx"));
 const InventoryControlPage = lazy(() => import("../features/sales-purchase/pages/InventoryControlPage.jsx"));
 const AssetTrackingPage = lazy(() => import("../features/sales-purchase/pages/AssetTrackingPage.jsx"));
+const MarketingOutreachPage = lazy(() => import("../features/marketing/MarketingOutreachPage.jsx"));
 const MarketingInboxPage = lazy(() => import("../features/marketing/MarketingInboxPage.jsx"));
 const MarketingWorkspacePage = lazy(() => import("../features/marketing/MarketingWorkspacePage.jsx"));
 const RecruitmentPage = lazy(() => import("../features/recruitment/RecruitmentPage.jsx"));
@@ -67,6 +68,7 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 }
 
 export const routeDetails = {
+  marketing_campaigns: { component: MarketingOutreachPage, permission: "marketing_workspace.access AND marketing_campaigns.view", description: "Brand audiences, consent and staff-led WhatsApp campaigns." },
   marketing_inbox: { component: MarketingInboxPage, permission: "marketing_workspace.access AND marketing_inbox.view", description: "Brand conversations, human handling and approved AI reply proposals." },
   marketing_overview: { component: MarketingWorkspacePage, props: { section: "overview" }, permission: "marketing_workspace.access AND marketing_overview.view", description: "Brand publishing activity and action center." },
   marketing_content: { component: MarketingWorkspacePage, props: { section: "content" }, permission: "marketing_workspace.access AND marketing_content.view", description: "Versioned creative content, review and publishing." },
