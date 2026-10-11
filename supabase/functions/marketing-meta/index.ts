@@ -1,7 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { META_BASE, META_REDIRECT, META_SCOPES, STAGING_ORIGIN, STAGING_SUPABASE, authorizationUrl, connectionBinding, hash, nonce, seal, unseal, verifySignedRequest } from '../_shared/metaSecurity.ts';
 import { diagnoseMetaConnection, verifiedFacebookRead } from '../_shared/metaConnectionDiagnostics.ts';
-import { MetaGraph } from '../_shared/metaGraph.ts';
+import { verifyInboxConnection } from '../_shared/metaInboxVerification.ts';
+import { readMetaPosts } from '../_shared/metaSynchronization.ts';
+import { capabilityHealth, subscriptionPlan, installSubscriptions } from '../_shared/metaOnboarding.ts';
+import { MetaGraph, MetaError } from '../_shared/metaGraph.ts';
 import { commitJournal } from '../_shared/privacyBlob.ts';
 const names=['MARKETING_META_APP_ID','MARKETING_META_APP_SECRET','MARKETING_META_LOGIN_CONFIG_ID','MARKETING_META_GRAPH_VERSION','MARKETING_META_TOKEN_ENCRYPTION_KEY'];
 const env=(name:string)=>Deno.env.get(name)||'';
@@ -39,7 +42,7 @@ Deno.serve(async(req)=>{
    return json(req,deletion?{url:`${META_BASE}/deletion-status/${confirmation}`,confirmation_code:confirmation}:{success:true});
   }
   let caller:any=null,user:any=null;
-  if(req.method==='POST'&&['/authorize','/bind','/diagnose','/retry-sync'].includes(path)) {
+  if(req.method==='POST'&&['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions'].includes(path)) {
    const bearer=req.headers.get('authorization')||'';if(!bearer.startsWith('Bearer '))return json(req,{error:'Sign in to Marketing.'},401);
    caller=createClient(STAGING_SUPABASE,env('SUPABASE_ANON_KEY'),{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
    const identity=await caller.auth.getUser();user=identity.data.user;if(identity.error||!user)return json(req,{error:'Sign in to Marketing.'},401);
@@ -60,8 +63,45 @@ Deno.serve(async(req)=>{
    const redirect=new URL(`${STAGING_ORIGIN}/marketing/settings`);redirect.searchParams.set('meta_result',result);redirect.searchParams.set('marketing_org',session.organization_id);redirect.searchParams.set('marketing_brand',session.brand_id);
    return new Response(null,{status:303,headers:{...headers(req),Location:redirect.toString()}});
   }
-  if(req.method!=='POST'||!['/authorize','/bind','/diagnose','/retry-sync'].includes(path))return json(req,{error:'Endpoint unavailable.'},404);
+  if(req.method!=='POST'||!['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions'].includes(path))return json(req,{error:'Endpoint unavailable.'},404);
   const raw=await req.text();if(raw.length>10000)return json(req,{error:'Request too large.'},413);const body=JSON.parse(raw);
+  async function checkConnection(connectionId:string,recordEligibility=false){
+   const material=await call(service,'marketing_meta_diagnostic_material',{p_connection:connectionId,p_auth_user:user.id});
+   const credential=await unseal(material.sealed_token,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
+   const guard=async()=>{const current=await call(service,'marketing_meta_diagnostic_material',{p_connection:material.id,p_auth_user:user.id});if(current.credential_generation!==material.credential_generation||current.provider_account_id!==material.provider_account_id)throw new MetaError('connection_changed');};
+   let snapshot:any;
+   const publishing=await diagnoseMetaConnection(graph,config.appId,`${config.appId}|${config.appSecret}`,material,credential.token,guard,true,credential.authorizerAssignment,credential.oauthTaskEvidence,async value=>{snapshot=value;});
+   const inbound=await call(service,'marketing_inbox_verification_events',{p_connection:material.id,p_auth_user:user.id});
+   const inbox=await verifyInboxConnection(graph,config.appId,`${config.appId}|${config.appSecret}`,material,credential,guard,inbound);
+   await guard();
+   const messaging=await call(service,'marketing_inbox_record_verification',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation,p_evidence:inbox});
+   let sync:any=null;try{if(publishing.token.valid&&publishing.credential_identity_matches)sync=await readMetaPosts(graph,material,credential.token,guard);}catch{/* Independent metrics denial never invalidates publishing or messaging. */}
+   const health=capabilityHealth(publishing,inbox,sync);
+   if(messaging.receiving_verified&&inbox.subscriptions_verified){health.messaging={state:'operational',reason:'ready'};}
+   let plan:any={eligible:false,missing:[],reason:'subscription_read_unavailable'};
+   try{if(inbox.page_id){await guard();const installed=await graph.request(`${inbox.page_id}/subscribed_apps`,credential.token,{fields:'id,subscribed_fields',limit:100});plan=subscriptionPlan(material.channel,config.appId,inbox,installed);}}catch{/* Installation is unavailable unless a complete response was verified. */}
+   await guard();
+   if(recordEligibility){const sealed=snapshot?await seal({...credential,oauthTaskEvidence:snapshot},key,connectionBinding(material)):null;await call(service,'marketing_meta_record_eligibility',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation,p_sealed:sealed,p_verified:health.publishing.state==='verified'});}
+   await call(service,'marketing_meta_record_health',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation,p_health:health});
+   return {material,credential,guard,inbox,health,plan};
+  }
+  async function subscribe(checked:any,requestId:string){
+   const {material,credential,guard,inbox,plan}=checked;
+   if(!plan.eligible)throw new MetaError(plan.reason);
+   const fixed={page_id:plan.page_id,fields:plan.fields};
+   const args={p_request:requestId,p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation,p_plan:fixed};
+   const state=await call(service,'marketing_meta_subscription_intent',args);
+   const checkpoint=async(state:string)=>{await call(service,'marketing_meta_subscription_intent',{...args,p_state:state});};
+   return installSubscriptions(plan,state,guard,checkpoint,async()=>subscriptionPlan(material.channel,config.appId,inbox,await graph.request(`${plan.page_id}/subscribed_apps`,credential.token,{fields:'id,subscribed_fields',limit:100})),()=>graph.request(`${plan.page_id}/subscribed_apps`,credential.token,{subscribed_fields:plan.fields},'POST'));
+  }
+  if(['/health','/subscription-plan','/subscriptions'].includes(path)){
+   const checked=await checkConnection(body.connectionId);
+   if(path==='/subscriptions'){
+    if(body.approveSubscriptions!==true||!body.requestId||JSON.stringify(body.expectedPlan)!==JSON.stringify({page_id:checked.plan.page_id,fields:checked.plan.fields}))return json(req,{error:'Review and confirm the current Inbox update installation.'},409);
+    const outcome=await subscribe(checked,body.requestId);return json(req,{state:outcome,execution_enabled:false});
+   }
+   return json(req,{health:checked.health,plan:checked.plan,execution_enabled:false});
+  }
   if(path==='/diagnose'||path==='/retry-sync') {
    const material=await call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user.id});
    const credential=await unseal(material.sealed_token,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
@@ -72,27 +112,42 @@ Deno.serve(async(req)=>{
     if(!verifiedFacebookRead(result,material))return json(req,{error:'Facebook read access could not be verified. Check connection details.'},409);
     await call(service,'marketing_meta_retry_sync_verified',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation});
    }
-   if(path==='/diagnose') {
+   if(path==='/diagnose'&&body.readOnly!==true) {
     const sealed=evidence?await seal({...credential,oauthTaskEvidence:evidence},key,connectionBinding(material)):null;
     await call(service,'marketing_meta_record_eligibility',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation,p_sealed:sealed,p_verified:result.publishing_evidence?.eligibility==='verified'});
    }
    return json(req,result);
   }
   if(path==='/authorize') {
-   const state=nonce();await call(caller,'marketing_meta_begin',{p_org:body.organizationId,p_brand:body.brandId,p_state_hash:await hash(state),p_redirect_uri:META_REDIRECT});
+   const state=nonce();const started=await call(caller,'marketing_meta_begin',{p_org:body.organizationId,p_brand:body.brandId,p_state_hash:await hash(state),p_redirect_uri:META_REDIRECT});
+   if(body.connectionId)await call(service,'marketing_meta_reconnect_intent',{p_session:started.id,p_auth_user:user.id,p_connection:body.connectionId});
    return json(req,{authorization_url:authorizationUrl(config,state)});
   }
   const session=await call(service,'marketing_meta_session_material',{p_session:body.sessionId,p_auth_user:user.id});
+  if(body.confirmOwnership!==true||body.brandId!==session.brand_id||!Array.isArray(body.assets)||body.assets.length<1||body.assets.length>2)return json(req,{error:'Select exact accounts and confirm their FeedX brand.'},400);
   const discovery=await unseal(session.sealed_discovery,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],`oauth:${session.id}`);
-  const account=discovery.accounts.find((a:any)=>a.id===body.accountId&&a.channel===body.channel);
-  const token=account&&discovery.tokens[`${account.channel}:${account.id}`];if(!token||Date.parse(discovery.expiresAt)<=Date.now())return json(req,{error:'Reconnect Meta to select this account.'},409);
-  const verified=await graph.request(account.id,token,{fields:account.channel==='facebook'?'id,name':'id,username'});
-  if(String(verified.id)!==account.id)return json(req,{error:'Meta account identity could not be verified.'},409);
-  const sealed=await seal({token,authorizerAssignment:discovery.authorizerAssignments?.[`${account.channel}:${account.id}`]},key,connectionBinding({brand_id:session.brand_id,channel:account.channel,provider_account_id:account.id}));
-  const connection=await call(service,'marketing_meta_bind',{p_session:session.id,p_auth_user:user.id,p_account_id:account.id,p_channel:account.channel,p_sealed:sealed,p_expiry:discovery.expiresAt,p_mode:'test'});
-  // Fresh consent and task eligibility never grant external execution.
-  const enabled=false;
-  await call(service,'marketing_meta_execution_policy',{p_connection:connection.id,p_generation:connection.credential_generation,p_enabled:enabled});
-  return json(req,{connection:{...connection,capabilities:{...connection.capabilities,execution_enabled:enabled}}});
- }catch {return json(req,{error:'Meta request could not be completed. Reload or reconnect and try again.'},400);}
+  const assets=[];
+  for(const chosen of body.assets){
+   const account=discovery.accounts.find((a:any)=>a.id===chosen.id&&a.channel===chosen.channel);
+   const token=account&&discovery.tokens[`${account.channel}:${account.id}`];
+   if(!token||Date.parse(discovery.expiresAt)<=Date.now())return json(req,{error:'Account selection expired. Connect again to refresh the available accounts.'},409);
+   const verified=await graph.request(account.id,token,{fields:account.channel==='facebook'?'id,name':'id,username'});
+   if(String(verified.id)!==account.id)return json(req,{error:'Meta could not verify the selected account. Reload account selection.'},409);
+   if(account.channel==='instagram'){
+    const link=await graph.request(account.page_id,token,{fields:'id,instagram_business_account{id}'});
+    if(link.id!==account.page_id||link.instagram_business_account?.id!==account.id)return json(req,{error:'The linked Instagram account changed. Connect again to select the current assets.'},409);
+   }
+   const sealed=await seal({token,authorizerAssignment:discovery.authorizerAssignments?.[`${account.channel}:${account.id}`]},key,connectionBinding({brand_id:session.brand_id,channel:account.channel,provider_account_id:account.id}));
+   assets.push({id:account.id,channel:account.channel,expectedConnectionId:chosen.expectedConnectionId??null,expectedGeneration:chosen.expectedGeneration??null,sealed_token:sealed});
+  }
+  const connections=await call(service,'marketing_meta_bind_selection',{p_session:session.id,p_auth_user:user.id,p_brand:body.brandId,p_assets:assets,p_expiry:discovery.expiresAt,p_confirm:true});
+  const outcomes=[];
+  for(const connection of connections){
+   try{let verified=await checkConnection(connection.id,true);
+    if(body.approveSubscriptions===true&&verified.plan.eligible&&verified.plan.missing.length){await subscribe(verified,crypto.randomUUID());verified=await checkConnection(connection.id,false);}
+    outcomes.push({id:connection.id,health:verified.health});
+   }catch{outcomes.push({id:connection.id,verification_pending:true});}
+  }
+  return json(req,{connections,outcomes,execution_enabled:false});
+ }catch(error) {return json(req,{error:error instanceof MetaError&&error.graphCode===190?'Meta authorization expired or was revoked. Reconnect this account.':error instanceof MetaError&&[10,200].includes(error.graphCode||0)?'Meta has not authorized this operation. Review account access or contact your FeedX administrator about App Review.':'The connection could not be updated. Reload account selection, check brand ownership and resolve any pending delivery before trying again.'},409);}
 });

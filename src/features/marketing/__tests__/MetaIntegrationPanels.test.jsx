@@ -3,61 +3,36 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { MetaConnections, PublishAuthorization } from '../MetaIntegrationPanels.jsx';
 import { marketingService } from '../marketingService.js';
 vi.mock('../../../auth/AuthContext.jsx', () => ({ useAuth: () => ({ user: { id: 'actor' }, hasPermission: () => true }) }));
-vi.mock('../marketingService.js', () => ({ marketingService: { metaConfiguration: vi.fn(), integrations: vi.fn(), pendingMeta: vi.fn(), authorizeMeta: vi.fn(), bindMeta: vi.fn(), diagnoseMeta: vi.fn(), retryMetaSync: vi.fn(), execute: vi.fn() } }));
+vi.mock('../marketingService.js', () => ({ marketingService: { metaConfiguration: vi.fn(), integrations: vi.fn(), pendingMeta: vi.fn(), authorizeMeta: vi.fn(), bindMeta: vi.fn(), diagnoseMeta: vi.fn(), retryMetaSync: vi.fn(), socialAccounts:vi.fn(),refreshMetaHealth:vi.fn(),bindMetaSelection:vi.fn(),subscriptionPlan:vi.fn(),installMetaSubscriptions:vi.fn(), execute: vi.fn() } }));
 const connection = { id: 'conn', brand_id: 'brand', channel: 'facebook', account_name: 'QA Test Page', provider_account_id: '111', status: 'test_authorized', expires_at: '2099-01-01T00:00:00Z', capabilities: { publishing: true, formats: ['text'], execution_enabled: true, posts: true } };
-beforeEach(() => { vi.resetAllMocks();marketingService.metaConfiguration.mockResolvedValue({ configured: false, missing: ['MARKETING_META_APP_ID'] });marketingService.integrations.mockResolvedValue({ connections: [], worker: null });marketingService.pendingMeta.mockResolvedValue([]); });
+beforeEach(() => { vi.resetAllMocks();marketingService.metaConfiguration.mockResolvedValue({ configured: false, missing: ['MARKETING_META_APP_ID'] });marketingService.integrations.mockResolvedValue({ connections: [], worker: null });marketingService.socialAccounts.mockResolvedValue({connections:[]});marketingService.pendingMeta.mockResolvedValue([]); });
 afterEach(cleanup);
-describe('Meta capability UI', () => {
- it('shows missing setup and disables authorization without provider configuration', async () => {
-  render(<MetaConnections organizationId="org" brandId="brand" brands={[]} />);
-  await screen.findByText(/Missing server configuration/);
-  expect(screen.getByRole('button', { name: 'Connect / reconnect Meta' }).disabled).toBe(true);
-  expect(marketingService.authorizeMeta).not.toHaveBeenCalled();expect(marketingService.execute).not.toHaveBeenCalled();
+describe('Social Accounts', () => {
+ it('keeps server setup out of ordinary onboarding and disables OAuth when unavailable',async()=>{
+  render(<MetaConnections organizationId="org" brandId="brand" brands={[{id:'brand',name:'QA Brand'}]}/>);
+  await screen.findByText(/Social connections need FeedX administrator setup/);
+  expect(screen.getByRole('button',{name:'Connect Account'}).disabled).toBe(true);expect(screen.queryByText(/MARKETING_META_APP_ID/)).toBeNull();
  });
- it('binds a verified account without requesting publishing', async () => {
-  marketingService.metaConfiguration.mockResolvedValue({ configured: true, missing: [] });
-  marketingService.pendingMeta.mockResolvedValue([{ id: 'session', accounts: [{ id: '111', channel: 'facebook', name: 'QA Test Page', capabilities: { publishing: true } }] }]);
-  marketingService.bindMeta.mockResolvedValue({ connection });
-  render(<MetaConnections organizationId="org" brandId="brand" brands={[]} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Connect to brand' }));
-  await waitFor(() => expect(marketingService.bindMeta).toHaveBeenCalledWith('session', '111', 'facebook'));
-  expect(marketingService.execute).not.toHaveBeenCalled();
+ it('opens a brand selection workflow from the organization-wide view',async()=>{
+  marketingService.metaConfiguration.mockResolvedValue({configured:true});render(<MetaConnections organizationId="org" brandId="" brands={[{id:'brand',name:'QA Brand'}]}/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Connect Account'}));expect(await screen.findByRole('dialog',{name:'Connect Social Account'})).toBeTruthy();expect(screen.getByRole('button',{name:'Continue to Meta'}).disabled).toBe(true);expect(screen.getByRole('button',{name:'FeedX brand'})).toBeTruthy();expect(marketingService.authorizeMeta).not.toHaveBeenCalled();
  });
- it('disables synchronization for expired authorization and discards a stale scope response', async () => {
-  let resolve;marketingService.integrations.mockImplementationOnce(() => new Promise(r => { resolve = r; })).mockResolvedValue({ connections: [{ ...connection, expires_at: '2000-01-01T00:00:00Z' }] });
-  const view = render(<MetaConnections organizationId="old" brandId="brand" brands={[]} />);
-  view.rerender(<MetaConnections organizationId="new" brandId="brand" brands={[]} />);
-  await screen.findByText(/Expired · Expires/);expect(screen.getByRole('button', { name: 'Sync posts' }).disabled).toBe(true);
-  resolve({ connections: [{ ...connection, account_name: 'Stale private account' }] });
-  await waitFor(() => expect(screen.queryByText(/Stale private account/)).toBeNull());
+ it('requires exact asset selection and brand confirmation, without enabling execution',async()=>{
+  marketingService.metaConfiguration.mockResolvedValue({configured:true});marketingService.pendingMeta.mockResolvedValue([{id:'session',expires_at:'2099-01-01',accounts:[{id:'111',channel:'facebook',name:'QA Page',available:true,current_connection_id:null,current_generation:null}]}]);marketingService.bindMetaSelection.mockResolvedValue({connections:[connection]});
+  render(<MetaConnections organizationId="org" brandId="brand" brands={[{id:'brand',name:'QA Brand'}]}/>);
+  const dialog=await screen.findByRole('dialog',{name:'Select accounts & confirm brand'});const confirm=screen.getByRole('button',{name:'Confirm connection'});expect(confirm.disabled).toBe(true);fireEvent.click(screen.getByRole('checkbox',{name:/QA Page/}));expect(confirm.disabled).toBe(true);fireEvent.click(screen.getByRole('checkbox',{name:/I confirm that/}));fireEvent.click(confirm);
+  await waitFor(()=>expect(marketingService.bindMetaSelection).toHaveBeenCalledWith('session','brand',[{id:'111',channel:'facebook',expectedConnectionId:null,expectedGeneration:null}],true));expect(marketingService.execute).not.toHaveBeenCalled();
  });
- it('checks an errored connection read-only without reconnecting or enabling publishing',async()=>{
-  marketingService.metaConfiguration.mockResolvedValue({configured:true,missing:[]});
-  marketingService.integrations.mockResolvedValue({connections:[{...connection,status:'error',capabilities:{posts:true,publishing:false,execution_enabled:false}}]});
-  marketingService.diagnoseMeta.mockResolvedValue({channel:'facebook',token:{type:'PAGE',valid:true},credential_identity_matches:true,evidence:[{check:'facebook_sync',http_status:403,graph_error_code:10,graph_error_subcode:null,error_permissions:[]}]});
-  render(<MetaConnections organizationId="org" brandId="brand" brands={[]} />);
-  fireEvent.click(await screen.findByRole('button',{name:'Check connection'}));
-  await screen.findByText(/Facebook Sync · HTTP 403 · Graph 10/);
-  expect(marketingService.diagnoseMeta).toHaveBeenCalledWith('conn');expect(marketingService.authorizeMeta).not.toHaveBeenCalled();expect(marketingService.bindMeta).not.toHaveBeenCalled();expect(marketingService.execute).not.toHaveBeenCalled();
+ it('blocks cross-brand candidates and mismatched Page/Instagram pairs',async()=>{
+  marketingService.metaConfiguration.mockResolvedValue({configured:true});marketingService.pendingMeta.mockResolvedValue([{id:'session',expires_at:'2099-01-01',accounts:[{id:'111',channel:'facebook',name:'Owned Page',available:false},{id:'112',channel:'facebook',name:'Available Page',available:true},{id:'222',page_id:'113',channel:'instagram',name:'Wrong pair',available:true}]}]);
+  render(<MetaConnections organizationId="org" brandId="brand" brands={[{id:'brand',name:'QA Brand'}]}/>);await screen.findByRole('dialog');expect(screen.getByRole('checkbox',{name:/Owned Page/}).disabled).toBe(true);fireEvent.click(screen.getByRole('checkbox',{name:/Available Page/}));fireEvent.click(screen.getByRole('checkbox',{name:/Wrong pair/}));fireEvent.click(screen.getByRole('checkbox',{name:/I confirm that/}));expect(screen.getByRole('button',{name:'Confirm connection'}).disabled).toBe(true);expect(screen.getByRole('alert').textContent).toMatch(/linked/);
  });
- it('retries only the read workflow for a failed Facebook connection',async()=>{
-  marketingService.metaConfiguration.mockResolvedValue({configured:true,missing:[]});
-  marketingService.integrations.mockResolvedValue({connections:[{...connection,status:'error',error_code:'meta_permission_or_token_invalid',capabilities:{posts:true,publishing:false,execution_enabled:false}}]});
-  marketingService.retryMetaSync.mockResolvedValue({});
-  render(<MetaConnections organizationId="org" brandId="brand" brands={[]} />);
-  fireEvent.click(await screen.findByRole('button',{name:'Retry sync'}));
-  await waitFor(()=>expect(marketingService.retryMetaSync).toHaveBeenCalledWith('conn'));
-  expect(marketingService.bindMeta).not.toHaveBeenCalled();expect(marketingService.authorizeMeta).not.toHaveBeenCalled();expect(marketingService.execute).not.toHaveBeenCalled();
+ it('refreshes independent health without OAuth, binding, or execution',async()=>{
+  marketingService.metaConfiguration.mockResolvedValue({configured:true});marketingService.socialAccounts.mockResolvedValue({connections:[{...connection,capabilities:{posts:true,publishing:true,execution_enabled:false},messaging:{receiving_verified:true}}]});marketingService.refreshMetaHealth.mockResolvedValue({});
+  render(<MetaConnections organizationId="org" brandId="brand" brands={[{id:'brand',name:'QA Brand'}]}/>);fireEvent.click(await screen.findByRole('button',{name:'Refresh Status'}));await waitFor(()=>expect(marketingService.refreshMetaHealth).toHaveBeenCalledWith('conn'));expect(marketingService.authorizeMeta).not.toHaveBeenCalled();expect(marketingService.bindMetaSelection).not.toHaveBeenCalled();expect(marketingService.execute).not.toHaveBeenCalled();
  });
- it('shows positive Page posting evidence without offering execution when tasks remain unverified',async()=>{
-  marketingService.metaConfiguration.mockResolvedValue({configured:true,missing:[]});
-  marketingService.integrations.mockResolvedValue({connections:[{...connection,capabilities:{posts:true,publishing:false,execution_enabled:false}}]});
-  marketingService.diagnoseMeta.mockResolvedValue({channel:'facebook',token:{type:'PAGE',valid:true},credential_identity_matches:true,publishing_evidence:{page_id:'111',can_post:true,missing_scopes:[]},evidence:[]});
-  render(<MetaConnections organizationId="org" brandId="brand" brands={[]} />);
-  fireEvent.click(await screen.findByRole('button',{name:'Check connection'}));
-  await screen.findByText(/Can post true · Linked-Page MANAGE \/ CREATE_CONTENT tasks unverified/);
-  expect(screen.getByText(/Publishing unavailable · External execution disabled/)).toBeTruthy();
-  expect(marketingService.execute).not.toHaveBeenCalled();expect(marketingService.authorizeMeta).not.toHaveBeenCalled();
+ it('discards stale tenant responses and offers reconnect for expired tokens',async()=>{
+  let resolve;marketingService.socialAccounts.mockImplementationOnce(()=>new Promise(r=>{resolve=r;})).mockResolvedValue({connections:[{...connection,expires_at:'2000-01-01'}]});marketingService.metaConfiguration.mockResolvedValue({configured:true});const view=render(<MetaConnections organizationId="old" brandId="brand" brands={[]}/>);view.rerender(<MetaConnections organizationId="new" brandId="brand" brands={[]}/>);await screen.findByText('Expired');expect(screen.getByRole('button',{name:'Sync posts'}).disabled).toBe(true);resolve({connections:[{...connection,account_name:'Stale private account'}]});await waitFor(()=>expect(screen.queryByText('Stale private account')).toBeNull());
  });
  it('requires explicit approval and passes the reviewed revision and accounts to server authority', async () => {
   marketingService.integrations.mockResolvedValue({ connections: [connection] });marketingService.execute.mockResolvedValue({});

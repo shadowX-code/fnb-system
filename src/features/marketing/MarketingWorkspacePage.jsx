@@ -35,6 +35,7 @@ const newPayload = () => ({ title: '', outlet_ids: [], variants: [{ channel: 'fa
 
 export default function MarketingWorkspacePage({ section = 'overview' }) {
   const auth = useAuth();
+  const [settingsTab, setSettingsTab] = useState('social');
   const [context, setContext] = useState(emptyContext);
   const [organizationId, setOrganizationId] = useState('');
   const [brandId, setBrandId] = useState('');
@@ -146,9 +147,10 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
         </section>
       </> : null}
       {data && section==='calendar' ? <ContentManagement key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} refresh={refresh} open={open} command={command} busy={busy} can={can}/> : null}
-      {data && section==='settings' ? <Settings data={data} setup={setup} brands={brands} brand={brand} can={can} busy={busy} open={open} actorId={context.actor_employee_id} removeMember={employeeId=>mutate(()=>marketingService.structure('remove_member',organizationId,{employee_id:employeeId}),'Organization membership removed.')}/> : null}
+      {data && section==='settings' ? <div className="marketing-settings-tabs" role="tablist" aria-label="Marketing settings"><button className="btn-secondary" role="tab" aria-selected={settingsTab==='social'} onClick={()=>setSettingsTab('social')}>Social Accounts</button><button className="btn-secondary" role="tab" aria-selected={settingsTab==='knowledge'} onClick={()=>setSettingsTab('knowledge')}>Knowledge & access</button></div> : null}
+      {data && section==='settings' && settingsTab==='knowledge' ? <Settings data={data} setup={setup} brands={brands} brand={brand} can={can} busy={busy} open={open} actorId={context.actor_employee_id} removeMember={employeeId=>mutate(()=>marketingService.structure('remove_member',organizationId,{employee_id:employeeId}),'Organization membership removed.')}/> : null}
     </AsyncDataSurface>
-    {section==='settings' && !booting ? <MetaConnections key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} brands={brands}/> : null}
+    {section==='settings' && settingsTab==='social' && !booting ? <MetaConnections key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} brands={brands}/> : null}
     {modal ? <Modal title={{content:modal.content?'Revise content':'New creative concept',review:'Content revision',schedule:'Schedule publishing',organization:'Create organization',brand:'Brand ownership',knowledge:'Brand Knowledge Profile',member:'Add team member',scope:'Role brand access'}[modal.type]} description={modal.type==='content'?'Saving material changes invalidates approval.':null} size={['content','review','knowledge'].includes(modal.type)?'lg':'sm'} onClose={()=>{if(!busy)setModal(null);}} footer={<>
       {error ? <p className="mr-auto text-sm text-rose-600" role="alert">{error}</p> : null}
       <button className="btn-secondary" disabled={busy} onClick={()=>setModal(null)}>Close</button>

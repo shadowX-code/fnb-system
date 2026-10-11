@@ -155,7 +155,6 @@ Deno.serve(async (req) => {
           try {
             const material=await rpc(service,'marketing_inbox_profile_material',{p_conversation:id,p_auth_user:identity.data.user.id});
             const connection=material.connection;
-            if(!['622626120924115','17841473217923034'].includes(connection.provider_account_id))throw new Error('test_scope');
             const credential=await unseal(connection.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(connection));
             const result=await graph.request(material.peer,credential.token,{fields:profileFields(connection.channel)});
             const fresh=await rpc(service,'marketing_inbox_profile_material',{p_conversation:id,p_auth_user:identity.data.user.id});
@@ -172,7 +171,6 @@ Deno.serve(async (req) => {
       const raw=await req.text();if(raw.length>1000)return json({error:'Request too large.'},413);
       const body=JSON.parse(raw);
       const material=await rpc(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:identity.data.user.id});
-      if(!['622626120924115','17841473217923034'].includes(material.provider_account_id))return json({error:'Idamans Staging test scope only.'},403);
       const credential=await unseal(material.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
       const guard=async()=>{const current=await rpc(service,'marketing_meta_diagnostic_material',{p_connection:material.id,p_auth_user:identity.data.user.id});if(current.credential_generation!==material.credential_generation)throw new Error('connection_changed');};
       const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')});
