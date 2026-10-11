@@ -650,6 +650,10 @@ function RevisionDetail({
             {r.operation === "create" ? "Create PAUSED hierarchy" : r.operation}
           </dd>
         </div>
+        <div>
+          <dt>Account timezone</dt>
+          <dd className="!text-sm">{r.timezone}</dd>
+        </div>
       </dl>
       {r.configuration.caption && (
         <section>
