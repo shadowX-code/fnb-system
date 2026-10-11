@@ -803,70 +803,104 @@ export default function MarketingAdsPage() {
             {modal.report.configs.ads.length} Ads. Brand attribution requires
             explicit organization review.
           </p>
-          <DataTable
-            columns={[
-              {
-                key: "name",
-                header: "Campaign",
-                render: (c) => (
-                  <>
-                    <strong>{c.name}</strong>
-                    <small className="block">{c.id}</small>
-                  </>
-                ),
-              },
-              {
-                key: "brand",
-                header: "FeedX brand",
-                render: (c) =>
-                  context.brands.find((b) => b.id === c.feedx_brand_id)?.name ||
-                  "Unassigned",
-              },
-              {
-                key: "status",
-                header: "Meta status",
-                render: (c) => c.effective_status,
-              },
-              {
-                key: "identities",
-                header: "Creative identities",
-                render: (c) =>
-                  [
-                    ...new Set(
-                      modal.report.configs.ads
-                        .filter((a) => a.campaign_id === c.id)
-                        .flatMap((a) => [
-                          a.creative?.object_story_spec?.page_id,
-                          a.creative?.object_story_spec?.instagram_user_id,
-                        ])
-                        .filter(Boolean),
-                    ),
-                  ].join(" · ") || "Unavailable",
-              },
-              {
-                key: "review",
-                header: "Review",
-                render: (c) =>
-                  can("marketing_ads.manage") && data?.organization_access ? (
-                    <button
-                      className="btn-secondary"
-                      onClick={() =>
-                        setModal({
-                          kind: "attribute",
-                          campaign: c,
-                          report: modal.report,
-                          brand: c.feedx_brand_id || "",
-                        })
-                      }
-                    >
-                      Attribute
-                    </button>
-                  ) : null,
-              },
-            ]}
-            rows={modal.report.configs.campaigns}
-            getRowKey={(c) => c.id}
-          />
+          <div className="ads-desktop">
+            <DataTable
+              columns={[
+                {
+                  key: "name",
+                  header: "Campaign",
+                  render: (c) => (
+                    <>
+                      <strong>{c.name}</strong>
+                      <small className="block">{c.id}</small>
+                    </>
+                  ),
+                },
+                {
+                  key: "brand",
+                  header: "FeedX brand",
+                  render: (c) =>
+                    context.brands.find((b) => b.id === c.feedx_brand_id)
+                      ?.name || "Unassigned",
+                },
+                {
+                  key: "status",
+                  header: "Meta status",
+                  render: (c) => c.effective_status,
+                },
+                {
+                  key: "identities",
+                  header: "Creative identities",
+                  render: (c) =>
+                    [
+                      ...new Set(
+                        modal.report.configs.ads
+                          .filter((a) => a.campaign_id === c.id)
+                          .flatMap((a) => [
+                            a.creative?.object_story_spec?.page_id,
+                            a.creative?.object_story_spec?.instagram_user_id,
+                          ])
+                          .filter(Boolean),
+                      ),
+                    ].join(" · ") || "Unavailable",
+                },
+                {
+                  key: "review",
+                  header: "Review",
+                  render: (c) =>
+                    can("marketing_ads.manage") && data?.organization_access ? (
+                      <button
+                        className="btn-secondary"
+                        onClick={() =>
+                          setModal({
+                            kind: "attribute",
+                            requestId: crypto.randomUUID(),
+                            campaign: c,
+                            report: modal.report,
+                            brand: c.feedx_brand_id || "",
+                          })
+                        }
+                      >
+                        Attribute
+                      </button>
+                    ) : null,
+                },
+              ]}
+              rows={modal.report.configs.campaigns}
+              getRowKey={(c) => c.id}
+            />
+          </div>
+          <div className="ads-mobile">
+            {modal.report.configs.campaigns.map((c) => (
+              <section className="ads-panel" key={c.id}>
+                <strong className="block break-words">{c.name}</strong>
+                <small className="block text-text-secondary">{c.id}</small>
+                <div className="flex justify-between gap-3 mt-3">
+                  <span>
+                    {context.brands.find((b) => b.id === c.feedx_brand_id)
+                      ?.name || "Unassigned"}
+                  </span>
+                  <Badge>{c.effective_status}</Badge>
+                </div>
+                {can("marketing_ads.manage") && data?.organization_access && (
+                  <button
+                    className="btn-secondary mt-3"
+                    onClick={() =>
+                      setModal({
+                        kind: "attribute",
+                        campaign: c,
+                        report: modal.report,
+                        brand: c.feedx_brand_id || "",
+                        requestId: crypto.randomUUID(),
+                      })
+                    }
+                  >
+                    Review attribution
+                  </button>
+                )}
+              </section>
+            ))}
+          </div>
           <details className="mt-4">
             <summary>Meta reporting evidence</summary>
             <pre className="overflow-auto text-xs max-h-60">
@@ -892,7 +926,7 @@ export default function MarketingAdsPage() {
                     modal.campaign.id,
                     modal.brand,
                     modal.campaign.feedx_attribution_revision || 0,
-                    crypto.randomUUID(),
+                    modal.requestId,
                   );
                   setModal(null);
                   setNotice(
