@@ -44,6 +44,13 @@ export function adsAccount(row: any, scopes: string[]) {
       ? row.disable_reason
       : null,
     tasks: granted,
+    granted_scopes: [
+      ...new Set(
+        scopes.filter(
+          (scope) => typeof scope === "string" && /^[a-z_]{1,80}$/.test(scope),
+        ),
+      ),
+    ].sort(),
     read_verified:
       scopes.includes("ads_read") || scopes.includes("ads_management"),
     manage_verified:

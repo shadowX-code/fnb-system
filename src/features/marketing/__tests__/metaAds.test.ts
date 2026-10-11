@@ -75,11 +75,23 @@ describe("Meta Ads independent authorization and evidence", () => {
       "test-code",
     );
     expect(result.accounts[0].id).toBe("111");
+    expect(result.accounts[0].granted_scopes).toEqual(["ads_read"]);
     expect(JSON.stringify(result.accounts)).not.toContain("user-secret");
     expect(new URL(transport.mock.calls[3][0]).pathname).toBe(
       "/v26.0/me/adaccounts",
     );
     expect(transport.mock.calls.every((c) => c[1].method === "GET")).toBe(true);
+  });
+  it("retains only sanitized unique scope names as read-only authorization evidence", () => {
+    expect(
+      adsAccount(row, [
+        "ads_read",
+        "ads_management",
+        "ads_read",
+        "not a scope",
+        "x".repeat(81),
+      ]).granted_scopes,
+    ).toEqual(["ads_management", "ads_read"]);
   });
   it("rejects invalid authorizers and accounts omitted from me/adaccounts", async () => {
     for (const [debug, accounts, reason] of [
