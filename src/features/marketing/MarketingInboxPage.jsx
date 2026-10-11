@@ -11,11 +11,14 @@ import {
   Facebook,
   Check,
   CheckCheck,
+  SlidersHorizontal,
+  MoreHorizontal,
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import WorkspacePage from "../../components/layout/WorkspacePage.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
+import ActionMenu from "../../components/ui/ActionMenu.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
 import AdminPagination from "../../components/tables/AdminPagination.jsx";
 import Badge from "../../components/ui/Badge.jsx";
@@ -24,6 +27,7 @@ import { marketingService } from "./marketingService.js";
 import { inboxService } from "./inboxService.js";
 import "./marketing.css";
 import "./marketingInbox.css";
+import { notifyConversationsChanged } from "./useConversationReplyCount.js";
 import InboxReplyComposer from "./InboxReplyComposer.jsx";
 import { socialIdentity, conversationTimeline } from "./inboxPresentation.js";
 const label = (s) =>
@@ -144,6 +148,9 @@ export default function MarketingInboxPage() {
     [configuration, setConfiguration] = useState(null);
   const [verification, setVerification] = useState(null),
     [detailsOpen, setDetailsOpen] = useState(false),
+    [filtersOpen, setFiltersOpen] = useState(false),
+    [actionsOpen, setActionsOpen] = useState(false),
+    [sendStatus, setSendStatus] = useState(null),
     [profiles, setProfiles] = useState({ scope: null, rows: {} });
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -342,6 +349,7 @@ export default function MarketingInboxPage() {
       setModal(null);
       setNotice(typeof message === "function" ? message(result) : message);
       setRefresh((r) => r + 1);
+      notifyConversationsChanged();
       if (intent.command === "create") {
         setChannel("internal");
         setSelected(result.conversation.id);
@@ -419,20 +427,43 @@ export default function MarketingInboxPage() {
     ...row,
     customer_profile: profiles.scope === scope ? profiles.rows[row.id] : null,
   });
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState !== "hidden" && !request.current)
+        setRefresh((r) => r + 1);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    let live = true;
+    setSendStatus(null);
+    if (selected)
+      inboxService
+        .sendStatus(selected)
+        .then((v) => {
+          if (live) setSendStatus({ key: detailKey, data: v });
+        })
+        .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [detailKey]);
   const controls = (
     <div className="marketing-inbox-controls">
-      <SelectField
-        label="Organization"
-        value={org}
-        onChange={(v) => {
-          setOrg(v);
-          setBrand("");
-        }}
-        options={context.organizations.map((o) => ({
-          value: o.id,
-          label: o.name,
-        }))}
-      />
+      {context.organizations.length > 1 && (
+        <SelectField
+          label="Organization"
+          value={org}
+          onChange={(v) => {
+            setOrg(v);
+            setBrand("");
+          }}
+          options={context.organizations.map((o) => ({
+            value: o.id,
+            label: o.name,
+          }))}
+        />
+      )}
       <SelectField
         label="Brand"
         value={brand}
@@ -442,47 +473,6 @@ export default function MarketingInboxPage() {
           ...brands.map((b) => ({ value: b.id, label: b.name })),
         ]}
       />
-      <SelectField
-        label="Channel"
-        value={channel}
-        onChange={(v) => {
-          setChannel(v);
-          setPage(1);
-          setSelected("");
-        }}
-        options={[
-          { value: "social", label: "All social channels" },
-          { value: "facebook", label: "Facebook" },
-          { value: "instagram", label: "Instagram" },
-          { value: "internal", label: "Internal cases" },
-        ]}
-      />
-      <SelectField
-        label="Assignee"
-        value={assignee}
-        onChange={(v) => {
-          setAssignee(v);
-          setPage(1);
-          setSelected("");
-        }}
-        options={[
-          { value: "", label: "All assignees" },
-          { value: "me", label: "Assigned to me" },
-          { value: "unassigned", label: "Unassigned" },
-          ...(data?.members || []).map((m) => ({ value: m.id, label: m.name })),
-        ]}
-      />
-      <label className="marketing-inbox-check">
-        <input
-          type="checkbox"
-          checked={unread}
-          onChange={(e) => {
-            setUnread(e.target.checked);
-            setPage(1);
-          }}
-        />
-        Unread only
-      </label>
       <Field
         label="Search conversations"
         value={search}
@@ -493,6 +483,63 @@ export default function MarketingInboxPage() {
           setSelected("");
         }}
       />
+      <button
+        className="btn-secondary"
+        aria-expanded={filtersOpen}
+        onClick={() => setFiltersOpen((v) => !v)}
+      >
+        <SlidersHorizontal size={15} />
+        Filters
+      </button>
+      {filtersOpen && (
+        <div className="inbox-secondary-filters">
+          {" "}
+          <SelectField
+            label="Channel"
+            value={channel}
+            onChange={(v) => {
+              setChannel(v);
+              setPage(1);
+              setSelected("");
+            }}
+            options={[
+              { value: "social", label: "All social channels" },
+              { value: "facebook", label: "Facebook" },
+              { value: "instagram", label: "Instagram" },
+              { value: "internal", label: "Internal cases" },
+            ]}
+          />
+          <SelectField
+            label="Assignee"
+            value={assignee}
+            onChange={(v) => {
+              setAssignee(v);
+              setPage(1);
+              setSelected("");
+            }}
+            options={[
+              { value: "", label: "All assignees" },
+              { value: "me", label: "Assigned to me" },
+              { value: "unassigned", label: "Unassigned" },
+              ...(data?.members || []).map((m) => ({
+                value: m.id,
+                label: m.name,
+              })),
+            ]}
+          />
+          <label className="marketing-inbox-check">
+            <input
+              type="checkbox"
+              checked={unread}
+              onChange={(e) => {
+                setUnread(e.target.checked);
+                setPage(1);
+              }}
+            />
+            Unread only
+          </label>
+        </div>
+      )}
     </div>
   );
   const identity = c ? socialIdentity(withProfile(c)) : null;
@@ -531,7 +578,7 @@ export default function MarketingInboxPage() {
     <div className={`inbox-page ${selected ? "inbox-chat-open" : ""}`}>
       <WorkspacePage
         section="Marketing"
-        title="Unified Inbox"
+        title="Conversations"
         controls={controls}
         className="inbox-workspace-content"
         actions={
@@ -550,30 +597,50 @@ export default function MarketingInboxPage() {
               <RefreshCw size={16} />
               Refresh
             </button>
-            <button
-              className="btn-secondary"
-              onClick={() => setModal({ type: "diagnostics" })}
+            <ActionMenu
+              open={actionsOpen}
+              onOpenChange={setActionsOpen}
+              ariaLabel="Conversation tools"
+              trigger={({ open, toggle, ariaLabel }) => (
+                <button
+                  className="icon-btn"
+                  aria-label={ariaLabel}
+                  aria-expanded={open}
+                  onClick={toggle}
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+              )}
             >
-              Diagnostics
-            </button>
-            {brand && (
               <button
-                className="btn-secondary"
-                disabled={busy || !data}
-                onClick={() =>
-                  setModal({
-                    type: "settings",
-                    policy: data?.policy || {
-                      revision: 0,
-                      automation_mode: "suggest",
-                      ai_allowed: false,
-                    },
-                  })
-                }
+                role="menuitem"
+                onClick={() => {
+                  setActionsOpen(false);
+                  setModal({ type: "diagnostics" });
+                }}
               >
-                FAQ & AI settings
+                Diagnostics
               </button>
-            )}
+              {brand && (
+                <button
+                  role="menuitem"
+                  disabled={busy || !data}
+                  onClick={() => {
+                    setActionsOpen(false);
+                    setModal({
+                      type: "settings",
+                      policy: data?.policy || {
+                        revision: 0,
+                        automation_mode: "suggest",
+                        ai_allowed: false,
+                      },
+                    });
+                  }}
+                >
+                  FAQ & AI settings
+                </button>
+              )}
+            </ActionMenu>
             {channel === "internal" && can("manage") && (
               <button
                 className="btn-secondary"
@@ -787,26 +854,6 @@ export default function MarketingInboxPage() {
                       })),
                     ]}
                   />
-                  <SelectField
-                    label="Priority"
-                    value={c.priority}
-                    disabled={busy || !can("manage")}
-                    onChange={(priority) => handling({ priority })}
-                    options={options(["low", "normal", "high", "urgent"])}
-                  />
-                  <button
-                    className="btn-secondary"
-                    aria-pressed={c.takeover}
-                    disabled={
-                      busy ||
-                      !can("manage") ||
-                      c.opted_out ||
-                      Boolean(c.escalation_reasons?.length)
-                    }
-                    onClick={() => handling({ takeover: !c.takeover })}
-                  >
-                    {c.takeover ? "Human takeover on" : "Take over"}
-                  </button>
                 </div>
                 {!!c.escalation_reasons?.length && (
                   <p role="status" className="marketing-inbox-escalation">
@@ -898,7 +945,11 @@ export default function MarketingInboxPage() {
                 </div>
                 <InboxReplyComposer
                   current={current}
-                  configuration={configuration}
+                  configuration={
+                    sendStatus?.key === detailKey
+                      ? { ...configuration, ...sendStatus.data }
+                      : { ...configuration, recipient_allowed: false }
+                  }
                   can={can}
                   busy={busy}
                   command={command}
@@ -907,6 +958,26 @@ export default function MarketingInboxPage() {
                   preview={preview}
                   faqPreview={faqPreview}
                   onSend={(draft) => setModal({ type: "send", draft })}
+                  onDirectSend={(text, sourceArtifactId) =>
+                    mutate(
+                      {
+                        scope,
+                        command: "staff_reply",
+                        conversation: c.id,
+                        version: c.version,
+                        text,
+                        sourceArtifactId,
+                      },
+                      (id) =>
+                        inboxService.sendStaffReply(
+                          id,
+                          c,
+                          text,
+                          sourceArtifactId,
+                        ),
+                      "Reply attempt recorded. Check its status before retrying.",
+                    )
+                  }
                 />
               </>
             )}
@@ -936,6 +1007,29 @@ export default function MarketingInboxPage() {
               <p className="inbox-muted">
                 Social identity · no verified FeedX customer link
               </p>
+              <div className="inbox-handling-controls">
+                {" "}
+                <SelectField
+                  label="Priority"
+                  value={c.priority}
+                  disabled={busy || !can("manage")}
+                  onChange={(priority) => handling({ priority })}
+                  options={options(["low", "normal", "high", "urgent"])}
+                />
+                <button
+                  className="btn-secondary"
+                  aria-pressed={c.takeover}
+                  disabled={
+                    busy ||
+                    !can("manage") ||
+                    c.opted_out ||
+                    Boolean(c.escalation_reasons?.length)
+                  }
+                  onClick={() => handling({ takeover: !c.takeover })}
+                >
+                  {c.takeover ? "Human takeover on" : "Take over"}
+                </button>
+              </div>
               <dl>
                 <dt>Assigned to</dt>
                 <dd>
@@ -1197,7 +1291,7 @@ export default function MarketingInboxPage() {
               <div className="marketing-inbox-form">
                 {" "}
                 <details className="marketing-inbox-analytics">
-                  <summary>Inbox performance</summary>
+                  <summary>Conversation performance</summary>
                   <div className="marketing-inbox-actions">
                     <Field
                       label="Conversations from"
@@ -1470,6 +1564,22 @@ function InboxModal({
               Allow AI suggestions using approved facts and conversation history
               with direct contact details removed
             </label>
+            <label className="marketing-inbox-check">
+              <input
+                type="checkbox"
+                checked={Boolean(m.policy.staff_reply_requires_approval)}
+                onChange={(e) =>
+                  setModal({
+                    ...m,
+                    policy: {
+                      ...m.policy,
+                      staff_reply_requires_approval: e.target.checked,
+                    },
+                  })
+                }
+              />
+              Require approval for all staff replies
+            </label>
             <button
               className="btn-primary"
               disabled={busy}
@@ -1477,6 +1587,9 @@ function InboxModal({
                 configure("policy", m.policy.revision, {
                   automation_mode: m.policy.automation_mode,
                   ai_allowed: m.policy.ai_allowed,
+                  staff_reply_requires_approval: Boolean(
+                    m.policy.staff_reply_requires_approval,
+                  ),
                 })
               }
             >

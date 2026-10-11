@@ -698,3 +698,19 @@
     min-height: 36px;
   }
 }
+
+/* Conversations keep frequent filters and handling compact; secondary controls disclose on demand. */
+.marketing-inbox-controls > div {flex:0 1 180px;}
+.marketing-inbox-controls > div:has(input) {flex:1 1 220px;}
+.marketing-inbox-controls > .inbox-secondary-filters {flex:1 0 100%;display:flex;flex-wrap:wrap;gap:8px;align-items:end;}
+.inbox-secondary-filters > div {flex:0 1 190px;min-width:0;}
+.inbox-header-controls > div {flex:0 1 160px;}
+.inbox-handling-controls {display:flex;flex-direction:column;gap:10px;margin:12px 0;}
+@media(max-width:760px){
+ .marketing-inbox-controls {display:flex;}
+ .marketing-inbox-controls > div {flex:1 1 130px;}
+ .marketing-inbox-controls > div:has(input) {flex:1 1 220px;}
+ .inbox-secondary-filters > div {flex:1 1 130px;}
+ .inbox-header-controls > div {flex:1;}
+ .inbox-takeover-state {font-size:10px;}
+}

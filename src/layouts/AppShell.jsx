@@ -1,6 +1,7 @@
 import "../components/layout/workspace.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Clock3, Download, Eye, EyeOff, Factory, FileText, FlaskConical, Gauge, KeyRound, LogOut, Link2, Menu, MessageSquareText, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShieldCheck, ShoppingCart, Sparkles, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
+import useConversationReplyCount from "../features/marketing/useConversationReplyCount.js";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import FloatingLayer from "../components/ui/FloatingLayer.jsx";
@@ -1005,6 +1006,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
     () => buildNotificationItems(store, auth, notificationContext, notificationReadIds),
     [auth, notificationContext, notificationReadIds, store],
   );
+  const conversationReplyCount = useConversationReplyCount(workspace === "marketing" && sections.some(section=>section.items.some(item=>item.id==="marketing_inbox")), auth?.user?.id);
   const unreadCount = notificationItems.filter((item) => !item.isRead).length;
   const resolvedTheme = themeChoice === "system" ? systemTheme : themeChoice;
 
@@ -1363,6 +1365,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
                       {active ? <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-primary/80 shadow-[0_0_8px_rgba(34,197,94,0.22)]" /> : null}
                       <Icon size={16} className={active ? "opacity-100" : "opacity-70"} />
                       <span className="truncate">{item.label}</span>
+                      {item.id === "marketing_inbox" && conversationReplyCount > 0 ? <span className="ml-auto rounded-full bg-primary/10 px-2 text-xs font-semibold text-primary" aria-label={`${conversationReplyCount} conversations need a staff reply`}>{conversationReplyCount > 99 ? "99+" : conversationReplyCount}</span> : null}
                     </button>
                   );
                 })}

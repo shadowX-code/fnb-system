@@ -11,7 +11,7 @@ async function invoke(path, options = {}) {
     options,
   );
   if (error) {
-    let message = "Inbox service is unavailable.";
+    let message = "Conversations are unavailable.";
     if (error.context instanceof Response) {
       try {
         message = (await error.context.json()).error || message;
@@ -22,6 +22,9 @@ async function invoke(path, options = {}) {
   return data;
 }
 export const inboxService = {
+  replyCount: () => rpc("marketing_inbox_reply_count"),
+  sendStatus: (conversationId) => invoke("send-status",{body:{conversationId}}),
+  sendStaffReply: (requestId,conversation,text,sourceArtifactId=null) => invoke("send-staff-reply",{body:{requestId,conversationId:conversation.id,version:conversation.version,text,sourceArtifactId}}),
   read: (
     {
       org,

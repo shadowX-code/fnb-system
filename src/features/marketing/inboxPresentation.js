@@ -70,11 +70,14 @@ export function replyAvailability(current, configuration, canSend) {
   if (c.opted_out) return "Customer opted out · replies are paused";
   if (c.status === "resolved") return "Reopen this conversation to reply";
   if (c.medium && c.medium !== "dm") return "Comment replies are unavailable";
+  if (!canSend) return "Sending requires staff permission";
+  if (!configuration?.staff_send_configured)
+    return "Sending is disabled · ask an administrator";
+  if (configuration?.recipient_allowed === false) return "Recipient is outside the approved test scope";
   if (!current.window_open) return "Reply window closed or unavailable";
   if (!current.channel_capability?.receiving_verified)
     return "Messaging connection needs verification";
-  if (!canSend) return "You can prepare replies; sending requires permission";
-  if (!configuration?.staff_send_configured)
-    return "Sending is disabled · you can prepare a reply";
+  if (current.reply_authority?.verified === false) return "Reconnect or refresh this messaging connection";
+  if (current.reply_authority?.recent === false) return "Refresh connection status before sending";
   return "";
 }

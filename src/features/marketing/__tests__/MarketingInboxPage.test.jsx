@@ -33,6 +33,8 @@ vi.mock("../inboxService.js", () => ({
       "analytics",
       "verifyConnection",
       "sendApproved",
+      "sendStatus",
+      "sendStaffReply",
       "profiles",
     ].map((k) => [k, vi.fn()]),
   ),
@@ -61,6 +63,7 @@ const draft = {
 let detail;
 beforeEach(() => {
   vi.resetAllMocks();
+  inboxService.sendStatus.mockResolvedValue({recipient_allowed:true});
   inboxService.profiles.mockResolvedValue({ profiles: {} });
   marketingService.context.mockResolvedValue({
     organizations: [{ id: "o", name: "Organization" }],
@@ -235,6 +238,7 @@ it("passes assignee/unread filters and shows details only when requested", async
   fireEvent.click(
     screen.getByRole("button", { name: "Close customer details" }),
   );
+  fireEvent.click(screen.getByRole("button",{name:"Filters",exact:true}));
   fireEvent.click(
     screen.getByRole("button", { name: "Assignee", exact: true }),
   );
@@ -308,4 +312,23 @@ it('keeps an unsaved reply while refreshing the same conversation',async()=>{
  await waitFor(()=>expect(inboxService.detail).toHaveBeenCalledTimes(2));
  expect(screen.getByRole('textbox',{name:'Reply',exact:true}).value).toBe('Unsaved human reply');
  expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
+});
+
+it('sends a normal editable staff reply without separate per-message approval when every gate permits',async()=>{
+ detail.reply_requires_approval=false;
+ inboxService.configuration.mockResolvedValue({staff_send_configured:true});
+ inboxService.sendStaffReply.mockResolvedValue({state:'sent'});
+ render(<MarketingInboxPage/>);await select();
+ fireEvent.change(screen.getByLabelText('Reply'),{target:{value:'Reviewed by staff'}});
+ await waitFor(()=>expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(false));
+ fireEvent.click(screen.getByRole('button',{name:'Send',exact:true}));
+ await waitFor(()=>expect(inboxService.sendStaffReply).toHaveBeenCalledWith(expect.any(String),conversation,'Reviewed by staff',null));
+ expect(screen.queryByRole('button',{name:'Confirm send'})).toBeNull();expect(inboxService.sendApproved).not.toHaveBeenCalled();
+});
+it('keeps direct replies disabled for excluded test recipients and unresolved send outcomes',async()=>{
+ detail.reply_requires_approval=false;detail.outbox=[{draft_id:'d',state:'reconciling'}];
+ inboxService.configuration.mockResolvedValue({staff_send_configured:true});inboxService.sendStatus.mockResolvedValue({recipient_allowed:false});
+ render(<MarketingInboxPage/>);await select();fireEvent.change(screen.getByLabelText('Reply'),{target:{value:'Do not send'}});
+ expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
+ expect(inboxService.sendStaffReply).not.toHaveBeenCalled();
 });

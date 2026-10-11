@@ -14,7 +14,17 @@ const env = (n: string) => Deno.env.get(n) || "";
 const origins = new Set([STAGING_ORIGIN, "http://localhost:5173"]);
 async function rpc(db: any, name: string, args: any = {}) {
   const { data, error } = await db.rpc(name, args);
-  if (error) throw new Error("inbox_authority_rejected");
+  if (error) {
+    const safe:Record<string,string>={
+      'This reply requires review and approval.':'This reply needs approval. Save a draft and request review in reply history.',
+      'Conversation changed. Review the latest messages.':'Conversation changed. Review the latest messages before sending.',
+      'A reply is already in progress or recorded. Check its result.':'A reply is already in progress or recorded. Check its status before retrying.',
+      'Suggestion changed or needs approval.':'The suggestion changed or needs approval. Request a fresh suggestion.',
+      'Provide a reply of 1–2000 characters.':'Replies must contain 1–2000 characters.',
+      'Marketing permission or brand access is unavailable.':'You do not have permission to send for this brand.'
+    };
+    throw Object.assign(new Error('inbox_authority_rejected'),{safeMessage:safe[error.message]});
+  }
   return data;
 }
 Deno.serve(async (req) => {
@@ -183,13 +193,23 @@ Deno.serve(async (req) => {
       return json({...safe,verified_inbound_count:verified_inbound_ids.length,capability:channel,sending_enabled:false});
     }catch{return json({error:'Messaging verification unavailable. Check scope and connection.'},409);}
   }
-  if (path==='/send-approved' && req.method==='POST') {
+  if(path==='/send-status' && req.method==='POST'){
+    try{const body=await req.json();const scope=await rpc(service,'marketing_inbox_staff_send_scope',{p_conversation:body.conversationId,p_auth_user:identity.data.user.id});
+      return json({staff_send_configured:env('MARKETING_INBOX_SEND_ENABLED')==='true'&&Boolean(env('MARKETING_INBOX_TEST_PEER_IDS')),recipient_allowed:['622626120924115','17841473217923034'].includes(scope.account)&&env('MARKETING_INBOX_TEST_PEER_IDS').split(',').map(s=>s.trim()).includes(scope.peer)});
+    }catch{return json({error:'Sending availability could not be checked.'},403);}
+  }
+  if (['/send-approved','/send-staff-reply'].includes(path) && req.method==='POST') {
     if(env('MARKETING_INBOX_SEND_ENABLED')!=='true'||!env('MARKETING_INBOX_TEST_PEER_IDS'))return json({error:'Staff sending is disabled pending explicit test approval.'},403);
     let draftId:string|undefined,lease:string|undefined,ownsLease=false;
     try {
-      const raw=await req.text();if(raw.length>1000)return json({error:'Request too large.'},413);
+      const raw=await req.text();if(raw.length>12000)return json({error:'Request too large.'},413);
       const body=JSON.parse(raw);draftId=body.draftId;
-      await rpc(caller,'marketing_inbox_prepare_send',{p_request:body.requestId,p_draft:draftId});
+      if(path==='/send-staff-reply'){
+        // Check exact test recipient before recording intent, with the same server-only gate as approved sends.
+        const scope=await rpc(service,'marketing_inbox_staff_send_scope',{p_conversation:body.conversationId,p_auth_user:identity.data.user.id});
+        if(!['622626120924115','17841473217923034'].includes(scope.account)||!env('MARKETING_INBOX_TEST_PEER_IDS').split(',').map(s=>s.trim()).includes(scope.peer))return json({error:'Recipient is outside the approved test scope.'},403);
+        const prepared=await rpc(caller,'marketing_inbox_prepare_staff_reply',{p_request:body.requestId,p_conversation:body.conversationId,p_version:body.version,p_body:body.text,p_artifact:body.sourceArtifactId||null});draftId=prepared.draft_id;
+      }else await rpc(caller,'marketing_inbox_prepare_send',{p_request:body.requestId,p_draft:draftId});
       let material=await rpc(service,'marketing_inbox_send_material',{p_draft:draftId,p_auth_user:identity.data.user.id});
       const conn=material.connection;
       const allowed=env('MARKETING_INBOX_TEST_PEER_IDS').split(',').map(s=>s.trim());
@@ -209,9 +229,9 @@ Deno.serve(async (req) => {
       }});
       if(result.state==='reconciling'&&lease&&ownsLease)await checkpoint({});
       return json(result);
-    }catch{
+    }catch(error){
       if(draftId&&lease&&ownsLease)try{await rpc(service,'marketing_inbox_send_checkpoint',{p_draft:draftId,p_auth_user:identity.data.user.id,p_lease:lease,p_state:{}});}catch{}
-      return json({error:'Reply execution unavailable; check its delivery evidence before retrying.'},409);
+      return json({error:(error as {safeMessage?:string})?.safeMessage||'Reply unavailable. Check connection status, reply window and any existing send result.'},409);
     }
   }
   if (path !== "/suggest" || req.method !== "POST") {

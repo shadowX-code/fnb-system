@@ -12,11 +12,14 @@ export default function InboxReplyComposer({
   preview,
   faqPreview,
   onSend,
+  onDirectSend,
 }) {
   const c = current.conversation;
+  const latestSentAt = Math.max(0,...(current.outbox || []).filter(o=>['sent','delivered','read'].includes(o.state)&&o.sent_at).map(o=>Date.parse(o.sent_at)));
   const draft = current.drafts?.find(
     (d) =>
       d.source_version === c.version &&
+      (!d.created_at || Date.parse(d.created_at)>latestSentAt) &&
       ["draft", "review", "approved"].includes(d.status) &&
       !["sent", "delivered", "read", "pending", "reconciling"].includes(
         current.outbox?.find((o) => o.draft_id === d.id)?.state,
@@ -24,12 +27,18 @@ export default function InboxReplyComposer({
   );
   const [text, setText] = useState(draft?.body || ""),
     [mode, setMode] = useState("reply"),
-    [dirty, setDirty] = useState(false);
-  const previousConversation=useRef(c.id);
+    [dirty, setDirty] = useState(false),
+    [sourceArtifact, setSourceArtifact] = useState(null);
+  const previousConversation = useRef(c.id);
   useEffect(() => {
-    const changed=previousConversation.current!==c.id;
-    previousConversation.current=c.id;
-    if(changed||!dirty){setText(draft?.body||'');setDirty(false);setMode('reply');}
+    const changed = previousConversation.current !== c.id;
+    previousConversation.current = c.id;
+    if (changed || !dirty) {
+      setText(draft?.body || "");
+      setDirty(false);
+      setMode("reply");
+      setSourceArtifact(null);
+    }
   }, [c.id, draft?.id]);
   const exact = draft && text === draft.body;
   const unavailable = replyAvailability(current, configuration, can("send"));
@@ -40,6 +49,16 @@ export default function InboxReplyComposer({
       a.source_version === c.version,
   );
   const outbox = current.outbox?.find((o) => o.draft_id === draft?.id);
+  const requiresApproval = current.reply_requires_approval !== false;
+  const directReady =
+    !requiresApproval &&
+    text.trim().length > 0 &&
+    text.length <= 2000 &&
+    !unavailable &&
+    can("reply") &&
+    !current.outbox?.some((o) =>
+      ["prepared", "pending", "reconciling"].includes(o.state),
+    );
   const sendReady =
     exact &&
     draft.status === "approved" &&
@@ -65,6 +84,7 @@ export default function InboxReplyComposer({
               setMode("reply");
               setText(draft?.body || "");
               setDirty(false);
+              setSourceArtifact(null);
             }}
           >
             Reply
@@ -78,6 +98,7 @@ export default function InboxReplyComposer({
               setMode("note");
               setText("");
               setDirty(false);
+              setSourceArtifact(null);
             }}
           >
             <StickyNote size={14} />
@@ -121,13 +142,20 @@ export default function InboxReplyComposer({
           {suggestion.body.human_required && (
             <p>A person needs to handle this request.</p>
           )}
-          {can("approve") && (
+          {(!requiresApproval || can("approve")) && (
             <button
               className="btn-secondary"
               disabled={busy}
-              onClick={() => reviewAI(suggestion.id, true)}
+              onClick={() => {
+                if (requiresApproval) reviewAI(suggestion.id, true);
+                else {
+                  setText(suggestion.body.text);
+                  setDirty(true);
+                  setSourceArtifact(suggestion.id);
+                }
+              }}
             >
-              Use reviewed suggestion
+              Use suggestion
             </button>
           )}
           <button
@@ -150,7 +178,7 @@ export default function InboxReplyComposer({
             <button
               className="btn-secondary"
               disabled={busy}
-              onClick={() => command("faq_draft", { faq_id: preview.faq.id })}
+              onClick={async () => {const result=await command("faq_draft", {faq_id:preview.faq.id});if(result){setText(preview.faq.answer);setDirty(false);setSourceArtifact(null);}}}
             >
               Use FAQ
             </button>
@@ -179,15 +207,17 @@ export default function InboxReplyComposer({
         <p role="status">
           {mode === "note"
             ? "Only your team can see this note"
-            : exact
-              ? draft.status === "approved"
-                ? "Reply approved"
-                : draft.status === "review"
-                  ? "Awaiting approval"
-                  : "Draft · not sent"
-              : dirty && draft
-                ? "Edited reply needs a new approval"
-                : "Replies require staff approval"}
+            : !requiresApproval
+              ? "Staff reply · review the text before sending"
+              : exact
+                ? draft.status === "approved"
+                  ? "Reply approved"
+                  : draft.status === "review"
+                    ? "Awaiting approval"
+                    : "Draft · not sent"
+                : dirty && draft
+                  ? "Edited reply needs a new approval"
+                  : "Replies require staff approval"}
           {mode === "reply" && unavailable && <> · {unavailable}</>}
         </p>
         <div className="marketing-inbox-actions">
@@ -197,6 +227,7 @@ export default function InboxReplyComposer({
             </button>
           )}
           {mode === "reply" &&
+            requiresApproval &&
             exact &&
             draft.status === "draft" &&
             can("reply") && (
@@ -209,6 +240,7 @@ export default function InboxReplyComposer({
               </button>
             )}
           {mode === "reply" &&
+            requiresApproval &&
             exact &&
             draft.status === "review" &&
             can("approve") && (
@@ -236,11 +268,24 @@ export default function InboxReplyComposer({
           {mode === "reply" && (
             <button
               className="btn-primary"
-              disabled={busy || !sendReady}
+              disabled={busy || !(requiresApproval ? sendReady : directReady)}
               title={
-                unavailable || "Send requires this exact reply to be approved"
+                unavailable ||
+                (requiresApproval
+                  ? "This reply requires approval"
+                  : "Send this staff reply")
               }
-              onClick={() => onSend(draft)}
+              onClick={async () => {
+                if (requiresApproval) onSend(draft);
+                else {
+                  const result = await onDirectSend(text, sourceArtifact);
+                  if (result) {
+                    setText("");
+                    setDirty(false);
+                    setSourceArtifact(null);
+                  }
+                }
+              }}
             >
               <Send size={14} />
               Send
