@@ -497,7 +497,7 @@ export default function ContentManagement(
           ? null
           : <Status value={row.variant?.status || row.status} />,
     },
-    ...metricColumns.map(key=>({key, header:POST_METRICS.find(m=>m.key===key).label, width:"8%", align:"right",render:row=>{
+    ...metricColumns.map(key=>({key, header:POST_METRICS.find(m=>m.key===key).label, width:"90px", headerClassName:"whitespace-nowrap", align:"right",render:row=>{
       if(row.heading)return null;
       const v=row.variant||(row.channels.length===1?row.channels[0]:null),value=postMetric(v,key);
       return <span className="cm-metric" title={v?metricReason(v,key)||POST_METRICS.find(m=>m.key===key).description:'Expand for channel-specific metrics'}>{value===null?'—':value.toLocaleString('en-MY')}</span>;
@@ -505,6 +505,7 @@ export default function ContentManagement(
     {
       key: "actions",
       header: "Actions",
+      width: "74px",
       render: (row) => row.heading || row.variant ? null : rowActions(row),
     },
   ];

@@ -29,7 +29,7 @@ const row = {
     caption: "Real external post",
     status: "published",
     actual_at: "2026-05-22T03:00:00Z",
-    metrics: { reach: 5, likes: 0, comments: 0 },
+    metrics: { reach: 5, likes: 0, comments: 0, interactions: 0 },
     provider_post_id: "123",
     permalink: "https://www.instagram.com/p/test/",
   }],

@@ -41,7 +41,7 @@ export default function Modal({
   const widthClass = sizeClasses[size] ?? sizeClasses.sm;
 
   return (
-    <div className={`fixed inset-0 z-modal-layer flex bg-slate-950/30 backdrop-blur-sm ${placement === "right" ? "items-stretch justify-end" : "items-center justify-center p-4"}`}>
+    <div className={`fixed inset-0 z-modal-layer flex ${placement === "right" ? "items-stretch justify-end bg-slate-950/10" : "items-center justify-center p-4 bg-slate-950/30 backdrop-blur-sm"}`}>
       <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`relative z-modal-content-layer flex ${placement === "right" ? "h-[100dvh] max-w-[560px] rounded-none" : `max-h-[85vh] ${widthClass} rounded-2xl`} w-full flex-col overflow-clip border border-border bg-[var(--theme-surface-raised)] shadow-card ${panelClassName}`}>
         <div className="shrink-0 flex items-start justify-between gap-4 border-b border-border p-4">
           <div>
