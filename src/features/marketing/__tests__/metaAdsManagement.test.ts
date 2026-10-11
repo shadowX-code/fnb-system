@@ -14,6 +14,12 @@ const base = {
   operation: "create",
   configuration: {
     name: "Reviewed",
+    adset_contract_version: 2,
+    regional_regulated_categories: ["MALAYSIA_UNIVERSAL"],
+    regional_regulation_identities: {
+      universal_beneficiary: "444",
+      universal_payer: "555",
+    },
     objective: "OUTCOME_TRAFFIC",
     start_time: "2099-01-01T00:00:00+08:00",
     end_time: "2099-01-02T00:00:00+08:00",
@@ -57,6 +63,24 @@ function harness(change: any = base) {
 beforeEach(() => vi.stubGlobal("crypto", webcrypto));
 afterEach(() => vi.unstubAllGlobals());
 describe("controlled Meta mutation contract", () => {
+  it("pins explicit Malaysia identities and the Awareness promoted Page without changing legacy diagnostic payloads", () => {
+    const c: any = structuredClone(base);
+    c.configuration.objective = "OUTCOME_AWARENESS";
+    c.configuration.promoted_object = { page_id: "222" };
+    expect(createPayloads(c, { campaign_id: "901" }).adset).toMatchObject({
+      optimization_goal: "IMPRESSIONS",
+      promoted_object: { page_id: "222" },
+      regional_regulated_categories: ["MALAYSIA_UNIVERSAL"],
+      regional_regulation_identities: {
+        universal_beneficiary: "444",
+        universal_payer: "555",
+      },
+    });
+    delete c.configuration.adset_contract_version;
+    const legacy = createPayloads(c, { campaign_id: "901" }).adset;
+    expect(legacy).not.toHaveProperty("promoted_object");
+    expect(legacy).not.toHaveProperty("regional_regulation_identities");
+  });
   it("uses bounded campaign-level lifetime budget and PAUSED hierarchy, with exact creative and placements", () => {
     const p = createPayloads(base, {
       campaign_id: "1",
@@ -157,13 +181,20 @@ describe("controlled Meta mutation contract", () => {
                   },
                 ],
               }
-            : {
-                data: path.endsWith("campaigns")
-                  ? [campaign]
-                  : path.endsWith("adsets")
-                    ? [adset]
-                    : [ad],
-              },
+            : path === "902"
+              ? {
+                  regional_regulated_categories:
+                    c.configuration.regional_regulated_categories,
+                  regional_regulation_identities:
+                    c.configuration.regional_regulation_identities,
+                }
+              : {
+                  data: path.endsWith("campaigns")
+                    ? [campaign]
+                    : path.endsWith("adsets")
+                      ? [adset]
+                      : [ad],
+                },
     );
     expect(await h.run({ bytes })).toMatchObject({
       outcome: "succeeded",
@@ -179,6 +210,26 @@ describe("controlled Meta mutation contract", () => {
       outcome: "succeeded",
     });
     expect(h.request.mock.calls.filter((c) => c[3] === "POST")).toHaveLength(5);
+    h.request.mockImplementation(async (path) =>
+      path === "902"
+        ? {
+            regional_regulated_categories: ["MALAYSIA_UNIVERSAL"],
+            regional_regulation_identities: {
+              universal_beneficiary: "999",
+              universal_payer: "555",
+            },
+          }
+        : {
+            data: path.endsWith("campaigns")
+              ? [campaign]
+              : path.endsWith("adsets")
+                ? [adset]
+                : [ad],
+          },
+    );
+    expect(await h.run({ reconcileOnly: true })).toMatchObject({
+      outcome: "reconciling",
+    });
     expect(h.writes[0]).toEqual({ pending: "image" });
     expect(JSON.stringify(h.state())).not.toContain("unit-token");
   });

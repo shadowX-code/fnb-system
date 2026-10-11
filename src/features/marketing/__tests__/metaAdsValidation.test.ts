@@ -35,6 +35,49 @@ const response = (body: any, status = 200) =>
 beforeEach(() => vi.stubGlobal("crypto", webcrypto));
 afterEach(() => vi.unstubAllGlobals());
 describe("non-mutating Ad Set validation", () => {
+  it("validates a pinned declaration-only draft against the accepted parent without creation", async () => {
+    const draft: any = structuredClone(change);
+    draft.state = "draft";
+    Object.assign(draft.configuration, {
+      recovery_source: "source",
+      adset_contract_version: 2,
+      regional_regulated_categories: ["MALAYSIA_UNIVERSAL"],
+      regional_regulation_identities: {
+        universal_beneficiary: "444",
+        universal_payer: "555",
+      },
+      promoted_object: { page_id: "333" },
+    });
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce(campaign)
+      .mockResolvedValueOnce({ success: true });
+    expect(
+      await validatePausedAdSet(
+        { request } as any,
+        "unit-token",
+        draft,
+        vi.fn(),
+      ),
+    ).toMatchObject({ valid: true, mode: "validate_only" });
+    expect(request.mock.calls[1]).toEqual([
+      "act_111/adsets",
+      "unit-token",
+      expect.objectContaining({
+        campaign_id: "222",
+        promoted_object: { page_id: "333" },
+        execution_options: ["validate_only"],
+        regional_regulated_categories: ["MALAYSIA_UNIVERSAL"],
+        regional_regulation_identities: {
+          universal_beneficiary: "444",
+          universal_payer: "555",
+        },
+      }),
+      "POST",
+    ]);
+    expect(draft.state).toBe("draft");
+    expect(draft.provider_state).toEqual(change.provider_state);
+  });
   it("forces validate_only on the exact accepted campaign and preserves the original intent", async () => {
     const before = structuredClone(change),
       guard = vi.fn().mockResolvedValue(undefined);
@@ -139,20 +182,18 @@ describe("non-mutating Ad Set validation", () => {
     expect(result.error?.error_user_msg).toContain("targeting_automation");
   });
   it("does not broaden OAuth or other endpoint error disclosure", async () => {
-    const transport = vi
-      .fn()
-      .mockResolvedValue(
-        response(
-          {
-            error: {
-              code: 190,
-              error_user_msg: "private-token",
-              fbtrace_id: "trace",
-            },
+    const transport = vi.fn().mockResolvedValue(
+      response(
+        {
+          error: {
+            code: 190,
+            error_user_msg: "private-token",
+            fbtrace_id: "trace",
           },
-          400,
-        ),
-      );
+        },
+        400,
+      ),
+    );
     const graph = new MetaGraph(
       {
         appId: "123",

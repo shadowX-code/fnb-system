@@ -34,6 +34,8 @@ const initial = () => ({
   url: "",
   campaign_id: "",
   resume_scope: "campaign",
+  universal_beneficiary: "",
+  universal_payer: "",
 });
 export default function AdsManagement({
   org,
@@ -130,6 +132,15 @@ export default function AdsManagement({
             placements: form.placements,
             asset_id: form.asset_id,
             page_id: form.page_id,
+            adset_contract_version: 2,
+            regional_regulated_categories: ["MALAYSIA_UNIVERSAL"],
+            regional_regulation_identities: {
+              universal_beneficiary: form.universal_beneficiary.trim(),
+              universal_payer: form.universal_payer.trim(),
+            },
+            ...(form.objective === "OUTCOME_AWARENESS"
+              ? { promoted_object: { page_id: form.page_id } }
+              : {}),
             ...(form.placements !== "facebook_feed"
               ? {
                   instagram_id: pages.find((p) => p.page_id === form.page_id)
@@ -180,6 +191,9 @@ export default function AdsManagement({
     setForm({
       ...initial(),
       ...c,
+      universal_beneficiary:
+        c.regional_regulation_identities?.universal_beneficiary || "",
+      universal_payer: c.regional_regulation_identities?.universal_payer || "",
       operation: r.operation,
       budget: r.maximum_budget ? String(r.maximum_budget / 100) : "",
       start_date: c.start_time?.slice(0, 10) || "",
@@ -208,11 +222,14 @@ export default function AdsManagement({
         Review revision
       </button>
       {can("marketing_ads.manage") &&
-        ["draft", "review", "approved", "failed", "stale"].includes(
-          r.state,
-        ) && (
+        (["draft", "review", "approved", "failed", "stale"].includes(r.state) ||
+          (r.state === "reconciling" &&
+            r.operation === "create" &&
+            r.provider_state?.pending === "adset")) && (
           <button className="btn-secondary" onClick={() => revise(r)}>
-            Revise
+            {r.state === "reconciling"
+              ? "Prepare declaration revision"
+              : "Revise"}
           </button>
         )}
     </div>
@@ -329,13 +346,23 @@ export default function AdsManagement({
         <Modal
           title={
             modal.previous
-              ? "Prepare superseding revision"
+              ? modal.previous.state === "reconciling"
+                ? "Prepare declaration revision"
+                : "Prepare superseding revision"
               : "Prepare advertising change"
           }
           size="3xl"
           onClose={() => !busy && setModal(null)}
         >
           <form onSubmit={prepare} className="space-y-4">
+            {modal.previous?.state === "reconciling" && (
+              <p className="text-sm text-text-secondary">
+                Only advertiser declarations may change. The existing Campaign,
+                budget, schedule and creative are preserved. This saves a
+                validation proposal and leaves the original Reconciling revision
+                unchanged.
+              </p>
+            )}
             {error && (
               <p role="alert" className="text-error">
                 {error}
@@ -353,6 +380,8 @@ export default function AdsManagement({
                   edit("page_id", "");
                   edit("asset_id", "");
                   edit("campaign_id", "");
+                  edit("universal_beneficiary", "");
+                  edit("universal_payer", "");
                 }}
               />
               <SelectField
@@ -363,6 +392,8 @@ export default function AdsManagement({
                 options={accounts.map((a) => ({ value: a.id, label: a.name }))}
                 onChange={(v) => {
                   setConnection(v);
+                  edit("universal_beneficiary", "");
+                  edit("universal_payer", "");
                   intent.current = null;
                 }}
               />
@@ -395,6 +426,42 @@ export default function AdsManagement({
             </p>
             {form.operation === "create" ? (
               <>
+                <fieldset className="ads-panel space-y-3">
+                  <legend className="font-semibold">
+                    Malaysia advertiser declaration
+                  </legend>
+                  <p className="text-sm text-text-secondary">
+                    Explicitly choose the verified advertiser (beneficiary) and
+                    payer for this Ad Set. Enter their Meta verified identity
+                    IDs; Page IDs and company names are not identity IDs. Meta
+                    must validate them before recovery approval.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[
+                      [
+                        "universal_beneficiary",
+                        "Advertiser (beneficiary) identity ID",
+                      ],
+                      ["universal_payer", "Payer identity ID"],
+                    ].map(([key, label]) => (
+                      <AdminFormField key={key} label={label}>
+                        <input
+                          className="control"
+                          required
+                          inputMode="numeric"
+                          pattern="[0-9]{1,30}"
+                          maxLength={30}
+                          value={form[key]}
+                          onChange={(e) => edit(key, e.target.value)}
+                        />
+                      </AdminFormField>
+                    ))}
+                  </div>
+                  <p className="text-xs text-text-secondary">
+                    No automatic identity selection. A numeric ID alone does not
+                    establish verification.
+                  </p>
+                </fieldset>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <AdminFormField label="Campaign name">
                     <input
@@ -625,7 +692,7 @@ function RevisionDetail({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         {can("marketing_ads.manage") &&
-          r.state === "reconciling" &&
+          (r.state === "reconciling" || r.configuration.recovery_source) &&
           r.operation === "create" &&
           r.provider_state?.pending === "adset" && (
             <button
@@ -669,6 +736,32 @@ function RevisionDetail({
           <dd className="!text-sm">{r.timezone}</dd>
         </div>
       </dl>
+      {r.configuration.regional_regulation_identities && (
+        <section className="ads-panel text-sm space-y-2">
+          <h3 className="font-semibold">Malaysia advertiser declaration</h3>
+          <p>
+            Advertiser (beneficiary):{" "}
+            {
+              r.configuration.regional_regulation_identities
+                .universal_beneficiary
+            }
+          </p>
+          <p>
+            Payer:{" "}
+            {r.configuration.regional_regulation_identities.universal_payer}
+          </p>
+          {r.configuration.promoted_object && (
+            <p>Promoted Page: {r.configuration.promoted_object.page_id}</p>
+          )}
+          {r.configuration.recovery_source && (
+            <p>
+              Validation proposal for the existing paused Campaign. The original
+              Reconciling record remains unchanged; creation recovery needs
+              separate authorization.
+            </p>
+          )}
+        </section>
+      )}
       {r.configuration.caption && (
         <section>
           <h3 className="font-semibold">Creative</h3>

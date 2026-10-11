@@ -85,6 +85,15 @@ export function createPayloads(change: any, ids: any) {
       optimization_goal:
         c.objective === "OUTCOME_TRAFFIC" ? "LINK_CLICKS" : "IMPRESSIONS",
       targeting,
+      ...(c.adset_contract_version === 2
+        ? {
+            regional_regulated_categories: c.regional_regulated_categories,
+            regional_regulation_identities: c.regional_regulation_identities,
+            ...(c.objective === "OUTCOME_AWARENESS"
+              ? { promoted_object: c.promoted_object }
+              : {}),
+          }
+        : {}),
       ...(c.objective === "OUTCOME_TRAFFIC"
         ? { destination_type: "WEBSITE" }
         : {}),
@@ -249,6 +258,8 @@ export async function advanceAdsChange({
   if (reconcileOnly && state.pending)
     return { outcome: "reconciling", code: "manual_reconciliation_required" };
   if (!reconcileOnly) {
+    if (change.configuration.adset_contract_version !== 2)
+      throw new MetaError("adset_declaration_revision_required");
     if (Date.parse(change.configuration.start_time) <= Date.now())
       throw new MetaError("ad_schedule_elapsed");
     await verifyCreativeAccess(graph, token, change.configuration, guard);
@@ -322,6 +333,25 @@ export async function advanceAdsChange({
         expectedSpec.link_data[k as keyof typeof expectedSpec.link_data],
     );
   const targeting = set?.targeting;
+  let matchingDeclaration = true;
+  if (change.configuration.adset_contract_version === 2 && set?.id) {
+    await guard();
+    const declaration = await graph.request(set.id, token, {
+      fields:
+        "regional_regulated_categories,regional_regulation_identities,promoted_object",
+    });
+    matchingDeclaration =
+      canonical(declaration.regional_regulated_categories) ===
+        canonical(change.configuration.regional_regulated_categories) &&
+      ["universal_beneficiary", "universal_payer"].every(
+        (key) =>
+          declaration.regional_regulation_identities?.[key] ===
+          change.configuration.regional_regulation_identities?.[key],
+      ) &&
+      (change.configuration.objective !== "OUTCOME_AWARENESS" ||
+        declaration.promoted_object?.page_id ===
+          change.configuration.promoted_object?.page_id);
+  }
   const matchingAudience =
     canonical(targeting?.geo_locations?.countries) === canonical(["MY"]) &&
     Number(targeting?.age_min) === Number(change.configuration.age_min) &&
@@ -340,6 +370,7 @@ export async function advanceAdsChange({
     !matchingCreative ||
     !matchingAudience ||
     !matchingSchedule ||
+    !matchingDeclaration ||
     set?.optimization_goal !==
       createPayloads(change, state).adset.optimization_goal ||
     set?.billing_event !== "IMPRESSIONS" ||
@@ -471,9 +502,15 @@ export async function executeAdsChange(
     if (material && error instanceof MetaError && error.adsEvidence) {
       try {
         await call("marketing_ads_change_checkpoint", {
-          ...args, p_state: { ...material.change.provider_state, last_error: error.adsEvidence },
+          ...args,
+          p_state: {
+            ...material.change.provider_state,
+            last_error: error.adsEvidence,
+          },
         });
-      } catch { /* Evidence failure must not mask the original safe outcome. */ }
+      } catch {
+        /* Evidence failure must not mask the original safe outcome. */
+      }
     }
     const outcome =
       !material ||

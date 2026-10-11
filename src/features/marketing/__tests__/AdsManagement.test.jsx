@@ -78,6 +78,13 @@ describe("native Ads control surface", () => {
     await screen.findByText("No advertising revisions");
     fireEvent.click(screen.getByRole("button", { name: "Prepare change" }));
     expect(await screen.findByRole("dialog")).toBeTruthy();
+    const beneficiary = screen.getByLabelText(
+      "Advertiser (beneficiary) identity ID",
+    );
+    const payer = screen.getByLabelText("Payer identity ID");
+    expect(beneficiary.value).toBe("");
+    expect(payer.value).toBe("");
+    expect(beneficiary.required && payer.required).toBe(true);
     expect(screen.getByRole("button", { name: "Save revision" })).toBeTruthy();
     expect(screen.getByText(/Creation starts paused/)).toBeTruthy();
     expect(ads.executeChange).not.toHaveBeenCalled();

@@ -9,7 +9,11 @@ export async function validatePausedAdSet(
 ) {
   const id = change.provider_state?.campaign_id;
   if (
-    change.state !== "reconciling" ||
+    !(
+      change.state === "reconciling" ||
+      (change.configuration?.recovery_source &&
+        ["draft", "review", "approved"].includes(change.state))
+    ) ||
     change.operation !== "create" ||
     change.provider_state?.pending !== "adset" ||
     !/^\d{1,30}$/.test(id || "") ||
