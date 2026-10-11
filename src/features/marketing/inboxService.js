@@ -74,6 +74,7 @@ export const inboxService = {
     }),
   preview: (id, text) =>
     rpc("marketing_inbox_faq_preview", { p_conversation: id, p_text: text }),
+  profiles: (conversationIds) => invoke('profiles',{body:{conversationIds}}),
   configuration: () => invoke("configuration", { method: "GET" }),
   verifyConnection: (connectionId) => invoke('verify-connection',{body:{connectionId}}),
   sendApproved: (requestId,draftId) => invoke('send-approved',{body:{requestId,draftId}}),

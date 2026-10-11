@@ -6,125 +6,158 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import MarketingInboxPage from "../MarketingInboxPage.jsx";
 import { marketingService } from "../marketingService.js";
 import { inboxService } from "../inboxService.js";
-vi.mock(
-  "../../../auth/AuthContext.jsx",
-  () => ({
-    useAuth: () => ({ user: { id: "user" }, hasPermission: () => true }),
-  }),
-);
-vi.mock(
-  "../marketingService.js",
-  () => ({ marketingService: { context: vi.fn() } }),
-);
-vi.mock(
-  "../inboxService.js",
-  () => ({
-    inboxService: Object.fromEntries(
-      [
-        "read",
-        "detail",
-        "command",
-        "configure",
-        "preview",
-        "configuration",
-        "suggest",
-        "reviewAI",
-        "markRead",
-        "analytics",
-        "verifyConnection",
-        "sendApproved",
-      ].map((k) => [k, vi.fn()]),
-    ),
-  }),
-);
+import { conversationTimeline, socialIdentity } from "../inboxPresentation.js";
+vi.mock("../../../auth/AuthContext.jsx", () => ({
+  useAuth: () => ({ user: { id: "user" }, hasPermission: () => true }),
+}));
+vi.mock("../marketingService.js", () => ({
+  marketingService: { context: vi.fn() },
+}));
+vi.mock("../inboxService.js", () => ({
+  inboxService: Object.fromEntries(
+    [
+      "read",
+      "detail",
+      "command",
+      "configure",
+      "preview",
+      "configuration",
+      "suggest",
+      "reviewAI",
+      "markRead",
+      "analytics",
+      "verifyConnection",
+      "sendApproved",
+      "profiles",
+    ].map((k) => [k, vi.fn()]),
+  ),
+}));
 const conversation = {
   id: "c",
   brand_id: "b",
   version: 2,
-  title: "Internal QA case",
-  channel: "internal",
+  title: "Brand B conversation",
+  channel: "instagram",
+  medium: "dm",
   status: "open",
   priority: "normal",
   tags: [],
   escalation_reasons: [],
   takeover: true,
 };
+const draft = {
+  id: "d",
+  status: "approved",
+  body: "Exact approved answer",
+  source_version: 2,
+  provenance: "human",
+  source_references: [],
+};
+let detail;
 beforeEach(() => {
   vi.resetAllMocks();
-  inboxService.analytics.mockResolvedValue({volume:1,unresolved:1});
-  inboxService.markRead.mockResolvedValue(null);
+  inboxService.profiles.mockResolvedValue({ profiles: {} });
   marketingService.context.mockResolvedValue({
     organizations: [{ id: "o", name: "Organization" }],
-    brands: [{ id: "b", organization_id: "o", name: "Brand B" }, {
-      id: "other",
-      organization_id: "o",
-      name: "Other Brand",
-    }],
+    brands: [
+      { id: "b", organization_id: "o", name: "Brand B" },
+      { id: "other", organization_id: "o", name: "Other Brand" },
+    ],
   });
-  inboxService.configuration.mockResolvedValue({ ai_configured: false });
+  inboxService.configuration.mockResolvedValue({
+    ai_configured: false,
+    staff_send_configured: false,
+  });
+  inboxService.analytics.mockResolvedValue({ volume: 1, unresolved: 1 });
+  inboxService.markRead.mockResolvedValue(null);
   inboxService.read.mockResolvedValue({
-    rows: [{ ...conversation, brand_name: "Brand B" }],
+    rows: [
+      {
+        ...conversation,
+        brand_name: "Brand B",
+        latest_message: "Hello",
+        latest_message_at: "2026-10-11T01:00:00Z",
+        unread_count: 1,
+      },
+    ],
     total: 1,
-    channels: [{
-      connection_id: "meta",
-      channel: "facebook",
-      account_name: "Test Page",
-      state: "permission_unavailable",
-      receiving_verified: false,
-    }],
+    members: [],
+    channels: [],
     faqs: [],
     policy: { revision: 0 },
     knowledge: null,
   });
-  inboxService.detail.mockResolvedValue({
+  detail = {
     conversation,
-    messages: [{
-      id: "note",
-      kind: "note",
-      body: "Review this case",
-      occurred_at: "2026-10-10T01:00:00Z",
-      actor_name: "Operator",
-    }],
-    total: 1,
-    drafts: [{
-      id: "d",
-      status: "approved",
-      body: "Prepared reply",
-      source_version: 2,
-      provenance: "human",
-      source_references: [],
-    }],
+    messages: [
+      {
+        id: "incoming",
+        kind: "incoming",
+        body: "Hello",
+        occurred_at: "2026-10-11T01:00:00Z",
+      },
+      {
+        id: "note",
+        kind: "note",
+        body: "Team follow-up",
+        actor_name: "Operator",
+        occurred_at: "2026-10-11T01:01:00Z",
+      },
+      {
+        id: "read",
+        kind: "read",
+        body: "Technical receipt",
+        occurred_at: "2026-10-11T01:02:00Z",
+      },
+    ],
+    total: 2,
+    drafts: [draft],
     artifacts: [],
     members: [],
-  });
+    window_open: true,
+    channel_capability: { receiving_verified: true },
+    outbox: [{ draft_id: "d", state: "blocked" }],
+  };
+  inboxService.detail.mockImplementation(() => Promise.resolve(detail));
 });
 afterEach(cleanup);
-it("labels internal evidence and disabled delivery, with unavailable AI", async () => {
+async function select() {
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Instagram customer/ }),
+  );
+  await screen.findByText("Team follow-up");
+}
+it("defaults to social conversations and never substitutes brand identity or renders receipts as chat", async () => {
   render(<MarketingInboxPage />);
-  await screen.findByText("Internal QA case");
-  fireEvent.click(screen.getByText("Internal QA case"));
-  await screen.findByText("Review this case");
-  expect(screen.getByText("Internal note")).toBeTruthy();
-  expect(screen.getByText(/Delivery: Blocked/)).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Suggest reply" }).disabled).toBe(
+  await select();
+  expect(inboxService.read).toHaveBeenCalledWith(
+    expect.objectContaining({ channel: "social" }),
+  );
+  expect(screen.queryByText("Brand B conversation")).toBeNull();
+  expect(screen.queryByText("Technical receipt")).toBeNull();
+  expect(screen.getByRole("article", { name: "Internal note" })).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Send", exact: true }).disabled,
+  ).toBe(true);
+  expect(screen.getByRole("button", { name: "AI Suggest" }).disabled).toBe(
     true,
   );
-  expect(screen.queryByRole("button", { name: /^send/i })).toBeNull();
+  expect(screen.queryByText(/tokens/)).toBeNull();
 });
-it("uses the canonical command for a note and clears obsolete conversation evidence on scope change", async () => {
+it("uses the canonical note authority and clears old content on brand scope change", async () => {
   inboxService.command.mockResolvedValue({ conversation });
   render(<MarketingInboxPage />);
-  fireEvent.click(await screen.findByText("Internal QA case"));
-  await screen.findByText("Review this case");
-  fireEvent.click(screen.getByRole("button", { name: "Add internal note" }));
-  fireEvent.change(screen.getByLabelText("Internal note"), {
-    target: { value: "Human follow-up" },
+  await select();
+  fireEvent.click(screen.getByRole("button", { name: "Internal note" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Internal note" }), {
+    target: { value: "New staff note" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Save note" }));
   await waitFor(() =>
     expect(inboxService.command).toHaveBeenCalledWith(
       expect.any(String),
@@ -132,64 +165,147 @@ it("uses the canonical command for a note and clears obsolete conversation evide
       "b",
       conversation,
       "note",
-      { body: "Human follow-up" },
-    )
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Brand" }));
-  fireEvent.click(screen.getByRole("option", { name: "Other Brand" }));
-  await waitFor(() =>
-    expect(screen.queryByText("Review this case")).toBeNull()
-  );
-});
-it("labels a past approval as historical when conversation evidence changed", async () => {
-  inboxService.detail.mockResolvedValue({
-    conversation,
-    messages: [],
-    total: 0,
-    drafts: [{
-      id: "old",
-      status: "approved",
-      body: "Earlier proposal",
-      source_version: 1,
-      provenance: "human",
-      source_references: [],
-    }],
-    artifacts: [],
-    members: [],
-  });
-  render(<MarketingInboxPage />);
-  fireEvent.click(await screen.findByText("Internal QA case"));
-  expect(
-    await screen.findByText(
-      /Historical approval; conversation history changed/,
+      { body: "New staff note" },
     ),
-  ).toBeTruthy();
-  expect(screen.queryByText(/Approval recorded for this history version/))
-    .toBeNull();
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Brand", exact: true }));
+  fireEvent.click(screen.getByRole("option", { name: "Other Brand" }));
+  await waitFor(() => expect(screen.queryByText("Team follow-up")).toBeNull());
 });
-
-it('passes assignee/unread filters to the canonical read and shows unavailable response metrics',async()=>{
- render(<MarketingInboxPage/>);
- await screen.findByText('Internal QA case');
- fireEvent.click(screen.getByRole('button',{name:'Assignee',exact:true}));
- fireEvent.click(screen.getByRole('option',{name:'Assigned to me'}));
- fireEvent.click(screen.getByLabelText('Unread only'));
- await waitFor(()=>expect(inboxService.read).toHaveBeenLastCalledWith(expect.objectContaining({assignee:'me',unread:true,page:1})));
- expect(screen.getByText(/Median first response Unavailable/)).toBeTruthy();
-});
-
-it("requires a separate staff confirmation and hides sending after an uncertain attempt", async()=>{
-  const social={...conversation,channel:"facebook",title:"Authorized test DM"};
-  inboxService.configuration.mockResolvedValue({staff_send_configured:true});
-  inboxService.detail.mockResolvedValue({conversation:social,messages:[],total:0,drafts:[{id:"d",status:"approved",body:"Exact approved test reply",source_version:2,source_references:[]}],artifacts:[],members:[],window_open:true,channel_capability:{receiving_verified:true},outbox:[{draft_id:"d",state:"blocked"}]});
-  render(<MarketingInboxPage/>);
-  fireEvent.click(await screen.findByRole("button",{name:/Internal QA case/}));
-  fireEvent.click(await screen.findByRole("button",{name:"Send approved reply"}));
+it("requires a separate confirmation and cannot resend an uncertain attempt", async () => {
+  inboxService.configuration.mockResolvedValue({ staff_send_configured: true });
+  render(<MarketingInboxPage />);
+  await select();
+  fireEvent.click(screen.getByRole("button", { name: "Send", exact: true }));
   expect(inboxService.sendApproved).not.toHaveBeenCalled();
-  expect(screen.getByRole("button",{name:"Confirm send"})).toBeTruthy();
-  inboxService.sendApproved.mockResolvedValue({state:"reconciling"});
-  inboxService.detail.mockResolvedValue({...await inboxService.detail(),outbox:[{draft_id:"d",state:"reconciling"}]});
-  fireEvent.click(screen.getByRole("button",{name:"Confirm send"}));
-  await waitFor(()=>expect(screen.queryByRole("button",{name:"Send approved reply"})).toBeNull());
-  expect(inboxService.sendApproved).toHaveBeenCalledTimes(1);
+  inboxService.sendApproved.mockImplementation(() => {
+    detail = { ...detail, outbox: [{ draft_id: "d", state: "reconciling" }] };
+    return Promise.resolve({ state: "reconciling" });
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Confirm send" }));
+  await waitFor(() =>
+    expect(inboxService.sendApproved).toHaveBeenCalledTimes(1),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Send", exact: true }).disabled,
+    ).toBe(true),
+  );
+});
+it("an edited approved reply cannot be sent without a new draft and approval", async () => {
+  inboxService.configuration.mockResolvedValue({ staff_send_configured: true });
+  render(<MarketingInboxPage />);
+  await select();
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Send", exact: true }).disabled,
+    ).toBe(false),
+  );
+  fireEvent.change(screen.getByLabelText("Reply"), {
+    target: { value: "Changed answer" },
+  });
+  expect(
+    screen.getByRole("button", { name: "Send", exact: true }).disabled,
+  ).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  await waitFor(() =>
+    expect(inboxService.command).toHaveBeenCalledWith(
+      expect.any(String),
+      "o",
+      "b",
+      conversation,
+      "draft",
+      { body: "Changed answer" },
+    ),
+  );
+  expect(inboxService.sendApproved).not.toHaveBeenCalled();
+});
+it("passes assignee/unread filters and shows details only when requested", async () => {
+  render(<MarketingInboxPage />);
+  await select();
+  expect(
+    screen.queryByRole("complementary", { name: "Customer details" }),
+  ).toBeNull();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Show customer details" }),
+  );
+  expect(
+    screen.getByRole("complementary", { name: "Customer details" }),
+  ).toBeTruthy();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Close customer details" }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Assignee", exact: true }),
+  );
+  fireEvent.click(screen.getByRole("option", { name: "Assigned to me" }));
+  fireEvent.click(screen.getByLabelText("Unread only"));
+  await waitFor(() =>
+    expect(inboxService.read).toHaveBeenLastCalledWith(
+      expect.objectContaining({ assignee: "me", unread: true, page: 1 }),
+    ),
+  );
+});
+it("maps receipts only to their exact outbound message and keeps accepted sends without fabricating echoes", () => {
+  const records = {
+    messages: [
+      {
+        id: "a",
+        kind: "echo",
+        provider_message_id: "one",
+        body: "First",
+        occurred_at: "2026-10-11T01:00:00Z",
+      },
+      {
+        id: "r",
+        kind: "read",
+        provider_message_id: "two",
+        occurred_at: "2026-10-11T01:02:00Z",
+      },
+    ],
+    drafts: [
+      { id: "d2", body: "Second" },
+      { id: "unsent", body: "Never sent" },
+    ],
+    outbox: [
+      { draft_id: "d1", provider_message_id: "one", state: "sent" },
+      {
+        draft_id: "d2",
+        provider_message_id: "two",
+        state: "read",
+        sent_at: "2026-10-11T01:01:00Z",
+      },
+      { draft_id: "unsent", state: "blocked" },
+    ],
+  };
+  const result = conversationTimeline(records);
+  expect(result).toHaveLength(2);
+  expect(result[0].send_state).toBe("sent");
+  expect(result[1]).toMatchObject({ body: "Second", send_state: "read" });
+  expect(
+    socialIdentity({
+      ...conversation,
+      customer_profile: { handle: "actual_customer" },
+    }).name,
+  ).toBe("@actual_customer");
+  expect(socialIdentity(conversation).name).toBe("Instagram customer");
+});
+it("prevents sending outside the messaging window even when staff sending is configured", async () => {
+  inboxService.configuration.mockResolvedValue({ staff_send_configured: true });
+  detail.window_open = false;
+  render(<MarketingInboxPage />);
+  await select();
+  expect(
+    screen.getByRole("button", { name: "Send", exact: true }).disabled,
+  ).toBe(true);
+  expect(screen.getByText(/Reply window closed/)).toBeTruthy();
+});
+
+it('keeps an unsaved reply while refreshing the same conversation',async()=>{
+ render(<MarketingInboxPage/>);await select();
+ fireEvent.change(screen.getByRole('textbox',{name:'Reply',exact:true}),{target:{value:'Unsaved human reply'}});
+ fireEvent.click(screen.getByRole('button',{name:'Refresh',exact:true}));
+ await waitFor(()=>expect(inboxService.detail).toHaveBeenCalledTimes(2));
+ expect(screen.getByRole('textbox',{name:'Reply',exact:true}).value).toBe('Unsaved human reply');
+ expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
 });

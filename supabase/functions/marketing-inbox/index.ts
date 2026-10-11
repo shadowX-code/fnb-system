@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { STAGING_ORIGIN, STAGING_SUPABASE, connectionBinding, unseal } from "../_shared/metaSecurity.ts";
+import {profileFields,sanitizeInboxProfile} from "../_shared/metaInboxProfile.ts";
 import { MetaGraph, MetaError } from "../_shared/metaGraph.ts";
 import { verifyInboxConnection } from "../_shared/metaInboxVerification.ts";
 import { advanceInboxDelivery, inboxConnectorContracts } from "../_shared/metaInboxAdapters.ts";
@@ -139,6 +140,32 @@ Deno.serve(async (req) => {
       webhook_url: `${STAGING_SUPABASE}/functions/v1/marketing-inbox/webhook`,
       connectors: inboxConnectorContracts,
     });
+  }
+  if(path==='/profiles'&&req.method==='POST') {
+    try {
+      const raw=await req.text();if(raw.length>2000)return json({error:'Request too large.'},413);
+      const ids=JSON.parse(raw).conversationIds;
+      if(!Array.isArray(ids)||ids.length>20||ids.some(id=>typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id)))return json({error:'Choose up to twenty conversations.'},400);
+      const profiles:Record<string,unknown>={};
+      const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')});
+      const pending=[...new Set<string>(ids)];
+      await Promise.all(Array.from({length:Math.min(4,pending.length)},async()=>{
+        while(pending.length) {
+          const id=pending.shift()!;
+          try {
+            const material=await rpc(service,'marketing_inbox_profile_material',{p_conversation:id,p_auth_user:identity.data.user.id});
+            const connection=material.connection;
+            if(!['622626120924115','17841473217923034'].includes(connection.provider_account_id))throw new Error('test_scope');
+            const credential=await unseal(connection.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(connection));
+            const result=await graph.request(material.peer,credential.token,{fields:profileFields(connection.channel)});
+            const fresh=await rpc(service,'marketing_inbox_profile_material',{p_conversation:id,p_auth_user:identity.data.user.id});
+            if(fresh.generation!==material.generation||fresh.peer!==material.peer)throw new Error('profile_scope_changed');
+            profiles[id]=sanitizeInboxProfile(result,connection.channel);
+          }catch{profiles[id]={available:false};}
+        }
+      }));
+      return json({profiles});
+    }catch{return json({error:'Customer profiles unavailable.'},409);}
   }
   if (path==='/verify-connection' && req.method==='POST') {
     try {
