@@ -141,6 +141,8 @@ AI reply generation pins the latest incoming customer question separately from c
 
 Messaging verification independently reads the Meta app subscriptions with its server-only App token, reporting only object, active/registered state, the exact Staging callback match and supported field names. It never returns callback credentials or unrelated subscription data. App registration alone does not verify account subscriptions or real inbound delivery.
 
+Meta App `2204918033458414` uses the approved public bilingual Privacy Policy at `https://feedx.my/privacy` and is Published after separate explicit authorization. Publication is app-wide across existing use cases, not a brand-scoped FeedX execution toggle or Advanced Access approval. Current Page/Instagram callback and account subscriptions, app-role/access eligibility and a genuine signed inbound event still gate live Inbox acceptance. Existing Idamans credential bindings and disabled publishing/messaging execution remain separate. No autonomous replies or general-customer messaging support follows from publication alone.
+
 
 ### Meta Inbox Privacy Erasure
 
