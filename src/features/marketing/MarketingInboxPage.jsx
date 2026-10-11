@@ -11,11 +11,12 @@ import {
   Facebook,
   Check,
   CheckCheck,
-  SlidersHorizontal,
   MoreHorizontal,
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import WorkspacePage from "../../components/layout/WorkspacePage.jsx";
+import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
 import ActionMenu from "../../components/ui/ActionMenu.jsx";
@@ -148,7 +149,6 @@ export default function MarketingInboxPage() {
     [configuration, setConfiguration] = useState(null);
   const [verification, setVerification] = useState(null),
     [detailsOpen, setDetailsOpen] = useState(false),
-    [filtersOpen, setFiltersOpen] = useState(false),
     [actionsOpen, setActionsOpen] = useState(false),
     [sendStatus, setSendStatus] = useState(null),
     [profiles, setProfiles] = useState({ scope: null, rows: {} });
@@ -451,9 +451,8 @@ export default function MarketingInboxPage() {
       live = false;
     };
   }, [detailKey]);
-  const controls = (
-    <div className="marketing-inbox-controls">
-      {context.organizations.length > 1 && (
+  const controls = <div className="marketing-inbox-controls">
+    <div className="admin-scope-controls" aria-label="Marketing scope">      {context.organizations.length > 1 && (
         <SelectField
           label="Organization"
           value={org}
@@ -476,28 +475,10 @@ export default function MarketingInboxPage() {
           ...brands.map((b) => ({ value: b.id, label: b.name })),
         ]}
       />
-      <Field
-        label="Search conversations"
-        value={search}
-        maxLength={100}
-        onChange={(e) => {
-          setSearch(e.target.value);
-          setPage(1);
-          setSelected("");
-        }}
-      />
-      <button
-        className="btn-secondary"
-        aria-expanded={filtersOpen}
-        onClick={() => setFiltersOpen((v) => !v)}
-      >
-        <SlidersHorizontal size={15} />
-        Filters
-      </button>
-      {filtersOpen && (
-        <div className="inbox-secondary-filters">
-          {" "}
-          <SelectField
+</div>
+    <AdminFilterToolbar compact denseFields ariaLabel="Conversation filters"
+      search={<AdminSearchField label="Search" ariaLabel="Search conversations" value={search} maxLength={100} onChange={value=>{setSearch(value);setPage(1);setSelected('')}}/>}
+      moreFilters={<>          <SelectField
             label="Channel"
             value={channel}
             onChange={(v) => {
@@ -541,10 +522,8 @@ export default function MarketingInboxPage() {
             />
             Unread only
           </label>
-        </div>
-      )}
-    </div>
-  );
+</>}/>
+  </div>;
   const identity = c ? socialIdentity(withProfile(c)) : null;
   const timeline = current ? conversationTimeline(current) : [];
   useEffect(() => {

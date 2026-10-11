@@ -36,7 +36,7 @@ const row = {
 };
 const props = {
   organizationId: "org",
-  brandId: "",
+  brandId: "brand",
   refresh: 0,
   open: vi.fn(),
   command: vi.fn(),
@@ -79,14 +79,6 @@ it("shares filters across views and uses accurate day overflow rather than a pag
   }));
   render(<ContentManagement {...props} />);
   await screen.findByRole("table");
-  fireEvent.change(screen.getByLabelText("From"), {
-    target: { value: "1 May 2026" },
-  });
-  fireEvent.change(screen.getByLabelText("To"), {
-    target: { value: "31 May 2026" },
-  });
-  fireEvent.blur(screen.getByLabelText("From"));
-  fireEvent.blur(screen.getByLabelText("To"));
   fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
   fireEvent.change(screen.getByLabelText("Calendar date"), {
     target: { value: "2026-05-22" },
@@ -152,10 +144,9 @@ it("expands per-channel evidence without adding execution actions", async () => 
 it("uses the shared active-filter contract and allows removing a filter", async () => {
   render(<ContentManagement {...props} />);
   await screen.findByRole("table");
-  fireEvent.change(screen.getByLabelText("From"), {
-    target: { value: "21 May 2026" },
-  });
-  fireEvent.blur(screen.getByLabelText("From"));
+  fireEvent.click(screen.getByRole('button',{name:'Date Range',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:'Today',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:'Apply',exact:true}));
   const remove = await screen.findByRole("button", {
     name: "Remove From filter",
   });
@@ -169,4 +160,14 @@ it("uses the shared active-filter contract and allows removing a filter", async 
 
 it('persists configurable metric columns without changing shared records',async()=>{
  render(<ContentManagement {...props}/>);await screen.findByRole('table');fireEvent.click(screen.getByRole('button',{name:'Columns'}));fireEvent.click(screen.getByRole('checkbox',{name:'Saves'}));expect(localStorage.getItem('admin.presentation.marketing.metrics.test-user')).toContain('saves');expect(screen.getByRole('columnheader',{name:'Saves'})).toBeTruthy();expect(service.contentManagement.mock.calls.at(-1)[0].view).toBe('list');
+});
+
+it('opens a row through pointer, keyboard and View once, while expansion stays independent',async()=>{
+ render(<ContentManagement {...props}/>);await screen.findByRole('table');
+ expect(screen.queryByRole('columnheader',{name:'Brand'})).toBeNull();
+ for(const label of ['Reach','Views','Interactions','Likes','Comments','Shares'])expect(screen.getByRole('columnheader',{name:label})).toBeTruthy();
+ const tr=screen.getByRole('table').querySelector('tbody tr');
+ fireEvent.keyDown(tr,{key:'Enter'});expect(await screen.findByRole('dialog')).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Close modal'}));
+ fireEvent.click(tr);expect(await screen.findByRole('dialog')).toBeTruthy();
 });

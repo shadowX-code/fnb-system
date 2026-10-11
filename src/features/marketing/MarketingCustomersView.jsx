@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MoreHorizontal, Upload, Plus } from 'lucide-react';
 import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
+import AdminSearchField from '../../components/forms/AdminSearchField.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import AdminPagination from '../../components/tables/AdminPagination.jsx';
 import DataTable from '../../components/tables/DataTable.jsx';
@@ -20,7 +21,7 @@ export default function MarketingCustomersView({org,brand,data,can,refresh,show,
  const actions=c=><CustomerActions customer={c} can={can} show={show} openConsent={openConsent}/>;
  return <section className="outreach-customers">
   <div className="outreach-section-heading"><p>{result?`${result.total} ${result.total===1?'customer':'customers'}`:'Customers'}<small>Brand relationships and WhatsApp eligibility</small></p><div className="outreach-actions">{can('platform_customers.manage')?<><button className="btn-secondary" onClick={onImport}><Upload size={15}/> Import</button><button className="btn-primary" onClick={()=>show('customer',{language:'EN'})}><Plus size={15}/> Add customer</button></>:null}</div></div>
-  <AdminFilterToolbar compact denseFields ariaLabel="Customer filters" search={<label className="outreach-field">Search<input className="control" type="search" aria-label="Search customers" placeholder="Name, phone or tag" value={filters.search} onChange={e=>change('search',e.target.value)}/></label>} filters={<>
+  <AdminFilterToolbar compact denseFields ariaLabel="Customer filters" search={<AdminSearchField ariaLabel="Search customers" placeholder="Name, phone or tag" value={filters.search} onChange={value=>change('search',value)}/>} filters={<>
    <SelectField label="WhatsApp consent" value={filters.consent} onChange={v=>change('consent',v)} options={[{value:'',label:'All'},{value:'eligible',label:'Opted in'},{value:'required',label:'Consent required'},{value:'suppressed',label:'Suppressed'}]}/>
    <SelectField label="Segment" value={filters.segment} onChange={v=>change('segment',v)} options={[{value:'',label:'All segments'},...(data.audiences||[]).map(a=>({value:a.id,label:a.name}))]}/>
    <SelectField label="Outlet" value={filters.outlet} onChange={v=>change('outlet',v)} options={[{value:'',label:'All outlets'},...(data.outlets||[]).map(o=>({value:o.id,label:o.name}))]}/>

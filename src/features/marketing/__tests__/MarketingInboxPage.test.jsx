@@ -238,7 +238,7 @@ it("passes assignee/unread filters and shows details only when requested", async
   fireEvent.click(
     screen.getByRole("button", { name: "Close customer details" }),
   );
-  fireEvent.click(screen.getByRole("button",{name:"Filters",exact:true}));
+  fireEvent.click(screen.getByRole("button",{name:"More filters",exact:true}));
   fireEvent.click(
     screen.getByRole("button", { name: "Assignee", exact: true }),
   );

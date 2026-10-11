@@ -75,7 +75,7 @@ Admin cross-domain presentation primitives live under `src/components/`: `PageHe
 
 ### Admin Page Composition
 
-`AdminFilterToolbar` is full available page width in both standard and compact density. Compact changes spacing, not container width. Search receives flexible space while select fields remain bounded and wrap at narrower widths. Content save state and local table presentation modes belong in the content section header rather than the query toolbar; Par Levels keeps its existing autosave authority and uses `AdminSegmentedControl` there for Outlet/Matrix views.
+`AdminFilterToolbar` is full available page width in both standard and compact density. Compact changes spacing, not container width. `admin-scope-controls` provides separate wrapping organization/brand context; Marketing record filters consume the shared toolbar and labeled search/date-range controls rather than Factory-specific wrappers. Search receives flexible space while select fields remain bounded and wrap at narrower widths. Content save state and local table presentation modes belong in the content section header rather than the query toolbar; Par Levels keeps its existing autosave authority and uses `AdminSegmentedControl` there for Outlet/Matrix views.
 
 Shared `SelectField`, `DatePickerField`, and `MonthPickerField` provide branded selection controls rather than OS-native menus. `FloatingLayer` mounts anchored popovers inside the nearest active dialog when present, otherwise to the document body, keeping modal options/calendars in the same accessible tree. Date Picker arrow-key focus uses its calendar owner rather than the non-portaled input wrapper.
 

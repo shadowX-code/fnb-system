@@ -1,12 +1,12 @@
 import { describe,it,expect,vi,beforeEach } from 'vitest';
 import { render,screen,fireEvent,waitFor,cleanup } from '@testing-library/react';
 import MarketingWorkspacePage from '../MarketingWorkspacePage.jsx';
-const {service,auth}=vi.hoisted(()=>({service:{context:vi.fn(),read:vi.fn(),setup:vi.fn(),content:vi.fn(),detail:vi.fn(),structure:vi.fn(),listing:vi.fn()},auth:{user:{id:'user'},hasPermission:vi.fn(()=>true)}}));
+const {service,auth}=vi.hoisted(()=>({service:{context:vi.fn(),read:vi.fn(),setup:vi.fn(),content:vi.fn(),detail:vi.fn(),structure:vi.fn(),listing:vi.fn(),contentManagement:vi.fn()},auth:{user:{id:'user'},hasPermission:vi.fn(()=>true)}}));
 vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>auth}));
 vi.mock('../marketingService.js',()=>({marketingService:service}));
 const context={organizations:[{id:'org',name:'Organization'}],brands:[{id:'brand',organization_id:'org',name:'Brand',timezone:'Asia/Kuala_Lumpur',outlet_ids:[]}],actor_employee_id:'actor'};
 const read={rows:[],total:0,summary:{review:0,approved:0,scheduled:0,published:0},assets:[],jobs:[],knowledge:[],connections:[],role_scopes:[]};
-beforeEach(()=>{cleanup();vi.clearAllMocks();auth.hasPermission.mockImplementation(()=>true);service.context.mockResolvedValue(context);service.read.mockResolvedValue(read);service.listing.mockResolvedValue({rows:[],total_count:0});service.setup.mockResolvedValue({outlets:[],employees:[],roles:[],members:[]});service.structure.mockResolvedValue({});service.content.mockResolvedValue({});});
+beforeEach(()=>{cleanup();sessionStorage.clear();window.history.replaceState({},'','/');vi.clearAllMocks();auth.hasPermission.mockImplementation(()=>true);service.context.mockResolvedValue(context);service.contentManagement.mockResolvedValue({rows:[],total_count:0,day_counts:{}});service.read.mockResolvedValue(read);service.listing.mockResolvedValue({rows:[],total_count:0});service.setup.mockResolvedValue({outlets:[],employees:[],roles:[],members:[]});service.structure.mockResolvedValue({});service.content.mockResolvedValue({});});
 describe('native Marketing foundation',()=>{
   it('reports unavailable evidence without invented social metrics',async()=>{
     render(<MarketingWorkspacePage/>);
@@ -43,4 +43,17 @@ describe('native Marketing foundation',()=>{
     resolve({...read,rows:[{id:'old',payload:{title:'Obsolete scope record',variants:[]},status:'draft'}]});
     await waitFor(()=>expect(screen.queryByText('Obsolete scope record')).toBeNull());
   });
+});
+
+it('Content Management retains an authorized specific brand while Library still offers All',async()=>{
+ render(<MarketingWorkspacePage section="calendar"/>);
+ await waitFor(()=>expect(service.contentManagement).toHaveBeenCalled());
+ expect(service.contentManagement.mock.calls[0][0].brandId).toBe('brand');
+ fireEvent.click(screen.getByRole('button',{name:'Brand',exact:true}));
+ expect(screen.queryByRole('option',{name:'All authorized brands'})).toBeNull();
+ expect(new URLSearchParams(window.location.search).get('marketing_brand')).toBe('brand');
+ cleanup();render(<MarketingWorkspacePage section="content"/>);
+ await waitFor(()=>expect(service.read.mock.calls.at(-1)[0].brandId).toBe('brand'));
+ fireEvent.click(screen.getByRole('button',{name:'Brand',exact:true}));
+ expect(screen.getByRole('option',{name:'All authorized brands'})).toBeTruthy();
 });

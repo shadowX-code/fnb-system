@@ -127,7 +127,8 @@ describe("Ads read-only workspace", () => {
     render(<MarketingAdsPage />);
     await screen.findByText("Connect your first Ad Account");
     const before = ads.read.mock.calls.length;
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", {name:"Date Range",exact:true}));
+    fireEvent.click(screen.getByRole("button", {name:"Clear",exact:true}));
     await screen.findByText("Select a valid period of up to 94 days.");
     expect(ads.read.mock.calls.length).toBe(before);
   });

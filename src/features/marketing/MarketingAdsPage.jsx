@@ -3,7 +3,7 @@ import { useAuth } from "../../auth/AuthContext.jsx";
 import WorkspacePage from "../../components/layout/WorkspacePage.jsx";
 import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
-import DatePickerField from "../../components/forms/DatePickerField.jsx";
+import FeedXDateRangePicker from "../../components/ui/FeedXDateRangePicker.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import AdminUnderlineTabs from "../../components/navigation/AdminUnderlineTabs.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
@@ -337,7 +337,7 @@ export default function MarketingAdsPage() {
     },
   ];
   const controls = (
-    <AdminFilterToolbar>
+    <div className="space-y-3"><div className="admin-scope-controls" aria-label="Marketing scope">
       <SelectField
         label="Organization"
         value={org}
@@ -365,6 +365,7 @@ export default function MarketingAdsPage() {
           setLevel("campaign");
         }}
       />
+</div><AdminFilterToolbar compact denseFields ariaLabel="Ads date filters" periodAfterFilters period={<FeedXDateRangePicker from={from} to={to} today={today()} onApply={({from,to})=>{setFrom(from);setTo(to)}}/>}>
       <SelectField
         label="Period"
         value={
@@ -395,15 +396,13 @@ export default function MarketingAdsPage() {
           { value: "90", label: "Last 90 days" },
         ]}
       />
-      <DatePickerField label="From" value={from} onChange={setFrom} />
-      <DatePickerField label="To" value={to} onChange={setTo} />
       <button
         className="btn-secondary"
         onClick={() => setRefresh((v) => v + 1)}
       >
         Refresh data
       </button>
-    </AdminFilterToolbar>
+    </AdminFilterToolbar></div>
   );
   return (
     <WorkspacePage
@@ -728,7 +727,7 @@ export default function MarketingAdsPage() {
           ))}
         {tab === "campaigns" && data?.accounts.length > 0 && (
           <>
-            <AdminFilterToolbar>
+            <AdminFilterToolbar compact denseFields ariaLabel="Advertising filters">
               <SelectField
                 label="Result type"
                 value={resultType}

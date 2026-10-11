@@ -14,10 +14,6 @@
 .marketing-inbox-controls > div:last-child {
   flex: 1.5 1 190px;
 }
-.marketing-inbox-controls .control,
-.marketing-inbox-controls button {
-  font-size: 12px;
-}
 .marketing-inbox-check {
   display: flex;
   align-items: center;
@@ -714,3 +710,8 @@
  .inbox-header-controls > div {flex:1;}
  .inbox-takeover-state {font-size:10px;}
 }
+
+/* Layout only: field sizing and filter interaction belong to shared Admin controls. */
+.marketing-inbox-controls{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.marketing-inbox-controls>.admin-scope-controls{display:flex;flex:none}
+.marketing-inbox-controls .admin-filter-toolbar{width:100%}

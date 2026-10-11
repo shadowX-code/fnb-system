@@ -1,3 +1,4 @@
+import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
 import { useMemo, useState } from "react";
 import DataTable from "../../components/tables/DataTable.jsx";
 import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
@@ -89,7 +90,7 @@ export default function AdsAttributionReview({
   );
   return (
     <div className="space-y-4 mt-4">
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_auto] gap-3 items-end">
+      <AdminFilterToolbar compact denseFields ariaLabel="Attribution filters">
         <AdminSearchField
           label="Search campaigns"
           value={search}
@@ -124,7 +125,7 @@ export default function AdsAttributionReview({
             Review selected ({selected.length})
           </button>
         )}
-      </div>
+      </AdminFilterToolbar>
       <p className="text-xs text-text-secondary">
         Identity evidence identifies the Meta asset, not its FeedX owner. Name
         suggestions never assign a brand. Batch review requires one consistent

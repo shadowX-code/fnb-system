@@ -1,20 +1,19 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useState } from "react";
 import {
   CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Facebook,
   Image,
-  Instagram,
   List,
-  MoreHorizontal,
+  Eye,
   SlidersHorizontal,
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
-import AdminFormField from "../../components/forms/AdminFormField.jsx";
+import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
+import FeedXDateRangePicker from "../../components/ui/FeedXDateRangePicker.jsx";
 import AdminSegmentedControl from "../../components/forms/AdminSegmentedControl.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
@@ -24,7 +23,6 @@ import AdminPagination, {
 import AsyncDataSurface from "../../components/feedback/AsyncDataSurface.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
 import ActionMenu from "../../components/ui/ActionMenu.jsx";
-import DatePickerField from "../../components/forms/DatePickerField.jsx";
 import PostDetail from "./PostDetail.jsx";
 import Badge from "../../components/ui/Badge.jsx";
 import { marketingService } from "./marketingService.js";
@@ -116,13 +114,11 @@ function Status({ value }) {
   );
 }
 function Channel({ value }) {
-  const Icon = value === "facebook" ? Facebook : Instagram;
-  return (
-    <span className="cm-channel">
-      <Icon size={13} aria-hidden="true" />
-      {contentStatusLabel(value)}
-    </span>
-  );
+  const gradient = useId();
+  const label = value === "facebook" ? "Facebook" : "Instagram";
+  return <span className={`cm-channel cm-channel-${value}`} role="img" aria-label={label} title={label}>
+    {value === "facebook" ? <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1877F2" d="M24 12a12 12 0 1 0-13.875 11.855v-8.386H7.078V12h3.047V9.356c0-3.007 1.792-4.669 4.533-4.669 1.313 0 2.686.235 2.686.235v2.953H15.83c-1.49 0-1.955.925-1.955 1.874V12h3.328l-.532 3.469h-2.796v8.386A12.003 12.003 0 0 0 24 12Z"/></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id={gradient} x1="0" y1="1" x2="1" y2="0"><stop stopColor="#FFDC80"/><stop offset=".3" stopColor="#F77737"/><stop offset=".6" stopColor="#E1306C"/><stop offset="1" stopColor="#833AB4"/></linearGradient></defs><rect x="2.5" y="2.5" width="19" height="19" rx="5.5" fill="none" stroke={`url(#${gradient})`} strokeWidth="2.5"/><circle cx="12" cy="12" r="4.25" fill="none" stroke={`url(#${gradient})`} strokeWidth="2.5"/><circle cx="18" cy="6" r="1.4" fill={`url(#${gradient})`}/></svg>}
+  </span>;
 }
 function Thumbnail({ channel }) {
   const [url, setUrl] = useState(channel?.thumbnail_url || "");
@@ -190,10 +186,7 @@ function PublishDate({ row, channel }) {
   return (
     <span className="cm-date">
       <strong>{formatDate(value)}</strong>
-      <small>
-        {formatTime(value)} ·{" "}
-        {actual ? "Published" : row.scheduled_at ? "Scheduled" : "Planned"}
-      </small>
+      <small>{formatTime(value)}</small>
     </span>
   );
 }
@@ -235,14 +228,12 @@ export default function ContentManagement(
   const [external, setExternal] = useState(null);
   const [metricColumns,setMetricColumns]=useState(()=>preferredMetricColumns(auth.user?.id));
   const [columnsOpen,setColumnsOpen]=useState(false);
-  const [actionKey,setActionKey]=useState(null);
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search.trim()), 250);
     return () => clearTimeout(timer);
   }, [search]);
   useEffect(() => {
     setExternal(null);
-    setActionKey(null);
     setExpanded({});
   }, [organizationId, brandId, auth.user?.id]);
   useEffect(() => {
@@ -272,7 +263,7 @@ export default function ContentManagement(
   const [state, actions] = useAdminPagedQuery({
     storageKey: `marketing.content-management.${auth.user?.id}`,
     querySignature: signature,
-    enabled: Boolean(organizationId) && !bounds.error,
+    enabled: Boolean(organizationId && brandId) && !bounds.error,
     shouldClearOnError: () => true,
     loadPage: async ({ page, pageSize }) => {
       if (bounds.empty) {
@@ -310,84 +301,7 @@ export default function ContentManagement(
     else open({ type: "review", content: row });
   }
   function rowActions(row) {
-    const uncertain = row.channels.some((v) =>
-      ["leased", "reconciling", "succeeded"].includes(v.job_state)
-    );
-    return (
-      <ActionMenu open={actionKey===row.key} onOpenChange={value=>setActionKey(value?row.key:null)} ariaLabel={`Actions for ${row.title}`} trigger={({toggle,open})=><button className="icon-btn" aria-label={`Actions for ${row.title}`} aria-haspopup="menu" aria-expanded={open} onClick={toggle}><MoreHorizontal size={16}/></button>}><div className="cm-actions" onClick={()=>setActionKey(null)}>
-        <button
-          className="admin-action-menu-item" role="menuitem"
-          disabled={busy}
-          onClick={() => show(row)}
-        >
-          Details
-        </button>
-        {row.origin === "feedx" && can("marketing_content.view")
-          ? (
-            <>
-              {!uncertain && !["published", "cancelled"].includes(row.status) &&
-                  can("marketing_content.edit")
-                ? (
-                  <button
-                    className="admin-action-menu-item" role="menuitem"
-                    disabled={busy}
-                    onClick={() =>
-                      open({
-                        type: "content",
-                        content: row,
-                        payload: structuredClone(row.payload),
-                      })}
-                  >
-                    Edit
-                  </button>
-                )
-                : null}
-              {["draft", "rejected"].includes(row.status) &&
-                  can("marketing_content.review")
-                ? (
-                  <button
-                    className="admin-action-menu-item" role="menuitem"
-                    disabled={busy}
-                    onClick={() => command("review", row)}
-                  >
-                    Submit review
-                  </button>
-                )
-                : null}
-              {row.status === "approved" && can("marketing_content.publish")
-                ? (
-                  <button
-                    className="admin-action-menu-item" role="menuitem"
-                    disabled={busy}
-                    onClick={() =>
-                      open({
-                        type: "schedule",
-                        content: row,
-                        local: "",
-                        timezone: CONTENT_TIMEZONE,
-                      })}
-                  >
-                    Schedule
-                  </button>
-                )
-                : null}
-              {!uncertain && !["published", "cancelled"].includes(row.status) &&
-                  can("marketing_content.cancel")
-                ? (
-                  <button
-                    className="admin-action-menu-item" role="menuitem"
-                    disabled={busy}
-                    onClick={() => command("cancel", row)}
-                  >
-                    Cancel
-                  </button>
-                )
-                : null}
-            </>
-          )
-          : null}
-      </div></ActionMenu>
-    );
+    return <button type="button" className="icon-btn" aria-label={`View ${row.title}`} title="View post" onClick={() => show(row)}><Eye size={16}/></button>;
   }
   function contentCell(row, variant = null) {
     const media = variant || row.channels.find(v=>v.thumbnail_url || v.asset?.mime_type?.startsWith("image/")) || row.channels[0];
@@ -461,12 +375,6 @@ export default function ContentManagement(
         row.heading
           ? <strong>{row.heading}</strong>
           : contentCell(row.parent, row.variant),
-    },
-    {
-      key: "brand",
-      header: "Brand",
-      width: "10%",
-      render: (row) => row.heading ? null : <span>{row.brand_name}</span>,
     },
     {
       key: "channel",
@@ -547,22 +455,11 @@ export default function ContentManagement(
         compact
         denseFields
         ariaLabel="Content filters"
-        search={
-          <AdminFormField label="Search">
-            <input
-              className="control"
-              type="search"
-              placeholder="Title or caption"
-              value={search}
-              maxLength={200}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </AdminFormField>
-        }
+        search={<AdminSearchField label="Search" ariaLabel="Search content" placeholder="Title or caption" value={search} maxLength={200} onChange={setSearch}/>}
+        period={<FeedXDateRangePicker from={from} to={to} today={localInput(new Date(), CONTENT_TIMEZONE).slice(0,10)} onApply={({from: start,to: end})=>{setFrom(start);setTo(end);if(view==='calendar'&&start)setAnchor(start)}}/>}
+        periodAfterFilters
         filters={
           <>
-            <DatePickerField label="From" value={from} onChange={value=>{setFrom(value);if(view==='calendar'&&value)setAnchor(value)}}/>
-            <DatePickerField label="To" value={to} onChange={setTo}/>
             <SelectField
               label="Channel"
               value={channel}
@@ -718,6 +615,7 @@ export default function ContentManagement(
                   columns={columns}
                   rows={tableRows}
                   getRowKey={(row) => row.key}
+                  getRowProps={row => row.heading ? {} : { tabIndex: 0, "aria-label": `View ${row.title}`, onClick: () => show(row.parent), onKeyDown: event => { if (event.target === event.currentTarget && ["Enter", " "].includes(event.key)) { event.preventDefault(); show(row.parent); } } }}
                   density="compact"
                   columnSpacing="compact"
                   minWidth={0}
@@ -735,10 +633,9 @@ export default function ContentManagement(
                   row.heading
                     ? <h2 key={row.key}>{row.heading}</h2>
                     : (
-                      <article className="card cm-mobile-row" key={row.key}>
+                      <article className="card cm-mobile-row" key={row.key} tabIndex={0} aria-label={`View ${row.title}`} onClick={event=>{if(!event.target.closest("button, a, input"))show(row)}} onKeyDown={event=>{if(event.target===event.currentTarget&&["Enter"," "].includes(event.key)){event.preventDefault();show(row)}}}>
                         {contentCell(row)}
                         <div className="cm-mobile-meta">
-                          <span>{row.brand_name}</span>
                           <Status value={row.status} />
                           <PublishDate row={row} />
                         </div>

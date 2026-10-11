@@ -112,7 +112,7 @@ export function safePostLink(value) {
  try {const u=new URL(value);return u.protocol==='https:' && /(^|\.)(facebook\.com|instagram\.com)$/.test(u.hostname)?value:null;}catch{return null;}
 }
 export function preferredMetricColumns(userId) {
- try {const saved=JSON.parse(localStorage.getItem(`admin.presentation.marketing.metrics.${userId}`));if(Array.isArray(saved)&&saved.every(k=>POST_METRICS.some(m=>m.key===k)))return saved;}catch{}return ['reach','views','interactions'];
+ try {const saved=JSON.parse(localStorage.getItem(`admin.presentation.marketing.metrics.${userId}`));if(Array.isArray(saved)&&saved.every(k=>POST_METRICS.some(m=>m.key===k)))return saved;}catch{}return ['reach','views','interactions','likes','comments','shares'];
 }
 export function saveMetricColumns(userId,columns) {
  try{localStorage.setItem(`admin.presentation.marketing.metrics.${userId}`,JSON.stringify(columns));}catch{}

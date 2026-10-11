@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Plus, Upload, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
-import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import AdminFormField from '../../components/forms/AdminFormField.jsx';
 import AdminSummaryGrid from '../../components/ui/AdminSummaryGrid.jsx';
@@ -71,7 +70,9 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
       setContext(result);
       if (!callbackScopeApplied.current) {
         callbackScopeApplied.current = true;
-        const query = new URLSearchParams(window.location.search), org = query.get('marketing_org'), selectedBrand = query.get('marketing_brand');
+        const query = new URLSearchParams(window.location.search);
+        let saved = {}; try { saved = JSON.parse(sessionStorage.getItem(`marketing.content-scope.${auth.user?.id}`) || '{}'); } catch {}
+        const org = query.get('marketing_org') || (['calendar','content'].includes(section) ? saved.org : ''), selectedBrand = query.get('marketing_brand') || (['calendar','content'].includes(section) ? saved.brand : '');
         if (result.organizations.some(o => o.id === org) && result.brands.some(b => b.id === selectedBrand && b.organization_id === org)) { setOrganizationId(org);setBrandId(selectedBrand);return; }
       }
       setOrganizationId(current => result.organizations.some(o => o.id === current) ? current : result.organizations[0]?.id || '');
@@ -90,7 +91,13 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
   }, [key, booting]);
   useEffect(() => { setPage(1); setModal(null); request.current = null; setNotice(''); }, [organizationId, brandId, section, auth.user?.id]);
   useEffect(() => { if(data && page>Math.max(1,Math.ceil(data.total/pageSize)))setPage(Math.max(1,Math.ceil(data.total/pageSize))); },[data?.total,page,pageSize]);
-  useEffect(() => { if (brandId && !brands.some(b => b.id === brandId) && !booting) setBrandId(''); }, [context, organizationId, brandId, booting]);
+  useEffect(() => { if (!booting && !brands.some(b => b.id === brandId)) setBrandId(section === 'calendar' ? brands[0]?.id || '' : ''); }, [context, organizationId, brandId, booting, section]);
+  useEffect(() => {
+    if (booting || !brand || section !== 'calendar') return;
+    try { sessionStorage.setItem(`marketing.content-scope.${auth.user?.id}`, JSON.stringify({org: organizationId, brand: brandId})); } catch {}
+    const url = new URL(window.location.href); url.searchParams.set('marketing_org', organizationId); url.searchParams.set('marketing_brand', brandId);
+    window.history.replaceState(window.history.state, '', url);
+  }, [organizationId, brandId, booting, section, auth.user?.id]);
   useEffect(() => {
     let live = true; setDetail(null);
     if (modal?.content?.id && can('marketing_content.view')) marketingService.detail(modal.content.id)
@@ -116,10 +123,10 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
     return mutate(() => marketingService.content({ ...intent, requestId: request.current.id }), commandName === 'schedule' ? 'Publishing time saved. External execution requires a separate approval to enabled accounts.' : 'Content updated.');
   }
   const open = value => { setError(''); request.current = null; setModal(value); };
-  const scopeControls = <AdminFilterToolbar ariaLabel="Marketing scope" filters={<>
+  const scopeControls = <div className="admin-scope-controls" aria-label="Marketing scope">
     <SelectField label="Organization" value={organizationId} onChange={value => { if (!busy) { setOrganizationId(value); setBrandId(''); } }} options={context.organizations.map(o => ({ value:o.id,label:o.name }))} />
-    <SelectField label="Brand" value={brandId} onChange={value => { if (!busy) setBrandId(value); }} options={[{value:'',label:'All authorized brands'},...brands.map(b=>({value:b.id,label:b.name}))]} />
-  </>} />;
+    <SelectField label="Brand" value={brandId} onChange={value => { if (!busy) setBrandId(value); }} options={[...(section === 'calendar' ? [] : [{value:'',label:'All authorized brands'}]),...brands.map(b=>({value:b.id,label:b.name}))]} />
+  </div>;
   const actions = <>
     {section==='content' && brand && can('marketing_content.create') ? <button className="btn-primary" disabled={busy} onClick={()=>open({type:'content',content:null,payload:newPayload()})}><Plus size={15}/> New draft</button> : null}
     {section==='content' && brand && can('marketing_content.upload') ? <label className="btn-secondary"><Upload size={15}/> Upload media<input className="sr-only" aria-label="Upload brand media" type="file" accept="image/jpeg,image/png,image/webp,video/mp4" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)mutate(()=>marketingService.upload(organizationId,brandId,file),'Brand media uploaded.');}} /></label> : null}
@@ -147,7 +154,7 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
           <MarketingListPanel organizationId={organizationId} brandId={brandId} kind="assets" refresh={refresh} emptyTitle="No uploaded brand media" renderRows={rows=>rows.map(a=><div className="marketing-row" key={a.id}><span><strong>{a.filename}</strong><small>{a.mime_type} · {(a.size_bytes/1024/1024).toFixed(1)} MB</small></span><button className="btn-secondary" disabled={busy} onClick={()=>mutate(async()=>{const url=await marketingService.assetUrl(a);window.open(url,'_blank','noopener,noreferrer');},'Media opened with a temporary private link.')}><ExternalLink size={14}/> Open</button></div>)}/>
         </section>
       </> : null}
-      {data && section==='calendar' ? <ContentManagement key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} refresh={refresh} open={open} command={command} busy={busy} can={can}/> : null}
+      {data && brand && section==='calendar' ? <ContentManagement key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} refresh={refresh} open={open} command={command} busy={busy} can={can}/> : null}
       {data && section==='settings' ? <div className="marketing-settings-tabs" role="tablist" aria-label="Marketing settings"><button className="btn-secondary" role="tab" aria-selected={settingsTab==='social'} onClick={()=>setSettingsTab('social')}>Social Accounts</button><button className="btn-secondary" role="tab" aria-selected={settingsTab==='knowledge'} onClick={()=>setSettingsTab('knowledge')}>Knowledge & access</button></div> : null}
       {data && section==='settings' && settingsTab==='knowledge' ? <Settings data={data} setup={setup} brands={brands} brand={brand} can={can} busy={busy} open={open} actorId={context.actor_employee_id} removeMember={employeeId=>mutate(()=>marketingService.structure('remove_member',organizationId,{employee_id:employeeId}),'Organization membership removed.')}/> : null}
     </AsyncDataSurface>
@@ -164,6 +171,12 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
         if(modal.type==='scope')mutate(()=>marketingService.roleScope(organizationId,modal.roleId,modal.all,modal.brands),'Role brand scope saved.');
         if(modal.type==='schedule'){try{command('schedule',modal.content,{scheduled_at:scheduleInstant(modal.local,modal.timezone),timezone:modal.timezone});}catch(e){setError(e.message);}}
       }}>{busy?'Saving…':modal.type==='schedule'?'Save schedule':'Save'}</button> : null}
+      {modal.type==='review' && !modal.content.channels?.some(v=>['leased','reconciling','succeeded'].includes(v.job_state)) ? <>
+        {!['published','cancelled'].includes(modal.content.status) && can('marketing_content.edit') ? <button className="btn-secondary" disabled={busy} onClick={()=>open({type:'content',content:modal.content,payload:structuredClone(modal.content.payload)})}>Edit</button> : null}
+        {['draft','rejected'].includes(modal.content.status) && can('marketing_content.review') ? <button className="btn-secondary" disabled={busy} onClick={()=>command('review',modal.content)}>Submit review</button> : null}
+        {modal.content.status==='approved' && can('marketing_content.publish') ? <button className="btn-secondary" disabled={busy} onClick={()=>open({type:'schedule',content:modal.content,local:'',timezone})}>Schedule</button> : null}
+        {!['published','cancelled'].includes(modal.content.status) && can('marketing_content.cancel') ? <button className="btn-secondary" disabled={busy} onClick={()=>command('cancel',modal.content)}>Cancel</button> : null}
+      </> : null}
       {modal.type==='review' && modal.content.status==='review' && can('marketing_content.approve') ? <><button className="btn-secondary" disabled={busy||!modal.reason?.trim()} onClick={()=>command('reject',modal.content,{reason:modal.reason})}>Reject</button><button className="btn-primary" disabled={busy} onClick={()=>command('approve',modal.content)}>Approve revision {modal.content.revision}</button></> : null}
     </>}>
       <ModalBody modal={modal} setModal={setModal} brands={brands} brand={brand} setup={setup} assets={[...new Map([...(data?.assets||[]),...(detail && detail.id===modal.content?.id?detail.assets:[])].map(a=>[a.id,a])).values()]} can={can} onExecutionComplete={()=>{setModal(null);setRefresh(v=>v+1);setNotice('External execution authorized for the reviewed revision.');}} detail={detail && detail.id===modal.content?.id?detail:null}/>
