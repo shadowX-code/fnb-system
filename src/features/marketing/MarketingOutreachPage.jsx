@@ -366,7 +366,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
             <AsyncDataSurface loading={loading} error={null} hasData={!!data}>
               {data&&tab==='customers'?<MarketingCustomersView key={brand} org={org} brand={brand} data={data} can={can} refresh={refresh} show={show} onImport={()=>setImportOpen(true)}/>:null}
               {data&&tab==='segments'?<section>
-                <div className="outreach-section-heading"><p>{data.audiences.length} segments<small>Rules define the audience; consent determines eligibility.</small></p>{can('marketing_audience.manage')?<button className="btn-primary" onClick={()=>show('audience',{})}><Plus size={15}/> New segment</button>:null}</div>
+                <div className="outreach-section-heading"><p>{data.audiences.length} {data.audiences.length===1?'segment':'segments'}<small>Rules define the audience; consent determines eligibility.</small></p>{can('marketing_audience.manage')?<button className="btn-primary" onClick={()=>show('audience',{})}><Plus size={15}/> New segment</button>:null}</div>
                 {data.audiences.length?<OutreachCollection rows={data.audiences} getRowKey={a=>a.id} columns={[
                   {key:'name',header:'Segment',render:a=><strong>{a.name}</strong>},
                   {key:'criteria',header:'Audience rules',render:a=>[a.criteria.tag&&`Tag: ${a.criteria.tag}`,a.criteria.language&&`Language: ${a.criteria.language}`,a.criteria.outlet_id&&`Outlet: ${data.outlets.find(o=>o.id===a.criteria.outlet_id)?.name||'Unavailable'}`].filter(Boolean).join(' · ')||'All eligible brand customers'},
@@ -382,7 +382,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                 <>
                   <section className="space-y-3">
                     <div className="outreach-section-heading">
-                      {active?<button className="btn-secondary" onClick={()=>{setCampaign('');setPage(1)}}><ArrowLeft size={15}/> All campaigns</button>:<p>{filteredCampaigns.length} campaigns<small>Manual WhatsApp delivery</small></p>}
+                      {active?<button className="btn-secondary" onClick={()=>{setCampaign('');setPage(1)}}><ArrowLeft size={15}/> All campaigns</button>:<p>{filteredCampaigns.length} {filteredCampaigns.length===1?'campaign':'campaigns'}<small>Manual WhatsApp delivery</small></p>}
                       {can('marketing_campaigns.manage')?<button className="btn-primary" onClick={()=>show('campaign',{caption:'Hi {name}, ',audience_id:data.audiences[0]?.id||''})}><Plus size={15}/> New campaign</button>:null}
                     </div>
                     {!active?<AdminFilterToolbar compact denseFields ariaLabel="Campaign filters" search={<input className="control" type="search" aria-label="Search campaigns" placeholder="Search campaigns" value={campaignSearch} onChange={e=>setCampaignSearch(e.target.value)}/>} filters={<SelectField label="Campaign status" value={campaignStatus} onChange={setCampaignStatus} options={[{value:'',label:'All statuses'},...['draft','review','approved','ready','cancelled'].map(value=>({value,label:names[value]}))]}/>}/>:null}
@@ -485,8 +485,8 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                       </>
                     ) : null}
                   </section>
-                  {active?.status === "ready" ? (
-                    <section className="card p-4 space-y-3">
+                  {active?.status === "ready" && data.recipients.some(r=>["pending","opened"].includes(r.state)) ? (
+                    <section className="outreach-queue space-y-3">
                       <h3>Manual WhatsApp queue</h3>
                       <SelectField
                         label="Registered sender"
@@ -620,7 +620,17 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                       ) : (
                         <p>No eligible pending recipients on this page.</p>
                       )}
-                      <div className="outreach-actions">
+                    </section>
+                  ) : null}
+                  {active&&data.recipients.length?<section aria-label="Campaign recipient results" className="space-y-3"><h3 className="text-sm font-semibold">Recipient results · current queue page</h3><OutreachCollection rows={data.recipients} getRowKey={r=>r.id} columns={[
+                    {key:'display_name',header:'Customer'},
+                    {key:'state',header:'Handling',render:r=><Badge tone={r.state==='staff_confirmed'?'success':r.state==='skipped'?'warning':'default'}>{names[r.state]}</Badge>},
+                    {key:'eligible',header:'Current consent',render:r=>r.eligible?'Eligible':'Contact blocked'},
+                    {key:'sender',header:'Sender',render:r=>data.senders.find(s=>s.id===r.sender_id)?.label||'Not selected'},
+                    {key:'result',header:'Result',render:r=>r.state==='staff_confirmed'?'Staff confirmation only':r.state==='skipped'?r.skip_reason||'Skipped':'Not confirmed'}
+                  ]}/></section>:null}
+                  {active?.status==='ready'&&!loading&&!data.recipients.some(r=>['pending','opened'].includes(r.state))?<p className="text-sm text-text-secondary">{(data.progress.pending||0)+(data.progress.opened||0)>0?'No pending recipients on this page.':'All recipients have been handled. Staff confirmations are shown in results.'}</p>:null}
+                  {active?.status==='ready'&&(data.recipients.length>0||page>1)?<>                      <div className="outreach-actions">
                         <button
                           className="btn-secondary"
                           disabled={page === 1}
@@ -637,15 +647,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                           Next
                         </button>
                       </div>
-                    </section>
-                  ) : null}
-                  {active&&data.recipients.length?<section aria-label="Campaign recipient results" className="space-y-3"><h3 className="text-sm font-semibold">Recipient results · current queue page</h3><OutreachCollection rows={data.recipients} getRowKey={r=>r.id} columns={[
-                    {key:'display_name',header:'Customer'},
-                    {key:'state',header:'Handling',render:r=><Badge tone={r.state==='staff_confirmed'?'success':r.state==='skipped'?'warning':'default'}>{names[r.state]}</Badge>},
-                    {key:'eligible',header:'Current consent',render:r=>r.eligible?'Eligible':'Contact blocked'},
-                    {key:'sender',header:'Sender',render:r=>data.senders.find(s=>s.id===r.sender_id)?.label||'Not selected'},
-                    {key:'result',header:'Result',render:r=>r.state==='staff_confirmed'?'Staff confirmation only':r.state==='skipped'?r.skip_reason||'Skipped':'Not confirmed'}
-                  ]}/></section>:null}
+</>:null}
                 </>
               ) : null}
             </AsyncDataSurface>
