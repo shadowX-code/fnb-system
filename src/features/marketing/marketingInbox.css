@@ -26,7 +26,7 @@
   font-size: 12px;
 }
 .inbox-workspace-content {
-  --inbox-muted: var(--theme-text-secondary, #475569);
+  --inbox-muted: var(--theme-muted, #475569);
   --inbox-surface: var(--theme-surface, #fff);
   --inbox-nested: var(--theme-surface-nested, #f8fafc);
   --inbox-border: var(--theme-border, #dbe1e8);
