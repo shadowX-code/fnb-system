@@ -880,9 +880,9 @@ export default function MarketingAdsPage() {
         >
           <p className="text-sm text-text-secondary">
             {modal.report.account.name} · {modal.report.account.currency} ·{" "}
-            {modal.report.account.timezone}. Observed{" "}
-            {new Date(modal.report.observation).toLocaleString("en-MY")}. Meta
-            configuration remains authoritative.
+            {modal.report.account.timezone}. Reporting period{" "}
+            {modal.report.date_from}–{modal.report.date_to}. Meta configuration
+            remains authoritative.
           </p>
           <MetricGrid
             row={modal.report.insights.account?.[0]}
