@@ -121,7 +121,10 @@ export async function requestAdsAI(
   const refs = adsAIEvidence(packet);
   if (!key || !model || JSON.stringify(refs).length > 60000)
     throw new Error("ai_not_configured");
-  const string = { type: "string" };
+  const string = { type: "string", minLength: 1, maxLength: 1500 };
+  const metricKeys = Object.keys(refs).filter(
+    (k) => refs[k].kind === "meta_metric",
+  );
   const response = await transport("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -161,15 +164,17 @@ export async function requestAdsAI(
                     "proposal",
                     "caution",
                     "reference_keys",
+                    "metric_reference",
                   ],
                   properties: {
                     category: {
                       type: "string",
                       enum: ["strategy", "audience", "creative", "budget"],
                     },
-                    title: string,
+                    title: { type: "string", minLength: 1, maxLength: 160 },
+                    metric_reference: { type: "string", enum: metricKeys },
                     proposal: string,
-                    caution: string,
+                    caution: { type: "string", minLength: 1, maxLength: 1000 },
                     reference_keys: {
                       type: "array",
                       minItems: 1,
@@ -204,7 +209,23 @@ export async function requestAdsAI(
   try {
     if (result.status !== "completed" || text.length !== 1)
       throw new Error("ai_provider_incomplete");
-    return { body: validateAdsProposal(JSON.parse(text[0]), refs), ...usage };
+    return {
+      body: validateAdsProposal(
+        (() => {
+          const parsed = JSON.parse(text[0]);
+          for (const r of parsed.recommendations || []) {
+            if (!metricKeys.includes(r.metric_reference))
+              throw new Error("ai_evidence_invalid");
+            r.reference_keys = [
+              ...new Set([r.metric_reference, ...(r.reference_keys || [])]),
+            ];
+          }
+          return parsed;
+        })(),
+        refs,
+      ),
+      ...usage,
+    };
   } catch (error) {
     // A rejected proposal can still consume tokens. Retain usage, never raw provider output.
     throw Object.assign(

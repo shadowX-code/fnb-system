@@ -137,6 +137,17 @@ Deno.serve(async (req) => {
           }),
         );
       } catch (error) {
+        const reason = [
+          "ai_shape_invalid",
+          "ai_evidence_invalid",
+          "ai_provider_incomplete",
+          "ai_provider_failed",
+          "ai_not_configured",
+          "ads_performance_required",
+        ].includes((error as any)?.message)
+          ? (error as any).message
+          : "ads_request_rejected";
+        console.warn("marketing_ads_copilot_rejected", { reason });
         const usage = observedUsage || (error as any)?.usage;
         if (claim)
           try {

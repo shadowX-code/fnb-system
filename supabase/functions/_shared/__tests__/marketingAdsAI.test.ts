@@ -42,6 +42,7 @@ const proposal = {
   recommendations: [
     {
       category: "strategy",
+      metric_reference: "metric:1:spend",
       title: "Review the selected period",
       proposal: "Review campaign goals before changing spend.",
       caution: "Brand context unavailable.",
