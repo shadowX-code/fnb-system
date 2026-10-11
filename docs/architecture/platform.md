@@ -195,3 +195,5 @@ The approved Marketing Phase 3A dependency adds Platform-owned `platform_custome
 The shared Admin `Modal` supports centered dialogs and `placement="right"` responsive drawers. Both use the same theme tokens, header/footer controls, scrolling, Escape dismissal, keyboard focus containment and focus restoration. Marketing post details consume this shared presentation rather than a separate overlay authority.
 
 Shared `lib/tabularFile` handles bounded CSV/OOXML parsing for import presentation, including quoted multiline CSV, ZIP limits and formula rejection; domain validation and canonical writes remain in their existing owner. Shared EmptyState uses canonical surface tokens in both themes.
+
+Marketing advertising uses the canonical `/marketing/ads` module (`marketing_ads`) within the existing Marketing workspace. It owns Ad Account discovery and advertising projections, independently scoped from Page publishing, Inbox and social analytics; the workspace launcher and shared shell are unchanged.

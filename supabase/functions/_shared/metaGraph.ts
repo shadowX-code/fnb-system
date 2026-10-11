@@ -17,7 +17,7 @@ export class MetaGraph {
  }
  private report(event:MetaDiagnostic) {try{this.diagnostic?.(event);}catch{/* Diagnostics must not change authorization behavior. */}}
  async request(path:string,token:string,params:Record<string,any>={},method='GET',inspect?:(status:number|null,code:number|null,evidence?:MetaResponseEvidence)=>void):Promise<any> {
-  if(!/^\/?(?:\d+(?:_\d+)?|me|oauth|debug_token)(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
+  if(!/^\/?(?:(?:act_)?\d+(?:_\d+)?|me|oauth|debug_token)(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
   const url=new URL(`https://graph.facebook.com/${this.config.version}/${path.replace(/^\//,'')}`);
   const form=new URLSearchParams();for(const [key,value] of Object.entries(params))if(value!==undefined&&value!==null)form.set(key,typeof value==='object'?JSON.stringify(value):String(value));
   if(token&&token!==`${this.config.appId}|${this.config.appSecret}`) {
@@ -49,11 +49,7 @@ export class MetaGraph {
   }
   return body;
  }
- async exchange(code:string):Promise<{userId:string;expiresAt:string;accounts:any[];tokens:Record<string,string>;authorizerAssignments:Record<string,AuthorizerAssignment>}> {
-  try {return await this.discover(code);}
-  catch(error) {this.report({event:'discovery_failed',reason:error instanceof MetaError?error.code:'unexpected_response_handling_error'});throw error;}
- }
- private async discover(code:string):Promise<{userId:string;expiresAt:string;accounts:any[];tokens:Record<string,string>;authorizerAssignments:Record<string,AuthorizerAssignment>}> {
+ async exchangeUser(code:string):Promise<{token:string;debug:any;expiresAt:string}> {
   if(!code||code.length>4096)throw new MetaError('invalid_oauth_code');
   const short=await this.request('oauth/access_token','',{client_id:this.config.appId,client_secret:this.config.appSecret,redirect_uri:META_REDIRECT,code});
   if(typeof short.access_token!=='string')throw new MetaError('missing_oauth_token');
@@ -65,6 +61,15 @@ export class MetaGraph {
   const limits=[debug.expires_at,debug.data_access_expires_at,Math.floor(Date.now()/1000)+Number(long.expires_in||0)].map(Number).filter(v=>Number.isFinite(v)&&v>Date.now()/1000);
   if(!limits.length)throw new MetaError('unknown_token_expiry');
   const expiresAt=new Date(Math.min(...limits)*1000).toISOString();
+  return {token:long.access_token,debug,expiresAt};
+ }
+ async exchange(code:string):Promise<{userId:string;expiresAt:string;accounts:any[];tokens:Record<string,string>;authorizerAssignments:Record<string,AuthorizerAssignment>}> {
+  try {return await this.discover(code);}
+  catch(error) {this.report({event:'discovery_failed',reason:error instanceof MetaError?error.code:'unexpected_response_handling_error'});throw error;}
+ }
+ private async discover(code:string):Promise<{userId:string;expiresAt:string;accounts:any[];tokens:Record<string,string>;authorizerAssignments:Record<string,AuthorizerAssignment>}> {
+  const {token,debug,expiresAt}=await this.exchangeUser(code);
+  const long={access_token:token};
   const scopes=new Set<string>(debug.scopes||[]);
   this.report({event:'token_grants',granted_scopes:selected(debug.scopes,diagnosticScopes),unrecognized_scope_count:Array.isArray(debug.scopes)?debug.scopes.filter((v:unknown)=>!diagnosticScopes.has(String(v))).length:0});
   if(this.diagnostic) {

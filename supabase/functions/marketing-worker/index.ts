@@ -4,6 +4,7 @@ import { MetaError, MetaGraph } from '../_shared/metaGraph.ts';
 import { advanceMetaPublish, testAccountEnabled, verifyMetaMedia } from '../_shared/metaPublishing.ts';
 import { diagnoseMetaConnection } from '../_shared/metaConnectionDiagnostics.ts';
 import { readMetaPosts } from '../_shared/metaSynchronization.ts';
+import { processAdsSync } from '../_shared/metaAds.ts';
 import { commitJournal } from '../_shared/privacyBlob.ts';
 const env=(name:string)=>Deno.env.get(name)||'';
 async function call(db:any,name:string,args:any={}) {const {data,error}=await db.rpc(name,args);if(error)throw new Error('marketing_authority_rejected');return data;}
@@ -81,6 +82,7 @@ Deno.serve(async(req)=>{
    try{const token=await tokenFor(connection);const result=await readMetaPosts(graph,connection,token,guard);posts=result.posts;after=result.after;}catch(error){errorCode=error instanceof MetaError?error.code:'sync_unavailable';}
    await call(db,'marketing_meta_sync_finish',{p_connection:connection.id,p_generation:connection.credential_generation,p_lease:connection.sync_lease,p_posts:posts,p_after:after,p_error:errorCode});
   }
-  await call(db,'marketing_worker_health',{p_completed:true});return reply({status:connection?'synchronized':'idle'});
+  const adsProcessed=connection?false:await processAdsSync(db,graph,env);
+  await call(db,'marketing_worker_health',{p_completed:true});return reply({status:connection?'synchronized':adsProcessed?'ads_synchronized':'idle'});
  }catch{await call(db,'marketing_worker_health',{p_error:'worker_authority_or_network_failure'});return reply({error:'Worker needs investigation.'},503);}
 });

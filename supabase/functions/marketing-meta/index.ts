@@ -4,6 +4,7 @@ import { diagnoseMetaConnection, verifiedFacebookRead } from '../_shared/metaCon
 import { verifyInboxConnection } from '../_shared/metaInboxVerification.ts';
 import { readMetaPosts } from '../_shared/metaSynchronization.ts';
 import { capabilityHealth, subscriptionPlan, installSubscriptions } from '../_shared/metaOnboarding.ts';
+import { discoverAds } from '../_shared/metaAds.ts';
 import { MetaGraph, MetaError } from '../_shared/metaGraph.ts';
 import { commitJournal } from '../_shared/privacyBlob.ts';
 const names=['MARKETING_META_APP_ID','MARKETING_META_APP_SECRET','MARKETING_META_LOGIN_CONFIG_ID','MARKETING_META_GRAPH_VERSION','MARKETING_META_TOKEN_ENCRYPTION_KEY'];
@@ -56,11 +57,11 @@ Deno.serve(async(req)=>{
    let result='cancelled';
    if(!query.has('error')) {
     try {
-     const discovery=await graph.exchange(query.get('code')||'');
-     await call(service,'marketing_meta_stage',{p_session:session.id,p_user_id:discovery.userId,p_sealed:await seal(discovery,key,`oauth:${session.id}`),p_accounts:discovery.accounts});result='select_account';
+     const discovery=session.purpose==='ads'?await discoverAds(graph,query.get('code')||''):await graph.exchange(query.get('code')||'');
+     await call(service,session.purpose==='ads'?'marketing_ads_stage':'marketing_meta_stage',{p_session:session.id,p_user_id:discovery.userId,p_sealed:await seal(discovery,key,`oauth:${session.id}`),p_accounts:discovery.accounts});result='select_account';
     }catch{result='authorization_failed';}
    }
-   const redirect=new URL(`${STAGING_ORIGIN}/marketing/settings`);redirect.searchParams.set('meta_result',result);redirect.searchParams.set('marketing_org',session.organization_id);redirect.searchParams.set('marketing_brand',session.brand_id);
+   const redirect=new URL(`${STAGING_ORIGIN}/marketing/${session.purpose==='ads'?'ads':'settings'}`);redirect.searchParams.set('meta_result',result);redirect.searchParams.set('marketing_org',session.organization_id);redirect.searchParams.set('marketing_brand',session.brand_id);
    return new Response(null,{status:303,headers:{...headers(req),Location:redirect.toString()}});
   }
   if(req.method!=='POST'||!['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions'].includes(path))return json(req,{error:'Endpoint unavailable.'},404);

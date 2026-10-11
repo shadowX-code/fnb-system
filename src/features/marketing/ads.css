@@ -1,0 +1,62 @@
+.ads-panel {
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
+  border-radius: 12px;
+  padding: 16px;
+  min-width: 0;
+}
+.ads-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ads-account > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ads-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(115px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.ads-metrics dt,
+.ads-metrics small {
+  font-size: 11px;
+  color: var(--theme-muted);
+}
+.ads-metrics dd {
+  font-size: 19px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.ads-date {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  gap: 3px;
+}
+.ads-date input {
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  padding: 7px;
+}
+.ads-mobile {
+  display: none;
+}
+@media (max-width: 767px) {
+  .ads-desktop {
+    display: none;
+  }
+  .ads-mobile {
+    display: grid;
+    gap: 10px;
+  }
+  .ads-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -872,3 +872,7 @@ Added the explicitly approved Platform customer/contact identity and brand relat
 ## 2026-10-11 — Reviewed shared customer import and Audience UI
 
 Refined the Phase 3 Customers, Segments, Campaigns and Sender Identities views. Added Platform-owned CSV/XLSX preview/commit commands that reuse the existing customer writer, require field-specific review, block cross-brand identity leakage, preserve consent/suppression and revalidate stale matches at commit. Repeated unchanged imports avoid customer writes. The existing route admits scoped Audience viewers without granting Campaign actions. Staging-only L3 SQL rehearsals use rolled-back disposable records; no external customers, messages or Production scope.
+
+## 2026-10-11 — Marketing Phase 4 read-only advertising foundation
+
+Added independent Meta Ad Account OAuth/binding using the canonical private credential and grant lineage, brand/action authorization, durable reporting jobs and scoped Ads Overview/configuration/drill-down surfaces. Reporting keeps currencies, account timezones, estimated reach and actual Meta attribution separate; optional insights failures preserve core configuration. Ads deletion/revocation/restore replay extends existing privacy safeguards. Live account acceptance and subsequent AI/controlled execution remain pending verified external capabilities; no advertising mutation endpoint or Production release is enabled.
