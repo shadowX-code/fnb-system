@@ -88,6 +88,7 @@ export default function MarketingAdsPage() {
     [data, setData] = useState(null),
     [previous, setPrevious] = useState(null),
     [pending, setPending] = useState([]),
+    [discoveries, setDiscoveries] = useState([]),
     [tab, setTab] = useState("overview"),
     [account, setAccount] = useState(""),
     [level, setLevel] = useState("campaign"),
@@ -150,15 +151,19 @@ export default function MarketingAdsPage() {
     Promise.all([
       adsService.read(org, brand, from, to),
       adsService.read(org, brand, range.from, range.to),
-      brand && can("marketing_ads.connect")
+      can("marketing_ads.connect")
         ? adsService.pending(org, brand)
         : Promise.resolve([]),
+      can("marketing_ads.connect")
+        ? adsService.discovery(org).catch(() => [])
+        : Promise.resolve([]),
     ])
-      .then(([current, before, sessions]) => {
+      .then(([current, before, sessions, reviews]) => {
         if (seq !== generation.current) return;
         setData(current);
         setPrevious(before);
         setPending(sessions);
+        setDiscoveries(reviews);
         setAccount((value) =>
           current.accounts.some((a) => a.id === value)
             ? value
@@ -196,12 +201,8 @@ export default function MarketingAdsPage() {
     }
   }
   async function connect() {
-    if (!brand) {
-      setNotice("Select the FeedX brand that will own this Ad Account.");
-      return;
-    }
     await act(async () => {
-      const result = await adsService.authorize(org, brand);
+      const result = await adsService.authorize(org, null);
       location.assign(result.authorization_url);
     });
   }
@@ -236,6 +237,20 @@ export default function MarketingAdsPage() {
           {r.name}
         </button>
       ),
+    },
+    {
+      key: "feedx_brand",
+      header: "FeedX brand",
+      render: (r) => {
+        const campaign =
+          level === "campaign"
+            ? r
+            : report?.configs.campaigns.find((c) => c.id === r.campaign_id);
+        return (
+          context.brands.find((b) => b.id === campaign?.feedx_brand_id)?.name ||
+          "Unassigned"
+        );
+      },
     },
     {
       key: "effective_status",
@@ -324,7 +339,7 @@ export default function MarketingAdsPage() {
       description="Advertising performance and decisions across your brands."
       controls={controls}
       actions={
-        can("marketing_ads.connect") ? (
+        can("marketing_ads.connect") && data?.organization_access !== false ? (
           <button
             className="btn-primary"
             disabled={busy || !org}
@@ -362,6 +377,29 @@ export default function MarketingAdsPage() {
             description="An administrator must grant organization and brand access."
           />
         ) : null}
+        {data?.organization_access &&
+          discoveries.map((d) => (
+            <section className="ads-panel" key={d.account_id}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <strong>{d.payload.account.name}</strong>
+                  <p className="text-sm text-text-secondary">
+                    Organization discovery ·{" "}
+                    {d.payload.configs.campaigns.length} campaigns · No
+                    connection binding
+                  </p>
+                </div>
+                <button
+                  className="btn-secondary"
+                  onClick={() =>
+                    setModal({ kind: "preview", report: d.payload })
+                  }
+                >
+                  Review history
+                </button>
+              </div>
+            </section>
+          ))}
         {pending.map((session) => (
           <section key={session.id} className="ads-panel">
             <h2 className="font-semibold">Choose an authorized Ad Account</h2>
@@ -397,6 +435,15 @@ export default function MarketingAdsPage() {
                   >
                     Read-only discovery
                   </button>
+                  {data?.organization_access && (
+                    <button
+                      className="btn-secondary"
+                      disabled={!a.available || busy}
+                      onClick={() => setModal({ kind: "bind", session, a })}
+                    >
+                      Connect to organization
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -405,9 +452,10 @@ export default function MarketingAdsPage() {
         {!loading && data && !data.accounts.length ? (
           <EmptyState
             title="Connect your first Ad Account"
-            description="Select a brand, authorize Meta account discovery, then confirm the exact account. Page connections do not grant advertising access."
+            description="Discover shared organization Ad Accounts. Campaigns require explicit brand attribution."
             actions={
-              can("marketing_ads.connect") ? (
+              can("marketing_ads.connect") &&
+              data?.organization_access !== false ? (
                 <button
                   className="btn-secondary"
                   onClick={connect}
@@ -426,7 +474,7 @@ export default function MarketingAdsPage() {
                 <div>
                   <h2 className="font-semibold">{a.name}</h2>
                   <p className="text-sm text-text-secondary">
-                    {context.brands.find((b) => b.id === a.brand_id)?.name} ·{" "}
+                    Organization-owned ·{" "}
                     {a.health?.currency || "Currency unavailable"} ·{" "}
                     {a.health?.timezone || "Timezone unavailable"}
                   </p>
@@ -471,9 +519,8 @@ export default function MarketingAdsPage() {
                 <div>
                   <h2 className="font-semibold">{a.name}</h2>
                   <p className="text-sm">
-                    {context.brands.find((b) => b.id === a.brand_id)?.name} ·{" "}
-                    {a.account_id || "Disconnected"} · {a.health?.currency} ·{" "}
-                    {a.health?.timezone}
+                    Organization-owned · {a.account_id || "Disconnected"} ·{" "}
+                    {a.health?.currency} · {a.health?.timezone}
                   </p>
                 </div>
                 <Badge>
@@ -516,29 +563,30 @@ export default function MarketingAdsPage() {
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
-                {can("marketing_ads.connect") && (
-                  <>
-                    <button
-                      className="btn-secondary"
-                      disabled={busy}
-                      onClick={() => {
-                        setBrand(a.brand_id);
-                        setNotice(
-                          "Brand selected. Connect and choose this same Ad Account to renew authorization.",
-                        );
-                      }}
-                    >
-                      Reconnect
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      disabled={busy || !a.account_id}
-                      onClick={() => setModal({ kind: "disconnect", a })}
-                    >
-                      Disconnect
-                    </button>
-                  </>
-                )}
+                {can("marketing_ads.connect") &&
+                  data?.organization_access !== false && (
+                    <>
+                      <button
+                        className="btn-secondary"
+                        disabled={busy}
+                        onClick={() => {
+                          setBrand("");
+                          setNotice(
+                            "Connect and choose this same organization Ad Account to renew authorization.",
+                          );
+                        }}
+                      >
+                        Reconnect
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        disabled={busy || !a.account_id}
+                        onClick={() => setModal({ kind: "disconnect", a })}
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  )}
                 <button
                   className="btn-secondary"
                   disabled={busy || !a.account_id}
@@ -732,17 +780,143 @@ export default function MarketingAdsPage() {
       </AsyncDataSurface>
       {modal?.kind === "preview" && (
         <Modal
-          open
-          title="Read-only Ad Account discovery"
+          size="3xl"
+          title="Shared Ad Account review"
           onClose={() => setModal(null)}
         >
-          <p>
-            All campaigns remain Unassigned. No account binding or external
-            changes.
+          <p className="text-sm text-text-secondary">
+            {modal.report.account.name} · {modal.report.account.currency} ·{" "}
+            {modal.report.account.timezone}. No brand mappings or external
+            changes were created by discovery.
           </p>
-          <pre className="overflow-auto text-xs max-h-[65vh]">
-            {JSON.stringify(modal.report, null, 2)}
-          </pre>
+          <MetricGrid
+            row={modal.report.insights.account?.[0]}
+            currency={modal.report.account.currency}
+          />
+          <p className="text-sm text-text-secondary mb-3">
+            {modal.report.configs.campaigns.length} campaigns ·{" "}
+            {modal.report.configs.adsets.length} Ad Sets ·{" "}
+            {modal.report.configs.ads.length} Ads. Brand attribution requires
+            explicit organization review.
+          </p>
+          <DataTable
+            columns={[
+              {
+                key: "name",
+                header: "Campaign",
+                render: (c) => (
+                  <>
+                    <strong>{c.name}</strong>
+                    <small className="block">{c.id}</small>
+                  </>
+                ),
+              },
+              {
+                key: "brand",
+                header: "FeedX brand",
+                render: (c) =>
+                  context.brands.find((b) => b.id === c.feedx_brand_id)?.name ||
+                  "Unassigned",
+              },
+              {
+                key: "status",
+                header: "Meta status",
+                render: (c) => c.effective_status,
+              },
+              {
+                key: "identities",
+                header: "Creative identities",
+                render: (c) =>
+                  [
+                    ...new Set(
+                      modal.report.configs.ads
+                        .filter((a) => a.campaign_id === c.id)
+                        .flatMap((a) => [
+                          a.creative?.object_story_spec?.page_id,
+                          a.creative?.object_story_spec?.instagram_user_id,
+                        ])
+                        .filter(Boolean),
+                    ),
+                  ].join(" · ") || "Unavailable",
+              },
+              {
+                key: "review",
+                header: "Review",
+                render: (c) =>
+                  can("marketing_ads.manage") && data?.organization_access ? (
+                    <button
+                      className="btn-secondary"
+                      onClick={() =>
+                        setModal({
+                          kind: "attribute",
+                          campaign: c,
+                          report: modal.report,
+                          brand: c.feedx_brand_id || "",
+                        })
+                      }
+                    >
+                      Attribute
+                    </button>
+                  ) : null,
+              },
+            ]}
+            rows={modal.report.configs.campaigns}
+            getRowKey={(c) => c.id}
+          />
+          <details className="mt-4">
+            <summary>Meta reporting evidence</summary>
+            <pre className="overflow-auto text-xs max-h-60">
+              {JSON.stringify(modal.report.warnings, null, 2)}
+              {modal.report.observation}
+            </pre>
+          </details>
+        </Modal>
+      )}
+      {modal?.kind === "attribute" && (
+        <Modal
+          title="Confirm campaign brand attribution"
+          onClose={() => setModal({ kind: "preview", report: modal.report })}
+          footer={
+            <button
+              className="btn-primary"
+              disabled={busy}
+              onClick={() =>
+                act(async () => {
+                  await adsService.attribute(
+                    org,
+                    modal.report.account.id,
+                    modal.campaign.id,
+                    modal.brand,
+                    modal.campaign.feedx_attribution_revision || 0,
+                    crypto.randomUUID(),
+                  );
+                  setModal(null);
+                  setNotice(
+                    "FeedX attribution updated. Meta advertising is unchanged.",
+                  );
+                })
+              }
+            >
+              Confirm attribution
+            </button>
+          }
+        >
+          <p>
+            {modal.campaign.name} ({modal.campaign.id})
+          </p>
+          <p className="text-sm text-text-secondary my-3">
+            Ad Sets and Ads inherit this brand. Reassignment changes FeedX
+            reporting visibility; it does not alter Meta.
+          </p>
+          <SelectField
+            label="FeedX brand"
+            value={modal.brand}
+            onChange={(value) => setModal({ ...modal, brand: value })}
+            options={[
+              { value: "", label: "Unassigned" },
+              ...brands.map((b) => ({ value: b.id, label: b.name })),
+            ]}
+          />
         </Modal>
       )}
       {modal?.kind === "bind" && (
@@ -774,8 +948,12 @@ export default function MarketingAdsPage() {
           }
         >
           <p>
-            Connect <strong>{modal.a.name}</strong> ({modal.a.id}) to{" "}
-            <strong>{brands.find((b) => b.id === brand)?.name}</strong>?
+            Connect <strong>{modal.a.name}</strong> ({modal.a.id}) to the
+            organization{" "}
+            <strong>
+              {context.organizations.find((o) => o.id === org)?.name}
+            </strong>
+            ?
           </p>
           <p className="mt-3 text-sm text-text-secondary">
             Reporting and account-management permissions are verified

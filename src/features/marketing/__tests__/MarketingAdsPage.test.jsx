@@ -11,6 +11,9 @@ const { ads, service, auth } = vi.hoisted(() => ({
   ads: {
     read: vi.fn(),
     pending: vi.fn(),
+    discovery: vi.fn(),
+    preview: vi.fn(),
+    attribute: vi.fn(),
     authorize: vi.fn(),
     bind: vi.fn(),
     sync: vi.fn(),
@@ -32,6 +35,7 @@ beforeEach(() => {
   });
   ads.read.mockResolvedValue({ accounts: [], reports: [], jobs: [] });
   ads.pending.mockResolvedValue([]);
+  ads.discovery.mockResolvedValue([]);
 });
 describe("Ads read-only workspace", () => {
   it("has meaningful unconnected state and never invents advertising metrics", async () => {
@@ -40,16 +44,19 @@ describe("Ads read-only workspace", () => {
     expect(screen.queryByText("MYR 0")).toBeNull();
     expect(ads.authorize).not.toHaveBeenCalled();
   });
-  it("requires explicit brand selection before OAuth", async () => {
+  it("starts organization-owned discovery without brand ownership", async () => {
+    ads.authorize.mockRejectedValue(
+      new Error("Authorization is unavailable for this test."),
+    );
     render(<MarketingAdsPage />);
     await screen.findByText("Connect your first Ad Account");
     fireEvent.click(
       screen.getAllByRole("button", { name: "Connect Ad Account" })[0],
     );
-    await screen.findByText(
-      "Select the FeedX brand that will own this Ad Account.",
+    await waitFor(() =>
+      expect(ads.authorize).toHaveBeenCalledWith("org", null),
     );
-    expect(ads.authorize).not.toHaveBeenCalled();
+    expect(ads.bind).not.toHaveBeenCalled();
   });
   it("keeps mixed currencies and missing results separate with no execution controls", async () => {
     ads.read.mockResolvedValue({

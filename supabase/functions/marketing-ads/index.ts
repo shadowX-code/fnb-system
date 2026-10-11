@@ -151,11 +151,11 @@ Deno.serve(async (req) => {
     }
     if (
       body.confirmOwnership !== true ||
-      body.brandId !== session.brand_id ||
+      body.brandId != null ||
       !session.accounts.some((a: any) => a.id === body.accountId)
     )
       return reply(
-        { error: "Confirm the discovered account and exact FeedX brand." },
+        { error: "Confirm the discovered account and organization ownership." },
         409,
       );
     const discovery = await unseal(
@@ -178,7 +178,8 @@ Deno.serve(async (req) => {
       { token: discovery.token },
       key,
       connectionBinding({
-        brand_id: session.brand_id,
+        organization_id: session.organization_id,
+        brand_id: null,
         channel: "ad_account",
         provider_account_id: account.id,
       }),
@@ -187,7 +188,7 @@ Deno.serve(async (req) => {
       p_session: session.id,
       p_auth_user: identity.user.id,
       p_account: account.id,
-      p_brand: body.brandId,
+      p_brand: null,
       p_sealed: sealed,
       p_expiry: discovery.expiresAt,
       p_account_evidence: account,

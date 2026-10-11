@@ -29,19 +29,28 @@ export const adsService = {
       p_to: to,
     }),
   pending: (org, brand) =>
-    rpc("marketing_ads_pending", { p_org: org, p_brand: brand }),
+    rpc("marketing_ads_pending", { p_org: org, p_brand: null }),
   authorize: (organizationId, brandId) =>
-    command("authorize", { organizationId, brandId }),
+    command("authorize", { organizationId, brandId: null }),
   preview: (sessionId, accountId, from, to) =>
     command("preview", { sessionId, accountId, from, to }),
   discovery: (org) => rpc("marketing_ads_discovery_read", { p_org: org }),
   bind: (sessionId, brandId, accountId, expectedGeneration = null) =>
     command("bind", {
       sessionId,
-      brandId,
+      brandId: null,
       accountId,
       expectedGeneration,
       confirmOwnership: true,
+    }),
+  attribute: (org, account, campaign, brand, revision, request) =>
+    rpc("marketing_ads_attribute", {
+      p_org: org,
+      p_account: account,
+      p_campaign: campaign,
+      p_brand: brand || null,
+      p_expected_revision: revision,
+      p_request: request,
     }),
   sync: (connection, from, to) =>
     rpc("marketing_ads_request_sync", {

@@ -150,12 +150,10 @@ describe("Meta Ads independent authorization and evidence", () => {
   });
   it("does not follow provider next URLs, and refuses incomplete pagination", async () => {
     const graph = {
-      request: vi
-        .fn()
-        .mockResolvedValue({
-          data: [row],
-          paging: { next: "https://attacker.example/token" },
-        }),
+      request: vi.fn().mockResolvedValue({
+        data: [row],
+        paging: { next: "https://attacker.example/token" },
+      }),
     } as unknown as MetaGraph;
     await expect(
       adsPages(graph, "me/adaccounts", "secret", {}),
@@ -194,5 +192,34 @@ describe("Meta Ads independent authorization and evidence", () => {
     await expect(
       graph.request("https://attacker.example/act_111", "token"),
     ).rejects.toThrow("invalid_meta_endpoint");
+  });
+});
+
+// The shared Ads grant must never reuse a brand credential binding.
+import { connectionBinding } from "../../../../supabase/functions/_shared/metaSecurity.ts";
+describe("Ads credential ownership", () => {
+  it("binds encryption to the exact organization and account", () => {
+    const c = {
+      organization_id: "org-a",
+      brand_id: null,
+      channel: "ad_account",
+      provider_account_id: "123",
+    };
+    expect(connectionBinding(c)).not.toBe(
+      connectionBinding({ ...c, organization_id: "org-b" }),
+    );
+    expect(connectionBinding(c)).not.toBe(
+      connectionBinding({ ...c, provider_account_id: "456" }),
+    );
+    expect(() =>
+      connectionBinding({ ...c, organization_id: undefined }),
+    ).toThrow();
+    expect(
+      connectionBinding({
+        brand_id: "brand-a",
+        channel: "facebook",
+        provider_account_id: "123",
+      }),
+    ).toBe("meta:brand-a:facebook:123");
   });
 });

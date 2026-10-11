@@ -40,7 +40,7 @@ export async function verifySignedRequest(signed: string, appSecret: string, now
  if(data.algorithm!=='HMAC-SHA256'||!/^\d+$/.test(data.user_id)||!Number.isFinite(data.issued_at)||data.issued_at<=0||data.issued_at*1000>now+300000)throw new Error('Invalid Meta removal request.');
  return {user_id:String(data.user_id),issued_at:data.issued_at};
 }
-export function connectionBinding(c:{brand_id:string;channel:string;provider_account_id:string}):string { return `meta:${c.brand_id}:${c.channel}:${c.provider_account_id}`; }
+export function connectionBinding(c:{organization_id?:string;brand_id:string|null;channel:string;provider_account_id:string}):string { if(c.channel==='ad_account'){if(!c.organization_id)throw new Error('Ad Account organization unavailable.');return `meta:org:${c.organization_id}:ad_account:${c.provider_account_id}`;} return `meta:${c.brand_id}:${c.channel}:${c.provider_account_id}`; }
 export function authorizationUrl(config:{appId:string;configId:string;version:string},state:string):string {
  if(!/^\d+$/.test(config.appId)||!/^\d+$/.test(config.configId)||!/^v\d+\.0$/.test(config.version))throw new Error('Meta OAuth configuration is unavailable.');
  const url=new URL(`https://www.facebook.com/${config.version}/dialog/oauth`);

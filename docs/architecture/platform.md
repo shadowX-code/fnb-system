@@ -197,3 +197,5 @@ The shared Admin `Modal` supports centered dialogs and `placement="right"` respo
 Shared `lib/tabularFile` handles bounded CSV/OOXML parsing for import presentation, including quoted multiline CSV, ZIP limits and formula rejection; domain validation and canonical writes remain in their existing owner. Shared EmptyState uses canonical surface tokens in both themes.
 
 Marketing advertising uses the canonical `/marketing/ads` module (`marketing_ads`) within the existing Marketing workspace. It owns Ad Account discovery and advertising projections, independently scoped from Page publishing, Inbox and social analytics; the workspace launcher and shared shell are unchanged.
+
+Marketing Ad Accounts are shared Platform-organization assets. FeedX owns explicit campaign-to-brand attribution, with descendant inheritance and organization/brand-filtered reporting; Meta owns provider configuration and delivery. This does not change social Page/Instagram brand ownership.
