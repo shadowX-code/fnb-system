@@ -58,3 +58,19 @@ export function adsManagerUrl(account, id, level = "campaign") {
     );
   return url.toString();
 }
+
+// Unknown coverage is visible; no residual account subtraction and no summed reach.
+export function attributionSpend(report) {
+  return report?.scope === "organization"
+    ? report.insights?.attribution_spend || []
+    : [];
+}
+export const adsMetricDefinitions = {
+  spend: "Meta-reported spend in the account currency.",
+  reach: "Estimated people reached; not additive across campaigns or brands.",
+  impressions: "Number of times ads were shown.",
+  clicks: "All ad clicks, not link clicks alone.",
+  ctr: "All clicks divided by impressions × 100.",
+  cpc: "Spend divided by all clicks.",
+  cpm: "Spend per 1,000 impressions.",
+};

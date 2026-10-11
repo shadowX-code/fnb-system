@@ -11,6 +11,7 @@ import {
 } from "../_shared/metaSecurity.ts";
 import { MetaGraph, MetaError } from "../_shared/metaGraph.ts";
 import { verifyAdsAccount, readAdsReport } from "../_shared/metaAds.ts";
+import { requestAdsAI, estimateAdsAICost } from "../_shared/marketingAdsAI.ts";
 const env = (n: string) => Deno.env.get(n) || "";
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin") || "",
@@ -64,8 +65,103 @@ Deno.serve(async (req) => {
     if (raw.length > 10000) return reply({ error: "Request too large." }, 413);
     const body = JSON.parse(raw);
     const path = new URL(req.url).pathname.split("/marketing-ads")[1];
-    if (!["/authorize", "/bind", "/preview"].includes(path))
+    if (
+      ![
+        "/authorize",
+        "/bind",
+        "/preview",
+        "/copilot",
+        "/capabilities",
+      ].includes(path)
+    )
       return reply({ error: "Endpoint unavailable." }, 404);
+    if (path === "/capabilities")
+      return reply({
+        ai_available:
+          env("MARKETING_ADS_AI_ENABLED") === "true" &&
+          Boolean(env("OPENAI_API_KEY") && env("MARKETING_AI_MODEL")),
+        external_execution_enabled: false,
+      });
+    if (path === "/copilot") {
+      if (
+        env("MARKETING_ADS_AI_ENABLED") !== "true" ||
+        !env("OPENAI_API_KEY") ||
+        !env("MARKETING_AI_MODEL")
+      )
+        return reply(
+          { error: "Ads AI provider is not enabled. Ask your administrator." },
+          503,
+        );
+      let claim: any;
+      let observedUsage: any;
+      const rates = [
+        "MARKETING_ADS_AI_INPUT_USD_PER_M",
+        "MARKETING_ADS_AI_CACHED_USD_PER_M",
+        "MARKETING_ADS_AI_OUTPUT_USD_PER_M",
+      ].map((n) => env(n));
+      const costBasis =
+        "Estimated USD using configured per-million input/cached/output rates; not invoiced cost.";
+      try {
+        const prepared = await call(caller, "marketing_ads_ai_prepare", {
+          p_request: body.requestId,
+          p_org: body.organizationId,
+          p_brand: body.brandId,
+          p_connection: body.connectionId,
+          p_from: body.from,
+          p_to: body.to,
+        });
+        if (prepared.state !== "prepared") return reply(prepared);
+        claim = await call(service, "marketing_ads_ai_claim", {
+          p_request: body.requestId,
+          p_auth_user: identity.user.id,
+        });
+        if (!claim) return reply({ state: "already_generating" });
+        const result = await requestAdsAI(
+          claim.evidence,
+          env("OPENAI_API_KEY"),
+          env("MARKETING_AI_MODEL"),
+        );
+        observedUsage = result;
+        const cost = estimateAdsAICost(result, rates);
+        return reply(
+          await call(service, "marketing_ads_ai_finish", {
+            p_request: body.requestId,
+            p_lease: claim.lease,
+            p_proposal: result.body,
+            p_model: result.model,
+            p_input: result.input,
+            p_output: result.output,
+            p_cost: cost,
+            p_cost_basis: cost == null ? null : costBasis,
+            p_error: false,
+          }),
+        );
+      } catch (error) {
+        const usage = observedUsage || (error as any)?.usage;
+        if (claim)
+          try {
+            await call(service, "marketing_ads_ai_finish", {
+              p_request: body.requestId,
+              p_lease: claim.lease,
+              p_proposal: null,
+              p_model: usage?.model || env("MARKETING_AI_MODEL"),
+              p_input: usage?.input ?? null,
+              p_output: usage?.output ?? null,
+              p_cost: estimateAdsAICost(usage, rates),
+              p_cost_basis:
+                estimateAdsAICost(usage, rates) == null ? null : costBasis,
+              p_error: true,
+            });
+          } catch {}
+        return reply(
+          {
+            error:
+              "Recommendations could not be generated. Check synchronized brand performance, AI access and provider availability. No advertising was changed.",
+          },
+          409,
+        );
+      }
+    }
     const config = {
         appId: env("MARKETING_META_APP_ID"),
         appSecret: env("MARKETING_META_APP_SECRET"),

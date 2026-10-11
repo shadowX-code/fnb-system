@@ -44,6 +44,21 @@ export const adsService = {
       confirmOwnership: true,
     }),
   reviewContext: (org) => rpc("marketing_ads_review_context", { p_org: org }),
+  aiCapabilities: () => command("capabilities", {}),
+  aiUsage: (org, brand) =>
+    rpc("marketing_ads_ai_usage", { p_org: org, p_brand: brand || null }),
+  aiRead: (org, brand) =>
+    rpc("marketing_ads_ai_read", { p_org: org, p_brand: brand }),
+  aiReview: (request) => rpc("marketing_ads_ai_review", { p_request: request }),
+  copilot: (org, brand, connection, from, to, request) =>
+    command("copilot", {
+      organizationId: org,
+      brandId: brand,
+      connectionId: connection,
+      from,
+      to,
+      requestId: request,
+    }),
   copilotPrepare: (org, brand, from, to) =>
     rpc("marketing_ads_copilot_prepare", {
       p_org: org,

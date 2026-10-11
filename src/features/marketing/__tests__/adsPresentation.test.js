@@ -29,3 +29,21 @@ describe("advertising presentation", () => {
     expect(adsManagerUrl("https://elsewhere")).toBeNull();
   });
 });
+
+it("exposes attribution spend only in organization scope", async () => {
+  const { attributionSpend } = await import("../adsPresentation.js");
+  expect(
+    attributionSpend({
+      scope: "attributed_campaigns",
+      insights: { attribution_spend: [{ reported_spend: 123 }] },
+    }),
+  ).toEqual([]);
+  expect(
+    attributionSpend({
+      scope: "organization",
+      insights: {
+        attribution_spend: [{ brand_id: null, reported_spend: null }],
+      },
+    })[0].reported_spend,
+  ).toBeNull();
+});

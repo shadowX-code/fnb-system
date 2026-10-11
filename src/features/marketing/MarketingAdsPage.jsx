@@ -3,6 +3,7 @@ import { useAuth } from "../../auth/AuthContext.jsx";
 import WorkspacePage from "../../components/layout/WorkspacePage.jsx";
 import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
+import DatePickerField from "../../components/forms/DatePickerField.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import AdminUnderlineTabs from "../../components/navigation/AdminUnderlineTabs.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
@@ -20,6 +21,9 @@ import {
   insightFor,
   adsManagerUrl,
 } from "./adsPresentation.js";
+import AdsPerformanceTrend from "./AdsPerformanceTrend.jsx";
+import AdsCopilot from "./AdsCopilot.jsx";
+import AdsReportingContext from "./AdsReportingContext.jsx";
 import AdsAttributionReview from "./AdsAttributionReview.jsx";
 import "./ads.css";
 const today = () =>
@@ -96,11 +100,11 @@ export default function MarketingAdsPage() {
     [pending, setPending] = useState([]),
     [discoveries, setDiscoveries] = useState([]),
     [identities, setIdentities] = useState([]),
-    [copilot, setCopilot] = useState(null),
     [tab, setTab] = useState("overview"),
     [account, setAccount] = useState(""),
     [level, setLevel] = useState("campaign"),
     [parent, setParent] = useState(""),
+    [resultType, setResultType] = useState(""),
     [search, setSearch] = useState(""),
     [page, setPage] = useState(1),
     [loading, setLoading] = useState(true),
@@ -151,7 +155,6 @@ export default function MarketingAdsPage() {
     setPrevious(null);
     setPending([]);
     setIdentities([]);
-    setCopilot(null);
     const range = precedingPeriod(from, to);
     if (!range) {
       setLoading(false);
@@ -237,6 +240,16 @@ export default function MarketingAdsPage() {
         (!search || r.name.toLowerCase().includes(search.toLowerCase())),
     ),
     rows = filtered.slice((page - 1) * 20, page * 20);
+  const resultTypes = [
+    ...new Set(
+      (report?.insights?.[level] || []).flatMap((r) =>
+        (r.actions || []).map((a) => a.type),
+      ),
+    ),
+  ];
+  const beforeReport = previous?.reports.find(
+    (r) => r.connection_id === account,
+  )?.payload;
   const columns = [
     {
       key: "name",
@@ -269,7 +282,7 @@ export default function MarketingAdsPage() {
       header: "Meta status",
       render: (r) => <Badge>{r.effective_status || "Unavailable"}</Badge>,
     },
-    ...["spend", "impressions", "ctr", "cpc"].map((key) => ({
+    ...Object.keys(adsMetricNames).map((key) => ({
       key,
       header: adsMetricNames[key],
       render: (r) =>
@@ -278,6 +291,19 @@ export default function MarketingAdsPage() {
           key,
           active?.health?.currency,
         ),
+    })),
+    ...["actions", "cost_per_action_type"].map((key) => ({
+      key,
+      header: key === "actions" ? "Results" : "Cost per Result",
+      render: (r) => {
+        const insight = insightFor(report, level, r.id),
+          value = insight?.[key]?.find((a) => a.type === resultType)?.value;
+        return value == null
+          ? "—"
+          : key === "actions"
+            ? new Intl.NumberFormat("en-MY").format(value)
+            : adsMetric({ value }, "spend", insight.currency);
+      },
     })),
     {
       key: "drilldown",
@@ -317,6 +343,8 @@ export default function MarketingAdsPage() {
           label: o.name,
         }))}
         onChange={(v) => {
+          setParent("");
+          setLevel("campaign");
           setOrg(v);
           setBrand("");
         }}
@@ -328,20 +356,44 @@ export default function MarketingAdsPage() {
           { value: "", label: "All permitted brands" },
           ...brands.map((b) => ({ value: b.id, label: b.name })),
         ]}
-        onChange={setBrand}
+        onChange={(v) => {
+          setBrand(v);
+          setParent("");
+          setLevel("campaign");
+        }}
       />
-      <label className="ads-date">
-        From
-        <input
-          type="date"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-        />
-      </label>
-      <label className="ads-date">
-        To
-        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-      </label>
+      <SelectField
+        label="Period"
+        value={
+          from === defaultStart() && to === today()
+            ? "30"
+            : from ===
+                  new Date(Date.parse(today() + "T00:00:00Z") - 89 * 86400000)
+                    .toISOString()
+                    .slice(0, 10) && to === today()
+              ? "90"
+              : "custom"
+        }
+        onChange={(v) => {
+          if (v === "custom") return;
+          const end = today();
+          setTo(end);
+          setFrom(
+            new Date(
+              Date.parse(end + "T00:00:00Z") - (Number(v) - 1) * 86400000,
+            )
+              .toISOString()
+              .slice(0, 10),
+          );
+        }}
+        options={[
+          { value: "custom", label: "Custom / historical" },
+          { value: "30", label: "Last 30 days" },
+          { value: "90", label: "Last 90 days" },
+        ]}
+      />
+      <DatePickerField label="From" value={from} onChange={setFrom} />
+      <DatePickerField label="To" value={to} onChange={setTo} />
     </AdminFilterToolbar>
   );
   return (
@@ -375,6 +427,13 @@ export default function MarketingAdsPage() {
       {notice && (
         <p role="status" className="text-sm text-text-secondary">
           {notice}
+        </p>
+      )}
+      {precedingPeriod(from, to) && (
+        <p className="text-xs text-text-secondary">
+          Compared with {precedingPeriod(from, to).from}–
+          {precedingPeriod(from, to).to}. Reporting dates use each Meta account
+          timezone. Maximum 94 days per synchronization.
         </p>
       )}
       <AsyncDataSurface
@@ -540,6 +599,23 @@ export default function MarketingAdsPage() {
                 currency={a.health?.currency}
               />
               <Results row={a.summary} />
+              <AdsPerformanceTrend
+                report={
+                  data.reports.find((r) => r.connection_id === a.id)?.payload
+                }
+              />
+              <AdsReportingContext
+                report={
+                  data.reports.find((r) => r.connection_id === a.id)?.payload
+                }
+                brands={brands}
+              />
+              {!data.reports.some((r) => r.connection_id === a.id) && (
+                <p className="text-sm">
+                  This period has not been synchronized. Queue selected periods
+                  to retrieve historical reporting.
+                </p>
+              )}
               <p className="mt-3 text-xs text-text-secondary">
                 {a.last_synced_at
                   ? `Last sync ${new Date(a.last_synced_at).toLocaleString()}`
@@ -644,6 +720,18 @@ export default function MarketingAdsPage() {
           <>
             <AdminFilterToolbar>
               <SelectField
+                label="Result type"
+                value={resultType}
+                onChange={setResultType}
+                options={[
+                  { value: "", label: "Select Meta action" },
+                  ...resultTypes.map((value) => ({
+                    value,
+                    label: value.replaceAll("_", " "),
+                  })),
+                ]}
+              />
+              <SelectField
                 label="Ad Account"
                 value={account}
                 options={data.accounts.map((a) => ({
@@ -698,7 +786,7 @@ export default function MarketingAdsPage() {
                     rows={rows}
                     getRowKey={(r) => r.id}
                     density="compact"
-                    minWidth={760}
+                    minWidth={1180}
                   />
                 </div>
                 <div className="ads-mobile">
@@ -715,6 +803,7 @@ export default function MarketingAdsPage() {
                       <p>{r.effective_status || "Unavailable"}</p>
                       <MetricGrid
                         row={insightFor(report, level, r.id)}
+                        previous={insightFor(beforeReport, level, r.id)}
                         currency={active?.health?.currency}
                       />
                       {level !== "ad" && (
@@ -787,70 +876,15 @@ export default function MarketingAdsPage() {
           </>
         )}
         {tab === "copilot" && (
-          <section className="ads-panel space-y-3">
-            <h2 className="font-semibold">
-              AI Ads Copilot · advisory preparation
-            </h2>
-            <p className="text-sm text-text-secondary">
-              Prepare approved brand facts and verified, explicitly attributed
-              performance for human-reviewed recommendations. Provider
-              generation is not enabled for Ads; no recommendation can change a
-              campaign or budget.
-            </p>
-            {can("marketing_ads.ai") && (
-              <button
-                className="btn-secondary"
-                disabled={!brand || busy || !report?.configs?.campaigns?.length}
-                onClick={async () => {
-                  const seq = generation.current;
-                  setBusy(true);
-                  setError("");
-                  try {
-                    const packet = await adsService.copilotPrepare(
-                      org,
-                      brand,
-                      from,
-                      to,
-                    );
-                    if (seq === generation.current) setCopilot(packet);
-                  } catch (e) {
-                    if (seq === generation.current) setError(e.message);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                Prepare recommendation evidence
-              </button>
-            )}
-            {!brand && (
-              <p className="text-sm text-text-secondary">
-                Choose a brand with confirmed campaign attribution.
-              </p>
-            )}
-            {copilot && (
-              <>
-                <p role="status" className="text-sm">
-                  Evidence prepared · Brand Knowledge revision{" "}
-                  {copilot.knowledge_revision}. Recommendations still require
-                  provider configuration and human review.
-                </p>
-                <dl className="space-y-2">
-                  {Object.entries(copilot.approved_facts).map(([key, fact]) => (
-                    <div key={key}>
-                      <dt className="text-xs text-text-secondary">{key}</dt>
-                      <dd className="text-sm">{fact.text}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <p className="text-sm text-text-secondary">
-                  {copilot.reporting.reports.length} verified reporting
-                  snapshots. Meta attribution is not verified FeedX revenue or
-                  ROI.
-                </p>
-              </>
-            )}
-          </section>
+          <AdsCopilot
+            org={org}
+            brand={brand}
+            account={account}
+            from={from}
+            to={to}
+            canGenerate={can("marketing_ads.ai")}
+            canReview={can("marketing_ads.review")}
+          />
         )}
         {data?.jobs?.some((j) => ["failed", "cancelled"].includes(j.state)) && (
           <p className="text-sm text-text-secondary">
@@ -995,6 +1029,7 @@ export default function MarketingAdsPage() {
             <Badge>{modal.row.effective_status || "Status unavailable"}</Badge>
             <MetricGrid
               row={insightFor(report, modal.level, modal.row.id)}
+              previous={insightFor(beforeReport, modal.level, modal.row.id)}
               currency={active?.health?.currency}
             />
             <Results row={insightFor(report, modal.level, modal.row.id)} />
