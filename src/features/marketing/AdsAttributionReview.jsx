@@ -88,8 +88,8 @@ export default function AdsAttributionReview({
   );
   return (
     <div className="space-y-4 mt-4">
-      <div className="flex flex-wrap gap-3 items-end">
-        <label className="flex-1 min-w-0 text-xs">
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_auto] gap-3 items-end">
+        <label className="min-w-0 text-xs">
           Search campaigns
           <input
             className="input w-full"
@@ -102,6 +102,7 @@ export default function AdsAttributionReview({
           />
         </label>
         <SelectField
+          className="min-w-0"
           label="Evidence group"
           value={filter}
           onChange={(v) => {
