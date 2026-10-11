@@ -10,7 +10,7 @@ import {
   connectionBinding,
 } from "../_shared/metaSecurity.ts";
 import { MetaGraph, MetaError } from "../_shared/metaGraph.ts";
-import { verifyAdsAccount } from "../_shared/metaAds.ts";
+import { verifyAdsAccount, readAdsReport } from "../_shared/metaAds.ts";
 const env = (n: string) => Deno.env.get(n) || "";
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin") || "",
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
     if (raw.length > 10000) return reply({ error: "Request too large." }, 413);
     const body = JSON.parse(raw);
     const path = new URL(req.url).pathname.split("/marketing-ads")[1];
-    if (!["/authorize", "/bind"].includes(path))
+    if (!["/authorize", "/bind", "/preview"].includes(path))
       return reply({ error: "Endpoint unavailable." }, 404);
     const config = {
         appId: env("MARKETING_META_APP_ID"),
@@ -90,10 +90,65 @@ Deno.serve(async (req) => {
         execution_enabled: false,
       });
     }
-    const session = await call(service, "marketing_ads_session", {
-      p_session: body.sessionId,
-      p_auth_user: identity.user.id,
-    });
+    const session = await call(
+      service,
+      path === "/preview"
+        ? "marketing_ads_preview_session"
+        : "marketing_ads_session",
+      {
+        p_session: body.sessionId,
+        p_auth_user: identity.user.id,
+      },
+    );
+    if (path === "/preview") {
+      if (
+        !session.accounts.some((a: any) => a.id === body.accountId) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(body.from) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(body.to)
+      )
+        throw new MetaError("ads_request_rejected");
+      const span = Date.parse(body.to) - Date.parse(body.from);
+      if (!Number.isFinite(span) || span < 0 || span > 93 * 86400000)
+        throw new MetaError("ads_request_rejected");
+      const grant = await unseal(
+        session.sealed_discovery,
+        [key, env("MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY")],
+        `oauth:${session.id}`,
+      );
+      const graph = new MetaGraph(config);
+      const account = await verifyAdsAccount(
+        graph,
+        config.appId,
+        config.appSecret,
+        grant.token,
+        body.accountId,
+        grant.userId,
+      );
+      const deadline = Date.now() + 85000;
+      const guard = async () => {
+        if (Date.now() > deadline || Date.parse(grant.expiresAt) <= Date.now())
+          throw new MetaError("ads_sync_time_limit");
+        await call(service, "marketing_ads_preview_session", {
+          p_session: session.id,
+          p_auth_user: identity.user.id,
+        });
+      };
+      const report = await readAdsReport(
+        graph,
+        account,
+        grant.token,
+        body.from,
+        body.to,
+        guard,
+      );
+      await call(service, "marketing_ads_preview_finish", {
+        p_session: session.id,
+        p_auth_user: identity.user.id,
+        p_account: account.id,
+        p_report: report,
+      });
+      return reply({ report, execution_enabled: false, bound: false });
+    }
     if (
       body.confirmOwnership !== true ||
       body.brandId !== session.brand_id ||

@@ -32,6 +32,9 @@ export const adsService = {
     rpc("marketing_ads_pending", { p_org: org, p_brand: brand }),
   authorize: (organizationId, brandId) =>
     command("authorize", { organizationId, brandId }),
+  preview: (sessionId, accountId, from, to) =>
+    command("preview", { sessionId, accountId, from, to }),
+  discovery: (org) => rpc("marketing_ads_discovery_read", { p_org: org }),
   bind: (sessionId, brandId, accountId, expectedGeneration = null) =>
     command("bind", {
       sessionId,

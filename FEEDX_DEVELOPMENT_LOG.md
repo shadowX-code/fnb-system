@@ -876,3 +876,6 @@ Refined the Phase 3 Customers, Segments, Campaigns and Sender Identities views. 
 ## 2026-10-11 — Marketing Phase 4 read-only advertising foundation
 
 Added independent Meta Ad Account OAuth/binding using the canonical private credential and grant lineage, brand/action authorization, durable reporting jobs and scoped Ads Overview/configuration/drill-down surfaces. Reporting keeps currencies, account timezones, estimated reach and actual Meta attribution separate; optional insights failures preserve core configuration. Ads deletion/revocation/restore replay extends existing privacy safeguards. Live account acceptance and subsequent AI/controlled execution remain pending verified external capabilities; no advertising mutation endpoint or Production release is enabled.
+
+### 2026-10-11 — Shared Ads ownership correction
+Blocked the initial brand-owned Ads binding path after the confirmed shared-account ownership decision. Added organization-authorized read-only discovery previews using the existing encrypted OAuth session, with no external mutations or campaign attribution. Shared persistent ownership and explicit campaign mapping follow this dependency correction.

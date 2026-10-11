@@ -366,8 +366,8 @@ export default function MarketingAdsPage() {
           <section key={session.id} className="ads-panel">
             <h2 className="font-semibold">Choose an authorized Ad Account</h2>
             <p className="text-sm text-text-secondary">
-              Confirm ownership by {brands.find((b) => b.id === brand)?.name}.
-              Connecting keeps advertising execution disabled.
+              Shared Ad Accounts belong to the organization. Read-only discovery
+              creates no brand attribution or execution authority.
             </p>
             {!session.accounts.length ? (
               <p>No authorized Ad Accounts returned by Meta.</p>
@@ -383,9 +383,19 @@ export default function MarketingAdsPage() {
                   <button
                     className="btn-secondary"
                     disabled={!a.available || busy}
-                    onClick={() => setModal({ kind: "bind", session, a })}
+                    onClick={() =>
+                      act(async () => {
+                        const result = await adsService.preview(
+                          session.id,
+                          a.id,
+                          from,
+                          to,
+                        );
+                        setModal({ kind: "preview", report: result.report });
+                      })
+                    }
                   >
-                    {a.available ? "Select" : "Assigned to another brand"}
+                    Read-only discovery
                   </button>
                 </div>
               ))
@@ -720,6 +730,21 @@ export default function MarketingAdsPage() {
           </p>
         )}
       </AsyncDataSurface>
+      {modal?.kind === "preview" && (
+        <Modal
+          open
+          title="Read-only Ad Account discovery"
+          onClose={() => setModal(null)}
+        >
+          <p>
+            All campaigns remain Unassigned. No account binding or external
+            changes.
+          </p>
+          <pre className="overflow-auto text-xs max-h-[65vh]">
+            {JSON.stringify(modal.report, null, 2)}
+          </pre>
+        </Modal>
+      )}
       {modal?.kind === "bind" && (
         <Modal
           title="Confirm Ad Account ownership"
