@@ -627,7 +627,7 @@ function RevisionDetail({
         <Badge>{r.brand}</Badge>
       </div>
       {error && <p role="alert">{error}</p>}
-      {!r.current && (
+      {!r.current && ["draft", "review", "approved"].includes(r.state) && (
         <p role="status">
           Authorization, attribution or Meta configuration changed. Prepare a
           new revision before execution.
@@ -679,7 +679,24 @@ function RevisionDetail({
           .map((k) => (
             <div key={k}>
               <dt className="text-text-secondary">{k.replaceAll("_", " ")}</dt>
-              <dd>{String(r.configuration[k])}</dd>
+              <dd>
+                {k === "objective"
+                  ? {
+                      OUTCOME_AWARENESS: "Awareness",
+                      OUTCOME_TRAFFIC: "Website Traffic",
+                    }[r.configuration[k]] || r.configuration[k]
+                  : ["start_time", "end_time"].includes(k)
+                    ? new Date(r.configuration[k]).toLocaleString("en-MY", {
+                        timeZone: r.timezone,
+                      })
+                    : k === "placements"
+                      ? {
+                          facebook_feed: "Facebook Feed",
+                          instagram_feed: "Instagram Feed",
+                          both_feeds: "Facebook + Instagram Feed",
+                        }[r.configuration[k]]
+                      : String(r.configuration[k])}
+              </dd>
             </div>
           ))}
       </dl>
