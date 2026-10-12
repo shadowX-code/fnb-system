@@ -25,6 +25,7 @@ import TagPicker from "../../components/forms/TagPicker.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
 import EmptyState from "../../components/feedback/EmptyState.jsx";
 import MarketingCustomersView from "./MarketingCustomersView.jsx";
+import WhatsAppSenderDialog from "./WhatsAppSenderDialog.jsx";
 import CustomerImportDialog from "./CustomerImportDialog.jsx";
 const names = {
   pending: "Pending",
@@ -60,7 +61,8 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
     [importOpen,setImportOpen]=useState(false),
     [form, setForm] = useState({}),
     [sender, setSender] = useState(""),
-    [senderConfirmed, setSenderConfirmed] = useState(false),
+    [senderSession, setSenderSession] = useState(null),
+    [senderSettings,setSenderSettings]=useState(false),
     [selectedRecipient, setSelectedRecipient] = useState("");
   const generation = useRef(0),
     intent = useRef(null),
@@ -97,14 +99,15 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
     generation.current++;
     setModal(null);
     setImportOpen(false);
+    setSenderSettings(false);
     setBusy(false);
     setData(null);
     setSender("");
-    setSenderConfirmed(false);
+    setSenderSession(null);
     setSelectedRecipient("");
     setError("");
     media.current.clear();
-  }, [org, brand, auth.user?.id]);
+  }, [org, brand, auth.user?.id, auth.profile?.id]);
   useEffect(() => {
     let live = true;
     setLoading(!!brand);
@@ -142,11 +145,11 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
     setPage(1);
     setSearch("");
   }, [brand]);
-  useEffect(()=>{generation.current++;setBusy(false);setSender("");setSenderConfirmed(false);setSelectedRecipient("");setTab(section === "whatsapp" ? "campaigns" : "customers");setCampaign("");setPage(1);setSearch("");setModal(null);setImportOpen(false);setNotice("");},[section]);
+  useEffect(()=>{generation.current++;setBusy(false);setSender("");setSenderSession(null);setSelectedRecipient("");setTab(section === "whatsapp" ? "campaigns" : "customers");setCampaign("");setPage(1);setSearch("");setModal(null);setImportOpen(false);setNotice("");},[section]);
   const filteredCampaigns=(data?.campaigns||[]).filter(c=>(!campaignStatus||c.status===campaignStatus)&&(!campaignSearch||c.title.toLowerCase().includes(campaignSearch.toLowerCase())));
   const campaignPagination=useAdminClientPagination('marketing.whatsapp.campaigns',filteredCampaigns.length,20,JSON.stringify([org,brand,campaignSearch,campaignStatus]));
   const campaignRows=filteredCampaigns.slice(campaignPagination.from,campaignPagination.to);
-  const openCampaign=c=>{setCampaign(c.id);setPage(1);setSelectedRecipient('');setData(d=>({...d,recipients:[],progress:{}}));};
+  const openCampaign=c=>{setSenderSession(null);setSender("");setCampaign(c.id);setPage(1);setSelectedRecipient('');setData(d=>({...d,recipients:[],progress:{}}));};
   const currentAudience=data?.audiences.find(a=>a.id===active?.audience_id);
   const approvalCurrent=active?.approved_revision===active?.revision&&(active?.status==='ready'||currentAudience?.revision===active?.audience_revision);
   const queueTotal=active?.recipient_count??Object.values(data?.progress||{}).reduce((sum,n)=>sum+n,0);
@@ -154,8 +157,12 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
   const canRevise=active&&['draft','review','approved','ready'].includes(active.status)&&!(active.handled_count>0)&&(active.status!=='ready'||(!loading&&!error))&&!(data?.progress.opened||data?.progress.staff_confirmed||data?.progress.skipped)&&!data?.recipients.some(r=>r.state!=='pending');
   const previewRecipient=recipient||(data?.recipients.length===1?data.recipients[0]:null);
   const pageSenderIds=[...new Set((data?.recipients||[]).map(r=>r.sender_id).filter(Boolean))];
-  const displaySender=data?.senders.find(s=>s.id===(recipient?.sender_id||sender||(pageSenderIds.length===1?pageSenderIds[0]:null)));
+  const displaySender=previewRecipient?.sender_snapshot||data?.senders.find(s=>s.id===(recipient?.sender_id||sender||(pageSenderIds.length===1?pageSenderIds[0]:null)));
   const brandName=brands.find(b=>b.id===brand)?.name||'';
+  const chosenSender=data?.senders.find(s=>s.id===sender);
+  const senderConfirmed=!!senderSession&&senderSession.campaign_id===campaign&&senderSession.campaign_revision===active?.revision&&senderSession.sender_id===sender&&senderSession.sender_revision===chosenSender?.revision&&chosenSender?.active&&new Date(senderSession.expires_at)>new Date();
+  useEffect(()=>{setSenderSession(null);},[campaign,active?.revision,auth.profile?.id]);
+  useEffect(()=>{if(!sender&&data?.senders.some(s=>s.active&&s.is_default))setSender(data.senders.find(s=>s.active&&s.is_default).id);},[data?.senders,sender]);
   const formatDate=value=>value?new Date(value).toLocaleDateString('en-MY',{timeZone:'Asia/Kuala_Lumpur',day:'numeric',month:'short',year:'numeric'}):'—';
   const field = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   function show(type, initial = {}) {
@@ -302,7 +309,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
       () =>
         command(action, recipient.id, {
           senderId: sender,
-          senderConfirmed,
+          senderSessionId:senderConfirmed?senderSession.id:null,
           reason: "Skipped by staff",
         }),
       action === "confirm"
@@ -358,20 +365,15 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
           </section>
         ) : (
           <>
-            {section==='whatsapp'&&tab==='senders'?<button className="btn-secondary self-start" onClick={()=>{setTab('campaigns');setCampaign('');setPage(1)}}><ArrowLeft size={15}/> Back to campaigns</button>:null}
             <AsyncDataSurface loading={loading} error={null} hasData={!!data}>
               {data&&tab==='customers'?<MarketingCustomersView key={brand} org={org} brand={brand} data={data} can={can} refresh={refresh} show={show} onImport={()=>setImportOpen(true)} onChanged={()=>setRefresh(v=>v+1)}/>:null}
-              {data&&tab==='senders'?<section>
-                <div className="outreach-section-heading"><p>Registered WhatsApp senders<small>Staff confirm the sender they use in WhatsApp.</small></p>{can('marketing_settings.configure')?<button className="btn-primary" onClick={()=>show('sender',{})}><Plus size={15}/> Register sender</button>:null}</div>
-                {data.senders.length?<OutreachCollection rows={data.senders} getRowKey={s=>s.id} columns={[{key:'label',header:'Sender',render:s=><strong>{s.label}</strong>},{key:'phone_e164',header:'Phone'},{key:'active',header:'Status',render:s=><Badge tone={s.active?'success':'default'}>{s.active?'Registered':'Inactive'}</Badge>}]}/>:<EmptyState title="Register a brand sender" description="Add the WhatsApp numbers staff are authorized to use. This does not connect WhatsApp or enable automatic sending."/>}
-              </section>:null}
               {data && tab === "campaigns" ? (
                 <>
                   <section className="space-y-3">
                     {!active?<>
                       <div className="outreach-actions">
                         {can('marketing_campaigns.manage')?<button className="btn-primary" onClick={()=>show('campaign',{caption:'Hi {name}, ',...(can('marketing_audience.manage')?{audience_criteria:{tags:[],outlet_id:''}}:{audience_id:''})})}><Plus size={15}/> New campaign</button>:null}
-                        <button className="btn-secondary" onClick={()=>{setTab('senders');setCampaign('');setPage(1)}}><Settings size={15}/> Sender settings</button>
+                        <button className="btn-secondary" onClick={()=>setSenderSettings(true)}><Settings size={15}/> Sender settings</button>
                       </div>
                       <AdminFilterToolbar compact denseFields ariaLabel="Campaign filters" search={<AdminSearchField ariaLabel="Search campaigns" placeholder="Campaign title" value={campaignSearch} onChange={setCampaignSearch}/>} filters={<SelectField label="Campaign status" value={campaignStatus} onChange={setCampaignStatus} options={[{value:'',label:'All'},...['draft','review','approved','ready','cancelled'].map(value=>({value,label:names[value]}))]}/>}/>
                       {filteredCampaigns.length?<>
@@ -471,7 +473,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                               <div><dt>Outlet</dt><dd>{!currentAudience?'Unavailable':currentAudience.criteria?.outlet_id?data.outlets.find(o=>o.id===currentAudience.criteria.outlet_id)?.name||'Unavailable':'All outlets'}</dd></div>
                               {currentAudience?.criteria?.language?<div><dt>Language</dt><dd>{{EN:'English',ZH:'Chinese',BM:'Bahasa Melayu'}[currentAudience.criteria.language]||currentAudience.criteria.language}</dd></div>:null}
                               <div><dt>WhatsApp consent</dt><dd>Subscribed only</dd></div><div><dt>Recipients</dt><dd>{active.status==='ready'?queueTotal:active.audience_size??'Unavailable'}{active.status!=='ready'?<small>Current eligible audience</small>:null}</dd></div>
-                              <div><dt>Sender</dt><dd>{displaySender?`${displaySender.label} · ${displaySender.phone_e164}`:pageSenderIds.length>1?'Multiple senders on this page':'Selected by staff per recipient'}</dd></div>
+                              <div><dt>Sender</dt><dd>{displaySender?`${displaySender.label} · ${displaySender.phone_e164}`:pageSenderIds.length>1?'Multiple senders on this page':'Selected by staff for the sending session'}</dd></div>
                               <div><dt>Approval</dt><dd>{active.status==='cancelled'?'Cancelled':approvalCurrent?'Approved':active.status==='review'?'Pending approval':'Review required'}</dd></div>
                               <div><dt>Created</dt><dd>{formatDate(active.created_at)}</dd></div><div><dt>Approved</dt><dd>{formatDate(active.approved_at)}</dd></div>
                             </dl>
@@ -486,33 +488,13 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                   {active?.status === "ready" && data.recipients.some(r=>["pending","opened"].includes(r.state)) ? (
                     <section className="outreach-queue space-y-3">
                       <h3>Recipient queue</h3>
-                      <SelectField
-                        label="Registered sender"
-                        value={sender}
-                        onChange={(v) => {
-                          setSender(v);
-                          setSenderConfirmed(false);
-                        }}
-                        options={[
-                          { value: "", label: "Select sender" },
-                          ...data.senders
-                            .filter((s) => s.active)
-                            .map((s) => ({
-                              value: s.id,
-                              label: `${s.label} · ${s.phone_e164}`,
-                            })),
-                        ]}
-                      />
-                      <label>
-                        <input
-                          className="admin-checkbox"
-                          type="checkbox"
-                          checked={senderConfirmed}
-                          onChange={(e) => setSenderConfirmed(e.target.checked)}
-                        />{" "}
-                        I confirm WhatsApp is logged in as this registered
-                        sender.
-                      </label>
+                      <div className="rounded-xl border border-border p-3 space-y-3">
+                        {senderConfirmed?<><p className="text-sm font-semibold">Sender confirmed for this session</p><p className="text-sm">{senderSession.sender_snapshot.label} · {senderSession.sender_snapshot.phone_e164}</p><button className="btn-secondary" disabled={busy} onClick={()=>setSenderSession(null)}>Change sender</button></>:<>
+                          <SelectField label="WhatsApp Sender" value={sender} onChange={value=>{setSender(value);setSenderSession(null)}} options={[{value:'',label:'Select sender'},...data.senders.filter(s=>s.active).map(s=>({value:s.id,label:`${s.label} · ${s.phone_e164}${s.is_default?' · Default':''}`}))]}/>
+                          <p className="text-sm text-text-secondary">Check that WhatsApp is signed in as this sender. FeedX cannot verify the WhatsApp login.</p>
+                          <button className="btn-primary" disabled={busy||!chosenSender?.active||!can('marketing_campaigns.execute')} onClick={()=>show('sender_session',{})}>Confirm Sender & Start Session</button>
+                        </>}
+                      </div>
                       <SelectField
                         label="Recipient"
                         value={selectedRecipient}
@@ -625,7 +607,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                     {key:'display_name',header:'Customer'},
                     {key:'state',header:'Handling',render:r=><Badge tone={r.state==='staff_confirmed'?'success':r.state==='skipped'?'warning':'default'}>{names[r.state]}</Badge>},
                     {key:'eligible',header:'Current consent',render:r=>r.eligible?'Eligible':'Contact blocked'},
-                    {key:'sender',header:'Sender',render:r=>data.senders.find(s=>s.id===r.sender_id)?.label||'Not selected'},
+                    {key:'sender',header:'Sender',render:r=>r.sender_snapshot?.label||data.senders.find(s=>s.id===r.sender_id)?.label||'Not selected'},
                     {key:'result',header:'Result',render:r=>r.state==='staff_confirmed'?'Staff confirmation only':r.state==='skipped'?r.skip_reason||'Skipped':'Not confirmed'},
                     {key:'action',header:'Action',render:r=>['pending','opened'].includes(r.state)&&can('marketing_campaigns.execute')?<button className="btn-secondary" onClick={()=>setSelectedRecipient(r.id)}>{r.id===selectedRecipient?'Selected':'Select'}</button>:null}
                   ]}/></section>:null}
@@ -637,6 +619,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
           </>
         )}
         {importOpen&&brand?<CustomerImportDialog key={brand} org={org} brand={brand} brandName={brands.find(b=>b.id===brand)?.name||'Selected brand'} outlets={data?.outlets||[]} onClose={()=>setImportOpen(false)} onImported={()=>setRefresh(v=>v+1)}/>:null}
+        {senderSettings&&data?<WhatsAppSenderDialog brandName={brandName} senders={data.senders} canManage={can('marketing_settings.configure')} busy={busy} error={error} onClose={()=>{if(!busy)setSenderSettings(false)}} onCommand={(action,id,payload)=>perform(()=>command(action,id,payload),'Sender updated.',false)}/>:null}
         {modal ? (
           <Modal
             open
@@ -654,8 +637,8 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                         ? "Remove suppression"
                         : modal === "consent"
                           ? "WhatsApp consent"
-                          : modal === "sender"
-                            ? "Register brand sender"
+                          : modal === "sender_session"
+                            ? "Confirm WhatsApp Sender"
                             : modal === "audience"
                               ? form.id ? "Edit segment" : "Create segment"
                               : "Confirm action"
@@ -677,18 +660,21 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                   disabled={
                     busy ||
                     (modal==='campaign'&&(!form.title?.trim()||!form.caption?.trim())) ||
-                    (["approve", "confirm", "unsuppress", "sender"].includes(
+                    (["approve", "confirm", "unsuppress"].includes(
                       modal,
                     ) &&
                       !form.confirmed)
                   }
                   onClick={() => {
-                    if (modal === "confirm")
+                    if(modal==='sender_session'){
+                      const g=generation.current;
+                      perform(()=>command('sender_session',campaign,{revision:active.revision,senderId:sender,senderRevision:chosenSender.revision}),"Sender confirmed for this sending session.").then(result=>{if(result&&g===generation.current)setSenderSession(result)});
+                    } else if (modal === "confirm")
                       perform(
                         () =>
                           command("confirm", recipient.id, {
                             senderId: sender,
-                            senderConfirmed,
+                            senderSessionId:senderConfirmed?senderSession.id:null,
                           }),
                         "Staff confirmation recorded. Delivery is not verified.",
                       ).then((r) => {
@@ -705,7 +691,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                     else save().catch((e) => setError(e.message));
                   }}
                 >
-                  {modal === "customer" ? "Save customer" : modal === "campaign" ? "Save draft" : "Confirm"}
+                  {modal === "sender_session" ? "Confirm Sender & Start Session" : modal === "customer" ? "Save customer" : modal === "campaign" ? "Save draft" : "Confirm"}
                 </button>
               </>
             }
@@ -726,12 +712,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                 <p className="text-sm text-text-secondary">Choose Subscribed only when this customer has agreed to WhatsApp marketing from this brand.</p>
               </> : null}
               {modal === "suppress" ? input("Reason", "reason") : null}
-              {modal === "sender" ? (
-                <>
-                  {input("Sender label", "label")}
-                  {input("Sender phone", "phone")}
-                </>
-              ) : null}
+              {modal==='sender_session'?<><p className="font-semibold">{chosenSender?.label}</p><p>{chosenSender?.phone_e164}</p><p className="text-sm text-text-secondary">Confirm you will use this WhatsApp sender for this campaign. Switching recipients keeps this confirmation. Refreshing or starting a new session requires confirmation again.</p><p className="text-sm text-text-secondary">FeedX cannot verify which account is signed in to WhatsApp.</p></>:null}
               {modal === "campaign" ? <div className="space-y-5">
                 {input("Campaign title", "title")}
                 <div className="outreach-campaign-layout">
@@ -784,7 +765,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                   customer’s withdrawal request has been appropriately reviewed.
                 </p>
               ) : null}
-              {["approve", "confirm", "unsuppress", "sender"].includes(
+              {["approve", "confirm", "unsuppress"].includes(
                 modal,
               ) ? (
                 <label>
