@@ -736,11 +736,11 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                 {input("Campaign title", "title")}
                 <div className="outreach-campaign-layout">
                   <div className="space-y-4 min-w-0"><TextareaField label="Caption" rows={5} maxLength={4000} value={form.caption||''} onChange={caption=>field('caption',caption)} helper="Personalize with {name} and {brand}." disabled={busy}/>
-                    <CampaignMediaField key={`${org}:${brand}`} org={org} brand={brand} assets={data.assets} assetId={form.asset_id} onChange={asset_id=>field('asset_id',asset_id)} onUploaded={asset=>setData(d=>({...d,assets:[asset,...d.assets]}))} canUpload={can('marketing_content.upload')} busy={busy} onBusy={setBusy}/>
-                  </div>
+
                   <section className="space-y-4 min-w-0" aria-label="Campaign audience"><h3 className="text-sm font-semibold">Audience</h3>
                     {form.audience_criteria?<><TagPicker value={form.audience_criteria.tags||(form.audience_criteria.tag?[form.audience_criteria.tag]:[])} options={data.tags||[]} onChange={tags=>field('audience_criteria',{...form.audience_criteria,tag:'',tags})}/><SelectField label="Outlet" value={form.audience_criteria.outlet_id||''} onChange={outlet_id=>field('audience_criteria',{...form.audience_criteria,outlet_id})} options={[{value:'',label:'All'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/><SelectField label="WhatsApp Consent" value="eligible" disabled options={[{value:'eligible',label:'Subscribed only'}]}/></>:<SelectField label="Audience" value={form.audience_id||''} onChange={v=>field('audience_id',v)} options={[{value:'',label:'Select audience'},...data.audiences.map(a=>({value:a.id,label:`${a.name} · ${a.eligible_count} eligible`}))]}/>}
-                  </section>
+                  </section></div>
+                  <CampaignMediaField key={`${org}:${brand}`} org={org} brand={brand} assets={data.assets} assetId={form.asset_id} onChange={asset_id=>field('asset_id',asset_id)} onUploaded={asset=>setData(d=>({...d,assets:[asset,...d.assets]}))} canUpload={can('marketing_content.upload')} busy={busy} onBusy={setBusy}/>
                 </div>
               </div>:null}
               {modal === "approve" ? (
