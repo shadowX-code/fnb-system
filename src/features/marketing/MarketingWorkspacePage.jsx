@@ -1,40 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, Plus, Upload, ExternalLink } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import AdminFormField from '../../components/forms/AdminFormField.jsx';
-import AdminSummaryGrid from '../../components/ui/AdminSummaryGrid.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import Modal from '../../components/feedback/Modal.jsx';
-import Badge from '../../components/ui/Badge.jsx';
-import AdminPagination, { useAdminPagedQuery } from '../../components/tables/AdminPagination.jsx';
 import { marketingService } from './marketingService.js';
 import { localInput, scheduleInstant } from './marketingCalendar.js';
 import './marketing.css';
 import MarketingMediaPicker from './MarketingMediaPicker.jsx';
 import MediaLibrary from './MediaLibrary.jsx';
+import { MarketingOverview, MarketingSocialAnalytics } from './MarketingDashboards.jsx';
 import GoogleDriveSettings from './GoogleDriveSettings.jsx';
-import { contentStatusLabel } from './contentManagement.js';
 import ContentManagement from './ContentManagement.jsx';
 import PostDetail from './PostDetail.jsx';
-import { MetaConnections, PublishAuthorization, SocialEvidence } from './MetaIntegrationPanels.jsx';
+import { MetaConnections, PublishAuthorization } from './MetaIntegrationPanels.jsx';
 
-const labels = { overview: 'Overview', content: 'Content Management', media: 'Media Library', calendar: 'Content Management', analytics: 'Analytics', settings: 'Brand Knowledge & Connections' };
+const labels = { overview: 'Overview', content: 'Content Management', media: 'Media Library', calendar: 'Content Management', analytics: 'Social Analytics', settings: 'Brand Knowledge & Connections' };
 const descriptions = {
-  overview: 'Publishing activity, approvals and delivery actions across your brands.',
+  overview: 'See what needs attention and keep your brands moving.',
   content: '',
   media: '',
   calendar: '',
-  analytics: 'Verified workflow outcomes and the evidence available to Marketing.',
+  analytics: 'Understand your organic content performance.',
   settings: 'Manage brand knowledge, shared ownership and connection readiness.',
 };
 const emptyContext = { organizations: [], brands: [] };
 const fields = ['positioning','audience','voice','identity','menu','products','pricing','rules','references'];
 const titleCase = value => value.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
-const statusTone = status => ['approved','published','ready'].includes(status) ? 'success' : ['failed','rejected','blocked'].includes(status) ? 'danger' : ['review','scheduled'].includes(status) ? 'warning' : 'neutral';
-function Status({ value }) { return <Badge tone={statusTone(value)}>{contentStatusLabel(value)}</Badge>; }
-function Stamp({ value, timezone }) { return value ? <time dateTime={value}>{new Intl.DateTimeFormat('en-MY', { timeZone: timezone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))}</time> : <span>Unscheduled</span>; }
 const newPayload = () => ({ title: '', outlet_ids: [], variants: [{ channel: 'facebook', format: 'text', caption: '', asset_ids: [] }] });
 
 export default function MarketingWorkspacePage({ section = 'overview' }) {
@@ -88,7 +82,7 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
     let live = true;
     setLoading(Boolean(organizationId)); setError(''); setSetup(null);
     if (!organizationId || booting) return () => { live = false; };
-    (['calendar','media'].includes(section) ? Promise.resolve({rows:[],assets:[],jobs:[],total:0}) : marketingService.read({ organizationId, brandId, section, page, pageSize }))
+    (['calendar','media','overview','analytics'].includes(section) ? Promise.resolve({rows:[],assets:[],jobs:[],total:0}) : marketingService.read({ organizationId, brandId, section, page, pageSize }))
       .then(result => { if (live) setRead({ key, data: result }); })
       .catch(e => { if (live) setError(e.message); }).finally(() => { if (live) setLoading(false); });
     if (section === 'settings') marketingService.setup(organizationId).then(result => { if (live) setSetup(result); }).catch(e => { if (live) setError(e.message); });
@@ -159,15 +153,8 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
     <AsyncDataSurface loading={booting || loading} error={bootstrapError || error} onRetry={()=>setRefresh(v=>v+1)} hasData={Boolean(data)}>
       {!booting && !bootstrapError && !context.organizations.length ? <section className="card p-6 space-y-3"><h2 className="font-semibold">Set up your Marketing organization</h2><p className="text-sm text-text-secondary">Organization membership and brand ownership are explicit. Create your organization, then add brands and authorized team members.</p>{can('platform_organizations.manage') ? <button className="btn-primary" onClick={()=>open({type:'organization',name:''})}>Create organization</button> : <p className="text-sm">Ask an organization administrator to grant membership.</p>}</section> : null}
       {data && !brands.length ? <section className="card p-5"><p>No brands are available in this organization.</p>{can('marketing_settings.view') ? <p className="mt-2 text-sm text-text-secondary">Use Brand Knowledge & Connections to create brands or configure your role’s brand access.</p> : null}</section> : null}
-      {data && ['overview','analytics'].includes(section) ? <>
-        <AdminSummaryGrid items={['review','approved','scheduled','published'].map(id=>({key:id,label:titleCase(id),value:data.summary?.[id] ?? 0,helper:'Saved content records'}))}/>
-        <section className="card p-5 space-y-3"><h2 className="font-semibold">{section==='overview' ? 'Action Center' : 'Publishing outcomes'}</h2>
-          <MarketingListPanel organizationId={organizationId} brandId={brandId} kind={section==='overview'?'jobs':'analytics_jobs'} refresh={refresh} renderRows={rows=><JobList jobs={rows} timezone={timezone}/>} emptyTitle="No publishing jobs"/>
-          {section==='overview' ? <MarketingListPanel organizationId={organizationId} brandId={brandId} kind="approvals" refresh={refresh} emptyTitle="No pending approvals" renderRows={rows=>rows.map(c=><div className="marketing-row" key={c.id}><span><strong>{c.payload.title}</strong><small>{c.brand_name} · Revision {c.revision} requires review</small></span>{can('marketing_content.approve')&&can('marketing_content.view') ? <button className="btn-secondary" disabled={busy} onClick={()=>open({type:'review',content:c})}>Review content</button> : <Status value="review"/>}</div>)}/> : null}
-        </section>
-        <section className="card p-5 space-y-2"><h2 className="font-semibold">Evidence availability</h2><p className="text-sm text-text-secondary">Workflow counts use saved FeedX records. Social metrics appear only when collected from authorized accounts. Conversions and provider costs remain unavailable.</p><p className="text-sm text-text-secondary">Marketing has no customer, loyalty or financial mutation authority. Revenue attribution and AI insights are not available in this phase.</p></section>
-      </> : null}
-      {data && section==='analytics' ? <SocialEvidence key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId}/> : null}
+      {data && section==='overview' ? <MarketingOverview key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} brands={brand? [brand]:brands} can={can} userId={auth.user?.id}/> : null}
+      {data && section==='analytics' ? <MarketingSocialAnalytics key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} brands={brands} can={can} userId={auth.user?.id}/> : null}
       {data && brand && section==='media' ? <MediaLibrary key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} userId={auth.user?.id}/> : null}
       {data && brand && section==='calendar' ? <ContentManagement key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} refresh={refresh} open={open} command={command} busy={busy} can={can}/> : null}
       {data && section==='settings' ? <div className="marketing-settings-tabs" role="tablist" aria-label="Marketing settings"><button className="btn-secondary" role="tab" aria-selected={settingsTab==='social'} onClick={()=>setSettingsTab('social')}>Social Accounts</button><button className="btn-secondary" role="tab" aria-selected={settingsTab==='drive'} onClick={()=>setSettingsTab('drive')}>Google Drive</button><button className="btn-secondary" role="tab" aria-selected={settingsTab==='knowledge'} onClick={()=>setSettingsTab('knowledge')}>Knowledge & access</button></div> : null}
@@ -200,18 +187,6 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
   </WorkspacePage>;
 }
 
-function MarketingListPanel({organizationId,brandId,kind,refresh=0,renderRows,emptyTitle}) {
-  const auth=useAuth();
-  const signature=JSON.stringify([organizationId,brandId,kind,refresh,auth.user?.id]);
-  const [state,actions]=useAdminPagedQuery({storageKey:`marketing.${kind}.${organizationId}.${brandId||'all'}`,querySignature:signature,loadPage:({page,pageSize})=>marketingService.listing({organizationId,brandId,kind,page,pageSize}),shouldClearOnError:()=>true});
-  const current=state.loadedQuerySignature===signature;
-  return <div><AsyncDataSurface loading={state.loading||!current&&!state.error} error={state.error} onRetry={actions.retry} isEmpty={current&&!state.rows.length} emptyTitle={emptyTitle} hasData={current&&Boolean(state.rows.length)}>{current?renderRows(state.rows):null}</AsyncDataSurface><AdminPagination {...state} loading={state.loading} onPageChange={actions.requestPage} onPageSizeChange={actions.requestPageSize}/></div>;
-}
-function JobList({jobs,timezone}) { return <div>{jobs.map(j=><div className="marketing-row" key={j.id}><span><strong>{j.title} · {titleCase(j.channel)}</strong><small>{j.brand_name} · Revision {j.revision} · <Stamp value={j.due_at} timezone={timezone}/> · {j.attempts} attempts</small><small>{j.error_code==='provider_not_authorized'?'Meta publishing is not authorized. No post was sent.':j.error_code ? titleCase(j.error_code) : j.provider_post_id ? `Platform post: ${j.provider_post_id}` : 'Awaiting delivery evidence.'}</small></span><Status value={j.state}/></div>)}</div>; }
-function ContentRows({rows,busy,can,open,command,timezone}) {
-  if(!rows.length)return <section className="card p-6"><h2 className="font-semibold">No content yet</h2><p className="mt-2 text-sm text-text-secondary">Select a brand and create a draft. Each channel keeps its own caption and media format.</p></section>;
-  return <section className="card overflow-hidden"><div className="marketing-content-head"><span>Creative concept</span><span>Lifecycle & actions</span></div>{rows.map(c=><div className="marketing-row" key={c.id}><span><strong>{c.payload.title}</strong><small>{c.brand_name} · Revision {c.revision} · {c.payload.variants.map(v=>titleCase(v.channel)).join(' / ')}</small><small><Stamp value={c.scheduled_at} timezone={c.schedule_timezone||timezone}/></small></span><div className="flex flex-wrap items-center gap-2"><Status value={c.status}/><button className="btn-secondary" disabled={busy} onClick={()=>open({type:'review',content:c})}>Details</button>{c.status!=='published'&&can('marketing_content.edit')?<button className="btn-secondary" disabled={busy} onClick={()=>open({type:'content',content:c,payload:structuredClone(c.payload)})}>Edit</button>:null}{['draft','rejected'].includes(c.status)&&can('marketing_content.review')?<button className="btn-secondary" disabled={busy} onClick={()=>command('review',c)}>Submit review</button>:null}{c.status==='approved'&&can('marketing_content.publish')?<button className="btn-secondary" disabled={busy} onClick={()=>open({type:'schedule',content:c,local:'',timezone:timezone})}><CalendarDays size={14}/> Schedule</button>:null}{!['published','cancelled'].includes(c.status)&&can('marketing_content.cancel')?<button className="btn-secondary" disabled={busy} onClick={()=>command('cancel',c)}>Cancel</button>:null}</div></div>)}</section>;
-}
 function Checks({values,onChange,options,label}) { return <fieldset className="space-y-2"><legend className="text-sm font-semibold">{label}</legend>{options.map(o=><label className="flex items-center gap-2 text-sm" key={o.id}><input type="checkbox" checked={values.includes(o.id)} onChange={e=>onChange(e.target.checked?[...values,o.id]:values.filter(id=>id!==o.id))}/>{o.name}</label>)}</fieldset>; }
 function Settings({data,setup,brands,brand,can,busy,open,actorId,removeMember}) {
   const knowledge=data.knowledge.find(k=>k.brand_id===brand?.id);

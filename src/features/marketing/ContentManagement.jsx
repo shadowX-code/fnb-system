@@ -114,7 +114,7 @@ function Status({ value }) {
     </Badge>
   );
 }
-function Thumbnail({ channel }) {
+export function Thumbnail({ channel }) {
   const [url, setUrl] = useState(channel?.thumbnail_url || "");
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -215,7 +215,7 @@ export default function ContentManagement(
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [channel, setChannel] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(()=>{const value=new URLSearchParams(window.location.search).get("status");return statuses.some(s=>s.value===value)?value:"";});
   const [sort, setSort] = useState("date_desc");
   const [group, setGroup] = useState("");
   const [expanded, setExpanded] = useState({});

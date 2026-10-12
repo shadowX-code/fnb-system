@@ -197,7 +197,7 @@ export default function MarketingInboxPage() {
       .then((v) => {
         if (live) {
           setContext(v);
-          setOrg(v.organizations[0]?.id || "");
+          const q=new URLSearchParams(window.location.search),queryOrg=q.get("marketing_org"),queryBrand=q.get("marketing_brand");const chosen=v.organizations.some(o=>o.id===queryOrg)?queryOrg:v.organizations[0]?.id||"";setOrg(chosen);setBrand(v.brands.some(b=>b.id===queryBrand&&b.organization_id===chosen)?queryBrand:"");
         }
       })
       .catch((e) => {
@@ -225,6 +225,8 @@ export default function MarketingInboxPage() {
     request.current = null;
     generation.current++;
   }, [scope]);
+  const openedDashboardConversation=useRef('');
+  useEffect(()=>{const id=new URLSearchParams(window.location.search).get('conversation_id');if(!data||!id||openedDashboardConversation.current===id)return;openedDashboardConversation.current=id;setSelected(id);const url=new URL(window.location.href);url.searchParams.delete('conversation_id');window.history.replaceState(window.history.state,'',url);},[data]);
   useEffect(() => {
     let live = true;
     setError("");

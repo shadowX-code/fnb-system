@@ -407,7 +407,7 @@ export default function MarketingAdsPage() {
   return (
     <WorkspacePage
       section="Marketing"
-      title="Ads & Analytics"
+      title="Ads Analytics"
       description="Advertising performance and decisions across your brands."
       controls={controls}
       actions={

@@ -41,7 +41,7 @@ export default function ContentPlannerPage(){
  const can=action=>auth.hasPermission('marketing_planner.'+action),brandId=prefs.brand||'',month=prefs.month,view=prefs.view,brands=context?.brands.filter(b=>b.organization_id===org)||[];
  scope.current=JSON.stringify([user,org,month,brandId]);
  const editPrefs=patch=>{setPrefs(p=>({...p,...patch}));setPage(1);};
- useEffect(()=>{let live=true;setContext(null);setData(emptyData);setLoading(true);setError('');setBusy(false);setNotice('');setDialog(null);marketingService.context().then(c=>{if(live){setContext(c);const p=plannerPreferences(user);setPrefs(p);setOrg(c.organizations.some(o=>o.id===p.org)?p.org:c.organizations[0]?.id||'');}}).catch(e=>{if(live)setError(e.message)}).finally(()=>{if(live)setLoading(false)});return()=>{live=false;serial.current++;}},[user]);
+ useEffect(()=>{let live=true;setContext(null);setData(emptyData);setLoading(true);setError('');setBusy(false);setNotice('');setDialog(null);marketingService.context().then(c=>{if(live){setContext(c);const p=plannerPreferences(user),q=new URLSearchParams(window.location.search),queryOrg=q.get('marketing_org'),queryBrand=q.get('marketing_brand');if(c.organizations.some(o=>o.id===queryOrg)){p.org=queryOrg;p.brand=c.brands.some(b=>b.id===queryBrand&&b.organization_id===queryOrg)?queryBrand:'';if(/^\d{4}-\d{2}-01$/.test(q.get('month')||''))p.month=q.get('month');p.view='list';p.search='';p.assignee='';p.blocked=false;p.status=taskStatuses.some(v=>v.value===q.get('status'))?q.get('status'):'';}setPrefs(p);setOrg(c.organizations.some(o=>o.id===p.org)?p.org:c.organizations[0]?.id||'');}}).catch(e=>{if(live)setError(e.message)}).finally(()=>{if(live)setLoading(false)});return()=>{live=false;serial.current++;}},[user]);
  useEffect(()=>{if(context&&brandId&&!brands.some(b=>b.id===brandId))editPrefs({brand:''});},[context,org,brandId]);
  useEffect(()=>{if(!context||!org)return;try{localStorage.setItem(`marketing.planner.${user}`,JSON.stringify({...prefs,org}));}catch{}},[prefs,org,user,context]);
  useEffect(()=>{
@@ -58,6 +58,8 @@ export default function ContentPlannerPage(){
   catch(e){if(scope.current===startScope)setError(e.message);}finally{if(scope.current===startScope)setBusy(false)}
  }
  function open(value){if(busy)return;setError('');request.current=null;setDialog(value);}
+ const openedDashboardTask=useRef('');
+ useEffect(()=>{const id=new URLSearchParams(window.location.search).get('task_id');if(loading||!id||openedDashboardTask.current===id)return;const task=data.tasks.find(t=>t.id===id);if(task){openedDashboardTask.current=id;setDialog({type:'detail',task});const url=new URL(window.location.href);url.searchParams.delete('task_id');window.history.replaceState(window.history.state,'',url);}},[data,loading]);
  const tasks=useMemo(()=>filterTasks(data.tasks,prefs),[data.tasks,prefs]),sorted=useMemo(()=>sortedTasks(tasks,prefs.sort),[tasks,prefs.sort]),summary=plannerSummary(tasks),today=todayKey(),weeks=monthWeeks(month);
  const membersFor=brand=>data.members.filter(m=>m.brand_ids.includes(brand)).map(m=>({value:m.id,label:m.name}));
  function move(task,status){if(allowedMoves(task,can('edit')).includes(status))mutate('transition',task,{status},`Task moved to ${statusName(status)}.`);}
