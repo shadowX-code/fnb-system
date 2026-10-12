@@ -24,7 +24,7 @@ export default function CampaignMediaField({org,brand,assets,assetId,onChange,on
   <SelectField label="Campaign image" value={assetId||''} disabled={busy} searchable="auto" onChange={id=>{setError('');onChange(id)}} options={[{value:'',label:'No image'},...assets.map(a=>({value:a.id,label:a.filename}))]}/>
   {pending?<img src={pending.url} alt={pending.file.name} className="w-full max-h-96 rounded-lg object-contain"/>:asset?<MarketingMediaPreview key={asset.id} asset={asset}/>:null}
   {canUpload?<AdminEvidenceFilePicker file={pending?.file||(asset?{name:asset.filename,type:asset.mime_type,size:asset.size_bytes}:null)} onChange={upload} accept="image/jpeg,image/png,image/webp" disabled={busy} label="Upload campaign image" removeLabel="Remove campaign image" helper="JPG, PNG or WebP · up to 100 MB"/>:asset?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>onChange('')}>Remove image</button>:null}
-  {busy?<p role="status" className="text-sm text-text-secondary">Uploading image…</p>:null}
+  {pending?<p role="status" className="text-sm text-text-secondary">Uploading image…</p>:null}
   {error?<p role="alert" className="text-sm text-danger">{error}</p>:null}
  </section>;
 }

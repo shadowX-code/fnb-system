@@ -151,7 +151,10 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
   const approvalCurrent=active?.approved_revision===active?.revision&&(active?.status==='ready'||currentAudience?.revision===active?.audience_revision);
   const queueTotal=active?.recipient_count??Object.values(data?.progress||{}).reduce((sum,n)=>sum+n,0);
   const handlingComplete=active?.status==='ready'&&queueTotal>0&&(active.handled_count??((data?.progress.staff_confirmed||0)+(data?.progress.skipped||0)))===queueTotal;
-  const canRevise=active&&['draft','review','approved','ready'].includes(active.status)&&!(data?.progress.opened||data?.progress.staff_confirmed||data?.progress.skipped)&&!data?.recipients.some(r=>r.state!=='pending');
+  const canRevise=active&&['draft','review','approved','ready'].includes(active.status)&&!(active.handled_count>0)&&(active.status!=='ready'||(!loading&&!error))&&!(data?.progress.opened||data?.progress.staff_confirmed||data?.progress.skipped)&&!data?.recipients.some(r=>r.state!=='pending');
+  const previewRecipient=recipient||(data?.recipients.length===1?data.recipients[0]:null);
+  const pageSenderIds=[...new Set((data?.recipients||[]).map(r=>r.sender_id).filter(Boolean))];
+  const displaySender=data?.senders.find(s=>s.id===(recipient?.sender_id||sender||(pageSenderIds.length===1?pageSenderIds[0]:null)));
   const brandName=brands.find(b=>b.id===brand)?.name||'';
   const formatDate=value=>value?new Date(value).toLocaleDateString('en-MY',{timeZone:'Asia/Kuala_Lumpur',day:'numeric',month:'short',year:'numeric'}):'—';
   const field = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -458,8 +461,8 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                           <section className="card p-4 space-y-4 min-w-0" aria-label="Campaign message preview">
                             <div className="outreach-section-heading mb-0"><h3 className="text-sm font-semibold">Message preview</h3><Badge>{active.status==='cancelled'?'Cancelled':approvalCurrent?'Approved':'Awaiting approval'}</Badge></div>
                             <MarketingMediaPreview key={active.asset_id||'none'} asset={data.assets.find(a=>a.id===active.asset_id)}/>
-                            {recipient?<small>Preview for {recipient.display_name}</small>:null}
-                            <p className="outreach-caption">{recipient?.caption||(active.caption||'').replaceAll('{brand}',brandName)}</p>
+                            {previewRecipient?<small>Preview for {previewRecipient.display_name}</small>:null}
+                            <p className="outreach-caption">{previewRecipient?.caption||(active.caption||'').replaceAll('{brand}',brandName)}</p>
                           </section>
                           <section className="card p-4 space-y-4 min-w-0" aria-label="Campaign information">
                             <h3 className="text-sm font-semibold">Campaign information</h3>
@@ -468,14 +471,14 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                               <div><dt>Outlet</dt><dd>{!currentAudience?'Unavailable':currentAudience.criteria?.outlet_id?data.outlets.find(o=>o.id===currentAudience.criteria.outlet_id)?.name||'Unavailable':'All outlets'}</dd></div>
                               {currentAudience?.criteria?.language?<div><dt>Language</dt><dd>{{EN:'English',ZH:'Chinese',BM:'Bahasa Melayu'}[currentAudience.criteria.language]||currentAudience.criteria.language}</dd></div>:null}
                               <div><dt>WhatsApp consent</dt><dd>Subscribed only</dd></div><div><dt>Recipients</dt><dd>{active.status==='ready'?queueTotal:active.audience_size??'Unavailable'}{active.status!=='ready'?<small>Current eligible audience</small>:null}</dd></div>
-                              <div><dt>Sender</dt><dd>{data.senders.find(s=>s.id===(recipient?.sender_id||sender))?.label||'Selected by staff per recipient'}</dd></div>
+                              <div><dt>Sender</dt><dd>{displaySender?`${displaySender.label} · ${displaySender.phone_e164}`:pageSenderIds.length>1?'Multiple senders on this page':'Selected by staff per recipient'}</dd></div>
                               <div><dt>Approval</dt><dd>{active.status==='cancelled'?'Cancelled':approvalCurrent?'Approved':active.status==='review'?'Pending approval':'Review required'}</dd></div>
                               <div><dt>Created</dt><dd>{formatDate(active.created_at)}</dd></div><div><dt>Approved</dt><dd>{formatDate(active.approved_at)}</dd></div>
                             </dl>
                             <p className="text-xs text-text-secondary">Sending is manual. Staff Confirmed records staff handling, not WhatsApp delivery or read status.</p>
                           </section>
                         </div>
-                        <AdminSummaryGrid variant="compact" ariaLabel="Recipient handling progress" items={['pending','opened','staff_confirmed','skipped'].map(key=>({key,label:names[key],value:data.progress[key]||0,state:loading?'loading':'ready'}))}/>
+                        <AdminSummaryGrid variant="compact" ariaLabel="Recipient handling progress" items={['pending','opened','staff_confirmed','skipped'].map(key=>({key,label:names[key],value:data.progress[key]||0,state:loading?'loading':error?'unavailable':'ready'}))}/>
                         <details className="outreach-evidence"><summary>Technical details & evidence</summary><p>Campaign revision: {active.revision} · Approved revision: {active.approved_revision??'None'} · Audience revision: {active.audience_revision??'Not reviewed'}</p><p>Verified delivery: unavailable · Verified redemptions: unavailable</p><p>Queued campaigns do not send automatically. Cloud API delivery is unavailable.</p></details>
                       </>
                     ) : null}
