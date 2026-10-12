@@ -161,6 +161,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
     if(action==='start')perform(()=>command('queue',c.id,{revision:c.revision}),'Eligible recipients queued. No messages were sent.').then(result=>{if(result)openCampaign(c)});
   };
   const currentAudience=data?.audiences.find(a=>a.id===active?.audience_id);
+  const audienceCriteria=active?.audience_criteria||currentAudience?.criteria;
   const approvalCurrent=active?.approval_current ?? (active?.approved_revision===active?.revision&&(active?.status==='ready'||currentAudience?.revision===active?.audience_revision));
   const queueTotal=active?.recipient_count??Object.values(data?.progress||{}).reduce((sum,n)=>sum+n,0);
   const handlingComplete=active?.status==='ready'&&queueTotal>0&&(active.handled_count??((data?.progress.staff_confirmed||0)+(data?.progress.skipped||0)))===queueTotal;
@@ -481,10 +482,10 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                             <h3 className="text-sm font-semibold">Campaign information</h3>
                             <CampaignAudienceBreakdown breakdown={active.audience_breakdown} basis={active.audience_basis} />
                             <dl className="outreach-profile-grid">
-                              <div><dt>Audience</dt><dd><CampaignAudienceTags criteria={active.audience_criteria||currentAudience?.criteria}/></dd></div>
-                              <div><dt>Outlet</dt><dd>{!currentAudience?'Unavailable':currentAudience.criteria?.outlet_id?data.outlets.find(o=>o.id===currentAudience.criteria.outlet_id)?.name||'Unavailable':'All outlets'}</dd></div>
-                              {currentAudience?.criteria?.language?<div><dt>Language</dt><dd>{{EN:'English',ZH:'Chinese',BM:'Bahasa Melayu'}[currentAudience.criteria.language]||currentAudience.criteria.language}</dd></div>:null}
-                              <div><dt>Created</dt><dd>{formatDate(active.created_at)}</dd></div><div><dt>Approved</dt><dd>{formatDate(active.approved_at)}</dd></div><div><dt>WhatsApp consent</dt><dd>Subscribed only</dd></div><div><dt>Recipients</dt><dd>{active.eligible_recipients??active.audience_size??'Unavailable'}<small>Currently eligible · {queueTotal} queued</small></dd></div>
+                              <div><dt>Audience</dt><dd><CampaignAudienceTags criteria={audienceCriteria}/></dd></div>
+                              <div><dt>Outlet</dt><dd>{!audienceCriteria?'Unavailable':audienceCriteria.outlet_id?data.outlets.find(o=>o.id===audienceCriteria.outlet_id)?.name||'Unavailable':'All outlets'}</dd></div>
+                              {audienceCriteria?.language?<div><dt>Language</dt><dd>{{EN:'English',ZH:'Chinese',BM:'Bahasa Melayu'}[audienceCriteria.language]||audienceCriteria.language}</dd></div>:null}
+                              <div><dt>WhatsApp consent</dt><dd>Subscribed only</dd></div><div><dt>Recipients</dt><dd>{active.eligible_recipients??active.audience_size??'Unavailable'}<small>Currently eligible · {queueTotal} queued</small></dd></div>
                               <div><dt>Sender</dt><dd>{displaySender?`${displaySender.label} · ${displaySender.phone_e164}`:pageSenderIds.length>1?'Multiple senders on this page':'Selected by staff for the sending session'}</dd></div>
                               <div><dt>Approval</dt><dd>{active.status==='cancelled'?'Cancelled':approvalCurrent?'Approved':active.status==='review'?'Pending approval':'Review required'}</dd></div>
                               <div><dt>Created</dt><dd>{formatDate(active.created_at)}</dd></div><div><dt>Approved</dt><dd>{formatDate(active.approved_at)}</dd></div>
