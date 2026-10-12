@@ -1,5 +1,11 @@
 # FeedX Development Log
 
+## 2026-10-12 — Manual WhatsApp sender sessions
+
+- Moved brand sender management into contextual Add/Edit/Default/Disable settings without provider-connection claims.
+- Bound one manual confirmation to approved campaign/sender revisions, employee and live Admin Auth session; preserved recipient sender snapshots through registration changes. Existing consent, approvals and duplicate handling remain authoritative.
+- Focused regression/build and disposable Staging authority verification passed; no external messages or Production changes. Canonical owner: docs/domains/marketing.md.
+
 ## 2026-10-10 — Marketing Phase 2 internal Inbox and connector boundaries
 
 - Delivered scoped unread tracking, comment ingestion contracts, intent/language annotations, opt-out takeover enforcement, default Suggest mode and evidence-based Inbox analytics on canonical Staging.
