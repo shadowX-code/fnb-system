@@ -603,8 +603,8 @@ export default function ContentManagement(
         hasData={current && rows.length > 0 && !bounds.error}
         isEmpty={current && rows.length === 0 && !bounds.error &&
           view === "list"}
-        emptyTitle="No dated content"
-        emptyDescription="Try another period or filter. Unscheduled drafts are available in List view."
+        emptyTitle={view==="calendar"?"No dated content":"No content yet"}
+        emptyDescription={view==="calendar"?"Try another period or filter. Unscheduled drafts are available in List view.":"Create a post or adjust your filters."}
         onRetry={bounds.error ? undefined : actions.retry}
       >
         {current && !bounds.error && view === "list"

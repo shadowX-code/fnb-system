@@ -25,9 +25,10 @@ export default function Modal({
   closeRef.current = onClose;
   useEffect(() => {
     const previous = document.activeElement, panel = panelRef.current;
-    const controls = () => [...panel.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]')].filter(el => el.getClientRects().length);
+    const controls = () => [...panel.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]')].filter(el => el.getClientRects().length && el.closest('[role="dialog"]') === panel);
     panel.focus();
     const key = event => {
+      if (event.target.closest('[role="dialog"]') !== panel) return;
       if (event.key === 'Escape') { event.preventDefault(); closeRef.current?.(); }
       if (event.key !== 'Tab') return;
       const items = controls(), first = items[0], last = items.at(-1);
