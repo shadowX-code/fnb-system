@@ -4,7 +4,7 @@ import {GripVertical} from 'lucide-react';
 import './adminKanban.css';
 
 /** Interaction only. The consumer validates transitions and owns persistence. */
-export default function AdminKanbanBoard({columns,label,disabled,canDrop,onDrop,renderItem,renderHeader,renderFooter,className=''}){
+export default function AdminKanbanBoard({columns,label,disabled,canDrop,onDrop,renderItem,renderHeader,renderFooter,columnClassName=()=>'',className=''}){
  const root=useRef(null),cleanup=useRef(()=>{}),latest=useRef({}),positions=useRef(new Map()),[drag,setDrag]=useState(null),[target,setTarget]=useState(null),[announcement,setAnnouncement]=useState('');
  latest.current={columns,disabled,canDrop,onDrop};
  const reduced=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -54,7 +54,7 @@ export default function AdminKanbanBoard({columns,label,disabled,canDrop,onDrop,
   if(['ArrowUp','ArrowDown'].includes(event.key)&&canDrop(item,column.value)){const direction=event.key==='ArrowUp'?-1:1;if(index+direction>=0&&index+direction<column.items.length){destination=column.value;before=direction<0?column.items[index-1].id:column.items[index+2]?.id||null;}}
   if(destination){event.preventDefault();onDrop(item,destination,before);setAnnouncement(`${item.title} moved to ${columns.find(c=>c.value===destination)?.label}.`);}
  }
- return <><section ref={root} className={`admin-kanban-board ${className}`} aria-label={label}>{columns.map(column=><section key={column.value} data-kanban-column={column.value} className={`planner-column planner-column-${column.value}`} aria-label={column.label} data-drop-active={target?.column===column.value||undefined}>
+ return <><section ref={root} className={`admin-kanban-board ${className}`} aria-label={label}>{columns.map(column=><section key={column.value} data-kanban-column={column.value} className={`admin-kanban-column ${columnClassName(column)}`} aria-label={column.label} data-drop-active={target?.column===column.value||undefined}>
  <header>{renderHeader(column)}</header><div className="admin-kanban-items">{column.items.map((item,index)=><div key={item.id} data-kanban-item={item.id} className="admin-kanban-item" data-dragging={drag?.item.id===item.id||undefined}>
  {target?.column===column.value&&target.before===item.id?<div className="admin-kanban-insertion" aria-hidden="true"/>:null}
  <div className="admin-kanban-card">{renderItem(item)}{columns.some(c=>canDrop(item,c.value))?<button type="button" className="admin-kanban-handle" aria-label={`Move ${item.title}. Use arrow keys to move, or open task for touch controls.`} title="Drag to move. Arrow keys move between columns; up/down reorder in Manual Order." disabled={disabled} onPointerDown={e=>start(e,item)} onKeyDown={e=>keyboard(e,item,column,index)}><GripVertical size={15}/></button>:null}</div></div>)}{target?.column===column.value&&!target.before?<div className="admin-kanban-insertion" aria-hidden="true"/>:null}</div>{renderFooter?.(column)}</section>)}</section>
