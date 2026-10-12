@@ -21,3 +21,17 @@ export function taskPayload(task){return Object.fromEntries(['title','checklist'
 export function plannerPreferences(user){try{const p=JSON.parse(localStorage.getItem(`marketing.planner.${user}`)||'{}');return {...p,view:['board','list','month'].includes(p.view)?p.view:'board',month:/^\d{4}-\d{2}-01$/.test(p.month)?p.month:currentMonth()};}catch{return {view:'board',month:currentMonth()};}}
 
 export function taskDueState(task,today=todayKey()){if(task.status==='completed'||!task.due_date)return 'normal';return task.due_date<today?'overdue':task.due_date===today?'today':task.due_date===shiftDate(today,1)?'tomorrow':'normal';}
+
+// Completion recency comes from the canonical approval event, never mutable updated/due dates.
+export function completedAt(task){
+ return task.completed_at || [...(task.history||[])].filter(h=>h.action==='approve'&&h.date).sort((a,b)=>b.revision-a.revision)[0]?.date || null;
+}
+export function recentCompleted(task,today=todayKey()){
+ const stamp=completedAt(task);if(!stamp||!Number.isFinite(Date.parse(stamp)))return false;
+ const day=todayKey(new Date(stamp));return day>=shiftDate(today,-6)&&day<=today;
+}
+export function monthDays(month){
+ const start=weekOf(month),end=shiftMonth(month,1);let last=shiftDate(end,-1);
+ last=shiftDate(last,6-((new Date(last+'T12:00:00Z').getUTCDay()+6)%7));
+ const days=[];for(let day=start;day<=last;day=shiftDate(day,1))days.push(day);return days;
+}

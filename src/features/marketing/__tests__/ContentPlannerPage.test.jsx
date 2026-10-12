@@ -1,13 +1,13 @@
 import {beforeEach,it,expect,vi} from 'vitest';
 import {render,screen,fireEvent,cleanup,within} from '@testing-library/react';
 import ContentPlannerPage from '../ContentPlannerPage.jsx';
-const {planner,marketing,auth}=vi.hoisted(()=>({planner:{command:vi.fn(),read:vi.fn(),order:vi.fn()},marketing:{context:vi.fn(),assetUrl:vi.fn()},auth:{user:{id:'planner-user'},hasPermission:vi.fn(()=>true)}}));
+const {planner,marketing,auth}=vi.hoisted(()=>({planner:{command:vi.fn(),read:vi.fn(),order:vi.fn()},marketing:{context:vi.fn(),assetUrl:vi.fn(),contentManagement:vi.fn()},auth:{user:{id:'planner-user'},hasPermission:vi.fn(()=>true)}}));
 vi.mock('../plannerService.js',()=>({plannerService:planner}));vi.mock('../marketingService.js',()=>({marketingService:marketing}));vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>auth}));
 vi.mock('../../../components/forms/SelectField.jsx',()=>({default:({label,ariaLabel,value,onChange,options,disabled})=><label>{label}<select aria-label={ariaLabel||label} disabled={disabled} value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>}));
 vi.mock('../MarketingMediaPicker.jsx',()=>({default:()=>null}));
 const task={id:'task',organization_id:'org',brand_id:'brand',brand_name:'Brand',title:'Real task',content_type:'post',due_date:'2026-10-12',planned_week:'2026-10-12',planned_publish_date:null,priority:'normal',brief:'Approved factual brief',reference_links:[],asset_ids:[],assets:[],history:[],status:'planned',blocked:false,blocker_reason:'',revision:1,manual_order:1,created_at:'2026-10-12'};
 const read={tasks:[task],members:[],targets:[],templates:[],drafts:[]};
-beforeEach(()=>{cleanup();localStorage.clear();vi.clearAllMocks();marketing.assetUrl.mockResolvedValue('https://example.com/preview.jpg');auth.hasPermission.mockImplementation(()=>true);marketing.context.mockResolvedValue({organizations:[{id:'org',name:'Org'}],brands:[{id:'brand',organization_id:'org',name:'Brand'}]});planner.read.mockResolvedValue(read);let current=read;planner.command.mockImplementation(async c=>{if(c.action==='save'){current={...current,tasks:current.tasks.map(t=>t.id===c.id?{...t,...c.payload,revision:t.revision+1}:t)};planner.read.mockResolvedValue(current);}return {}});});
+beforeEach(()=>{cleanup();localStorage.clear();vi.clearAllMocks();marketing.contentManagement.mockResolvedValue({rows:[],total_count:0});marketing.assetUrl.mockResolvedValue('https://example.com/preview.jpg');auth.hasPermission.mockImplementation(()=>true);marketing.context.mockResolvedValue({organizations:[{id:'org',name:'Org'}],brands:[{id:'brand',organization_id:'org',name:'Brand'}]});planner.read.mockResolvedValue(read);let current=read;planner.command.mockImplementation(async c=>{if(c.action==='save'){current={...current,tasks:current.tasks.map(t=>t.id===c.id?{...t,...c.payload,revision:t.revision+1}:t)};planner.read.mockResolvedValue(current);}return {}});});
 it('defaults to All Brands and shares real task records across views',async()=>{render(<ContentPlannerPage/>);await screen.findAllByText('Real task');expect(screen.getByRole('combobox',{name:'Brand'}).value).toBe('');fireEvent.click(screen.getByRole('tab',{name:'List',exact:true}));expect(within(screen.getByRole('table')).getByText('Real task')).toBeTruthy();fireEvent.click(screen.getByRole('tab',{name:'Monthly Plan'}));expect(screen.getAllByText('Real task').length).toBeGreaterThan(0);expect(planner.read).toHaveBeenCalledWith('org',expect.stringMatching(/-01$/),'');});
 it('quick add sends only essential production fields through canonical commands',async()=>{render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'New Task'}));const dialog=screen.getByRole('dialog',{name:'New creative task'});fireEvent.change(within(dialog).getByLabelText(/Title/),{target:{value:'New work'}});fireEvent.click(within(dialog).getByRole('button',{name:'Add task'}));await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({org:'org',brand:'brand',action:'create',payload:expect.objectContaining({title:'New work',content_type:'post',due_date:expect.any(String)})})));expect(planner.command.mock.calls.at(-1)[0].payload).not.toHaveProperty('status');});
 it('does not offer review approval without reviewer authority',async()=>{auth.hasPermission.mockImplementation(code=>!code.endsWith('.approve'));planner.read.mockResolvedValue({...read,tasks:[{...task,status:'in_review'}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));expect(screen.queryByRole('button',{name:'Approve',exact:true})).toBeNull();});
@@ -34,7 +34,7 @@ it('thumbnail opens the shared preview without opening the task drawer',async()=
 
 it('weekly production reschedules only the canonical due date and retains planning/publishing evidence',async()=>{
  render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
- const schedule=screen.getByRole('region',{name:'Weekly Production schedule'});
+ const schedule=screen.getByRole('region',{name:'Monthly Production calendar'});
  fireEvent.keyDown(within(schedule).getByRole('button',{name:/Move Real task/}),{key:'ArrowRight'});
  await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({action:'save',revision:1,payload:{month:'2026-10-01',due_date:'2026-10-13'}})));
  await vi.waitFor(()=>expect(within(schedule.querySelector('[data-kanban-column="2026-10-13"]')).getByText('Real task')).toBeTruthy());
@@ -43,23 +43,22 @@ it('weekly production reschedules only the canonical due date and retains planni
 it('weekly rescheduling rolls back failed persistence',async()=>{
  let reject;planner.command.mockImplementation(c=>c.action==='save'?new Promise((_,no)=>{reject=no}):Promise.resolve({}));
  render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
- const schedule=screen.getByRole('region',{name:'Weekly Production schedule'});
+ const schedule=screen.getByRole('region',{name:'Monthly Production calendar'});
  fireEvent.keyDown(within(schedule).getByRole('button',{name:/Move Real task/}),{key:'ArrowRight'});
  expect(within(schedule.querySelector('[data-kanban-column="2026-10-13"]')).getByText('Real task')).toBeTruthy();
  await vi.waitFor(()=>expect(reject).toBeTruthy());reject(new Error('Task changed. Reload before continuing.'));
  await screen.findByRole('alert');await vi.waitFor(()=>expect(within(schedule.querySelector('[data-kanban-column="2026-10-12"]')).getByText('Real task')).toBeTruthy());
 });
-it('weekly production preserves reviewed task authority and supports week navigation',async()=>{
+it('monthly production preserves reviewed task authority and navigates the planning month',async()=>{
  planner.read.mockResolvedValue({...read,tasks:[{...task,status:'in_review'}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
- expect(within(screen.getByRole('region',{name:'Weekly Production schedule'})).queryByRole('button',{name:/Move Real task/})).toBeNull();
+ expect(within(screen.getByRole('region',{name:'Monthly Production calendar'})).queryByRole('button',{name:/Move Real task/})).toBeNull();
  expect(screen.queryByRole('button',{name:'Change production date for Real task'})).toBeNull();
- fireEvent.click(screen.getByRole('button',{name:'Next production week'}));expect(screen.getByText('19 Oct – 25 Oct · 0 tasks')).toBeTruthy();
- fireEvent.click(screen.getByRole('button',{name:'Today',exact:true}));expect(screen.getByText('12 Oct – 18 Oct · 1 tasks')).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Next insights month'}));await vi.waitFor(()=>expect(planner.read).toHaveBeenCalledWith('org','2026-11-01',''));
 });
 it('brand targets distinguish unset targets, planned progress and unavailable publishing',async()=>{
  planner.read.mockResolvedValue({...read,targets:[{brand_id:'brand',brand_name:'Brand',posts:8,reels:0,planned_posts:2,planned_reels:1,completed_posts:1,completed_reels:0,published_available:false}]});
  render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('tab',{name:'Brand Targets'}));
- expect(screen.getByText('2 / 8')).toBeTruthy();expect(screen.getByText('6 remaining')).toBeTruthy();expect(screen.getByText('1 planned · Target unset')).toBeTruthy();expect(screen.getByRole('button',{name:'Edit Targets'})).toBeTruthy();expect(screen.getByText('1 completed · Publishing data unavailable')).toBeTruthy();
+ expect(screen.getByRole('progressbar',{name:'Brand posts planned target'}).value).toBe(2);expect(screen.getByText('6 remaining')).toBeTruthy();expect(screen.getByText('Target unset')).toBeTruthy();expect(screen.getByRole('button',{name:'Edit Targets'})).toBeTruthy();expect(screen.getByLabelText('Brand posts publishing evidence unavailable')).toBeTruthy();
 });
 
 it('reveals compact item/link editors and Escape cancels without dismissing the drawer',async()=>{
@@ -90,8 +89,18 @@ it('review drop requires feedback and invokes the canonical reviewer command',as
  fireEvent.change(screen.getByRole('textbox',{name:'Review feedback'}),{target:{value:'Revise caption'}});fireEvent.click(screen.getByRole('button',{name:'Request Revision',exact:true}));await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({action:'request_revision',revision:1,payload:{month:expect.any(String),feedback:'Revise caption'}})));
 });
 it('completed reopen is explicit and uses existing creative save authority',async()=>{
- planner.read.mockResolvedValue({...read,tasks:[{...task,status:'completed'}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
+ planner.read.mockResolvedValue({...read,tasks:[{...task,status:'completed',history:[{action:'approve',revision:1,date:new Date().toISOString()}]}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
  const handle=within(screen.getByRole('region',{name:'Creative workflow'})).getByRole('button',{name:/Move Real task/});
  // Pointer drops may cross more than one column; keyboard adjacent moves remain lifecycle constrained.
  fireEvent.keyDown(handle,{key:'ArrowLeft'});expect(planner.command.mock.calls.some(([c])=>c.action==='save')).toBe(false);
+});
+
+it('Board hides old approvals only, while List and monthly metrics retain them',async()=>{
+ const old={...task,status:'completed',history:[{action:'approve',revision:1,date:'2020-01-01T00:00:00Z'}]};planner.read.mockResolvedValue({...read,tasks:[old]});render(<ContentPlannerPage/>);await screen.findByText('1 older or undated hidden',{exact:false});expect(within(screen.getByRole('region',{name:'Completed'})).queryByText('Real task')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'View All Completed'}));expect(within(screen.getByRole('table')).getByText('Real task')).toBeTruthy();
+});
+it('monthly publish changes only unlinked planned dates and preserves committed records',async()=>{
+ planner.read.mockResolvedValue({...read,tasks:[{...task,planned_publish_date:'2026-10-12'}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('tab',{name:'Monthly Publish'}));
+ const calendar=screen.getByRole('region',{name:'Monthly Publish calendar'});fireEvent.keyDown(within(calendar).getByRole('button',{name:/Move Real task/}),{key:'ArrowRight'});await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({action:'save',payload:{month:'2026-10-01',planned_publish_date:'2026-10-13'}})));
+ expect(planner.command.mock.calls.some(([c])=>c.action==='approve'||c.action==='transition')).toBe(false);
 });

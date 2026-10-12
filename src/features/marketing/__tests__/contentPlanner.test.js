@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {taskDueState,todayKey,weekOf,monthWeeks,allowedMoves,plannerSummary,sortedTasks,filterTasks,currentMonth} from '../contentPlanner.js';
+import {completedAt,recentCompleted,monthDays,taskDueState,todayKey,weekOf,monthWeeks,allowedMoves,plannerSummary,sortedTasks,filterTasks,currentMonth} from '../contentPlanner.js';
 const task=(id,patch={})=>({id,title:id,brand_id:'brand',brand_name:'Brand',status:'planned',due_date:'2026-10-12',created_at:'2026-10-01',manual_order:0,...patch});
 describe('Creative planner presentation',()=>{
  it('uses Malaysia month independently of browser time zone',()=>expect(currentMonth(new Date('2026-09-30T17:00:00Z'))).toBe('2026-10-01'));
@@ -12,3 +12,13 @@ describe('Creative planner presentation',()=>{
 });
 
 it('attributes production urgency to Malaysia dates and suppresses completed overdue warnings',()=>{expect(todayKey(new Date('2026-10-11T17:00:00Z'))).toBe('2026-10-12');expect(taskDueState({status:'planned',due_date:'2026-10-12'},'2026-10-12')).toBe('today');expect(taskDueState({status:'planned',due_date:'2026-10-13'},'2026-10-12')).toBe('tomorrow');expect(taskDueState({status:'planned',due_date:'2026-10-11'},'2026-10-12')).toBe('overdue');expect(taskDueState({status:'completed',due_date:'2026-10-11'},'2026-10-12')).toBe('normal');});
+
+it('recent completions use seven KL calendar days and the latest approval rather than mutable dates',()=>{
+ const task={status:'completed',due_date:'2026-10-13',updated_at:'2026-10-13T02:00:00Z',history:[{revision:1,action:'approve',date:'2026-10-06T15:59:59Z'},{revision:3,action:'approve',date:'2026-10-06T16:00:00Z'},{revision:4,action:'handoff',date:'2026-10-13T02:00:00Z'}]};
+ expect(completedAt(task)).toBe('2026-10-06T16:00:00Z');expect(recentCompleted(task,'2026-10-13')).toBe(true);
+ expect(recentCompleted({...task,history:task.history.slice(0,1)},'2026-10-13')).toBe(false);
+ expect(recentCompleted({...task,history:[]},'2026-10-13')).toBe(false);
+});
+it('month grids include complete Monday-Sunday rows across year and leap boundaries',()=>{
+ expect(monthDays('2026-10-01')).toHaveLength(35);expect(monthDays('2026-10-01')[0]).toBe('2026-09-28');expect(monthDays('2026-10-01').at(-1)).toBe('2026-11-01');expect(monthDays('2024-02-01')).toContain('2024-02-29');
+});

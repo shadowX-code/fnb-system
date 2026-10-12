@@ -26,3 +26,10 @@ it('card surfaces distinguish a normal click from a six-pixel drag and suppress 
  pointer(screen.getByRole('button',{name:'Preview'}),'pointerdown',50,80);pointer(window,'pointermove',400,450);pointer(window,'pointerup',400,450);expect(move).toHaveBeenCalledOnce();
  pointer(screen.getByText('Editable'),'pointerdown',50,80);pointer(window,'pointermove',400,450);pointer(window,'pointerup',400,450);expect(move).toHaveBeenCalledOnce();
 });
+
+it('targets the correct date row in a two-dimensional month grid',()=>{
+ const move=vi.fn(),grid=[{value:'day1',label:'Day 1',items:[item]},{value:'day2',label:'Day 2',items:[]},{value:'day3',label:'Day 3',items:[]},{value:'day4',label:'Day 4',items:[]}];render(<AdminKanbanBoard {...props} columns={grid} canDrop={()=>true} onDrop={move}/>);
+ const board=screen.getByRole('region',{name:'Workflow'});board.getBoundingClientRect=()=>({left:0,right:600,top:0,bottom:600});board.querySelectorAll('[data-kanban-column]').forEach((node,index)=>node.getBoundingClientRect=()=>({left:(index%2)*300,right:(index%2)*300+280,top:Math.floor(index/2)*300,bottom:Math.floor(index/2)*300+280}));board.querySelector('[data-kanban-item]').getBoundingClientRect=()=>({left:10,right:270,top:30,bottom:130,width:260,height:100});
+ const pointer=(node,type,x,y)=>{const e=new MouseEvent(type,{bubbles:true,cancelable:true,button:0,clientX:x,clientY:y});Object.defineProperty(e,'pointerId',{value:1});fireEvent(node,e)};
+ pointer(screen.getByRole('button',{name:/Move Task/}),'pointerdown',250,90);pointer(window,'pointermove',450,480);pointer(window,'pointerup',450,480);expect(move).toHaveBeenCalledWith(item,'day4',null);
+});

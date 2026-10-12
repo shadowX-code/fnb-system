@@ -23,7 +23,7 @@ export default function AdminKanbanBoard({columns,label,disabled,canDrop,onDrop,
   const board=root.current?.getBoundingClientRect();if(!board||x<board.left||x>board.right||y<board.top||y>board.bottom)return null;
   const columns=[...root.current.querySelectorAll('[data-kanban-column]')];
   // Include column gaps and its whole stretched height, not only card-sized content.
-  const column=columns.reduce((best,node)=>{const box=node.getBoundingClientRect(),distance=Math.abs(x-(box.left+box.right)/2);return !best||distance<best.distance?{node,distance}:best;},null)?.node;
+  const column=columns.reduce((best,node)=>{const box=node.getBoundingClientRect(),distance=Math.hypot(Math.max(box.left-x,0,x-box.right),Math.max(box.top-y,0,y-box.bottom));return !best||distance<best.distance?{node,distance}:best;},null)?.node;
   if(!column)return null;const value=column.dataset.kanbanColumn;
   if(!latest.current.canDrop(item,value))return {column:value,before:null,rejected:true};
   const slot=column.querySelector('.admin-kanban-insertion');if(slot){const box=slot.getBoundingClientRect();if(y>=box.top-8&&y<=box.bottom+8&&targetRef.current?.column===value)return targetRef.current;}
