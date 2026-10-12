@@ -26,8 +26,8 @@ export default function Drawer({
   closeOnOverlay = true,
   closeOnEscape = true,
 }) {
-  const panelRef = useRef(null), closeRef = useRef(onClose);
-  closeRef.current = onClose;
+  const panelRef = useRef(null), closeRef = useRef(onClose), escapeRef = useRef(closeOnEscape);
+  closeRef.current = onClose; escapeRef.current = closeOnEscape;
   const widthClass = widthClasses[width] ?? widthClasses.lg;
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function Drawer({
     const key=event=>{
       if(event.defaultPrevented || event.target.closest('[role="dialog"]')!==panel)return;
       if(event.key==='Escape'&&panel.querySelector('[data-floating-ancestors]'))return;
-      if(event.key==='Escape'&&closeOnEscape){event.preventDefault();closeRef.current?.();}
+      if(event.key==='Escape'&&escapeRef.current){event.preventDefault();closeRef.current?.();}
       if(event.key!=='Tab')return;
       const items=[...panel.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]')].filter(el=>el.getClientRects().length&&el.closest('[role="dialog"]')===panel),first=items[0],last=items.at(-1);
       if(!first){event.preventDefault();panel.focus();}
@@ -46,7 +46,7 @@ export default function Drawer({
     };
     panel?.addEventListener('keydown',key);
     return()=>{panel?.removeEventListener('keydown',key);if(previous?.isConnected)previous.focus?.();};
-  }, [open, closeOnEscape]);
+  }, [open]);
 
   if (!open) return null;
 
