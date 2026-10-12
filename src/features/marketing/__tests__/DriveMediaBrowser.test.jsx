@@ -29,3 +29,7 @@ it('opens the shared preview once and row selection does not open preview',async
 it('restores only a user-scoped valid view preference',async()=>{
  connect();localStorage.setItem('admin.presentation.marketing.media.staff','list');render(<DriveMediaBrowser organizationId="org" brandId="brand" preferenceUserId="staff"/>);await screen.findByRole('table');expect(screen.getByRole('tab',{name:'List'}).getAttribute('aria-selected')).toBe('true');cleanup();render(<DriveMediaBrowser organizationId="org" brandId="brand" preferenceUserId="other"/>);await screen.findByRole('button',{name:'Open folder Campaigns'});expect(screen.getByRole('tab',{name:'Grid'}).getAttribute('aria-selected')).toBe('true');
 });
+
+it('shows the canonical loading surface while refreshing filtered media in either view',async()=>{
+ connect();render(<DriveMediaBrowser organizationId="org" brandId="brand"/>);await screen.findByRole('button',{name:'Open folder Campaigns'});fireEvent.click(screen.getByRole('tab',{name:'List'}));service.browse.mockImplementation(()=>new Promise(()=>{}));fireEvent.change(screen.getByRole('searchbox',{name:'Search'}),{target:{value:'Alpha'}});expect(await screen.findByRole('status',{name:'Loading data'})).toBeTruthy();fireEvent.click(screen.getByRole('tab',{name:'Grid'}));expect(screen.getByRole('status',{name:'Loading data'})).toBeTruthy();
+});
