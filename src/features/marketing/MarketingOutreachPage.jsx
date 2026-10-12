@@ -703,8 +703,8 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
               {error?<p role="alert" className="text-danger">{error}</p>:null}
               {modal==='customer'?<>
                 <div className="outreach-form-grid">
-                  <label className="outreach-field">Customer Name<input className="control" value={form.name||''} maxLength={160} onChange={e=>field('name',e.target.value)}/></label>
-                  <label className="outreach-field">Phone Number<input className="control" type="tel" value={form.phone||''} onChange={e=>field('phone',e.target.value)} placeholder="+60 12 345 6789"/></label>
+                  <label className="admin-form-field"><span className="admin-form-field-label">Customer Name</span><input className="control" value={form.name||''} maxLength={160} onChange={e=>field('name',e.target.value)}/></label>
+                  <label className="admin-form-field"><span className="admin-form-field-label">Phone Number</span><input className="control" type="tel" value={form.phone||''} onChange={e=>field('phone',e.target.value)} placeholder="+60 12 345 6789"/></label>
                   <SelectField label="Brand Outlet" value={form.outlet_id||''} onChange={v=>field('outlet_id',v)} options={[{value:'',label:'No specific outlet'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/>
                   <TagPicker value={form.tags||[]} options={data.tags||[]} allowCreate placeholder="Select or add tags" onChange={v=>field('tags',v)}/>
                 </div>

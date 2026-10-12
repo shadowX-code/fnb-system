@@ -96,26 +96,28 @@ export default function FloatingLayer({
       if (event.key === "Escape" && closeOnEscape) close();
     }
 
-    function handleFocus() {
-      if (!focusOnOpen) return;
-      const target = layerRef.current?.querySelector("input, button, [href], select, textarea, [tabindex]:not([tabindex='-1'])");
-      target?.focus?.();
-    }
-
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
-    const focusFrame = window.requestAnimationFrame(handleFocus);
 
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
-      window.cancelAnimationFrame(focusFrame);
     };
   }, [open, closeOnOutsideClick, closeOnEscape, focusOnOpen, onOpenChange]);
+
+  // Focus only when opening, never when callback identity changes during typing.
+  useEffect(() => {
+    if (!open || !focusOnOpen) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const target = layerRef.current?.querySelector("input, button, [href], select, textarea, [tabindex]:not([tabindex='-1'])");
+      target?.focus?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, focusOnOpen]);
 
   if (!open) return null;
 
