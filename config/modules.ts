@@ -189,6 +189,7 @@ export const moduleSectionOrder = [
   "Content Studio",
   "Inbox",
   "CRM",
+  "Creators",
   "Analytics",
   "Settings",
   "Finance",

@@ -30,4 +30,3 @@ begin
  return jsonb_build_object('platform',platform,'post_key',key,'canonical_url',canonical,'author_handle',author,'identity_verified',false,
  'short_link',key like 'share:%' or key like 'short:%' or key like '%tiktok.com:%');
 end;$$;
-
