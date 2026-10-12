@@ -84,6 +84,7 @@ function getYearGridStart(year) {
 
 export default function DatePickerField({
   label,
+  disabled = false,
   required = false,
   value,
   onChange,
@@ -128,6 +129,7 @@ export default function DatePickerField({
   }
 
   function openPicker(nextMode = viewMode) {
+    if(disabled)return;
     setOpen(true);
     setViewMode(yearFirst ? "year" : nextMode);
   }
@@ -139,6 +141,7 @@ export default function DatePickerField({
   }
 
   function selectDate(nextValue) {
+    if(disabled)return;
     if (minDate && nextValue < minDate) return;
     onChange(nextValue);
     setOpen(false);
@@ -149,6 +152,7 @@ export default function DatePickerField({
   }
 
   function clearDate() {
+    if(disabled)return;
     onChange("");
     setDisplayValue("");
     setOpen(false);
@@ -168,7 +172,7 @@ export default function DatePickerField({
     if (!currentDate) return;
     const nextDay = clampDay(visibleYear, monthIndex, currentDate.getDate());
     const nextValue = `${visibleYear}-${pad(monthIndex + 1)}-${pad(nextDay)}`;
-    if (!minDate || nextValue >= minDate) onChange(nextValue);
+    if (!disabled && (!minDate || nextValue >= minDate)) onChange(nextValue);
   }
 
   function handleInputKeyDown(event) {
@@ -215,6 +219,7 @@ export default function DatePickerField({
       <div className="relative">
         <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
         <input
+          disabled={disabled}
           data-date-picker-input
           className={`control h-10 w-full pl-9 pr-10 text-[13px] ${error ? "border-rose-200 focus:border-rose-300 focus:ring-rose-50" : ""}`}
           inputMode="text"
@@ -233,6 +238,7 @@ export default function DatePickerField({
             setOpen((current) => !current);
             if (!open) setViewMode(yearFirst ? "year" : "day");
           }}
+          disabled={disabled}
           aria-label="Open calendar"
         >
           <ChevronRight className={`transition ${open ? "rotate-90 text-primary" : ""}`} size={15} />
@@ -242,7 +248,7 @@ export default function DatePickerField({
       {!error && helper ? <span className="admin-form-field-message">{helper}</span> : null}
 
       <FloatingLayer
-        open={open}
+        open={open&&!disabled}
         onOpenChange={setOpen}
         anchorRef={wrapperRef}
         width={344}
