@@ -8,13 +8,13 @@ beforeEach(()=>{cleanup();vi.clearAllMocks();customers.mockResolvedValue({custom
 describe('Customer detail evidence',()=>{
  it('reads only the exact scoped identity and renders recorded consent and staff activity',async()=>{
   render(<CustomerDetailDrawer org="o" brand="b" customerId="c" can={()=>false} onClose={()=>{}}/>);
-  await screen.findByText('Regulars');expect(customers).toHaveBeenCalledWith('o','b',{detail:'c'},1,20);
+  await screen.findByText('Regular');expect(screen.queryByText('Regulars')).toBeNull();expect(customers).toHaveBeenCalledWith('o','b',{detail:'c'},1,20);
   fireEvent.click(screen.getByRole('tab',{name:'Consent history'}));await screen.findByText('Withdrawn');expect(screen.getByText('Customer requested withdrawal')).toBeTruthy();
   fireEvent.click(screen.getByRole('tab',{name:'Activity'}));await screen.findByText('Staff confirmed sent');expect(screen.queryByText('Delivered')).toBeNull();expect(screen.queryByRole('button',{name:'Edit'})).toBeNull();
  });
  it('never invents activity or reveals it when unavailable',async()=>{
   customers.mockResolvedValue({customers:[{...row,detail:{segments:[],consent_history:[],activity_available:false,activity:null}}]});
-  render(<CustomerDetailDrawer org="o" brand="b" customerId="c" can={()=>false} onClose={()=>{}}/>);await screen.findByText('No matching segments.');
+  render(<CustomerDetailDrawer org="o" brand="b" customerId="c" can={()=>false} onClose={()=>{}}/>);await screen.findByText('Regular');
   fireEvent.click(screen.getByRole('tab',{name:'Activity'}));expect(screen.getByText(/unavailable with your current access/)).toBeTruthy();expect(screen.queryByText('Reviewed campaign')).toBeNull();
  });
  it('clears previous customer evidence on a scope change and ignores late responses',async()=>{

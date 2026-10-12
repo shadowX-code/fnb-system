@@ -14,8 +14,8 @@ import {
   whatsappDeliveryAdapters,
 } from "./whatsappDelivery.js";
 import "./outreach.css";
-import { Plus, Upload, ArrowLeft, Settings, Users } from "lucide-react";
-import AdminUnderlineTabs from "../../components/navigation/AdminUnderlineTabs.jsx";
+import { Plus, ArrowLeft, Settings, Users } from "lucide-react";
+import TagPicker from "../../components/forms/TagPicker.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
 import EmptyState from "../../components/feedback/EmptyState.jsx";
 import MarketingCustomersView from "./MarketingCustomersView.jsx";
@@ -163,7 +163,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
       setRefresh((v) => v + 1);
       return result;
     } catch (e) {
-      if (g === generation.current) setError(e.message);
+      if (g === generation.current) setError(e.message === "Shared phone changes require a separate verified identity workflow." ? "Changing this phone number requires identity verification. Keep the existing number or contact an administrator." : e.message);
     } finally {
       if (g === generation.current) setBusy(false);
     }
@@ -191,10 +191,8 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
         () =>
           outreachService.customer(customerRequest(), org, brand, {
             ...form,
-            tags: (form.tags || "")
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean),
+            tags: form.tags || [],
+            confirm_name: !!form.edit,
           }),
         "Customer saved. WhatsApp consent and suppression are unchanged.",
       );
@@ -202,16 +200,6 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
     }
     const action = modal === "campaign" ? "save" : modal;
     let payload = form;
-    if (action === "audience")
-      payload = {
-        name: form.name,
-        revision: form.revision,
-        criteria: {
-          language: form.language || "",
-          tag: form.tag || "",
-          outlet_id: form.outlet_id || "",
-        },
-      };
     if (action === "consent")
       payload = {
         ...form,
@@ -321,7 +309,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
     }
     if (result && action !== "open") setSelectedRecipient("");
   }
-  const controls = <div className="outreach-scope" aria-label="Marketing scope">
+  const controls = <div className="admin-scope-controls" aria-label="Marketing scope">
     {context.organizations.length>1?<SelectField searchable="auto" label="Organization" value={org} onChange={v=>{if(!busy){setOrg(v);setBrand('')}}} options={context.organizations.map(o=>({value:o.id,label:o.name}))}/>:null}
     <SelectField searchable="auto" label="Brand" value={brand} onChange={v=>{if(!busy)setBrand(v)}} options={[{value:'',label:'Select a brand'},...brands.map(b=>({value:b.id,label:b.name}))]}/>
   </div>;
@@ -342,7 +330,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
       section="Marketing"
       title={section === "whatsapp" ? "WhatsApp Message" : "Customers"}
       description={section === "whatsapp" ? "Approved campaigns, handled personally by your team." : "Customer profiles, brand relationships and contact preferences."}
-      actions={controls}
+      controls={controls}
     >
       <div className="outreach">
         {notice ? <p role="status">{notice}</p> : null}
@@ -357,24 +345,9 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
           </section>
         ) : (
           <>
-            <div className="outreach-view-heading">
-              {section==='customers'?<AdminUnderlineTabs value={tab} onChange={setTab} ariaLabel="Customer views" tabs={[{value:'customers',label:'All customers'},{value:'segments',label:'Segments'}]}/>:<strong>{tab==='senders'?'WhatsApp settings':'Campaigns'}</strong>}
-              <div className="outreach-actions">
-                {section==='whatsapp'?<button className="btn-secondary" onClick={()=>{setTab(tab==='senders'?'campaigns':'senders');setCampaign('');setPage(1)}}>{tab==='senders'?<ArrowLeft size={15}/>:<Settings size={15}/>} {tab==='senders'?'Campaigns':'Sender settings'}</button>:null}
-                {can(section==='whatsapp'?'marketing_audience.view':'marketing_campaigns.view')?<a className="btn-secondary" href={crmLink(section==='whatsapp'?'/marketing/customers':'/marketing/whatsapp')}>{section==='whatsapp'?<Users size={15}/>:null}{section==='whatsapp'?'Customers':'WhatsApp campaigns'}</a>:null}
-              </div>
-            </div>
+            {section==='whatsapp'?<div className="outreach-view-heading"><strong>{tab==='senders'?'WhatsApp settings':'Campaigns'}</strong><div className="outreach-actions"><button className="btn-secondary" onClick={()=>{setTab(tab==='senders'?'campaigns':'senders');setCampaign('');setPage(1)}}>{tab==='senders'?<ArrowLeft size={15}/>:<Settings size={15}/>} {tab==='senders'?'Campaigns':'Sender settings'}</button>{can('marketing_audience.view')?<a className="btn-secondary" href={crmLink('/marketing/customers')}><Users size={15}/>Customers</a>:null}</div></div>:null}
             <AsyncDataSurface loading={loading} error={null} hasData={!!data}>
               {data&&tab==='customers'?<MarketingCustomersView key={brand} org={org} brand={brand} data={data} can={can} refresh={refresh} show={show} onImport={()=>setImportOpen(true)}/>:null}
-              {data&&tab==='segments'?<section>
-                <div className="outreach-section-heading"><p>{data.audiences.length} {data.audiences.length===1?'segment':'segments'}<small>Rules define the audience; consent determines eligibility.</small></p>{can('marketing_audience.manage')?<button className="btn-primary" onClick={()=>show('audience',{})}><Plus size={15}/> New segment</button>:null}</div>
-                {data.audiences.length?<OutreachCollection rows={data.audiences} getRowKey={a=>a.id} columns={[
-                  {key:'name',header:'Segment',render:a=><strong>{a.name}</strong>},
-                  {key:'criteria',header:'Audience rules',render:a=>[a.criteria.tag&&`Tag: ${a.criteria.tag}`,a.criteria.language&&`Language: ${a.criteria.language}`,a.criteria.outlet_id&&`Outlet: ${data.outlets.find(o=>o.id===a.criteria.outlet_id)?.name||'Unavailable'}`].filter(Boolean).join(' · ')||'All eligible brand customers'},
-                  {key:'eligible_count',header:'Eligible customers'},
-                  {key:'action',header:'Actions',render:a=>can('marketing_audience.manage')?<button className="btn-secondary" onClick={()=>show('audience',{id:a.id,revision:a.revision,name:a.name,...a.criteria})}>Edit</button>:null}
-                ]}/>:<EmptyState title="Create your first segment" description="Group customers by tags, language or outlet. Sending still requires valid brand consent."/>}
-              </section>:null}
               {data&&tab==='senders'?<section>
                 <div className="outreach-section-heading"><p>Registered WhatsApp senders<small>Staff confirm the sender they use in WhatsApp.</small></p>{can('marketing_settings.configure')?<button className="btn-primary" onClick={()=>show('sender',{})}><Plus size={15}/> Register sender</button>:null}</div>
                 {data.senders.length?<OutreachCollection rows={data.senders} getRowKey={s=>s.id} columns={[{key:'label',header:'Sender',render:s=><strong>{s.label}</strong>},{key:'phone_e164',header:'Phone'},{key:'active',header:'Status',render:s=><Badge tone={s.active?'success':'default'}>{s.active?'Registered':'Inactive'}</Badge>}]}/>:<EmptyState title="Register a brand sender" description="Add the WhatsApp numbers staff are authorized to use. This does not connect WhatsApp or enable automatic sending."/>}
@@ -384,7 +357,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                   <section className="space-y-3">
                     <div className="outreach-section-heading">
                       {active?<button className="btn-secondary" onClick={()=>{setCampaign('');setPage(1)}}><ArrowLeft size={15}/> All campaigns</button>:<p>{filteredCampaigns.length} {filteredCampaigns.length===1?'campaign':'campaigns'}<small>Manual WhatsApp delivery</small></p>}
-                      {can('marketing_campaigns.manage')?<button className="btn-primary" onClick={()=>show('campaign',{caption:'Hi {name}, ',audience_id:data.audiences[0]?.id||''})}><Plus size={15}/> New campaign</button>:null}
+                      {can('marketing_campaigns.manage')?<button className="btn-primary" onClick={()=>show('campaign',{caption:'Hi {name}, ',...(can('marketing_audience.manage')?{audience_criteria:{tags:[],outlet_id:''}}:{audience_id:''})})}><Plus size={15}/> New campaign</button>:null}
                     </div>
                     {!active?<AdminFilterToolbar compact denseFields ariaLabel="Campaign filters" search={<AdminSearchField ariaLabel="Search campaigns" placeholder="Search campaigns" value={campaignSearch} onChange={setCampaignSearch}/>} filters={<SelectField label="Campaign status" value={campaignStatus} onChange={setCampaignStatus} options={[{value:'',label:'All'},...['draft','review','approved','ready','cancelled'].map(value=>({value,label:names[value]}))]}/>}/>:null}
                     {!active&&filteredCampaigns.length?<OutreachCollection rows={filteredCampaigns} getRowKey={c=>c.id} columns={[
@@ -393,7 +366,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                       {key:'audience',header:'Audience size',render:c=>c.status==='ready'?c.recipient_count:c.audience_size??'Unavailable'},
                       {key:'progress',header:'Progress',render:c=>c.recipient_count?`${c.handled_count} / ${c.recipient_count} handled`:'Not queued'}
                     ]}/>:null}
-                    {!active&&!filteredCampaigns.length?<EmptyState title={data.campaigns.length?"No matching campaigns":"No campaigns yet"} description={data.campaigns.length?"Adjust your search or status filter.":"Choose a customer segment, then prepare a message for approval. Sending is always manual."}/>:null}
+                    {!active&&!filteredCampaigns.length?<EmptyState title={data.campaigns.length?"No matching campaigns":"No campaigns yet"} description={data.campaigns.length?"Adjust your search or status filter.":"Choose customer tags and an outlet, then prepare a message for approval. Sending is always manual."}/>:null}
                     {active ? (
                       <>
                         <div className="outreach-actions">
@@ -410,7 +383,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                             <button
                               className="btn-secondary"
                               disabled={busy}
-                              onClick={() => show("campaign", { ...active })}
+                              onClick={() => show("campaign", { ...active, ...(can("marketing_audience.manage")?{audience_criteria:data.audiences.find(a=>a.id===active.audience_id)?.criteria||{}}:{}) })}
                             >
                               Revise draft
                             </button>
@@ -721,54 +694,21 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                     else save().catch((e) => setError(e.message));
                   }}
                 >
-                  Confirm
+                  {modal === "customer" ? "Save customer" : modal === "campaign" ? "Save draft" : "Confirm"}
                 </button>
               </>
             }
           >
             <div className="space-y-3">
+              {error?<p role="alert" className="text-danger">{error}</p>:null}
               {modal==='customer'?<>
-                {!form.edit?<SelectField label="Customer identity" value={form.customer_id||''} onChange={v=>{const c=data.shared_customers?.find(c=>c.id===v);setForm(f=>({...f,customer_id:v,name:c?.name||'',phone:c?.phone||''}));}} options={[{value:'',label:'Create new customer'},...(data.shared_customers||[]).map(c=>({value:c.id,label:`${c.name} · ${c.phone}`}))]}/>:null}
                 <div className="outreach-form-grid">
-                  <label className="outreach-field">Customer name<input className="control" value={form.name||''} disabled={!!form.customer_id&&!form.edit} maxLength={160} onChange={e=>field('name',e.target.value)}/></label>
-                  <label className="outreach-field">Malaysian phone<input className="control" type="tel" value={form.phone||''} disabled={!!form.customer_id} onChange={e=>field('phone',e.target.value)} placeholder="+60 12 345 6789"/></label>
-                  <SelectField label="Language" value={form.language||'EN'} onChange={v=>field('language',v)} options={[{value:'EN',label:'English'},{value:'ZH',label:'Chinese'},{value:'BM',label:'Bahasa Melayu'}]}/>
-                  <SelectField label="Brand outlet" value={form.outlet_id||''} onChange={v=>field('outlet_id',v)} options={[{value:'',label:'No specific outlet'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/>
+                  <label className="outreach-field">Customer Name<input className="control" value={form.name||''} maxLength={160} onChange={e=>field('name',e.target.value)}/></label>
+                  <label className="outreach-field">Phone Number<input className="control" type="tel" value={form.phone||''} onChange={e=>field('phone',e.target.value)} placeholder="+60 12 345 6789"/></label>
+                  <SelectField label="Brand Outlet" value={form.outlet_id||''} onChange={v=>field('outlet_id',v)} options={[{value:'',label:'No specific outlet'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/>
+                  <TagPicker value={form.tags||[]} options={data.tags||[]} allowCreate placeholder="Select or add tags" onChange={v=>field('tags',v)}/>
                 </div>
-                {input('Tags (comma separated)','tags')}
-                {form.edit?<label className="text-sm"><input type="checkbox" checked={!!form.confirm_name} onChange={e=>field('confirm_name',e.target.checked)}/> I approve any name change to this shared customer identity.</label>:null}
-                <p className="text-sm text-text-secondary">Consent and suppression are managed separately. Shared phone changes require identity verification.</p>
               </>:null}
-              {modal === "audience" ? (
-                <>
-                  {input("Segment name", "name")}
-                  {input("Tag filter (optional)", "tag")}
-                  <SelectField
-                    label="Language filter"
-                    value={form.language || ""}
-                    onChange={(v) => field("language", v)}
-                    options={[
-                      { value: "", label: "Any language" },
-                      ...["EN", "ZH", "BM"].map((v) => ({
-                        value: v,
-                        label: v,
-                      })),
-                    ]}
-                  />
-                  <SelectField
-                    label="Outlet"
-                    value={form.outlet_id || ""}
-                    onChange={(v) => field("outlet_id", v)}
-                    options={[
-                      { value: "", label: "All" },
-                      ...data.outlets.map((o) => ({
-                        value: o.id,
-                        label: o.name,
-                      })),
-                    ]}
-                  />
-                </>
-              ) : null}
               {modal === "consent" ? (
                 <>
                   <SelectField
@@ -803,18 +743,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
               {modal === "campaign" ? (
                 <>
                   {input("Campaign title", "title")}
-                  <SelectField
-                    label="Audience"
-                    value={form.audience_id || ""}
-                    onChange={(v) => field("audience_id", v)}
-                    options={[
-                      { value: "", label: "Select audience" },
-                      ...data.audiences.map((a) => ({
-                        value: a.id,
-                        label: `${a.name} · ${a.eligible_count} eligible`,
-                      })),
-                    ]}
-                  />
+                  {form.audience_criteria ? <div className="space-y-3"><TagPicker value={form.audience_criteria.tags|| (form.audience_criteria.tag?[form.audience_criteria.tag]:[])} options={data.tags||[]} onChange={tags=>field('audience_criteria',{...form.audience_criteria,tag:'',tags})}/><SelectField label="Outlet" value={form.audience_criteria.outlet_id||''} onChange={outlet_id=>field('audience_criteria',{...form.audience_criteria,outlet_id})} options={[{value:'',label:'All'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/><SelectField label="WhatsApp Consent" value="eligible" disabled options={[{value:'eligible',label:'Opted in only'}]}/><small>Any selected tag, combined with the outlet. Only customers with valid brand consent can be queued.</small></div> : <SelectField label="Audience" value={form.audience_id||''} onChange={v=>field('audience_id',v)} options={[{value:'',label:'Select audience'},...data.audiences.map(a=>({value:a.id,label:`${a.name} · ${a.eligible_count} eligible`}))]}/>}
                   <label className="outreach-field">
                     Caption
                     <textarea
