@@ -2993,11 +2993,13 @@
 .admin-select-trigger[aria-invalid=true],.control[aria-invalid=true] { border-color:var(--theme-danger,#b4233b); }
 .admin-select-popover { border-radius:var(--radius-control)!important; padding:6px!important; box-shadow:0 4px 8px rgb(15 23 42 / .12)!important; }
 .admin-select-options { max-height:280px; overflow-y:auto; display:grid; gap:2px; }
-.admin-select-option { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:36px; padding:8px 10px; border-radius:6px; color:var(--theme-text); font-size:13px; text-align:left; }
+.admin-select-option { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:36px; padding:8px 10px; border-radius:6px; border:0; outline:none; box-shadow:none; color:var(--theme-text); font-size:13px; text-align:left; }
 .admin-select-option strong { display:block; font-weight:500; overflow-wrap:anywhere; }
 .admin-select-option small { display:block; color:var(--theme-muted); margin-top:3px; font-size:12px; }
 .admin-select-option[aria-selected=true] { background:var(--theme-primary-soft); color:var(--theme-primary); }
-.admin-select-option:not(:disabled):hover,.admin-select-option:not(:disabled):focus-visible { background:var(--theme-surface-nested); outline:2px solid var(--theme-primary); outline-offset:-2px; }
+.admin-select-option:not(:disabled):not([aria-selected=true]):is(:hover,:focus-visible) { background:var(--theme-surface-nested); }
+/* A single leading marker distinguishes keyboard focus from hover and selection. */
+.admin-select-option:not(:disabled):focus-visible { box-shadow:inset 3px 0 var(--factory-success-text); }
 .admin-select-option:disabled { opacity:.5; cursor:not-allowed; }
 .admin-select-search { display:flex; align-items:center; gap:8px; padding:4px 6px 8px; color:var(--theme-muted); }
 .admin-select-search input { width:100%; height:34px; }
@@ -3021,7 +3023,6 @@
 .btn-primary:disabled { background:var(--theme-subtle); color:var(--theme-muted); box-shadow:none; }
 .admin-select-option[aria-selected=true] { color:var(--factory-success-text); }
 :is(.btn-primary,.btn-secondary,.btn-ghost,.admin-checkbox):focus-visible { outline-color:var(--factory-success-text); }
-.admin-select-option:not(:disabled):focus-visible { outline-color:var(--factory-success-text); }
 
 /* Shared operational tables may hide explicitly secondary columns on tablets. */
 @media (max-width: 1100px) { .admin-data-table [data-priority="secondary"] { display: none; } }
