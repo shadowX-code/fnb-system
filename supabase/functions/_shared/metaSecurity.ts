@@ -31,6 +31,13 @@ export async function unseal(value: Sealed, secrets: string[], binding: string):
  }
  throw new Error('Reconnect this account to renew its credential.');
 }
+// Readiness only: no credentials or ciphertext leave this in-memory self-check.
+export async function tokenEncryptionReady(secret: string): Promise<boolean> {
+ try {
+  const sample=await seal({ready:true},secret,'token-encryption-readiness');
+  return (await unseal(sample,[secret],'token-encryption-readiness')).ready===true;
+ } catch { return false; }
+}
 export async function verifySignedRequest(signed: string, appSecret: string, now=Date.now()): Promise<{user_id:string;issued_at:number}> {
  if(signed.length>16000)throw new Error('Invalid Meta signature.');
  const parts=signed.split('.');if(parts.length!==2)throw new Error('Invalid Meta signature.');

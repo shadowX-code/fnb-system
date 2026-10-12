@@ -1,5 +1,5 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.105.4';
-import {STAGING_ORIGIN,STAGING_SUPABASE,hash,nonce,seal,unseal,base64url} from '../_shared/metaSecurity.ts';
+import {STAGING_ORIGIN,STAGING_SUPABASE,hash,nonce,seal,unseal,base64url,tokenEncryptionReady} from '../_shared/metaSecurity.ts';
 import {GoogleDrive,DriveError,DRIVE_SCOPE,DRIVE_FOLDER,DRIVE_SHORTCUT,driveId,verifySnapshot,byteHash} from '../_shared/googleDrive.ts';
 import {verifyMetaMedia} from '../_shared/metaPublishing.ts';
 const env=(name:string)=>Deno.env.get(name)||'';
@@ -13,7 +13,10 @@ Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response(null,{headers});
  if(env('SUPABASE_URL')!==STAGING_SUPABASE)return reply({error:'Staging integration only.'},403);
  const action=new URL(req.url).pathname.split('/').pop()!;
- if(action==='configuration'&&req.method==='GET')return reply({configured:Boolean(configured()),redirectUri:REDIRECT,scope:DRIVE_SCOPE});
+ if(action==='configuration'&&req.method==='GET'){
+  const encryptionKeyValid=await tokenEncryptionReady(env('MARKETING_GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY'));
+  return reply({configured:Boolean(configured())&&encryptionKeyValid,encryptionKeyValid,redirectUri:REDIRECT,scope:DRIVE_SCOPE});
+ }
  const db=createClient(STAGING_SUPABASE,env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSession:false,autoRefreshToken:false}});
  let user:string|null=null,org:string|null=null,brand:string|null=null;
  const call=async(name:string,data:any={})=>{const result=await db.rpc('marketing_drive_server',{p_action:name,p_user:user,p_org:org,p_brand:brand,p_data:data});if(result.error)throw new Error(result.error.message);return result.data;};

@@ -1,6 +1,6 @@
 import { webcrypto } from 'node:crypto';
 import { afterEach,describe,it,expect,vi } from 'vitest';
-import { seal,unseal,nonce,hash,authorizationUrl,verifySignedRequest,base64url,META_REDIRECT } from '../../../../supabase/functions/_shared/metaSecurity.ts';
+import { seal,unseal,nonce,hash,authorizationUrl,verifySignedRequest,base64url,META_REDIRECT,tokenEncryptionReady } from '../../../../supabase/functions/_shared/metaSecurity.ts';
 vi.stubGlobal('crypto',webcrypto);afterEach(()=>vi.clearAllMocks());
 describe('Meta credential and OAuth security',()=>{
  it('encrypts with brand/account binding and supports deliberate previous-key rotation',async()=>{
@@ -26,4 +26,11 @@ describe('Meta credential and OAuth security',()=>{
   await expect(verifySignedRequest(signed,'wrong')).rejects.toThrow();
   await expect(verifySignedRequest(await sign({algorithm:'HMAC-SHA256',user_id:'123',issued_at:issued_at+3600}),secret)).rejects.toThrow();
  });
+});
+
+it('checks encryption readiness without exposing secret or sealed material',async()=>{
+ const bytes=webcrypto.getRandomValues(new Uint8Array(32));
+ expect(await tokenEncryptionReady(base64url(bytes))).toBe(true);
+ expect(await tokenEncryptionReady(btoa(String.fromCharCode(...bytes)))).toBe(true);
+ for(const invalid of ['', 'not base64!',base64url(new Uint8Array(31)),base64url(new Uint8Array(33))])expect(await tokenEncryptionReady(invalid)).toBe(false);
 });
