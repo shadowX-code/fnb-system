@@ -13,10 +13,11 @@ export default function AdminKanbanBoard({columns,label,disabled,canDrop,onDrop,
  useEffect(()=>{if(disabled)cleanup.current()},[disabled]);
  useLayoutEffect(()=>{
   const next=new Map();root.current?.querySelectorAll('[data-kanban-item]').forEach(node=>{
+   if(node.dataset.kanbanItem===drag?.item.id){next.set(node.dataset.kanbanItem,positions.current.get(node.dataset.kanbanItem));return;}
    node.getAnimations?.().forEach(animation=>animation.cancel());const box=node.getBoundingClientRect(),old=positions.current.get(node.dataset.kanbanItem);next.set(node.dataset.kanbanItem,box);
    if(old&&!reduced()&&node.animate&&(old.x!==box.x||old.y!==box.y))node.animate([{transform:`translate(${old.x-box.x}px,${old.y-box.y}px)`},{transform:'translate(0,0)'}],{duration:180,easing:'cubic-bezier(.2,.8,.2,1)'});
   });positions.current=next;
- },[columns,target]);
+ },[columns,target,drag?.item.id]);
  function placement(x,y,item){
   const board=root.current?.getBoundingClientRect();if(!board||x<board.left||x>board.right||y<board.top||y>board.bottom)return null;
   const columns=[...root.current.querySelectorAll('[data-kanban-column]')];
@@ -48,7 +49,7 @@ export default function AdminKanbanBoard({columns,label,disabled,canDrop,onDrop,
    setDrag({item,width:box.width,height:box.height,x:box.left+point.x-origin.x,y:box.top+point.y-origin.y});updateTarget(placement(point.x,point.y,item));
   };
   const clear=()=>{stopped=true;cancelAnimationFrame(frame);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',cancel);window.removeEventListener('keydown',escape);document.body.classList.remove('admin-kanban-dragging');setDrag(null);updateTarget(null);cleanup.current=()=>{}};
-  const finish=e=>{if(e.pointerId!==pointerId)return;const destination=active?placement(e.clientX,e.clientY,item):null;if(active){suppressClick.current=true;setTimeout(()=>{suppressClick.current=false},0)}clear();if(destination?.rejected){setAnnouncement(latest.current.rejectionReason(item,destination.column));return}if(destination&&!latest.current.disabled){setAnnouncement(`${item.title} moved to ${latest.current.columns.find(c=>c.value===destination.column)?.label}.`);latest.current.onDrop(item,destination.column,destination.before)}};
+  const finish=e=>{if(e.pointerId!==pointerId)return;const destination=active?placement(e.clientX,e.clientY,item):null;if(active){positions.current.set(item.id,{x:box.left+e.clientX-origin.x,y:box.top+e.clientY-origin.y});suppressClick.current=true;setTimeout(()=>{suppressClick.current=false},0)}clear();if(destination?.rejected){setAnnouncement(latest.current.rejectionReason(item,destination.column));return}if(destination&&!latest.current.disabled){setAnnouncement(`${item.title} moved to ${latest.current.columns.find(c=>c.value===destination.column)?.label}.`);latest.current.onDrop(item,destination.column,destination.before)}};
   const cancel=()=>{clear();setAnnouncement('Move cancelled.')},escape=e=>{if(e.key==='Escape'){e.preventDefault();cancel()}};
   cleanup.current();cleanup.current=clear;
   window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',finish);window.addEventListener('pointercancel',cancel);window.addEventListener('keydown',escape);
@@ -65,5 +66,5 @@ export default function AdminKanbanBoard({columns,label,disabled,canDrop,onDrop,
  <header>{renderHeader(column)}</header><div className="admin-kanban-items">{column.items.map((item,index)=><div key={item.id} data-kanban-item={item.id} className="admin-kanban-item" data-dragging={drag?.item.id===item.id||undefined}>
  {target?.column===column.value&&!target.rejected&&target.before===item.id?<div className="admin-kanban-insertion" style={{height:drag?.height||48}} aria-hidden="true"/>:null}
  <div className="admin-kanban-card" onPointerDown={e=>{if(e.target.closest('button,input,select,textarea,a')&&!e.target.closest('[data-kanban-drag-surface]'))return;if(columns.some(c=>canDrop(item,c.value)))start(e,item)}} onClickCapture={e=>{if(suppressClick.current){e.preventDefault();e.stopPropagation();}}}>{renderItem(item)}{columns.some(c=>canDrop(item,c.value))?<button type="button" className="admin-kanban-handle" aria-label={`Move ${item.title}. Use arrow keys to move, or open task for touch controls.`} title="Drag to move. Arrow keys move between columns; up/down reorder in Manual Order." disabled={disabled} onPointerDown={e=>start(e,item)} onKeyDown={e=>keyboard(e,item,column,index)}><GripVertical size={15}/></button>:null}</div></div>)}{target?.column===column.value&&!target.rejected&&!target.before?<div className="admin-kanban-insertion" style={{height:drag?.height||48}} aria-hidden="true"/>:null}</div>{renderFooter?.(column)}</section>)}</section>
- <span role="status" className={target?.rejected?'admin-kanban-feedback':'sr-only'}>{target?.rejected?rejectionReason(drag?.item,target.column):announcement}</span>{drag?createPortal(<div className="admin-kanban-overlay" aria-hidden="true" style={{width:drag.width,left:drag.x,top:drag.y}}>{renderItem(drag.item)}</div>,document.body):null}</>;
+ <span role="status" className={target?.rejected?'admin-kanban-feedback':'sr-only'}>{target?.rejected?rejectionReason(drag?.item,target.column):announcement}</span>{drag?createPortal(<div className="admin-kanban-overlay" aria-hidden="true" inert style={{width:drag.width,left:drag.x,top:drag.y}}>{renderItem(drag.item)}</div>,document.body):null}</>;
 }
