@@ -34,6 +34,7 @@ const newPayload = () => ({ title: '', outlet_ids: [], variants: [{ channel: 'fa
 export default function MarketingWorkspacePage({ section = 'overview' }) {
   if(section==='content')section='calendar';
   const auth = useAuth();
+  const [overviewMonth,setOverviewMonth]=useState(()=>localInput(new Date(),'Asia/Kuala_Lumpur').slice(0,7)+'-01');
   const [settingsTab, setSettingsTab] = useState(()=>new URLSearchParams(window.location.search).has('drive_result')?'drive':'social');
   const [context, setContext] = useState(emptyContext);
   const [organizationId, setOrganizationId] = useState('');
@@ -142,6 +143,7 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
   const scopeControls = <div className="admin-scope-controls" aria-label="Marketing scope">
     <SelectField searchable="auto" label="Organization" value={organizationId} onChange={value => { if (!busy) { setOrganizationId(value); setBrandId(''); } }} options={context.organizations.map(o => ({ value:o.id,label:o.name }))} />
     <SelectField searchable="auto" label="Brand" value={brandId} onChange={value => { if (!busy) setBrandId(value); }} options={[...(['calendar','media'].includes(section) ? [] : [{value:'',label:'All authorized brands'}]),...brands.map(b=>({value:b.id,label:b.name}))]} />
+    {section==='overview'?<SelectField label="Production month" value={overviewMonth} onChange={setOverviewMonth} options={Array.from({length:16},(_,i)=>{const d=new Date();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-12+i);return {value:d.toISOString().slice(0,7)+'-01',label:new Intl.DateTimeFormat('en-MY',{month:'long',year:'numeric',timeZone:'UTC'}).format(d)}})}/>:null}
   </div>;
   const actions = <>
     {section==='calendar' && brand && can('marketing_content.create') ? <button className="btn-primary" disabled={busy} onClick={()=>open({type:'content',content:null,payload:newPayload()})}><Plus size={15}/> Create Post</button> : null}
@@ -153,7 +155,7 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
     <AsyncDataSurface loading={booting || loading} error={bootstrapError || error} onRetry={()=>setRefresh(v=>v+1)} hasData={Boolean(data)}>
       {!booting && !bootstrapError && !context.organizations.length ? <section className="card p-6 space-y-3"><h2 className="font-semibold">Set up your Marketing organization</h2><p className="text-sm text-text-secondary">Organization membership and brand ownership are explicit. Create your organization, then add brands and authorized team members.</p>{can('platform_organizations.manage') ? <button className="btn-primary" onClick={()=>open({type:'organization',name:''})}>Create organization</button> : <p className="text-sm">Ask an organization administrator to grant membership.</p>}</section> : null}
       {data && !brands.length ? <section className="card p-5"><p>No brands are available in this organization.</p>{can('marketing_settings.view') ? <p className="mt-2 text-sm text-text-secondary">Use Brand Knowledge & Connections to create brands or configure your role’s brand access.</p> : null}</section> : null}
-      {data && section==='overview' ? <MarketingOverview key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} brands={brand? [brand]:brands} can={can} userId={auth.user?.id}/> : null}
+      {data && section==='overview' ? <MarketingOverview key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} brands={brand? [brand]:brands} can={can} userId={auth.user?.id} productionMonth={overviewMonth}/> : null}
       {data && section==='analytics' ? <MarketingSocialAnalytics key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} brands={brands} can={can} userId={auth.user?.id}/> : null}
       {data && brand && section==='media' ? <MediaLibrary key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} userId={auth.user?.id}/> : null}
       {data && brand && section==='calendar' ? <ContentManagement key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} refresh={refresh} open={open} command={command} busy={busy} can={can}/> : null}
