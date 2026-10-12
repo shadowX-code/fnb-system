@@ -28,7 +28,7 @@ it('optimistically moves a permitted task without board reload and restores fail
  await screen.findByRole('alert');await vi.waitFor(()=>expect(within(screen.getByRole('region',{name:'Planned'})).getByText('Real task')).toBeTruthy());
  expect(planner.command.mock.calls.at(-1)[0]).toEqual(expect.objectContaining({action:'transition',revision:1,payload:{month:expect.any(String),status:'in_progress'}}));
 });
-it('keyboard dragging cannot approve an In Review task',async()=>{planner.read.mockResolvedValue({...read,tasks:[{...task,status:'in_review'}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.keyDown(within(screen.getByRole('region',{name:'Creative workflow'})).getByRole('button',{name:/Move Real task/}),{key:'ArrowRight'});expect(planner.command.mock.calls.some(([c])=>c.action==='transition'||c.action==='approve')).toBe(false);expect(screen.getByText(/In Review: a reviewer/)).toBeTruthy();});
+it('keyboard dragging cannot approve an In Review task',async()=>{planner.read.mockResolvedValue({...read,tasks:[{...task,status:'in_review'}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.keyDown(within(screen.getByRole('region',{name:'Creative workflow'})).getByRole('button',{name:/Move Real task/}),{key:'ArrowRight'});expect(planner.command.mock.calls.some(([c])=>c.action==='transition'||c.action==='approve')).toBe(false);expect(screen.getByRole('dialog',{name:'Request Revision'})).toBeTruthy();expect(screen.getByRole('button',{name:'Request Revision',exact:true}).disabled).toBe(true);});
 
 it('thumbnail opens the shared preview without opening the task drawer',async()=>{planner.read.mockResolvedValue({...read,tasks:[{...task,asset_ids:['asset'],assets:[{id:'asset',state:'ready',filename:'preview.jpg',mime_type:'image/jpeg'}]}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(within(screen.getByRole('region',{name:'Creative workflow'})).getByRole('button',{name:'Preview preview.jpg',exact:true}));expect(screen.getByRole('dialog',{name:'preview.jpg'})).toBeTruthy();expect(screen.queryByRole('dialog',{name:'Creative task'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Close preview'}));fireEvent.click(screen.getByRole('button',{name:'View Real task'}));expect(screen.getByRole('dialog',{name:'Creative task'})).toBeTruthy();});
 
@@ -59,7 +59,7 @@ it('weekly production preserves reviewed task authority and supports week naviga
 it('brand targets distinguish unset targets, planned progress and unavailable publishing',async()=>{
  planner.read.mockResolvedValue({...read,targets:[{brand_id:'brand',brand_name:'Brand',posts:8,reels:0,planned_posts:2,planned_reels:1,completed_posts:1,completed_reels:0,published_available:false}]});
  render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('tab',{name:'Brand Targets'}));
- expect(screen.getByText('2 / 8')).toBeTruthy();expect(screen.getByText('6 remaining')).toBeTruthy();expect(screen.getByText('1 planned · Target unset')).toBeTruthy();expect(screen.getByRole('button',{name:'Set target'})).toBeTruthy();expect(screen.getByText('1 completed · Publishing data unavailable')).toBeTruthy();
+ expect(screen.getByText('2 / 8')).toBeTruthy();expect(screen.getByText('6 remaining')).toBeTruthy();expect(screen.getByText('1 planned · Target unset')).toBeTruthy();expect(screen.getByRole('button',{name:'Edit Targets'})).toBeTruthy();expect(screen.getByText('1 completed · Publishing data unavailable')).toBeTruthy();
 });
 
 it('reveals compact item/link editors and Escape cancels without dismissing the drawer',async()=>{
@@ -77,4 +77,21 @@ it('Enter adds a checklist item and failed persistence retains retry text withou
 });
 it('description failure preserves editable text and Escape restores it without closing the task',async()=>{
  planner.command.mockImplementation(c=>c.action==='save'?Promise.reject(new Error('Save failed')):Promise.resolve({}));render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Edit description'}));fireEvent.change(screen.getByRole('textbox',{name:'Description',exact:true}),{target:{value:'Keep this draft'}});fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));await screen.findByRole('alert');expect(screen.getByRole('textbox',{name:'Description',exact:true}).value).toBe('Keep this draft');fireEvent.keyDown(screen.getByRole('textbox',{name:'Description',exact:true}),{key:'Escape'});expect(screen.getByRole('button',{name:'Edit description'}).textContent).toContain(task.brief);expect(screen.getByRole('dialog',{name:'Creative task'})).toBeTruthy();
+});
+
+it('centered and populated Planned actions open the existing New Task flow',async()=>{
+ planner.read.mockResolvedValue({...read,tasks:[]});render(<ContentPlannerPage/>);await screen.findByRole('button',{name:'Add Task',exact:true});fireEvent.click(screen.getByRole('button',{name:'Add Task',exact:true}));expect(screen.getByRole('dialog',{name:'New creative task'})).toBeTruthy();
+});
+it('empty media quick action opens shared media workflow independently of task detail',async()=>{
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'Add media to Real task'}));expect(screen.getByRole('dialog',{name:'Creative media · Real task'})).toBeTruthy();expect(screen.queryByRole('dialog',{name:'Creative task'})).toBeNull();
+});
+it('review drop requires feedback and invokes the canonical reviewer command',async()=>{
+ planner.read.mockResolvedValue({...read,tasks:[{...task,status:'in_review'}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.keyDown(within(screen.getByRole('region',{name:'Creative workflow'})).getByRole('button',{name:/Move Real task/}),{key:'ArrowRight'});
+ fireEvent.change(screen.getByRole('textbox',{name:'Review feedback'}),{target:{value:'Revise caption'}});fireEvent.click(screen.getByRole('button',{name:'Request Revision',exact:true}));await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({action:'request_revision',revision:1,payload:{month:expect.any(String),feedback:'Revise caption'}})));
+});
+it('completed reopen is explicit and uses existing creative save authority',async()=>{
+ planner.read.mockResolvedValue({...read,tasks:[{...task,status:'completed'}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
+ const handle=within(screen.getByRole('region',{name:'Creative workflow'})).getByRole('button',{name:/Move Real task/});
+ // Pointer drops may cross more than one column; keyboard adjacent moves remain lifecycle constrained.
+ fireEvent.keyDown(handle,{key:'ArrowLeft'});expect(planner.command.mock.calls.some(([c])=>c.action==='save')).toBe(false);
 });
