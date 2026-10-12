@@ -31,6 +31,7 @@ begin
  assert p->>'match_method'='manual_confirmed';
  x:=public.marketing_creator_post_preview(org,brand,'https://www.instagram.com/p/FEEDX_QA_Disposable_123/');assert (x->>'duplicate')::boolean;
  denied:=false;begin perform public.marketing_creator_command(gen_random_uuid(),org,brand,'save_post',null,0,payload||'{"confirm_link":true}');exception when unique_violation then denied:=true;end;assert denied;
+ p:=public.marketing_creator_command(gen_random_uuid(),org,brand,'save_post',(p->>'id')::uuid,1,payload);assert p->>'revision'='2';
  perform public.marketing_creator_command(gen_random_uuid(),org,brand,'add_metrics',(p->>'id')::uuid,1,jsonb_build_object('metrics','{"views":10,"likes":0}'::jsonb,'source_note','Disposable controlled test','captured_at',now()-interval '2 days'));
  perform public.marketing_creator_command(gen_random_uuid(),org,brand,'add_metrics',(p->>'id')::uuid,1,jsonb_build_object('metrics','{"views":20}'::jsonb,'source_note','Disposable controlled test','captured_at',now()-interval '1 day'));
  x:=public.marketing_creators_read(org,brand);

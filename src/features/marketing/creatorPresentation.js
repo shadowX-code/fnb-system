@@ -1,7 +1,7 @@
 export const creatorPlatforms=[{value:'facebook',label:'Facebook'},{value:'instagram',label:'Instagram'},{value:'xhs',label:'Xiaohongshu'},{value:'tiktok',label:'TikTok'}];
 export const collaborationStates=['planned','confirmed','visited','awaiting_posts','completed','cancelled'];
 export const deliverableStates=['pending','submitted','completed','cancelled'];
-export const label=value=>String(value||'').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
+export const label=value=>creatorPlatforms.find(p=>p.value===value)?.label||String(value||'').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
 export const metricKeys=['views','reach','interactions','likes','comments','shares','saves'];
 export const metricLabel=k=>label(k);
 export const number=v=>typeof v==='number'&&Number.isFinite(v)?new Intl.NumberFormat('en-MY').format(v):'—';
@@ -15,17 +15,17 @@ export function creatorInsights(data,from='',to=''){
  const collaborations=data.collaborations.filter(c=>inRange(c.visit_at||c.created_at));
  const ids=new Set(collaborations.map(c=>c.id));
  const posts=data.posts.filter(p=>p.collaboration_id?ids.has(p.collaboration_id):inRange(p.published_at||p.created_at));
- const costs=collaborations.filter(c=>c.status!=='cancelled').reduce((rows,c)=>{const key=c.currency+'|'+c.cost_state;const v=rows.get(key)||{currency:c.currency,state:c.cost_state,cash:0,inKind:0};v.cash+=Number(c.cash_cost);v.inKind+=Number(c.in_kind_cost);rows.set(key,v);return rows},new Map());
- const deliverables=collaborations.flatMap(c=>c.deliverables).filter(d=>d.status!=='cancelled');
- const comparison=[...new Set([...collaborations.map(c=>c.brand_id),...posts.map(p=>p.brand_id)])].map(brand=>{const cs=collaborations.filter(c=>c.brand_id===brand),ci=new Set(cs.map(c=>c.id)),ps=posts.filter(p=>p.brand_id===brand);return {brand,collaborations:cs.length,posts:ps.length,interactions:metricTotal(ps,'interactions'),completed:cs.flatMap(c=>c.deliverables).filter(d=>d.status==='completed').length,deliverables:cs.flatMap(c=>c.deliverables).filter(d=>d.status!=='cancelled').length,currencies:[...new Set(cs.map(c=>c.currency))]}});
- const outlets=[...new Set(collaborations.map(c=>c.outlet_id||''))].map(outlet=>{const cs=collaborations.filter(c=>(c.outlet_id||'')===outlet),ci=new Set(cs.map(c=>c.id)),ps=posts.filter(p=>ci.has(p.collaboration_id));return {outlet,collaborations:cs.length,posts:ps.length,interactions:metricTotal(ps,'interactions')}});
+ const costs=collaborations.filter(c=>c.cost_state==='recorded'||c.status!=='cancelled').reduce((rows,c)=>{const key=c.currency+'|'+c.cost_state;const v=rows.get(key)||{currency:c.currency,state:c.cost_state,cash:0,inKind:0};v.cash+=Number(c.cash_cost);v.inKind+=Number(c.in_kind_cost);rows.set(key,v);return rows},new Map());
+ const deliverables=collaborations.filter(c=>c.status!=='cancelled').flatMap(c=>c.deliverables).filter(d=>d.status!=='cancelled');
+ const comparison=[...new Set([...collaborations.map(c=>c.brand_id),...posts.map(p=>p.brand_id)])].map(brand=>{const cs=collaborations.filter(c=>c.brand_id===brand),ci=new Set(cs.map(c=>c.id)),ps=posts.filter(p=>p.brand_id===brand);return {brand,collaborations:cs.length,posts:ps.length,interactions:metricTotal(ps,'interactions'),completed:cs.flatMap(c=>c.deliverables).filter(d=>d.status==='completed').length,deliverables:cs.flatMap(c=>c.deliverables).filter(d=>d.status!=='cancelled').length,recordedCosts:[...cs.filter(c=>c.cost_state==='recorded').reduce((totals,c)=>totals.set(c.currency,(totals.get(c.currency)||0)+Number(c.cash_cost)),new Map())].map(([currency,value])=>({currency,value}))}});
+ const outlets=[...new Set([...collaborations.map(c=>c.outlet_id||''),...posts.map(p=>p.outlet_id||collaborations.find(c=>c.id===p.collaboration_id)?.outlet_id||'')])].map(outlet=>{const cs=collaborations.filter(c=>(c.outlet_id||'')===outlet),ci=new Set(cs.map(c=>c.id)),ps=posts.filter(p=>(p.outlet_id||collaborations.find(c=>c.id===p.collaboration_id)?.outlet_id||'')===outlet);return {outlet,collaborations:cs.length,posts:ps.length,interactions:metricTotal(ps,'interactions')}});
  return {collaborations,posts,costs:[...costs.values()],deliverables,completed:deliverables.filter(d=>d.status==='completed').length,interactions:metricTotal(posts,'interactions'),comparison,outlets};
 }
 export function creatorFollowups(data,date=today()){
  const rows=[];
- for(const c of data.collaborations){if(['completed','cancelled'].includes(c.status))continue;
+ for(const c of data.collaborations){if(c.status==='cancelled')continue;
  if(c.visit_at&&['planned','confirmed'].includes(c.status)){const d=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kuala_Lumpur',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(c.visit_at));if(d<=date||new Date(d+'T12:00Z')-new Date(date+'T12:00Z')<=7*86400000)rows.push({kind:'collaboration',id:c.id,brand_id:c.brand_id,title:c.title,reason:d<date?'Visit follow-up overdue':'Upcoming visit',date:d});}
- if(c.follow_up_date&&c.follow_up_date<=date)rows.push({kind:'collaboration',id:c.id,brand_id:c.brand_id,title:c.title,reason:'Follow-up due',date:c.follow_up_date});
+ if(c.status!=='completed'&&c.follow_up_date&&c.follow_up_date<=date)rows.push({kind:'collaboration',id:c.id,brand_id:c.brand_id,title:c.title,reason:'Follow-up due',date:c.follow_up_date});
  for(const d of c.deliverables){if(['completed','cancelled'].includes(d.status))continue;rows.push({kind:'collaboration',id:c.id,brand_id:c.brand_id,title:d.title,reason:d.due_date&&d.due_date<date?'Deliverable overdue':'Post pending',date:d.due_date});}}
  for(const p of data.posts){if(!Object.keys(p.latest_metrics||{}).length)rows.push({kind:'post',id:p.id,brand_id:p.brand_id,title:p.caption||label(p.platform)+' post',reason:'Metrics not recorded',date:p.published_at});}
  return rows.sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999')));
