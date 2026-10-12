@@ -122,6 +122,8 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
       if (result.content?.organization_id !== organizationId || result.content?.brand_id !== brandId) throw new Error('Linked content is unavailable in this brand.');
       linkedOpened.current = id;
       setModal({type:'review',content:result.content});
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('content_id') === id) { url.searchParams.delete('content_id'); window.history.replaceState(window.history.state, '', url); }
     }).catch(e => { if(live)setError(e.message); });
     return () => {live=false;};
   }, [organizationId,brandId,booting,section,auth.user?.id]);
