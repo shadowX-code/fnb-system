@@ -104,7 +104,7 @@ it("discards delayed scope results and closes obsolete external details", async 
   const { rerender } = render(<ContentManagement {...props} />);
   await waitFor(() => expect(service.contentManagement).toHaveBeenCalled());
   rerender(<ContentManagement {...props} brandId="other" />);
-  await screen.findByText("No dated content");
+  await screen.findByText("No content yet");
   resolve({ rows: [row], total_count: 1 });
   await waitFor(() =>
     expect(screen.queryByText("Real external post")).toBeNull()
