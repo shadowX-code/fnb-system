@@ -744,7 +744,12 @@
     @apply h-10 rounded-control border border-border bg-surface px-3 text-[14px] text-text-primary outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:text-text-muted;
     background-color: var(--theme-input-bg);
     border-color: var(--theme-input-border);
+    font-family: inherit;
+    font-weight: 400;
+    line-height: 1.5;
   }
+  .control.admin-textarea { height: auto; padding-block: 0.625rem; resize: none; overflow-y: hidden; }
+
   .control[type="number"] { appearance: textfield; }
   .control[type="number"]::-webkit-inner-spin-button,
   .control[type="number"]::-webkit-outer-spin-button { appearance: none; margin: 0; }

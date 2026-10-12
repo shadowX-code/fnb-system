@@ -87,3 +87,7 @@
 @media(max-width:767px){.outreach-view-heading{align-items:stretch}.outreach-view-heading>.outreach-actions{width:100%;justify-content:flex-end}.outreach-campaign-overview{grid-template-columns:1fr;gap:16px}.outreach-campaign-overview .outreach-image{max-height:220px}.outreach-scope>*{width:100%}.outreach-profile-grid{gap:12px}.outreach-customer-detail{gap:16px}}
 
 .outreach-queue{padding:16px 0;border-block:1px solid var(--theme-border)}.outreach-queue>.admin-select{max-width:360px}.outreach-queue>label{display:flex;align-items:flex-start;gap:8px;font-size:13px;max-width:65ch}.outreach-queue h3{font-size:14px;font-weight:600}@media(max-width:767px){.outreach-queue>.admin-select{max-width:100%}}
+
+.outreach-campaign-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:20px;align-items:start;min-width:0}
+.outreach [aria-label^="Open campaign"]:focus-visible{outline:2px solid var(--theme-primary);outline-offset:-2px}
+@media(max-width:767px){.outreach-campaign-layout{grid-template-columns:minmax(0,1fr);gap:16px}}

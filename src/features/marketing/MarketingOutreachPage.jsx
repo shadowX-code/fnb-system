@@ -14,7 +14,13 @@ import {
   whatsappDeliveryAdapters,
 } from "./whatsappDelivery.js";
 import "./outreach.css";
-import { Plus, ArrowLeft, Settings, Users } from "lucide-react";
+import { Plus, ArrowLeft, Settings } from "lucide-react";
+import AdminFormField from "../../components/forms/AdminFormField.jsx";
+import TextareaField from "../../components/forms/TextareaField.jsx";
+import AdminPagination, {useAdminClientPagination} from "../../components/tables/AdminPagination.jsx";
+import AdminSummaryGrid from "../../components/ui/AdminSummaryGrid.jsx";
+import CampaignMediaField from "./CampaignMediaField.jsx";
+import MarketingMediaPreview from "./MarketingMediaPreview.jsx";
 import TagPicker from "../../components/forms/TagPicker.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
 import EmptyState from "../../components/feedback/EmptyState.jsx";
@@ -31,11 +37,6 @@ const names = {
   ready: "Ready",
   cancelled: "Cancelled",
 };
-function CampaignImage({ asset }) {
- const [url,setUrl]=useState('');
- useEffect(()=>{let live=true;setUrl('');if(asset)marketingService.assetUrl(asset).then(value=>{if(live)setUrl(value);}).catch(()=>{});return()=>{live=false;};},[asset?.id]);
- return asset ? url ? <img src={url} alt={asset.filename} className="outreach-image"/> : <p>Image preview unavailable.</p> : null;
-}
 export default function MarketingOutreachPage({ section: requestedSection = "customers" }) {
   const auth = useAuth(),
     can = (p) => auth.hasPermission(p),
@@ -143,7 +144,16 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
   }, [brand]);
   useEffect(()=>{generation.current++;setBusy(false);setSender("");setSenderConfirmed(false);setSelectedRecipient("");setTab(section === "whatsapp" ? "campaigns" : "customers");setCampaign("");setPage(1);setSearch("");setModal(null);setImportOpen(false);setNotice("");},[section]);
   const filteredCampaigns=(data?.campaigns||[]).filter(c=>(!campaignStatus||c.status===campaignStatus)&&(!campaignSearch||c.title.toLowerCase().includes(campaignSearch.toLowerCase())));
-  const crmLink=(path)=>`${path}?${new URLSearchParams({marketing_org:org,marketing_brand:brand})}`;
+  const campaignPagination=useAdminClientPagination('marketing.whatsapp.campaigns',filteredCampaigns.length,20,JSON.stringify([org,brand,campaignSearch,campaignStatus]));
+  const campaignRows=filteredCampaigns.slice(campaignPagination.from,campaignPagination.to);
+  const openCampaign=c=>{setCampaign(c.id);setPage(1);setSelectedRecipient('');setData(d=>({...d,recipients:[],progress:{}}));};
+  const currentAudience=data?.audiences.find(a=>a.id===active?.audience_id);
+  const approvalCurrent=active?.approved_revision===active?.revision&&(active?.status==='ready'||currentAudience?.revision===active?.audience_revision);
+  const queueTotal=active?.recipient_count??Object.values(data?.progress||{}).reduce((sum,n)=>sum+n,0);
+  const handlingComplete=active?.status==='ready'&&queueTotal>0&&(active.handled_count??((data?.progress.staff_confirmed||0)+(data?.progress.skipped||0)))===queueTotal;
+  const canRevise=active&&['draft','review','approved','ready'].includes(active.status)&&!(data?.progress.opened||data?.progress.staff_confirmed||data?.progress.skipped)&&!data?.recipients.some(r=>r.state!=='pending');
+  const brandName=brands.find(b=>b.id===brand)?.name||'';
+  const formatDate=value=>value?new Date(value).toLocaleDateString('en-MY',{timeZone:'Asia/Kuala_Lumpur',day:'numeric',month:'short',year:'numeric'}):'—';
   const field = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   function show(type, initial = {}) {
     intent.current = null;
@@ -314,16 +324,16 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
     <SelectField searchable="auto" label="Brand" value={brand} onChange={v=>{if(!busy)setBrand(v)}} options={[{value:'',label:'Select a brand'},...brands.map(b=>({value:b.id,label:b.name}))]}/>
   </div>;
   const input = (label, key, type = "text") => (
-    <label className="outreach-field">
-      {label}
+    <AdminFormField label={label}>
       <input
         className="control"
         type={type}
+        maxLength={key==='title'?160:undefined}
         value={form[key] || ""}
         onChange={(e) => field(key, e.target.value)}
         required
       />
-    </label>
+    </AdminFormField>
   );
   return (
     <WorkspacePage
@@ -345,7 +355,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
           </section>
         ) : (
           <>
-            {section==='whatsapp'?<div className="outreach-view-heading"><strong>{tab==='senders'?'WhatsApp settings':'Campaigns'}</strong><div className="outreach-actions"><button className="btn-secondary" onClick={()=>{setTab(tab==='senders'?'campaigns':'senders');setCampaign('');setPage(1)}}>{tab==='senders'?<ArrowLeft size={15}/>:<Settings size={15}/>} {tab==='senders'?'Campaigns':'Sender settings'}</button>{can('marketing_audience.view')?<a className="btn-secondary" href={crmLink('/marketing/customers')}><Users size={15}/>Customers</a>:null}</div></div>:null}
+            {section==='whatsapp'&&tab==='senders'?<button className="btn-secondary self-start" onClick={()=>{setTab('campaigns');setCampaign('');setPage(1)}}><ArrowLeft size={15}/> Back to campaigns</button>:null}
             <AsyncDataSurface loading={loading} error={null} hasData={!!data}>
               {data&&tab==='customers'?<MarketingCustomersView key={brand} org={org} brand={brand} data={data} can={can} refresh={refresh} show={show} onImport={()=>setImportOpen(true)} onChanged={()=>setRefresh(v=>v+1)}/>:null}
               {data&&tab==='senders'?<section>
@@ -355,31 +365,31 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
               {data && tab === "campaigns" ? (
                 <>
                   <section className="space-y-3">
-                    <div className="outreach-section-heading">
-                      {active?<button className="btn-secondary" onClick={()=>{setCampaign('');setPage(1)}}><ArrowLeft size={15}/> All campaigns</button>:<p>{filteredCampaigns.length} {filteredCampaigns.length===1?'campaign':'campaigns'}<small>Manual WhatsApp delivery</small></p>}
-                      {can('marketing_campaigns.manage')?<button className="btn-primary" onClick={()=>show('campaign',{caption:'Hi {name}, ',...(can('marketing_audience.manage')?{audience_criteria:{tags:[],outlet_id:''}}:{audience_id:''})})}><Plus size={15}/> New campaign</button>:null}
-                    </div>
-                    {!active?<AdminFilterToolbar compact denseFields ariaLabel="Campaign filters" search={<AdminSearchField ariaLabel="Search campaigns" placeholder="Search campaigns" value={campaignSearch} onChange={setCampaignSearch}/>} filters={<SelectField label="Campaign status" value={campaignStatus} onChange={setCampaignStatus} options={[{value:'',label:'All'},...['draft','review','approved','ready','cancelled'].map(value=>({value,label:names[value]}))]}/>}/>:null}
-                    {!active&&filteredCampaigns.length?<OutreachCollection rows={filteredCampaigns} getRowKey={c=>c.id} columns={[
-                      {key:'title',header:'Campaign',render:c=><button className="outreach-name-button" onClick={()=>{setCampaign(c.id);setPage(1);setSelectedRecipient('')}}>{c.title}</button>},
-                      {key:'status',header:'Status',render:c=><Badge tone={c.status==='approved'?'success':c.status==='review'?'warning':'default'}>{names[c.status]}</Badge>},
-                      {key:'audience',header:'Audience size',render:c=>c.status==='ready'?c.recipient_count:c.audience_size??'Unavailable'},
-                      {key:'progress',header:'Progress',render:c=>c.recipient_count?`${c.handled_count} / ${c.recipient_count} handled`:'Not queued'}
-                    ]}/>:null}
-                    {!active&&!filteredCampaigns.length?<EmptyState title={data.campaigns.length?"No matching campaigns":"No campaigns yet"} description={data.campaigns.length?"Adjust your search or status filter.":"Choose customer tags and an outlet, then prepare a message for approval. Sending is always manual."}/>:null}
+                    {!active?<>
+                      <div className="outreach-actions">
+                        {can('marketing_campaigns.manage')?<button className="btn-primary" onClick={()=>show('campaign',{caption:'Hi {name}, ',...(can('marketing_audience.manage')?{audience_criteria:{tags:[],outlet_id:''}}:{audience_id:''})})}><Plus size={15}/> New campaign</button>:null}
+                        <button className="btn-secondary" onClick={()=>{setTab('senders');setCampaign('');setPage(1)}}><Settings size={15}/> Sender settings</button>
+                      </div>
+                      <AdminFilterToolbar compact denseFields ariaLabel="Campaign filters" search={<AdminSearchField ariaLabel="Search campaigns" placeholder="Campaign title" value={campaignSearch} onChange={setCampaignSearch}/>} filters={<SelectField label="Campaign status" value={campaignStatus} onChange={setCampaignStatus} options={[{value:'',label:'All'},...['draft','review','approved','ready','cancelled'].map(value=>({value,label:names[value]}))]}/>}/>
+                      {filteredCampaigns.length?<>
+                       <OutreachCollection rows={campaignRows} getRowKey={c=>c.id} onRowClick={openCampaign} columns={[
+                        {key:'title',header:'Campaign',render:c=><button className="outreach-name-button" onClick={()=>openCampaign(c)}>{c.title}</button>},
+                        {key:'status',header:'Status',render:c=><Badge tone={c.status==='approved'?'success':c.status==='review'?'warning':'default'}>{names[c.status]}</Badge>},
+                        {key:'audience',header:'Audience size',render:c=>c.status==='ready'?c.recipient_count:c.audience_size??'Unavailable'},
+                        {key:'progress',header:'Handling progress',render:c=>c.recipient_count?`${c.handled_count??'—'} / ${c.recipient_count} handled`:'Not queued'},
+                        {key:'created_at',header:'Created',render:c=>formatDate(c.created_at)},
+                        {key:'approved_at',header:'Approved',render:c=>formatDate(c.approved_at)}
+                       ]}/>
+                       <AdminPagination noun="campaigns" total={filteredCampaigns.length} page={campaignPagination.page} pageSize={campaignPagination.pageSize} onPageChange={campaignPagination.setPage} onPageSizeChange={campaignPagination.setPageSize}/>
+                      </>:<EmptyState title={data.campaigns.length?"No matching campaigns":"No campaigns yet"} description={data.campaigns.length?"Adjust your search or status filter.":"Choose an audience and prepare a message for approval."}/>}
+                    </>:null}
                     {active ? (
                       <>
-                        <div className="outreach-actions">
-                          <h2>{active.title}</h2>
-                          <Badge>{names[active.status]}</Badge>
-                          <span>Revision {active.revision}</span>
-                        </div>
-                        <div className="outreach-campaign-overview"><CampaignImage asset={data.assets.find(a=>a.id===active.asset_id)}/><div><h3>Message{active.approved_revision===active.revision?" · Approved":" · Draft"}</h3><p className="outreach-caption">{active.caption}</p><dl className="outreach-profile-grid"><div><dt>Audience</dt><dd>{data.audiences.find(a=>a.id===active.audience_id)?.name||"Unavailable"}</dd></div><div><dt>Recipients</dt><dd>{active.recipient_count||"Not queued"}</dd></div><div><dt>Delivery</dt><dd>Manual Click-to-Chat</dd></div></dl></div></div>
+                        <button className="btn-secondary self-start" onClick={()=>{setCampaign('');setPage(1)}}><ArrowLeft size={15}/> All campaigns</button>
+                        <header className="outreach-section-heading mb-0"><div><h2 className="text-lg font-semibold text-text-primary">{active.title}</h2><div className="outreach-actions mt-2"><Badge tone={active.status==='approved'?'success':active.status==='review'?'warning':'default'}>{names[active.status]}</Badge>{handlingComplete?<Badge tone="success">Handling complete</Badge>:null}</div></div></header>
                         <div className="outreach-actions">
                           {can("marketing_campaigns.manage") &&
-                          ["draft", "review", "approved", "ready"].includes(
-                            active.status,
-                          ) ? (
+                          canRevise ? (
                             <button
                               className="btn-secondary"
                               disabled={busy}
@@ -415,7 +425,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                               Review & approve
                             </button>
                           ) : null}
-                          {active.status === "approved" &&
+                          {active.status === "approved" && approvalCurrent &&
                           can("marketing_campaigns.execute") ? (
                             <button
                               className="btn-primary"
@@ -443,25 +453,36 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                             </button>
                           ) : null}
                         </div>
-                        <div className="outreach-actions">
-                          {[
-                            "pending",
-                            "opened",
-                            "staff_confirmed",
-                            "skipped",
-                          ].map((s) => (
-                            <span key={s}>
-                              {names[s]}: {data.progress[s] || 0}
-                            </span>
-                          ))}
+                        {active.status==='approved'&&!approvalCurrent?<p className="text-sm text-text-secondary">Audience changed. Revise and review this campaign before preparing recipients.</p>:null}
+                        <div className="outreach-campaign-layout">
+                          <section className="card p-4 space-y-4 min-w-0" aria-label="Campaign message preview">
+                            <div className="outreach-section-heading mb-0"><h3 className="text-sm font-semibold">Message preview</h3><Badge>{active.status==='cancelled'?'Cancelled':approvalCurrent?'Approved':'Awaiting approval'}</Badge></div>
+                            <MarketingMediaPreview key={active.asset_id||'none'} asset={data.assets.find(a=>a.id===active.asset_id)}/>
+                            {recipient?<small>Preview for {recipient.display_name}</small>:null}
+                            <p className="outreach-caption">{recipient?.caption||(active.caption||'').replaceAll('{brand}',brandName)}</p>
+                          </section>
+                          <section className="card p-4 space-y-4 min-w-0" aria-label="Campaign information">
+                            <h3 className="text-sm font-semibold">Campaign information</h3>
+                            <dl className="outreach-profile-grid">
+                              <div><dt>Audience</dt><dd>{!currentAudience?'Unavailable':currentAudience.criteria?.tags?.length?currentAudience.criteria.tags.join(', '):currentAudience.criteria?.tag||'All tags'}</dd></div>
+                              <div><dt>Outlet</dt><dd>{!currentAudience?'Unavailable':currentAudience.criteria?.outlet_id?data.outlets.find(o=>o.id===currentAudience.criteria.outlet_id)?.name||'Unavailable':'All outlets'}</dd></div>
+                              {currentAudience?.criteria?.language?<div><dt>Language</dt><dd>{{EN:'English',ZH:'Chinese',BM:'Bahasa Melayu'}[currentAudience.criteria.language]||currentAudience.criteria.language}</dd></div>:null}
+                              <div><dt>WhatsApp consent</dt><dd>Subscribed only</dd></div><div><dt>Recipients</dt><dd>{active.status==='ready'?queueTotal:active.audience_size??'Unavailable'}{active.status!=='ready'?<small>Current eligible audience</small>:null}</dd></div>
+                              <div><dt>Sender</dt><dd>{data.senders.find(s=>s.id===(recipient?.sender_id||sender))?.label||'Selected by staff per recipient'}</dd></div>
+                              <div><dt>Approval</dt><dd>{active.status==='cancelled'?'Cancelled':approvalCurrent?'Approved':active.status==='review'?'Pending approval':'Review required'}</dd></div>
+                              <div><dt>Created</dt><dd>{formatDate(active.created_at)}</dd></div><div><dt>Approved</dt><dd>{formatDate(active.approved_at)}</dd></div>
+                            </dl>
+                            <p className="text-xs text-text-secondary">Sending is manual. Staff Confirmed records staff handling, not WhatsApp delivery or read status.</p>
+                          </section>
                         </div>
-                        <details className="outreach-evidence"><summary>Results & delivery limits</summary><p>Verified delivery: unavailable · Verified redemptions: unavailable</p><p>Staff confirmations record manual handling, not WhatsApp delivery. Queued campaigns do not send automatically. Cloud API delivery is unavailable.</p></details>
+                        <AdminSummaryGrid variant="compact" ariaLabel="Recipient handling progress" items={['pending','opened','staff_confirmed','skipped'].map(key=>({key,label:names[key],value:data.progress[key]||0,state:loading?'loading':'ready'}))}/>
+                        <details className="outreach-evidence"><summary>Technical details & evidence</summary><p>Campaign revision: {active.revision} · Approved revision: {active.approved_revision??'None'} · Audience revision: {active.audience_revision??'Not reviewed'}</p><p>Verified delivery: unavailable · Verified redemptions: unavailable</p><p>Queued campaigns do not send automatically. Cloud API delivery is unavailable.</p></details>
                       </>
                     ) : null}
                   </section>
                   {active?.status === "ready" && data.recipients.some(r=>["pending","opened"].includes(r.state)) ? (
                     <section className="outreach-queue space-y-3">
-                      <h3>Manual WhatsApp queue</h3>
+                      <h3>Recipient queue</h3>
                       <SelectField
                         label="Registered sender"
                         value={sender}
@@ -481,6 +502,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                       />
                       <label>
                         <input
+                          className="admin-checkbox"
                           type="checkbox"
                           checked={senderConfirmed}
                           onChange={(e) => setSenderConfirmed(e.target.checked)}
@@ -596,32 +618,16 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                       )}
                     </section>
                   ) : null}
-                  {active&&data.recipients.length?<section aria-label="Campaign recipient results" className="space-y-3"><h3 className="text-sm font-semibold">Recipient results · current queue page</h3><OutreachCollection rows={data.recipients} getRowKey={r=>r.id} columns={[
+                  {active&&data.recipients.length?<section aria-label="Campaign recipient results" className="space-y-3"><h3 className="text-sm font-semibold">Recipient Queue / Results</h3><OutreachCollection rows={data.recipients} getRowKey={r=>r.id} columns={[
                     {key:'display_name',header:'Customer'},
                     {key:'state',header:'Handling',render:r=><Badge tone={r.state==='staff_confirmed'?'success':r.state==='skipped'?'warning':'default'}>{names[r.state]}</Badge>},
                     {key:'eligible',header:'Current consent',render:r=>r.eligible?'Eligible':'Contact blocked'},
                     {key:'sender',header:'Sender',render:r=>data.senders.find(s=>s.id===r.sender_id)?.label||'Not selected'},
-                    {key:'result',header:'Result',render:r=>r.state==='staff_confirmed'?'Staff confirmation only':r.state==='skipped'?r.skip_reason||'Skipped':'Not confirmed'}
+                    {key:'result',header:'Result',render:r=>r.state==='staff_confirmed'?'Staff confirmation only':r.state==='skipped'?r.skip_reason||'Skipped':'Not confirmed'},
+                    {key:'action',header:'Action',render:r=>['pending','opened'].includes(r.state)&&can('marketing_campaigns.execute')?<button className="btn-secondary" onClick={()=>setSelectedRecipient(r.id)}>{r.id===selectedRecipient?'Selected':'Select'}</button>:null}
                   ]}/></section>:null}
                   {active?.status==='ready'&&!loading&&!data.recipients.some(r=>['pending','opened'].includes(r.state))?<p className="text-sm text-text-secondary">{(data.progress.pending||0)+(data.progress.opened||0)>0?'No pending recipients on this page.':'All recipients have been handled. Staff confirmations are shown in results.'}</p>:null}
-                  {active?.status==='ready'&&(data.recipients.length>0||page>1)?<>                      <div className="outreach-actions">
-                        <button
-                          className="btn-secondary"
-                          disabled={page === 1}
-                          onClick={() => setPage((p) => p - 1)}
-                        >
-                          Previous
-                        </button>
-                        <span>Page {page}</span>
-                        <button
-                          className="btn-secondary"
-                          disabled={data.recipients.length < 50}
-                          onClick={() => setPage((p) => p + 1)}
-                        >
-                          Next
-                        </button>
-                      </div>
-</>:null}
+                  {active&&queueTotal>0?<AdminPagination noun="recipients" total={queueTotal} page={page} pageSize={50} loading={loading} onPageChange={setPage}/>:null}
                 </>
               ) : null}
             </AsyncDataSurface>
@@ -631,6 +637,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
         {modal ? (
           <Modal
             open
+            size={modal==='campaign'?'lg':'sm'}
             title={
               modal === "campaign"
                 ? "Campaign draft"
@@ -666,6 +673,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                   className="btn-primary"
                   disabled={
                     busy ||
+                    (modal==='campaign'&&(!form.title?.trim()||!form.caption?.trim())) ||
                     (["approve", "confirm", "unsuppress", "sender"].includes(
                       modal,
                     ) &&
@@ -721,72 +729,17 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                   {input("Sender phone", "phone")}
                 </>
               ) : null}
-              {modal === "campaign" ? (
-                <>
-                  {input("Campaign title", "title")}
-                  {form.audience_criteria ? <div className="space-y-3"><TagPicker value={form.audience_criteria.tags|| (form.audience_criteria.tag?[form.audience_criteria.tag]:[])} options={data.tags||[]} onChange={tags=>field('audience_criteria',{...form.audience_criteria,tag:'',tags})}/><SelectField label="Outlet" value={form.audience_criteria.outlet_id||''} onChange={outlet_id=>field('audience_criteria',{...form.audience_criteria,outlet_id})} options={[{value:'',label:'All'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/><SelectField label="WhatsApp Consent" value="eligible" disabled options={[{value:'eligible',label:'Subscribed only'}]}/><small>Any selected tag, combined with the outlet. Only customers with valid brand consent can be queued.</small></div> : <SelectField label="Audience" value={form.audience_id||''} onChange={v=>field('audience_id',v)} options={[{value:'',label:'Select audience'},...data.audiences.map(a=>({value:a.id,label:`${a.name} · ${a.eligible_count} eligible`}))]}/>}
-                  <label className="outreach-field">
-                    Caption
-                    <textarea
-                      className="control"
-                      rows={5}
-                      value={form.caption || ""}
-                      onChange={(e) => field("caption", e.target.value)}
-                    />
-                  </label>
-                  <small>
-                    Personalize with {"{name}"} and {"{brand}"}.
-                  </small>
-                  <SelectField
-                    label="Campaign image"
-                    value={form.asset_id || ""}
-                    onChange={(v) => field("asset_id", v)}
-                    options={[
-                      { value: "", label: "No image" },
-                      ...data.assets.map((a) => ({
-                        value: a.id,
-                        label: a.filename,
-                      })),
-                    ]}
-                  />
-                  {can("marketing_content.upload") ? (
-                    <label className="btn-secondary">
-                      Upload image once
-                      <input
-                        type="file"
-                        aria-label="Upload campaign image"
-                        accept="image/jpeg,image/png,image/webp"
-                        disabled={busy}
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (!file) return;
-                          const g = generation.current;
-                          setBusy(true);
-                          try {
-                            const a = await marketingService.upload(
-                              org,
-                              brand,
-                              file,
-                            );
-                            if (g === generation.current) {
-                              field("asset_id", a.id);
-                              setData((d) => ({
-                                ...d,
-                                assets: [a, ...d.assets],
-                              }));
-                            }
-                          } catch (e) {
-                            setError(e.message);
-                          } finally {
-                            if (g === generation.current) setBusy(false);
-                          }
-                        }}
-                      />
-                    </label>
-                  ) : null}
-                </>
-              ) : null}
+              {modal === "campaign" ? <div className="space-y-5">
+                {input("Campaign title", "title")}
+                <div className="outreach-campaign-layout">
+                  <div className="space-y-4 min-w-0"><TextareaField label="Caption" rows={5} maxLength={4000} value={form.caption||''} onChange={caption=>field('caption',caption)} helper="Personalize with {name} and {brand}." disabled={busy}/>
+                    <CampaignMediaField key={`${org}:${brand}`} org={org} brand={brand} assets={data.assets} assetId={form.asset_id} onChange={asset_id=>field('asset_id',asset_id)} onUploaded={asset=>setData(d=>({...d,assets:[asset,...d.assets]}))} canUpload={can('marketing_content.upload')} busy={busy} onBusy={setBusy}/>
+                  </div>
+                  <section className="space-y-4 min-w-0" aria-label="Campaign audience"><h3 className="text-sm font-semibold">Audience</h3>
+                    {form.audience_criteria?<><TagPicker value={form.audience_criteria.tags||(form.audience_criteria.tag?[form.audience_criteria.tag]:[])} options={data.tags||[]} onChange={tags=>field('audience_criteria',{...form.audience_criteria,tag:'',tags})}/><SelectField label="Outlet" value={form.audience_criteria.outlet_id||''} onChange={outlet_id=>field('audience_criteria',{...form.audience_criteria,outlet_id})} options={[{value:'',label:'All'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/><SelectField label="WhatsApp Consent" value="eligible" disabled options={[{value:'eligible',label:'Subscribed only'}]}/></>:<SelectField label="Audience" value={form.audience_id||''} onChange={v=>field('audience_id',v)} options={[{value:'',label:'Select audience'},...data.audiences.map(a=>({value:a.id,label:`${a.name} · ${a.eligible_count} eligible`}))]}/>}
+                  </section>
+                </div>
+              </div>:null}
               {modal === "approve" ? (
                 <>
                   <p>
@@ -798,6 +751,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                     .
                   </p>
                   <p className="outreach-caption">{form.caption}</p>
+                  <MarketingMediaPreview key={form.asset_id||'none'} asset={data.assets.find(a=>a.id===form.asset_id)}/>
                   <p>
                     Image:{" "}
                     {data.assets.find((a) => a.id === form.asset_id)
@@ -839,7 +793,6 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                   I confirm this action.
                 </label>
               ) : null}
-              {error ? <p role="alert">{error}</p> : null}
             </div>
           </Modal>
         ) : null}
@@ -848,6 +801,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
   );
 }
 
-function OutreachCollection({rows,columns,getRowKey}) {
- return <><div className="outreach-desktop-table"><DataTable density="compact" minWidth={0} rows={rows} columns={columns} getRowKey={getRowKey}/></div><div className="outreach-mobile-list">{rows.map(r=><article key={getRowKey(r)}>{columns.map((c,i)=><div key={c.key} className={i?'outreach-mobile-fact':''}>{i?<small>{c.header}</small>:null}{c.render?c.render(r):r[c.key]}</div>)}</article>)}</div></>;
+function OutreachCollection({rows,columns,getRowKey,onRowClick}) {
+ const keyboard=(event,row)=>{if(event.target===event.currentTarget&&['Enter',' '].includes(event.key)){event.preventDefault();onRowClick?.(row);}};
+ return <><div className="outreach-desktop-table"><DataTable density="compact" minWidth={0} rows={rows} columns={columns} getRowKey={getRowKey} onRowClick={onRowClick} getRowProps={onRowClick?row=>({tabIndex:0,'aria-label':`Open campaign ${row.title}`,onKeyDown:event=>keyboard(event,row)}):undefined}/></div><div className="outreach-mobile-list">{rows.map(r=><article key={getRowKey(r)} {...(onRowClick?{tabIndex:0,'aria-label':`Open campaign ${r.title}`,onClick:event=>{if(!event.target.closest('button,a,input'))onRowClick(r)},onKeyDown:event=>keyboard(event,r)}:{})}>{columns.map((c,i)=><div key={c.key} className={i?'outreach-mobile-fact':''}>{i?<small>{c.header}</small>:null}{c.render?c.render(r):r[c.key]}</div>)}</article>)}</div></>;
 }
