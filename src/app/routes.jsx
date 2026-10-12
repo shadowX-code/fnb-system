@@ -1,4 +1,5 @@
 import { lazy } from "react";
+const ContentPlannerPage = lazy(() => import("../features/marketing/ContentPlannerPage.jsx"));
 import DashboardOverviewPage from "../features/sales-purchase/pages/DashboardOverviewPage.jsx";
 import SPDashboardPage from "../features/sales-purchase/pages/SPDashboardPage.jsx";
 import AlertsInsightsPage from "../features/sales-purchase/pages/AlertsInsightsPage.jsx";
@@ -75,6 +76,7 @@ export const routeDetails = {
   marketing_campaigns: { component: MarketingOutreachPage, props: { section: "whatsapp" }, permission: "marketing_workspace.access AND marketing_campaigns.view", description: "Approved campaigns and manual WhatsApp handling." },
   marketing_inbox: { component: MarketingInboxPage, permission: "marketing_workspace.access AND marketing_inbox.view", description: "Brand conversations, human handling and approved AI reply proposals." },
   marketing_overview: { component: MarketingWorkspacePage, props: { section: "overview" }, permission: "marketing_workspace.access AND marketing_overview.view", description: "Brand publishing activity and action center." },
+  marketing_planner: { component: ContentPlannerPage, permission: "marketing_workspace.access AND marketing_planner.view", description: "Creative production, monthly targets and recurring plans." },
   marketing_media: { component: MarketingWorkspacePage, props: { section: "media" }, permission: "marketing_workspace.access AND marketing_content.view", description: "Brand-scoped read-only Google Drive media." },
   marketing_content: { component: MarketingWorkspacePage, props: { section: "content" }, permission: "marketing_workspace.access AND marketing_content.view", description: "Versioned creative content, review and publishing." },
   marketing_calendar: { component: MarketingWorkspacePage, props: { section: "calendar" }, permission: "marketing_workspace.access AND marketing_calendar.view OR marketing_workspace.access AND marketing_content.view", description: "Versioned posts, approvals and publishing analytics." },

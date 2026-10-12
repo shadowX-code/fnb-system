@@ -903,3 +903,7 @@ The real disposable device-upload rehearsal also verified private Storage bytes,
 ## 2026-10-12 — WhatsApp campaign audience and review visibility
 
 Refined campaign rows and contextual actions around saved tags, eligible counts and staff handling progress. Added canonical draft/detail audience breakdowns and private review-bound eligible membership, closing pre-queue expansion after tag changes without rewriting historical queues. Scoped L3 rollback checks cover consent/suppression exclusions, pagination-independent counts, review/queue identity locking, duplicate queue requests and withdrawal; no external messages or Production scope.
+
+### 2026-10-12 — Marketing creative Content Planner
+
+Added the native Content Planner under Content Studio with one scoped creative task model, Board/List/Monthly Plan views, version-bound production review, blockers, staff assignment, recurring occurrence tombstones, separate monthly targets and duplicate-safe Content Draft handoff. Production completion remains independent from publishing. Staging delivery uses the existing dev Git integration; no provider execution or Production release is included. Canonical contracts are documented in `docs/domains/marketing.md`; rollback verification is in `docs/testing/marketing-content-planner.sql`.

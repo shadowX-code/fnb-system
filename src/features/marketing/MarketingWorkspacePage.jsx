@@ -111,6 +111,21 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
     return () => { live = false; };
   }, [modal?.content?.id, auth.user?.id]);
 
+  // Planner handoff opens the current canonical revision through the existing scoped detail authority.
+  const linkedOpened = useRef('');
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('content_id');
+    if (!id || !brand || booting || section !== 'calendar' || !can('marketing_content.view') || linkedOpened.current === id) return;
+    let live = true;
+    marketingService.detail(id).then(result => {
+      if (!live) return;
+      if (result.content?.organization_id !== organizationId || result.content?.brand_id !== brandId) throw new Error('Linked content is unavailable in this brand.');
+      linkedOpened.current = id;
+      setModal({type:'review',content:result.content});
+    }).catch(e => { if(live)setError(e.message); });
+    return () => {live=false;};
+  }, [organizationId,brandId,booting,section,auth.user?.id]);
+
   async function mutate(action, message) {
     const generation = lifetime.current;
     setBusy(true); setError('');
