@@ -322,8 +322,8 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
     if (result && action !== "open") setSelectedRecipient("");
   }
   const controls = <div className="outreach-scope" aria-label="Marketing scope">
-    {context.organizations.length>1?<SelectField label="Organization" value={org} onChange={v=>{if(!busy){setOrg(v);setBrand('')}}} options={context.organizations.map(o=>({value:o.id,label:o.name}))}/>:null}
-    <SelectField label="Brand" value={brand} onChange={v=>{if(!busy)setBrand(v)}} options={[{value:'',label:'Select a brand'},...brands.map(b=>({value:b.id,label:b.name}))]}/>
+    {context.organizations.length>1?<SelectField searchable="auto" label="Organization" value={org} onChange={v=>{if(!busy){setOrg(v);setBrand('')}}} options={context.organizations.map(o=>({value:o.id,label:o.name}))}/>:null}
+    <SelectField searchable="auto" label="Brand" value={brand} onChange={v=>{if(!busy)setBrand(v)}} options={[{value:'',label:'Select a brand'},...brands.map(b=>({value:b.id,label:b.name}))]}/>
   </div>;
   const input = (label, key, type = "text") => (
     <label className="outreach-field">
@@ -386,7 +386,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                       {active?<button className="btn-secondary" onClick={()=>{setCampaign('');setPage(1)}}><ArrowLeft size={15}/> All campaigns</button>:<p>{filteredCampaigns.length} {filteredCampaigns.length===1?'campaign':'campaigns'}<small>Manual WhatsApp delivery</small></p>}
                       {can('marketing_campaigns.manage')?<button className="btn-primary" onClick={()=>show('campaign',{caption:'Hi {name}, ',audience_id:data.audiences[0]?.id||''})}><Plus size={15}/> New campaign</button>:null}
                     </div>
-                    {!active?<AdminFilterToolbar compact denseFields ariaLabel="Campaign filters" search={<AdminSearchField ariaLabel="Search campaigns" placeholder="Search campaigns" value={campaignSearch} onChange={setCampaignSearch}/>} filters={<SelectField label="Campaign status" value={campaignStatus} onChange={setCampaignStatus} options={[{value:'',label:'All statuses'},...['draft','review','approved','ready','cancelled'].map(value=>({value,label:names[value]}))]}/>}/>:null}
+                    {!active?<AdminFilterToolbar compact denseFields ariaLabel="Campaign filters" search={<AdminSearchField ariaLabel="Search campaigns" placeholder="Search campaigns" value={campaignSearch} onChange={setCampaignSearch}/>} filters={<SelectField label="Campaign status" value={campaignStatus} onChange={setCampaignStatus} options={[{value:'',label:'All'},...['draft','review','approved','ready','cancelled'].map(value=>({value,label:names[value]}))]}/>}/>:null}
                     {!active&&filteredCampaigns.length?<OutreachCollection rows={filteredCampaigns} getRowKey={c=>c.id} columns={[
                       {key:'title',header:'Campaign',render:c=><button className="outreach-name-button" onClick={()=>{setCampaign(c.id);setPage(1);setSelectedRecipient('')}}>{c.title}</button>},
                       {key:'status',header:'Status',render:c=><Badge tone={c.status==='approved'?'success':c.status==='review'?'warning':'default'}>{names[c.status]}</Badge>},
@@ -760,7 +760,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                     value={form.outlet_id || ""}
                     onChange={(v) => field("outlet_id", v)}
                     options={[
-                      { value: "", label: "All brand outlets" },
+                      { value: "", label: "All" },
                       ...data.outlets.map((o) => ({
                         value: o.id,
                         label: o.name,

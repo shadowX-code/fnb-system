@@ -1,4 +1,4 @@
-import { Children, Fragment, isValidElement, useState } from "react";
+import { Children, Fragment, cloneElement, isValidElement, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import ActionMenu from "../ui/ActionMenu.jsx";
 import SelectField from "../forms/SelectField.jsx";
@@ -8,6 +8,12 @@ export const ALL_FILTER_OPTION = Object.freeze({ value: "all", label: "All" });
 export function AdminOutletField({ value, onChange, options = [], allowAll = false, allValue = "all", label = "Outlet", ariaLabel = label, searchable = false }) {
   const outletOptions = allowAll ? [{ value: allValue, label: "All" }, ...options] : options;
   return <SelectField label={label} ariaLabel={ariaLabel} value={value} onChange={onChange} options={outletOptions} searchable={searchable} />;
+}
+
+function filterSelection(field) {
+  if (!isValidElement(field)) return field;
+  if (field.type === SelectField) return cloneElement(field, { searchable: field.props.searchable ?? "auto" });
+  return field.props.children ? cloneElement(field, { children: Children.map(field.props.children, filterSelection) }) : field;
 }
 
 function labelForField(field) {
@@ -81,10 +87,10 @@ export default function AdminFilterToolbar({
     <section className={`admin-filter-toolbar w-full min-w-0 rounded-lg border border-border bg-surface/80 shadow-sm ${compact ? "admin-filter-toolbar-compact" : ""} ${className}`.trim()} aria-label={ariaLabel} data-admin-filter-toolbar data-admin-filter-density={denseFields ? "dense" : "normal"}>
       <div className="admin-filter-toolbar-row flex flex-wrap items-end">
         <div className="flex min-w-0 flex-[1_1_640px] flex-wrap items-end" data-admin-filter-fields>
-          {fields.map(({ field, slot, role, width }, index) => <div className={`${denseFields ? role === "outlet" ? "w-full sm:w-[200px]" : role === "search" ? "w-full min-w-0 sm:flex-[1_1_240px]" : role === "date-range" ? "w-full sm:w-[220px]" : "w-full sm:w-[150px]" : width} ${role === "search" ? "min-w-0" : "min-w-0 shrink-0"} admin-filter-field`.trim()} data-admin-filter-slot={slot} data-admin-filter-role={role} key={field?.key || index}>{field}</div>)}
+          {fields.map(({ field, slot, role, width }, index) => <div className={`${denseFields ? role === "outlet" ? "w-full sm:w-[200px]" : role === "search" ? "w-full min-w-0 sm:flex-[1_1_240px]" : role === "date-range" ? "w-full sm:w-[220px]" : "w-full sm:w-[150px]" : width} ${role === "search" ? "min-w-0" : "min-w-0 shrink-0"} admin-filter-field`.trim()} data-admin-filter-slot={slot} data-admin-filter-role={role} key={field?.key || index}>{filterSelection(field)}</div>)}
         </div>
         {moreFilters || activeFilters.length || secondaryActions || primaryActions ? <div className="flex w-full flex-wrap items-end sm:w-auto sm:justify-end" data-admin-filter-actions>
-          {moreFilters ? <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} align="right" width={340} ariaLabel="More filters" trigger={({ toggle, ariaLabel: menuLabel }) => <button className={`btn-secondary h-10 shrink-0 px-3 text-sm ${moreOpen ? "border-primary/40 bg-primary/5 text-primary" : ""}`} type="button" aria-label={menuLabel} aria-expanded={moreOpen} onClick={toggle}><SlidersHorizontal size={15} /> Filters</button>}><div className="grid gap-3 p-1">{moreFilters}</div></ActionMenu> : null}
+          {moreFilters ? <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} align="right" width={340} ariaLabel="More filters" trigger={({ toggle, ariaLabel: menuLabel }) => <button className={`btn-secondary h-10 shrink-0 px-3 text-sm ${moreOpen ? "border-primary/40 bg-primary/5 text-primary" : ""}`} type="button" aria-label={menuLabel} aria-expanded={moreOpen} onClick={toggle}><SlidersHorizontal size={15} /> Filters</button>}><div className="grid gap-3 p-1">{filterSelection(moreFilters)}</div></ActionMenu> : null}
           {activeFilters.length ? <button className="btn-secondary h-10 shrink-0 px-3 text-sm" type="button" onClick={onClear}>Clear all</button> : null}
           {secondaryActions ? <div className="flex flex-wrap gap-2">{secondaryActions}</div> : null}
           {primaryActions ? <div className="flex flex-wrap gap-2">{primaryActions}</div> : null}

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import AdminFilterToolbar, { AdminOutletField } from "../AdminFilterToolbar.jsx";
 import FactoryFilterBar from "../../../features/factory/components/FactoryFilterBar.jsx";
 import FeedXDateRangePicker from "../../ui/FeedXDateRangePicker.jsx";
+import SelectField from "../../forms/SelectField.jsx";
 import AdminSearchField from "../../forms/AdminSearchField.jsx";
 import { FieldLabel } from "../../forms/Selectors.jsx";
 import { CREW_ADMIN_OUTLET_STORAGE_KEY, CrewAdminOutletProvider, useCrewAdminOutlet } from "../../../features/crew/context/CrewAdminOutletContext.jsx";
@@ -142,4 +143,17 @@ it("keeps a partial date bound visible after removing an active range filter",()
  expect(screen.getByRole('button',{name:'Date Range'}).textContent).toContain('Until 31 May 2026');
  cleanup();render(<AdminFilterToolbar period={<FeedXDateRangePicker from="2026-05-01" to="" today="2026-10-12" onApply={vi.fn()}/>} />);
  expect(screen.getByRole('button',{name:'Date Range'}).textContent).toContain('From 1 May 2026');
+});
+
+it("applies auto-search to primary and disclosed shared dropdowns without changing option values", () => {
+  const options = [{value:'',label:'All'},...Array.from({length:8},(_,i)=>({value:`value-${i}`,label:`Status ${i}`}))], change=vi.fn();
+  render(<AdminFilterToolbar filters={<SelectField label="Status" value="" options={options} onChange={change}/>} moreFilters={<SelectField label="Tag" value="" options={options} onChange={change}/>}/>);
+  fireEvent.click(screen.getByRole('button',{name:'Status',exact:true}));
+  expect(screen.getByRole('option',{name:'All'}).getAttribute('aria-selected')).toBe('true');
+  fireEvent.change(screen.getByRole('textbox',{name:'Search Status'}),{target:{value:'Status 7'}});
+  fireEvent.click(screen.getByRole('option',{name:'Status 7'}));
+  expect(change).toHaveBeenCalledWith('value-7');
+  fireEvent.click(screen.getByRole('button',{name:'More filters'}));
+  fireEvent.click(screen.getByRole('button',{name:'Tag',exact:true}));
+  expect(screen.getByRole('textbox',{name:'Search Tag'})).toBeTruthy();
 });

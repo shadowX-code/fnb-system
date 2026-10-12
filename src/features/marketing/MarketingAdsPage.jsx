@@ -338,7 +338,7 @@ export default function MarketingAdsPage() {
   ];
   const controls = (
     <div className="space-y-3"><div className="admin-scope-controls" aria-label="Marketing scope">
-      <SelectField
+      <SelectField searchable="auto"
         label="Organization"
         value={org}
         options={context.organizations.map((o) => ({
@@ -352,7 +352,7 @@ export default function MarketingAdsPage() {
           setBrand("");
         }}
       />
-      <SelectField
+      <SelectField searchable="auto"
         label="Brand"
         value={brand}
         options={[

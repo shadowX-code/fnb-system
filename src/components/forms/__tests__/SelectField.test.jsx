@@ -88,3 +88,14 @@ it("keeps required selection invalid until populated and searches rich options",
   });
   expect(screen.getByRole("option").textContent).toContain("Service Crew");
 });
+
+it("uses the shared auto-search threshold without searching trivial lists", () => {
+  const options = Array.from({ length: 8 }, (_, value) => ({ value, label: `Option ${value}` }));
+  const { rerender } = render(<SelectField label="Category" searchable="auto" value={0} options={options.slice(0, 3)} onChange={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Category" }));
+  expect(screen.queryByRole("textbox", { name: "Search Category" })).toBeNull();
+  rerender(<SelectField label="Category" searchable="auto" value={0} options={options} onChange={vi.fn()} />);
+  expect(screen.getByRole("textbox", { name: "Search Category" })).toBeTruthy();
+  fireEvent.change(screen.getByRole("textbox", { name: "Search Category" }), { target: { value: "Option 7" } });
+  expect(screen.getAllByRole("option")).toHaveLength(1);
+});

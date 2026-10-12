@@ -40,12 +40,12 @@ import {
 } from "./contentManagement.js";
 import "./contentManagement.css";
 
-const channels = [{ value: "", label: "All channels" }, {
+const channels = [{ value: "", label: "All" }, {
   value: "facebook",
   label: "Facebook",
 }, { value: "instagram", label: "Instagram" }];
 const statuses = [
-  { value: "", label: "All statuses" },
+  { value: "", label: "All" },
   ...[
     "draft",
     "review",

@@ -124,8 +124,8 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
   }
   const open = value => { setError(''); request.current = null; setModal(value); };
   const scopeControls = <div className="admin-scope-controls" aria-label="Marketing scope">
-    <SelectField label="Organization" value={organizationId} onChange={value => { if (!busy) { setOrganizationId(value); setBrandId(''); } }} options={context.organizations.map(o => ({ value:o.id,label:o.name }))} />
-    <SelectField label="Brand" value={brandId} onChange={value => { if (!busy) setBrandId(value); }} options={[...(section === 'calendar' ? [] : [{value:'',label:'All authorized brands'}]),...brands.map(b=>({value:b.id,label:b.name}))]} />
+    <SelectField searchable="auto" label="Organization" value={organizationId} onChange={value => { if (!busy) { setOrganizationId(value); setBrandId(''); } }} options={context.organizations.map(o => ({ value:o.id,label:o.name }))} />
+    <SelectField searchable="auto" label="Brand" value={brandId} onChange={value => { if (!busy) setBrandId(value); }} options={[...(section === 'calendar' ? [] : [{value:'',label:'All authorized brands'}]),...brands.map(b=>({value:b.id,label:b.name}))]} />
   </div>;
   const actions = <>
     {section==='content' && brand && can('marketing_content.create') ? <button className="btn-primary" disabled={busy} onClick={()=>open({type:'content',content:null,payload:newPayload()})}><Plus size={15}/> New draft</button> : null}

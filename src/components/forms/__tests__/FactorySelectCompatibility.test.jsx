@@ -1,0 +1,25 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import SearchableSelect from "../../../features/factory/components/SearchableSelect.jsx";
+import SelectField from "../SelectField.jsx";
+afterEach(cleanup);
+it("Factory compatibility and Marketing consume the same selection owner with helper search and focus refs", () => {
+ const change=vi.fn(),ref={current:null},options=Array.from({length:8},(_,i)=>({value:i,label:`Item ${i}`,helper:i===7?'Cold storage':'Ambient'}));
+ const {container}=render(<SearchableSelect ariaLabel="Movement type" value={0} options={options} onChange={change} buttonRef={ref} searchPlaceholder="Search movements"/>);
+ expect(container.querySelector('.admin-select-trigger')).toBe(ref.current);
+ fireEvent.click(ref.current);
+ fireEvent.change(screen.getByPlaceholderText('Search movements'),{target:{value:'cold'}});
+ expect(screen.getAllByRole('option')).toHaveLength(1);
+ expect(screen.getByRole('option').textContent).toContain('Cold storage');
+ fireEvent.click(screen.getByRole('option'));
+ expect(change).toHaveBeenCalledWith(7);
+ expect(document.activeElement).toBe(ref.current);
+ fireEvent.click(ref.current);
+ expect(screen.getAllByRole('option')).toHaveLength(8);
+ cleanup();
+ const result=render(<SelectField label="Channel" value="" options={[{value:'',label:'All'},{value:'facebook',label:'Facebook'}]} onChange={change} searchable="auto"/>);
+ expect(result.container.querySelector('.admin-select-trigger')).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Channel'}));
+ expect(screen.queryByRole('textbox')).toBeNull();
+ expect(screen.getByRole('option',{name:'All'}).className).toBe('admin-select-option');
+});

@@ -453,7 +453,7 @@ export default function MarketingInboxPage() {
   }, [detailKey]);
   const controls = <div className="marketing-inbox-controls">
     <div className="admin-scope-controls" aria-label="Marketing scope">      {context.organizations.length > 1 && (
-        <SelectField
+        <SelectField searchable="auto"
           label="Organization"
           value={org}
           onChange={(v) => {
@@ -466,7 +466,7 @@ export default function MarketingInboxPage() {
           }))}
         />
       )}
-      <SelectField
+      <SelectField searchable="auto"
         label="Brand"
         value={brand}
         onChange={setBrand}
@@ -487,7 +487,7 @@ export default function MarketingInboxPage() {
               setSelected("");
             }}
             options={[
-              { value: "social", label: "All social channels" },
+              { value: "social", label: "All" },
               { value: "facebook", label: "Facebook" },
               { value: "instagram", label: "Instagram" },
               { value: "internal", label: "Internal cases" },
@@ -502,7 +502,7 @@ export default function MarketingInboxPage() {
               setSelected("");
             }}
             options={[
-              { value: "", label: "All assignees" },
+              { value: "", label: "All" },
               { value: "me", label: "Assigned to me" },
               { value: "unassigned", label: "Unassigned" },
               ...(data?.members || []).map((m) => ({

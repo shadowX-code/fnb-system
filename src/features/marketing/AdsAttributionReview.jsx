@@ -109,7 +109,7 @@ export default function AdsAttributionReview({
             setPage(1);
           }}
           options={[
-            { value: "all", label: `All campaigns (${rows.length})` },
+            { value: "all", label: "All" },
             ...groups.map((g) => ({
               value: g.key,
               label: `${g.label} (${g.rows.length})`,
