@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {weekOf,monthWeeks,allowedMoves,plannerSummary,sortedTasks,filterTasks,currentMonth} from '../contentPlanner.js';
+import {taskDueState,todayKey,weekOf,monthWeeks,allowedMoves,plannerSummary,sortedTasks,filterTasks,currentMonth} from '../contentPlanner.js';
 const task=(id,patch={})=>({id,title:id,brand_id:'brand',brand_name:'Brand',status:'planned',due_date:'2026-10-12',created_at:'2026-10-01',manual_order:0,...patch});
 describe('Creative planner presentation',()=>{
  it('uses Malaysia month independently of browser time zone',()=>expect(currentMonth(new Date('2026-09-30T17:00:00Z'))).toBe('2026-10-01'));
@@ -10,3 +10,5 @@ describe('Creative planner presentation',()=>{
  it('prioritizes unfinished overdue and blocked work, while manual order is explicit',()=>{const tasks=[task('done',{status:'completed',manual_order:1}),task('upcoming',{due_date:'2026-10-20',manual_order:2}),task('blocked',{blocked:true,manual_order:3}),task('late',{due_date:'2026-10-10',manual_order:4})];expect(sortedTasks(tasks,'workload','2026-10-12').map(t=>t.id)).toEqual(['late','blocked','upcoming','done']);expect(sortedTasks(tasks,'manual').map(t=>t.id)).toEqual(['done','upcoming','blocked','late']);});
  it('applies shared filters without mutating task records',()=>{const tasks=[task('a'),task('b',{brand_id:'other',assignee_id:'employee',blocked:true})];expect(filterTasks(tasks,{brand:'other',assignee:'employee',blocked:true})).toEqual([tasks[1]]);expect(tasks).toHaveLength(2);});
 });
+
+it('attributes production urgency to Malaysia dates and suppresses completed overdue warnings',()=>{expect(todayKey(new Date('2026-10-11T17:00:00Z'))).toBe('2026-10-12');expect(taskDueState({status:'planned',due_date:'2026-10-12'},'2026-10-12')).toBe('today');expect(taskDueState({status:'planned',due_date:'2026-10-13'},'2026-10-12')).toBe('tomorrow');expect(taskDueState({status:'planned',due_date:'2026-10-11'},'2026-10-12')).toBe('overdue');expect(taskDueState({status:'completed',due_date:'2026-10-11'},'2026-10-12')).toBe('normal');});
