@@ -211,3 +211,5 @@ Content Studio has three sidebar destinations: Content Planner (`marketing_plann
 The shared `AdminKanbanBoard` owns pointer/keyboard interaction, drag feedback, edge scrolling and reduced-motion-aware layout transitions. Consumers retain permission checks, lifecycle authority, optimistic persistence and rollback. Shared `Drawer` traps keyboard focus within its dialog and restores the previous focus; nested dialogs handle their own Escape. `DatePickerField` supports disabled read-only consumers.
 
 The shared `WorkspacePage` compact density reduces header/content spacing for work-focused surfaces without changing its default layout. `AdminKanbanBoard` owns card/handle pointer activation, stretched-column and gap-aware collision bounds, stable placeholders, edge scrolling and accessible rejection feedback; consumers own transition authority and persistence.
+
+Admin summary grids retain their existing mobile layout by default. Dashboards may request `mobileColumns={2}` for compact two-column mobile KPIs; the shared component owns responsive classes and existing larger-screen breakpoints remain unchanged.

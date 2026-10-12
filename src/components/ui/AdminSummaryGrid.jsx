@@ -21,10 +21,11 @@ function gridColumns(variant, count) {
  * Canonical Admin KPI surface. Features provide metric data; this component owns
  * summary card anatomy and responsive grid behavior.
  */
-export default function AdminSummaryGrid({ items = [], variant = "standard", ariaLabel = "Summary", className = "" }) {
+export default function AdminSummaryGrid({ items = [], variant = "standard", ariaLabel = "Summary", className = "", mobileColumns = 1 }) {
   const metrics = items.filter(Boolean);
+  const columns = mobileColumns === 2 ? gridColumns(variant, metrics.length).replace("grid-cols-1", "grid-cols-2") : gridColumns(variant, metrics.length);
   return (
-    <section className={`grid items-stretch gap-3 ${gridColumns(variant, metrics.length)} ${className}`} aria-label={ariaLabel} data-admin-summary-grid={variant}>
+    <section className={`grid items-stretch gap-3 ${columns} ${className}`} aria-label={ariaLabel} data-admin-summary-grid={variant}>
       {metrics.map(({ key, emphasis, ...metric }, index) => (
         <MetricCard
           key={key || `summary-${index}-${metric.label || "metric"}`}
