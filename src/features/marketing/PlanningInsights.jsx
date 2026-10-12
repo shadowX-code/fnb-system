@@ -15,9 +15,9 @@ import {publishingEntries} from './plannerPublishing.js';
 const dateLabel=date=>new Intl.DateTimeFormat('en-MY',{day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(date+'T12:00:00Z'));
 const monthLabel=month=>new Intl.DateTimeFormat('en-MY',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(month+'T12:00:00Z'));
 const editable=task=>!['in_review','completed'].includes(task.status);
-export default function PlanningInsights({tasks,targets,month,today,busy,canEdit,canConfigure,onOpen,onReschedule,onTargets,onMonth,onPublishReschedule,organizationId,brandId,canContent}){
+export default function PlanningInsights({tasks,targets,month,today,busy,canEdit,canConfigure,onOpen,onReschedule,onTargets,onMonth,onPublishReschedule,organizationId,brandId,canContent,view,setView}){
  const links=tasks.map(t=>t.linked_content_id).filter(Boolean).sort().join(',');
- const [view,setView]=useState('production'),[change,setChange]=useState(null),[date,setDate]=useState(''),[post,setPost]=useState(null),[expanded,setExpanded]=useState({}),[publish,setPublish]=useState({rows:[],loading:false,error:''});
+ const [change,setChange]=useState(null),[date,setDate]=useState(''),[post,setPost]=useState(null),[expanded,setExpanded]=useState({}),[publish,setPublish]=useState({rows:[],loading:false,error:''});
  useEffect(()=>{
   if(view!=='publish'||!canContent)return;let live=true;
   setPublish({rows:[],loading:true,error:''});

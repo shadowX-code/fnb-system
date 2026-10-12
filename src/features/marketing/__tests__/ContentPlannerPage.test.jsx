@@ -104,3 +104,8 @@ it('monthly publish changes only unlinked planned dates and preserves committed 
  const calendar=screen.getByRole('region',{name:'Monthly Publish calendar'});fireEvent.keyDown(within(calendar).getByRole('button',{name:/Move Real task/}),{key:'ArrowRight'});await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({action:'save',payload:{month:'2026-10-01',planned_publish_date:'2026-10-13'}})));
  expect(planner.command.mock.calls.some(([c])=>c.action==='approve'||c.action==='transition')).toBe(false);
 });
+
+it('keeps Monthly Publish selected across month reloads',async()=>{
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('tab',{name:'Monthly Publish'}));fireEvent.click(screen.getByRole('button',{name:'Next insights month'}));
+ await vi.waitFor(()=>expect(planner.read).toHaveBeenCalledWith('org','2026-11-01',''));await screen.findByRole('region',{name:'Monthly Publish calendar'});expect(screen.getByRole('tab',{name:'Monthly Publish'}).getAttribute('aria-selected')).toBe('true');
+});
