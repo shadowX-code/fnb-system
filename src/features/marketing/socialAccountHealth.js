@@ -1,5 +1,5 @@
-export const socialStateLabel = (state) =>
-  ({
+export const socialStateLabel = (state, capability) =>
+  state === "connected" && capability === "insights" ? "Access Granted" : ({
     verified: "Ready",
     operational: "Operational",
     connected: "OAuth Connected",
@@ -118,5 +118,12 @@ export const socialReason = (reason) =>
 
 export function socialAccountIssues(c) {
   const pending = new Set(["verification_pending", "inbound_pending", "subscriptions_missing", "meta_temporarily_unavailable", "subscription_reconciling", "connection_check_unavailable"]);
+  if (pending.has(c.checks?.error_code)) return [];
   return Object.entries(socialCapabilities(c)).filter(([, value]) => ["permission_required", "action_required", "needs_attention"].includes(value.state) && !pending.has(value.reason));
+}
+
+export function socialNeedsReconnect(c) {
+  return ["expired", "error", "disconnected"].includes(c.status) ||
+    (c.expires_at && Date.parse(c.expires_at) <= Date.now()) ||
+    (c.health?.credential_valid === false && !c.checks?.error_code);
 }

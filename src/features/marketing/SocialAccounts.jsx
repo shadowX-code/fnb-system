@@ -12,6 +12,7 @@ import {
   socialReason,
   socialStateLabel,
   socialAccountIssues,
+  socialNeedsReconnect,
 } from "./socialAccountHealth.js";
 import "./socialAccounts.css";
 const stamp = (v) =>
@@ -247,6 +248,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
               const status = socialAccountStatus(c),
                 capabilities = socialCapabilities(c),
                 issues = socialAccountIssues(c),
+                needsReconnect = socialNeedsReconnect(c),
                 Icon = c.channel === "facebook" ? Facebook : Instagram;
               return (
                 <article className="social-account" key={c.id}>
@@ -269,7 +271,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                       <div key={name}>
                         <span className="capitalize">{name === "messaging" ? "Inbox" : name}</span>
                         <Badge tone={tone(value.state)}>
-                          {socialStateLabel(value.state)}
+                          {socialStateLabel(value.state, name)}
                         </Badge>
                         <p>{socialReason(value.reason)}</p>
                       </div>
@@ -291,7 +293,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                     </p>
                     {configure ? (
                       <div className="social-account-actions">
-                        {["expired", "error", "disconnected"].includes(c.status) || c.health?.credential_valid === false ? (
+                        {needsReconnect ? (
                         <button
                           className="btn-secondary"
                           disabled={busy || !configuration?.configured}
@@ -300,7 +302,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                           Reconnect
                         </button>
                         ) : null}
-                        {issues.length && !["expired", "error", "disconnected"].includes(c.status) && c.health?.credential_valid !== false ? (
+                        {issues.length && !needsReconnect ? (
                           <button className="btn-secondary" disabled={busy} onClick={() => setModal({ type: "issue", connection: c, issues })}>Resolve Issue</button>
                         ) : null}
                         <button

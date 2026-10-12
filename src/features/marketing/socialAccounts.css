@@ -19,7 +19,7 @@
 .social-account p,
 .social-account-resume {
   font-size: var(--type-caption-size, 12px);
-  color: var(--theme-text-secondary, #475569);
+  color: var(--theme-muted, #475569);
 }
 .social-account-list {
   margin-top: 16px;
@@ -102,7 +102,7 @@
 }
 .social-account-choice small {
   display: block;
-  color: var(--theme-text-secondary, #475569);
+  color: var(--theme-muted, #475569);
 }
 .social-account-notice,
 .social-account-resume {
@@ -144,4 +144,9 @@
   .social-accounts-heading > button {
     width: 100%;
   }
+}
+
+.social-account-gap {
+  margin-bottom: 12px;
+  line-height: 1.5;
 }
