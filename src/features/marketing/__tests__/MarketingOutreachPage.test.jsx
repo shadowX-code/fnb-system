@@ -76,3 +76,13 @@ it('recalculates draft audience when outlet changes and renders canonical exclus
 it('keeps completed queue actions limited to view and cancel and uses All Customers without tags',async()=>{
  outreach.read.mockResolvedValue({...base,campaigns:[{id:'c',title:'Completed',status:'ready',revision:1,approved_revision:1,caption:'Hi',audience_criteria:{tags:[]},eligible_recipients:0,recipient_count:1,handled_count:1,queued:true,can_revise:false}]});render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();const row=await screen.findByRole('row',{name:'Open campaign Completed'});expect(within(row).getByText('All Customers')).toBeTruthy();expect(within(row).getByText('1 / 1 handled')).toBeTruthy();fireEvent.click(within(row).getByRole('button',{name:'Actions for Completed'}));expect(screen.getAllByRole('menuitem').map(c=>c.textContent)).toEqual(['View','Cancel']);expect(outreach.command).not.toHaveBeenCalled();
 });
+
+it('hides meaningless customer and campaign outlet selectors for an unlinked brand',async()=>{
+ const mounted=render(<MarketingOutreachPage/>);await chooseBrand();fireEvent.click(await screen.findByRole('button',{name:'Add customer'}));expect(screen.queryByRole('combobox',{name:'Brand Outlet'})).toBeNull();mounted.unmount();
+ render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click(await screen.findByRole('button',{name:'New campaign'}));expect(screen.queryByRole('combobox',{name:'Outlet'})).toBeNull();expect(outreach.command).not.toHaveBeenCalled();
+});
+it('keeps real mapped canonical outlets available in customer and campaign forms',async()=>{
+ outreach.read.mockResolvedValue({...base,outlets:[{id:'canonical-outlet',name:'Canonical outlet'}]});
+ const mounted=render(<MarketingOutreachPage/>);await chooseBrand();fireEvent.click(await screen.findByRole('button',{name:'Add customer'}));expect(screen.getByRole('combobox',{name:'Brand Outlet'})).toBeTruthy();expect(within(screen.getByRole('combobox',{name:'Brand Outlet'})).getByRole('option',{name:'Canonical outlet'}).value).toBe('canonical-outlet');mounted.unmount();
+ render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click(await screen.findByRole('button',{name:'New campaign'}));expect(screen.getByRole('combobox',{name:'Outlet'})).toBeTruthy();expect(within(screen.getByRole('combobox',{name:'Outlet'})).getByRole('option',{name:'Canonical outlet'}).value).toBe('canonical-outlet');expect(outreach.command).not.toHaveBeenCalled();
+});
