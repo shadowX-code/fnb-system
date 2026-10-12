@@ -1,0 +1,58 @@
+begin;
+do $$
+declare org uuid:='ec42a08a-0f59-4b7b-a48e-b2faacf9eaf1';brand uuid:='88718f61-2915-42ef-b62f-5e6e2fe5b3eb';other_brand uuid:='88a73473-5dc7-471c-b484-fe247cf0f660';
+ actor uuid:='9f44daf9-9f87-4129-bc71-55c082cf8782';c jsonb;a jsonb;v jsonb;p jsonb;x jsonb;payload jsonb;req uuid:=gen_random_uuid();rid uuid;outlet uuid;limited uuid;owner_role uuid;n integer;denied boolean;
+begin
+ perform set_config('request.jwt.claim.sub',(select auth_user_id::text from public.employees where id=actor),true);
+ assert marketing_private.creator_url('https://www.instagram.com/reel/AbC_123/?utm_source=test')->>'post_key'='AbC_123';
+ assert marketing_private.creator_url('https://www.instagram.com/p/AbC_123/')->>'post_key'='AbC_123';
+ assert marketing_private.creator_url('https://www.tiktok.com/@different.name/video/123456?is_from_webapp=1')->>'post_key'='123456';
+ denied:=false;begin perform marketing_private.creator_url('https://instagram.com.evil.example/p/abc');exception when others then denied:=true;end;assert denied;
+ payload:=jsonb_build_object('name','Disposable Creator CRM acceptance','location','Ipoh','categories',jsonb_build_array('Food'));
+ c:=public.marketing_creator_command(req,org,brand,'save_creator',null,0,payload);
+ x:=public.marketing_creator_command(req,org,brand,'save_creator',null,0,payload);assert c=x;
+ assert (select count(*) from public.marketing_creators where id=(c->>'id')::uuid)=1;
+ denied:=false;begin perform public.marketing_creator_command(req,org,brand,'save_creator',null,0,payload||'{"name":"Changed"}');exception when others then denied:=true;end;assert denied;
+ a:=public.marketing_creator_command(gen_random_uuid(),org,brand,'save_account',null,0,jsonb_build_object('creator_id',c->>'id','platform','instagram','display_name','A different platform name','handle','feedx_disposable_acceptance'));
+ assert (a->>'identity_verified')::boolean=false;
+ perform public.marketing_creator_command(gen_random_uuid(),org,brand,'save_account',null,0,jsonb_build_object('creator_id',c->>'id','platform','tiktok','display_name','Another platform name','handle','feedx_disposable_tt'));
+ denied:=false;begin perform public.marketing_creator_command(gen_random_uuid(),org,brand,'save_account',null,0,jsonb_build_object('creator_id',c->>'id','platform','instagram','handle','FEEDX_DISPOSABLE_ACCEPTANCE'));exception when unique_violation then denied:=true;end;assert denied;
+ select o.id into outlet from public.outlets o where not exists(select 1 from public.organization_outlets oo where oo.outlet_id=o.id and oo.organization_id<>org) limit 1;
+ if outlet is not null then insert into public.organization_outlets(organization_id,outlet_id) values(org,outlet) on conflict do nothing;
+ insert into public.brand_outlets(organization_id,brand_id,outlet_id) values(org,brand,outlet) on conflict do nothing;end if;
+ payload:=jsonb_build_object('title','Disposable outlet visit','creator_id',c->>'id','owner_id',actor,'outlet_id',outlet,'visit_at','2026-10-15T02:00:00Z','status','confirmed',
+ 'cash_cost',100,'in_kind_cost',25,'currency','MYR','cost_state','recorded','deliverables',jsonb_build_array(jsonb_build_object('title','Instagram post','platform','instagram','due_date','2026-10-16','status','pending'),jsonb_build_object('title','TikTok post','platform','tiktok','status','pending')));
+ v:=public.marketing_creator_command(gen_random_uuid(),org,brand,'save_collaboration',null,0,payload);
+ assert jsonb_array_length(v->'deliverables')=2;
+ x:=public.marketing_creator_post_preview(org,brand,'https://www.instagram.com/p/FEEDX_QA_Disposable_123/');assert x->>'metadata_status'='unavailable';assert x->>'matched_creator_id' is null;
+ payload:=jsonb_build_object('url','https://www.instagram.com/reel/FEEDX_QA_Disposable_123/?utm_source=qa','creator_id',c->>'id','account_id',a->>'id','collaboration_id',v->>'id','deliverable_id',v->'deliverables'->0->>'id','caption','Disposable QA evidence; no external publication asserted');
+ denied:=false;begin perform public.marketing_creator_command(gen_random_uuid(),org,brand,'save_post',null,0,payload);exception when others then denied:=true;end;assert denied;
+ p:=public.marketing_creator_command(gen_random_uuid(),org,brand,'save_post',null,0,payload||'{"confirm_link":true}');
+ assert p->>'match_method'='manual_confirmed';
+ x:=public.marketing_creator_post_preview(org,brand,'https://www.instagram.com/p/FEEDX_QA_Disposable_123/');assert (x->>'duplicate')::boolean;
+ denied:=false;begin perform public.marketing_creator_command(gen_random_uuid(),org,brand,'save_post',null,0,payload||'{"confirm_link":true}');exception when unique_violation then denied:=true;end;assert denied;
+ perform public.marketing_creator_command(gen_random_uuid(),org,brand,'add_metrics',(p->>'id')::uuid,1,jsonb_build_object('metrics','{"views":10,"likes":0}'::jsonb,'source_note','Disposable controlled test','captured_at',now()-interval '2 days'));
+ perform public.marketing_creator_command(gen_random_uuid(),org,brand,'add_metrics',(p->>'id')::uuid,1,jsonb_build_object('metrics','{"views":20}'::jsonb,'source_note','Disposable controlled test','captured_at',now()-interval '1 day'));
+ x:=public.marketing_creators_read(org,brand);
+ select item into payload from jsonb_array_elements(x->'posts') item where item->>'id'=p->>'id';
+ assert payload->'latest_metrics'->>'views'='20';assert payload->'latest_metrics'->>'likes'='0';assert not (payload->'latest_metrics'?'interactions');
+ assert (select count(*) from public.marketing_creator_metric_snapshots where post_id=(p->>'id')::uuid)=2;
+ -- Stale configuration revisions cannot overwrite a concurrent change.
+ c:=public.marketing_creator_command(gen_random_uuid(),org,brand,'share_creator',(c->>'id')::uuid,1,'{}');
+ c:=public.marketing_creator_command(gen_random_uuid(),org,other_brand,'share_creator',(c->>'id')::uuid,(c->>'revision')::integer,'{}');
+ denied:=false;begin perform public.marketing_creator_command(gen_random_uuid(),org,brand,'save_creator',(c->>'id')::uuid,1,jsonb_build_object('name','Stale'));exception when sqlstate '40001' then denied:=true;end;assert denied;
+ select role_id into owner_role from public.employees where id=actor;
+ insert into public.roles(name) values('Disposable Creator scope QA') returning id into limited;
+ insert into public.role_permissions(role_id,permission_id) select limited,id from public.permissions where code in ('marketing_workspace.access','marketing_creators.view','marketing_creators.manage');
+ insert into public.marketing_role_scopes values(org,limited,false);insert into public.marketing_role_brands values(org,limited,other_brand);
+ update public.employees set role_id=limited where id=actor;
+ x:=public.marketing_creators_read(org,other_brand);assert jsonb_array_length(x->'posts')=0;assert jsonb_array_length(x->'collaborations')=0;
+ assert (select (item->>'editable')::boolean from jsonb_array_elements(x->'creators') item where item->>'id'=c->>'id')=false;
+ denied:=false;begin perform public.marketing_creator_command(gen_random_uuid(),org,other_brand,'save_creator',(c->>'id')::uuid,(c->>'revision')::integer,jsonb_build_object('name','Forbidden shared edit'));exception when insufficient_privilege then denied:=true;end;assert denied;
+ denied:=false;begin perform public.marketing_creators_read(org,brand);exception when insufficient_privilege then denied:=true;end;assert denied;
+ assert not has_table_privilege('authenticated','public.marketing_creators','select');assert not has_table_privilege('anon','public.marketing_creator_metric_snapshots','insert');
+ perform set_config('request.jwt.claim.sub','',true);
+ denied:=false;begin perform public.marketing_creators_read(org,null);exception when insufficient_privilege then denied:=true;end;assert denied;
+end;$$;
+select 'PASS: identities, canonical outlet visit, multiple deliverables, URL-first/manual matching, deduplication, metric history, retries, stale revisions, brand isolation and revoked authentication; all fixtures rolled back' verification;
+rollback;

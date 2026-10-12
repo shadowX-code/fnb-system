@@ -213,3 +213,7 @@ The shared `AdminKanbanBoard` owns pointer/keyboard interaction, drag feedback, 
 The shared `WorkspacePage` compact density reduces header/content spacing for work-focused surfaces without changing its default layout. `AdminKanbanBoard` owns card/handle pointer activation, stretched-column and gap-aware collision bounds, stable placeholders, edge scrolling and accessible rejection feedback; consumers own transition authority and persistence.
 
 Admin summary grids retain their existing mobile layout by default. Dashboards may request `mobileColumns={2}` for compact two-column mobile KPIs; the shared component owns responsive classes and existing larger-screen breakpoints remain unchanged.
+
+### Marketing Creators routing
+
+`marketing_creators` owns `/marketing/creators` within the existing Marketing workspace. Its Directory/Collaborations/Posts/Insights tabs share one route and the canonical shell. Scoped `marketing_org`, `marketing_brand` and `post_id` links are validated against the existing authorized context/read model. The [Marketing domain](../domains/marketing.md) owns Creator identity, relationship and evidence contracts.

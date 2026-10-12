@@ -1,4 +1,5 @@
 import { lazy } from "react";
+const CreatorsPage = lazy(() => import("../features/marketing/CreatorsPage.jsx"));
 const ContentPlannerPage = lazy(() => import("../features/marketing/ContentPlannerPage.jsx"));
 import DashboardOverviewPage from "../features/sales-purchase/pages/DashboardOverviewPage.jsx";
 import SPDashboardPage from "../features/sales-purchase/pages/SPDashboardPage.jsx";
@@ -70,6 +71,7 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 }
 
 export const routeDetails = {
+  marketing_creators: { component: CreatorsPage, permission: "marketing_workspace.access AND marketing_creators.view", description: "Creator relationships, collaborations, post records and performance evidence." },
   marketing_ads: { component: MarketingAdsPage, permission: "marketing_workspace.access AND marketing_ads.view", description: "Brand Ad Accounts and verified Meta advertising performance." },
   marketing_crm_legacy: { component: MarketingOutreachPage, props: { section: "legacy" }, permission: "marketing_workspace.access AND marketing_campaigns.view OR marketing_workspace.access AND marketing_audience.view", description: "Compatibility entry for existing CRM bookmarks." },
   marketing_audience: { component: MarketingOutreachPage, props: { section: "customers" }, permission: "marketing_workspace.access AND marketing_audience.view", description: "Brand customer relationships, consent and segments." },
