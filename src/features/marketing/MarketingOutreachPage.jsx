@@ -70,7 +70,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
   const brands = context.brands.filter((b) => b.organization_id === org),
     active = data?.campaigns.find((c) => c.id === campaign),
     recipient = data?.recipients.find((r) => r.id === selectedRecipient),
-    scope = JSON.stringify([org, brand, campaign, page, search, auth.user?.id]);
+    scope = JSON.stringify([org, brand, campaign, page, search, auth.user?.id, auth.profile?.id]);
   useEffect(() => {
     let live = true;
     marketingService
