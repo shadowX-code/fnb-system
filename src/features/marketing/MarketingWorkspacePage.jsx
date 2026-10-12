@@ -12,15 +12,19 @@ import AdminPagination, { useAdminPagedQuery } from '../../components/tables/Adm
 import { marketingService } from './marketingService.js';
 import { localInput, scheduleInstant } from './marketingCalendar.js';
 import './marketing.css';
+import MarketingMediaPicker from './MarketingMediaPicker.jsx';
+import MediaLibrary from './MediaLibrary.jsx';
+import GoogleDriveSettings from './GoogleDriveSettings.jsx';
 import { contentStatusLabel } from './contentManagement.js';
 import ContentManagement from './ContentManagement.jsx';
 import PostDetail from './PostDetail.jsx';
 import { MetaConnections, PublishAuthorization, SocialEvidence } from './MetaIntegrationPanels.jsx';
 
-const labels = { overview: 'Overview', content: 'Content Library', calendar: 'Content Management', analytics: 'Analytics', settings: 'Brand Knowledge & Connections' };
+const labels = { overview: 'Overview', content: 'Content Management', media: 'Media Library', calendar: 'Content Management', analytics: 'Analytics', settings: 'Brand Knowledge & Connections' };
 const descriptions = {
   overview: 'Publishing activity, approvals and delivery actions across your brands.',
-  content: 'Create channel variants, review exact revisions and plan publishing.',
+  content: '',
+  media: '',
   calendar: '',
   analytics: 'Verified workflow outcomes and the evidence available to Marketing.',
   settings: 'Manage brand knowledge, shared ownership and connection readiness.',
@@ -34,8 +38,9 @@ function Stamp({ value, timezone }) { return value ? <time dateTime={value}>{new
 const newPayload = () => ({ title: '', outlet_ids: [], variants: [{ channel: 'facebook', format: 'text', caption: '', asset_ids: [] }] });
 
 export default function MarketingWorkspacePage({ section = 'overview' }) {
+  if(section==='content')section='calendar';
   const auth = useAuth();
-  const [settingsTab, setSettingsTab] = useState('social');
+  const [settingsTab, setSettingsTab] = useState(()=>new URLSearchParams(window.location.search).has('drive_result')?'drive':'social');
   const [context, setContext] = useState(emptyContext);
   const [organizationId, setOrganizationId] = useState('');
   const [brandId, setBrandId] = useState('');
@@ -72,8 +77,8 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
         callbackScopeApplied.current = true;
         const query = new URLSearchParams(window.location.search);
         let saved = {}; try { saved = JSON.parse(sessionStorage.getItem(`marketing.content-scope.${auth.user?.id}`) || '{}'); } catch {}
-        const org = query.get('marketing_org') || (['calendar','content'].includes(section) ? saved.org : ''), selectedBrand = query.get('marketing_brand') || (['calendar','content'].includes(section) ? saved.brand : '');
-        if (result.organizations.some(o => o.id === org) && result.brands.some(b => b.id === selectedBrand && b.organization_id === org)) { setOrganizationId(org);setBrandId(selectedBrand);return; }
+        const org = query.get('marketing_org') || (['calendar','media'].includes(section) ? saved.org : ''), selectedBrand = query.get('marketing_brand') || (['calendar','media'].includes(section) ? saved.brand : '');
+        if (result.organizations.some(o => o.id === org)) { setOrganizationId(org);setBrandId(result.brands.some(b => b.id === selectedBrand && b.organization_id === org)?selectedBrand:'');return; }
       }
       setOrganizationId(current => result.organizations.some(o => o.id === current) ? current : result.organizations[0]?.id || '');
     }).catch(e => { if (live) setBootstrapError(e.message); }).finally(() => { if (live) setBooting(false); });
@@ -83,7 +88,7 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
     let live = true;
     setLoading(Boolean(organizationId)); setError(''); setSetup(null);
     if (!organizationId || booting) return () => { live = false; };
-    (section === 'calendar' ? Promise.resolve({rows:[],assets:[],jobs:[],total:0}) : marketingService.read({ organizationId, brandId, section, page, pageSize }))
+    (['calendar','media'].includes(section) ? Promise.resolve({rows:[],assets:[],jobs:[],total:0}) : marketingService.read({ organizationId, brandId, section, page, pageSize }))
       .then(result => { if (live) setRead({ key, data: result }); })
       .catch(e => { if (live) setError(e.message); }).finally(() => { if (live) setLoading(false); });
     if (section === 'settings') marketingService.setup(organizationId).then(result => { if (live) setSetup(result); }).catch(e => { if (live) setError(e.message); });
@@ -91,9 +96,9 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
   }, [key, booting]);
   useEffect(() => { setPage(1); setModal(null); request.current = null; setNotice(''); }, [organizationId, brandId, section, auth.user?.id]);
   useEffect(() => { if(data && page>Math.max(1,Math.ceil(data.total/pageSize)))setPage(Math.max(1,Math.ceil(data.total/pageSize))); },[data?.total,page,pageSize]);
-  useEffect(() => { if (!booting && !brands.some(b => b.id === brandId)) setBrandId(section === 'calendar' ? brands[0]?.id || '' : ''); }, [context, organizationId, brandId, booting, section]);
+  useEffect(() => { if (!booting && !brands.some(b => b.id === brandId)) setBrandId(['calendar','media'].includes(section) ? brands[0]?.id || '' : ''); }, [context, organizationId, brandId, booting, section]);
   useEffect(() => {
-    if (booting || !brand || section !== 'calendar') return;
+    if (booting || !brand || !['calendar','media'].includes(section)) return;
     try { sessionStorage.setItem(`marketing.content-scope.${auth.user?.id}`, JSON.stringify({org: organizationId, brand: brandId})); } catch {}
     const url = new URL(window.location.href); url.searchParams.set('marketing_org', organizationId); url.searchParams.set('marketing_brand', brandId);
     window.history.replaceState(window.history.state, '', url);
@@ -125,11 +130,11 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
   const open = value => { setError(''); request.current = null; setModal(value); };
   const scopeControls = <div className="admin-scope-controls" aria-label="Marketing scope">
     <SelectField searchable="auto" label="Organization" value={organizationId} onChange={value => { if (!busy) { setOrganizationId(value); setBrandId(''); } }} options={context.organizations.map(o => ({ value:o.id,label:o.name }))} />
-    <SelectField searchable="auto" label="Brand" value={brandId} onChange={value => { if (!busy) setBrandId(value); }} options={[...(section === 'calendar' ? [] : [{value:'',label:'All authorized brands'}]),...brands.map(b=>({value:b.id,label:b.name}))]} />
+    <SelectField searchable="auto" label="Brand" value={brandId} onChange={value => { if (!busy) setBrandId(value); }} options={[...(['calendar','media'].includes(section) ? [] : [{value:'',label:'All authorized brands'}]),...brands.map(b=>({value:b.id,label:b.name}))]} />
   </div>;
   const actions = <>
-    {section==='content' && brand && can('marketing_content.create') ? <button className="btn-primary" disabled={busy} onClick={()=>open({type:'content',content:null,payload:newPayload()})}><Plus size={15}/> New draft</button> : null}
-    {section==='content' && brand && can('marketing_content.upload') ? <label className="btn-secondary"><Upload size={15}/> Upload media<input className="sr-only" aria-label="Upload brand media" type="file" accept="image/jpeg,image/png,image/webp,video/mp4" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)mutate(()=>marketingService.upload(organizationId,brandId,file),'Brand media uploaded.');}} /></label> : null}
+    {section==='calendar' && brand && can('marketing_content.create') ? <button className="btn-primary" disabled={busy} onClick={()=>open({type:'content',content:null,payload:newPayload()})}><Plus size={15}/> Create Post</button> : null}
+
   </>;
 
   return <WorkspacePage section="Marketing" title={labels[section]} description={descriptions[section]} controls={context.organizations.length ? scopeControls : null} actions={actions}>
@@ -146,20 +151,14 @@ export default function MarketingWorkspacePage({ section = 'overview' }) {
         <section className="card p-5 space-y-2"><h2 className="font-semibold">Evidence availability</h2><p className="text-sm text-text-secondary">Workflow counts use saved FeedX records. Social metrics appear only when collected from authorized accounts. Conversions and provider costs remain unavailable.</p><p className="text-sm text-text-secondary">Marketing has no customer, loyalty or financial mutation authority. Revenue attribution and AI insights are not available in this phase.</p></section>
       </> : null}
       {data && section==='analytics' ? <SocialEvidence key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId}/> : null}
-      {data && section==='content' ? <>
-        {!brand ? <p className="text-sm text-text-secondary">Select a brand to create content or upload assets. Browse across brands below.</p> : null}
-        <ContentRows rows={data.rows} busy={busy} can={can} open={open} command={command} timezone={timezone}/>
-        <AdminPagination page={page} pageSize={pageSize} total={data.total} loading={loading||busy} onPageChange={setPage} onPageSizeChange={size=>{setPageSize(size);setPage(1);}} noun="content records"/>
-        <section className="card p-5 space-y-3"><h2 className="font-semibold">Brand media</h2><p className="text-sm text-text-secondary">Private, immutable uploaded files. Up to 100 MB: JPG, PNG, WebP and MP4. Showing the current page of assets.</p>
-          <MarketingListPanel organizationId={organizationId} brandId={brandId} kind="assets" refresh={refresh} emptyTitle="No uploaded brand media" renderRows={rows=>rows.map(a=><div className="marketing-row" key={a.id}><span><strong>{a.filename}</strong><small>{a.mime_type} · {(a.size_bytes/1024/1024).toFixed(1)} MB</small></span><button className="btn-secondary" disabled={busy} onClick={()=>mutate(async()=>{const url=await marketingService.assetUrl(a);window.open(url,'_blank','noopener,noreferrer');},'Media opened with a temporary private link.')}><ExternalLink size={14}/> Open</button></div>)}/>
-        </section>
-      </> : null}
+      {data && brand && section==='media' ? <MediaLibrary key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId}/> : null}
       {data && brand && section==='calendar' ? <ContentManagement key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} refresh={refresh} open={open} command={command} busy={busy} can={can}/> : null}
-      {data && section==='settings' ? <div className="marketing-settings-tabs" role="tablist" aria-label="Marketing settings"><button className="btn-secondary" role="tab" aria-selected={settingsTab==='social'} onClick={()=>setSettingsTab('social')}>Social Accounts</button><button className="btn-secondary" role="tab" aria-selected={settingsTab==='knowledge'} onClick={()=>setSettingsTab('knowledge')}>Knowledge & access</button></div> : null}
+      {data && section==='settings' ? <div className="marketing-settings-tabs" role="tablist" aria-label="Marketing settings"><button className="btn-secondary" role="tab" aria-selected={settingsTab==='social'} onClick={()=>setSettingsTab('social')}>Social Accounts</button><button className="btn-secondary" role="tab" aria-selected={settingsTab==='drive'} onClick={()=>setSettingsTab('drive')}>Google Drive</button><button className="btn-secondary" role="tab" aria-selected={settingsTab==='knowledge'} onClick={()=>setSettingsTab('knowledge')}>Knowledge & access</button></div> : null}
       {data && section==='settings' && settingsTab==='knowledge' ? <Settings data={data} setup={setup} brands={brands} brand={brand} can={can} busy={busy} open={open} actorId={context.actor_employee_id} removeMember={employeeId=>mutate(()=>marketingService.structure('remove_member',organizationId,{employee_id:employeeId}),'Organization membership removed.')}/> : null}
     </AsyncDataSurface>
     {section==='settings' && settingsTab==='social' && !booting ? <MetaConnections key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} brands={brands}/> : null}
-    {modal ? <Modal title={{content:modal.content?'Revise content':'New creative concept',review:'Content revision',schedule:'Schedule publishing',organization:'Create organization',brand:'Brand ownership',knowledge:'Brand Knowledge Profile',member:'Add team member',scope:'Role brand access'}[modal.type]} description={modal.type==='content'?'Saving material changes invalidates approval.':null} size={['content','review','knowledge'].includes(modal.type)?'lg':'sm'} placement={modal.type==='review'?'right':'center'} onClose={()=>{if(!busy)setModal(null);}} footer={<>
+    {section==='settings' && settingsTab==='drive' && !booting && organizationId ? <GoogleDriveSettings key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} brands={brands}/> : null}
+    {modal ? <Modal title={{content:modal.content?'Revise content':'Create Post',review:'Content revision',schedule:'Schedule publishing',organization:'Create organization',brand:'Brand ownership',knowledge:'Brand Knowledge Profile',member:'Add team member',scope:'Role brand access'}[modal.type]} description={modal.type==='content'?'Saving material changes invalidates approval.':null} size={['content','review','knowledge'].includes(modal.type)?'lg':'sm'} placement={modal.type==='review'?'right':'center'} onClose={()=>{if(!busy)setModal(null);}} footer={<>
       {error ? <p className="mr-auto text-sm text-rose-600" role="alert">{error}</p> : null}
       <button className="btn-secondary" disabled={busy} onClick={()=>setModal(null)}>Close</button>
       {modal.type!=='review' ? <button className="btn-primary" disabled={busy} onClick={()=>{
@@ -220,17 +219,7 @@ function ModalBody({modal,setModal,brands,brand,setup,assets,can,detail,onExecut
     const update=patch=>change({payload:{...payload,...patch}});
     const variant=(index,patch)=>update({variants:payload.variants.map((v,i)=>i===index?{...v,...patch}:v)});
     const currentBrand=brands.find(b=>b.id===(modal.content?.brand_id||brand?.id));
-    return <div className="space-y-5"><AdminFormField label="Creative concept title" required><input className="control" value={payload.title} maxLength={200} onChange={e=>update({title:e.target.value})}/></AdminFormField><AdminFormField label="Planned publishing date" helper="Optional · Asia/Kuala_Lumpur"><input className="control" type="datetime-local" value={payload.planned_at ? localInput(new Date(payload.planned_at),'Asia/Kuala_Lumpur') : ''} onChange={e=>{try{update({planned_at:e.target.value?scheduleInstant(e.target.value,'Asia/Kuala_Lumpur'):null,planned_timezone:'Asia/Kuala_Lumpur'});}catch{ /* Incomplete native date input. */ }}} /></AdminFormField><Checks label="Outlet targets" values={payload.outlet_ids} onChange={outlet_ids=>update({outlet_ids})} options={(currentBrand?.outlet_ids||[]).map(id=>({id,name:currentBrand?.outlets?.find(o=>o.id===id)?.name||'Brand outlet'}))}/><fieldset className="space-y-2"><legend className="text-sm font-semibold">Channels</legend>{['facebook','instagram'].map(channel=><label className="mr-4 inline-flex items-center gap-2 text-sm" key={channel}><input type="checkbox" checked={payload.variants.some(v=>v.channel===channel)} onChange={e=>update({variants:e.target.checked?[...payload.variants,{channel,format:channel==='instagram'?'image':'text',caption:'',asset_ids:[]}]:payload.variants.filter(v=>v.channel!==channel)})}/>{titleCase(channel)}</label>)}</fieldset>{payload.variants.map((v,index)=><section className="marketing-variant" key={v.channel}><h3>{titleCase(v.channel)} variant</h3><SelectField label={`${titleCase(v.channel)} format`} value={v.format} onChange={format=>variant(index,{format,asset_ids:[]})} options={['text','image','carousel','reel'].filter(format=>v.channel!=='instagram'||format!=='text').map(format=>({value:format,label:titleCase(format)}))}/><AdminFormField label={`${titleCase(v.channel)} caption`} helper={v.channel==='instagram'?'Up to 2,200 characters.':'Up to 63,206 characters.'}><textarea className="control min-h-28" value={v.caption} maxLength={v.channel==='instagram'?2200:63206} onChange={e=>variant(index,{caption:e.target.value})}/></AdminFormField>{v.format!=='text'?<MarketingAssetPicker brand={currentBrand} format={v.format} values={v.asset_ids} onChange={asset_ids=>variant(index,{asset_ids})}/>:null}<p className="text-xs text-text-secondary">{v.format==='carousel'?'Choose 2–10 images.':v.format==='reel'?'Choose one MP4 video. Platform duration and aspect ratio checks are required before external publishing.':v.format==='image'?'Choose one image. Platform media validation is required before external publishing.':'Facebook text post.'}</p></section>)}</div>;
+    return <div className="space-y-5"><AdminFormField label="Creative concept title" required><input className="control" value={payload.title} maxLength={200} onChange={e=>update({title:e.target.value})}/></AdminFormField><AdminFormField label="Planned publishing date" helper="Optional · Asia/Kuala_Lumpur"><input className="control" type="datetime-local" value={payload.planned_at ? localInput(new Date(payload.planned_at),'Asia/Kuala_Lumpur') : ''} onChange={e=>{try{update({planned_at:e.target.value?scheduleInstant(e.target.value,'Asia/Kuala_Lumpur'):null,planned_timezone:'Asia/Kuala_Lumpur'});}catch{ /* Incomplete native date input. */ }}} /></AdminFormField><Checks label="Outlet targets" values={payload.outlet_ids} onChange={outlet_ids=>update({outlet_ids})} options={(currentBrand?.outlet_ids||[]).map(id=>({id,name:currentBrand?.outlets?.find(o=>o.id===id)?.name||'Brand outlet'}))}/><fieldset className="space-y-2"><legend className="text-sm font-semibold">Channels</legend>{['facebook','instagram'].map(channel=><label className="mr-4 inline-flex items-center gap-2 text-sm" key={channel}><input type="checkbox" checked={payload.variants.some(v=>v.channel===channel)} onChange={e=>update({variants:e.target.checked?[...payload.variants,{channel,format:channel==='instagram'?'image':'text',caption:'',asset_ids:[]}]:payload.variants.filter(v=>v.channel!==channel)})}/>{titleCase(channel)}</label>)}</fieldset>{payload.variants.map((v,index)=><section className="marketing-variant" key={v.channel}><h3>{titleCase(v.channel)} variant</h3><SelectField label={`${titleCase(v.channel)} format`} value={v.format} onChange={format=>variant(index,{format,asset_ids:[]})} options={['text','image','carousel','reel'].filter(format=>v.channel!=='instagram'||format!=='text').map(format=>({value:format,label:titleCase(format)}))}/><AdminFormField label={`${titleCase(v.channel)} caption`} helper={v.channel==='instagram'?'Up to 2,200 characters.':'Up to 63,206 characters.'}><textarea className="control min-h-28" value={v.caption} maxLength={v.channel==='instagram'?2200:63206} onChange={e=>variant(index,{caption:e.target.value})}/></AdminFormField>{v.format!=='text'?<MarketingMediaPicker channel={v.channel} assets={assets} brand={currentBrand} format={v.format} values={v.asset_ids} onChange={asset_ids=>variant(index,{asset_ids})}/>:null}<p className="text-xs text-text-secondary">{v.format==='carousel'?'Choose 2–10 images.':v.format==='reel'?'Choose one MP4 video. Platform duration and aspect ratio checks are required before external publishing.':v.format==='image'?'Choose one image. Platform media validation is required before external publishing.':'Facebook text post.'}</p></section>)}</div>;
   }
   return null;
-}
-
-function AssetPreview({asset}) {
-  const [url,setUrl]=useState(''); const [error,setError]=useState('');
-  useEffect(()=>{let live=true;marketingService.assetUrl(asset).then(value=>{if(live)setUrl(value);}).catch(()=>{if(live)setError('Private media preview could not be loaded.');});return()=>{live=false;};},[asset.id]);
-  return <figure className="space-y-2">{error?<p role="alert" className="text-sm">{error}</p>:!url?<p className="text-sm">Loading media…</p>:asset.mime_type==='video/mp4'?<video src={url} controls onError={()=>setError('Private video could not be decoded. Upload a valid MP4 before approval.')} className="max-h-64 max-w-full"/>:<img src={url} alt={asset.filename} onError={()=>setError('Private image could not be decoded. Upload a valid image before approval.')} className="max-h-64 max-w-full object-contain"/>}<figcaption className="text-xs">{asset.filename}</figcaption></figure>;
-}
-
-function MarketingAssetPicker({brand,format,values,onChange}) {
-  return <div className="space-y-2"><p className="text-xs text-text-secondary">{values.length} selected media assets. Browse your brand library; compatible files are selectable on each page.</p><MarketingListPanel organizationId={brand.organization_id} brandId={brand.id} kind="assets" emptyTitle="Upload brand media before review" renderRows={rows=><Checks label="Pinned brand media" values={values} onChange={onChange} options={rows.filter(a=>format==='reel'?a.mime_type==='video/mp4':a.mime_type.startsWith('image/')).map(a=>({id:a.id,name:a.filename}))}/>}/></div>;
 }

@@ -604,7 +604,7 @@ export default function ContentManagement(
         isEmpty={current && rows.length === 0 && !bounds.error &&
           view === "list"}
         emptyTitle="No dated content"
-        emptyDescription="Try another period or filter. Unscheduled drafts are in Content Library."
+        emptyDescription="Try another period or filter. Unscheduled drafts are available in List view."
         onRetry={bounds.error ? undefined : actions.retry}
       >
         {current && !bounds.error && view === "list"

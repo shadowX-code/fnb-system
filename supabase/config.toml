@@ -38,3 +38,7 @@ verify_jwt = false
 [functions.marketing-ads]
 # Canonical Admin Auth, brand/action scope; external mutation endpoints are not enabled.
 verify_jwt = false
+
+[functions.marketing-drive]
+# Fixed OAuth callback with one-time state; every browser command verifies canonical Auth/scope.
+verify_jwt = false

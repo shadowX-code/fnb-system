@@ -4,6 +4,7 @@ import { moduleRegistry, moduleWorkspace, viewPermission } from "../../config/mo
 // contract defines the future pathname taxonomy but does not change URL writes.
 export const legacyRouteRedirects = Object.freeze({
   guest_ai_device_console: "guest_ai_developer",
+  marketing_content: "marketing_calendar",
   "duty-roster": "crew_roster",
   outlet_duty_roster: "crew_roster",
   // Pre-reset Learning navigation used this name. Keep old saved links on the
@@ -142,7 +143,7 @@ function moduleRouteDefinition(module) {
     routeId,
     canonicalPath: canonicalPathForModule(module),
     pathPattern: canonicalPathForModule(module),
-    pathAliases: Object.freeze(module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : module.id === "marketing_audience" ? ["/marketing/audience"] : []),
+    pathAliases: Object.freeze(module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : module.id === "marketing_audience" ? ["/marketing/audience"] : module.id === "marketing_calendar" ? ["/marketing/content"] : []),
     legacyHashPattern: routeId,
     legacyHashAliases: legacyHashAliasesFor(routeId, routeId),
     params: Object.freeze([]),

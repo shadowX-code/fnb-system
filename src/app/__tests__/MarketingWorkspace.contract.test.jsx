@@ -24,6 +24,8 @@ describe('Marketing workspace ownership',()=>{
     expect(getPermissionDefinitions().filter(p=>p.code.startsWith('marketing_inbox.')).map(p=>p.code)).toEqual(expect.arrayContaining(['marketing_inbox.view','marketing_inbox.manage','marketing_inbox.reply','marketing_inbox.approve','marketing_inbox.configure','marketing_inbox.ai','marketing_inbox.send']));
     expect(getPermissionDefinitions().filter(p=>p.code.startsWith('marketing_inbox.'))).toHaveLength(7);
     expect(getSidebarSections('marketing').map(s=>s.label)).toEqual(['Advertising','Overview','Content Studio','Inbox','CRM','Analytics','Settings']);
+    expect(getSidebarSections('marketing').find(s=>s.label==='Content Studio').items.map(i=>i.label)).toEqual(['Content Management','Media Library']);
+    expect(adminRouteDefinitions.find(r=>r.id==='marketing_calendar').pathAliases).toContain('/marketing/content');
     expect(getSidebarSections('marketing').find(s=>s.label==='CRM').items.map(i=>i.label)).toEqual(['Customers','WhatsApp Message']);
     expect(routeDetails.marketing_audience.permission).toBe('marketing_workspace.access AND marketing_audience.view');
     expect(routeDetails.marketing_campaigns.permission).toBe('marketing_workspace.access AND marketing_campaigns.view');

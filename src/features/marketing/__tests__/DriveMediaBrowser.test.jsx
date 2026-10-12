@@ -1,0 +1,9 @@
+import {beforeEach,it,expect,vi} from 'vitest';
+import {render,screen,fireEvent,waitFor,cleanup} from '@testing-library/react';
+import DriveMediaBrowser from '../DriveMediaBrowser.jsx';
+const {service}=vi.hoisted(()=>({service:{context:vi.fn(),configuration:vi.fn(),browse:vi.fn(),preview:vi.fn()}}));
+vi.mock('../driveService.js',()=>({driveService:service}));
+beforeEach(()=>{cleanup();vi.clearAllMocks();service.context.mockResolvedValue({status:'disconnected',root:null});service.configuration.mockResolvedValue({configured:false});});
+it('shows configuration dependency honestly without querying provider files',async()=>{render(<DriveMediaBrowser organizationId="org" brandId="brand"/>);await screen.findByRole('heading',{name:'Google Drive setup pending'});expect(service.browse).not.toHaveBeenCalled();});
+it('browses the mapped root and keeps actual folder paths and brand scope',async()=>{service.configuration.mockResolvedValue({configured:true});service.context.mockResolvedValue({status:'connected',root:{root_id:'root',root_name:'Brand media'}});service.browse.mockResolvedValue({files:[{id:'folder',name:'Campaigns',mimeType:'application/vnd.google-apps.folder'}],folder:{id:'root'},cursor:null});render(<DriveMediaBrowser organizationId="org" brandId="brand"/>);fireEvent.click(await screen.findByRole('button',{name:'Open folder Campaigns'}));await waitFor(()=>expect(service.browse).toHaveBeenLastCalledWith('org','brand',expect.objectContaining({folderId:'folder'})));expect(screen.getByRole('navigation',{name:'Media folders'}).textContent).toContain('Campaigns');});
+it('retains useful loading/error recovery instead of fabricating files',async()=>{service.context.mockRejectedValue(new Error('Brand access unavailable.'));render(<DriveMediaBrowser organizationId="org" brandId="brand"/>);await screen.findByText('Brand access unavailable.');expect(service.browse).not.toHaveBeenCalled();});

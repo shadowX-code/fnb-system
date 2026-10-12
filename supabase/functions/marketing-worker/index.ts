@@ -22,6 +22,10 @@ Deno.serve(async(req)=>{
  // Retain failed write-ahead intents for retry; journal failures never alter publishing gates.
  try{for(const intent of await call(db,'marketing_privacy_journal_pending'))await commitJournal(db,intent);}catch{console.warn('marketing_privacy_journal_pending');}
  await call(db,'marketing_inbox_process_events',{p_limit:20});
+ // Storage API deletion only, with a canonical lease and reconciliation-bound eligibility.
+ // Failure keeps the snapshot retiring for retry; it cannot block unrelated publishing.
+ try {const asset=await call(db,'marketing_media_cleanup_claim');if(asset){const removed=await db.storage.from('marketing-media').remove([asset.object_path]);if(!removed.error)await call(db,'marketing_media_cleanup_finish',{p_asset:asset.id,p_lease:asset.cleanup_lease});}}catch{console.warn('marketing_media_cleanup_pending');}
+
  const configured=['MARKETING_META_APP_ID','MARKETING_META_APP_SECRET','MARKETING_META_LOGIN_CONFIG_ID','MARKETING_META_GRAPH_VERSION','MARKETING_META_TOKEN_ENCRYPTION_KEY'].every(n=>env(n));
  if(!configured){await call(db,'marketing_worker_health',{p_error:'meta_not_configured',p_completed:true});return reply({status:'blocked',reason:'meta_not_configured'});}
  const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')});

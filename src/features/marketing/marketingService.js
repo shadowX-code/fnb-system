@@ -55,6 +55,7 @@ export const marketingService = {
     return rpc('marketing_finalize_asset', { p_asset: asset.id });
   },
   async assetUrl(asset) {
+    if (['retiring','retired'].includes(asset.state)) throw new Error('Publishing snapshot no longer stored. Source and approval evidence remain available.');
     const { data, error } = await supabase.storage.from('marketing-media').createSignedUrl(asset.object_path, 300);
     throwSupabaseError('marketing.asset_url', error);
     return data.signedUrl;

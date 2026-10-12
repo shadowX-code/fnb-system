@@ -21,39 +21,23 @@ describe('native Marketing foundation',()=>{
     await screen.findByText('Ask an organization administrator to grant membership.');
     expect(screen.queryByRole('button',{name:'Create organization'})).toBeNull();
   });
-  it('submits a brand-specific draft with a retry identity',async()=>{
+  it('creates an unscheduled concept inside Content Management with a retry identity',async()=>{
     render(<MarketingWorkspacePage section="content"/>);
-    await screen.findByText('No content yet');
-    fireEvent.click(screen.getByRole('button',{name:'Brand'}));
-    fireEvent.click(screen.getByRole('option',{name:'Brand'}));
-    fireEvent.click(await screen.findByRole('button',{name:'New draft'}));
+    fireEvent.click(await screen.findByRole('button',{name:'Create Post'}));
     fireEvent.change(screen.getByLabelText(/Creative concept title/),{target:{value:'Lunch creative'}});
     fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));
     await waitFor(()=>expect(service.content).toHaveBeenCalled());
     expect(service.content.mock.calls[0][0]).toMatchObject({organizationId:'org',brandId:'brand',command:'save',payload:{title:'Lunch creative'}});
     expect(service.content.mock.calls[0][0].requestId).toMatch(/^[\da-f-]{36}$/);
-  });
-  it('discards an obsolete scope response instead of displaying it in a new brand',async()=>{
-    let resolve;
-    service.read.mockImplementationOnce(()=>new Promise(r=>{resolve=r;}));
-    render(<MarketingWorkspacePage section="content"/>);
-    await screen.findByRole('button',{name:'Brand'});
-    fireEvent.click(screen.getByRole('button',{name:'Brand'}));fireEvent.click(screen.getByRole('option',{name:'Brand'}));
-    await screen.findByText('No content yet');
-    resolve({...read,rows:[{id:'old',payload:{title:'Obsolete scope record',variants:[]},status:'draft'}]});
-    await waitFor(()=>expect(screen.queryByText('Obsolete scope record')).toBeNull());
+    expect(service.read).not.toHaveBeenCalled();
   });
 });
 
-it('Content Management retains an authorized specific brand while Library still offers All',async()=>{
- render(<MarketingWorkspacePage section="calendar"/>);
+it('legacy Content Library renders the same specific-brand Content Management',async()=>{
+ render(<MarketingWorkspacePage section="content"/>);
  await waitFor(()=>expect(service.contentManagement).toHaveBeenCalled());
  expect(service.contentManagement.mock.calls[0][0].brandId).toBe('brand');
  fireEvent.click(screen.getByRole('button',{name:'Brand',exact:true}));
  expect(screen.queryByRole('option',{name:'All authorized brands'})).toBeNull();
  expect(new URLSearchParams(window.location.search).get('marketing_brand')).toBe('brand');
- cleanup();render(<MarketingWorkspacePage section="content"/>);
- await waitFor(()=>expect(service.read.mock.calls.at(-1)[0].brandId).toBe('brand'));
- fireEvent.click(screen.getByRole('button',{name:'Brand',exact:true}));
- expect(screen.getByRole('option',{name:'All authorized brands'})).toBeTruthy();
 });
