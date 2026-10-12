@@ -85,7 +85,7 @@ export default function ContentPlannerPage(){
     authoritative=await plannerService.read(org,month,brandId);
    }
    if(scope.current===startScope){setData(authoritative);setNotice(same?'Manual order saved.':isWeek?'Planned week updated.':`Task moved to ${statusName(column)}.`);}
-  }catch(e){if(scope.current===startScope){setData(previous);setError(e.message);try{setData(await plannerService.read(org,month,brandId))}catch{}}}
+  }catch(e){if(scope.current===startScope){setData(previous);setError(e.message);try{const fresh=await plannerService.read(org,month,brandId);if(scope.current===startScope)setData(fresh)}catch{}}}
   finally{if(scope.current===startScope)setBusy(false)}
  }
  const quickAdd=()=>open({type:'quick',brand:brandId||brands[0]?.id||''});

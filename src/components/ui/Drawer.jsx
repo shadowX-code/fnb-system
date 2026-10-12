@@ -36,6 +36,7 @@ export default function Drawer({
     panel?.focus();
     const key=event=>{
       if(event.defaultPrevented || event.target.closest('[role="dialog"]')!==panel)return;
+      if(event.key==='Escape'&&panel.querySelector('[data-floating-ancestors]'))return;
       if(event.key==='Escape'&&closeOnEscape){event.preventDefault();closeRef.current?.();}
       if(event.key!=='Tab')return;
       const items=[...panel.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]')].filter(el=>el.getClientRects().length&&el.closest('[role="dialog"]')===panel),first=items[0],last=items.at(-1);
