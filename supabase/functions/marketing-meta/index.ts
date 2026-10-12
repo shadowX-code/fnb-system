@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { META_BASE, META_REDIRECT, META_SCOPES, STAGING_ORIGIN, STAGING_SUPABASE, authorizationUrl, connectionBinding, hash, nonce, seal, unseal, verifySignedRequest } from '../_shared/metaSecurity.ts';
 import { diagnoseMetaConnection, verifiedFacebookRead } from '../_shared/metaConnectionDiagnostics.ts';
 import { verifyInboxConnection } from '../_shared/metaInboxVerification.ts';
+import { runConnectionHealth } from '../_shared/metaConnectionHealth.ts';
 import { readMetaPosts } from '../_shared/metaSynchronization.ts';
 import { capabilityHealth, subscriptionPlan, installSubscriptions } from '../_shared/metaOnboarding.ts';
 import { discoverAds } from '../_shared/metaAds.ts';
@@ -78,7 +79,7 @@ Deno.serve(async(req)=>{
    const messaging=await call(service,'marketing_inbox_record_verification',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation,p_evidence:inbox});
    let sync:any=null;try{if(publishing.token.valid&&publishing.credential_identity_matches)sync=await readMetaPosts(graph,material,credential.token,guard);}catch{/* Independent metrics denial never invalidates publishing or messaging. */}
    const health=capabilityHealth(publishing,inbox,sync);
-   if(messaging.receiving_verified&&inbox.subscriptions_verified){health.messaging={state:'operational',reason:'ready'};}
+   if(messaging.configuration_verified){health.messaging={state:messaging.delivery_verified?'delivery_verified':'awaiting_first_delivery',reason:messaging.delivery_verified?'ready':'inbound_pending'};}
    let plan:any={eligible:false,missing:[],reason:'subscription_read_unavailable'};
    try{if(inbox.page_id){await guard();const installed=await graph.request(`${inbox.page_id}/subscribed_apps`,credential.token,{fields:'id,subscribed_fields',limit:100});plan=subscriptionPlan(material.channel,config.appId,inbox,installed);}}catch{/* Installation is unavailable unless a complete response was verified. */}
    await guard();
@@ -144,10 +145,8 @@ Deno.serve(async(req)=>{
   const connections=await call(service,'marketing_meta_bind_selection',{p_session:session.id,p_auth_user:user.id,p_brand:body.brandId,p_assets:assets,p_expiry:discovery.expiresAt,p_confirm:true});
   const outcomes=[];
   for(const connection of connections){
-   try{let verified=await checkConnection(connection.id,true);
-    if(body.approveSubscriptions===true&&verified.plan.eligible&&verified.plan.missing.length){await subscribe(verified,crypto.randomUUID());verified=await checkConnection(connection.id,false);}
-    outcomes.push({id:connection.id,health:verified.health});
-   }catch{outcomes.push({id:connection.id,verification_pending:true});}
+   const health=await runConnectionHealth(service,graph,config,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connection.id);
+   outcomes.push({id:connection.id,health});
   }
   return json(req,{connections,outcomes,execution_enabled:false});
  }catch(error) {return json(req,{error:error instanceof MetaError&&error.graphCode===190?'Meta authorization expired or was revoked. Reconnect this account.':error instanceof MetaError&&[10,200].includes(error.graphCode||0)?'Meta has not authorized this operation. Review account access or contact your FeedX administrator about App Review.':'The connection could not be updated. Reload account selection, check brand ownership and resolve any pending delivery before trying again.'},409);}

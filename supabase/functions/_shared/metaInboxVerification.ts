@@ -3,7 +3,7 @@ import { hash, STAGING_SUPABASE } from './metaSecurity.ts';
 import { inboxConnectorContracts } from './metaInboxAdapters.ts';
 
 // Independent read-only messaging resolver. Never alters publishing authority.
-export async function verifyInboxConnection(graph:MetaGraph, appId:string, appToken:string, connection:any, credential:any, guard:()=>Promise<void>, inbound:any[]=[] ) {
+export async function verifyInboxConnection(graph:MetaGraph, appId:string, appToken:string, connection:any, credential:any, guard:()=>Promise<void>, inbound:any[]=[], onSubscriptions?:(response:any)=>void, options?:{recentWindow?:boolean;onConversations?:(response:any)=>void} ) {
  const evidence:any[]=[];
  const read=async(path:string, token:string, params:any)=>{
   await guard();const item:any={endpoint:path.endsWith('/assigned_pages')?'exact_authorizer/assigned_pages':path.endsWith('/roles')?'page/roles':path,http_status:null,graph_error_code:null,graph_error_subcode:null};
@@ -57,6 +57,7 @@ export async function verifyInboxConnection(graph:MetaGraph, appId:string, appTo
   }
  }
  const subscribed=pageId?await read(`${pageId}/subscribed_apps`,credential.token,{fields:'id,subscribed_fields',limit:100}):null;
+ onSubscriptions?.(subscribed);
  const appRows=Array.isArray(subscribed?.data)?subscribed.data.filter((r:any)=>String(r.id)===appId):[];
  // Facebook Login installs the messaging app on the linked Page. Instagram's
  // messaging_seen belongs to the Instagram app object, not Page/subscribed_apps.
@@ -65,7 +66,8 @@ export async function verifyInboxConnection(graph:MetaGraph, appId:string, appTo
  const missingAppSubscriptions=contract.subscriptionFields.filter(s=>!appWebhookStatus.fields.includes(s));
  const callbackVerified=appWebhookStatus.registered&&appWebhookStatus.active&&appWebhookStatus.callback_matches;
  const missingSubscriptions=[...new Set([...missingPageSubscriptions,...missingAppSubscriptions,...(callbackVerified?[]:['app_callback'])])];
- const conversations=tokenVerified&&accountVerified&&!missing.length?await read(`${pageId}/conversations`,credential.token,{fields:'id,participants{id},messages.limit(10){id}',limit:20,...(connection.channel==='instagram'?{platform:'instagram'}:{})}):null;
+ const conversations=tokenVerified&&accountVerified&&!missing.length?await read(`${pageId}/conversations`,credential.token,{fields:options?.recentWindow?'id,participants{id},messages.limit(20){id,created_time,from,to,message}':'id,participants{id},messages.limit(10){id}',limit:options?.recentWindow?5:20,...(connection.channel==='instagram'?{platform:'instagram'}:{})}):null;
+ options?.onConversations?.(conversations);
  const verified=tokenVerified&&accountVerified&&targetsVerified&&!missing.length&&tasks.length>0&&Array.isArray(conversations?.data);
  const matched=inbound.filter(e=>e.account_id===connection.provider_account_id&&e.channel===connection.channel&&(conversations?.data||[]).some((row:any)=>row.participants?.data?.some((p:any)=>p.id===e.peer_id)&&row.messages?.data?.some((m:any)=>m.id===e.event_id))).map(e=>e.event_id);
  return {app_webhook:appWebhookStatus,account_id:connection.provider_account_id,channel:connection.channel,page_id:pageId,token_verified:tokenVerified,account_verified:accountVerified,scope_targets_verified:targetsVerified,required_permissions:contract.requiredPermissions,missing_permissions:missing,page_tasks:tasks,task_source:source,authorization_verified:verified,subscriptions_verified:!missingSubscriptions.length,missing_subscriptions:missingSubscriptions,real_inbound_verified:matched.length>0,verified_inbound_ids:matched,evidence};

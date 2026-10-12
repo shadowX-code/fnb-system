@@ -11,6 +11,8 @@ import {
   socialCapabilities,
   socialReason,
   socialStateLabel,
+  socialAccountIssues,
+  socialNeedsReconnect,
 } from "./socialAccountHealth.js";
 import "./socialAccounts.css";
 const stamp = (v) =>
@@ -22,9 +24,9 @@ const stamp = (v) =>
       }).format(new Date(v))
     : "Not yet";
 const tone = (s) =>
-  ["verified", "operational"].includes(s)
+  ["verified", "operational", "delivery_verified", "configuration_verified"].includes(s)
     ? "success"
-    : ["permission_required", "action_required", "expired"].includes(s)
+    : ["permission_required", "action_required", "expired", "needs_attention"].includes(s)
       ? "warning"
       : "neutral";
 const platform = (c) => (c === "facebook" ? "Facebook Page" : "Instagram");
@@ -43,7 +45,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
     [chosenBrand, setChosenBrand] = useState(""),
     [selected, setSelected] = useState([]),
     [confirmed, setConfirmed] = useState(false),
-    [notifications, setNotifications] = useState(true);
+    [notifications] = useState(true);
   const lifetime = useRef(0),
     selectionKey = useRef(""),
     request = useRef(crypto.randomUUID());
@@ -91,6 +93,17 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
       lifetime.current++;
     };
   }, [scope, configure, refresh]);
+  useEffect(() => {
+    if (!organizationId) return;
+    let live = true, reads = 0;
+    const timer = setInterval(() => {
+      if (++reads > 8) { clearInterval(timer); return; }
+      marketingService.socialAccounts(organizationId, brandId).then(value => {
+        if (live) setData(value);
+      }).catch(() => {});
+    }, 15000);
+    return () => { live = false; clearInterval(timer); };
+  }, [scope, refresh]);
   async function perform(action, message, reload = true) {
     const generation = lifetime.current;
     setBusy(true);
@@ -234,6 +247,8 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
             {accounts.map((c) => {
               const status = socialAccountStatus(c),
                 capabilities = socialCapabilities(c),
+                issues = socialAccountIssues(c),
+                needsReconnect = socialNeedsReconnect(c),
                 Icon = c.channel === "facebook" ? Facebook : Instagram;
               return (
                 <article className="social-account" key={c.id}>
@@ -254,42 +269,31 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                   <div className="social-account-capabilities">
                     {Object.entries(capabilities).map(([name, value]) => (
                       <div key={name}>
-                        <span className="capitalize">{name}</span>
+                        <span className="capitalize">{name === "messaging" ? "Inbox" : name}</span>
                         <Badge tone={tone(value.state)}>
-                          {socialStateLabel(value.state)}
+                          {socialStateLabel(value.state, name)}
                         </Badge>
                         <p>{socialReason(value.reason)}</p>
                       </div>
                     ))}
                   </div>
+                  {c.health?.recovery && (c.health.recovery.state === "unavailable" || c.health.recovery.reason === "bounded_history_gap") ? (
+                    <p className="social-account-gap">Recent message recovery is limited. {c.health.recovery.state === "unavailable" ? "Meta could not return recent messages; some missed events may be unavailable." : "Older or unavailable messages may be missing."}</p>
+                  ) : null}
                   <div className="social-account-footer">
                     <p>
                       Last sync {stamp(c.last_synced_at)} · Checked{" "}
-                      {stamp(c.health?.checked_at || c.last_checked_at)}
+                      {stamp(c.checks?.checked_at || c.health?.checked_at || c.last_checked_at)}
                       {c.sync_error_code ? " · Sync needs attention" : ""}
+                      <br />
+                      Last inbound {stamp(c.messaging?.last_inbound_at)}
                       <br />
                       Publishing, staff replies and automatic replies retain
                       their existing approval and execution controls.
                     </p>
                     {configure ? (
                       <div className="social-account-actions">
-                        <button
-                          className="btn-secondary"
-                          disabled={
-                            busy ||
-                            !configuration?.configured ||
-                            c.status === "not_connected"
-                          }
-                          onClick={() =>
-                            perform(
-                              () => marketingService.refreshMetaHealth(c.id),
-                              "Account status checked. No posts or messages were sent.",
-                            )
-                          }
-                        >
-                          <RefreshCw size={14} />
-                          Refresh Status
-                        </button>
+                        {needsReconnect ? (
                         <button
                           className="btn-secondary"
                           disabled={busy || !configuration?.configured}
@@ -297,6 +301,10 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                         >
                           Reconnect
                         </button>
+                        ) : null}
+                        {issues.length && !needsReconnect ? (
+                          <button className="btn-secondary" disabled={busy} onClick={() => setModal({ type: "issue", connection: c, issues })}>Resolve Issue</button>
+                        ) : null}
                         <button
                           className="btn-secondary"
                           disabled={
@@ -316,34 +324,6 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                         >
                           Sync posts
                         </button>
-                        {capabilities.messaging.reason ===
-                        "subscriptions_missing" ? (
-                          <button
-                            className="btn-secondary"
-                            disabled={busy}
-                            onClick={() =>
-                              perform(
-                                async () => {
-                                  const checked =
-                                    await marketingService.subscriptionPlan(
-                                      c.id,
-                                    );
-                                  request.current = crypto.randomUUID();
-                                  setModal({
-                                    type: "subscriptions",
-                                    connection: c,
-                                    plan: checked.plan,
-                                  });
-                                  setConfirmed(false);
-                                },
-                                "Inbox installation checked.",
-                                false,
-                              )
-                            }
-                          >
-                            Enable Inbox Updates
-                          </button>
-                        ) : null}
                         <button
                           className="btn-secondary"
                           disabled={busy || c.status === "not_connected"}
@@ -368,7 +348,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                             )
                           }
                         >
-                          Details
+                          Technical details
                         </button>
                       </div>
                     ) : null}
@@ -403,7 +383,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
               </button>
               <button
                 className="btn-primary"
-                disabled={busy || !chosenBrand || !confirmed}
+                disabled={busy || !chosenBrand}
                 onClick={launch}
               >
                 Continue to Meta
@@ -434,16 +414,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                 after authorization.
               </p>
             )}
-            <label className="social-account-check">
-              <input
-                type="checkbox"
-                checked={confirmed}
-                disabled={busy}
-                onChange={(e) => setConfirmed(e.target.checked)}
-              />
-              I am authorized to connect these Meta accounts for the selected
-              FeedX brand.
-            </label>
+
             <p className="text-sm text-text-secondary">
               Meta may restrict access until FeedX has the necessary App Review
               and Advanced Access. Eligible accounts do not need tester-role or
@@ -577,17 +548,10 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
               I confirm that the exact selected accounts belong to this FeedX
               brand.
             </label>
-            <label className="social-account-check">
-              <input
-                type="checkbox"
-                checked={notifications}
-                disabled={busy}
-                onChange={(e) => setNotifications(e.target.checked)}
-              />
-              Install eligible Inbox updates for these accounts using FeedX’s
-              existing Meta app. This receives notifications; it does not send
-              replies.
-            </label>
+            <p className="text-sm text-text-secondary">
+              FeedX automatically checks access and installs eligible Inbox updates
+              using the permissions already granted to its Meta app.
+            </p>
             <p className="text-sm text-text-secondary">
               Unavailable permissions remain unavailable. Publishing, outbound
               replies and AI automatic replies will not be activated.
@@ -635,61 +599,11 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
           </p>
         </Modal>
       ) : null}
-      {modal?.type === "subscriptions" ? (
-        <Modal
-          title="Enable Inbox Updates"
-          onClose={() => {
-            if (!busy) setModal(null);
-          }}
-          footer={
-            <>
-              <button
-                className="btn-secondary"
-                disabled={busy}
-                onClick={() => setModal(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn-primary"
-                disabled={busy || !confirmed || !modal.plan.eligible}
-                onClick={() =>
-                  perform(async () => {
-                    const outcome =
-                      await marketingService.installMetaSubscriptions(
-                        modal.connection.id,
-                        request.current,
-                        {
-                          page_id: modal.plan.page_id,
-                          fields: modal.plan.fields,
-                        },
-                      );
-                    if (outcome.state !== "verified")
-                      throw new Error(
-                        "Installation is awaiting Meta confirmation. Refresh status; do not repeat an uncertain installation.",
-                      );
-                  }, "Inbox updates verified. Replies remain separately controlled.")
-                }
-              >
-                Confirm installation
-              </button>
-            </>
-          }
-        >
-          <p>
-            Receive messaging notifications for {modal.connection.account_name}{" "}
-            through the existing FeedX app. Existing subscriptions are
-            preserved. No customer message will be sent.
-          </p>
-          <p>{socialReason(modal.plan.reason)}</p>
-          <label className="social-account-check">
-            <input
-              type="checkbox"
-              checked={confirmed}
-              onChange={(e) => setConfirmed(e.target.checked)}
-            />
-            I approve installing Inbox updates for this exact account.
-          </label>
+      {modal?.type === "issue" ? (
+        <Modal title={`Account access · ${modal.connection.account_name}`} onClose={() => setModal(null)}>
+          <p>FeedX has completed the available automatic checks. Review the following account access with your Page administrator or FeedX administrator.</p>
+          {modal.issues.map(([name, value]) => <p key={name}><strong>{name === "messaging" ? "Inbox" : name === "publishing" ? "Publishing" : "Insights"}</strong>: {socialReason(value.reason)}</p>)}
+          <p>FeedX checks again automatically after access is restored. Technical details are available from the account card.</p>
         </Modal>
       ) : null}
       {modal?.type === "diagnostics" ? (
