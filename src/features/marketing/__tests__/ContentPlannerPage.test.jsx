@@ -36,7 +36,7 @@ it('weekly production reschedules only the canonical due date and retains planni
  render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
  const schedule=screen.getByRole('region',{name:'Weekly Production schedule'});
  fireEvent.keyDown(within(schedule).getByRole('button',{name:/Move Real task/}),{key:'ArrowRight'});
- await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({action:'save',revision:1,payload:{due_date:'2026-10-13'}})));
+ await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({action:'save',revision:1,payload:{month:'2026-10-01',due_date:'2026-10-13'}})));
  await vi.waitFor(()=>expect(within(schedule.querySelector('[data-kanban-column="2026-10-13"]')).getByText('Real task')).toBeTruthy());
  expect(planner.command.mock.calls.some(([c])=>c.action==='approve'||c.action==='transition')).toBe(false);
 });
