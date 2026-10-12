@@ -44,8 +44,8 @@ export default function Drawer({
       else if(event.shiftKey&&(document.activeElement===first||document.activeElement===panel)){event.preventDefault();last.focus();}
       else if(!event.shiftKey&&(document.activeElement===last||document.activeElement===panel)){event.preventDefault();first.focus();}
     };
-    panel?.addEventListener('keydown',key);
-    return()=>{panel?.removeEventListener('keydown',key);if(previous?.isConnected)previous.focus?.();};
+    document.addEventListener('keydown',key);
+    return()=>{document.removeEventListener('keydown',key);if(previous?.isConnected)previous.focus?.();};
   }, [open]);
 
   if (!open) return null;

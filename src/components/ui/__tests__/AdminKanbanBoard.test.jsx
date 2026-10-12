@@ -16,3 +16,13 @@ it('accepts empty-space drops across a full column and ignores interactive card 
  pointer(screen.getByRole('button',{name:/Move Task/}),'pointerdown',250,100);pointer(window,'pointermove',450,460);pointer(window,'pointerup',450,460);
  expect(move).toHaveBeenCalledWith(item,'work',null);
 });
+
+it('card surfaces distinguish a normal click from a six-pixel drag and suppress the release click',()=>{
+ const move=vi.fn(),open=vi.fn();render(<AdminKanbanBoard {...props} onDrop={move} onOpenItem={open} renderItem={t=><article><h3>{t.title}</h3><button>Preview</button><span contentEditable suppressContentEditableWarning>Editable</span></article>}/>);
+ const board=screen.getByRole('region',{name:'Workflow'});board.getBoundingClientRect=()=>({left:0,right:900,top:0,bottom:500});board.querySelectorAll('[data-kanban-column]').forEach((node,index)=>node.getBoundingClientRect=()=>({left:index*300,right:index*300+280,top:0,bottom:500}));board.querySelector('[data-kanban-item]').getBoundingClientRect=()=>({left:10,right:270,top:50,bottom:150,width:260,height:100});
+ const pointer=(node,type,x,y)=>{const e=new MouseEvent(type,{bubbles:true,cancelable:true,button:0,clientX:x,clientY:y});Object.defineProperty(e,'pointerId',{value:1});fireEvent(node,e)};
+ const title=screen.getByRole('heading',{name:'Task'});pointer(title,'pointerdown',50,80);pointer(window,'pointermove',55,80);expect(document.body.classList.contains('admin-kanban-dragging')).toBe(false);pointer(window,'pointerup',55,80);fireEvent.click(title);expect(open).toHaveBeenCalledOnce();
+ pointer(title,'pointerdown',50,80);pointer(window,'pointermove',56,80);expect(document.body.classList.contains('admin-kanban-dragging')).toBe(true);pointer(window,'pointerup',400,450);fireEvent.click(title);expect(open).toHaveBeenCalledOnce();expect(move).toHaveBeenCalledWith(item,'work',null);
+ pointer(screen.getByRole('button',{name:'Preview'}),'pointerdown',50,80);pointer(window,'pointermove',400,450);pointer(window,'pointerup',400,450);expect(move).toHaveBeenCalledOnce();
+ pointer(screen.getByText('Editable'),'pointerdown',50,80);pointer(window,'pointermove',400,450);pointer(window,'pointerup',400,450);expect(move).toHaveBeenCalledOnce();
+});
