@@ -1,13 +1,13 @@
 import {describe,it,expect,vi,beforeEach} from 'vitest';
 import {render,screen,fireEvent,cleanup,within} from '@testing-library/react';
 import MarketingOutreachPage from '../MarketingOutreachPage.jsx';
-const {marketing,outreach}=vi.hoisted(()=>({marketing:{context:vi.fn()},outreach:{read:vi.fn(),command:vi.fn(),customer:vi.fn(),customers:vi.fn()}}));
+const {marketing,outreach}=vi.hoisted(()=>({marketing:{context:vi.fn()},outreach:{read:vi.fn(),command:vi.fn(),customer:vi.fn(),customers:vi.fn(),audiencePreview:vi.fn()}}));
 vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>({user:{id:'actor'},hasPermission:()=>true})}));
 vi.mock('../marketingService.js',()=>({marketingService:marketing}));
 vi.mock('../outreachService.js',()=>({outreachService:outreach}));
 vi.mock('../../../components/forms/SelectField.jsx',()=>({default:({label,value,onChange,options})=><label>{label}<select aria-label={label} value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>}));
 const base={customers:[],audiences:[],campaigns:[],senders:[],assets:[],recipients:[],progress:{},customer_total:0,outlets:[]};
-beforeEach(()=>{cleanup();vi.clearAllMocks();marketing.context.mockResolvedValue({organizations:[{id:'org',name:'Org'}],brands:[{id:'brand',organization_id:'org',name:'Brand'}]});outreach.read.mockResolvedValue(base);outreach.customers.mockResolvedValue({customers:[],total:0});});
+beforeEach(()=>{cleanup();vi.clearAllMocks();marketing.context.mockResolvedValue({organizations:[{id:'org',name:'Org'}],brands:[{id:'brand',organization_id:'org',name:'Brand'}]});outreach.read.mockResolvedValue(base);outreach.customers.mockResolvedValue({customers:[],total:0});outreach.audiencePreview.mockResolvedValue({matching:3,excluded:2,eligible:1,not_subscribed:1,do_not_contact:1});});
 async function chooseBrand(){await screen.findByRole('combobox',{name:'Brand'});fireEvent.change(screen.getByRole('combobox',{name:'Brand'}),{target:{value:'brand'}});}
 describe('Hybrid WhatsApp staff workflow',()=>{
  it('keeps completed campaign results visible without empty sending controls',async()=>{outreach.read.mockResolvedValue({...base,campaigns:[{id:'campaign',title:'Handled campaign',status:'ready',revision:1,caption:'Hello'}],recipients:[{id:'recipient',display_name:'Test contact',state:'staff_confirmed',eligible:false}],progress:{staff_confirmed:1}});render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click((await screen.findAllByRole('button',{name:'Handled campaign',exact:true}))[0]);await screen.findAllByText('Staff confirmation only');expect(screen.queryByRole('combobox',{name:'Registered sender'})).toBeNull();expect(screen.queryByRole('button',{name:'Open WhatsApp'})).toBeNull();expect(outreach.command).not.toHaveBeenCalled();});
@@ -56,4 +56,23 @@ it('keeps sender confirmation across recipients, and requires it again on a new 
 it('uses historical sender snapshots instead of the edited registration',async()=>{
  outreach.read.mockResolvedValue({...base,campaigns:[{id:'c',title:'History',status:'ready',revision:1,approved_revision:1,caption:'Hi',recipient_count:1,handled_count:1}],senders:[{id:'s',label:'New name',phone_e164:'+60111111111',active:false,revision:2}],recipients:[{id:'r',display_name:'Recipient',state:'staff_confirmed',sender_id:'s',sender_snapshot:{label:'Historic name',phone_e164:'+60123456789'},eligible:false}],progress:{staff_confirmed:1}});
  render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click((await screen.findAllByRole('button',{name:'History',exact:true}))[0]);await screen.findByText('Historic name · +60123456789');expect(screen.queryByText('New name')).toBeNull();
+});
+
+it('shows saved tag chips, eligible recipients and lifecycle actions without sending',async()=>{
+ outreach.read.mockResolvedValue({...base,campaigns:[{id:'c',title:'Tagged campaign',status:'draft',revision:1,caption:'Hi',audience_criteria:{tags:['VIP','Regular']},eligible_recipients:1,recipient_count:0,handled_count:0,can_revise:true,audience_breakdown:{matching:3,excluded:2,eligible:1,not_subscribed:1,do_not_contact:1}}]});
+ render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();const row=await screen.findByRole('row',{name:'Open campaign Tagged campaign'});
+ expect(within(row).getByText('VIP')).toBeTruthy();expect(within(row).getByText('Regular')).toBeTruthy();expect(within(row).getByText('Not queued')).toBeTruthy();
+ expect(screen.getAllByRole('columnheader').map(c=>c.textContent)).toEqual(['Campaign','Audience','Recipients','Status','Progress','Actions']);
+ fireEvent.click(within(row).getByRole('button',{name:'Actions for Tagged campaign'}));expect(screen.getByRole('menuitem',{name:'Edit'})).toBeTruthy();expect(screen.getByRole('menuitem',{name:'Request Approval'})).toBeTruthy();expect(screen.queryByRole('menuitem',{name:'Start Sending'})).toBeNull();
+ fireEvent.click(screen.getByRole('menuitem',{name:'View'}));await screen.findByText('Do Not Contact: 1');expect(screen.getByText('Not Subscribed: 1')).toBeTruthy();expect(outreach.command).not.toHaveBeenCalled();
+});
+it('recalculates draft audience when outlet changes and renders canonical exclusion counts',async()=>{
+ outreach.read.mockResolvedValue({...base,outlets:[{id:'outlet',name:'Outlet'}]});render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click(await screen.findByRole('button',{name:'New campaign'}));
+ await screen.findByText('Do Not Contact: 1');expect(outreach.audiencePreview).toHaveBeenLastCalledWith('org','brand',{tags:[],outlet_id:''});
+ fireEvent.change(screen.getByRole('combobox',{name:'Outlet'}),{target:{value:'outlet'}});
+ await vi.waitFor(()=>expect(outreach.audiencePreview).toHaveBeenLastCalledWith('org','brand',{tags:[],outlet_id:'outlet'}));
+ expect(outreach.command).not.toHaveBeenCalled();
+});
+it('keeps completed queue actions limited to view and cancel and uses All Customers without tags',async()=>{
+ outreach.read.mockResolvedValue({...base,campaigns:[{id:'c',title:'Completed',status:'ready',revision:1,approved_revision:1,caption:'Hi',audience_criteria:{tags:[]},eligible_recipients:0,recipient_count:1,handled_count:1,queued:true,can_revise:false}]});render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();const row=await screen.findByRole('row',{name:'Open campaign Completed'});expect(within(row).getByText('All Customers')).toBeTruthy();expect(within(row).getByText('1 / 1 handled')).toBeTruthy();fireEvent.click(within(row).getByRole('button',{name:'Actions for Completed'}));expect(screen.getAllByRole('menuitem').map(c=>c.textContent)).toEqual(['View','Cancel']);expect(outreach.command).not.toHaveBeenCalled();
 });

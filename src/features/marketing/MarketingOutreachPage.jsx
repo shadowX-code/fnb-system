@@ -4,6 +4,8 @@ import WorkspacePage from "../../components/layout/WorkspacePage.jsx";
 import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
 import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
+import ActionMenu from "../../components/ui/ActionMenu.jsx";
+import CampaignAudienceBreakdown from "./CampaignAudienceBreakdown.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
 import AsyncDataSurface from "../../components/feedback/AsyncDataSurface.jsx";
 import Badge from "../../components/ui/Badge.jsx";
@@ -14,7 +16,7 @@ import {
   whatsappDeliveryAdapters,
 } from "./whatsappDelivery.js";
 import "./outreach.css";
-import { Plus, ArrowLeft, Settings } from "lucide-react";
+import { Plus, ArrowLeft, Settings, MoreHorizontal } from "lucide-react";
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
 import TextareaField from "../../components/forms/TextareaField.jsx";
 import AdminPagination, {useAdminClientPagination} from "../../components/tables/AdminPagination.jsx";
@@ -150,11 +152,19 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
   const campaignPagination=useAdminClientPagination('marketing.whatsapp.campaigns',filteredCampaigns.length,20,JSON.stringify([org,brand,campaignSearch,campaignStatus]));
   const campaignRows=filteredCampaigns.slice(campaignPagination.from,campaignPagination.to);
   const openCampaign=c=>{setSenderSession(null);setSender("");setCampaign(c.id);setPage(1);setSelectedRecipient('');setData(d=>({...d,recipients:[],progress:{}}));};
+  const editCampaign=c=>show('campaign',{...c,...(can('marketing_audience.manage')?{audience_criteria:c.audience_criteria||data.audiences.find(a=>a.id===c.audience_id)?.criteria||{}}:{})});
+  const campaignAction=(action,c)=>{
+    if(action==='view'||(action==='start'&&c.status==='ready')){openCampaign(c);return;}
+    if(action==='edit'){editCampaign(c);return;}
+    if(action==='cancel'){show('cancel',{...c});return;}
+    if(action==='review'){perform(()=>command('review',c.id,{revision:c.revision}),'Submitted for approval.');return;}
+    if(action==='start')perform(()=>command('queue',c.id,{revision:c.revision}),'Eligible recipients queued. No messages were sent.').then(result=>{if(result)openCampaign(c)});
+  };
   const currentAudience=data?.audiences.find(a=>a.id===active?.audience_id);
-  const approvalCurrent=active?.approved_revision===active?.revision&&(active?.status==='ready'||currentAudience?.revision===active?.audience_revision);
+  const approvalCurrent=active?.approval_current ?? (active?.approved_revision===active?.revision&&(active?.status==='ready'||currentAudience?.revision===active?.audience_revision));
   const queueTotal=active?.recipient_count??Object.values(data?.progress||{}).reduce((sum,n)=>sum+n,0);
   const handlingComplete=active?.status==='ready'&&queueTotal>0&&(active.handled_count??((data?.progress.staff_confirmed||0)+(data?.progress.skipped||0)))===queueTotal;
-  const canRevise=active&&['draft','review','approved','ready'].includes(active.status)&&!(active.handled_count>0)&&(active.status!=='ready'||(!loading&&!error))&&!(data?.progress.opened||data?.progress.staff_confirmed||data?.progress.skipped)&&!data?.recipients.some(r=>r.state!=='pending');
+  const canRevise=active?.can_revise ?? (active&&['draft','review','approved','ready'].includes(active.status)&&!(active.handled_count>0)&&(active.status!=='ready'||(!loading&&!error))&&!(data?.progress.opened||data?.progress.staff_confirmed||data?.progress.skipped)&&!data?.recipients.some(r=>r.state!=='pending'));
   const previewRecipient=recipient||(data?.recipients.length===1?data.recipients[0]:null);
   const pageSenderIds=[...new Set((data?.recipients||[]).map(r=>r.sender_id).filter(Boolean))];
   const displaySender=previewRecipient?.sender_snapshot||data?.senders.find(s=>s.id===(recipient?.sender_id||sender||(pageSenderIds.length===1?pageSenderIds[0]:null)));
@@ -379,11 +389,12 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                       {filteredCampaigns.length?<>
                        <OutreachCollection rows={campaignRows} getRowKey={c=>c.id} onRowClick={openCampaign} columns={[
                         {key:'title',header:'Campaign',render:c=><button className="outreach-name-button" onClick={()=>openCampaign(c)}>{c.title}</button>},
+                        {key:'audience',header:'Audience',render:c=><CampaignAudienceTags criteria={c.audience_criteria||data.audiences.find(a=>a.id===c.audience_id)?.criteria}/>},
+                        {key:'recipients',header:'Recipients',render:c=>c.eligible_recipients??c.audience_size??'Unavailable'},
                         {key:'status',header:'Status',render:c=><Badge tone={c.status==='approved'?'success':c.status==='review'?'warning':'default'}>{names[c.status]}</Badge>},
-                        {key:'audience',header:'Audience size',render:c=>c.status==='ready'?c.recipient_count:c.audience_size??'Unavailable'},
-                        {key:'progress',header:'Handling progress',render:c=>c.recipient_count?`${c.handled_count??'—'} / ${c.recipient_count} handled`:'Not queued'},
-                        {key:'created_at',header:'Created',render:c=>formatDate(c.created_at)},
-                        {key:'approved_at',header:'Approved',render:c=>formatDate(c.approved_at)}
+                        {key:'progress',header:'Progress',render:c=>(c.queued??(c.status==='ready'||c.recipient_count>0))?`${c.handled_count??'—'} / ${c.recipient_count??'—'} handled`:'Not queued'},
+                        {key:'actions',header:'Actions',render:c=><CampaignRowActions campaign={c} can={can} busy={busy} onAction={campaignAction}/>}
+
                        ]}/>
                        <AdminPagination noun="campaigns" total={filteredCampaigns.length} page={campaignPagination.page} pageSize={campaignPagination.pageSize} onPageChange={campaignPagination.setPage} onPageSizeChange={campaignPagination.setPageSize}/>
                       </>:<EmptyState title={data.campaigns.length?"No matching campaigns":"No campaigns yet"} description={data.campaigns.length?"Adjust your search or status filter.":"Choose an audience and prepare a message for approval."}/>}
@@ -398,7 +409,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                             <button
                               className="btn-secondary"
                               disabled={busy}
-                              onClick={() => show("campaign", { ...active, ...(can("marketing_audience.manage")?{audience_criteria:data.audiences.find(a=>a.id===active.audience_id)?.criteria||{}}:{}) })}
+                              onClick={() => editCampaign(active)}
                             >
                               Revise draft
                             </button>
@@ -468,11 +479,12 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                           </section>
                           <section className="card p-4 space-y-4 min-w-0" aria-label="Campaign information">
                             <h3 className="text-sm font-semibold">Campaign information</h3>
+                            <CampaignAudienceBreakdown breakdown={active.audience_breakdown} basis={active.audience_basis} />
                             <dl className="outreach-profile-grid">
-                              <div><dt>Audience</dt><dd>{!currentAudience?'Unavailable':currentAudience.criteria?.tags?.length?currentAudience.criteria.tags.join(', '):currentAudience.criteria?.tag||'All tags'}</dd></div>
+                              <div><dt>Audience</dt><dd><CampaignAudienceTags criteria={active.audience_criteria||currentAudience?.criteria}/></dd></div>
                               <div><dt>Outlet</dt><dd>{!currentAudience?'Unavailable':currentAudience.criteria?.outlet_id?data.outlets.find(o=>o.id===currentAudience.criteria.outlet_id)?.name||'Unavailable':'All outlets'}</dd></div>
                               {currentAudience?.criteria?.language?<div><dt>Language</dt><dd>{{EN:'English',ZH:'Chinese',BM:'Bahasa Melayu'}[currentAudience.criteria.language]||currentAudience.criteria.language}</dd></div>:null}
-                              <div><dt>WhatsApp consent</dt><dd>Subscribed only</dd></div><div><dt>Recipients</dt><dd>{active.status==='ready'?queueTotal:active.audience_size??'Unavailable'}{active.status!=='ready'?<small>Current eligible audience</small>:null}</dd></div>
+                              <div><dt>Created</dt><dd>{formatDate(active.created_at)}</dd></div><div><dt>Approved</dt><dd>{formatDate(active.approved_at)}</dd></div><div><dt>WhatsApp consent</dt><dd>Subscribed only</dd></div><div><dt>Recipients</dt><dd>{active.eligible_recipients??active.audience_size??'Unavailable'}<small>Currently eligible · {queueTotal} queued</small></dd></div>
                               <div><dt>Sender</dt><dd>{displaySender?`${displaySender.label} · ${displaySender.phone_e164}`:pageSenderIds.length>1?'Multiple senders on this page':'Selected by staff for the sending session'}</dd></div>
                               <div><dt>Approval</dt><dd>{active.status==='cancelled'?'Cancelled':approvalCurrent?'Approved':active.status==='review'?'Pending approval':'Review required'}</dd></div>
                               <div><dt>Created</dt><dd>{formatDate(active.created_at)}</dd></div><div><dt>Approved</dt><dd>{formatDate(active.approved_at)}</dd></div>
@@ -720,6 +732,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
 
                   <section className="space-y-4 min-w-0" aria-label="Campaign audience"><h3 className="text-sm font-semibold">Audience</h3>
                     {form.audience_criteria?<><TagPicker value={form.audience_criteria.tags||(form.audience_criteria.tag?[form.audience_criteria.tag]:[])} options={data.tags||[]} onChange={tags=>field('audience_criteria',{...form.audience_criteria,tag:'',tags})}/><SelectField label="Outlet" value={form.audience_criteria.outlet_id||''} onChange={outlet_id=>field('audience_criteria',{...form.audience_criteria,outlet_id})} options={[{value:'',label:'All'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/><SelectField label="WhatsApp Consent" value="eligible" disabled options={[{value:'eligible',label:'Subscribed only'}]}/></>:<SelectField label="Audience" value={form.audience_id||''} onChange={v=>field('audience_id',v)} options={[{value:'',label:'Select audience'},...data.audiences.map(a=>({value:a.id,label:`${a.name} · ${a.eligible_count} eligible`}))]}/>}
+                    <DraftAudiencePreview org={org} brand={brand} criteria={form.audience_criteria||data.audiences.find(a=>a.id===form.audience_id)?.criteria}/>
                   </section></div>
                   <CampaignMediaField key={`${org}:${brand}`} org={org} brand={brand} assets={data.assets} assetId={form.asset_id} onChange={asset_id=>field('asset_id',asset_id)} onUploaded={asset=>setData(d=>({...d,assets:[asset,...d.assets]}))} canUpload={can('marketing_content.upload')} busy={busy} onBusy={setBusy}/>
                 </div>
@@ -788,4 +801,28 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
 function OutreachCollection({rows,columns,getRowKey,onRowClick}) {
  const keyboard=(event,row)=>{if(event.target===event.currentTarget&&['Enter',' '].includes(event.key)){event.preventDefault();onRowClick?.(row);}};
  return <><div className="outreach-desktop-table"><DataTable density="compact" minWidth={0} rows={rows} columns={columns} getRowKey={getRowKey} onRowClick={onRowClick} getRowProps={onRowClick?row=>({tabIndex:0,'aria-label':`Open campaign ${row.title}`,onKeyDown:event=>keyboard(event,row)}):undefined}/></div><div className="outreach-mobile-list">{rows.map(r=><article key={getRowKey(r)} {...(onRowClick?{tabIndex:0,'aria-label':`Open campaign ${r.title}`,onClick:event=>{if(!event.target.closest('button,a,input'))onRowClick(r)},onKeyDown:event=>keyboard(event,r)}:{})}>{columns.map((c,i)=><div key={c.key} className={i?'outreach-mobile-fact':''}>{i?<small>{c.header}</small>:null}{c.render?c.render(r):r[c.key]}</div>)}</article>)}</div></>;
+}
+
+function CampaignAudienceTags({criteria}) {
+ const tags=criteria?.tags?.length?criteria.tags:criteria?.tag?[criteria.tag]:[];
+ return criteria ? <span className="outreach-tag-chips">{tags.length?tags.map(tag=><Badge key={tag}>{tag}</Badge>):'All Customers'}</span> : 'Unavailable';
+}
+function CampaignRowActions({campaign:c,can,busy,onAction}) {
+ const [open,setOpen]=useState(false);
+ const actions=[['view','View']];
+ if(can('marketing_campaigns.manage')&&(c.can_revise??(['draft','review','approved'].includes(c.status)&&!c.handled_count)))actions.push(['edit',c.status==='draft'?'Edit':'Revise']);
+ if(can('marketing_campaigns.manage')&&c.status==='draft')actions.push(['review','Request Approval']);
+ if(can('marketing_campaigns.execute')&&((c.status==='approved'&&c.approval_current)||c.status==='ready'&&(c.handled_count??0)<(c.recipient_count??0)))actions.push(['start',c.status==='ready'?'Continue Sending':'Start Sending']);
+ if(can('marketing_campaigns.manage')&&c.status!=='cancelled')actions.push(['cancel','Cancel']);
+ return <ActionMenu open={open} onOpenChange={setOpen} ariaLabel={`Actions for ${c.title}`} trigger={({toggle,ariaLabel})=><button className="btn-secondary outreach-icon-button" aria-label={ariaLabel} onClick={toggle}><MoreHorizontal size={17}/></button>}><div role="menu">{actions.map(([action,label])=><button key={action} role="menuitem" disabled={busy} onClick={()=>{setOpen(false);onAction(action,c)}}>{label}</button>)}</div></ActionMenu>;
+}
+function DraftAudiencePreview({org,brand,criteria}) {
+ const [preview,setPreview]=useState(null),[error,setError]=useState(''),[loading,setLoading]=useState(false);
+ const key=JSON.stringify([org,brand,criteria]);
+ useEffect(()=>{
+  let live=true;setPreview(null);setError('');setLoading(!!criteria);
+  const timer=criteria?setTimeout(()=>outreachService.audiencePreview(org,brand,criteria).then(result=>{if(live)setPreview(result)}).catch(e=>{if(live)setError(e.message)}).finally(()=>{if(live)setLoading(false)}),180):null;
+  return ()=>{live=false;clearTimeout(timer)};
+ },[key]);
+ return <CampaignAudienceBreakdown breakdown={preview} loading={loading} error={error}/>;
 }

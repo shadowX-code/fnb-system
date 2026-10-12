@@ -14,6 +14,7 @@ export const outreachService = {
       p_page: page,
       p_search: search,
     }),
+  audiencePreview: (org,brand,criteria) => rpc("marketing_campaign_audience_preview",{p_org:org,p_brand:brand,p_criteria:criteria}),
   customers: (org,brand,filters={},page=1,size=20) => rpc("marketing_customers_read",{p_org:org,p_brand:brand,p_filters:filters,p_page:page,p_size:size}),
   importPreview: (org,brand,rows) => rpc("platform_customer_import_preview",{p_org:org,p_brand:brand,p_rows:rows}),
   importCommit: (request,org,brand,rows,decisions) => rpc("platform_customer_import_commit",{p_request:request,p_org:org,p_brand:brand,p_rows:rows,p_decisions:decisions}),
