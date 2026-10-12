@@ -194,11 +194,11 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
             tags: form.tags || [],
             confirm_name: !!form.edit,
           }),
-        "Customer saved. WhatsApp consent and suppression are unchanged.",
+        "Customer saved. WhatsApp contact preference is unchanged.",
       );
       return;
     }
-    const action = modal === "campaign" ? "save" : modal;
+    const action = modal === "campaign" ? "save" : modal === "consent" ? "contact_preference" : modal;
     let payload = form;
     if (action === "consent")
       payload = {
@@ -347,7 +347,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
           <>
             {section==='whatsapp'?<div className="outreach-view-heading"><strong>{tab==='senders'?'WhatsApp settings':'Campaigns'}</strong><div className="outreach-actions"><button className="btn-secondary" onClick={()=>{setTab(tab==='senders'?'campaigns':'senders');setCampaign('');setPage(1)}}>{tab==='senders'?<ArrowLeft size={15}/>:<Settings size={15}/>} {tab==='senders'?'Campaigns':'Sender settings'}</button>{can('marketing_audience.view')?<a className="btn-secondary" href={crmLink('/marketing/customers')}><Users size={15}/>Customers</a>:null}</div></div>:null}
             <AsyncDataSurface loading={loading} error={null} hasData={!!data}>
-              {data&&tab==='customers'?<MarketingCustomersView key={brand} org={org} brand={brand} data={data} can={can} refresh={refresh} show={show} onImport={()=>setImportOpen(true)}/>:null}
+              {data&&tab==='customers'?<MarketingCustomersView key={brand} org={org} brand={brand} data={data} can={can} refresh={refresh} show={show} onImport={()=>setImportOpen(true)} onChanged={()=>setRefresh(v=>v+1)}/>:null}
               {data&&tab==='senders'?<section>
                 <div className="outreach-section-heading"><p>Registered WhatsApp senders<small>Staff confirm the sender they use in WhatsApp.</small></p>{can('marketing_settings.configure')?<button className="btn-primary" onClick={()=>show('sender',{})}><Plus size={15}/> Register sender</button>:null}</div>
                 {data.senders.length?<OutreachCollection rows={data.senders} getRowKey={s=>s.id} columns={[{key:'label',header:'Sender',render:s=><strong>{s.label}</strong>},{key:'phone_e164',header:'Phone'},{key:'active',header:'Status',render:s=><Badge tone={s.active?'success':'default'}>{s.active?'Registered':'Inactive'}</Badge>}]}/>:<EmptyState title="Register a brand sender" description="Add the WhatsApp numbers staff are authorized to use. This does not connect WhatsApp or enable automatic sending."/>}
@@ -643,7 +643,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                       : modal === "unsuppress"
                         ? "Remove suppression"
                         : modal === "consent"
-                          ? "Record WhatsApp consent"
+                          ? "WhatsApp consent"
                           : modal === "sender"
                             ? "Register brand sender"
                             : modal === "audience"
@@ -709,30 +709,11 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                   <TagPicker value={form.tags||[]} options={data.tags||[]} allowCreate placeholder="Select or add tags" onChange={v=>field('tags',v)}/>
                 </div>
               </>:null}
-              {modal === "consent" ? (
-                <>
-                  <SelectField
-                    label="Consent decision"
-                    value={form.decision}
-                    onChange={(v) => field("decision", v)}
-                    options={[
-                      { value: "granted", label: "Granted" },
-                      { value: "withdrawn", label: "Withdrawn" },
-                    ]}
-                  />
-                  {input("Source", "source")}
-                  {input("Evidence reference / customer statement", "evidence")}
-                  {input(
-                    "Consent occurred at",
-                    "occurred_at",
-                    "datetime-local",
-                  )}
-                  <p className="text-sm">
-                    Record actual WhatsApp marketing consent. A phone number or
-                    past purchase is not consent.
-                  </p>
-                </>
-              ) : null}
+              {modal === "consent" ? <>
+                <SelectField label="WhatsApp consent" value={form.state||'not_subscribed'} onChange={v=>field('state',v)} options={[{value:'subscribed',label:'Subscribed'},{value:'not_subscribed',label:'Not Subscribed'},{value:'do_not_contact',label:'Do Not Contact'}]}/>
+                <SelectField label="Consent source" value={form.source||'Customer request'} onChange={v=>field('source',v)} options={['Customer request','In-person consent','WhatsApp conversation','Online opt-in','POS confirmed opt-in','Staff correction'].map(value=>({value,label:value}))}/>
+                <p className="text-sm text-text-secondary">Choose Subscribed only when this customer has agreed to WhatsApp marketing from this brand.</p>
+              </> : null}
               {modal === "suppress" ? input("Reason", "reason") : null}
               {modal === "sender" ? (
                 <>
@@ -743,7 +724,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
               {modal === "campaign" ? (
                 <>
                   {input("Campaign title", "title")}
-                  {form.audience_criteria ? <div className="space-y-3"><TagPicker value={form.audience_criteria.tags|| (form.audience_criteria.tag?[form.audience_criteria.tag]:[])} options={data.tags||[]} onChange={tags=>field('audience_criteria',{...form.audience_criteria,tag:'',tags})}/><SelectField label="Outlet" value={form.audience_criteria.outlet_id||''} onChange={outlet_id=>field('audience_criteria',{...form.audience_criteria,outlet_id})} options={[{value:'',label:'All'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/><SelectField label="WhatsApp Consent" value="eligible" disabled options={[{value:'eligible',label:'Opted in only'}]}/><small>Any selected tag, combined with the outlet. Only customers with valid brand consent can be queued.</small></div> : <SelectField label="Audience" value={form.audience_id||''} onChange={v=>field('audience_id',v)} options={[{value:'',label:'Select audience'},...data.audiences.map(a=>({value:a.id,label:`${a.name} · ${a.eligible_count} eligible`}))]}/>}
+                  {form.audience_criteria ? <div className="space-y-3"><TagPicker value={form.audience_criteria.tags|| (form.audience_criteria.tag?[form.audience_criteria.tag]:[])} options={data.tags||[]} onChange={tags=>field('audience_criteria',{...form.audience_criteria,tag:'',tags})}/><SelectField label="Outlet" value={form.audience_criteria.outlet_id||''} onChange={outlet_id=>field('audience_criteria',{...form.audience_criteria,outlet_id})} options={[{value:'',label:'All'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/><SelectField label="WhatsApp Consent" value="eligible" disabled options={[{value:'eligible',label:'Subscribed only'}]}/><small>Any selected tag, combined with the outlet. Only customers with valid brand consent can be queued.</small></div> : <SelectField label="Audience" value={form.audience_id||''} onChange={v=>field('audience_id',v)} options={[{value:'',label:'Select audience'},...data.audiences.map(a=>({value:a.id,label:`${a.name} · ${a.eligible_count} eligible`}))]}/>}
                   <label className="outreach-field">
                     Caption
                     <textarea

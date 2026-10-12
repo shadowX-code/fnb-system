@@ -9,7 +9,7 @@ describe('Customer detail evidence',()=>{
  it('reads only the exact scoped identity and renders recorded consent and staff activity',async()=>{
   render(<CustomerDetailDrawer org="o" brand="b" customerId="c" can={()=>false} onClose={()=>{}}/>);
   await screen.findByText('Regular');expect(screen.queryByText('Regulars')).toBeNull();expect(customers).toHaveBeenCalledWith('o','b',{detail:'c'},1,20);
-  fireEvent.click(screen.getByRole('tab',{name:'Consent history'}));await screen.findByText('Withdrawn');expect(screen.getByText('Customer requested withdrawal')).toBeTruthy();
+  fireEvent.click(screen.getByRole('tab',{name:'Consent history'}));await screen.findAllByText('Do Not Contact');expect(screen.getByText('Customer requested withdrawal')).toBeTruthy();
   fireEvent.click(screen.getByRole('tab',{name:'Activity'}));await screen.findByText('Staff confirmed sent');expect(screen.queryByText('Delivered')).toBeNull();expect(screen.queryByRole('button',{name:'Edit'})).toBeNull();
  });
  it('never invents activity or reveals it when unavailable',async()=>{
@@ -23,4 +23,11 @@ describe('Customer detail evidence',()=>{
   view.rerender(<CustomerDetailDrawer org="o" brand="new" customerId="new" can={()=>false} onClose={()=>{}}/>);
   await screen.findByText('Customer unavailable');resolve({customers:[{...row,id:'old'}]});await waitFor(()=>expect(screen.queryByText('Actual customer')).toBeNull());
  });
+});
+
+it('offers direct consent update separately from basic customer editing',async()=>{
+ const show=vi.fn(),onClose=vi.fn();render(<CustomerDetailDrawer org="o" brand="b" customerId="c" can={permission=>permission==='marketing_audience.manage'} show={show} onClose={onClose}/>);
+ await screen.findByText('Regular');fireEvent.click(screen.getByRole('button',{name:'Update WhatsApp consent'}));
+ expect(show).toHaveBeenCalledWith('consent',{id:'c',state:'do_not_contact',source:'Customer request'});
+ expect(onClose).toHaveBeenCalled();
 });
