@@ -653,3 +653,8 @@ describe("Crew Mobile design system contract", () => {
     expect(growth).toContain("<CrewMobilePageHeader title={title} action={action} />");
   });
 });
+
+it('contains Crew input inheritance so Admin input and textarea typography share their owner',()=>{
+ expect(system).toContain(':where(.crew-v2-shell) :is(button, input, select)');
+ expect(system).not.toMatch(/^button, input, select\s*\{/m);
+});

@@ -808,7 +808,7 @@
 
 
 /* Route residue migrated from CrewMobileApp.css. */
-button, input, select {
+:where(.crew-v2-shell) :is(button, input, select) {
   font: inherit;
 
 }
