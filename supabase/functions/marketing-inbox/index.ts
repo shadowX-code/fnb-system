@@ -117,8 +117,7 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid webhook contract." }, 400);
     }
     try {
-      await rpc(service, "marketing_inbox_enqueue", { p_events: events });
-      await rpc(service, "marketing_inbox_signed_events", { p_events: events });
+      await rpc(service, "marketing_inbox_receive", { p_events: events });
       return json({ received: true });
     } catch {
       return json({ error: "Durable acknowledgement unavailable." }, 503);

@@ -3,6 +3,7 @@ import { STAGING_SUPABASE, connectionBinding, unseal, hash } from '../_shared/me
 import { MetaError, MetaGraph } from '../_shared/metaGraph.ts';
 import { advanceMetaPublish, testAccountEnabled, verifyMetaMedia } from '../_shared/metaPublishing.ts';
 import { diagnoseMetaConnection } from '../_shared/metaConnectionDiagnostics.ts';
+import { runConnectionHealth } from '../_shared/metaConnectionHealth.ts';
 import { readMetaPosts } from '../_shared/metaSynchronization.ts';
 import { processAdsSync } from '../_shared/metaAds.ts';
 import { commitJournal } from '../_shared/privacyBlob.ts';
@@ -29,6 +30,8 @@ Deno.serve(async(req)=>{
  const configured=['MARKETING_META_APP_ID','MARKETING_META_APP_SECRET','MARKETING_META_LOGIN_CONFIG_ID','MARKETING_META_GRAPH_VERSION','MARKETING_META_TOKEN_ENCRYPTION_KEY'].every(n=>env(n));
  if(!configured){await call(db,'marketing_worker_health',{p_error:'meta_not_configured',p_completed:true});return reply({status:'blocked',reason:'meta_not_configured'});}
  const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')});
+ const health=await runConnectionHealth(db,graph,{appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET')},[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')]);
+ if(health){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'connection_checked'});}
  async function tokenFor(connection:any) {
   const material=await call(db,'marketing_meta_connection_material',{p_connection:connection.id});
   if(!material||material.credential_generation!==connection.credential_generation)throw new Error('connection_changed');
