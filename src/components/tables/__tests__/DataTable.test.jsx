@@ -1,5 +1,5 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, fireEvent } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import DataTable from "../DataTable.jsx";
 
 describe("DataTable", () => {
@@ -26,3 +26,5 @@ it("supports semantic secondary columns and explicit minimum width without chang
  const {container}=render(<DataTable minWidth="100%" density="compact" rows={[{id:"a"}]} getRowKey={r=>r.id} columns={[{key:"identity",header:"Candidate"},{key:"metadata",header:"Invitation",priority:"secondary"}]}/>);
  expect(container.querySelector("table").style.minWidth).toBe("100%");expect(container.querySelectorAll('[data-priority="secondary"]')).toHaveLength(2);
 });
+
+it('opens accessible button rows while keeping nested actions independent',()=>{const open=vi.fn(),action=vi.fn();const {container}=render(<DataTable rows={[{id:'a'}]} getRowKey={r=>r.id} onRowClick={open} getRowProps={()=>({role:'button',tabIndex:0})} columns={[{key:'name',header:'Name',render:()=> <span>Row body</span>},{key:'action',header:'Actions',render:()=> <button onClick={action}>Edit row</button>}]}/>);fireEvent.click(container.querySelector('td span'));expect(open).toHaveBeenCalledTimes(1);fireEvent.click(container.querySelector('td button'));expect(action).toHaveBeenCalledOnce();expect(open).toHaveBeenCalledTimes(1)});

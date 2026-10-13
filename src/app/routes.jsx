@@ -5,6 +5,7 @@ import DashboardOverviewPage from "../features/sales-purchase/pages/DashboardOve
 import SPDashboardPage from "../features/sales-purchase/pages/SPDashboardPage.jsx";
 import AlertsInsightsPage from "../features/sales-purchase/pages/AlertsInsightsPage.jsx";
 import DataHealthPage from "../features/sales-purchase/pages/DataHealthPage.jsx";
+import BrandsPage from "../features/brands/BrandsPage.jsx";
 import OutletManagementPage from "../features/sales-purchase/pages/OutletManagementPage.jsx";
 import PurchaseInputPage from "../features/sales-purchase/pages/PurchaseInputPage.jsx";
 import PurchaseComparisonPage from "../features/sales-purchase/pages/PurchaseComparisonPage.jsx";
@@ -193,6 +194,7 @@ export const routeDetails = {
     description: "Manage company roles.",
     component: RolesPage,
   },
+  brands: { description: "Shared Platform Brand and Outlet relationships.", component: BrandsPage, permission: "platform_organizations.manage" },
   outlets: {
     description: "Outlet master data used by sales and purchase records through outlet_id.",
     component: OutletManagementPage,

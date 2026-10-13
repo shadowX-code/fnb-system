@@ -169,6 +169,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
   const previewRecipient=recipient||(data?.recipients.length===1?data.recipients[0]:null);
   const pageSenderIds=[...new Set((data?.recipients||[]).map(r=>r.sender_id).filter(Boolean))];
   const displaySender=previewRecipient?.sender_snapshot||data?.senders.find(s=>s.id===(recipient?.sender_id||sender||(pageSenderIds.length===1?pageSenderIds[0]:null)));
+  const brandInactive=brands.find(b=>b.id===brand)?.is_active===false;
   const brandName=brands.find(b=>b.id===brand)?.name||'';
   const chosenSender=data?.senders.find(s=>s.id===sender);
   const senderConfirmed=!!senderSession&&senderSession.campaign_id===campaign&&senderSession.campaign_revision===active?.revision&&senderSession.sender_id===sender&&senderSession.sender_revision===chosenSender?.revision&&chosenSender?.active&&new Date(senderSession.expires_at)>new Date();
@@ -364,6 +365,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
       controls={controls}
     >
       <div className="outreach">
+        {brandInactive?<p className="text-sm text-text-secondary">Inactive Brand · existing customer records and campaign history remain available. Reactivate it to start new work.</p>:null}
         {notice ? <p role="status">{notice}</p> : null}
         {error ? (
           <p role="alert" className="text-danger">
@@ -377,13 +379,13 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
         ) : (
           <>
             <AsyncDataSurface loading={loading} error={null} hasData={!!data}>
-              {data&&tab==='customers'?<MarketingCustomersView key={brand} org={org} brand={brand} data={data} can={can} refresh={refresh} show={show} onImport={()=>setImportOpen(true)} onChanged={()=>setRefresh(v=>v+1)}/>:null}
+              {data&&tab==='customers'?<MarketingCustomersView key={brand} org={org} brand={brand} inactive={brandInactive} data={data} can={can} refresh={refresh} show={show} onImport={()=>setImportOpen(true)} onChanged={()=>setRefresh(v=>v+1)}/>:null}
               {data && tab === "campaigns" ? (
                 <>
                   <section className="space-y-3">
                     {!active?<>
                       <div className="outreach-actions">
-                        {can('marketing_campaigns.manage')?<button className="btn-primary" onClick={()=>show('campaign',{caption:'Hi {name}, ',...(can('marketing_audience.manage')?{audience_criteria:{tags:[],outlet_id:''}}:{audience_id:''})})}><Plus size={15}/> New campaign</button>:null}
+                        {can('marketing_campaigns.manage')?<button className="btn-primary" disabled={brandInactive} onClick={()=>show('campaign',{caption:'Hi {name}, ',...(can('marketing_audience.manage')?{audience_criteria:{tags:[],outlet_id:''}}:{audience_id:''})})}><Plus size={15}/> New campaign</button>:null}
                         <button className="btn-secondary" onClick={()=>setSenderSettings(true)}><Settings size={15}/> Sender settings</button>
                       </div>
                       <AdminFilterToolbar compact denseFields ariaLabel="Campaign filters" search={<AdminSearchField ariaLabel="Search campaigns" placeholder="Campaign title" value={campaignSearch} onChange={setCampaignSearch}/>} filters={<SelectField label="Campaign status" value={campaignStatus} onChange={setCampaignStatus} options={[{value:'',label:'All'},...['draft','review','approved','ready','cancelled'].map(value=>({value,label:names[value]}))]}/>}/>

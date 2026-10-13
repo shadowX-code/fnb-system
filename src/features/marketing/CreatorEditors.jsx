@@ -18,7 +18,7 @@ const choose={value:'',label:'Choose…'},none={value:'',label:'None'};
 function Text({label:caption,value,onChange,required=false,type='text',...props}){return <AdminFormField label={caption} required={required}><input className="control" type={type} value={value??''} onChange={e=>onChange(e.target.value)} required={required} {...props}/></AdminFormField>}
 function Footer({onClose,busy,canManage=true,label:caption='Save',form,disabled=false}){return <><button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>Close</button>{canManage?<button className="btn-primary" form={form} type="submit" disabled={busy||disabled}>{busy?'Saving…':caption}</button>:null}</>}
 function InlineError({error}){return error?<p className="text-sm text-danger" role="alert">{error}</p>:null}
-function BrandSelect({brands,value,onChange,disabled}){return <SelectField label="Brand" value={value} onChange={onChange} required options={[choose,...brands.map(b=>({value:b.id,label:b.name}))]} disabled={disabled}/>}
+function BrandSelect({brands,value,onChange,disabled}){return <SelectField label="Brand" value={value} onChange={onChange} required options={[choose,...brands.map(b=>({value:b.id,label:b.name+(b.is_active===false?' · Inactive':''),disabled:b.is_active===false&&!disabled}))]} disabled={disabled}/>}
 function SocialProfileFields({value:v,onChange,disabled=false}){
  const [urlError,setUrlError]=useState('');const set=(key,value)=>onChange({...v,[key]:value});
  function recognize(value){setUrlError('');set('profile_url',value);if(!value)return;try{onChange({...v,...recognizeCreatorProfile(value)});}catch(e){setUrlError(e.message)}}

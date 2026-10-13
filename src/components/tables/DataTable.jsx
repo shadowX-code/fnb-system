@@ -1,6 +1,7 @@
 export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, density = "normal", columnSpacing = "normal", tableClassName = "", minWidth = 880 }) {
   function shouldIgnoreRowClick(event) {
-    return Boolean(event.target.closest("button, a, input, select, textarea, [role='button'], [data-row-action='true']"));
+    const control = event.target.closest("button, a, input, select, textarea, [role='button'], [data-row-action='true']");
+    return Boolean(control && control !== event.currentTarget);
   }
 
   return (

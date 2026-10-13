@@ -16,7 +16,7 @@ import { contactLabel, contactState } from './customerContact.js';
 import CustomerDetailDrawer from './CustomerDetailDrawer.jsx';
 import { outreachService } from './outreachService.js';
 
-export default function MarketingCustomersView({org,brand,data,can,refresh,show,onImport,onChanged}) {
+export default function MarketingCustomersView({org,brand,inactive=false,data,can,refresh,show,onImport,onChanged}) {
  const [filters,setFilters]=useState({search:'',consent:'',tags:[],outlet:'',status:'',sort:''}),[query,setQuery]=useState(''),[page,setPage]=useState(1),[size,setSize]=useState(20),[result,setResult]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[selected,setSelected]=useState(''),[tagsOpen,setTagsOpen]=useState(false),[tagRefresh,setTagRefresh]=useState(0);
  useEffect(()=>{const id=setTimeout(()=>{setQuery(filters.search);setPage(1)},250);return()=>clearTimeout(id)},[filters.search]);
  useEffect(()=>{let live=true;setLoading(true);setError('');outreachService.customers(org,brand,{...filters,search:query},page,size).then(r=>{if(live)setResult(r)}).catch(e=>{if(live)setError(e.message)}).finally(()=>{if(live)setLoading(false)});return()=>{live=false}},[org,brand,query,filters.consent,JSON.stringify(filters.tags),filters.outlet,filters.status,filters.sort,page,size,refresh,tagRefresh]);
@@ -28,7 +28,7 @@ export default function MarketingCustomersView({org,brand,data,can,refresh,show,
    {key:'total',label:'Total Customers'}, {key:'subscribed',label:'WhatsApp Subscribers'},
    {key:'not_subscribed',label:'Not Subscribed'}, {key:'do_not_contact',label:'Do Not Contact'}
   ].map(item=>({...item,value:result?.summary?.[item.key],state:result?.summary?'ready':loading?'loading':'unavailable'}))}/>
-  <div className="outreach-section-heading justify-end"><div className="outreach-actions">{can('platform_customers.manage')?<><button className="btn-secondary" onClick={()=>setTagsOpen(true)}><Tags size={15}/> Manage Tags</button><button className="btn-secondary" onClick={onImport}><Upload size={15}/> Import</button><button className="btn-primary" onClick={()=>show('customer',{language:'EN'})}><Plus size={15}/> Add customer</button></>:null}</div></div>
+  <div className="outreach-section-heading justify-end"><div className="outreach-actions">{can('platform_customers.manage')?<><button className="btn-secondary" onClick={()=>setTagsOpen(true)}><Tags size={15}/> Manage Tags</button><button className="btn-secondary" disabled={inactive} onClick={onImport}><Upload size={15}/> Import</button><button className="btn-primary" disabled={inactive} onClick={()=>show('customer',{language:'EN'})}><Plus size={15}/> Add customer</button></>:null}</div></div>
   <AdminFilterToolbar compact denseFields ariaLabel="Customer filters" search={<AdminSearchField ariaLabel="Search customers" placeholder="Name, phone or tag" value={filters.search} onChange={value=>change('search',value)}/>} filters={<>
    <SelectField label="WhatsApp consent" value={filters.consent} onChange={v=>change('consent',v)} options={[{value:'',label:'All'},{value:'eligible',label:'Subscribed'},{value:'required',label:'Not Subscribed'},{value:'suppressed',label:'Do Not Contact'}]}/>
    <TagPicker value={filters.tags} options={data.tags||[]} onChange={v=>change('tags',v)}/>

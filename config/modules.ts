@@ -637,9 +637,10 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     permissions: { view: true, manage: true },
   },
+  { id: "brands", section: "System", label: "Brands", route: "/system/brands", icon: "outlets", sidebar: true, workspace: "restaurant", readPermission: "platform_organizations.manage", permissions: {} },
   {
     id: "outlets",
-    section: "Operations",
+    section: "System",
     label: "Outlets",
     route: "/operations/outlets",
     icon: "outlets",
