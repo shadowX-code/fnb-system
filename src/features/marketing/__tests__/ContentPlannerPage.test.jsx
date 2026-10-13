@@ -109,3 +109,50 @@ it('keeps Monthly Publish selected across month reloads',async()=>{
  render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('tab',{name:'Monthly Publish'}));fireEvent.click(screen.getByRole('button',{name:'Next insights month'}));
  await vi.waitFor(()=>expect(planner.read).toHaveBeenCalledWith('org','2026-11-01',''));await screen.findByRole('region',{name:'Monthly Publish calendar'});expect(screen.getByRole('tab',{name:'Monthly Publish'}).getAttribute('aria-selected')).toBe('true');
 });
+
+it('List reads compact values, previews actual media and exposes optional columns',async()=>{
+ planner.read.mockResolvedValue({...read,tasks:[{...task,asset_ids:['asset'],assets:[{id:'asset',state:'ready',filename:'creative.jpg',mime_type:'image/jpeg'}],checklist:[{text:'Shoot',done:true},{text:'Edit',done:false}]}]});
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('tab',{name:'List',exact:true}));
+ const table=screen.getByRole('table');expect(within(table).getAllByRole('columnheader').map(n=>n.textContent)).toEqual(['Task','Brand','Status','Priority','Production Due','Assignee','Actions']);
+ expect(within(table).queryByRole('combobox')).toBeNull();expect(within(table).queryByRole('textbox')).toBeNull();expect(within(table).getByLabelText('1 of 2 checklist steps complete')).toBeTruthy();
+ fireEvent.click(within(table).getByRole('button',{name:'Preview creative.jpg'}));expect(screen.getByRole('dialog',{name:'creative.jpg'})).toBeTruthy();expect(screen.queryByRole('dialog',{name:'Creative task'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Close preview'}));fireEvent.click(screen.getByRole('button',{name:'Columns'}));fireEvent.click(screen.getByRole('checkbox',{name:'Checklist'}));expect(within(table).getByRole('columnheader',{name:'Checklist'})).toBeTruthy();expect(JSON.parse(localStorage.getItem('marketing.planner.planner-user')).listColumns).toEqual(['checklist']);
+});
+it('List saves priority optimistically and confines a failure to that field',async()=>{
+ let reject;planner.read.mockResolvedValue({...read,tasks:[task,{...task,id:'second',title:'Another task'}]});planner.command.mockImplementation(c=>c.action==='save'?new Promise((_,no)=>{reject=no}):Promise.resolve({}));
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('tab',{name:'List',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Priority for Real task'}));fireEvent.change(await screen.findByRole('combobox',{name:'Priority options for Real task'}),{target:{value:'high'}});
+ const row=screen.getByRole('row',{name:'Open Real task'});expect(within(row).getByText('High')).toBeTruthy();expect(screen.getByRole('button',{name:'Priority for Real task'}).disabled).toBe(true);expect(screen.getByRole('button',{name:'Priority for Another task'}).disabled).toBe(false);
+ await vi.waitFor(()=>expect(reject).toBeTruthy());reject(new Error('Task changed. Reload before continuing.'));await screen.findByRole('alert');await vi.waitFor(()=>expect(within(row).getByText('Normal')).toBeTruthy());
+ expect(within(row).getByRole('alert').textContent).toContain('Task changed');expect(planner.command.mock.calls.filter(([c])=>c.action==='open_month')).toHaveLength(1);expect(planner.command.mock.calls.at(-1)[0]).toEqual(expect.objectContaining({action:'save',revision:1,payload:{month:expect.any(String),priority:'high'}}));
+});
+it('List uses canonical date and brand-eligible assignee edits without a drawer',async()=>{
+ const members=[{id:'eligible',name:'Brand editor',brand_ids:['brand']},{id:'other',name:'Other brand editor',brand_ids:['other']}];let current={...read,members};planner.read.mockResolvedValue(current);planner.command.mockImplementation(async c=>{if(c.action==='save'){current={...current,tasks:current.tasks.map(t=>t.id===c.id?{...t,...c.payload,revision:t.revision+1}:t)};planner.read.mockResolvedValue(current)}return {}});
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('tab',{name:'List',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Production Due Date for Real task'}));const date=await screen.findByRole('textbox',{name:/Production Due Date/});fireEvent.change(date,{target:{value:'16 Oct 2026'}});expect(planner.command.mock.calls.some(([c])=>c.action==='save')).toBe(false);fireEvent.click(screen.getByRole('button',{name:'Save date'}));
+ await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({action:'save',revision:1,payload:{month:expect.any(String),due_date:'2026-10-16'}})));
+ await vi.waitFor(()=>expect(screen.getByRole('button',{name:'Assignee for Real task'}).disabled).toBe(false));fireEvent.click(screen.getByRole('button',{name:'Assignee for Real task'}));const select=await screen.findByRole('combobox',{name:'Assignee options for Real task'});expect(within(select).getByRole('option',{name:'Brand editor'})).toBeTruthy();expect(within(select).queryByRole('option',{name:'Other brand editor'})).toBeNull();fireEvent.change(select,{target:{value:'eligible'}});
+ await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({action:'save',revision:2,payload:{month:expect.any(String),assignee_id:'eligible'}})));expect(screen.queryByRole('dialog',{name:'Creative task'})).toBeNull();
+});
+it('List reviewer transitions require confirmation and feedback without changing sort or order',async()=>{
+ planner.read.mockResolvedValue({...read,tasks:[{...task,status:'in_review'}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('tab',{name:'List',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Status for Real task'}));fireEvent.change(await screen.findByRole('combobox',{name:'Status options for Real task'}),{target:{value:'revision_needed'}});
+ const dialog=await screen.findByRole('dialog',{name:'Request Revision'});expect(within(dialog).getByRole('button',{name:'Request Revision'}).disabled).toBe(true);expect(planner.command.mock.calls.some(([c])=>c.action==='request_revision')).toBe(false);
+ fireEvent.change(within(dialog).getByRole('textbox',{name:'Review feedback'}),{target:{value:'Please revise the composition'}});fireEvent.click(within(dialog).getByRole('button',{name:'Request Revision'}));
+ await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({action:'request_revision',revision:1,payload:{month:expect.any(String),feedback:'Please revise the composition'}})));expect(planner.order).not.toHaveBeenCalled();expect(JSON.parse(localStorage.getItem('marketing.planner.planner-user')).sort).not.toBe('manual');
+});
+it('List never offers approval without reviewer authority',async()=>{
+ auth.hasPermission.mockImplementation(code=>!code.endsWith('.approve'));planner.read.mockResolvedValue({...read,tasks:[{...task,status:'in_review'}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('tab',{name:'List',exact:true}));
+ expect(screen.queryByRole('button',{name:'Status for Real task'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Actions for Real task'}));expect(screen.queryByRole('menuitem',{name:'Approve production…'})).toBeNull();expect(planner.command.mock.calls.some(([c])=>c.action==='approve')).toBe(false);
+});
+it('grouping is presentation-only, disables order and keeps Planning Insights selection across views',async()=>{
+ localStorage.setItem('marketing.planner.planner-user',JSON.stringify({sort:'manual',view:'list'}));planner.read.mockResolvedValue({...read,tasks:[task,{...task,id:'second',title:'Second task',status:'in_progress'}]});
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');expect(screen.getByRole('button',{name:/Reorder Real task/})).toBeTruthy();fireEvent.change(screen.getByRole('combobox',{name:'Group By'}),{target:{value:'status'}});expect(screen.queryByRole('button',{name:/Reorder Real task/})).toBeNull();expect(screen.getAllByText('1 task on this page')).toHaveLength(2);expect(planner.order).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('tab',{name:'Monthly Publish'}));for(const view of ['Board','Monthly Plan','List']){fireEvent.click(screen.getByRole('tab',{name:view,exact:true}));expect(screen.getByRole('tab',{name:'Monthly Publish'}).getAttribute('aria-selected')).toBe('true');expect(screen.getByRole('region',{name:'Planning Insights'})).toBeTruthy()}
+ expect(screen.getByLabelText('Planning month').value).toBe('2026-10');expect(planner.command.mock.calls.filter(([c])=>c.action==='open_month')).toHaveLength(1);
+});
+it('keyboard ordering uses the complete unfiltered sequence across pagination',async()=>{
+ localStorage.setItem('marketing.planner.planner-user',JSON.stringify({sort:'manual',view:'list'}));const tasks=Array.from({length:41},(_,i)=>({...task,id:'t'+i,title:'Task '+i,manual_order:i+1}));planner.read.mockResolvedValue({...read,tasks});planner.order.mockResolvedValue({ordered:41});
+ render(<ContentPlannerPage/>);await screen.findAllByText('Task 0');fireEvent.click(screen.getAllByRole('button',{name:'Next',exact:true})[0]);
+ fireEvent.keyDown(screen.getByRole('button',{name:/Reorder Task 20\./}),{key:'ArrowDown'});await vi.waitFor(()=>expect(planner.order).toHaveBeenCalled());const sent=planner.order.mock.calls[0][3];expect(sent).toHaveLength(41);expect(sent.slice(0,20).map(t=>t.id)).toEqual(tasks.slice(0,20).map(t=>t.id));expect(sent.slice(20,22).map(t=>t.id)).toEqual(['t21','t20']);expect(screen.getByRole('button',{name:'2',exact:true})).toBeTruthy();
+});

@@ -1,7 +1,19 @@
 import {describe,it,expect} from 'vitest';
-import {completedAt,recentCompleted,monthDays,taskDueState,todayKey,weekOf,monthWeeks,allowedMoves,plannerSummary,sortedTasks,filterTasks,currentMonth} from '../contentPlanner.js';
+import {completedAt,recentCompleted,monthDays,taskDueState,todayKey,weekOf,monthWeeks,allowedMoves,plannerSummary,sortedTasks,filterTasks,currentMonth,listStatusMoves,canReorderList,plannerListGroups} from '../contentPlanner.js';
 const task=(id,patch={})=>({id,title:id,brand_id:'brand',brand_name:'Brand',status:'planned',due_date:'2026-10-12',created_at:'2026-10-01',manual_order:0,...patch});
 describe('Creative planner presentation',()=>{
+ it('limits List ordering to a complete unfiltered manual presentation',()=>{
+  expect(canReorderList({sort:'manual'},true,500)).toBe(true);
+  for(const patch of [{sort:'due'},{brand:'brand'},{groupBy:'status'},{search:'work'},{status:'planned'},{assignee:'member'},{blocked:true}])expect(canReorderList({sort:'manual',...patch},true,2)).toBe(false);
+  expect(canReorderList({sort:'manual'},false,2)).toBe(false);expect(canReorderList({sort:'manual'},true,501)).toBe(false);
+ });
+ it('groups page records by identity without changing their stored order or ownership',()=>{
+  const rows=[task('a',{brand_id:'one',brand_name:'Same name',manual_order:2}),task('b',{brand_id:'two',brand_name:'Same name',manual_order:1})],before=JSON.stringify(rows);
+  expect(plannerListGroups(rows,'brand').map(g=>g.tasks.map(t=>t.id))).toEqual([['a'],['b']]);expect(JSON.stringify(rows)).toBe(before);expect(plannerListGroups(rows,'assignee')[0].label).toBe('Unassigned');
+ });
+ it('List review choices depend on reviewer authority and blockers, while reopen depends on edit',()=>{
+  expect(listStatusMoves(task('a',{status:'in_review'}),true,false)).toEqual([]);expect(listStatusMoves(task('a',{status:'in_review'}),false,true)).toEqual(['completed','revision_needed']);expect(listStatusMoves(task('a',{status:'in_review',blocked:true}),true,true)).toEqual([]);expect(listStatusMoves(task('a',{status:'completed'}),true,false)).toEqual(['in_progress']);
+ });
  it('uses Malaysia month independently of browser time zone',()=>expect(currentMonth(new Date('2026-09-30T17:00:00Z'))).toBe('2026-10-01'));
  it('keeps Monday planning weeks independent from deadlines',()=>{expect(weekOf('2026-10-01')).toBe('2026-09-28');expect(monthWeeks('2026-10-01')).toEqual(['2026-09-28','2026-10-05','2026-10-12','2026-10-19','2026-10-26']);});
  it('never offers completion through status changes',()=>{for(const status of ['planned','in_progress','revision_needed','in_review','completed'])expect(allowedMoves(task('x',{status}),true)).not.toContain('completed');expect(allowedMoves(task('x'),false)).toEqual([]);});

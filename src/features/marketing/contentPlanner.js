@@ -18,7 +18,24 @@ export function sortedTasks(tasks,sort='workload',today=todayKey()){
 }
 export function filterTasks(tasks,{search='',assignee='',status='',brand='',blocked=false}={}){return tasks.filter(t=>(!brand||t.brand_id===brand)&&(!status||t.status===status)&&(!assignee||(assignee==='unassigned'?!t.assignee_id:t.assignee_id===assignee))&&(!blocked||t.blocked)&&(!search||`${t.title} ${t.brand_name} ${t.brief}`.toLowerCase().includes(search.toLowerCase())));}
 export function taskPayload(task){return Object.fromEntries(['title','checklist','content_type','assignee_id','due_date','planned_publish_date','priority','brief','reference_links','asset_ids','blocked','blocker_reason','blocker_owner','planned_week'].map(key=>[key,task[key]??(key==='reference_links'||key==='asset_ids'||key==='checklist'?[]:key==='blocked'?false:'')]));}
-export function plannerPreferences(user){try{const p=JSON.parse(localStorage.getItem(`marketing.planner.${user}`)||'{}');return {...p,view:['board','list','month'].includes(p.view)?p.view:'board',month:/^\d{4}-\d{2}-01$/.test(p.month)?p.month:currentMonth()};}catch{return {view:'board',month:currentMonth()};}}
+export function plannerPreferences(user){try{const p=JSON.parse(localStorage.getItem(`marketing.planner.${user}`)||'{}');return {...p,view:['board','list','month'].includes(p.view)?p.view:'board',groupBy:['status','brand','assignee'].includes(p.groupBy)?p.groupBy:'',listColumns:Array.isArray(p.listColumns)?p.listColumns.filter(v=>['checklist','publish','type'].includes(v)):[],month:/^\d{4}-\d{2}-01$/.test(p.month)?p.month:currentMonth()};}catch{return {view:'board',groupBy:'',listColumns:[],month:currentMonth()};}}
+
+export function listStatusMoves(task,canEdit,canApprove){
+ return [...allowedMoves(task,canEdit),...(task.status==='in_review'&&!task.blocked&&canApprove?['completed','revision_needed']:[]),...(task.status==='completed'&&canEdit?['in_progress']:[])];
+}
+export function canReorderList(prefs,canEdit,count){
+ return canEdit&&prefs.sort==='manual'&&!prefs.groupBy&&!prefs.brand&&!prefs.search&&!prefs.status&&!prefs.assignee&&!prefs.blocked&&count<=500;
+}
+// Pagination happens before grouping, so group counts describe this page only.
+export function plannerListGroups(rows,groupBy){
+ if(!groupBy)return [{key:'all',label:'',tasks:rows}];
+ const groups=new Map();
+ for(const task of rows){const key=groupBy==='status'?task.status:groupBy==='brand'?task.brand_id:task.assignee_id||'unassigned';
+  const label=groupBy==='status'?taskStatuses.find(s=>s.value===key)?.label||key:groupBy==='brand'?task.brand_name:task.assignee_name||'Unassigned';
+  if(!groups.has(key))groups.set(key,{key,label,tasks:[]});groups.get(key).tasks.push(task);
+ }
+ return [...groups.values()].sort((a,b)=>groupBy==='status'?taskStatuses.findIndex(s=>s.value===a.key)-taskStatuses.findIndex(s=>s.value===b.key):a.label.localeCompare(b.label));
+}
 
 export function taskDueState(task,today=todayKey()){if(task.status==='completed'||!task.due_date)return 'normal';return task.due_date<today?'overdue':task.due_date===today?'today':task.due_date===shiftDate(today,1)?'tomorrow':'normal';}
 
