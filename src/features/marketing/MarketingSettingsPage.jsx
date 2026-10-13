@@ -15,7 +15,7 @@ export function legacySettingsDestination(search=''){
  return tab==='knowledge'?'/marketing/brand-knowledge':tab==='access'?'/marketing/brand-access':'/marketing/connections';
 }
 const titles={connections:'Connections',knowledge:'Brand Knowledge',access:'Brand Access & Team Permissions'};
-export default function MarketingSettingsPage({section='connections'}){
+export default function MarketingSettingsPage({section='connections',ui}){
  const legacy=section==='legacy',page=legacy?({'/marketing/brand-knowledge':'knowledge','/marketing/brand-access':'access'}[legacySettingsDestination(window.location.search)]||'connections'):section;
  const auth=useAuth(),user=auth.user?.id,can=code=>auth.hasPermission(code);
  const [context,setContext]=useState(null),[contextRefresh,setContextRefresh]=useState(0),[org,setOrg]=useState(''),[brandId,setBrandId]=useState(''),[read,setRead]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[refresh,setRefresh]=useState(0);
@@ -31,7 +31,7 @@ export default function MarketingSettingsPage({section='connections'}){
  <AsyncDataSurface loading={loading} error={error} hasData={!!context} onRetry={()=>context?setRefresh(v=>v+1):setContextRefresh(v=>v+1)}>
  {context&&!org?<div className="card p-5 text-sm">Ask an administrator to grant Brand access and team permissions.</div>:null}
  {org&&page==='connections'?<div className="settings-connections"><SocialAccounts key={`${org}:${brandId}:${user}`} organizationId={org} brandId={brandId} brands={brands}/><GoogleDriveSettings key={`drive:${org}:${brandId}:${user}`} organizationId={org} brandId={brandId} brands={brands}/></div>:null}
- {org&&page==='knowledge'&&data?(brand?<BrandKnowledgeWorkspace key={`${org}:${brandId}:${user}`} brand={brand} data={data} can={can} onSaved={()=>setRefresh(v=>v+1)}/>:<div className="card p-5 text-sm">Select an authorized Brand to view its knowledge.</div>):null}
+ {org&&page==='knowledge'&&data?(brand?<BrandKnowledgeWorkspace key={`${org}:${brandId}:${user}`} brand={brand} data={data} can={can} onSaved={()=>{ui?.notify?.({title:'Brand Knowledge saved.',tone:'success'});setRefresh(v=>v+1)}}/>:<div className="card p-5 text-sm">Select an authorized Brand to view its knowledge.</div>):null}
  {org&&page==='access'&&data?<BrandAccessConsole key={`${org}:${brandId}:${user}`} org={org} brandId={brandId} brands={brands} data={data} auth={auth} onSaved={()=>setRefresh(v=>v+1)}/>:null}
  </AsyncDataSurface>
  </WorkspacePage>;
