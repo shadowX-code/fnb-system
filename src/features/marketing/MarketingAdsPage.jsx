@@ -26,7 +26,9 @@ import AdsManagement from "./AdsManagement.jsx";
 import AdsCopilot from "./AdsCopilot.jsx";
 import AdsReportingContext from "./AdsReportingContext.jsx";
 import AdsAttributionReview from "./AdsAttributionReview.jsx";
+import { adsReadiness, adsReportingPeriod } from "./adsReadiness.js";
 import "./ads.css";
+const pollError="Reporting status could not refresh. Existing evidence remains visible; use Refresh data to retry.";
 const today = () =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kuala_Lumpur",
@@ -38,6 +40,10 @@ const defaultStart = () =>
   new Date(Date.parse(today() + "T00:00:00Z") - 29 * 86400000)
     .toISOString()
     .slice(0, 10);
+function ConnectionStatus({ account, report }) {
+  const state=adsReadiness(account,report);
+  return <div className="space-y-2" role="status"><Badge semantic tone={state.tone}>{state.label}</Badge><p className="text-sm text-text-secondary">{state.reason}</p></div>;
+}
 function MetricGrid({ row, previous, currency }) {
   return (
     <dl className="ads-metrics">
@@ -98,6 +104,7 @@ export default function MarketingAdsPage() {
     [brand, setBrand] = useState(""),
     [from, setFrom] = useState(defaultStart),
     [to, setTo] = useState(today),
+    [periodMode, setPeriodMode] = useState("30"),
     [data, setData] = useState(null),
     [previous, setPrevious] = useState(null),
     [pending, setPending] = useState([]),
@@ -135,6 +142,8 @@ export default function MarketingAdsPage() {
         );
         const b = query.get("marketing_brand");
         if (c.brands.some((x) => x.id === b)) setBrand(b);
+        if(query.get("meta_result")==="authorization_failed")setNotice(query.get("meta_reason")==="ads_read_not_granted"?"Meta did not grant Ad reporting access. The existing login configuration must provide ads_read (or ads_management); Page permissions do not grant Ad Account reporting.":"Meta authorization could not complete. Check authorized Ad Account access and try Connect Meta again.");
+        else if(query.get("meta_result")==="cancelled")setNotice("Meta authorization was cancelled. Existing Ad Accounts are unchanged.");
       })
       .catch((e) => {
         if (live) {
@@ -218,12 +227,34 @@ export default function MarketingAdsPage() {
       setBusy(false);
     }
   }
-  async function connect() {
+  async function connect(renew = false) {
+    if(!renew && data?.accounts.some(a => a.account_id && !adsReadiness(a).reconnect)){setModal({kind:"connect"});return;}
     await act(async () => {
       const result = await adsService.authorize(org, null);
       location.assign(result.authorization_url);
     });
   }
+  useEffect(() => {
+    if(periodMode==="custom"||!active?.health?.timezone)return;
+    const range=adsReportingPeriod(active.health.timezone,Number(periodMode));
+    if(range){setFrom(range.from);setTo(range.to);}
+  },[account,active?.health?.timezone,periodMode]);
+  useEffect(() => {
+    if(!org||!precedingPeriod(from,to))return;
+    let cancelled=false,inFlight=false;
+    const seq=generation.current;
+    const timer=setInterval(async()=>{
+      if(document.hidden||inFlight)return;inFlight=true;
+      try {
+        const range=precedingPeriod(from,to);
+        const [current,before]=await Promise.all([adsService.read(org,brand,from,to),adsService.read(org,brand,range.from,range.to)]);
+        if(!cancelled&&seq===generation.current){setData(current);setPrevious(before);setNotice(value=>value===pollError?"":value);}
+      } catch {if(!cancelled&&seq===generation.current)setNotice(pollError);}
+      finally {inFlight=false;}
+    },30000);
+    return()=>{cancelled=true;clearInterval(timer)};
+  },[org,brand,from,to,refresh]);
+  function useAccount(a){setAccount(a.id);setModal(null);setTab("overview");setNotice("Using the existing organization Ad Account. Campaign brand attribution is preserved.");}
   const accountRows = (data?.accounts || []).map((a) => {
     const s = data.reports.find((r) => r.connection_id === a.id);
     return { ...a, summary: s?.payload.insights.account?.[0] };
@@ -370,30 +401,15 @@ export default function MarketingAdsPage() {
         onClick={() => setRefresh((v) => v + 1)}
       >
         Refresh data
-      </button>} periodAfterFilters period={<FeedXDateRangePicker from={from} to={to} today={today()} onApply={({from,to})=>{setFrom(from);setTo(to)}}/>}>
+      </button>} periodAfterFilters period={<FeedXDateRangePicker from={from} to={to} today={adsReportingPeriod(active?.health?.timezone||"Asia/Kuala_Lumpur")?.to||today()} onApply={({from,to})=>{setPeriodMode("custom");setFrom(from);setTo(to)}}/>}>
       <SelectField
         label="Period"
-        value={
-          from === defaultStart() && to === today()
-            ? "30"
-            : from ===
-                  new Date(Date.parse(today() + "T00:00:00Z") - 89 * 86400000)
-                    .toISOString()
-                    .slice(0, 10) && to === today()
-              ? "90"
-              : "custom"
-        }
+        value={periodMode}
         onChange={(v) => {
-          if (v === "custom") return;
-          const end = today();
-          setTo(end);
-          setFrom(
-            new Date(
-              Date.parse(end + "T00:00:00Z") - (Number(v) - 1) * 86400000,
-            )
-              .toISOString()
-              .slice(0, 10),
-          );
+          setPeriodMode(v);
+          if(v==="custom")return;
+          const range=adsReportingPeriod(active?.health?.timezone||"Asia/Kuala_Lumpur",Number(v));
+          if(range){setFrom(range.from);setTo(range.to);}
         }}
         options={[
           { value: "custom", label: "Custom / historical" },
@@ -415,7 +431,7 @@ export default function MarketingAdsPage() {
           <button
             className="btn-primary"
             disabled={busy || !org}
-            onClick={connect}
+            onClick={() => connect()}
           >
             Connect Ad Account
           </button>
@@ -554,14 +570,14 @@ export default function MarketingAdsPage() {
         ))}
         {!loading && data && !data.accounts.length ? (
           <EmptyState
-            title="Connect your first Ad Account"
-            description="Discover shared organization Ad Accounts. Campaigns require explicit brand attribution."
+            title={data.organization_access===false?"No confirmed brand advertising":"Connect your first Ad Account"}
+            description={data.organization_access===false?"An organization administrator can connect a shared Ad Account and confirm this brand’s campaigns.":"Discover shared organization Ad Accounts. Campaigns require explicit brand attribution."}
             actions={
               can("marketing_ads.connect") &&
               data?.organization_access !== false ? (
                 <button
                   className="btn-secondary"
-                  onClick={connect}
+                  onClick={() => connect()}
                   disabled={busy}
                 >
                   Connect Ad Account
@@ -584,14 +600,14 @@ export default function MarketingAdsPage() {
                 </div>
                 <button
                   className="btn-secondary"
-                  disabled={busy || !a.account_id}
+                  disabled={busy || !a.account_id || !data?.organization_access}
                   onClick={() =>
                     act(async () => {
                       await adsService.sync(a.id, from, to);
                       const before = precedingPeriod(from, to);
                       await adsService.sync(a.id, before.from, before.to);
                       setNotice(
-                        "Reporting queued. Refresh after synchronization completes.",
+                        "Reporting queued. This view updates automatically as synchronization completes.",
                       );
                     })
                   }
@@ -599,6 +615,7 @@ export default function MarketingAdsPage() {
                   Sync selected periods
                 </button>
               </div>
+              <ConnectionStatus account={a} report={data.reports.find(r=>r.connection_id===a.id)?.payload}/>
               <MetricGrid
                 row={a.summary}
                 previous={
@@ -607,6 +624,8 @@ export default function MarketingAdsPage() {
                 }
                 currency={a.health?.currency}
               />
+              {data.reports.some(r=>r.connection_id===a.id) && !a.summary && !Object.keys(data.reports.find(r=>r.connection_id===a.id)?.payload.warnings||{}).length && <p className="text-sm text-text-secondary">{brand?"No reporting rows are available for this brand. Campaigns must have explicit brand attribution; missing metrics are not zero.":"Meta returned no reporting rows for this period. Missing metrics remain unavailable."}</p>}
+              {brand && data.organization_access && <button className="btn-secondary" onClick={()=>{setBrand("");setNotice("Choose Review campaign attribution to confirm only this brand’s campaigns. Shared account spend is never assigned automatically.");}}>Confirm campaign brands</button>}
               <Results row={a.summary} />
               <AdsPerformanceTrend
                 report={
@@ -621,10 +640,10 @@ export default function MarketingAdsPage() {
               />
               {!data.reports.some((r) => r.connection_id === a.id) && (
                 <p className="text-sm">
-                  This period has not been synchronized. Queue selected periods
-                  to retrieve historical reporting.
+                  Initial reporting starts automatically. Custom historical periods can be queued with Sync selected periods.
                 </p>
               )}
+              <p className="mt-3 text-xs text-text-secondary">Automatic refresh every six hours in {a.health?.timezone||"the Meta account timezone"}.{a.health?.next_sync_at?` Next scheduled check ${new Date(a.health.next_sync_at).toLocaleString()}.`:""}</p>
               <p className="mt-3 text-xs text-text-secondary">
                 {a.last_synced_at
                   ? `Last sync ${new Date(a.last_synced_at).toLocaleString()}`
@@ -643,16 +662,7 @@ export default function MarketingAdsPage() {
                     {a.health?.currency} · {a.health?.timezone}
                   </p>
                 </div>
-                <Badge>
-                  {a.status === "not_connected"
-                    ? "Disconnected"
-                    : a.status === "expired" ||
-                        Date.parse(a.expires_at) <= Date.now()
-                      ? "Expired"
-                      : a.health?.read_verified
-                        ? "Connected"
-                        : "Action required"}
-                </Badge>
+                <ConnectionStatus account={a} report={data.reports.find(r=>r.connection_id===a.id)?.payload}/>
               </div>
               <dl className="ads-metrics">
                 <div>
@@ -663,7 +673,7 @@ export default function MarketingAdsPage() {
                   <dt>Management authority</dt>
                   <dd>
                     {a.health?.manage_verified
-                      ? "Verified; execution disabled"
+                      ? "Verified; separate execution approval required"
                       : "Permission or account task required"}
                   </dd>
                 </div>
@@ -689,18 +699,13 @@ export default function MarketingAdsPage() {
                       <button
                         className="btn-secondary"
                         disabled={busy}
-                        onClick={() => {
-                          setBrand("");
-                          setNotice(
-                            "Connect and choose this same organization Ad Account to renew authorization.",
-                          );
-                        }}
+                        onClick={() => connect(true)}
                       >
                         Reconnect
                       </button>
                       <button
                         className="btn-secondary"
-                        disabled={busy || !a.account_id}
+                        disabled={busy || !a.account_id || !data?.organization_access}
                         onClick={() => setModal({ kind: "disconnect", a })}
                       >
                         Disconnect
@@ -709,10 +714,10 @@ export default function MarketingAdsPage() {
                   )}
                 <button
                   className="btn-secondary"
-                  disabled={busy || !a.account_id}
+                  disabled={busy || !a.account_id || !data?.organization_access}
                   onClick={() => act(() => adsService.sync(a.id, from, to))}
                 >
-                  Refresh status
+                  Retry reporting
                 </button>
                 <a
                   className="btn-secondary"
@@ -777,10 +782,11 @@ export default function MarketingAdsPage() {
                 </button>
               )}
             </AdminFilterToolbar>
+            <ConnectionStatus account={active} report={report}/>
             {!report ? (
               <EmptyState
                 title="Advertising data not synchronized"
-                description="Queue synchronization from Overview to load actual Meta configuration and reporting."
+                description="Initial reporting is automatic after confirmation. This view updates as jobs finish; custom historical periods can be synced from Overview."
               />
             ) : !filtered.length ? (
               <EmptyState
@@ -952,6 +958,7 @@ export default function MarketingAdsPage() {
           </p>
         )}
       </AsyncDataSurface>
+      {modal?.kind === "connect" && <Modal title="Choose an Ad Account connection" onClose={()=>setModal(null)} footer={<button className="btn-primary" disabled={busy} onClick={()=>{setModal(null);connect(true)}}>Connect Meta</button>}><p className="text-sm text-text-secondary">Reuse an authorized organization account for another brand, or connect Meta to discover additional eligible accounts. Campaign brands are confirmed separately to preserve shared-account spend.</p>{accountRows.filter(a=>a.account_id&&!adsReadiness(a).reconnect).map(a=><div className="ads-account mt-3" key={a.id}><strong>{a.name}</strong><button className="btn-secondary" onClick={()=>useAccount(a)}>Use connected account</button></div>)}</Modal>}
       {modal?.kind === "preview" && (
         <Modal
           size="3xl"
@@ -1017,7 +1024,7 @@ export default function MarketingAdsPage() {
                   );
                   setModal(null);
                   setNotice(
-                    "Ad Account connected. External execution remains disabled.",
+                    "Ad Account confirmed. Initial 30-day reporting and the comparison period are queued automatically. Confirm campaign brands after reporting loads.",
                   );
                 })
               }
@@ -1035,8 +1042,7 @@ export default function MarketingAdsPage() {
             ?
           </p>
           <p className="mt-3 text-sm text-text-secondary">
-            Reporting and account-management permissions are verified
-            independently. This does not authorize advertising spend.
+            Reporting permissions are verified before binding. The first 30 days and comparison period sync automatically. This shared account is organization-owned; confirm individual campaign brands after reporting loads. Existing attribution is preserved when reconnecting.
           </p>
         </Modal>
       )}
@@ -1126,8 +1132,8 @@ export default function MarketingAdsPage() {
               Advanced settings in Ads Manager ↗
             </a>
             <p className="text-xs text-text-secondary">
-              Meta owns configuration and delivery. FeedX external execution is
-              disabled.
+              Meta owns configuration and delivery. Advertising changes require
+              separate approval and execution authorization.
             </p>
           </div>
         </Modal>

@@ -31,6 +31,7 @@ Deno.serve(async(req)=>{
  const configured=['MARKETING_META_APP_ID','MARKETING_META_APP_SECRET','MARKETING_META_LOGIN_CONFIG_ID','MARKETING_META_GRAPH_VERSION','MARKETING_META_TOKEN_ENCRYPTION_KEY'].every(n=>env(n));
  if(!configured){await call(db,'marketing_worker_health',{p_error:'meta_not_configured',p_completed:true});return reply({status:'blocked',reason:'meta_not_configured'});}
  const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')});
+ await call(db,'marketing_ads_schedule');
  const health=await runConnectionHealth(db,graph,{appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET')},[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')]);
  if(health){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'connection_checked'});}
  async function tokenFor(connection:any) {
@@ -84,6 +85,8 @@ Deno.serve(async(req)=>{
    // Publishing and synchronization are separate ticks, bounding wall time.
    await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'processed',outcome:result.outcome});
   }
+  // Reserve a bounded Ads reporting turn every five minutes, after publishing authority.
+  if(new Date().getUTCMinutes()%5===0&&await processAdsSync(db,graph,env)){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'ads_synchronized'});}
   if(await runInboxHistory(db,graph,tokenFor)){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'history_import_page'});}
   const connection=await call(db,'marketing_meta_sync_claim');
   if(connection) {
