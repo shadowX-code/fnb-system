@@ -88,6 +88,16 @@ begin
  perform public.marketing_meta_disconnect((c->>'id')::uuid);
  assert not exists(select 1 from marketing_private.ads_accounts where connection_id=(c->>'id')::uuid),'Disconnect erases scheduling projection';
  assert not exists(select 1 from marketing_private.ads_snapshots where connection_id=(c->>'id')::uuid),'Disconnect erases reporting';
+ r:=public.marketing_ads_read(org,null,d-29,d);
+ select value into again from jsonb_array_elements(r->'accounts') where value->>'id'=c->>'id';
+ assert again->>'account_slot'=account and again->'account_id'='null'::jsonb,'Disconnected slot exposed only in scoped account projection';
+ r:=public.marketing_ads_begin(org,null,encode(extensions.digest(gen_random_uuid()::text,'sha256'),'hex'));s:=(r->>'id')::uuid;
+ update marketing_private.oauth_sessions set consumed_at=now() where id=s;
+ perform public.marketing_ads_stage(s,'99999999131002','{"ciphertext":"rollback-only"}',jsonb_build_array(jsonb_build_object('id',account,'name','QA rollback Ad Account')));
+ r:=public.marketing_ads_bind(s,u,account,null,'{"ciphertext":"rollback-only"}',now()+interval '1 day',report->'account'||'{"read_verified":true}',(again->>'generation')::integer);
+ assert r->>'id'=c->>'id' and (r->>'credential_generation')::integer=(again->>'generation')::integer+1,'Client-projected generation reconnects the disconnected slot';
+ assert r#>>'{capabilities,execution_enabled}'='false','Reconnect never enables execution';
+ insert into ads_qa_checks values('disconnect/read/reconnect preserves slot and client generation');
  assert before_social is not distinct from (select jsonb_agg(to_jsonb(x) order by id) from marketing_connections x where channel in ('facebook','instagram')),'Social connections preserved';
  insert into ads_qa_checks values('credential erasure, social isolation and unchanged execution controls');
 end;$$;

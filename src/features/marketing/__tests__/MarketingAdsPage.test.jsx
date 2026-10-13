@@ -139,6 +139,13 @@ describe("Ads read-only workspace", () => {
 
 describe("Ads self-service reporting",()=>{
   const connected={id:"account",name:"Shared Account",account_id:"111",status:"test_authorized",expires_at:"2027-01-01",health:{read_verified:true,currency:"MYR",timezone:"Asia/Kuala_Lumpur"}};
+  it('pins disconnected account confirmation to the preserved slot generation',async()=>{
+    ads.read.mockResolvedValue({organization_access:true,accounts:[{...connected,status:'not_connected',account_id:null,account_slot:'111',generation:3}],reports:[],jobs:[]});
+    ads.pending.mockResolvedValue([{id:'session',accounts:[{id:'111',name:'Discovered account',available:true}]}]);ads.bind.mockResolvedValue({connection:{id:'account'}});
+    render(<MarketingAdsPage/>);await screen.findByText('Discovered account');
+    fireEvent.click(screen.getByRole('button',{name:'Connect shared account'}));fireEvent.click(screen.getByRole('button',{name:'Confirm connection'}));
+    await waitFor(()=>expect(ads.bind).toHaveBeenCalledWith('session','','111',3));
+  });
   it('advances the rolling period across the provider-local day boundary',async()=>{
     vi.useFakeTimers({toFake:['Date','setInterval','clearInterval']});vi.setSystemTime(new Date('2026-10-13T15:50:00Z'));
     // Each RPC response is a fresh projection, including unchanged provider evidence.

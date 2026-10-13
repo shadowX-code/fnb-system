@@ -239,7 +239,10 @@ export default function MarketingAdsPage() {
     let cancelled=false,inFlight=false;
     const seq=generation.current;
     const timer=setInterval(async()=>{
-      if(document.hidden||inFlight)return;inFlight=true;
+      if(document.hidden||inFlight)return;
+      const rolling=periodMode!=="custom"?adsReportingPeriod(active?.health?.timezone||"Asia/Kuala_Lumpur",Number(periodMode)):null;
+      if(rolling&&(rolling.from!==from||rolling.to!==to)){setFrom(rolling.from);setTo(rolling.to);return;}
+      inFlight=true;
       try {
         const range=precedingPeriod(from,to);
         const [current,before]=await Promise.all([adsService.read(org,brand,from,to),adsService.read(org,brand,range.from,range.to)]);
@@ -248,7 +251,7 @@ export default function MarketingAdsPage() {
       finally {inFlight=false;}
     },30000);
     return()=>{cancelled=true;clearInterval(timer)};
-  },[org,brand,from,to,refresh]);
+  },[org,brand,from,to,refresh,periodMode,active?.health?.timezone]);
   function useAccount(a){setAccount(a.id);setModal(null);setTab("overview");setNotice("Using the existing shared Ad Account. Campaign brand attribution is preserved.");}
   const accountRows = (data?.accounts || []).map((a) => {
     const s = data.reports.find((r) => r.connection_id === a.id);
