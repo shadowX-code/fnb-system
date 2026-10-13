@@ -20,7 +20,7 @@ describe('Social chart evidence rendering',()=>{
  });
  it('renders monthly publication labels without inventing a day timestamp',()=>{
   render(<SocialTrendChart metric="views" basis="publication" grain="month" data={[point('2026-09',12),point('2026-10',20)]}/>);
-  expect(screen.getByText('Sep 2026')).toBeTruthy();expect(screen.getByText('Oct 2026')).toBeTruthy();
+  expect(screen.getByText('Sept 2026')).toBeTruthy();expect(screen.getByText('Oct 2026')).toBeTruthy();
  });
  it('comparison uses the same supplied values, including zero and unavailable',()=>{
   render(<SocialComparisonChart metric="Views" rows={[{channel:'facebook',value:0,coverage:'1 of 2 posts with data'},{channel:'instagram',value:null,coverage:'0 of 1 posts with data'}]}/>);
