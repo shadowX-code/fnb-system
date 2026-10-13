@@ -24,6 +24,8 @@ import AdminPagination, {useAdminClientPagination} from "../../components/tables
 import AdminSummaryGrid from "../../components/ui/AdminSummaryGrid.jsx";
 import CampaignMediaField from "./CampaignMediaField.jsx";
 import MarketingMediaPreview from "./MarketingMediaPreview.jsx";
+import DatePickerField from '../../components/forms/DatePickerField.jsx';
+import {customerName} from './customerPresentation.js';
 import TagPicker from "../../components/forms/TagPicker.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
 import EmptyState from "../../components/feedback/EmptyState.jsx";
@@ -379,7 +381,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
         ) : (
           <>
             <AsyncDataSurface loading={loading} error={null} hasData={!!data}>
-              {data&&tab==='customers'?<MarketingCustomersView key={brand} org={org} brand={brand} inactive={brandInactive} data={data} can={can} refresh={refresh} show={show} onImport={()=>setImportOpen(true)} onChanged={()=>setRefresh(v=>v+1)}/>:null}
+              {data&&tab==='customers'?<MarketingCustomersView userId={auth.user?.id} key={brand} org={org} brand={brand} inactive={brandInactive} data={data} can={can} refresh={refresh} show={show} onImport={()=>setImportOpen(true)} onChanged={()=>setRefresh(v=>v+1)}/>:null}
               {data && tab === "campaigns" ? (
                 <>
                   <section className="space-y-3">
@@ -477,7 +479,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                           <section className="card p-4 space-y-4 min-w-0" aria-label="Campaign message preview">
                             <div className="outreach-section-heading mb-0"><h3 className="text-sm font-semibold">Message preview</h3><Badge>{active.status==='cancelled'?'Cancelled':approvalCurrent?'Approved':'Awaiting approval'}</Badge></div>
                             <MarketingMediaPreview key={active.asset_id||'none'} asset={data.assets.find(a=>a.id===active.asset_id)}/>
-                            {previewRecipient?<small>Preview for {previewRecipient.display_name}</small>:null}
+                            {previewRecipient?<small>Preview for {customerName(previewRecipient)}</small>:null}
                             <p className="outreach-caption">{previewRecipient?.caption||(active.caption||'').replaceAll('{brand}',brandName)}</p>
                           </section>
                           <section className="card p-4 space-y-4 min-w-0" aria-label="Campaign information">
@@ -522,14 +524,14 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                             )
                             .map((r) => ({
                               value: r.id,
-                              label: `${r.display_name} · ${names[r.state]}${r.eligible ? "" : " · Not eligible"}`,
+                              label: `${customerName(r)} · ${names[r.state]}${r.eligible ? "" : " · Not eligible"}`,
                             })),
                         ]}
                       />
                       {recipient ? (
                         <>
                           <strong>
-                            {recipient.display_name} · {recipient.phone_e164}
+                            {customerName(recipient)} · {recipient.phone_e164}
                           </strong>
                           <p className="outreach-caption">
                             {recipient.caption}
@@ -619,7 +621,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                     </section>
                   ) : null}
                   {active&&data.recipients.length?<section aria-label="Campaign recipient results" className="space-y-3"><h3 className="text-sm font-semibold">Recipient Queue / Results</h3><OutreachCollection rows={data.recipients} getRowKey={r=>r.id} columns={[
-                    {key:'display_name',header:'Customer'},
+                    {key:'display_name',header:'Customer',render:r=>customerName(r)},
                     {key:'state',header:'Handling',render:r=><Badge tone={r.state==='staff_confirmed'?'success':r.state==='skipped'?'warning':'default'}>{names[r.state]}</Badge>},
                     {key:'eligible',header:'Current consent',render:r=>r.eligible?'Eligible':'Contact blocked'},
                     {key:'sender',header:'Sender',render:r=>r.sender_snapshot?.label||data.senders.find(s=>s.id===r.sender_id)?.label||'Not selected'},
@@ -718,7 +720,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                   <label className="admin-form-field"><span className="admin-form-field-label">Customer Name</span><input className="control" value={form.name||''} maxLength={160} onChange={e=>field('name',e.target.value)}/></label>
                   <label className="admin-form-field"><span className="admin-form-field-label">Phone Number</span><input className="control" type="tel" value={form.phone||''} onChange={e=>field('phone',e.target.value)} placeholder="+60 12 345 6789"/></label>
                   {(data.outlets.length>0||form.outlet_id)?<SelectField label="Brand Outlet" disabled={!data.outlets.length} placeholder="Existing outlet assignment" value={form.outlet_id||''} onChange={v=>field('outlet_id',v)} options={[{value:'',label:'No specific outlet'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/>:null}
-                  <TagPicker value={form.tags||[]} options={data.tags||[]} allowCreate placeholder="Select or add tags" onChange={v=>field('tags',v)}/>
+                  <label className="admin-form-field"><span className="admin-form-field-label">Email</span><input className="control" type="email" value={form.email||''} maxLength={254} onChange={e=>field('email',e.target.value)}/></label><SelectField label="Gender" value={form.gender||''} onChange={v=>field('gender',v)} options={[{value:'',label:'Not recorded'},...['male','female','other','unspecified'].map(value=>({value,label:value[0].toUpperCase()+value.slice(1)}))]}/><DatePickerField label="Birthday" value={form.birthday||''} onChange={v=>field('birthday',v)}/><TagPicker value={form.tags||[]} options={data.tags||[]} allowCreate placeholder="Select or add tags" onChange={v=>field('tags',v)}/>
                 </div>
               </>:null}
               {modal === "consent" ? <>

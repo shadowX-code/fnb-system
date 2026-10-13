@@ -951,3 +951,6 @@ Removed business-facing Organization configuration from Restaurant Brands and Ma
 ### 2026-10-13 — Canonical Marketing permission integration
 
 Corrected phantom View dependencies for standalone permission owners and restored the existing Ads Connect action registration, preserving role snapshots and stored grants. Role reading/editing now share workspace/module-scoped matrix presentation; Brand Access continues its existing role-wide Brand scope authority with canonical Roles navigation. Read-only Staging checks verified role, Brand, membership and tenant boundaries; no roles, memberships, scopes or execution policies were changed.
+
+### 2026-10-13 — CRM optional-name compatibility and Import V2 presentation
+Canonical Platform customers now accept absent names with valid normalized Malaysian phones, preserving existing identity/Brand/snapshot checks. CRM exposes all thirteen import columns, direct Edit/Consent actions and supported profile editing; imported POS metrics remain source snapshots. Import preview differences and final selected-change confirmation are compact. Staging-only forward migration and authenticated rollback contracts cover absent names, safe repeat imports, profile clearing, POS zero/provenance and unchanged consent.

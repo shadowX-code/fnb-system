@@ -1,6 +1,6 @@
 export const CUSTOMER_IMPORT_LIMIT = 10000;
 export const customerImportFields = [
- {key:'name',label:'Name',required:true,aliases:['name','customername','fullname','membername']},
+ {key:'name',label:'Name',aliases:['name','customername','fullname','membername']},
  {key:'phone',label:'Phone',required:true,aliases:['phone','phonenumber','mobile','mobilenumber','contactnumber','whatsapp','telephone']},
  {key:'email',label:'Email',aliases:['email','emailaddress']},
  {key:'gender',label:'Gender',aliases:['gender','sex']},
@@ -16,7 +16,7 @@ export const customerImportFields = [
  // Existing imports retain language support; it is not an additional template column.
  {key:'language',label:'Language (optional)',aliases:['language']},
 ];
-export const importNames={new:'New',unchanged:'Unchanged',review:'Updated / Review',invalid:'Needs Review',conflict:'Needs Review',created:'New',updated:'Updated',skipped:'Skipped'};
+export const importNames={new:'New',unchanged:'Unchanged',review:'Update',invalid:'Needs Review',conflict:'Needs Review',created:'New',updated:'Updated',skipped:'Skipped'};
 export function defaultCustomerMapping(headers) {
  const normalized=h=>h.toLowerCase().replace(/[^a-z0-9]/g,'');
  return Object.fromEntries(customerImportFields.map(f=>[f.key,headers.find(h=>f.aliases.includes(normalized(h)))||'']));
@@ -36,7 +36,7 @@ function excelDate(value,system) {
  return new Date(base+(Math.floor(serial)-(system!==1904&&serial>60?1:0))*86400000).toISOString().slice(0,10);
 }
 export function mapCustomerRows(data,mapping,outlets=[],context={}) {
- if(!mapping.name||!mapping.phone)throw new Error('Map customer name and phone before continuing.');
+ if(!mapping.phone)throw new Error('Map Malaysian phone before continuing.');
  const mapped=Object.values(mapping).filter(Boolean);if(new Set(mapped).size!==mapped.length)throw new Error('Map each source column to only one field.');
  return data.rows.map(row=>{
   const result={};for(const f of customerImportFields){if(!mapping[f.key])continue;let value=String(row[mapping[f.key]]??'').trim();if(!value&&!f.required)continue;

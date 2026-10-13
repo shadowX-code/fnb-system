@@ -23,3 +23,5 @@ describe('POS Import V2',()=>{
 });
 
 it('preserves source worksheet positions as non-personal report metadata',()=>{const result=mapCustomerRows({rows:[{__row:18,N:'Synthetic',P:'0123456789'}]},{name:'N',phone:'P'},[],{source:'POS'});expect(result[0].row).toBe(18)});
+
+it('accepts absent and blank names without persisting fallback labels',()=>{expect(mapCustomerRows({rows:[{P:'0123456789'}]},{phone:'P'})).toEqual([{phone:'0123456789'}]);expect(mapCustomerRows({rows:[{P:'0123456789',N:' '} ]},{phone:'P',name:'N'})).toEqual([{phone:'0123456789'}]);});
