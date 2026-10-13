@@ -11,6 +11,7 @@ import Badge from "../../components/ui/Badge.jsx";
 import EmptyState from "../../components/feedback/EmptyState.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
 import AsyncDataSurface from "../../components/feedback/AsyncDataSurface.jsx";
+import { adsManagementReason } from "./adsReadiness.js";
 const money = (v) =>
   new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(
     v / 100,
@@ -56,7 +57,7 @@ export default function AdsManagement({
     [selectedBrand, setSelectedBrand] = useState(brand),
     [connection, setConnection] = useState(reportingAccounts[0]?.id || ""),
     [enabled, setEnabled] = useState(false);
-  const accounts = data?.accounts?.length ? data.accounts : reportingAccounts;
+  const accounts = (data?.accounts?.length ? data.accounts : reportingAccounts).map(a=>({...a,health:reportingAccounts.find(r=>r.id===a.id)?.health||a.health}));
   const sequence = useRef(0),
     intent = useRef(null);
   useEffect(() => {
@@ -263,12 +264,10 @@ export default function AdsManagement({
       </div>
       <p className="text-sm text-text-secondary">
         {!enabled ? "External execution is disabled. " : ""}
-        {accounts.some((a) => !a.health?.manage_verified)
-          ? "Advertising management permission must be verified before execution. "
-          : ""}
         Creation starts paused. Each activation and budget adjustment requires
         its own reviewed approval.
       </p>
+      {accounts.filter(a=>!a.health?.manage_verified).map(a=><p key={a.id} className="text-sm text-text-secondary">{a.name}: {adsManagementReason(a.health)}</p>)}
       {notice && (
         <p role="status" className="text-sm">
           {notice}

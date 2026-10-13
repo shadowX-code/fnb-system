@@ -5,6 +5,18 @@ export function adsReportingDay(timezone,now=new Date()) {
 export function adsReportingPeriod(timezone,days=30,now=new Date()) {
   const to=adsReportingDay(timezone,now);return to?{from:new Date(Date.parse(to+'T00:00:00Z')-(days-1)*86400000).toISOString().slice(0,10),to}:null;
 }
+export function adsManagementReason(health) {
+  if(health?.manage_verified)return 'Verified; separate execution approval required';
+  if(health?.account_status!=null&&health.account_status!==1)return 'Meta account is not active. Check account health in Ads Manager; reporting can remain available.';
+  if(health?.granted_scopes?.length&&!health.granted_scopes.includes('ads_management'))return 'Meta ads_management permission is unavailable. Reporting permission does not authorize advertising changes.';
+  return 'Account management eligibility must be verified before execution.';
+}
+export function adsCopilotHasPerformance(packet,connection) {
+  const payload=packet?.reporting?.reports?.find(r=>r.connection_id===connection)?.payload;
+  if(!payload)return false;
+  const campaigns=new Set((payload.configs?.campaigns||[]).map(c=>c.id));
+  return (payload.insights?.campaign||[]).some(r=>campaigns.has(r.campaign_id)&&r.currency===payload.account?.currency&&r.date_start===payload.date_from&&r.date_stop===payload.date_to&&Number.isFinite(r.metrics?.spend?.value)&&r.metrics.spend.value>=0);
+}
 export function adsReadiness(account,report,now=Date.now()) {
   const health=account?.health,sync=account?.sync;
   const error=health?.automatic_error||health?.sync_error||account?.error_code||(sync?.latest_job?.state==='failed'?sync.latest_job.error_code:null);
@@ -15,5 +27,5 @@ export function adsReadiness(account,report,now=Date.now()) {
   if(error)return {label:'Needs Attention',tone:'warning',reason:error==='ads_reporting_actor_unavailable'?'The connection owner needs shared-account Ads reporting access. An authorized administrator can reconnect the account.':error==='ads_timezone_unavailable'?'Meta account reporting timezone could not be verified. Resolve account configuration before syncing.':error==='ads_pagination_limit'||error==='ads_sync_time_limit'?'This account exceeds a synchronization limit. Try a smaller period; large configuration lists require additional provider support.':'Reporting could not finish. Temporary failures retry automatically; use Sync selected periods to retry this reporting range.'};
   if(report&&Object.keys(report.warnings||{}).length)return {label:'Needs Attention',tone:'warning',reason:'Configuration synchronized, but some Meta reporting is unavailable. Available metrics remain visible; check the reporting details.'};
   if(report)return {label:'Ready',tone:'success',reason:'Meta reporting is synchronized for the selected period.'};
-  return {label:'Connected',tone:'neutral',reason:account?.last_synced_at?'This historical period has not been synchronized. Use Sync selected periods to retrieve it.':'Authorization is retained. Initial reporting is queued automatically after confirmation.'};
+  return {label:'Connected',tone:'neutral',reason:account?.last_synced_at?'This period has not been synchronized. Current reporting refreshes automatically; older historical periods can be synced manually.':'Authorization is retained. Initial reporting is queued automatically after confirmation.'};
 }

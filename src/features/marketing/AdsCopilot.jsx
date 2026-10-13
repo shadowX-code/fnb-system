@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { adsService } from "./adsService.js";
 import Badge from "../../components/ui/Badge.jsx";
+import { adsCopilotHasPerformance } from "./adsReadiness.js";
 export default function AdsCopilot({
   org,
   brand,
   account,
+  evidenceVersion,
   from,
   to,
   canGenerate,
@@ -18,6 +20,7 @@ export default function AdsCopilot({
     [busy, setBusy] = useState(false),
     [refresh, setRefresh] = useState(0);
   const generation = useRef(0);
+  const performanceReady=adsCopilotHasPerformance(packet,account);
   useEffect(() => {
     const seq = ++generation.current;
     setPacket(null);
@@ -46,7 +49,7 @@ export default function AdsCopilot({
     return () => {
       generation.current++;
     };
-  }, [org, brand, from, to, refresh]);
+  }, [org, brand, account, from, to, evidenceVersion, refresh]);
   async function perform(action) {
     const seq = generation.current;
     setBusy(true);
@@ -82,7 +85,7 @@ export default function AdsCopilot({
             <p className="text-sm">
               {packet.brand_context_available
                 ? `Approved Brand Knowledge revision ${packet.knowledge_revision}`
-                : "Brand context unavailable · generic performance advice only"}{" "}
+                : performanceReady?"Brand context unavailable · generic performance advice only":"Brand context unavailable"}{" "}
               · {from}–{to}
             </p>
           )}
@@ -96,10 +99,11 @@ export default function AdsCopilot({
               Ads AI provider is not enabled.
             </p>
           )}
+          {packet&&!performanceReady&&<p className="text-sm text-text-secondary">No observed campaign performance is available for this account and period. Confirm campaign brands and let reporting finish before generating recommendations.</p>}
           {canGenerate && (
             <button
               className="btn-primary"
-              disabled={busy || !packet || !available || !account}
+              disabled={busy || !performanceReady || !available || !account}
               onClick={() =>
                 perform(() =>
                   adsService.copilot(

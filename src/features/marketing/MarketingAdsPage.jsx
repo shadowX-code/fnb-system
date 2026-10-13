@@ -27,7 +27,7 @@ import AdsManagement from "./AdsManagement.jsx";
 import AdsCopilot from "./AdsCopilot.jsx";
 import AdsReportingContext from "./AdsReportingContext.jsx";
 import AdsAttributionReview from "./AdsAttributionReview.jsx";
-import { adsReadiness, adsReportingPeriod } from "./adsReadiness.js";
+import { adsReadiness, adsReportingDay, adsReportingPeriod, adsManagementReason } from "./adsReadiness.js";
 import "./ads.css";
 const pollError="Reporting status could not refresh. Existing evidence remains visible; use Refresh data to retry.";
 const today = () =>
@@ -127,6 +127,7 @@ export default function MarketingAdsPage() {
   const brands = context.brands.filter((b) => b.organization_id === org),
     active = data?.accounts.find((a) => a.id === account),
     report = data?.reports.find((r) => r.connection_id === account)?.payload;
+  const reportingDay=adsReportingDay(active?.health?.timezone||"Asia/Kuala_Lumpur");
   useEffect(() => {
     let live = true;
     marketingService
@@ -232,7 +233,7 @@ export default function MarketingAdsPage() {
     if(periodMode==="custom"||!active?.health?.timezone)return;
     const range=adsReportingPeriod(active.health.timezone,Number(periodMode));
     if(range){setFrom(range.from);setTo(range.to);}
-  },[account,active?.health?.timezone,periodMode]);
+  },[account,active?.health?.timezone,periodMode,reportingDay]);
   useEffect(() => {
     if(!org||!precedingPeriod(from,to))return;
     let cancelled=false,inFlight=false;
@@ -652,9 +653,7 @@ export default function MarketingAdsPage() {
                 <div>
                   <dt>Management authority</dt>
                   <dd>
-                    {a.health?.manage_verified
-                      ? "Verified; separate execution approval required"
-                      : "Permission or account task required"}
+                    {adsManagementReason(a.health)}
                   </dd>
                 </div>
                 <div>
@@ -912,6 +911,7 @@ export default function MarketingAdsPage() {
             org={org}
             brand={brand}
             account={account}
+            evidenceVersion={[data?.reports.find(r=>r.connection_id===account)?.observed_at||'',...(report?.configs?.campaigns||[]).map(c=>`${c.id}:${c.feedx_attribution_revision}`)].join('|')}
             from={from}
             to={to}
             canGenerate={can("marketing_ads.ai")}
