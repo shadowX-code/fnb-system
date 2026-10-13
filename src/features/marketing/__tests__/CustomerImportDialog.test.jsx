@@ -24,3 +24,13 @@ it('shows background completion after a queued state without losing the final re
  fireEvent.click(await screen.findByRole('button',{name:'Review 1 selected'}));fireEvent.click(screen.getByLabelText(/I approve these selected customer changes/));fireEvent.click(screen.getByRole('button',{name:'Confirm import (1)'}));
  await screen.findByText('Importing in the background');await screen.findByText('Import processed',{}, {timeout:4000});expect(service.importResults).toHaveBeenCalled();
 });
+
+it('requires changed-column confirmation and manual repair of a missing saved phone column',async()=>{
+ service.importJob.mockImplementation((org,brand,action)=>Promise.resolve(action==='mapping_read'?{mapping:{headers:['Name','Phone'],mapping:{name:'Name',phone:'Phone'}}}:{jobs:[]}));
+ render(<CustomerImportDialog org="org" brand="brand" brandName="Brand" onClose={()=>{}}/>);
+ fireEvent.change(screen.getByLabelText('Customer import file'),{target:{files:[{name:'changed.csv',size:100,text:async()=> 'Name,Mobile Number,Points\nSynthetic,0123456789,50'}]}});
+ const review=await screen.findByLabelText('I reviewed the changed source columns and mapping.');
+ expect(screen.getByLabelText('Phone *').value).toBe('');expect(screen.getByRole('button',{name:'Validate & preview'}).disabled).toBe(true);
+ fireEvent.change(screen.getByLabelText('Phone *'),{target:{value:'Mobile Number'}});fireEvent.click(review);
+ await waitFor(()=>expect(screen.getByRole('button',{name:'Validate & preview'}).disabled).toBe(false));expect(screen.getByText(/Ignored source columns: Points/)).toBeTruthy();
+});

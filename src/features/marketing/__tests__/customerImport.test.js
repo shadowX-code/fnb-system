@@ -21,3 +21,5 @@ describe('POS Import V2',()=>{
  it('blocks duplicate authorized phones across preview batches',()=>{const rows=[{row:1,classification:'new',values:{phone:'+60123456789'}},{row:251,classification:'review',values:{phone:'+60123456789'}}];expect(blockDuplicateImportPhones(rows).every(r=>r.classification==='conflict')).toBe(true)});
  it('permits 10,000 rows only for callers explicitly requesting that bound',async()=>{const file={name:'POS.csv',size:200000,text:async()=>`Name,Phone\n${'Synthetic,0123456789\n'.repeat(10000)}`};expect((await readTabularFile(file,{maxRows:10000})).rows).toHaveLength(10000);await expect(readTabularFile(file)).rejects.toThrow(/500/)});
 });
+
+it('preserves source worksheet positions as non-personal report metadata',()=>{const result=mapCustomerRows({rows:[{__row:18,N:'Synthetic',P:'0123456789'}]},{name:'N',phone:'P'},[],{source:'POS'});expect(result[0].row).toBe(18)});

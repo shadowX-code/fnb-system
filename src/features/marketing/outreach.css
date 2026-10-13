@@ -102,3 +102,5 @@
 @media(max-width:700px){.import-steps li{flex:0 0 calc(50% - 8px)}.customer-import .outreach-form-grid{grid-template-columns:1fr}.customer-import .outreach-actions{gap:8px}.customer-import .outreach-actions>a,.customer-import .outreach-actions>button{flex:1;justify-content:center}}
 
 .import-new-values{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.import-new-values dt{font-size:12px;color:var(--theme-text-secondary)}.import-new-values dd{margin:0;overflow-wrap:anywhere}.customer-import summary{cursor:pointer;color:var(--theme-primary);font-size:13px}
+
+.import-history-file{overflow-wrap:anywhere}.customer-import small,.customer-import p{overflow-wrap:anywhere}

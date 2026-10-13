@@ -52,5 +52,33 @@ do $$declare n integer;cursor_n integer;before_n integer:=0;t timestamptz:=clock
  assert marketing_private.customer_import_tick()=0,'Completed jobs not replayed';
  raise notice '250 rows in three bounded batches: % seconds',extract(epoch from clock_timestamp()-t);
 end;$$;
+do $$
+declare o uuid:=(select id from marketing_qa_ids where key='org');b uuid:=(select id from marketing_qa_ids where key='brand');j uuid:=gen_random_uuid();v jsonb;batch jsonb;e uuid:=(select id from marketing_qa_ids where key='employee');
+begin
+ assert not exists(select 1 from marketing_private.customer_import_jobs where state in('queued','running')),'No unrelated jobs may run in this rehearsal';
+ perform public.platform_customer_import_job(o,b,'begin',j,jsonb_build_object('source','QA Recovery','snapshot_date','2026-10-13','file_name','synthetic-recovery.csv','total',101,'file_digest',repeat('b',64)));
+ select jsonb_agg(jsonb_build_object('input',jsonb_build_object('name','Synthetic Recovery '||i,'phone','01988'||lpad(i::text,6,'0'),'row',i+12),'decision',jsonb_build_object('selected',true,'snapshot','new','fields','[]'::jsonb))) into batch from generate_series(1,101)i;
+ perform public.platform_customer_import_job(o,b,'upload',j,jsonb_build_object('start',1,'rows',batch));
+ v:=public.platform_customer_import_job(o,b,'read',j);assert v->'approvals'->'1'->>'selected'='true','Interrupted upload retains exact reviewed approvals';
+ perform public.platform_customer_import_job(o,b,'confirm',j);
+ assert marketing_private.customer_import_tick()=100,'First batch committed';
+ update public.employees set is_active=false,enable_system_login=false where id=e;
+ assert marketing_private.customer_import_tick()=0,'Revoked original authority stops the remaining batch';
+ assert (select processed from marketing_private.customer_import_jobs where id=j)=100,'Previously committed cursor retained';
+ assert (select state from marketing_private.customer_import_jobs where id=j)='attention','Actionable recovery state';
+ update public.employees set is_active=true,enable_system_login=true where id=e;
+ perform public.platform_customer_import_job(o,b,'retry',j);
+ assert marketing_private.customer_import_tick()=1,'Only remaining row retried';
+ v:=public.platform_customer_import_job(o,b,'read',j);assert v->>'processed'='101' and v->'rows'->0->>'file_row'='13','History retains original worksheet position';
+ assert not exists(select 1 from marketing_private.customer_import_rows where job_id=j and input<>'{}'),'Recovered job clears raw input';
+ j:=gen_random_uuid();
+ perform public.platform_customer_import_job(o,b,'begin',j,jsonb_build_object('source','QA Duplicates','snapshot_date','2026-10-13','file_name','synthetic-cross-chunk.csv','total',251,'file_digest',repeat('c',64)));
+ select jsonb_agg(jsonb_build_object('input',jsonb_build_object('name','Synthetic Duplicate Check '||i,'phone',case when i=2 then 'bad' else '01388'||lpad(i::text,6,'0') end),'decision',jsonb_build_object('selected',true,'snapshot','new','fields','[]'::jsonb))) into batch from generate_series(1,250)i;
+ perform public.platform_customer_import_job(o,b,'upload',j,jsonb_build_object('start',1,'rows',batch));
+ perform public.platform_customer_import_job(o,b,'upload',j,'{"start":251,"rows":[{"input":{"name":"Synthetic Duplicate Last","phone":"01388000001"},"decision":{"selected":true,"snapshot":"new","fields":[]}}]}');
+ perform public.platform_customer_import_job(o,b,'confirm',j);
+ for i in 1..3 loop perform marketing_private.customer_import_tick();end loop;
+ v:=public.platform_customer_import_job(o,b,'read',j);assert v->'counts'->>'conflict'='2' and v->'counts'->>'invalid'='1' and v->'counts'->>'created'='248','File-wide ambiguity and partial invalid rows do not prevent valid imports';
+end;$$;
 rollback;
-select '250 synthetic customers and POS snapshots processed in three resumable batches; chunk/confirmation retries safe; all fixtures rolled back' result;
+select '250 synthetic customers and POS snapshots processed in three resumable batches; chunk/confirmation retries, revoked-actor recovery, source row positions, cross-chunk duplicates and partial failures safe; all fixtures rolled back' result;

@@ -46,7 +46,7 @@ export function mapCustomerRows(data,mapping,outlets=[],context={}) {
    else if(f.key==='outlet_id'){const matches=outlets.filter(o=>o.id===value||o.name.toLowerCase()===value.toLowerCase());result.outlet_id=matches.length===1?matches[0].id:value;}
    else result[f.key]=value;
   }
-  if(context.source)result._source=context.source;
+  if(context.source){result._source=context.source;if(row.__row)result.row=row.__row;}
   if(context.snapshotDate)result._snapshot_date=context.snapshotDate;
   return result;
  });
