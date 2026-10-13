@@ -1,5 +1,11 @@
 # FeedX Development Log
 
+## 2026-10-13 — Ads Analytics self-service reporting
+
+- Reused organization-owned Ads discovery, encrypted credentials and canonical jobs to queue initial/current and comparison reporting automatically, with six-hour scheduling, bounded recovery and current-generation readiness. Account reuse and same-confirmation retries preserve ownership and campaign attribution.
+- Overview, Campaigns and Ad Accounts expose shared Connected/Syncing/Ready/Needs Attention states and poll scoped FeedX evidence. Existing AI advisory and controlled advertising execution remain independent; no ad execution or permission expansion is authorized by connection.
+- Focused Ads regression/build and rollback Staging authority checks passed; the regular scheduler supplies live reporting evidence. Production environment/callback/scheduler setup and externally reviewed Meta access remain separate release prerequisites. Canonical owner: docs/domains/marketing.md.
+
 ## 2026-10-13 — Marketing Hub acceptance corrections
 
 - Live Staging acceptance identified an empty-queue historical-import claim alias collision; forward migration restores normal worker progress. Compact rollback regression verifies both empty and approved Facebook/Instagram leases without retained privacy approvals or imports.

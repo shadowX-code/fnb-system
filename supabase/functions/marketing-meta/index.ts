@@ -55,14 +55,15 @@ Deno.serve(async(req)=>{
    const query=new URL(req.url).searchParams;const state=query.get('state')||'';
    if(!/^[A-Za-z0-9_-]{43}$/.test(state))return json(req,{error:'Invalid authorization state.'},400);
    const session=await call(service,'marketing_meta_consume',{p_state_hash:await hash(state)});
-   let result='cancelled';
+   let result='cancelled',reason='';
    if(!query.has('error')) {
     try {
      const discovery=session.purpose==='ads'?await discoverAds(graph,query.get('code')||''):await graph.exchange(query.get('code')||'');
      await call(service,session.purpose==='ads'?'marketing_ads_stage':'marketing_meta_stage',{p_session:session.id,p_user_id:discovery.userId,p_sealed:await seal(discovery,key,`oauth:${session.id}`),p_accounts:discovery.accounts});result='select_account';
-    }catch{result='authorization_failed';}
+    }catch(error){result='authorization_failed';if(session.purpose==='ads'&&error instanceof MetaError&&['ads_read_not_granted','meta_permission_or_token_invalid','ads_pagination_limit','user_token_required'].includes(error.code))reason=error.code;}
    }
    const redirect=new URL(`${STAGING_ORIGIN}/marketing/${session.purpose==='ads'?'ads':'settings'}`);redirect.searchParams.set('meta_result',result);redirect.searchParams.set('marketing_org',session.organization_id);redirect.searchParams.set('marketing_brand',session.brand_id);
+   if(reason)redirect.searchParams.set('meta_reason',reason);
    return new Response(null,{status:303,headers:{...headers(req),Location:redirect.toString()}});
   }
   if(req.method!=='POST'||!['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions'].includes(path))return json(req,{error:'Endpoint unavailable.'},404);

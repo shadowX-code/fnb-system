@@ -351,6 +351,11 @@ Deno.serve(async (req) => {
         p_auth_user: identity.user.id,
       },
     );
+    if(path==='/bind'&&session.selected_at){
+      if(body.confirmOwnership!==true||body.brandId!=null)throw new MetaError('ads_request_rejected');
+      const connection=await call(service,'marketing_ads_bind',{p_session:session.id,p_auth_user:identity.user.id,p_account:body.accountId,p_brand:null,p_sealed:null,p_expiry:null,p_account_evidence:null,p_expected_generation:body.expectedGeneration??null});
+      return reply({connection,already_confirmed:true,execution_enabled:false});
+    }
     if (path === "/preview") {
       if (
         !session.accounts.some((a: any) => a.id === body.accountId) ||

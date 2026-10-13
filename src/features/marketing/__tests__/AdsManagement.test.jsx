@@ -41,6 +41,14 @@ beforeEach(() => {
   ads.aiCapabilities.mockResolvedValue({ external_execution_enabled: false });
 });
 describe("native Ads control surface", () => {
+  it("does not offer unsupported recovery execution even when ordinary management is enabled",async()=>{
+    ads.aiCapabilities.mockResolvedValue({external_execution_enabled:true});
+    ads.changes.mockResolvedValue({assets:[],pages:[],changes:[{id:'r',brand_id:'brand',connection_id:'conn',account_id:'111',revision:2,operation:'create',maximum_budget:1000,state:'approved',current:true,configuration:{name:'Declaration recovery',recovery_source:'original'},fingerprint:'pin',provider_state:{campaign_id:'222'}}]});
+    render(<AdsManagement {...props} accounts={[{...props.accounts[0],health:{...props.accounts[0].health,manage_verified:true}}]}/>);
+    await screen.findAllByText('Declaration recovery');fireEvent.click(screen.getAllByRole('button',{name:'Review revision'})[0]);
+    expect(screen.getByRole('button',{name:'Execute approved change'}).disabled).toBe(true);
+    expect(screen.getByText(/supports review and validation only/)).toBeTruthy();expect(ads.executeChange).not.toHaveBeenCalled();
+  });
   it("allows non-mutating validation for a known partial Ad Set failure while external execution stays disabled", async () => {
     const row = {
       id: "r",

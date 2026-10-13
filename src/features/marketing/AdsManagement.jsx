@@ -858,7 +858,7 @@ function RevisionDetail({
           )}
         {can("marketing_ads.execute") && r.state === "approved" && (
           <button
-            disabled={busy || !r.current || !enabled || !manage}
+            disabled={busy || !r.current || !enabled || !manage || !!r.configuration.recovery_source}
             className="btn-primary"
             onClick={onExecute}
           >
@@ -884,6 +884,7 @@ function RevisionDetail({
           authorization for this exact revision are required.
         </p>
       )}
+      {r.state === "approved" && r.configuration.recovery_source && <p className="text-sm text-text-secondary">This recovery revision supports review and validation only. Existing Meta receipts must be resolved before execution.</p>}
       {r.error_code && (
         <p className="text-sm">
           {r.state === "reconciling"
