@@ -51,15 +51,30 @@ function TaskActions({task,can,busy,previous,next,reorderable,onOpen,onMedia,onS
 }
 
 export default function PlannerTaskList({rows,prefs,members=[],orderLimitExceeded=false,onPreferences,can,busy,fieldState={},reorderable,onChange,onStatus,onOpen,onMedia,onReorder}){
- const [columnsOpen,setColumnsOpen]=useState(false),[dropTarget,setDropTarget]=useState(''),drag=useRef(null);
+ const [columnsOpen,setColumnsOpen]=useState(false),[dropTarget,setDropTarget]=useState(''),drag=useRef(null),dragCleanup=useRef(()=>{});
  const extras=prefs.listColumns||[],groups=plannerListGroups(rows,prefs.groupBy);
- useEffect(()=>{drag.current=null;setDropTarget('')},[prefs.groupBy,prefs.sort,rows]);
+ useEffect(()=>{dragCleanup.current();drag.current=null;setDropTarget('')},[prefs.groupBy,prefs.sort,rows,reorderable]);
+ useEffect(()=>()=>dragCleanup.current(),[]);
+ function startOrder(event,task){
+  if(!reorderable||busy||fieldState[task.id]?.saving||event.button!==0)return;
+  dragCleanup.current();event.preventDefault();event.currentTarget.focus();
+  const x=event.clientX,y=event.clientY;let target=null,moved=false;drag.current=task.id;
+  function pointerMove(e){
+   if(Math.hypot(e.clientX-x,e.clientY-y)<6&&!moved)return;moved=true;
+   const row=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-planner-task]'),id=row?.dataset.plannerTask;
+   target=id!==task.id&&rows.some(task=>task.id===id)?{id,after:e.clientY>row.getBoundingClientRect().top+row.getBoundingClientRect().height/2}:null;
+   setDropTarget(old=>old?.id===target?.id&&old?.after===target?.after?old:target||'');
+  }
+  function stop(){window.removeEventListener('pointermove',pointerMove);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',stop);drag.current=null;setDropTarget('');dragCleanup.current=()=>{}}
+  function finish(){const valid=moved&&target&&drag.current===task.id;stop();if(valid)onReorder(task.id,target.id,target.after)}
+  window.addEventListener('pointermove',pointerMove);window.addEventListener('pointerup',finish);window.addEventListener('pointercancel',stop);dragCleanup.current=stop;
+ }
  const property=(task,field,label,content,options,date=false)=> <InlineValue task={task} field={field} label={label} value={task[field]||''} options={options} date={date} state={fieldState[task.id]} disabled={busy||!can('edit')} onChange={value=>onChange(task,field,value)}>{content}</InlineValue>;
  const columns=[
   {key:'task',header:'Task',className:'planner-list-task-cell',render:task=>{
    const assets=(task.asset_ids||[]).map(id=>(task.assets||[]).find(a=>a.id===id)).filter(Boolean);
    return <div className="planner-list-task">
-    {reorderable?<button className="planner-list-drag" draggable={!busy&&!fieldState[task.id]?.saving} aria-label={`Reorder ${task.title}. Use Arrow Up or Arrow Down to move within this page.`} disabled={busy||fieldState[task.id]?.saving} onDragStart={e=>{drag.current=task.id;e.dataTransfer.setData('text/plain',task.id);e.dataTransfer.effectAllowed='move'}} onDragEnd={()=>{drag.current=null;setDropTarget('')}} onKeyDown={e=>{const i=rows.findIndex(t=>t.id===task.id),dest=rows[i+(e.key==='ArrowUp'?-1:1)];if(['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();if(dest)onReorder(task.id,dest.id,e.key==='ArrowDown')}}}><GripVertical size={15}/></button>:null}
+    {reorderable?<button className="planner-list-drag" aria-label={`Reorder ${task.title}. Use Arrow Up or Arrow Down to move within this page.`} disabled={busy||fieldState[task.id]?.saving} onPointerDown={e=>startOrder(e,task)} onKeyDown={e=>{const i=rows.findIndex(t=>t.id===task.id),dest=rows[i+(e.key==='ArrowUp'?-1:1)];if(['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();if(dest)onReorder(task.id,dest.id,e.key==='ArrowDown')}}}><GripVertical size={15}/></button>:null}
     <span className="planner-list-thumbnail">{assets.length?<MarketingMediaPreview compact asset={assets[0]} assets={assets}/>:<button type="button" className="planner-list-no-media" aria-label={`Open ${task.title}`} onClick={()=>onOpen(task)}><ImageIcon size={17}/></button>}</span>
     <div className="planner-list-task-copy"><button className="planner-list-title" onClick={()=>onOpen(task)}><strong>{task.title}</strong></button><div className="planner-list-task-meta">{!extras.includes('type')?<span>{typeName(task.content_type)}</span>:null}{!extras.includes('checklist')&&(task.checklist||[]).length?<Checklist task={task}/>:null}{task.blocked?<span className="planner-list-blocked" title={task.blocker_reason}>Blocked</span>:null}</div></div>
    </div>
@@ -76,6 +91,6 @@ export default function PlannerTaskList({rows,prefs,members=[],orderLimitExceede
   <div className="planner-list-toolbar"><SelectField label="Group By" value={prefs.groupBy||''} onChange={groupBy=>onPreferences({groupBy})} options={[{value:'',label:'None'},{value:'status',label:'Status'},{value:'brand',label:'Brand'},{value:'assignee',label:'Assignee'}]}/><span className="planner-list-hint">{prefs.groupBy?'Groups show tasks on this page.':reorderable?'Drag the handle to reorder tasks on this page.':orderLimitExceeded?'Manual ordering supports plans with up to 500 tasks.':'Reorder in All Brands with Manual Order, no grouping or filters.'}</span>
    <ActionMenu open={columnsOpen} onOpenChange={setColumnsOpen} ariaLabel="Planner columns" width={236} trigger={({toggle,open})=><button className="btn-secondary" aria-expanded={open} aria-haspopup="menu" onClick={toggle}><SlidersHorizontal size={14}/>Columns</button>}><fieldset className="planner-list-columns"><legend>Additional columns</legend>{optionalColumns.map(column=><label key={column.key}><input type="checkbox" checked={extras.includes(column.key)} onChange={e=>onPreferences({listColumns:e.target.checked?[...extras,column.key]:extras.filter(key=>key!==column.key)})}/>{column.label}</label>)}</fieldset></ActionMenu>
   </div>
-  {groups.map(group=><section key={group.key} className="planner-list-group" aria-label={group.label?`${group.label} tasks on this page`:undefined}>{group.label?<header className="planner-list-group-heading"><h3>{group.label}</h3><span>{group.tasks.length} {group.tasks.length===1?'task':'tasks'} on this page</span></header>:null}<DataTable columns={columns} rows={group.tasks} getRowKey={task=>task.id} density="compact" columnSpacing="compact" minWidth={920+extras.reduce((sum,key)=>sum+(key==='publish'?160:100),0)} tableClassName={`planner-list-table${extras.length?' has-extras':''}`} onRowClick={task=>onOpen(task)} getRowProps={task=>({tabIndex:0,'aria-label':`Open ${task.title}`,className:dropTarget===task.id?'planner-list-drop-target':'',onKeyDown:e=>{if(e.target===e.currentTarget&&['Enter',' '].includes(e.key)){e.preventDefault();onOpen(task)}},onDragOver:e=>{if(reorderable&&!busy&&drag.current&&drag.current!==task.id){e.preventDefault();setDropTarget(task.id)}},onDrop:e=>{e.preventDefault();const source=drag.current;drag.current=null;setDropTarget('');if(reorderable&&!busy&&source&&source!==task.id)onReorder(source,task.id)}})}/></section>)}
+  {groups.map(group=><section key={group.key} className="planner-list-group" aria-label={group.label?`${group.label} tasks on this page`:undefined}>{group.label?<header className="planner-list-group-heading"><h3>{group.label}</h3><span>{group.tasks.length} {group.tasks.length===1?'task':'tasks'} on this page</span></header>:null}<DataTable columns={columns} rows={group.tasks} getRowKey={task=>task.id} density="compact" columnSpacing="compact" minWidth={920+extras.reduce((sum,key)=>sum+(key==='publish'?160:100),0)} tableClassName={`planner-list-table${extras.length?' has-extras':''}`} onRowClick={task=>onOpen(task)} getRowProps={task=>({tabIndex:0,'aria-label':`Open ${task.title}`,className:dropTarget?.id===task.id?(dropTarget.after?'planner-list-drop-after':'planner-list-drop-target'):'',onKeyDown:e=>{if(e.target===e.currentTarget&&['Enter',' '].includes(e.key)){e.preventDefault();onOpen(task)}},'data-planner-task':task.id})}/></section>)}
  </section>
 }
