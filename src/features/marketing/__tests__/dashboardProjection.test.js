@@ -14,12 +14,16 @@ describe('Social Analytics evidence projection',()=>{
  });
  it('does not merge channels and preserves genuine zero versus unavailable',()=>{
   const r=socialProjection([post(),post({channel:'facebook',metrics:{views:0}})],'2026-10-11','2026-10-11');
-  expect(r.posts).toHaveLength(2);expect(r.views).toEqual({value:10,available:2,total:2});expect(r.interactions).toEqual({value:0,available:1,total:2});expect(r.channels[0].interactions.value).toBeNull();expect(r).not.toHaveProperty('reach');
+  expect(r.posts).toHaveLength(2);expect(r.views).toEqual({value:null,available:2,total:2,mixed_definitions:true});expect(r.interactions).toEqual({value:null,available:1,total:2,mixed_definitions:true});expect(r.channels[0].interactions.value).toBeNull();expect(r).not.toHaveProperty('reach');
  });
  it('uses Malaysia-local publish dates, channels and no fabricated daily activity',()=>{
   expect(socialProjection([post()],'2026-10-10','2026-10-10').posts).toHaveLength(0);
   const r=socialProjection([post()],'2026-10-11','2026-10-12','instagram');
   expect(performanceBuckets(r.posts,'2026-10-11','2026-10-12')).toEqual([{date:'2026-10-11',published:1,views:10,interactions:0},{date:'2026-10-12',published:0,views:null,interactions:null}]);
+ });
+ it('honors canonical provider interactions and their actual collection time',()=>{
+  const p=post({channel:'facebook',metrics:{interactions:12,likes:10,reactions:11,shares:1},metric_provenance:{interactions:{source:'insights.post_activity_by_action_type',observed_at:'2026-10-11T00:00:00Z'}}});
+  const r=latestPosts([p])[0];expect(r.metrics.interactions).toBe(12);expect(r.metric_observations.interactions).toBe('2026-10-11T00:00:00Z');expect(r.metric_provenance.interactions.source).toBe('insights.post_activity_by_action_type');
  });
  it('does not sum Facebook interactions without complete evidence',()=>{
   expect(metricAggregate([post({channel:'facebook',metrics:{reactions:0,comments:2}})],'interactions').value).toBeNull();

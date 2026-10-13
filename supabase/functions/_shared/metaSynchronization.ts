@@ -16,15 +16,15 @@ export async function readMetaPosts(graph:MetaGraph,connection:any,token:string,
  const posts=[];
  for(const row of result.data||[]) {
   if(!/^\d+(?:_\d+)?$/.test(String(row.id)))continue;
-  const metrics:Record<string,number>={},unavailable:Record<string,string>={};
-  const put=(name:string,value:any)=>{if(typeof value==='number'&&Number.isFinite(value)&&value>=0){metrics[name]=value;delete unavailable[name];}else if(!(name in metrics))unavailable[name]='not_returned';};
+  const metrics:Record<string,number>={},unavailable:Record<string,string>={},provenance:Record<string,unknown>={};
+  const put=(name:string,value:unknown,source:string,definition=name)=>{if(typeof value==='number'&&Number.isFinite(value)&&value>=0){metrics[name]=value;delete unavailable[name];provenance[name]={source,period:'lifetime',definition,observed_at:new Date().toISOString(),graph_version:graph.version};}else if(!(name in metrics))unavailable[name]='not_returned';};
   if(fb){
-   put('shares',row.shares?.count);unavailable.reach='not_supported';unavailable.saves='not_supported';
-   for(const [metric,permission] of [['likes','pages_read_engagement'],['reactions','pages_read_engagement'],['comments','pages_read_user_content']]) {
+   put('shares',row.shares?.count,'post.shares.count');unavailable.reach='not_supported';unavailable.saves='not_supported';
+   for(const [metric,permission] of [['likes','pages_read_engagement'],['reactions','pages_read_user_content'],['comments','pages_read_user_content']]) {
     if(!scopes.includes(permission)){unavailable[metric]='permission_not_granted';continue;}
-    await guard();try{const counts=await graph.request(String(row.id),token,{fields:`${metric}.limit(0).summary(true)`});put(metric,counts[metric]?.summary?.total_count);}catch(error){unavailable[metric]=optionalFailure(error);}
+    await guard();try{const counts=await graph.request(String(row.id),token,{fields:`${metric}.limit(0).summary(true)`});put(metric,counts[metric]?.summary?.total_count,`post.${metric}.summary.total_count`);}catch(error){unavailable[metric]=optionalFailure(error);}
    }
-  }else {put('likes',row.like_count);put('comments',row.comments_count);}
+  }else {put('likes',row.like_count,'media.like_count');put('comments',row.comments_count,'media.comments_count');}
   let thumbnail:string|null=null,mediaType:string|null=null,productType:string|null=null;
   const media:any[]=[];
   await guard();
@@ -54,9 +54,38 @@ export async function readMetaPosts(graph:MetaGraph,connection:any,token:string,
   const insightsAllowed=fb?scopes.includes('read_insights')&&scopes.includes('pages_read_engagement'):Boolean(connection.capabilities?.insights);
   for(const [key,name] of wanted){
    if(!insightsAllowed){unavailable[key]='permission_not_granted';continue;}
-   await guard();try{const response=await graph.request(`${row.id}/insights`,token,{metric:name,...(fb?{period:'lifetime'}:{})});const entry=response.data?.find((x:any)=>x.name===name);put(key,entry?.total_value?.value??entry?.values?.[0]?.value);}catch(error){unavailable[key]=optionalFailure(error);}
+   await guard();try{const response=await graph.request(`${row.id}/insights`,token,{metric:name,...(fb?{period:'lifetime'}:{})});const entry=response.data?.find((x:any)=>x.name===name);put(key,entry?.total_value?.value??entry?.values?.[0]?.value,`insights.${name}`);}catch(error){unavailable[key]=optionalFailure(error);}
   }
-  posts.push({thumbnail_url:thumbnail,media:media.slice(0,10),media_type:mediaType,media_product_type:productType,id:String(row.id),caption:fb?row.message:row.caption,permalink:fb?row.permalink_url:row.permalink,published_at:fb?row.created_time:row.timestamp,metrics,unavailable_metrics:unavailable});
+  if(fb){
+   // Insights returns aggregate actions without requiring protected person edges.
+   // A missing bucket stays missing. The provider's nonempty action map can be
+   // totaled independently; LIKE is already included in all reactions.
+   for(const name of ['post_reactions_by_type_total','post_activity_by_action_type']){
+    if(!insightsAllowed)continue;
+    await guard();try{
+     const response=await graph.request(`${row.id}/insights`,token,{metric:name,period:'lifetime'});
+     const entry=response.data?.find((x:any)=>x.name===name&&x.period==='lifetime');
+     const value=entry?.values?.[0]?.value;
+     const allowed=name==='post_reactions_by_type_total'?['like','love','wow','haha','sorry','anger','care','sad','angry','thankful','pride']:['like','comment','share'];
+     const entries=value&&typeof value==='object'&&!Array.isArray(value)?Object.entries(value):[];
+     if(!entries.length||entries.some(([key,v])=>!allowed.includes(key)||typeof v!=='number'||!Number.isSafeInteger(v)||v<0))continue;
+     const total=entries.reduce((n,[,v])=>n+(v as number),0);if(!Number.isSafeInteger(total))continue;
+     if(name==='post_reactions_by_type_total'){
+      put('reactions',total,`insights.${name}`,'sum_reported_reaction_types');
+      if(Object.hasOwn(value,'like'))put('likes',value.like,`insights.${name}.like`,'like_reaction_only');
+     }else{
+      put('interactions',total,`insights.${name}`,'sum_reported_like_comment_share_actions');
+      if(Object.hasOwn(value,'comment'))put('comments',value.comment,`insights.${name}.comment`);
+      if(!('shares' in metrics)&&Object.hasOwn(value,'share'))put('shares',value.share,`insights.${name}.share`);
+     }
+    }catch(error){const reason=optionalFailure(error);if(name==='post_activity_by_action_type')unavailable.interactions=reason;}
+   }
+   if(!('interactions' in metrics)&&['reactions','comments','shares'].every(key=>key in metrics)){
+    put('interactions',metrics.reactions+metrics.comments+metrics.shares,'derived.reactions_comments_shares','sum_reactions_comments_shares');
+   }
+   if(!('interactions' in metrics)&&!unavailable.interactions)unavailable.interactions='complete_counts_unavailable';
+  }
+  posts.push({thumbnail_url:thumbnail,media:media.slice(0,10),media_type:mediaType,media_product_type:productType,id:String(row.id),caption:fb?row.message:row.caption,permalink:fb?row.permalink_url:row.permalink,published_at:fb?row.created_time:row.timestamp,metrics,metric_provenance:provenance,unavailable_metrics:unavailable});
  }
  const after=result.paging?.next?result.paging?.cursors?.after:null;
  if(result.paging?.next&&!after)throw new MetaError('sync_cursor_unavailable',false,true);

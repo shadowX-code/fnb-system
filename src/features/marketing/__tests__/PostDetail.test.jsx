@@ -8,3 +8,8 @@ it('uses real carousel media with read-only overview and hides technical evidenc
  render(<PostDetail content={content}/>);expect(screen.getByRole('img').getAttribute('src')).toContain('/a.jpg');expect(screen.getByText('Real caption')).toBeTruthy();expect(screen.queryByRole('button',{name:'Send'})).toBeNull();expect(screen.getByText('Technical & synchronization details').parentElement.open).toBe(false);fireEvent.click(screen.getByRole('button',{name:'Next media'}));expect(document.querySelector('video').getAttribute('src')).toContain('/a.mp4');expect(screen.queryByRole('tab',{name:'Audience'})).toBeNull();
 });
 it('preserves genuine zero and explains permission-denied metrics',()=>{render(<PostDetail content={content}/>);fireEvent.click(screen.getByRole('tab',{name:'Performance'}));expect(screen.getAllByText('0').length).toBeGreaterThan(0);expect(screen.getByText('Permission required')).toBeTruthy();});
+
+it('shows canonical Facebook interactions and keeps per-metric source secondary',()=>{
+ const channel={channel:'facebook',status:'published',metrics:{likes:10,reactions:11,interactions:12,shares:1},metric_provenance:{interactions:{source:'insights.post_activity_by_action_type',period:'lifetime',graph_version:'v26.0',observed_at:'2026-10-13T01:09:00Z'}}};
+ render(<PostDetail content={{title:'Verified Facebook post',channels:[channel]}}/>);fireEvent.click(screen.getByRole('tab',{name:'Performance'}));expect(screen.getByText('12')).toBeTruthy();expect(screen.getByText(/insights.post_activity_by_action_type/)).toBeTruthy();expect(screen.getByText('Technical & synchronization details').parentElement.open).toBe(false);
+});

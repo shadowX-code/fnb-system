@@ -14,18 +14,18 @@ export function latestPosts(observations) {
  }
  return [...groups.entries()].map(([key,rows])=>{
   rows.sort((a,b)=>(Date.parse(b.observed_at)||0)-(Date.parse(a.observed_at)||0)||String(b.id).localeCompare(String(a.id)));
-  const latest={...rows[0],key,metrics:{},metric_observations:{}};
+  const latest={...rows[0],key,metrics:{},metric_provenance:{},metric_observations:{}};
   for(const name of ['views','interactions','likes','reactions','comments','shares','saves','reach']){
    const valid=rows.find(r=>postMetric(r,name)!==null);
-   if(valid){latest.metrics[name]=postMetric(valid,name);latest.metric_observations[name]=valid.observed_at;}
+   if(valid){latest.metrics[name]=postMetric(valid,name);latest.metric_observations[name]=valid.metric_provenance?.[name]?.observed_at||valid.observed_at;if(valid.metric_provenance?.[name])latest.metric_provenance[name]=valid.metric_provenance[name];}
   }
-  if(latest.channel==='facebook'){const complete=rows.find(r=>postMetric(r,'interactions')!==null);if(complete)for(const key of ['reactions','comments','shares']){latest.metrics[key]=complete.metrics[key];latest.metric_observations[key]=complete.observed_at;}}
   return latest;
  });
 }
 export function metricAggregate(posts,key){
  const values=posts.map(p=>postMetric(p,key)).filter(v=>v!==null);
- return {value:['reach','viewers'].includes(key)?null:values.length?values.reduce((a,b)=>a+b,0):null,available:values.length,total:posts.length};
+ const mixed=['views','interactions'].includes(key)&&new Set(posts.map(p=>p.channel)).size>1;
+ return {value:mixed||['reach','viewers'].includes(key)?null:values.length?values.reduce((a,b)=>a+b,0):null,available:values.length,total:posts.length,...(mixed?{mixed_definitions:true}:{})};
 }
 export function socialProjection(observations,from,to,channel=''){
  const posts=latestPosts(observations).filter(p=>p.published_at&&(!channel||p.channel===channel)&&(!from||contentDay(p.published_at)>=from)&&(!to||contentDay(p.published_at)<=to));
