@@ -954,3 +954,7 @@ Corrected phantom View dependencies for standalone permission owners and restore
 
 ### 2026-10-13 — CRM optional-name compatibility and Import V2 presentation
 Canonical Platform customers now accept absent names with valid normalized Malaysian phones, preserving existing identity/Brand/snapshot checks. CRM exposes all thirteen import columns, direct Edit/Consent actions and supported profile editing; imported POS metrics remain source snapshots. Import preview differences and final selected-change confirmation are compact. Staging-only forward migration and authenticated rollback contracts cover absent names, safe repeat imports, profile clearing, POS zero/provenance and unchanged consent.
+
+## 2026-10-13 — Social Analytics snapshot semantics and channel projection
+
+Fixed mixed-channel publication buckets suppressing valid Facebook/Instagram dates. Added the scoped read-only Daily Insights Snapshot performance projection, independent Views/Interactions charts, exact baseline/end growth and ending-snapshot Daily/Weekly/Monthly semantics with null gaps and partial coverage. Latest lifetime KPI/comparison projections remain Malaysia publication-date scoped; ranking is independent per channel and excludes unavailable metrics. No Meta synchronization, permissions or historical records were changed. L3 verification includes rollback-only snapshot fixtures, authorized real Staging reads, focused UI/projection/chart regressions and authenticated responsive Light/Dark acceptance.

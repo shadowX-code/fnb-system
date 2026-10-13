@@ -18,6 +18,7 @@ async function meta(command, body) {
   return data;
 }
 export const marketingService = {
+  socialPerformance:(org,brand,from,to,grain)=>rpc('marketing_social_performance',{p_org:org,p_brand:brand||null,p_from:from,p_to:to,p_grain:grain}),
   observedGrowth:(org,brand)=>rpc("marketing_social_observed_growth",{p_org:org,p_brand:brand||null}),
   async metaConfiguration() { const response = await fetch(`${metaBase}/configuration`, { cache: 'no-store' }); if (!response.ok) throw new Error('Meta configuration could not be checked.'); return response.json(); },
   integrations: (organizationId, brandId, surface = 'settings', page = 1) => rpc('marketing_integrations', { p_org: organizationId, p_brand: brandId || null, p_surface: surface, p_page: page }),

@@ -16,7 +16,7 @@ export function latestPosts(observations) {
   rows.sort((a,b)=>(Date.parse(b.observed_at)||0)-(Date.parse(a.observed_at)||0)||String(b.id).localeCompare(String(a.id)));
   const latest={...rows[0],key,metrics:{},metric_provenance:{},metric_observations:{}};
   for(const name of ['views','viewers','interactions','likes','reactions','comments','shares','saves','reach','watch_time_ms','avg_watch_time_ms']){
-   const valid=rows.find(r=>postMetric(r,name)!==null);
+   const valid=rows.find(r=>r.connection_id===latest.connection_id&&r.connection_generation===latest.connection_generation&&postMetric(r,name)!==null);
    if(valid){latest.metrics[name]=postMetric(valid,name);latest.metric_observations[name]=valid.metric_provenance?.[name]?.observed_at||valid.observed_at;if(valid.metric_provenance?.[name])latest.metric_provenance[name]=valid.metric_provenance[name];}
   }
   return latest;
@@ -39,7 +39,7 @@ export function performanceBuckets(posts,from,to,grain='day'){
   if(!buckets.has(key))buckets.set(key,[]);
  }
  for(const p of posts){const day=contentDay(p.published_at),date=new Date(day+'T12:00:00Z');const key=grain==='month'?day.slice(0,7):grain==='week'?shiftDay(day,-((date.getUTCDay()+6)%7)):day;buckets.get(key)?.push(p);}
- return [...buckets].map(([date,records])=>({date,published:records.length,views:metricAggregate(records,'views').value,interactions:metricAggregate(records,'interactions').value}));
+ return [...buckets].map(([date,records])=>({date,published:records.length,views:metricAggregate(records,'views').value,interactions:metricAggregate(records,'interactions').value,channels:Object.fromEntries(['facebook','instagram'].map(channel=>{const rows=records.filter(p=>p.channel===channel);return [channel,{count:rows.length,views:metricAggregate(rows,'views'),interactions:metricAggregate(rows,'interactions')}]}))}));
 }
 export function operationProjection({tasks=null,content=null,conversations=null},brands,today,month){
  const weekStart=shiftDay(today,-((new Date(today+'T12:00:00Z').getUTCDay()+6)%7)),weekEnd=shiftDay(weekStart,6);
@@ -53,4 +53,17 @@ export function operationProjection({tasks=null,content=null,conversations=null}
  const brandRows=brands.map(b=>({...b,due:tasks===null?null:due.filter(t=>t.brand_id===b.id).length,reviews:tasks===null||content===null?null:reviews.filter(r=>r.record.brand_id===b.id).length,issues:content===null?null:issues.filter(c=>c.brand_id===b.id).length,replies:conversations===null?null:replies.filter(c=>c.brand_id===b.id).length}));
  const publishing=content?.filter(c=>c.status!=='published'&&c.status!=='cancelled'&&[c.scheduled_at,c.planned_at].some(value=>value&&contentDay(value)>=weekStart&&contentDay(value)<=weekEnd))||[];
  return {due,reviews,issues,replies,actions:unique,brandRows,weekStart,weekEnd,month,week:{production:tasks===null?null:tasks.filter(t=>t.status!=='completed'&&t.due_date>=weekStart&&t.due_date<=weekEnd).length,publishing:content===null?null:publishing.length,reviews:tasks===null||content===null?null:reviews.length,blocked:tasks===null?null:tasks.filter(t=>t.blocked&&t.status!=='completed').length}};
+}
+
+// Canonical snapshot projection already owns aggregation/pairing; presentation only selects series.
+export function observationBuckets(performance,metric,basis){
+ const rows=performance?.rows||[],lookup=new Map(rows.map(r=>[JSON.stringify([r.ending,r.channel,r.metric]),r]));
+ return [...new Set(rows.map(r=>r.ending))].sort().map(date=>({date,channels:Object.fromEntries(['facebook','instagram'].map(channel=>{
+  const r=lookup.get(JSON.stringify([date,channel,metric]));
+  return [channel,{value:basis==='growth'?r?.growth??null:r?.cumulative??null,available:basis==='growth'?r?.paired_posts||0:r?.available_posts||0,total:r?.observed_posts||0,cohort:basis==='cumulative'?r?.cohort:null,starting:r?.starting,ending:r?.ending,last_observed_at:r?.last_observed_at}];
+ }))}));
+}
+export function rankSocialPosts(posts,metric,channel){
+ // Cross-platform metrics have different definitions; rank each channel independently.
+ return posts.filter(p=>(!channel||p.channel===channel)&&postMetric(p,metric)!==null).sort((a,b)=>postMetric(b,metric)-postMetric(a,metric)||String(b.published_at).localeCompare(String(a.published_at))||a.key.localeCompare(b.key));
 }

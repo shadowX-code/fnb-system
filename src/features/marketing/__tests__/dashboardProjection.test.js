@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {latestPosts,metricAggregate,socialProjection,performanceBuckets,operationProjection} from '../dashboardProjection.js';
+import {latestPosts,metricAggregate,socialProjection,performanceBuckets,observationBuckets,rankSocialPosts,operationProjection} from '../dashboardProjection.js';
 import {collectPages,dashboardService} from '../dashboardService.js';
 import {marketingService} from '../marketingService.js';
 const post=(patch={})=>({id:'1',brand_id:'b',channel:'instagram',connection_id:'c',provider_account_id:'a',provider_post_id:'p',published_at:'2026-10-10T20:00:00Z',observed_at:'2026-10-12T00:00:00Z',metrics:{views:10,interactions:0,reach:5},...patch});
@@ -19,7 +19,26 @@ describe('Social Analytics evidence projection',()=>{
  it('uses Malaysia-local publish dates, channels and no fabricated daily activity',()=>{
   expect(socialProjection([post()],'2026-10-10','2026-10-10').posts).toHaveLength(0);
   const r=socialProjection([post()],'2026-10-11','2026-10-12','instagram');
-  expect(performanceBuckets(r.posts,'2026-10-11','2026-10-12')).toEqual([{date:'2026-10-11',published:1,views:10,interactions:0},{date:'2026-10-12',published:0,views:null,interactions:null}]);
+  expect(performanceBuckets(r.posts,'2026-10-11','2026-10-12').map(({channels,...r})=>r)).toEqual([{date:'2026-10-11',published:1,views:10,interactions:0},{date:'2026-10-12',published:0,views:null,interactions:null}]);
+ });
+ it('retains every publication date as independent platform series instead of suppressing mixed days',()=>{
+  const p=post({published_at:'2026-10-07T11:00:00Z'}),fb=post({channel:'facebook',provider_post_id:'fb',published_at:'2026-10-08T11:00:00Z',metrics:{views:178}}),ig=post({provider_post_id:'ig',published_at:'2026-10-08T11:00:00Z',metrics:{views:103,interactions:0}});
+  const r=socialProjection([p,fb,ig],'2026-10-07','2026-10-09');const b=performanceBuckets(r.posts,'2026-10-07','2026-10-09');
+  expect(b[1].views).toBeNull();expect(b[1].channels.facebook.views.value).toBe(178);expect(b[1].channels.instagram.views.value).toBe(103);expect(b[2].channels.instagram.views.value).toBeNull();
+  expect(performanceBuckets(r.posts,'2026-10-07','2026-10-09','week')[0].channels.instagram.views.value).toBe(113);
+ });
+ it('never recycles metric evidence from an older credential generation',()=>{
+  const r=latestPosts([post({connection_generation:1,metrics:{views:20,interactions:9}}),post({id:'new',connection_generation:2,observed_at:'2026-10-13T12:00:00Z',metrics:{views:0}})]);
+  expect(r).toHaveLength(1);expect(r[0].metrics).toEqual({views:0});
+ });
+ it('keeps canonical snapshot gaps and zero, and uses ending totals rather than summing cumulative observations',()=>{
+  const evidence={rows:[{ending:'2026-10-11',channel:'facebook',metric:'views',cumulative:20,growth:0,available_posts:1,paired_posts:1,observed_posts:2,cohort:'a'},{ending:'2026-10-12',channel:'facebook',metric:'views',cumulative:null,growth:null,available_posts:0,paired_posts:0,observed_posts:0}]};
+  expect(observationBuckets(evidence,'views','growth').map(r=>r.channels.facebook.value)).toEqual([0,null]);
+  expect(observationBuckets(evidence,'views','cumulative')[0].channels.facebook).toMatchObject({value:20,available:1,total:2,cohort:'a'});
+ });
+ it('ranks only available metrics in the requested channel with deterministic tie handling',()=>{
+  const rows=latestPosts([post({provider_post_id:'zero',metrics:{views:0}}),post({provider_post_id:'missing',metrics:{}}),post({channel:'facebook',metrics:{views:99}})]);
+  expect(rankSocialPosts(rows,'views','instagram').map(p=>p.provider_post_id)).toEqual(['zero']);
  });
  it('honors canonical provider interactions and their actual collection time',()=>{
   const p=post({channel:'facebook',metrics:{interactions:12,likes:10,reactions:11,shares:1},metric_provenance:{interactions:{source:'insights.post_activity_by_action_type',observed_at:'2026-10-11T00:00:00Z'}}});

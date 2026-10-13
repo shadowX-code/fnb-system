@@ -12,7 +12,8 @@ export async function collectPages(load,rowsKey,totalKey,pageSize){
  throw new Error('This scope is too large for this report. Choose a specific brand.');
 }
 export const dashboardService={
- async social(org,brand){const [posts,growth]=await Promise.all([collectPages(page=>marketingService.integrations(org,brand,'analytics',page),'posts','total',20),marketingService.observedGrowth(org,brand)]);return {...posts,growth};},
+ async social(org,brand){return collectPages(page=>marketingService.integrations(org,brand,'analytics',page),'posts','total',20);},
+ performance:(org,brand,from,to,grain)=>marketingService.socialPerformance(org,brand,from,to,grain),
  async operations(org,brand,month,can){
   const sources=[['tasks',can('marketing_planner.view'),()=>plannerService.read(org,month,brand).then(r=>r.tasks)],['content',can('marketing_calendar.view')||can('marketing_content.view'),()=>collectPages(page=>marketingService.contentManagement({organizationId:org,brandId:brand,page,pageSize:100}),'rows','total_count',100).then(r=>r.rows)],['conversations',can('marketing_inbox.view'),()=>collectPages(page=>inboxService.read({org,brand,channel:'social',page,pageSize:100}),'rows','total',100).then(r=>r.rows)]];
   const results=await Promise.allSettled(sources.map(([,allowed,load])=>allowed?load():Promise.resolve(null)));

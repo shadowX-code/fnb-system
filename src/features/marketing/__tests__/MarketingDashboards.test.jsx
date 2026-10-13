@@ -1,20 +1,21 @@
-import {describe,it,expect,vi,afterEach} from 'vitest';
+import {describe,it,expect,vi,afterEach,beforeEach} from 'vitest';
 import {render,screen,fireEvent,waitFor,cleanup} from '@testing-library/react';
 import {MarketingOverview,MarketingSocialAnalytics} from '../MarketingDashboards.jsx';
 import {dashboardService} from '../dashboardService.js';
-vi.mock('../dashboardService.js',()=>({dashboardService:{operations:vi.fn(),social:vi.fn()}}));
+vi.mock('../dashboardService.js',()=>({dashboardService:{operations:vi.fn(),social:vi.fn(),performance:vi.fn()}}));
 vi.mock('../ContentManagement.jsx',()=>({Thumbnail:()=> <span>Thumbnail</span>}));
 vi.mock('recharts',()=>({Area:()=>null,AreaChart:({children})=><div>{children}</div>,Bar:()=>null,BarChart:({children})=><div>{children}</div>,Cell:()=>null,CartesianGrid:()=>null,Legend:()=>null,ResponsiveContainer:({children})=><div>{children}</div>,Tooltip:()=>null,XAxis:()=>null,YAxis:()=>null}));
 const props={organizationId:'org',brandId:'',brands:[{id:'b',name:'Verified Brand'}],can:()=>true,userId:'staff'};
+beforeEach(()=>dashboardService.performance.mockResolvedValue({first_observation_date:'2026-10-13',rows:[],windows:[]}));
 afterEach(()=>{cleanup();vi.clearAllMocks()});
 describe('Marketing dashboard responsibilities',()=>{
  it('names distinct growth metrics and preserves observed zero with paired coverage',async()=>{
- dashboardService.social.mockResolvedValue({posts:[],connections:[],growth:{first_observation_date:'2026-10-13',rows:[{channel:'facebook',metric:'views',days:7,growth:0,paired_posts:1,observed_posts:2}]}});
- render(<MarketingSocialAnalytics {...props}/>);await screen.findByRole('heading',{name:'Observed Growth'});
+ dashboardService.social.mockResolvedValue({posts:[],connections:[]});dashboardService.performance.mockResolvedValue({first_observation_date:'2026-10-13',rows:[],windows:[{channel:'facebook',metric:'views',days:7,growth:0,paired_posts:1,observed_posts:2}]});
+ render(<MarketingSocialAnalytics {...props}/>);await screen.findByRole('heading',{name:'Observed Growth'});await screen.findByText('0 · 1/2 posts');
  fireEvent.click(screen.getByRole('button',{name:'Channel'}));fireEvent.click(screen.getByRole('option',{name:'Facebook'}));
  expect(screen.getByText('0 · 1/2 posts')).toBeTruthy();
- for(const label of ['Likes','Reactions','Comments','Shares','Saves'])expect(screen.getByRole('rowheader',{name:label})).toBeTruthy();
- expect(screen.getAllByText('Unavailable · no comparable observations')).toHaveLength(13);
+ for(const label of ['Likes','Reactions','Comments','Shares','Saves'])expect(screen.getByText(label)).toBeTruthy();
+ await waitFor(()=>expect(screen.getAllByText('Unavailable · no comparable observations')).toHaveLength(13));expect(screen.getAllByText('Insufficient history')).toHaveLength(2);
  });
  it('shows genuine operations and scoped actionable record links without successful receipts',async()=>{
  dashboardService.operations.mockResolvedValue({tasks:[],content:[{id:'c',key:'c',brand_id:'b',brand_name:'Verified Brand',title:'Needs review',status:'review',channels:[]},{key:'succeeded',status:'published',channels:[{job_state:'succeeded',provider_post_id:'hidden-id'}]}],conversations:[],unavailable:[]});render(<MarketingOverview {...props}/>);
