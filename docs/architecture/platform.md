@@ -236,3 +236,6 @@ Marketing’s Brand Access & Team Permissions uses `platform_team_access_command
 ### Marketing Settings route composition
 
 The Marketing Settings sidebar is Connections, Brand Knowledge and Brand Access & Team Permissions. Dedicated routes compose one existing Brand context and shared Admin components with distinct integration, profile and permission-console layouts. The original Settings module remains hidden as the existing permission catalogue/legacy URL owner; its compatibility page redirects without losing provider callbacks. New surface modules reuse `marketing_settings.view` and introduce no extra role grants. Context/read scopes and pending editors remain bound to staff and Brand lifetimes.
+
+
+`DataTable` retains horizontal scrolling by default. Its opt-in `mobileLayout="stack"` presents labeled record rows below 700px, preserving native headers, row actions, keyboard handlers and desktop geometry. Marketing Connections and Brand Access consume this shared responsive owner; other existing consumers retain their default behavior.

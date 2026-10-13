@@ -1,4 +1,4 @@
-export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, density = "normal", columnSpacing = "normal", tableClassName = "", minWidth = 880 }) {
+export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, density = "normal", columnSpacing = "normal", tableClassName = "", minWidth = 880, mobileLayout = "scroll" }) {
   function shouldIgnoreRowClick(event) {
     const control = event.target.closest("button, a, input, select, textarea, [role='button'], [data-row-action='true']");
     return Boolean(control && control !== event.currentTarget);
@@ -6,7 +6,7 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
 
   return (
     <div className="data-table-scroll admin-data-table-scroll overflow-x-auto">
-      <table className={`admin-data-table w-full border-collapse ${tableClassName}`} data-density={density} data-column-spacing={columnSpacing} style={{minWidth}}>
+      <table className={`admin-data-table w-full border-collapse ${tableClassName}`} data-mobile-layout={mobileLayout} data-density={density} data-column-spacing={columnSpacing} style={{minWidth}}>
         <thead className="table-head admin-table-head">
           <tr>
             {columns.map((column) => (
@@ -46,6 +46,7 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
                   <td
                     key={column.key}
                     data-priority={column.priority}
+                    data-label={typeof column.header === "string" ? column.header : undefined}
                     style={column.width ? { width: column.width } : undefined}
                     className={`admin-table-cell align-middle ${column.className ?? ""} ${column.align === "right" ? "text-right" : ""} ${
                       column.sticky ? "table-sticky-cell sticky left-0 z-10" : ""
