@@ -5,6 +5,10 @@ describe("Shared A4 table layout",()=>{
     expect(a4Dimensions("landscape")).toEqual({width:297,height:210});
     expect(a4Dimensions("portrait")).toEqual({width:210,height:297});
   });
+  it("preserves table column order when the selection fits one sheet",()=>{
+    const columns=[{key:"category",minWidth:25},{key:"product",repeat:true,minWidth:52},{key:"sku",repeat:true,minWidth:22}];
+    expect(a4ColumnBands(columns,"landscape")).toEqual([columns]);
+  });
   it("continues wide column selections at readable widths and repeats selected identity",()=>{
     const columns=[{key:"product",repeat:true,minWidth:52},{key:"sku",repeat:true,minWidth:22},...Array.from({length:10},(_,i)=>({key:i,minWidth:30}))];
     for(const orientation of ["portrait","landscape"]){
