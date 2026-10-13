@@ -1,3 +1,4 @@
+import {resolveBrandContext,selectBrandContext} from './brandContext.js';
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import WorkspacePage from "../../components/layout/WorkspacePage.jsx";
@@ -81,10 +82,10 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
         if (live) {
           setContext(c);
           const query = new URLSearchParams(window.location.search);
-          const selectedOrg=c.organizations.find(o=>o.id===query.get("marketing_org"))?.id || c.organizations[0]?.id || "";
+          const next=resolveBrandContext(c,query.get("marketing_brand"),query.get("marketing_org"));const selectedOrg=next.org;
           setOrg(selectedOrg);
           const available=c.brands.filter(b=>b.organization_id===selectedOrg);
-          setBrand(available.find(b=>b.id===query.get("marketing_brand"))?.id || (available.length===1?available[0].id:""));
+          setBrand(next.brand || (available.length===1?available[0].id:""));
         }
       })
       .catch((e) => {
@@ -342,8 +343,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
     if (result && action !== "open") setSelectedRecipient("");
   }
   const controls = <div className="admin-scope-controls" aria-label="Marketing scope">
-    {context.organizations.length>1?<SelectField searchable="auto" label="Organization" value={org} onChange={v=>{if(!busy){setOrg(v);setBrand('')}}} options={context.organizations.map(o=>({value:o.id,label:o.name}))}/>:null}
-    <SelectField searchable="auto" label="Brand" value={brand} onChange={v=>{if(!busy)setBrand(v)}} options={[{value:'',label:'Select a brand'},...brands.map(b=>({value:b.id,label:b.name}))]}/>
+    <SelectField searchable="auto" label="Brand" value={brand} onChange={v=>{if(!busy)selectBrandContext(context,v,org,setOrg,setBrand)}} options={[{value:'',label:'Select a brand'},...context.brands.map(b=>({value:b.id,label:b.name}))]}/>
   </div>;
   const input = (label, key, type = "text") => (
     <AdminFormField label={label}>

@@ -1,3 +1,4 @@
+import {resolveBrandContext,selectBrandContext} from './brandContext.js';
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import WorkspacePage from "../../components/layout/WorkspacePage.jsx";
@@ -133,15 +134,8 @@ export default function MarketingAdsPage() {
       .then((c) => {
         if (!live) return;
         setContext(c);
-        const query = new URLSearchParams(location.search),
-          o = query.get("marketing_org");
-        setOrg(
-          c.organizations.some((x) => x.id === o)
-            ? o
-            : c.organizations[0]?.id || "",
-        );
-        const b = query.get("marketing_brand");
-        if (c.brands.some((x) => x.id === b)) setBrand(b);
+        const query = new URLSearchParams(location.search), next=resolveBrandContext(c,query.get("marketing_brand"),query.get("marketing_org"));
+        setOrg(next.org);setBrand(next.brand);
         if(query.get("meta_result")==="authorization_failed")setNotice(query.get("meta_reason")==="ads_read_not_granted"?"Meta did not grant Ad reporting access. The existing login configuration must provide ads_read (or ads_management); Page permissions do not grant Ad Account reporting.":"Meta authorization could not complete. Check authorized Ad Account access and try Connect Meta again.");
         else if(query.get("meta_result")==="cancelled")setNotice("Meta authorization was cancelled. Existing Ad Accounts are unchanged.");
       })
@@ -254,7 +248,7 @@ export default function MarketingAdsPage() {
     },30000);
     return()=>{cancelled=true;clearInterval(timer)};
   },[org,brand,from,to,refresh]);
-  function useAccount(a){setAccount(a.id);setModal(null);setTab("overview");setNotice("Using the existing organization Ad Account. Campaign brand attribution is preserved.");}
+  function useAccount(a){setAccount(a.id);setModal(null);setTab("overview");setNotice("Using the existing shared Ad Account. Campaign brand attribution is preserved.");}
   const accountRows = (data?.accounts || []).map((a) => {
     const s = data.reports.find((r) => r.connection_id === a.id);
     return { ...a, summary: s?.payload.insights.account?.[0] };
@@ -370,28 +364,14 @@ export default function MarketingAdsPage() {
   const controls = (
     <div className="space-y-3"><div className="admin-scope-controls" aria-label="Marketing scope">
       <SelectField searchable="auto"
-        label="Organization"
-        value={org}
-        options={context.organizations.map((o) => ({
-          value: o.id,
-          label: o.name,
-        }))}
-        onChange={(v) => {
-          setParent("");
-          setLevel("campaign");
-          setOrg(v);
-          setBrand("");
-        }}
-      />
-      <SelectField searchable="auto"
         label="Brand"
         value={brand}
         options={[
           { value: "", label: "All permitted brands" },
-          ...brands.map((b) => ({ value: b.id, label: b.name })),
+          ...context.brands.map((b) => ({ value: b.id, label: b.name })),
         ]}
         onChange={(v) => {
-          setBrand(v);
+          selectBrandContext(context,v,org,setOrg,setBrand);
           setParent("");
           setLevel("campaign");
         }}
@@ -469,8 +449,8 @@ export default function MarketingAdsPage() {
       >
         {!org ? (
           <EmptyState
-            title="No Marketing organization"
-            description="An administrator must grant organization and brand access."
+            title="Marketing access unavailable"
+            description="An administrator must grant Brand access and team permissions."
           />
         ) : null}
         {data?.organization_access &&
@@ -480,7 +460,7 @@ export default function MarketingAdsPage() {
                 <div>
                   <strong>{d.payload.account.name}</strong>
                   <p className="text-sm text-text-secondary">
-                    Organization discovery ·{" "}
+                    Shared account discovery ·{" "}
                     {d.payload.configs.campaigns.length} campaigns · No
                     connection binding
                   </p>
@@ -505,7 +485,7 @@ export default function MarketingAdsPage() {
                   <strong>{r.payload.account.name}</strong>
                   <p className="text-sm text-text-secondary">
                     {r.payload.configs.campaigns.length} campaigns ·
-                    Organization attribution review
+                    Campaign attribution review
                   </p>
                 </div>
                 <button
@@ -523,7 +503,7 @@ export default function MarketingAdsPage() {
           <section key={session.id} className="ads-panel">
             <h2 className="font-semibold">Choose an authorized Ad Account</h2>
             <p className="text-sm text-text-secondary">
-              Shared Ad Accounts belong to the organization. Read-only discovery
+              Shared Ad Accounts can serve multiple authorized Brands. Read-only discovery
               creates no brand attribution or execution authority.
             </p>
             {!session.accounts.length ? (
@@ -560,7 +540,7 @@ export default function MarketingAdsPage() {
                       disabled={!a.available || busy}
                       onClick={() => setModal({ kind: "bind", session, a })}
                     >
-                      Connect to organization
+                      Connect shared account
                     </button>
                   )}
                 </div>
@@ -571,7 +551,7 @@ export default function MarketingAdsPage() {
         {!loading && data && !data.accounts.length ? (
           <EmptyState
             title={data.organization_access===false?"No confirmed brand advertising":"Connect your first Ad Account"}
-            description={data.organization_access===false?"An organization administrator can connect a shared Ad Account and confirm this brand’s campaigns.":"Discover shared organization Ad Accounts. Campaigns require explicit brand attribution."}
+            description={data.organization_access===false?"An authorized administrator can connect a shared Ad Account and confirm this brand’s campaigns.":"Discover shared Ad Accounts. Campaigns require explicit brand attribution."}
             actions={
               can("marketing_ads.connect") &&
               data?.organization_access !== false ? (
@@ -593,7 +573,7 @@ export default function MarketingAdsPage() {
                 <div>
                   <h2 className="font-semibold">{a.name}</h2>
                   <p className="text-sm text-text-secondary">
-                    Organization-owned ·{" "}
+                    Shared account ·{" "}
                     {a.health?.currency || "Currency unavailable"} ·{" "}
                     {a.health?.timezone || "Timezone unavailable"}
                   </p>
@@ -658,7 +638,7 @@ export default function MarketingAdsPage() {
                 <div>
                   <h2 className="font-semibold">{a.name}</h2>
                   <p className="text-sm">
-                    Organization-owned · {a.account_id || "Disconnected"} ·{" "}
+                    Shared account · {a.account_id || "Disconnected"} ·{" "}
                     {a.health?.currency} · {a.health?.timezone}
                   </p>
                 </div>
@@ -958,7 +938,7 @@ export default function MarketingAdsPage() {
           </p>
         )}
       </AsyncDataSurface>
-      {modal?.kind === "connect" && <Modal title="Choose an Ad Account connection" onClose={()=>setModal(null)} footer={<button className="btn-primary" disabled={busy} onClick={()=>{setModal(null);connect(true)}}>Connect Meta</button>}><p className="text-sm text-text-secondary">Reuse an authorized organization account for another brand, or connect Meta to discover additional eligible accounts. Campaign brands are confirmed separately to preserve shared-account spend.</p>{accountRows.filter(a=>a.account_id&&!adsReadiness(a).reconnect).map(a=><div className="ads-account mt-3" key={a.id}><strong>{a.name}</strong><button className="btn-secondary" onClick={()=>useAccount(a)}>Use connected account</button></div>)}</Modal>}
+      {modal?.kind === "connect" && <Modal title="Choose an Ad Account connection" onClose={()=>setModal(null)} footer={<button className="btn-primary" disabled={busy} onClick={()=>{setModal(null);connect(true)}}>Connect Meta</button>}><p className="text-sm text-text-secondary">Reuse an authorized shared account for another brand, or connect Meta to discover additional eligible accounts. Campaign brands are confirmed separately to preserve shared-account spend.</p>{accountRows.filter(a=>a.account_id&&!adsReadiness(a).reconnect).map(a=><div className="ads-account mt-3" key={a.id}><strong>{a.name}</strong><button className="btn-secondary" onClick={()=>useAccount(a)}>Use connected account</button></div>)}</Modal>}
       {modal?.kind === "preview" && (
         <Modal
           size="3xl"
@@ -979,7 +959,7 @@ export default function MarketingAdsPage() {
             {modal.report.configs.campaigns.length} campaigns ·{" "}
             {modal.report.configs.adsets.length} Ad Sets ·{" "}
             {modal.report.configs.ads.length} Ads. Brand attribution requires
-            explicit organization review.
+            explicit administrator review.
           </p>
           <AdsAttributionReview
             report={modal.report}
@@ -1033,16 +1013,9 @@ export default function MarketingAdsPage() {
             </button>
           }
         >
-          <p>
-            Connect <strong>{modal.a.name}</strong> ({modal.a.id}) to the
-            organization{" "}
-            <strong>
-              {context.organizations.find((o) => o.id === org)?.name}
-            </strong>
-            ?
-          </p>
+          <p>Connect <strong>{modal.a.name}</strong> ({modal.a.id}) as a shared Ad Account? Campaign Brand attribution remains separate.</p>
           <p className="mt-3 text-sm text-text-secondary">
-            Reporting permissions are verified before binding. The first 30 days and comparison period sync automatically. This shared account is organization-owned; confirm individual campaign brands after reporting loads. Existing attribution is preserved when reconnecting.
+            Reporting permissions are verified before binding. The first 30 days and comparison period sync automatically. This shared account is shared across permitted Brands; confirm individual campaign brands after reporting loads. Existing attribution is preserved when reconnecting.
           </p>
         </Modal>
       )}

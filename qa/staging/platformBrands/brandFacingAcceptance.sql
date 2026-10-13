@@ -1,0 +1,35 @@
+begin;
+do $$
+declare actor uuid:='9f44daf9-9f87-4129-bc71-55c082cf8782';a uuid;b uuid;c uuid;one uuid;two uuid;foreign_brand uuid;new_brand uuid;outlet uuid;result jsonb;denied boolean;brands_before integer;maps_before integer;connections_before integer;
+begin
+ select count(*) into brands_before from brands;select count(*) into maps_before from brand_outlets;select count(*) into connections_before from marketing_connections;
+ perform set_config('request.jwt.claim.sub',(select auth_user_id::text from employees where id=actor),true);
+ result:=platform_brand_command('save_brand','{"name":"QA sole-scope no Outlet","timezone":"Asia/Kuala_Lumpur","outlet_ids":[]}');
+ assert exists(select 1 from brands where id=(result->>'brand_id')::uuid and organization_id in (select organization_id from organization_memberships where employee_id=actor));
+ a:=(platform_organization_command('create_organization',null,'{"name":"QA disposable Brand access A"}')->>'organization_id')::uuid;
+ b:=(platform_organization_command('create_organization',null,'{"name":"QA disposable Brand access B"}')->>'organization_id')::uuid;
+ c:=(platform_organization_command('create_organization',null,'{"name":"QA disposable foreign boundary"}')->>'organization_id')::uuid;
+ one:=(platform_organization_command('save_brand',a,'{"name":"QA anchor A","timezone":"Asia/Kuala_Lumpur","outlet_ids":[]}')->>'brand_id')::uuid;
+ two:=(platform_organization_command('save_brand',b,'{"name":"QA anchor B","timezone":"Asia/Kuala_Lumpur","outlet_ids":[]}')->>'brand_id')::uuid;
+ foreign_brand:=(platform_organization_command('save_brand',c,'{"name":"QA foreign","timezone":"Asia/Kuala_Lumpur","outlet_ids":[]}')->>'brand_id')::uuid;
+ delete from organization_memberships where organization_id=c and employee_id=actor;
+ denied:=false;begin perform platform_brand_command('save_brand','{"name":"Ambiguous","timezone":"Asia/Kuala_Lumpur","outlet_ids":[]}');exception when insufficient_privilege then denied:=true;end;assert denied,'Ambiguous creation must not guess a tenant';
+ result:=platform_brand_command('save_brand','{"name":"QA new scoped Brand","timezone":"Asia/Kuala_Lumpur","outlet_ids":[]}',one);new_brand:=(result->>'brand_id')::uuid;
+ assert (select organization_id=a from brands where id=new_brand);assert not exists(select 1 from brand_outlets where brand_id=new_brand);
+ insert into outlets(name,code,is_active,status) values('QA disposable Brand-facing outlet','QAFACE',true,'active') returning id into outlet;
+ perform platform_brand_command('save_brand',jsonb_build_object('id',new_brand,'expected_revision',1,'name','QA new scoped Brand','timezone','Asia/Kuala_Lumpur','outlet_ids',jsonb_build_array(outlet),'mapping_confirmed',true),one);
+ assert exists(select 1 from brand_outlets where brand_id=new_brand and outlet_id=outlet);
+ denied:=false;begin perform platform_brand_command('save_brand',jsonb_build_object('id',two,'expected_revision',1,'name','QA anchor B','timezone','Asia/Kuala_Lumpur','outlet_ids',jsonb_build_array(outlet),'mapping_confirmed',true));exception when others then denied:=true;end;assert denied,'Cross-tenant mapping must remain denied';
+ denied:=false;begin perform platform_brand_command('set_brand_status',jsonb_build_object('id',new_brand,'expected_revision',2,'is_active',false,'confirmed',true),two);exception when insufficient_privilege then denied:=true;end;assert denied,'Mismatched context must fail';
+ denied:=false;begin perform platform_brand_command('set_brand_status',jsonb_build_object('id',foreign_brand,'expected_revision',1,'is_active',false,'confirmed',true));exception when insufficient_privilege then denied:=true;end;assert denied,'Foreign Brand must remain inaccessible';
+ denied:=false;begin perform platform_brand_command('create_organization','{"name":"Must not create"}',one);exception when others then denied:=true;end;assert denied;
+ denied:=false;begin perform platform_team_access_command('create_organization','{"name":"Must not create"}',one);exception when others then denied:=true;end;assert denied;
+ denied:=false;begin perform platform_team_access_command('add_member',jsonb_build_object('employee_id',actor),foreign_brand);exception when insufficient_privilege then denied:=true;end;assert denied;
+ result:=platform_brand_management_read();assert not (result?'organizations');assert (result->>'scope_brand_required')::boolean;assert not exists(select 1 from jsonb_array_elements(result->'brands') x where x->>'id'=foreign_brand::text);
+ result:=marketing_brand_context();assert not exists(select 1 from jsonb_array_elements(result->'organizations') x where x?'name');assert not marketing_private.brand_allowed(c,foreign_brand);
+ assert not has_function_privilege('anon','public.platform_brand_command(text,jsonb,uuid)','EXECUTE');assert not has_function_privilege('anon','public.platform_team_access_command(text,jsonb,uuid)','EXECUTE');assert not has_function_privilege('anon','public.marketing_brand_context()','EXECUTE');
+ assert not has_table_privilege('authenticated','public.brands','INSERT');assert not has_table_privilege('authenticated','public.organization_memberships','INSERT');
+ assert (select count(*)=connections_before from marketing_connections);
+end;$$;
+rollback;
+select 'PASS: Brand-derived creation/mapping, ambiguous and foreign scope rejection, no business tenant creation, restricted grants and provider preservation; all disposable fixtures rolled back' verification;

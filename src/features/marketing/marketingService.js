@@ -35,14 +35,14 @@ export const marketingService = {
   contentManagement: ({ organizationId, brandId, from = null, to = null, search = '', channel = '', status = '', sort = 'date_desc', group = '', page = 1, pageSize = 20, view = 'list' }) => rpc('marketing_content_management', {
     p_org: organizationId, p_brand: brandId || null, p_from: from, p_to: to, p_search: search, p_channel: channel, p_status: status, p_sort: sort, p_group: group, p_page: page, p_page_size: pageSize, p_view: view,
   }),
-  context: () => rpc('marketing_context'),
+  context: () => rpc('marketing_brand_context'),
   detail: contentId => rpc('marketing_content_detail', { p_content: contentId }),
   read: ({ organizationId, brandId, section, from = null, to = null, page = 1, pageSize = 20 }) => rpc('marketing_read', {
     p_org: organizationId, p_brand: brandId || null, p_surface: section, p_from: from, p_to: to, p_page: page, p_page_size: pageSize,
   }),
   listing: ({ organizationId, brandId, kind, page, pageSize }) => rpc('marketing_listing', { p_org: organizationId, p_brand: brandId || null, p_kind: kind, p_page: page, p_page_size: pageSize }),
   setup: organizationId => rpc('marketing_setup_options', { p_org: organizationId }),
-  structure: (command, organizationId, payload) => rpc('platform_organization_command', { p_command: command, p_org: organizationId || null, p_payload: payload }),
+  teamAccess: (command, brandId, payload) => rpc('platform_team_access_command', { p_command: command, p_scope_brand: brandId || null, p_payload: payload }),
   roleScope: (organizationId, roleId, all, brands) => rpc('marketing_set_role_scope', { p_org: organizationId, p_role: roleId, p_all: all, p_brands: brands }),
   knowledge: (brandId, revision, profile) => rpc('marketing_save_knowledge', { p_brand: brandId, p_expected_revision: revision, p_profile: profile }),
   content: ({ requestId, command, organizationId, brandId, content, payload = {} }) => rpc('marketing_content_command', {

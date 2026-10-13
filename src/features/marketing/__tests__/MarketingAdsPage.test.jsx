@@ -142,7 +142,7 @@ describe("Ads self-service reporting",()=>{
   it("explains missing brand attribution without offering an unauthorized connection",async()=>{
     ads.read.mockResolvedValue({organization_access:false,accounts:[],reports:[],jobs:[]});
     render(<MarketingAdsPage/>);await screen.findByText('No confirmed brand advertising');
-    expect(screen.getByText(/organization administrator can connect/)).toBeTruthy();expect(screen.queryByRole('button',{name:'Connect Ad Account'})).toBeNull();
+    expect(screen.getByText(/authorized administrator can connect/)).toBeTruthy();expect(screen.queryByRole('button',{name:'Connect Ad Account'})).toBeNull();
   });
   it("reuses a connected account without another OAuth, binding or sync request",async()=>{
     ads.read.mockResolvedValue({organization_access:true,accounts:[connected],reports:[],jobs:[]});
@@ -151,7 +151,7 @@ describe("Ads self-service reporting",()=>{
     await screen.findByRole("dialog",{name:"Choose an Ad Account connection"});
     fireEvent.click(screen.getByRole("button",{name:"Use connected account"}));
     expect(ads.authorize).not.toHaveBeenCalled();expect(ads.bind).not.toHaveBeenCalled();expect(ads.sync).not.toHaveBeenCalled();
-    await screen.findByText(/Using the existing organization/);
+    await screen.findByText(/Using the existing shared/);
   });
   it("shows initial progress consistently and polling consumes FeedX state only",async()=>{
     const pending={...connected,sync:{worker_available:true,active_jobs:2,initial_total:2,initial_completed:0}};

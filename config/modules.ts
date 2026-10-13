@@ -217,7 +217,7 @@ export const moduleSectionOrder = [
 
 export const moduleRegistry: AppModule[] = [
   { id: "marketing_workspace", section: "Marketing", label: "Marketing Workspace", route: "/marketing", sidebar: false, routable: false, workspace: "marketing", permissions: { access: true } },
-  { id: "platform_organizations", section: "System", label: "Organization & Brand Structure", route: "/system/organizations", sidebar: false, routable: false, workspace: "marketing", permissions: { manage: true } },
+  { id: "platform_organizations", section: "System", label: "Brand Access & Team Permissions", route: "/system/organizations", sidebar: false, routable: false, workspace: "marketing", permissions: { manage: true } },
   { id: "marketing_overview", section: "Overview", label: "Overview", route: "/marketing/overview", icon: "marketing_overview", sidebar: true, workspace: "marketing", permissions: { view: true } },
   { id: "marketing_content", section: "Content Studio", label: "Content permissions", route: "/marketing/content", icon: "marketing_content", sidebar: false, workspace: "marketing", permissions: { view: true, create: true, edit: true, review: true, approve: true, publish: true, execute: true, cancel: true, upload: true } },
   { id: "marketing_planner", section: "Content Studio", label: "Content Planner", route: "/marketing/planner", icon: "marketing_calendar", sidebar: true, workspace: "marketing", permissions: { view: true, create: true, edit: true, approve: true, delete: true, configure: true, manage: true } },
@@ -1264,7 +1264,7 @@ export const permissionPresentationOverrides: Record<string, { label: string; de
   "marketing_inbox.approve": { label: "Approve Inbox Evidence", description: "Approve exact reply, knowledge, FAQ and AI proposal revisions; messages remain unsent." },
   "marketing_settings.configure": { label: "Configure Marketing Access & Integrations", description: "Configure Marketing brand scope and authorized integrations." },
   "marketing_settings.manage": { label: "Manage Brand Knowledge", description: "Manage brand knowledge with provenance." },
-  "platform_organizations.manage": { label: "Manage Organizations & Brands", description: "Manage shared organization, brand, membership and outlet relationships." },
+  "platform_organizations.manage": { label: "Manage Brands & Team Access", description: "Manage authorized Brands, team access and Outlet mappings." },
   "marketing_content.publish": { label: "Schedule Marketing Content", description: "Plan publishing of approved revisions." },
   "marketing_content.execute": { label: "Authorize External Publishing", description: "Approve execution of an exact revision to enabled brand accounts." },
   "payroll.setup": { label: "Set Up Payroll Pay", description: "Create and correct effective compensation and recurring employee components." },

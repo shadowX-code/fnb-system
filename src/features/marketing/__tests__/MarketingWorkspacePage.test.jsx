@@ -1,12 +1,13 @@
 import { describe,it,expect,vi,beforeEach } from 'vitest';
 import { render,screen,fireEvent,waitFor,cleanup } from '@testing-library/react';
 import MarketingWorkspacePage from '../MarketingWorkspacePage.jsx';
-const {service,auth}=vi.hoisted(()=>({service:{context:vi.fn(),read:vi.fn(),setup:vi.fn(),content:vi.fn(),detail:vi.fn(),structure:vi.fn(),listing:vi.fn(),contentManagement:vi.fn(),integrations:vi.fn(),observedGrowth:vi.fn()},auth:{user:{id:'user'},hasPermission:vi.fn(()=>true)}}));
+const {service,auth}=vi.hoisted(()=>({service:{context:vi.fn(),read:vi.fn(),setup:vi.fn(),content:vi.fn(),detail:vi.fn(),teamAccess:vi.fn(),listing:vi.fn(),contentManagement:vi.fn(),integrations:vi.fn(),observedGrowth:vi.fn()},auth:{user:{id:'user'},hasPermission:vi.fn(()=>true)}}));
 vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>auth}));
 vi.mock('../marketingService.js',()=>({marketingService:service}));
+vi.mock('../MetaIntegrationPanels.jsx',()=>({MetaConnections:()=>null,PublishAuthorization:()=>null}));
 const context={organizations:[{id:'org',name:'Organization'}],brands:[{id:'brand',organization_id:'org',name:'Brand',timezone:'Asia/Kuala_Lumpur',outlet_ids:[]}],actor_employee_id:'actor'};
 const read={rows:[],total:0,summary:{review:0,approved:0,scheduled:0,published:0},assets:[],jobs:[],knowledge:[],connections:[],role_scopes:[]};
-beforeEach(()=>{cleanup();sessionStorage.clear();window.history.replaceState({},'','/');vi.clearAllMocks();auth.hasPermission.mockImplementation(()=>true);service.context.mockResolvedValue(context);service.contentManagement.mockResolvedValue({rows:[],total_count:0,day_counts:{}});service.read.mockResolvedValue(read);service.listing.mockResolvedValue({rows:[],total_count:0});service.setup.mockResolvedValue({outlets:[],employees:[],roles:[],members:[]});service.structure.mockResolvedValue({});service.content.mockResolvedValue({});});
+beforeEach(()=>{cleanup();sessionStorage.clear();window.history.replaceState({},'','/');vi.clearAllMocks();auth.hasPermission.mockImplementation(()=>true);service.context.mockResolvedValue(context);service.contentManagement.mockResolvedValue({rows:[],total_count:0,day_counts:{}});service.read.mockResolvedValue(read);service.listing.mockResolvedValue({rows:[],total_count:0});service.setup.mockResolvedValue({outlets:[],employees:[],roles:[],members:[]});service.teamAccess.mockResolvedValue({});service.content.mockResolvedValue({});});
 describe('native Marketing foundation',()=>{
   it('reports unavailable evidence without invented social metrics',async()=>{
     service.integrations.mockResolvedValue({posts:[],total:0,connections:[]});service.observedGrowth.mockResolvedValue({rows:[],first_observation_date:null});
@@ -15,11 +16,11 @@ describe('native Marketing foundation',()=>{
     expect(screen.getByText('Select Facebook or Instagram to compare the same metric definitions.')).toBeTruthy();
     expect(screen.queryByText(/Connected successfully|Published successfully/)).toBeNull();
   });
-  it('shows explicit organization initialization only with platform permission',async()=>{
+  it('shows Brand access recovery without Organization setup',async()=>{
     service.context.mockResolvedValue({organizations:[],brands:[]});
     auth.hasPermission.mockImplementation(code=>code!=='platform_organizations.manage');
     render(<MarketingWorkspacePage/>);
-    await screen.findByText('Ask an organization administrator to grant membership.');
+    await screen.findByText('Ask an administrator to grant Brand access and team permissions.');
     expect(screen.queryByRole('button',{name:'Create organization'})).toBeNull();
   });
   it('creates an unscheduled concept inside Content Management with a retry identity',async()=>{
@@ -41,4 +42,13 @@ it('legacy Content Library renders the same specific-brand Content Management',a
  fireEvent.click(screen.getByRole('button',{name:'Brand',exact:true}));
  expect(screen.queryByRole('option',{name:'All authorized brands'})).toBeNull();
  expect(new URLSearchParams(window.location.search).get('marketing_brand')).toBe('brand');
+});
+
+it('shows Brand Access and Team Permissions without Organization setup',async()=>{render(<MarketingWorkspacePage section="settings"/>);fireEvent.click(await screen.findByRole('tab',{name:'Knowledge & access'}));await screen.findByText('Brand Access & Team Permissions');expect(screen.queryByRole('button',{name:'Organization',exact:true})).toBeNull();expect(screen.queryByRole('button',{name:'Create organization'})).toBeNull();expect(screen.getByRole('link',{name:'Manage Brands & Outlets'}).getAttribute('href')).toBe('/system/brands');});
+
+it('switches internal scope by permitted Brand without an Organization selector',async()=>{
+ service.context.mockResolvedValue({organizations:[{id:'org'},{id:'other'}],brands:[...context.brands,{id:'second',organization_id:'other',name:'Second Brand',timezone:'Asia/Kuala_Lumpur',outlet_ids:[]}]});
+ render(<MarketingWorkspacePage section="calendar"/>);await waitFor(()=>expect(service.contentManagement).toHaveBeenCalled());
+ fireEvent.click(screen.getByRole('button',{name:'Brand',exact:true}));fireEvent.click(screen.getByRole('option',{name:'Second Brand'}));
+ await waitFor(()=>expect(service.contentManagement.mock.calls.at(-1)[0]).toMatchObject({organizationId:'other',brandId:'second'}));expect(screen.queryByRole('button',{name:'Organization',exact:true})).toBeNull();
 });

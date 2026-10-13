@@ -66,7 +66,7 @@ export default function AdsReportingContext({ report, brands }) {
             Only returned campaign insight rows are included. Missing rows
             remain unavailable; these subtotals may not reconcile with Meta
             account totals. Unassigned campaigns are visible only at
-            organization level.
+            the shared account level.
           </p>
         </details>
       )}

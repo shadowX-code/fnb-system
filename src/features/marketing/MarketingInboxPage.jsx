@@ -1,3 +1,4 @@
+import {resolveBrandContext,selectBrandContext} from './brandContext.js';
 import { useEffect, useRef, useState } from "react";
 import {
   MessageSquareText,
@@ -197,7 +198,7 @@ export default function MarketingInboxPage() {
       .then((v) => {
         if (live) {
           setContext(v);
-          const q=new URLSearchParams(window.location.search),queryOrg=q.get("marketing_org"),queryBrand=q.get("marketing_brand");const chosen=v.organizations.some(o=>o.id===queryOrg)?queryOrg:v.organizations[0]?.id||"";setOrg(chosen);setBrand(v.brands.some(b=>b.id===queryBrand&&b.organization_id===chosen)?queryBrand:"");
+          const q=new URLSearchParams(window.location.search),queryOrg=q.get("marketing_org"),queryBrand=q.get("marketing_brand");const next=resolveBrandContext(v,queryBrand,queryOrg);setOrg(next.org);setBrand(next.brand);
         }
       })
       .catch((e) => {
@@ -454,27 +455,14 @@ export default function MarketingInboxPage() {
     };
   }, [detailKey]);
   const controls = <div className="marketing-inbox-controls">
-    <div className="admin-scope-controls" aria-label="Marketing scope">      {context.organizations.length > 1 && (
-        <SelectField searchable="auto"
-          label="Organization"
-          value={org}
-          onChange={(v) => {
-            setOrg(v);
-            setBrand("");
-          }}
-          options={context.organizations.map((o) => ({
-            value: o.id,
-            label: o.name,
-          }))}
-        />
-      )}
+    <div className="admin-scope-controls" aria-label="Marketing scope">
       <SelectField searchable="auto"
         label="Brand"
         value={brand}
-        onChange={setBrand}
+        onChange={v=>selectBrandContext(context,v,org,setOrg,setBrand)}
         options={[
           { value: "", label: "All authorized brands" },
-          ...brands.map((b) => ({ value: b.id, label: b.name })),
+          ...context.brands.map((b) => ({ value: b.id, label: b.name })),
         ]}
       />
 </div>

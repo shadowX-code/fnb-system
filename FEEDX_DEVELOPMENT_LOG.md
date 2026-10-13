@@ -930,3 +930,8 @@ Added organization-reusable Creator profiles, separate platform accounts, explic
 ## 13 October 2026 — Marketing observed history and integration completion
 
 Staging adds canonical daily organic observations, exact-baseline observed growth and resumable historical coverage alongside bounded recent refresh. An independent, disabled-by-default 30-day message-text Inbox import reuses canonical privacy and message identity with service-recorded review approval; API history never verifies webhook delivery. Existing Drive browsing/selection gains scope-transition guards without changing OAuth/scopes or storage ownership. L3 verification uses two rolled-back contract rehearsals, focused provider/UI regressions and one coordinated Staging delivery. Production and customer-history import remain separate authorization boundaries. See `docs/domains/marketing.md`.
+
+
+### 2026-10-13 — Brand-first business context, retained security tenancy
+
+Removed business-facing Organization configuration from Restaurant Brands and Marketing/CRM/Creators/Planner/Ads/Drive. Canonical Brands remains Restaurant System; new Brand/Team façades derive and validate internal scope while delegating existing trusted authorities. Existing tenancy tables, memberships, Outlet ownership, RLS/RBAC, provider bindings, customer/Creator identity boundaries and historical records remain intact. No provider Portfolio determines FeedX ownership. Deeper tenancy replacement is explicitly separate. L3 focused coverage includes Brand-derived creation/mapping, ambiguous/foreign scope rejection, existing workflow regressions and authenticated canonical Staging surfaces; no Production/main or external execution.
