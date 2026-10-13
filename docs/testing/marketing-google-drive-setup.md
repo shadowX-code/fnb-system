@@ -1,6 +1,6 @@
 # Marketing Google Drive: Staging setup and verification
 
-Connector foundation is implemented; **live Google access remains unverified and disabled until configuration/authorization**. No Cloud project, OAuth client, external grant or Drive folder has been created by this implementation.
+Connector foundation is implemented. The 13 October Staging integration pass verified the existing generation-2 OAuth grant and mapped Happiness Kopitiam root read-only, including browsing and the real logo preview. This task created no Cloud project, OAuth grant, folder or mapping. Other unmapped brands remain explicitly unavailable; this verification is not public Google OAuth verification or Production authorization.
 
 ## Exact external configuration
 

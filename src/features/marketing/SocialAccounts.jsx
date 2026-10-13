@@ -14,6 +14,7 @@ import {
   socialAccountIssues,
   socialNeedsReconnect,
 } from "./socialAccountHealth.js";
+import InboxHistoryImport from "./InboxHistoryImport.jsx";
 import "./socialAccounts.css";
 const stamp = (v) =>
   v
@@ -280,6 +281,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                   {c.health?.recovery && (c.health.recovery.state === "unavailable" || c.health.recovery.reason === "bounded_history_gap") ? (
                     <p className="social-account-gap">Recent message recovery is limited. {c.health.recovery.state === "unavailable" ? "Meta could not return recent messages; some missed events may be unavailable." : "Older or unavailable messages may be missing."}</p>
                   ) : null}
+                  {auth.hasPermission("marketing_inbox.view")?<InboxHistoryImport connectionId={c.id} generation={c.credential_generation} canConfigure={auth.hasPermission("marketing_inbox.configure")}/>:null}
                   <div className="social-account-footer">
                     <p>
                       Last sync {stamp(c.last_synced_at)} · Checked{" "}
@@ -287,6 +289,8 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                       {c.sync_error_code ? " · Sync needs attention" : ""}
                       <br />
                       Last inbound {stamp(c.messaging?.last_inbound_at)}
+                      <br />
+                      Historical coverage {c.coverage?.history_completed_at ? `last completed ${stamp(c.coverage.history_completed_at)}` : "in progress"} · recent posts refresh separately
                       <br />
                       Publishing, staff replies and automatic replies retain
                       their existing approval and execution controls.

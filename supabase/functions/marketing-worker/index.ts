@@ -4,6 +4,7 @@ import { MetaError, MetaGraph } from '../_shared/metaGraph.ts';
 import { advanceMetaPublish, testAccountEnabled, verifyMetaMedia } from '../_shared/metaPublishing.ts';
 import { diagnoseMetaConnection } from '../_shared/metaConnectionDiagnostics.ts';
 import { runConnectionHealth } from '../_shared/metaConnectionHealth.ts';
+import { runInboxHistory } from '../_shared/metaInboxHistory.ts';
 import { readMetaPosts } from '../_shared/metaSynchronization.ts';
 import { processAdsSync } from '../_shared/metaAds.ts';
 import { commitJournal } from '../_shared/privacyBlob.ts';
@@ -83,6 +84,7 @@ Deno.serve(async(req)=>{
    // Publishing and synchronization are separate ticks, bounding wall time.
    await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'processed',outcome:result.outcome});
   }
+  if(await runInboxHistory(db,graph,tokenFor)){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'history_import_page'});}
   const connection=await call(db,'marketing_meta_sync_claim');
   if(connection) {
    const guard=async()=>{if(!await call(db,'marketing_meta_sync_guard',{p_connection:connection.id,p_generation:connection.credential_generation,p_lease:connection.sync_lease}))throw new Error('synchronization_authority_changed');};

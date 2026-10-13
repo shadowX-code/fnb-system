@@ -19,7 +19,7 @@ export class MetaGraph {
  get version():string {return this.config.version;}
  private report(event:MetaDiagnostic) {try{this.diagnostic?.(event);}catch{/* Diagnostics must not change authorization behavior. */}}
  async request(path:string,token:string,params:Record<string,any>={},method='GET',inspect?:(status:number|null,code:number|null,evidence?:MetaResponseEvidence)=>void):Promise<any> {
-  if(!/^\/?(?:(?:act_)?\d+(?:_\d+)?|me|oauth|debug_token)(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
+  if(!/^\/?(?:(?:act_)?\d+(?:_\d+)?|me|oauth|debug_token|t_\d{1,80})(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
   const url=new URL(`https://graph.facebook.com/${this.config.version}/${path.replace(/^\//,'')}`);
   const form=new URLSearchParams();for(const [key,value] of Object.entries(params))if(value!==undefined&&value!==null)form.set(key,typeof value==='object'?JSON.stringify(value):String(value));
   if(token&&token!==`${this.config.appId}|${this.config.appSecret}`) {

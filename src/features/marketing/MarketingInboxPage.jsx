@@ -903,6 +903,7 @@ export default function MarketingInboxPage() {
                               : "Message content unavailable")}
                         </p>
                         <footer>
+                          {m.evidence_source === "historical_import" ? <span>Imported history · </span> : m.evidence_source === "recent_api" ? <span>Recovered from Meta · </span> : null}
                           <time title={stamp(m.occurred_at)}>
                             {clock(m.occurred_at)}
                           </time>

@@ -914,3 +914,8 @@ Focused L3 verification passed: scoped rollback authority/lifecycle/recurrence/t
 ### 2026-10-13 — Marketing Creators V1 (Staging)
 
 Added organization-reusable Creator profiles, separate platform accounts, explicitly scoped brand collaborations/visits and deliverables, URL-first post records, append-only metric observations and operational insights. Trusted RPCs preserve canonical brand/outlet/Campaign/Media ownership and deny cross-brand histories/shared-profile edits outside scope. V1 uses authorized stored Meta evidence or clearly unavailable/manual metadata; no paid scraping, AI, OAuth expansion or external execution. See `docs/domains/marketing.md` for current contracts.
+
+
+## 13 October 2026 — Marketing observed history and integration completion
+
+Staging adds canonical daily organic observations, exact-baseline observed growth and resumable historical coverage alongside bounded recent refresh. An independent, disabled-by-default 30-day message-text Inbox import reuses canonical privacy and message identity with service-recorded review approval; API history never verifies webhook delivery. Existing Drive browsing/selection gains scope-transition guards without changing OAuth/scopes or storage ownership. L3 verification uses two rolled-back contract rehearsals, focused provider/UI regressions and one coordinated Staging delivery. Production and customer-history import remain separate authorization boundaries. See `docs/domains/marketing.md`.

@@ -17,6 +17,7 @@ async function meta(command, body) {
   return data;
 }
 export const marketingService = {
+  observedGrowth:(org,brand)=>rpc("marketing_social_observed_growth",{p_org:org,p_brand:brand||null}),
   async metaConfiguration() { const response = await fetch(`${metaBase}/configuration`, { cache: 'no-store' }); if (!response.ok) throw new Error('Meta configuration could not be checked.'); return response.json(); },
   integrations: (organizationId, brandId, surface = 'settings', page = 1) => rpc('marketing_integrations', { p_org: organizationId, p_brand: brandId || null, p_surface: surface, p_page: page }),
   pendingMeta: (organizationId, brandId) => rpc('marketing_meta_pending', { p_org: organizationId, p_brand: brandId }),

@@ -22,6 +22,8 @@ async function invoke(path, options = {}) {
   return data;
 }
 export const inboxService = {
+  historyStatus:connection=>rpc("marketing_inbox_history_status",{p_connection:connection}),
+  requestHistory:connection=>rpc("marketing_inbox_history_request",{p_connection:connection}),
   replyCount: () => rpc("marketing_inbox_reply_count"),
   sendStatus: (conversationId) => invoke("send-status",{body:{conversationId}}),
   sendStaffReply: (requestId,conversation,text,sourceArtifactId=null) => invoke("send-staff-reply",{body:{requestId,conversationId:conversation.id,version:conversation.version,text,sourceArtifactId}}),

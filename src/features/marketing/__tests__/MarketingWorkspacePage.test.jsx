@@ -1,7 +1,7 @@
 import { describe,it,expect,vi,beforeEach } from 'vitest';
 import { render,screen,fireEvent,waitFor,cleanup } from '@testing-library/react';
 import MarketingWorkspacePage from '../MarketingWorkspacePage.jsx';
-const {service,auth}=vi.hoisted(()=>({service:{context:vi.fn(),read:vi.fn(),setup:vi.fn(),content:vi.fn(),detail:vi.fn(),structure:vi.fn(),listing:vi.fn(),contentManagement:vi.fn()},auth:{user:{id:'user'},hasPermission:vi.fn(()=>true)}}));
+const {service,auth}=vi.hoisted(()=>({service:{context:vi.fn(),read:vi.fn(),setup:vi.fn(),content:vi.fn(),detail:vi.fn(),structure:vi.fn(),listing:vi.fn(),contentManagement:vi.fn(),integrations:vi.fn(),observedGrowth:vi.fn()},auth:{user:{id:'user'},hasPermission:vi.fn(()=>true)}}));
 vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>auth}));
 vi.mock('../marketingService.js',()=>({marketingService:service}));
 const context={organizations:[{id:'org',name:'Organization'}],brands:[{id:'brand',organization_id:'org',name:'Brand',timezone:'Asia/Kuala_Lumpur',outlet_ids:[]}],actor_employee_id:'actor'};
@@ -9,9 +9,10 @@ const read={rows:[],total:0,summary:{review:0,approved:0,scheduled:0,published:0
 beforeEach(()=>{cleanup();sessionStorage.clear();window.history.replaceState({},'','/');vi.clearAllMocks();auth.hasPermission.mockImplementation(()=>true);service.context.mockResolvedValue(context);service.contentManagement.mockResolvedValue({rows:[],total_count:0,day_counts:{}});service.read.mockResolvedValue(read);service.listing.mockResolvedValue({rows:[],total_count:0});service.setup.mockResolvedValue({outlets:[],employees:[],roles:[],members:[]});service.structure.mockResolvedValue({});service.content.mockResolvedValue({});});
 describe('native Marketing foundation',()=>{
   it('reports unavailable evidence without invented social metrics',async()=>{
-    render(<MarketingWorkspacePage/>);
-    await screen.findByRole('heading',{name:'Evidence availability'});
-    expect(screen.getByText(/Conversions and provider costs remain unavailable/)).toBeTruthy();
+    service.integrations.mockResolvedValue({posts:[],total:0,connections:[]});service.observedGrowth.mockResolvedValue({rows:[],first_observation_date:null});
+    render(<MarketingWorkspacePage section="analytics"/>);
+    await screen.findByText('Rate not supported');
+    expect(screen.getByText('Select Facebook or Instagram to compare the same metric definitions.')).toBeTruthy();
     expect(screen.queryByText(/Connected successfully|Published successfully/)).toBeNull();
   });
   it('shows explicit organization initialization only with platform permission',async()=>{
