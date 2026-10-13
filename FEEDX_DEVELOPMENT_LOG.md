@@ -1,5 +1,10 @@
 # FeedX Development Log
 
+## 2026-10-13 — Marketing Hub acceptance corrections
+
+- Live Staging acceptance identified an empty-queue historical-import claim alias collision; forward migration restores normal worker progress. Compact rollback regression verifies both empty and approved Facebook/Instagram leases without retained privacy approvals or imports.
+- Corrected distinct observed-growth metric labels and unavailable explanations; explicit row headers and paired-zero coverage regression passed. Documentation Impact: Updated; canonical behavior remains in docs/domains/marketing.md and consolidated evidence in qa/staging/marketingHubHistory.md.
+
 ## 2026-10-12 — Manual WhatsApp sender sessions
 
 - Moved brand sender management into contextual Add/Edit/Default/Disable settings without provider-connection claims.
