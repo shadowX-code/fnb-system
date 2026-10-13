@@ -31,7 +31,7 @@ import "./marketing.css";
 import "./marketingInbox.css";
 import { notifyConversationsChanged } from "./useConversationReplyCount.js";
 import InboxReplyComposer from "./InboxReplyComposer.jsx";
-import { socialIdentity, conversationTimeline } from "./inboxPresentation.js";
+import { socialIdentity, conversationTimeline, replyOutcomeMessage, replyWasAccepted, replyStateLabel } from "./inboxPresentation.js";
 const label = (s) =>
   String(s || "")
     .replaceAll("_", " ")
@@ -353,14 +353,15 @@ export default function MarketingInboxPage() {
       if (s !== activeScope.current || g !== generation.current) return;
       request.current = null;
       setModal(null);
-      setNotice(typeof message === "function" ? message(result) : message);
+      const isSend = ['staff_reply','send'].includes(intent.command);
+      setNotice(isSend ? replyOutcomeMessage(result) : typeof message === "function" ? message(result) : message);
       setRefresh((r) => r + 1);
       notifyConversationsChanged();
       if (intent.command === "create") {
         setChannel("internal");
         setSelected(result.conversation.id);
       }
-      return result;
+      return isSend && !replyWasAccepted(result) ? null : result;
     } catch (e) {
       if (s === activeScope.current && g === generation.current) {
         setError(e.message);
@@ -907,7 +908,7 @@ export default function MarketingInboxPage() {
                               {["read", "delivered", "sent"].includes(
                                 m.send_state,
                               )
-                                ? label(m.send_state)
+                                ? replyStateLabel(m.send_state)
                                 : "Status unavailable"}
                             </span>
                           )}
@@ -1153,7 +1154,7 @@ export default function MarketingInboxPage() {
                           ? "Approval recorded for this history version."
                           : "Historical approval; conversation history changed."}{" "}
                         Delivery:{" "}
-                        {label(
+                        {replyStateLabel(
                           current.outbox?.find((o) => o.draft_id === d.id)
                             ?.state || "blocked",
                         )}

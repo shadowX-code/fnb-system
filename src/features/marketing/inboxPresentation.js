@@ -81,3 +81,15 @@ export function replyAvailability(current, configuration, canSend) {
   if (current.reply_authority?.recent === false) return "Refresh connection status before sending";
   return "";
 }
+
+export function replyOutcomeMessage(result) {
+ if(['sent','delivered','read'].includes(result?.state))return result.state==='sent'?'Meta accepted the reply. Delivery has not yet been confirmed.':result.state==='delivered'?'Delivery observed by Meta.':'Read observed by Meta.';
+ if(result?.state==='prepared')return 'Reply queued. Meta acceptance has not been recorded.';
+ if(result?.state==='pending')return 'Reply is being sent. Wait for its result before taking another action.';
+ if(result?.state==='reconciling')return 'Send outcome is unknown. Check reply status; do not resend while it is being reconciled.';
+ const reasons={provider_token_invalid:'The connection credential is invalid or expired. Reconnect before trying again.',provider_permission_required:'Meta rejected the reply authority. Check account permissions and the reply window before trying again.',provider_rate_limited:'Meta rate-limited this reply. Wait, refresh connection status, then retry manually.',provider_recipient_unavailable:'Meta could not message this customer. Check recipient availability before trying again.'};
+ return reasons[result?.code]||'Meta rejected the reply. Check connection status and reply details before retrying manually.';
+}
+export function replyWasAccepted(result){return ['sent','delivered','read'].includes(result?.state);}
+
+export const replyStateLabel = state => ({blocked:'Not sent',prepared:'Queued',pending:'Sending',sent:'Provider accepted',delivered:'Delivered',read:'Read',failed:'Failed',reconciling:'Unknown · reconciling'})[state] || 'Unavailable';

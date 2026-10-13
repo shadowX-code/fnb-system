@@ -1,0 +1,24 @@
+# Conversations outbound readiness — Staging
+
+13 October 2026. L3 Canonical; no real sends, OAuth, permission expansion, autonomous reply activation or Production changes.
+
+## Verified live evidence retained
+Messenger Idamans Page 622626120924115 retains one approved acceptance reply with actual provider receipt and signed Delivered evidence. Instagram 17841473217923034 retains its approved reply, signed echo and exact message Read evidence. The prior separately approved recipient-side visible replies are documented in `qa/staging/marketingInboxLive.md`; they were not resent. Current authenticated Conversations shows the exact outbound bubbles and retained states. Absence of newer delivery/read events does not imply failure.
+
+Current latest standard windows are closed: Messenger ended 12 October at 10:12 MYT; Instagram ended 12 October at 21:26 MYT following its later inbound. Both connections remain test_authorized with verified receiving, sending authority and webhook evidence; recorded credential expiry 8 January 2027. Expiry metadata is not a promise against earlier revocation. Fresh send guards still require current verified authority. Staff-send remains disabled, test peers are not enabled and autonomous execution is disabled. No fresh live send is necessary to verify this diagnostics/recovery correction.
+
+## Actual Meta access
+The Published FeedX app 2204918033458414 currently shows pages_messaging, instagram_manage_messages, instagram_basic and pages_manage_metadata as Ready for testing. Messenger pages_messaging Actions exposes Add to App Review. Existing stored grants include all these scopes plus Page discovery/engagement scopes. The dashboard shows no required action item; it offers Tech Provider access verification for App Review/user data from other businesses. These observations do not establish reviewed/Advanced Access or general-customer eligibility. Human Agent is not added; FeedX uses only the standard 24-hour response path, not the seven-day exception. No app setting was changed.
+
+## Confirmed defects corrected
+The adapter previously collapsed every definitive provider rejection into provider_rejected, losing actionable recovery distinctions. The UI treated a returned failed/reconciling attempt as a successful result and could clear typed text. Both are corrected. Fresh manual retry after definitive failure is possible through the same canonical staff authority; exact request retries, prepared/pending/unknown attempts and previously accepted replies cannot resend. Queued, Sending, Provider accepted, Delivered, Read, Failed and Unknown states are explicitly distinguished.
+
+## Focused verification
+49 tests passed across six relevant Inbox, Meta adapter, verification, recovery and reply-count suites. Production build passed with the existing chunk-size warning. Staging authenticated-role rollback rehearsal passes expired windows, token-generation changes, opt-out, competing leases, exact/early receipts, definitive-failure replay/new intent, unknown-outcome blocking, Open/Pending/Resolved assignment, internal notes, Role send denial, Brand read denial and revocation. No fixture rows persist and no test invokes a provider write. Deno is unavailable locally; the supported Supabase deployment API successfully bundles/deploys the Edge source after CLI transport failures left version 32 unchanged. Deployed marketing-inbox version 33 is ACTIVE with the same custom-auth/webhook JWT mode.
+
+Approved FAQ read-only preview returns the exact approved brand-name answer. Existing AI Suggest uses the configured GPT-5 mini/approved knowledge pipeline and retained prior grounded acceptance evidence; no new paid AI generation was needed. Unknown/sensitive answers and human takeover remain gated. Authorized staff use the brand connection without individual Meta login, while recipient test eligibility remains a separate provider restriction.
+
+## Production dependencies
+Production is not authorized or generally operational. It needs a separately reviewed environment-specific frontend/Edge deployment, ordered migrations (including 20261013114413), canonical Role/member Brand configuration, encrypted Meta bindings, callback verification/account subscriptions, reviewed permission access for intended customer scope and explicitly approved execution policy. Current Edge origin/provider callback and test account/peer gates are Staging-specific; do not copy/activate them as unrestricted Production configuration. AI remains Suggest and uses only separately authorized provider configuration.
+
+Actionable blockers to another live test: a fresh eligible inbound message to reopen the window, sufficiently fresh connection verification and separate narrowly scoped outbound/configuration approval. General-customer messaging additionally requires the appropriate reviewed access. Existing live test acceptance remains verified; broader Production readiness is not claimed.

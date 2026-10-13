@@ -11,7 +11,7 @@ import {
 import MarketingInboxPage from "../MarketingInboxPage.jsx";
 import { marketingService } from "../marketingService.js";
 import { inboxService } from "../inboxService.js";
-import { conversationTimeline, socialIdentity } from "../inboxPresentation.js";
+import { conversationTimeline, socialIdentity, replyOutcomeMessage, replyWasAccepted } from "../inboxPresentation.js";
 vi.mock("../../../auth/AuthContext.jsx", () => ({
   useAuth: () => ({ user: { id: "user" }, hasPermission: () => true }),
 }));
@@ -344,3 +344,7 @@ it('uses an editable AI proposal as a human-confirmed staff reply without autono
  await waitFor(()=>expect(inboxService.sendStaffReply).toHaveBeenCalledWith(expect.any(String),conversation,'Edited by a person','ai-one'));
  expect(inboxService.reviewAI).not.toHaveBeenCalled();
 });
+
+it('distinguishes provider acceptance from delivery and does not accept failed or unknown outcomes',()=>{expect(replyOutcomeMessage({state:'sent'})).toContain('not yet been confirmed');expect(replyOutcomeMessage({state:'reconciling'})).toContain('do not resend');expect(replyOutcomeMessage({state:'failed',code:'provider_token_invalid'})).toContain('Reconnect');for(const state of ['failed','reconciling','pending','prepared'])expect(replyWasAccepted({state})).toBe(false);expect(replyWasAccepted({state:'read'})).toBe(true)});
+
+it.each([{state:'failed',code:'provider_token_invalid'},{state:'reconciling',code:'delivery_receipt_unknown'}])('retains typed staff reply after $state and shows accurate recovery',async result=>{detail.reply_requires_approval=false;inboxService.configuration.mockResolvedValue({staff_send_configured:true});inboxService.sendStaffReply.mockResolvedValue(result);render(<MarketingInboxPage/>);await select();fireEvent.change(screen.getByLabelText('Reply'),{target:{value:'Keep my reviewed reply'}});await waitFor(()=>expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(false));fireEvent.click(screen.getByRole('button',{name:'Send',exact:true}));await screen.findByText(replyOutcomeMessage(result));expect(screen.getByLabelText('Reply').value).toBe('Keep my reviewed reply');expect(inboxService.sendStaffReply).toHaveBeenCalledTimes(1)});

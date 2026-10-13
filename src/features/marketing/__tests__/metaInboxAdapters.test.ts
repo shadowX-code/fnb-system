@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {advanceInboxDelivery,commentReplyIntent} from '../../../../supabase/functions/_shared/metaInboxAdapters.ts';
+import {advanceInboxDelivery,commentReplyIntent,inboxFailureCode} from '../../../../supabase/functions/_shared/metaInboxAdapters.ts';
 import {messagingIntent,validateAISuggestion} from '../../../../supabase/functions/_shared/marketingInbox.ts';
 const authority={execution_enabled:true,send_verified:true,webhook_verified:true,exact_authorizer_verified:true,page_tasks:['MESSAGE'],granted_scopes:['pages_messaging','instagram_manage_messages'],last_inbound_at:new Date().toISOString(),page_id:'111'};
 describe('bounded Send API contracts',()=>{
@@ -25,3 +25,6 @@ describe('bounded Send API contracts',()=>{
  });
  it('rejects invented AI intents',()=>expect(()=>validateAISuggestion({text:'Hi',question:'',language:'EN',reference_keys:['rules'],human_required:false,intent:'make_reservation'},{rules:{}},'reply')).toThrow());
 });
+
+it('preserves bounded definitive rejection categories without retaining provider payloads',async()=>{for(const [graphCode,code] of [[190,'provider_token_invalid'],[200,'provider_permission_required'],[613,'provider_rate_limited'],[551,'provider_recipient_unavailable'],[100,'provider_rejected']] as const){let state:any={};const post=vi.fn().mockRejectedValue({definitive:true,graphCode,message:'private provider payload'});const args={channel:'facebook' as const,authority,recipient:'222',text:'Hello',guard:async()=>{},checkpoint:async(v:any)=>{state=v},post};expect(await advanceInboxDelivery({...args,state})).toEqual({state:'failed',code});expect(JSON.stringify(state)).not.toContain('private');await advanceInboxDelivery({...args,state});expect(post).toHaveBeenCalledTimes(1);expect(inboxFailureCode({graphCode})).toBe(code)}});
+it('closed and future messaging windows are rejected before any POST',async()=>{for(const last_inbound_at of [new Date(Date.now()-25*3600000).toISOString(),new Date(Date.now()+3600000).toISOString()]){const post=vi.fn();await expect(advanceInboxDelivery({channel:'instagram',authority:{...authority,last_inbound_at},recipient:'222',text:'Hello',state:{},guard:async()=>{},checkpoint:async()=>{},post})).rejects.toThrow();expect(post).not.toHaveBeenCalled()}});

@@ -16,7 +16,7 @@ export async function advanceInboxDelivery(input:{channel:'facebook'|'instagram'
  try { result=await input.post(intent.path,intent.body); }
  catch(error:any) {
   // A transport timeout/lost response may already have delivered: never retry the write.
-  if(error?.definitive===true) {await input.checkpoint({failed:'provider_rejected'});return {state:'failed',code:'provider_rejected'};}
+  if(error?.definitive===true) {const code=inboxFailureCode(error);await input.checkpoint({failed:code});return {state:'failed',code};}
   return {state:'reconciling',code:'delivery_receipt_unknown'};
  }
  if(typeof result?.message_id!=='string'||!result.message_id||result.message_id.length>300||result.recipient_id!==input.recipient)return {state:'reconciling',code:'delivery_receipt_unverified'};
@@ -35,3 +35,12 @@ export const inboxConnectorContracts={
  facebook_comments:{receivePermission:'pages_read_user_content',replyPermission:'pages_manage_engagement',subscriptionField:'feed'},
  instagram_comments:{receivePermission:'instagram_manage_comments',replyPermission:'instagram_manage_comments',subscriptionField:'comments'},
 };
+
+/** Fixed recovery categories only: no provider messages, peers, payloads or credentials. */
+export function inboxFailureCode(error:{graphCode?:number;code?:string}) {
+ if(error.graphCode===190)return 'provider_token_invalid';
+ if([10,200].includes(error.graphCode||0))return 'provider_permission_required';
+ if([4,17,32,613].includes(error.graphCode||0))return 'provider_rate_limited';
+ if(error.graphCode===551)return 'provider_recipient_unavailable';
+ return 'provider_rejected';
+}
