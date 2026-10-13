@@ -6,6 +6,7 @@ export function a4Dimensions(orientation) {
 // Wide tables continue in column bands rather than shrinking text below readable size.
 export function a4ColumnBands(columns, orientation) {
   const usable = a4Dimensions(orientation).width - 24;
+  if (columns.length && columns.reduce((sum,c)=>sum+c.minWidth,0) <= usable) return [columns];
   const anchors = columns.filter(c => c.repeat);
   const remaining = columns.filter(c => !c.repeat);
   const bands = []; let band = [...anchors];

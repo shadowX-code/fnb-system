@@ -23,5 +23,6 @@ export function finishedGoodsExportColumns(can, formatPackSize, formatStorage) {
     {key:"cost",label:"Cost",minWidth:22,value:r=>r.commercial_cost == null ? "—" : money(r.commercial_cost)},
     {key:"margin",label:"Gross Margin",minWidth:22,value:r=>r.gross_margin == null ? "—" : percent(r.gross_margin)},
   );
-  return columns;
+  const tableOrder = ["category","product","tags","halal","sku","pack","storage","shelf","cost","price","margin"];
+  return columns.sort((a,b)=>tableOrder.indexOf(a.key)-tableOrder.indexOf(b.key));
 }
