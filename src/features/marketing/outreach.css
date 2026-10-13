@@ -105,8 +105,8 @@
 
 .import-history-file{overflow-wrap:anywhere}.customer-import small,.customer-import p{overflow-wrap:anywhere}
 
-.import-confirm-summary {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0;}
-.import-confirm-summary div {padding:12px;background:var(--theme-bg-secondary);border-radius:8px;}
+.import-confirm-summary {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0;}
+.import-confirm-summary div {padding:12px;background:var(--theme-surface-nested);border-radius:8px;}
 .import-confirm-summary dt {font-size:12px;color:var(--theme-text-secondary);}
 .import-confirm-summary dd {font-size:22px;font-weight:600;margin:4px 0 0;}
 .import-confirm details {margin-top:16px;font-size:13px;color:var(--theme-text-secondary);}
