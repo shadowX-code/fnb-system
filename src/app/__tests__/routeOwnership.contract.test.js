@@ -19,6 +19,12 @@ import {
 import { moduleRegistry, moduleWorkspace } from "../../../config/modules.ts";
 
 describe("FeedX canonical route contract", () => {
+  it('retains Marketing Settings deep links alongside three canonical pages',()=>{
+    expect(resolveCanonicalPath('/marketing/settings').routeId).toBe('marketing_settings');
+    expect(resolveCanonicalPath('/marketing/connections').routeId).toBe('marketing_connections');
+    expect(resolveCanonicalPath('/marketing/brand-knowledge').routeId).toBe('marketing_knowledge');
+    expect(resolveCanonicalPath('/marketing/brand-access').routeId).toBe('marketing_brand_access');
+  });
   it('retains CRM bookmarks under the canonical feature without granting campaign authority to customer viewers',()=>{
     expect(resolveCanonicalPath('/marketing/audience').routeId).toBe('marketing_audience');
     expect(resolveCanonicalPath('/marketing/customers').routeId).toBe('marketing_audience');

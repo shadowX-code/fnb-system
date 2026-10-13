@@ -53,6 +53,7 @@ const AssetTrackingPage = lazy(() => import("../features/sales-purchase/pages/As
 const MarketingAdsPage = lazy(() => import("../features/marketing/MarketingAdsPage.jsx"));
 const MarketingOutreachPage = lazy(() => import("../features/marketing/MarketingOutreachPage.jsx"));
 const MarketingInboxPage = lazy(() => import("../features/marketing/MarketingInboxPage.jsx"));
+const MarketingSettingsPage = lazy(() => import("../features/marketing/MarketingSettingsPage.jsx"));
 const MarketingWorkspacePage = lazy(() => import("../features/marketing/MarketingWorkspacePage.jsx"));
 const RecruitmentPage = lazy(() => import("../features/recruitment/RecruitmentPage.jsx"));
 
@@ -84,7 +85,10 @@ export const routeDetails = {
   marketing_content: { component: MarketingWorkspacePage, props: { section: "content" }, permission: "marketing_workspace.access AND marketing_content.view", description: "Versioned creative content, review and publishing." },
   marketing_calendar: { component: MarketingWorkspacePage, props: { section: "calendar" }, permission: "marketing_workspace.access AND marketing_calendar.view OR marketing_workspace.access AND marketing_content.view", description: "Versioned posts, approvals and publishing analytics." },
   marketing_analytics: { component: MarketingWorkspacePage, props: { section: "analytics" }, permission: "marketing_workspace.access AND marketing_analytics.view", description: "Publishing outcomes and available evidence." },
-  marketing_settings: { component: MarketingWorkspacePage, props: { section: "settings" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Brand knowledge, access and connection readiness." },
+  marketing_settings: { component: MarketingSettingsPage, props: { section: "legacy" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Compatibility entry for saved Settings and OAuth callbacks." },
+  marketing_connections: { component: MarketingSettingsPage, props: { section: "connections" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Brand social and Google Drive connections." },
+  marketing_knowledge: { component: MarketingSettingsPage, props: { section: "knowledge" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Brand identity, guidance and evidence." },
+  marketing_brand_access: { component: MarketingSettingsPage, props: { section: "access" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Authorized Brand access and team role scopes." },
   finance_data_sources: { description: "Financial source connection, authority, mapping, reconciliation and readiness.", component: FinanceDataSourcesPage },
   finance_overview: { description: "Finance overview foundation.", component: FinanceWorkspacePage, props: { section: "overview" } },
   finance_analysis: { description: "Business performance and evidence-backed profit drivers.", component: FinanceAnalysisPage },

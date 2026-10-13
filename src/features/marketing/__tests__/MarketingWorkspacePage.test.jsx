@@ -44,8 +44,6 @@ it('legacy Content Library renders the same specific-brand Content Management',a
  expect(new URLSearchParams(window.location.search).get('marketing_brand')).toBe('brand');
 });
 
-it('shows Brand Access and Team Permissions without Organization setup',async()=>{render(<MarketingWorkspacePage section="settings"/>);fireEvent.click(await screen.findByRole('tab',{name:'Knowledge & access'}));await screen.findByText('Brand Access & Team Permissions');expect(screen.queryByRole('button',{name:'Organization',exact:true})).toBeNull();expect(screen.queryByRole('button',{name:'Create organization'})).toBeNull();expect(screen.getByRole('link',{name:'Manage Brands & Outlets'}).getAttribute('href')).toBe('/system/brands');});
-
 it('switches internal scope by permitted Brand without an Organization selector',async()=>{
  service.context.mockResolvedValue({organizations:[{id:'org'},{id:'other'}],brands:[...context.brands,{id:'second',organization_id:'other',name:'Second Brand',timezone:'Asia/Kuala_Lumpur',outlet_ids:[]}]});
  render(<MarketingWorkspacePage section="calendar"/>);await waitFor(()=>expect(service.contentManagement).toHaveBeenCalled());

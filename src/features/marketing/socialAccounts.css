@@ -114,11 +114,6 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.marketing-settings-tabs {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 12px;
-}
 @media (max-width: 640px) {
   .social-accounts {
     padding: 14px;
@@ -150,3 +145,6 @@
   margin-bottom: 12px;
   line-height: 1.5;
 }
+
+.settings-social.social-accounts{padding:0}.settings-social .social-accounts-heading p{max-width:70ch}.settings-social .social-account-detail{padding:0}.settings-social .social-account-detail .social-account-capabilities{gap:12px}.settings-social .social-account-empty{margin-top:14px;padding:22px;border:1px dashed var(--theme-border);border-radius:10px;font-size:13px;color:var(--theme-text-secondary)}
+@media(max-width:640px){.settings-social .social-accounts-heading>button{width:auto}}

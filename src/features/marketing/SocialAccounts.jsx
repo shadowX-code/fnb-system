@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Facebook, Instagram, Plus, RefreshCw } from "lucide-react";
+import { Facebook, Instagram, Plus, Eye } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import AsyncDataSurface from "../../components/feedback/AsyncDataSurface.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
+import Drawer from '../../components/ui/Drawer.jsx';
+import DataTable from '../../components/tables/DataTable.jsx';
 import Badge from "../../components/ui/Badge.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import { marketingService } from "./marketingService.js";
@@ -43,6 +45,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
     [refresh, setRefresh] = useState(0),
     [busy, setBusy] = useState(false),
     [modal, setModal] = useState(null),
+    [detail,setDetail]=useState(null),
     [chosenBrand, setChosenBrand] = useState(""),
     [selected, setSelected] = useState([]),
     [confirmed, setConfirmed] = useState(false),
@@ -59,7 +62,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
     setLoading(true);
     setError("");
     setBusy(false);
-    setModal(null);
+    setModal(null);setDetail(null);
     setSelected([]);
     setConfirmed(false);
     Promise.all([
@@ -78,7 +81,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
         setPending(sessions);
         if (sessions.length && selectionKey.current !== sessions[0].id) {
           selectionKey.current = sessions[0].id;
-          setModal({ type: "select", session: sessions[0] });
+          openModal({ type: "select", session: sessions[0] });
           setSelected([]);
           setConfirmed(false);
         }
@@ -125,9 +128,10 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
       if (generation === lifetime.current) setBusy(false);
     }
   }
+  function openModal(value){setDetail(null);setModal(value)}
   function openConnect(c = null) {
     setChosenBrand(c?.brand_id || brandId || "");
-    setModal({ type: "connect", connection: c });
+    openModal({ type: "connect", connection: c });
     setConfirmed(false);
   }
   async function launch() {
@@ -164,10 +168,10 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
     selectedAssets.find((a) => a.channel === "instagram")?.page_id ===
       selectedAssets.find((a) => a.channel === "facebook")?.id;
   return (
-    <section className="card social-accounts" aria-label="Social Accounts">
+    <section className="settings-social social-accounts" aria-label="Social Accounts">
       <div className="social-accounts-heading">
         <div>
-          <h2>Social Accounts</h2>
+          <h2>Meta Social Accounts</h2>
           <p>
             Connect Meta accounts to a FeedX brand. Publishing and replies stay
             separately controlled.
@@ -234,7 +238,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
               className="btn-secondary"
               disabled={busy}
               onClick={() => {
-                setModal({ type: "select", session: s });
+                openModal({ type: "select", session: s });
                 setSelected([]);
                 setConfirmed(false);
               }}
@@ -243,16 +247,16 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
             </button>
           </div>
         ))}
-        {accounts.length ? (
-          <div className="social-account-list">
-            {accounts.map((c) => {
-              const status = socialAccountStatus(c),
-                capabilities = socialCapabilities(c),
-                issues = socialAccountIssues(c),
-                needsReconnect = socialNeedsReconnect(c),
-                Icon = c.channel === "facebook" ? Facebook : Instagram;
-              return (
-                <article className="social-account" key={c.id}>
+        {accounts.length?<div className="settings-integration-table card overflow-hidden"><DataTable density="compact" minWidth={760} getRowKey={c=>c.id} rows={[...accounts].sort((a,b)=>Number(socialAccountIssues(b).length>0||socialNeedsReconnect(b))-Number(socialAccountIssues(a).length>0||socialNeedsReconnect(a)))} columns={[
+ {key:'identity',header:'Meta Account',render:c=><div className="settings-integration-identity"><span className={`settings-platform-icon ${c.channel}`}>{c.channel==='facebook'?<Facebook size={20} aria-label="Facebook Page"/>:<Instagram size={20} aria-label="Instagram"/>}</span><span><strong>{c.account_name||platform(c.channel)}</strong><small>{brands.find(b=>b.id===c.brand_id)?.name||'Authorized Brand'} · {platform(c.channel)}</small></span></div>},
+ {key:'health',header:'Health',render:c=><Badge tone={['expired','permission_required','action_required'].includes(socialAccountStatus(c))?'warning':'neutral'}>{socialStateLabel(socialAccountStatus(c))}</Badge>},
+ {key:'capabilities',header:'Capabilities',render:c=><div className="settings-capability-strip">{Object.entries(socialCapabilities(c)).map(([name,value])=><span key={name} className={`settings-capability ${['verified','operational','delivery_verified','connected'].includes(value.state)?'good':'attention'}`} title={socialReason(value.reason)}><span className="settings-capability-dot" aria-hidden="true"/>{name==='messaging'?'Inbox':name==='publishing'?'Publishing':'Insights'} · {socialStateLabel(value.state,name)}</span>)}</div>},
+ {key:'sync',header:'Last Sync',render:c=><span className="text-xs text-text-secondary">{stamp(c.last_synced_at)}</span>},
+ {key:'actions',header:'',align:'right',render:c=><button className="icon-btn" aria-label={`View connection ${c.account_name||platform(c.channel)}`} onClick={()=>setDetail(c.id)}><Eye size={16}/></button>}
+ ]} onRowClick={c=>setDetail(c.id)} getRowProps={c=>({role:'button',tabIndex:0,'aria-label':`Open connection ${c.account_name||platform(c.channel)}`,onKeyDown:e=>{if(e.target===e.currentTarget&&['Enter',' '].includes(e.key)){e.preventDefault();setDetail(c.id)}}})}/></div>:<div className="social-account-empty"><p>No social accounts are connected. Select Connect Account to get started.</p></div>}
+
+      </AsyncDataSurface>
+      {detail&&accounts.find(c=>c.id===detail)?(()=>{const c=accounts.find(c=>c.id===detail),status=socialAccountStatus(c),capabilities=socialCapabilities(c),issues=socialAccountIssues(c),needsReconnect=socialNeedsReconnect(c),Icon=c.channel==='facebook'?Facebook:Instagram;return <Drawer title="Connection Details" description={c.account_name||platform(c.channel)} width="lg" onClose={()=>{if(!busy)setDetail(null)}}><div className="social-account social-account-detail">
                   <div className="social-account-identity">
                     <Icon size={20} aria-label={platform(c.channel)} />
                     <div>
@@ -307,7 +311,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                         </button>
                         ) : null}
                         {issues.length && !needsReconnect ? (
-                          <button className="btn-secondary" disabled={busy} onClick={() => setModal({ type: "issue", connection: c, issues })}>Resolve Issue</button>
+                          <button className="btn-secondary" disabled={busy} onClick={() => openModal({ type: "issue", connection: c, issues })}>Resolve Issue</button>
                         ) : null}
                         <button
                           className="btn-secondary"
@@ -332,7 +336,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                           className="btn-secondary"
                           disabled={busy || c.status === "not_connected"}
                           onClick={() =>
-                            setModal({ type: "disconnect", connection: c })
+                            openModal({ type: "disconnect", connection: c })
                           }
                         >
                           Disconnect
@@ -345,7 +349,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                               async () => {
                                 const value =
                                   await marketingService.diagnoseMeta(c.id);
-                                setModal({ type: "diagnostics", value });
+                                openModal({ type: "diagnostics", value });
                               },
                               "Connection evidence checked.",
                               false,
@@ -357,17 +361,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                       </div>
                     ) : null}
                   </div>
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <p>
-            No social accounts are connected. Select Connect Account to get
-            started.
-          </p>
-        )}
-      </AsyncDataSurface>
+                </div><details className="settings-history"><summary>Account identity & authorization</summary><dl className="settings-connection-details mt-3"><dt>Account ID</dt><dd>{c.provider_account_id}</dd><dt>Authorization expires</dt><dd>{stamp(c.expires_at)}</dd></dl></details></Drawer>})():null}
       {modal?.type === "connect" ? (
         <Modal
           title={
@@ -607,7 +601,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
         <Modal title={`Account access · ${modal.connection.account_name}`} onClose={() => setModal(null)}>
           <p>FeedX has completed the available automatic checks. Review the following account access with your Page administrator or FeedX administrator.</p>
           {modal.issues.map(([name, value]) => <p key={name}><strong>{name === "messaging" ? "Inbox" : name === "publishing" ? "Publishing" : "Insights"}</strong>: {socialReason(value.reason)}</p>)}
-          <p>FeedX checks again automatically after access is restored. Technical details are available from the account card.</p>
+          <p>FeedX checks again automatically after access is restored. Technical details are available from Connection Details.</p>
         </Modal>
       ) : null}
       {modal?.type === "diagnostics" ? (
