@@ -39,6 +39,7 @@ export type ModuleAction =
   | "enable_login"
   | "reset_password"
   | "access"
+  | "connect"
   | "developer"
   | "send"
   | "reply"
@@ -78,6 +79,7 @@ export const permissionActionOrder: ModuleAction[] = [
   "enable_login",
   "reset_password",
   "access",
+  "connect",
   "developer",
   "approve",
   "review",
@@ -114,7 +116,7 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   prepare: "Prepare Payroll Runs",
   review_time: "Review Payroll Time",
   treat_ph: "Confirm PH Pay Treatment",
-  configure: "Configure Payroll",
+  configure: "Configure",
   configure_holidays: "Configure Payroll Holiday Calendar",
   publish_holidays: "Publish Payroll Holiday Calendar",
   record_payment: "Record Payroll Payment",
@@ -126,13 +128,14 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   enable_login: "Enable Login",
   reset_password: "Reset Password",
   access: "Access",
+  connect: "Connect Accounts",
   developer: "Developer Access",
   approve: "Approve",
   review: "Review",
   adjust: "Adjust",
   finalize: "Finalize",
   publish: "Publish",
-  execute: "Authorize External Publishing",
+  execute: "Execute",
   moderate: "Moderate",
   mark_paid: "Mark Paid",
   assess: "Assess",
@@ -147,7 +150,7 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   record_collection: "Record Collection",
   cancel: "Cancel",
   manage: "Manage",
-  send: "Send Approved Replies",
+  send: "Send",
   reply: "Prepare Replies",
   ai: "Request AI Suggestions",
   import: "Import",
@@ -1316,7 +1319,7 @@ export function getPermissionGroups() {
         action,
         {
           label: getPermissionLabel(module.id, action),
-          codes: action === "view" ? [permissionCode(module.id, action)] : [permissionCode(module.id, "view"), permissionCode(module.id, action)],
+          codes: action !== "view" && module.permissions.view ? [permissionCode(module.id, "view"), permissionCode(module.id, action)] : [permissionCode(module.id, action)],
         },
       ]),
     );

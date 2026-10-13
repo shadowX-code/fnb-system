@@ -59,7 +59,7 @@ Policies** and `factory_petty_cash.manage` as **Configure Petty Cash Categories*
 Their IDs, grants, scope and server checks are unchanged; other Manage permissions
 retain their existing labels and semantics.
 
-The module registry defines available capabilities; roles grant permission to them but do not redefine route ownership.
+The module registry defines available capabilities; roles grant permission to them but do not redefine route ownership. The canonical Role Permission Matrix is shared by role reading and editing. Workspace and Module filters control presentation only; each workspace table includes only registered actions of its visible modules. Consumer routes that reuse permissions identify their owning module instead of creating another grant. A cell implies View only when that module actually defines View; standalone Access/Manage modules never submit invented View codes. Active-action counts require the complete cell dependency set, not merely a shared View grant. Non-protected editors cannot select actions they cannot delegate under the existing permission/legacy role-management alias contract. The existing Ads Connect action is registered so unrelated role edits retain that stored grant. Role snapshots, protected-role semantics and trusted saves are unchanged.
 UI gating mirrors authority for usability while RLS and trusted functions enforce access.
 
 ## Permissions And Audit

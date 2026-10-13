@@ -939,3 +939,7 @@ Staging adds canonical daily organic observations, exact-baseline observed growt
 ### 2026-10-13 — Brand-first business context, retained security tenancy
 
 Removed business-facing Organization configuration from Restaurant Brands and Marketing/CRM/Creators/Planner/Ads/Drive. Canonical Brands remains Restaurant System; new Brand/Team façades derive and validate internal scope while delegating existing trusted authorities. Existing tenancy tables, memberships, Outlet ownership, RLS/RBAC, provider bindings, customer/Creator identity boundaries and historical records remain intact. No provider Portfolio determines FeedX ownership. Deeper tenancy replacement is explicitly separate. L3 focused coverage includes Brand-derived creation/mapping, ambiguous/foreign scope rejection, existing workflow regressions and authenticated canonical Staging surfaces; no Production/main or external execution.
+
+### 2026-10-13 — Canonical Marketing permission integration
+
+Corrected phantom View dependencies for standalone permission owners and restored the existing Ads Connect action registration, preserving role snapshots and stored grants. Role reading/editing now share workspace/module-scoped matrix presentation; Brand Access continues its existing role-wide Brand scope authority with canonical Roles navigation. Read-only Staging checks verified role, Brand, membership and tenant boundaries; no roles, memberships, scopes or execution policies were changed.
