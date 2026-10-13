@@ -84,6 +84,15 @@ begin
  perform public.platform_customer_import_job(o,b,'confirm',j);
  for i in 1..3 loop perform marketing_private.customer_import_tick();end loop;
  v:=public.platform_customer_import_job(o,b,'read',j);assert v->'counts'->>'conflict'='2' and v->'counts'->>'invalid'='1' and v->'counts'->>'created'='248','File-wide ambiguity and partial invalid rows do not prevent valid imports';
+ j:=gen_random_uuid();
+ perform public.platform_customer_import_job(o,b,'begin',j,jsonb_build_object('source','QA Actor Binding','snapshot_date','2026-10-13','file_name','synthetic-actor.csv','total',1,'file_digest',repeat('e',64)));
+ perform public.platform_customer_import_job(o,b,'upload',j,'{"start":1,"rows":[{"input":{"name":"Synthetic Actor Guard","phone":"0123987654"},"decision":{"selected":true,"snapshot":"new","fields":[]}}]}');
+ perform public.platform_customer_import_job(o,b,'confirm',j);
+ -- Corrupt only a disposable job's pairing to simulate a changed Auth identity.
+ update marketing_private.customer_import_jobs set actor_employee_id=(select id from marketing_qa_ids where key='other_employee') where id=j;
+ assert marketing_private.customer_import_tick()=0,'Changed employee/Auth pairing cannot transfer approval';
+ assert (select state='attention' and attempts=3 from marketing_private.customer_import_jobs where id=j),'Identity change requires fresh import';
+ assert not exists(select 1 from public.platform_customers where organization_id=o and phone_e164='+60123987654'),'No customer write under a transferred identity';
 end;$$;
 rollback;
 select '250 synthetic customers and POS snapshots processed in three resumable batches; chunk/confirmation retries, revoked-actor recovery, source row positions, cross-chunk duplicates and partial failures safe; all fixtures rolled back' result;
