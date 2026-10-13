@@ -3053,3 +3053,6 @@
  .admin-data-table[data-mobile-layout="stack"]>tbody>tr>td[data-label=""]{position:absolute;top:14px;right:14px;flex:0}
  .admin-data-table[data-mobile-layout="stack"]>tbody>tr>td[data-priority="secondary"]{display:none}
 }
+
+/* Shared Columns menu, independent of page stylesheet loading. */
+.admin-column-picker{display:grid;gap:10px;padding:10px}.admin-column-picker legend{font-size:12px;font-weight:600;padding-bottom:12px}.admin-column-picker label{display:flex;align-items:center;gap:8px;font-size:13px}
