@@ -15,7 +15,7 @@ export function latestPosts(observations) {
  return [...groups.entries()].map(([key,rows])=>{
   rows.sort((a,b)=>(Date.parse(b.observed_at)||0)-(Date.parse(a.observed_at)||0)||String(b.id).localeCompare(String(a.id)));
   const latest={...rows[0],key,metrics:{},metric_provenance:{},metric_observations:{}};
-  for(const name of ['views','interactions','likes','reactions','comments','shares','saves','reach']){
+  for(const name of ['views','viewers','interactions','likes','reactions','comments','shares','saves','reach','watch_time_ms','avg_watch_time_ms']){
    const valid=rows.find(r=>postMetric(r,name)!==null);
    if(valid){latest.metrics[name]=postMetric(valid,name);latest.metric_observations[name]=valid.metric_provenance?.[name]?.observed_at||valid.observed_at;if(valid.metric_provenance?.[name])latest.metric_provenance[name]=valid.metric_provenance[name];}
   }

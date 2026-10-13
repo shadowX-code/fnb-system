@@ -29,6 +29,16 @@ describe('Social Analytics evidence projection',()=>{
   expect(metricAggregate([post({channel:'facebook',metrics:{reactions:0,comments:2}})],'interactions').value).toBeNull();
   expect(metricAggregate([post({channel:'facebook',metrics:{reactions:0,comments:2,shares:0}})],'interactions').value).toBe(2);
  });
+ it('retains detail-only provider metrics and provenance without aggregating unique viewers',()=>{
+  const evidence={source:'insights.post_total_media_view_unique',period:'lifetime',observed_at:'2026-10-13T01:43:00Z',graph_version:'v26.0'};
+  const fb=post({channel:'facebook',metrics:{views:19,viewers:3},metric_provenance:{viewers:evidence}});
+  const ig=post({channel:'instagram',metrics:{views:0,watch_time_ms:2500,avg_watch_time_ms:0}});
+  const r=latestPosts([fb,ig]);
+  expect(r[0].metrics).toEqual({views:19,viewers:3});
+  expect(r[0].metric_provenance.viewers).toEqual(evidence);expect(r[0].metric_observations.viewers).toBe(evidence.observed_at);
+  expect(r[1].metrics).toMatchObject({watch_time_ms:2500,avg_watch_time_ms:0});
+  expect(metricAggregate(r,'viewers')).toEqual({value:null,available:1,total:2});
+ });
 });
 describe('Operational dashboard projection',()=>{
  it('excludes success receipts, answered/resolved/internal conversations and completed overdue tasks',()=>{
