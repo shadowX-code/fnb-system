@@ -1,2 +1,1 @@
--- Parenthesize extraction before removing identity keys; preserve the already-applied migration.
 do $$ declare body text; old_text text:='config->''regional_regulation_identities''-array';begin select pg_get_functiondef('public.marketing_ads_change_prepare(uuid,uuid,uuid,uuid,uuid,text,jsonb,text,uuid)'::regprocedure) into body; if position(old_text in body)=0 then raise exception 'Declaration contract changed';end if;body:=replace(body,old_text,'(config->''regional_regulation_identities'')-array');execute body;end $$;
