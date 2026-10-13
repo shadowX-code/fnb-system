@@ -64,3 +64,5 @@ it("owns breadcrumb navigation and colocated metadata without changing legacy he
     container.querySelector("[data-page-header-metadata]").textContent,
   ).toBe("Full Time + Part Time");
 });
+
+it('supports explicit wrapping for long titles while retaining default truncation',()=>{const {container,rerender}=render(<PageHeader title="Brand Access & Team Permissions" wrapTitle/>);expect(container.querySelector('h1').className).toContain('whitespace-normal');rerender(<PageHeader title="Default"/>);expect(container.querySelector('h1').className).toContain('truncate')});

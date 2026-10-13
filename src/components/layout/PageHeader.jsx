@@ -8,6 +8,7 @@ export default function PageHeader({
   breadcrumbs,
   metadata,
   variant,
+  wrapTitle = false,
 }) {
   const groupedActions = secondaryActions || primaryActions;
   const actionContent = groupedActions ? (
@@ -77,7 +78,7 @@ export default function PageHeader({
               {section}
             </p>
           ) : null}
-          <h1 className="mt-0.5 truncate type-page-title font-bold tracking-tight text-text-primary">
+          <h1 className={`mt-0.5 ${wrapTitle ? "whitespace-normal break-words" : "truncate"} type-page-title font-bold tracking-tight text-text-primary`}>
             {title}
           </h1>
           {description ? (

@@ -16,3 +16,5 @@
 
 .settings-capability.pending{color:var(--theme-text-secondary)}
 @media(max-width:700px){.settings-drive-row{position:relative}.settings-drive-row>.icon-btn{position:absolute;top:14px;right:14px}.settings-drive-row .settings-integration-identity{padding-right:32px}.settings-drive-summary{padding-left:48px}.settings-drive-row>.badge{margin-left:48px}}
+
+@media(max-width:700px){.brand-profile-header>div:nth-child(2){flex:1 1 calc(100% - 72px)}}

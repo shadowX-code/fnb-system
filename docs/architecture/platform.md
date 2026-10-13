@@ -239,3 +239,5 @@ The Marketing Settings sidebar is Connections, Brand Knowledge and Brand Access 
 
 
 `DataTable` retains horizontal scrolling by default. Its opt-in `mobileLayout="stack"` presents labeled record rows below 700px, preserving native headers, row actions, keyboard handlers and desktop geometry. Marketing Connections and Brand Access consume this shared responsive owner; other existing consumers retain their default behavior.
+
+`PageHeader`/`WorkspacePage` supports opt-in `wrapTitle` for a full long page title at narrow widths; default consumers retain truncation. Marketing Brand Access uses this shared option.
