@@ -100,14 +100,14 @@ export async function parseXlsx(file) {
     if(values.some(cell=>String(cell??'').trim()))rowNumbers.push(Number(rowNode.getAttribute("r"))||rowNumbers.length+1);
     return values;
   }).filter((row) => row.some((cell) => String(cell ?? "").trim()));
-  return tabularRecords(rawRows,rowNumbers);
+  return {...tabularRecords(rawRows,rowNumbers),format:'xlsx',dateSystem:['1','true'].includes(workbook.querySelector('workbookPr')?.getAttribute('date1904'))?1904:1900};
 }
-export async function readTabularFile(file) {
+export async function readTabularFile(file, {maxRows=TABULAR_LIMITS.rows}={}) {
  if(!file||file.size>TABULAR_LIMITS.bytes)throw new Error('Choose a CSV or XLSX file up to 10 MB.');
  const extension=file.name.split('.').pop().toLowerCase();
  if(!['csv','xlsx'].includes(extension))throw new Error('Choose a CSV or XLSX file.');
  const data=extension==='csv'?parseCsv(await file.text()):await parseXlsx(file);
- if(data.rows.length<1||data.rows.length>TABULAR_LIMITS.rows)throw new Error('Import 1–500 customer rows per file. Split larger files.');
+ if(data.rows.length<1||data.rows.length>maxRows)throw new Error(`Import 1–${maxRows.toLocaleString('en-MY')} rows per file.`);
  return data;
 }
 export function safeCsvCell(value) {

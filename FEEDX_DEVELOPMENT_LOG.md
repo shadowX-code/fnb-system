@@ -1,3 +1,7 @@
+## 2026-10-13 — CRM Customer Import V2
+
+Extended the canonical customer preview/commit and Platform customer command with thirteen-field POS templates, scoped reusable mappings, reviewed non-erasing upserts, private cumulative POS snapshots and resumable 10,000-row background jobs. Customer Detail keeps source-labelled POS evidence distinct from verified transactions. Consent, suppression, shared identity review and Brand–Outlet authority are preserved. Staging-only synthetic verification; Production remains separately gated.
+
 # FeedX Development Log
 
 ## 2026-10-13 — Ads Analytics self-service reporting
