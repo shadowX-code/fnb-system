@@ -26,11 +26,30 @@ beforeEach(() => {
   vi.clearAllMocks();
   ads.aiCapabilities.mockResolvedValue({ ai_available: true });
   ads.aiRead.mockResolvedValue([]);
-  ads.copilotPrepare.mockResolvedValue({ brand_context_available: false });
+  ads.copilotPrepare.mockResolvedValue({
+    brand_context_available:false,
+    reporting:{reports:[{connection_id:'conn',payload:{
+      account:{currency:'MYR'},date_from:props.from,date_to:props.to,
+      configs:{campaigns:[{id:'campaign'}]},
+      insights:{campaign:[{campaign_id:'campaign',currency:'MYR',date_start:props.from,date_stop:props.to,metrics:{spend:{value:0,state:'reported'}}}]},
+    }}]},
+  });
   ads.aiUsage.mockResolvedValue({ period: "last 30 days", requests: 0 });
   ads.copilot.mockResolvedValue({ state: "proposed" });
 });
 describe("Ads Copilot advisory workflow", () => {
+  it('refreshes canonical evidence automatically after synchronization changes',async()=>{
+    ads.copilotPrepare.mockResolvedValueOnce({brand_context_available:false,reporting:{reports:[]}});
+    const page=render(<AdsCopilot {...props} evidenceVersion='before'/>);await screen.findByText(/No observed campaign performance/);
+    page.rerender(<AdsCopilot {...props} evidenceVersion='after'/>);await vi.waitFor(()=>expect(screen.getByRole('button',{name:'Generate recommendations'}).disabled).toBe(false));
+    expect(ads.copilot).not.toHaveBeenCalled();
+  });
+  it('does not offer generation for configuration-only evidence or another account',async()=>{
+    ads.copilotPrepare.mockResolvedValue({brand_context_available:false,reporting:{reports:[{connection_id:'other',payload:{configs:{campaigns:[{id:'campaign'}]},insights:{campaign:[]}}}]}});
+    render(<AdsCopilot {...props}/>);await screen.findByText(/No observed campaign performance/);
+    expect(screen.getByRole('button',{name:'Generate recommendations'}).disabled).toBe(true);
+    expect(screen.queryByText(/generic performance advice only/)).toBeNull();expect(ads.copilot).not.toHaveBeenCalled();
+  });
   it("labels missing context and submits only a scoped advisory request", async () => {
     render(<AdsCopilot {...props} />);
     await screen.findByText(/Brand context unavailable/);

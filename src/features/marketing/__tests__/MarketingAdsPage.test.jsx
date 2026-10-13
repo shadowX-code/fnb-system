@@ -139,6 +139,15 @@ describe("Ads read-only workspace", () => {
 
 describe("Ads self-service reporting",()=>{
   const connected={id:"account",name:"Shared Account",account_id:"111",status:"test_authorized",expires_at:"2027-01-01",health:{read_verified:true,currency:"MYR",timezone:"Asia/Kuala_Lumpur"}};
+  it('advances the rolling period across the provider-local day boundary',async()=>{
+    vi.useFakeTimers({toFake:['Date','setInterval','clearInterval']});vi.setSystemTime(new Date('2026-10-13T15:50:00Z'));
+    ads.read.mockResolvedValue({organization_access:true,accounts:[connected],reports:[],jobs:[]});
+    render(<MarketingAdsPage/>);await screen.findByText('Shared Account');
+    expect(ads.read).toHaveBeenCalledWith('org','','2026-09-14','2026-10-13');
+    vi.setSystemTime(new Date('2026-10-13T16:01:00Z'));
+    await act(async()=>{await vi.advanceTimersByTimeAsync(30000)});
+    expect(ads.read).toHaveBeenCalledWith('org','','2026-09-15','2026-10-14');expect(ads.sync).not.toHaveBeenCalled();
+  });
   it("explains missing brand attribution without offering an unauthorized connection",async()=>{
     ads.read.mockResolvedValue({organization_access:false,accounts:[],reports:[],jobs:[]});
     render(<MarketingAdsPage/>);await screen.findByText('No confirmed brand advertising');

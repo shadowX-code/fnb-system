@@ -1,7 +1,12 @@
 import {describe,it,expect} from 'vitest';
-import {adsReadiness,adsReportingPeriod} from '../adsReadiness.js';
+import {adsReadiness,adsReportingPeriod,adsManagementReason} from '../adsReadiness.js';
 const account={status:'test_authorized',expires_at:'2027-01-01',health:{read_verified:true}};
 describe('Ads reporting readiness',()=>{
+ it('distinguishes a provider account restriction from missing management permission',()=>{
+  expect(adsManagementReason({account_status:9,manage_verified:false,granted_scopes:['ads_read','ads_management']})).toContain('account is not active');
+  expect(adsManagementReason({account_status:1,manage_verified:false,granted_scopes:['ads_read']})).toContain('ads_management permission');
+  expect(adsManagementReason({account_status:1,manage_verified:true})).toContain('separate execution approval');
+ });
  it('uses provider-local dates at a cross-timezone day boundary',()=>{
   const now=new Date('2026-10-13T00:30:00Z');
   expect(adsReportingPeriod('America/New_York',30,now)).toEqual({from:'2026-09-13',to:'2026-10-12'});
