@@ -92,7 +92,7 @@ export default function DatePickerField({
   error,
   helper,
   yearFirst = false,
-  placeholder = "28 May 2026",
+  placeholder = "Select date",
   className = "",
   minDate,
 }) {
