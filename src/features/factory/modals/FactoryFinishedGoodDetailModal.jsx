@@ -3,6 +3,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import TagList from "../../../components/ui/TagList.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import { money } from "../utils/factoryFormatters.js";
 
@@ -21,6 +22,7 @@ export default function FactoryFinishedGoodDetailModal({ product, productions, m
   return (
     <Modal title={product.product_name} description="Finished goods stock, production and movement detail" onClose={onClose} size="2xl">
       <div className="space-y-4">
+        <section aria-label="Finished Good Tags"><h3 className="mb-2 text-xs text-text-secondary">Tags</h3><TagList tags={product.tags} /></section>
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={PackageCheck} label="Current Balance" value={formatBalance(product)} helper={product.product_code || "Packaging SKU"} />
           <MetricCard icon={Factory} label="Production Runs" value={productProductions.length} helper="Completed history" />

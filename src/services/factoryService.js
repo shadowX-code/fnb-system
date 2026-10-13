@@ -3527,6 +3527,26 @@ const factoryServiceDefinition = {
     return mapFinishedGood(data);
   },
 
+  async getFinishedGoodTags({ signal } = {}) {
+    let request = supabase.rpc("factory_get_finished_good_tags");
+    if (signal) request = request.abortSignal(signal);
+    const { data, error } = await request;
+    throwSupabaseError("factory.finished_good.tags.read", error);
+    if (!Array.isArray(data?.tags) || !Array.isArray(data?.assignments)) throw new Error("Unable to load Finished Good tags.");
+    return data;
+  },
+
+  async saveFinishedGoodTag(tag) {
+    const { data, error } = await supabase.rpc("factory_save_finished_good_tag", { p_id: tag.id || null, p_name: tag.name, p_status: tag.status || "active" });
+    throwSupabaseError("factory.finished_good.tags.save", error);
+    return data;
+  },
+
+  async setProductFamilyTags(familyId, tagIds) {
+    const { error } = await supabase.rpc("factory_set_product_family_tags", { p_family_id: familyId, p_tag_ids: tagIds });
+    throwSupabaseError("factory.finished_good.tags.assign", error);
+  },
+
   async saveProductFamily(family, employeeId) {
     const isUpdate = Boolean(family.id);
     const payload = {
