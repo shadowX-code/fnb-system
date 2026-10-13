@@ -3,7 +3,7 @@ import { AdminChart, AdminChartMark, AdminChartTooltipContent, adminChartColors,
 import { numberLabel } from './dashboardProjection.js';
 const names={facebook:'Facebook',instagram:'Instagram'};
 const colors={facebook:adminChartColors.azure,instagram:adminChartColors.emerald};
-const dateLabel=day=>new Intl.DateTimeFormat('en-MY',{day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(day+'T12:00:00Z'));
+const dateLabel=day=>new Intl.DateTimeFormat('en-MY',day.length===7?{month:'short',year:'numeric',timeZone:'UTC'}:{day:'numeric',month:'short',timeZone:'UTC'}).format(new Date((day.length===7?day+'-01':day)+'T12:00:00Z'));
 const compact=value=>new Intl.NumberFormat('en-MY',{notation:'compact',maximumFractionDigits:1}).format(value);
 export function SocialTrendChart({metric,basis,data,channel,grain}){
  const [inspected,setInspected]=useState(null);
@@ -17,7 +17,7 @@ export function SocialTrendChart({metric,basis,data,channel,grain}){
   const scale=adminChartScale(data.flatMap(d=>eligible.map(c=>d.channels[c]?.value)).filter(Number.isFinite));
   const x=i=>left+i/Math.max(1,data.length-1)*plot,y=v=>bottom-(v-scale.min)/(scale.max-scale.min)*(bottom-top);
   const ticks=[...new Set([0,Math.floor((data.length-1)/2),data.length-1])];
-  return <><g aria-hidden="true">{scale.ticks.map(t=><g key={t}><line className="chart-grid" x1={left} x2={width-right} y1={y(t)} y2={y(t)}/><text x={left-8} y={y(t)+4} textAnchor="end" fill="var(--color-text-secondary)">{compact(t)}</text></g>)}{ticks.map(i=><text key={i} x={x(i)} y={205} textAnchor={i===0?'start':i===data.length-1?'end':'middle'} fill="var(--color-text-secondary)">{grain==='month'?data[i]?.date.slice(0,7):dateLabel(data[i]?.date)}</text>)}</g>
+  return <><g aria-hidden="true">{scale.ticks.map(t=><g key={t}><line className="chart-grid" x1={left} x2={width-right} y1={y(t)} y2={y(t)}/><text x={left-8} y={y(t)+4} textAnchor="end" fill="var(--color-text-secondary)">{compact(t)}</text></g>)}{ticks.map(i=><text key={i} x={x(i)} y={205} textAnchor={i===0?'start':i===data.length-1?'end':'middle'} fill="var(--color-text-secondary)">{dateLabel(grain==='month'?data[i]?.date.slice(0,7):data[i]?.date)}</text>)}</g>
   {eligible.map(c=>{
    // A changed cumulative sample must never look like growth of the same post cohort.
    const points=[];data.forEach((d,i)=>{const v=d.channels[c];if(i&&v?.cohort&&data[i-1].channels[c]?.cohort!==v.cohort)points.push(null);points.push(Number.isFinite(v?.value)?[x(i),y(v.value)]:null)});

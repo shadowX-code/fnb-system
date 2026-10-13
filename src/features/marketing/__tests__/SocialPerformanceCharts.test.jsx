@@ -18,6 +18,10 @@ describe('Social chart evidence rendering',()=>{
   const {container}=render(<SocialTrendChart metric="views" basis="cumulative" grain="day" data={[point('2026-10-11',12,'old'),point('2026-10-12',20,'new')]}/>);
   expect(container.querySelector('.admin-chart-series').getAttribute('d')).not.toContain('L');
  });
+ it('renders monthly publication labels without inventing a day timestamp',()=>{
+  render(<SocialTrendChart metric="views" basis="publication" grain="month" data={[point('2026-09',12),point('2026-10',20)]}/>);
+  expect(screen.getByText('Sep 2026')).toBeTruthy();expect(screen.getByText('Oct 2026')).toBeTruthy();
+ });
  it('comparison uses the same supplied values, including zero and unavailable',()=>{
   render(<SocialComparisonChart metric="Views" rows={[{channel:'facebook',value:0,coverage:'1 of 2 posts with data'},{channel:'instagram',value:null,coverage:'0 of 1 posts with data'}]}/>);
   expect(screen.getByRole('button',{name:'Facebook Views: 0'})).toBeTruthy();expect(screen.getByText('Unavailable')).toBeTruthy();
