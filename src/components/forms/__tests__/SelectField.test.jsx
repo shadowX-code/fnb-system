@@ -5,6 +5,16 @@ import Modal from "../../feedback/Modal.jsx";
 
 afterEach(cleanup);
 
+it("supports the shared tag empty state without changing the default", () => {
+  const { unmount } = render(<SelectField ariaLabel="Tags" options={[]} emptyText="No matching tags" onChange={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Tags" }));
+  expect(screen.getByText("No matching tags")).toBeTruthy();
+  unmount();
+  render(<SelectField ariaLabel="Default" options={[]} onChange={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Default" }));
+  expect(screen.getByText("No options found")).toBeTruthy();
+});
+
 describe("shared Admin Select", () => {
   it("keeps modal options accessible and preserves selection semantics", () => {
     const change = vi.fn();

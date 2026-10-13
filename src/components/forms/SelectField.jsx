@@ -14,6 +14,7 @@ export default function SelectField({
   helper,
   required = false,
   searchable = false,
+  emptyText = "No options found",
   className = "",
   buttonClassName = "",
   footerAction = null,
@@ -216,7 +217,7 @@ export default function SelectField({
             </button>
           ))}
           {!filteredOptions.length && (
-            <p className="p-3 text-sm text-text-secondary">No options found</p>
+            <p className="p-3 text-sm text-text-secondary">{emptyText}</p>
           )}
         </div>
         {footerContent && (
