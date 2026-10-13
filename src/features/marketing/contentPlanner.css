@@ -57,3 +57,5 @@
 
 .planner-list-extra-label{display:none}:root[data-resolved-theme="dark"] .planner-task-list .planner-due-today,:root[data-resolved-theme="dark"] .planner-task-list .planner-due-tomorrow{color:var(--warning-text-dark)}
 @media(max-width:767px){.planner-list-extra-cell{display:flex;align-items:center;gap:.6rem;padding:.45rem .1rem!important}.planner-list-extra-label{display:inline;font-size:.7rem;color:var(--theme-muted)}}
+
+@media(min-width:1280px){.planner-list-table:not(.has-extras) .planner-list-task-cell{width:29%!important}.planner-list-table:not(.has-extras) .planner-list-brand-cell{width:15%!important}.planner-list-table:not(.has-extras) .planner-list-status-cell{width:13%!important}.planner-list-table:not(.has-extras) .planner-list-priority-cell{width:9%!important}.planner-list-table:not(.has-extras) .planner-list-due-cell{width:13%!important}.planner-list-table:not(.has-extras) .planner-list-assignee-cell{width:14%!important}.planner-list-table:not(.has-extras) .planner-list-actions-cell{width:7%!important}}

@@ -79,7 +79,7 @@ it('description failure preserves editable text and Escape restores it without c
 });
 
 it('centered and populated Planned actions open the existing New Task flow',async()=>{
- planner.read.mockResolvedValue({...read,tasks:[]});render(<ContentPlannerPage/>);await screen.findByRole('button',{name:'Add Task',exact:true});fireEvent.click(screen.getByRole('button',{name:'Add Task',exact:true}));expect(screen.getByRole('dialog',{name:'New creative task'})).toBeTruthy();
+ planner.read.mockResolvedValue({...read,tasks:[]});render(<ContentPlannerPage/>);await vi.waitFor(()=>expect(planner.read).toHaveBeenCalled());await vi.waitFor(()=>expect(screen.getByRole('button',{name:'New Task',exact:true}).disabled).toBe(false));await screen.findByRole('button',{name:'Add Task',exact:true});fireEvent.click(screen.getByRole('button',{name:'Add Task',exact:true}));expect(screen.getByRole('dialog',{name:'New creative task'})).toBeTruthy();
 });
 it('empty media quick action opens shared media workflow independently of task detail',async()=>{
  render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'Add media to Real task'}));expect(screen.getByRole('dialog',{name:'Creative media · Real task'})).toBeTruthy();expect(screen.queryByRole('dialog',{name:'Creative task'})).toBeNull();
