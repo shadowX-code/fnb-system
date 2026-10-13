@@ -1,3 +1,11 @@
+# FeedX Development Log
+
+## 2026-10-13 — Platform per-member Brand Access
+
+- Replaced effective role-wide Marketing scope with Platform member assignments, preserving current access, protected roles, memberships and Role grants. Same-Role members can receive independent Brands through Team & Brand Access.
+- Reused existing RBAC, membership, audit and worker guards across Marketing/CRM/Creators/Meta/Drive/Ads, with shared Brand Master scope checks and client cache revalidation. Revocation preserves historical evidence and blocks new authorization/execution.
+- L3 rollback authenticated-database rehearsal verified independent scopes, cross-module denial, retries, stale edits, revocation and worker/assignee authority. Browser/login verification is recorded separately; no business-member reassignments, external execution or Production changes. Canonical owners: docs/domains/marketing.md, docs/domains/people-identity-rbac.md, docs/architecture/platform.md and docs/architecture/trusted-authorities.md.
+
 ## 2026-10-13 — CRM Customer Import V2
 
 Extended the canonical customer preview/commit and Platform customer command with thirteen-field POS templates, scoped reusable mappings, reviewed non-erasing upserts, private cumulative POS snapshots and resumable 10,000-row background jobs. Customer Detail keeps source-labelled POS evidence distinct from verified transactions. Consent, suppression, shared identity review and Brand–Outlet authority are preserved. Staging-only synthetic verification; Production remains separately gated.

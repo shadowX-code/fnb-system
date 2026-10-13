@@ -28,8 +28,8 @@ begin
  select role_id into old_role from public.employees where id=actor;select role_id into old_profile_role from public.user_profiles where id=uid;
  insert into public.roles(name) values('Disposable Planner Creator') returning id into role;
  insert into public.role_permissions(role_id,permission_id) select role,id from public.permissions where code in ('marketing_workspace.access','marketing_planner.view','marketing_planner.create','marketing_planner.edit');
- insert into public.marketing_role_scopes values(org,role,false);
- insert into public.marketing_role_brands values(org,role,brand);
+ update public.platform_member_brand_scopes set all_brands=false where organization_id=org and employee_id=actor;
+ insert into public.platform_member_brands values(org,actor,brand);
  update public.employees set role_id=role where id=actor;update public.user_profiles set role_id=role where id=uid;
  denied:=false;begin perform public.marketing_planner_read(org,date_key,other_brand);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Selected brand scope leaked';end if;
  denied:=false;begin perform public.marketing_planner_command(gen_random_uuid(),org,brand,'approve',(task->>'id')::uuid,(task->>'revision')::integer,'{}');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Creator without reviewer grant approved';end if;

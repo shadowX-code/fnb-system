@@ -6,6 +6,7 @@ import { operationsService } from "../features/sales-purchase/services/operation
 import { salesPurchaseRoutes } from "./routes.jsx";
 import { canonicalAdminUrlForLegacyLocation, canonicalRouteId, getAdminRouteDefinition, navigateAdminRoute, resolveAdminLocation } from "./routeOwnership.js";
 import AdminRouteBoundary from "./AdminRouteBoundary.jsx";
+import MarketingAccessBoundary from "../features/marketing/MarketingAccessBoundary.jsx";
 import { outletService } from "../services/outletService.js";
 import { supplierService } from "../services/supplierService.js";
 import { purchaseCategoryService } from "../services/purchaseCategoryService.js";
@@ -671,7 +672,7 @@ function AdminApp() {
           <AdminRouteBoundary routeKey={activeRouteId} label={activeRoute.label}>
             {workspaceForRoute(activeRouteId) === "guest_ai" ? (
               <GuestAiDeviceRuntimeProvider><ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} /></GuestAiDeviceRuntimeProvider>
-            ) : <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />}
+            ) : workspaceForRoute(activeRouteId) === "marketing" ? <MarketingAccessBoundary userId={auth.user?.id} onAccessChanged={auth.refreshContext}><ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} /></MarketingAccessBoundary> : <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />}
           </AdminRouteBoundary>
         </CrewAdminOutletProvider>
       </AppShell>

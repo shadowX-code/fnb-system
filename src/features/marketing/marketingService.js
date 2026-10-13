@@ -3,6 +3,7 @@ import { throwSupabaseError } from '../../services/supabaseError.js';
 
 async function rpc(name, args = {}) {
   const { data, error } = await supabase.rpc(name, args);
+  if(error?.code==='42501'&&name!=='marketing_access_fingerprint')window.dispatchEvent(new Event('marketing-access-changed'));
   throwSupabaseError(`marketing.${name}`, error);
   return data;
 }
@@ -43,6 +44,9 @@ export const marketingService = {
   listing: ({ organizationId, brandId, kind, page, pageSize }) => rpc('marketing_listing', { p_org: organizationId, p_brand: brandId || null, p_kind: kind, p_page: page, p_page_size: pageSize }),
   setup: organizationId => rpc('marketing_setup_options', { p_org: organizationId }),
   teamAccess: (command, brandId, payload) => rpc('platform_team_access_command', { p_command: command, p_scope_brand: brandId || null, p_payload: payload }),
+  teamBrandAccess: org => rpc('platform_team_brand_access', {p_org:org}),
+  memberBrandAccess: (org,employee,brands,revision,request) => rpc('platform_member_brand_access', {p_org:org,p_employee:employee,p_brands:brands,p_expected_revision:revision,p_request:request}),
+  accessFingerprint: () => rpc('marketing_access_fingerprint'),
   roleScope: (organizationId, roleId, all, brands) => rpc('marketing_set_role_scope', { p_org: organizationId, p_role: roleId, p_all: all, p_brands: brands }),
   knowledge: (brandId, revision, profile) => rpc('marketing_save_knowledge', { p_brand: brandId, p_expected_revision: revision, p_profile: profile }),
   content: ({ requestId, command, organizationId, brandId, content, payload = {} }) => rpc('marketing_content_command', {

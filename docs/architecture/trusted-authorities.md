@@ -93,3 +93,7 @@ Routine reads and cosmetic UI activity are not business audit events.
 
 Update this document when FeedX-wide authority, RLS, grant, token, audit, versioning, snapshot, or immutability principles change.
 Document domain-specific permissions and lifecycle details in the owning domain document.
+
+## Platform Member Brand Access
+
+`platform_team_brand_access` is a scoped team projection, not a second permission catalog. `platform_member_brand_access` derives the active canonical employee, requires existing Platform management/Marketing configuration authority, validates tenant membership and the caller’s complete scope, locks membership/employee/scope, checks the expected revision and exact retry fingerprint, and appends before/after audit evidence. Self scope and protected Owner/Admin scope cannot be edited. Scope tables have RLS and no anonymous/authenticated direct grants; clients use the trusted RPCs only. The legacy Role-scope command is denied after compatible migration; existing evidence remains. Private Platform scope helpers are consumed by existing Marketing RLS/read authorities and executor/assignee/provider guards. Uncertain external outcomes remain reconciliation work; revocation never authorizes another external attempt.

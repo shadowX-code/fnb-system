@@ -220,7 +220,7 @@ export const moduleSectionOrder = [
 
 export const moduleRegistry: AppModule[] = [
   { id: "marketing_workspace", section: "Marketing", label: "Marketing Workspace", route: "/marketing", sidebar: false, routable: false, workspace: "marketing", permissions: { access: true } },
-  { id: "platform_organizations", section: "System", label: "Brand Access & Team Permissions", route: "/system/organizations", sidebar: false, routable: false, workspace: "marketing", permissions: { manage: true } },
+  { id: "platform_organizations", section: "System", label: "Team & Brand Access", route: "/system/organizations", sidebar: false, routable: false, workspace: "marketing", permissions: { manage: true } },
   { id: "marketing_overview", section: "Overview", label: "Overview", route: "/marketing/overview", icon: "marketing_overview", sidebar: true, workspace: "marketing", permissions: { view: true } },
   { id: "marketing_content", section: "Content Studio", label: "Content permissions", route: "/marketing/content", icon: "marketing_content", sidebar: false, workspace: "marketing", permissions: { view: true, create: true, edit: true, review: true, approve: true, publish: true, execute: true, cancel: true, upload: true } },
   { id: "marketing_planner", section: "Content Studio", label: "Content Planner", route: "/marketing/planner", icon: "marketing_calendar", sidebar: true, workspace: "marketing", permissions: { view: true, create: true, edit: true, approve: true, delete: true, configure: true, manage: true } },
@@ -237,7 +237,7 @@ export const moduleRegistry: AppModule[] = [
   { id: "marketing_settings", section: "Settings", label: "Settings permissions", route: "/marketing/settings", icon: "marketing_settings", sidebar: false, workspace: "marketing", permissions: { view: true, manage: true, configure: true } },
   { id: "marketing_connections", section: "Settings", label: "Connections", route: "/marketing/connections", icon: "marketing_settings", sidebar: true, workspace: "marketing", readPermission: "marketing_workspace.access AND marketing_settings.view", permissions: {} },
   { id: "marketing_knowledge", section: "Settings", label: "Brand Knowledge", route: "/marketing/brand-knowledge", icon: "marketing_content", sidebar: true, workspace: "marketing", readPermission: "marketing_workspace.access AND marketing_settings.view", permissions: {} },
-  { id: "marketing_brand_access", section: "Settings", label: "Brand Access & Team Permissions", route: "/marketing/brand-access", icon: "marketing_settings", sidebar: true, workspace: "marketing", readPermission: "marketing_workspace.access AND marketing_settings.view", permissions: {} },
+  { id: "marketing_brand_access", section: "Settings", label: "Team & Brand Access", route: "/marketing/brand-access", icon: "marketing_settings", sidebar: true, workspace: "marketing", readPermission: "marketing_workspace.access AND marketing_settings.view", permissions: {} },
   { id: "finance_overview", section: "Finance", label: "Overview", route: "/finance/overview", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
   { id: "finance_analysis", section: "Finance", label: "Analysis", route: "/finance/analysis", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
   { id: "finance_costs", section: "Finance", label: "Costs", route: "/finance/costs", icon: "reports", sidebar: true, workspace: "finance", readPermission: "reports.view", permissions: {} },
