@@ -81,7 +81,7 @@ export function contentDay(value) {
 export const POST_METRICS = [
  {key:'reach',label:'Reach',description:'Instagram estimated unique accounts reached. Facebook legacy Reach is unavailable.'},
  {key:'views',label:'Views',description:'Instagram organic views; Facebook times content was played or displayed. Definitions differ by platform.'},
- {key:'interactions',label:'Interactions',description:'Instagram reported organic likes, comments, saves and shares. Facebook recorded reactions + comments + shares, only when all counts exist.'},
+ {key:'interactions',label:'Interactions',description:'Instagram reported organic likes, comments, saves and shares. Facebook reported like/reaction, comment and share actions; Likes are included in Reactions and never counted twice.'},
  {key:'likes',label:'Likes',description:'Recorded likes; not all Facebook reactions.'},
  {key:'reactions',label:'Reactions',description:'Facebook reactions across types.'},
  {key:'comments',label:'Comments',description:'Recorded comment count.'},
@@ -92,7 +92,7 @@ export const POST_METRICS = [
  {key:'avg_watch_time_ms',label:'Average watch time',unit:'ms',description:'Instagram Reels average watch time, in milliseconds.'},
 ];
 export function postMetric(channel, key) {
- if(key==='interactions' && channel?.channel==='facebook') {
+ if(key==='interactions' && channel?.channel==='facebook' && contentMetric(channel,key)===null) {
   const m=channel.metrics||{};return ['reactions','comments','shares'].every(k=>Number.isFinite(m[k])&&m[k]>=0)?m.reactions+m.comments+m.shares:null;
  }
  return contentMetric(channel,key);
@@ -102,6 +102,7 @@ export function metricReason(channel,key) {
  const reason=channel?.unavailable_metrics?.[key];
  if(reason?.includes('permission'))return 'Permission required';
  if(reason==='unsupported_media_type'||reason==='not_supported')return 'Not supported for this post';
+ if(reason==='not_returned')return 'Not returned by Meta; missing does not mean zero';
  if(key==='interactions'&&channel?.channel==='facebook')return 'Complete reaction, comment and share counts unavailable';
  return 'Not available from Meta';
 }

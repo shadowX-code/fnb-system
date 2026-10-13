@@ -16,6 +16,7 @@ export class MetaGraph {
  constructor(private config:MetaConfig,private transport:typeof fetch=fetch,private diagnostic?:(event:MetaDiagnostic)=>void) {
   if(!/^v\d+\.0$/.test(config.version))throw new MetaError('meta_version_not_configured');
  }
+ get version():string {return this.config.version;}
  private report(event:MetaDiagnostic) {try{this.diagnostic?.(event);}catch{/* Diagnostics must not change authorization behavior. */}}
  async request(path:string,token:string,params:Record<string,any>={},method='GET',inspect?:(status:number|null,code:number|null,evidence?:MetaResponseEvidence)=>void):Promise<any> {
   if(!/^\/?(?:(?:act_)?\d+(?:_\d+)?|me|oauth|debug_token)(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
