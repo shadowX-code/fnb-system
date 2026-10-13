@@ -57,6 +57,7 @@ Receipts, movements, checks, allocations, dispatch confirmations, and correction
 Warehouse users receive raw materials, manage storage and movements, perform stock checks, receive production output, prepare dispatch, and confirm movement or shipment states.
 Factory Production requests/records consumption and output through established contracts.
 Factory Master Data supplies materials, products, storage-enabled Factory Locations, supplier, customer, recipe, and unit references.
+Finished Goods Print / Export consumes the complete current filtered dataset before UI pagination, or its intersection with selected product-family identities. Canonical Finished Goods export permission gates the action. Cost and margin additionally require their existing Recipe and Receiving source permissions; financial columns are always unchecked initially. Shared A4 table composition measures row heights, repeats headers, preserves bilingual identities and continues excessive columns in readable column bands rather than clipping or reducing print type. Preview, PDF and Print consume the same paginated document; this is a read-only projection, not a new stock or costing authority.
 
 ## Compatibility And Deferred Scope
 

@@ -1,0 +1,32 @@
+import { cleanup,fireEvent,render,screen,waitFor } from "@testing-library/react";
+import { afterEach,beforeEach,expect,it,vi } from "vitest";
+const calls=vi.hoisted(()=>({pdf:vi.fn(),print:vi.fn()}));
+vi.mock("../a4TableExport.js",()=>({downloadA4TablePdf:calls.pdf,printA4Table:calls.print}));
+import A4TableExportModal from "../A4TableExportModal.jsx";
+const columns=[{key:"product",label:"Product",minWidth:52,repeat:true,defaultSelected:true,value:r=>r.name},{key:"tags",label:"Tags",minWidth:28,defaultSelected:true,value:r=>r.tag},{key:"cost",label:"Cost",minWidth:22,value:r=>r.cost}];
+const rows=Array.from({length:75},(_,i)=>({id:i,name:"Product "+i,tag:"酱料",cost:"RM10.00"}));
+const sorts=[{value:"product",label:"Product",compare:(a,b)=>a.id-b.id}];
+beforeEach(()=>{vi.spyOn(HTMLElement.prototype,"getBoundingClientRect").mockImplementation(function(){return {height:this.tagName==="TR"?32:40,width:600};});calls.pdf.mockResolvedValue({});calls.print.mockResolvedValue({});});
+afterEach(()=>{cleanup();vi.restoreAllMocks();vi.clearAllMocks();});
+it("exports all matching records across A4 pages with repeated headers and optional financial columns",async()=>{
+ render(<A4TableExportModal title="Finished Goods" rows={rows} columns={columns} sortOptions={sorts} onClose={()=>{}}/>);
+ await waitFor(()=>expect(screen.getByRole("button",{name:"Download PDF"}).disabled).toBe(false));
+ expect(screen.getByRole("checkbox",{name:"Cost"}).checked).toBe(false);
+ fireEvent.click(screen.getByRole("button",{name:"Download PDF"}));
+ await waitFor(()=>expect(calls.pdf).toHaveBeenCalled());
+ const pages=calls.pdf.mock.calls[0][0];
+ expect(pages.length).toBeGreaterThan(1);
+ expect(pages.reduce((n,p)=>n+p.querySelectorAll("tbody tr").length,0)).toBe(75);
+ expect(pages.every(p=>p.querySelector("thead").textContent.includes("Tags"))).toBe(true);
+ expect(pages.every(p=>!p.textContent.includes("RM10.00"))).toBe(true);
+ fireEvent.click(screen.getByRole("checkbox",{name:"Cost"}));
+ await waitFor(()=>expect(document.querySelectorAll('.a4-sheet')[0].textContent).toContain("RM10.00"));
+});
+it("selects only matching selected products and prints the same preview pages",async()=>{
+ render(<A4TableExportModal title="Finished Goods" rows={rows} columns={columns} sortOptions={sorts} selectedIds={[3,70,999]} onClose={()=>{}}/>);
+ fireEvent.change(screen.getByRole("combobox",{name:"Export scope"}),{target:{value:"selected"}});
+ await waitFor(()=>expect(screen.getByRole("button",{name:"Print"}).disabled).toBe(false));
+ fireEvent.click(screen.getByRole("button",{name:"Print"}));
+ await waitFor(()=>expect(calls.print).toHaveBeenCalled());
+ expect(calls.print.mock.calls[0][0].reduce((n,p)=>n+p.querySelectorAll("tbody tr").length,0)).toBe(2);
+});

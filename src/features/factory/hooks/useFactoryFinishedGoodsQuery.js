@@ -13,7 +13,7 @@ function toFinishedGoodRow(product, productions, productMovements) {
   return { ...product, last_production_date: lastProduction?.production_date || "", last_movement_date: lastMovement?.movement_date || "", production_count: productProductions.length, movement_count: movements.length, batch_count: new Set(productProductions.map((production) => production.batch_no).filter(Boolean)).size, latest_batch_no: lastProduction?.batch_no || "" };
 }
 
-export default function useFactoryFinishedGoodsQuery({ filters }) {
+export default function useFactoryFinishedGoodsQuery({ filters, tagSnapshot }) {
   const { finishedGoods, finishedGoodCategories, productFamilies, productions, productMovements } = useFactoryMasterData();
   const { can } = useFactoryPermissions();
   const permitted = can("factory_finished_goods.view");
@@ -24,20 +24,21 @@ export default function useFactoryFinishedGoodsQuery({ filters }) {
   const movementRows = Array.isArray(productMovements) ? productMovements : [];
   return useMemo(() => {
     if (!permitted) return { rows: [], groups: [], loading: false, error: "Some Finished Goods data is hidden by your current role.", errorKind: "permission", retry: () => {} };
-    const rows = products.map((product) => toFinishedGoodRow(product, productionRows, movementRows)).filter((row) => {
+    const tagsForFamily = id => (tagSnapshot?.tags || []).filter(tag => (tagSnapshot?.assignments || []).some(a => a.product_family_id === id && a.tag_id === tag.id));
+    const rows = products.map((product) => ({ ...toFinishedGoodRow(product, productionRows, movementRows), tags: tagsForFamily(product.product_family_id) })).filter((row) => {
       const productText = `${row.product_family_name} ${row.product_name} ${row.product_name_en} ${row.product_name_cn} ${row.product_name_bm} ${row.product_code} ${row.variant_name}`;
       const stockStatus = Number(row.current_balance || 0) <= 0 ? "out_of_stock" : "in_stock";
-      return includesText(productText, filters.product) && (!filters.category || row.category_id === filters.category) && (!filters.status || row.status === filters.status || stockStatus === filters.status);
+      return includesText(productText, filters.product) && (!filters.tag || row.tags.some(tag => tag.id === filters.tag)) && (!filters.category || row.category_id === filters.category) && (!filters.status || row.status === filters.status || stockStatus === filters.status);
     });
     const categoryById = new Map(categories.map((category) => [category.id, category]));
     const groups = families.map((family) => ({ ...family, groupKey: family.id, product_group_name: family.name_en, category: family.category || categoryById.get(family.category_id)?.name || "No category", skus: rows.filter((row) => row.product_family_id === family.id), active_sku_count: rows.filter((row) => row.product_family_id === family.id && row.status === "active").length, isStandalone: false }));
     rows.filter((row) => !row.product_family_id).forEach((sku) => groups.push({ id: `__sku_${sku.id}`, groupKey: `__sku_${sku.id}`, product_group_name: sku.product_name_en || sku.product_name || sku.product_code || "Unassigned Finished Good", name_cn: sku.product_name_cn || "", name_bm: sku.product_name_bm || "", category: sku.category || "No category", category_id: sku.category_id || "", status: sku.status || "active", skus: [sku], active_sku_count: sku.status === "active" ? 1 : 0, isStandalone: true }));
-    const visibleGroups = groups.filter((group) => {
+    const visibleGroups = groups.map(group => ({ ...group, tags: tagsForFamily(group.id) })).filter((group) => {
       const groupNameMatches = includesText(`${group.product_group_name} ${group.name_cn || ""} ${group.name_bm || ""}`, filters.product);
       const matchesCategory = !filters.category || group.category_id === filters.category || group.skus.some((sku) => sku.category_id === filters.category);
       const matchesStatus = !filters.status || group.status === filters.status || group.skus.some((sku) => sku.status === filters.status || (Number(sku.current_balance || 0) <= 0 ? "out_of_stock" : "in_stock") === filters.status);
-      return (groupNameMatches || group.skus.length > 0) && matchesCategory && matchesStatus && (group.skus.length > 0 || !filters.product || groupNameMatches);
+      return (!filters.tag || group.tags.some(tag => tag.id === filters.tag)) && (groupNameMatches || group.skus.length > 0) && matchesCategory && matchesStatus && (group.skus.length > 0 || !filters.product || groupNameMatches);
     });
     return { rows, groups: visibleGroups, loading: false, error: "", errorKind: "", retry: () => {} };
-  }, [categories, families, filters, movementRows, permitted, products, productionRows]);
+  }, [categories, families, filters, movementRows, permitted, products, productionRows, tagSnapshot?.tags, tagSnapshot?.assignments]);
 }
