@@ -66,6 +66,9 @@ export async function readMetaPosts(graph:MetaGraph,connection:any,token:string,
      const response=await graph.request(`${row.id}/insights`,token,{metric:name,period:'lifetime'});
      const entry=response.data?.find((x:any)=>x.name===name&&x.period==='lifetime');
      const value=entry?.values?.[0]?.value;
+     // A successful aggregate read with omitted buckets is provider absence,
+     // not an instruction to reconnect for the separately protected edges.
+     for(const key of name==='post_reactions_by_type_total'?['likes','reactions']:['interactions','comments','shares'])if(!(key in metrics))unavailable[key]='not_returned';
      const allowed=name==='post_reactions_by_type_total'?['like','love','wow','haha','sorry','anger','care','sad','angry','thankful','pride']:['like','comment','share'];
      const entries=value&&typeof value==='object'&&!Array.isArray(value)?Object.entries(value):[];
      if(!entries.length||entries.some(([key,v])=>!allowed.includes(key)||typeof v!=='number'||!Number.isSafeInteger(v)||v<0))continue;
@@ -78,7 +81,7 @@ export async function readMetaPosts(graph:MetaGraph,connection:any,token:string,
       if(Object.hasOwn(value,'comment'))put('comments',value.comment,`insights.${name}.comment`);
       if(!('shares' in metrics)&&Object.hasOwn(value,'share'))put('shares',value.share,`insights.${name}.share`);
      }
-    }catch(error){const reason=optionalFailure(error);if(name==='post_activity_by_action_type')unavailable.interactions=reason;}
+    }catch(error){const reason=optionalFailure(error);for(const key of name==='post_reactions_by_type_total'?['likes','reactions']:['interactions'])if(!(key in metrics))unavailable[key]=reason;}
    }
    if(!('interactions' in metrics)&&['reactions','comments','shares'].every(key=>key in metrics)){
     put('interactions',metrics.reactions+metrics.comments+metrics.shares,'derived.reactions_comments_shares','sum_reactions_comments_shares');

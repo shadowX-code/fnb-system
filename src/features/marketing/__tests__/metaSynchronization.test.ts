@@ -82,7 +82,7 @@ describe('Facebook aggregate Insights without protected person edges',()=>{
  it('does not turn empty, malformed or incompatible breakdowns into evidence',async()=>{
   for(const invalid of [{},{like:'2'},{like:-1},{like:2,click:9},[]]){
    const {posts}=await readMetaPosts(provider(invalid,invalid) as any,fb,'token',async()=>{});
-   expect(posts[0].metrics).not.toHaveProperty('likes');expect(posts[0].metrics).not.toHaveProperty('interactions');
+   expect(posts[0].metrics).not.toHaveProperty('likes');expect(posts[0].metrics).not.toHaveProperty('interactions');expect(posts[0].unavailable_metrics.reactions).toBe('not_returned');expect(posts[0].unavailable_metrics.comments).toBe('not_returned');
   }
  });
  it('isolates optional Insights denials but stops on expired authorization and revocation',async()=>{
