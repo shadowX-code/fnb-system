@@ -4,7 +4,7 @@ export function platformUrl(value){
  if(value.length>2000||u.protocol!=='https:'||u.port||u.username||u.password||!Object.values(hosts).flat().includes(u.hostname))throw new Error('unsupported_url');
  const platform=Object.keys(hosts).find(k=>hosts[k].includes(u.hostname));
  const p=u.pathname;let id,canonical;
- if(platform==='instagram'){id=p.match(/^\/(?:[A-Za-z0-9._]+\/)?(?:p|reel|reels)\/([\w-]+)\/?$/)?.[1];if(id)canonical=`https://www.instagram.com/p/${id}/`;}
+ if(platform==='instagram'){id=p.match(/^\/(?:[A-Za-z0-9._]+\/)?(?:p|reel|reels|tv)\/([\w-]+)\/?$/)?.[1];if(id)canonical=`https://www.instagram.com/p/${id}/`;}
  if(platform==='xhs'){id=p.match(/^\/(?:explore|discovery\/item)\/([a-f0-9]{24})\/?$/i)?.[1];if(id)canonical=`https://www.xiaohongshu.com/explore/${id.toLowerCase()}`;}
  if(platform==='tiktok'){const m=p.match(/^\/@([\w.-]+)\/video\/(\d+)\/?$/);id=m?.[2];if(m)canonical=`https://www.tiktok.com/@${m[1]}/video/${id}`;}
  if(platform==='facebook'){

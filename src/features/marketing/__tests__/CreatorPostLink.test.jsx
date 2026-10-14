@@ -10,3 +10,5 @@ it('opens only preserved validated XHS URLs and never reconstructs legacy naviga
  for(const original_url of ['javascript:alert(1)','https://xiaohongshu.com.evil.test/explore/'+post.post_key,'https://www.xiaohongshu.com/explore/68523c3c0000000012004bae'])expect(creatorPostOriginalUrl({...post,original_url})).toBeNull();
  expect(creatorPostOriginalUrl({...post,original_url:'https://xhslink.com/o/8ztP9aMRnzT'})).toBe('https://xhslink.com/o/8ztP9aMRnzT');
 });
+
+it('preserves a canonical legacy Instagram TV link through the shared navigation validator',()=>{expect(creatorPostOriginalUrl({platform:'instagram',canonical_url:'https://www.instagram.com/tv/LegacyId/'})).toBe('https://www.instagram.com/tv/LegacyId/')});
