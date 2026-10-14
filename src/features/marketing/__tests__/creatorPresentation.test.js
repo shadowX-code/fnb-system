@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {collaborationPublishing,publishingProgress,creatorInsights,creatorFollowups,filterCreators,metricTotal} from '../creatorPresentation.js';
+import {collaborationPublishing,publishingProgress,collaborationStatus,creatorInsights,creatorFollowups,filterCreators,metricTotal} from '../creatorPresentation.js';
 const data={creators:[{id:'c',name:'Creator name',email:'',phone:'',location:'Ipoh',categories:['Food'],brand_ids:['b']}],accounts:[{creator_id:'c',platform:'instagram',display_name:'Another name',handle:'different_name'}],collaborations:[{id:'v',brand_id:'b',outlet_id:'o',status:'confirmed',visit_at:'2026-10-15T02:00Z',created_at:'2026-10-13T00:00Z',currency:'MYR',cash_cost:100,in_kind_cost:25,cost_state:'recorded',deliverables:[{title:'Overdue post',due_date:'2026-10-12',status:'pending'},{title:'Published',status:'completed'}]}],posts:[{id:'p',brand_id:'b',collaboration_id:'v',latest_metrics:{views:0,likes:0}},{id:'organic',brand_id:'other',published_at:'2026-10-13T00:00Z',latest_metrics:{interactions:10}}]};
 describe('Creator evidence projections',()=>{
  it('searches separate platform identities without replacing Creator identity',()=>{expect(filterCreators(data,{search:'different_name'})[0].name).toBe('Creator name')});
@@ -21,3 +21,11 @@ describe('Unified collaboration publishing',()=>{
  it('does not include organic Posts when editing a new unsaved collaboration',()=>{expect(collaborationPublishing({deliverables:[]},[{...post,collaboration_id:null}])).toEqual([])});
  it('preserves legacy Posts even when their old entry was cancelled',()=>{expect(collaborationPublishing(c,[{...post,deliverable_id:'old'}]).filter(e=>e.post)).toHaveLength(1)});
 });
+
+ describe('Evidence-derived Collaboration lifecycle',()=>{
+ const c={id:'c',status:'planned',deliverables:[{id:'a',status:'pending'},{id:'b',status:'pending'},{id:'d',status:'pending'}]};
+ const posts=['a','b','d'].map((id,i)=>({id:'p'+i,collaboration_id:'c',deliverable_id:id,canonical_url:'https://instagram.com/p/test'+i,publication_confirmed_at:'2026-10-14T00:00:00Z'}));
+ it('requires nonzero complete entries and derives partial publishing as In Progress',()=>{expect(collaborationStatus({...c,deliverables:[]},[])).toBe('planned');expect(collaborationStatus(c,posts.slice(0,1))).toBe('in_progress');expect(collaborationStatus(c,posts.slice(0,2))).toBe('in_progress');expect(collaborationStatus(c,posts)).toBe('published');expect(collaborationStatus(c,[{...posts[0],publication_confirmed_at:null}])).toBe('planned')});
+ it('returns to In Progress for a new entry and recalculates after unlinking without mutating evidence',()=>{expect(collaborationStatus({...c,status:'published',workflow_status:'planned',deliverables:[...c.deliverables,{id:'new',status:'pending'}]},posts)).toBe('in_progress');expect(collaborationStatus({...c,status:'published',workflow_status:'planned'},posts.slice(0,2))).toBe('in_progress');expect(c.status).toBe('planned');expect(posts).toHaveLength(3)});
+ it('reconciles historical Completed without rewriting it and preserves cancellation',()=>{const legacy={...c,status:'completed'};expect(collaborationStatus(legacy,[])).toBe('in_progress');expect(collaborationStatus(legacy,posts)).toBe('published');expect(legacy.status).toBe('completed');expect(collaborationStatus({...c,status:'cancelled'},posts)).toBe('cancelled')});
+ });

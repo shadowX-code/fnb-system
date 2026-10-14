@@ -33,7 +33,7 @@ begin
  empty_c:=public.marketing_creator_command(gen_random_uuid(),o,b,'save_creator',null,0,'{"name":"QA Assignment Only"}');
  hidden_c:=public.marketing_creator_command(gen_random_uuid(),o,b2,'save_creator',null,0,'{"name":"QA HIDDEN Brand Creator"}');
  foreach s in array array['completed','cancelled'] loop
- v:=public.marketing_creator_command(gen_random_uuid(),o,b,'save_collaboration',null,0,jsonb_build_object('title','QA Historical '||s,'creator_id',c->>'id','status',s,'cost_state','estimated','deliverables','[]'::jsonb));
+ v:=public.marketing_creator_command(gen_random_uuid(),o,b,'save_collaboration',null,0,jsonb_build_object('title','QA Historical '||s,'creator_id',c->>'id','status','planned','cost_state','estimated','deliverables','[]'::jsonb));
  end loop;
  v:=public.marketing_creator_command(gen_random_uuid(),o,b2,'save_collaboration',null,0,jsonb_build_object('title','QA Other Authorized Brand','creator_id',c->>'id','status','planned','cost_state','estimated','deliverables','[]'::jsonb));
  p:=public.marketing_creator_command(gen_random_uuid(),o,b,'save_post',null,0,jsonb_build_object('url','https://instagram.com/p/FeedxBrandHistoryQa/','creator_id',c->>'id','confirm_link',true,'confirm_published',true));
@@ -49,6 +49,8 @@ begin
  insert into marketing_qa_ids values('creator', (c->>'id')::uuid),('empty_creator',(empty_c->>'id')::uuid),('hidden_creator',(hidden_c->>'id')::uuid);
 end;$$;
 reset role;
+-- Historical status is seeded only on disposable records; current commands no longer create Completed/Cancelled.
+update marketing_creator_collaborations set status=case when title='QA Historical completed' then 'completed' else 'cancelled' end where organization_id=(select id from marketing_qa_ids where key='org') and title in ('QA Historical completed','QA Historical cancelled');
 delete from platform_member_brands where organization_id=(select id from marketing_qa_ids where key='org') and employee_id=(select id from marketing_qa_ids where key='employee') and brand_id=(select id from marketing_qa_ids where key='other_brand');
 delete from marketing_role_brands where organization_id=(select id from marketing_qa_ids where key='org') and role_id=(select id from marketing_qa_ids where key='role') and brand_id=(select id from marketing_qa_ids where key='other_brand');
 set local role authenticated;

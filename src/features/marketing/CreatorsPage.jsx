@@ -32,7 +32,7 @@ const blank={options:[],creators:[],accounts:[],collaborations:[],posts:[],snaps
 const all={value:'',label:'All'};
 function Platform({value}){return <SocialChannelIcon value={value}/>}
 function Avatar({creator,assets}){const asset=assets.find(a=>a.id===creator.avatar_asset_id);return asset?<MarketingMediaPreview asset={asset} compact interactive={false}/>:<span className="creator-avatar" aria-label="No profile image">{creator.name.slice(0,1).toUpperCase()}</span>}
-function State({value}){return <Badge tone={value==='completed'?'success':value==='cancelled'?'neutral':value==='awaiting_posts'?'warning':'info'}>{label(value)}</Badge>}
+function State({value}){return <Badge tone={value==='published'?'success':value==='cancelled'?'neutral':value==='awaiting_posts'?'warning':'info'}>{label(value)}</Badge>}
 function Empty({children}){return <div className="creator-empty"><Users size={26}/><p>{children}</p></div>}
 function loadPreferences(user){try{return JSON.parse(localStorage.getItem(`marketing.creators.${user}`)||'{}')}catch{return {}}}
 export default function CreatorsPage({ui}){
@@ -53,7 +53,7 @@ export default function CreatorsPage({ui}){
  const collaborations=data.collaborations.filter(c=>(!status||c.status===status)&&(!search||[c.title,creatorName(c.creator_id),outletName(c.outlet_id)].join(' ').toLowerCase().includes(search.toLowerCase())));
  const posts=data.posts.filter(p=>(!platform||p.platform===platform)&&(!search||[p.caption,p.canonical_url,creatorName(p.creator_id)].join(' ').toLowerCase().includes(search.toLowerCase())));
  const rows=tab==='directory'?creators:tab==='collaborations'?collaborations:posts,total=rows.length,safePage=Math.min(page,Math.max(1,Math.ceil(total/pageSize))),visible=rows.slice((safePage-1)*pageSize,safePage*pageSize);
- const allInsights=useMemo(()=>creatorInsights(data),[data]),insights=useMemo(()=>creatorInsights(data,from,to),[data,from,to]),summaryInsights=tab==='insights'?insights:allInsights,followups=creatorFollowups(data),active=summaryInsights.collaborations.filter(c=>!['completed','cancelled'].includes(c.status)).length;
+ const allInsights=useMemo(()=>creatorInsights(data),[data]),insights=useMemo(()=>creatorInsights(data,from,to),[data,from,to]),summaryInsights=tab==='insights'?insights:allInsights,followups=creatorFollowups(data),active=summaryInsights.collaborations.filter(c=>!['published','cancelled'].includes(c.status)).length;
  const open=value=>{if(busy)return;setError('');setNotice('');request.current=null;setDialog(value)};
  async function mutate(action,record,payload,selectedBrand=record?.brand_id||brandId,keep=false){
   if(running.current)return null;running.current=true;const ticket=++mutationVersion.current;

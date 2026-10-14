@@ -62,3 +62,11 @@ it('shows Platform and Profile URL first, detects pasted URLs, and keeps manual 
  fireEvent.paste(screen.getByLabelText('Profile URL'),{clipboardData:{getData:()=> 'https://www.tiktok.com/@detected.alias'}});await waitFor(()=>expect(screen.getByRole('button',{name:'Platform'}).textContent).toContain('TikTok'));await screen.findByText('Public details unavailable. Add optional details manually.');expect(details.open).toBe(false);
  fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({platform:'tiktok',handle:'detected.alias',profile_url:'https://www.tiktok.com/@detected.alias'}));
 });
+
+it('shows Published only as automatic evidence and preserves legacy Completed on ordinary save',async()=>{
+ const record={id:'v',revision:1,brand_id:'b',creator_id:'c',title:'Legacy',status:'in_progress',workflow_status:'completed',cash_cost:0,in_kind_cost:0,currency:'MYR',cost_state:'estimated',deliverables:[{id:'d',platform:'instagram',status:'pending'}]};
+ const onSave=vi.fn();const {rerender}=render(<CollaborationEditor record={record} data={data} brands={brands} org="org" canManage onSave={onSave}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Status',exact:true}));expect(screen.queryByRole('option',{name:'Completed'})).toBeNull();expect(screen.queryByRole('option',{name:'Published'})).toBeNull();fireEvent.click(screen.getByRole('option',{name:'In Progress'}));fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(onSave).toHaveBeenCalledWith(expect.objectContaining({status:'in_progress'}),'b');
+ rerender(<CollaborationEditor key="full" record={record} data={{...data,posts:[{id:'p',collaboration_id:'v',deliverable_id:'d',platform:'instagram',canonical_url:'https://instagram.com/p/real/',publication_confirmed_at:'2026-10-14T00:00:00Z'}]}} brands={brands} org="org" canManage onSave={onSave}/>);
+ expect(screen.getByRole('button',{name:'Status',exact:true}).disabled).toBe(true);expect(screen.getByText('Published · Automatic')).toBeTruthy();expect(screen.getByText(/Historical status: Completed/)).toBeTruthy();fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({status:'completed'}),'b');
+});

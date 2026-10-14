@@ -1,5 +1,5 @@
 export const creatorPlatforms=[{value:'facebook',label:'Facebook'},{value:'instagram',label:'Instagram'},{value:'xhs',label:'Xiaohongshu'},{value:'tiktok',label:'TikTok'}];
-export const collaborationStates=['planned','in_progress','published','completed'];
+export const collaborationStates=['planned','in_progress','published'];
 export const contentTypes=[{value:'video',label:'Reels / Video'},{value:'image',label:'Picture / Carousel'}];
 export const isPublishedPost=p=>Boolean(p.canonical_url&&(p.published_at||p.published_date||p.publication_confirmed_at));
 // One row per canonical Post; a planned entry without Posts remains one row.
@@ -15,6 +15,13 @@ export function collaborationPublishing(c,posts){
  return entries;
 }
 export function publishingProgress(c,posts){const entries=collaborationPublishing(c,posts),published=entries.filter(e=>e.published).length;return {published,total:entries.length,text:entries.length?`${published}/${entries.length} Published`:'No publishing entries'};}
+// Preview the canonical derived lifecycle; stored legacy status remains separate.
+export function collaborationStatus(c,posts){
+ const workflow=c.workflow_status??c.status,p=publishingProgress(c,posts);
+ if(workflow==='cancelled')return 'cancelled';
+ if(p.total>0&&p.published===p.total)return 'published';
+ return p.published>0||['completed','published','in_progress','awaiting_posts'].includes(workflow)?'in_progress':'planned';
+}
 export const deliverableStates=['pending','submitted','completed','cancelled'];
 export const label=value=>({in_progress:'In Progress',recorded:'Actual'})[value]||creatorPlatforms.find(p=>p.value===value)?.label||String(value||'').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
 export const metricKeys=['views','reach','interactions','likes','comments','shares','saves'];
@@ -40,7 +47,7 @@ export function creatorFollowups(data,date=today()){
  const rows=[];
  for(const c of data.collaborations){if(c.status==='cancelled')continue;
  if(c.visit_at&&['planned','confirmed'].includes(c.status)){const d=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kuala_Lumpur',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(c.visit_at));if(d<=date||new Date(d+'T12:00Z')-new Date(date+'T12:00Z')<=7*86400000)rows.push({kind:'collaboration',id:c.id,brand_id:c.brand_id,title:c.title,reason:d<date?'Visit follow-up overdue':'Upcoming visit',date:d});}
- if(c.status!=='completed'&&c.follow_up_date&&c.follow_up_date<=date)rows.push({kind:'collaboration',id:c.id,brand_id:c.brand_id,title:c.title,reason:'Follow-up due',date:c.follow_up_date});
+ if(!['published','cancelled'].includes(c.status)&&c.follow_up_date&&c.follow_up_date<=date)rows.push({kind:'collaboration',id:c.id,brand_id:c.brand_id,title:c.title,reason:'Follow-up due',date:c.follow_up_date});
  for(const d of c.deliverables){if(['completed','cancelled'].includes(d.status)||data.posts.some(p=>p.collaboration_id===c.id&&p.deliverable_id===d.id&&isPublishedPost(p)))continue;rows.push({kind:'collaboration',id:c.id,brand_id:c.brand_id,title:d.title,reason:d.due_date&&d.due_date<date?'Deliverable overdue':'Post pending',date:d.due_date});}}
  for(const p of data.posts){if(!Object.keys(p.latest_metrics||{}).length)rows.push({kind:'post',id:p.id,brand_id:p.brand_id,title:p.caption||label(p.platform)+' post',reason:'Metrics not recorded',date:p.published_at});}
  return rows.sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999')));
