@@ -5,6 +5,14 @@ import MonthPickerField from "../MonthPickerField.jsx";
 afterEach(cleanup);
 
 describe("MonthPickerField", () => {
+  it("can show an explicit all-months state without pretending a month is selected", () => {
+    const onChange = vi.fn();
+    render(<MonthPickerField label="Created month" value="" emptyLabel="All months" onChange={onChange} />);
+    expect(screen.getByRole("button", { name: "Created month" }).textContent).toContain("All months");
+    fireEvent.click(screen.getByRole("button", { name: "Created month" }));
+    fireEvent.click(screen.getByRole("gridcell", { name: "Oct" }));
+    expect(onChange).toHaveBeenCalledWith(`${new Date().getFullYear()}-10`);
+  });
   it("selects a canonical YYYY-MM value from the year-aware month grid", () => {
     const onChange = vi.fn();
     render(<MonthPickerField label="Period" value="2026-08" onChange={onChange} />);
