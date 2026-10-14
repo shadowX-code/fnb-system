@@ -63,3 +63,20 @@ describe('Review Detail owner reply workflow',()=>{
   mount();const field=await screen.findByRole('textbox',{name:'Your reply'});fireEvent.change(field,{target:{value:'中'.repeat(1366)}});expect(field.value).toHaveLength(1366);expect(screen.getByRole('button',{name:'Publish Reply'}).disabled).toBe(true);
  });
 });
+
+describe('Reply readback freshness',()=>{
+ it('retains confirmed reply text and blocks publication until remote read catches up',async()=>{
+  mocks.detail.mockResolvedValue({...detail,review:{...review,reviewReply:remoteReply},reply_sync_pending:true,expectedHash:null});
+  mount();const field=await screen.findByRole('textbox',{name:'Your reply'});expect(field.value).toBe(draft);
+  expect(screen.getByText('Replied')).not.toBeNull();expect(screen.getByRole('button',{name:'Update Reply'}).disabled).toBe(true);
+  fireEvent.change(field,{target:{value:'New unsent draft'}});expect(screen.getByRole('button',{name:'Update Reply'}).disabled).toBe(true);
+  mocks.detail.mockResolvedValue({...detail,review:{...review,reviewReply:remoteReply}});fireEvent.click(screen.getByRole('button',{name:'Reload reply'}));
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Update Reply'}).disabled).toBe(false));expect(field.value).toBe('New unsent draft');expect(mocks.reply).not.toHaveBeenCalled();
+ });
+ it('does not label a failed read as Not Replied or leave publication enabled',async()=>{
+  mount();await write();fireEvent.click(within(screen.getByRole('dialog',{name:'Publish Reply'})).getByRole('button',{name:'Cancel'}));
+  mocks.reply.mockResolvedValue({status:'rejected',code:'google_access_denied'});fireEvent.click(screen.getByRole('button',{name:'Publish Reply'}));confirm();await screen.findByRole('alert');
+  mocks.detail.mockRejectedValue(new Error('Google read unavailable'));fireEvent.click(screen.getByRole('button',{name:'Reload reply'}));await screen.findByText('Google read unavailable');
+  expect(screen.queryByText('Not Replied')).toBeNull();expect(screen.getByText('Reply unavailable')).not.toBeNull();expect(screen.getByRole('textbox').value).toBe(draft);expect(screen.queryByRole('button',{name:'Publish Reply'})).toBeNull();
+ });
+});

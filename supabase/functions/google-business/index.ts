@@ -1,9 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { STAGING_ORIGIN, STAGING_SUPABASE, hash, nonce, seal, unseal, base64url, tokenEncryptionReady } from '../_shared/metaSecurity.ts';
+import type { GoogleReviewRecord } from '../_shared/googleReviewsContract.ts';
 import { googleGrant, DriveError } from '../_shared/googleDrive.ts';
 import { GoogleBusinessProfile, BUSINESS_SCOPE, BusinessProfileError, completePages, readReviewInbox, reviewInboxPayload, revokeBusinessGrant } from '../_shared/googleBusinessProfile.ts';
 
-import { GoogleOwnerReplies, reviewResource, replyText, replyFingerprint, executeOwnerReply } from '../_shared/googleBusinessReplies.ts';
+import { GoogleOwnerReplies, reviewResource, replyText, replyFingerprint, executeOwnerReply, reconcileOwnerReply } from '../_shared/googleBusinessReplies.ts';
 
 const env = (name: string) => Deno.env.get(name) || '';
 const secret = () => env('GOOGLE_BUSINESS_TOKEN_ENCRYPTION_KEY');
@@ -33,6 +34,12 @@ export async function handle(req: Request) {
   const result = await db.rpc('crew_google_business_reply_server', { p_action: command, p_user: user, p_outlet: outlet, p_data: data });
   if (result.error) throw new Error(result.error.message);
   return result.data;
+ };
+ const confirmedReplies=async()=>{
+  const result=await db.rpc('crew_google_business_reply_projection',{p_user:user,p_outlet:outlet});
+  if(result.error)throw new Error(result.error.message);
+  return new Map<string,{reply:NonNullable<GoogleReviewRecord['reviewReply']>;expiresAt:string}>(await Promise.all((result.data || []).map(async(record:any)=>[record.review_name,
+   {reply:await unseal(record.sealed_remote,keys(),`google-business:reply-remote:${record.id}`),expiresAt:record.content_expires_at}])));
  };
  const grant = (params: Record<string, string>) => googleGrant(params, env('GOOGLE_BUSINESS_CLIENT_ID'), env('GOOGLE_BUSINESS_CLIENT_SECRET'), fetch, false);
  const discovery = async (provider: GoogleBusinessProfile) => {
@@ -81,7 +88,12 @@ export async function handle(req: Request) {
     const inbox = await call('inbox');
     if (inbox.cache && Date.parse(inbox.cache.expires_at) > Date.now()) {
      const payload = reviewInboxPayload(await unseal(inbox.cache.sealed_reviews, keys(), inboxBinding(inbox.generation, inbox.mapping)), inbox.mapping.location_resource_name);
-     result.reviews = payload.reviews; result.google_aggregate = payload.googleAggregate;
+     const confirmed=await confirmedReplies();
+     result.reviews = payload.reviews.map((review:any)=>{
+      const evidence=confirmed.get(review.name),reconciled=reconcileOwnerReply(review,evidence?.reply);
+      if(reconciled.reply_sync_pending)result.cache_expires_at=new Date(Math.min(Date.parse(result.cache_expires_at),Date.parse(evidence.expiresAt))).toISOString();
+      return {...reconciled.review,reply_sync_pending:reconciled.reply_sync_pending};
+     }); result.google_aggregate = payload.googleAggregate;
      await call('guard', { generation: inbox.generation, revision: inbox.mapping.revision });
     } else result.sync_status = 'awaiting_sync';
    }
@@ -148,10 +160,13 @@ export async function handle(req: Request) {
    }
    if (action==='review') {
     await replyCall('access',{review:body.review});
-    const review=await ownerReplies.getReview(body.review);
+    const remote=await ownerReplies.getReview(body.review);
+    const confirmed=await confirmedReplies();
+    const evidence=confirmed.get(body.review);
+    const {review,reply_sync_pending}=reconcileOwnerReply(remote,evidence?.reply);
     await call('guard',sourceBasis);
     const latestAccess=await replyCall('access',{review:body.review});
-    return reply({review,can_reply:latestAccess.can_reply,...sourceBasis,expectedHash:await replyFingerprint(review.reviewReply),history:latestAccess.history,read_expires_at:new Date(Date.now()+86400000).toISOString()});
+    return reply({review,reply_sync_pending,can_reply:latestAccess.can_reply,...sourceBasis,expectedHash:reply_sync_pending ? null : await replyFingerprint(review.reviewReply),history:latestAccess.history,read_expires_at:new Date(reply_sync_pending ? Math.min(Date.now()+86400000,Date.parse(evidence.expiresAt)) : Date.now()+86400000).toISOString()});
    }
    if (action==='reply') {
     const comment=replyText(body.comment);
@@ -164,7 +179,12 @@ export async function handle(req: Request) {
    }
    const result=await executeOwnerReply({
     claim:()=>replyCall(action==='reply_status' ? 'check' : 'claim',{id:body.id}),
-    provider:ownerReplies,
+    provider:{...ownerReplies,getReview:async(name:string)=>{
+     const remote=await ownerReplies.getReview(name);
+     const confirmed=await confirmedReplies();
+     if(reconcileOwnerReply(remote,confirmed.get(name)?.reply).reply_sync_pending)throw new BusinessProfileError('reply_readback_pending',409);
+     return remote;
+    }},
     beforeWrite:async record=>{const result=await db.rpc('crew_google_business_reply_guard',{p_user:user,p_outlet:outlet,p_id:record.id,p_lease:record.lease});if(result.error)throw new BusinessProfileError('reply_authority_changed',409);},
     intent:async record=>record.sealed_intent && Date.parse(record.content_expires_at)>Date.now() ? await unseal(record.sealed_intent,keys(),`google-business:reply-intent:${record.id}`) : null,
     finish:async(record,outcome)=>{
@@ -202,6 +222,7 @@ export async function handle(req: Request) {
   const lease = await call('sync_begin', basis);
   try {
    const snapshot = await readReviewInbox(provider, material.mapping.location_resource_name);
+   // Keep Google sync content/expiry intact; the scoped read projection overlays newer accepted replies.
    await call('sync_finish', { ...basis, lease: lease.lease, sealed_reviews: await seal(snapshot, secret(), inboxBinding(material.generation, material.mapping)) });
    return reply({ ok: true });
   } catch (error) {

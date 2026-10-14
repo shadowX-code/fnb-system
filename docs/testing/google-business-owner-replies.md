@@ -20,3 +20,9 @@ The UI tests mock the service boundary for explicit confirmation/cancel, multili
 ## Remaining release verification
 
 A real official PUT has deliberately not been exercised. Before doing so, obtain explicit approval identifying the exact review/outlet and reply text. Preserve the current OAuth client, mapping and server credential architecture. Production requires separate authorization and its own configuration/release preflight.
+
+## Confirmed reply read-back regression
+
+The `yap dason` Staging publish records `reply_saved` at 2026-10-14 13:47:19 UTC with encrypted Google reply evidence. A subsequent authenticated GET now returns the same reply, `Thanks`; the original missing-reply GET response was not retained, so read-after-write propagation lag is inferred rather than proven from historical wire logs. The confirmed patch/audit were intact; Detail previously replaced the accepted reply unconditionally with GET data and never consulted its confirmed evidence.
+
+Forward migration `20261014135852_google_business_reply_readback` exposes only service-role scoped, current-generation/current-mapping, unexpired confirmed reply evidence. Shared reconciliation protects Detail/Inbox/sync and blocks a pre-write GET that regresses behind it. Mock writes cover update/errors/uncertainty plus a lagging read that performs zero PUTs; SQL fixtures roll back and verify mapping/expiry exclusion. Actual Google reply verification remains GET-only.

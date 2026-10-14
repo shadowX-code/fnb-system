@@ -36,6 +36,12 @@ begin
  select expires_at into expires from google_business_private.inbox_cache where location_resource_name='accounts/replyfixture/locations/fixture';
  perform public.crew_google_business_reply_server('finish',u,a,jsonb_build_object('id',id1,'lease',r->>'lease','status','confirmed','code','remote_reply_reconciled','sealed_remote',new_sealed,'remote_hash',repeat('b',64),'remote_time',now(),'expected_cache',sealed,'sealed_projection',new_sealed));
  assert (select sealed_reviews=new_sealed and expires_at=expires from google_business_private.inbox_cache where location_resource_name='accounts/replyfixture/locations/fixture');
+ assert not has_function_privilege('authenticated','public.crew_google_business_reply_projection(uuid,uuid)','EXECUTE');
+ assert (public.crew_google_business_reply_projection(u,a)->0->>'id')::uuid=id1;
+ assert jsonb_array_length(public.crew_google_business_reply_projection(u,b))=0;
+ update public.crew_google_outlet_locations set revision=gen_random_uuid() where outlet_id=a;
+ assert jsonb_array_length(public.crew_google_business_reply_projection(u,a))=0;
+ update public.crew_google_outlet_locations set revision=(ctx->'mapping'->>'revision')::uuid where outlet_id=a;
  select count(*) into n from google_business_private.events where action='reply_outcome' and details->>'request_id'=id1::text;
  perform public.crew_google_business_reply_server('finish',u,a,jsonb_build_object('id',id1,'lease',r->>'lease','status','confirmed'));
  assert (select count(*)=n from google_business_private.events where action='reply_outcome' and details->>'request_id'=id1::text);
@@ -54,6 +60,7 @@ begin
  begin perform public.crew_google_business_reply_server('prepare',u,a,basis||jsonb_build_object('id',gen_random_uuid()));raise exception 'Reader published reply';exception when insufficient_privilege then null;end;
  update public.employees set role_id=old_role where auth_user_id=u;
  update google_business_private.reply_requests set content_expires_at=now()-interval '1 second' where id=id1;
+ assert jsonb_array_length(public.crew_google_business_reply_projection(u,a))=0;
  perform google_business_private.purge_reply_content();assert (select sealed_intent is null and sealed_remote is null and status='confirmed' from google_business_private.reply_requests where id=id1);
  assert exists(select 1 from google_business_private.events where action='reply_outcome' and details->>'request_id'=id1::text and details->>'remote_hash'=repeat('b',64));
 end;$$;

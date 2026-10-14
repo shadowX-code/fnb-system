@@ -128,3 +128,5 @@ People/RBAC supplies identity, permission, and outlet scope.
 Legacy Growth People, Performance Reviews, and Reward Cycle routes are compatibility entries into this domain.
 Growth, Performance, and Reward remain one bounded domain because they share evidence-to-outcome lifecycles, while their state machines stay distinct.
 Payroll disbursement, tax treatment, and external benefits integration are deferred unless current contracts introduce them.
+
+Owner-reply read reconciliation retains the latest unexpired encrypted accepted PUT evidence only for the current outlet/resource, connection generation and mapping revision. Detail, Inbox and sync use the same projection: missing/older read-back cannot erase a newer confirmed reply. A differing read-back shows the confirmed content with a pending reconciliation state and blocks another PUT until Google catches up; newer remote edits remain authoritative. Google GET failures remain errors, never evidence of reply absence. Drafts survive reload/failure; the 24-hour content expiry and audit metadata retention are unchanged.

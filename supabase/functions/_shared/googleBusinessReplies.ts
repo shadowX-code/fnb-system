@@ -13,6 +13,13 @@ export function replyText(comment: unknown) {
  return comment;
 }
 export const replyFingerprint = (reply?: OwnerReply) => hash(JSON.stringify(reply ? { comment: reply.comment, updateTime: reply.updateTime } : null));
+// A lagging Google GET must not erase a newer accepted PUT or authorize another write.
+export function reconcileOwnerReply(review: GoogleReviewRecord, confirmed?: OwnerReply) {
+ const remote=review.reviewReply;
+ const pending=Boolean(confirmed && (!remote || Date.parse(remote.updateTime)<Date.parse(confirmed.updateTime)
+  || Date.parse(remote.updateTime)===Date.parse(confirmed.updateTime) && remote.comment!==confirmed.comment));
+ return {review:pending ? {...review,reviewReply:confirmed} : review,reply_sync_pending:pending};
+}
 export class GoogleOwnerReplies {
  constructor(private token: string, private transport: typeof fetch = fetch) {}
  async getReview(name: string) {
