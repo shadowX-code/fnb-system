@@ -9,7 +9,7 @@ export function recognizeCreatorProfile(value) {
  else if(['xiaohongshu.com','www.xiaohongshu.com'].includes(host)&&/^\/user\/profile\/[a-f0-9]+$/i.test(path)){platform='xhs';external_id=path.split('/').pop().toLowerCase();canonical=`https://www.xiaohongshu.com/user/profile/${external_id}`;}
  else if(['facebook.com','www.facebook.com','m.facebook.com'].includes(host)){
  platform='facebook';if(path==='/profile.php'&&/^\d+$/.test(url.searchParams.get('id')||'')){external_id=url.searchParams.get('id');canonical=`https://www.facebook.com/profile.php?id=${external_id}`;}
- else if(/^\/[a-z0-9._-]+$/i.test(path)&&!['share','reel','watch','photo','story.php','groups','pages'].includes(path.slice(1).toLowerCase())){const id=path.slice(1).toLowerCase();if(/^\d+$/.test(id))external_id=id;else handle=id;canonical=`https://www.facebook.com/${id}`;}
+ else if(/^\/[a-z0-9._-]+$/i.test(path)&&!['share','reel','watch','photo','profile.php','story.php','groups','pages'].includes(path.slice(1).toLowerCase())){const id=path.slice(1).toLowerCase();if(/^\d+$/.test(id))external_id=id;else handle=id;canonical=`https://www.facebook.com/${id}`;}
  }
  if(!canonical)throw new Error('Use a Facebook, Instagram, Xiaohongshu or TikTok profile link.');
  return {platform,profile_url:canonical,handle,external_id};
@@ -19,4 +19,9 @@ export function profileConflict(profile,accounts,creatorId){
  ((profile.handle&&a.handle?.toLowerCase()===profile.handle.replace(/^@/,'').toLowerCase())||
  (profile.external_id&&a.external_id===profile.external_id)||
  (profile.profile_url&&a.profile_url?.toLowerCase()===profile.profile_url.toLowerCase())));
+}
+
+// Only saved, supported URLs can be opened; a handle alone never creates a link.
+export function creatorProfileLink(account){
+ try{const profile=recognizeCreatorProfile(account.profile_url);return profile.platform===account.platform?profile.profile_url:null}catch{return null}
 }

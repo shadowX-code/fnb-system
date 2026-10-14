@@ -55,3 +55,10 @@ it('requires explicit resolution for a verified conflicting author instead of si
 it('exposes native validation feedback and retains edits after a rejected Collaboration save',async()=>{
  const onSave=vi.fn().mockRejectedValue(new Error('Revision changed. Reload before saving.'));render(<CollaborationEditor {...props} onSave={onSave}/>);fireEvent.invalid(screen.getByLabelText('Collaboration Title *'));expect(screen.getByRole('alert').textContent).toContain('Collaboration Title');fireEvent.change(screen.getByLabelText('Collaboration Title *'),{target:{value:'Keep edits'}});fireEvent.submit(screen.getByRole('dialog').querySelector('form'));await waitFor(()=>expect(screen.getByRole('alert').textContent).toContain('Revision changed'));expect(screen.getByLabelText('Collaboration Title *').value).toBe('Keep edits');
 });
+
+it('shows Platform and Profile URL first, detects pasted URLs, and keeps manual corrections collapsed',async()=>{
+ creatorService.profile.mockResolvedValue({metadata_status:'unavailable'});render(<AccountEditor {...props} org="org" brandId="b" creator={data.creators[0]}/>);
+ const details=screen.getByText('Edit optional profile details').closest('details');expect(details.open).toBe(false);expect(screen.getByRole('button',{name:'Platform'}).closest('details')).toBeNull();
+ fireEvent.paste(screen.getByLabelText('Profile URL'),{clipboardData:{getData:()=> 'https://www.tiktok.com/@detected.alias'}});await waitFor(()=>expect(screen.getByRole('button',{name:'Platform'}).textContent).toContain('TikTok'));await screen.findByText('Public details unavailable. Add optional details manually.');expect(details.open).toBe(false);
+ fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({platform:'tiktok',handle:'detected.alias',profile_url:'https://www.tiktok.com/@detected.alias'}));
+});
