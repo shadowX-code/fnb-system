@@ -1,0 +1,25 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+import {render,screen,fireEvent,waitFor,within,cleanup} from '@testing-library/react';
+import CreatorsPage from '../CreatorsPage.jsx';
+const {service}=vi.hoisted(()=>({service:{read:vi.fn(),directory:vi.fn(),command:vi.fn(),preview:vi.fn(),manualPreview:vi.fn()}}));
+vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>({user:{id:'user'},hasPermission:()=>true})}));
+vi.mock('../marketingService.js',()=>({marketingService:{context:async()=>({organizations:[{id:'org'}],brands:[{id:'b',organization_id:'org',name:'Brand',outlets:[]}]})}}));
+vi.mock('../creatorService.js',()=>({creatorService:service}));
+vi.mock('../MarketingMediaPicker.jsx',()=>({default:()=>null}));
+const c={id:'collab',revision:1,brand_id:'b',creator_id:'creator',title:'Mixed collaboration',status:'in_progress',currency:'MYR',cash_cost:5,in_kind_cost:0,cost_state:'estimated',deliverables:[{id:'d1',platform:'instagram',content_type:'image',title:'IG image',status:'pending'},{id:'d2',platform:'tiktok',content_type:'video',title:'Video',status:'pending'}]};
+const data={options:[],creators:[{id:'creator',name:'Creator',brand_ids:['b'],categories:[],locations:[]}],accounts:[],collaborations:[c],posts:[],assets:[],snapshots:[],members:[],campaigns:[]};
+const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r});return {promise,resolve}};
+beforeEach(()=>{localStorage.clear();window.history.replaceState({},'','/');Object.values(service).forEach(f=>f.mockReset());service.read.mockResolvedValue(data);service.directory.mockResolvedValue(data)});
+afterEach(cleanup);
+async function open(){render(<CreatorsPage/>);fireEvent.click(await screen.findByRole('tab',{name:'Collaborations'}));fireEvent.click(await screen.findByRole('button',{name:'View Mixed collaboration'}));return within(screen.getByRole('dialog'))}
+it('acknowledges a committed save before workspace refresh and never overwrites later unsaved edits',async()=>{
+ const refresh=deferred();service.read.mockResolvedValueOnce(data).mockReturnValueOnce(refresh.promise);service.command.mockResolvedValue({...c,revision:2});let drawer=await open();fireEvent.click(drawer.getByRole('button',{name:'Save',exact:true}));await waitFor(()=>expect(within(screen.getByRole('dialog')).getByRole('status').textContent).toBe('Saved.'));drawer=within(screen.getByRole('dialog'));await waitFor(()=>expect(drawer.getByRole('button',{name:'Save',exact:true}).disabled).toBe(false));
+ fireEvent.change(drawer.getByLabelText('Collaboration Title *'),{target:{value:'Unsaved after save'}});refresh.resolve({...data,collaborations:[{...c,revision:2}]});await waitFor(()=>expect(drawer.getByLabelText('Collaboration Title *').value).toBe('Unsaved after save'));
+});
+it('retains failed edits, retries the exact request identity, and prevents concurrent submissions',async()=>{
+ const pending=deferred();service.command.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({...c,revision:2,title:'Edited'});const drawer=await open();fireEvent.change(drawer.getByLabelText('Collaboration Title *'),{target:{value:'Edited'}});const form=screen.getByRole('dialog').querySelector('form');fireEvent.submit(form);fireEvent.submit(form);expect(service.command).toHaveBeenCalledTimes(1);pending.resolve(Promise.reject(new Error('Temporary save failure. Retry.')));await drawer.findByRole('alert');expect(drawer.getByLabelText('Collaboration Title *').value).toBe('Edited');fireEvent.submit(form);await waitFor(()=>expect(service.command).toHaveBeenCalledTimes(2));expect(service.command.mock.calls[0][0].request).toBe(service.command.mock.calls[1][0].request);
+});
+it('child Post save updates its exact parent plan immediately without waiting for enrichment',async()=>{
+ const refresh=deferred();service.read.mockResolvedValueOnce(data).mockReturnValueOnce(refresh.promise);service.preview.mockResolvedValue({platform:'instagram',canonical_url:'https://instagram.com/p/real/',metadata_status:'unavailable',message:'Manual details'});service.command.mockImplementation(async intent=>({id:'post',revision:1,brand_id:'b',creator_id:'creator',platform:'instagram',canonical_url:intent.payload.url,collaboration_id:'collab',deliverable_id:intent.payload.deliverable_id,publication_confirmed_at:'2026-10-14T00:00:00Z'}));
+ let drawer=await open();fireEvent.click(drawer.getAllByRole('button',{name:'Add Post URL'})[0]);drawer=within(screen.getByRole('dialog'));fireEvent.change(drawer.getByLabelText('Post URL *'),{target:{value:'https://instagram.com/p/real/'}});fireEvent.click(drawer.getByRole('button',{name:'Inspect URL'}));await drawer.findByRole('heading',{name:'Post Preview'});fireEvent.click(drawer.getByRole('button',{name:'Save Post'}));await waitFor(()=>expect(within(screen.getByRole('dialog')).getByText('1/2 Published')).toBeTruthy());expect(within(screen.getByRole('dialog')).getByLabelText('Collaboration Title *').value).toBe('Mixed collaboration');expect(service.command.mock.calls[0][0].payload).toMatchObject({creator_id:'creator',deliverable_id:'d1',confirm_link:true,confirm_published:true});
+});

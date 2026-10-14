@@ -1,11 +1,15 @@
 import {supabase} from '../../lib/supabase';
 import {throwSupabaseError} from '../../services/supabaseError.js';
-async function rpc(name,args){const {data,error}=await supabase.rpc(name,args);throwSupabaseError(`marketing.${name}`,error);return data;}
+async function rpc(name,args){
+ const controller=new AbortController();let timer;
+ try{const {data,error}=await Promise.race([supabase.rpc(name,args).abortSignal(controller.signal),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('The request took too long. Your edits are kept. Retry to check the same save safely.'))},30000)})]);throwSupabaseError(`marketing.${name}`,error);return data;}finally{clearTimeout(timer)}
+}
 // Public extraction retains field evidence; authorized Meta fallback stays read-only.
 export const creatorPostAdapters={
  facebook:{mode:'public_inspection',fallback:'authorized_meta_cache'},instagram:{mode:'public_inspection',fallback:'authorized_meta_cache'},xhs:{mode:'public_inspection',fallback:'manual'},tiktok:{mode:'public_inspection',fallback:'manual'},
 };
 export const creatorService={
+ manualPreview:(org,brand,url)=>rpc('marketing_creator_post_preview',{p_org:org,p_brand:brand,p_url:url}),
  directory:(org)=>rpc('marketing_creator_directory',{p_org:org,p_brand:null}),
  history:(org,post,after=null)=>rpc('marketing_creator_metric_history',{p_org:org,p_post:post,p_after:after,p_size:25}),
  read:(org,brand)=>rpc('marketing_creator_workspace',{p_org:org,p_brand:brand||null}),
