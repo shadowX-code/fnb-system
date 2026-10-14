@@ -2,7 +2,7 @@
 
 15 October 2026, Asia/Kuala_Lumpur. Isolated local preparation; no remote push, deployment, main merge, live migration, secret installation, provider configuration or external execution.
 
-**GO for review of the isolated candidate; NO-GO for Production rollout.** The scoped application builds against Production main and the runtime is environment-specific and execution closed. The exact 133-migration rehearsal is retained. Separate security delivery, dependency security review, Production configuration/bootstrap and external access approval remain gates.
+**GO for review of the isolated candidate; NO-GO for Production rollout.** The scoped application builds against Production main and the runtime is environment-specific and execution closed. The exact 133-migration rehearsal is retained. Separate security delivery, Production configuration/bootstrap and external access approval remain gates. The saved dependency findings have been classified in [the dependency ledger](2026-10-15-marketing-dependency-triage.md); none is a confirmed blocker on current release paths.
 
 ## Source and isolation
 
@@ -44,7 +44,7 @@ Separate prerequisite remains `20261014073014_platform_role_authority_hardening`
 - Focused worker tests pass, including Production refusing publishing claims despite copied test flags and rejecting Staging app credentials before database work.
 - Broad focused Marketing run: 78 suites passed; one outreach timing assertion failed under concurrency. All 18 outreach tests passed serially; the subsequent five-suite security/worker/Inbox/Creator/outreach run passed 46 tests. Final sensitive suites and build evidence are retained with the handoff. No user-facing defect was proven by the concurrent-only timeout.
 - Reused all 133 migration hashes, byte-identical overlay, isolated preservation/RLS/RPC suites and existing Staging L2/L3 evidence. No unrelated module QA or provider test was repeated.
-- `npm audit` reports 14 dependency findings (8 high, 3 moderate, 3 low). They require triage before release. High findings include existing toolchain packages and jsdom's Undici 8.10.0; Creator's Cheerio resolves Undici 7.30.0, outside the reported 8.x advisory ranges. No broad dependency upgrade was silently included. Audit findings are not represented as confirmed exploitable Production business-path vulnerabilities.
+- `npm audit` reports 14 dependency findings (8 high, 3 moderate, 3 low). Their completed triage finds zero current release blockers, three already mitigated and eleven safely deferrable; see the dependency ledger for exact conditions. High findings include existing toolchain packages and jsdom's Undici 8.10.0; Creator's Cheerio resolves Undici 7.30.0, outside the reported 8.x advisory ranges. No broad dependency upgrade was silently included. Audit findings are not represented as confirmed exploitable Production business-path vulnerabilities.
 
 ## Configuration and release sequence
 
@@ -58,11 +58,11 @@ Production callbacks under `https://oyfobxdoyfuzsodogpgs.supabase.co/functions/v
 
 Frontend return origin: `https://os.feedx.my`. Meta's exact OAuth callback is already registered. Other callbacks are preparation only, until endpoints are deployed and registration is separately approved. The new App remains unpublished and its configuration alone proves neither Advanced Access nor live data delivery.
 
-Release order: approve/deliver separate security prerequisite; resolve dependency findings; recheck current baseline and manifests/backup custody; authorize exact 133 migrations plus forward overlay with jobs inactive; install independent private storage/secret/privacy custody and Production-bound functions/API; bootstrap canonical Brands/Outlets/admin/member scopes; deploy scoped frontend through the existing Production Git Integration only after explicit main/deployment approval; perform narrow authorized Production smoke; activate only approved internal workers. Provider connections and external execution remain separate gates.
+Release order: approve/deliver separate security prerequisite; preserve the dependency ledger's execution/input boundaries; recheck current baseline and manifests/backup custody; authorize exact 133 migrations plus forward overlay with jobs inactive; install independent private storage/secret/privacy custody and Production-bound functions/API; bootstrap canonical Brands/Outlets/admin/member scopes; deploy scoped frontend through the existing Production Git Integration only after explicit main/deployment approval; perform narrow authorized Production smoke; activate only approved internal workers. Provider connections and external execution remain separate gates.
 
 ## Remaining approvals and GO or NO GO
 
-1. Separate security-hotfix release and dependency security resolution/acceptance.
+1. Separate security-hotfix release. The dependency gate is clear for the documented current paths; deferred package advisories remain recorded.
 2. Explicit Production migration, runtime/API/frontend release and main-merge authorization for the reviewed candidate/manifest; no authorization is implied by this preparation.
 3. Brand/Outlet mappings, initial administrators, member Brand access and independent secret, scheduler, erasure-journal/backup custody decisions.
 4. Meta Business Verification (last inspected In review), applicable Tech Provider/access verification and separate new-app App Review/Advanced Access. The seven reporting scopes are installed/configured but general-customer access is unverified. Messaging/publishing scopes are outside the login configuration; adding them requires separate approval.
