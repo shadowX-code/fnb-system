@@ -22,3 +22,7 @@ verify_jwt = false
 
 [functions.marketing-drive]
 verify_jwt = false
+
+[functions.google-business]
+# OAuth callback verifies state/PKCE; Admin commands verify Auth plus outlet/permission scope.
+verify_jwt = false

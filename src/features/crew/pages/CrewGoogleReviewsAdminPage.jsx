@@ -1,138 +1,122 @@
-import { useEffect, useRef, useState } from "react";
-import { ExternalLink, Link2, Settings2, Star } from "lucide-react";
-import PageHeader from "../../../components/layout/PageHeader.jsx";
-import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
-import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
-import SelectField from "../../../components/forms/SelectField.jsx";
-import Badge from "../../../components/ui/Badge.jsx";
-import AdminFormField from "../../../components/forms/AdminFormField.jsx";
-import { googleReviewsState, hasGoogleReviewEvidence } from "../utils/googleReviewsState.js";
-import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
-import { crewService } from "../../../services/crewService.js";
+import { useEffect, useRef, useState } from 'react';
+import { MessageSquare, RefreshCw, Eye } from 'lucide-react';
+import PageHeader from '../../../components/layout/PageHeader.jsx';
+import AdminFilterToolbar, { AdminOutletField } from '../../../components/layout/AdminFilterToolbar.jsx';
+import AdminUnderlineTabs from '../../../components/navigation/AdminUnderlineTabs.jsx';
+import AdminSearchField from '../../../components/forms/AdminSearchField.jsx';
+import MonthPickerField from '../../../components/forms/MonthPickerField.jsx';
+import SelectField from '../../../components/forms/SelectField.jsx';
+import Card from '../../../components/ui/Card.jsx';
+import Badge from '../../../components/ui/Badge.jsx';
+import EmptyState from '../../../components/feedback/EmptyState.jsx';
+import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton.jsx';
+import { useCrewAdminOutlet } from '../context/CrewAdminOutletContext.jsx';
+import { googleBusinessService as service } from '../services/googleBusinessService.js';
+import GoogleReviewDetail, { ownerReplyLabel, ownerReplyTone } from '../components/GoogleReviewDetail.jsx';
+import GoogleReviewsSettings from '../components/GoogleReviewsSettings.jsx';
+import GoogleRatingOverview, { GoogleReviewStars } from '../components/GoogleRatingOverview.jsx';
+import { googleReviewRatings as ratings } from '../domain/googleReviewPresentation.js';
 
-const monthNow = () => `${new Date().toISOString().slice(0, 7)}-01`;
-const reviewFilters = ["All", "Positive", "Neutral", "Negative"];
-const noData = "Not available";
-const sentimentFor = (rating) => rating >= 4 ? "Positive" : rating === 3 ? "Neutral" : "Negative";
-function googleReviewUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" && (url.hostname === "google.com" || url.hostname.endsWith(".google.com")) ? url.href : null;
-  } catch { return null; }
+const formatTime = value => new Date(value).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' });
+function reviewMonth(value) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit' }).formatToParts(new Date(value));
+  return `${parts.find(part => part.type === 'year').value}-${parts.find(part => part.type === 'month').value}`;
 }
 
-export default function CrewGoogleReviewsAdminPage({ auth, store }) {
+export default function CrewGoogleReviewsAdminPage({ store }) {
   const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []);
-  const [period, setPeriod] = useState(monthNow);
-  const [view, setView] = useState("reviews");
-  const [filter, setFilter] = useState("All");
-  const [order, setOrder] = useState("newest");
-  const [context, setContext] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [targetInput, setTargetInput] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("");
-  const [history, setHistory] = useState([]);
-  const [historyError, setHistoryError] = useState("");
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const requestSequence = useRef(0);
-  const canEdit = auth.hasPermission("crew_performance.review");
-
+  const [context, setContext] = useState(null), [tab, setTab] = useState('inbox'), [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(''), [error, setError] = useState(''), [reload, setReload] = useState(0);
+  const [search, setSearch] = useState(''), [stars, setStars] = useState('all'), [reply, setReply] = useState('all'), [month, setMonth] = useState('');
+  const [detail,setDetail]=useState(null);
+  const [order, setOrder] = useState('newest');
+  const [oauthResult, setOauthResult] = useState(() => new URLSearchParams(window.location.search).get('google_result'));
+  const sequence = useRef(0), pending = useRef(false);
   useEffect(() => {
-    let active = true;
-    ++requestSequence.current;
-    setContext(null);
-    setError("");
-    setSaveMessage("");
-    setHistory([]);
-    setHistoryError("");
-    if (!outletId) return undefined;
+    const id = ++sequence.current; setContext(null); setError('');
+    if (!outletId) { setLoading(false); return undefined; }
     setLoading(true);
-    crewService.googleReviewsAdminContext(outletId, period)
-      .then((data) => { if (active) { setContext(data); setTargetInput(data.positive_target == null ? "" : String(data.positive_target)); } })
-      .catch((cause) => { if (active) setError(cause.message || "Google Reviews context could not be loaded."); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [outletId, period]);
-
+    service.context(outletId).then(data => { if (id === sequence.current) setContext(data); })
+      .catch(cause => { if (id === sequence.current) setError(cause.message); })
+      .finally(() => { if (id === sequence.current) setLoading(false); });
+    return () => { ++sequence.current; };
+  }, [outletId, reload]);
   useEffect(() => {
-    let active = true;
-    if (view !== "settings" || !outletId) return undefined;
-    setHistoryLoading(true);
-    setHistoryError("");
-    crewService.googleTargetHistory(outletId, period).then((data) => { if (active) setHistory(data.rows || []); })
-      .catch(() => { if (active) setHistoryError("Target history could not be loaded. Reopen Settings to retry."); })
-      .finally(() => { if (active) setHistoryLoading(false); });
-    return () => { active = false; };
-  }, [view, outletId, period, context?.positive_target]);
-
-  async function saveTarget(event) {
-    event.preventDefault();
-    const target = Number(targetInput);
-    if (!Number.isSafeInteger(target) || target <= 0) { setSaveMessage("Enter a whole number greater than zero."); return; }
-    setSaving(true);
-    const sequence = requestSequence.current;
-    setSaveMessage("");
+    if (!context?.cache_expires_at) return undefined;
+    const timer = setTimeout(() => setContext(current => current ? { ...current, reviews: [], sync_status: 'awaiting_sync' } : current), Math.max(0, Date.parse(context.cache_expires_at) - Date.now()));
+    return () => clearTimeout(timer);
+  }, [context?.cache_expires_at]);
+  async function run(action, command, surfaceError = true) {
+    if (pending.current) return { ok: false, error: 'Another action is in progress.' };
+    pending.current = true; setBusy(action); setError(''); const id = sequence.current;
     try {
-      await crewService.setGoogleMonthlyTarget(outletId, period, target);
-      const next = await crewService.googleReviewsAdminContext(outletId, period);
-      if (sequence !== requestSequence.current) return;
+      const data = await command();
+      if (id !== sequence.current) return { ok: false, error: 'Outlet changed. Refresh Settings.' };
+      if (action === 'authorize') {
+        const url = new URL(data.url);
+        if (url.origin !== 'https://accounts.google.com' || url.pathname !== '/o/oauth2/v2/auth') throw new Error('Google authorization URL unavailable.');
+        window.location.assign(url.href); return { ok: true };
+      }
+      const next = await service.context(outletId);
+      if (id !== sequence.current) return { ok: false, error: 'Outlet changed. Refresh Settings.' };
       setContext(next);
-      setTargetInput(String(next.positive_target));
-      setSaveMessage("Monthly target saved. The change is audited.");
-    } catch (cause) { if (sequence === requestSequence.current) setSaveMessage(cause.message || "Target could not be saved."); }
-    finally { setSaving(false); }
+      return { ok: true };
+    } catch (cause) {
+      const message = cause.message || 'Google Reviews request failed.';
+      if (id === sequence.current) {
+        if (surfaceError) setError(message);
+        // Read FeedX's stored authority after failure; never retry a Google request.
+        try { const next = await service.context(outletId); if (id === sequence.current) setContext(next); }
+        catch { if (id === sequence.current) setContext(current => current ? { ...current, reviews: [], sync_status: 'awaiting_sync' } : null); }
+      }
+      return { ok: false, error: message };
+    } finally { pending.current = false; setBusy(''); }
   }
-
-  const outlet = outlets.find((item) => item.id === outletId);
-  const state = googleReviewsState(context);
-  const evidenceAvailable = hasGoogleReviewEvidence(context);
-  const unavailable = context?.api_status !== "available";
-  const metric = (value) => evidenceAvailable && value != null ? value : noData;
-  const connectionLabel = context?.connection_status === "error" ? "Connection error" : context?.connection_status === "connected" ? "Connected" : "Not connected";
-  const visibleReviews = (evidenceAvailable ? context?.reviews || [] : [])
-    .filter((review) => filter === "All" || sentimentFor(Number(review.rating)) === filter)
-    .sort((left, right) => order === "rating_high" ? right.rating - left.rating : order === "rating_low" ? left.rating - right.rating : order === "oldest" ? new Date(left.created_at) - new Date(right.created_at) : new Date(right.created_at) - new Date(left.created_at));
-  return <div className="space-y-5">
-    <PageHeader section="Crew · Performance" title="Google Reviews" description="Outlet reputation and monthly review context." secondaryActions={<button type="button" className="btn-secondary" onClick={() => setView(view === "reviews" ? "settings" : "reviews")}><Settings2 size={16} /> {view === "reviews" ? "Settings" : "Reviews"}</button>} />
-    <AdminFilterToolbar ariaLabel="Google Reviews scope" outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />} period={<MonthPickerField label="Month" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} />
-    {loading ? <p className="text-sm text-text-secondary" role="status">Loading Google Reviews context…</p> : null}
-    {error ? <div className="rounded-md border border-rose-200 px-4 py-3 text-sm text-rose-700" role="alert">{error}</div> : null}
-    {!outletId && !loading ? <p className="text-sm text-text-secondary">Select an outlet to view its review context.</p> : null}
-    {context && !loading ? view === "settings" ? <div className="grid max-w-5xl gap-5 lg:grid-cols-2">
-      <section className="space-y-3 border-t border-border pt-4" aria-label="Google Business Profile connection">
-        <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold text-text-primary">Google Business Profile</h2><Badge tone="neutral">{unavailable ? "API access pending" : connectionLabel}</Badge></div>
-        <p className="text-sm text-text-secondary">One organization connection supplies authorized business accounts and verified locations. {unavailable ? "Google API access is not available yet." : "Connection actions require the verified server-side provider."}</p>
-        <p className="text-sm text-text-secondary">Connection: <strong className="text-text-primary">{connectionLabel}</strong> · Last sync: {context.last_synced_at ? new Date(context.last_synced_at).toLocaleString("en-MY") : noData}</p>
-        <div className="flex flex-wrap gap-2"><button className="btn-secondary" type="button" disabled title="Available after Google Business Profile API access is approved">Connect</button><button className="btn-secondary" type="button" disabled title="No connection to reconnect">Reconnect</button><button className="btn-secondary" type="button" disabled title="No connection to disconnect">Disconnect</button></div>
-      </section>
-      <section className="space-y-3 border-t border-border pt-4" aria-label="Outlet mapping">
-        <h2 className="text-base font-semibold text-text-primary">Outlet Mapping</h2>
-        <p className="text-sm text-text-secondary">{outlet?.name || "Selected outlet"} is {context.location_name ? `mapped to ${context.location_name}` : "not mapped to a Google Location"}.</p>
-        <p className="text-sm text-text-secondary">Locations must come from the connected Google account and be mapped explicitly. Outlet names are never matched automatically.</p>
-        <button className="btn-secondary" type="button" disabled title="Connect Google Business Profile to load verified locations"><Link2 size={15} /> Choose Google Location</button>
-      </section>
-      <section className="space-y-3 border-t border-border pt-4 lg:col-span-2" aria-label="Monthly positive review target">
-        <div><h2 className="text-base font-semibold text-text-primary">Monthly Positive Review Target</h2><p className="text-sm text-text-secondary">Set for {outlet?.name || "this outlet"} and {new Date(`${period}T12:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" })}. Changes are audited and lock after monthly Performance finalization.</p></div>
-        <form className="flex flex-wrap items-end gap-3" onSubmit={saveTarget}><AdminFormField label="Positive reviews"><input className="control w-36" type="number" min="1" step="1" inputMode="numeric" value={targetInput} onChange={(event) => setTargetInput(event.target.value)} disabled={!canEdit || context.target_locked || saving} /></AdminFormField><button className="btn-primary" type="submit" disabled={!canEdit || context.target_locked || saving || !targetInput}>{saving ? "Saving…" : "Save target"}</button></form>
-        {context.target_locked ? <p className="text-sm text-text-secondary">Locked: Performance has been finalized for this outlet and month.</p> : !canEdit ? <p className="text-sm text-text-secondary">Performance review permission is required to edit this target.</p> : null}
-        {saveMessage ? <p className="text-sm text-text-secondary" role="status">{saveMessage}</p> : null}
-        <h3 className="text-sm font-semibold text-text-primary">Target history</h3>
-        {historyLoading ? <p role="status" className="text-sm text-text-secondary">Loading target history…</p> : historyError ? <p role="alert" className="text-sm text-text-secondary">{historyError}</p> : history.length ? <ol className="divide-y divide-border">{history.map((entry) => <li key={entry.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm"><span>{entry.old_target ?? "Not set"} → {entry.new_target} positive reviews</span><time className="text-text-secondary" dateTime={entry.changed_at}>{new Date(entry.changed_at).toLocaleString("en-MY")}</time></li>)}</ol> : <p className="text-sm text-text-secondary">No target changes recorded for this outlet and month.</p>}
-      </section>
-    </div> : <div className="space-y-5">
-      <div className="border-l-2 border-primary bg-primary/5 px-4 py-3" role="status"><strong className="text-sm text-text-primary">{state.title}</strong><p className="mt-1 text-sm text-text-secondary">{state.description}</p></div>
-      <section aria-label="Review overview" className="grid gap-x-5 gap-y-4 border-y border-border py-4 sm:grid-cols-2 xl:grid-cols-4">{[
-        ["New Reviews", metric(context.new_reviews)], ["Positive / Monthly Target", `${metric(context.positive_reviews)} / ${context.positive_target ?? "Not set"}`],
-        ["Average Rating", metric(context.average_rating)], ["Negative / Negative Rate", evidenceAvailable ? `${metric(context.negative_reviews)} / ${context.negative_rate == null ? noData : `${context.negative_rate}%`}` : noData],
-      ].map(([label, value]) => <div key={label}><p className="text-xs font-medium text-text-secondary">{label}</p><strong className="mt-1 block text-lg font-semibold text-text-primary">{value}</strong></div>)}</section>
-      <div className="grid gap-5 lg:grid-cols-2"><section className="border-t border-border pt-4"><h2 className="text-base font-semibold text-text-primary">Positive Target Progress</h2><p className="mt-2 text-sm text-text-secondary">{evidenceAvailable && context.positive_target ? `${metric(context.positive_reviews)} of ${context.positive_target} positive reviews` : context.positive_target ? `Target: ${context.positive_target} positive reviews. Progress is unavailable until reconciliation completes.` : "Set a monthly target in Settings. Progress is unavailable until verified Google evidence is available."}</p></section><section className="border-t border-border pt-4"><h2 className="text-base font-semibold text-text-primary">Review Trend</h2>{evidenceAvailable && context.review_trend?.length ? <ol className="mt-2 divide-y divide-border">{context.review_trend.map((entry) => <li key={entry.date} className="flex justify-between gap-3 py-1.5 text-sm"><time dateTime={entry.date}>{entry.date}</time><span>{entry.count} reviews</span></li>)}</ol> : <p className="mt-2 text-sm text-text-secondary">No review trend is available yet.</p>}</section></div>
-      <section className="border-t border-border pt-4"><h2 className="text-base font-semibold text-text-primary">Rating Breakdown</h2><div className="mt-3 grid grid-cols-5 gap-2">{[5, 4, 3, 2, 1].map((rating) => <div key={rating} className="text-sm text-text-secondary"><span className="inline-flex items-center gap-1"><Star size={13} /> {rating}</span><strong className="block text-text-primary">{evidenceAvailable ? context.rating_breakdown?.[rating] ?? "—" : "—"}</strong></div>)}</div></section>
-      <section className="border-t border-border pt-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold text-text-primary">Reviews</h2><p className="text-sm text-text-secondary">{evidenceAvailable ? "Verified reviews created in the selected month." : "Review content will appear here after connection and policy approval."}</p></div><div className="w-40"><SelectField label="Order" value={order} onChange={setOrder} options={[{ value: "newest", label: "Newest first" }, { value: "oldest", label: "Oldest first" }, { value: "rating_high", label: "Highest rated" }, { value: "rating_low", label: "Lowest rated" }]} /></div></div>
-        <div className="mt-3 flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Review sentiment">{reviewFilters.map((item) => <button key={item} type="button" className={`shrink-0 rounded-md px-3 py-1.5 text-sm ${filter === item ? "bg-primary/10 font-semibold text-primary" : "text-text-secondary hover:bg-slate-100"}`} onClick={() => setFilter(item)}>{item}</button>)}</div>
-        {visibleReviews.length ? <div className="mt-4 divide-y divide-border border-t border-border">{visibleReviews.map((review) => <article key={review.id} className="grid gap-1 py-3 sm:grid-cols-[100px_minmax(0,1fr)_auto] sm:gap-4"><span className="inline-flex items-center gap-1 text-sm font-semibold text-text-primary"><Star size={14} /> {review.rating} / 5</span><div className="min-w-0"><time className="text-xs text-text-secondary" dateTime={review.created_at}>{new Date(review.created_at).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })}</time><p className="whitespace-pre-wrap break-words text-sm text-text-primary">{review.content || "No written review"}</p></div>{googleReviewUrl(review.url) ? <a className="inline-flex items-center gap-1 text-sm text-primary hover:underline" href={googleReviewUrl(review.url)} target="_blank" rel="noopener noreferrer">View on Google <ExternalLink size={14} /></a> : null}</article>)}</div> : <div className="mt-4 flex min-h-28 items-center justify-center border-t border-border text-center text-sm text-text-secondary">No Google reviews available for this outlet and month.</div>}
-      </section>
-    </div> : null}
+  async function refreshReplyProjection() {
+    const id=sequence.current;
+    const next=await service.context(outletId);
+    if(id!==sequence.current)throw new Error('Outlet changed.');
+    setContext(next);
+    if(next.sync_status!=='complete' && next.connection_status==='connected' && next.mapping) {
+      const refreshed=await run('sync',()=>service.sync(outletId));
+      if(!refreshed.ok)throw new Error(refreshed.error);
+    }
+  }
+  const connected = context?.connection_status === 'connected';
+  const available = connected && context?.mapping && context?.sync_status === 'complete' && Date.parse(context.cache_expires_at) > Date.now();
+  const reviews = (available ? context.reviews || [] : []).filter(review =>
+    (stars === 'all' || ratings[review.starRating] === Number(stars)) && (reply === 'all' || Boolean(review.reviewReply) === (reply === 'replied'))
+    && (!month || reviewMonth(review.createTime) === month) && `${review.comment || ''} ${review.reviewer?.displayName || ''} ${review.reviewReply?.comment || ''}`.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((a, b) => (Date.parse(a.createTime) - Date.parse(b.createTime)) * (order === 'oldest' ? 1 : -1));
+  const syncing = busy === 'sync' || context?.sync_status === 'running';
+  const activeFilters = [
+    search && { key: 'search', label: 'Search', value: search, onRemove: () => setSearch('') },
+    stars !== 'all' && { key: 'stars', label: 'Rating', value: `${stars} stars`, onRemove: () => setStars('all') },
+    reply !== 'all' && { key: 'reply', label: 'Owner reply', value: reply === 'replied' ? 'With reply' : 'Without reply', onRemove: () => setReply('all') },
+    month && { key: 'month', label: 'Month', value: month, onRemove: () => setMonth('') },
+  ].filter(Boolean);
+  const emptyTitle = !context?.configured ? 'Google connection setup required' : !connected ? context?.connection_status === 'revocation_pending' ? 'Disconnect needs retry' : context?.connection_status === 'expired' ? 'Reconnect Google Business Profile' : 'Google Business Profile is not connected'
+    : !context.mapping ? 'No Google Location mapped' : syncing ? 'Syncing Google Reviews…' : context.sync_status === 'error' ? 'Review sync needs attention' : available ? (context.reviews?.length ? 'No reviews match these filters' : 'No Google reviews yet') : 'Ready to sync';
+  const emptyDescription = !connected || !context?.mapping ? 'Open Settings to manage the connection and outlet mapping.' : syncing ? 'Reviews will appear when synchronization finishes.' : context.sync_status === 'error' ? 'Try syncing again. If it continues, check the reported error.' : available ? (context.reviews?.length ? 'Adjust or clear your filters.' : 'The latest sync returned no reviews for this location.') : 'Sync reviews to load this outlet’s Inbox.';
+  return <div className="space-y-4">
+    <PageHeader title="Google Reviews" primaryActions={tab === 'inbox' ? <button className="btn-primary" disabled={!connected || !context?.mapping || !!busy || syncing} onClick={() => run('sync', () => service.sync(outletId))}><RefreshCw size={16} className={syncing ? 'animate-spin motion-reduce:animate-none' : ''} />{syncing ? 'Syncing…' : 'Sync reviews'}</button> : null} />
+    <AdminUnderlineTabs value={tab} onChange={next => { if (!busy) { setTab(next); setError(''); } }} ariaLabel="Google Reviews sections" tabs={[{ value: 'inbox', label: 'Review Inbox' }, { value: 'settings', label: 'Settings' }]} />
+    {['failed', 'rate_limited'].includes(oauthResult) ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 px-4 py-3 text-sm text-rose-700">{oauthResult === 'rate_limited' ? 'Google rate limit during authorization. Check the exact API request before retrying.' : 'Google authorization was not completed. Open Settings to reconnect.'}<button className="btn-secondary" onClick={() => setOauthResult('')}>Dismiss</button></div> : null}
+    {error ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 px-4 py-3 text-sm text-rose-700" role="alert"><span className="min-w-0 break-words">{error}</span><button className="btn-secondary" disabled={!!busy} onClick={() => setReload(value => value + 1)}>Reload</button></div> : null}
+    {loading ? <div role="status" aria-label="Loading Google Reviews"><LoadingSkeleton rows={4} /></div> : !outletId ? <EmptyState title="No outlets available" description="Google Reviews requires access to an active outlet." /> : context ? tab === 'settings' ?
+      <GoogleReviewsSettings outlets={outlets} outletId={outletId} context={context} busy={busy} run={run} /> : <>
+        <AdminFilterToolbar ariaLabel="Review filters" denseFields outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map(outlet => ({ value: outlet.id, label: outlet.name }))} />} search={<AdminSearchField value={search} onChange={setSearch} placeholder="Search reviews" maxLength={100} />} filters={<SelectField label="Rating" value={stars} onChange={setStars} options={[{ value: 'all', label: 'All ratings' }, ...[5, 4, 3, 2, 1].map(n => ({ value: String(n), label: `${n} ${n === 1 ? 'star' : 'stars'}` }))]} />} period={<MonthPickerField label="Created month" emptyLabel="All months" value={month} onChange={setMonth} />} moreFilters={<><SelectField label="Owner reply" value={reply} onChange={setReply} options={[{ value: 'all', label: 'All reviews' }, { value: 'replied', label: 'With owner reply' }, { value: 'unreplied', label: 'Without owner reply' }]} /><SelectField label="Order" value={order} onChange={setOrder} options={[{ value: 'newest', label: 'Newest first' }, { value: 'oldest', label: 'Oldest first' }]} /></>} activeFilters={activeFilters} onClear={() => { setSearch(''); setStars('all'); setReply('all'); setMonth(''); }} />
+        <GoogleRatingOverview context={context} />
+        <Card title="Review Inbox" description={context.mapping?.title || undefined} action={<Badge>{available ? `${reviews.length} reviews` : syncing ? 'Syncing' : 'Not synced'}</Badge>}>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2 text-sm text-text-secondary"><span>Google</span>{context.fetched_at && connected && context.mapping ? <span>{syncing ? 'Syncing…' : context.sync_status === 'error' ? 'Sync needs attention' : available ? `Synced ${formatTime(context.fetched_at)}` : 'Sync required'}</span> : null}</div>
+          {reviews.length ? <div className="divide-y divide-border">{reviews.map(review => <article key={review.name} className="space-y-2 px-4 py-4">
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1"><div className="min-w-0"><button className="text-left text-sm font-semibold hover:text-primary focus-visible:outline-2 focus-visible:outline-primary" aria-label={`Open review by ${review.reviewer?.displayName || 'Google reviewer'}`} onClick={()=>setDetail(review)}>{review.reviewer?.displayName || 'Google reviewer'}</button><span className="ml-3 inline-flex align-middle"><GoogleReviewStars rating={review.starRating} /></span></div><time className="text-sm text-text-secondary" dateTime={review.createTime}>{formatTime(review.createTime)}</time></div>
+            <p className="max-w-3xl whitespace-pre-wrap break-words text-sm">{review.comment || 'No written review'}</p>
+            <div className="flex flex-wrap items-center justify-between gap-2"><Badge tone={ownerReplyTone(review.reviewReply)}>{ownerReplyLabel(review.reviewReply)}</Badge><button className="btn-secondary" onClick={()=>setDetail(review)}><Eye size={14} />View review</button></div>
+            {review.reviewReply ? <div className="rounded-lg bg-surface-muted px-3 py-2"><div className="flex flex-wrap items-center justify-between gap-2 text-sm text-text-secondary"><span className="inline-flex items-center gap-1.5 font-semibold"><MessageSquare size={14} />Owner reply</span><time dateTime={review.reviewReply.updateTime}>{formatTime(review.reviewReply.updateTime)}</time></div><p className="mt-1 max-w-3xl whitespace-pre-wrap break-words text-sm">{review.reviewReply.comment}</p></div> : null}
+          </article>)}</div> : <div className="p-4"><EmptyState icon={MessageSquare} title={emptyTitle} description={emptyDescription} actions={!connected || !context.mapping ? <button className="btn-secondary" onClick={() => setTab('settings')}>Open Settings</button> : activeFilters.length ? <button className="btn-secondary" onClick={() => { setSearch(''); setStars('all'); setReply('all'); setMonth(''); }}>Clear filters</button> : null} /></div>}
+        </Card>
+      </> : null}
+    {detail ? <GoogleReviewDetail key={`${outletId}:${detail.name}`} review={detail} outletId={outletId} basis={context} outletName={outlets.find(outlet=>outlet.id===outletId)?.name} onClose={()=>setDetail(null)} onConfirmed={refreshReplyProjection} /> : null}
   </div>;
 }

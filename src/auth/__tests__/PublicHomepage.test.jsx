@@ -10,6 +10,7 @@ it("keeps the FeedX visual shell while omitting every authentication control", (
   expect(screen.getByRole("heading", { name: /Smart Operations/i })).toBeTruthy();
   expect(screen.getByText(/All your F&B operations/i)).toBeTruthy();
   expect(screen.getByText("Real-time Intelligence")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Privacy Policy" }).getAttribute("href")).toBe("https://feedx.my/privacy");
   expect(screen.queryByLabelText("Email")).toBeNull();
   expect(screen.queryByLabelText("Password")).toBeNull();
   expect(screen.queryByRole("button", { name: /sign in/i })).toBeNull();
