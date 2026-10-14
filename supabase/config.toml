@@ -42,3 +42,7 @@ verify_jwt = false
 [functions.marketing-drive]
 # Fixed OAuth callback with one-time state; every browser command verifies canonical Auth/scope.
 verify_jwt = false
+
+[functions.google-business]
+# HTTPS OAuth callback uses expiring one-time state/PKCE; commands verify Admin Auth and canonical outlet/permission scope.
+verify_jwt = false

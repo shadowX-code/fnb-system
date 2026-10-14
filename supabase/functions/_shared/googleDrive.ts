@@ -106,8 +106,9 @@ export async function driveFetch(transport:typeof fetch,url:URL|string,init:Requ
   await new Promise(resolve=>setTimeout(resolve,250));
  }
 }
-export async function googleGrant(params:Record<string,string>,clientId:string,clientSecret:string,transport:typeof fetch=fetch){
- const response=await driveFetch(transport,'https://oauth2.googleapis.com/token',{method:'POST',body:new URLSearchParams({...params,client_id:clientId,client_secret:clientSecret}),redirect:'error'},Date.now()+22000,params.grant_type==='refresh_token');
+export async function googleGrant(params:Record<string,string>,clientId:string,clientSecret:string,transport:typeof fetch=fetch,retryRefresh=true){
+ const response=await driveFetch(transport,'https://oauth2.googleapis.com/token',{method:'POST',body:new URLSearchParams({...params,client_id:clientId,client_secret:clientSecret}),redirect:'error'},Date.now()+22000,retryRefresh&&params.grant_type==='refresh_token');
+ if(!retryRefresh&&response.status===429)throw new DriveError('google_rate_limited',429);
  let data:any;try{data=await response.json();}catch{throw new DriveError('drive_unavailable',503);}
  if(!response.ok){
   if(data.error==='invalid_grant')throw new DriveError('reconnect_required',401);

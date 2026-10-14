@@ -5,6 +5,9 @@ export interface GoogleReviewRecord {
   createTime: string;
   updateTime: string;
   starRating: "ONE" | "TWO" | "THREE" | "FOUR" | "FIVE";
+  comment?: string;
+  reviewer?: { displayName?: string; profilePhotoUrl?: string; isAnonymous?: boolean };
+  reviewReply?: { comment: string; updateTime: string };
 }
 export interface GoogleReviewPage {
   reviews: GoogleReviewRecord[];
