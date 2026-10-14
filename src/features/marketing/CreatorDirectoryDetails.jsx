@@ -21,7 +21,7 @@ export function CreatorBrandHistory({creator,brands,compact=false,onSelectBrand}
   const content=<Badge><span className="creator-brand-chip-name">{name}</span><strong>{number(row.collaboration_count)}</strong></Badge>;
   return onSelectBrand?<button key={row.brand_id} type="button" className="creator-brand-chip" title={name} aria-label={`${name}: ${number(row.collaboration_count)} collaborations`} onClick={e=>{e.stopPropagation();setExpanded(false);onSelectBrand(row.brand_id)}}>{content}</button>:<span key={row.brand_id} className="creator-brand-chip" title={name}>{content}</span>;
  };
- return <div className="creator-brand-history" onClick={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()}>
+ return <div className="creator-brand-history" onClick={e=>e.stopPropagation()} onKeyDown={e=>{if(['Enter',' '].includes(e.key))e.stopPropagation()}}>
   {(compact?history.slice(0,2):history).map(chip)}
   {compact&&history.length>2?<><button ref={anchor} type="button" className="creator-brand-overflow" aria-label={`Show ${history.length-2} more Brands`} aria-expanded={expanded} aria-controls={expanded?popoverId:undefined} onClick={()=>setExpanded(v=>!v)}>+{history.length-2}</button>
    <FloatingLayer open={expanded} onOpenChange={v=>{setExpanded(v);if(!v)anchor.current?.focus()}} anchorRef={anchor} align="end" width={280} maxHeight={320} focusOnOpen>

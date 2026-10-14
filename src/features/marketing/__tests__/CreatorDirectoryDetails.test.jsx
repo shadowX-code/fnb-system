@@ -14,6 +14,6 @@ it('sorts two authorized chips, exposes overflow and selects a Brand without ope
  expect(screen.getAllByRole('button').map(b=>b.textContent)).toEqual(['Brand 46','Brand 35','+3']);expect(screen.queryByText('99')).toBeNull();expect(screen.queryByText('Brand 0')).toBeNull();
  fireEvent.click(screen.getByRole('button',{name:'Show 3 more Brands'}));expect(screen.getByRole('group',{name:'More Brand collaboration history'}).textContent).toBe('Brand 24Brand 13Brand 02');
  fireEvent.click(screen.getByRole('button',{name:'Brand 0: 2 collaborations'}));expect(select).toHaveBeenCalledWith('b0');expect(onRowClick).not.toHaveBeenCalled();expect(screen.queryByRole('group')).toBeNull();
- fireEvent.click(screen.getByRole('button',{name:'Show 3 more Brands'}));fireEvent.keyDown(document,{key:'Escape'});expect(screen.queryByRole('group')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Show 3 more Brands'}));fireEvent.keyDown(screen.getByRole('button',{name:'Brand 0: 2 collaborations'}),{key:'Escape'});expect(screen.queryByRole('group')).toBeNull();
 });
 it('distinguishes no collaboration history from an unavailable projection',()=>{const {rerender}=render(<CreatorBrandHistory creator={{brand_ids:['brand'],collaboration_history:[]}} brands={[{id:'brand',name:'Assigned Brand'}]}/>);expect(screen.getByText('—')).toBeTruthy();expect(screen.queryByText('Assigned Brand')).toBeNull();rerender(<CreatorBrandHistory creator={{}} brands={[]}/>);expect(screen.getByText('Collaboration history unavailable')).toBeTruthy()});
