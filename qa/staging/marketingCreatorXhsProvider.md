@@ -14,3 +14,8 @@ No real Creator/Post was saved by acceptance. Existing Meta/Playwright, integrat
 Operational boundary: ongoing lookup authorization, supplier/upstream transfer and retention arrangements remain separate decisions. Current trial is not general all-XHS acceptance or a paid subscription. Provider availability beyond this tested post is unverified. Manual fallback remains necessary for restricted/removed posts and expired trials.
 
 Primary sources: https://dataxapi.com/en/apis/xiaohongshu/notes/detail/ ; https://dataxapi.com/en/docs/requests/ ; https://dataxapi.com/en/legal/acceptable-use/ ; https://dataxapi.com/zh/legal/privacy/ .
+
+## Authenticated browser acceptance
+The canonical Staging Inspector rendered the actual 1440×1920 cover, full editable caption, observed Creator profile link, correct Malaysia date/time and available metrics. New Creator opened with irene_ong and its exact public profile URL prefilled; it was cancelled. No Creator or Post was saved. The provider console was refreshed after FeedX inspection and still showed one call, one billable call and CNY 0.19 total. The review source label now uses the actual provider source and includes Saves when returned.
+
+Thirty focused tests passed across provider mapping/security/retry/cache, canonical Inspector authorization and existing Creator forms. Full build passed (existing chunk-size warning). Forward migration 20261014045243_marketing_creator_xhs_preview_host preserves the private confirmation function grants; anonymous and browser direct execution remain false. Rollback-only XHS Post Save/idempotency/metric tests passed; zero trial posts persisted.
