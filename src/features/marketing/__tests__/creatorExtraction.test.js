@@ -9,7 +9,7 @@ describe('public Creator extraction boundaries',()=>{
  it('uses the canonical preview allowlist without broadening Meta previews',()=>{expect(safePostMediaUrl('https://p16.tiktokcdn.com/a.jpg','tiktok')).toBeTruthy();expect(safePostMediaUrl('https://p16.tiktokcdn.com/a.jpg')).toBeNull();expect(safePostMediaUrl('https://img.xhscdn.com/a.jpg','xhs')).toBeTruthy();expect(safePostMediaUrl('https://img.xhscdn.com.attacker.test/a.jpg','xhs')).toBeNull()});
 
  it('normalizes exact post identities while keeping share parameters request-only',()=>{
-  const p=platformUrl('https://www.xiaohongshu.com/explore/68523c3c0000000012004bae?xsec_token=test');expect(p.canonical_url).not.toContain('token');expect(p.request_url).toContain('token');
+  expect(platformUrl('https://www.instagram.com/tasteeipoh/p/DSXLNZqCJzl/').post_id).toBe('DSXLNZqCJzl');const p=platformUrl('https://www.xiaohongshu.com/explore/68523c3c0000000012004bae?xsec_token=test');expect(p.canonical_url).not.toContain('token');expect(p.request_url).toContain('token');
   expect(platformUrl('https://vt.tiktok.com/ZSg1ckWPS/').share).toBe(true);
   for(const u of ['https://instagram.com.evil.test/p/a/','http://instagram.com/p/a/','https://x:y@instagram.com/p/a/','https://instagram.com:444/p/a/','https://instagram.com/accounts/login/'])expect(()=>platformUrl(u)).toThrow();
  });
