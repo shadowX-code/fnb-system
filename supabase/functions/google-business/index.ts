@@ -3,6 +3,8 @@ import { STAGING_ORIGIN, STAGING_SUPABASE, hash, nonce, seal, unseal, base64url,
 import { googleGrant, DriveError } from '../_shared/googleDrive.ts';
 import { GoogleBusinessProfile, BUSINESS_SCOPE, BusinessProfileError, completePages, readReviewInbox, reviewInboxPayload, revokeBusinessGrant } from '../_shared/googleBusinessProfile.ts';
 
+import { GoogleOwnerReplies, reviewResource, replyText, replyFingerprint, executeOwnerReply } from '../_shared/googleBusinessReplies.ts';
+
 const env = (name: string) => Deno.env.get(name) || '';
 const secret = () => env('GOOGLE_BUSINESS_TOKEN_ENCRYPTION_KEY');
 const keys = () => [secret(), env('GOOGLE_BUSINESS_PREVIOUS_TOKEN_ENCRYPTION_KEY')];
@@ -10,7 +12,7 @@ const redirect = `${STAGING_SUPABASE}/functions/v1/google-business/callback`;
 const tokenBinding = (generation: number) => `google-business:token:${generation}`;
 const inboxBinding = (generation: number, mapping: any) => `google-business:inbox:${generation}:${mapping.location_resource_name}:${mapping.revision}`;
 const configured = () => ['CLIENT_ID','CLIENT_SECRET','TOKEN_ENCRYPTION_KEY'].every(n => env('GOOGLE_BUSINESS_' + n));
-const messages: Record<string, string> = { reconnect_required: 'Reconnect Google Business Profile in Settings.', google_access_denied: 'Google location access is unavailable. Check the connected account.', google_unavailable: 'Google is temporarily unavailable. Try again.', revocation_pending: 'Google revocation did not finish. Retry Disconnect; review access is already disabled.', sync_limit: 'This location exceeds the supported sync size. Contact your administrator.', repeated_page: 'Google returned incomplete pagination. Retry sync.', invalid_review: 'Google review evidence could not be verified. Retry sync.', conflicting_review: 'Google changed a review during sync. Retry sync.', invalid_review_aggregate: 'Google rating totals could not be verified. Retry sync.', changed_review_aggregate: 'Google rating totals changed during sync. Retry sync.', incomplete_review_dataset: 'Google returned an incomplete review dataset. Retry sync.', invalid_inbox_cache: 'Review cache is unavailable. Sync reviews again.' };
+const messages: Record<string, string> = { reconnect_required: 'Reconnect Google Business Profile in Settings.', google_access_denied: 'Google location access is unavailable. Check the connected account.', google_unavailable: 'Google is temporarily unavailable. Try again.', revocation_pending: 'Google revocation did not finish. Retry Disconnect; review access is already disabled.', sync_limit: 'This location exceeds the supported sync size. Contact your administrator.', repeated_page: 'Google returned incomplete pagination. Retry sync.', invalid_review: 'Google review evidence could not be verified. Retry sync.', conflicting_review: 'Google changed a review during sync. Retry sync.', invalid_review_aggregate: 'Google rating totals could not be verified. Retry sync.', changed_review_aggregate: 'Google rating totals changed during sync. Retry sync.', incomplete_review_dataset: 'Google returned an incomplete review dataset. Retry sync.', invalid_inbox_cache: 'Review cache is unavailable. Sync reviews again.', invalid_reply_text: 'Enter a reply of at most 4096 UTF-8 bytes.' };
 
 export async function handle(req: Request) {
  const headers = { 'Access-Control-Allow-Origin': STAGING_ORIGIN, 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Vary': 'Origin' };
@@ -24,6 +26,11 @@ export async function handle(req: Request) {
  let user: string | null = null, outlet: string | null = null, phase = 'request';
  const call = async (command: string, data: any = {}) => {
   const result = await db.rpc('crew_google_business_server', { p_action: command, p_user: user, p_outlet: outlet, p_data: data });
+  if (result.error) throw new Error(result.error.message);
+  return result.data;
+ };
+ const replyCall = async (command: string, data: any = {}) => {
+  const result = await db.rpc('crew_google_business_reply_server', { p_action: command, p_user: user, p_outlet: outlet, p_data: data });
   if (result.error) throw new Error(result.error.message);
   return result.data;
  };
@@ -100,10 +107,16 @@ export async function handle(req: Request) {
    if (body.confirmMapping !== true) throw new Error('Confirm the selected Google location belongs to this outlet.');
    return reply(await call('map', { location: body.location || null, generation: body.generation, expected_revision: body.revision || null }));
   }
-  if (!['sync','discover'].includes(action)) return reply({ error: 'Endpoint unavailable.' }, 404);
+  if (action==='reply_status') {
+   const state=await replyCall('status',{id:body.id});
+   if (['confirmed','rejected','conflict'].includes(state.status)) { const remoteReply=state.sealed_remote ? await unseal(state.sealed_remote,keys(),`google-business:reply-remote:${state.id}`) : null; return reply({id:state.id,status:state.status,code:state.code,remoteReply,expectedHash:remoteReply ? await replyFingerprint(remoteReply) : undefined}); }
+  }
+  if (!['sync','discover','review','reply','reply_status'].includes(action)) return reply({ error: 'Endpoint unavailable.' }, 404);
   let material = await call('material');
   const decode = (m: any) => unseal(m.sealed_token, keys(), tokenBinding(m.generation));
-  let token = await decode(material);
+  let token:any;let tokenPromise:Promise<void>|undefined;
+  const resolveToken=()=>tokenPromise ||= (async()=>{
+    token = await decode(material);
   // Explicit location rediscovery verifies the persistent grant with a fresh access token.
   if (action === 'discover' || new Date(material.expires_at).getTime() < Date.now() + 60000) {
    try {
@@ -119,6 +132,66 @@ export async function handle(req: Request) {
     else { await call('expired', { generation: material.generation, expected_token: material.sealed_token }); throw error; }
    }
   }
+
+  })();
+  if (['review','reply','reply_status'].includes(action)) {
+   if (!material.mapping?.outlet_id) throw new Error('Map this outlet to a Google location in Settings.');
+   const sourceBasis={generation:material.generation,revision:material.mapping.revision};
+   const client=async()=>{
+    try{await resolveToken();}catch(error){if(error instanceof DriveError)throw new BusinessProfileError(error.code==='reconnect_required' ? 'reconnect_required' : error.code==='google_rate_limited' ? 'google_rate_limited' : 'google_unavailable',error.status,'oauth2.googleapis.com','POST /token');throw error;}
+    return new GoogleOwnerReplies(token.access_token);
+   };
+   const ownerReplies={getReview:async(name:string)=>{try{return await (await client()).getReview(name);}catch(error){if(error instanceof BusinessProfileError && error.code==='reconnect_required')await call('expired',{generation:material.generation,expected_token:material.sealed_token}).catch(()=>{});throw error;}},updateReply:async(name:string,comment:string)=>(await client()).updateReply(name,comment)};
+   if (action==='review' || action==='reply') {
+    reviewResource(body.review,material.mapping.location_resource_name);
+    if (body.generation!==material.generation || body.revision!==material.mapping.revision) throw new Error('Connection or mapping changed. Reload Review Detail.');
+   }
+   if (action==='review') {
+    await replyCall('access',{review:body.review});
+    const review=await ownerReplies.getReview(body.review);
+    await call('guard',sourceBasis);
+    const latestAccess=await replyCall('access',{review:body.review});
+    return reply({review,can_reply:latestAccess.can_reply,...sourceBasis,expectedHash:await replyFingerprint(review.reviewReply),history:latestAccess.history,read_expires_at:new Date(Date.now()+86400000).toISOString()});
+   }
+   if (action==='reply') {
+    const comment=replyText(body.comment);
+    if (body.confirmed!==true || typeof body.expectedHash!=='string' || !/^[a-f0-9]{64}$/.test(body.expectedHash)) throw new Error('Confirm the reply before publishing.');
+    if (typeof body.id!=='string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(body.id)) throw new Error('Reply request ID unavailable.');
+    const intent={comment,expectedHash:body.expectedHash};
+    await replyCall('prepare',{id:body.id,review:body.review,generation:body.generation,revision:body.revision,confirmed:true,
+     operation:body.existingReply ? 'update' : 'publish',desired_hash:await hash(comment),payload_hash:await hash(JSON.stringify({review:body.review,generation:body.generation,revision:body.revision,...intent})),
+     sealed_intent:await seal(intent,secret(),`google-business:reply-intent:${body.id}`)});
+   }
+   const result=await executeOwnerReply({
+    claim:()=>replyCall(action==='reply_status' ? 'check' : 'claim',{id:body.id}),
+    provider:ownerReplies,
+    beforeWrite:async record=>{const result=await db.rpc('crew_google_business_reply_guard',{p_user:user,p_outlet:outlet,p_id:record.id,p_lease:record.lease});if(result.error)throw new BusinessProfileError('reply_authority_changed',409);},
+    intent:async record=>record.sealed_intent && Date.parse(record.content_expires_at)>Date.now() ? await unseal(record.sealed_intent,keys(),`google-business:reply-intent:${record.id}`) : null,
+    finish:async(record,outcome)=>{
+     const data:any={id:record.id,lease:record.lease,status:outcome.status,code:outcome.code,operation:outcome.operation};
+     if (outcome.remoteReply) {
+      data.sealed_remote=await seal(outcome.remoteReply,secret(),`google-business:reply-remote:${record.id}`);
+      data.remote_hash=await hash(JSON.stringify(outcome.remoteReply));data.remote_time=outcome.remoteReply.updateTime;data.moderation=outcome.remoteReply.reviewReplyState;
+      try {
+       const inbox=await call('inbox');
+       if (inbox.cache?.status==='complete' && inbox.generation===record.generation && inbox.mapping?.revision===record.mapping_revision) {
+        const payload=reviewInboxPayload(await unseal(inbox.cache.sealed_reviews,keys(),inboxBinding(inbox.generation,inbox.mapping)),inbox.mapping.location_resource_name);
+        if (payload.reviews.some((review:any)=>review.name===record.review_name)) {
+         const reviews=payload.reviews.map((review:any)=>review.name!==record.review_name || Date.parse(review.reviewReply?.updateTime)>Date.parse(outcome.remoteReply!.updateTime) ? review : {...review,reviewReply:outcome.remoteReply});
+         data.expected_cache=inbox.cache.sealed_reviews;
+         data.sealed_projection=await seal({version:1,reviews,googleAggregate:payload.googleAggregate},secret(),inboxBinding(inbox.generation,inbox.mapping));
+        }
+       }
+      } catch { /* The verified write audit must survive cache/mapping changes. */ }
+     }
+     await replyCall('finish',data);
+    },
+   });
+   if (result.code==='reconnect_required') await call('expired',{generation:material.generation,expected_token:material.sealed_token}).catch(()=>{});
+   if (result.code==='google_rate_limited') console.warn(JSON.stringify({integration:'google-business',action,code:result.code,service:result.service,request:result.request}));
+   return reply({...result,expectedHash:result.remoteReply ? await replyFingerprint(result.remoteReply) : undefined});
+  }
+  await resolveToken();
   const provider = new GoogleBusinessProfile(token.access_token);
   if (action === 'discover') {
    if (!context.can_manage) throw new Error('Connection management permission is required.');

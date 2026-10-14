@@ -48,6 +48,14 @@ export async function completePages<T>(read: (token?: string) => Promise<{ rows:
  } while (token);
  return rows;
 }
+export function validateGoogleReview(row: GoogleReviewRecord, location: string) {
+ if (!row.name.startsWith(`${location}/reviews/`) || !/^[A-Za-z0-9_-]+$/.test(row.name.slice(`${location}/reviews/`.length)) || !['ONE','TWO','THREE','FOUR','FIVE'].includes(row.starRating)
+   || typeof row.createTime !== 'string' || typeof row.updateTime !== 'string' || row.comment !== undefined && typeof row.comment !== 'string'
+   || row.reviewer && (typeof row.reviewer !== 'object' || row.reviewer.displayName !== undefined && typeof row.reviewer.displayName !== 'string' || row.reviewer.profilePhotoUrl !== undefined && typeof row.reviewer.profilePhotoUrl !== 'string')
+   || !Number.isFinite(Date.parse(row.createTime)) || !Number.isFinite(Date.parse(row.updateTime)) || Date.parse(row.updateTime) < Date.parse(row.createTime)
+   || row.reviewReply && (typeof row.reviewReply.comment !== 'string' || !Number.isFinite(Date.parse(row.reviewReply.updateTime)))) throw new BusinessProfileError('invalid_review');
+ return row;
+}
 // Reconciliation is identity-based; it neither aggregates ratings nor calls Performance.
 export async function readReviewInbox(provider: GoogleReviewsProvider, location: string) {
  resource(location, 'location');
@@ -66,11 +74,7 @@ export async function readReviewInbox(provider: GoogleReviewsProvider, location:
  });
  const unique = new Map<string, GoogleReviewRecord>();
  for (const row of rows) {
-  if (!row.name.startsWith(`${location}/reviews/`) || !/^[A-Za-z0-9_-]+$/.test(row.name.slice(`${location}/reviews/`.length)) || !['ONE','TWO','THREE','FOUR','FIVE'].includes(row.starRating)
-   || typeof row.createTime !== 'string' || typeof row.updateTime !== 'string' || row.comment !== undefined && typeof row.comment !== 'string'
-   || row.reviewer && (typeof row.reviewer !== 'object' || row.reviewer.displayName !== undefined && typeof row.reviewer.displayName !== 'string' || row.reviewer.profilePhotoUrl !== undefined && typeof row.reviewer.profilePhotoUrl !== 'string')
-   || !Number.isFinite(Date.parse(row.createTime)) || !Number.isFinite(Date.parse(row.updateTime)) || Date.parse(row.updateTime) < Date.parse(row.createTime)
-   || row.reviewReply && (typeof row.reviewReply.comment !== 'string' || !Number.isFinite(Date.parse(row.reviewReply.updateTime)))) throw new BusinessProfileError('invalid_review');
+  validateGoogleReview(row, location);
   const old = unique.get(row.name);
   if (old && old.createTime !== row.createTime) throw new BusinessProfileError('invalid_review_creation');
   const revision = Math.max(Date.parse(row.updateTime), Date.parse(row.reviewReply?.updateTime || row.updateTime));

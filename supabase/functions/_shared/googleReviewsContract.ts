@@ -7,7 +7,7 @@ export interface GoogleReviewRecord {
   starRating: "ONE" | "TWO" | "THREE" | "FOUR" | "FIVE";
   comment?: string;
   reviewer?: { displayName?: string; profilePhotoUrl?: string; isAnonymous?: boolean };
-  reviewReply?: { comment: string; updateTime: string };
+  reviewReply?: { comment: string; updateTime: string; reviewReplyState?: string; policyViolation?: string };
 }
 export interface GoogleReviewPage {
   reviews: GoogleReviewRecord[];

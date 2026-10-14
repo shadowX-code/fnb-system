@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MessageSquare, RefreshCw } from 'lucide-react';
+import { MessageSquare, RefreshCw, Eye } from 'lucide-react';
 import PageHeader from '../../../components/layout/PageHeader.jsx';
 import AdminFilterToolbar, { AdminOutletField } from '../../../components/layout/AdminFilterToolbar.jsx';
 import AdminUnderlineTabs from '../../../components/navigation/AdminUnderlineTabs.jsx';
@@ -12,6 +12,7 @@ import EmptyState from '../../../components/feedback/EmptyState.jsx';
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton.jsx';
 import { useCrewAdminOutlet } from '../context/CrewAdminOutletContext.jsx';
 import { googleBusinessService as service } from '../services/googleBusinessService.js';
+import GoogleReviewDetail, { ownerReplyLabel, ownerReplyTone } from '../components/GoogleReviewDetail.jsx';
 import GoogleReviewsSettings from '../components/GoogleReviewsSettings.jsx';
 import GoogleRatingOverview, { GoogleReviewStars } from '../components/GoogleRatingOverview.jsx';
 import { googleReviewRatings as ratings } from '../domain/googleReviewPresentation.js';
@@ -27,6 +28,7 @@ export default function CrewGoogleReviewsAdminPage({ store }) {
   const [context, setContext] = useState(null), [tab, setTab] = useState('inbox'), [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(''), [error, setError] = useState(''), [reload, setReload] = useState(0);
   const [search, setSearch] = useState(''), [stars, setStars] = useState('all'), [reply, setReply] = useState('all'), [month, setMonth] = useState('');
+  const [detail,setDetail]=useState(null);
   const [order, setOrder] = useState('newest');
   const [oauthResult, setOauthResult] = useState(() => new URLSearchParams(window.location.search).get('google_result'));
   const sequence = useRef(0), pending = useRef(false);
@@ -70,6 +72,16 @@ export default function CrewGoogleReviewsAdminPage({ store }) {
       return { ok: false, error: message };
     } finally { pending.current = false; setBusy(''); }
   }
+  async function refreshReplyProjection() {
+    const id=sequence.current;
+    const next=await service.context(outletId);
+    if(id!==sequence.current)throw new Error('Outlet changed.');
+    setContext(next);
+    if(next.sync_status!=='complete' && next.connection_status==='connected' && next.mapping) {
+      const refreshed=await run('sync',()=>service.sync(outletId));
+      if(!refreshed.ok)throw new Error(refreshed.error);
+    }
+  }
   const connected = context?.connection_status === 'connected';
   const available = connected && context?.mapping && context?.sync_status === 'complete' && Date.parse(context.cache_expires_at) > Date.now();
   const reviews = (available ? context.reviews || [] : []).filter(review =>
@@ -98,12 +110,13 @@ export default function CrewGoogleReviewsAdminPage({ store }) {
         <Card title="Review Inbox" description={context.mapping?.title || undefined} action={<Badge>{available ? `${reviews.length} reviews` : syncing ? 'Syncing' : 'Not synced'}</Badge>}>
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2 text-sm text-text-secondary"><span>Google</span>{context.fetched_at && connected && context.mapping ? <span>{syncing ? 'Syncing…' : context.sync_status === 'error' ? 'Sync needs attention' : available ? `Synced ${formatTime(context.fetched_at)}` : 'Sync required'}</span> : null}</div>
           {reviews.length ? <div className="divide-y divide-border">{reviews.map(review => <article key={review.name} className="space-y-2 px-4 py-4">
-            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1"><div className="min-w-0"><strong className="break-words text-sm">{review.reviewer?.displayName || 'Google reviewer'}</strong><span className="ml-3 inline-flex align-middle"><GoogleReviewStars rating={review.starRating} /></span></div><time className="text-sm text-text-secondary" dateTime={review.createTime}>{formatTime(review.createTime)}</time></div>
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1"><div className="min-w-0"><button className="text-left text-sm font-semibold hover:text-primary focus-visible:outline-2 focus-visible:outline-primary" aria-label={`Open review by ${review.reviewer?.displayName || 'Google reviewer'}`} onClick={()=>setDetail(review)}>{review.reviewer?.displayName || 'Google reviewer'}</button><span className="ml-3 inline-flex align-middle"><GoogleReviewStars rating={review.starRating} /></span></div><time className="text-sm text-text-secondary" dateTime={review.createTime}>{formatTime(review.createTime)}</time></div>
             <p className="max-w-3xl whitespace-pre-wrap break-words text-sm">{review.comment || 'No written review'}</p>
-            {!review.reviewReply ? <p className="text-sm text-text-secondary">No owner reply</p> : null}
+            <div className="flex flex-wrap items-center justify-between gap-2"><Badge tone={ownerReplyTone(review.reviewReply)}>{ownerReplyLabel(review.reviewReply)}</Badge><button className="btn-secondary" onClick={()=>setDetail(review)}><Eye size={14} />View review</button></div>
             {review.reviewReply ? <div className="rounded-lg bg-surface-muted px-3 py-2"><div className="flex flex-wrap items-center justify-between gap-2 text-sm text-text-secondary"><span className="inline-flex items-center gap-1.5 font-semibold"><MessageSquare size={14} />Owner reply</span><time dateTime={review.reviewReply.updateTime}>{formatTime(review.reviewReply.updateTime)}</time></div><p className="mt-1 max-w-3xl whitespace-pre-wrap break-words text-sm">{review.reviewReply.comment}</p></div> : null}
           </article>)}</div> : <div className="p-4"><EmptyState icon={MessageSquare} title={emptyTitle} description={emptyDescription} actions={!connected || !context.mapping ? <button className="btn-secondary" onClick={() => setTab('settings')}>Open Settings</button> : activeFilters.length ? <button className="btn-secondary" onClick={() => { setSearch(''); setStars('all'); setReply('all'); setMonth(''); }}>Clear filters</button> : null} /></div>}
         </Card>
       </> : null}
+    {detail ? <GoogleReviewDetail key={`${outletId}:${detail.name}`} review={detail} outletId={outletId} basis={context} outletName={outlets.find(outlet=>outlet.id===outletId)?.name} onClose={()=>setDetail(null)} onConfirmed={refreshReplyProjection} /> : null}
   </div>;
 }
