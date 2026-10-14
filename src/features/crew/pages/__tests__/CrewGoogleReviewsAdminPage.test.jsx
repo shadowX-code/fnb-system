@@ -104,6 +104,17 @@ describe('Google Reviews Inbox and Settings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Owner reply', exact: true })); fireEvent.click(screen.getByRole('option', { name: 'Without owner reply' }));
     expect(screen.queryByText('Thank you fixture')).toBeNull(); expect(screen.getByText('Other fixture')).not.toBeNull();
   });
+  it('keeps location-wide rating totals independent of Inbox filtering', async () => {
+    mocks.context.mockResolvedValue({ ...complete, google_aggregate: { location: mapping.name, totalReviewCount: 2, averageRating: 3.5 } });
+    mount(); await screen.findByText('Excellent fixture');
+    const overview = screen.getByRole('region', { name: 'Google Rating Overview' });
+    expect(within(overview).getByText('3.5 / 5')).not.toBeNull();
+    expect(within(overview).getByRole('meter', { name: '5-star reviews' }).getAttribute('aria-valuenow')).toBe('1');
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'unmatched' } });
+    expect(screen.getByText('No reviews match these filters')).not.toBeNull();
+    expect(within(overview).getByText('3.5 / 5')).not.toBeNull();
+    expect(within(overview).getByRole('meter', { name: '2-star reviews' }).getAttribute('aria-valuenow')).toBe('1');
+  });
   it('reports empty results truthfully and clears filters', async () => {
     mocks.context.mockResolvedValue(complete); mount(); await screen.findByText('Excellent fixture');
     fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'unmatched' } });

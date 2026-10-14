@@ -32,7 +32,7 @@ export class GoogleBusinessProfile implements GoogleReviewsProvider {
  }
  async listReviews(location: string, pageToken = '') {
   const data = await this.read('mybusiness.googleapis.com', `v4/${resource(location, 'location')}/reviews`, { pageSize: '50', pageToken });
-  return { reviews: (data.reviews || []).map((r: any) => ({ name: r.name || `${location}/reviews/${r.reviewId}`, createTime: r.createTime, updateTime: r.updateTime, starRating: r.starRating, ...(r.comment ? { comment: r.comment } : {}), ...(r.reviewer ? { reviewer: r.reviewer } : {}), ...(r.reviewReply ? { reviewReply: r.reviewReply } : {}) })), nextPageToken: data.nextPageToken };
+  return { reviews: (data.reviews || []).map((r: any) => ({ name: r.name || `${location}/reviews/${r.reviewId}`, createTime: r.createTime, updateTime: r.updateTime, starRating: r.starRating, ...(r.comment ? { comment: r.comment } : {}), ...(r.reviewer ? { reviewer: r.reviewer } : {}), ...(r.reviewReply ? { reviewReply: r.reviewReply } : {}) })), nextPageToken: data.nextPageToken, averageRating: data.averageRating, totalReviewCount: data.totalReviewCount };
  }
 }
 export async function completePages<T>(read: (token?: string) => Promise<{ rows: T[]; nextPageToken?: string }>) {
@@ -51,7 +51,19 @@ export async function completePages<T>(read: (token?: string) => Promise<{ rows:
 // Reconciliation is identity-based; it neither aggregates ratings nor calls Performance.
 export async function readReviewInbox(provider: GoogleReviewsProvider, location: string) {
  resource(location, 'location');
- const rows = await completePages<GoogleReviewRecord>(async token => { const p = await provider.listReviews(location, token); return { rows: p.reviews, nextPageToken: p.nextPageToken }; });
+ const aggregates: { location: string; averageRating?: number; totalReviewCount: number }[] = [];
+ const rows = await completePages<GoogleReviewRecord>(async token => {
+  const page = await provider.listReviews(location, token);
+  if (page.totalReviewCount !== undefined || page.averageRating !== undefined) {
+   if (!Number.isSafeInteger(page.totalReviewCount) || page.totalReviewCount! < 0
+    || page.averageRating !== undefined && (!Number.isFinite(page.averageRating) || page.averageRating < 1 || page.averageRating > 5) && !(page.totalReviewCount === 0 && page.averageRating === 0)) throw new BusinessProfileError('invalid_review_aggregate');
+   const next = { location, totalReviewCount: page.totalReviewCount!, ...(page.averageRating ? { averageRating: page.averageRating } : {}) };
+   const aggregate = aggregates[0];
+   if (aggregate && (aggregate.totalReviewCount !== next.totalReviewCount || aggregate.averageRating !== next.averageRating)) throw new BusinessProfileError('changed_review_aggregate');
+   if (!aggregate) aggregates.push(next);
+  }
+  return { rows: page.reviews, nextPageToken: page.nextPageToken };
+ });
  const unique = new Map<string, GoogleReviewRecord>();
  for (const row of rows) {
   if (!row.name.startsWith(`${location}/reviews/`) || !/^[A-Za-z0-9_-]+$/.test(row.name.slice(`${location}/reviews/`.length)) || !['ONE','TWO','THREE','FOUR','FIVE'].includes(row.starRating)
@@ -66,7 +78,15 @@ export async function readReviewInbox(provider: GoogleReviewsProvider, location:
   if (previous === revision && JSON.stringify(old) !== JSON.stringify(row)) throw new BusinessProfileError('conflicting_review');
   if (!old || revision > previous!) unique.set(row.name, row);
  }
- return [...unique.values()];
+ const aggregate = aggregates[0] || null;
+ if (aggregate && aggregate.totalReviewCount !== unique.size) throw new BusinessProfileError('incomplete_review_dataset');
+ return { version: 1, reviews: [...unique.values()], googleAggregate: aggregate };
+}
+// Old encrypted array caches remain readable until their existing expiry; they have no official aggregate.
+export function reviewInboxPayload(value: any, location: string) {
+ if (Array.isArray(value)) return { reviews: value, googleAggregate: null };
+ if (value?.version !== 1 || !Array.isArray(value.reviews) || value.googleAggregate && value.googleAggregate.location !== location) throw new BusinessProfileError('invalid_inbox_cache');
+ return { reviews: value.reviews, googleAggregate: value.googleAggregate || null };
 }
 export async function revokeBusinessGrant(token: string, transport: typeof fetch = fetch) {
  const response = await transport('https://oauth2.googleapis.com/revoke', { method: 'POST', body: new URLSearchParams({ token }), redirect: 'error', signal: AbortSignal.timeout(15000) });

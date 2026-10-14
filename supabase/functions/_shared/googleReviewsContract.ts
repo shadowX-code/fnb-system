@@ -12,6 +12,8 @@ export interface GoogleReviewRecord {
 export interface GoogleReviewPage {
   reviews: GoogleReviewRecord[];
   nextPageToken?: string;
+  averageRating?: number;
+  totalReviewCount?: number;
 }
 export interface GoogleReviewsProvider {
   listAccounts(pageToken?: string): Promise<{ accounts: { name: string; displayName: string }[]; nextPageToken?: string }>;

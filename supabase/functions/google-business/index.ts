@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { STAGING_ORIGIN, STAGING_SUPABASE, hash, nonce, seal, unseal, base64url, tokenEncryptionReady } from '../_shared/metaSecurity.ts';
 import { googleGrant, DriveError } from '../_shared/googleDrive.ts';
-import { GoogleBusinessProfile, BUSINESS_SCOPE, BusinessProfileError, completePages, readReviewInbox, revokeBusinessGrant } from '../_shared/googleBusinessProfile.ts';
+import { GoogleBusinessProfile, BUSINESS_SCOPE, BusinessProfileError, completePages, readReviewInbox, reviewInboxPayload, revokeBusinessGrant } from '../_shared/googleBusinessProfile.ts';
 
 const env = (name: string) => Deno.env.get(name) || '';
 const secret = () => env('GOOGLE_BUSINESS_TOKEN_ENCRYPTION_KEY');
@@ -10,7 +10,7 @@ const redirect = `${STAGING_SUPABASE}/functions/v1/google-business/callback`;
 const tokenBinding = (generation: number) => `google-business:token:${generation}`;
 const inboxBinding = (generation: number, mapping: any) => `google-business:inbox:${generation}:${mapping.location_resource_name}:${mapping.revision}`;
 const configured = () => ['CLIENT_ID','CLIENT_SECRET','TOKEN_ENCRYPTION_KEY'].every(n => env('GOOGLE_BUSINESS_' + n));
-const messages: Record<string, string> = { reconnect_required: 'Reconnect Google Business Profile in Settings.', google_access_denied: 'Google location access is unavailable. Check the connected account.', google_unavailable: 'Google is temporarily unavailable. Try again.', revocation_pending: 'Google revocation did not finish. Retry Disconnect; review access is already disabled.', sync_limit: 'This location exceeds the supported sync size. Contact your administrator.', repeated_page: 'Google returned incomplete pagination. Retry sync.', invalid_review: 'Google review evidence could not be verified. Retry sync.', conflicting_review: 'Google changed a review during sync. Retry sync.' };
+const messages: Record<string, string> = { reconnect_required: 'Reconnect Google Business Profile in Settings.', google_access_denied: 'Google location access is unavailable. Check the connected account.', google_unavailable: 'Google is temporarily unavailable. Try again.', revocation_pending: 'Google revocation did not finish. Retry Disconnect; review access is already disabled.', sync_limit: 'This location exceeds the supported sync size. Contact your administrator.', repeated_page: 'Google returned incomplete pagination. Retry sync.', invalid_review: 'Google review evidence could not be verified. Retry sync.', conflicting_review: 'Google changed a review during sync. Retry sync.', invalid_review_aggregate: 'Google rating totals could not be verified. Retry sync.', changed_review_aggregate: 'Google rating totals changed during sync. Retry sync.', incomplete_review_dataset: 'Google returned an incomplete review dataset. Retry sync.', invalid_inbox_cache: 'Review cache is unavailable. Sync reviews again.' };
 
 export async function handle(req: Request) {
  const headers = { 'Access-Control-Allow-Origin': STAGING_ORIGIN, 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Vary': 'Origin' };
@@ -69,13 +69,14 @@ export async function handle(req: Request) {
   if (typeof outlet !== 'string' || !/^[a-f0-9-]{36}$/i.test(outlet)) throw new Error('Select an outlet.');
   const context = await call('context');
   if (action === 'context') {
-   const result = { ...context, configured: Boolean(configured()) && await tokenEncryptionReady(secret()), reviews: [] };
+   const result = { ...context, configured: Boolean(configured()) && await tokenEncryptionReady(secret()), reviews: [], google_aggregate: null };
    if (context.connection_status === 'connected' && context.sync_status === 'complete') {
     const inbox = await call('inbox');
-    if (inbox.cache) {
-     result.reviews = await unseal(inbox.cache.sealed_reviews, keys(), inboxBinding(inbox.generation, inbox.mapping));
+    if (inbox.cache && Date.parse(inbox.cache.expires_at) > Date.now()) {
+     const payload = reviewInboxPayload(await unseal(inbox.cache.sealed_reviews, keys(), inboxBinding(inbox.generation, inbox.mapping)), inbox.mapping.location_resource_name);
+     result.reviews = payload.reviews; result.google_aggregate = payload.googleAggregate;
      await call('guard', { generation: inbox.generation, revision: inbox.mapping.revision });
-    }
+    } else result.sync_status = 'awaiting_sync';
    }
    return reply(result);
   }
@@ -127,8 +128,8 @@ export async function handle(req: Request) {
   const basis = { generation: material.generation, revision: material.mapping.revision };
   const lease = await call('sync_begin', basis);
   try {
-   const reviews = await readReviewInbox(provider, material.mapping.location_resource_name);
-   await call('sync_finish', { ...basis, lease: lease.lease, sealed_reviews: await seal(reviews, secret(), inboxBinding(material.generation, material.mapping)) });
+   const snapshot = await readReviewInbox(provider, material.mapping.location_resource_name);
+   await call('sync_finish', { ...basis, lease: lease.lease, sealed_reviews: await seal(snapshot, secret(), inboxBinding(material.generation, material.mapping)) });
    return reply({ ok: true });
   } catch (error) {
    await call('sync_error', { ...basis, lease: lease.lease }).catch(() => {});
