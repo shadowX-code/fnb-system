@@ -42,6 +42,7 @@ export async function runConnectionHealth(db:any,graph:MetaGraph,config:any,keys
   await guard();
   const messaging=await call(db,'marketing_inbox_record_verification',{...actor,p_evidence:inbox});
   const health=capabilityHealth(publishing,inbox,null);
+  Object.assign(health,{echo_subscription_status:inbox.echo_subscription_status});
   if(repair==='failed')health.messaging={state:'needs_attention',reason:'subscription_install_rejected'};
   if(!inbox.subscriptions_verified&&inbox.authorization_verified&&plan.reason==='app_setup_required')health.messaging={state:'needs_attention',reason:'app_setup_required'};
   if(messaging.configuration_verified)health.messaging={state:messaging.delivery_verified?'delivery_verified':'awaiting_first_delivery',reason:messaging.delivery_verified?'ready':'inbound_pending'};

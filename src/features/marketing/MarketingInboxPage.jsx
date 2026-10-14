@@ -706,7 +706,7 @@ export default function MarketingInboxPage() {
                       {row.latest_message_kind === "note"
                         ? "Note: "
                         : row.latest_message_kind === "echo"
-                          ? "You: "
+                          ? "Sent: "
                           : ""}
                       {row.latest_message || "No messages yet"}
                     </span>
@@ -892,6 +892,7 @@ export default function MarketingInboxPage() {
                               : "Message content unavailable")}
                         </p>
                         <footer>
+                          {m.kind === "echo" && m.message_origin === "meta" ? <span>Meta · </span> : null}
                           {m.evidence_source === "historical_import" ? <span>Imported history · </span> : m.evidence_source === "recent_api" ? <span>Recovered from Meta · </span> : null}
                           <time title={stamp(m.occurred_at)}>
                             {clock(m.occurred_at)}

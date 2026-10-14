@@ -103,7 +103,8 @@ Deno.serve(async(req)=>{
     if(body.approveSubscriptions!==true||!body.requestId||JSON.stringify(body.expectedPlan)!==JSON.stringify({page_id:checked.plan.page_id,fields:checked.plan.fields}))return json(req,{error:'Review and confirm the current Inbox update installation.'},409);
     const outcome=await subscribe(checked,body.requestId);return json(req,{state:outcome,execution_enabled:false});
    }
-   return json(req,{health:checked.health,plan:checked.plan,execution_enabled:false});
+   if(path==='/health')await call(service,'marketing_meta_request_health',{p_connection:checked.material.id,p_auth_user:user.id});
+   return json(req,{health:checked.health,plan:checked.plan,echo_subscriptions_verified:checked.inbox.echo_subscriptions_verified,execution_enabled:false});
   }
   if(path==='/diagnose'||path==='/retry-sync') {
    const material=await call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user.id});

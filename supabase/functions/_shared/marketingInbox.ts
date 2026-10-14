@@ -42,7 +42,7 @@ export function normalizeInboxWebhook(
   const events: InboxEvent[] = [];
   for (const entry of payload.entry) {
     if (
-      !id(entry.id) || (entry.messaging!==undefined && (!Array.isArray(entry.messaging) || entry.messaging.length > 1000)) || (entry.changes!==undefined && (!Array.isArray(entry.changes) || entry.changes.length>1000))
+      !id(entry.id) || (entry.messaging!==undefined && (!Array.isArray(entry.messaging) || entry.messaging.length > 1000)) || (entry.standby!==undefined && (!Array.isArray(entry.standby) || entry.standby.length>1000)) || (entry.changes!==undefined && (!Array.isArray(entry.changes) || entry.changes.length>1000))
     ) throw new Error("invalid_webhook");
     // Comment notifications stay isolated by media/post + peer and never become DM window evidence.
     for (const change of entry.changes || []) {
@@ -57,7 +57,7 @@ export function normalizeInboxWebhook(
       events.push({channel:facebook?"facebook":"instagram",account_id:entry.id,peer_id:v.from.id,kind:"incoming",event_id:`comment:${comment}`,occurred_at:new Date(seconds*1000).toISOString(),body:text,medium:"comment",thread_id:thread});
       if(events.length>1000)throw new Error("webhook_batch_too_large");
     }
-    for (const e of entry.messaging || []) {
+    for (const e of [...(entry.messaging || []), ...(entry.standby || [])]) {
       const eventTime = e.delivery?.watermark ?? e.read?.watermark ?? e.seen?.watermark ?? e.timestamp;
       if (
         !id(e.sender?.id) || !id(e.recipient?.id) ||
@@ -86,7 +86,7 @@ export function normalizeInboxWebhook(
         if (e.message.is_deleted || e.message.is_unsupported) {
           events.push({
             ...base,
-            kind: "attachment",
+            kind: echo ? "echo" : "attachment",
             event_id: e.message.mid,
             body: "[Message content unavailable]",
           });

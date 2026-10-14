@@ -206,3 +206,9 @@ it("normalizes comments separately without opening a private messaging window",(
  expect(JSON.stringify(rows)).not.toContain("private-name");
  expect(()=>normalizeInboxWebhook({object:"page",entry:[{id:"111",changes:[{field:"feed",value:{item:"comment",verb:"add",comment_id:"111_555",post_id:"111_444",from:{id:"222"},message:"Hello",created_time:Math.floor(now/1000)}}]}]},now)).not.toThrow();
 });
+
+it('accepts signed standby echoes and preserves unavailable outgoing direction',()=>{
+ const time=Date.now(); const event={sender:{id:'111'},recipient:{id:'222'},timestamp:time,message:{mid:'external-mid',is_echo:true,text:'Meta page reply'}};
+ expect(normalizeInboxWebhook({object:'page',entry:[{id:'111',standby:[event]}]},time)[0]).toMatchObject({kind:'echo',peer_id:'222',body:'Meta page reply'});
+ expect(normalizeInboxWebhook({object:'page',entry:[{id:'111',messaging:[{...event,message:{...event.message,is_deleted:true}}]}]},time)[0].kind).toBe('echo');
+});

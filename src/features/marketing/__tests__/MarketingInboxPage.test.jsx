@@ -348,3 +348,12 @@ it('uses an editable AI proposal as a human-confirmed staff reply without autono
 it('distinguishes provider acceptance from delivery and does not accept failed or unknown outcomes',()=>{expect(replyOutcomeMessage({state:'sent'})).toContain('not yet been confirmed');expect(replyOutcomeMessage({state:'reconciling'})).toContain('do not resend');expect(replyOutcomeMessage({state:'failed',code:'provider_token_invalid'})).toContain('Reconnect');for(const state of ['failed','reconciling','pending','prepared'])expect(replyWasAccepted({state})).toBe(false);expect(replyWasAccepted({state:'read'})).toBe(true)});
 
 it.each([{state:'failed',code:'provider_token_invalid'},{state:'reconciling',code:'delivery_receipt_unknown'}])('retains typed staff reply after $state and shows accurate recovery',async result=>{detail.reply_requires_approval=false;inboxService.configuration.mockResolvedValue({staff_send_configured:true});inboxService.sendStaffReply.mockResolvedValue(result);render(<MarketingInboxPage/>);await select();fireEvent.change(screen.getByLabelText('Reply'),{target:{value:'Keep my reviewed reply'}});await waitFor(()=>expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(false));fireEvent.click(screen.getByRole('button',{name:'Send',exact:true}));await screen.findByText(replyOutcomeMessage(result));expect(screen.getByLabelText('Reply').value).toBe('Keep my reviewed reply');expect(inboxService.sendStaffReply).toHaveBeenCalledTimes(1)});
+
+it('labels external Meta outbound without staff attribution and retains exact status',async()=>{
+ detail.messages.push({id:'external',kind:'echo',body:'Provider-originated answer',message_origin:'meta',send_state:'read',occurred_at:'2026-10-11T01:04:00Z'});
+ render(<MarketingInboxPage/>);await select();
+ const bubble=screen.getByText('Provider-originated answer').closest('article');
+ expect(bubble.getAttribute('aria-label')).toBe('Outgoing message');
+ expect(bubble.textContent).toContain('Meta');expect(bubble.textContent).toContain('Read');
+ expect(bubble.textContent).not.toContain('Team member');
+});
