@@ -17,3 +17,15 @@ export async function boundedGet(value,platform,budget,redirects=true,userAgent=
  if(redirects&&result.status>=300&&result.status<400&&result.headers.location){if(++budget.redirects>5)throw new Error('redirect_limit');const next=new URL(result.headers.location,u).href;if(/^\/(?:accounts\/)?login(?:\/|$)/.test(new URL(next).pathname))throw new Error('provider_access_restricted');const p=urlResolver(next);if(p.platform!==platform)throw new Error('redirect_not_supported');return boundedGet(next,platform,budget,true,userAgent,urlResolver)}
  return result;
 }
+
+// Resolve only public provider redirects. Stop at a stable identity before fetching the note.
+export async function resolvePostUrl(value,budget){
+ const original=platformUrl(value);let current=original;
+ for(let hop=0;current.share&&hop<5;hop++){
+  const response=await boundedGet(current.request_url,current.platform,budget,false);
+  if(response.status<300||response.status>=400||!response.headers.location)throw new Error('share_link_unresolved');
+  const next=platformUrl(new URL(response.headers.location,current.request_url).href);
+  if(next.platform!==original.platform)throw new Error('redirect_not_supported');current=next;
+ }
+ if(current.share)throw new Error('share_link_unresolved');return current;
+}

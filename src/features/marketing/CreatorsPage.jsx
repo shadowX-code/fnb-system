@@ -1,3 +1,4 @@
+import CreatorPostLink from './CreatorPostLink.jsx';
 import {resolveBrandContext,selectBrandContext} from './brandContext.js';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {Plus,Users,CalendarDays,Link as LinkIcon,BarChart3,LayoutGrid,List,ExternalLink,RefreshCw,MapPin,Mail,Phone,Eye} from 'lucide-react';
@@ -95,7 +96,7 @@ export default function CreatorsPage({ui}){
  {key:'association',header:'Collaboration',render:p=>data.collaborations.find(c=>c.id===p.collaboration_id)?.title||'Organic / not linked'},
  {key:'views',header:'Views',render:p=>number(p.latest_metrics.views)},
  {key:'interactions',header:'Interactions',render:p=>number(p.latest_metrics.interactions)},
- {key:'link',header:'',render:p=><a className="icon-btn" href={p.canonical_url} target="_blank" rel="noreferrer" aria-label="Open original post"><ExternalLink size={16}/></a>}
+ {key:'link',header:'',render:p=><CreatorPostLink post={p} className="icon-btn" aria-label="Open original post"><ExternalLink size={16}/></CreatorPostLink>}
  ];
  const detailBrand=brands.find(b=>b.id===(dialog?.record?.brand_id||dialog?.seed?.brand_id||brandId));
  const close=()=>{if(!busy){if(returnCollaboration){setDialog({type:'collaboration',record:data.collaborations.find(c=>c.id===returnCollaboration.id)||returnCollaboration});setReturnCollaboration(null)}else setDialog(null);setReturnPost(null);setError('')}};

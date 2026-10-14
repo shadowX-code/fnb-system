@@ -23,13 +23,14 @@ export default async function handler(req,res){
    await rpc('marketing_creator_directory',scope);
    return res.status(200).json(profile);
   }
-  const original=await rpc('marketing_creator_post_preview',{...scope,p_url:input.canonical_url});
-  if(original.duplicate)return res.status(200).json(original);
+  const original=input.share?null:await rpc('marketing_creator_post_preview',{...scope,p_url:input.canonical_url});
+  if(original?.duplicate)return res.status(200).json({...original,original_url:input.original_url||input.request_url});
   lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
-  const result=await inspectPublic(body.url,{organization:body.org,brand:body.brand});
+  const result=await inspectPublic(body.url,{organization:body.org,brand:body.brand,allowPaid:false});
+  if(input.platform==='xhs'&&!result.post_id)return res.status(422).json({error:'The short link could not be resolved. Paste the complete Xiaohongshu share URL; no Post was saved.'});
   const canonical=await rpc('marketing_creator_post_preview',{...scope,p_url:result.canonical_url});
   if(result.metadata_status==='unavailable'&&canonical.metadata_status==='authorized_meta')return res.status(200).json({...canonical,public_extraction_reason:result.reason});
-  if(canonical.duplicate)return res.status(200).json(canonical);
+  if(canonical.duplicate)return res.status(200).json({...canonical,original_url:input.original_url||input.request_url});
   const data=await rpc('marketing_creator_directory',scope);
   const matches=result.author_external_id?(data.accounts||[]).filter(a=>!a.archived&&a.platform===result.platform&&a.external_id===result.author_external_id):[];
   const verified=matches.filter(a=>a.identity_verified);

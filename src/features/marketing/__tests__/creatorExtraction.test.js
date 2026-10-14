@@ -57,3 +57,5 @@ describe('public Creator extraction boundaries',()=>{
   });
   it.each(['https://www.facebook.com/watch/?v=123bad','https://www.facebook.com/photo.php?fbid=123bad','https://www.facebook.com/story.php?story_fbid=123bad','https://www.facebook.com/brand/posts/a/b/12345','https://www.facebook.com/brand/posts/12345.evil'])('rejects malformed identity %s',url=>expect(()=>platformUrl(url)).toThrow());
  });
+
+it('separates XHS navigation parameters and discovery path from stable identity',()=>{const id='6a8fb7f30000000037034698',url='https://www.xiaohongshu.com/discovery/item/'+id+'?source=webshare&xsec_token=a%2Bb%2Fc%3D%26&xsec_source=pc_share&custom=%252F';const p=platformUrl(url);expect(p.post_id).toBe(id);expect(p.canonical_url).toBe(platformUrl('https://www.xiaohongshu.com/explore/'+id).canonical_url);expect(p.original_url).toBe(url);expect(p.request_url).toBe(url);expect(platformUrl('https://xhslink.com/o/8ztP9aMRnzT').share).toBe(true)});

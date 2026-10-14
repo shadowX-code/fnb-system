@@ -26,7 +26,7 @@ export function platformUrl(value){
  }
  const share=(platform==='tiktok'&&['vt.tiktok.com','vm.tiktok.com'].includes(u.hostname)&&/^\/[\w-]+\/?$/.test(p))||(platform==='xhs'&&u.hostname.endsWith('xhslink.com')&&/^\/(?:[a-z]\/)?[\w-]+\/?$/.test(p))||(platform==='facebook'&&(u.hostname==='fb.watch'&&/^\/[\w-]+\/?$/.test(p)||/^\/share\/(?:[prv]\/)?[\w-]+\/?$/.test(p)));
  if(!id&&!share)throw new Error('unsupported_post_url');
- u.hash='';const keep={instagram:['img_index'],facebook:['story_fbid','id','fbid','v'],xhs:['xsec_token','xsec_source'],tiktok:[]}[platform];for(const key of [...u.searchParams.keys()])if(!keep.includes(key))u.searchParams.delete(key);return {platform,post_id:id||null,canonical_url:canonical||u.origin+u.pathname,request_url:u.href,share};
+ u.hash='';const keep={instagram:['img_index'],facebook:['story_fbid','id','fbid','v'],xhs:['xsec_token','xsec_source'],tiktok:[]}[platform];for(const key of [...u.searchParams.keys()])if(platform!=='xhs'&&!keep.includes(key))u.searchParams.delete(key);return {platform,post_id:id||null,canonical_url:canonical||u.origin+u.pathname,request_url:u.href,original_url:platform==='xhs'?value.trim():undefined,share};
 }
 export function allowedResource(value,platform){
  let u;try{u=new URL(value)}catch{return false}
