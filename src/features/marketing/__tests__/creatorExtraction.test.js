@@ -36,3 +36,24 @@ describe('public Creator extraction boundaries',()=>{
   const p=extractMetadata('<script>window.__INITIAL_STATE__=alert("unsafe")</script>','https://www.xiaohongshu.com/explore/68523c3c0000000012004bae');expect(p.metadata_status).toBe('unavailable');
  });
 });
+
+ describe('Facebook canonical route identity',()=>{
+  it.each([
+   ['https://m.facebook.com/brand/posts/caption/12345/?mibextid=tracking','https://www.facebook.com/brand/posts/12345'],
+   ['https://www.facebook.com/posts/12345','https://www.facebook.com/posts/12345'],
+   ['https://www.facebook.com/videos/12345','https://www.facebook.com/videos/12345'],
+   ['https://web.facebook.com/brand/videos/12345/','https://www.facebook.com/brand/videos/12345'],
+   ['https://www.facebook.com/reel/12345/','https://www.facebook.com/reel/12345'],
+   ['https://www.facebook.com/watch/?v=12345&tracking=x','https://www.facebook.com/watch/?v=12345'],
+   ['https://www.facebook.com/photo.php?fbid=12345&set=other','https://www.facebook.com/photo/?fbid=12345'],
+   ['https://www.facebook.com/photo/?fbid=12345','https://www.facebook.com/photo/?fbid=12345'],
+   ['https://www.facebook.com/permalink.php?story_fbid=12345&id=999','https://www.facebook.com/story.php?story_fbid=12345&id=999'],
+   ['https://www.facebook.com/story.php?story_fbid=12345&id=999','https://www.facebook.com/story.php?story_fbid=12345&id=999'],
+  ])('preserves %s and a stable duplicate key',(input,canonical)=>{
+   const value=platformUrl(input);expect(value.post_id).toBe('12345');expect(value.canonical_url).toBe(canonical);expect(platformUrl(canonical).post_id).toBe(value.post_id);expect(platformUrl(canonical).canonical_url).toBe(canonical);
+  });
+  it('keeps unresolved shares provisional, without claiming a final post identity',()=>{
+   for(const url of ['https://fb.watch/AbCd_12/','https://www.facebook.com/share/v/AbCd_12/']){const value=platformUrl(url);expect(value.share).toBe(true);expect(value.post_id).toBeNull();}
+  });
+  it.each(['https://www.facebook.com/watch/?v=123bad','https://www.facebook.com/photo.php?fbid=123bad','https://www.facebook.com/story.php?story_fbid=123bad','https://www.facebook.com/brand/posts/a/b/12345','https://www.facebook.com/brand/posts/12345.evil'])('rejects malformed identity %s',url=>expect(()=>platformUrl(url)).toThrow());
+ });

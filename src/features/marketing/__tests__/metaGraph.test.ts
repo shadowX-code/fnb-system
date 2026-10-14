@@ -139,3 +139,13 @@ describe('official Meta OAuth adapter',()=>{
  });
 
 });
+
+it('aborts in-flight health transport and prevents any later provider request',async()=>{
+ const controller=new AbortController(),transport=vi.fn(async(_url,options)=>new Promise((_resolve,reject)=>{options.signal.addEventListener('abort',()=>reject(new Error('aborted')),{once:true});}));
+ const graph=new MetaGraph(config,transport as any).withSignal(controller.signal);
+ const pending=graph.request('111','token');
+ await vi.waitFor(()=>expect(transport).toHaveBeenCalledTimes(1));controller.abort();
+ await expect(pending).rejects.toMatchObject({code:'meta_response_uncertain',retryable:true,uncertain:false});
+ await expect(graph.request('111/subscribed_apps','token',{},'POST')).rejects.toThrow();
+ expect(transport).toHaveBeenCalledTimes(1);
+});

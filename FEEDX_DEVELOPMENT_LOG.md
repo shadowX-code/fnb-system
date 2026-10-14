@@ -985,3 +985,8 @@ Approved one DataXAPI note-detail execution succeeded using trial credit. Existi
 - Staging forward migrations applied; rollback-only authority acceptance passed. Scoped UI/extraction regressions and build passed. Authenticated deployed Creator creation, option rename/archive, multi-platform collaboration, Published rejection and desktop/mobile Light/Dark acceptance recorded under `qa/staging/marketingCreators/managementAcceptance.md`. No Production/main/provider-permission or external publishing changes.
 
 - Final browser QA corrected mobile publishing-selector grid placement at actual 390px CSS width. Public TikTok profile metadata/followers extracted; tested IG/FB/XHS profiles retained honest manual fallback. Legacy case/spacing option associations covered by forward normalization guards. Disposable QA Creator/options archived, collaboration cancelled, history retained; no Post or external publication created.
+
+
+## 2026-10-14 — Marketing audit Critical/High remediation
+
+Platform role resolution now uses Employee precedence with guarded legacy-only fallback; canonical identity guards reject self-role/access escalation and unauthorized delegation without changing persisted grants or Brand scopes. Marketing worker claims publishing before deadline-bounded connection checks. Facebook Creator extraction/database parsers retain supported route context and stable post identity. Forward-only Staging migrations, rollback-only authenticated DB-role/lease rehearsals and focused regression tests cover these boundaries. Production remains a separate authorized release.

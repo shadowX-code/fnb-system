@@ -92,6 +92,18 @@ describe("Employee and Auth lifecycle service contracts", () => {
     }
   });
 
+  it("disables login without unlinking or clearing the existing Auth identity", async () => {
+    mocks.responses.push({data:loginEmployee,error:null},{data:{...loginEmployee,enable_system_login:false,access_state:"no_access",role_id:null},error:null});
+    await employeeService.saveEmployee({...loginEmployee,enable_system_login:false,access_state:"disabled",is_active:false});
+    expect(mocks.operations[1].payload).toMatchObject({auth_user_id:loginEmployee.auth_user_id,email:loginEmployee.email,enable_system_login:false,access_state:"no_access"});
+  });
+
+  it("leaves new Auth linkage to trusted onboarding instead of accepting form data", async () => {
+    mocks.responses.push({data:loginEmployee,error:null});
+    await employeeService.saveEmployee({...loginEmployee,id:""});
+    expect(mocks.operations[0].payload.auth_user_id).toBeNull();
+  });
+
   it("normalizes login email before the canonical employee row is persisted", async () => {
     mocks.responses.push({ data: { ...loginEmployee, email: "user@example.com" }, error: null });
     await employeeService.saveEmployee({ ...loginEmployee, id: "", auth_user_id: "", email: " User@Example.com ", access_state: "not_sent" });

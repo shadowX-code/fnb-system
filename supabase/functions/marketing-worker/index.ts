@@ -32,8 +32,8 @@ Deno.serve(async(req)=>{
  if(!configured){await call(db,'marketing_worker_health',{p_error:'meta_not_configured',p_completed:true});return reply({status:'blocked',reason:'meta_not_configured'});}
  const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')});
  await call(db,'marketing_ads_schedule');
- const health=await runConnectionHealth(db,graph,{appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET')},[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')]);
- if(health){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'connection_checked'});}
+ const checkHealth=()=>runConnectionHealth(db,graph,{appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET')},[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')]);
+ const started=Date.now();
  async function tokenFor(connection:any) {
   const material=await call(db,'marketing_meta_connection_material',{p_connection:connection.id});
   if(!material||material.credential_generation!==connection.credential_generation)throw new Error('connection_changed');
@@ -82,9 +82,13 @@ Deno.serve(async(req)=>{
    if(job.state==='reconciling'&&result.outcome!=='published')result={outcome:'uncertain',code:result.code||'manual_reconciliation_required'};
    if(result.outcome==='waiting')await call(db,'marketing_defer_job',{p_job:job.id,p_lease:job.lease_token,p_seconds:60,p_code:result.code});
    else await call(db,'marketing_finish_job',{p_job:job.id,p_lease:job.lease_token,p_outcome:result.outcome,p_provider_post_id:result.postId||null,p_error_code:result.code||null});
-   // Publishing and synchronization are separate ticks, bounding wall time.
+   // Completed jobs release their lease before a bounded health turn. Slow jobs
+   // leave health to an idle tick; health can never prevent the next job claim.
+   if(Date.now()-started<15000)try{await checkHealth();}catch{console.warn('marketing_connection_health_pending');}
    await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'processed',outcome:result.outcome});
   }
+  const health=await checkHealth();
+  if(health){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'connection_checked'});}
   // Reserve a bounded Ads reporting turn every five minutes, after publishing authority.
   if(new Date().getUTCMinutes()%5===0&&await processAdsSync(db,graph,env)){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'ads_synchronized'});}
   if(await runInboxHistory(db,graph,tokenFor)){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'history_import_page'});}

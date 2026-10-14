@@ -13,6 +13,7 @@ function query(table) {
     select(fields) { operation.fields = fields; return chain; },
     update(payload) { operation.method = "update"; operation.payload = payload; return chain; },
     or(value) { operation.filters.push(["or", value]); return chain; },
+    is(column, value) { operation.filters.push(["is", column, value]); return chain; },
     eq(column, value) { operation.filters.push(["eq", column, value]); return chain; },
     maybeSingle() { return respond(operation); },
     single() { return respond(operation); },
@@ -60,7 +61,7 @@ describe("Auth employee identity compatibility contracts", () => {
     expect(mocks.operations.map((operation) => operation.filters)).toEqual([
       [["eq", "auth_user_id", user.id]],
       [["eq", "id", user.id]],
-      [["eq", "email", "crew@feedx.test"]],
+      [["eq", "email", "crew@feedx.test"], ["is", "auth_user_id", null]],
     ]);
   });
 

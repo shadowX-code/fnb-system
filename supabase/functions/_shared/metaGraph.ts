@@ -13,12 +13,14 @@ export class MetaError extends Error {
 }
 export type MetaConfig={appId:string;appSecret:string;configId:string;version:string};
 export class MetaGraph {
- constructor(private config:MetaConfig,private transport:typeof fetch=fetch,private diagnostic?:(event:MetaDiagnostic)=>void) {
+ constructor(private config:MetaConfig,private transport:typeof fetch=fetch,private diagnostic?:(event:MetaDiagnostic)=>void,private signal?:AbortSignal) {
   if(!/^v\d+\.0$/.test(config.version))throw new MetaError('meta_version_not_configured');
  }
+ withSignal(signal:AbortSignal):MetaGraph {return new MetaGraph(this.config,this.transport,this.diagnostic,signal);}
  get version():string {return this.config.version;}
  private report(event:MetaDiagnostic) {try{this.diagnostic?.(event);}catch{/* Diagnostics must not change authorization behavior. */}}
  async request(path:string,token:string,params:Record<string,any>={},method='GET',inspect?:(status:number|null,code:number|null,evidence?:MetaResponseEvidence)=>void):Promise<any> {
+  this.signal?.throwIfAborted();
   if(!/^\/?(?:(?:act_)?\d+(?:_\d+)?|me|oauth|debug_token|t_\d{1,80})(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
   const url=new URL(`https://graph.facebook.com/${this.config.version}/${path.replace(/^\//,'')}`);
   const form=new URLSearchParams();for(const [key,value] of Object.entries(params))if(value!==undefined&&value!==null)form.set(key,typeof value==='object'?JSON.stringify(value):String(value));
@@ -29,7 +31,7 @@ export class MetaGraph {
   }
   if(method==='GET')url.search=form.toString();
   let response:Response;
-  try { response=await this.transport(url,{method,headers:{...(token?{Authorization:`Bearer ${token}`}:{ }),...(method!=='GET'?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body:method==='GET'?undefined:form.toString(),signal:AbortSignal.timeout(20000),redirect:'error'}); }
+  try { response=await this.transport(url,{method,headers:{...(token?{Authorization:`Bearer ${token}`}:{ }),...(method!=='GET'?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body:method==='GET'?undefined:form.toString(),signal:this.signal?AbortSignal.any([this.signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000),redirect:'error'}); }
   catch {
    inspect?.(null,null);
    if(['me/accounts','me/permissions'].includes(path))this.report({event:'graph_response',endpoint:path,http_status:null,graph_error_code:null,returned_count:null,data_shape:'no_response'});
