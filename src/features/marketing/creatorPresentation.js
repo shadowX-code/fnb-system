@@ -4,7 +4,7 @@ export const contentTypes=[{value:'video',label:'Reels / Video'},{value:'image',
 export const isPublishedPost=p=>Boolean(p.canonical_url&&(p.published_at||p.published_date||p.publication_confirmed_at));
 export function publishingProgress(c,posts){const plans=(c.deliverables||[]).filter(d=>d.status!=='cancelled'),published=posts.filter(p=>p.collaboration_id===c.id&&isPublishedPost(p)),matched=new Set(published.map(p=>p.deliverable_id).filter(id=>plans.some(d=>d.id===id))),extra=published.filter(p=>!plans.some(d=>d.id===p.deliverable_id)).length;return {published:published.length,planned:plans.length,matched:matched.size,unplanned:extra,text:plans.length?`${matched.size}/${plans.length} Published${extra?' + '+extra+' additional':''}`:published.length?`${published.length} Published`:'No planned posts'};}
 export const deliverableStates=['pending','submitted','completed','cancelled'];
-export const label=value=>creatorPlatforms.find(p=>p.value===value)?.label||String(value||'').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
+export const label=value=>({in_progress:'In Progress',recorded:'Actual'})[value]||creatorPlatforms.find(p=>p.value===value)?.label||String(value||'').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
 export const metricKeys=['views','reach','interactions','likes','comments','shares','saves'];
 export const metricLabel=k=>label(k);
 export const number=v=>typeof v==='number'&&Number.isFinite(v)?new Intl.NumberFormat('en-MY').format(v):'—';
