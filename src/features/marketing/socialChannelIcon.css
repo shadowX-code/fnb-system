@@ -1,0 +1,5 @@
+.cm-channel{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;min-width:22px;max-width:22px;flex:0 0 22px;vertical-align:middle;line-height:1;overflow:hidden}
+.cm-channel>svg,.cm-channel>img{display:block;width:20px;height:20px;max-width:20px;max-height:20px;flex:none;object-fit:contain}
+.cm-channel-tiktok{background:#111;border-radius:5px}
+.cm-channel-xhs{background:#ff2442;border-radius:5px}
+.cm-channel-tiktok>img,.cm-channel-xhs>img{padding:3px;box-sizing:border-box;filter:brightness(0) invert(1)}

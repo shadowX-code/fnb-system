@@ -2,7 +2,19 @@ export const creatorPlatforms=[{value:'facebook',label:'Facebook'},{value:'insta
 export const collaborationStates=['planned','in_progress','published','completed'];
 export const contentTypes=[{value:'video',label:'Reels / Video'},{value:'image',label:'Picture / Carousel'}];
 export const isPublishedPost=p=>Boolean(p.canonical_url&&(p.published_at||p.published_date||p.publication_confirmed_at));
-export function publishingProgress(c,posts){const plans=(c.deliverables||[]).filter(d=>d.status!=='cancelled'),published=posts.filter(p=>p.collaboration_id===c.id&&isPublishedPost(p)),matched=new Set(published.map(p=>p.deliverable_id).filter(id=>plans.some(d=>d.id===id))),extra=published.filter(p=>!plans.some(d=>d.id===p.deliverable_id)).length;return {published:published.length,planned:plans.length,matched:matched.size,unplanned:extra,text:plans.length?`${matched.size}/${plans.length} Published${extra?' + '+extra+' additional':''}`:published.length?`${published.length} Published`:'No planned posts'};}
+// One row per canonical Post; a planned entry without Posts remains one row.
+export function collaborationPublishing(c,posts){
+ const related=c.id?posts.filter(p=>p.collaboration_id===c.id):[],used=new Set(),entries=[];
+ for(const [index,plan] of (c.deliverables||[]).entries()){
+  if(plan.status==='cancelled')continue;
+  const linked=plan.id?related.filter(p=>p.deliverable_id===plan.id):[];
+  if(!linked.length)entries.push({key:plan.id||`planned-${index}`,plan,post:null,platform:plan.platform,content_type:plan.content_type,published:false});
+  for(const post of linked){used.add(post.id);entries.push({key:post.id,plan,post,platform:post.platform,content_type:post.content_type||plan.content_type,published:isPublishedPost(post)});}
+ }
+ for(const post of related)if(!used.has(post.id))entries.push({key:post.id,plan:null,post,platform:post.platform,content_type:post.content_type,published:isPublishedPost(post)});
+ return entries;
+}
+export function publishingProgress(c,posts){const entries=collaborationPublishing(c,posts),published=entries.filter(e=>e.published).length;return {published,total:entries.length,text:entries.length?`${published}/${entries.length} Published`:'No publishing entries'};}
 export const deliverableStates=['pending','submitted','completed','cancelled'];
 export const label=value=>({in_progress:'In Progress',recorded:'Actual'})[value]||creatorPlatforms.find(p=>p.value===value)?.label||String(value||'').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
 export const metricKeys=['views','reach','interactions','likes','comments','shares','saves'];
