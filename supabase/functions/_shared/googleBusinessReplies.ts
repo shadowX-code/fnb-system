@@ -16,8 +16,7 @@ export const replyFingerprint = (reply?: OwnerReply) => hash(JSON.stringify(repl
 // A lagging Google GET must not erase a newer accepted PUT or authorize another write.
 export function reconcileOwnerReply(review: GoogleReviewRecord, confirmed?: OwnerReply) {
  const remote=review.reviewReply;
- const pending=Boolean(confirmed && (!remote || Date.parse(remote.updateTime)<Date.parse(confirmed.updateTime)
-  || Date.parse(remote.updateTime)===Date.parse(confirmed.updateTime) && remote.comment!==confirmed.comment));
+ const pending=Boolean(confirmed && (!remote || remote.comment!==confirmed.comment && Date.parse(remote.updateTime)<=Date.parse(confirmed.updateTime)));
  return {review:pending ? {...review,reviewReply:confirmed} : review,reply_sync_pending:pending};
 }
 export class GoogleOwnerReplies {

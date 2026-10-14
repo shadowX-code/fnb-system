@@ -164,6 +164,7 @@ export async function handle(req: Request) {
     const confirmed=await confirmedReplies();
     const evidence=confirmed.get(body.review);
     const {review,reply_sync_pending}=reconcileOwnerReply(remote,evidence?.reply);
+    if(reply_sync_pending)console.warn(JSON.stringify({integration:'google-business',action:'review',code:'reply_readback_pending',remote_reply_present:Boolean(remote.reviewReply),remote_update_time:remote.reviewReply?.updateTime,confirmed_update_time:evidence?.reply.updateTime,reply_text_matches:remote.reviewReply?.comment===evidence?.reply.comment}));
     await call('guard',sourceBasis);
     const latestAccess=await replyCall('access',{review:body.review});
     return reply({review,reply_sync_pending,can_reply:latestAccess.can_reply,...sourceBasis,expectedHash:reply_sync_pending ? null : await replyFingerprint(review.reviewReply),history:latestAccess.history,read_expires_at:new Date(reply_sync_pending ? Math.min(Date.now()+86400000,Date.parse(evidence.expiresAt)) : Date.now()+86400000).toISOString()});

@@ -30,6 +30,7 @@ describe('Confirmed reply read reconciliation',()=>{
  });
  it('accepts matching readback and genuine newer external edits without overwriting them',()=>{
   expect(reconcileOwnerReply({...review,reviewReply:confirmed},confirmed).reply_sync_pending).toBe(false);
+  expect(reconcileOwnerReply({...review,reviewReply:{...confirmed,updateTime:'2026-10-14T13:47:19Z'}},confirmed).reply_sync_pending).toBe(false);
   const newer={comment:'Remote updated',updateTime:'2026-10-14T13:48:00Z'};
   expect(reconcileOwnerReply({...review,reviewReply:newer},confirmed)).toMatchObject({reply_sync_pending:false,review:{reviewReply:newer}});
   expect(reconcileOwnerReply(review)).toEqual({review,reply_sync_pending:false});
