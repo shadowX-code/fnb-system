@@ -6,7 +6,7 @@ const env=(name:string)=>Deno.env.get(name)||'';
 const REDIRECT=STAGING_SUPABASE+'/functions/v1/marketing-drive/callback';
 const configured=()=>['CLIENT_ID','CLIENT_SECRET','TOKEN_ENCRYPTION_KEY'].every(n=>env('MARKETING_GOOGLE_DRIVE_'+n));
 const binding=(org:string,generation:number)=>`drive:${org}:${generation}`;
-const messages:Record<string,string>={reconnect_required:'Reconnect Google Drive in Marketing Settings.',drive_permission_required:'Google Drive access is unavailable. Check the folder sharing and connection.',outside_brand_folder:'This file is outside the selected brand folder.',shortcut_outside_brand_folder:'This shortcut points outside the brand folder.',source_changed:'The Drive file changed. Refresh and select it again.',media_format_mismatch:'The file content does not match its media format.',media_format_unavailable:'Select a downloadable JPG, PNG, WebP or MP4 up to 100 MB.',file_unavailable:'The file or folder is no longer available.',drive_configuration_required:'Google Drive configuration needs administrator attention.',thumbnail_unavailable:'Thumbnail unavailable. Open the file to preview it.',drive_unavailable:'Google Drive is temporarily unavailable. Try again.'};
+const messages:Record<string,string>={reconnect_required:'Reconnect Google Drive in Marketing Settings.',drive_permission_required:'Google Drive access is unavailable. Check the folder sharing and connection.',outside_brand_folder:'This file is outside the selected brand folder.',shortcut_outside_brand_folder:'This shortcut points outside the brand folder.',source_changed:'The Drive file changed. Refresh and select it again.',media_format_mismatch:'The file content does not match its media format.',media_format_unavailable:'Select a downloadable JPG, PNG, WebP or MP4 up to 100 MB.',file_unavailable:'The file or folder is no longer available.',search_scope_too_large:'This brand folder tree exceeds the search limit. Browse folders or use Open in Drive.',drive_configuration_required:'Google Drive configuration needs administrator attention.',thumbnail_unavailable:'Thumbnail unavailable. Open the file to preview it.',drive_unavailable:'Google Drive is temporarily unavailable. Try again.'};
 Deno.serve(async req=>{
  const headers={'Access-Control-Allow-Origin':STAGING_ORIGIN,'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, GET, OPTIONS','Cache-Control':'no-store','Vary':'Origin'};
  const reply=(data:any,status=200)=>new Response(JSON.stringify(data),{status,headers:{...headers,'Content-Type':'application/json'}});
@@ -40,7 +40,7 @@ Deno.serve(async req=>{
   if(req.method!=='POST')return reply({error:'Endpoint unavailable.'},404);
   const auth=req.headers.get('authorization');if(!auth?.startsWith('Bearer '))return reply({error:'Sign in to FeedX.'},401);
   const {data,error}=await db.auth.getUser(auth.slice(7));if(error||!data.user)return reply({error:'Sign in again.'},401);user=data.user.id;
-  if(Number(req.headers.get('content-length')||0)>32000)throw new Error('Request too large.');const body=await req.json();org=body.organizationId;brand=body.brandId||null;
+  if(Number(req.headers.get('content-length')||0)>(action==='browse'?524288:32000))throw new Error('Request too large.');const body=await req.json();org=body.organizationId;brand=body.brandId||null;
   if(!org||typeof org!=='string')throw new Error('Select an organization.');
   if(action==='context')return reply(await call('context'));
   if(action==='prepare-upload')return reply(await call('prepare',{source_kind:'device',filename:body.filename,mime_type:body.mime,size_bytes:body.size}));
@@ -91,14 +91,14 @@ Deno.serve(async req=>{
   const guard=()=>call('guard',{generation:material.generation,revision:root.revision});await guard();
   if(action==='browse'){
    const folder=await drive.scoped(body.folderId||root.root_id,root.root_id);if(folder.file.mimeType!==DRIVE_FOLDER)throw new Error('Select a folder.');
-   const search=String(body.search||''),type=String(body.type||'');let after='';
-   if(body.cursor){const cursor=await unseal(body.cursor,[env('MARKETING_GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY')],`drive-cursor:${org}:${brand}:${root.revision}`);if(cursor.expires<Date.now()||cursor.folder!==folder.file.id||cursor.search!==search||cursor.type!==type)throw new Error('Refresh the library.');after=cursor.after;}
-   const found=await drive.list(folder.file.id,search,type,after),files=[];
+   const search=String(body.search||''),type=String(body.type||'');let after='',searchState:any=null;
+   if(body.cursor){const cursor=await unseal(body.cursor,[env('MARKETING_GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY')],`drive-cursor:${org}:${brand}:${root.revision}`);if(cursor.expires<Date.now()||cursor.folder!==folder.file.id||cursor.search!==search||cursor.type!==type)throw new Error('Refresh the library.');after=cursor.after;searchState=cursor.searchState||null;if(search&&!searchState)throw new Error('Refresh this search.');}
+   const found=search?await drive.searchPage(root.root_id,search,type,searchState):await drive.list(folder.file.id,'',type,after),files=[];
    for(const node of found.files||[]){try{const scoped=await drive.scoped(node.id,root.root_id),file=scoped.file;
     if(![DRIVE_FOLDER,'image/jpeg','image/png','image/webp','video/mp4'].includes(file.mimeType)||type==='image'&&!file.mimeType.startsWith('image/')&&file.mimeType!==DRIVE_FOLDER||type==='video'&&!file.mimeType.startsWith('video/')&&file.mimeType!==DRIVE_FOLDER)continue;
     files.push({...file,name:node.name,selection_id:node.id,is_shortcut:node.mimeType===DRIVE_SHORTCUT});
    }catch(error){if(!(error instanceof DriveError)||!['outside_brand_folder','shortcut_outside_brand_folder','unsupported_shortcut','file_unavailable','drive_permission_required'].includes(error.code))throw error;/* Skip only evidence-confirmed inaccessible candidates. */}}
-   await guard();return reply({files,root,folder:{id:folder.file.id,name:folder.node.name},cursor:found.nextPageToken?await seal({after:found.nextPageToken,folder:folder.file.id,search,type,expires:Date.now()+900000},env('MARKETING_GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY'),`drive-cursor:${org}:${brand}:${root.revision}`):null});
+   await guard();return reply({files,root,folder:{id:folder.file.id,name:folder.node.name},cursor:(found.nextPageToken||found.state)?await seal({after:found.nextPageToken,searchState:found.state,folder:folder.file.id,search,type,expires:Date.now()+900000},env('MARKETING_GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY'),`drive-cursor:${org}:${brand}:${root.revision}`):null});
   }
   if(action==='preview'||action==='import'){
    const scoped=await drive.scoped(driveId(body.fileId),root.root_id),file=scoped.file;

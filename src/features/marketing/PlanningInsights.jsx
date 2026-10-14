@@ -21,10 +21,8 @@ export default function PlanningInsights({tasks,targets,month,today,busy,canEdit
  useEffect(()=>{
   if(view!=='publish'||!canContent)return;let live=true;
   setPublish({rows:[],loading:true,error:''});
-  (async()=>{let rows=[],page=1,total=0;
-   do{if(!live)return;const result=await marketingService.contentManagement({organizationId,brandId,view:'list',page,pageSize:100,sort:'date_asc'});if(!live)return;rows.push(...result.rows);total=result.total_count;page++;if(!result.rows.length)break;}while(rows.length<total);
-   if(live)setPublish({rows,loading:false,error:''});
-  })().catch(e=>{if(live)setPublish({rows:[],loading:false,error:e.message})});return()=>{live=false};
+  const days=monthDays(month),from=days[0]+'T00:00:00+08:00',to=new Date(Date.parse(days.at(-1)+'T00:00:00+08:00')+86400000).toISOString();
+  marketingService.plannerPublishing(organizationId,brandId,from,to,links?links.split(','):[]).then(result=>{if(live)setPublish({rows:result.rows,loading:false,error:''})}).catch(e=>{if(live)setPublish({rows:[],loading:false,error:e.message})});return()=>{live=false};
  },[view,canContent,organizationId,brandId,month,links]);
  const items=view==='publish'?publishingEntries(tasks,publish.rows):tasks.map(t=>({...t,date:t.due_date,task:t}));
  const canMove=item=>canEdit&&item.task&&editable(item.task)&&(view!=='publish'||!item.task.linked_content_id);

@@ -37,3 +37,18 @@ describe('bounded Drive loading',()=>{
   await expect(new GoogleDrive('test',fetcher as any).thumbnail(nodes.inside)).rejects.toMatchObject({code:'thumbnail_unavailable'});
  });
 });
+
+it('recursively searches only folder-scoped lists with bounded continuations and no per-match GETs',async()=>{
+ const folders:any={brand:[{id:'one',name:'One',mimeType:DRIVE_FOLDER,parents:['brand']},{id:'two',name:'Two',mimeType:DRIVE_FOLDER,parents:['brand']}],one:[],two:[]};
+ const matches:any={brand:[],one:[],two:Array.from({length:50},(_,i)=>({id:'match'+i,name:'Match '+i,mimeType:'image/png',parents:['two']}))};
+ const fetcher=vi.fn(async(url:any)=>{const u=new URL(url);if(!u.pathname.endsWith('/files'))return new Response(JSON.stringify(u.pathname.endsWith('/brand')?nodes.brand:{id:u.pathname.split('/').at(-1),mimeType:DRIVE_FOLDER,parents:['brand']}));const query=u.searchParams.get('q')||'';const id=query.match(/'([^']+)' in parents/)?.[1];expect(id).toBeTruthy();return new Response(JSON.stringify({files:query.includes('name contains')?matches[id!]:folders[id!]}));});
+ const drive=new GoogleDrive('test',fetcher as any);const first=await drive.searchPage('brand','Match','image');expect(first.files).toHaveLength(0);expect(first.state).not.toBeNull();expect(fetcher.mock.calls.filter(([url])=>new URL(url).pathname.endsWith('/files'))).toHaveLength(4);
+ const second=await drive.searchPage('brand','Match','image',first.state);expect(second.files).toHaveLength(50);expect(second.state).toBeNull();const calls=fetcher.mock.calls.length;for(const f of second.files)await drive.scoped(f.id,'brand');expect(fetcher.mock.calls.length).toBe(calls);
+});
+it('does not silently finish recursive search when a folder has another provider page',async()=>{
+ let folderPages=0;const fetcher=vi.fn(async(url:any)=>{const u=new URL(url);if(!u.pathname.endsWith('/files'))return new Response(JSON.stringify(nodes.brand));const query=u.searchParams.get('q')||'';return new Response(JSON.stringify(query.includes('name contains')?{files:[nodes.inside],nextPageToken:'next-matches'}:{files:[],...(++folderPages<2?{nextPageToken:'next-folders'}:{})}));});
+ const drive=new GoogleDrive('test',fetcher as any);const result=await drive.searchPage('brand','needle','');expect(result.files).toHaveLength(1);expect(result.state?.queue[0]).toMatchObject({phase:'matches',after:'next-matches'});expect(fetcher.mock.calls.some(([url])=>new URL(url).searchParams.get('pageToken')==='next-folders')).toBe(true);
+});
+it('rechecks queued folder containment after a move, and returns no sibling data',async()=>{
+ const fetcher=vi.fn(async(url:any)=>new Response(JSON.stringify(new URL(url).pathname.endsWith('/outside')?nodes.outside:nodes.root)));const result=await new GoogleDrive('test',fetcher as any).searchPage('brand','x','',{queue:[{id:'outside',phase:'matches',after:''}],visited:1});expect(result.files).toHaveLength(0);expect(result.state).toBeNull();expect(fetcher.mock.calls.some(([url])=>new URL(url).pathname.endsWith('/files'))).toBe(false);
+});

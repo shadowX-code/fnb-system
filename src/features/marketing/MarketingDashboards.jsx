@@ -30,13 +30,13 @@ const metricName=key=>({views:'Views',interactions:'Interactions',likes:'Likes',
 const definitions='Latest lifetime metrics for posts published in the selected Malaysia dates. Facebook and Instagram definitions remain separate. Facebook interactions use reported action totals or complete reaction/comment/share evidence; Instagram uses reported total interactions. Reach is never summed.';
 function useDashboardData(load,deps,events=false){
  const [result,setResult]=useState(null),[error,setError]=useState(''),[refresh,setRefresh]=useState(0);
- useEffect(()=>{let live=true;setResult(null);setError('');load().then(v=>{if(live)setResult(v)}).catch(e=>{if(live)setError(e.message)});return()=>{live=false};},[...deps,refresh]);
+ useEffect(()=>{let live=true;const controller=new AbortController();setResult(null);setError('');load(controller.signal).then(v=>{if(live)setResult(v)}).catch(e=>{if(live)setError(e.message)});return()=>{live=false;controller.abort()};},[...deps,refresh]);
  useEffect(()=>{if(!events)return;const update=()=>setRefresh(v=>v+1),visible=()=>{if(document.visibilityState!=='hidden')update()};const timer=setInterval(visible,60000);window.addEventListener(CONVERSATIONS_CHANGED,update);window.addEventListener('focus',visible);return()=>{clearInterval(timer);window.removeEventListener(CONVERSATIONS_CHANGED,update);window.removeEventListener('focus',visible)};},[events]);
  return {result,error,reload:()=>setRefresh(v=>v+1)};
 }
 export function MarketingOverview({organizationId:org,brandId:brand,brands,can,userId,productionMonth}){
  const today=contentDay(new Date().toISOString()),month=productionMonth||today.slice(0,7)+'-01';
- const {result,error,reload}=useDashboardData(()=>dashboardService.operations(org,brand,month,can),[org,brand,month,userId],true);
+ const {result,error,reload}=useDashboardData(signal=>dashboardService.operations(org,brand,month,can,signal),[org,brand,month,userId],true);
  const projection=useMemo(()=>operationProjection(result||{},brands,today,month),[result,brands,today,month]);
  const [actionPage,setActionPage]=useState(1);useEffect(()=>setActionPage(1),[org,brand,month]);
  function link(kind,record,filter=''){
@@ -59,7 +59,7 @@ export function MarketingOverview({organizationId:org,brandId:brand,brands,can,u
 }
 export function MarketingSocialAnalytics({organizationId:org,brandId:brand,brands,userId,can}){
  const today=contentDay(new Date().toISOString()),[range,setRange]=useState({from:today.slice(0,7)+'-01',to:today}),[channel,setChannel]=useState(''),[sort,setSort]=useState('views'),[grain,setGrain]=useState('day'),[basis,setBasis]=useState('growth'),[comparisonMetric,setComparisonMetric]=useState('views'),[selected,setSelected]=useState(null);
- const {result,error,reload}=useDashboardData(()=>dashboardService.social(org,brand),[org,brand,userId]);
+ const {result,error,reload}=useDashboardData(signal=>dashboardService.social(org,brand,range.from,range.to,signal),[org,brand,userId,range.from,range.to]);
  const observations=useDashboardData(()=>dashboardService.performance(org,brand,range.from||shiftDay(today,-730),range.to||today,grain),[org,brand,userId,range.from,range.to,grain]);
  const report=useMemo(()=>socialProjection(result?.posts||[],range.from,range.to,channel),[result,range,channel]);
  const publication=useMemo(()=>performanceBuckets(report.posts,range.from||shiftDay(today,-730),range.to||today,grain),[report,range,grain]);

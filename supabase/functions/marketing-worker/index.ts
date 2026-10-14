@@ -7,6 +7,7 @@ import { runConnectionHealth } from '../_shared/metaConnectionHealth.ts';
 import { runInboxHistory } from '../_shared/metaInboxHistory.ts';
 import { readMetaPosts } from '../_shared/metaSynchronization.ts';
 import { processAdsSync } from '../_shared/metaAds.ts';
+import { cleanupTemporaryMedia } from '../_shared/marketingMediaCleanup.ts';
 import { commitJournal } from '../_shared/privacyBlob.ts';
 const env=(name:string)=>Deno.env.get(name)||'';
 async function call(db:any,name:string,args:any={}) {const {data,error}=await db.rpc(name,args);if(error)throw new Error('marketing_authority_rejected');return data;}
@@ -24,9 +25,6 @@ Deno.serve(async(req)=>{
  // Retain failed write-ahead intents for retry; journal failures never alter publishing gates.
  try{for(const intent of await call(db,'marketing_privacy_journal_pending'))await commitJournal(db,intent);}catch{console.warn('marketing_privacy_journal_pending');}
  await call(db,'marketing_inbox_process_events',{p_limit:20});
- // Storage API deletion only, with a canonical lease and reconciliation-bound eligibility.
- // Failure keeps the snapshot retiring for retry; it cannot block unrelated publishing.
- try {const asset=await call(db,'marketing_media_cleanup_claim');if(asset){const removed=await db.storage.from('marketing-media').remove([asset.object_path]);if(!removed.error)await call(db,'marketing_media_cleanup_finish',{p_asset:asset.id,p_lease:asset.cleanup_lease});}}catch{console.warn('marketing_media_cleanup_pending');}
 
  const configured=['MARKETING_META_APP_ID','MARKETING_META_APP_SECRET','MARKETING_META_LOGIN_CONFIG_ID','MARKETING_META_GRAPH_VERSION','MARKETING_META_TOKEN_ENCRYPTION_KEY'].every(n=>env(n));
  if(!configured){await call(db,'marketing_worker_health',{p_error:'meta_not_configured',p_completed:true});return reply({status:'blocked',reason:'meta_not_configured'});}
@@ -87,6 +85,11 @@ Deno.serve(async(req)=>{
    if(Date.now()-started<15000)try{await checkHealth();}catch{console.warn('marketing_connection_health_pending');}
    await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'processed',outcome:result.outcome});
   }
+  // Publishing claims win; cleanup is bounded to three seconds on idle ticks.
+  try{await cleanupTemporaryMedia(db,async(path,signal)=>{
+   const response=await fetch(STAGING_SUPABASE+'/storage/v1/object/marketing-media',{method:'DELETE',headers:{Authorization:'Bearer '+env('SUPABASE_SERVICE_ROLE_KEY'),apikey:env('SUPABASE_SERVICE_ROLE_KEY'),'Content-Type':'application/json'},body:JSON.stringify({prefixes:[path]}),signal});
+   if(!response.ok)throw new Error('cleanup_storage_pending');
+  });}catch{console.warn('marketing_media_cleanup_pending');}
   const health=await checkHealth();
   if(health){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'connection_checked'});}
   // Reserve a bounded Ads reporting turn every five minutes, after publishing authority.

@@ -1,8 +1,9 @@
 import { supabase } from '../../lib/supabase';
 import { throwSupabaseError } from '../../services/supabaseError.js';
 
-async function rpc(name, args = {}) {
-  const { data, error } = await supabase.rpc(name, args);
+async function rpc(name, args = {}, signal) {
+  const query=supabase.rpc(name,args);
+  const { data, error } = await (signal?query.abortSignal(signal):query);
   if(error?.code==='42501'&&name!=='marketing_access_fingerprint')window.dispatchEvent(new Event('marketing-access-changed'));
   throwSupabaseError(`marketing.${name}`, error);
   return data;
@@ -18,6 +19,9 @@ async function meta(command, body) {
   return data;
 }
 export const marketingService = {
+  dashboardOperations:(org,brand,signal)=>rpc('marketing_dashboard_operations',{p_org:org,p_brand:brand||null},signal),
+  socialPublications:(org,brand,from,to,signal)=>rpc('marketing_social_publications',{p_org:org,p_brand:brand||null,p_from:from||null,p_to:to||null},signal),
+  plannerPublishing:(org,brand,from,to,linked)=>rpc('marketing_planner_publishing',{p_org:org,p_brand:brand||null,p_from:from,p_to:to,p_linked:linked}),
   socialPerformance:(org,brand,from,to,grain)=>rpc('marketing_social_performance',{p_org:org,p_brand:brand||null,p_from:from,p_to:to,p_grain:grain}),
   observedGrowth:(org,brand)=>rpc("marketing_social_observed_growth",{p_org:org,p_brand:brand||null}),
   async metaConfiguration() { const response = await fetch(`${metaBase}/configuration`, { cache: 'no-store' }); if (!response.ok) throw new Error('Meta configuration could not be checked.'); return response.json(); },

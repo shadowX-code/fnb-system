@@ -28,14 +28,35 @@ export class GoogleDrive {
   const target=node.shortcutDetails?.targetId;if(!target||!await this.inside(target,root))throw new DriveError('shortcut_outside_brand_folder',403);
   const file=await this.file(target);if(file.mimeType===DRIVE_SHORTCUT)throw new DriveError('unsupported_shortcut');return {node,file};
  }
- async list(folder:string,search='',type='',after=''){
+ async list(folder:string,search='',type='',after='',withinFolder=false){
   driveId(folder);if(search.length>100)throw new DriveError('search_too_long');
   const escaped=search.replaceAll('\\','\\\\').replaceAll("'","\\'");
-  const q=['trashed = false',search?`name contains '${escaped}'`:`'${folder}' in parents`];
+  const q=['trashed = false',...(!search||withinFolder?[`'${folder}' in parents`]:[]),...(search?[`name contains '${escaped}'`]:[])];
   if(type==='folders')q.push(`mimeType = '${DRIVE_FOLDER}'`);
   const data=await(await this.request('files',{q:q.join(' and '),fields:`nextPageToken,files(${DRIVE_FIELDS})`,pageSize:'50',orderBy:'folder,name',supportsAllDrives:'true',includeItemsFromAllDrives:'true',...(after?{pageToken:after}:{})})).json();
   for(const file of data.files||[])this.cache.set(file.id,file);
   return data;
+ }
+ // Each continuation performs at most four folder-list calls, never a metadata GET per match.
+ async searchPage(root:string,search:string,type:string,state:any=null){
+  const queue:Array<{id:string,phase:string,after:string}>=state?.queue?.map((f:any)=>({...f}))||[{id:driveId(root),phase:'folders',after:''}];
+  let visited=state?.visited||0,calls=0;const files=[];
+  while(queue.length&&calls<4){
+   if(queue.length>1000||visited>4000)throw new DriveError('search_scope_too_large');
+   const frame=queue[0];
+   try{await this.scoped(frame.id,root);}catch(error){if(error instanceof DriveError&&['outside_brand_folder','file_unavailable','drive_permission_required'].includes(error.code)){queue.shift();continue;}throw error;}
+   const page=await this.list(frame.id,frame.phase==='folders'?'':search,frame.phase==='folders'?'folders':type,frame.after,true);calls++;
+   if(frame.phase==='folders'){
+    for(const folder of page.files||[])if(folder.mimeType===DRIVE_FOLDER&&folder.id!==frame.id)queue.push({id:folder.id,phase:'folders',after:''});
+    if(page.nextPageToken)frame.after=page.nextPageToken;else{frame.phase='matches';frame.after='';}
+   }else{
+    files.push(...(page.files||[]));
+    if(page.nextPageToken)frame.after=page.nextPageToken;else{queue.shift();visited++;}
+    if(files.length)break;
+   }
+  }
+  if(queue.length>1000)throw new DriveError('search_scope_too_large');
+  return {files,state:queue.length?{queue,visited}:null};
  }
  async thumbnail(file:any):Promise<{bytes:Uint8Array,mime:string}> {
   if(!file.mimeType?.startsWith('image/')||!file.capabilities?.canDownload)throw new DriveError('thumbnail_unavailable');

@@ -7,7 +7,8 @@ export const creatorPostAdapters={
 };
 export const creatorService={
  directory:(org)=>rpc('marketing_creator_directory',{p_org:org,p_brand:null}),
- read:(org,brand)=>rpc('marketing_creators_read',{p_org:org,p_brand:brand||null}),
+ history:(org,post,after=null)=>rpc('marketing_creator_metric_history',{p_org:org,p_post:post,p_after:after,p_size:25}),
+ read:(org,brand)=>rpc('marketing_creator_workspace',{p_org:org,p_brand:brand||null}),
  profile:async(org,brand,url)=>{
  const {data:{session}}=await supabase.auth.getSession();
  const response=await fetch('/api/marketing-creator-inspect',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session?.access_token||'')},body:JSON.stringify({org,brand,url,kind:'profile'})});

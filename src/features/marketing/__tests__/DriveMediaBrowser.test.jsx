@@ -41,3 +41,8 @@ it('loads tile thumbnails separately from full previews and aborts them on unmou
  const rendered=render(<DriveMediaBrowser organizationId="org" brandId="brand"/>);await screen.findByRole('button',{name:'Preview Beta.jpg'});observe([{isIntersecting:true}]);await waitFor(()=>expect(service.preview).toHaveBeenCalled());
  const call=service.preview.mock.calls[0];expect(call[3]).toMatchObject({representation:'thumbnail'});expect(call[3].signal.aborted).toBe(false);rendered.unmount();expect(call[3].signal.aborted).toBe(true);
 });
+it('debounces a search burst into one browse call and cancels abandoned requests',async()=>{
+ connect();const mounted=render(<DriveMediaBrowser organizationId="org" brandId="brand"/>);await screen.findByRole('button',{name:'Preview Beta.jpg'});const before=service.browse.mock.calls.length;
+ fireEvent.change(screen.getByRole('searchbox',{name:'Search'}),{target:{value:'B'}});fireEvent.change(screen.getByRole('searchbox',{name:'Search'}),{target:{value:'Be'}});fireEvent.change(screen.getByRole('searchbox',{name:'Search'}),{target:{value:'Beta'}});
+ await waitFor(()=>expect(service.browse).toHaveBeenLastCalledWith('org','brand',expect.objectContaining({search:'Beta'})));expect(service.browse.mock.calls.length-before).toBe(1);const signal=service.browse.mock.calls.at(-1)[2].signal;mounted.unmount();expect(signal.aborted).toBe(true);
+});

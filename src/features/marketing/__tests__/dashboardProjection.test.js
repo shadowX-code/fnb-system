@@ -1,6 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
 import {latestPosts,metricAggregate,socialProjection,performanceBuckets,observationBuckets,rankSocialPosts,operationProjection} from '../dashboardProjection.js';
-import {collectPages,dashboardService} from '../dashboardService.js';
+import {dashboardService} from '../dashboardService.js';
 import {marketingService} from '../marketingService.js';
 const post=(patch={})=>({id:'1',brand_id:'b',channel:'instagram',connection_id:'c',provider_account_id:'a',provider_post_id:'p',published_at:'2026-10-10T20:00:00Z',observed_at:'2026-10-12T00:00:00Z',metrics:{views:10,interactions:0,reach:5},...patch});
 describe('Social Analytics evidence projection',()=>{
@@ -68,12 +68,12 @@ describe('Operational dashboard projection',()=>{
  const r=operationProjection({tasks:[{id:'blocked',blocked:true,status:'planned'}],content:null,conversations:null},[{id:'b'}],'2026-10-13','2026-10-01');expect(r.actions).toHaveLength(1);expect(r.brandRows[0].issues).toBeNull();expect(r.week.reviews).toBeNull();
  });
 });
-describe('Canonical page collection',()=>{
- it('loads all pages rather than presenting page totals as the full evidence',async()=>{
- const load=vi.fn().mockResolvedValueOnce({posts:[1],total:2}).mockResolvedValueOnce({posts:[2],total:2});expect((await collectPages(load,'posts','total',1)).posts).toEqual([1,2]);expect(load).toHaveBeenCalledTimes(2);
+describe('Bounded dashboard reads',()=>{
+ it('uses one date-scoped publication read instead of walking observation history',async()=>{
+  const spy=vi.spyOn(marketingService,'socialPublications').mockResolvedValue({posts:[],connections:[]});await dashboardService.social('org','brand','2026-10-01','2026-10-31');expect(spy).toHaveBeenCalledOnce();expect(spy).toHaveBeenCalledWith('org','brand','2026-10-01','2026-10-31',undefined);spy.mockRestore();
  });
- it('fails honestly if paging cannot deliver complete evidence',async()=>{
- const load=vi.fn().mockResolvedValueOnce({posts:[1],total:2}).mockResolvedValueOnce({posts:[],total:2});await expect(collectPages(load,'posts','total',1)).rejects.toThrow('complete report');
+ it('shares one canonical active-work read across content and conversation projections',async()=>{
+  const spy=vi.spyOn(marketingService,'dashboardOperations').mockResolvedValue({content:[{id:'review'}],conversations:[]});const result=await dashboardService.operations('org','brand','2026-10-01',code=>code!=='marketing_planner.view');expect(spy).toHaveBeenCalledOnce();expect(result.content).toHaveLength(1);expect(result.conversations).toEqual([]);spy.mockRestore();
  });
  it('never invokes sources without their existing view permission',async()=>{
  const spy=vi.spyOn(marketingService,'contentManagement');const r=await dashboardService.operations('org','','2026-10-01',()=>false);expect(r.tasks).toBeNull();expect(r.unavailable).toHaveLength(3);expect(spy).not.toHaveBeenCalled();spy.mockRestore();

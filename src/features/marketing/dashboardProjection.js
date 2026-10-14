@@ -17,7 +17,7 @@ export function latestPosts(observations) {
   const latest={...rows[0],key,metrics:{},metric_provenance:{},metric_observations:{}};
   for(const name of ['views','viewers','interactions','likes','reactions','comments','shares','saves','reach','watch_time_ms','avg_watch_time_ms']){
    const valid=rows.find(r=>r.connection_id===latest.connection_id&&r.connection_generation===latest.connection_generation&&postMetric(r,name)!==null);
-   if(valid){latest.metrics[name]=postMetric(valid,name);latest.metric_observations[name]=valid.metric_provenance?.[name]?.observed_at||valid.observed_at;if(valid.metric_provenance?.[name])latest.metric_provenance[name]=valid.metric_provenance[name];}
+   if(valid){latest.metrics[name]=postMetric(valid,name);latest.metric_observations[name]=valid.metric_observations?.[name]||valid.metric_provenance?.[name]?.observed_at||valid.observed_at;if(valid.metric_provenance?.[name])latest.metric_provenance[name]=valid.metric_provenance[name];}
   }
   return latest;
  });

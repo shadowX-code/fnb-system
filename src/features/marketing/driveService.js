@@ -1,7 +1,7 @@
 import {supabase} from '../../lib/supabase';
 const base=`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/marketing-drive`;
-async function command(action,organizationId,brandId,body={}){
- const {data,error}=await supabase.functions.invoke(`marketing-drive/${action}`,{body:{organizationId,brandId,...body}});
+async function command(action,organizationId,brandId,body={},signal){
+ const {data,error}=await supabase.functions.invoke(`marketing-drive/${action}`,{body:{organizationId,brandId,...body},signal});
  if(error){let message='Media request could not be completed.';if(error.context instanceof Response)try{message=(await error.context.json()).error||message;}catch{}throw new Error(message);}return data;
 }
 export const driveService={
@@ -9,7 +9,7 @@ export const driveService={
  context:(org,brand)=>command('context',org,brand),
  authorize:org=>command('authorize',org,null),disconnect:org=>command('disconnect',org,null),
  folders:(org,body)=>command('folders',org,null,body),map:(org,brand,body)=>command('map',org,brand,{...body,confirmOwnership:true}),
- browse:(org,brand,body)=>command('browse',org,brand,body),async preview(org,brand,file,{representation,signal}={}){
+ browse:(org,brand,{signal,...body})=>command('browse',org,brand,body,signal),async preview(org,brand,file,{representation,signal}={}){
   const {data,error}=await supabase.auth.getSession();if(error||!data.session)throw new Error('Sign in again.');
   const response=await fetch(base+'/preview',{method:'POST',headers:{Authorization:`Bearer ${data.session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({organizationId:org,brandId:brand,fileId:file.selection_id||file.id,version:file.version,representation}),signal,cache:'no-store'});
   if(!response.ok){let message='Media preview unavailable.';try{message=(await response.json()).error||message;}catch{}throw new Error(message);}return response.blob();
