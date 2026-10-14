@@ -1,0 +1,1 @@
+TikTok and Xiaohongshu SVG geometry: Simple Icons (CC0), https://github.com/simple-icons/simple-icons/tree/develop/icons. Names and logos remain trademarks of their owners. Rendered by the canonical SocialChannelIcon alongside existing Facebook/Instagram icons.

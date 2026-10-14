@@ -974,3 +974,12 @@ Made revision feedback optional across Board/List/Drawer through the existing re
 
 ## 2026-10-14 — bounded XHS Creator extraction trial
 Approved one DataXAPI note-detail execution succeeded using trial credit. Existing Inspector gains a server-only exact-request trial adapter with same-key retries, scoped reduced cache, provider provenance and manual fallback; existing private Post confirmation and preview allowlists accept the observed XHS cover CDN. No new paid call identity, production change or real Creator/Post save. See qa/staging/marketingCreatorXhsProvider.md.
+
+
+## 2026-10-14 — Creator management workflow (Staging)
+
+- Documentation Impact: canonical domain/authority update (L3); updated `docs/domains/marketing.md`.
+- Creator creation no longer requires a Brand; explicit Collaboration/Post relationships retain per-member isolation and global-edit safeguards. Added normalized independent Location/Category options with impact-confirmed rename/archive preservation.
+- Added profile-specific bounded public inspection through the existing Staging endpoint, optional advanced fields and provenance; no new paid provider, authenticated scraping or ownership verification.
+- Compact collaboration publishing reuses canonical deliverables and Posts, supports explicit duplicate reuse, confirmed partial publication and closure without fabricated completion. Hidden historical owner/follow-up/time values remain preserved.
+- Staging forward migrations applied; rollback-only authority acceptance passed. Scoped UI/extraction regressions and build passed. Authenticated deployed UI acceptance recorded under `qa/staging/marketingCreators/managementAcceptance.md`. No Production/main/provider-permission or external publishing changes.

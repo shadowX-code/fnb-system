@@ -3,7 +3,7 @@ import chromium from '@sparticuz/chromium';
 import {boundedGet} from './network.mjs';
 import {allowedResource,platformUrl} from './urls.mjs';
 // No user browser/profile, stealth, CAPTCHA handling or authentication is used.
-export async function renderPublic(url,platform,budget,{executablePath}={}){
+export async function renderPublic(url,platform,budget,{executablePath,urlResolver=platformUrl}={}){
  const browser=await playwright.launch({executablePath:executablePath||await chromium.executablePath(),args:[...(executablePath?[]:chromium.args),'--dns-prefetch-disable','--force-webrtc-ip-handling-policy=disable_non_proxied_udp'],headless:true,timeout:12000});
  try{
   const context=await browser.newContext({serviceWorkers:'block',acceptDownloads:false});
@@ -13,7 +13,7 @@ export async function renderPublic(url,platform,budget,{executablePath}={}){
    const req=route.request();
    if(req.method()!=='GET'||!allowedResource(req.url(),platform)||['image','media','font','websocket'].includes(req.resourceType())||req.isNavigationRequest()&&req.frame()!==page.mainFrame())return route.abort();
    try{
-    if(req.isNavigationRequest()){if(++navigations>6)return route.abort();if(platformUrl(req.url()).platform!==platform)return route.abort()}
+    if(req.isNavigationRequest()){if(++navigations>6)return route.abort();if(urlResolver(req.url()).platform!==platform)return route.abort()}
     const result=await boundedGet(req.url(),platform,budget,false,req.headers()['user-agent']);
     if(req.isNavigationRequest())mainStatus=result.status;
     // Browser cannot perform its own DNS lookup or send cookies/credentials: all traffic is pinned here.

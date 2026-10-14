@@ -7,6 +7,11 @@ export const creatorPostAdapters={
 };
 export const creatorService={
  read:(org,brand)=>rpc('marketing_creators_read',{p_org:org,p_brand:brand||null}),
+ profile:async(org,brand,url)=>{
+ const {data:{session}}=await supabase.auth.getSession();
+ const response=await fetch('/api/marketing-creator-inspect',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session?.access_token||'')},body:JSON.stringify({org,brand,url,kind:'profile'})});
+ const data=await response.json();if(!response.ok)throw new Error(data.error||'Profile details unavailable.');return data;
+ },
  preview:async(org,brand,url)=>{
  const {data:{session}}=await supabase.auth.getSession();
  const response=await fetch('/api/marketing-creator-inspect',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session?.access_token||'')},body:JSON.stringify({org,brand,url})});

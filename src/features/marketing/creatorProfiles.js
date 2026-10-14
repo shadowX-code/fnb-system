@@ -1,5 +1,6 @@
 // URL recognition is a data-entry aid; it never verifies ownership or fetches a profile.
 export function recognizeCreatorProfile(value) {
+ if(typeof value!=='string'||value.length>1500)throw new Error('Use a supported public profile URL.');
  const url=new URL(value.trim());
  if(url.protocol!=='https:'||url.username||url.password||url.port)throw new Error('Use a public HTTPS profile URL.');
  const host=url.hostname.toLowerCase(),path=url.pathname.replace(/\/$/,'');let platform,handle='',external_id='',canonical;
@@ -14,7 +15,7 @@ export function recognizeCreatorProfile(value) {
  return {platform,profile_url:canonical,handle,external_id};
 }
 export function profileConflict(profile,accounts,creatorId){
- return accounts.find(a=>a.id!==profile.id&&a.platform===profile.platform&&
+ return accounts.find(a=>a!==profile&&(!profile.id||a.id!==profile.id)&&a.platform===profile.platform&&
  ((profile.handle&&a.handle?.toLowerCase()===profile.handle.replace(/^@/,'').toLowerCase())||
  (profile.external_id&&a.external_id===profile.external_id)||
  (profile.profile_url&&a.profile_url?.toLowerCase()===profile.profile_url.toLowerCase())));

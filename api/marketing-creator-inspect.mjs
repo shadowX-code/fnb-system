@@ -1,3 +1,4 @@
+import {inspectProfile,profileIdentity} from '../server/creatorExtraction/profiles.mjs';
 import {inspectPublic} from '../server/creatorExtraction/inspect.mjs';
 import {platformUrl} from '../server/creatorExtraction/urls.mjs';
 const STAGING='https://ujkzdaaadnvcfayuldmh.supabase.co';
@@ -13,7 +14,15 @@ export default async function handler(req,res){
  async function rpc(name,args){const r=await fetch(STAGING+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:process.env.VITE_SUPABASE_ANON_KEY||'',Authorization:req.headers.authorization,'Content-Type':'application/json'},body:JSON.stringify(args),signal:AbortSignal.timeout(10000)});if(!r.ok)throw new Error(r.status===401?'signed_out':'access_or_limit');return r.json()}
  const scope={p_org:body.org,p_brand:body.brand};
  try{
-  const input=platformUrl(body.url);
+  const profileMode=body.kind==='profile';
+  const input=profileMode?profileIdentity(body.url):platformUrl(body.url);
+  if(profileMode){
+   await rpc('marketing_creators_read',scope);
+   lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
+   const profile=await inspectProfile(body.url);
+   await rpc('marketing_creators_read',scope);
+   return res.status(200).json(profile);
+  }
   const original=await rpc('marketing_creator_post_preview',{...scope,p_url:input.canonical_url});
   if(original.duplicate)return res.status(200).json(original);
   lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
