@@ -1,6 +1,6 @@
 import {resolveBrandContext,selectBrandContext} from './brandContext.js';
 import {useEffect,useMemo,useRef,useState} from 'react';
-import {Plus,Users,CalendarDays,Link as LinkIcon,BarChart3,LayoutGrid,List,ExternalLink,RefreshCw,UserRound,MapPin,Mail,Phone,Eye,Image as ImageIcon} from 'lucide-react';
+import {Plus,Users,CalendarDays,Link as LinkIcon,BarChart3,LayoutGrid,List,ExternalLink,RefreshCw,MapPin,Mail,Phone,Eye} from 'lucide-react';
 import {useAuth} from '../../auth/AuthContext.jsx';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
@@ -21,7 +21,7 @@ import MarketingMediaPreview from './MarketingMediaPreview.jsx';
 import CreatorEditor,{AccountEditor,CollaborationEditor,PostEditor,MetricsEditor} from './CreatorEditors.jsx';
 import {marketingService} from './marketingService.js';
 import {creatorService} from './creatorService.js';
-import {creatorPlatforms,collaborationStates,publishingProgress,label,number,day,stamp,money,filterCreators,creatorInsights,creatorFollowups} from './creatorPresentation.js';
+import {creatorPlatforms,collaborationStates,publishingProgress,label,number,day,money,filterCreators,creatorInsights,creatorFollowups} from './creatorPresentation.js';
 import './marketing.css';
 import './creators.css';
 const blank={options:[],creators:[],accounts:[],collaborations:[],posts:[],snapshots:[],members:[],campaigns:[],assets:[]};

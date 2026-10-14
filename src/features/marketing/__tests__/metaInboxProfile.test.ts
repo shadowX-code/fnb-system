@@ -1,3 +1,4 @@
+import { it } from 'vitest';
 import {
   profileFields,
   sanitizeInboxProfile,
@@ -5,7 +6,7 @@ import {
 function assert(v: unknown) {
   if (!v) throw new Error("profile contract failed");
 }
-Deno.test(
+it(
   "profile reads use only official minimal fields and cannot request a different channel",
   () => {
     assert(profileFields("instagram") === "name,username,profile_pic");
@@ -19,7 +20,7 @@ Deno.test(
     assert(failed);
   },
 );
-Deno.test(
+it(
   "profile projection preserves unavailable fields and excludes unrelated data and unsafe URLs",
   () => {
     const result = sanitizeInboxProfile(

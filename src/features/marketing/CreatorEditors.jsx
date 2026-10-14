@@ -11,7 +11,6 @@ import TextareaField from '../../components/forms/TextareaField.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import DatePickerField from '../../components/forms/DatePickerField.jsx';
 import TimePickerField from '../../components/forms/TimePickerField.jsx';
-import TagPicker from '../../components/forms/TagPicker.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import MarketingMediaPicker from './MarketingMediaPicker.jsx';
 import {PostMedia} from './PostDetail.jsx';

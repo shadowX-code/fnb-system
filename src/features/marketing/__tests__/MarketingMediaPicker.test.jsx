@@ -1,0 +1,21 @@
+import {afterEach,it,expect,vi} from 'vitest';
+import {render,screen,fireEvent,waitFor,cleanup} from '@testing-library/react';
+import MarketingMediaPicker from '../MarketingMediaPicker.jsx';
+const {listing}=vi.hoisted(()=>({listing:vi.fn()}));
+vi.mock('../marketingService.js',()=>({marketingService:{listing}}));
+vi.mock('../DriveMediaBrowser.jsx',()=>({default:()=>null}));
+vi.mock('../MarketingMediaPreview.jsx',()=>({default:({asset})=><span>{asset.filename}</span>}));
+afterEach(()=>{cleanup();vi.clearAllMocks()});
+it('uses the canonical total_count to reach and select saved media after the first page',async()=>{
+ const asset=n=>({id:`asset-${n}`,filename:`Image ${n}`,state:'ready',mime_type:'image/jpeg',size_bytes:100});
+ listing.mockResolvedValueOnce({rows:Array.from({length:20},(_,i)=>asset(i+1)),total_count:21,page:1,page_size:20}).mockResolvedValueOnce({rows:[asset(21)],total_count:21,page:2,page_size:20});
+ const selected=vi.fn();
+ render(<MarketingMediaPicker brand={{id:'brand',organization_id:'org'}} format="image" channel="facebook" onChange={selected} initialOpen/>);
+ fireEvent.click(screen.getByRole('tab',{name:'Existing FeedX media'}));
+ await screen.findByText('Image 1');
+ const next=screen.getAllByRole('button',{name:'Next',exact:true}).find(button=>!button.disabled);
+ expect(next).toBeTruthy();fireEvent.click(next);
+ await screen.findByText('Image 21');
+ await waitFor(()=>expect(listing).toHaveBeenLastCalledWith({organizationId:'org',brandId:'brand',kind:'assets',page:2,pageSize:20}));
+ fireEvent.click(screen.getByRole('button',{name:'Select Image 21'}));expect(selected).toHaveBeenCalledWith(['asset-21']);
+});

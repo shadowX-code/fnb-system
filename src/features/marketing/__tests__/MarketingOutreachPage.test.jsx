@@ -1,5 +1,5 @@
 import {describe,it,expect,vi,beforeEach} from 'vitest';
-import {render,screen,fireEvent,cleanup,within} from '@testing-library/react';
+import {render,screen,fireEvent,cleanup,within,waitFor} from '@testing-library/react';
 import MarketingOutreachPage from '../MarketingOutreachPage.jsx';
 const {marketing,outreach}=vi.hoisted(()=>({marketing:{context:vi.fn()},outreach:{read:vi.fn(),command:vi.fn(),customer:vi.fn(),customers:vi.fn(),audiencePreview:vi.fn()}}));
 vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>({user:{id:'actor'},hasPermission:()=>true})}));
@@ -48,7 +48,7 @@ it('keeps sender confirmation across recipients, and requires it again on a new 
  const state={...base,campaigns:[{id:'campaign',title:'Session test',status:'ready',revision:1,approved_revision:1,caption:'Hi'}],senders:[{id:'sender',label:'Declared sender',phone_e164:'+60123456789',active:true,is_default:true,revision:1}],recipients:[{id:'r1',display_name:'First',state:'pending',eligible:true},{id:'r2',display_name:'Second',state:'pending',eligible:true}]};
  outreach.read.mockResolvedValue(state);outreach.command.mockResolvedValue({id:'session',campaign_id:'campaign',campaign_revision:1,sender_id:'sender',sender_revision:1,sender_snapshot:{label:'Declared sender',phone_e164:'+60123456789'},expires_at:'2099-01-01T00:00:00Z'});
  const mounted=render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click((await screen.findAllByRole('button',{name:'Session test',exact:true}))[0]);
- await vi.waitFor(()=>expect(screen.getByRole('button',{name:'Confirm Sender & Start Session'}).disabled).toBe(false));fireEvent.click(screen.getByRole('button',{name:'Confirm Sender & Start Session'}));expect(screen.queryByRole('checkbox')).toBeNull();fireEvent.click(within(screen.getByRole('dialog')).getByRole('button',{name:'Confirm Sender & Start Session'}));
+ await waitFor(()=>expect(screen.getByRole('button',{name:'Confirm Sender & Start Session'}).disabled).toBe(false));fireEvent.click(screen.getByRole('button',{name:'Confirm Sender & Start Session'}));expect(screen.queryByRole('checkbox')).toBeNull();fireEvent.click(within(screen.getByRole('dialog')).getByRole('button',{name:'Confirm Sender & Start Session'}));
  await screen.findByText('Sender confirmed for this session');expect(outreach.command.mock.calls[0].slice(3)).toEqual(['sender_session','campaign',{revision:1,senderId:'sender',senderRevision:1}]);
  fireEvent.change(screen.getByRole('combobox',{name:'Recipient'}),{target:{value:'r2'}});expect(screen.getByText('Sender confirmed for this session')).toBeTruthy();expect(screen.getByRole('button',{name:'Open WhatsApp'}).disabled).toBe(false);
  mounted.unmount();render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click((await screen.findAllByRole('button',{name:'Session test',exact:true}))[0]);await screen.findByRole('button',{name:'Confirm Sender & Start Session'});expect(screen.getByRole('button',{name:'Open WhatsApp'}).disabled).toBe(true);

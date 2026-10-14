@@ -32,12 +32,10 @@ import {
   CONTENT_TIMEZONE,
   POST_METRICS, postMetric, metricReason, preferredMetricColumns, saveMetricColumns,
   contentBounds,
-  contentMetric,
   contentStatusLabel,
   preferredContentView,
   saveContentView,
   shiftContentPeriod,
-  shiftDay,
 } from "./contentManagement.js";
 import "./contentManagement.css";
 

@@ -26,7 +26,7 @@ import MarketingMediaPicker from './MarketingMediaPicker.jsx';
 import MarketingMediaPreview from './MarketingMediaPreview.jsx';
 import {marketingService} from './marketingService.js';
 import {plannerService} from './plannerService.js';
-import {recentCompleted,taskDueState,taskStatuses,taskTypes,currentMonth,todayKey,shiftMonth,shiftDate,weekOf,monthWeeks,allowedMoves,plannerSummary,sortedTasks,filterTasks,taskPayload,plannerPreferences,listStatusMoves,canReorderList} from './contentPlanner.js';
+import {recentCompleted,taskDueState,taskStatuses,taskTypes,currentMonth,todayKey,shiftMonth,shiftDate,monthWeeks,allowedMoves,plannerSummary,sortedTasks,filterTasks,taskPayload,plannerPreferences,listStatusMoves,canReorderList} from './contentPlanner.js';
 import './contentPlanner.css';
 const statusName=value=>taskStatuses.find(s=>s.value===value)?.label||value;
 const typeName=value=>taskTypes.find(s=>s.value===value)?.label||value;

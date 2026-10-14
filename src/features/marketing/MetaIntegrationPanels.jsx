@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
-import Modal from '../../components/feedback/Modal.jsx';
-import Badge from '../../components/ui/Badge.jsx';
 import AdminPagination from '../../components/tables/AdminPagination.jsx';
 import { marketingService } from './marketingService.js';
 const label = value => value.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());

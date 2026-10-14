@@ -59,7 +59,6 @@ Deno.serve(async req=>{
    const url=new URL('https://accounts.google.com/o/oauth2/v2/auth');for(const [k,v] of Object.entries({client_id:env('MARKETING_GOOGLE_DRIVE_CLIENT_ID'),redirect_uri:REDIRECT,response_type:'code',scope:DRIVE_SCOPE,access_type:'offline',prompt:'consent',state,code_challenge:base64url(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)))),code_challenge_method:'S256'}))url.searchParams.set(k,v);
    return reply({url:url.toString()});
   }
-  if(action==='disconnect'){await call('disconnect');return reply({ok:true});} // Local revocation; do not revoke Google's combined grant for other applications.
   const material=await call('material');let token=await unseal(material.sealed_token,[env('MARKETING_GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY'),env('MARKETING_GOOGLE_DRIVE_PREVIOUS_TOKEN_ENCRYPTION_KEY')],binding(org!,material.generation));
   if(new Date(material.expires_at).getTime()<Date.now()+60000){try{const fresh=await grant({grant_type:'refresh_token',refresh_token:token.refresh_token});token={...token,...fresh};await call('refresh',{generation:material.generation,sealed_token:await encrypt(token,material.generation),expires_at:new Date(Date.now()+fresh.expires_in*1000).toISOString()});}catch(error){await call('expired',{generation:material.generation});throw error;}}
   const drive=new GoogleDrive(token.access_token),root=material.root;
