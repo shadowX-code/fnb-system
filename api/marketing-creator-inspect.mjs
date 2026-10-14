@@ -24,7 +24,7 @@ export default async function handler(req,res){
   const data=await rpc('marketing_creators_read',scope);
   const matches=result.author_external_id?(data.accounts||[]).filter(a=>!a.archived&&a.platform===result.platform&&a.external_id===result.author_external_id):[];
   const verified=matches.filter(a=>a.identity_verified);
-  return res.status(200).json({...canonical,...result,duplicate:canonical.duplicate,matched_creator_id:verified.length===1?verified[0].creator_id:null,matched_account_id:verified.length===1?verified[0].id:null,identity_verified:verified.length===1,author_identity_observed:Boolean(result.author_external_id),source:'Public post · review and confirm before saving',message:result.unavailable?.post||result.message});
+  return res.status(200).json({platform:canonical.platform,post_key:canonical.post_key,canonical_url:canonical.canonical_url,...result,duplicate:canonical.duplicate,matched_creator_id:verified.length===1?verified[0].creator_id:null,matched_account_id:verified.length===1?verified[0].id:null,identity_verified:verified.length===1,author_identity_observed:Boolean(result.author_external_id),source:'Public post · review and confirm before saving',message:result.unavailable?.post||result.message});
  }catch(error){return res.status(error.message==='signed_out'?401:400).json({error:error.message==='access_or_limit'?'Access changed or the inspection limit was reached. Try later.':'Post inspection is unavailable. Check the URL and use manual details if necessary.'})}
  finally{if(lease)await rpc('marketing_creator_inspection_access',{...scope,p_begin:false,p_lease:lease}).catch(()=>{})}
 }

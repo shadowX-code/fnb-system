@@ -14,6 +14,6 @@ export async function boundedGet(value,platform,budget,redirects=true,userAgent=
   });req.on('timeout',()=>req.destroy(new Error('provider_timeout')));req.on('error',reject);
  });
  const decompress={'gzip':gunzipSync,'br':brotliDecompressSync,'deflate':inflateSync}[result.headers['content-encoding']];if(decompress){const raw=result.body.length;result.body=decompress(result.body,{maxOutputLength:5000000});budget.bytes+=result.body.length-raw;if(budget.bytes>25000000)throw new Error('inspection_limit');}
- if(redirects&&result.status>=300&&result.status<400&&result.headers.location){if(++budget.redirects>5)throw new Error('redirect_limit');const next=new URL(result.headers.location,u).href;const p=platformUrl(next);if(p.platform!==platform)throw new Error('redirect_not_supported');return boundedGet(next,platform,budget,true,userAgent)}
+ if(redirects&&result.status>=300&&result.status<400&&result.headers.location){if(++budget.redirects>5)throw new Error('redirect_limit');const next=new URL(result.headers.location,u).href;if(/^\/(?:accounts\/)?login(?:\/|$)/.test(new URL(next).pathname))throw new Error('provider_access_restricted');const p=platformUrl(next);if(p.platform!==platform)throw new Error('redirect_not_supported');return boundedGet(next,platform,budget,true,userAgent)}
  return result;
 }
