@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-const mocks = vi.hoisted(() => ({ context: vi.fn(), sync: vi.fn(), map: vi.fn(), authorize: vi.fn(), disconnect: vi.fn(), discover: vi.fn(), legacy: vi.fn(), save: vi.fn(), history: vi.fn() }));
+const mocks = vi.hoisted(() => ({ context: vi.fn(), sync: vi.fn(), map: vi.fn(), authorize: vi.fn(), disconnect: vi.fn(), revoke: vi.fn(), discover: vi.fn(), legacy: vi.fn(), save: vi.fn(), history: vi.fn() }));
 vi.mock('../../services/googleBusinessService.js', () => ({ googleBusinessService: mocks }));
 vi.mock('../../../../services/crewService.js', () => ({ crewService: { googleReviewsAdminContext: mocks.legacy, setGoogleMonthlyTarget: mocks.save, googleTargetHistory: mocks.history } }));
 import CrewGoogleReviewsAdminPage from '../CrewGoogleReviewsAdminPage.jsx';
@@ -49,7 +49,7 @@ describe('Google Reviews Inbox and Settings', () => {
     const dialog = screen.getByRole('dialog', { name: 'Disconnect Google Business Profile' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' })); expect(mocks.disconnect).not.toHaveBeenCalled();
   });
-  it('prevents duplicate confirmed disconnects and retains an actionable revocation error', async () => {
+  it('prevents duplicate confirmed disconnects and retains an actionable local disconnect error', async () => {
     mocks.context.mockResolvedValue(connected);
     let reject;
     mocks.disconnect.mockImplementation(() => new Promise((_, fail) => { reject = fail; }));
@@ -60,7 +60,7 @@ describe('Google Reviews Inbox and Settings', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Disconnect', exact: true }));
     expect(within(dialog).getByRole('button', { name: 'Disconnecting…' }).disabled).toBe(true);
     expect(mocks.disconnect).toHaveBeenCalledTimes(1);
-    reject(new Error('Google revoke failed. Retry disconnect.'));
+    reject(new Error('Local disconnect failed. Retry disconnect.'));
     expect((await within(dialog).findByRole('alert')).textContent).toContain('Retry disconnect');
   });
   it('lists explicit multi-outlet mappings without guessing matching names', async () => {
@@ -153,4 +153,14 @@ describe('Google Reviews Inbox and Settings', () => {
     fireEvent.change(screen.getByLabelText('Positive reviews'), { target: { value: '3' } }); fireEvent.click(screen.getByRole('button', { name: 'Save target' }));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(outlet.id, expect.stringMatching(/^\d{4}-\d{2}-01$/), 3));
   });
+});
+
+it('separates local Disconnect from explicit Google-wide revocation',async()=>{
+ mocks.context.mockResolvedValue(connected);mount();await screen.findByText('Ready to sync');settings();
+ fireEvent.click(screen.getByRole('button',{name:'Manage Connection'}));fireEvent.click(screen.getByRole('menuitem',{name:'Disconnect',exact:true}));
+ let dialog=screen.getByRole('dialog',{name:'Disconnect Google Business Profile'});expect(dialog.textContent).toContain('other environments stays intact');
+ fireEvent.click(within(dialog).getByRole('button',{name:'Cancel'}));expect(mocks.revoke).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Manage Connection'}));fireEvent.click(screen.getByRole('menuitem',{name:'Revoke Google Authorization'}));
+ dialog=screen.getByRole('dialog',{name:'Revoke Google Authorization'});expect(dialog.textContent).toContain('both Staging and Production');expect(mocks.revoke).not.toHaveBeenCalled();
+ fireEvent.click(within(dialog).getByRole('button',{name:'Cancel'}));expect(mocks.disconnect).not.toHaveBeenCalled();
 });

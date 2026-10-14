@@ -1,12 +1,26 @@
 {
+  "disconnectChecks": {
+    "staleGenerationRejected": true,
+    "unconfirmedRevokeRejected": true,
+    "localAtomicClear": true,
+    "localRetrySafe": true,
+    "explicitGlobalTransition": true,
+    "serviceOnly": true
+  },
   "applied": [
     "20261014094703_crew_google_business_phase_one.sql",
     "20261014103818_crew_google_business_rest_guard.sql",
     "20261014130653_google_business_owner_replies.sql",
     "20261014132350_google_business_reply_write_guard.sql",
-    "20261014135852_google_business_reply_readback.sql"
+    "20261014135852_google_business_reply_readback.sql",
+    "20261014181028_google_business_disconnect_isolation.sql"
   ],
   "functions": [
+    {
+      "proname": "crew_google_business_disconnect",
+      "signature": "p_action text, p_user uuid, p_outlet uuid, p_data jsonb",
+      "prosecdef": true
+    },
     {
       "proname": "crew_google_business_reply_guard",
       "signature": "p_user uuid, p_outlet uuid, p_id uuid, p_lease uuid",
@@ -36,5 +50,5 @@
       "jobname": "crew-google-business-reply-content-purge"
     }
   ],
-  "scope": "DDL ordering/definition guard rehearsal only; canonical Auth helpers not invoked; cron scheduling shim; no business data or network"
+  "scope": "DDL ordering/definition guards plus synthetic disconnect authority transitions/grants; permission helper stubs and cron shim; no business data or network"
 }

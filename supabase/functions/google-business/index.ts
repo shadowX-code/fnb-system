@@ -1,3 +1,4 @@
+import { disconnectBusinessConnection } from '../_shared/googleBusinessDisconnect.ts';
 import { googleBusinessEnvironment } from '../_shared/googleBusinessEnvironment.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { hash, nonce, seal, unseal, base64url, tokenEncryptionReady } from '../_shared/metaSecurity.ts';
@@ -14,7 +15,7 @@ const keys = () => [secret(), env('GOOGLE_BUSINESS_PREVIOUS_TOKEN_ENCRYPTION_KEY
 const tokenBinding = (generation: number) => `google-business:token:${generation}`;
 const inboxBinding = (generation: number, mapping: any) => `google-business:inbox:${generation}:${mapping.location_resource_name}:${mapping.revision}`;
 const configured = () => ['CLIENT_ID','CLIENT_SECRET','TOKEN_ENCRYPTION_KEY'].every(n => env('GOOGLE_BUSINESS_' + n));
-const messages: Record<string, string> = { reconnect_required: 'Reconnect Google Business Profile in Settings.', google_access_denied: 'Google location access is unavailable. Check the connected account.', google_unavailable: 'Google is temporarily unavailable. Try again.', revocation_pending: 'Google revocation did not finish. Retry Disconnect; review access is already disabled.', sync_limit: 'This location exceeds the supported sync size. Contact your administrator.', repeated_page: 'Google returned incomplete pagination. Retry sync.', invalid_review: 'Google review evidence could not be verified. Retry sync.', conflicting_review: 'Google changed a review during sync. Retry sync.', invalid_review_aggregate: 'Google rating totals could not be verified. Retry sync.', changed_review_aggregate: 'Google rating totals changed during sync. Retry sync.', incomplete_review_dataset: 'Google returned an incomplete review dataset. Retry sync.', invalid_inbox_cache: 'Review cache is unavailable. Sync reviews again.', invalid_reply_text: 'Enter a reply of at most 4096 UTF-8 bytes.' };
+const messages: Record<string, string> = { reconnect_required: 'Reconnect Google Business Profile in Settings.', google_access_denied: 'Google location access is unavailable. Check the connected account.', google_unavailable: 'Google is temporarily unavailable. Try again.', revocation_pending: 'Google-wide revocation did not finish. Retry Revoke Google Authorization; this environment is already disconnected.', sync_limit: 'This location exceeds the supported sync size. Contact your administrator.', repeated_page: 'Google returned incomplete pagination. Retry sync.', invalid_review: 'Google review evidence could not be verified. Retry sync.', conflicting_review: 'Google changed a review during sync. Retry sync.', invalid_review_aggregate: 'Google rating totals could not be verified. Retry sync.', changed_review_aggregate: 'Google rating totals changed during sync. Retry sync.', incomplete_review_dataset: 'Google returned an incomplete review dataset. Retry sync.', invalid_inbox_cache: 'Review cache is unavailable. Sync reviews again.', invalid_reply_text: 'Enter a reply of at most 4096 UTF-8 bytes.' };
 
 export async function handle(req: Request) {
  let environment;
@@ -37,6 +38,10 @@ export async function handle(req: Request) {
   const result = await db.rpc('crew_google_business_reply_server', { p_action: command, p_user: user, p_outlet: outlet, p_data: data });
   if (result.error) throw new Error(result.error.message);
   return result.data;
+ };
+ const connectionControl=async(command:string,data:any={})=>{
+  const result=await db.rpc('crew_google_business_disconnect',{p_action:command,p_user:user,p_outlet:outlet,p_data:data});
+  if(result.error)throw new Error(result.error.message);return result.data;
  };
  const confirmedReplies=async()=>{
   const result=await db.rpc('crew_google_business_reply_projection',{p_user:user,p_outlet:outlet});
@@ -102,6 +107,7 @@ export async function handle(req: Request) {
    }
    return reply(result);
   }
+  if(action==='disconnect')return reply(await disconnectBusinessConnection('local',{generation:body.generation ?? context.generation},{control:connectionControl,revoke:async()=>{throw new Error('Local disconnect cannot revoke Google.');}}));
   if (!configured()) throw new Error('An administrator must configure Google Business Profile.');
   if (action === 'authorize') {
    const state = nonce(), verifier = nonce(), stateHash = await hash(state);
@@ -110,14 +116,9 @@ export async function handle(req: Request) {
    for (const [k,v] of Object.entries({ client_id: env('GOOGLE_BUSINESS_CLIENT_ID'), redirect_uri: redirect, response_type: 'code', scope: BUSINESS_SCOPE, access_type: 'offline', prompt: 'consent', state, code_challenge: base64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)))), code_challenge_method: 'S256' })) url.searchParams.set(k,v);
    return reply({ url: url.toString() });
   }
-  if (action === 'disconnect') {
-   const pending = await call('disconnect_begin');
-   if (!pending.disconnected) {
-    if (pending.sealed_token) { const token = await unseal(pending.sealed_token, keys(), tokenBinding(pending.token_generation)); await revokeBusinessGrant(token.refresh_token || token.access_token); }
-    await call('disconnect_finish', { generation: pending.generation });
-   }
-   return reply({ ok: true });
-  }
+  if(action==='revoke')return reply(await disconnectBusinessConnection('global',{generation:body.generation,confirmed:body.confirmed,scopeAcknowledged:body.scopeAcknowledged},{control:connectionControl,revoke:async pending=>{
+   if(pending.sealed_token){const token=await unseal(pending.sealed_token,keys(),tokenBinding(pending.token_generation));await revokeBusinessGrant(token.refresh_token || token.access_token);}
+  }}));
   if (action === 'map') {
    if (body.confirmMapping !== true) throw new Error('Confirm the selected Google location belongs to this outlet.');
    return reply(await call('map', { location: body.location || null, generation: body.generation, expected_revision: body.revision || null }));

@@ -1,0 +1,6 @@
+# PREPARED ONLY: apply after approved public/terms.html is supplied; never deploy without it.
+# Add before filesystem/fallback in vercel.json routes:
+# {"src":"/terms/?","dest":"/terms.html","has":[{"type":"host","value":"feedx.my"}]}
+# {"src":"/terms.html","dest":"/index.html","missing":[{"type":"host","value":"feedx.my"}]}
+# Link /terms from the public site alongside /privacy after content approval.
+# Validate /terms is the approved document (not SPA fallback) before adding Google Branding URL.
