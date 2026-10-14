@@ -1,0 +1,14 @@
+import {describe,it,expect,vi,afterEach} from 'vitest';
+import handler from '../../../../api/marketing-creator-inspect.mjs';
+import {inspectPublic} from '../../../../server/creatorExtraction/inspect.mjs';
+vi.mock('../../../../server/creatorExtraction/inspect.mjs',()=>({inspectPublic:vi.fn()}));
+const org='ec42a08a-0f59-4b7b-a48e-b2faacf9eaf1',brand='88718f61-2915-42ef-b62f-5e6e2fe5b3eb';
+function res(){return {setHeader:vi.fn(),status(n){this.code=n;return this},json:vi.fn()}}
+function req(){return {method:'POST',headers:{authorization:'Bearer fixture.jwt.signature'},body:{org,brand,url:'https://www.instagram.com/p/abc/'}}}
+afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.clearAllMocks()});
+function stage(){vi.stubEnv('VITE_SUPABASE_URL','https://ujkzdaaadnvcfayuldmh.supabase.co');vi.stubEnv('VERCEL_PROJECT_ID','prj_t6uJtKPDu9GuyefG6IqAfxh5YoIi');vi.stubEnv('VERCEL_GIT_COMMIT_REF','dev')}
+describe('authenticated Staging public inspector',()=>{
+ it('rejects Production and anonymous requests before external extraction',async()=>{stage();vi.stubEnv('VITE_SUPABASE_URL','https://oyfobxdoyfuzsodogpgs.supabase.co');const r=res();await handler(req(),r);expect(r.code).toBe(403);stage();const missing=req();missing.headers={};const denied=res();await handler(missing,denied);expect(denied.code).toBe(401);expect(inspectPublic).not.toHaveBeenCalled()});
+ it('never starts a browser for denied Brand access',async()=>{stage();vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('{}',{status:403})));const r=res();await handler(req(),r);expect(r.code).toBe(400);expect(inspectPublic).not.toHaveBeenCalled()});
+ it('rechecks canonical identity after extraction, requires exact verified account matches, and releases its lease',async()=>{stage();const calls=[];vi.stubGlobal('fetch',vi.fn(async(url,options)=>{calls.push([url,JSON.parse(options.body)]);return new Response(JSON.stringify(url.endsWith('inspection_access')?(JSON.parse(options.body).p_begin?'lease':null):url.endsWith('creators_read')?{accounts:[{id:'a',creator_id:'c',platform:'instagram',external_id:'123',identity_verified:true}]}:{platform:'instagram',canonical_url:'https://www.instagram.com/p/abc/'}))}));inspectPublic.mockResolvedValue({platform:'instagram',canonical_url:'https://www.instagram.com/p/abc/',author_external_id:'123',caption:'Observed',metadata_status:'public_extracted'});const r=res();await handler(req(),r);expect(r.code).toBe(200);expect(r.json).toHaveBeenCalledWith(expect.objectContaining({matched_creator_id:'c',matched_account_id:'a'}));expect(calls.filter(([url])=>url.endsWith('post_preview'))).toHaveLength(2);expect(calls.at(-1)[1]).toEqual({p_org:org,p_brand:brand,p_begin:false,p_lease:'lease'})});
+});

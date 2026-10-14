@@ -106,8 +106,8 @@ export function metricReason(channel,key) {
  if(key==='interactions'&&channel?.channel==='facebook')return 'Complete reaction, comment and share counts unavailable';
  return 'Not available from Meta';
 }
-export function safePostMediaUrl(value) {
- try {const u=new URL(value);return u.protocol==='https:' && /(^|\.)(fbcdn\.net|cdninstagram\.com)$/.test(u.hostname)&& !/(access_token|authorization|appsecret)/i.test(value)?value:null;}catch{return null;}
+export function safePostMediaUrl(value,platform) {
+ try {const u=new URL(value),extra=platform==='xhs'?/(^|\.)(xhscdn\.com|xiaohongshu\.com)$/:platform==='tiktok'?/(^|\.)(tiktokcdn\.com|tiktokcdn-us\.com|tiktokv\.com|ibytedtos\.com|byteoversea\.com|muscdn\.com)$/:null;return u.protocol==='https:'&&!u.username&&!u.password&&!u.port&&(/(^|\.)(fbcdn\.net|cdninstagram\.com)$/.test(u.hostname)||extra?.test(u.hostname))&&!/(access_token|authorization|appsecret)/i.test(value)?value:null;}catch{return null;}
 }
 export function safePostLink(value) {
  try {const u=new URL(value);return u.protocol==='https:' && /(^|\.)(facebook\.com|instagram\.com)$/.test(u.hostname)?value:null;}catch{return null;}

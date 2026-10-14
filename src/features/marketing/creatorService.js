@@ -7,6 +7,11 @@ export const creatorPostAdapters={
 };
 export const creatorService={
  read:(org,brand)=>rpc('marketing_creators_read',{p_org:org,p_brand:brand||null}),
- preview:(org,brand,url)=>rpc('marketing_creator_post_preview',{p_org:org,p_brand:brand,p_url:url}),
+ preview:async(org,brand,url)=>{
+ const {data:{session}}=await supabase.auth.getSession();
+ const response=await fetch('/api/marketing-creator-inspect',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session?.access_token||'')},body:JSON.stringify({org,brand,url})});
+ if(!response.ok){const problem=await response.json().catch(()=>({}));const fallback=await rpc('marketing_creator_post_preview',{p_org:org,p_brand:brand,p_url:url});return {...fallback,message:problem.error||'Extraction unavailable. Manual entry remains available.'};}
+ return response.json();
+ },
  command:({request,org,brand,action,id=null,revision=0,payload={}})=>rpc('marketing_creator_command',{p_request:request,p_org:org,p_brand:brand,p_action:action,p_id:id,p_revision:revision,p_payload:payload}),
 };
