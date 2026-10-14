@@ -1,6 +1,8 @@
 # Marketing Hub Staging readiness and Production release assessment
 14 October 2026 · QA L3 for the scoped Meta subscription correction. This is a readiness assessment, not Production release authorization.
 
+> Later Conversations audit: [current Meta access, Production configuration and draft App Review packet](2026-10-14-marketing-conversations-production-readiness.md). The baseline delta below supersedes the earlier snapshot for this audit; earlier Creator crawler statements describe the earlier cycle, not current platform coverage.
+
 ## Decision
 **NO-GO for a blanket dev-to-main release.** Existing CRM, Planner, Publishing, Inbox, manual WhatsApp, Ads Analytics and Creator CRM acceptance is retained. The remaining echo correction is a small shared adapter change. Creator crawling is not deployed; the operator selected a separate implementation/hosting proposal rather than rebuilding it in this cycle.
 
@@ -106,3 +108,26 @@ Rollback preparation: record deployed code SHA, migration hashes, Edge versions,
 - Recovery remained bounded/incomplete and deduplicated existing messages. Hola returned 20 messages/12 outgoing, three eligible outgoing observations; Idamans returned two messages outside the recent window. These counts do not mean new messages were sent or all history recovered.
 - Live authenticated Connections still shows all four existing social accounts Operational, independent capabilities intact. Google Drive remains Connected with one explicitly mapped Brand.
 - Focused suite: six files / 43 tests passed. Build passed; existing bundle-size warning remains. No new SQL migration, customer write, role assignment, Outlet mapping or Production action.
+
+## Conversations Production recheck — later 14 October 2026
+
+Read-only audit, QA L1 for documentation/preparation; no live acceptance or authorization change. Source dev `367aead3c62edf2aaff5b1df4df731213715ce5e`. Full channel requirements, observed Meta UI statuses, proposed URLs/secrets, runtime corrections, App Review drafts and GO conditions are in the [Conversations packet](2026-10-14-marketing-conversations-production-readiness.md).
+
+- Production remains 651 migration records (latest 20261013091929), with zero Marketing tables/RPCs/functions/jobs and no Marketing server secret names/Vault entries. Brand/member scope prerequisites remain absent. No Production values were retrieved or installed.
+- Staging is now 806 records (latest 20261014055043); version-set difference is 165. All 111 prior candidate file hashes still match. The seven later Creator migrations below are not silently appended to the Inbox release scope. The manifest remains an unrehearsed candidate inventory, not an executable dependency closure.
+- First three later migrations have applied version stamps different from repository filenames. Match by body/hash and applied definition during release reconciliation; do not blindly apply both stamps or rewrite shared migration history. This audit verifies repository hashes, not applied SQL-body equivalence.
+- Published Meta App is independently confirmed; pages_messaging and instagram_manage_messages both show Ready for testing, Business Verification In review and Tech Provider Access Verification Not verified. General-customer Advanced Access is not established.
+- Existing four Staging connections retain delivery_verified and execution evidence false; FB echoes true for Idamans/Hola. No refresh/repair or message was triggered.
+- Production adaptation must cover fixed Staging Edge/CORS/callback checks, OAuth RPC redirect and scheduler URL, plus test-only send/profile status assumptions and account/peer gates. A secret-only rollout cannot work. Shared worker depends on privacy/media/Ads/publishing authorities; include their true dependency closure without automatically releasing their external execution.
+
+| Applied Staging version | Repository migration | SHA-256 | Scope |
+|---|---|---|---|
+| 20261014032018 | 20261014030902_marketing_creator_public_inspection.sql | 86d9045ac8e250126c09304140de19893ad023350b2ab2e79532f8911eba61ca | Later Creator change; not established as Inbox prerequisite |
+| 20261014033939 | 20261014033913_marketing_creator_inspection_budget_scope.sql | e9c2d57fc0269a627364fb638a8e1f87a9c8427e4f615749b01b3a08551d2e80 | Later Creator change; not established as Inbox prerequisite |
+| 20261014045332 | 20261014045243_marketing_creator_xhs_preview_host.sql | 9668232ec08040c9327d7e9f4a21523b9fbe6176b551ee1d331c03052023414c | Later Creator change; not established as Inbox prerequisite |
+| 20261014052101 | 20261014052101_marketing_creator_management_workflow.sql | 4b4beae8f2e5ff033479b2008439557b1f26b967b89c3d0f03d44c1ef8cb9847 | Later Creator change; not established as Inbox prerequisite |
+| 20261014052613 | 20261014052613_marketing_creator_management_guards.sql | fe6d8a817d73f86197f0ba14d26d467f2eff8fcfcfc862cb46b008b61bf9cbcd | Later Creator change; not established as Inbox prerequisite |
+| 20261014053333 | 20261014053333_marketing_creator_option_scope_guards.sql | d89b9d6110926d0a3965e814eada0ab6ee24866f83fb4a3c7257bc5c895782de | Later Creator change; not established as Inbox prerequisite |
+| 20261014055043 | 20261014055043_marketing_creator_legacy_option_matching.sql | 64eccda851f652a927370dd67a537055784c71f2f484a6467137204011de26aa | Later Creator change; not established as Inbox prerequisite |
+
+Unchanged decisions: no blanket dev merge, no Production deployment, no external review submission, no callback changes, no staff-send activation, no autonomous replies. Existing legal decision registers remain open.
