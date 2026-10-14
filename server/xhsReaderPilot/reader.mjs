@@ -4,7 +4,7 @@ import {resolvePostUrl,networkBudget} from '../creatorExtraction/network.mjs';
 import {extractMetadata} from '../creatorExtraction/extract.mjs';
 import {relay} from './transport.mjs';
 const LOGIN='https://www.xiaohongshu.com/explore';
-export function createReader({store,executablePath,liveApproved=false,persistApproved=false,launch=options=>chromium.launch(options),now=Date.now}){
+export function createReader({store,executablePath,liveApproved=false,persistApproved=false,postIds=[],launch=options=>chromium.launch(options),now=Date.now}){
  let pending=null,busy=false,state='disconnected',lastRead=0;const cache=new Map();
  const status=()=>({status:state,configured:Boolean(executablePath),live_enabled:liveApproved,session_persistence_enabled:persistApproved});
  async function closePending(){const old=pending;pending=null;if(old){clearTimeout(old.timer);await old.browser.close()}}
@@ -36,7 +36,7 @@ export function createReader({store,executablePath,liveApproved=false,persistApp
     if(['blocked','expired','awaiting_login'].includes(state))throw new Error('reader_'+state);
     const saved=await store.load();if(!saved||saved.expires_at<=now()){state='expired';await store.clear();cache.clear();throw new Error('reader_expired')}
     const input=platformUrl(url);if(input.platform!=='xhs')throw new Error('reader_url_invalid');const resolved=input.share?await resolvePostUrl(url,networkBudget(10000)):input;
-    const key=resolved.post_id,cached=cache.get(key);if(cached&&cached.until>now())return {...cached.result,original_url:input.original_url,cache_hit:true};
+    const key=resolved.post_id;if(!postIds.includes(key))throw new Error('reader_post_not_approved');const cached=cache.get(key);if(cached&&cached.until>now())return {...cached.result,original_url:input.original_url,cache_hit:true};
     if(now()-lastRead<3000)throw new Error('reader_rate_limited');lastRead=now();
     const current=await browserSession(saved.storage);const start=now(),deadline=setTimeout(()=>current.browser.close().catch(()=>{}),25000);deadline.unref?.();
     try{

@@ -32,7 +32,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  const env=process.env,org=env.XHS_READER_ORG,brand=env.XHS_READER_BRAND;
  if(!/^[a-f0-9-]{36}$/.test(org||'')||!/^[a-f0-9-]{36}$/.test(brand||'')||!env.XHS_READER_SESSION_FILE||!env.VITE_SUPABASE_ANON_KEY)throw new Error('reader_configuration_required');
  const store=sessionStore(env.XHS_READER_SESSION_FILE,env.XHS_READER_ENCRYPTION_KEY,org+':'+brand);
- const reader=createReader({store,executablePath:env.XHS_READER_CHROMIUM,liveApproved:env.XHS_READER_LIVE_APPROVED==='true'&&env.XHS_READER_PLATFORM_USE_CONFIRMED==='true',persistApproved:env.XHS_READER_SESSION_APPROVED==='true'});
+ const reader=createReader({store,executablePath:env.XHS_READER_CHROMIUM,liveApproved:env.XHS_READER_LIVE_APPROVED==='true'&&env.XHS_READER_PLATFORM_USE_CONFIRMED==='true',persistApproved:env.XHS_READER_SESSION_APPROVED==='true',postIds:(env.XHS_READER_POST_IDS||'').split(',').filter(id=>/^[a-f0-9]{24}$/.test(id)).slice(0,5)});
  const server=readerServer({reader,org,brand,anonKey:env.VITE_SUPABASE_ANON_KEY});server.requestTimeout=35000;server.headersTimeout=5000;server.listen(Number(env.XHS_READER_PORT||4765),'127.0.0.1');
  const shutdown=()=>{server.close();reader.shutdown().finally(()=>process.exit())};process.once('SIGTERM',shutdown);process.once('SIGINT',shutdown);
 }
