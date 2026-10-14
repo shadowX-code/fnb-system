@@ -12,6 +12,8 @@ begin
  assert jsonb_array_length(c->'locations')=2 and jsonb_array_length(c->'categories')=1;
  assert (select count(*) from marketing_creator_accounts where creator_id=(c->>'id')::uuid)=2;
  denied:=false;begin perform marketing_creator_command(gen_random_uuid(),org,null,'save_creator',null,0,payload);exception when unique_violation then denied:=true;end;assert denied,'Atomic duplicate prevention failed';
+ -- Reproduce pre-normalization spelling/spacing without changing any business row.
+ update marketing_creators set locations=array[' qa   ipoh ','QA Penang'],location=' qa   ipoh ' where id=(c->>'id')::uuid;
  select to_jsonb(x) into o from marketing_creator_options x where organization_id=org and kind='location' and normalized='qa ipoh';
  denied:=false;begin perform marketing_creator_command(gen_random_uuid(),org,null,'option_rename',(o->>'id')::uuid,(o->>'revision')::int,'{"kind":"location","name":"QA Kuala Lumpur"}');exception when others then denied:=true;end;assert denied,'Used-option impact confirmation absent';
  o:=marketing_creator_command(gen_random_uuid(),org,null,'option_rename',(o->>'id')::uuid,(o->>'revision')::int,'{"kind":"location","name":"QA Kuala Lumpur","confirm_impact":true}');
