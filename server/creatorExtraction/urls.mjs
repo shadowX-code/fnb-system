@@ -15,7 +15,7 @@ export function platformUrl(value){
 export function allowedResource(value,platform){
  let u;try{u=new URL(value)}catch{return false}
  if(u.protocol!=='https:'||u.port||u.username||u.password)return false;
- const domains={instagram:['instagram.com','cdninstagram.com','fbcdn.net'],facebook:['facebook.com','fb.watch','fbcdn.net','fbsbx.com'],xhs:['xiaohongshu.com','xhslink.com','xhscdn.com','xiaohongshu.net'],tiktok:['tiktok.com','tiktokcdn.com','tiktokcdn-us.com','tiktokv.com','byteoversea.com','ibytedtos.com','muscdn.com','tiktokv.us']};
+ const domains={instagram:['instagram.com','cdninstagram.com','fbcdn.net'],facebook:['facebook.com','fb.watch','fbcdn.net','fbsbx.com'],xhs:['xiaohongshu.com','xhslink.com','xhscdn.com','xiaohongshu.net','sns-i11.rednotecdn.com'],tiktok:['tiktok.com','tiktokcdn.com','tiktokcdn-us.com','tiktokv.com','byteoversea.com','ibytedtos.com','muscdn.com','tiktokv.us']};
  return domains[platform]?.some(d=>u.hostname===d||u.hostname.endsWith('.'+d))||false;
 }
 export function publicThumbnail(value,platform){if(!value||/(access_token|authorization|appsecret)/i.test(value)||!allowedResource(value,platform))return null;return value.length<3000?value:null;}

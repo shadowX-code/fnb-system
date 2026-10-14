@@ -1,10 +1,12 @@
 import {load} from 'cheerio';
+import {inspectXhs} from './dataxapi.mjs';
 import {platformUrl,publicThumbnail} from './urls.mjs';
 import {boundedGet,networkBudget} from './network.mjs';
 import {extractMetadata} from './extract.mjs';
 import {renderPublic} from './browser.mjs';
 export async function inspectPublic(value,options={}){
  const start=Date.now(),input=platformUrl(value),budget=networkBudget(45000);let result,rendered=false;
+ const provider=await inspectXhs(input,options);if(provider)return provider;
  try{
   const response=await boundedGet(input.request_url,input.platform,budget),resolved=platformUrl(response.url);
   if([401,403,429].includes(response.status))throw new Error(response.status===429?'provider_rate_limited':'provider_access_restricted');

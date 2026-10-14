@@ -971,3 +971,6 @@ Retained actual Idamans Messenger Delivered and Instagram Read acceptance; audit
 ### 2026-10-14 — Planner revision, blocker and drawer workflow
 
 Made revision feedback optional across Board/List/Drawer through the existing reviewer command. Added an edit-authorized, revision-bound blocker action that preserves Kanban status and production approval lineage while retaining blocker snapshots and clearing active details on resolution. Drawer actions use canonical ActionMenu/destructive confirmation and the shared MonthPickerField; production scheduling, Insights, publishing authority and soft removal remain unchanged. Scoped L3 rollback checks cover synthetic reviewer/editor boundaries and lifecycle behavior; affected frontend regressions and authenticated Staging workflow/presentation verification cover the UI.
+
+## 2026-10-14 — bounded XHS Creator extraction trial
+Approved one DataXAPI note-detail execution succeeded using trial credit. Existing Inspector gains a server-only exact-request trial adapter with same-key retries, scoped reduced cache, provider provenance and manual fallback; existing private Post confirmation and preview allowlists accept the observed XHS cover CDN. No new paid call identity, production change or real Creator/Post save. See qa/staging/marketingCreatorXhsProvider.md.
