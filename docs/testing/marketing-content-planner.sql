@@ -21,7 +21,9 @@ begin
  denied:=false;begin perform public.marketing_planner_command(gen_random_uuid(),org,brand,'transition',(task->>'id')::uuid,(task->>'revision')::integer,'{"status":"in_review"}');exception when others then denied:=true;end;if not denied then raise exception 'Blocked work entered review';end if;
  task:=public.marketing_planner_command(gen_random_uuid(),org,brand,'save',(task->>'id')::uuid,(task->>'revision')::integer,'{"blocked":false}');
  task:=public.marketing_planner_command(gen_random_uuid(),org,brand,'transition',(task->>'id')::uuid,(task->>'revision')::integer,'{"status":"in_review"}');
- denied:=false;begin perform public.marketing_planner_command(gen_random_uuid(),org,brand,'request_revision',(task->>'id')::uuid,(task->>'revision')::integer,'{}');exception when others then denied:=true;end;if not denied then raise exception 'Empty revision feedback accepted';end if;
+ task:=public.marketing_planner_command(gen_random_uuid(),org,brand,'request_revision',(task->>'id')::uuid,(task->>'revision')::integer,'{}');
+ if task->>'status'<>'revision_needed' or task->>'review_feedback'<>'' then raise exception 'Optional feedback transition failed';end if;
+ task:=public.marketing_planner_command(gen_random_uuid(),org,brand,'transition',(task->>'id')::uuid,(task->>'revision')::integer,'{"status":"in_review"}');
  task:=public.marketing_planner_command(gen_random_uuid(),org,brand,'request_revision',(task->>'id')::uuid,(task->>'revision')::integer,'{"feedback":"Use the approved visual"}');
  task:=public.marketing_planner_command(gen_random_uuid(),org,brand,'transition',(task->>'id')::uuid,(task->>'revision')::integer,'{"status":"in_review"}');
  -- Exact canonical authorizer with a disposable non-reviewer role; reset before continuing.

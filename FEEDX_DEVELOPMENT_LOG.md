@@ -961,3 +961,8 @@ Fixed mixed-channel publication buckets suppressing valid Facebook/Instagram dat
 
 ### 2026-10-13 — Conversations outbound readiness
 Retained actual Idamans Messenger Delivered and Instagram Read acceptance; audited current testing access, expired windows and disabled execution. Fixed sanitized provider-rejection feedback and preservation of typed text on failed/unknown outcomes. Fresh manual retries reuse canonical authority only after definitive failure; uncertain/accepted attempts remain duplicate-protected. Focused authenticated rollback checks cover windows, Role/member scope, team handling, receipts and retry leases. Production and external messaging remain disabled.
+
+
+### 2026-10-14 — Planner revision, blocker and drawer workflow
+
+Made revision feedback optional across Board/List/Drawer through the existing reviewer command. Added an edit-authorized, revision-bound blocker action that preserves Kanban status and production approval lineage while retaining blocker snapshots and clearing active details on resolution. Drawer actions use canonical ActionMenu/destructive confirmation and the shared MonthPickerField; production scheduling, Insights, publishing authority and soft removal remain unchanged. Scoped L3 rollback checks cover synthetic reviewer/editor boundaries and lifecycle behavior; affected frontend regressions and authenticated Staging workflow/presentation verification cover the UI.
