@@ -78,7 +78,7 @@ export function HolographicRing() {
   );
 }
 
-export function AuthBrandPanel() {
+export function AuthBrandPanel({ publicPage = false }) {
   return (
     <section className="feedx-brand-panel">
       <div className="feedx-home-logo" aria-label="FeedX F&B Intelligence">
@@ -94,6 +94,7 @@ export function AuthBrandPanel() {
         </p>
       </div>
       <FeatureList />
+      {publicPage && <a href="https://feedx.my/privacy" className="text-sm text-white underline underline-offset-4">Privacy Policy</a>}
     </section>
   );
 }
@@ -106,7 +107,7 @@ export function FeedXVisualShell({ children, variant = "auth" }) {
       <div className="feedx-login-glow feedx-login-glow-b" />
 
       <div className={`feedx-login-grid ${variant === "public" ? "feedx-public-grid" : ""}`}>
-        <AuthBrandPanel />
+        <AuthBrandPanel publicPage={variant === "public"} />
         <HolographicRing />
         {children}
       </div>
