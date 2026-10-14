@@ -81,7 +81,7 @@ export default function Drawer({
         )}
         <div className={`min-h-0 flex-1 overflow-y-auto p-4 ${bodyClassName}`}>{children}</div>
         {footer ? (
-          <footer className={`sticky bottom-0 z-sticky-layer flex flex-wrap items-center justify-end gap-3 shrink-0 border-t border-border bg-surface/95 p-3 shadow-[0_-10px_24px_rgba(15,23,42,0.06)] backdrop-blur ${footerClassName}`}>
+          <footer className={`sticky bottom-0 z-sticky-layer flex flex-wrap items-center justify-end gap-[12px] shrink-0 border-t border-border bg-surface/95 p-3 shadow-[0_-10px_24px_rgba(15,23,42,0.06)] backdrop-blur ${footerClassName}`}>
             {footer}
           </footer>
         ) : null}
