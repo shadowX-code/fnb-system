@@ -4,3 +4,8 @@
 # {"src":"/terms.html","dest":"/index.html","missing":[{"type":"host","value":"feedx.my"}]}
 # Link /terms from the public site alongside /privacy after content approval.
 # Validate /terms is the approved document (not SPA fallback) before adding Google Branding URL.
+# middleware.js must also canonicalize /terms.html -> /terms on feedx.my,
+# and expand its exact public legal-path allowlist to /^\/(privacy|terms)\/?$/.
+# Preserve rejection of nested legal paths and all non-public-host routing.
+# Add focused hostname tests for /terms, /terms/, /terms.html, and /terms/admin rejection.
+# /terms currently redirects to / at the host boundary (not an existing legal page).
