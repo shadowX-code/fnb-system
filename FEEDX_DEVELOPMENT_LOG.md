@@ -1,5 +1,10 @@
 # FeedX Development Log
 
+## 2026-10-14 — Creator public inspection and browser worker
+
+Extended the existing authenticated Creator URL workflow with bounded anonymous HTML/structured metadata, TikTok public oEmbed and a real Playwright worker in the existing Staging project. Current member Brand checks, canonical Post confirmation, source-labelled staff observations, date precision, duplicate protection and OAuth-reference privacy remain enforced. Real Staging UI established Instagram/TikTok extraction, partial Facebook metadata with browser rendering and an explicit XHS login restriction. No paid scraping/AI service, provider permission change, external publishing or Production deployment. Canonical contract: docs/domains/marketing.md; focused acceptance: qa/staging/marketingCreatorExtraction.md.
+
+
 ## 2026-10-13 — Platform per-member Brand Access
 
 - Replaced effective role-wide Marketing scope with Platform member assignments, preserving current access, protected roles, memberships and Role grants. Same-Role members can receive independent Brands through Team & Brand Access.

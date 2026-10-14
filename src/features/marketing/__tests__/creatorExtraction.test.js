@@ -17,7 +17,7 @@ describe('public Creator extraction boundaries',()=>{
  });
  it('extracts an actual Instagram metadata shape without copying counter prefixes into caption',()=>{
   const html='<meta property="og:description" content=\'180 likes, 1 comments - tasteeipoh on December 17, 2025: "Actual caption".\'><meta property="og:image" content="https://scontent.cdninstagram.com/a.jpg"><time datetime="2025-12-17T11:00:18Z"></time>';
-  const p=extractMetadata(html,'https://www.instagram.com/p/DSXLNZqCJzl/');expect(p.caption).toBe('Actual caption');expect(p.author_handle).toBe('tasteeipoh');expect(p.metrics).toEqual({likes:180,comments:1});expect(p.unavailable.shares).toBeTruthy();expect(p.provenance.likes.estimated).toBe(false);
+  const p=extractMetadata(html,'https://www.instagram.com/p/DSXLNZqCJzl/');expect(p.caption).toBe('Actual caption');expect(p.published_at).toBe('2025-12-17T11:00:18Z');expect(p.date_precision).toBe('instant');const dateOnly=extractMetadata(html.replace(/<time[^>]*><\/time>/,''),'https://www.instagram.com/p/DSXLNZqCJzl/');expect(dateOnly.published_at).toBe('2025-12-17');expect(dateOnly.date_precision).toBe('date');expect(p.author_handle).toBe('tasteeipoh');expect(p.metrics).toEqual({likes:180,comments:1});expect(p.unavailable.shares).toBeTruthy();expect(p.provenance.likes.estimated).toBe(false);
  });
  it('leaves absent and labelled counters unavailable, while retaining genuine zero',()=>{
   expect(metric('Likes')).toBe(null);expect(metric('0')).toBe(0);expect(metric('24.1K')).toBe(24100);
