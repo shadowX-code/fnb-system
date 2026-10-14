@@ -35,7 +35,7 @@ export default function SelectField({
   const filteredOptions = useMemo(
     () =>
       options.filter((option) =>
-        `${option.label} ${option.description || ""}`
+        `${option.searchText ?? option.label} ${option.description || ""}`
           .toLowerCase()
           .includes(query.trim().toLowerCase()),
       ),
@@ -208,6 +208,7 @@ export default function SelectField({
                 optionRefs.current[index] = node;
               }}
               role="option"
+              aria-label={option.searchText}
               aria-selected={String(option.value) === String(value)}
               className="admin-select-option"
               type="button"

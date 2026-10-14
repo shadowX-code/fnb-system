@@ -1,0 +1,36 @@
+-- L3 isolated fixtures; every identity/permission/record rolls back. No provider calls.
+begin;
+select set_config('request.jwt.claim.sub','b6ee4db2-0f37-4b3e-a3ee-fa804ec5e6cd',true);
+do $$declare o uuid:=gen_random_uuid();b uuid:=gen_random_uuid();other_brand uuid:=gen_random_uuid();u uuid:=gen_random_uuid();e uuid:=gen_random_uuid();r uuid:=gen_random_uuid();c jsonb;foreign_c jsonb;a jsonb;tiktok jsonb;req uuid;result jsonb;payload jsonb;begin
+ insert into auth.users(id,email) values(u,'qa-avatar-'||u||'@example.invalid');
+ insert into public.roles(id,name,outlet_access_type) values(r,'Disposable Creator Avatar '||r,'none');
+ insert into public.role_permissions(role_id,permission_id) select r,id from public.permissions where code in ('marketing_workspace.access','marketing_creators.view','marketing_creators.manage');
+ insert into public.employees(id,full_name,role_id,auth_user_id,enable_system_login,access_state) values(e,'Disposable Creator Avatar',r,u,true,'active');
+ insert into public.organizations(id,name) values(o,'Disposable Avatar contract');
+ insert into public.brands(id,organization_id,name) values(b,o,'Disposable Avatar brand'),(other_brand,o,'Inaccessible Avatar brand');
+ insert into public.organization_memberships values(o,e);
+ insert into public.platform_member_brands values(o,e,b);
+ perform set_config('request.jwt.claim.sub',u::text,true);
+ c:=public.marketing_creator_command(gen_random_uuid(),o,null,'save_creator',null,0,'{"name":"Avatar Fixture"}');
+ foreign_c:=public.marketing_creator_command(gen_random_uuid(),o,null,'save_creator',null,0,'{"name":"Other Fixture"}');
+ payload:=jsonb_build_object('creator_id',c->>'id','platform','instagram','profile_url','https://www.instagram.com/avatar_fixture/','public_observation',jsonb_build_object('source','Public profile metadata','captured_at',now(),'avatar_url','https://scontent.cdninstagram.com/fixture.jpg','avatar_kind','profile_picture','profile_url','https://www.instagram.com/avatar_fixture/'));
+ a:=public.marketing_creator_command(gen_random_uuid(),o,null,'save_account',null,0,payload);
+ assert a->'public_observation'->>'avatar_kind'='profile_picture' and a->'public_observation'->>'source'='public_profile_staff_confirmed','Bound profile evidence missing';
+ req:=gen_random_uuid();payload:=c||jsonb_build_object('primary_instagram_account_id',a->>'id');
+ result:=public.marketing_creator_command(req,o,null,'save_creator',(c->>'id')::uuid,(c->>'revision')::int,payload);
+ assert result->>'primary_instagram_account_id'=a->>'id','Primary selection not saved';
+ assert result=public.marketing_creator_command(req,o,null,'save_creator',(c->>'id')::uuid,(c->>'revision')::int,payload),'Idempotent retry changed';c:=result;
+ begin perform public.marketing_creator_command(gen_random_uuid(),o,null,'save_creator',(foreign_c->>'id')::uuid,(foreign_c->>'revision')::int,foreign_c||jsonb_build_object('primary_instagram_account_id',a->>'id'));raise exception 'Foreign primary accepted';exception when raise_exception then if sqlerrm='Foreign primary accepted' then raise;end if;end;
+ tiktok:=public.marketing_creator_command(gen_random_uuid(),o,null,'save_account',null,0,jsonb_build_object('creator_id',c->>'id','platform','tiktok','profile_url','https://www.tiktok.com/@avatar_fixture'));
+ begin perform public.marketing_creator_command(gen_random_uuid(),o,null,'save_creator',(c->>'id')::uuid,(c->>'revision')::int,c||jsonb_build_object('primary_instagram_account_id',tiktok->>'id'));raise exception 'TikTok primary accepted';exception when raise_exception then if sqlerrm='TikTok primary accepted' then raise;end if;end;
+ begin perform public.marketing_creator_command(gen_random_uuid(),o,null,'save_creator',(c->>'id')::uuid,0,c);raise exception 'Stale revision accepted';exception when serialization_failure then null;end;
+ a:=public.marketing_creator_command(gen_random_uuid(),o,null,'save_account',(a->>'id')::uuid,(a->>'revision')::int,a||jsonb_build_object('public_observation',jsonb_build_object('source','Public profile metadata','captured_at',now(),'avatar_url','https://scontent.cdninstagram.com/fixture.jpg','avatar_kind','profile_picture','profile_url','https://www.instagram.com/wrong/')));
+ assert a->'public_observation'->>'avatar_kind' is null,'Unbound profile image promoted';
+ a:=public.marketing_creator_command(gen_random_uuid(),o,null,'archive_account',(a->>'id')::uuid,(a->>'revision')::int,a);
+ begin perform public.marketing_creator_command(gen_random_uuid(),o,null,'save_creator',(c->>'id')::uuid,(c->>'revision')::int,c);raise exception 'Archived primary accepted';exception when raise_exception then if sqlerrm='Archived primary accepted' then raise;end if;end;
+ c:=public.marketing_creator_command(gen_random_uuid(),o,null,'save_creator',(c->>'id')::uuid,(c->>'revision')::int,c||jsonb_build_object('primary_instagram_account_id',null));
+ assert c->>'primary_instagram_account_id' is null,'Automatic selection not restored';
+ begin perform public.marketing_creator_command(gen_random_uuid(),o,other_brand,'save_creator',null,0,'{"name":"Scope bypass"}');raise exception 'Foreign Brand accepted';exception when insufficient_privilege then null;end;
+ assert exists(select 1 from marketing_private.creator_revisions where entity='creator' and record_id=(c->>'id')::uuid and snapshot->>'primary_instagram_account_id'=a->>'id'),'Primary history missing';
+end;$$;
+rollback;

@@ -11,9 +11,10 @@ export function extractProfile(html,url){
  const advertised=meta('og:url')||$('link[rel="canonical"]').attr('href');
  if(advertised&&profileIdentity(advertised).profile_url!==input.profile_url)throw new Error('profile_identity_changed');
  const result={...input,avatar_url:profileAvatar(meta('og:image'),input.platform),display_name:'',followers:null,captured_at:new Date().toISOString(),source:'Public profile metadata',identity_verified:false};
+ let avatarBound=false;
  const title=meta('og:title')||$('title').text(),description=meta('og:description')||meta('description')||'';
  if(input.platform==='instagram'){
-  const named=title?.match(/^(.*?)\s*\(@([\w.]+)\)/);if(named&&named[2].toLowerCase()===input.handle)result.display_name=named[1].trim().slice(0,160);
+  const named=title?.match(/^(.*?)\s*\(@([\w.]+)\)/);if(named&&named[2].toLowerCase()===input.handle){result.display_name=named[1].trim().slice(0,160);avatarBound=true;}
   const followers=description.match(/^([\d,.]+\s*[KkMm]?)\s+Followers\b/);if(followers)result.followers=metric(followers[1]);
  }
  if(input.platform==='facebook'&&title?.endsWith(' | Facebook'))result.display_name=title.slice(0,-11).trim().slice(0,160);
@@ -22,8 +23,9 @@ export function extractProfile(html,url){
   const data=JSON.parse($(node).text()),info=data.__DEFAULT_SCOPE__?.['webapp.user-detail']?.userInfo;
   if(input.platform==='tiktok'&&info?.user?.uniqueId?.toLowerCase()===input.handle){const u=info.user;result.display_name=String(u.nickname||'').slice(0,160);result.external_id=/^\d+$/.test(u.id||'')?u.id:'';result.avatar_url=profileAvatar(u.avatarLarger||u.avatarMedium,'tiktok')||result.avatar_url;result.followers=metric(info.stats?.followerCount);}
  }catch{}
- for(const node of $('script[type="application/ld+json"]').toArray())try{const d=JSON.parse($(node).text());if(d['@type']==='Person'&&d.url&&profileIdentity(d.url).profile_url===input.profile_url){result.display_name=result.display_name||String(d.name||'').slice(0,160);result.avatar_url=result.avatar_url||profileAvatar(d.image,input.platform)}}catch{}
+ for(const node of $('script[type="application/ld+json"]').toArray())try{const d=JSON.parse($(node).text());if(d['@type']==='Person'&&d.url&&profileIdentity(d.url).profile_url===input.profile_url){avatarBound=true;result.display_name=result.display_name||String(d.name||'').slice(0,160);result.avatar_url=result.avatar_url||profileAvatar(d.image,input.platform)}}catch{}
  if(/captcha|access denied|security verification|^login|^log in|^sign in/i.test(title||''))throw new Error('profile_restricted');
+ if(input.platform==='instagram'){if(!avatarBound)result.avatar_url=null;if(result.avatar_url){result.avatar_kind='profile_picture';}}
  result.metadata_status=result.display_name||result.avatar_url||result.followers!==null?'public_extracted':'unavailable';
  result.unavailable=Object.fromEntries(['display_name','avatar_url','followers'].filter(k=>result[k]==null||result[k]==='').map(k=>[k,'Not exposed by the accessible public profile']));
  return result;

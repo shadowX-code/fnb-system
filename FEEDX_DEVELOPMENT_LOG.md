@@ -994,3 +994,7 @@ Approved one DataXAPI note-detail execution succeeded using trial credit. Existi
 ## 2026-10-14 — Marketing audit Critical/High remediation
 
 Platform role resolution now uses Employee precedence with guarded legacy-only fallback; canonical identity guards reject self-role/access escalation and unauthorized delegation without changing persisted grants or Brand scopes. Marketing worker claims publishing before deadline-bounded connection checks. Facebook Creator extraction/database parsers retain supported route context and stable post identity. Forward-only Staging migrations, rollback-only authenticated DB-role/lease rehearsals and focused regression tests cover these boundaries. Production remains a separate authorized release.
+
+### 2026-10-14 — Instagram-first Creator avatars
+
+Connected profile-bound Instagram picture observations to one shared Creator avatar across Directory, Detail and selection controls, with initials on unavailable/expired images. Optional primary Instagram selection is validated and audited by the existing Creator save authority; profile refresh reuses the authorized free extraction infrastructure. Provider image URLs remain references with no new storage. Staging authority fixtures, focused regressions and authenticated desktop/mobile Light/Dark checks verify the scoped workflow.
