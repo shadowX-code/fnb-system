@@ -57,11 +57,12 @@ export function AccountEditor({record,creator,org,brandId,busy,error,onClose,onS
  const [v,setV]=useState(record||emptyProfile());
  return <EditorDrawer draft={v} busy={busy} open title={record?'Edit Social Profile':'Add Social Profile'} onClose={onClose} width="md" footer={close=><Footer onClose={close} busy={busy} form="creator-account-form"/>}><form id="creator-account-form" className="creator-form" onSubmit={e=>{e.preventDefault();onSave({...profilePayload(v),creator_id:creator.id})}}><InlineError error={error}/><p>{creator.name}</p><fieldset disabled={busy}><SocialProfileFields value={v} onChange={setV} org={org} brandId={brandId}/></fieldset></form></EditorDrawer>
 }
-export function CollaborationEditor({record,seed={},data,brands,defaultBrand,org,busy,canManage,error,notice,onClose,onSave,onAddPost,onViewPost,onRemovePublishing}){
+export function CollaborationEditor({record,seed={},data,brands,defaultBrand,org,busy,canManage,error,notice,onFeedbackReset,onClose,onSave,onAddPost,onViewPost,onRemovePublishing}){
  const [v,setV]=useState(record||{title:'',creator_id:seed.creator_id||'',brand_id:seed.brand_id||defaultBrand||'',outlet_id:'',campaign_id:'',owner_id:'',visit_at:'',follow_up_date:'',status:'planned',cash_cost:'0',in_kind_cost:'0',currency:'MYR',cost_state:'estimated',notes:'',deliverables:[]});
  const local=record?.visit_at?localInput(new Date(record.visit_at),'Asia/Kuala_Lumpur'):'';
  const [visitDay,setVisitDay]=useState(local.slice(0,10)),[localError,setError]=useState(''),[directory,setDirectory]=useState(data),[confirm,setConfirm]=useState(null);
  useEffect(()=>{let live=true;creatorService.directory(org).then(next=>{if(live)setDirectory(next)}).catch(()=>{});return()=>{live=false}},[org]);
+ useEffect(()=>{setError('');onFeedbackReset?.()},[v,visitDay]);
  const brand=brands.find(b=>b.id===v.brand_id),set=(key,value)=>setV(v=>({...v,[key]:value})),creators=directory.creators.filter(c=>!c.archived||c.id===v.creator_id);
  const progress=publishingProgress({...v,id:record?.id},data.posts);
  const baseline=useRef(JSON.stringify({v,visitDay})),dirty=JSON.stringify({v,visitDay})!==baseline.current;
