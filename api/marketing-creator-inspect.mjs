@@ -1,3 +1,4 @@
+import {callReader} from '../server/xhsReaderPilot/client.mjs';
 import {inspectProfile,profileIdentity} from '../server/creatorExtraction/profiles.mjs';
 import {inspectPublic} from '../server/creatorExtraction/inspect.mjs';
 import {platformUrl} from '../server/creatorExtraction/urls.mjs';
@@ -23,14 +24,20 @@ export default async function handler(req,res){
    await rpc('marketing_creator_directory',scope);
    return res.status(200).json(profile);
   }
+  const readerScope=input.platform==='xhs'&&process.env.MARKETING_XHS_READER_ENABLED==='true'&&body.org===process.env.MARKETING_XHS_READER_ORG&&body.brand===process.env.MARKETING_XHS_READER_BRAND;
+  const readerPilot=readerScope&&await rpc('current_user_has_permission',{permission_code:'platform_organizations.manage'})===true;
   const original=input.share?null:await rpc('marketing_creator_post_preview',{...scope,p_url:input.canonical_url});
-  if(original?.duplicate)return res.status(200).json({...original,original_url:input.original_url||input.request_url});
-  lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
-  const result=await inspectPublic(body.url,{organization:body.org,brand:body.brand,allowPaid:false});
+  if(original?.duplicate&&!readerPilot)return res.status(200).json({...original,original_url:input.original_url||input.request_url});
+  if(!readerPilot)lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
+  let result;
+  if(readerPilot){
+   result=await callReader({action:'inspect',org:body.org,brand:body.brand,url:body.url,authorization:req.headers.authorization});
+  }else result=await inspectPublic(body.url,{organization:body.org,brand:body.brand,allowPaid:false});
   if(input.platform==='xhs'&&!result.post_id)return res.status(422).json({error:'The short link could not be resolved. Paste the complete Xiaohongshu share URL; no Post was saved.'});
   const canonical=await rpc('marketing_creator_post_preview',{...scope,p_url:result.canonical_url});
   if(result.metadata_status==='unavailable'&&canonical.metadata_status==='authorized_meta')return res.status(200).json({...canonical,public_extraction_reason:result.reason});
-  if(canonical.duplicate)return res.status(200).json({...canonical,original_url:input.original_url||input.request_url});
+  if(canonical.duplicate&&!readerPilot)return res.status(200).json({...canonical,original_url:input.original_url||input.request_url});
+  if(readerPilot&&await rpc('current_user_has_permission',{permission_code:'platform_organizations.manage'})!==true)throw new Error('access_or_limit');
   const data=await rpc('marketing_creator_directory',scope);
   const matches=result.author_external_id?(data.accounts||[]).filter(a=>!a.archived&&a.platform===result.platform&&a.external_id===result.author_external_id):[];
   const verified=matches.filter(a=>a.identity_verified);
