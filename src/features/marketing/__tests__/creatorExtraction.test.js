@@ -4,6 +4,8 @@ import {publicIPv4} from '../../../../server/creatorExtraction/network.mjs';
 import {safePostMediaUrl} from '../contentManagement.js';
 import {extractMetadata,metric} from '../../../../server/creatorExtraction/extract.mjs';
 describe('public Creator extraction boundaries',()=>{
+ it('never adopts metadata from another canonical post or a generic login page',()=>{for(const target of ['https://www.instagram.com/','https://www.instagram.com/p/other/']){const p=extractMetadata('<meta property="og:url" content="'+target+'"><meta property="og:description" content="Other page text">','https://www.instagram.com/p/expected/');expect(p.metadata_status).toBe('unavailable');expect(p.caption).toBeUndefined()}});
+
  it('uses the canonical preview allowlist without broadening Meta previews',()=>{expect(safePostMediaUrl('https://p16.tiktokcdn.com/a.jpg','tiktok')).toBeTruthy();expect(safePostMediaUrl('https://p16.tiktokcdn.com/a.jpg')).toBeNull();expect(safePostMediaUrl('https://img.xhscdn.com/a.jpg','xhs')).toBeTruthy();expect(safePostMediaUrl('https://img.xhscdn.com.attacker.test/a.jpg','xhs')).toBeNull()});
 
  it('normalizes exact post identities while keeping share parameters request-only',()=>{

@@ -9,6 +9,9 @@ export function extractMetadata(html,url,method='public_html'){
  const count=(key,value,source)=>{const n=metric(value);if(n!==null&&metrics[key]===undefined){metrics[key]=n;provenance[key]={source,method,estimated:typeof value==='string'&&/[km万亿]/i.test(value)}}};
  const pub=(value,source)=>{const d=date(value);if(d){put('published_at',d.value,source);put('date_precision',d.precision,source)}};
  const meta=name=>$(`meta[property="${name}"],meta[name="${name}"]`).attr('content');
+ const advertised=meta('og:url')||$('link[rel="canonical"]').attr('href');
+ if(advertised){let same=false;try{const identity=platformUrl(advertised);same=identity.platform===parsed.platform&&identity.post_id===parsed.post_id}catch{}if(!same)return {...parsed,request_url:undefined,metadata_status:'unavailable',metrics:{},unavailable:{post:'The platform did not return the requested public post.'},reason:'post_identity_unverified'};}
+
  put('caption',clean(meta('og:description')||meta('description')),'meta:description');
  put('thumbnail_url',publicThumbnail(meta('og:image')||meta('twitter:image'),parsed.platform),'meta:image');
  pub(meta('article:published_time')||meta('og:published_time'),'meta:published_time');
