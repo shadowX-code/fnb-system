@@ -32,11 +32,12 @@ async function loadEmployeeProfile(user) {
   ];
 
   for (const [column, value] of identities) {
-    const queryProfile = (select) => supabase
-      .from("employees")
-      .select(select)
-      .eq(column, value)
-      .maybeSingle();
+    const queryProfile = (select) => {
+      let query = supabase.from("employees").select(select).eq(column, value);
+      // Email compatibility must never override an existing Auth link.
+      if (column === "email") query = query.is("auth_user_id", null);
+      return query.maybeSingle();
+    };
 
     let { data, error } = await queryProfile(roleSelectWithOutletAccess);
     if (error && isMissingOutletAccessColumnError(error)) {
@@ -56,11 +57,10 @@ function createPasswordSetupRequiredError(profile) {
   return error;
 }
 
-async function touchActiveEmployeeLogin(profile, user) {
+async function touchActiveEmployeeLogin(profile) {
   const queryProfile = (select) => supabase
     .from("employees")
     .update({
-      auth_user_id: user.id,
       email_verified: true,
       is_active: true,
       last_login_at: new Date().toISOString(),
@@ -212,7 +212,7 @@ export const authService = {
     }
 
     if (profile.source === "employees") {
-      profile = await touchActiveEmployeeLogin(profile, user);
+      profile = await touchActiveEmployeeLogin(profile);
     }
 
     if (!profile.role_id) {
