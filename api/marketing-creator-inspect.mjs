@@ -19,7 +19,7 @@ export default async function handler(req,res){
   lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
   const result=await inspectPublic(body.url);
   const canonical=await rpc('marketing_creator_post_preview',{...scope,p_url:result.canonical_url});
-  if(result.metadata_status==='unavailable'&&original.metadata_status==='authorized_meta')return res.status(200).json({...original,public_extraction_reason:result.reason});
+  if(result.metadata_status==='unavailable'&&canonical.metadata_status==='authorized_meta')return res.status(200).json({...canonical,public_extraction_reason:result.reason});
   if(canonical.duplicate)return res.status(200).json(canonical);
   const data=await rpc('marketing_creators_read',scope);
   const matches=result.author_external_id?(data.accounts||[]).filter(a=>!a.archived&&a.platform===result.platform&&a.external_id===result.author_external_id):[];
