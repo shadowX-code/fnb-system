@@ -17,10 +17,10 @@ export default async function handler(req,res){
   const profileMode=body.kind==='profile';
   const input=profileMode?profileIdentity(body.url):platformUrl(body.url);
   if(profileMode){
-   await rpc('marketing_creators_read',scope);
+   await rpc('marketing_creator_directory',scope);
    lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
    const profile=await inspectProfile(body.url);
-   await rpc('marketing_creators_read',scope);
+   await rpc('marketing_creator_directory',scope);
    return res.status(200).json(profile);
   }
   const original=await rpc('marketing_creator_post_preview',{...scope,p_url:input.canonical_url});
@@ -30,7 +30,7 @@ export default async function handler(req,res){
   const canonical=await rpc('marketing_creator_post_preview',{...scope,p_url:result.canonical_url});
   if(result.metadata_status==='unavailable'&&canonical.metadata_status==='authorized_meta')return res.status(200).json({...canonical,public_extraction_reason:result.reason});
   if(canonical.duplicate)return res.status(200).json(canonical);
-  const data=await rpc('marketing_creators_read',scope);
+  const data=await rpc('marketing_creator_directory',scope);
   const matches=result.author_external_id?(data.accounts||[]).filter(a=>!a.archived&&a.platform===result.platform&&a.external_id===result.author_external_id):[];
   const verified=matches.filter(a=>a.identity_verified);
   return res.status(200).json({platform:canonical.platform,post_key:canonical.post_key,canonical_url:canonical.canonical_url,...result,duplicate:canonical.duplicate,matched_creator_id:verified.length===1?verified[0].creator_id:null,matched_account_id:verified.length===1?verified[0].id:null,identity_verified:verified.length===1,author_identity_observed:Boolean(result.author_external_id),source:result.source||'Public post · review and confirm before saving',message:result.unavailable?.post||result.message});

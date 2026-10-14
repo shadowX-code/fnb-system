@@ -1,12 +1,12 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import {STAGING_ORIGIN,STAGING_SUPABASE,hash,nonce,seal,unseal,base64url,tokenEncryptionReady} from '../_shared/metaSecurity.ts';
-import {GoogleDrive,DriveError,DRIVE_SCOPE,DRIVE_FOLDER,DRIVE_SHORTCUT,driveId,verifySnapshot,byteHash} from '../_shared/googleDrive.ts';
+import {GoogleDrive,DriveError,DRIVE_SCOPE,DRIVE_FOLDER,DRIVE_SHORTCUT,driveId,verifySnapshot,byteHash,googleGrant} from '../_shared/googleDrive.ts';
 import {verifyMetaMedia} from '../_shared/metaPublishing.ts';
 const env=(name:string)=>Deno.env.get(name)||'';
 const REDIRECT=STAGING_SUPABASE+'/functions/v1/marketing-drive/callback';
 const configured=()=>['CLIENT_ID','CLIENT_SECRET','TOKEN_ENCRYPTION_KEY'].every(n=>env('MARKETING_GOOGLE_DRIVE_'+n));
 const binding=(org:string,generation:number)=>`drive:${org}:${generation}`;
-const messages:Record<string,string>={reconnect_required:'Reconnect Google Drive in Marketing Settings.',drive_permission_required:'Google Drive access is unavailable. Check the folder sharing and connection.',outside_brand_folder:'This file is outside the selected brand folder.',shortcut_outside_brand_folder:'This shortcut points outside the brand folder.',source_changed:'The Drive file changed. Refresh and select it again.',media_format_mismatch:'The file content does not match its media format.',media_format_unavailable:'Select a downloadable JPG, PNG, WebP or MP4 up to 100 MB.',file_unavailable:'The file or folder is no longer available.',drive_unavailable:'Google Drive is unavailable. Try again.'};
+const messages:Record<string,string>={reconnect_required:'Reconnect Google Drive in Marketing Settings.',drive_permission_required:'Google Drive access is unavailable. Check the folder sharing and connection.',outside_brand_folder:'This file is outside the selected brand folder.',shortcut_outside_brand_folder:'This shortcut points outside the brand folder.',source_changed:'The Drive file changed. Refresh and select it again.',media_format_mismatch:'The file content does not match its media format.',media_format_unavailable:'Select a downloadable JPG, PNG, WebP or MP4 up to 100 MB.',file_unavailable:'The file or folder is no longer available.',drive_configuration_required:'Google Drive configuration needs administrator attention.',thumbnail_unavailable:'Thumbnail unavailable. Open the file to preview it.',drive_unavailable:'Google Drive is temporarily unavailable. Try again.'};
 Deno.serve(async req=>{
  const headers={'Access-Control-Allow-Origin':STAGING_ORIGIN,'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, GET, OPTIONS','Cache-Control':'no-store','Vary':'Origin'};
  const reply=(data:any,status=200)=>new Response(JSON.stringify(data),{status,headers:{...headers,'Content-Type':'application/json'}});
@@ -21,7 +21,7 @@ Deno.serve(async req=>{
  let user:string|null=null,org:string|null=null,brand:string|null=null;
  const call=async(name:string,data:any={})=>{const result=await db.rpc('marketing_drive_server',{p_action:name,p_user:user,p_org:org,p_brand:brand,p_data:data});if(result.error)throw new Error(result.error.message);return result.data;};
  const encrypt=(value:any,generation:number)=>seal(value,env('MARKETING_GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY'),binding(org!,generation));
- async function grant(params:Record<string,string>){const response=await fetch('https://oauth2.googleapis.com/token',{method:'POST',body:new URLSearchParams({...params,client_id:env('MARKETING_GOOGLE_DRIVE_CLIENT_ID'),client_secret:env('MARKETING_GOOGLE_DRIVE_CLIENT_SECRET')}),redirect:'error'});if(!response.ok)throw new DriveError('reconnect_required',401);const data=await response.json();if(!data.access_token)throw new DriveError('reconnect_required');return data;}
+ const grant=(params:Record<string,string>)=>googleGrant(params,env('MARKETING_GOOGLE_DRIVE_CLIENT_ID'),env('MARKETING_GOOGLE_DRIVE_CLIENT_SECRET'));
  try{
   if(action==='callback'&&req.method==='GET'){
    if(!configured())throw new Error('Google Drive is not configured.');const url=new URL(req.url),state=url.searchParams.get('state')||'';
@@ -59,9 +59,23 @@ Deno.serve(async req=>{
    const url=new URL('https://accounts.google.com/o/oauth2/v2/auth');for(const [k,v] of Object.entries({client_id:env('MARKETING_GOOGLE_DRIVE_CLIENT_ID'),redirect_uri:REDIRECT,response_type:'code',scope:DRIVE_SCOPE,access_type:'offline',prompt:'consent',state,code_challenge:base64url(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)))),code_challenge_method:'S256'}))url.searchParams.set(k,v);
    return reply({url:url.toString()});
   }
-  const material=await call('material');let token=await unseal(material.sealed_token,[env('MARKETING_GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY'),env('MARKETING_GOOGLE_DRIVE_PREVIOUS_TOKEN_ENCRYPTION_KEY')],binding(org!,material.generation));
-  if(new Date(material.expires_at).getTime()<Date.now()+60000){try{const fresh=await grant({grant_type:'refresh_token',refresh_token:token.refresh_token});token={...token,...fresh};await call('refresh',{generation:material.generation,sealed_token:await encrypt(token,material.generation),expires_at:new Date(Date.now()+fresh.expires_in*1000).toISOString()});}catch(error){await call('expired',{generation:material.generation});throw error;}}
-  const drive=new GoogleDrive(token.access_token),root=material.root;
+  let material=await call('material');
+  const decode=(m:any)=>unseal(m.sealed_token,[env('MARKETING_GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY'),env('MARKETING_GOOGLE_DRIVE_PREVIOUS_TOKEN_ENCRYPTION_KEY')],binding(org!,m.generation));
+  let token=await decode(material);
+  if(new Date(material.expires_at).getTime()<Date.now()+60000){
+   try{
+    const fresh=await grant({grant_type:'refresh_token',refresh_token:token.refresh_token});
+    const refreshed={...token,...fresh};
+    const saved=await call('refresh',{generation:material.generation,expected_token:material.sealed_token,sealed_token:await encrypt(refreshed,material.generation),expires_at:new Date(Date.now()+fresh.expires_in*1000).toISOString()});
+    if(saved.updated===false){material=await call('material');token=await decode(material);}else token=refreshed;
+   }catch(error){
+    if(!(error instanceof DriveError)||error.code!=='reconnect_required')throw error;
+    const current=await call('material');
+    if(current.generation===material.generation&&JSON.stringify(current.sealed_token)!==JSON.stringify(material.sealed_token)&&new Date(current.expires_at).getTime()>Date.now()+60000){material=current;token=await decode(current);}
+    else{await call('expired',{generation:material.generation,expected_token:material.sealed_token});throw error;}
+   }
+  }
+  const drive=new GoogleDrive(token.access_token,fetch,Date.now()+(['preview','import'].includes(action)?90000:25000)),root=material.root;
   if(action==='folders'){
    if(!(await call('context')).can_manage)throw new Error('Organization administrator access required.');
    return reply(await drive.list(body.folderId||'root',body.search||'','folders',body.after||''));
@@ -83,12 +97,13 @@ Deno.serve(async req=>{
    for(const node of found.files||[]){try{const scoped=await drive.scoped(node.id,root.root_id),file=scoped.file;
     if(![DRIVE_FOLDER,'image/jpeg','image/png','image/webp','video/mp4'].includes(file.mimeType)||type==='image'&&!file.mimeType.startsWith('image/')&&file.mimeType!==DRIVE_FOLDER||type==='video'&&!file.mimeType.startsWith('video/')&&file.mimeType!==DRIVE_FOLDER)continue;
     files.push({...file,name:node.name,selection_id:node.id,is_shortcut:node.mimeType===DRIVE_SHORTCUT});
-   }catch(error){if(!(error instanceof DriveError))throw error;/* Inaccessible candidates are never returned. */}}
+   }catch(error){if(!(error instanceof DriveError)||!['outside_brand_folder','shortcut_outside_brand_folder','unsupported_shortcut','file_unavailable','drive_permission_required'].includes(error.code))throw error;/* Skip only evidence-confirmed inaccessible candidates. */}}
    await guard();return reply({files,root,folder:{id:folder.file.id,name:folder.node.name},cursor:found.nextPageToken?await seal({after:found.nextPageToken,folder:folder.file.id,search,type,expires:Date.now()+900000},env('MARKETING_GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY'),`drive-cursor:${org}:${brand}:${root.revision}`):null});
   }
   if(action==='preview'||action==='import'){
    const scoped=await drive.scoped(driveId(body.fileId),root.root_id),file=scoped.file;
    if(body.version&&body.version!==file.version)throw new DriveError('source_changed');
+   if(action==='preview'&&body.representation==='thumbnail'){const thumbnail=await drive.thumbnail(file);await guard();return new Response(thumbnail.bytes as Uint8Array<ArrayBuffer>,{headers:{...headers,'Content-Type':thumbnail.mime,'X-Content-Type-Options':'nosniff'}});}
    const bytes=await drive.download(file);verifySnapshot(bytes,file.mimeType);if(action==='import'&&['facebook','instagram'].includes(body.channel))verifyMetaMedia(bytes,file.mimeType,body.channel);await guard();
    if(action==='preview')return new Response(bytes as Uint8Array<ArrayBuffer>,{headers:{...headers,'Content-Type':file.mimeType,'X-Content-Type-Options':'nosniff'}});
    const asset=await call('prepare',{filename:file.name,mime_type:file.mimeType,size_bytes:bytes.length,source_kind:'drive',generation:material.generation,revision:root.revision,sha256:await byteHash(bytes),source_metadata:{file_id:file.id,selection_id:scoped.node.id,version:file.version,modified_at:file.modifiedTime,md5:file.md5Checksum||null,root_id:root.root_id,mapping_revision:root.revision}});

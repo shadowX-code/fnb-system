@@ -36,3 +36,8 @@ it('shows the canonical loading surface while refreshing filtered media in eithe
 it('discards folder, search, cursor and preview when brand scope changes',async()=>{
  connect();const view=render(<DriveMediaBrowser organizationId="org" brandId="brand"/>);await screen.findByRole('button',{name:'Open folder Campaigns'});fireEvent.change(screen.getByRole('searchbox',{name:'Search'}),{target:{value:'Private search'}});fireEvent.click(await screen.findByRole('button',{name:'More media'}));service.context.mockResolvedValue({status:'connected',root:{root_id:'new-root',root_name:'Other brand'}});view.rerender(<DriveMediaBrowser organizationId="org" brandId="other-brand"/>);await screen.findByRole('button',{name:'Other brand'});await waitFor(()=>expect(service.browse).toHaveBeenLastCalledWith('org','other-brand',expect.objectContaining({folderId:'new-root',search:'',cursor:null})));expect(screen.queryByRole('dialog')).toBeNull();expect(screen.getByRole('searchbox',{name:'Search'}).value).toBe('');
 });
+it('loads tile thumbnails separately from full previews and aborts them on unmount',async()=>{
+ connect();let observe;vi.stubGlobal('IntersectionObserver',class{constructor(callback){observe=callback}observe(){}disconnect(){}});
+ const rendered=render(<DriveMediaBrowser organizationId="org" brandId="brand"/>);await screen.findByRole('button',{name:'Preview Beta.jpg'});observe([{isIntersecting:true}]);await waitFor(()=>expect(service.preview).toHaveBeenCalled());
+ const call=service.preview.mock.calls[0];expect(call[3]).toMatchObject({representation:'thumbnail'});expect(call[3].signal.aborted).toBe(false);rendered.unmount();expect(call[3].signal.aborted).toBe(true);
+});

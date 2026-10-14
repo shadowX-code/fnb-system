@@ -1,6 +1,6 @@
 import { render, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import DataTable from "../DataTable.jsx";
+import DataTable, {shouldIgnoreRowClick} from "../DataTable.jsx";
 
 describe("DataTable", () => {
   it("marks header, rows, and cells for the shared Admin table contract", () => {
@@ -32,3 +32,10 @@ it('opens accessible button rows while keeping nested actions independent',()=>{
 it('opts into labeled mobile rows without changing existing tables',()=>{const {container,rerender}=render(<DataTable mobileLayout="stack" rows={[{id:'a',name:'Name'}]} getRowKey={r=>r.id} columns={[{key:'name',header:'Identity'},{key:'state',header:'Health'}]}/>);expect(container.querySelector('table').dataset.mobileLayout).toBe('stack');expect(container.querySelector('td').dataset.label).toBe('Identity');rerender(<DataTable rows={[]} columns={[]} getRowKey={r=>r.id}/>);expect(container.querySelector('table').dataset.mobileLayout).toBe('scroll')});
 
 it('preserves selected text rather than opening a row',()=>{const open=vi.fn();const selected={toString:()=> 'Selected customer',anchorNode:null};const selection=vi.spyOn(window,'getSelection').mockReturnValue(selected);const {container}=render(<DataTable rows={[{id:'selected',name:'Selected customer'}]} getRowKey={r=>r.id} onRowClick={open} columns={[{key:'name',header:'Name'}]}/>);selected.anchorNode=container.querySelector('td').firstChild;fireEvent.click(container.querySelector('td'));expect(open).not.toHaveBeenCalled();selection.mockRestore();});
+
+it('shares text-selection and nested-control protection with mobile consumers',()=>{
+ const row=document.createElement('article');row.innerHTML='<span>Campaign title</span><summary>Details</summary><button>Edit</button>';const selection=vi.spyOn(window,'getSelection').mockReturnValue({toString:()=> 'Campaign',anchorNode:row.firstChild.firstChild});
+ expect(shouldIgnoreRowClick({type:'click',currentTarget:row,target:row.firstChild})).toBe(true);selection.mockRestore();
+ for(const target of row.querySelectorAll('summary,button'))expect(shouldIgnoreRowClick({type:'click',currentTarget:row,target})).toBe(true);
+ expect(shouldIgnoreRowClick({type:'click',currentTarget:row,target:row.firstChild})).toBe(false);
+});

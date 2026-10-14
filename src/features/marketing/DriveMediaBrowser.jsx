@@ -12,10 +12,10 @@ import {DRIVE_FOLDER as FOLDER,mediaKey,mediaType,preferredMediaView,saveMediaVi
 import './driveMedia.css';
 function DrivePreview({organizationId,brandId,file,thumbnail=false}){
  const [url,setUrl]=useState(''),[failed,setFailed]=useState(false);const element=useRef(null);
- useEffect(()=>{let active=true,objectUrl='',started=false;
-  async function load(){if(started)return;started=true;try{const blob=await driveService.preview(organizationId,brandId,file);if(!(blob instanceof Blob))throw new Error();objectUrl=URL.createObjectURL(blob);if(active)setUrl(objectUrl);else URL.revokeObjectURL(objectUrl);}catch{if(active)setFailed(true);}}
-  if(!thumbnail)load();else {const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){load();observer.disconnect();}});if(element.current)observer.observe(element.current);return()=>{active=false;observer.disconnect();if(objectUrl)URL.revokeObjectURL(objectUrl);};}
-  return()=>{active=false;if(objectUrl)URL.revokeObjectURL(objectUrl);};
+ useEffect(()=>{let active=true,objectUrl='',started=false;const controller=new AbortController();
+  async function load(){if(started)return;started=true;try{const blob=await driveService.preview(organizationId,brandId,file,{representation:thumbnail?'thumbnail':undefined,signal:controller.signal});if(!(blob instanceof Blob))throw new Error();objectUrl=URL.createObjectURL(blob);if(active)setUrl(objectUrl);else URL.revokeObjectURL(objectUrl);}catch{if(active)setFailed(true);}}
+  if(!thumbnail)load();else {const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){load();observer.disconnect();}});if(element.current)observer.observe(element.current);return()=>{active=false;controller.abort();observer.disconnect();if(objectUrl)URL.revokeObjectURL(objectUrl);};}
+  return()=>{active=false;controller.abort();if(objectUrl)URL.revokeObjectURL(objectUrl);};
  },[organizationId,brandId,file.id,file.version,thumbnail]);
  return <div ref={element} className={thumbnail?'drive-thumb':'drive-preview'}>{url&&!failed?(file.mimeType.startsWith('video/')?<video src={url} controls={!thumbnail} preload="metadata" onError={()=>setFailed(true)}/>:<img src={url} alt={file.name} onError={()=>setFailed(true)}/>):<span>{failed?'Preview unavailable':thumbnail?<ImageIcon size={24}/>:'Loading preview…'}</span>}</div>;
 }

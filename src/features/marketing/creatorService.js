@@ -6,6 +6,7 @@ export const creatorPostAdapters={
  facebook:{mode:'public_inspection',fallback:'authorized_meta_cache'},instagram:{mode:'public_inspection',fallback:'authorized_meta_cache'},xhs:{mode:'public_inspection',fallback:'manual'},tiktok:{mode:'public_inspection',fallback:'manual'},
 };
 export const creatorService={
+ directory:(org)=>rpc('marketing_creator_directory',{p_org:org,p_brand:null}),
  read:(org,brand)=>rpc('marketing_creators_read',{p_org:org,p_brand:brand||null}),
  profile:async(org,brand,url)=>{
  const {data:{session}}=await supabase.auth.getSession();

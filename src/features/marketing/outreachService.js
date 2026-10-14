@@ -40,7 +40,6 @@ export const outreachService = {
     while(rows.length<result.processed){const page=await outreachService.importJob(org,brand,'read',job,{after:rows.at(-1).row});if(!page.rows.length)break;rows.push(...page.rows);}
     return {...result,rows};
   },
-  importCommit: (request,org,brand,rows,decisions) => rpc("platform_customer_import_commit",{p_request:request,p_org:org,p_brand:brand,p_rows:rows,p_decisions:decisions}),
   customer: (request, org, brand, payload) =>
     rpc("platform_customer_command", {
       p_request: request,

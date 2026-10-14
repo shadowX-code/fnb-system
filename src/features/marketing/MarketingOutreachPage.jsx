@@ -27,7 +27,7 @@ import MarketingMediaPreview from "./MarketingMediaPreview.jsx";
 import DatePickerField from '../../components/forms/DatePickerField.jsx';
 import {customerName} from './customerPresentation.js';
 import TagPicker from "../../components/forms/TagPicker.jsx";
-import DataTable from "../../components/tables/DataTable.jsx";
+import DataTable, {shouldIgnoreRowClick} from "../../components/tables/DataTable.jsx";
 import EmptyState from "../../components/feedback/EmptyState.jsx";
 import MarketingCustomersView from "./MarketingCustomersView.jsx";
 import WhatsAppSenderDialog from "./WhatsAppSenderDialog.jsx";
@@ -805,7 +805,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
 
 function OutreachCollection({rows,columns,getRowKey,onRowClick}) {
  const keyboard=(event,row)=>{if(event.target===event.currentTarget&&['Enter',' '].includes(event.key)){event.preventDefault();onRowClick?.(row);}};
- return <><div className="outreach-desktop-table"><DataTable density="compact" minWidth={0} rows={rows} columns={columns} getRowKey={getRowKey} onRowClick={onRowClick} getRowProps={onRowClick?row=>({tabIndex:0,'aria-label':`Open campaign ${row.title}`,onKeyDown:event=>keyboard(event,row)}):undefined}/></div><div className="outreach-mobile-list">{rows.map(r=><article key={getRowKey(r)} {...(onRowClick?{tabIndex:0,'aria-label':`Open campaign ${r.title}`,onClick:event=>{if(!event.target.closest('button,a,input'))onRowClick(r)},onKeyDown:event=>keyboard(event,r)}:{})}>{columns.map((c,i)=><div key={c.key} className={i?'outreach-mobile-fact':''}>{i?<small>{c.header}</small>:null}{c.render?c.render(r):r[c.key]}</div>)}</article>)}</div></>;
+ return <><div className="outreach-desktop-table"><DataTable density="compact" minWidth={0} rows={rows} columns={columns} getRowKey={getRowKey} onRowClick={onRowClick} getRowProps={onRowClick?row=>({tabIndex:0,'aria-label':`Open campaign ${row.title}`,onKeyDown:event=>keyboard(event,row)}):undefined}/></div><div className="outreach-mobile-list">{rows.map(r=><article key={getRowKey(r)} {...(onRowClick?{tabIndex:0,'aria-label':`Open campaign ${r.title}`,onClick:event=>{if(!shouldIgnoreRowClick(event))onRowClick(r)},onKeyDown:event=>keyboard(event,r)}:{})}>{columns.map((c,i)=><div key={c.key} className={i?'outreach-mobile-fact':''}>{i?<small>{c.header}</small>:null}{c.render?c.render(r):r[c.key]}</div>)}</article>)}</div></>;
 }
 
 function CampaignAudienceTags({criteria}) {

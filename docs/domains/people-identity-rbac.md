@@ -168,3 +168,7 @@ Its applied migrations remain immutable history. Retirement locks/checks the emp
 coverage table and aborts if any confirmation exists; evidence is never converted.
 
 Payroll uses independent workflow grants in the shared catalog and Role Matrix; see [Payroll workflow permissions](payroll.md#payroll-workflow-permissions). The retired `payroll.manage` catalog record is historical only and cannot be submitted in a new role configuration. Migration preserves explicit existing grants through an audited mapping without changing scope. Protected Owner/Admin semantics remain unchanged.
+
+### Retained employment migration evidence
+
+People owns `employee_employment_structure_migration_report`. It is immutable legacy migration evidence, not an anonymous reporting API. Browser SELECT requires `employees.view` and a visible canonical Employee row under existing Employee RLS; anonymous access and browser mutations are denied. Existing rows and administrative reporting remain intact. Trusted migration/service administration retains its existing access.
