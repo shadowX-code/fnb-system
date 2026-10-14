@@ -35,3 +35,6 @@ export function allowedResource(value,platform){
  return domains[platform]?.some(d=>u.hostname===d||u.hostname.endsWith('.'+d))||false;
 }
 export function publicThumbnail(value,platform){if(!value||/(access_token|authorization|appsecret)/i.test(value)||!allowedResource(value,platform))return null;return value.length<3000?value:null;}
+
+// Diagnostics need the route, never a navigable share credential or query value.
+export function redactUrlQueries(value){return typeof value==='string'?value.replace(/(https?:\/\/[^?\s"'<>]+)\?[^\s"'<>]+/gi,'$1?[redacted]'):value;}
