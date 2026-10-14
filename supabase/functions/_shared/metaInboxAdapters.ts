@@ -30,7 +30,7 @@ export function commentReplyIntent(channel:'facebook'|'instagram',authority:any,
  return {path:`${commentId}/${channel==='facebook'?'comments':'replies'}`,body:{message:text}};
 }
 export const inboxConnectorContracts={
- facebook:{requiredPermissions:['pages_messaging','pages_manage_metadata'],task:'MESSAGE',subscriptionFields:['messages','messaging_postbacks','message_deliveries','message_reads'],pageSubscriptionFields:['messages','messaging_postbacks','message_deliveries','message_reads'],standardWindowHours:24},
+ facebook:{requiredPermissions:['pages_messaging','pages_manage_metadata'],task:'MESSAGE',subscriptionFields:['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes'],pageSubscriptionFields:['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes'],standardWindowHours:24},
  instagram:{requiredPermissions:['instagram_basic','instagram_manage_messages','pages_manage_metadata'],task:'MESSAGE',subscriptionFields:['messages','messaging_postbacks','messaging_seen'],pageSubscriptionFields:['messages','messaging_postbacks','message_reads'],standardWindowHours:24},
  facebook_comments:{receivePermission:'pages_read_user_content',replyPermission:'pages_manage_engagement',subscriptionField:'feed'},
  instagram_comments:{receivePermission:'instagram_manage_comments',replyPermission:'instagram_manage_comments',subscriptionField:'comments'},

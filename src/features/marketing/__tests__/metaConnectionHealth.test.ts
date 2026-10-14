@@ -8,8 +8,8 @@ vi.mock('../../../../supabase/functions/_shared/metaInboxVerification.ts',()=>({
 vi.mock('../../../../supabase/functions/_shared/metaInboxRecovery.ts',()=>({readRecentInbox:vi.fn()}));
 const job={connection_id:'fixture',generation:1,lease:'lease',auth_user_id:'actor'};
 const material={id:'fixture',credential_generation:1,channel:'facebook'};
-const evidence={authorization_verified:true,subscriptions_verified:true,page_id:'111',evidence:[],app_webhook:{registered:true,active:true,callback_matches:true,fields:['messages','messaging_postbacks','message_deliveries','message_reads']}};
-const installed={data:[{id:'app',subscribed_fields:['messages','messaging_postbacks','message_deliveries','message_reads']}]};
+const evidence={authorization_verified:true,subscriptions_verified:true,page_id:'111',evidence:[],app_webhook:{registered:true,active:true,callback_matches:true,fields:['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes']}};
+const installed={data:[{id:'app',subscribed_fields:['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes']}]};
 function database(messaging:any={configuration_verified:true,delivery_verified:false}) {
  return {rpc:vi.fn(async(name:string)=>({error:null,data:name==='marketing_meta_health_claim'?job:name==='marketing_meta_health_guard'?true:name==='marketing_meta_diagnostic_material'?material:name==='marketing_inbox_verification_events'?[]:name==='marketing_inbox_record_verification'?messaging:null}))};
 }
@@ -34,6 +34,15 @@ describe('bounded automatic connection health',()=>{
    expect(JSON.stringify(health)).not.toContain('private');
    expect(db.rpc.mock.calls.some(([name])=>name==='marketing_inbox_reconcile')).toBe(true);
   }
+ });
+ it('repairs an existing Page missing only echoes through the canonical intent and verifies configuration without inventing delivery',async()=>{
+  const db=database(),graph={request:vi.fn(async(_path:string,_token:string,_params:any,method:string)=>method==='POST'?{success:true}:installed)};
+  let checks=0;
+  vi.mocked(verifyInboxConnection).mockImplementation(async(...args:any[])=>{args[7]?.(checks++?installed:{data:[{id:'app',subscribed_fields:installed.data[0].subscribed_fields.filter(s=>s!=='message_echoes')}]});return {...evidence,echo_subscription_status:{app:true,page:checks>1}} as any;});
+  const result=await runConnectionHealth(db,graph as any,{appId:'app'},['key']);
+  expect(graph.request.mock.calls.filter(c=>c[3]==='POST')).toEqual([['111/subscribed_apps','fixture',{subscribed_fields:expect.arrayContaining(['message_echoes','messages','message_reads','message_deliveries','messaging_postbacks'])},'POST']]);
+  expect(db.rpc).toHaveBeenCalledWith('marketing_meta_subscription_intent',expect.objectContaining({p_state:'pending'}));
+  expect(result.echo_subscription_status).toEqual({app:true,page:true});expect(result.messaging.state).toBe('awaiting_first_delivery');
  });
  it('does not reconcile before configuration verification and schedules transient retries',async()=>{
   const db=database({configuration_verified:false,delivery_verified:false});

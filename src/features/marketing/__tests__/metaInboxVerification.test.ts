@@ -5,7 +5,7 @@ const permissions=['pages_messaging','pages_manage_metadata','instagram_basic','
 const connection={channel:'facebook',provider_account_id:'111',meta_user_id:'333',credential_generation:5,capabilities:{page_task_source:'accounts',page_tasks_verified:true,page_tasks:['MESSAGING']}};
 function graph(overrides:any={}) {
  return {request:vi.fn(async(path:string,_token:string,_params:any,_method:string,inspect:any)=>{
-  const value=overrides[path]??({'444/subscriptions':{data:['page','instagram'].map(object=>({object,active:true,callback_url:'https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/marketing-inbox/webhook',fields:(object==='page'?['messages','messaging_postbacks','message_deliveries','message_reads']:['messages','messaging_postbacks','messaging_seen']).map(name=>({name}))}))},'debug_token':{data:{is_valid:true,type:'PAGE',app_id:'444',profile_id:'111',user_id:'333',expires_at:0,data_access_expires_at:0,scopes:permissions,granular_scopes:[{scope:'business_management',target_ids:['555']}]}},'me':{id:'111'},'111':{id:'111',business:{id:'555'},instagram_business_account:{id:'666'}},'111/subscribed_apps':{data:[{id:'444',subscribed_fields:['messages','messaging_postbacks','message_deliveries','message_reads']}]},'111/conversations':{data:[{participants:{data:[{id:'777'}]},messages:{data:[{id:'actual-mid'}]}}]}} as any)[path];
+  const value=overrides[path]??({'444/subscriptions':{data:['page','instagram'].map(object=>({object,active:true,callback_url:'https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/marketing-inbox/webhook',fields:(object==='page'?['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes']:['messages','messaging_postbacks','messaging_seen']).map(name=>({name}))}))},'debug_token':{data:{is_valid:true,type:'PAGE',app_id:'444',profile_id:'111',user_id:'333',expires_at:0,data_access_expires_at:0,scopes:permissions,granular_scopes:[{scope:'business_management',target_ids:['555']}]}},'me':{id:'111'},'111':{id:'111',business:{id:'555'},instagram_business_account:{id:'666'}},'111/subscribed_apps':{data:[{id:'444',subscribed_fields:['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes']}]},'111/conversations':{data:[{participants:{data:[{id:'777'}]},messages:{data:[{id:'actual-mid'}]}}]}} as any)[path];
   if(value instanceof Error){inspect?.(400,190,{graph_error_subcode:463});throw value;}
   inspect?.(200,null,{});return value;
  })};
@@ -22,6 +22,7 @@ describe('independent messaging capability verification',()=>{
   const result=await verify(graph());expect(result.authorization_verified).toBe(true);expect(result.real_inbound_verified).toBe(false);
   const posting=await verify(graph(),{...connection,capabilities:{...connection.capabilities,page_tasks:['MANAGE','CREATE_CONTENT']}});expect(posting.authorization_verified).toBe(false);
  });
+ it('separates echo configuration from incoming delivery and rejects ambiguous installation evidence',async()=>{const old={id:'444',subscribed_fields:['messages','messaging_postbacks','message_deliveries','message_reads']};const result=await verify(graph({'111/subscribed_apps':{data:[old]}}));expect(result.authorization_verified).toBe(true);expect(result.subscriptions_verified).toBe(true);expect(result.echo_subscriptions_verified).toBe(false);expect(result.echo_subscription_status).toEqual({app:true,page:false});for(const response of [{data:[{...old,subscribed_fields:[...old.subscribed_fields,'message_echoes']}],paging:{next:'more'}},{data:[old,old]}])expect((await verify(graph({'111/subscribed_apps':response}))).echo_subscription_status.page).toBe(false);});
  it('keeps Instagram identity and scopes independent',async()=>{
   const c={...connection,channel:'instagram',provider_account_id:'666'};
   expect((await verify(graph(),c)).authorization_verified).toBe(true);
@@ -38,7 +39,7 @@ describe('independent messaging capability verification',()=>{
  });
  it('never lets a Page subscription substitute for missing, inactive or wrong app callback',async()=>{
   for(const row of [null,{object:'page',active:false},{object:'page',active:true,callback_url:'https://wrong.invalid'}]){
-   const result=await verify(graph({'444/subscriptions':{data:row?[{...row,fields:['messages','messaging_postbacks','message_deliveries','message_reads'].map(name=>({name}))}]:[]}}));
+   const result=await verify(graph({'444/subscriptions':{data:row?[{...row,fields:['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes'].map(name=>({name}))}]:[]}}));
    expect(result.authorization_verified).toBe(true);expect(result.subscriptions_verified).toBe(false);
    expect(result.missing_subscriptions).toContain('app_callback');
   }
