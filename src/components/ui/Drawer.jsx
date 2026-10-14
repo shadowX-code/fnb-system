@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ArrowLeft, X } from "lucide-react";
 
 const widthClasses = {
@@ -26,28 +26,39 @@ export default function Drawer({
   closeOnOverlay = true,
   closeOnEscape = true,
 }) {
+  const panelRef = useRef(null), closeRef = useRef(onClose), escapeRef = useRef(closeOnEscape);
+  closeRef.current = onClose; escapeRef.current = closeOnEscape;
   const widthClass = widthClasses[width] ?? widthClasses.lg;
 
   useEffect(() => {
-    if (!open || !closeOnEscape) return undefined;
-    function handleKeyDown(event) {
-      if (event.key === "Escape") onClose?.();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, closeOnEscape, onClose]);
+    if (!open) return;
+    const panel=panelRef.current, previous=document.activeElement;
+    panel?.focus();
+    const key=event=>{
+      if(event.defaultPrevented || event.target.closest('[role="dialog"]')!==panel)return;
+      if(event.key==='Escape'&&panel.querySelector('[data-floating-ancestors]'))return;
+      if(event.key==='Escape'&&escapeRef.current){event.preventDefault();closeRef.current?.();}
+      if(event.key!=='Tab')return;
+      const items=[...panel.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]')].filter(el=>el.getClientRects().length&&el.closest('[role="dialog"]')===panel),first=items[0],last=items.at(-1);
+      if(!first){event.preventDefault();panel.focus();}
+      else if(event.shiftKey&&(document.activeElement===first||document.activeElement===panel)){event.preventDefault();last.focus();}
+      else if(!event.shiftKey&&(document.activeElement===last||document.activeElement===panel)){event.preventDefault();first.focus();}
+    };
+    document.addEventListener('keydown',key);
+    return()=>{document.removeEventListener('keydown',key);if(previous?.isConnected)previous.focus?.();};
+  }, [open]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-drawer-layer flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-drawer-layer flex justify-end bg-slate-950/30 backdrop-blur-[2px]">
       <button
         className="flex-1 cursor-default"
         type="button"
         aria-label="Close drawer backdrop"
         onClick={closeOnOverlay ? onClose : undefined}
       />
-      <aside className={`relative z-modal-content-layer flex h-full w-full ${widthClass} flex-col border-l border-border bg-surface shadow-2xl ${className}`}>
+      <aside ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined} className={`relative z-modal-content-layer flex h-full w-full ${widthClass} flex-col border-l border-border bg-surface shadow-2xl ${className}`}>
         {header === false ? null : header ?? (
           <header className="sticky top-0 z-sticky-layer shrink-0 border-b border-border bg-surface/95 p-4 shadow-sm backdrop-blur">
             <div className="flex items-start justify-between gap-3">
@@ -70,7 +81,7 @@ export default function Drawer({
         )}
         <div className={`min-h-0 flex-1 overflow-y-auto p-4 ${bodyClassName}`}>{children}</div>
         {footer ? (
-          <footer className={`sticky bottom-0 z-sticky-layer shrink-0 border-t border-border bg-surface/95 p-3 shadow-[0_-10px_24px_rgba(15,23,42,0.06)] backdrop-blur ${footerClassName}`}>
+          <footer className={`sticky bottom-0 z-sticky-layer flex flex-wrap items-center justify-end gap-[12px] shrink-0 border-t border-border bg-surface/95 p-3 shadow-[0_-10px_24px_rgba(15,23,42,0.06)] backdrop-blur ${footerClassName}`}>
             {footer}
           </footer>
         ) : null}

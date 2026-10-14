@@ -29,6 +29,9 @@ function formatDay(value) {
 }
 
 export function rangeLabel(from, to, today) {
+  if (!from && !to) return "All dates";
+  if (!from) return `Until ${formatDay(to)}`;
+  if (!to) return `From ${formatDay(from)}`;
   if (from === today && to === today) return "Today";
   if (from === to) return formatDay(from);
   const start = parse(from); const end = parse(to);
@@ -160,7 +163,7 @@ export default function CrewAttendanceDateRangePicker({ from, to, today, onApply
   return <div className="crew-attendance-range-field">
     <span>{label}</span>
     <button ref={anchorRef} type="button" aria-label={label} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-      <CalendarDays size={16} /><strong>{from && to ? rangeLabel(from, to, today) : placeholder}</strong><ChevronDown size={15} />
+      <CalendarDays size={16} /><strong>{from || to ? rangeLabel(from, to, today) : placeholder}</strong><ChevronDown size={15} />
     </button>
     <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="start" width={560} estimatedHeight={360} maxHeight={420} className="crew-attendance-range-popover" contentClassName="crew-attendance-range-popover-content">
       <div className="crew-attendance-range-layout">

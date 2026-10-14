@@ -3,6 +3,7 @@ import { moduleRegistry, moduleWorkspace, viewPermission } from "../../config/mo
 // Existing hash aliases remain the runtime compatibility owner. The route
 // contract defines the future pathname taxonomy but does not change URL writes.
 export const legacyRouteRedirects = Object.freeze({
+  marketing_content: "marketing_calendar",
   "duty-roster": "crew_roster",
   outlet_duty_roster: "crew_roster",
   // Pre-reset Learning navigation used this name. Keep old saved links on the
@@ -83,12 +84,12 @@ const canonicalPathByModuleId = Object.freeze({
   crew_growth_skills: "/crew/growth/skills",
   crew_performance: "/crew/performance",
   crew_customer_feedback: "/crew/performance/customer-feedback",
-  crew_google_reviews: "/crew/performance/google-reviews",
   crew_team_review: "/crew/performance/team-review",
   crew_reward: "/crew/reward/overview",
 });
 
 function routeDomain(module) {
+  if (moduleWorkspace(module) === "marketing") return "marketing";
   if (moduleWorkspace(module) === "crew") return "crew";
   const path = canonicalPathByModuleId[module.id] ?? module.route;
   if (path.startsWith("/people/")) return "people";
@@ -102,7 +103,7 @@ function canonicalPathForModule(module) {
   if (override) return override;
   const sourcePath = module.route.replace(/\/+$/, "") || "/";
   const domain = routeDomain(module);
-  if (domain === "people" || domain === "system" || domain === "factory") return sourcePath;
+  if (domain === "people" || domain === "system" || domain === "factory" || domain === "marketing") return sourcePath;
   if (sourcePath === "/overview/dashboard") return "/restaurant/dashboard";
   if (sourcePath.startsWith("/overview/")) return `/restaurant/${sourcePath.slice("/overview/".length)}`;
   return `/restaurant${sourcePath}`;
@@ -114,7 +115,7 @@ function routeOwnership(module) {
     workspace: moduleWorkspace(module),
     domain: routeDomain(module),
     surface: "admin",
-    permission: module.permissions.view ? viewPermission(module.id) : null,
+    permission: module.readPermission ?? (module.permissions.view ? viewPermission(module.id) : null),
   });
 }
 
@@ -139,7 +140,7 @@ function moduleRouteDefinition(module) {
     routeId,
     canonicalPath: canonicalPathForModule(module),
     pathPattern: canonicalPathForModule(module),
-    pathAliases: Object.freeze(module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : []),
+    pathAliases: Object.freeze(module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : module.id === "marketing_audience" ? ["/marketing/audience"] : module.id === "marketing_calendar" ? ["/marketing/content"] : []),
     legacyHashPattern: routeId,
     legacyHashAliases: legacyHashAliasesFor(routeId, routeId),
     params: Object.freeze([]),
@@ -193,7 +194,7 @@ function crewMobileRouteDefinition({ id, screen, path, legacyPath, growthInitial
 const contractModules = moduleRegistry.filter((module) => {
   const workspace = moduleWorkspace(module);
   return module.routable !== false
-    && (workspace === "restaurant" || workspace === "factory" || workspace === "crew")
+    && (workspace === "restaurant" || workspace === "factory" || workspace === "crew" || workspace === "marketing")
     && !legacyRouteRedirects[module.id];
 });
 

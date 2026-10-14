@@ -14,7 +14,9 @@ export default function SelectField({
   helper,
   required = false,
   searchable = false,
+  searchPlaceholder = "Search…",
   emptyText = "No options found",
+  buttonRef,
   className = "",
   buttonClassName = "",
   footerAction = null,
@@ -26,13 +28,14 @@ export default function SelectField({
     triggerRef = useRef(null),
     optionRefs = useRef([]);
   const id = useId();
+  const showSearch = searchable === "auto" ? options.length > 7 : Boolean(searchable);
   const selectedOption = options.find(
     (option) => String(option.value) === String(value),
   );
   const filteredOptions = useMemo(
     () =>
       options.filter((option) =>
-        `${option.label} ${option.description || ""}`
+        `${option.searchText ?? option.label} ${option.description || ""}`
           .toLowerCase()
           .includes(query.trim().toLowerCase()),
       ),
@@ -102,7 +105,11 @@ export default function SelectField({
         </div>
       )}
       <button
-        ref={triggerRef}
+        ref={node => {
+          triggerRef.current = node;
+          if (typeof buttonRef === "function") buttonRef(node);
+          else if (buttonRef) buttonRef.current = node;
+        }}
         type="button"
         className={`admin-select-trigger control ${buttonClassName}`}
         aria-label={ariaLabel}
@@ -162,14 +169,15 @@ export default function SelectField({
           setIsOpen(open);
           if (!open) triggerRef.current?.focus();
         }}
-        anchorRef={containerRef}
+        anchorRef={triggerRef}
         minWidth={224}
+        maxHeight={360}
         align="start"
         estimatedHeight={320}
         focusOnOpen
         className="admin-select-popover"
       >
-        {searchable && (
+        {showSearch && (
           <div className="admin-select-search">
             <Search size={14} aria-hidden="true" />
             <input
@@ -177,7 +185,7 @@ export default function SelectField({
               value={query}
               aria-label={`Search ${ariaLabel || label || "options"}`}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search…"
+              placeholder={searchPlaceholder}
               onKeyDown={(event) => {
                 if (event.key === "ArrowDown") {
                   event.preventDefault();
@@ -200,6 +208,7 @@ export default function SelectField({
                 optionRefs.current[index] = node;
               }}
               role="option"
+              aria-label={option.searchText}
               aria-selected={String(option.value) === String(value)}
               className="admin-select-option"
               type="button"

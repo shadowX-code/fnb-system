@@ -1,0 +1,31 @@
+import {describe,it,expect} from 'vitest';
+import {collaborationPublishing,publishingProgress,collaborationStatus,creatorInsights,creatorFollowups,filterCreators,metricTotal} from '../creatorPresentation.js';
+const data={creators:[{id:'c',name:'Creator name',email:'',phone:'',location:'Ipoh',categories:['Food'],brand_ids:['b']}],accounts:[{creator_id:'c',platform:'instagram',display_name:'Another name',handle:'different_name'}],collaborations:[{id:'v',brand_id:'b',outlet_id:'o',status:'confirmed',visit_at:'2026-10-15T02:00Z',created_at:'2026-10-13T00:00Z',currency:'MYR',cash_cost:100,in_kind_cost:25,cost_state:'recorded',deliverables:[{title:'Overdue post',due_date:'2026-10-12',status:'pending'},{title:'Published',status:'completed'}]}],posts:[{id:'p',brand_id:'b',collaboration_id:'v',latest_metrics:{views:0,likes:0}},{id:'organic',brand_id:'other',published_at:'2026-10-13T00:00Z',latest_metrics:{interactions:10}}]};
+describe('Creator evidence projections',()=>{
+ it('searches separate platform identities without replacing Creator identity',()=>{expect(filterCreators(data,{search:'different_name'})[0].name).toBe('Creator name')});
+ it('keeps observed zero distinct from unavailable and never aggregates reach',()=>{expect(metricTotal(data.posts,'views')).toEqual({value:0,available:1,total:2});expect(metricTotal(data.posts,'reach').value).toBeNull();expect(metricTotal(data.posts,'shares').value).toBeNull()});
+ it('counts a post once and preserves partial coverage and organic brand comparisons',()=>{const s=creatorInsights(data);expect(s.posts.length).toBe(2);expect(s.interactions).toEqual({value:10,available:1,total:2});expect(s.comparison.map(b=>b.brand)).toEqual(['b','other']);expect(s.completed).toBe(1);expect(s.deliverables.length).toBe(2)});
+ it('does not combine estimated, recorded or different currencies',()=>{const s=creatorInsights({...data,collaborations:[...data.collaborations,{...data.collaborations[0],id:'v2',currency:'USD',cash_cost:5,cost_state:'estimated'}]});expect(s.costs).toHaveLength(2);expect(s.costs.find(c=>c.currency==='MYR').cash).toBe(100)});
+ it('prioritizes actual overdue deliverables and missing metrics',()=>{const s=creatorFollowups(data,'2026-10-13');expect(s.some(f=>f.reason==='Deliverable overdue')).toBe(true);expect(s.some(f=>f.reason==='Upcoming visit')).toBe(true);expect(s.filter(f=>f.reason==='Metrics not recorded')).toHaveLength(0)});
+ it('does not hide pending deliverables merely because a collaboration was marked completed',()=>{expect(creatorFollowups({...data,collaborations:[{...data.collaborations[0],status:'completed'}]},'2026-10-13').some(f=>f.reason==='Deliverable overdue')).toBe(true)});
+ it('retains recorded cancellation costs without treating cancelled estimates as spend',()=>{const s=creatorInsights({...data,collaborations:[{...data.collaborations[0],status:'cancelled'}]});expect(s.costs[0].cash).toBe(100);expect(s.deliverables).toHaveLength(0)});
+ it('date selection filters collaborations by visit and organic posts by publication',()=>{expect(creatorInsights(data,'2026-10-14','2026-10-16').posts.map(p=>p.id)).toEqual(['p'])});
+});
+
+
+describe('Unified collaboration publishing',()=>{
+ const c={id:'c',status:'completed',deliverables:[{id:'d1',platform:'instagram',status:'pending'},{id:'d2',platform:'instagram',status:'pending'},{id:'old',platform:'tiktok',status:'cancelled'}]};
+ const post={id:'p',platform:'instagram',collaboration_id:'c',deliverable_id:'d1',canonical_url:'https://instagram.com/p/real/',published_date:'2026-10-14'};
+ it('reconciles linked and unplanned Posts without duplicating planned entries',()=>{const posts=[post,{...post,id:'p2'},{...post,id:'extra',deliverable_id:null}];const entries=collaborationPublishing(c,posts);expect(entries).toHaveLength(4);expect(new Set(entries.map(e=>e.key)).size).toBe(4);expect(publishingProgress(c,posts)).toEqual({published:3,total:4,text:'3/4 Published'})});
+ it('does not equate URL entry, deliverable completion or collaboration closure with publication',()=>{expect(publishingProgress(c,[{...post,published_date:null}])).toMatchObject({published:0,total:2});expect(collaborationPublishing(c,[]).every(e=>!e.published)).toBe(true)});
+ it('does not include organic Posts when editing a new unsaved collaboration',()=>{expect(collaborationPublishing({deliverables:[]},[{...post,collaboration_id:null}])).toEqual([])});
+ it('preserves legacy Posts even when their old entry was cancelled',()=>{expect(collaborationPublishing(c,[{...post,deliverable_id:'old'}]).filter(e=>e.post)).toHaveLength(1)});
+});
+
+ describe('Evidence-derived Collaboration lifecycle',()=>{
+ const c={id:'c',status:'planned',deliverables:[{id:'a',status:'pending'},{id:'b',status:'pending'},{id:'d',status:'pending'}]};
+ const posts=['a','b','d'].map((id,i)=>({id:'p'+i,collaboration_id:'c',deliverable_id:id,canonical_url:'https://instagram.com/p/test'+i,publication_confirmed_at:'2026-10-14T00:00:00Z'}));
+ it('requires nonzero complete entries and derives partial publishing as In Progress',()=>{expect(collaborationStatus({...c,deliverables:[]},[])).toBe('planned');expect(collaborationStatus(c,posts.slice(0,1))).toBe('in_progress');expect(collaborationStatus(c,posts.slice(0,2))).toBe('in_progress');expect(collaborationStatus(c,posts)).toBe('published');expect(collaborationStatus(c,[{...posts[0],publication_confirmed_at:null}])).toBe('planned')});
+ it('returns to In Progress for a new entry and recalculates after unlinking without mutating evidence',()=>{expect(collaborationStatus({...c,status:'published',workflow_status:'planned',deliverables:[...c.deliverables,{id:'new',status:'pending'}]},posts)).toBe('in_progress');expect(collaborationStatus({...c,status:'published',workflow_status:'planned'},posts.slice(0,2))).toBe('in_progress');expect(c.status).toBe('planned');expect(posts).toHaveLength(3)});
+ it('reconciles historical Completed without rewriting it and preserves cancellation',()=>{const legacy={...c,status:'completed'};expect(collaborationStatus(legacy,[])).toBe('in_progress');expect(collaborationStatus(legacy,posts)).toBe('published');expect(legacy.status).toBe('completed');expect(collaborationStatus({...c,status:'cancelled'},posts)).toBe('cancelled')});
+ });

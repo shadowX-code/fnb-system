@@ -1,4 +1,12 @@
 import { lazy } from "react";
+const CreatorsPage = lazy(() => import("../features/marketing/CreatorsPage.jsx"));
+const ContentPlannerPage = lazy(() => import("../features/marketing/ContentPlannerPage.jsx"));
+import BrandsPage from "../features/brands/BrandsPage.jsx";
+const MarketingAdsPage = lazy(() => import("../features/marketing/MarketingAdsPage.jsx"));
+const MarketingOutreachPage = lazy(() => import("../features/marketing/MarketingOutreachPage.jsx"));
+const MarketingInboxPage = lazy(() => import("../features/marketing/MarketingInboxPage.jsx"));
+const MarketingSettingsPage = lazy(() => import("../features/marketing/MarketingSettingsPage.jsx"));
+const MarketingWorkspacePage = lazy(() => import("../features/marketing/MarketingWorkspacePage.jsx"));
 import DashboardOverviewPage from "../features/sales-purchase/pages/DashboardOverviewPage.jsx";
 import SPDashboardPage from "../features/sales-purchase/pages/SPDashboardPage.jsx";
 import AlertsInsightsPage from "../features/sales-purchase/pages/AlertsInsightsPage.jsx";
@@ -58,6 +66,22 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 }
 
 export const routeDetails = {
+  marketing_creators: { component: CreatorsPage, permission: "marketing_workspace.access AND marketing_creators.view", description: "Creator relationships, collaborations, post records and performance evidence." },
+  marketing_ads: { component: MarketingAdsPage, permission: "marketing_workspace.access AND marketing_ads.view", description: "Brand Ad Accounts and verified Meta advertising performance." },
+  marketing_crm_legacy: { component: MarketingOutreachPage, props: { section: "legacy" }, permission: "marketing_workspace.access AND marketing_campaigns.view OR marketing_workspace.access AND marketing_audience.view", description: "Compatibility entry for existing CRM bookmarks." },
+  marketing_audience: { component: MarketingOutreachPage, props: { section: "customers" }, permission: "marketing_workspace.access AND marketing_audience.view", description: "Brand customer relationships, consent and segments." },
+  marketing_campaigns: { component: MarketingOutreachPage, props: { section: "whatsapp" }, permission: "marketing_workspace.access AND marketing_campaigns.view", description: "Approved campaigns and manual WhatsApp handling." },
+  marketing_inbox: { component: MarketingInboxPage, permission: "marketing_workspace.access AND marketing_inbox.view", description: "Brand conversations, human handling and approved AI reply proposals." },
+  marketing_overview: { component: MarketingWorkspacePage, props: { section: "overview" }, permission: "marketing_workspace.access AND marketing_overview.view", description: "Brand publishing activity and action center." },
+  marketing_planner: { component: ContentPlannerPage, permission: "marketing_workspace.access AND marketing_planner.view", description: "Creative production, monthly targets and recurring plans." },
+  marketing_media: { component: MarketingWorkspacePage, props: { section: "media" }, permission: "marketing_workspace.access AND marketing_content.view", description: "Brand-scoped read-only Google Drive media." },
+  marketing_content: { component: MarketingWorkspacePage, props: { section: "content" }, permission: "marketing_workspace.access AND marketing_content.view", description: "Versioned creative content, review and publishing." },
+  marketing_calendar: { component: MarketingWorkspacePage, props: { section: "calendar" }, permission: "marketing_workspace.access AND marketing_calendar.view OR marketing_workspace.access AND marketing_content.view", description: "Versioned posts, approvals and publishing analytics." },
+  marketing_analytics: { component: MarketingWorkspacePage, props: { section: "analytics" }, permission: "marketing_workspace.access AND marketing_analytics.view", description: "Publishing outcomes and available evidence." },
+  marketing_settings: { component: MarketingSettingsPage, props: { section: "legacy" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Compatibility entry for saved Settings and OAuth callbacks." },
+  marketing_connections: { component: MarketingSettingsPage, props: { section: "connections" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Brand social and Google Drive connections." },
+  marketing_knowledge: { component: MarketingSettingsPage, props: { section: "knowledge" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Brand identity, guidance and evidence." },
+  marketing_brand_access: { component: MarketingSettingsPage, props: { section: "access" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Authorized Brand access and team role scopes." },
   dashboard: {
     description: "Monthly HQ management overview for outlet health, alerts, operations and team moments.",
     component: DashboardOverviewPage,
@@ -129,6 +153,7 @@ export const routeDetails = {
     description: "Manage company roles.",
     component: RolesPage,
   },
+  brands: { description: "Shared Platform Brand and Outlet relationships.", component: BrandsPage, permission: "platform_organizations.manage" },
   outlets: {
     description: "Outlet master data used by sales and purchase records through outlet_id.",
     component: OutletManagementPage,
@@ -561,7 +586,7 @@ export const salesPurchaseRoutes = moduleRegistry.filter((module) => module.rout
     eyebrow: module.section,
     description: details.description ?? `${module.label} workspace.`,
     component: details.component ?? ModulePlaceholderPage,
-    permission: details.permission ?? viewPermission(module.id),
+    permission: details.permission ?? module.readPermission ?? viewPermission(module.id),
     props: {
       moduleId: module.id,
       moduleLabel: module.label,

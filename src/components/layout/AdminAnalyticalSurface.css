@@ -1,0 +1,3 @@
+.admin-analysis-disclosure {animation:admin-analysis-open 180ms ease-out;}
+@keyframes admin-analysis-open {from {opacity:.5;transform:translateY(3px);}to {opacity:1;transform:translateY(0);}}
+@media(prefers-reduced-motion:reduce){.admin-analysis-disclosure {animation:none;}}

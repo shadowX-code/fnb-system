@@ -1,0 +1,129 @@
+file,scope
+server/creatorExtraction/urls.mjs,shared dependency: integrate scoped hunks
+src/assets/social/tiktok.svg,shared dependency: integrate scoped hunks
+src/assets/social/xiaohongshu.svg,shared dependency: integrate scoped hunks
+src/auth/authService.js,shared dependency: integrate scoped hunks
+src/components/feedback/ConfirmDialog.jsx,shared dependency: integrate scoped hunks
+src/components/feedback/EmptyState.jsx,shared dependency: integrate scoped hunks
+src/components/feedback/Modal.jsx,shared dependency: integrate scoped hunks
+src/components/forms/AdminEvidenceFilePicker.jsx,shared dependency: integrate scoped hunks
+src/components/forms/AdminSearchField.jsx,shared dependency: integrate scoped hunks
+src/components/forms/DatePickerField.jsx,shared dependency: integrate scoped hunks
+src/components/forms/MonthPickerField.jsx,shared dependency: integrate scoped hunks
+src/components/forms/SelectField.jsx,shared dependency: integrate scoped hunks
+src/components/forms/TextareaField.jsx,shared dependency: integrate scoped hunks
+src/components/layout/AdminFilterToolbar.jsx,shared dependency: integrate scoped hunks
+src/components/layout/PageHeader.jsx,shared dependency: integrate scoped hunks
+src/components/layout/WorkspacePage.jsx,shared dependency: integrate scoped hunks
+src/components/media/MediaLightbox.jsx,shared dependency: integrate scoped hunks
+src/components/media/mediaLightbox.css,shared dependency: integrate scoped hunks
+src/components/tables/AdminPagination.jsx,shared dependency: integrate scoped hunks
+src/components/tables/DataTable.jsx,shared dependency: integrate scoped hunks
+src/components/ui/ActionMenu.jsx,shared dependency: integrate scoped hunks
+src/components/ui/AdminKanbanBoard.jsx,shared dependency: integrate scoped hunks
+src/components/ui/AdminSparkline.jsx,shared dependency: integrate scoped hunks
+src/components/ui/AdminSummaryGrid.jsx,shared dependency: integrate scoped hunks
+src/components/ui/Drawer.jsx,shared dependency: integrate scoped hunks
+src/components/ui/MetricCard.jsx,shared dependency: integrate scoped hunks
+src/components/ui/adminKanban.css,shared dependency: integrate scoped hunks
+src/features/brands/BrandsPage.jsx,owned feature
+src/features/crew/components/CrewAttendanceDateRangePicker.jsx,shared dependency: integrate scoped hunks
+src/features/marketing/AdsAttributionReview.jsx,owned feature
+src/features/marketing/AdsCopilot.jsx,owned feature
+src/features/marketing/AdsManagement.jsx,owned feature
+src/features/marketing/AdsPerformanceTrend.jsx,owned feature
+src/features/marketing/AdsReportingContext.jsx,owned feature
+src/features/marketing/BrandAccessConsole.jsx,owned feature
+src/features/marketing/BrandKnowledgeWorkspace.jsx,owned feature
+src/features/marketing/CampaignAudienceBreakdown.jsx,owned feature
+src/features/marketing/CampaignMediaField.jsx,owned feature
+src/features/marketing/CollaborationPublishing.jsx,owned feature
+src/features/marketing/ContentManagement.jsx,owned feature
+src/features/marketing/ContentPlannerPage.jsx,owned feature
+src/features/marketing/CreatorAvatar.jsx,owned feature
+src/features/marketing/CreatorDirectoryDetails.jsx,owned feature
+src/features/marketing/CreatorEditors.jsx,owned feature
+src/features/marketing/CreatorOptionPicker.jsx,owned feature
+src/features/marketing/CreatorPostLink.jsx,owned feature
+src/features/marketing/CreatorPostPreview.jsx,owned feature
+src/features/marketing/CreatorPostThumbnail.jsx,owned feature
+src/features/marketing/CreatorsPage.jsx,owned feature
+src/features/marketing/CustomerDetailDrawer.jsx,owned feature
+src/features/marketing/CustomerImportDialog.jsx,owned feature
+src/features/marketing/CustomerTagsDialog.jsx,owned feature
+src/features/marketing/DriveMediaBrowser.jsx,owned feature
+src/features/marketing/GoogleDriveSettings.jsx,owned feature
+src/features/marketing/InboxHistoryImport.jsx,owned feature
+src/features/marketing/InboxReplyComposer.jsx,owned feature
+src/features/marketing/MarketingAccessBoundary.jsx,owned feature
+src/features/marketing/MarketingAdsPage.jsx,owned feature
+src/features/marketing/MarketingCustomersView.jsx,owned feature
+src/features/marketing/MarketingDashboards.jsx,owned feature
+src/features/marketing/MarketingInboxPage.jsx,owned feature
+src/features/marketing/MarketingMediaPicker.jsx,owned feature
+src/features/marketing/MarketingMediaPreview.jsx,owned feature
+src/features/marketing/MarketingOutreachPage.jsx,owned feature
+src/features/marketing/MarketingSettingsPage.jsx,owned feature
+src/features/marketing/MarketingWorkspacePage.jsx,owned feature
+src/features/marketing/MediaLibrary.jsx,owned feature
+src/features/marketing/MetaIntegrationPanels.jsx,owned feature
+src/features/marketing/PlannerTaskList.jsx,owned feature
+src/features/marketing/PlanningInsights.jsx,owned feature
+src/features/marketing/PostDetail.jsx,owned feature
+src/features/marketing/SocialAccounts.jsx,owned feature
+src/features/marketing/SocialChannelIcon.jsx,owned feature
+src/features/marketing/SocialPerformanceCharts.jsx,owned feature
+src/features/marketing/WhatsAppSenderDialog.jsx,owned feature
+src/features/marketing/XhsReaderPilot.jsx,owned feature
+src/features/marketing/ads.css,owned feature
+src/features/marketing/adsAttribution.js,owned feature
+src/features/marketing/adsPresentation.js,owned feature
+src/features/marketing/adsReadiness.js,owned feature
+src/features/marketing/adsService.js,owned feature
+src/features/marketing/brandContext.js,owned feature
+src/features/marketing/contentManagement.css,owned feature
+src/features/marketing/contentManagement.js,owned feature
+src/features/marketing/contentPlanner.css,owned feature
+src/features/marketing/contentPlanner.js,owned feature
+src/features/marketing/creatorMutationProjection.js,owned feature
+src/features/marketing/creatorPresentation.js,owned feature
+src/features/marketing/creatorProfiles.js,owned feature
+src/features/marketing/creatorService.js,owned feature
+src/features/marketing/creators.css,owned feature
+src/features/marketing/customerContact.js,owned feature
+src/features/marketing/customerImport.js,owned feature
+src/features/marketing/customerPresentation.js,owned feature
+src/features/marketing/dashboardProjection.js,owned feature
+src/features/marketing/dashboardService.js,owned feature
+src/features/marketing/driveMedia.css,owned feature
+src/features/marketing/driveService.js,owned feature
+src/features/marketing/inboxPresentation.js,owned feature
+src/features/marketing/inboxService.js,owned feature
+src/features/marketing/marketing.css,owned feature
+src/features/marketing/marketingCalendar.js,owned feature
+src/features/marketing/marketingDashboards.css,owned feature
+src/features/marketing/marketingInbox.css,owned feature
+src/features/marketing/marketingService.js,owned feature
+src/features/marketing/marketingSettings.css,owned feature
+src/features/marketing/mediaLibraryPresentation.js,owned feature
+src/features/marketing/outreach.css,owned feature
+src/features/marketing/outreachService.js,owned feature
+src/features/marketing/plannerPublishing.js,owned feature
+src/features/marketing/plannerService.js,owned feature
+src/features/marketing/socialAccountHealth.js,owned feature
+src/features/marketing/socialAccounts.css,owned feature
+src/features/marketing/socialChannelIcon.css,owned feature
+src/features/marketing/useConversationReplyCount.js,owned feature
+src/features/marketing/whatsappDelivery.js,owned feature
+src/lib/dateTime.js,shared dependency: integrate scoped hunks
+src/lib/tabularFile.js,shared dependency: integrate scoped hunks
+src/services/brandService.js,shared dependency: integrate scoped hunks
+src/app/AdminApp.jsx,scoped Marketing/Brand integration only
+src/app/routes.jsx,scoped Marketing/Brand integration only
+src/app/routeOwnership.js,scoped Marketing/Brand integration only
+src/layouts/AppShell.jsx,scoped Marketing/Brand integration only
+src/features/sales-purchase/pages/OutletManagementPage.jsx,scoped Marketing/Brand integration only
+package.json,scoped Marketing/Brand integration only
+package-lock.json,scoped Marketing/Brand integration only
+public/templates/customer-import.csv,scoped Marketing/Brand integration only
+public/templates/customer-import.xlsx,scoped Marketing/Brand integration only

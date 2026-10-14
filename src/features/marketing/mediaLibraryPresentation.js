@@ -1,0 +1,10 @@
+export const DRIVE_FOLDER='application/vnd.google-apps.folder';
+export const mediaKey=file=>file.selection_id||file.id;
+export const mediaType=file=>file.mimeType===DRIVE_FOLDER?'Folder':file.mimeType?.startsWith('video/')?'Video':file.mimeType?.startsWith('image/')?'Image':'File';
+export function preferredMediaView(userId){try{return userId&&localStorage.getItem(`admin.presentation.marketing.media.${userId}`)==='list'?'list':'grid';}catch{return 'grid';}}
+export function saveMediaView(userId,view){if(!userId)return;try{localStorage.setItem(`admin.presentation.marketing.media.${userId}`,view);}catch{/* Optional presentation preference. */}}
+export function mediaSize(file){if(file.mimeType===DRIVE_FOLDER||file.size==null||String(file.size).trim()==='')return null;const value=Number(file.size);return Number.isFinite(value)&&value>=0?value:null;}
+export function mediaModified(file){const value=file.modifiedTime?Date.parse(file.modifiedTime):NaN;return Number.isFinite(value)?value:null;}
+export function mediaSizeLabel(file){const size=mediaSize(file);if(size===null)return '—';if(size<1024)return `${size} B`;const unit=size<1048576?'KB':size<1073741824?'MB':'GB',divisor=unit==='KB'?1024:unit==='MB'?1048576:1073741824;return `${(size/divisor).toLocaleString('en-MY',{maximumFractionDigits:1})} ${unit}`;}
+export function mediaDateLabel(file){const value=mediaModified(file);return value===null?'—':new Intl.DateTimeFormat('en-MY',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Kuala_Lumpur'}).format(value);}
+export function sortedMedia(files,sort){const [field,direction]=sort.split('_'),factor=direction==='desc'?-1:1;return [...files].sort((a,b)=>{const byName=()=>String(a.name||'').localeCompare(String(b.name||''),'en',{numeric:true,sensitivity:'base'});if(field==='name'){const folderDifference=Number(b.mimeType===DRIVE_FOLDER)-Number(a.mimeType===DRIVE_FOLDER);return folderDifference||factor*byName();}const left=field==='size'?mediaSize(a):mediaModified(a),right=field==='size'?mediaSize(b):mediaModified(b);if(left===null||right===null)return left===right?byName():left===null?1:-1;return factor*(left-right)||byName();});}

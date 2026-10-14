@@ -1,3 +1,4 @@
+import MarketingAccessBoundary from "../features/marketing/MarketingAccessBoundary.jsx";
 import { useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "../components/feedback/ConfirmDialog.jsx";
 import ToastViewport from "../components/feedback/ToastViewport.jsx";
@@ -148,7 +149,7 @@ function filterSectionsByPermission(sections, routes, auth) {
 
 function routePermissionAllowed(auth, permission) {
   if (!permission) return true;
-  return String(permission).split(" OR ").some((code) => auth.hasPermission(code.trim()));
+  return String(permission).split(" OR ").some((clause) => clause.split(" AND ").every((code) => auth.hasPermission(code.trim())));
 }
 
 const BOOTSTRAP_LOADS = [
@@ -296,7 +297,7 @@ function AdminApp() {
     if (routeWorkspace !== "restaurant") return routeWorkspace;
     try {
       const saved = localStorage.getItem("feedx.workspace");
-      return ["restaurant", "factory", "crew"].includes(saved) ? saved : "restaurant";
+      return ["restaurant", "factory", "crew", "marketing"].includes(saved) ? saved : "restaurant";
     } catch {
       return "restaurant";
     }
@@ -667,7 +668,7 @@ function AdminApp() {
         <RbacDiagnosticsPanel auth={auth} loads={masterDataStatus.loads} />
         <CrewAdminOutletProvider outlets={effectiveStore.outlets}>
           <AdminRouteBoundary routeKey={activeRouteId} label={activeRoute.label}>
-            <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />
+            {workspaceForRoute(activeRouteId) === "marketing" ? <MarketingAccessBoundary userId={auth.user?.id} onAccessChanged={auth.refreshContext}><ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} /></MarketingAccessBoundary> : <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />}
           </AdminRouteBoundary>
         </CrewAdminOutletProvider>
       </AppShell>

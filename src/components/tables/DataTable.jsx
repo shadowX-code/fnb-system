@@ -1,16 +1,22 @@
-export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, density = "normal", columnSpacing = "normal", tableClassName = "" }) {
-  function shouldIgnoreRowClick(event) {
-    return Boolean(event.target.closest("button, a, input, select, textarea, [role='button'], [data-row-action='true']"));
+export function shouldIgnoreRowClick(event) {
+    const selection = window.getSelection?.();
+    if (event.type === "click" && selection?.toString() && event.currentTarget.contains(selection.anchorNode)) return true;
+    const control = event.target.closest("button, a, input, select, textarea, summary, [contenteditable='true'], [role='button'], [data-row-action='true']");
+    return Boolean(control && control !== event.currentTarget);
   }
+
+export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, density = "normal", columnSpacing = "normal", tableClassName = "", minWidth = 880, mobileLayout = "scroll" }) {
+
 
   return (
     <div className="data-table-scroll admin-data-table-scroll overflow-x-auto">
-      <table className={`admin-data-table w-full min-w-[880px] border-collapse ${tableClassName}`} data-density={density} data-column-spacing={columnSpacing}>
+      <table className={`admin-data-table w-full border-collapse ${tableClassName}`} data-mobile-layout={mobileLayout} data-density={density} data-column-spacing={columnSpacing} style={{minWidth}}>
         <thead className="table-head admin-table-head">
           <tr>
             {columns.map((column) => (
               <th
                   key={column.key}
+                  data-priority={column.priority}
                   style={column.width ? { width: column.width } : undefined}
                   className={`admin-table-header-cell ${column.headerClassName ?? ""} ${column.align === "right" ? "text-right" : ""} ${
                   column.sticky ? "table-sticky-cell sticky left-0 z-10" : ""
@@ -43,6 +49,8 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
                 {columns.map((column) => (
                   <td
                     key={column.key}
+                    data-priority={column.priority}
+                    data-label={typeof column.header === "string" ? column.header : undefined}
                     style={column.width ? { width: column.width } : undefined}
                     className={`admin-table-cell align-middle ${column.className ?? ""} ${column.align === "right" ? "text-right" : ""} ${
                       column.sticky ? "table-sticky-cell sticky left-0 z-10" : ""

@@ -1,0 +1,64 @@
+{
+  "production_sha": "5224eeade2e7438c7810c2aa8524422443e9e1ab",
+  "staging_sha": "63eb493b3e947d84e8ed51f0c6f81958302d5fdd",
+  "production_migrations": 651,
+  "staging_migrations": 828,
+  "common_versions": 641,
+  "production_only_versions": 10,
+  "staging_only_versions": 187,
+  "required_marketing": 126,
+  "required_platform_dependencies": 7,
+  "separate_security_prerequisites": 2,
+  "unrelated_excluded": 52,
+  "prior_111_applied": 0,
+  "original_manifest_hash_drift": 0,
+  "schema_parity": {
+    "functions": 988,
+    "tables_views": 295,
+    "columns": 3361,
+    "constraints": 1859,
+    "indexes": 843,
+    "policies": 347,
+    "triggers": 175,
+    "table_grants": 5402,
+    "difference_count": 0
+  },
+  "candidate": {
+    "passed": 133,
+    "existing_function_definition_changes": 0,
+    "existing_structure_or_grant_changes": 0,
+    "new_public_inventory_functions": 167,
+    "omission_trials": 81,
+    "omissions_breaking_sql": 11,
+    "omissions_changing_final_result": 70,
+    "equivalent_omissions": 0
+  },
+  "data_preservation": {
+    "baseline_tables": 295,
+    "baseline_rows": 2294,
+    "lost_or_changed_rows": [],
+    "appended": {
+      "public.permissions": 47
+    }
+  },
+  "focused_suites": [
+    "per-member Brand access",
+    "Planner revision/blocker authority",
+    "Creator primary Instagram/picture evidence",
+    "CRM import optional names/POS/consent/idempotency",
+    "Social observed-growth/provenance"
+  ],
+  "separate_security_scenario": "both hotfix SQL files and all five focused suites passed",
+  "environment_overlay": {
+    "function_count": 7,
+    "remaining_staging_references": 0,
+    "new_marketing_schedules_active": false,
+    "second_apply_passed": true
+  },
+  "limits": [
+    "No live business rows copied: seed/control preservation and catalog parity, not production dataset load/selectivity testing.",
+    "Local engine 17.11; live Production and Staging 17.6. Exact application catalog parity verified; exact managed binary/extension runtime equivalence not claimed.",
+    "No main-baseline application package was assembled or deployed; shared-file hunk isolation/build remains a release gate.",
+    "No external provider tests, new OAuth, App Review or external execution."
+  ]
+}

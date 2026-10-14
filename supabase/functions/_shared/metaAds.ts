@@ -1,0 +1,372 @@
+import { MetaGraph, MetaError } from "./metaGraph.ts";
+import { connectionBinding, unseal } from "./metaSecurity.ts";
+const id = (v: unknown) => typeof v === "string" && /^\d{1,30}$/.test(v);
+export const ADS_ACCOUNT_FIELDS =
+  "id,account_id,name,currency,timezone_name,account_status,disable_reason,user_tasks";
+export const ADS_CONFIG_FIELDS = {
+  campaigns:
+    "id,name,objective,status,effective_status,daily_budget,lifetime_budget,start_time,stop_time,updated_time,special_ad_categories",
+  adsets:
+    "id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,start_time,end_time,targeting,optimization_goal,billing_event,attribution_spec,updated_time",
+  ads: "id,name,campaign_id,adset_id,status,effective_status,creative{id,name,object_story_spec,thumbnail_url},updated_time",
+};
+
+const tasks = new Set([
+  "MANAGE",
+  "ADVERTISE",
+  "ANALYZE",
+  "AA_ANALYZE",
+  "DRAFT",
+]);
+export function adsAccount(row: any, scopes: string[]) {
+  const accountId = String(row?.account_id || "");
+  if (
+    !id(accountId) ||
+    row.id !== `act_${accountId}` ||
+    !/^([A-Z]{3})$/.test(row.currency || "") ||
+    typeof row.timezone_name !== "string" ||
+    !row.timezone_name
+  )
+    throw new MetaError("ad_account_identity_mismatch");
+  const granted = (Array.isArray(row.user_tasks) ? row.user_tasks : []).filter(
+    (v: string) => tasks.has(v),
+  );
+  return {
+    id: accountId,
+    name: String(row.name || "Meta Ad Account").slice(0, 200),
+    channel: "ad_account",
+    currency: row.currency,
+    timezone: row.timezone_name,
+    account_status: Number.isSafeInteger(row.account_status)
+      ? row.account_status
+      : null,
+    disable_reason: Number.isSafeInteger(row.disable_reason)
+      ? row.disable_reason
+      : null,
+    tasks: granted,
+    granted_scopes: [
+      ...new Set(
+        scopes.filter(
+          (scope) => typeof scope === "string" && /^[a-z_]{1,80}$/.test(scope),
+        ),
+      ),
+    ].sort(),
+    read_verified:
+      scopes.includes("ads_read") || scopes.includes("ads_management"),
+    manage_verified:
+      scopes.includes("ads_management") &&
+      granted.some((t: string) => ["MANAGE", "ADVERTISE"].includes(t)) &&
+      row.account_status === 1,
+    manage_reason: !scopes.includes("ads_management")
+      ? "ads_management_required"
+      : !granted.some((t: string) => ["MANAGE", "ADVERTISE"].includes(t))
+        ? "ad_tasks_unverified"
+        : row.account_status !== 1
+          ? "account_not_active"
+          : "verified",
+    execution_enabled: false,
+  };
+}
+export async function adsPages(
+  graph: MetaGraph,
+  path: string,
+  token: string,
+  params: Record<string, any>,
+  guard: () => Promise<void> = async () => {},
+) {
+  const rows: any[] = [];
+  let after: string | undefined;
+  for (let page = 0; page < 10; page++) {
+    await guard();
+    const body = await graph.request(path, token, {
+      ...params,
+      limit: 50,
+      after,
+    });
+    if (!Array.isArray(body.data))
+      throw new MetaError("ads_response_unreadable");
+    rows.push(...body.data);
+    if (!body.paging?.next) return rows;
+    after = body.paging?.cursors?.after;
+    if (typeof after !== "string" || !after || after.length > 2048)
+      throw new MetaError("ads_pagination_unavailable");
+  }
+  throw new MetaError("ads_pagination_limit");
+}
+export async function verifyAdsUser(
+  graph: MetaGraph,
+  appId: string,
+  appSecret: string,
+  token: string,
+  expectedUser?: string,
+) {
+  const d = (
+    await graph.request("debug_token", `${appId}|${appSecret}`, {
+      input_token: token,
+    })
+  ).data;
+  if (
+    !d?.is_valid ||
+    String(d.app_id) !== appId ||
+    d.type !== "USER" ||
+    !id(String(d.user_id))
+  )
+    throw new MetaError("meta_permission_or_token_invalid");
+  if (expectedUser && String(d.user_id) !== expectedUser)
+    throw new MetaError("ad_authorizer_changed");
+  if (
+    [d.expires_at, d.data_access_expires_at].some(
+      (v) => Number(v) > 0 && Number(v) <= Date.now() / 1000,
+    )
+  )
+    throw new MetaError("meta_permission_or_token_invalid");
+  const scopes = Array.isArray(d.scopes) ? d.scopes : [];
+  if (!scopes.includes("ads_read") && !scopes.includes("ads_management"))
+    throw new MetaError("ads_read_not_granted");
+  return { userId: String(d.user_id), scopes };
+}
+export async function discoverAds(graph: MetaGraph, code: string) {
+  const { token, debug, expiresAt } = await graph.exchangeUser(code);
+  if (debug.type !== "USER") throw new MetaError("user_token_required");
+  const scopes = Array.isArray(debug.scopes) ? debug.scopes : [];
+  if (!scopes.includes("ads_read") && !scopes.includes("ads_management"))
+    throw new MetaError("ads_read_not_granted");
+  const accounts = (
+    await adsPages(graph, "me/adaccounts", token, {
+      fields: ADS_ACCOUNT_FIELDS,
+    })
+  ).map((a) => adsAccount(a, scopes));
+  return { token, userId: String(debug.user_id), expiresAt, accounts };
+}
+export async function verifyAdsAccount(
+  graph: MetaGraph,
+  appId: string,
+  appSecret: string,
+  token: string,
+  accountId: string,
+  expectedUser?: string,
+  guard: () => Promise<void> = async () => {},
+) {
+  if (!id(accountId)) throw new MetaError("ad_account_identity_mismatch");
+  await guard();
+  const user = await verifyAdsUser(
+    graph,
+    appId,
+    appSecret,
+    token,
+    expectedUser,
+  );
+  // me/adaccounts proves this exact authorizer's account visibility, independently of Page bindings.
+  const authorized = await adsPages(
+    graph,
+    "me/adaccounts",
+    token,
+    { fields: ADS_ACCOUNT_FIELDS },
+    guard,
+  );
+  const selected = authorized.find(
+    (a) => a.id === `act_${accountId}` && String(a.account_id) === accountId,
+  );
+  if (!selected) throw new MetaError("ad_account_access_unverified");
+  await guard();
+  const account = adsAccount(
+    await graph.request(`act_${accountId}`, token, {
+      fields: ADS_ACCOUNT_FIELDS,
+    }),
+    user.scopes,
+  );
+  if (account.id !== accountId)
+    throw new MetaError("ad_account_identity_mismatch");
+  return account;
+}
+const insightFields = [
+  "spend",
+  "reach",
+  "impressions",
+  "clicks",
+  "ctr",
+  "cpc",
+  "cpm",
+  "actions",
+  "cost_per_action_type",
+  "action_values",
+];
+const numeric = (v: any) =>
+  v !== null &&
+  v !== undefined &&
+  v !== "" &&
+  Number.isFinite(Number(v)) &&
+  Number(v) >= 0
+    ? Number(v)
+    : null;
+export function adsInsight(row: any) {
+  const metrics: Record<string, any> = {};
+  for (const field of insightFields.filter(
+    (x) => !["actions", "cost_per_action_type", "action_values"].includes(x),
+  ))
+    metrics[field] = {
+      value: numeric(row[field]),
+      state:
+        numeric(row[field]) === null
+          ? "unavailable"
+          : field === "reach"
+            ? "estimated"
+            : "reported",
+    };
+  const action = (rows: any) =>
+    Array.isArray(rows)
+      ? rows
+          .filter(
+            (a) =>
+              typeof a?.action_type === "string" && numeric(a.value) !== null,
+          )
+          .map((a) => ({ type: a.action_type, value: numeric(a.value) }))
+      : null;
+  return {
+    account_id: row.account_id,
+    campaign_id: row.campaign_id,
+    adset_id: row.adset_id,
+    ad_id: row.ad_id,
+    date_start: row.date_start,
+    date_stop: row.date_stop,
+    currency: row.account_currency,
+    metrics,
+    actions: action(row.actions),
+    cost_per_action_type: action(row.cost_per_action_type),
+    action_values: action(row.action_values),
+    attribution:
+      "Meta ad-set attribution settings; conversion-time reporting. Modeled/estimated conversions may be included; not verified FeedX sales.",
+  };
+}
+export async function readAdsReport(
+  graph: MetaGraph,
+  account: any,
+  token: string,
+  from: string,
+  to: string,
+  guard: () => Promise<void>,
+) {
+  const base = `act_${account.id}`,
+    warnings: Record<string, string> = {};
+  const configs: Record<string, any[]> = {};
+  for (const [edge, fields] of Object.entries(ADS_CONFIG_FIELDS)) {
+    // A core configuration failure fails the job: never present a partial account as reconciled.
+    configs[edge] = await adsPages(
+      graph,
+      `${base}/${edge}`,
+      token,
+      { fields },
+      guard,
+    );
+  }
+  const insights: Record<string, any[]> = {};
+  for (const level of ["account", "campaign", "adset", "ad", "daily"]) {
+    try {
+      insights[level] = (
+        await adsPages(
+          graph,
+          `${base}/insights`,
+          token,
+          {
+            fields: [
+              "account_id",
+              "account_currency",
+              "campaign_id",
+              "adset_id",
+              "ad_id",
+              "date_start",
+              "date_stop",
+              ...insightFields,
+            ].join(","),
+            level: level === "daily" ? "account" : level,
+            time_range: { since: from, until: to },
+            use_unified_attribution_setting: true,
+            action_report_time: "conversion",
+            ...(level === "daily" ? { time_increment: 1 } : {}),
+          },
+          guard,
+        )
+      ).map(adsInsight);
+    } catch (error) {
+      if (error instanceof MetaError && error.code === "ads_pagination_limit")
+        warnings[level] =
+          "More data than supported in one synchronization; narrow the date range.";
+      else
+        warnings[level] =
+          error instanceof MetaError ? error.code : "insights_unavailable";
+      insights[level] = [];
+    }
+  }
+  await guard();
+  return {
+    account,
+    configs,
+    insights,
+    warnings,
+    date_from: from,
+    date_to: to,
+    source: "Meta Marketing API",
+    observation:
+      "Reporting may be delayed or revised by Meta. Reach is estimated and non-additive. Budget fields use Meta minor currency units.",
+  };
+}
+export async function processAdsSync(
+  db: any,
+  graph: MetaGraph,
+  env: (key: string) => string,
+) {
+  const call = async (name: string, args: any = {}) => {
+    const { data, error } = await db.rpc(name, args);
+    if (error) throw new Error("ads_authority_changed");
+    return data;
+  };
+  const job = await call("marketing_ads_claim");
+  if (!job) return false;
+  const deadline = Date.now() + 85000;
+  const guard = async () => {
+    if (Date.now() > deadline) throw new MetaError("ads_sync_time_limit");
+    await call("marketing_ads_material", { p_job: job.id, p_lease: job.lease });
+  };
+  let report: any = null,
+    error: string | null = null;
+  try {
+    const material = await call("marketing_ads_material", {
+      p_job: job.id,
+      p_lease: job.lease,
+    });
+    const credential = await unseal(
+      material.sealed_token,
+      [
+        env("MARKETING_META_TOKEN_ENCRYPTION_KEY"),
+        env("MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY"),
+      ],
+      connectionBinding(material),
+    );
+    const account = await verifyAdsAccount(
+      graph,
+      env("MARKETING_META_APP_ID"),
+      env("MARKETING_META_APP_SECRET"),
+      credential.token,
+      material.provider_account_id,
+      material.meta_user_id,
+      guard,
+    );
+    report = await readAdsReport(
+      graph,
+      account,
+      credential.token,
+      job.date_from,
+      job.date_to,
+      guard,
+    );
+  } catch (e) {
+    error = e instanceof MetaError ? e.code : "ads_authority_changed";
+  }
+  await call("marketing_ads_finish", {
+    p_job: job.id,
+    p_lease: job.lease,
+    p_report: report,
+    p_error: error,
+  });
+  return true;
+}

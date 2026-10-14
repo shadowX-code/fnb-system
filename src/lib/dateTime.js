@@ -44,3 +44,12 @@ export function formatOperationalDateTime(value) {
 
   return `${operationalDate(date)} ${operationalTime(date)}`;
 }
+
+/** Compact operational timestamp for lifecycle/workspace history. */
+export function formatOperationalMoment(value) {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const day = new Intl.DateTimeFormat("en-GB", {timeZone: OPERATIONAL_TIME_ZONE,day:"numeric",month:"short",year:"numeric"}).format(date);
+  return `${day} · ${operationalTime(date).toUpperCase()}`;
+}

@@ -8,14 +8,14 @@ const pad = (value) => String(value).padStart(2, "0");
 const parseMonth = (value) => { const [year, month] = String(value || "").split("-").map(Number); return year && month >= 1 && month <= 12 ? { year, month: month - 1 } : null; };
 const toValue = (year, month) => `${year}-${pad(month + 1)}`;
 
-export default function MonthPickerField({ label, value, onChange, disabled = false, unavailable = [], className = "", ariaLabel }) {
+export default function MonthPickerField({ label, value, onChange, disabled = false, unavailable = [], className = "", ariaLabel, emptyLabel }) {
   const wrapperRef = useRef(null); const triggerRef = useRef(null); const selected = parseMonth(value) || { year: new Date().getFullYear(), month: new Date().getMonth() };
   const [open, setOpen] = useState(false); const [year, setYear] = useState(selected.year);
   const unavailableMonths = new Set(unavailable.map((item) => String(item).slice(0, 7)));
   useEffect(() => { const next = parseMonth(value); if (next) setYear(next.year); }, [value]);
   function select(month) { const next = toValue(year, month); if (unavailableMonths.has(next)) return; onChange(next); setOpen(false); triggerRef.current?.focus(); }
   function navigate(event, month) { const moves = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -3, ArrowDown: 3 }; if (!(event.key in moves)) return; event.preventDefault(); const nextDate = new Date(year, month + moves[event.key], 1); setYear(nextDate.getFullYear()); requestAnimationFrame(() => wrapperRef.current?.querySelector(`[data-month="${nextDate.getMonth()}"]`)?.focus()); }
-  const display = `${longMonthNames[selected.month]} ${selected.year}`;
+  const display = !parseMonth(value) && emptyLabel ? emptyLabel : `${longMonthNames[selected.month]} ${selected.year}`;
   return <div className={`month-picker-field ${className}`.trim()} ref={wrapperRef}>
     {label ? <span className="month-picker-field-label">{label}</span> : null}
     <button ref={triggerRef} type="button" className="month-picker-field-trigger" aria-label={ariaLabel || label} aria-haspopup="dialog" aria-expanded={open} disabled={disabled} onClick={() => setOpen((current) => !current)}><CalendarDays size={15} /><span>{display}</span><ChevronRight size={15} className={open ? "is-open" : ""} /></button>

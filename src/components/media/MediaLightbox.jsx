@@ -1,0 +1,16 @@
+import {useEffect,useState} from 'react';
+import {ChevronLeft,ChevronRight,ZoomIn,ZoomOut,Maximize} from 'lucide-react';
+import Modal from '../feedback/Modal.jsx';
+import './mediaLightbox.css';
+/** Sources remain authorized by their owning service; the viewer never retains credentials. */
+export default function MediaLightbox({items,index=0,resolveSource,onClose,footer,details}){
+ const [position,setPosition]=useState(index),[source,setSource]=useState(''),[error,setError]=useState(false),[retry,setRetry]=useState(0),[zoom,setZoom]=useState(1);
+ const item=items[position]||{id:'unavailable',filename:'Media unavailable'};const activeSource=source?.id===item.id?source.url:'';
+ useEffect(()=>{let live=true,release;setSource('');setError(false);setZoom(1);Promise.resolve().then(()=>resolveSource(item)).then(result=>{const url=typeof result==='string'?result:result.url;release=typeof result==='object'?result.release:null;if(live)setSource({id:item.id,url});else release?.();}).catch(()=>{if(live)setError(item.id)});return()=>{live=false;release?.();};},[item?.id,resolveSource,retry]);
+ const navigate=offset=>setPosition(p=>(p+offset+items.length)%items.length);
+ return <Modal title={item.filename||'Media preview'} size="xl" bodyClassName="media-lightbox-body" onClose={onClose} footer={<><span className="mr-auto text-xs text-text-secondary">{position+1} / {items.length}</span>{footer?.(item)}<button className="btn-secondary" onClick={onClose}>Close preview</button></>}>
+ <div className="media-lightbox-tools">{items.length>1?<><button className="icon-btn" aria-label="Previous media" onClick={()=>navigate(-1)}><ChevronLeft size={18}/></button><button className="icon-btn" aria-label="Next media" onClick={()=>navigate(1)}><ChevronRight size={18}/></button></>:null}{!item.mime_type?.startsWith('video/')?<><button className="icon-btn" aria-label="Zoom out" disabled={zoom<=1} onClick={()=>setZoom(v=>Math.max(1,v-.5))}><ZoomOut size={18}/></button><span aria-live="polite">{Math.round(zoom*100)}%</span><button className="icon-btn" aria-label="Zoom in" disabled={zoom>=4} onClick={()=>setZoom(v=>Math.min(4,v+.5))}><ZoomIn size={18}/></button><button className="btn-ghost" onClick={()=>setZoom(1)}><Maximize size={15}/>Fit to screen</button></>:null}</div>
+ <div className="media-lightbox-stage" tabIndex={0} aria-label="Media preview area" onKeyDown={e=>{if(e.target!==e.currentTarget||items.length<2)return;if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();navigate(e.key==='ArrowLeft'?-1:1)}}}>
+ {error===item.id?<div role="alert">Media preview unavailable. The file may have expired or been removed.<button className="btn-secondary" onClick={()=>setRetry(v=>v+1)}>Retry preview</button></div>:!activeSource?<p role="status">Loading preview…</p>:item.mime_type?.startsWith('video/')?<video key={item.id} src={activeSource} controls playsInline preload="metadata" onError={()=>setError(item.id)}/>:<img src={activeSource} alt={item.filename} style={{width:zoom===1?'auto':`${zoom*100}%`,maxWidth:zoom===1?'100%':'none',maxHeight:zoom===1?'100%':'none'}} onError={()=>setError(item.id)}/>}</div>{details?.(item)}
+ </Modal>;
+}

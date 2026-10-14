@@ -1,3 +1,4 @@
+import AdminSparkline from './AdminSparkline.jsx';
 export default function MetricCard({
   label,
   title,
@@ -9,18 +10,30 @@ export default function MetricCard({
   variant,
   icon: Icon,
   status,
+  evidenceStatus,
   sparklineData,
+  sparklineLabel,
+  sparklineColor,
+  sparklineFormatValue,
+  sparklinePlacement = "footer",
+  delta,
+  deltaTone = "neutral",
+  supportingValue,
+  state = "ready",
   insight,
   onClick,
   active = false,
+  ariaLabel,
   size = "standard",
   emphasis = "normal",
   presentation = "default",
   action,
   valueClassName = "",
+  helperClassName = "",
   className = "",
   iconClassName = "",
 }) {
+  const evidenceWarning = ["partial", "stale", "unverified"].includes(evidenceStatus?.state) ? evidenceStatus.label || evidenceStatus.state : null;
   const trendColor = tone === "danger" ? "text-rose-600" : tone === "warning" ? "text-amber-600" : "text-emerald-600";
   const Component = onClick ? "button" : "div";
   const compactVariant = variant === "compact";
@@ -47,9 +60,10 @@ export default function MetricCard({
       : tone === "success"
         ? "bg-emerald-50 text-emerald-700"
         : "bg-primary/8 text-primary/80";
-  // Reserved for a future labeled mini-sparkline. Do not render decorative bars
-  // unless the chart has clear labels, interaction, and trend meaning.
-  void sparklineData;
+  const deltaColor = deltaTone === "positive" ? "text-emerald-700" : deltaTone === "negative" ? "text-rose-700" : "text-text-secondary";
+  // Only dated, explicitly labeled evidence can become a miniature trend.
+  const points = state === "ready" && sparklineLabel && Array.isArray(sparklineData) && sparklineData.length > 1 && sparklineData.every(point => point?.label && Number.isFinite(point.value)) ? sparklineData : null;
+  const sparkline = points ? <AdminSparkline color={sparklineColor} points={points} label={sparklineLabel} formatValue={sparklineFormatValue} className={`${sparklinePlacement === "inline" ? "h-5 w-16 shrink-0" : "h-8 w-full"} ${deltaColor}`}/> : null;
 
   return (
     <Component
@@ -57,6 +71,10 @@ export default function MetricCard({
       type={onClick ? "button" : undefined}
       title={title}
       onClick={onClick}
+      aria-label={ariaLabel}
+      aria-pressed={onClick ? active : undefined}
+      aria-busy={state === "loading" || undefined}
+      data-metric-state={state}
       data-admin-summary-card={isSummary ? "true" : undefined}
     >
       <div className="flex items-start justify-between gap-1.5">
@@ -68,13 +86,18 @@ export default function MetricCard({
           ) : null}
           <div className={`${compactVariant || isSummary ? "text-[11px]" : "text-xs"} truncate font-medium ${isSummary ? "tracking-normal" : "uppercase tracking-[0.06em]"} text-text-secondary`}>{label || title}</div>
         </div>
+        {sparklinePlacement === "inline" ? sparkline : null}
         {status ? <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 type-micro font-semibold text-text-secondary">{status}</span> : null}
       </div>
-      <div className={`mt-0.5 min-w-0 break-words tracking-tight text-text-primary ${valueBaseClass} ${valueClass}`}>{value}</div>
-      {helper || subtitle || trend ? <div className="mt-0.5 flex items-center justify-between gap-2 text-xs">
-        <span className="min-w-0 truncate text-text-secondary">{helper || subtitle}</span>
-        {trend ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
+      <div className={`mt-0.5 min-w-0 break-words tracking-tight text-text-primary ${valueBaseClass} ${valueClass}`}>{state === "loading" ? <span className="motion-safe:animate-pulse text-text-muted" aria-label="Loading value">—</span> : state === "unavailable" ? <span aria-label="Evidence not ready">—</span> : value}</div>
+      {supportingValue && state === "ready" ? <div className="type-caption text-text-secondary">{supportingValue}</div> : null}
+      {delta && state === "ready" ? <div className={`type-caption font-semibold ${deltaColor}`}>{delta}</div> : null}
+      {sparklinePlacement !== "inline" ? sparkline : null}
+      {helper || subtitle || (trend && state === "ready") ? <div className="mt-0.5 flex items-center justify-between gap-2 text-xs">
+        <span className={`min-w-0 text-text-secondary ${helperClassName || "truncate"}`}>{helper || subtitle}</span>
+        {trend && state === "ready" ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
       </div> : null}
+      {evidenceWarning ? <div className="type-caption font-medium text-amber-700" role="status">{evidenceWarning}</div> : null}
       {action ? <div className="mt-1">{action}</div> : null}
       {insight ? <div className="type-caption text-text-muted">{insight}</div> : null}
     </Component>

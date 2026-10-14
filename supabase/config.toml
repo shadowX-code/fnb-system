@@ -3,3 +3,22 @@ project_id = "feedx"
 [functions.payroll-payslips]
 # Admin Auth and opaque Crew tokens are validated in the existing function body.
 verify_jwt = false
+
+# Marketing validates Auth, OAuth state, webhook HMAC and scheduler secrets in handlers.
+[functions.marketing-meta]
+verify_jwt = false
+
+[functions.marketing-worker]
+verify_jwt = false
+
+[functions.marketing-inbox]
+verify_jwt = false
+
+[functions.marketing-privacy]
+verify_jwt = false
+
+[functions.marketing-ads]
+verify_jwt = false
+
+[functions.marketing-drive]
+verify_jwt = false

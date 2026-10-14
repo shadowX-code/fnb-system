@@ -1,15 +1,26 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 export default function ConfirmDialog({ request, onCancel, onConfirm }) {
+  const panelRef = useRef(null), cancelRef = useRef(onCancel);
+  cancelRef.current = onCancel;
+  const active = !!request;
   useEffect(() => {
-    if (!request) return undefined;
+    if (!active) return undefined;
+    const previous = document.activeElement, panel = panelRef.current;
+    panel?.querySelector('button')?.focus();
     function handleKeyDown(event) {
-      if (event.key === "Escape") onCancel?.();
+      if (event.defaultPrevented) return;
+      if (event.key === "Escape") { event.preventDefault(); cancelRef.current?.(); }
+      if (event.key !== "Tab") return;
+      const buttons = panel?.querySelectorAll('button:not(:disabled)');
+      const first = buttons?.[0], last = buttons?.[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onCancel, request]);
+    return () => { document.removeEventListener("keydown", handleKeyDown); if (previous?.isConnected) previous.focus?.(); };
+  }, [active]);
 
   if (!request) return null;
 
@@ -22,6 +33,7 @@ export default function ConfirmDialog({ request, onCancel, onConfirm }) {
       onMouseDown={onCancel}
     >
       <div
+        ref={panelRef}
         className="relative z-confirm-content-layer w-full max-w-md rounded-2xl border border-border bg-surface p-5 shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
       >

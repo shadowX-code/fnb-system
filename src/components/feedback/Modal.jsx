@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 const sizeClasses = {
   sm: "max-w-lg",
   md: "max-w-2xl",
@@ -18,12 +19,31 @@ export default function Modal({
   bodyClassName = "",
   footerClassName = "",
   headerActions,
+  placement = "center",
 }) {
+  const panelRef = useRef(null), closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement, panel = panelRef.current;
+    const controls = () => [...panel.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]')].filter(el => el.getClientRects().length && el.closest('[role="dialog"]') === panel);
+    panel.focus();
+    const key = event => {
+      if (event.target.closest('[role="dialog"]') !== panel) return;
+      if (event.key === 'Escape') { event.preventDefault(); closeRef.current?.(); }
+      if (event.key !== 'Tab') return;
+      const items = controls(), first = items[0], last = items.at(-1);
+      if (!first) { event.preventDefault(); panel.focus(); }
+      else if (event.shiftKey && (document.activeElement === first || document.activeElement === panel)) {event.preventDefault();last.focus();}
+      else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panel)) {event.preventDefault();first.focus();}
+    };
+    panel.addEventListener('keydown', key);
+    return () => {panel.removeEventListener('keydown', key);if(previous?.isConnected)previous.focus?.();};
+  }, []);
   const widthClass = sizeClasses[size] ?? sizeClasses.sm;
 
   return (
-    <div className="fixed inset-0 z-modal-layer flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm">
-      <div role="dialog" aria-modal="true" aria-label={title} className={`relative z-modal-content-layer flex max-h-[85vh] w-full ${widthClass} flex-col overflow-clip rounded-2xl border border-border bg-[var(--theme-surface-raised)] shadow-card ${panelClassName}`}>
+    <div className={`fixed inset-0 z-modal-layer flex ${placement === "right" ? "items-stretch justify-end bg-slate-950/10" : "items-center justify-center p-4 bg-slate-950/30 backdrop-blur-sm"}`}>
+      <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`relative z-modal-content-layer flex ${placement === "right" ? "h-[100dvh] max-w-[560px] rounded-none" : `max-h-[85vh] ${widthClass} rounded-2xl`} w-full flex-col overflow-clip border border-border bg-[var(--theme-surface-raised)] shadow-card ${panelClassName}`}>
         <div className="shrink-0 flex items-start justify-between gap-4 border-b border-border p-4">
           <div>
             <h2 className="type-title font-bold text-text-primary">{title}</h2>

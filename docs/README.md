@@ -42,6 +42,10 @@ Choose by durable ownership: architecture docs own cross-domain foundations; dom
 
 - [`domains/guest-ai.md`](domains/guest-ai.md): Guest AI device, protocol, voice, provider, data boundaries, worktree/Staging integration, minimal FeedX coupling, and extraction path.
 
+### Marketing
+
+- [`domains/marketing.md`](domains/marketing.md): Brands, Planner, CRM, Creators, Meta/Drive integrations, analytics, Inbox, privacy and gated execution.
+
 ## Supporting Evidence
 
 - [`testing/`](testing/) contains focused test contracts and QA procedures; load only those relevant to the task.
