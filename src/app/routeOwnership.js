@@ -22,6 +22,7 @@ export function canonicalRouteId(routeId = "") {
 }
 
 const productQueryStateByRouteId = Object.freeze({
+  crew_google_reviews: [{ key: "google_result" }],
   "purchase-comparison": [{ key: "supplier" }],
   inventory_groups: [{ key: "date", aliases: ["stockCheckDate"] }],
   inventory_stock_check: [{ key: "date", aliases: ["stockCheckDate"] }, { key: "outletId" }],

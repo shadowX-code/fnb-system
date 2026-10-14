@@ -5,10 +5,15 @@ export interface GoogleReviewRecord {
   createTime: string;
   updateTime: string;
   starRating: "ONE" | "TWO" | "THREE" | "FOUR" | "FIVE";
+  comment?: string;
+  reviewer?: { displayName?: string; profilePhotoUrl?: string; isAnonymous?: boolean };
+  reviewReply?: { comment: string; updateTime: string; reviewReplyState?: string; policyViolation?: string };
 }
 export interface GoogleReviewPage {
   reviews: GoogleReviewRecord[];
   nextPageToken?: string;
+  averageRating?: number;
+  totalReviewCount?: number;
 }
 export interface GoogleReviewsProvider {
   listAccounts(pageToken?: string): Promise<{ accounts: { name: string; displayName: string }[]; nextPageToken?: string }>;

@@ -1,0 +1,40 @@
+{
+  "applied": [
+    "20261014094703_crew_google_business_phase_one.sql",
+    "20261014103818_crew_google_business_rest_guard.sql",
+    "20261014130653_google_business_owner_replies.sql",
+    "20261014132350_google_business_reply_write_guard.sql",
+    "20261014135852_google_business_reply_readback.sql"
+  ],
+  "functions": [
+    {
+      "proname": "crew_google_business_reply_guard",
+      "signature": "p_user uuid, p_outlet uuid, p_id uuid, p_lease uuid",
+      "prosecdef": true
+    },
+    {
+      "proname": "crew_google_business_reply_projection",
+      "signature": "p_user uuid, p_outlet uuid",
+      "prosecdef": true
+    },
+    {
+      "proname": "crew_google_business_reply_server",
+      "signature": "p_action text, p_user uuid, p_outlet uuid, p_data jsonb",
+      "prosecdef": true
+    },
+    {
+      "proname": "crew_google_business_server",
+      "signature": "p_action text, p_user uuid, p_outlet uuid, p_data jsonb",
+      "prosecdef": true
+    }
+  ],
+  "cron": [
+    {
+      "jobname": "crew-google-business-cache-purge"
+    },
+    {
+      "jobname": "crew-google-business-reply-content-purge"
+    }
+  ],
+  "scope": "DDL ordering/definition guard rehearsal only; canonical Auth helpers not invoked; cron scheduling shim; no business data or network"
+}
