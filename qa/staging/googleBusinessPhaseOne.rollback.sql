@@ -15,6 +15,7 @@ begin
  ctx:=public.crew_google_business_server('context',u,a);
  assert ctx->>'can_manage'='true' and ctx->>'scoring_enabled'='false';
  begin perform public.crew_google_business_server('context',gen_random_uuid(),a);raise exception 'Unknown identity was allowed';exception when insufficient_privilege then null;end;
+ delete from google_business_private.inbox_cache where generation>=0;
  update google_business_private.connection set generation=0,status='disconnected',sealed_token=null,accounts='[]',expires_at=null where id=true;
  perform public.crew_google_business_server('begin',u,a,jsonb_build_object('state_hash',repeat('a',64),'sealed_verifier',sealed));
  session:=public.crew_google_business_server('oauth_consume',null,null,jsonb_build_object('state_hash',repeat('a',64)));
@@ -39,6 +40,16 @@ begin
  assert result->>'updated'='true';
  result:=public.crew_google_business_server('refresh',u,a,jsonb_build_object('generation',1,'expected_token',sealed,'sealed_token',sealed,'expires_at',now()+interval '2 hours'));
  assert result->>'updated'='false';
+ -- Reconnect the same authorized inventory: preserve its mapping, rotate its basis,
+ -- clear the old content cache, and reject work bound to the prior generation.
+ perform public.crew_google_business_server('begin',u,a,jsonb_build_object('state_hash',repeat('b',64),'sealed_verifier',sealed));
+ perform public.crew_google_business_server('oauth_consume',null,null,jsonb_build_object('state_hash',repeat('b',64)));
+ perform public.crew_google_business_server('oauth_finish',null,null,jsonb_build_object('state_hash',repeat('b',64),'sealed_token',sealed,'expires_at',now()+interval '1 hour',
+  'accounts','[{"name":"accounts/qa","displayName":"Rollback fixture"}]'::jsonb,'locations','[{"name":"accounts/qa/locations/qa","title":"Rollback location","account":"accounts/qa"}]'::jsonb));
+ assert (select generation=2 and status='connected' from google_business_private.connection where id=true);
+ assert not exists(select 1 from google_business_private.inbox_cache);
+ ctx:=public.crew_google_business_server('context',u,a);assert ctx->'mapping'->>'name'=mapped->>'name' and ctx->'mapping'->>'revision'<>mapped->>'revision';
+ begin perform public.crew_google_business_server('guard',u,a,basis);raise exception 'Prior generation was accepted';exception when raise_exception then assert sqlerrm='Google connection or outlet mapping changed. Refresh the inbox.';end;
  -- Canonical permissions and outlet isolation under a transaction-local restricted role.
  insert into public.roles(id,name,outlet_access_type) values(scoped_role,'QA GBP rollback scoped reader','selected');
  insert into public.role_permissions(role_id,permission_id) select scoped_role,id from public.permissions where code='crew_performance.view';
@@ -48,7 +59,7 @@ begin
  begin perform public.crew_google_business_server('context',u,b);raise exception 'Other outlet allowed';exception when insufficient_privilege then null;end;
  begin perform public.crew_google_business_server('disconnect_begin',u,a);raise exception 'Scoped reader managed connection';exception when insufficient_privilege then null;end;
  update public.employees set role_id=original_role where auth_user_id=u;
- result:=public.crew_google_business_server('disconnect_begin',u,a);assert (select status='revocation_pending' and generation=2 from google_business_private.connection where id=true);
+ result:=public.crew_google_business_server('disconnect_begin',u,a);assert (select status='revocation_pending' and generation=3 from google_business_private.connection where id=true);
  assert not exists(select 1 from google_business_private.inbox_cache);
  begin perform public.crew_google_business_server('material',u,a);raise exception 'Revoking grant still readable';exception when raise_exception then assert sqlerrm='Connect or reconnect Google Business Profile in Settings.';end;
  perform public.crew_google_business_server('disconnect_finish',u,a,jsonb_build_object('generation',result->'generation'));

@@ -36,6 +36,7 @@ describe('Google Business Profile read boundary', () => {
   const failed = provider([]); failed.listReviews.mockRejectedValue(new Error('Provider failure'));
   await expect(readReviewInbox(failed,location)).rejects.toThrow('Provider failure');
   await expect(readReviewInbox(provider([{ reviews: [{ ...row(), name: 'accounts/x/locations/y/reviews/r' }] }]),location)).rejects.toThrow('invalid_review');
+  await expect(readReviewInbox(provider([{ reviews: [{ ...row(), comment: { invalid: true } }] }]),location)).rejects.toThrow('invalid_review');
   await expect(readReviewInbox(provider([{ reviews: [row(),{ ...row(),comment: 'conflict' }] }]),location)).rejects.toThrow('conflicting_review');
   await expect(readReviewInbox(provider([{ reviews: [row(),{ ...row(),createTime: '2026-09-01T00:00:00Z' }] }]),location)).rejects.toThrow('invalid_review_creation');
  });

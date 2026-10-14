@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-14 — Google Business Profile Phase 1
+
+Implemented the existing Google Reviews workspace as a read-only Reputation Inbox with permanent Staging HTTPS OAuth, shared encrypted credential custody, refresh/reconnect/revocation lifecycle, explicit one-to-one outlet mapping, complete paginated synchronization and short-lived encrypted content caching. Canonical Admin permissions/outlet scope remain authoritative; Customer Feedback and Crew Performance scoring remain separate and unchanged. Authenticated Staging verified the existing client, one account/eight locations, JYMT's 66 reviews, filtering, real token refresh, reconnection/cache invalidation and outlet isolation. A guarded forward migration corrects the REST safety guard's rejection of unqualified connection-cache cleanup. No Google business/review mutation or Production delivery. Canonical owner: docs/domains/crew-performance-and-reward.md; setup and focused acceptance: docs/testing/google-business-profile-phase-one.md and qa/staging/googleBusinessPhaseOne.rollback.sql.
+
 ## 2026-10-14 — Creator public inspection and browser worker
 
 Extended the existing authenticated Creator URL workflow with bounded anonymous HTML/structured metadata, TikTok public oEmbed and a real Playwright worker in the existing Staging project. Current member Brand checks, canonical Post confirmation, source-labelled staff observations, date precision, duplicate protection and OAuth-reference privacy remain enforced. Real Staging UI established Instagram/TikTok extraction, partial Facebook metadata with browser rendering and an explicit XHS login restriction. No paid scraping/AI service, provider permission change, external publishing or Production deployment. Canonical contract: docs/domains/marketing.md; focused acceptance: qa/staging/marketingCreatorExtraction.md.

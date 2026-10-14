@@ -21,7 +21,7 @@ export async function handle(req: Request) {
  const action = new URL(req.url).pathname.split('/').pop()!;
  if (action === 'configuration' && req.method === 'GET') return reply({ configured: Boolean(configured()) && await tokenEncryptionReady(secret()), redirectUri: redirect, scope: BUSINESS_SCOPE });
  const db = createClient(STAGING_SUPABASE, env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false, autoRefreshToken: false } });
- let user: string | null = null, outlet: string | null = null;
+ let user: string | null = null, outlet: string | null = null, phase = 'request';
  const call = async (command: string, data: any = {}) => {
   const result = await db.rpc('crew_google_business_server', { p_action: command, p_user: user, p_outlet: outlet, p_data: data });
   if (result.error) throw new Error(result.error.message);
@@ -39,16 +39,22 @@ export async function handle(req: Request) {
  };
  try {
   if (action === 'callback' && req.method === 'GET') {
+   phase = 'state';
    if (!configured()) throw new Error('Google configuration is unavailable.');
    const url = new URL(req.url), state = url.searchParams.get('state') || '';
    if (!/^[A-Za-z0-9_-]{43}$/.test(state)) throw new Error('Invalid authorization state.');
    const stateHash = await hash(state), session = await call('oauth_consume', { state_hash: stateHash });
    user = session.actor; outlet = session.outlet_id;
    if (url.searchParams.has('error') || !url.searchParams.get('code')) throw new Error('Google authorization was not completed.');
+   phase = 'pkce';
    const verifier = await unseal(session.sealed_verifier, keys(), `google-business:state:${stateHash}`);
+   phase = 'token';
    const token = await grant({ grant_type: 'authorization_code', code: url.searchParams.get('code')!, redirect_uri: redirect, code_verifier: verifier.value });
+   phase = 'offline_permission';
    if (!token.scope?.split(' ').includes(BUSINESS_SCOPE) || !token.refresh_token) throw new Error('Offline Business Profile permission was not granted.');
+   phase = 'discovery';
    const found = await discovery(new GoogleBusinessProfile(token.access_token));
+   phase = 'connection_save';
    await call('oauth_finish', { state_hash: stateHash, ...found, sealed_token: await seal(token, secret(), tokenBinding(session.generation + 1)), expires_at: new Date(Date.now() + token.expires_in * 1000).toISOString() });
    return Response.redirect(`${STAGING_ORIGIN}/crew/performance/google-reviews?google_result=connected`, 303);
   }
@@ -131,6 +137,10 @@ export async function handle(req: Request) {
   }
  } catch (error) {
   const code = error instanceof BusinessProfileError || error instanceof DriveError ? error.code : 'request_rejected';
+  if (action === 'callback') console.warn(JSON.stringify({ integration: 'google-business', action, phase, code,
+   ...(error instanceof BusinessProfileError ? { status: error.status, service: error.service, request: error.request } : {}),
+   // Error messages here come from our validation/crypto/SQL authority, never request parameters or token bodies.
+   message: error instanceof BusinessProfileError || error instanceof DriveError ? code : error instanceof Error ? error.message : 'Authorization rejected' }));
   if (code === 'google_rate_limited') {
    const service = error instanceof BusinessProfileError ? error.service : 'oauth2.googleapis.com';
    const request = error instanceof BusinessProfileError ? error.request : 'POST /token';

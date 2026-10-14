@@ -38,6 +38,13 @@ describe('Phase 1 Google reputation workspace',()=>{
   mount();await screen.findByText('Sync this outlet’s Google Reviews');fireEvent.click(screen.getByRole('button',{name:'Sync reviews'}));
   expect((await screen.findByRole('alert')).textContent).toContain('mybusiness.googleapis.com');expect(mocks.sync).toHaveBeenCalledTimes(1);
  });
+ it('reads canonical sync failure state without retrying the Google request or keeping a false up-to-date status',async()=>{
+  const connected={...context,connection_status:'connected',mapping:{name:'accounts/a/locations/l'}};
+  mocks.context.mockResolvedValueOnce({...connected,sync_status:'complete'}).mockResolvedValue({...connected,sync_status:'error'});
+  mocks.sync.mockRejectedValue(new Error('Google unavailable'));
+  mount();await screen.findByText('Google Review Inbox is up to date');fireEvent.click(screen.getByRole('button',{name:'Sync reviews'}));
+  await screen.findByText('Review sync needs attention');expect(mocks.sync).toHaveBeenCalledTimes(1);expect(mocks.context).toHaveBeenCalledTimes(2);
+ });
  it('preserves audited target configuration while scoring is disabled',async()=>{
   mocks.history.mockResolvedValue({rows:[{id:1,old_target:10,new_target:15,changed_at:'2026-09-01T00:00:00Z'}]});mount();await screen.findByText('Google Business Profile is not connected');
   fireEvent.click(screen.getByRole('button',{name:'Settings'}));expect(await screen.findByText('10 → 15 positive reviews')).not.toBeNull();

@@ -55,7 +55,14 @@ export default function CrewGoogleReviewsAdminPage({ store, auth }) {
    if (id !== sequence.current) return;
    setContext(next); setLocation(next.mapping?.name || ''); setConfirmation(false);
    setMessage(action === 'sync' ? 'Google review sync complete.' : action === 'map' ? 'Outlet mapping saved.' : action === 'disconnect' ? 'Google connection disconnected and access revoked.' : 'Google connection context refreshed.');
-  } catch (cause) { if (id === sequence.current) setError(cause.message || 'Google Reviews request failed.'); }
+  } catch (cause) {
+   if (id === sequence.current) {
+    setError(cause.message || 'Google Reviews request failed.');
+    // Refresh FeedX's stored authority only; never retry the failed Google request.
+    try { const next = await service.context(outletId); if (id === sequence.current) setContext(next); }
+    catch { if (id === sequence.current) setContext(null); }
+   }
+  }
   finally { pending.current = false; setBusy(''); }
  }
  const connected = context?.connection_status === 'connected', canManage = context?.can_manage;
@@ -65,7 +72,7 @@ export default function CrewGoogleReviewsAdminPage({ store, auth }) {
   && (!month || reviewMonth(r.createTime) === month) && `${r.comment || ''} ${r.reviewer?.displayName || ''} ${r.reviewReply?.comment || ''}`.toLowerCase().includes(search.trim().toLowerCase()))
   .sort((a,b) => (Date.parse(a.createTime) - Date.parse(b.createTime)) * (order === 'oldest' ? 1 : -1));
  const outlet = outlets.find(o => o.id === outletId);
- const state = !context?.configured ? 'Google connection configuration required' : !connected ? context?.connection_status === 'revocation_pending' ? 'Disconnect needs retry' : context?.connection_status === 'expired' ? 'Reconnect Google Business Profile' : 'Google Business Profile is not connected'
+ const state = busy === 'sync' ? 'Syncing Google Reviews' : !context?.configured ? 'Google connection configuration required' : !connected ? context?.connection_status === 'revocation_pending' ? 'Disconnect needs retry' : context?.connection_status === 'expired' ? 'Reconnect Google Business Profile' : 'Google Business Profile is not connected'
   : !context.mapping ? 'Choose this outlet’s Google Location' : context.sync_status === 'running' ? 'Syncing Google Reviews' : context.sync_status === 'error' ? 'Review sync needs attention' : available ? 'Google Review Inbox is up to date' : 'Sync this outlet’s Google Reviews';
  return <div className="space-y-5">
   <PageHeader section="Crew · Reputation" title="Google Reviews" description="Read-only Google review inbox. Separate from Customer Feedback and employee Performance." secondaryActions={<button className="btn-secondary" onClick={() => setSettings(!settings)}><Settings2 size={16} />{settings ? 'Review Inbox' : 'Settings'}</button>} primaryActions={!settings ? <button className="btn-primary" disabled={!connected || !context?.mapping || !!busy || context.sync_status === 'running'} onClick={() => run('sync', () => service.sync(outletId))}><RefreshCw size={16} />{busy === 'sync' ? 'Syncing…' : 'Sync reviews'}</button> : null} />
@@ -90,7 +97,7 @@ export default function CrewGoogleReviewsAdminPage({ store, auth }) {
     </section>
     <GoogleReviewTargetSettings key={outletId} outletId={outletId} canEdit={auth?.hasPermission('crew_performance.review')} />
    </div> : <section className="space-y-4" aria-label="Review Inbox">
-    <AdminFilterToolbar ariaLabel="Review filters" search={<AdminSearchField value={search} onChange={setSearch} placeholder="Review, reviewer or owner reply" maxLength={100} />} filters={<><SelectField label="Rating" value={stars} onChange={setStars} options={[{ value: 'all', label: 'All ratings' }, ...[5,4,3,2,1].map(n => ({ value: String(n), label: `${n} stars` }))]} /><SelectField label="Owner reply" value={reply} onChange={setReply} options={[{ value: 'all', label: 'All reviews' }, { value: 'replied', label: 'With owner reply' }, { value: 'unreplied', label: 'Without owner reply' }]} /><SelectField label="Order" value={order} onChange={setOrder} options={[{ value: 'newest', label: 'Newest first' }, { value: 'oldest', label: 'Oldest first' }]} /></>} period={<MonthPickerField label="Created month" emptyLabel="All months" value={month} onChange={setMonth} />} secondaryActions={month ? <button className="btn-secondary" onClick={() => setMonth('')}>All months</button> : null} />
+    <AdminFilterToolbar ariaLabel="Review filters" search={<AdminSearchField value={search} onChange={setSearch} placeholder="Review, reviewer or owner reply" maxLength={100} />} filters={<><SelectField label="Rating" value={stars} onChange={setStars} options={[{ value: 'all', label: 'All ratings' }, ...[5,4,3,2,1].map(n => ({ value: String(n), label: `${n} ${n === 1 ? 'star' : 'stars'}` }))]} /><SelectField label="Owner reply" value={reply} onChange={setReply} options={[{ value: 'all', label: 'All reviews' }, { value: 'replied', label: 'With owner reply' }, { value: 'unreplied', label: 'Without owner reply' }]} /><SelectField label="Order" value={order} onChange={setOrder} options={[{ value: 'newest', label: 'Newest first' }, { value: 'oldest', label: 'Oldest first' }]} /></>} period={<MonthPickerField label="Created month" emptyLabel="All months" value={month} onChange={setMonth} />} secondaryActions={month ? <button className="btn-secondary" onClick={() => setMonth('')}>All months</button> : null} />
     <p className="text-sm text-text-secondary">Source: Google Business Profile · Read-only. Cached review content expires after 24 hours.</p>
     {reviews.length ? <div className="divide-y divide-border border-t border-border">{reviews.map(r => <article key={r.name} className="space-y-2 py-4">
      <div className="flex flex-wrap justify-between gap-2"><strong className="inline-flex items-center gap-1"><Star size={14} />{ratings[r.starRating]} / 5 · {r.reviewer?.displayName || 'Google reviewer'}</strong><time className="text-xs text-text-secondary" dateTime={r.createTime}>{formatTime(r.createTime)}</time></div>

@@ -19,7 +19,7 @@ export class GoogleBusinessProfile implements GoogleReviewsProvider {
   for (const [key, value] of Object.entries(params)) if (value) url.searchParams.set(key, value);
   const response = await driveFetch(this.transport, url, { method: 'GET', headers: { Authorization: `Bearer ${this.token}` }, redirect: 'error' }, this.deadline, false);
   if (response.status === 429) throw new BusinessProfileError('google_rate_limited',429,host,`GET /${path}`);
-  if (!response.ok) throw new BusinessProfileError(response.status === 401 ? 'reconnect_required' : response.status === 403 ? 'google_access_denied' : 'google_unavailable', response.status);
+  if (!response.ok) throw new BusinessProfileError(response.status === 401 ? 'reconnect_required' : response.status === 403 ? 'google_access_denied' : 'google_unavailable', response.status,host,`GET /${path}`);
   return response.json();
  }
  async listAccounts(pageToken = '') {
@@ -55,6 +55,8 @@ export async function readReviewInbox(provider: GoogleReviewsProvider, location:
  const unique = new Map<string, GoogleReviewRecord>();
  for (const row of rows) {
   if (!row.name.startsWith(`${location}/reviews/`) || !/^[A-Za-z0-9_-]+$/.test(row.name.slice(`${location}/reviews/`.length)) || !['ONE','TWO','THREE','FOUR','FIVE'].includes(row.starRating)
+   || typeof row.createTime !== 'string' || typeof row.updateTime !== 'string' || row.comment !== undefined && typeof row.comment !== 'string'
+   || row.reviewer && (typeof row.reviewer !== 'object' || row.reviewer.displayName !== undefined && typeof row.reviewer.displayName !== 'string' || row.reviewer.profilePhotoUrl !== undefined && typeof row.reviewer.profilePhotoUrl !== 'string')
    || !Number.isFinite(Date.parse(row.createTime)) || !Number.isFinite(Date.parse(row.updateTime)) || Date.parse(row.updateTime) < Date.parse(row.createTime)
    || row.reviewReply && (typeof row.reviewReply.comment !== 'string' || !Number.isFinite(Date.parse(row.reviewReply.updateTime)))) throw new BusinessProfileError('invalid_review');
   const old = unique.get(row.name);
