@@ -73,13 +73,20 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
    publishingEvidence.blockers=tasks.state==='unverified'?['page_tasks_unverified']:tasks.can_create?[]:['content_task_not_granted'];
    if(connection.channel==='instagram') {
     // Attribute business-assigned access only through the exact token subject's
-    // supported business_users relationship and its actual assigned_users row.
+    // supported business_users relationship plus generation-bound OAuth content
+    // tasks, or its actual assigned_users/assigned_pages tasks when unavailable.
     let provenance=assignment?.subject===String(debug?.user_id)&&assignment.businessId===businessId?'business_manager':'unverified';
     if(provenance==='unverified'&&businessId&&tokenEvidence.granted_scopes.includes('business_management')) {
      const mappings=await discoverAuthorizerAssignments(String(debug?.user_id||''),(path,params)=>read('authorizer_business_mapping',path,token,params));
      const mapped=mappings.find(m=>m.businessId===businessId);
      publishingEvidence.business_authorizer_mapping_verified=!!mapped;
-     if(mapped) {
+     if(mapped&&snapshot&&tasks.source==='oauth_accounts'&&tasks.state==='verified'&&tasks.can_create) {
+      // /me/accounts already supplied the exact authorizer's Page tasks. The
+      // revalidated snapshot and current business mapping establish provenance;
+      // assigned_users is an alternative evidence path, not a publishing scope.
+      provenance='business_manager';
+      publishingEvidence.business_assignment_source='oauth_accounts';
+     }else if(mapped) {
       let result=await resolveBusinessPageTasks(pageId,String(debug?.user_id),mapped,(path,params)=>read('authorizer_business_assignment',path,token,params));
       if(result.reason==='business_authorizer_not_returned')result=await resolveBusinessUserPageTasks(pageId,String(debug?.user_id),mapped,(path,params)=>read('authorizer_assigned_pages',path,token,params));
       publishingEvidence.business_assignment_state=result.state;
