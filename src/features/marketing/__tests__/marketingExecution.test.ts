@@ -62,21 +62,36 @@ describe('normal Production operation after controlled acceptance',()=>{
   for(const wrong of [{status:'disconnected'},{channel:'ad_account'},{credential_generation:0},{provider_account_id:'*'}])expect(publishingAccountAllowed({...connection,...wrong},get)).toBe(false);
   expect(staffReplyConfigured(get)).toBe(false);
  });
- it('requires exact approved accounts in normal mode without fixed test peers',()=>{
-  const values={...prod,MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_MODE:'normal',MARKETING_INBOX_REPLY_ACCOUNT_IDS:'622626120924115,17841473217923034'};
-  for(const account of ['622626120924115','17841473217923034']) {
+ it('normal mode relies on canonical authority without mandatory operator allowlists',()=>{
+  const values={...prod,MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_MODE:'normal'};
+  expect(staffReplyConfigured(reader(values))).toBe(true);
+  for(const account of ['622626120924115','17841473217923034','999']) {
    for(const peer of ['444','555'])expect(staffReplyAllowed(account,peer,reader(values))).toBe(true);
    for(const peer of ['',null,'*','not-an-id'])expect(staffReplyAllowed(account,peer,reader(values))).toBe(false);
-   expect(staffReplyAllowed(account,'444',reader({...values,MARKETING_INBOX_REPLY_PEER_IDS:'333'}))).toBe(true);
    expect(staffReplyAllowed(account,'444',reader({...values,MARKETING_INBOX_STAFF_REPLY_ENABLED:'false'}))).toBe(false);
   }
-  for(const account of ['999','62262612092411','','*',null])expect(staffReplyAllowed(account,'444',reader(values))).toBe(false);
+  for(const account of ['',null,'*','invalid'])expect(staffReplyAllowed(account,'444',reader(values))).toBe(false);
   expect(publishingConfigured(reader(values))).toBe(false);
  });
- it.each(['',undefined,'111,','111,invalid','111,*','1'.repeat(31),Array(51).fill('111').join(',')])('requires a bounded numeric account allowlist in both reply modes: %s',value=>{
-  for(const replyMode of ['controlled','normal']) {
-   const get=reader({...prod,...replies,MARKETING_INBOX_REPLY_MODE:replyMode,MARKETING_INBOX_REPLY_ACCOUNT_IDS:value});
+ it('honors independent optional emergency account and peer restrictions in normal mode',()=>{
+  const values={...prod,MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_MODE:'normal'};
+  const accounts=reader({...values,MARKETING_INBOX_REPLY_ACCOUNT_IDS:'111,222'});
+  expect(staffReplyAllowed('111','444',accounts)).toBe(true);expect(staffReplyAllowed('999','444',accounts)).toBe(false);
+  const peers=reader({...values,MARKETING_INBOX_REPLY_PEER_IDS:'333'});
+  expect(staffReplyAllowed('999','333',peers)).toBe(true);expect(staffReplyAllowed('999','444',peers)).toBe(false);
+  const both=reader({...values,MARKETING_INBOX_REPLY_ACCOUNT_IDS:'111',MARKETING_INBOX_REPLY_PEER_IDS:'333'});
+  expect(staffReplyAllowed('111','333',both)).toBe(true);expect(staffReplyAllowed('999','333',both)).toBe(false);expect(staffReplyAllowed('111','444',both)).toBe(false);
+  expect(staffReplyAllowed('999','444',reader({...values,MARKETING_INBOX_REPLY_ACCOUNT_IDS:'',MARKETING_INBOX_REPLY_PEER_IDS:''}))).toBe(true);
+ });
+ it.each(['111,','111,invalid','111,*','1'.repeat(31),Array(51).fill('111').join(',')])('fails closed for malformed configured restrictions in both reply modes: %s',value=>{
+  for(const replyMode of ['controlled','normal'])for(const key of ['MARKETING_INBOX_REPLY_ACCOUNT_IDS','MARKETING_INBOX_REPLY_PEER_IDS']) {
+   const get=reader({...prod,...replies,MARKETING_INBOX_REPLY_MODE:replyMode,[key]:value});
    expect(staffReplyConfigured(get)).toBe(false);expect(staffReplyAllowed('111','333',get)).toBe(false);
+  }
+ });
+ it.each(['',undefined])('controlled mode still requires both explicit lists: %s',value=>{
+  for(const key of ['MARKETING_INBOX_REPLY_ACCOUNT_IDS','MARKETING_INBOX_REPLY_PEER_IDS']) {
+   const get=reader({...prod,...replies,[key]:value});expect(staffReplyConfigured(get)).toBe(false);expect(staffReplyAllowed('111','333',get)).toBe(false);
   }
  });
  it('fails closed for unknown modes, disabled flags and environment mismatch',()=>{
