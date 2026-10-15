@@ -9,7 +9,7 @@ beforeEach(async()=>{
 });
 const args=()=>({org:'org',brand:'brand',creator,account});
 it('renews only image evidence using the current canonical revision and preserves unrelated fields',async()=>{
- const result=await renew(args());expect(result.revision).toBe(3);expect(creatorService.command).toHaveBeenCalledWith(expect.objectContaining({action:'save_account',id:'a',revision:2,payload:expect.objectContaining({display_name:'Preserved',external_id:'',followers:null,followers_captured_at:null,public_observation:expect.objectContaining({source:'Meta Instagram Business Discovery',avatar_url:'https://scontent.cdninstagram.com/new.jpg'})})}));
+ const result=await renew(args());expect(result.revision).toBe(3);expect(creatorService.command).toHaveBeenCalledWith(expect.objectContaining({action:'save_account',id:'a',revision:2,payload:expect.objectContaining({display_name:'Preserved',external_id:'',public_observation:expect.objectContaining({source:'Meta Instagram Business Discovery',avatar_url:'https://scontent.cdninstagram.com/new.jpg'})})}));
 });
 it('coalesces concurrent image failures and leaves only cooldown metadata after completion',async()=>{
  const first=renew(args()),second=renew(args());expect(first).toBe(second);await first;expect(await renew(args())).toBeNull();expect(creatorService.profile).toHaveBeenCalledTimes(1);expect(creatorService.command).toHaveBeenCalledTimes(1);

@@ -25,3 +25,6 @@ export function profileConflict(profile,accounts,creatorId){
 export function creatorProfileLink(account){
  try{const profile=recognizeCreatorProfile(account.profile_url);return profile.platform===account.platform?profile.profile_url:null}catch{return null}
 }
+
+// Browser edits never submit server-owned follower evidence, including legacy values.
+export function creatorProfilePayload(p){const {_inspectedUrl,followers,followers_captured_at,followers_source,followers_sync_status,followers_sync_reason,followers_attempted_at,followers_due_at,followers_lease,followers_lease_until,...result}=p;if(!result.public_observation)delete result.public_observation;return result}

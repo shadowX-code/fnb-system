@@ -149,3 +149,11 @@ it('aborts in-flight health transport and prevents any later provider request',a
  await expect(graph.request('111/subscribed_apps','token',{},'POST')).rejects.toThrow();
  expect(transport).toHaveBeenCalledTimes(1);
 });
+
+it('permits only the exact read-only Page follower query by username',async()=>{
+ const transport=vi.fn(async()=>new Response(JSON.stringify({id:'123',username:'food',followers_count:1}))),graph=new MetaGraph({appId:'app',appSecret:'secret',configId:'config',version:'v24.0'},transport as any);
+ await graph.request('food','token',{fields:'id,username,link,followers_count'});expect(transport).toHaveBeenCalledOnce();
+ await expect(graph.request('food','token',{fields:'id,username,link,followers_count'},'POST')).rejects.toMatchObject({code:'invalid_meta_endpoint'});
+ await expect(graph.request('food/path','token',{fields:'id,username,link,followers_count'})).rejects.toMatchObject({code:'invalid_meta_endpoint'});
+ await expect(graph.request('food','token',{fields:'id,name'})).rejects.toMatchObject({code:'invalid_meta_endpoint'});
+});

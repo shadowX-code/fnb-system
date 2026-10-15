@@ -1,0 +1,9 @@
+import {afterEach,it,expect,vi} from 'vitest';
+import {cleanup,render,screen,fireEvent} from '@testing-library/react';
+import CreatorFollowers from '../CreatorFollowers.jsx';
+import {creatorService} from '../creatorService.js';
+vi.mock('../creatorService.js',()=>({creatorService:{followersStatus:vi.fn(),refreshFollowers:vi.fn()}}));
+afterEach(cleanup);
+it('hides legacy staff counts and never exposes manual entry',()=>{render(<CreatorFollowers org="org" account={{id:'a',followers:999,followers_sync_status:'unsupported'}} canRefresh/>);expect(screen.queryByText('999')).toBeNull();expect(screen.queryByRole('spinbutton')).toBeNull();expect(screen.getByRole('button',{name:'Refresh Followers'}).disabled).toBe(true)});
+it('preserves a genuine zero with official provenance during failure',()=>{render(<CreatorFollowers org="org" account={{id:'a',followers:0,followers_source:'meta_facebook_page',followers_captured_at:'2026-10-15T12:00:00Z',followers_sync_status:'failed',followers_sync_reason:'provider_read_failed'}}/>);expect(screen.getByText('0')).toBeTruthy();expect(screen.getByText(/Meta Facebook Page/)).toBeTruthy();expect(screen.getByText(/Last successful data is retained/)).toBeTruthy()});
+it('Refresh only queues a canonical request and prevents duplicate submission',async()=>{let resolve;creatorService.refreshFollowers.mockReturnValue(new Promise(r=>resolve=r));render(<CreatorFollowers org="org" account={{id:'a',followers_sync_status:'unavailable'}} canRefresh/>);fireEvent.click(screen.getByRole('button',{name:'Refresh Followers'}));expect(screen.getByRole('button',{name:'Requesting…'}).disabled).toBe(true);resolve({followers_sync_status:'queued'});await screen.findByText('Queued for sync');expect(screen.getByRole('button',{name:'Refresh Followers'}).disabled).toBe(true);expect(creatorService.refreshFollowers).toHaveBeenCalledWith('org','a')});

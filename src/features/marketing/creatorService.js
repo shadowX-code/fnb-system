@@ -10,6 +10,8 @@ export const creatorPostAdapters={
  facebook:{mode:'public_inspection',fallback:'authorized_meta_cache'},instagram:{mode:'public_inspection',fallback:'authorized_meta_cache'},xhs:{mode:'public_inspection',fallback:'manual'},tiktok:{mode:'public_inspection',fallback:'manual'},
 };
 export const creatorService={
+ followersStatus:(org,account)=>rpc('marketing_creator_followers_status',{p_org:org,p_account:account}),
+ refreshFollowers:(org,account)=>rpc('marketing_creator_followers_refresh',{p_org:org,p_account:account}),
  manualPreview:(org,brand,url)=>rpc('marketing_creator_post_preview',{p_org:org,p_brand:brand,p_url:url}),
  directory:(org)=>rpc('marketing_creator_directory',{p_org:org,p_brand:null}),
  history:(org,post,after=null)=>rpc('marketing_creator_metric_history',{p_org:org,p_post:post,p_after:after,p_size:25}),

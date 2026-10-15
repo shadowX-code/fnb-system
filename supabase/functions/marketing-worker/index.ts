@@ -1,3 +1,4 @@
+import {runCreatorFollowers} from '../_shared/metaCreatorProfile.ts';
 import {publishingConfigured, publishingAccountAllowed} from '../_shared/marketingExecution.mjs';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { STAGING_SUPABASE, connectionBinding, unseal, hash } from '../_shared/metaSecurity.ts';
@@ -86,6 +87,9 @@ Deno.serve(async(req)=>{
    if(Date.now()-started<15000)try{await checkHealth();}catch{console.warn('marketing_connection_health_pending');}
    await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'processed',outcome:result.outcome});
   }
+  // One API read per idle tick; publishing always claims first. A separate deadline
+  // bounds follower work without consuming connection-health or publishing leases.
+  try{const followerGraph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')},fetch,undefined,AbortSignal.timeout(8000));await runCreatorFollowers(db,followerGraph,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')]);}catch{console.warn('marketing_creator_followers_pending');}
   // Publishing claims win; cleanup is bounded to three seconds on idle ticks.
   try{await cleanupTemporaryMedia(db,async(path,signal)=>{
    const response=await fetch(STAGING_SUPABASE+'/storage/v1/object/marketing-media',{method:'DELETE',headers:{Authorization:'Bearer '+env('SUPABASE_SERVICE_ROLE_KEY'),apikey:env('SUPABASE_SERVICE_ROLE_KEY'),'Content-Type':'application/json'},body:JSON.stringify({prefixes:[path]}),signal});

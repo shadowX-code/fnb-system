@@ -1,3 +1,4 @@
+import {creatorProfilePayload} from './creatorProfiles.js';
 import {creatorService} from './creatorService.js';
 import {creatorInstagramAccount,creatorAvatarUrl} from './creatorAvatar.js';
 // Share one renewal across visible consumers; failures cannot become an image-error request loop.
@@ -17,7 +18,8 @@ export function renewCreatorAvatar({org,brand,creator,account}){
   const candidate={...saved,public_observation:{...observation,source:'public_profile_staff_confirmed'}};
   if(!creatorAvatarUrl(current,[candidate])||result.avatar_url===saved.public_observation?.avatar_url)return null;
   // The current full account plus revision preserves every unrelated field; canonical authority rechecks access.
-  return creatorService.command({request:crypto.randomUUID(),org,brand,action:'save_account',id:saved.id,revision:saved.revision,payload:{...saved,creator_id:current.id,public_observation:observation}});
+
+  return creatorService.command({request:crypto.randomUUID(),org,brand,action:'save_account',id:saved.id,revision:saved.revision,payload:{...creatorProfilePayload(saved),creator_id:current.id,public_observation:observation}});
  })();
  const pending=promise.then(value=>{const entry=attempts.get(key);if(entry)entry.promise=null;return value},error=>{const entry=attempts.get(key);if(entry)entry.promise=null;throw error});
  attempts.set(key,{at:Date.now(),promise:pending});if(attempts.size>100)attempts.delete(attempts.keys().next().value);
