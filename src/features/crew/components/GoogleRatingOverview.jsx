@@ -12,7 +12,7 @@ export default function GoogleRatingOverview({ context }) {
   const overview = googleRatingOverview(context);
   const state = overview ? 'ready' : 'unavailable';
   return <section aria-label="Google Rating Overview" className="space-y-3">
-    <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-sm font-bold">Google Rating Overview</h2><span className="text-sm text-text-secondary">{context.mapping?.title || 'Select a mapped outlet'}</span></div>
+    <h2 className="text-sm font-bold">Google Rating Overview</h2>
     <div className="grid gap-3 lg:grid-cols-2">
       <AdminSummaryGrid variant="compact" mobileColumns={2} ariaLabel="Location rating summary" items={[
         { key: 'rating', label: 'Overall Rating', value: overview?.average == null ? '—' : `${overview.average.toFixed(1)} / 5`, helper: overview?.source === 'google' ? 'Google rating' : overview ? 'Synced Reviews Average' : 'Sync required', state },

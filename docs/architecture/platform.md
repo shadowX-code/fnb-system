@@ -55,6 +55,8 @@ Admin cross-domain presentation primitives live under `src/components/`: `PageHe
 
 ### Admin Page Composition
 
+`AdminFilterToolbar` keeps dense period controls at their canonical width and fits month pickers within the field so the shared gap remains clear beside Search.
+
 Routed Admin pages normally compose as `PageHeader → primary mode/tabs → scope and filters → summary/KPIs → section or view controls → primary data surface`. PageHeader owns page identity and page-level actions. Put a mode switch before controls whose meaning changes with that mode; put scope controls before any summary calculated for that scope. A genuinely global or current-state domain summary may precede filters only when its label/helper makes that scope explicit. Keep view controls adjacent to the surface they change. Operational workflow sequence may justify a deviation, but a page must not create its own competing presentation convention.
 
 `CrewMobileApp` composes the shell and current screen. `useCrewRoute` owns hash/history synchronization, `useCrewSession` owns the persisted opaque session envelope and guarded employee read projections, and `useCrewAttendance` owns month reads and transient clock state. Home, Login, Me, and Attendance have explicit screen owners under `src/features/crew/components/`; Me owns its local settings/profile views and Language/Logout surfaces, and Attendance owns clock dialogs. A token-keyed workspace unmounts all old employee views, local drafts, and transient dialogs on session replacement or logout. The route owner remains outside that lifetime so canonical deep links survive session restoration. No separate client business authority or global state framework is introduced.
@@ -143,4 +145,77 @@ Primary actions use the shared filled-green brand tokens with white labels/icons
 
 ### Shared responsive record tables
 
+<<<<<<< HEAD
 `DataTable` keeps horizontal scrolling by default. Its opt-in `mobileLayout="stack"` depends on the shared `src/styles/index.css` rules for `[data-mobile-layout="stack"]`: tables become labeled, wrapping record rows at 700px and below. Ship this stylesheet contract with consumers that hide unavailable cells; the component prop alone cannot stack a regular table. Above 700px and for default scrolling consumers, existing table geometry remains unchanged.
+=======
+### Canonical Admin page composition
+
+Admin workspaces use the standard `AppShell` for sidebar, top application bar, page width, alignment and responsive navigation. Factory is a reference consumer of the canonical page grammar: `PageHeader` identity and feature-owned actions, a separate bordered `AdminFilterToolbar` surface for applicable controls, then specialized domain content. Finance follows this same composition without replacing its financial visualization grammar.
+
+Shared `WorkspacePage` composes those existing owners and keeps feature controls outside the header and domain-content CSS scope. `WorkspacePageActionsProvider` supplies presentation actions and notices from enclosing boundaries without owning domain state, reads or callbacks. The analytical shell presentation remains dormant; Finance does not opt into it. Other workspace layouts and workflows are unchanged.
+
+### Shared analytical chart inspection
+
+`AdminChart` owns measured SVG canvases and compact, measured viewport-clamped floating evidence tooltips, dismissed on scroll. Hit-area outlines appear for keyboard focus only; mouse inspection subtly emphasizes geometry, while selection remains persistent. `AdminChartMark` shares pointer/focus inspection, Enter/Space selection, arrow/Home/End traversal and Escape dismissal. `AdminChartCrosshair` and `adminChartScale` provide reusable inspection guides and zero-inclusive readable tick intervals. Hidden canvases retain their last measured width. Coordinate interpolation runs for 220ms only when numerical geometry changes, cancels superseded frames and respects reduced motion.
+
+`MetricCard` delegates dated, explicitly labeled miniature trends to `AdminSparkline`. Its zero-inclusive scale avoids exaggerating small movement; pointer, touch and keyboard inspection expose the original formatted observation. Loading, unavailable and unlabeled evidence do not draw a trend. Shared `MetricCard.evidenceStatus` suppresses routine complete evidence metadata while retaining partial, stale and unverified warnings; provenance remains in feature-owned disclosure. Specialized domain charts retain their source-owned measures, encodings and reconciliation requirements.
+
+The shared chart owner also defines Emerald/Azure/Coral/Violet/Slate tokens and `adminChartColors`; domain adapters assign metric identities and movement meaning. `AdminChartArea` provides a subtle gradient from the caller's exact path/baseline, while `adminChartLinePath` retains linear observations and explicit gaps. `MetricCard` accepts an optional series colour for its evidence-backed `AdminSparkline`, independently of delta semantics. Neither primitive manufactures missing observations or changes source values.
+
+Shared `AdminChart` category colours are separately owned from movement/series tokens. Consumers can encode metric identity without implying positive or negative status; Finance Profit Conversion supplies the pilot category mapping.
+
+
+### Shared Customer Identity
+
+The approved Marketing Phase 3A dependency adds Platform-owned `platform_customers` and explicit `platform_customer_brands`. These are organization-scoped customer/contact identities, separate from Factory business customers, employees, social conversation peers and legal employers. Creation and explicit sharing use `platform_customer_command` with canonical active employee/RBAC/organization/brand checks. Marketing consumes the identity and owns consent, suppression, segments and campaigns; this foundation creates no loyalty balance, sales transaction or redemption authority. Shared phone changes cannot be made through Marketing without a separately verified identity workflow. See the [Marketing domain](../domains/marketing.md) for consumer lifecycle boundaries.
+
+The shared Admin `Modal` supports centered dialogs and `placement="right"` responsive drawers. Both use the same theme tokens, header/footer controls, scrolling, Escape dismissal, keyboard focus containment and focus restoration. Marketing post details consume this shared presentation rather than a separate overlay authority.
+
+Shared `lib/tabularFile` handles bounded CSV/OOXML parsing for import presentation, including quoted multiline CSV, ZIP limits and formula rejection; domain validation and canonical writes remain in their existing owner. Shared EmptyState uses canonical surface tokens in both themes.
+
+Marketing advertising uses the canonical `/marketing/ads` module (`marketing_ads`) within the existing Marketing workspace. It owns Ad Account discovery and advertising projections, independently scoped from Page publishing, Inbox and social analytics; the workspace launcher and shared shell are unchanged.
+
+Marketing Ad Accounts are shared Platform-organization assets. FeedX owns explicit campaign-to-brand attribution, with descendant inheritance and organization/brand-filtered reporting; Meta owns provider configuration and delivery. This does not change social Page/Instagram brand ownership.
+
+### Multiline fields and fixed-page projections
+
+`TextareaField` composes `AdminFormField` and the canonical `.control` typography, preserving a configurable visible-row floor and resizing for edited content and viewport changes. Shared control typography owns input family, normal weight and line height; feature forms do not override these locally. Crew’s generic form inheritance is scoped to its shell with zero added selector specificity, preventing it from overriding Admin inputs while leaving textareas unchanged. `AdminEvidenceFilePicker` owns the hidden file chooser, selection/replace/remove treatment and reselection of the same file; domain features own accepted types, decoding, upload authority and previews. Its accessible remove label is customizable for media consumers. `AdminPagination` keeps the visible range, total and page-size selection available on desktop and mobile, with responsive navigation. `AdminPagination` displays the fixed page size as text when a projection does not provide a size-change callback, rather than offering ineffective selection. Campaign lists use existing `useAdminClientPagination` for complete canonical collections; fixed 50-recipient queue pages preserve their server contract.
+
+### Marketing Content Studio routing
+
+Content Studio has three sidebar destinations: Content Planner (`marketing_planner`, `/marketing/planner`), Content Management (`marketing_calendar`, `/marketing/calendar`) and Media Library (`marketing_media`, `/marketing/media`). The hidden `marketing_content` registry entry retains existing action permission definitions; its legacy hash and `/marketing/content` path resolve through canonical route ownership to Content Management. Content Management accepts existing Calendar or Content view authority, without granting any action or changing brand isolation. Create Post is a contextual action within Content Management.
+
+The shared `AdminKanbanBoard` owns pointer/keyboard interaction, drag feedback, edge scrolling and reduced-motion-aware layout transitions. Consumers retain permission checks, lifecycle authority, optimistic persistence and rollback. Shared `Drawer` traps keyboard focus within its dialog and restores the previous focus; nested dialogs handle their own Escape. `DatePickerField` supports disabled read-only consumers.
+
+The shared `WorkspacePage` compact density reduces header/content spacing for work-focused surfaces without changing its default layout. `AdminKanbanBoard` owns card/handle pointer activation, stretched-column and gap-aware collision bounds, stable placeholders, edge scrolling and accessible rejection feedback; consumers own transition authority and persistence.
+
+Admin summary grids retain their existing mobile layout by default. Dashboards may request `mobileColumns={2}` for compact two-column mobile KPIs; the shared component owns responsive classes and existing larger-screen breakpoints remain unchanged.
+
+### Marketing Creators routing
+
+`marketing_creators` owns `/marketing/creators` within the existing Marketing workspace. Its Directory/Collaborations/Posts/Insights tabs share one route and the canonical shell. Scoped `marketing_org`, `marketing_brand` and `post_id` links are validated against the existing authorized context/read model. The [Marketing domain](../domains/marketing.md) owns Creator identity, relationship and evidence contracts.
+
+### Restaurant Brand And Outlet Management
+
+Restaurant System exposes Brands (`/system/brands`), Outlets (unchanged `/operations/outlets` compatibility and `/restaurant/operations/outlets` canonical route) and Audit Logs. Brands uses existing `platform_organizations.manage` and explicit organization membership, independently of Marketing workspace access. Platform retains `brands`, `organization_outlets` and `brand_outlets`; the Restaurant Outlet Master is unchanged. Marketing Settings links to this single Brand management UI while retaining knowledge, membership and role-scope workflows. Outlet action permissions and Restaurant outlet scope remain applicable despite the navigation move.
+
+`platform_brands_read` supplies authorized organization Brand/status/mapping/impact data and recent scoped change history; `platform_outlet_brands_read` supplies canonical linked-brand projections under outlet and organization/brand access. `platform_organization_command` remains the sole structure mutation authority. Brand edits/status use revisions, optional retry UUID/fingerprints, normalized unique names, explicit status impact acknowledgement and reviewed added/removed outlet mappings. Organization ownership is immutable through Brand editing. Cross-organization mappings and inaccessible outlet changes are rejected. Existing inactive linked outlets may be retained, but new targets must be active and accessible. Unlinking a Brand does not release organization–outlet ownership or delete historical records. Before/after evidence appends to existing Platform action events; older events honestly lack detailed snapshots.
+
+### Brand-facing management contracts
+
+Restaurant → System → Brands is the sole business Brand setup page. `platform_brand_management_read` delegates the existing scoped projection and removes Organization names/options. `platform_brand_command` accepts exact Brand intent, derives its security scope server-side and delegates the sole `platform_organization_command` mutation authority. New Brands inherit the caller’s sole existing access scope; administrators with multiple scopes must explicitly choose an existing Brand context. Brand creation requires no Outlet. Existing name normalization, optimistic revision checks, mapping review, retry fingerprints, active status, append-only history and Outlet access/ownership validation remain unchanged. No Brand is transferred across tenants.
+
+Marketing’s Team & Brand Access uses the canonical `platform_team_access_command` membership workflow plus Platform-owned `platform_member_brand_scopes`/`platform_member_brands` and revision-bound `platform_member_brand_access`. Canonical Roles remain the action authority. Migration freezes each existing membership’s legacy role scope without changing grants/access; new memberships default to no Brands. Owner/Admin remains explicitly tenant-bound. Member scope is enforced in shared Brand Master reads/mutations and Marketing/CRM/Creator/provider consumers; it cannot be replaced by global Brand access. Brand creation and tenant-wide connection/member administration require full managed scope. Tenant creation is absent from business UI/services; compatibility RPCs remain for existing infrastructure/operator dependencies. Replacing internal tenancy would require a separate migration; this upgrade retains security-critical tenant tables and existing records.
+
+
+### Marketing Settings route composition
+
+The Marketing Settings sidebar is Connections, Brand Knowledge and Brand Access & Team Permissions. Dedicated routes compose one existing Brand context and shared Admin components with distinct integration, profile and permission-console layouts. The original Settings module remains hidden as the existing permission catalogue/legacy URL owner; its compatibility page redirects without losing provider callbacks. New surface modules reuse `marketing_settings.view` and introduce no extra role grants. Context/read scopes and pending editors remain bound to staff and Brand lifetimes.
+
+
+`DataTable` retains horizontal scrolling by default. Its opt-in `mobileLayout="stack"` presents labeled record rows below 700px, preserving native headers, row actions, keyboard handlers and desktop geometry. Marketing Connections and Brand Access consume this shared responsive owner; other existing consumers retain their default behavior.
+
+`PageHeader`/`WorkspacePage` supports opt-in `wrapTitle` for a full long page title at narrow widths; default consumers retain truncation. Marketing Brand Access uses this shared option.
+
+Canonical role list/detail/edit routes retain the optional `permission_workspace` query for shared matrix presentation (for example Marketing). It does not grant authority or change role data; Brand Access uses it when linking to the canonical Roles & Permissions owner.
+>>>>>>> cecf55429 (Polish Google Reviews filters and add shared Inbox pagination)

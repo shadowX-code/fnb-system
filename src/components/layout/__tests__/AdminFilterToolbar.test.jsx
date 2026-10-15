@@ -44,6 +44,12 @@ describe("AdminFilterToolbar", () => {
     expect(screen.getByText("Create")).toBeTruthy();
   });
 
+  it("preserves canonical period width beside flexible search in dense mode", () => {
+    render(<AdminFilterToolbar denseFields period={<Field label="Created month" />} search={<AdminSearchField value="" onChange={vi.fn()} />} />);
+    expect(screen.getByLabelText("Created month").closest('[data-admin-filter-slot]').className).toContain("sm:w-[180px]");
+    expect(screen.getByLabelText("Search").closest('[data-admin-filter-slot]').className).toContain("sm:flex-[1_1_240px]");
+  });
+
   it("accepts an existing outlet scope without owning its context", () => {
     localStorage.clear();
     const view = render(<CrewAdminOutletProvider outlets={outlets}><OutletHarness /></CrewAdminOutletProvider>);

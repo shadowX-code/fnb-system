@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { MessageSquare, RefreshCw, Eye } from 'lucide-react';
+import AdminPagination, { useAdminClientPagination } from '../../../components/tables/AdminPagination.jsx';
 import PageHeader from '../../../components/layout/PageHeader.jsx';
 import AdminFilterToolbar, { AdminOutletField } from '../../../components/layout/AdminFilterToolbar.jsx';
 import AdminUnderlineTabs from '../../../components/navigation/AdminUnderlineTabs.jsx';
@@ -103,7 +104,9 @@ export default function CrewGoogleReviewsAdminPage({ store }) {
   const reviews = (available ? context.reviews || [] : []).filter(review =>
     (stars === 'all' || ratings[review.starRating] === Number(stars)) && (reply === 'all' || Boolean(review.reviewReply) === (reply === 'replied'))
     && (!month || reviewMonth(review.createTime) === month) && `${review.comment || ''} ${review.reviewer?.displayName || ''} ${review.reviewReply?.comment || ''}`.toLowerCase().includes(search.trim().toLowerCase()))
-    .sort((a, b) => (Date.parse(a.createTime) - Date.parse(b.createTime)) * (order === 'oldest' ? 1 : -1));
+    .sort((a, b) => (Date.parse(a.createTime) - Date.parse(b.createTime)) * (order === 'oldest' ? 1 : -1) || a.name.localeCompare(b.name));
+  const pagination = useAdminClientPagination('google-reviews.inbox', reviews.length, 20, JSON.stringify([outletId, search, stars, reply, month, order]));
+  const visibleReviews = reviews.slice(pagination.from, pagination.to);
   const syncing = busy === 'sync' || context?.sync_status === 'running';
   const activeFilters = [
     search && { key: 'search', label: 'Search', value: search, onRemove: () => setSearch('') },
@@ -125,12 +128,13 @@ export default function CrewGoogleReviewsAdminPage({ store }) {
         <GoogleRatingOverview context={context} />
         <Card title="Review Inbox" description={context.mapping?.title || undefined} action={<Badge>{available ? `${reviews.length} reviews` : syncing ? 'Syncing' : 'Not synced'}</Badge>}>
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2 text-sm text-text-secondary"><span>Google</span></div>
-          {reviews.length ? <div className="divide-y divide-border">{reviews.map(review => <article key={review.name} className="space-y-2 px-4 py-4">
+          {reviews.length ? <div className="divide-y divide-border">{visibleReviews.map(review => <article key={review.name} className="space-y-2 px-4 py-4">
             <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1"><div className="flex min-w-0 items-center gap-2"><GoogleReviewerAvatar reviewer={review.reviewer} /><div className="min-w-0"><button className="text-left text-sm font-semibold hover:text-primary focus-visible:outline-2 focus-visible:outline-primary" aria-label={`Open review by ${review.reviewer?.displayName || 'Google reviewer'}`} onClick={()=>setDetail(review)}>{review.reviewer?.displayName || 'Google reviewer'}</button><span className="ml-3 inline-flex align-middle"><GoogleReviewStars rating={review.starRating} /></span></div></div><time className="text-sm text-text-secondary" dateTime={review.createTime}>{formatTime(review.createTime)}</time></div>
             <p className="max-w-3xl whitespace-pre-wrap break-words text-sm">{review.comment || 'No written review'}</p>
             <div className="flex flex-wrap items-center justify-between gap-2"><Badge tone={ownerReplyTone(review.reviewReply)}>{ownerReplyLabel(review.reviewReply)}</Badge><button className="btn-secondary" onClick={()=>setDetail(review)}><Eye size={14} />View review</button></div>
             {review.reviewReply ? <div className="rounded-lg bg-surface-muted px-3 py-2"><div className="flex flex-wrap items-center justify-between gap-2 text-sm text-text-secondary"><span className="inline-flex items-center gap-1.5 font-semibold"><MessageSquare size={14} />Owner reply</span><time dateTime={review.reviewReply.updateTime}>{formatTime(review.reviewReply.updateTime)}</time></div><p className="mt-1 max-w-3xl whitespace-pre-wrap break-words text-sm">{review.reviewReply.comment}</p></div> : null}
           </article>)}</div> : <div className="p-4"><EmptyState icon={MessageSquare} title={emptyTitle} description={emptyDescription} actions={!connected || !context.mapping ? <button className="btn-secondary" onClick={() => setTab('settings')}>Open Settings</button> : activeFilters.length ? <button className="btn-secondary" onClick={() => { setSearch(''); setStars('all'); setReply('all'); setMonth(''); }}>Clear filters</button> : null} /></div>}
+          <AdminPagination page={pagination.page} pageSize={pagination.pageSize} total={reviews.length} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} noun="reviews" />
         </Card>
       </> : null}
     {detail ? <GoogleReviewDetail key={`${outletId}:${detail.name}`} review={detail} outletId={outletId} basis={context} outletName={outlets.find(outlet=>outlet.id===outletId)?.name} onClose={()=>setDetail(null)} onConfirmed={refreshReplyProjection} /> : null}
