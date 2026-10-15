@@ -46,7 +46,21 @@ export default function CrewGoogleReviewsAdminPage({ store }) {
     const timer = setTimeout(() => setContext(current => current ? { ...current, reviews: [], sync_status: 'awaiting_sync' } : current), Math.max(0, Date.parse(context.cache_expires_at) - Date.now()));
     return () => clearTimeout(timer);
   }, [context?.cache_expires_at]);
-  useEffect(()=>{if(context?.connection_status!=='connected')return undefined;const timer=setInterval(()=>{if(document.visibilityState==='visible' && !pending.current)setReload(value=>value+1);},30000);return()=>clearInterval(timer);},[context?.connection_status]);
+  useEffect(() => {
+    if (context?.connection_status !== 'connected' || tab !== 'inbox' || detail) return undefined;
+    let cancelled = false, refreshing = false;
+    const timer = setInterval(async () => {
+      if (cancelled || document.visibilityState !== 'visible' || pending.current || refreshing) return;
+      const id = sequence.current; refreshing = true;
+      try {
+        const next = await service.context(outletId);
+        if (!cancelled && id === sequence.current && !pending.current) setContext(next);
+      } catch (cause) {
+        if (!cancelled && id === sequence.current) setError(cause.message || 'Unable to refresh Google Reviews status.');
+      } finally { refreshing = false; }
+    }, 30000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [context?.connection_status, outletId, tab, detail]);
   async function run(action, command, surfaceError = true) {
     if (pending.current) return { ok: false, error: 'Another action is in progress.' };
     pending.current = true; setBusy(action); setError(''); const id = sequence.current;

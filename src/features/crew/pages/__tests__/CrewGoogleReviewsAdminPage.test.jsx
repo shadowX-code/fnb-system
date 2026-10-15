@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 const mocks = vi.hoisted(() => ({ context: vi.fn(), sync: vi.fn(), map: vi.fn(), authorize: vi.fn(), disconnect: vi.fn(), revoke: vi.fn(), discover: vi.fn(), legacy: vi.fn(), save: vi.fn(), history: vi.fn() }));
 vi.mock('../../services/googleBusinessService.js', () => ({ googleBusinessService: mocks }));
 vi.mock('../../../../services/crewService.js', () => ({ crewService: { googleReviewsAdminContext: mocks.legacy, setGoogleMonthlyTarget: mocks.save, googleTargetHistory: mocks.history } }));
@@ -24,6 +24,29 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('Google Reviews Inbox and Settings', () => {
+  it('refreshes background status without clearing the Inbox or interrupting Settings', async () => {
+    let poll;
+    const interval = vi.spyOn(globalThis, 'setInterval').mockImplementation(callback => { poll = callback; return 321; });
+    const clear = vi.spyOn(globalThis, 'clearInterval').mockImplementation(() => {});
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    try {
+      mocks.context.mockResolvedValue(complete);
+      mount(); await screen.findByText('Excellent fixture');
+      let resolve;
+      mocks.context.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+      let pending;
+      act(() => { pending = poll(); });
+      expect(screen.getByText('Excellent fixture')).toBeTruthy();
+      expect(screen.queryByRole('status', { name: 'Loading Google Reviews' })).toBeNull();
+      await act(async () => { resolve(complete); await pending; });
+      settings(); await screen.findByText('Google Connection');
+      const calls = mocks.context.mock.calls.length;
+      await act(async () => { await poll(); });
+      expect(mocks.context).toHaveBeenCalledTimes(calls);
+      expect(clear).toHaveBeenCalledWith(321);
+    } finally { interval.mockRestore(); clear.mockRestore(); visibility.mockRestore(); }
+  });
+
   it('shows disconnected guidance without fabricated metrics, targets or success banners', async () => {
     mount(); await screen.findByText('Google Business Profile is not connected');
     expect(screen.getByRole('button', { name: 'Sync Now' }).disabled).toBe(true);
