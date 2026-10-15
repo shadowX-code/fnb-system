@@ -130,15 +130,43 @@ describe('generation-bound OAuth task evidence',()=>{
    expect(result.publishing_evidence.eligibility).toBe('unverified');expect(adopted).not.toHaveBeenCalled();
   }
  });
- it('confirms Business Manager provenance only for exact mapped-user tasks and requires ads_read separately',async()=>{
-  for(const ads of [false,true]) for(const reverse of [false,true]) {
+ it('accepts revalidated OAuth content tasks with current exact business mapping without metadata or assignment-edge reads',async()=>{
+  for(const ads of [false,true]) {
    const transport=transportFor({scopes:[...debug.scopes,'instagram_basic','instagram_content_publish',...(ads?['ads_read']:[])]});
-   transport.mockResolvedValueOnce(response({data:[{id:'555',business:{id:'777'}}]})).mockResolvedValueOnce(response({data:[{id:reverse?'999':'555',tasks:['CREATE_CONTENT']}]}));
-   if(reverse)transport.mockResolvedValueOnce(response({data:[{id:'111',tasks:['CREATE_CONTENT']}]}));
-   transport.mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:'333'}})).mockResolvedValueOnce(response({id:'333'})).mockResolvedValueOnce(response({data:[{quota_usage:0,config:{quota_total:100}}]}));
+   transport.mockResolvedValueOnce(response({data:[{id:'555',business:{id:'777'}}]}))
+    .mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:'333'}})).mockResolvedValueOnce(response({id:'333'})).mockResolvedValueOnce(response({data:[{quota_usage:0,config:{quota_total:100}}]}));
    const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',{...connection,provider_account_id:'333',channel:'instagram'},'retained-token',vi.fn(),true);
-   expect(result.publishing_evidence.assignment_provenance).toBe('business_manager');expect(result.publishing_evidence.eligibility).toBe(ads?'verified':'unverified');
-   expect(result.publishing_evidence.blockers).toEqual(ads?[]:['business_manager_ads_read_required']);expect(JSON.stringify(result)).not.toMatch(/789|555|777/);
+   expect(result.publishing_evidence).toMatchObject({assignment_provenance:'business_manager',business_assignment_source:'oauth_accounts',oauth_snapshot_revalidated:true,business_authorizer_mapping_verified:true,eligibility:ads?'verified':'unverified'});
+   expect(result.publishing_evidence.blockers).toEqual(ads?[]:['business_manager_ads_read_required']);expect(result.publishing_enabled).toBe(false);
+   expect(transport.mock.calls.some(([url])=>/assigned_users|assigned_pages/.test(new URL(url).pathname))).toBe(false);
+   expect(transport.mock.calls.every(([,init])=>init.method==='GET')).toBe(true);
+   expect(JSON.stringify(result)).not.toMatch(/789|555|777|retained-token|tokenHash/);
+  }
+ });
+ it('keeps Instagram OAuth provenance generation-bound even when business and assignment edges are readable',async()=>{
+  let snapshot:any;
+  await diagnoseMetaConnection(new MetaGraph(config,transportFor()),'123','app-token',connection,'retained-token',vi.fn(),true,undefined,undefined,async e=>{snapshot=e;});
+  for(const scenario of [{token:'rotated-token'},{subject:'999'},{generation:4},{owner:'888'},{missingScope:true},{wrongTarget:true}]) {
+   const transport=transportFor({user_id:scenario.subject||'789',scopes:[...debug.scopes,'instagram_basic',...(scenario.missingScope?[]:['instagram_content_publish']),'ads_read'],...(scenario.wrongTarget?{granular_scopes:[...debug.granular_scopes,{scope:'instagram_content_publish',target_ids:['999']}]}:{})},scenario.owner||'777');
+   transport.mockResolvedValueOnce(response({data:[{id:'555',business:{id:scenario.owner||'777'}}]}))
+    .mockResolvedValue(response({data:[{id:'555',tasks:['CREATE_CONTENT']}]}));
+   if(scenario.missingScope||scenario.wrongTarget)transport.mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:'333'}})).mockResolvedValueOnce(response({id:'333'})).mockResolvedValueOnce(response({data:[{quota_usage:0,config:{quota_total:100}}]}));
+   const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',{...connection,provider_account_id:'333',channel:'instagram',credential_generation:scenario.generation||3},scenario.token||'retained-token',vi.fn(),true,undefined,snapshot);
+   expect(result.publishing_evidence.eligibility).not.toBe('verified');expect(result.publishing_enabled).toBe(false);
+   expect(result.publishing_evidence.blockers).toContain(scenario.missingScope?'required_scopes_missing':scenario.wrongTarget?'required_scope_target_unavailable':'page_tasks_unverified');
+  }
+ });
+ it('does not accept OAuth tasks with missing or unrelated business mapping, revoked tasks or broken Instagram linkage',async()=>{
+  for(const failure of ['mapping_missing','wrong_business','revoked_tasks','wrong_link']) {
+   const transport=transportFor({scopes:[...debug.scopes,'instagram_basic','instagram_content_publish','ads_read']});
+   transport.mockResolvedValueOnce(response({data:failure==='mapping_missing'?[]:[{id:'555',business:{id:failure==='wrong_business'?'888':'777'}}]}));
+   // Revoked task evidence still follows the existing fallback, and cannot be rescued by a readable edge alone.
+   if(failure==='revoked_tasks')transport.mockResolvedValueOnce(response({data:[]})).mockResolvedValueOnce(response({data:[]}));
+   transport.mockResolvedValueOnce(response({id:'111',instagram_business_account:{id:failure==='wrong_link'?'999':'333'}}))
+    .mockResolvedValueOnce(response({id:'333'})).mockResolvedValueOnce(response({data:[{quota_usage:0,config:{quota_total:100}}]}));
+   const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',{...connection,provider_account_id:'333',channel:'instagram',capabilities:{...connection.capabilities,page_tasks:failure==='revoked_tasks'?['ANALYZE']:connection.capabilities.page_tasks}},'retained-token',vi.fn(),true);
+   expect(result.publishing_evidence.eligibility).not.toBe('verified');expect(result.publishing_enabled).toBe(false);
+   expect(result.publishing_evidence.blockers).toContain(failure==='wrong_link'?'credential_account_unverified':failure==='revoked_tasks'?'content_task_not_granted':'page_assignment_provenance_unverified');
   }
  });
 });
