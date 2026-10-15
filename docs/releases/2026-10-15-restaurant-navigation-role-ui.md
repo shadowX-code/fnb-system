@@ -1,6 +1,6 @@
 # Restaurant navigation and Role UI release candidate
 
-Prepared 15 October 2026. **Not deployed or merged.**
+Prepared 15 October 2026. **Corrected RC v2; not deployed or merged.** The original `a73342f40` was deployed under approval and rolled back after responsive acceptance failed; it is not accepted for Production.
 
 ## Verified baselines
 
@@ -14,7 +14,7 @@ Production already has Brands, its route owner and the current Marketing baselin
 
 Production Role Detail/Edit use duplicated category-tab tables with a global set of action columns. Bring the existing shared Staging `RolePermissionMatrix.jsx` and CSS, its caller changes and regression tests. This provides Search, Workspace and Module filters, workspace grouping, applicable action columns, shared DataTable mobile layout, permission-owner descriptions, accurate active-cell counts and theme tokens. Keep existing Role summaries, assigned-employee reads, retry/snapshot saves, protected-role rules, Outlet scope and server authorities. Include Staging's client delegation lock so newly ungrantable actions remain disabled; this enforces existing server delegation, not a grant change. Import the existing generic Configure label and seven permission-description overrides, without changing codes.
 
-Shared `DataTable`, `AdminFilterToolbar`, `AdminSearchField`, `SelectField` and `roleService` are identical between the compared branches. No shared component, service, dependency, API, RPC or schema upgrade is required.
+Shared `DataTable`, `AdminFilterToolbar`, `AdminSearchField`, `SelectField` and `roleService` are identical between the compared branches. No JavaScript component, service, package, API, RPC or schema upgrade is required. The corrected v2 must additionally ship the shared mobile-table stylesheet dependency identified below.
 
 ### 99 versus 101
 
@@ -43,3 +43,20 @@ Rollback: restore the exact prior READY deployment `dpl_GB86fc5PMePbDXDYMfUVzXDV
 Remaining blocker: explicit scoped Production release authorization. No known code/schema dependency blocker was found. Provider/execution readiness is unrelated and is not activated by this UI release.
 
 Documentation Impact: Updated `docs/domains/people-identity-rbac.md`.
+
+## Corrected RC v2 — shared responsive dependency
+
+The sole additional runtime change is the canonical Staging mobile record-table block in `src/styles/index.css`, copied from dev `8fb5744b366ef343e6dcb90126c90736872023ab` (lines 3044–3055). Declaration content is unchanged; only surrounding whitespace follows the release stylesheet. No matrix CSS override or redesign is added. New shared DataTable regression coverage verifies the stylesheet dependency and labeled-cell markup; the existing release contract still verifies 99 modules and the exact 373-code catalogue.
+
+Production recheck remains `05780c92182b461699fd4155c92f350614afe3f9`, READY `dpl_GB86fc5PMePbDXDYMfUVzXDVJPHp`. Refreshed origin/main remains that SHA. Concurrent Marketing activation commit `8fb5744b3` touches Marketing SocialAccounts, Meta health/execution helpers, Inbox, worker and their tests/docs, with no overlap with this candidate's runtime files. None of those changes or activation settings is imported. Any subsequent Production/Marketing rollout requires another baseline comparison before this RC can deploy; deploying this older baseline over a newer activation release is forbidden. No provider settings or secrets were inspected or changed for this CSS task.
+
+### Focused v2 verification
+
+- Reuse the prior 39 passing Role lifecycle, permission, trusted-save and route tests and prior authenticated read-only Staging/Production evidence. No business data is changed or copied.
+- Nine dependency-specific tests pass across DataTable, RolePermissionMatrix and the scoped release contract. The new CSS test verifies exact declaration content with a checksum.
+- A loopback-only, temporary synthetic fixture mounts the actual RC RolePermissionMatrix, DataTable and global stylesheet. It makes no business/API/auth requests and is excluded from the commit/build. Browser Light/Dark checks cover desktop and mobile; computed layout confirms `table`/`table-row` on desktop, `block`/`flex` on mobile, the real Access label remains paired with its Enabled value, and an unrelated default-scroll consumer remains a table. A second opt-in shared consumer stacks.
+- Exact boundary checked in browser: 700px stacks; 701px remains a table. The browser reported 487px mobile and 1800px desktop CSS viewports for the other screenshots.
+- Screenshots: `roles-v2-desktop-light.jpg`, `roles-v2-desktop-dark.jpg`, `roles-v2-mobile-light.jpg`, `roles-v2-mobile-dark.jpg` in the task evidence folder. These are explicitly synthetic RC layout evidence, not authenticated Production acceptance.
+- Production build passed (existing large-chunk warning only), compiled output includes the shared stacking selectors, and final diff checks passed. Production post-deploy read-only smoke remains mandatory after separate authorization, including mobile cell-label alignment and rollback on regression.
+
+Documentation Impact: Updated `docs/architecture/platform.md` for the shared responsive dependency; prior people/RBAC documentation remains unchanged.

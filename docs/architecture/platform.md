@@ -140,3 +140,7 @@ Crew mobile history views share a two-month selector, compact status chips, and 
 ### Shared record actions
 
 Primary actions use the shared filled-green brand tokens with white labels/icons in normal and hover states; features do not override their foreground. Compact record continuation and document actions use `btn-secondary`. `RecordViewAction` owns the accessible eye-only inspect action on `icon-btn`; exception resolution and navigation remain text actions.
+
+### Shared responsive record tables
+
+`DataTable` keeps horizontal scrolling by default. Its opt-in `mobileLayout="stack"` depends on the shared `src/styles/index.css` rules for `[data-mobile-layout="stack"]`: tables become labeled, wrapping record rows at 700px and below. Ship this stylesheet contract with consumers that hide unavailable cells; the component prop alone cannot stack a regular table. Above 700px and for default scrolling consumers, existing table geometry remains unchanged.
