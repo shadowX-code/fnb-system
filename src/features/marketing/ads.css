@@ -115,3 +115,8 @@
   .ads-mobile .ads-detail-link { flex: 1 1 160px; }
   .ads-supporting-metrics { gap: 8px; }
 }
+/* Shared summary cards follow the available panel width, including detail drawers. */
+.ads-kpis { container-type: inline-size; }
+@container (max-width: 650px) {
+  .ads-kpis [data-admin-summary-grid] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

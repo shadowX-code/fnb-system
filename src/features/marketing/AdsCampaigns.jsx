@@ -12,8 +12,8 @@ import {adsMetric, adsMetricNames, adsResultLabel, insightFor, campaignResult} f
 const optional = ['impressions','reach','clicks','ctr','cpc','cpm'];
 const statusTone = status => status === 'ACTIVE' ? 'success' : status === 'PAUSED' ? 'neutral' : 'warning';
 export default function AdsCampaigns({accounts,account,onAccount,report,brands,canReview,onReview,onDetail}) {
-  const [level,setLevel]=useState('campaign'),[parent,setParent]=useState(''),[search,setSearch]=useState(''),[assignment,setAssignment]=useState('all'),[status,setStatus]=useState(''),[resultType,setResultType]=useState(''),[sort,setSort]=useState('spend'),[page,setPage]=useState(1),[pageSize,setPageSize]=useState(20),[extras,setExtras]=useState([]),[columnsOpen,setColumnsOpen]=useState(false);
-  useEffect(()=>{setParent('');setLevel('campaign');setResultType('');},[account]);
+  const [level,setLevel]=useState('campaign'),[parent,setParent]=useState(''),[search,setSearch]=useState(''),[assignment,setAssignment]=useState('all'),[status,setStatus]=useState(''),[resultType,setResultType]=useState('link_click'),[sort,setSort]=useState('spend'),[page,setPage]=useState(1),[pageSize,setPageSize]=useState(20),[extras,setExtras]=useState([]),[columnsOpen,setColumnsOpen]=useState(false);
+  useEffect(()=>{setParent('');setLevel('campaign');setResultType('link_click');},[account]);
   useEffect(()=>setPage(1),[level,parent,search,assignment,status,resultType,account,sort,pageSize]);
   const campaign = row => level==='campaign'?row:report?.configs?.campaigns?.find(c=>c.id===row.campaign_id);
   const configs = report?.configs?.[level==='campaign'?'campaigns':level==='adset'?'adsets':'ads'] || [];
@@ -24,7 +24,7 @@ export default function AdsCampaigns({accounts,account,onAccount,report,brands,c
   const result = row => campaignResult(insightFor(report,level,row.id),campaign(row),resultType);
   const currency = report?.account?.currency || accounts.find(a=>a.id===account)?.health?.currency;
   const brandName = row => brands.find(b=>b.id===campaign(row)?.feedx_brand_id)?.name || 'Unassigned';
-  const resultTypes = [...new Set((report?.insights?.[level] || []).flatMap(r=>(r.actions || []).map(a=>a.type)))];
+  const resultTypes = [...new Set(['link_click', ...(report?.insights?.[level] || []).flatMap(r=>(r.actions || []).map(a=>a.type))])];
   const resultCell = row => {const item=result(row);return <><span>{adsMetric({value:item?.value},'clicks')}</span><small className="block text-xs text-text-secondary">{item?.label || 'Select a result type'}</small></>};
   const columns = [
     {key:'name',header:level==='campaign'?'Campaign':level==='adset'?'Ad Set':'Ad',className:'ads-campaign-name',render:r=><button className="ads-detail-link" onClick={()=>onDetail(r,level,level!=="ad"?()=>drill(r):null)}>{r.name}</button>},

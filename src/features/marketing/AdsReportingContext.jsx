@@ -31,6 +31,7 @@ export default function AdsReportingContext({ report, brands }) {
           </summary>
           <DataTable
             density="compact"
+            mobileLayout="stack"
             minWidth={480}
             rows={rows}
             getRowKey={(r) => r.brand_id || "unassigned"}

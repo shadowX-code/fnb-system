@@ -25,6 +25,7 @@ describe('Ads operational dashboard',()=>{
  it('defaults to six columns, filters Unassigned, and requires explicit attribution review',()=>{
   render(<AdsCampaigns {...props}/>);
   expect(screen.getAllByRole('columnheader').map(n=>n.textContent)).toEqual(['Campaign','Brand','Spend','Results','Cost/Result','Status']);
+  expect(screen.getAllByText('5,084').length).toBeGreaterThan(0);expect(screen.getAllByText('Link clicks').length).toBeGreaterThan(0);
   fireEvent.click(screen.getByRole('button',{name:'Brand attribution'}));fireEvent.click(screen.getByRole('option',{name:'Unassigned',exact:true}));
   expect(screen.getAllByText('Campaign One').length).toBeGreaterThan(0);expect(screen.queryByText('Campaign Two')).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'Review Brand attribution'}));expect(props.onReview).toHaveBeenCalledOnce();
