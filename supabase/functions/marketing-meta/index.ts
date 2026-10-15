@@ -22,6 +22,7 @@ Deno.serve(async(req)=>{
  const missing=names.filter(n=>!env(n));
  if(path==='/configuration'&&req.method==='GET')return json(req,{configured:!missing.length,missing,redirect_uri:META_REDIRECT,app_domains:[new URL(RUNTIME_ORIGIN).hostname,new URL(RUNTIME_SUPABASE).hostname],deauthorization_uri:`${META_BASE}/deauthorize`,data_deletion_uri:`${META_BASE}/data-deletion`,permissions:META_SCOPES,test_execution_configured:!PRODUCTION_RUNTIME && Boolean(env('MARKETING_META_TEST_ACCOUNT_IDS')),production_execution_enabled:false});
  if(req.headers.get('origin')&&!origins.has(req.headers.get('origin')!))return json(req,{error:'Origin unavailable.'},403);
+ if(PRODUCTION_RUNTIME && req.method==='POST' && ['/deauthorize','/data-deletion'].includes(path))return json(req,{error:'Privacy processing is disabled pending release approval.'},503);
  const service=createClient(RUNTIME_SUPABASE,env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSession:false,autoRefreshToken:false}});
  try {
   if(path.startsWith('/deletion-status/')&&req.method==='GET') {

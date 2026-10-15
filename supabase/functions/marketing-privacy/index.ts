@@ -9,6 +9,7 @@ async function rpc(db:any,name:string,args:any={}){const {data,error}=await db.r
 Deno.serve(async req=>{
  const reply=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
  if(!RUNTIME_SUPABASE || env('SUPABASE_URL')!==RUNTIME_SUPABASE)return reply({error:'Marketing environment configuration is invalid.'},403);
+ if(PRODUCTION_RUNTIME)return reply({error:'Privacy processing is disabled pending release approval.'},503);
  const secret=env('MARKETING_WORKER_SECRET'),supplied=req.headers.get('x-marketing-worker-secret')||'';
  const a=await hash(secret),b=await hash(supplied);let diff=0;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);
  if(!secret||!supplied||diff)return reply({error:'Privacy operator authorization required.'},401);

@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-15 — Dormant Marketing Production application candidate
+
+Prepared an isolated application successor after the approved ledger-793 database baseline. Production privacy endpoints, Meta removal callbacks, worker journal retries and the shared journal adapter now refuse processing despite installed credentials. Staging privacy behavior and all 133 migration source files remain unchanged. No Production deployment, main merge, scheduler activation or provider operation occurred. Canonical owner: docs/domains/marketing.md.
+
 ## 2026-10-04 — Unified PH Pay Treatment
 
 Default PH Pay Treatment and occurrence review now share Statutory, Company, Custom or zero cash intent. Company reuses existing date-effective Additional Pay formulas, with no layered payment. Canonical preview/Gross/Payslip reconciliation, independent PH OT, audited correction and retained Leave compatibility are preserved. Normal review omits internal statutory forms and acknowledgement controls; compliance warnings remain server-owned audit evidence. Canonical owner: docs/domains/payroll.md.

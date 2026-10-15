@@ -52,6 +52,7 @@ it('Production runs bounded health without claiming publishing even with copied 
  await import('../../../../supabase/functions/marketing-worker/index.ts');
  fixture.db.rpc.mockResolvedValue({data:null,error:null});fixture.health.mockResolvedValue({messaging:{state:'awaiting_first_delivery'}});
  const result=await tick();expect(await result.json()).toEqual({status:'connection_checked'});
+ expect(fixture.db.rpc.mock.calls.map(c=>c[0])).not.toContain('marketing_privacy_journal_pending');
  expect(fixture.db.rpc.mock.calls.map(c=>c[0])).not.toContain('marketing_claim_job');expect(fixture.db.rpc.mock.calls.map(c=>c[0])).not.toContain('marketing_claim_reconciliation');expect(fixture.publish).not.toHaveBeenCalled();
 });
 it('rejects a Production project with Staging app credentials before queue work',async()=>{

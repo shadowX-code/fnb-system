@@ -1,9 +1,11 @@
 import { put, get } from 'https://esm.sh/@vercel/blob@2.8.1?target=es2022';
 import { persistJournal, type JournalStore } from './privacyJournal.ts';
+import { PRODUCTION_RUNTIME } from './marketingEnvironment.mjs';
 
 const env=(n:string)=>Deno.env.get(n)||'';
 export function journalKeys(){return [env('MARKETING_ERASURE_JOURNAL_ENCRYPTION_KEY'),env('MARKETING_ERASURE_JOURNAL_PREVIOUS_ENCRYPTION_KEY')].filter(Boolean);}
 export function blobJournalStore():JournalStore {
+ if(PRODUCTION_RUNTIME)throw new Error('privacy_processing_disabled');
  const token=env('MARKETING_ERASURE_JOURNAL_READ_WRITE_TOKEN');
  if(!token||!journalKeys().length)throw new Error('journal_not_configured');
  return {
