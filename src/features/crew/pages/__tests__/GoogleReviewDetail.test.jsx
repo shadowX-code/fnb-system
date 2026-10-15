@@ -101,3 +101,14 @@ describe('Post-write automatic reconciliation',()=>{
   mount();await write();confirm();await screen.findByText('Sync pending');expect(screen.getByRole('alert').textContent).toContain('429');expect(screen.getByText(draft)).not.toBeNull();expect(screen.queryByText('Reply synced.')).toBeNull();expect(mocks.detail).toHaveBeenCalledTimes(2);expect(mocks.reply).toHaveBeenCalledTimes(1);
  });
 });
+
+ it('does not expose Edit Reply to a Publish-only reader',async()=>{
+ mocks.detail.mockResolvedValue({...detail,review:{...review,reviewReply:{comment:'Existing reply',updateTime:'2026-10-15T00:00:00Z'}},can_reply:true,can_publish_reply:true,can_edit_reply:false});
+ render(<GoogleReviewDetail review={review} outletId="outlet" basis={basis} onClose={()=>{}} onConfirmed={async()=>{}}/>);
+ await screen.findByText('Existing reply');expect(screen.queryByRole('button',{name:'Update Reply'})).toBeNull();expect(screen.queryByRole('textbox')).toBeNull();
+ });
+
+ it('does not expose Publish Reply to an Edit-only reader when no reply exists',async()=>{
+ mocks.detail.mockResolvedValue({...detail,can_reply:true,can_publish_reply:false,can_edit_reply:true});mount();
+ await screen.findByText('Your access allows viewing only.');expect(screen.queryByRole('button',{name:'Publish Reply',exact:true})).toBeNull();
+ });

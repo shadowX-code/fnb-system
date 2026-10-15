@@ -67,6 +67,7 @@ export async function executeOwnerReply(options: {
   if (!intent) return complete({status:'conflict',code:'reply_intent_expired'});
   if (await replyFingerprint(remote.reviewReply)!==intent.expectedHash) return complete({status:'conflict',code:'reply_changed'});
   if (record.read_only) return complete({status:'uncertain',code:'reply_not_confirmed'});
+  if(record.operation && record.operation!==(remote.reviewReply ? 'update' : 'publish'))return complete({status:'conflict',code:'reply_changed'});
   await options.beforeWrite(record);
   didWrite=true;
   try {

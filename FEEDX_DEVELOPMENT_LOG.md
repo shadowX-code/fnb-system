@@ -998,3 +998,7 @@ Platform role resolution now uses Employee precedence with guarded legacy-only f
 ### 2026-10-14 — Instagram-first Creator avatars
 
 Connected profile-bound Instagram picture observations to one shared Creator avatar across Directory, Detail and selection controls, with initials on unavailable/expired images. Optional primary Instagram selection is validated and audited by the existing Creator save authority; profile refresh reuses the authorized free extraction infrastructure. Provider image URLs remain references with no new storage. Staging authority fixtures, focused regressions and authenticated desktop/mobile Light/Dark checks verify the scoped workflow.
+
+## 2026-10-16 — Google Reviews Staging operational authority
+
+Register six explicit Google Reviews permissions in the canonical matrix, preserve equivalent prior grants, and separate scoped review operations from all-outlet connection/mapping administration. Add Staging-only half-hour read synchronization using pg_cron/pg_net, short-lived run capabilities and the shared manual sync authority. Preserve Google-write confirmation, encrypted credentials/cache lifecycle and disabled Performance scoring. See `docs/domains/crew-performance-and-reward.md` and `docs/testing/google-reviews-operational.md`. Production is excluded.

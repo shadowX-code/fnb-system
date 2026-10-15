@@ -600,9 +600,9 @@ export const routeDetails = {
     props: { initialTab: "feedback" },
   },
   crew_google_reviews: {
-    description: "Review Google reputation context and configure outlet monthly targets.",
+    description: "Read and synchronize outlet Google Reviews and manage confirmed owner replies.",
     component: CrewGoogleReviewsAdminPage,
-    permission: "crew_performance.view",
+    permission: "crew_google_reviews.view",
   },
   crew_team_review: {
     description: "Review monthly teammate evidence and Admin fallback decisions.",

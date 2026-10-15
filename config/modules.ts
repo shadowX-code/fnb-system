@@ -43,6 +43,11 @@ export type ModuleAction =
   | "developer"
   | "send"
   | "reply"
+  | "sync"
+  | "publish_reply"
+  | "edit_reply"
+  | "manage_connection"
+  | "manage_mapping"
   | "ai";
 
 export type AppModule = {
@@ -56,12 +61,18 @@ export type AppModule = {
   routable?: boolean;
   // Consumer routes may reuse an existing permission without introducing a second grant.
   readPermission?: string;
+  requiresRestaurantOutletScope?: boolean;
   workspace?: "restaurant" | "factory" | "crew" | "guest_ai" | "finance" | "marketing";
   permissions: Partial<Record<ModuleAction, boolean>>;
 };
 
 export const permissionActionOrder: ModuleAction[] = [
   "view",
+  "sync",
+  "publish_reply",
+  "edit_reply",
+  "manage_connection",
+  "manage_mapping",
   "setup",
   "statutory",
   "prepare",
@@ -111,6 +122,12 @@ export const permissionActionOrder: ModuleAction[] = [
 
 export const permissionActionLabels: Record<ModuleAction, string> = {
   view: "View",
+  sync: "Sync Reviews",
+  publish_reply: "Publish Reply",
+  edit_reply: "Edit Reply",
+  manage_connection: "Manage Connection",
+  manage_mapping: "Manage Outlet Mapping",
+
   setup: "Set Up Payroll Pay",
   statutory: "Confirm Payroll Statutory Setup",
   prepare: "Prepare Payroll Runs",
@@ -1202,7 +1219,8 @@ export const moduleRegistry: AppModule[] = [
     icon: "crew-google-reviews",
     sidebar: true,
     workspace: "crew",
-    permissions: {},
+    requiresRestaurantOutletScope: true,
+    permissions: { view: true, sync: true, publish_reply: true, edit_reply: true, manage_connection: true, manage_mapping: true },
   },
   {
     id: "crew_team_review",
@@ -1284,6 +1302,12 @@ export const permissionPresentationOverrides: Record<string, { label: string; de
   "payroll.publish_holidays": { label: "Publish Payroll Holiday Calendar", description: "Publish/retire paid-holiday authority and confirm additional gazetted entitlement; calendar configuration is also required." },
   "payroll.record_payment": { label: "Record Payroll Payment", description: "Record and reverse settlement evidence for current finalized Payroll." },
 
+  "crew_google_reviews.view": { label: "View Reviews", description: "View Reviews for authorized outlets." },
+  "crew_google_reviews.sync": { label: "Sync Reviews", description: "Sync Reviews for authorized outlets." },
+  "crew_google_reviews.publish_reply": { label: "Publish Reply", description: "Publish Reply for authorized outlets." },
+  "crew_google_reviews.edit_reply": { label: "Edit Reply", description: "Edit Reply for authorized outlets." },
+  "crew_google_reviews.manage_connection": { label: "Manage Connection", description: "Manage Connection across all outlets." },
+  "crew_google_reviews.manage_mapping": { label: "Manage Outlet Mapping", description: "Manage Outlet Mapping across all outlets." },
   "crew_leave_settings.manage": {
     label: "Configure Leave Policies",
     description: "Configure outlet-scoped leave policies and their effective history.",

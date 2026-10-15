@@ -1,3 +1,4 @@
+import { resolveBusinessToken, synchronizeBusinessReviews, runScheduledReviewSync } from '../_shared/googleBusinessSync.ts';
 import { disconnectBusinessConnection } from '../_shared/googleBusinessDisconnect.ts';
 import { googleBusinessEnvironment } from '../_shared/googleBusinessEnvironment.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
@@ -60,6 +61,25 @@ export async function handle(req: Request) {
   return { accounts, locations };
  };
  try {
+  if(action==='scheduled-sync' && req.method==='POST') {
+   if(!configured())return reply({error:'Google configuration unavailable.'},503);
+   const supplied=req.headers.get('x-google-sync-token') || '';
+   if(!/^[a-f0-9-]{72}$/.test(supplied))return reply({error:'Scheduled sync authorization required.'},401);
+   const body=await req.json(),run=body.runId,proof=await hash(supplied);
+   if(typeof run!=='string' || !/^[a-f0-9-]{36}$/.test(run))return reply({error:'Scheduled sync unavailable.'},401);
+   const worker=async(command:string,data:any={})=>{const result=await db.rpc('crew_google_business_sync_worker',{p_action:command,p_run:run,p_proof:proof,p_data:data});if(result.error)throw new Error('Scheduled sync authorization expired.');return result.data;};
+   const claimed=await worker('claim');if(!claimed.claimed)return reply({skipped:true});
+   const deadline=Date.now()+105000;
+   let result;
+   try {
+    result=await runScheduledReviewSync(claimed.outlets,async(id:string)=>{
+     const scoped=async(command:string,data:any={})=>{const result=await db.rpc('crew_google_business_server',{p_action:command,p_user:null,p_outlet:id,p_data:{...data,worker_run:run,worker_proof:proof}});if(result.error)throw new BusinessProfileError('sync_authority_changed',409);return result.data;};
+     return synchronizeBusinessReviews({call:scoped,key:secret(),keys:keys(),grant,deadline:Math.min(deadline,Date.now()+90000)});
+    },{deadline});
+    await worker('finish',{error:result.stopped || (result.failed ? 'location_sync_failed' : '')});
+   }catch{await worker('finish',{error:'scheduled_sync_failed'}).catch(()=>{});throw new Error('Scheduled sync could not finish.');}
+   return reply(result);
+  }
   if (action === 'callback' && req.method === 'GET') {
    phase = 'state';
    if (!configured()) throw new Error('Google configuration is unavailable.');
@@ -128,28 +148,10 @@ export async function handle(req: Request) {
    if (['confirmed','rejected','conflict'].includes(state.status)) { const remoteReply=state.sealed_remote ? await unseal(state.sealed_remote,keys(),`google-business:reply-remote:${state.id}`) : null; return reply({id:state.id,status:state.status,code:state.code,remoteReply,expectedHash:remoteReply ? await replyFingerprint(remoteReply) : undefined}); }
   }
   if (!['sync','discover','review','reply','reply_status'].includes(action)) return reply({ error: 'Endpoint unavailable.' }, 404);
-  let material = await call('material');
-  const decode = (m: any) => unseal(m.sealed_token, keys(), tokenBinding(m.generation));
-  let token:any;let tokenPromise:Promise<void>|undefined;
-  const resolveToken=()=>tokenPromise ||= (async()=>{
-    token = await decode(material);
-  // Explicit location rediscovery verifies the persistent grant with a fresh access token.
-  if (action === 'discover' || new Date(material.expires_at).getTime() < Date.now() + 60000) {
-   try {
-    const fresh = await grant({ grant_type: 'refresh_token', refresh_token: token.refresh_token });
-    const renewed = { ...token, ...fresh };
-    const saved = await call('refresh', { generation: material.generation, expected_token: material.sealed_token, sealed_token: await seal(renewed, secret(), tokenBinding(material.generation)), expires_at: new Date(Date.now() + fresh.expires_in * 1000).toISOString() });
-    if (saved.updated) token = renewed;
-    else { material = await call('material'); token = await decode(material); }
-   } catch (error) {
-    if (!(error instanceof DriveError) || error.code !== 'reconnect_required') throw error;
-    const current = await call('material');
-    if (current.generation === material.generation && JSON.stringify(current.sealed_token) !== JSON.stringify(material.sealed_token) && new Date(current.expires_at).getTime() > Date.now() + 60000) { material = current; token = await decode(current); }
-    else { await call('expired', { generation: material.generation, expected_token: material.sealed_token }); throw error; }
-   }
-  }
-
-  })();
+  if(action==='sync')return reply(await synchronizeBusinessReviews({call,key:secret(),keys:keys(),grant}));
+  if(action==='discover' && !context.can_manage_connection)throw new Error('Manage Connection permission is required.');
+  let material=await call('material'),token:any,tokenPromise:Promise<void>|undefined;
+  const resolveToken=()=>tokenPromise ||= (async()=>{const resolved=await resolveBusinessToken({call,material,keys:keys(),key:secret(),grant,force:action==='discover'});material=resolved.material;token=resolved.token;})();
   if (['review','reply','reply_status'].includes(action)) {
    if (!material.mapping?.outlet_id) throw new Error('Map this outlet to a Google location in Settings.');
    const sourceBasis={generation:material.generation,revision:material.mapping.revision};
@@ -222,19 +224,7 @@ export async function handle(req: Request) {
    if (!context.can_manage) throw new Error('Connection management permission is required.');
    return reply(await call('discover', { ...await discovery(provider), generation: material.generation }));
   }
-  if (!material.mapping?.outlet_id) throw new Error('Map this outlet to a Google location in Settings.');
-  const basis = { generation: material.generation, revision: material.mapping.revision };
-  const lease = await call('sync_begin', basis);
-  try {
-   const snapshot = await readReviewInbox(provider, material.mapping.location_resource_name);
-   // Keep Google sync content/expiry intact; the scoped read projection overlays newer accepted replies.
-   await call('sync_finish', { ...basis, lease: lease.lease, sealed_reviews: await seal(snapshot, secret(), inboxBinding(material.generation, material.mapping)) });
-   return reply({ ok: true });
-  } catch (error) {
-   await call('sync_error', { ...basis, lease: lease.lease }).catch(() => {});
-   if (error instanceof BusinessProfileError && error.code === 'reconnect_required') await call('expired', { generation: material.generation, expected_token: material.sealed_token }).catch(() => {});
-   throw error;
-  }
+  return reply({error:'Endpoint unavailable.'},404);
  } catch (error) {
   const code = error instanceof BusinessProfileError || error instanceof DriveError ? error.code : 'request_rejected';
   if (action === 'callback') console.warn(JSON.stringify({ integration: 'google-business', action, phase, code,

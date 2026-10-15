@@ -172,3 +172,5 @@ Payroll uses independent workflow grants in the shared catalog and Role Matrix; 
 ### Retained employment migration evidence
 
 People owns `employee_employment_structure_migration_report`. It is immutable legacy migration evidence, not an anonymous reporting API. Browser SELECT requires `employees.view` and a visible canonical Employee row under existing Employee RLS; anonymous access and browser mutations are denied. Existing rows and administrative reporting remain intact. Trusted migration/service administration retains its existing access.
+
+Google Reviews is an explicitly outlet-scoped integration under Crew Performance navigation. Its six registered action grants reuse Role Outlet scope; the shared registry marks that scope requirement so a Google-only role retains All/Selected Outlet configuration consistently with the permission catalog. Connection and mapping administration each additionally require all-outlet authority. Equivalent legacy Google grants are migrated with audit evidence; unrelated role grants, assignments and outlet scope are unchanged.
