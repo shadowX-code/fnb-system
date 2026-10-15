@@ -83,3 +83,11 @@ it('preserves account identity and saved optional details when same-profile extr
  creatorService.profile.mockResolvedValueOnce({metadata_status:'unavailable',profile_url:'https://www.instagram.com/one/'});
  render(<AccountEditor {...props} org="org" brandId="b" creator={data.creators[0]} record={{platform:'instagram',profile_url:'https://www.instagram.com/one/',handle:'one',external_id:'123',display_name:'Saved name',followers:12,followers_captured_at:'2026-10-01T00:00:00Z'}}/>);fireEvent.click(screen.getByRole('button',{name:'Refresh public profile'}));await screen.findByText('Public details unavailable. Add optional details manually.');fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({external_id:'123',display_name:'Saved name',followers:12}));
 });
+
+it('shows the provider limitation without changing the saved profile or fabricating avatar evidence',async()=>{
+ creatorService.profile.mockResolvedValueOnce({metadata_status:'unavailable',unavailable:{profile:'The platform restricted public profile access. Existing saved details remain unchanged.'}});
+ const onSave=vi.fn(),record={id:'a',platform:'instagram',profile_url:'https://www.instagram.com/one/',handle:'one',external_id:'123',display_name:'Saved name',followers:12,followers_captured_at:'2026-10-01T00:00:00Z'};
+ render(<AccountEditor {...props} onSave={onSave} org="org" brandId="b" creator={data.creators[0]} record={record}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Refresh public profile'}));await screen.findByText('The platform restricted public profile access. Existing saved details remain unchanged.');
+ expect(onSave).not.toHaveBeenCalled();fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(onSave).toHaveBeenCalledWith({...record,creator_id:'c'});
+});
