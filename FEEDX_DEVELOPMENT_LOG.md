@@ -1,5 +1,10 @@
 # FeedX Development Log
 
+## 2026-10-16 — Account-scoped ongoing Staff Replies
+
+Production normal Staff Reply mode now requires the same bounded numeric account allowlist as controlled acceptance, while canonical conversation recipients need no fixed test-peer list. Shared pre-intent and pre-write guards retain Brand/Role authority, generation, messaging-window, suppression, deduplication and receipt reconciliation. Deployment leaves replies disabled; actual Meta eligibility and separate activation approval remain required. Publishing and Staging test gates are unchanged. Canonical owner: docs/domains/marketing.md.
+
+
 ## 2026-10-15 — Dormant Marketing Production application candidate
 
 Prepared an isolated application successor after the approved ledger-793 database baseline. Production privacy endpoints, Meta removal callbacks, worker journal retries and the shared journal adapter now refuse processing despite installed credentials. Staging privacy behavior and all 133 migration source files remain unchanged. No Production deployment, main merge, scheduler activation or provider operation occurred. Canonical owner: docs/domains/marketing.md.
