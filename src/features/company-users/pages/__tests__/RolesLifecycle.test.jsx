@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), remove: vi.fn(), assigned: vi.fn() }));
 vi.mock("../../../../services/roleService.js", () => ({ roleService: { listRoles: mocks.list, saveRole: mocks.save, deleteRole: mocks.remove, listAssignedEmployees: mocks.assigned } }));
@@ -24,6 +24,8 @@ const duplicateSource = {
   modules: ["Dashboard", "Sales Input"],
 };
 
+function selectWorkspace(name){fireEvent.click(screen.getByRole('button',{name:'Workspace',exact:true}));fireEvent.click(screen.getByRole('option',{name,exact:true}));}
+function matrixButtons(state){return within(screen.getByRole('region',{name:'Permission Matrix'})).getAllByRole('button',{pressed:state});}
 function openRoleActions(index = 0) {
   fireEvent.click(screen.getAllByRole("button", { name: "Role actions" })[index]);
 }
@@ -137,15 +139,15 @@ describe("Roles current mounted lifecycle", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add Role" }));
     fireEvent.change(screen.getByLabelText("Role Name *"), { target: { value: "Factory Operator" } });
     expect(screen.getByText("Outlet Access is not applicable until this role has a Restaurant permission.")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
-    fireEvent.click(screen.getAllByRole("button", { name: "Off" })[0]);
+    selectWorkspace("Factory");
+    fireEvent.click(matrixButtons(false)[0]);
     expect(screen.getByText("Outlet Access is not applicable until this role has a Restaurant permission.")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /Restaurant · \d+/ }));
-    fireEvent.click(screen.getAllByRole("button", { name: "Off" })[0]);
+    selectWorkspace("Restaurant");
+    fireEvent.click(matrixButtons(false)[0]);
     expect(screen.getByText("Outlet Access")).toBeTruthy();
-    fireEvent.click(screen.getAllByRole("button", { name: "Enabled" })[0]);
+    fireEvent.click(matrixButtons(true)[0]);
     expect(screen.getByText("Outlet Access is not applicable until this role has a Restaurant permission.")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
+    selectWorkspace("Factory");
     fireEvent.click(screen.getByRole("button", { name: "Save Role" }));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ outletAccess: "none", selectedOutletIds: [], permissions: ["factory_dashboard.view"] })));
   }, 10_000);
@@ -175,21 +177,21 @@ describe("Roles current mounted lifecycle", () => {
     expect(window.location.pathname).toBe("/people/roles/role-1/edit");
     expect(document.querySelector("aside")).toBeNull();
 
-    fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
-    expect(screen.getByText("Factory")).not.toBeNull();
+    selectWorkspace("Factory");
+    expect(screen.getByRole("region",{name:"Factory permissions"})).not.toBeNull();
     expect(screen.getByText("Production Overview")).not.toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "Off" })[0]);
-    fireEvent.click(screen.getByRole("tab", { name: /Restaurant · \d+/ }));
+    fireEvent.click(matrixButtons(false)[0]);
+    selectWorkspace("Restaurant");
     expect(screen.getByText("Sales Input")).not.toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: /People & HR · \d+/ }));
+    selectWorkspace("Restaurant");
     expect(screen.getAllByText("Employees")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("tab", { name: /Workforce · \d+/ }));
+    selectWorkspace("Crew");
     expect(screen.getByText("Onboarding Progress")).not.toBeNull();
     expect(screen.getByText("Onboarding")).not.toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: /System · \d+/ }));
+    selectWorkspace("Restaurant");
     expect(screen.getByText("Roles & Permissions")).not.toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
-    expect(screen.getAllByRole("button", { name: "Enabled" }).length).toBeGreaterThanOrEqual(1);
+    selectWorkspace("Factory");
+    expect(matrixButtons(true).length).toBeGreaterThanOrEqual(1);
   }, 10_000);
 
   it("edits the existing role through one trusted snapshot and preserves its UUID across a rejected retry", async () => {
@@ -284,7 +286,7 @@ describe("Roles current mounted lifecycle", () => {
     await screen.findByText("operations");
     fireEvent.click(screen.getByText("operations"));
     fireEvent.click(screen.getByRole("button", { name: "Edit Role" }));
-    fireEvent.click(screen.getAllByRole("button", { name: "Off" })[0]);
+    fireEvent.click(matrixButtons(false)[0]);
     fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
     expect(mocks.save.mock.calls[0][0].permissions.length).toBeGreaterThan(0);
@@ -338,4 +340,17 @@ describe("Roles current mounted lifecycle", () => {
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
     expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ id: "owner-id", is_active: false }));
   });
+});
+
+it('prevents non-protected role editors from selecting new grants outside their authority',async()=>{
+ const limited={isProtectedRole:false,profile:{role_name:'delegated',role_id:'other-role'},hasPermission:code=>['roles.create','roles.view'].includes(code)};
+ render(<RolesPage ui={ui} auth={limited} store={{outlets:[]}}/>);await screen.findByText('operations');fireEvent.click(screen.getByRole('button',{name:'Add Role'}));selectWorkspace('Marketing');
+ expect(screen.getByRole('button',{name:'Marketing Workspace: Access Marketing Workspace'}).disabled).toBe(true);expect(mocks.save).not.toHaveBeenCalled();
+});
+
+it('preserves existing Ads connection grants in an unrelated role edit',async()=>{
+ mocks.list.mockResolvedValueOnce([{...existing,permissions:['marketing_workspace.access','marketing_ads.view','marketing_ads.connect']}]);
+ render(<RolesPage ui={ui} auth={auth} store={{outlets:[]}}/>);await screen.findByText('operations');fireEvent.click(screen.getByText('operations'));fireEvent.click(screen.getByRole('button',{name:'Edit Role'}));
+ fireEvent.change(screen.getByLabelText('Description'),{target:{value:'Metadata only'}});fireEvent.click(screen.getByRole('button',{name:'Save Changes'}));
+ await waitFor(()=>expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({permissions:['marketing_workspace.access','marketing_ads.view','marketing_ads.connect']})));
 });

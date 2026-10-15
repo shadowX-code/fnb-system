@@ -9,9 +9,10 @@ import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
+import RolePermissionMatrix from "../components/RolePermissionMatrix.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { defaultPermissions } from "../data/rbacDefaults.js";
-import { getPermissionGroups, moduleRegistry, permissionActionLabels, permissionActionOrder } from "../../../../config/modules.ts";
+import { getPermissionGroups } from "../../../../config/modules.ts";
 import { navigateAdminRoute, resolveAdminLocation } from "../../../app/routeOwnership.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
@@ -22,43 +23,6 @@ import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL } from "../../../con
 
 const roleEditorGroups = getPermissionGroups();
 const roleEditorPermissionCodeSet = new Set(defaultPermissions.map((permission) => permission.code));
-
-const roleEditorActions = permissionActionOrder.map((action) => ({
-  key: action,
-  label: permissionActionLabels[action],
-}));
-
-const roleModuleRegistryById = new Map(moduleRegistry.map((module) => [module.id, module]));
-const rolePermissionTabs = ["All", "Restaurant", "Factory", "People & HR", "Workforce", "System"];
-
-function getRolePermissionCategory(module) {
-  const registeredModule = roleModuleRegistryById.get(module.key);
-  if (registeredModule?.workspace === "factory") return "Factory";
-  if (registeredModule?.workspace === "crew") return "Workforce";
-  if (registeredModule?.id === "roles" || registeredModule?.id === "audit-logs" || registeredModule?.section === "System") return "System";
-  if (registeredModule?.section === "People") return "People & HR";
-  return "Restaurant";
-}
-
-function getRolePermissionTabSummary(groups) {
-  const modules = groups.flatMap((group) => group.modules);
-  return rolePermissionTabs.map((tab) => ({
-    label: tab,
-    count: tab === "All" ? modules.length : modules.filter((module) => getRolePermissionCategory(module) === tab).length,
-  }));
-}
-
-function filterRolePermissionGroups(groups, activeTab, search) {
-  const query = search.trim().toLowerCase();
-  return groups.map((group) => ({
-    ...group,
-    modules: group.modules.filter((module) => {
-      const inTab = activeTab === "All" || getRolePermissionCategory(module) === activeTab;
-      const matchesSearch = !query || [module.label, module.key, getRolePermissionCategory(module)].some((value) => String(value).toLowerCase().includes(query));
-      return inTab && matchesSearch;
-    }),
-  })).filter((group) => group.modules.length);
-}
 
 const roleEditorOutlets = [
   { id: "jymt-kopitiam", name: "JYMT Kopitiam" },
@@ -153,7 +117,7 @@ function RoleAccessLayout({ title, description, notice, actions, footer, onClose
       </div>
       {notice ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{notice}</div> : null}
       <div className="min-w-0">{children}</div>
-      <footer className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/95 px-4 py-3 backdrop-blur sm:px-6">{footer}</footer>
+      <footer className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-6">{footer}</footer>
     </div>
   );
 }
@@ -171,8 +135,6 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
     selectedPermissions: new Set((role?.permissions ?? []).filter((code) => roleEditorPermissionCodeSet.has(code))),
   }));
   const [hasChanges, setHasChanges] = useState(false);
-  const [matrixTab, setMatrixTab] = useState("All");
-  const [matrixSearch, setMatrixSearch] = useState("");
   const isEdit = mode === "edit";
   const isProtectedRole = isProtectedRoleName(role?.name);
   const outletScopeApplicable = roleHasRestaurantPermissions([...values.selectedPermissions]);
@@ -194,12 +156,8 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
     setHasChanges(true);
   }
 
-  function cellEnabled(cell) {
-    return cell.codes.every((code) => values.selectedPermissions.has(code));
-  }
-
   function cellLocked(cell) {
-    return cell.codes.some((code) => outOfScopePermissionCodes.has(code));
+    return !currentUserCanModifyEveryPermission && cell.codes.some((code) => !hasPermission(auth, code));
   }
 
   function toggleOutlet(outletId) {
@@ -242,15 +200,9 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
   }
 
   const enabledPermissions = [...values.selectedPermissions];
-  const permissionTabSummary = useMemo(() => getRolePermissionTabSummary(roleEditorGroups), []);
-  const visiblePermissionGroups = useMemo(() => filterRolePermissionGroups(roleEditorGroups, matrixTab, matrixSearch), [matrixSearch, matrixTab]);
   const activeModuleCount = roleEditorGroups
     .flatMap((group) => group.modules)
     .filter((module) => getRoleEditorModuleCodes(module).some((code) => values.selectedPermissions.has(code))).length;
-
-  function selectedActionCount(module) {
-    return Object.values(module.actions).filter((cell) => cell.codes.some((code) => values.selectedPermissions.has(code))).length;
-  }
 
   async function saveRole() {
     if (saving) return;
@@ -321,7 +273,7 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
     >
           <div className="space-y-4">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(260px,0.85fr)]">
-              <section className="rounded-2xl border border-border bg-white p-4">
+              <section className="rounded-2xl border border-border bg-surface p-4">
                 <div className="mb-3 text-sm font-bold text-text-primary">Role Information</div>
                 <div className="space-y-3">
                   <FieldLabel label="Role Name *">
@@ -373,8 +325,8 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
                             }}
                           >
                             <div className="flex items-center gap-2">
-                              <span className={`grid h-4 w-4 place-items-center rounded-full border ${selected ? "border-primary bg-primary" : "border-border bg-white"}`}>
-                                {selected ? <span className="h-1.5 w-1.5 rounded-full bg-white" /> : null}
+                              <span className={`grid h-4 w-4 place-items-center rounded-full border ${selected ? "border-primary bg-primary" : "border-border bg-surface"}`}>
+                                {selected ? <span className="h-1.5 w-1.5 rounded-full bg-surface" /> : null}
                               </span>
                               <span className="text-sm font-bold">{option.title}</span>
                             </div>
@@ -418,11 +370,11 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
                       </div>
                     ) : null}
                     {errors.outletAccess ? <div className="mt-1 text-[11px] font-medium text-rose-600">{errors.outletAccess}</div> : null}
-                  </div> : <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm text-text-secondary">Outlet Access is not applicable until this role has a Restaurant permission.</div>}
+                  </div> : <div className="rounded-xl border border-border bg-[var(--theme-subtle)] px-3 py-2 text-sm text-text-secondary">Outlet Access is not applicable until this role has a Restaurant permission.</div>}
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-border bg-white p-4">
+              <section className="rounded-2xl border border-border bg-surface p-4">
                 <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Summary</div>
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Permissions Enabled</span><strong>{enabledPermissions.length}</strong></div>
@@ -433,103 +385,10 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
               </section>
             </div>
 
-            <section className="min-w-0 rounded-2xl border border-border bg-white">
-              <div className="border-b border-border px-4 py-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-base font-bold text-text-primary">Permission Matrix</div>
-                    <div className="mt-1 text-xs text-text-secondary">
-                      {matrixTab} · {permissionTabSummary.find((tab) => tab.label === matrixTab)?.count ?? 0} modules · {enabledPermissions.length} permissions enabled
-                    </div>
-                  </div>
-                  {hasChanges ? <Badge tone="warning">Unsaved changes</Badge> : null}
-                </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Permission categories">
-                    {permissionTabSummary.map((tab) => <button key={tab.label} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${matrixTab === tab.label ? "bg-primary text-white" : "bg-slate-100 text-text-secondary hover:bg-slate-200"}`} type="button" role="tab" aria-selected={matrixTab === tab.label} onClick={() => setMatrixTab(tab.label)}>{tab.label} · {tab.count}</button>)}
-                  </div>
-                  <div className="relative w-full sm:w-[280px]">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
-                    <input className="control h-9 w-full pl-9 text-sm" value={matrixSearch} onChange={(event) => setMatrixSearch(event.target.value)} placeholder={`Search ${matrixTab} modules`} />
-                  </div>
-                </div>
-                {hasOutOfScopePermissions ? (
-                  <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
-                    <Lock size={14} className="mt-0.5 shrink-0" />
-                    <span>This role contains permissions outside your own access scope. These permissions can be viewed but not modified.</span>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="max-h-[70vh] overflow-auto">
-                <table className="min-w-[1240px] w-full border-separate border-spacing-0 text-sm">
-                  <thead className="sticky top-0 z-30 bg-white shadow-[0_1px_0_rgba(15,23,42,0.08)]">
-                    <tr>
-                      <th className="sticky left-0 top-0 z-40 w-[210px] border-b border-border bg-white px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-text-secondary">Module</th>
-                      {roleEditorActions.map((action) => (
-                        <th key={action.key} className="sticky top-0 z-30 border-b border-border bg-white px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wide text-text-secondary">{action.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visiblePermissionGroups.map((group) => (
-                      <FragmentLike key={group.label}>
-                        <tr>
-                          <td colSpan={roleEditorActions.length + 1} className="bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-text-muted">{group.label}</td>
-                        </tr>
-                        {group.modules.map((module) => (
-                          <tr key={module.key} className="group">
-                            <td className="sticky left-0 z-10 border-b border-border bg-white px-4 py-3 group-hover:bg-slate-50">
-                              <div className="text-sm font-bold text-text-primary">{module.label}</div>
-                              <div className="mt-1 text-[11px] font-semibold text-text-muted">{selectedActionCount(module)} active actions</div>
-                            </td>
-                            {roleEditorActions.map((action) => {
-                              const cell = module.actions[action.key];
-                              if (!cell) {
-                                return (
-                                  <td key={`${module.key}-${action.key}`} className="border-b border-border px-3 py-3 text-center text-text-muted">—</td>
-                                );
-                              }
-                              const enabled = cellEnabled(cell);
-                              const locked = cellLocked(cell);
-                              return (
-                                <td key={`${module.key}-${action.key}`} className="border-b border-border px-2 py-3 text-center">
-                                  <button
-                                    className={`mx-auto flex min-h-9 w-full max-w-[128px] items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold transition ${
-                                      locked
-                                        ? "border-slate-200 bg-slate-100 text-text-muted"
-                                        : enabled
-                                          ? "border-primary bg-primary text-white shadow-sm"
-                                          : "border-border bg-slate-50 text-text-secondary hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
-                                    } disabled:cursor-not-allowed disabled:opacity-70`}
-                                    type="button"
-                                    disabled={readOnly || locked}
-                                    title={locked ? "You cannot modify permissions you do not personally have." : cell.label}
-                                    onClick={() => toggleMatrixCell(module, action.key, cell)}
-                                  >
-                                    {locked ? <Lock size={12} /> : null}
-                                    {enabled ? "Enabled" : "Off"}
-                                  </button>
-                                  <div className="mt-1 text-[10px] font-medium leading-4 text-text-muted">{cell.label}</div>
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </FragmentLike>
-                    ))}
-                    {!visiblePermissionGroups.length ? <tr><td colSpan={roleEditorActions.length + 1} className="px-4 py-10 text-center text-sm font-semibold text-text-secondary">No modules match this category and search.</td></tr> : null}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            <RolePermissionMatrix permissions={values.selectedPermissions} onToggle={toggleMatrixCell} cellLocked={cellLocked} readOnly={readOnly} notice={hasOutOfScopePermissions?"Permissions outside your own access can be viewed but not modified.":null}/>
           </div>
     </RoleAccessLayout>
   );
-}
-
-function FragmentLike({ children }) {
-  return children;
 }
 
 function titleCase(value) {
@@ -577,7 +436,7 @@ function AssignedEmployeesModal({ role, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-[1px]" role="dialog" aria-modal="true" aria-label={`Assigned employees for ${role.name}`}>
-      <div className="flex max-h-[78vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-2xl">
+      <div className="flex max-h-[78vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-border bg-surface shadow-2xl">
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
             <div className="text-xs font-bold uppercase tracking-wide text-primary">Assigned Employees</div>
@@ -595,7 +454,7 @@ function AssignedEmployeesModal({ role, onClose }) {
         <div className="min-h-0 flex-1 overflow-auto">
           {loading ? <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading assigned employees...</div> : null}
           {!loading && error ? <div className="p-8 text-center"><div className="text-sm font-bold text-rose-700">Unable to load assigned employees.</div><p className="mt-1 text-sm text-text-secondary">{error}</p><button className="btn-secondary mt-4" type="button" onClick={() => setRetryKey((value) => value + 1)}>Retry</button></div> : null}
-          {!loading && !error && filteredRows.length ? <table className="min-w-[760px] w-full text-sm"><thead className="table-head"><tr><th className="px-4 py-3 text-left">Employee</th><th className="px-4 py-3 text-left">Position</th><th className="px-4 py-3 text-left">Workplace</th><th className="px-4 py-3 text-left">Account</th><th className="px-4 py-3 text-left">Employment</th></tr></thead><tbody>{filteredRows.map((employee) => <tr key={employee.id} className="border-b border-border hover:bg-slate-50"><td className="px-4 py-3"><div className="font-bold text-text-primary">{employee.preferredName || employee.fullName || "Unnamed employee"}</div><div className="mt-1 text-xs text-text-secondary">{employee.employeeCode || (employee.preferredName && employee.preferredName !== employee.fullName ? employee.fullName : "—")}</div></td><td className="px-4 py-3 text-text-secondary">{employee.position || "—"}</td><td className="px-4 py-3 text-text-secondary">{employee.workplace || "—"}</td><td className="px-4 py-3"><Badge tone={accountTone(employee.accountState)}>{EMPLOYEE_ACCESS_STATE_LABEL[employee.accountState] || "No Access"}</Badge></td><td className="px-4 py-3"><Badge tone={employmentTone(employee.employmentStatus)}>{titleCase(employee.employmentStatus)}</Badge><div className="mt-1 text-xs text-text-secondary">{titleCase(employee.employmentType)}</div></td></tr>)}</tbody></table> : null}
+          {!loading && !error && filteredRows.length ? <table className="min-w-[760px] w-full text-sm"><thead className="table-head"><tr><th className="px-4 py-3 text-left">Employee</th><th className="px-4 py-3 text-left">Position</th><th className="px-4 py-3 text-left">Workplace</th><th className="px-4 py-3 text-left">Account</th><th className="px-4 py-3 text-left">Employment</th></tr></thead><tbody>{filteredRows.map((employee) => <tr key={employee.id} className="border-b border-border hover:bg-[var(--theme-subtle)]"><td className="px-4 py-3"><div className="font-bold text-text-primary">{employee.preferredName || employee.fullName || "Unnamed employee"}</div><div className="mt-1 text-xs text-text-secondary">{employee.employeeCode || (employee.preferredName && employee.preferredName !== employee.fullName ? employee.fullName : "—")}</div></td><td className="px-4 py-3 text-text-secondary">{employee.position || "—"}</td><td className="px-4 py-3 text-text-secondary">{employee.workplace || "—"}</td><td className="px-4 py-3"><Badge tone={accountTone(employee.accountState)}>{EMPLOYEE_ACCESS_STATE_LABEL[employee.accountState] || "No Access"}</Badge></td><td className="px-4 py-3"><Badge tone={employmentTone(employee.employmentStatus)}>{titleCase(employee.employmentStatus)}</Badge><div className="mt-1 text-xs text-text-secondary">{titleCase(employee.employmentType)}</div></td></tr>)}</tbody></table> : null}
           {!loading && !error && !filteredRows.length ? <div className="p-8 text-center"><div className="text-sm font-bold text-text-primary">{rows.length ? "No assigned employees found." : "No employees are assigned to this role."}</div><p className="mt-1 text-sm text-text-secondary">{rows.length ? "Try another search term." : "Assign a role in an employee profile to add it here."}</p></div> : null}
         </div>
         <footer className="shrink-0 border-t border-border px-5 py-3 text-right"><button className="btn-secondary" type="button" onClick={onClose}>Close</button></footer>
@@ -618,8 +477,6 @@ function AddRolePage({ onClose, onSubmit, ui, outlets, auth }) {
 
 function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editDisabledReason, editDebug }) {
   const [assignedUsersOpen, setAssignedUsersOpen] = useState(false);
-  const [matrixTab, setMatrixTab] = useState("All");
-  const [matrixSearch, setMatrixSearch] = useState("");
   const permissions = new Set((role.permissions ?? []).filter((code) => !code.startsWith("crew_journeys.")));
   const isProtectedRole = isProtectedRoleName(role.name);
   const activeModuleCount = roleEditorGroups
@@ -627,16 +484,6 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
     .filter((module) => getRoleEditorModuleCodes(module).some((code) => permissions.has(code))).length;
   const createdDate = role.createdAt || role.created_at || (isProtectedRole ? "2026-05-01" : role.updatedAt);
   const updatedDate = role.updatedAt || role.updated_at || role.created_at;
-  const permissionTabSummary = useMemo(() => getRolePermissionTabSummary(roleEditorGroups), []);
-  const visiblePermissionGroups = useMemo(() => filterRolePermissionGroups(roleEditorGroups, matrixTab, matrixSearch), [matrixSearch, matrixTab]);
-
-  function readonlyCellEnabled(cell) {
-    return cell.codes.every((code) => permissions.has(code));
-  }
-
-  function selectedActionCount(module) {
-    return Object.values(module.actions).filter((cell) => cell.codes.some((code) => permissions.has(code))).length;
-  }
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -670,7 +517,7 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
     >
           <div className="space-y-4">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(220px,0.8fr)_minmax(240px,0.9fr)]">
-              <section className="rounded-2xl border border-border bg-white p-4">
+              <section className="rounded-2xl border border-border bg-surface p-4">
                 <div className="mb-3 text-sm font-bold text-text-primary">Role Information</div>
                 <div className="space-y-3 text-sm">
                   <div>
@@ -691,7 +538,7 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-border bg-white p-4">
+              <section className="rounded-2xl border border-border bg-surface p-4">
                 <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Summary</div>
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Permissions enabled</span><strong>{permissions.size}</strong></div>
@@ -701,7 +548,7 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-border bg-white p-4">
+              <section className="rounded-2xl border border-border bg-surface p-4">
                 <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Audit</div>
                 <div className="mt-3 space-y-2 text-sm text-text-secondary">
                   <div className="flex items-center justify-between gap-3"><span>Created by</span><strong className="text-text-primary">{isProtectedRole ? "System" : "Development Owner"}</strong></div>
@@ -712,77 +559,7 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
               </section>
             </div>
 
-            <section className="min-w-0 rounded-2xl border border-border bg-white">
-              <div className="border-b border-border px-4 py-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-base font-bold text-text-primary">Permission Matrix</div>
-                    <div className="mt-1 text-xs text-text-secondary">{matrixTab} · {permissionTabSummary.find((tab) => tab.label === matrixTab)?.count ?? 0} modules · read-only access map.</div>
-                  </div>
-                  <div className="text-xs font-semibold text-text-secondary">{permissions.size} permissions · {activeModuleCount} modules</div>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Permission categories">
-                    {permissionTabSummary.map((tab) => <button key={tab.label} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${matrixTab === tab.label ? "bg-primary text-white" : "bg-slate-100 text-text-secondary hover:bg-slate-200"}`} type="button" role="tab" aria-selected={matrixTab === tab.label} onClick={() => setMatrixTab(tab.label)}>{tab.label} · {tab.count}</button>)}
-                  </div>
-                  <div className="relative w-full sm:w-[280px]">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
-                    <input className="control h-9 w-full pl-9 text-sm" value={matrixSearch} onChange={(event) => setMatrixSearch(event.target.value)} placeholder={`Search ${matrixTab} modules`} />
-                  </div>
-                </div>
-              </div>
-
-                <div className="max-h-[70vh] overflow-auto">
-                  <table className="min-w-[1240px] w-full border-separate border-spacing-0 text-sm">
-                    <thead className="sticky top-0 z-30 bg-white shadow-[0_1px_0_rgba(15,23,42,0.08)]">
-                      <tr>
-                        <th className="sticky left-0 top-0 z-40 w-[210px] border-b border-border bg-white px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-text-secondary">Module</th>
-                        {roleEditorActions.map((action) => (
-                          <th key={action.key} className="sticky top-0 z-30 border-b border-border bg-white px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wide text-text-secondary">{action.label}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visiblePermissionGroups.map((group) => (
-                        <FragmentLike key={group.label}>
-                          <tr>
-                            <td colSpan={roleEditorActions.length + 1} className="bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-text-muted">{group.label}</td>
-                          </tr>
-                          {group.modules.map((module) => (
-                            <tr key={module.key}>
-                              <td className="sticky left-0 z-10 border-b border-border bg-white px-4 py-3">
-                                <div className="text-sm font-bold text-text-primary">{module.label}</div>
-                                <div className="mt-1 text-[11px] font-semibold text-text-muted">{selectedActionCount(module)} active actions</div>
-                              </td>
-                              {roleEditorActions.map((action) => {
-                                const cell = module.actions[action.key];
-                                if (!cell) {
-                                  return <td key={`${module.key}-${action.key}`} className="border-b border-border px-3 py-3 text-center text-text-muted">—</td>;
-                                }
-                                const enabled = readonlyCellEnabled(cell);
-                                return (
-                                  <td key={`${module.key}-${action.key}`} className="border-b border-border px-2 py-3 text-center">
-                                    <div
-                                      className={`mx-auto flex min-h-9 w-full max-w-[128px] items-center justify-center rounded-xl border px-2 text-xs font-bold ${
-                                        enabled ? "border-primary bg-primary text-white shadow-sm" : "border-border bg-slate-50 text-text-muted opacity-70"
-                                      }`}
-                                      title={cell.label}
-                                    >
-                                      {enabled ? "Enabled" : "Off"}
-                                    </div>
-                                    <div className="mt-1 text-[10px] font-medium leading-4 text-text-muted">{cell.label}</div>
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </FragmentLike>
-                      ))}
-                      {!visiblePermissionGroups.length ? <tr><td colSpan={roleEditorActions.length + 1} className="px-4 py-10 text-center text-sm font-semibold text-text-secondary">No modules match this category and search.</td></tr> : null}
-                    </tbody>
-                  </table>
-                </div>
-            </section>
+            <RolePermissionMatrix permissions={permissions} readOnly/>
           </div>
           {assignedUsersOpen ? <AssignedEmployeesModal role={role} onClose={() => setAssignedUsersOpen(false)} /> : null}
     </RoleAccessLayout>
@@ -1231,13 +1008,13 @@ export default function RolesPage({ ui, store, auth }) {
               </button>
             )}
           >
-              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { navigateRolePage(`/${encodeURIComponent(row.id)}`); setActionMenuRoleId(null); }}>
+              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-[var(--theme-subtle)]" type="button" onClick={() => { navigateRolePage(`/${encodeURIComponent(row.id)}`); setActionMenuRoleId(null); }}>
                 <Eye size={14} /> View Permissions
               </button>
-              {canEditRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={Boolean(editBlockReason)} title={editBlockReason || "Edit Role"} onClick={() => openEditRole(row)}>
+              {canEditRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-[var(--theme-subtle)] disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={Boolean(editBlockReason)} title={editBlockReason || "Edit Role"} onClick={() => openEditRole(row)}>
                 <Shield size={14} /> Edit Role
               </button> : null}
-              {canCreateRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => duplicateRole(row)}>
+              {canCreateRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-[var(--theme-subtle)]" type="button" onClick={() => duplicateRole(row)}>
                 <Copy size={14} /> Duplicate Role
               </button> : null}
               {canEditRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={Boolean(editBlockReason)} title={editBlockReason || "Disable Role"} onClick={() => disableRole(row)}>
@@ -1308,7 +1085,7 @@ export default function RolesPage({ ui, store, auth }) {
         )}
       </Card>
 
-      <div className="rounded-2xl border border-border bg-white px-4 py-3 text-xs text-text-secondary">
+      <div className="rounded-2xl border border-border bg-surface px-4 py-3 text-xs text-text-secondary">
         Permissions will expand automatically as new HR, KPI, payroll, and operational modules are added.
       </div>
 

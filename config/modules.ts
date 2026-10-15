@@ -116,7 +116,7 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   prepare: "Prepare Payroll Runs",
   review_time: "Review Payroll Time",
   treat_ph: "Confirm PH Pay Treatment",
-  configure: "Configure Payroll",
+  configure: "Configure",
   configure_holidays: "Configure Payroll Holiday Calendar",
   publish_holidays: "Publish Payroll Holiday Calendar",
   record_payment: "Record Payroll Payment",
@@ -551,7 +551,7 @@ export const moduleRegistry: AppModule[] = [
   },
 {
     id: "outlets",
-    section: "Operations",
+    section: "System",
     label: "Outlets",
     route: "/operations/outlets",
     icon: "outlets",
@@ -1172,6 +1172,13 @@ export function getModuleLabel(moduleId: string) {
 
 // Canonical permission presentation; authority is owned by each corresponding server command.
 export const permissionPresentationOverrides: Record<string, { label: string; description: string }> = {
+  "marketing_inbox.configure": { label: "Configure Inbox FAQ & AI", description: "Configure brand FAQ preview plans and explicit AI consent; no external sending authority." },
+  "marketing_inbox.approve": { label: "Approve Inbox Evidence", description: "Approve exact reply, knowledge, FAQ and AI proposal revisions; messages remain unsent." },
+  "marketing_settings.configure": { label: "Configure Marketing Access & Integrations", description: "Configure Marketing brand scope and authorized integrations." },
+  "marketing_settings.manage": { label: "Manage Brand Knowledge", description: "Manage brand knowledge with provenance." },
+  "platform_organizations.manage": { label: "Manage Brands & Team Access", description: "Manage authorized Brands, team access and Outlet mappings." },
+  "marketing_content.publish": { label: "Schedule Marketing Content", description: "Plan publishing of approved revisions." },
+  "marketing_content.execute": { label: "Authorize External Publishing", description: "Approve execution of an exact revision to enabled brand accounts." },
   "payroll.setup": { label: "Set Up Payroll Pay", description: "Create and correct effective compensation and recurring employee components." },
   "payroll.statutory": { label: "Confirm Payroll Statutory Setup", description: "Confirm effective statutory setup, PCB and reusable PH statutory evidence." },
   "payroll.prepare": { label: "Prepare Payroll Runs", description: "Create and prepare open Payroll Runs, including governed correction Runs." },

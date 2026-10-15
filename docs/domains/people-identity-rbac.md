@@ -53,6 +53,7 @@ Their IDs, grants, scope and server checks are unchanged; other Manage permissio
 retain their existing labels and semantics.
 
 The module registry defines available capabilities; roles grant permission to them but do not redefine route ownership.
+The canonical Role Permission Matrix is shared by role reading and editing. Search and Workspace/Module filters affect presentation only; each workspace table exposes only applicable registered action columns. Consumer routes identify their permission owner without creating duplicate grants. Active-action counts require the complete cell dependency set. Client delegation locks mirror existing trusted authority and never replace server checks. Outlets remains Restaurant-scoped when presented under System; navigation grouping must not erase role Outlet scope.
 UI gating mirrors authority for usability while RLS and trusted functions enforce access.
 
 ## Permissions And Audit
