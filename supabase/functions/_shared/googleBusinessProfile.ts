@@ -17,7 +17,9 @@ export class GoogleBusinessProfile implements GoogleReviewsProvider {
   if (!['mybusinessaccountmanagement.googleapis.com','mybusinessbusinessinformation.googleapis.com','mybusiness.googleapis.com'].includes(host)) throw new BusinessProfileError('invalid_host');
   const url = new URL(`https://${host}/${path}`);
   for (const [key, value] of Object.entries(params)) if (value) url.searchParams.set(key, value);
-  const response = await driveFetch(this.transport, url, { method: 'GET', headers: { Authorization: `Bearer ${this.token}` }, redirect: 'error' }, this.deadline, false);
+  let response:Response;
+  try{response=await driveFetch(this.transport,url,{method:'GET',headers:{Authorization:`Bearer ${this.token}`},redirect:'error'},this.deadline,false);}
+  catch{throw new BusinessProfileError('google_unavailable',503,host,`GET /${path}`);}
   if (response.status === 429) throw new BusinessProfileError('google_rate_limited',429,host,`GET /${path}`);
   if (!response.ok) throw new BusinessProfileError(response.status === 401 ? 'reconnect_required' : response.status === 403 ? 'google_access_denied' : 'google_unavailable', response.status,host,`GET /${path}`);
   return response.json();

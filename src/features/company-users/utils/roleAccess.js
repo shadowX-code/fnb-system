@@ -2,7 +2,7 @@ import { enabledActions, moduleRegistry, permissionCode } from "../../../../conf
 
 const restaurantPermissionCodes = new Set(
   moduleRegistry
-    .filter((module) => !module.workspace && (module.id === "outlets" || !["People", "System"].includes(module.section)))
+    .filter((module) => module.requiresRestaurantOutletScope || !module.workspace && (module.id === "outlets" || !["People", "System"].includes(module.section)))
     .flatMap((module) => enabledActions(module).map((action) => permissionCode(module.id, action))),
 );
 

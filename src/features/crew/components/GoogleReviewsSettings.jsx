@@ -10,14 +10,14 @@ import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton.jsx';
 import { googleBusinessService as service } from '../services/googleBusinessService.js';
 
 // Mapping rows retain configuration only, never another outlet's review content.
-const mappingContext = data => ({ generation: data.generation, mapping: data.mapping, can_manage: data.can_manage });
+const mappingContext = data => ({ generation: data.generation, mapping: data.mapping, can_manage: data.can_manage_mapping ?? data.can_manage });
 
 export default function GoogleReviewsSettings({ outlets, outletId, context, busy, run }) {
   const [menu, setMenu] = useState(false), [disconnect, setDisconnect] = useState(false);
   const [rows, setRows] = useState([]), [loading, setLoading] = useState(true), [reload, setReload] = useState(0);
   const [editor, setEditor] = useState(null), [location, setLocation] = useState(''), [dialogError, setDialogError] = useState('');
   const editRequest = useRef(0), mounted = useRef(true);
-  const connected = context.connection_status === 'connected', canManage = context.can_manage;
+  const connected = context.connection_status === 'connected', canManage = context.can_manage_connection ?? context.can_manage, canMap = context.can_manage_mapping ?? context.can_manage;
   const outletIds = outlets.map(outlet => outlet.id).join(',');
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; ++editRequest.current; }; }, []);
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function GoogleReviewsSettings({ outlets, outletId, context, busy
     try {
       const data = await service.context(row.id);
       if (request !== editRequest.current || !mounted.current) return;
-      if (!data.can_manage || data.connection_status !== 'connected') throw new Error('Connection or access changed. Refresh Settings before editing this mapping.');
+      if (!(data.can_manage_mapping ?? data.can_manage) || data.connection_status !== 'connected') throw new Error('Connection or access changed. Refresh Settings before editing this mapping.');
       setEditor({ ...row, context: mappingContext(data), locations: data.locations || [] });
       setLocation(data.mapping?.name || '');
     } catch (cause) {
@@ -73,14 +73,14 @@ export default function GoogleReviewsSettings({ outlets, outletId, context, busy
         {!connected && context.connection_status === 'disconnected' ? <button className="btn-primary" disabled={!canManage || !context.configured || !!busy} onClick={() => run('authorize', () => service.authorize(outletId))}>{busy === 'authorize' ? 'Connecting…' : 'Connect Google'}</button> : null}
         {busy === 'discover' ? <span role="status" className="text-sm text-text-secondary">Refreshing locations…</span> : null}
       </div>
-      {!context.configured ? <p className="border-t border-border px-4 py-3 text-sm text-text-secondary">Google connection setup is required.</p> : !canManage ? <p className="border-t border-border px-4 py-3 text-sm text-text-secondary">Your access allows viewing only.</p> : null}
+      {!context.configured ? <p className="border-t border-border px-4 py-3 text-sm text-text-secondary">Google connection setup is required.</p> : !canManage && !canMap ? <p className="border-t border-border px-4 py-3 text-sm text-text-secondary">Your access allows viewing only.</p> : null}
     </Card>
     <Card title="Outlet Mapping" action={rows.some(row => row.error) ? <button className="btn-secondary" disabled={loading || !!busy} onClick={() => setReload(value => value + 1)}>Retry mappings</button> : null}>
       {loading ? <div role="status" aria-label="Loading outlet mappings"><LoadingSkeleton rows={3} /></div> : <DataTable density="compact" minWidth={640} mobileLayout="stack" rows={rows} getRowKey={row => row.id} columns={[
         { key: 'name', header: 'FeedX Outlet', render: row => <span className="font-semibold">{row.name}</span> },
         { key: 'location', header: 'Google Location', className: 'max-w-sm break-words', render: row => row.error ? 'Unavailable' : row.context.mapping?.title || (row.context.mapping ? 'Google location' : '—') },
         { key: 'status', header: 'Status', render: row => <Badge tone={row.error ? 'warning' : row.context.mapping ? 'success' : 'neutral'}>{row.error ? 'Unable to load' : row.context.mapping ? 'Mapped' : 'Unmapped'}</Badge> },
-        { key: 'actions', header: 'Action', align: 'right', render: row => <button className="btn-secondary" aria-label={`Edit mapping for ${row.name}`} disabled={row.error || !canManage || !connected || !row.context.can_manage || !!busy} onClick={() => edit(row)}>Edit</button> },
+        { key: 'actions', header: 'Action', align: 'right', render: row => <button className="btn-secondary" aria-label={`Edit mapping for ${row.name}`} disabled={row.error || !canMap || !connected || !row.context.can_manage || !!busy} onClick={() => edit(row)}>Edit</button> },
       ]} />}
     </Card>
     {editor ? <Modal title="Edit Outlet Mapping" description={editor.name} onClose={closeEditor} footer={<><button className="btn-secondary" disabled={!!busy} onClick={closeEditor}>Cancel</button><button className="btn-primary" disabled={editor.loading || editor.unavailable || !!busy || location === (editor.context?.mapping?.name || '')} onClick={saveMapping}>{busy === 'map' ? 'Saving…' : 'Save mapping'}</button></>}>

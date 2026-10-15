@@ -45,3 +45,10 @@ describe('Confirmed reply read reconciliation',()=>{
   await expect(new GoogleOwnerReplies('fixture',transport).getReview(review.name)).rejects.toMatchObject({code:'google_unavailable'});
  });
 });
+
+ it('cannot disguise an Edit as Publish even with a matching current fingerprint',async()=>{
+ const {replyFingerprint}=await import('../googleBusinessReplies.ts');const remote={name:'accounts/a/locations/l/reviews/r',starRating:'FIVE' as const,createTime:'2026-01-01T00:00:00Z',updateTime:'2026-01-01T00:00:00Z',reviewReply:{comment:'Original',updateTime:'2026-02-01T00:00:00Z'}};
+ const provider={getReview:vi.fn(async()=>remote),updateReply:vi.fn()},finish=vi.fn(),beforeWrite=vi.fn();
+ const result=await executeOwnerReply({claim:async()=>({id:'id',claimed:true,status:'ready',operation:'publish',desired_hash:'different',review_name:remote.name}),provider,finish,beforeWrite,intent:async()=>({comment:'Changed',expectedHash:await replyFingerprint(remote.reviewReply)})});
+ expect(result).toMatchObject({status:'conflict',code:'reply_changed'});expect(beforeWrite).not.toHaveBeenCalled();expect(provider.updateReply).not.toHaveBeenCalled();
+ });

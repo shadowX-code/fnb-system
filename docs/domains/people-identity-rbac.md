@@ -149,3 +149,5 @@ Its applied migrations remain immutable history. Retirement locks/checks the emp
 coverage table and aborts if any confirmation exists; evidence is never converted.
 
 Payroll uses independent workflow grants in the shared catalog and Role Matrix; see [Payroll workflow permissions](payroll.md#payroll-workflow-permissions). The retired `payroll.manage` catalog record is historical only and cannot be submitted in a new role configuration. Migration preserves explicit existing grants through an audited mapping without changing scope. Protected Owner/Admin semantics remain unchanged.
+
+Google Reviews is an explicitly outlet-scoped integration under Crew Performance navigation. Its six registered action grants reuse Role Outlet scope; the shared registry marks that scope requirement so a Google-only role retains All/Selected Outlet configuration consistently with the permission catalog. Connection and mapping administration each additionally require all-outlet authority. Equivalent legacy Google grants are migrated with audit evidence; unrelated role grants, assignments and outlet scope are unchanged.

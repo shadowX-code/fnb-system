@@ -748,3 +748,7 @@ Added append-only, explicitly effective-dated legal coverage to the Outlet/Workp
 ## 2026-10-06 — Retire Outlet Law Coverage
 
 Removed Outlet coverage UI/services and dedicated database objects through a guarded forward migration. Legal scope now belongs to the existing audited People employment assignment/Change Employment command; Monthly entitlement reads only dated People jurisdiction. Existing history is unconfirmed, with no state/address backfill. Outlet state remains the PH location authority. Historical corrections preserve later revisions and finalized evidence.
+
+## 2026-10-16 — Google Reviews Staging operational authority
+
+Register six explicit Google Reviews permissions in the canonical matrix, preserve equivalent prior grants, and separate scoped review operations from all-outlet connection/mapping administration. Add Staging-only half-hour read synchronization using pg_cron/pg_net, short-lived run capabilities and the shared manual sync authority. Preserve Google-write confirmation, encrypted credentials/cache lifecycle and disabled Performance scoring. See `docs/domains/crew-performance-and-reward.md` and `docs/testing/google-reviews-operational.md`. Production is excluded.

@@ -7,7 +7,7 @@ import CrewGoogleReviewsAdminPage from '../CrewGoogleReviewsAdminPage.jsx';
 import GoogleReviewTargetSettings from '../../components/GoogleReviewTargetSettings.jsx';
 const outlet = { id: 'outlet-1', name: 'Friends Corner', is_active: true };
 const secondOutlet = { id: 'outlet-2', name: 'JYMT', is_active: true };
-const context = { configured: true, connection_status: 'disconnected', can_manage: true, generation: 0, reviews: [], sync_status: 'awaiting_sync', scoring_enabled: false };
+const context = { configured: true, connection_status: 'disconnected', can_manage: true, can_sync: true, generation: 0, reviews: [], sync_status: 'awaiting_sync', scoring_enabled: false };
 const mapping = { name: 'accounts/a/locations/l', title: 'Fixture location', revision: 'revision-1' };
 const connected = { ...context, connection_status: 'connected', generation: 2, accounts: [{ displayName: 'Fixture account' }], locations: [{ name: mapping.name, title: mapping.title }, { name: 'accounts/a/locations/other', title: 'Other location' }], mapping };
 const reviews = [
@@ -26,7 +26,7 @@ afterEach(cleanup);
 describe('Google Reviews Inbox and Settings', () => {
   it('shows disconnected guidance without fabricated metrics, targets or success banners', async () => {
     mount(); await screen.findByText('Google Business Profile is not connected');
-    expect(screen.getByRole('button', { name: 'Sync reviews' }).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Sync Now' }).disabled).toBe(true);
     expect(screen.queryByText('Average Rating')).toBeNull(); settings();
     expect(screen.getByRole('button', { name: 'Connect Google' }).disabled).toBe(false);
     expect(screen.queryByText('Monthly Positive Review Target')).toBeNull();
@@ -124,7 +124,7 @@ describe('Google Reviews Inbox and Settings', () => {
   it('surfaces the exact failed sync request without automatic provider retries or a false success banner', async () => {
     mocks.context.mockResolvedValueOnce(complete).mockResolvedValue({ ...connected, sync_status: 'error' });
     mocks.sync.mockRejectedValue(new Error('Google rate limit (429): mybusiness.googleapis.com · GET /v4/accounts/a/locations/l/reviews.'));
-    mount(); await screen.findByText('Excellent fixture'); fireEvent.click(screen.getByRole('button', { name: 'Sync reviews' }));
+    mount(); await screen.findByText('Excellent fixture'); fireEvent.click(screen.getByRole('button', { name: 'Sync Now' }));
     expect((await screen.findByRole('alert')).textContent).toContain('mybusiness.googleapis.com');
     await screen.findByText('Review sync needs attention'); expect(screen.queryByText('Excellent fixture')).toBeNull();
     expect(mocks.sync).toHaveBeenCalledTimes(1); expect(mocks.context).toHaveBeenCalledTimes(2);
@@ -164,3 +164,12 @@ it('separates local Disconnect from explicit Google-wide revocation',async()=>{
  dialog=screen.getByRole('dialog',{name:'Revoke Google Authorization'});expect(dialog.textContent).toContain('both Staging and Production');expect(mocks.revoke).not.toHaveBeenCalled();
  fireEvent.click(within(dialog).getByRole('button',{name:'Cancel'}));expect(mocks.disconnect).not.toHaveBeenCalled();
 });
+
+ it('shows automatic status and last success while hiding manual Sync without its grant',async()=>{
+ mocks.context.mockResolvedValue({...complete,can_sync:false,automatic_sync:true,sync_health:{last_success_at:'2026-10-15T08:00:00Z'}});mount();
+ await screen.findByText('Excellent fixture');expect(screen.getByText('Automatic · Every 30 minutes')).toBeTruthy();expect(screen.getByText(/Last success/)).toBeTruthy();expect(screen.queryByRole('button',{name:'Sync Now'})).toBeNull();
+ });
+ it('keeps mapping administration separate from connection administration',async()=>{
+ mocks.context.mockResolvedValue({...connected,can_manage_connection:false,can_manage_mapping:true});mount();await screen.findByText('Ready to sync');settings();
+ expect(screen.queryByRole('button',{name:'Manage Connection'})).toBeNull();expect((await screen.findByRole('button',{name:'Edit mapping for Friends Corner'})).disabled).toBe(false);
+ });
