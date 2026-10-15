@@ -74,3 +74,47 @@ export const adsMetricDefinitions = {
   cpc: "Spend divided by all clicks.",
   cpm: "Spend per 1,000 impressions.",
 };
+
+// Labels retain exact Meta action identity; no category totals or inferred sales.
+export const adsResultLabels = {
+  link_click: 'Link clicks',
+  'onsite_conversion.messaging_conversation_started_7d': 'Messaging conversations started · 7-day',
+  'onsite_conversion.messaging_first_reply': 'First messaging replies',
+  post_engagement: 'Post engagements',
+  post_reaction: 'Post reactions',
+  comment: 'Comments',
+  post: 'Post shares',
+  video_view: 'Video views',
+  lead: 'Leads · Meta attributed',
+  omni_purchase: 'Purchases · Meta attributed',
+  purchase: 'Purchases · Meta purchase action',
+};
+export const adsResultGroups = [
+  {label: 'Traffic', types: ['link_click']},
+  {label: 'Conversations', types: ['onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.messaging_first_reply']},
+  {label: 'Engagement', types: ['video_view', 'post_reaction', 'comment', 'post']},
+  {label: 'Conversions · Meta attributed', types: ['lead', 'omni_purchase', 'purchase']},
+];
+export const adsResultLabel = type => adsResultLabels[type] || type.replaceAll('_', ' ');
+export function campaignResult(row, config, selectedType = '') {
+  const objective = config?.objective || '';
+  const candidates = /TRAFFIC|LINK_CLICKS/.test(objective) ? ['link_click']
+    : /SALES|CONVERSIONS/.test(objective) ? ['omni_purchase', 'purchase']
+    : /LEAD/.test(objective) ? ['lead']
+    : /MESSAGES/.test(objective) ? ['onsite_conversion.messaging_conversation_started_7d']
+    : /VIDEO/.test(objective) ? ['video_view']
+    : /ENGAGEMENT/.test(objective) ? ['onsite_conversion.messaging_conversation_started_7d', 'post_engagement']
+    : [];
+  const type = selectedType || candidates.find(type => row?.actions?.some(a => a.type === type));
+  return type ? {type, label: adsResultLabel(type), value: row?.actions?.find(a => a.type === type)?.value ?? null, cost: row?.cost_per_action_type?.find(a => a.type === type)?.value ?? null} : null;
+}
+export function adsDailySpend(report) {
+  if (!report?.date_from || !report?.date_to) return [];
+  const byDate = new Map((report.insights?.daily || []).map(r => [r.date_start, r.metrics?.spend?.value ?? null]));
+  const rows = [];
+  for (let day = Date.parse(report.date_from + 'T00:00:00Z'), end = Date.parse(report.date_to + 'T00:00:00Z'); day <= end && rows.length < 94; day += 86400000) {
+    const date = new Date(day).toISOString().slice(0, 10);
+    rows.push({date, spend: byDate.get(date) ?? null});
+  }
+  return rows;
+}

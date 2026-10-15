@@ -57,6 +57,7 @@ describe("Ads read-only workspace", () => {
     );
     render(<MarketingAdsPage />);
     await screen.findByText("Connect your first Ad Account");
+    fireEvent.click(screen.getByRole("tab", {name:"Ad Accounts"}));
     fireEvent.click(
       screen.getAllByRole("button", { name: "Connect Ad Account" })[0],
     );
@@ -142,7 +143,8 @@ describe("Ads self-service reporting",()=>{
   it('pins disconnected account confirmation to the preserved slot generation',async()=>{
     ads.read.mockResolvedValue({organization_access:true,accounts:[{...connected,status:'not_connected',account_id:null,account_slot:'111',generation:3}],reports:[],jobs:[]});
     ads.pending.mockResolvedValue([{id:'session',accounts:[{id:'111',name:'Discovered account',available:true}]}]);ads.bind.mockResolvedValue({connection:{id:'account'}});
-    render(<MarketingAdsPage/>);await screen.findByText('Discovered account');
+    render(<MarketingAdsPage/>);await screen.findByText('Shared Account');
+    fireEvent.click(screen.getByRole("tab",{name:"Ad Accounts"}));await screen.findByText('Discovered account');
     fireEvent.click(screen.getByRole('button',{name:'Connect shared account'}));fireEvent.click(screen.getByRole('button',{name:'Confirm connection'}));
     await waitFor(()=>expect(ads.bind).toHaveBeenCalledWith('session','','111',3));
   });
@@ -164,6 +166,7 @@ describe("Ads self-service reporting",()=>{
   it("reuses a connected account without another OAuth, binding or sync request",async()=>{
     ads.read.mockResolvedValue({organization_access:true,accounts:[connected],reports:[],jobs:[]});
     render(<MarketingAdsPage/>);await screen.findByText("Shared Account");
+    fireEvent.click(screen.getByRole("tab",{name:"Ad Accounts"}));
     fireEvent.click(screen.getByRole("button",{name:"Connect Ad Account"}));
     await screen.findByRole("dialog",{name:"Choose an Ad Account connection"});
     fireEvent.click(screen.getByRole("button",{name:"Use connected account"}));
@@ -182,13 +185,30 @@ describe("Ads self-service reporting",()=>{
   });
   it("labels a successful empty provider period without fabricating spend",async()=>{
     ads.read.mockResolvedValue({organization_access:true,accounts:[connected],reports:[{connection_id:"account",payload:{scope:"organization",account:{currency:"MYR"},configs:{campaigns:[]},insights:{account:[],daily:[]},warnings:{}}}],jobs:[]});
-    render(<MarketingAdsPage/>);await screen.findByText("Ready");
+    render(<MarketingAdsPage/>);await screen.findByText("Reporting Ready");
     expect(screen.getByText(/Meta returned no reporting rows/)).toBeTruthy();expect(screen.queryByText("MYR 0")).toBeNull();
   });
   it("keeps manual recovery controls unavailable to brand-only readers",async()=>{
     ads.read.mockResolvedValue({organization_access:false,accounts:[connected],reports:[],jobs:[]});
     render(<MarketingAdsPage/>);await screen.findByText("Shared Account");
-    expect(screen.getByRole("button",{name:"Sync selected periods"}).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("tab",{name:"Ad Accounts"}));
+    expect(screen.queryByRole("button",{name:"Manage Connection"})).toBeNull();
+    expect(screen.queryByRole("menuitem",{name:/Retry Sync/})).toBeNull();
     expect(screen.queryByRole("button",{name:"Connect Ad Account"})).toBeNull();
   });
+});
+
+it('keeps discovery in Ad Accounts and hides redundant binding of already-connected accounts',async()=>{
+ ads.read.mockResolvedValue({organization_access:true,accounts:[{id:'existing',name:'Connected Account',account_id:'111',health:{currency:'MYR'}}],reports:[],jobs:[]});
+ ads.pending.mockResolvedValue([{id:'session',accounts:[{id:'111',name:'Already bound',available:true},{id:'222',name:'Available Account',available:true}]}]);
+ render(<MarketingAdsPage/>);await screen.findByText('Connected Account');
+ expect(screen.queryByText('Available Account')).toBeNull();
+ fireEvent.click(screen.getByRole('tab',{name:'Campaigns'}));
+ expect(screen.queryByRole('button',{name:'Connect shared account'})).toBeNull();expect(screen.queryByRole('button',{name:'Connect Ad Account'})).toBeNull();
+ fireEvent.click(screen.getByRole('tab',{name:'Ad Accounts'}));
+ expect(screen.getByText('Available Account')).toBeTruthy();expect(screen.queryByText('Already bound')).toBeNull();
+ expect(screen.getAllByRole('button',{name:'Connect shared account'})).toHaveLength(1);
+ fireEvent.click(screen.getByRole('button',{name:'Manage Connection'}));
+ expect(screen.getByRole('menuitem',{name:'Reconnect Meta'})).toBeTruthy();
+ expect(ads.bind).not.toHaveBeenCalled();expect(ads.sync).not.toHaveBeenCalled();expect(ads.authorize).not.toHaveBeenCalled();
 });

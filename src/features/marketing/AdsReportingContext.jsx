@@ -25,7 +25,7 @@ export default function AdsReportingContext({ report, brands }) {
         </p>
       )}
       {rows.length > 0 && (
-        <details open className="ads-panel">
+        <details open className="ads-attribution-coverage">
           <summary className="font-semibold">
             Campaign attribution · reported spend
           </summary>
