@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Modal from '../../../components/feedback/Modal.jsx';
+import GoogleReviewerAvatar from './GoogleReviewerAvatar.jsx';
 import Badge from '../../../components/ui/Badge.jsx';
 import AdminFormField from '../../../components/forms/AdminFormField.jsx';
 import { GoogleReviewStars } from './GoogleRatingOverview.jsx';
@@ -90,7 +91,7 @@ export default function GoogleReviewDetail({ review: initialReview, outletId, ba
       {canWrite ? <button className="btn-primary" disabled={!canPublish} onClick={()=>setConfirm(true)}>{busy ? 'Working…' : action}</button> : null}
     </div></>}>
       <div className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-2"><div><strong className="text-sm">{review.reviewer?.displayName || 'Google reviewer'}</strong><span className="ml-3 inline-flex"><GoogleReviewStars rating={review.starRating} /></span></div><time className="text-sm text-text-secondary" dateTime={review.createTime}>{time(review.createTime)}</time></div>
+        <div className="flex flex-wrap items-start justify-between gap-2"><div className="flex min-w-0 items-center gap-2"><GoogleReviewerAvatar reviewer={review.reviewer} /><div className="min-w-0"><strong className="text-sm">{review.reviewer?.displayName || 'Google reviewer'}</strong><span className="ml-3 inline-flex"><GoogleReviewStars rating={review.starRating} /></span></div></div><time className="text-sm text-text-secondary" dateTime={review.createTime}>{time(review.createTime)}</time></div>
         <p className="whitespace-pre-wrap break-words text-sm">{review.comment || 'No written review'}</p>
         <section className="space-y-2 rounded-lg bg-surface-muted p-3" aria-label="Existing owner reply">
           <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Owner reply</h3><Badge tone={ownerReplyTone(review.reviewReply)}>{data || review.reviewReply ? ownerReplyLabel(review.reviewReply) : loading ? 'Checking reply…' : 'Reply unavailable'}</Badge></div>
