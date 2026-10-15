@@ -460,7 +460,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                         })),
                         notifications,
                       ),
-                    "Selected accounts connected. Capability checks completed or remain pending; execution was not enabled.",
+                    "Selected accounts connected. Capability checks completed or remain pending; publishing and replies remain separately controlled.",
                   )
                 }
               >

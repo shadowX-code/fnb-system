@@ -1,3 +1,4 @@
+import {publishingConfigured, productionPublishingConfigured, productionPublishingPolicy} from '../_shared/marketingExecution.mjs';
 import {readCreatorProfile} from '../_shared/metaCreatorProfile.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { META_BASE, META_REDIRECT, META_SCOPES, STAGING_ORIGIN, STAGING_SUPABASE, authorizationUrl, connectionBinding, hash, nonce, seal, unseal, verifySignedRequest } from '../_shared/metaSecurity.ts';
@@ -20,7 +21,7 @@ Deno.serve(async(req)=>{
  const path=new URL(req.url).pathname.split('/marketing-meta')[1]||'/';
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:headers(req)});
  const missing=names.filter(n=>!env(n));
- if(path==='/configuration'&&req.method==='GET')return json(req,{configured:!missing.length,missing,redirect_uri:META_REDIRECT,app_domains:[new URL(STAGING_ORIGIN).hostname,new URL(STAGING_SUPABASE).hostname],deauthorization_uri:`${META_BASE}/deauthorize`,data_deletion_uri:`${META_BASE}/data-deletion`,permissions:META_SCOPES,test_execution_configured:Boolean(env('MARKETING_META_TEST_ACCOUNT_IDS')),production_execution_enabled:false});
+ if(path==='/configuration'&&req.method==='GET')return json(req,{configured:!missing.length,missing,redirect_uri:META_REDIRECT,app_domains:[new URL(STAGING_ORIGIN).hostname,new URL(STAGING_SUPABASE).hostname],deauthorization_uri:`${META_BASE}/deauthorize`,data_deletion_uri:`${META_BASE}/data-deletion`,permissions:META_SCOPES,test_execution_configured:publishingConfigured(env),production_execution_enabled:productionPublishingConfigured(env)});
  if(req.headers.get('origin')&&!origins.has(req.headers.get('origin')!))return json(req,{error:'Origin unavailable.'},403);
  const service=createClient(STAGING_SUPABASE,env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSession:false,autoRefreshToken:false}});
  try {
@@ -87,6 +88,8 @@ Deno.serve(async(req)=>{
    try{if(inbox.page_id){await guard();const installed=await graph.request(`${inbox.page_id}/subscribed_apps`,credential.token,{fields:'id,subscribed_fields',limit:100});plan=subscriptionPlan(material.channel,config.appId,inbox,installed);}}catch{/* Installation is unavailable unless a complete response was verified. */}
    await guard();
    if(recordEligibility){const sealed=snapshot?await seal({...credential,oauthTaskEvidence:snapshot},key,connectionBinding(material)):null;await call(service,'marketing_meta_record_eligibility',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation,p_sealed:sealed,p_verified:health.publishing.state==='verified'});}
+   const execution=productionPublishingPolicy(material,health.publishing.state==='verified',env);
+   if(recordEligibility&&execution!==null){await guard();await call(service,'marketing_meta_execution_policy',{p_connection:material.id,p_generation:material.credential_generation,p_enabled:execution});health.execution_enabled=execution;}
    await call(service,'marketing_meta_record_health',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation,p_health:health});
    return {material,credential,guard,inbox,health,plan};
   }
@@ -103,10 +106,10 @@ Deno.serve(async(req)=>{
    const checked=await checkConnection(body.connectionId);
    if(path==='/subscriptions'){
     if(body.approveSubscriptions!==true||!body.requestId||JSON.stringify(body.expectedPlan)!==JSON.stringify({page_id:checked.plan.page_id,fields:checked.plan.fields}))return json(req,{error:'Review and confirm the current Inbox update installation.'},409);
-    const outcome=await subscribe(checked,body.requestId);return json(req,{state:outcome,execution_enabled:false});
+    const outcome=await subscribe(checked,body.requestId);return json(req,{state:outcome,execution_separately_controlled:true});
    }
    if(path==='/health')await call(service,'marketing_meta_request_health',{p_connection:checked.material.id,p_auth_user:user.id});
-   return json(req,{health:checked.health,plan:checked.plan,echo_subscriptions_verified:checked.inbox.echo_subscriptions_verified,execution_enabled:false});
+   return json(req,{health:checked.health,plan:checked.plan,echo_subscriptions_verified:checked.inbox.echo_subscriptions_verified,execution_separately_controlled:true});
   }
   if(path==='/diagnose'||path==='/retry-sync') {
    const material=await call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user.id});
@@ -121,6 +124,8 @@ Deno.serve(async(req)=>{
    if(path==='/diagnose'&&body.readOnly!==true) {
     const sealed=evidence?await seal({...credential,oauthTaskEvidence:evidence},key,connectionBinding(material)):null;
     await call(service,'marketing_meta_record_eligibility',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation,p_sealed:sealed,p_verified:result.publishing_evidence?.eligibility==='verified'});
+    const execution=productionPublishingPolicy(material,result.publishing_evidence?.eligibility==='verified',env);
+    if(execution!==null){await guard();await call(service,'marketing_meta_execution_policy',{p_connection:material.id,p_generation:material.credential_generation,p_enabled:execution});}
    }
    return json(req,result);
   }
@@ -152,6 +157,6 @@ Deno.serve(async(req)=>{
    const health=await runConnectionHealth(service,graph,config,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connection.id);
    outcomes.push({id:connection.id,health});
   }
-  return json(req,{connections,outcomes,execution_enabled:false});
+  return json(req,{connections,outcomes,execution_separately_controlled:true});
  }catch(error) {return json(req,{error:error instanceof MetaError&&error.graphCode===190?'Meta authorization expired or was revoked. Reconnect this account.':error instanceof MetaError&&[10,200].includes(error.graphCode||0)?'Meta has not authorized this operation. Review account access or contact your FeedX administrator about App Review.':'The connection could not be updated. Reload account selection, check brand ownership and resolve any pending delivery before trying again.'},409);}
 });
