@@ -59,6 +59,8 @@ function MarketingContentWorkspace({ section = 'overview' }) {
   const timezone = brand?.timezone || 'Asia/Kuala_Lumpur';
   const key = JSON.stringify([organizationId,brandId,section,page,pageSize,refresh,auth.user?.id]);
   const data = read?.key === key ? read.data : null;
+  const detailKey = JSON.stringify([organizationId, brandId, modal?.content?.id, modal?.content?.revision, modal?.content?.status, auth.user?.id]);
+  const currentDetail = detail?.key === detailKey ? detail : null;
 
   useEffect(() => {
     let live = true;
@@ -97,11 +99,17 @@ function MarketingContentWorkspace({ section = 'overview' }) {
   }, [organizationId, brandId, booting, section, auth.user?.id]);
   useEffect(() => {
     let live = true; setDetail(null);
-    if (modal?.content?.id && can('marketing_content.view')) marketingService.detail(modal.content.id)
-      .then(result => { if (live) setDetail({ id: modal.content.id, ...result }); })
+    const selected = modal?.content;
+    if (selected?.id && can('marketing_content.view')) marketingService.detail(selected.id)
+      .then(result => {
+        if (!live) return;
+        const content = result.content;
+        if (!content?.organization_id || content.organization_id !== organizationId || content.brand_id !== brandId || content.brand_id !== selected.brand_id || content.id !== selected.id || content.revision !== selected.revision || content.status !== selected.status) throw new Error('The saved content changed or is unavailable in this Brand. Close and reopen it.');
+        setDetail({ ...result, key: detailKey });
+      })
       .catch(e => { if (live) setError(e.message); });
     return () => { live = false; };
-  }, [modal?.content?.id, auth.user?.id]);
+  }, [detailKey]);
 
   // Planner handoff opens the current canonical revision through the existing scoped detail authority.
   const linkedOpened = useRef('');
@@ -172,7 +180,7 @@ function MarketingContentWorkspace({ section = 'overview' }) {
       </> : null}
       {modal.type==='review' && modal.content.status==='review' && can('marketing_content.approve') ? <><button className="btn-secondary" disabled={busy||!modal.reason?.trim()} onClick={()=>command('reject',modal.content,{reason:modal.reason})}>Reject</button><button className="btn-primary" disabled={busy} onClick={()=>command('approve',modal.content)}>Approve revision {modal.content.revision}</button></> : null}
     </>}>
-      <ModalBody modal={modal} setModal={setModal} brands={brands} brand={brand} assets={[...new Map([...(data?.assets||[]),...(detail && detail.id===modal.content?.id?detail.assets:[])].map(a=>[a.id,a])).values()]} can={can} onExecutionComplete={()=>{setModal(null);setRefresh(v=>v+1);setNotice('External execution authorized for the reviewed revision.');}} detail={detail && detail.id===modal.content?.id?detail:null}/>
+      <ModalBody modal={modal} setModal={setModal} brands={brands} brand={brand} assets={[...new Map([...(data?.assets||[]),...(currentDetail?.assets||[])].map(a=>[a.id,a])).values()]} can={can} onExecutionComplete={()=>{setModal(null);setRefresh(v=>v+1);setNotice('External execution authorized for the reviewed revision.');}} detail={currentDetail}/>
     </Modal> : null}
   </WorkspacePage>;
 }
@@ -182,7 +190,7 @@ function ModalBody({modal,setModal,brands,brand,assets,can,detail,onExecutionCom
   const change=patch=>setModal(current=>({...current,...patch}));
   const field=(label,key,type='text')=><AdminFormField label={label}><input className="control" type={type} value={modal[key]||''} onChange={e=>change({[key]:e.target.value})}/></AdminFormField>;
   if(modal.type==='schedule')return <div className="space-y-4"><p className="text-sm">Scheduling pins revision {modal.content.revision}. Execution requires a separate approval of this exact revision to enabled Meta accounts.</p>{field('Publishing time','local','datetime-local')}{field('Timezone','timezone')}</div>;
-  if(modal.type==='review')return <PostDetail content={modal.content} assets={assets} events={detail?.events||[]}><PublishAuthorization key={`${modal.content.id}:${modal.content.revision}`} content={modal.content} onComplete={onExecutionComplete}/>{modal.content.status==='review'&&can('marketing_content.approve')?<AdminFormField label="Rejection reason (required to reject)"><textarea className="control" value={modal.reason||''} onChange={e=>change({reason:e.target.value})}/></AdminFormField>:null}</PostDetail>;
+  if(modal.type==='review')return <PostDetail content={modal.content} assets={assets} events={detail?.events||[]}>{detail?.content ? <PublishAuthorization key={`${detail.content.id}:${detail.content.revision}`} content={detail.content} onComplete={onExecutionComplete}/> : <p role="status">Verifying the saved revision before publishing approval.</p>}{modal.content.status==='review'&&can('marketing_content.approve')?<AdminFormField label="Rejection reason (required to reject)"><textarea className="control" value={modal.reason||''} onChange={e=>change({reason:e.target.value})}/></AdminFormField>:null}</PostDetail>;
   if(modal.type==='content') {
     const payload=modal.payload;
     const update=patch=>change({payload:{...payload,...patch}});

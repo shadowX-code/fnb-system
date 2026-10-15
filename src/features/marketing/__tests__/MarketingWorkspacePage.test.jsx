@@ -1,13 +1,13 @@
 import { describe,it,expect,vi,beforeEach } from 'vitest';
 import { render,screen,fireEvent,waitFor,cleanup } from '@testing-library/react';
 import MarketingWorkspacePage from '../MarketingWorkspacePage.jsx';
-const {service,auth}=vi.hoisted(()=>({service:{context:vi.fn(),read:vi.fn(),setup:vi.fn(),content:vi.fn(),detail:vi.fn(),teamAccess:vi.fn(),listing:vi.fn(),contentManagement:vi.fn(),integrations:vi.fn(),socialPublications:vi.fn(),observedGrowth:vi.fn(),socialPerformance:vi.fn()},auth:{user:{id:'user'},hasPermission:vi.fn(()=>true)}}));
+const {service,auth}=vi.hoisted(()=>({service:{context:vi.fn(),read:vi.fn(),setup:vi.fn(),content:vi.fn(),detail:vi.fn(),teamAccess:vi.fn(),listing:vi.fn(),contentManagement:vi.fn(),integrations:vi.fn(),execute:vi.fn(),socialPublications:vi.fn(),observedGrowth:vi.fn(),socialPerformance:vi.fn()},auth:{user:{id:'user'},hasPermission:vi.fn(()=>true)}}));
 vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>auth}));
 vi.mock('../marketingService.js',()=>({marketingService:service}));
-vi.mock('../MetaIntegrationPanels.jsx',()=>({MetaConnections:()=>null,PublishAuthorization:()=>null}));
+vi.mock('../MetaIntegrationPanels.jsx',async importOriginal=>({...await importOriginal(),MetaConnections:()=>null}));
 const context={organizations:[{id:'org',name:'Organization'}],brands:[{id:'brand',organization_id:'org',name:'Brand',timezone:'Asia/Kuala_Lumpur',outlet_ids:[]}],actor_employee_id:'actor'};
 const read={rows:[],total:0,summary:{review:0,approved:0,scheduled:0,published:0},assets:[],jobs:[],knowledge:[],connections:[],role_scopes:[]};
-beforeEach(()=>{cleanup();sessionStorage.clear();window.history.replaceState({},'','/');vi.clearAllMocks();auth.hasPermission.mockImplementation(()=>true);service.context.mockResolvedValue(context);service.contentManagement.mockResolvedValue({rows:[],total_count:0,day_counts:{}});service.read.mockResolvedValue(read);service.listing.mockResolvedValue({rows:[],total_count:0});service.setup.mockResolvedValue({outlets:[],employees:[],roles:[],members:[]});service.teamAccess.mockResolvedValue({});service.content.mockResolvedValue({});});
+beforeEach(()=>{cleanup();sessionStorage.clear();window.history.replaceState({},'','/');vi.clearAllMocks();auth.hasPermission.mockImplementation(()=>true);service.context.mockResolvedValue(context);service.contentManagement.mockResolvedValue({rows:[],total_count:0,day_counts:{}});service.read.mockResolvedValue(read);service.listing.mockResolvedValue({rows:[],total_count:0});service.setup.mockResolvedValue({outlets:[],employees:[],roles:[],members:[]});service.teamAccess.mockResolvedValue({});service.content.mockResolvedValue({});service.integrations.mockResolvedValue({connections:[]});});
 describe('native Marketing foundation',()=>{
   it('reports unavailable evidence without invented social metrics',async()=>{
     service.socialPublications.mockResolvedValue({posts:[],connections:[]});service.observedGrowth.mockResolvedValue({rows:[],first_observation_date:null});service.socialPerformance.mockResolvedValue({rows:[],windows:[],first_observation_date:null});
@@ -49,4 +49,38 @@ it('switches internal scope by permitted Brand without an Organization selector'
  render(<MarketingWorkspacePage section="calendar"/>);await waitFor(()=>expect(service.contentManagement).toHaveBeenCalled());
  fireEvent.click(screen.getByRole('button',{name:'Brand',exact:true}));fireEvent.click(screen.getByRole('option',{name:'Second Brand'}));
  await waitFor(()=>expect(service.contentManagement.mock.calls.at(-1)[0]).toMatchObject({organizationId:'other',brandId:'second'}));expect(screen.queryByRole('button',{name:'Organization',exact:true})).toBeNull();
+});
+
+const scheduledRow={key:'concept',id:'content',brand_id:'brand',brand_name:'Brand',origin:'feedx',title:'Scoped publishing test',status:'scheduled',revision:1,scheduled_at:'2099-01-01T00:00:00Z',payload:{title:'Scoped publishing test',variants:[{channel:'facebook',format:'text',caption:'Approved caption',asset_ids:[]},{channel:'instagram',format:'image',caption:'Approved caption',asset_ids:['image']}]},channels:[{channel:'facebook',format:'text',caption:'Approved caption',status:'blocked'},{channel:'instagram',format:'image',caption:'Approved caption',status:'blocked'}]};
+const savedContent={...scheduledRow,organization_id:'org',approved_revision:1};
+const savedDetail=content=>({content,assets:[],events:[]});
+function mockScheduledList(){service.contentManagement.mockResolvedValue({rows:[scheduledRow],total_count:1,day_counts:{}});}
+async function openScheduled(){render(<MarketingWorkspacePage section="calendar"/>);fireEvent.click((await screen.findAllByRole('button',{name:'View Scoped publishing test',exact:true}))[0]);}
+
+it('waits for canonical detail and resolves both authorized channels with its tenant scope, without execution',async()=>{
+ mockScheduledList();let resolve;service.detail.mockImplementationOnce(()=>new Promise(r=>{resolve=r;}));
+ service.integrations.mockResolvedValue({connections:['facebook','instagram'].map(channel=>({id:channel+'-connection',brand_id:'brand',channel,account_name:'Authorized '+channel,provider_account_id:channel==='facebook'?'111':'222',credential_generation:2,status:'test_authorized',expires_at:'2099-01-01T00:00:00Z',capabilities:{publishing:true,execution_enabled:true,formats:[channel==='facebook'?'text':'image']}}))});
+ await openScheduled();await screen.findByText('Verifying the saved revision before publishing approval.');
+ expect(service.integrations).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'Authorize external publishing'})).toBeNull();
+ resolve(savedDetail(savedContent));await screen.findByText(/Authorized facebook/);await screen.findByText(/Authorized instagram/);
+ expect(service.integrations).toHaveBeenCalledExactlyOnceWith('org','brand','content');
+ expect(screen.getByRole('checkbox',{name:/I approve sending/}).disabled).toBe(false);expect(screen.getByRole('button',{name:'Authorize external publishing'}).disabled).toBe(true);
+ expect(service.execute).not.toHaveBeenCalled();expect(service.content).not.toHaveBeenCalled();
+});
+
+it.each([{id:'another-content'},{organization_id:'another-tenant'},{organization_id:null},{brand_id:'another-brand'},{revision:2},{status:'published'}])('rejects mismatched canonical publishing detail %j without an account lookup',async patch=>{
+ mockScheduledList();service.detail.mockResolvedValue(savedDetail({...savedContent,...patch}));await openScheduled();
+ await screen.findByText('The saved content changed or is unavailable in this Brand. Close and reopen it.');
+ expect(service.integrations).not.toHaveBeenCalled();expect(service.execute).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'Authorize external publishing'})).toBeNull();
+});
+
+it('keeps publishing approval closed when canonical detail fails',async()=>{
+ mockScheduledList();service.detail.mockRejectedValue(new Error('Detail access denied'));await openScheduled();await screen.findByText('Detail access denied');
+ expect(service.integrations).not.toHaveBeenCalled();expect(service.execute).not.toHaveBeenCalled();
+});
+
+it('discards canonical detail after the review is closed',async()=>{
+ mockScheduledList();let resolve;service.detail.mockImplementationOnce(()=>new Promise(r=>{resolve=r;}));await openScheduled();await screen.findByText('Verifying the saved revision before publishing approval.');
+ fireEvent.click(screen.getByRole('button',{name:'Close',exact:true}));resolve(savedDetail(savedContent));
+ await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Content revision'})).toBeNull());expect(service.integrations).not.toHaveBeenCalled();
 });
