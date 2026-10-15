@@ -52,3 +52,36 @@ describe('environment-bound execution gates',()=>{
   expect(metaOAuthScopes(base,reader({...staging,MARKETING_META_OAUTH_INBOX_ENABLED:'true'}))).toEqual(base);
  });
 });
+
+describe('normal Production operation after controlled acceptance',()=>{
+ it('permits verified bound publishing accounts without per-operation allowlist changes',()=>{
+  const get=reader({...prod,MARKETING_META_PUBLISHING_ENABLED:'true',MARKETING_META_PUBLISHING_MODE:'normal'});
+  expect(publishingConfigured(get)).toBe(true);
+  expect(productionPublishingPolicy({...connection,provider_account_id:'999'},true,get)).toBe(true);
+  expect(productionPublishingPolicy(connection,false,get)).toBe(false);
+  for(const wrong of [{status:'disconnected'},{channel:'ad_account'},{credential_generation:0},{provider_account_id:'*'}])expect(publishingAccountAllowed({...connection,...wrong},get)).toBe(false);
+  expect(staffReplyConfigured(get)).toBe(false);
+ });
+ it('permits ordinary conversation peers only behind the independent staff gate',()=>{
+  const values={...prod,MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_MODE:'normal'};
+  expect(staffReplyAllowed('999','444',reader(values))).toBe(true);
+  for(const peer of ['',null,'*','not-an-id'])expect(staffReplyAllowed('999',peer,reader(values))).toBe(false);
+  expect(staffReplyAllowed('999','444',reader({...values,MARKETING_INBOX_STAFF_REPLY_ENABLED:'false'}))).toBe(false);
+  expect(publishingConfigured(reader(values))).toBe(false);
+ });
+ it('fails closed for unknown modes, disabled flags and environment mismatch',()=>{
+  for(const value of ['NORMAL','all','*']){
+   const get=reader({...prod,...publishing,...replies,MARKETING_META_PUBLISHING_MODE:value,MARKETING_INBOX_REPLY_MODE:value});
+   expect(publishingConfigured(get)).toBe(false);expect(staffReplyConfigured(get)).toBe(false);
+  }
+  const normal={MARKETING_META_PUBLISHING_MODE:'normal',MARKETING_INBOX_REPLY_MODE:'normal'};
+  expect(publishingConfigured(reader({...prod,...normal}))).toBe(false);expect(staffReplyConfigured(reader({...prod,...normal}))).toBe(false);
+  const wrong=reader({...prod,...publishing,...replies,...normal,MARKETING_META_APP_ID:staging.MARKETING_META_APP_ID});
+  expect(publishingConfigured(wrong)).toBe(false);expect(staffReplyConfigured(wrong)).toBe(false);
+ });
+ it('does not relax Staging or expand OAuth when normal modes are copied',()=>{
+  const get=reader({...staging,MARKETING_META_PUBLISHING_MODE:'normal',MARKETING_INBOX_REPLY_MODE:'normal',...publishing,...replies});
+  expect(publishingConfigured(get)).toBe(false);expect(staffReplyConfigured(get)).toBe(false);
+  expect(metaOAuthScopes(['read_insights'],reader({...prod,...publishing,...replies,MARKETING_META_PUBLISHING_MODE:'normal',MARKETING_INBOX_REPLY_MODE:'normal'}))).toEqual(['read_insights']);
+ });
+});

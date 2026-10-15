@@ -47,3 +47,19 @@ it('enabled Production publishing still rejects an account outside its approved 
  expect(response.status).toBe(200);expect(fixture.publish).not.toHaveBeenCalled();
  expect(fixture.rpc).toHaveBeenCalledWith('marketing_finish_job',expect.objectContaining({p_outcome:'permanent_failure',p_provider_post_id:null,p_error_code:'external_account_not_enabled'}));
 });
+
+it('normal staff mode still cannot bypass canonical conversation approval or authority denial',async()=>{
+ environment({MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_MODE:'normal'});
+ fixture.rpc.mockImplementation(async name=>name==='marketing_inbox_staff_send_scope'?{data:{account:'999',peer:'777'},error:null}:{data:null,error:{message:'Messaging authority denied.'}});
+ await import('../../../../supabase/functions/marketing-inbox/index.ts');
+ expect((await fixture.handler(request('/send-staff-reply'))).status).toBe(409);
+ expect(fixture.rpc.mock.calls.map(c=>c[0])).toEqual(['marketing_inbox_staff_send_scope','marketing_inbox_prepare_staff_reply']);
+});
+it('normal publishing mode cannot bypass the canonical job guard',async()=>{
+ environment({MARKETING_META_PUBLISHING_ENABLED:'true',MARKETING_META_PUBLISHING_MODE:'normal'});
+ fixture.rpc.mockImplementation(async name=>name==='marketing_job_guard'?{error:{message:'Approved revision or Brand authority changed.'},data:null}:{error:null,data:name==='marketing_claim_job'?{id:'job',lease_token:'lease',state:'leased'}:null});
+ await import('../../../../supabase/functions/marketing-worker/index.ts');
+ const response=await fixture.handler(new Request('https://oyfobxdoyfuzsodogpgs.supabase.co/functions/v1/marketing-worker/tick',{method:'POST',headers:{'x-marketing-worker-secret':'fixture'}}));
+ expect(response.status).toBe(200);expect(fixture.publish).not.toHaveBeenCalled();
+ expect(fixture.rpc.mock.calls.map(c=>c[0])).toContain('marketing_job_guard');
+});
