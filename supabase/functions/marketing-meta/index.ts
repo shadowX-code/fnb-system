@@ -1,3 +1,4 @@
+import {metaOAuthRoute, metaOAuthRoutes} from '../_shared/metaOAuthRouting.mjs';
 import {publishingConfigured, productionPublishingConfigured, productionPublishingPolicy} from '../_shared/marketingExecution.mjs';
 import {runtimeMetaMatches, PRODUCTION_RUNTIME} from '../_shared/marketingEnvironment.mjs';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
@@ -21,7 +22,7 @@ Deno.serve(async(req)=>{
  const path=new URL(req.url).pathname.split('/marketing-meta')[1]||'/';
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:headers(req)});
  const missing=names.filter(n=>!env(n));
- if(path==='/configuration'&&req.method==='GET')return json(req,{configured:!missing.length,missing,redirect_uri:META_REDIRECT,app_domains:[new URL(RUNTIME_ORIGIN).hostname,new URL(RUNTIME_SUPABASE).hostname],deauthorization_uri:`${META_BASE}/deauthorize`,data_deletion_uri:`${META_BASE}/data-deletion`,permissions:META_SCOPES,test_execution_configured:!PRODUCTION_RUNTIME && publishingConfigured(env),production_execution_enabled:productionPublishingConfigured(env)});
+ if(path==='/configuration'&&req.method==='GET')return json(req,{configured:!missing.length,missing,redirect_uri:META_REDIRECT,app_domains:[new URL(RUNTIME_ORIGIN).hostname,new URL(RUNTIME_SUPABASE).hostname],deauthorization_uri:`${META_BASE}/deauthorize`,data_deletion_uri:`${META_BASE}/data-deletion`,permissions:META_SCOPES,oauth_routes:metaOAuthRoutes(env),test_execution_configured:!PRODUCTION_RUNTIME && publishingConfigured(env),production_execution_enabled:productionPublishingConfigured(env)});
  if(req.headers.get('origin')&&!origins.has(req.headers.get('origin')!))return json(req,{error:'Origin unavailable.'},403);
  if(PRODUCTION_RUNTIME && req.method==='POST' && ['/deauthorize','/data-deletion'].includes(path))return json(req,{error:'Privacy processing is disabled pending release approval.'},503);
  const service=createClient(RUNTIME_SUPABASE,env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSession:false,autoRefreshToken:false}});
@@ -130,9 +131,11 @@ Deno.serve(async(req)=>{
    return json(req,result);
   }
   if(path==='/authorize') {
+   const route=metaOAuthRoute(body.purpose ?? 'publishing',env);
+   if(!route)return json(req,{error:'This Meta connection purpose is not configured.'},409);
    const state=nonce();const started=await call(caller,'marketing_meta_begin',{p_org:body.organizationId,p_brand:body.brandId,p_state_hash:await hash(state),p_redirect_uri:META_REDIRECT});
    if(body.connectionId)await call(service,'marketing_meta_reconnect_intent',{p_session:started.id,p_auth_user:user.id,p_connection:body.connectionId});
-   return json(req,{authorization_url:authorizationUrl(config,state)});
+   return json(req,{authorization_url:authorizationUrl({...config,configId:route.configId},state)});
   }
   const session=await call(service,'marketing_meta_session_material',{p_session:body.sessionId,p_auth_user:user.id});
   if(body.confirmOwnership!==true||body.brandId!==session.brand_id||!Array.isArray(body.assets)||body.assets.length<1||body.assets.length>2)return json(req,{error:'Select exact accounts and confirm their FeedX brand.'},400);

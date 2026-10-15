@@ -27,7 +27,7 @@ export const marketingService = {
   async metaConfiguration() { const response = await fetch(`${metaBase}/configuration`, { cache: 'no-store' }); if (!response.ok) throw new Error('Meta configuration could not be checked.'); return response.json(); },
   integrations: (organizationId, brandId, surface = 'settings', page = 1) => rpc('marketing_integrations', { p_org: organizationId, p_brand: brandId || null, p_surface: surface, p_page: page }),
   pendingMeta: (organizationId, brandId) => rpc('marketing_meta_pending', { p_org: organizationId, p_brand: brandId }),
-  authorizeMeta: (organizationId, brandId, connectionId = null) => meta('authorize', { organizationId, brandId, connectionId }),
+  authorizeMeta: (organizationId, brandId, connectionId = null, purpose = 'publishing') => meta('authorize', { organizationId, brandId, connectionId, purpose }),
   socialAccounts: (organizationId, brandId) => rpc('marketing_social_accounts', { p_org: organizationId, p_brand: brandId || null }),
   refreshMetaHealth: connectionId => meta('health', { connectionId }),
   subscriptionPlan: connectionId => meta('subscription-plan', { connectionId }),

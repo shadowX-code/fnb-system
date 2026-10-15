@@ -52,3 +52,26 @@ describe('Social Accounts', () => {
   await waitFor(() => expect(marketingService.execute).toHaveBeenCalledWith(expect.any(String), content, ['conn']));expect(complete).toHaveBeenCalledOnce();
  });
 });
+
+it('offers Inbox OAuth only when configured and preserves explicit reconnect scope',async()=>{
+ marketingService.metaConfiguration.mockResolvedValue({configured:true,oauth_routes:{publishing:{available:true},messaging:{available:true}}});
+ marketingService.socialAccounts.mockResolvedValue({connections:[{...connection,expires_at:'2000-01-01'}]});
+ marketingService.authorizeMeta.mockRejectedValue(new Error('Stopped before external OAuth'));
+ render(<MetaConnections organizationId="org" brandId="brand" brands={[{id:'brand',name:'QA Brand'}]}/>);
+ fireEvent.click(await screen.findByRole('button',{name:'View connection QA Test Page'}));
+ fireEvent.click(screen.getByRole('button',{name:'Reconnect'}));
+ fireEvent.click(screen.getByRole('button',{name:'Connection purpose'}));
+ fireEvent.click(screen.getByRole('option',{name:'Inbox, publishing & analytics'}));
+ fireEvent.click(screen.getByRole('button',{name:'Continue to Meta'}));
+ await waitFor(()=>expect(marketingService.authorizeMeta).toHaveBeenCalledWith('org','brand','conn','messaging'));
+ expect(marketingService.bindMetaSelection).not.toHaveBeenCalled();
+ expect(marketingService.installMetaSubscriptions).not.toHaveBeenCalled();
+});
+it('does not offer an unavailable Messaging route',async()=>{
+ marketingService.metaConfiguration.mockResolvedValue({configured:true,oauth_routes:{publishing:{available:true},messaging:{available:false}}});
+ render(<MetaConnections organizationId="org" brandId="brand" brands={[{id:'brand',name:'QA Brand'}]}/>);
+ fireEvent.click(await screen.findByRole('button',{name:'Connect Account'}));
+ fireEvent.click(screen.getByRole('button',{name:'Connection purpose'}));
+ expect(screen.getByRole('option',{name:'Inbox, publishing & analytics'}).disabled).toBe(true);
+ expect(marketingService.authorizeMeta).not.toHaveBeenCalled();
+});
