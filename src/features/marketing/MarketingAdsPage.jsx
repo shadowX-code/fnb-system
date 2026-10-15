@@ -371,7 +371,7 @@ export default function MarketingAdsPage() {
         label="Brand"
         value={brand}
         options={[
-          { value: "", label: "All permitted brands" },
+          { value: "", label: "All" },
           ...context.brands.map((b) => ({ value: b.id, label: b.name })),
         ]}
         onChange={(v) => {

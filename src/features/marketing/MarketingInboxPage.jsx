@@ -462,7 +462,7 @@ export default function MarketingInboxPage() {
         value={brand}
         onChange={v=>selectBrandContext(context,v,org,setOrg,setBrand)}
         options={[
-          { value: "", label: "All authorized brands" },
+          { value: "", label: "All" },
           ...context.brands.map((b) => ({ value: b.id, label: b.name })),
         ]}
       />
