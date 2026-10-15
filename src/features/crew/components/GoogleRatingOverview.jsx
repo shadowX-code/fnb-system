@@ -12,7 +12,6 @@ export default function GoogleRatingOverview({ context }) {
   const overview = googleRatingOverview(context);
   const state = overview ? 'ready' : 'unavailable';
   return <section aria-label="Google Rating Overview" className="space-y-3">
-    <h2 className="text-sm font-bold">Google Rating Overview</h2>
     <div className="grid gap-3 lg:grid-cols-2">
       <AdminSummaryGrid variant="compact" mobileColumns={2} ariaLabel="Location rating summary" items={[
         { key: 'rating', label: 'Overall Rating', value: overview?.average == null ? '—' : `${overview.average.toFixed(1)} / 5`, helper: overview?.source === 'google' ? 'Google rating' : overview ? 'Synced Reviews Average' : 'Sync required', state },
