@@ -6,6 +6,7 @@ export default function CreatorFollowers({account,org,canRefresh=false}){
  const scope=useRef('');scope.current=org+':'+account.id;
  const [value,setValue]=useState(account),[busy,setBusy]=useState(false),[error,setError]=useState('');
  useEffect(()=>{setValue(account);setError('')},[account.id,account.followers,account.followers_source,account.followers_captured_at,account.followers_sync_status,account.followers_sync_reason]);
+ useEffect(()=>{let live=true;if(org&&account.id&&['facebook','instagram'].includes(account.platform))(async()=>{try{const next=await creatorService.followersStatus(org,account.id);if(live&&next)setValue(v=>({...v,...next}))}catch{if(live)setError('Sync status unavailable. Refresh to check again.')}})();return()=>{live=false}},[org,account.id,account.platform]);
  useEffect(()=>{
   if(!org||!account.id||!['queued','syncing'].includes(value.followers_sync_status))return;
   let live=true,attempts=0,pending=false;
