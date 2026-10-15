@@ -1,9 +1,8 @@
 # FeedX Development Log
 
-## 2026-10-16 — Account-scoped ongoing Staff Replies
+## 2026-10-16 — Canonical ongoing Staff Reply authority
 
-Production normal Staff Reply mode now requires the same bounded numeric account allowlist as controlled acceptance, while canonical conversation recipients need no fixed test-peer list. Shared pre-intent and pre-write guards retain Brand/Role authority, generation, messaging-window, suppression, deduplication and receipt reconciliation. Deployment leaves replies disabled; actual Meta eligibility and separate activation approval remain required. Publishing and Staging test gates are unchanged. Canonical owner: docs/domains/marketing.md.
-
+Normal Production Staff Replies use the existing tenant/Brand, Role, connected-account, Meta, window, generation, approval and receipt authorities without a second manually maintained account registry. Exact account/peer lists remain mandatory for controlled testing and independently optional emergency restrictions for normal operation; malformed restrictions fail closed. Deployment enables no execution. Meta App-role acceptance does not establish general-customer Advanced Access. Publishing and Staging test gates remain unchanged. Canonical owner: docs/domains/marketing.md.
 
 ## 2026-10-15 — Dormant Marketing Production application candidate
 

@@ -33,16 +33,21 @@ export function productionPublishingPolicy(connection,verified,get=executionEnv)
 }
 export function staffReplyConfigured(get=executionEnv) {
  const runtime=environment(get);if(!runtime)return false;
- return runtime.environment==='production'
-  ?get('MARKETING_INBOX_STAFF_REPLY_ENABLED')==='true'&&ids(get('MARKETING_INBOX_REPLY_ACCOUNT_IDS')).length>0&&(mode(get,'MARKETING_INBOX_REPLY_MODE')==='normal'||mode(get,'MARKETING_INBOX_REPLY_MODE')==='controlled'&&ids(get('MARKETING_INBOX_REPLY_PEER_IDS')).length>0)
-  :get('MARKETING_INBOX_SEND_ENABLED')==='true'&&ids(get('MARKETING_INBOX_TEST_PEER_IDS')).length>0;
+ if(runtime.environment!=='production')return get('MARKETING_INBOX_SEND_ENABLED')==='true'&&ids(get('MARKETING_INBOX_TEST_PEER_IDS')).length>0;
+ const accounts=get('MARKETING_INBOX_REPLY_ACCOUNT_IDS'),peers=get('MARKETING_INBOX_REPLY_PEER_IDS');
+ const normal=mode(get,'MARKETING_INBOX_REPLY_MODE')==='normal';
+ return get('MARKETING_INBOX_STAFF_REPLY_ENABLED')==='true'&&(normal
+  ?(!accounts||ids(accounts).length>0)&&(!peers||ids(peers).length>0)
+  :mode(get,'MARKETING_INBOX_REPLY_MODE')==='controlled'&&ids(accounts).length>0&&ids(peers).length>0);
 }
 export function staffReplyAllowed(account,peer,get=executionEnv) {
  const runtime=environment(get);if(!runtime||!staffReplyConfigured(get)||!numericId(account)||!numericId(peer))return false;
  const production=runtime.environment==='production';
- // Normal mode removes test-peer restrictions, never the approved account boundary.
+ // Normal operation uses canonical send authority; supplied lists only narrow it.
+ if(production&&mode(get,'MARKETING_INBOX_REPLY_MODE')==='normal')return (!get('MARKETING_INBOX_REPLY_ACCOUNT_IDS')||ids(get('MARKETING_INBOX_REPLY_ACCOUNT_IDS')).includes(account))
+  &&(!get('MARKETING_INBOX_REPLY_PEER_IDS')||ids(get('MARKETING_INBOX_REPLY_PEER_IDS')).includes(peer));
  return (production?ids(get('MARKETING_INBOX_REPLY_ACCOUNT_IDS')):['622626120924115','17841473217923034']).includes(account)
-  &&(production&&mode(get,'MARKETING_INBOX_REPLY_MODE')==='normal'||ids(get(production?'MARKETING_INBOX_REPLY_PEER_IDS':'MARKETING_INBOX_TEST_PEER_IDS')).includes(peer));
+  &&ids(get(production?'MARKETING_INBOX_REPLY_PEER_IDS':'MARKETING_INBOX_TEST_PEER_IDS')).includes(peer);
 }
 export function metaOAuthScopes(base,get=executionEnv) {
  if(environment(get)?.environment!=='production')return base;

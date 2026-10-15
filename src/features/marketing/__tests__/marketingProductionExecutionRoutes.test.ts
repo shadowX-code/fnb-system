@@ -49,7 +49,7 @@ it('enabled Production publishing still rejects an account outside its approved 
 });
 
 it('normal staff mode still cannot bypass canonical conversation approval or authority denial',async()=>{
- environment({MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_MODE:'normal',MARKETING_INBOX_REPLY_ACCOUNT_IDS:'999'});
+ environment({MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_MODE:'normal'});
  fixture.rpc.mockImplementation(async name=>name==='marketing_inbox_staff_send_scope'?{data:{account:'999',peer:'777'},error:null}:{data:null,error:{message:'Messaging authority denied.'}});
  await import('../../../../supabase/functions/marketing-inbox/index.ts');
  expect((await fixture.handler(request('/send-staff-reply'))).status).toBe(409);
@@ -64,7 +64,7 @@ it('normal publishing mode cannot bypass the canonical job guard',async()=>{
  expect(fixture.rpc.mock.calls.map(c=>c[0])).toContain('marketing_job_guard');
 });
 
-it('normal staff mode rejects another account before recording any reply intent',async()=>{
+it('normal staff mode honors an optional emergency account restriction before reply intent',async()=>{
  environment({MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_MODE:'normal',MARKETING_INBOX_REPLY_ACCOUNT_IDS:'111'});
  fixture.rpc.mockResolvedValue({data:{account:'999',peer:'777'},error:null});
  await import('../../../../supabase/functions/marketing-inbox/index.ts');
