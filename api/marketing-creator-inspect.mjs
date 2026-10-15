@@ -19,6 +19,12 @@ export default async function handler(req,res){
   const input=profileMode?profileIdentity(body.url):platformUrl(body.url);
   if(profileMode){
    await rpc('marketing_creator_directory',scope);
+   if(input.platform==='instagram'){
+    const official=await fetch(STAGING+'/functions/v1/marketing-meta/creator-profile',{method:'POST',headers:{apikey:process.env.VITE_SUPABASE_ANON_KEY||'',Authorization:req.headers.authorization,'Content-Type':'application/json'},body:JSON.stringify({org:body.org,brand:body.brand,handle:input.handle}),signal:AbortSignal.timeout(30000)});
+    if(!official.ok)throw new Error('official_profile_unavailable');
+    const result=await official.json();
+    if(result.applicable===true){await rpc('marketing_creator_directory',scope);const {applicable,...profile}=result;return res.status(200).json(profile);}
+   }
    lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
    const profile=await inspectProfile(body.url);
    await rpc('marketing_creator_directory',scope);

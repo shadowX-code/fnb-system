@@ -2,6 +2,8 @@ import {callReader} from '../../../../server/xhsReaderPilot/client.mjs';
 vi.mock('../../../../server/xhsReaderPilot/client.mjs',()=>({callReader:vi.fn()}));
 import {describe,it,expect,vi,afterEach} from 'vitest';
 import handler from '../../../../api/marketing-creator-inspect.mjs';
+import {inspectProfile} from '../../../../server/creatorExtraction/profiles.mjs';
+vi.mock('../../../../server/creatorExtraction/profiles.mjs',async importOriginal=>({...await importOriginal(),inspectProfile:vi.fn()}));
 import {inspectPublic} from '../../../../server/creatorExtraction/inspect.mjs';
 vi.mock('../../../../server/creatorExtraction/inspect.mjs',()=>({inspectPublic:vi.fn()}));
 const org='ec42a08a-0f59-4b7b-a48e-b2faacf9eaf1',brand='88718f61-2915-42ef-b62f-5e6e2fe5b3eb';
@@ -26,4 +28,14 @@ it('routes only the explicitly scoped administrator pilot to the isolated Reader
  stage();vi.stubEnv('MARKETING_XHS_READER_ENABLED','true');vi.stubEnv('MARKETING_XHS_READER_ORG',org);vi.stubEnv('MARKETING_XHS_READER_BRAND',brand);const post='6a8fb7f30000000037034698',request=req();request.body.url='https://www.xiaohongshu.com/explore/'+post+'?xsec_token=fixture';
  vi.stubGlobal('fetch',vi.fn(async url=>new Response(JSON.stringify(url.endsWith('current_user_has_permission')?true:url.endsWith('creator_directory')?{accounts:[]}:{platform:'xhs',post_key:post,canonical_url:'https://www.xiaohongshu.com/explore/'+post,duplicate:{id:'existing'}}))));
  callReader.mockResolvedValue({platform:'xhs',post_id:post,canonical_url:'https://www.xiaohongshu.com/explore/'+post,metadata_status:'public_extracted',caption:'Fresh fixture observation',metrics:{likes:0},provenance:{caption:{method:'authorized_session'}}});const response=res();await handler(request,response);expect(callReader).toHaveBeenCalledOnce();expect(inspectPublic).not.toHaveBeenCalled();expect(response.json).toHaveBeenCalledWith(expect.objectContaining({caption:'Fresh fixture observation',duplicate:{id:'existing'}}));
+});
+
+it('prioritizes the scoped official profile read without public retries on provider denial',async()=>{
+ stage();const calls=[];vi.stubGlobal('fetch',vi.fn(async(url,options)=>{calls.push([url,JSON.parse(options.body)]);return new Response(JSON.stringify(url.endsWith('/creator-profile')?{applicable:true,metadata_status:'unavailable',reason:'meta_error_100',unavailable:{profile:'No eligible profile picture.'}}:{accounts:[]}))}));
+ const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/happinesskopitiam/'};const response=res();await handler(request,response);
+ expect(response.json).toHaveBeenCalledWith(expect.objectContaining({metadata_status:'unavailable',reason:'meta_error_100'}));expect(inspectProfile).not.toHaveBeenCalled();expect(calls.filter(([url])=>url.endsWith('/creator-profile'))).toHaveLength(1);expect(calls.some(([url])=>url.endsWith('inspection_access'))).toBe(false);
+});
+it('falls back to bounded public inspection only when no official connection is applicable',async()=>{
+ stage();vi.stubGlobal('fetch',vi.fn(async(url,options)=>new Response(JSON.stringify(url.endsWith('/creator-profile')?{applicable:false}:url.endsWith('inspection_access')?(JSON.parse(options.body).p_begin?'lease':null):{accounts:[]}))));inspectProfile.mockResolvedValue({metadata_status:'unavailable',reason:'provider_access_restricted'});
+ const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/happinesskopitiam/'};const response=res();await handler(request,response);expect(inspectProfile).toHaveBeenCalledOnce();expect(response.json).toHaveBeenCalledWith(expect.objectContaining({reason:'provider_access_restricted'}));
 });
