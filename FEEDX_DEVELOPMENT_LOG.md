@@ -1006,3 +1006,8 @@ Connected profile-bound Instagram picture observations to one shared Creator ava
 ## 2026-10-16 — Google Reviews Staging operational authority
 
 Register six explicit Google Reviews permissions in the canonical matrix, preserve equivalent prior grants, and separate scoped review operations from all-outlet connection/mapping administration. Add Staging-only half-hour read synchronization using pg_cron/pg_net, short-lived run capabilities and the shared manual sync authority. Preserve Google-write confirmation, encrypted credentials/cache lifecycle and disabled Performance scoring. See `docs/domains/crew-performance-and-reward.md` and `docs/testing/google-reviews-operational.md`. Production is excluded.
+
+
+## 2026-10-16 — Marketing journal retention authority preparation
+
+Added bounded, review-gated independent journal checkpoints with verified write-before-delete, resumable SQL/Blob coordination and checkpoint-aware restore deduplication. Ninety-day routine floor, thirty-day reviews, completed follow-up and legal-hold guards preserve minimal recovery/suppression authority. Focused Staging synthetic contract verification; Production privacy and CRM scheduler activation remain separate approval boundaries.

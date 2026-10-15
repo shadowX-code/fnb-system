@@ -2,7 +2,8 @@ import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import {list} from 'https://esm.sh/@vercel/blob@2.8.1?target=es2022';
 import {STAGING_SUPABASE,hash} from '../_shared/metaSecurity.ts';
 import {blobJournalStore,commitJournal,journalKeys} from '../_shared/privacyBlob.ts';
-import {journalPrefix,readJournal} from '../_shared/privacyJournal.ts';
+import {journalPrefix} from '../_shared/privacyJournal.ts';
+import {checkpointPrefix,compactJournal,recoveryRecords} from '../_shared/privacyRetention.ts';
 const env=(n:string)=>Deno.env.get(n)||'';
 async function rpc(db:any,name:string,args:any={}){const {data,error}=await db.rpc(name,args);if(error)throw new Error('privacy_authority_rejected');return data;}
 Deno.serve(async req=>{
@@ -26,16 +27,27 @@ Deno.serve(async req=>{
    const intent=await rpc(db,'marketing_privacy_prepare_release',{p_conversation:body.conversationId,p_evidence:body.evidenceHash});await commitJournal(db,intent);
    await rpc(db,'marketing_privacy_release_hold',{p_conversation:body.conversationId,p_evidence:body.evidenceHash});return reply({status:'released'});
   }
+  if(path==='/retention-status')return reply(await rpc(db,'marketing_privacy_retention',{p_action:'status'}));
+  if(path==='/retention-review'){
+   if(body.recoveryNecessityReviewed!==true||body.backupInventoryReviewed!==true)return reply({error:'Documented recovery and backup review required.'},409);
+   return reply(await rpc(db,'marketing_privacy_retention',{p_action:body.batchId?'review':'prepare',p_ids:body.ids||null,p_batch:body.batchId||null,p_evidence:body.evidenceHash}));
+  }
+  if(path==='/retention-compact'){
+   if(env('MARKETING_PRIVACY_RETENTION_ENABLED')!=='true')return reply({error:'Journal compaction is disabled.'},503);
+   return reply(await compactJournal(body.batchId,blobJournalStore(),journalKeys(),(p_action,p_batch)=>rpc(db,'marketing_privacy_retention',{p_action,p_batch})));
+  }
   if(path==='/restore-replay'){
    if(body.quarantineConfirmed!==true)return reply({error:'Restore quarantine must be confirmed.'},409);
    // Scan the independent object index, never a restored database manifest. Validate ALL before mutations.
-   let cursor:string|undefined;const records:any[]=[];const store=blobJournalStore();
-   do{const page=await list({token:env('MARKETING_ERASURE_JOURNAL_READ_WRITE_TOKEN'),prefix:journalPrefix,cursor,limit:100});
-    for(const item of page.blobs)records.push(await readJournal(item.pathname,store,journalKeys()));
-    cursor=page.hasMore?page.cursor:undefined;
-    if(records.length>10000)throw new Error('recovery_volume_requires_operator_batching');
-   }while(cursor);
-   records.sort((a,b)=>Date.parse(a.payload.created_at)-Date.parse(b.payload.created_at)||(a.payload.method==='hold_release'?1:b.payload.method==='hold_release'?-1:0));
+   const store=blobJournalStore();
+   async function* paths(){for(const prefix of [journalPrefix,checkpointPrefix]){
+    let cursor:string|undefined;
+    do{const page=await list({token:env('MARKETING_ERASURE_JOURNAL_READ_WRITE_TOKEN'),prefix,cursor,limit:100});
+     for(const item of page.blobs)yield item.pathname;
+     cursor=page.hasMore?page.cursor:undefined;
+    }while(cursor);
+   }}
+   const records=await recoveryRecords(paths(),store,journalKeys());
    let erased=0;for(const record of records){const result=await rpc(db,'marketing_privacy_replay',{p_payload:record.payload});erased+=result.erased_conversations||0;}
    return reply({status:'replayed',records:records.length,erased_conversations:erased,access_reopened:false,backup_followup:'pending'});
   }
