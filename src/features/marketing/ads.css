@@ -60,3 +60,63 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.ads-kpis { margin: 16px 0; }
+.ads-supporting-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 12px 0; margin-top: 12px; border-bottom: 1px solid var(--color-border); }
+.ads-supporting-metrics dt, .ads-connection-facts dt, .ads-mobile-performance dt { font-size: 12px; color: var(--color-text-secondary); }
+.ads-supporting-metrics dd { font-weight: 600; font-size: 16px; }
+.ads-supporting-metrics small { display: block; color: var(--color-text-secondary); font-size: 11px; }
+.ads-overview-analysis { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.ads-section-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 12px; }
+.ads-section-heading h3 { font-size: 14px; font-weight: 600; }
+.ads-section-heading span { color: var(--color-text-secondary); font-size: 11px; }
+.ads-spend-chart, .ads-results { min-width: 0; }
+.ads-chart-empty { min-height: 130px; display: flex; align-items: center; color: var(--color-text-secondary); font-size: 13px; }
+.ads-result-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.ads-result-groups h4 { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; }
+.ads-result-groups dl > div { margin-top: 8px; }
+.ads-result-groups dt { font-size: 12px; }
+.ads-result-groups dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 8px; font-variant-numeric: tabular-nums; }
+.ads-result-groups small, .ads-raw-result small { font-size: 11px; color: var(--color-text-secondary); }
+.ads-result-groups strong { font-size: 16px; font-weight: 600; }
+.ads-advanced { font-size: 12px; margin-top: 12px; }
+.ads-advanced summary { cursor: pointer; width: fit-content; color: var(--color-text-secondary); padding: 6px 0; }
+.ads-advanced p { margin-top: 6px; color: var(--color-text-secondary); }
+.ads-raw-result { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--color-border); overflow-wrap: anywhere; }
+.ads-raw-result dd { text-align: right; flex-shrink: 0; }
+.ads-raw-result small { display: block; }
+.ads-observation { margin-top: 12px; color: var(--color-text-secondary); font-size: 11px; }
+.ads-reporting-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ads-reporting-status p { max-width: 42ch; }
+.ads-campaigns, .ads-connections { display: grid; gap: 12px; min-width: 0; }
+.ads-campaign-options { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.ads-campaign-options > div { flex: 1 1 160px; max-width: 260px; min-width: 0; }
+.ads-column-options { display: grid; gap: 8px; padding: 8px; }
+.ads-column-options legend { font-size: 12px; color: var(--color-text-secondary); }
+.ads-column-options label { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.ads-column-options input { accent-color: var(--color-primary); }
+.ads-detail-link { font-weight: 600; text-align: left; color: var(--color-text-primary); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+.ads-detail-link:hover { text-decoration-color: currentColor; }
+.ads-campaign-name { max-width: 300px; overflow-wrap: anywhere; }
+.ads-campaigns td { font-variant-numeric: tabular-nums; }
+.ads-mobile-performance, .ads-connection-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; font-size: 13px; }
+.ads-mobile-performance dd { font-weight: 600; }
+.ads-daily-values { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap: 8px; }
+.ads-daily-values dd { font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) {
+  .ads-overview-analysis { grid-template-columns: minmax(0,1fr); gap: 16px; }
+  .ads-result-groups { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media (max-width: 767px) {
+  .ads-panel { padding: 12px; }
+  .ads-result-groups { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .ads-connection-facts { grid-template-columns: minmax(0,1fr); gap: 8px; }
+  .ads-connection-facts > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; }
+  .ads-mobile .ads-detail-link { flex: 1 1 160px; }
+  .ads-supporting-metrics { gap: 8px; }
+}
+/* Shared summary cards follow the available panel width, including detail drawers. */
+.ads-kpis { container-type: inline-size; }
+@container (max-width: 650px) {
+  .ads-kpis [data-admin-summary-grid] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

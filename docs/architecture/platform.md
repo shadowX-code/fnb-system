@@ -146,3 +146,5 @@ Primary actions use the shared filled-green brand tokens with white labels/icons
 ### Shared responsive record tables
 
 `DataTable` keeps horizontal scrolling by default. Its opt-in `mobileLayout="stack"` depends on the shared `src/styles/index.css` rules for `[data-mobile-layout="stack"]`: tables become labeled, wrapping record rows at 700px and below. Ship this stylesheet contract with consumers that hide unavailable cells; the component prop alone cannot stack a regular table. Above 700px and for default scrolling consumers, existing table geometry remains unchanged.
+
+Marketing Content Management and Planning Insights reuse `AdminCalendarNavigation` for Month / Year, previous/next and the shared Date Picker Today trigger. Consumers retain period, timezone and planning authority. Compact Marketing filters use the shared bounded field and page-context styles; no new query or permission authority is introduced.

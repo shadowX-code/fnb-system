@@ -40,7 +40,7 @@ it('legacy Content Library renders the same specific-brand Content Management',a
  await waitFor(()=>expect(service.contentManagement).toHaveBeenCalled());
  expect(service.contentManagement.mock.calls[0][0].brandId).toBe('brand');
  fireEvent.click(screen.getByRole('button',{name:'Brand',exact:true}));
- expect(screen.queryByRole('option',{name:'All authorized brands'})).toBeNull();
+ expect(screen.queryByRole('option',{name:'All',exact:true})).toBeNull();
  expect(new URLSearchParams(window.location.search).get('marketing_brand')).toBe('brand');
 });
 

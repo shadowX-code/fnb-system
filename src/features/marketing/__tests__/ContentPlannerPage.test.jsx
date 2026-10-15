@@ -173,3 +173,10 @@ it('Drawer contextual menu confirms soft removal and keeps secondary lifecycle a
 it('Planner canonical month grid synchronizes the planning period without clearing Insights selection',async()=>{
  render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('tab',{name:'Monthly Publish'}));fireEvent.click(screen.getByRole('button',{name:'Planning month'}));fireEvent.click(screen.getByRole('gridcell',{name:'Nov'}));await vi.waitFor(()=>expect(planner.read).toHaveBeenCalledWith('org','2026-11-01',''));expect(screen.getByRole('tab',{name:'Monthly Publish'}).getAttribute('aria-selected')).toBe('true');expect(document.querySelector('input[type=month]')).toBeNull();
 });
+
+it('brand-only navigation preserves Board default and saved view preference',async()=>{
+ window.history.replaceState({},'','/marketing/planner?marketing_brand=brand');render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
+ expect(screen.getByRole('tab',{name:'Board',exact:true}).getAttribute('aria-selected')).toBe('true');
+ fireEvent.click(screen.getByRole('tab',{name:'List',exact:true}));cleanup();render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
+ expect(screen.getByRole('tab',{name:'List',exact:true}).getAttribute('aria-selected')).toBe('true');
+});

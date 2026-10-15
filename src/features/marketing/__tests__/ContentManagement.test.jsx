@@ -80,9 +80,8 @@ it("shares filters across views and uses accurate day overflow rather than a pag
   render(<ContentManagement {...props} />);
   await screen.findByRole("table");
   fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
-  fireEvent.change(screen.getByLabelText("Calendar date"), {
-    target: { value: "2026-05-22" },
-  });
+  fireEvent.click(screen.getByRole("button", { name: "Month / Year" }));
+  fireEvent.click(screen.getByRole("gridcell", { name: "May", exact: true }));
   await screen.findByRole("button", { name: "+4 more" });
   expect(localStorage.getItem("admin.presentation.marketing.content.test-user"))
     .toBe("calendar");

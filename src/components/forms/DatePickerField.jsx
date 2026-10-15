@@ -95,6 +95,7 @@ export default function DatePickerField({
   placeholder = "Select date",
   className = "",
   minDate,
+  triggerLabel,
 }) {
   const [open, setOpen] = useState(false);
   const [displayValue, setDisplayValue] = useState(toDisplayDate(value));
@@ -105,6 +106,7 @@ export default function DatePickerField({
   const [yearGridStart, setYearGridStart] = useState(getYearGridStart(selectedDate.getFullYear()));
   const wrapperRef = useRef(null);
   const calendarRef = useRef(null);
+  const triggerRef = useRef(null);
   const calendarCells = useMemo(() => getCalendarCells(visibleYear, visibleMonth), [visibleMonth, visibleYear]);
 
   useEffect(() => {
@@ -145,6 +147,7 @@ export default function DatePickerField({
     if (minDate && nextValue < minDate) return;
     onChange(nextValue);
     setOpen(false);
+    triggerRef.current?.focus();
   }
 
   function selectToday() {
@@ -216,7 +219,7 @@ export default function DatePickerField({
           {label} {required ? <span className="text-rose-500">*</span> : null}
         </span>
       ) : null}
-      <div className="relative">
+      {triggerLabel ? <button ref={triggerRef} type="button" className="btn-secondary" disabled={disabled} aria-label={triggerLabel} aria-haspopup="dialog" aria-expanded={open} onClick={() => openPicker("day")}>{triggerLabel}</button> : <div className="relative">
         <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
         <input
           disabled={disabled}
@@ -243,7 +246,7 @@ export default function DatePickerField({
         >
           <ChevronRight className={`transition ${open ? "rotate-90 text-primary" : ""}`} size={15} />
         </button>
-      </div>
+      </div>}
       {error ? <span className="admin-form-field-message font-medium text-rose-600">{error}</span> : null}
       {!error && helper ? <span className="admin-form-field-message">{helper}</span> : null}
 

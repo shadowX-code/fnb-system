@@ -3,11 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import WorkspacePage from "../../components/layout/WorkspacePage.jsx";
 import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
-import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
 import FeedXDateRangePicker from "../../components/ui/FeedXDateRangePicker.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import AdminUnderlineTabs from "../../components/navigation/AdminUnderlineTabs.jsx";
-import DataTable from "../../components/tables/DataTable.jsx";
 import AsyncDataSurface from "../../components/feedback/AsyncDataSurface.jsx";
 import EmptyState from "../../components/feedback/EmptyState.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
@@ -15,13 +13,13 @@ import Badge from "../../components/ui/Badge.jsx";
 import { marketingService } from "./marketingService.js";
 import { adsService } from "./adsService.js";
 import {
-  adsMetricNames,
-  adsMetric,
   precedingPeriod,
-  metricComparison,
   insightFor,
   adsManagerUrl,
 } from "./adsPresentation.js";
+import { MetricGrid, Results } from "./AdsMetrics.jsx";
+import AdsCampaigns from "./AdsCampaigns.jsx";
+import ActionMenu from "../../components/ui/ActionMenu.jsx";
 import AdsPerformanceTrend from "./AdsPerformanceTrend.jsx";
 import AdsManagement from "./AdsManagement.jsx";
 import AdsCopilot from "./AdsCopilot.jsx";
@@ -43,58 +41,7 @@ const defaultStart = () =>
     .slice(0, 10);
 function ConnectionStatus({ account, report }) {
   const state=adsReadiness(account,report);
-  return <div className="space-y-2" role="status"><Badge semantic tone={state.tone}>{state.label}</Badge><p className="text-sm text-text-secondary">{state.reason}</p></div>;
-}
-function MetricGrid({ row, previous, currency }) {
-  return (
-    <dl className="ads-metrics">
-      {Object.entries(adsMetricNames).map(([key, label]) => (
-        <div key={key}>
-          <dt>
-            {label}
-            {row?.metrics?.[key]?.state === "estimated"
-              ? " · estimated"
-              : row?.metrics?.[key]?.state === "derived"
-                ? " · calculated"
-                : ""}
-          </dt>
-          <dd>{adsMetric(row?.metrics?.[key], key, currency)}</dd>
-          {metricComparison(row?.metrics?.[key], previous?.metrics?.[key]) && (
-            <small>
-              {metricComparison(row.metrics[key], previous.metrics[key])} vs
-              previous period
-            </small>
-          )}
-        </div>
-      ))}
-    </dl>
-  );
-}
-function Results({ row }) {
-  return !row?.actions?.length ? (
-    <p className="text-sm text-text-secondary">
-      Results unavailable for this period.
-    </p>
-  ) : (
-    <div className="space-y-2">
-      {row.actions.map((action) => (
-        <div
-          key={action.type}
-          className="flex flex-wrap justify-between gap-2 text-sm"
-        >
-          <span>{action.type.replaceAll("_", " ")}</span>
-          <span>
-            {action.value} ·{" "}
-            {row.cost_per_action_type?.find((a) => a.type === action.type)
-              ?.value != null
-              ? `${row.currency} ${row.cost_per_action_type.find((a) => a.type === action.type).value} per result`
-              : "Cost per result unavailable"}
-          </span>
-        </div>
-      ))}
-      <p className="text-xs text-text-secondary">{row.attribution}</p>
-    </div>
-  );
+  return <div className="ads-reporting-status" role="status"><Badge semantic tone={state.tone}>{state.label === "Ready" ? "Reporting Ready" : state.label}</Badge>{state.label !== "Ready" && <p className="text-sm text-text-secondary">{state.reason}</p>}</div>;
 }
 export default function MarketingAdsPage() {
   const auth = useAuth(),
@@ -113,17 +60,13 @@ export default function MarketingAdsPage() {
     [identities, setIdentities] = useState([]),
     [tab, setTab] = useState("overview"),
     [account, setAccount] = useState(""),
-    [level, setLevel] = useState("campaign"),
-    [parent, setParent] = useState(""),
-    [resultType, setResultType] = useState(""),
-    [search, setSearch] = useState(""),
-    [page, setPage] = useState(1),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [refresh, setRefresh] = useState(0),
-    [modal, setModal] = useState(null);
+    [modal, setModal] = useState(null),
+    [manageAccount, setManageAccount] = useState("");
   const brands = context.brands.filter((b) => b.organization_id === org),
     active = data?.accounts.find((a) => a.id === account),
     report = data?.reports.find((r) => r.connection_id === account)?.payload;
@@ -184,6 +127,7 @@ export default function MarketingAdsPage() {
         setData(current);
         setPrevious(before);
         setPending(sessions);
+        if (sessions.length && new URLSearchParams(location.search).get("meta_result") === "select_account") setTab("accounts");
         setDiscoveries(reviews);
         setIdentities(socialIdentities);
         setAccount((value) =>
@@ -202,9 +146,6 @@ export default function MarketingAdsPage() {
       generation.current++;
     };
   }, [org, brand, from, to, refresh]);
-  useEffect(() => {
-    setPage(1);
-  }, [level, parent, search, account, tab]);
   async function act(action) {
     const seq = generation.current;
     setBusy(true);
@@ -257,127 +198,27 @@ export default function MarketingAdsPage() {
     const s = data.reports.find((r) => r.connection_id === a.id);
     return { ...a, summary: s?.payload.insights.account?.[0] };
   });
-  const configs =
-      report?.configs?.[
-        level === "campaign"
-          ? "campaigns"
-          : level === "adset"
-            ? "adsets"
-            : "ads"
-      ] || [],
-    filtered = configs.filter(
-      (r) =>
-        (!parent ||
-          r[level === "adset" ? "campaign_id" : "adset_id"] === parent) &&
-        (!search || r.name.toLowerCase().includes(search.toLowerCase())),
-    ),
-    rows = filtered.slice((page - 1) * 20, page * 20);
-  const resultTypes = [
-    ...new Set(
-      (report?.insights?.[level] || []).flatMap((r) =>
-        (r.actions || []).map((a) => a.type),
-      ),
-    ),
-  ];
-  const beforeReport = previous?.reports.find(
-    (r) => r.connection_id === account,
-  )?.payload;
-  const columns = [
-    {
-      key: "name",
-      header: level === "adset" ? "Ad Set" : level === "ad" ? "Ad" : "Campaign",
-      render: (r) => (
-        <button
-          className="text-left font-semibold"
-          onClick={() => setModal({ kind: "detail", row: r, level })}
-        >
-          {r.name}
-        </button>
-      ),
-    },
-    {
-      key: "feedx_brand",
-      header: "FeedX brand",
-      render: (r) => {
-        const campaign =
-          level === "campaign"
-            ? r
-            : report?.configs.campaigns.find((c) => c.id === r.campaign_id);
-        return (
-          context.brands.find((b) => b.id === campaign?.feedx_brand_id)?.name ||
-          "Unassigned"
-        );
-      },
-    },
-    {
-      key: "effective_status",
-      header: "Meta status",
-      render: (r) => <Badge>{r.effective_status || "Unavailable"}</Badge>,
-    },
-    ...Object.keys(adsMetricNames).map((key) => ({
-      key,
-      header: adsMetricNames[key],
-      render: (r) =>
-        adsMetric(
-          insightFor(report, level, r.id)?.metrics[key],
-          key,
-          active?.health?.currency,
-        ),
-    })),
-    ...["actions", "cost_per_action_type"].map((key) => ({
-      key,
-      header: key === "actions" ? "Results" : "Cost per Result",
-      render: (r) => {
-        const insight = insightFor(report, level, r.id),
-          value = insight?.[key]?.find((a) => a.type === resultType)?.value;
-        return value == null
-          ? "—"
-          : key === "actions"
-            ? new Intl.NumberFormat("en-MY").format(value)
-            : adsMetric({ value }, "spend", insight.currency);
-      },
-    })),
-    {
-      key: "drilldown",
-      header: "Actions",
-      render: (r) => (
-        <div className="flex flex-wrap gap-2">
-          {level !== "ad" && (
-            <button
-              className="btn-secondary"
-              onClick={() => {
-                setParent(r.id);
-                setLevel(level === "campaign" ? "adset" : "ad");
-              }}
-            >
-              View {level === "campaign" ? "Ad Sets" : "Ads"}
-            </button>
-          )}
-          <a
-            className="text-primary"
-            href={adsManagerUrl(active?.account_id, r.id, level)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Ads Manager ↗
-          </a>
-        </div>
-      ),
-    },
-  ];
+  const beforeReport = previous?.reports.find(r => r.connection_id === account)?.payload;
+  const connectedIds = new Set(accountRows.filter(a => a.account_id).map(a => a.account_id));
+  async function syncPeriods(a) {
+    await act(async () => {
+      await adsService.sync(a.id, from, to);
+      const before = precedingPeriod(from, to);
+      await adsService.sync(a.id, before.from, before.to);
+      setNotice("Reporting queued. This view updates automatically as synchronization completes.");
+    });
+  }
   const controls = (
     <div className="space-y-3"><div className="admin-scope-controls" aria-label="Marketing scope">
       <SelectField searchable="auto"
         label="Brand"
         value={brand}
         options={[
-          { value: "", label: "All permitted brands" },
+          { value: "", label: "All" },
           ...context.brands.map((b) => ({ value: b.id, label: b.name })),
         ]}
         onChange={(v) => {
           selectBrandContext(context,v,org,setOrg,setBrand);
-          setParent("");
-          setLevel("campaign");
         }}
       />
 </div><AdminFilterToolbar compact denseFields ariaLabel="Ads date filters" secondaryActions={      <button
@@ -411,7 +252,7 @@ export default function MarketingAdsPage() {
       description="Advertising performance and decisions across your brands."
       controls={controls}
       actions={
-        can("marketing_ads.connect") && data?.organization_access !== false ? (
+        tab === "accounts" && can("marketing_ads.connect") && data?.organization_access !== false ? (
           <button
             className="btn-primary"
             disabled={busy || !org}
@@ -441,8 +282,7 @@ export default function MarketingAdsPage() {
       {precedingPeriod(from, to) && (
         <p className="text-xs text-text-secondary">
           Compared with {precedingPeriod(from, to).from}–
-          {precedingPeriod(from, to).to}. Reporting dates use each Meta account
-          timezone. Maximum 94 days per synchronization.
+          {precedingPeriod(from, to).to}. Reporting dates use the Meta account timezone.
         </p>
       )}
       <AsyncDataSurface
@@ -457,8 +297,77 @@ export default function MarketingAdsPage() {
             description="An administrator must grant Brand access and team permissions."
           />
         ) : null}
-        {data?.organization_access &&
-          discoveries.map((d) => (
+        {!loading && data && !data.accounts.length ? (
+          <EmptyState
+            title={data.organization_access===false?"No confirmed brand advertising":"Connect your first Ad Account"}
+            description={data.organization_access===false?"An authorized administrator can connect a shared Ad Account and confirm this brand’s campaigns.":"Discover shared Ad Accounts. Campaigns require explicit brand attribution."}
+            actions={
+              can("marketing_ads.connect") &&
+              data?.organization_access !== false ? (
+                <button
+                  className="btn-secondary"
+                  onClick={() => setTab("accounts")}
+                  disabled={busy}
+                >
+                  View Ad Accounts
+                </button>
+              ) : null
+            }
+          />
+        ) : null}
+        {tab === "overview" &&
+          accountRows.map((a) => (
+            <section className="ads-panel" key={a.id}>
+              <div className="ads-account mb-4">
+                <div><h2 className="font-semibold">{a.name}</h2><p className="text-sm text-text-secondary">{brand ? "Confirmed Brand campaigns" : "Shared account totals"} · {a.health?.currency || "Currency unavailable"} · {a.health?.timezone || "Timezone unavailable"}</p></div>
+                <ConnectionStatus account={a} report={data.reports.find(r=>r.connection_id===a.id)?.payload}/>
+              </div>
+              <MetricGrid
+                row={a.summary}
+                previous={
+                  previous?.reports.find((r) => r.connection_id === a.id)
+                    ?.payload.insights.account?.[0]
+                }
+                currency={a.health?.currency}
+              />
+              {data.reports.some(r=>r.connection_id===a.id) && !a.summary && !Object.keys(data.reports.find(r=>r.connection_id===a.id)?.payload.warnings||{}).length && <p className="text-sm text-text-secondary">{brand?"No reporting rows are available for this brand. Campaigns must have explicit brand attribution; missing metrics are not zero.":"Meta returned no reporting rows for this period. Missing metrics remain unavailable."}</p>}
+              <div className="ads-overview-analysis">
+                <AdsPerformanceTrend report={data.reports.find(r => r.connection_id === a.id)?.payload}/>
+                <Results row={a.summary}/>
+              </div>
+              <AdsReportingContext
+                report={
+                  data.reports.find((r) => r.connection_id === a.id)?.payload
+                }
+                brands={brands}
+              />
+              {!data.reports.some((r) => r.connection_id === a.id) && (
+                <p className="text-sm">
+                  Initial reporting starts automatically. Use Manage Connection in Ad Accounts for custom periods or recovery.
+                </p>
+              )}
+              <footer className="ads-observation">{data.reports.find(r=>r.connection_id===a.id)?.observed_at ? `Observed ${new Date(data.reports.find(r=>r.connection_id===a.id).observed_at).toLocaleString('en-MY', {timeZone:a.health?.timezone || 'Asia/Kuala_Lumpur'})}` : "No successful synchronization yet"} · Refreshes every six hours</footer>
+            </section>
+          ))}
+        {tab === "accounts" && <section className="ads-connections" aria-label="Connected Ad Accounts">
+          <h2 className="font-semibold">Connected accounts</h2>
+          {accountRows.map(a => <section className="ads-panel" key={a.id}>
+            <div className="ads-account">
+              <div><h3 className="font-semibold">{a.name}</h3><p className="text-sm text-text-secondary">Shared account · {a.account_id || "Disconnected"} · {a.health?.currency} · {a.health?.timezone}</p></div>
+              <div className="flex flex-wrap items-center gap-3"><ConnectionStatus account={a} report={data.reports.find(r=>r.connection_id===a.id)?.payload}/>
+              {data?.organization_access && <ActionMenu open={manageAccount===a.id} onOpenChange={open=>setManageAccount(open?a.id:"")} ariaLabel={`Manage ${a.name}`} trigger={({open,toggle})=><button className="btn-secondary" aria-haspopup="menu" aria-expanded={open} disabled={busy} onClick={toggle}>Manage Connection</button>}>
+                {can("marketing_ads.connect") && <button role="menuitem" onClick={()=>{setManageAccount("");connect(true)}}>Reconnect Meta</button>}
+                <button role="menuitem" disabled={!a.account_id} onClick={()=>{setManageAccount("");syncPeriods(a)}}>Retry Sync · selected periods</button>
+                {can("marketing_ads.connect") && <button role="menuitem" disabled={!a.account_id} onClick={()=>{setManageAccount("");setModal({kind:"disconnect",a})}}>Disconnect</button>}
+              </ActionMenu>}</div>
+            </div>
+            <dl className="ads-connection-facts"><div><dt>Reporting access</dt><dd>{a.health?.read_verified?"Verified":"Unverified"}</dd></div><div><dt>Last sync</dt><dd>{a.last_synced_at?new Date(a.last_synced_at).toLocaleString():"No successful sync"}</dd></div><div><dt>Next refresh</dt><dd>{a.health?.next_sync_at?new Date(a.health.next_sync_at).toLocaleString():"Not scheduled"}</dd></div></dl>
+            <details className="ads-advanced"><summary>Meta account health & management restrictions</summary><p>{adsManagementReason(a.health)}</p><p>Meta account status: {a.health?.account_status ?? "Unavailable"}. Reporting access is separate from permission to change advertising.</p><p>Last verified: {a.health?.checked_at?new Date(a.health.checked_at).toLocaleString():"Unavailable"}</p><a className="text-primary" href={adsManagerUrl(a.account_id)} target="_blank" rel="noreferrer">Open Ads Manager</a></details>
+          </section>)}
+          {!pending.length && data?.organization_access && <div className="ads-panel"><h2 className="font-semibold">Available accounts</h2><p className="text-sm text-text-secondary">Connect Meta to discover additional authorized accounts. Existing connections are reused.</p></div>}
+        </section>}
+        {tab === "accounts" && data?.organization_access &&
+          discoveries.filter(d => !connectedIds.has(d.account_id)).map((d) => (
             <section className="ads-panel" key={d.account_id}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -480,40 +389,17 @@ export default function MarketingAdsPage() {
               </div>
             </section>
           ))}
-        {data?.organization_access &&
-          !brand &&
-          data?.reports?.map((r) => (
-            <section className="ads-panel" key={`review:${r.connection_id}`}>
-              <div className="flex flex-wrap justify-between items-center gap-3">
-                <div>
-                  <strong>{r.payload.account.name}</strong>
-                  <p className="text-sm text-text-secondary">
-                    {r.payload.configs.campaigns.length} campaigns ·
-                    Campaign attribution review
-                  </p>
-                </div>
-                <button
-                  className="btn-secondary"
-                  onClick={() =>
-                    setModal({ kind: "preview", report: r.payload })
-                  }
-                >
-                  Review campaign attribution
-                </button>
-              </div>
-            </section>
-          ))}
-        {pending.map((session) => (
+        {tab === "accounts" && pending.map((session) => (
           <section key={session.id} className="ads-panel">
-            <h2 className="font-semibold">Choose an authorized Ad Account</h2>
+            <h2 className="font-semibold">Available accounts</h2>
             <p className="text-sm text-text-secondary">
               Shared Ad Accounts can serve multiple authorized Brands. Read-only discovery
               creates no brand attribution or execution authority.
             </p>
-            {!session.accounts.length ? (
-              <p>No authorized Ad Accounts returned by Meta.</p>
+            {!session.accounts.filter(a => !connectedIds.has(a.id)).length ? (
+              <p className="text-sm text-text-secondary">No additional accounts available. Connected accounts are listed above.</p>
             ) : (
-              session.accounts.map((a) => (
+              session.accounts.filter(a => !connectedIds.has(a.id)).map((a) => (
                 <div key={a.id} className="ads-account">
                   <div>
                     <strong>{a.name}</strong>
@@ -552,352 +438,7 @@ export default function MarketingAdsPage() {
             )}
           </section>
         ))}
-        {!loading && data && !data.accounts.length ? (
-          <EmptyState
-            title={data.organization_access===false?"No confirmed brand advertising":"Connect your first Ad Account"}
-            description={data.organization_access===false?"An authorized administrator can connect a shared Ad Account and confirm this brand’s campaigns.":"Discover shared Ad Accounts. Campaigns require explicit brand attribution."}
-            actions={
-              can("marketing_ads.connect") &&
-              data?.organization_access !== false ? (
-                <button
-                  className="btn-secondary"
-                  onClick={() => connect()}
-                  disabled={busy}
-                >
-                  Connect Ad Account
-                </button>
-              ) : null
-            }
-          />
-        ) : null}
-        {tab === "overview" &&
-          accountRows.map((a) => (
-            <section className="ads-panel" key={a.id}>
-              <div className="ads-account">
-                <div>
-                  <h2 className="font-semibold">{a.name}</h2>
-                  <p className="text-sm text-text-secondary">
-                    Shared account ·{" "}
-                    {a.health?.currency || "Currency unavailable"} ·{" "}
-                    {a.health?.timezone || "Timezone unavailable"}
-                  </p>
-                </div>
-                <button
-                  className="btn-secondary"
-                  disabled={busy || !a.account_id || !data?.organization_access}
-                  onClick={() =>
-                    act(async () => {
-                      await adsService.sync(a.id, from, to);
-                      const before = precedingPeriod(from, to);
-                      await adsService.sync(a.id, before.from, before.to);
-                      setNotice(
-                        "Reporting queued. This view updates automatically as synchronization completes.",
-                      );
-                    })
-                  }
-                >
-                  Sync selected periods
-                </button>
-              </div>
-              <ConnectionStatus account={a} report={data.reports.find(r=>r.connection_id===a.id)?.payload}/>
-              <MetricGrid
-                row={a.summary}
-                previous={
-                  previous?.reports.find((r) => r.connection_id === a.id)
-                    ?.payload.insights.account?.[0]
-                }
-                currency={a.health?.currency}
-              />
-              {data.reports.some(r=>r.connection_id===a.id) && !a.summary && !Object.keys(data.reports.find(r=>r.connection_id===a.id)?.payload.warnings||{}).length && <p className="text-sm text-text-secondary">{brand?"No reporting rows are available for this brand. Campaigns must have explicit brand attribution; missing metrics are not zero.":"Meta returned no reporting rows for this period. Missing metrics remain unavailable."}</p>}
-              {brand && data.organization_access && <button className="btn-secondary" onClick={()=>{setBrand("");setNotice("Choose Review campaign attribution to confirm only this brand’s campaigns. Shared account spend is never assigned automatically.");}}>Confirm campaign brands</button>}
-              <Results row={a.summary} />
-              <AdsPerformanceTrend
-                report={
-                  data.reports.find((r) => r.connection_id === a.id)?.payload
-                }
-              />
-              <AdsReportingContext
-                report={
-                  data.reports.find((r) => r.connection_id === a.id)?.payload
-                }
-                brands={brands}
-              />
-              {!data.reports.some((r) => r.connection_id === a.id) && (
-                <p className="text-sm">
-                  Initial reporting starts automatically. Custom historical periods can be queued with Sync selected periods.
-                </p>
-              )}
-              <p className="mt-3 text-xs text-text-secondary">Automatic refresh every six hours in {a.health?.timezone||"the Meta account timezone"}.{a.health?.next_sync_at?` Next scheduled check ${new Date(a.health.next_sync_at).toLocaleString()}.`:""}</p>
-              <p className="mt-3 text-xs text-text-secondary">
-                {a.last_synced_at
-                  ? `Last sync ${new Date(a.last_synced_at).toLocaleString()}`
-                  : "No successful synchronization yet."}
-              </p>
-            </section>
-          ))}
-        {tab === "accounts" &&
-          accountRows.map((a) => (
-            <section className="ads-panel" key={a.id}>
-              <div className="ads-account">
-                <div>
-                  <h2 className="font-semibold">{a.name}</h2>
-                  <p className="text-sm">
-                    Shared account · {a.account_id || "Disconnected"} ·{" "}
-                    {a.health?.currency} · {a.health?.timezone}
-                  </p>
-                </div>
-                <ConnectionStatus account={a} report={data.reports.find(r=>r.connection_id===a.id)?.payload}/>
-              </div>
-              <dl className="ads-metrics">
-                <div>
-                  <dt>Reporting</dt>
-                  <dd>{a.health?.read_verified ? "Verified" : "Unverified"}</dd>
-                </div>
-                <div>
-                  <dt>Management authority</dt>
-                  <dd>
-                    {adsManagementReason(a.health)}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Last verified</dt>
-                  <dd className="text-sm">
-                    {a.health?.checked_at
-                      ? new Date(a.health.checked_at).toLocaleString()
-                      : "Unavailable"}
-                  </dd>
-                </div>
-              </dl>
-              {a.health?.sync_error && (
-                <p className="text-sm text-text-secondary">
-                  Reporting needs attention. Check Meta access and account
-                  health, then retry synchronization.
-                </p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {can("marketing_ads.connect") &&
-                  data?.organization_access !== false && (
-                    <>
-                      <button
-                        className="btn-secondary"
-                        disabled={busy}
-                        onClick={() => connect(true)}
-                      >
-                        Reconnect
-                      </button>
-                      <button
-                        className="btn-secondary"
-                        disabled={busy || !a.account_id || !data?.organization_access}
-                        onClick={() => setModal({ kind: "disconnect", a })}
-                      >
-                        Disconnect
-                      </button>
-                    </>
-                  )}
-                <button
-                  className="btn-secondary"
-                  disabled={busy || !a.account_id || !data?.organization_access}
-                  onClick={() => act(() => adsService.sync(a.id, from, to))}
-                >
-                  Retry reporting
-                </button>
-                <a
-                  className="btn-secondary"
-                  href={adsManagerUrl(a.account_id)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Ads Manager ↗
-                </a>
-              </div>
-            </section>
-          ))}
-        {tab === "campaigns" && data?.accounts.length > 0 && (
-          <>
-            <AdminFilterToolbar compact denseFields ariaLabel="Advertising filters">
-              <SelectField
-                label="Result type"
-                value={resultType}
-                onChange={setResultType}
-                options={[
-                  { value: "", label: "Select Meta action" },
-                  ...resultTypes.map((value) => ({
-                    value,
-                    label: value.replaceAll("_", " "),
-                  })),
-                ]}
-              />
-              <SelectField
-                label="Ad Account"
-                value={account}
-                options={data.accounts.map((a) => ({
-                  value: a.id,
-                  label: a.name,
-                }))}
-                onChange={(v) => {
-                  setAccount(v);
-                  setParent("");
-                }}
-              />
-              <SelectField
-                label="Level"
-                value={level}
-                options={[
-                  { value: "campaign", label: "Campaigns" },
-                  { value: "adset", label: "Ad Sets" },
-                  { value: "ad", label: "Ads" },
-                ]}
-                onChange={(v) => {
-                  setLevel(v);
-                  setParent("");
-                }}
-              />
-              <AdminSearchField
-                label="Search advertising"
-                value={search}
-                onChange={setSearch}
-                placeholder="Search names"
-              />
-              {parent && (
-                <button className="btn-secondary" onClick={() => setParent("")}>
-                  Show all
-                </button>
-              )}
-            </AdminFilterToolbar>
-            <ConnectionStatus account={active} report={report}/>
-            {!report ? (
-              <EmptyState
-                title="Advertising data not synchronized"
-                description="Initial reporting is automatic after confirmation. This view updates as jobs finish; custom historical periods can be synced from Overview."
-              />
-            ) : !filtered.length ? (
-              <EmptyState
-                title="No matching advertising"
-                description="Meta returned no matching records. Adjust the filters or open Ads Manager."
-              />
-            ) : (
-              <>
-                <div className="ads-desktop">
-                  <DataTable
-                    columns={columns}
-                    rows={rows}
-                    getRowKey={(r) => r.id}
-                    density="compact"
-                    minWidth={1180}
-                  />
-                </div>
-                <div className="ads-mobile">
-                  {rows.map((r) => (
-                    <article key={r.id} className="ads-panel">
-                      <button
-                        className="font-semibold text-left"
-                        onClick={() =>
-                          setModal({ kind: "detail", row: r, level })
-                        }
-                      >
-                        {r.name}
-                      </button>
-                      <p>{r.effective_status || "Unavailable"}</p>
-                      <MetricGrid
-                        row={insightFor(report, level, r.id)}
-                        previous={insightFor(beforeReport, level, r.id)}
-                        currency={active?.health?.currency}
-                      />
-                      {resultType && (
-                        <dl className="ads-metrics">
-                          {columns
-                            .filter((c) =>
-                              ["actions", "cost_per_action_type"].includes(
-                                c.key,
-                              ),
-                            )
-                            .map((c) => (
-                              <div key={c.key}>
-                                <dt>
-                                  {c.header} · {resultType.replaceAll("_", " ")}
-                                </dt>
-                                <dd>{c.render(r)}</dd>
-                              </div>
-                            ))}
-                        </dl>
-                      )}
-                      <a
-                        className="text-sm text-primary"
-                        href={adsManagerUrl(active?.account_id, r.id, level)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Ads Manager ↗
-                      </a>
-                      {level !== "ad" && (
-                        <button
-                          className="btn-secondary"
-                          onClick={() => {
-                            setParent(r.id);
-                            setLevel(level === "campaign" ? "adset" : "ad");
-                          }}
-                        >
-                          View {level === "campaign" ? "Ad Sets" : "Ads"}
-                        </button>
-                      )}
-                    </article>
-                  ))}
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <span>
-                    {filtered.length} records · Page {page}
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      className="btn-secondary"
-                      disabled={page === 1}
-                      onClick={() => setPage((p) => p - 1)}
-                    >
-                      Previous
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      disabled={page * 20 >= filtered.length}
-                      onClick={() => setPage((p) => p + 1)}
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-            {report?.warnings && Object.keys(report.warnings).length > 0 && (
-              <p className="text-sm text-text-secondary">
-                Some insights are unavailable. Configuration synchronized
-                successfully.
-              </p>
-            )}
-            {report?.insights?.daily?.length > 0 && (
-              <details className="ads-panel">
-                <summary>
-                  Daily performance · {active?.health?.timezone}
-                </summary>
-                <div className="overflow-x-auto">
-                  <DataTable
-                    minWidth={500}
-                    density="compact"
-                    columns={[
-                      { key: "date_start", header: "Date" },
-                      ...["spend", "impressions", "ctr"].map((k) => ({
-                        key: k,
-                        header: adsMetricNames[k],
-                        render: (r) =>
-                          adsMetric(r.metrics[k], k, active?.health?.currency),
-                      })),
-                    ]}
-                    rows={report.insights.daily}
-                    getRowKey={(r) => r.date_start}
-                  />
-                </div>
-              </details>
-            )}
-          </>
-        )}
+        {tab === "campaigns" && data?.accounts.length > 0 && <AdsCampaigns key={`${org}:${brand}`} accounts={data.accounts} account={account} onAccount={setAccount} report={report} brands={brands} canReview={data.organization_access && !brand} onReview={()=>setModal({kind:"preview",report})} onDetail={(row,level,onDrill)=>setModal({kind:"detail",row,level,onDrill})}/>}
         {tab === "management" && (
           <AdsManagement
             key={`${org}:${brand}:${account}`}
@@ -1054,6 +595,7 @@ export default function MarketingAdsPage() {
           onClose={() => setModal(null)}
         >
           <div className="space-y-5">
+            {modal.onDrill && <button className="btn-secondary" onClick={()=>{modal.onDrill();setModal(null)}}>View {modal.level === "campaign" ? "Ad Sets" : "Ads"}</button>}
             <Badge>{modal.row.effective_status || "Status unavailable"}</Badge>
             <MetricGrid
               row={insightFor(report, modal.level, modal.row.id)}

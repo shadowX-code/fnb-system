@@ -146,7 +146,7 @@ function MarketingContentWorkspace({ section = 'overview' }) {
   }
   const open = value => { setError(''); request.current = null; setModal(value); };
   const scopeControls = <div className="admin-scope-controls" aria-label="Marketing scope">
-    <SelectField searchable="auto" label="Brand" value={brandId} onChange={value => { if (!busy) selectBrandContext(context,value,organizationId,setOrganizationId,setBrandId); }} options={[...(['calendar','media'].includes(section) ? [] : [{value:'',label:'All authorized brands'}]),...context.brands.map(b=>({value:b.id,label:b.name}))]} />
+    <SelectField searchable="auto" label="Brand" value={brandId} onChange={value => { if (!busy) selectBrandContext(context,value,organizationId,setOrganizationId,setBrandId); }} options={[...(['calendar','media'].includes(section) ? [] : [{value:'',label:'All'}]),...context.brands.map(b=>({value:b.id,label:b.name}))]} />
     {section==='overview'?<SelectField label="Production month" value={overviewMonth} onChange={setOverviewMonth} options={Array.from({length:16},(_,i)=>{const d=new Date();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()-12+i);return {value:d.toISOString().slice(0,7)+'-01',label:new Intl.DateTimeFormat('en-MY',{month:'long',year:'numeric',timeZone:'UTC'}).format(d)}})}/>:null}
   </div>;
   const actions = <>
