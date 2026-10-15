@@ -157,3 +157,10 @@ it('permits only the exact read-only Page follower query by username',async()=>{
  await expect(graph.request('food/path','token',{fields:'id,username,link,followers_count'})).rejects.toMatchObject({code:'invalid_meta_endpoint'});
  await expect(graph.request('food','token',{fields:'id,name'})).rejects.toMatchObject({code:'invalid_meta_endpoint'});
 });
+
+it('limits public Page diagnostics to redacted error evidence and fixed follower reads',async()=>{
+ const inspect=vi.fn();const denied=vi.fn(async()=>new Response(JSON.stringify({error:{code:100,message:"Page Public Metadata Access required token-secret https://example.invalid/?access_token=token-secret",fbtrace_id:'trace_123'}}),{status:400}));
+ await expect(new MetaGraph(config,denied).request('publicpage','token-secret',{fields:'id,username,link,followers_count'},'GET',inspect)).rejects.toMatchObject({code:'meta_error_100'});
+ const evidence=inspect.mock.calls[0][2];expect(evidence.page_error.message).toContain('Page Public Metadata Access');expect(evidence.page_error.fbtrace_id).toBe('trace_123');expect(JSON.stringify(evidence)).not.toContain('token-secret');expect(JSON.stringify(evidence)).not.toContain('example.invalid');
+ await expect(new MetaGraph(config,denied).request('publicpage','token-secret',{fields:'id,fan_count'})).rejects.toMatchObject({code:'invalid_meta_endpoint'});
+});

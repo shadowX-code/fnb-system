@@ -21,3 +21,15 @@ it('one claimed lease results in one bounded read and sanitized failure completi
  expect(db.rpc).toHaveBeenLastCalledWith('marketing_creator_followers_finish',expect.objectContaining({p_count:null,p_status:'unavailable',p_reason:'profile_not_available_with_current_meta_access',p_lease:'lease'}));expect(JSON.stringify(db.rpc.mock.calls)).not.toContain('secret-token');
 });
 it('skips provider reads when no account was claimed',async()=>{const db={rpc:vi.fn(async()=>({data:null,error:null}))};expect(await runCreatorFollowers(db,graph,[])).toBe(false);expect(graph.request).not.toHaveBeenCalled()});
+
+it('reports the provider-confirmed public Page feature dependency without treating likes as followers',async()=>{
+ account={platform:'facebook',handle:'publicpage'};
+ graph.request.mockImplementation(async(_path:any,_token:any,_params:any,_method:any,inspect:any)=>{inspect(400,100,{page_error:{message:"This endpoint requires the Page Public Metadata Access feature"}});throw {code:'meta_error_100'};});
+ expect(await readCreatorFollowers(graph,account,material,'token')).toEqual({status:'unavailable',reason:'facebook_public_page_access_required'});
+ graph.request.mockImplementation(async(_path:any,_token:any,_params:any,_method:any,inspect:any)=>{inspect(400,190,{page_error:{message:'Token expired'}});throw {code:'meta_permission_or_token_invalid'};});
+ await expect(readCreatorFollowers(graph,account,material,'token')).rejects.toMatchObject({code:'meta_permission_or_token_invalid'});
+});
+it('accepts the managed Page identity through the normal adapter',async()=>{
+ graph.request.mockResolvedValue({id:'113234221623434',followers_count:4226,fan_count:4226});
+ expect(await readCreatorFollowers(graph,{platform:'facebook',external_id:'113234221623434'},material,'token')).toEqual({status:'ready',count:4226,source:'meta_facebook_page'});
+});

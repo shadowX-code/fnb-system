@@ -55,7 +55,13 @@ export async function readCreatorFollowers(graph:any,account:any,material:any,to
  if(account.platform==='facebook'){
   const target=/^\d+$/.test(account.external_id||'')?account.external_id:account.handle;
   if(!/^[a-z\d._-]{1,160}$/i.test(target||''))return unavailable('facebook_page_identity_required');
-  const profile=await graph.request(target,token,{fields:'id,username,link,followers_count'});
+  let profile:any,publicAccessRequired=false;
+  try{profile=await graph.request(target,token,{fields:'id,username,link,followers_count'},'GET',(_status:number|null,code:number|null,evidence:any)=>{
+   publicAccessRequired=[10,100,200].includes(code??0)&&/Page Public (?:Metadata|Content) Access/.test(evidence?.page_error?.message||'');
+  });}catch(error){
+   if(publicAccessRequired)return unavailable('facebook_public_page_access_required');
+   throw error;
+  }
   const handle=String(profile?.username||'').toLowerCase();
   let linkHandle='';try{const url=new URL(profile.link);if(['www.facebook.com','facebook.com'].includes(url.hostname))linkHandle=url.pathname.replace(/^\/|\/$/g,'').toLowerCase();}catch{}
   if(!/^\d+$/.test(String(profile?.id||''))||(/^\d+$/.test(target)?String(profile.id)!==target:![handle,linkHandle].includes(target.toLowerCase())))return unavailable('provider_identity_mismatch');
