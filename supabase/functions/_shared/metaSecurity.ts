@@ -1,9 +1,10 @@
+import {metaOAuthScopes, executionEnv} from './marketingExecution.mjs';
 const encoder = new TextEncoder();
 export { RUNTIME_ORIGIN, RUNTIME_SUPABASE } from './marketingEnvironment.mjs';
 import { RUNTIME_ORIGIN, RUNTIME_SUPABASE, PRODUCTION_RUNTIME } from './marketingEnvironment.mjs';
 export const META_BASE = `${RUNTIME_SUPABASE}/functions/v1/marketing-meta`;
 export const META_REDIRECT = `${META_BASE}/callback`;
-export const META_SCOPES = PRODUCTION_RUNTIME ? ['ads_read','business_management','pages_show_list','pages_read_engagement','read_insights','instagram_basic','instagram_manage_insights'] : ['pages_show_list','pages_read_engagement','pages_manage_posts','instagram_basic','instagram_content_publish','read_insights','instagram_manage_insights','pages_manage_metadata','business_management','ads_read'];
+export const META_SCOPES = metaOAuthScopes(PRODUCTION_RUNTIME ? ['ads_read','business_management','pages_show_list','pages_read_engagement','read_insights','instagram_basic','instagram_manage_insights'] : ['pages_show_list','pages_read_engagement','pages_manage_posts','instagram_basic','instagram_content_publish','read_insights','instagram_manage_insights','pages_manage_metadata','business_management','ads_read'],executionEnv);
 
 export function base64url(bytes: Uint8Array): string { const parts:string[]=[];for(let i=0;i<bytes.length;i+=32768)parts.push(String.fromCharCode(...bytes.subarray(i,i+32768)));return btoa(parts.join('')).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,''); }
 export function unbase64(value: string): Uint8Array<ArrayBuffer> {

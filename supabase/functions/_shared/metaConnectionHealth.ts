@@ -1,3 +1,4 @@
+import {productionPublishingPolicy} from './marketingExecution.mjs';
 import { MetaGraph, MetaError } from './metaGraph.ts';
 import { connectionBinding, unseal, seal } from './metaSecurity.ts';
 import { diagnoseMetaConnection } from './metaConnectionDiagnostics.ts';
@@ -54,7 +55,7 @@ export async function runConnectionHealth(db:any,graph:MetaGraph,config:any,keys
   if(messaging.configuration_verified)health.messaging={state:messaging.delivery_verified?'delivery_verified':'awaiting_first_delivery',reason:messaging.delivery_verified?'ready':'inbound_pending'};
   health.insights=material.last_synced_at&&material.capabilities?.insights&&health.insights.state!=='permission_required'?{state:'connected',reason:'metrics_from_sync'}:health.insights;
   await guard();
-  if(snapshot)await boundedCall('marketing_meta_record_eligibility',{...actor,p_sealed:await seal({...credential,oauthTaskEvidence:snapshot},keys[0],connectionBinding(material)),p_verified:health.publishing.state==='verified'});
+  if(snapshot||productionPublishingPolicy(material,false)!==null)await boundedCall('marketing_meta_record_eligibility',{...actor,p_sealed:snapshot?await seal({...credential,oauthTaskEvidence:snapshot},keys[0],connectionBinding(material)):null,p_verified:health.publishing.state==='verified'});
   // Reconciliation is a bounded fallback; provider reads never prove webhook delivery.
   let recovery:any={state:'unavailable',reason:'configuration_unverified',complete:false};
   if(messaging.configuration_verified) {
@@ -64,6 +65,8 @@ export async function runConnectionHealth(db:any,graph:MetaGraph,config:any,keys
   }
   const retry=inbox.evidence.some((e:any)=>e.http_status===null||e.http_status===429||e.http_status>=500)||recovery.reason==='meta_response_uncertain';
   await guard();
+  const execution=productionPublishingPolicy(material,health.publishing.state==='verified');
+  if(execution!==null){await guard();await boundedCall('marketing_meta_execution_policy',{p_connection:material.id,p_generation:material.credential_generation,p_enabled:execution});health.execution_enabled=execution;}
   await boundedCall('marketing_meta_record_health',{...actor,p_health:{...health,subscription_repair:repair,recovery}});
   await call(db,'marketing_meta_health_finish',{...args,p_error:retry?'meta_temporarily_unavailable':repair==='reconciling'?'subscription_reconciling':null},AbortSignal.timeout(10000));
   return health;

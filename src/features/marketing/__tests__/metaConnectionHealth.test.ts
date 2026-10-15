@@ -13,7 +13,7 @@ const installed={data:[{id:'app',subscribed_fields:['messages','messaging_postba
 function database(messaging:any={configuration_verified:true,delivery_verified:false}) {
  return {rpc:vi.fn(async(name:string)=>({error:null,data:name==='marketing_meta_health_claim'?job:name==='marketing_meta_health_guard'?true:name==='marketing_meta_diagnostic_material'?material:name==='marketing_inbox_verification_events'?[]:name==='marketing_inbox_record_verification'?messaging:null}))};
 }
-afterEach(()=>vi.restoreAllMocks());
+afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
 beforeEach(()=>{
  vi.clearAllMocks();
  vi.mocked(verifyInboxConnection).mockImplementation(async(...args:any[])=>{args[7]?.(installed);return evidence as any;});
@@ -64,4 +64,19 @@ it('stops the complete health operation at its deadline and releases the existin
  expect(readRecentInbox).not.toHaveBeenCalled();
  expect(db.rpc.mock.calls.some(([name])=>name==='marketing_meta_record_health')).toBe(false);
  expect(db.rpc).toHaveBeenCalledWith('marketing_meta_health_finish',expect.objectContaining({p_lease:'lease',p_error:'connection_check_deadline'}));
+});
+
+it('refreshes only the generation-bound Production publishing policy, independently of Inbox permission readiness',async()=>{
+ const values:Record<string,string>={SUPABASE_URL:'https://oyfobxdoyfuzsodogpgs.supabase.co',MARKETING_ENVIRONMENT:'production',MARKETING_META_APP_ID:'2182829996001809',MARKETING_META_LOGIN_CONFIG_ID:'2027095767950085',MARKETING_META_PUBLISHING_ENABLED:'true',MARKETING_META_PUBLISH_ACCOUNT_IDS:'111'};
+ vi.stubGlobal('Deno',{env:{get:(key:string)=>values[key]}});
+ const db=database({configuration_verified:false,delivery_verified:false});
+ const original=db.rpc.getMockImplementation()!;
+ db.rpc.mockImplementation(async(name:string,...args:any[])=>name==='marketing_meta_diagnostic_material'?{data:{...material,status:'test_authorized',provider_account_id:'111'},error:null}:original(name,...args));
+ vi.mocked(verifyInboxConnection).mockImplementation(async(...args:any[])=>{args[7]?.(installed);return {...evidence,authorization_verified:false,missing_permissions:['pages_messaging']} as any;});
+ await runConnectionHealth(db,{withSignal(){return this}} as any,{appId:'app'},['key']);
+ expect(db.rpc).toHaveBeenCalledWith('marketing_meta_record_eligibility',expect.objectContaining({p_generation:1,p_verified:true}));
+ expect(db.rpc).toHaveBeenCalledWith('marketing_meta_execution_policy',{p_connection:'fixture',p_generation:1,p_enabled:true});
+ values.MARKETING_META_PUBLISHING_ENABLED='false';db.rpc.mockClear();
+ await runConnectionHealth(db,{withSignal(){return this}} as any,{appId:'app'},['key']);
+ expect(db.rpc).toHaveBeenCalledWith('marketing_meta_execution_policy',{p_connection:'fixture',p_generation:1,p_enabled:false});
 });

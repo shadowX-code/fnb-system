@@ -1,8 +1,9 @@
+import {publishingConfigured, publishingAccountAllowed} from '../_shared/marketingExecution.mjs';
 import {runtimeMetaMatches, PRODUCTION_RUNTIME} from '../_shared/marketingEnvironment.mjs';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { RUNTIME_SUPABASE, connectionBinding, unseal, hash } from '../_shared/metaSecurity.ts';
 import { MetaError, MetaGraph } from '../_shared/metaGraph.ts';
-import { advanceMetaPublish, testAccountEnabled, verifyMetaMedia } from '../_shared/metaPublishing.ts';
+import { advanceMetaPublish, verifyMetaMedia } from '../_shared/metaPublishing.ts';
 import { diagnoseMetaConnection } from '../_shared/metaConnectionDiagnostics.ts';
 import { runConnectionHealth } from '../_shared/metaConnectionHealth.ts';
 import { runInboxHistory } from '../_shared/metaInboxHistory.ts';
@@ -39,11 +40,11 @@ Deno.serve(async(req)=>{
   const value=await unseal(material.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));return value.token;
  }
  try {
-  const job=PRODUCTION_RUNTIME ? null : await call(db,'marketing_claim_reconciliation')||await call(db,'marketing_claim_job');
+  const job=publishingConfigured(env) ? await call(db,'marketing_claim_reconciliation')||await call(db,'marketing_claim_job') : null;
   if(job) {
    const guard=async()=>{
     const c=await call(db,'marketing_job_guard',{p_job:job.id,p_lease:job.lease_token});
-    if(c.status!=='test_authorized'||!(!PRODUCTION_RUNTIME && testAccountEnabled(c.provider_account_id,env('MARKETING_META_TEST_ACCOUNT_IDS'))))throw new MetaError('external_account_not_enabled');
+    if(!publishingAccountAllowed(c,env))throw new MetaError('external_account_not_enabled');
     return c;
    };
    let result:any;
