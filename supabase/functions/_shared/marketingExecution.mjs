@@ -34,16 +34,15 @@ export function productionPublishingPolicy(connection,verified,get=executionEnv)
 export function staffReplyConfigured(get=executionEnv) {
  const runtime=environment(get);if(!runtime)return false;
  return runtime.environment==='production'
-  ?get('MARKETING_INBOX_STAFF_REPLY_ENABLED')==='true'&&(mode(get,'MARKETING_INBOX_REPLY_MODE')==='normal'||mode(get,'MARKETING_INBOX_REPLY_MODE')==='controlled'&&ids(get('MARKETING_INBOX_REPLY_ACCOUNT_IDS')).length>0&&ids(get('MARKETING_INBOX_REPLY_PEER_IDS')).length>0)
+  ?get('MARKETING_INBOX_STAFF_REPLY_ENABLED')==='true'&&ids(get('MARKETING_INBOX_REPLY_ACCOUNT_IDS')).length>0&&(mode(get,'MARKETING_INBOX_REPLY_MODE')==='normal'||mode(get,'MARKETING_INBOX_REPLY_MODE')==='controlled'&&ids(get('MARKETING_INBOX_REPLY_PEER_IDS')).length>0)
   :get('MARKETING_INBOX_SEND_ENABLED')==='true'&&ids(get('MARKETING_INBOX_TEST_PEER_IDS')).length>0;
 }
 export function staffReplyAllowed(account,peer,get=executionEnv) {
  const runtime=environment(get);if(!runtime||!staffReplyConfigured(get)||!numericId(account)||!numericId(peer))return false;
  const production=runtime.environment==='production';
- // Normal mode relies on the canonical conversation/Brand/window authority, never client-supplied recipients.
- if(production&&mode(get,'MARKETING_INBOX_REPLY_MODE')==='normal')return true;
+ // Normal mode removes test-peer restrictions, never the approved account boundary.
  return (production?ids(get('MARKETING_INBOX_REPLY_ACCOUNT_IDS')):['622626120924115','17841473217923034']).includes(account)
-  &&ids(get(production?'MARKETING_INBOX_REPLY_PEER_IDS':'MARKETING_INBOX_TEST_PEER_IDS')).includes(peer);
+  &&(production&&mode(get,'MARKETING_INBOX_REPLY_MODE')==='normal'||ids(get(production?'MARKETING_INBOX_REPLY_PEER_IDS':'MARKETING_INBOX_TEST_PEER_IDS')).includes(peer));
 }
 export function metaOAuthScopes(base,get=executionEnv) {
  if(environment(get)?.environment!=='production')return base;

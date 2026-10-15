@@ -62,12 +62,22 @@ describe('normal Production operation after controlled acceptance',()=>{
   for(const wrong of [{status:'disconnected'},{channel:'ad_account'},{credential_generation:0},{provider_account_id:'*'}])expect(publishingAccountAllowed({...connection,...wrong},get)).toBe(false);
   expect(staffReplyConfigured(get)).toBe(false);
  });
- it('permits ordinary conversation peers only behind the independent staff gate',()=>{
-  const values={...prod,MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_MODE:'normal'};
-  expect(staffReplyAllowed('999','444',reader(values))).toBe(true);
-  for(const peer of ['',null,'*','not-an-id'])expect(staffReplyAllowed('999',peer,reader(values))).toBe(false);
-  expect(staffReplyAllowed('999','444',reader({...values,MARKETING_INBOX_STAFF_REPLY_ENABLED:'false'}))).toBe(false);
+ it('requires exact approved accounts in normal mode without fixed test peers',()=>{
+  const values={...prod,MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_MODE:'normal',MARKETING_INBOX_REPLY_ACCOUNT_IDS:'622626120924115,17841473217923034'};
+  for(const account of ['622626120924115','17841473217923034']) {
+   for(const peer of ['444','555'])expect(staffReplyAllowed(account,peer,reader(values))).toBe(true);
+   for(const peer of ['',null,'*','not-an-id'])expect(staffReplyAllowed(account,peer,reader(values))).toBe(false);
+   expect(staffReplyAllowed(account,'444',reader({...values,MARKETING_INBOX_REPLY_PEER_IDS:'333'}))).toBe(true);
+   expect(staffReplyAllowed(account,'444',reader({...values,MARKETING_INBOX_STAFF_REPLY_ENABLED:'false'}))).toBe(false);
+  }
+  for(const account of ['999','62262612092411','','*',null])expect(staffReplyAllowed(account,'444',reader(values))).toBe(false);
   expect(publishingConfigured(reader(values))).toBe(false);
+ });
+ it.each(['',undefined,'111,','111,invalid','111,*','1'.repeat(31),Array(51).fill('111').join(',')])('requires a bounded numeric account allowlist in both reply modes: %s',value=>{
+  for(const replyMode of ['controlled','normal']) {
+   const get=reader({...prod,...replies,MARKETING_INBOX_REPLY_MODE:replyMode,MARKETING_INBOX_REPLY_ACCOUNT_IDS:value});
+   expect(staffReplyConfigured(get)).toBe(false);expect(staffReplyAllowed('111','333',get)).toBe(false);
+  }
  });
  it('fails closed for unknown modes, disabled flags and environment mismatch',()=>{
   for(const value of ['NORMAL','all','*']){

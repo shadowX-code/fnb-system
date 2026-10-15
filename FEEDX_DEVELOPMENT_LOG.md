@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-16 — Account-scoped ongoing Staff Replies
+
+Production normal Staff Reply mode now requires the same bounded numeric account allowlist as controlled acceptance, while canonical conversation recipients need no fixed test-peer list. Shared pre-intent and pre-write guards retain Brand/Role authority, generation, messaging-window, suppression, deduplication and receipt reconciliation. Deployment leaves replies disabled; actual Meta eligibility and separate activation approval remain required. Publishing and Staging test gates are unchanged. Canonical owner: docs/domains/marketing.md.
+
 ## 2026-10-14 — Google Business Profile Phase 1
 
 Implemented the existing Google Reviews workspace as a read-only Reputation Inbox with permanent Staging HTTPS OAuth, shared encrypted credential custody, refresh/reconnect/revocation lifecycle, explicit one-to-one outlet mapping, complete paginated synchronization and short-lived encrypted content caching. Canonical Admin permissions/outlet scope remain authoritative; Customer Feedback and Crew Performance scoring remain separate and unchanged. Authenticated Staging verified the existing client, one account/eight locations, JYMT's 66 reviews, filtering, real token refresh, reconnection/cache invalidation and outlet isolation. A guarded forward migration corrects the REST safety guard's rejection of unqualified connection-cache cleanup. No Google business/review mutation or Production delivery. Canonical owner: docs/domains/crew-performance-and-reward.md; setup and focused acceptance: docs/testing/google-business-profile-phase-one.md and qa/staging/googleBusinessPhaseOne.rollback.sql.
