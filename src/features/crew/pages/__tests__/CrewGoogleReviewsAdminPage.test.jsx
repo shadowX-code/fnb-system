@@ -18,12 +18,59 @@ const complete = { ...connected, sync_status: 'complete', cache_expires_at: new 
 const mount = (outlets = [outlet]) => render(<CrewGoogleReviewsAdminPage store={{ outlets }} />);
 const settings = () => fireEvent.click(screen.getByRole('tab', { name: 'Settings' }));
 beforeEach(() => {
+  localStorage.removeItem('admin.pagination.google-reviews.inbox');
   Object.values(mocks).forEach(mock => mock.mockReset());
   mocks.context.mockResolvedValue(context); mocks.legacy.mockResolvedValue({ positive_target: null, target_locked: false });
   mocks.history.mockResolvedValue({ rows: [] }); mocks.save.mockResolvedValue({ changed: true }); mocks.sync.mockResolvedValue({ ok: true });
 });
 afterEach(cleanup);
 describe('Google Reviews Inbox and Settings', () => {
+  const pagedReviews = Array.from({ length: 61 }, (_, index) => ({
+    ...reviews[0], name: `${mapping.name}/reviews/${String(index).padStart(3, '0')}`,
+    reviewer: { displayName: `Reviewer ${String(index).padStart(3, '0')}` },
+    starRating: index < 41 ? 'FIVE' : 'FOUR', reviewReply: index < 31 ? reviews[0].reviewReply : undefined,
+  }));
+  const nextPage = () => fireEvent.click(screen.getAllByRole('button', { name: 'Next', exact: true })[0]);
+  const currentNames = () => screen.getAllByRole('article').map(article => within(article).getByRole('button', { name: /^Open review by/ }).textContent);
+  it('pages the complete result once each with stable source-identity ordering and shared size controls', async () => {
+    mocks.context.mockResolvedValue({ ...complete, reviews: [...pagedReviews].reverse() }); mount();
+    await screen.findByText('Showing 1–20 of 61 reviews');
+    expect(currentNames()).toHaveLength(20);
+    const seen = [...currentNames()];
+    for (let page = 2; page <= 4; page++) { nextPage(); seen.push(...currentNames()); }
+    expect(screen.getByText('Showing 61–61 of 61 reviews')).toBeTruthy();
+    expect(seen).toEqual(pagedReviews.map(review => review.reviewer.displayName));
+    expect(new Set(seen).size).toBe(61);
+    expect(screen.getAllByRole('button', { name: 'Next', exact: true }).every(button => button.disabled)).toBe(true);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Previous', exact: true })[0]);
+    expect(screen.getByText('Showing 41–60 of 61 reviews')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Rows per page' }));
+    expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['20', '50', '100']);
+    fireEvent.click(screen.getByRole('option', { name: '50', exact: true }));
+    expect(currentNames()).toHaveLength(50); expect(screen.getByText('Showing 1–50 of 61 reviews')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Rows per page' })); fireEvent.click(screen.getByRole('option', { name: '100', exact: true }));
+    expect(currentNames()).toHaveLength(61);
+    const overview = screen.getByRole('region', { name: 'Google Rating Overview' });
+    expect(within(overview).getByText('61')).toBeTruthy();
+    expect(within(overview).queryByText(mapping.title)).toBeNull();
+  });
+  it.each(['search', 'rating', 'month', 'reply', 'sort', 'outlet'])('resets the page after changing %s while preserving full Rating Overview', async change => {
+    mocks.context.mockResolvedValue({ ...complete, reviews: pagedReviews }); mount([outlet, secondOutlet]);
+    await screen.findByText('Showing 1–20 of 61 reviews'); nextPage();
+    expect(screen.getByText('Showing 21–40 of 61 reviews')).toBeTruthy();
+    if (change === 'search') fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'Reviewer' } });
+    if (change === 'rating') { fireEvent.click(screen.getByRole('button', { name: 'Rating', exact: true })); fireEvent.click(screen.getByRole('option', { name: '5 stars' })); }
+    if (change === 'month') { fireEvent.click(screen.getByRole('button', { name: 'Created month' })); fireEvent.click(screen.getByRole('gridcell', { name: 'Oct', exact: true })); }
+    if (change === 'reply' || change === 'sort') {
+      fireEvent.click(screen.getByRole('button', { name: 'More filters' }));
+      fireEvent.click(screen.getByRole('button', { name: change === 'reply' ? 'Owner reply' : 'Order', exact: true }));
+      fireEvent.click(screen.getByRole('option', { name: change === 'reply' ? 'With owner reply' : 'Oldest first', exact: true }));
+    }
+    if (change === 'outlet') { fireEvent.click(screen.getByRole('button', { name: 'Outlet', exact: true })); fireEvent.click(screen.getByRole('option', { name: 'JYMT', exact: true })); }
+    await screen.findByText(/Showing 1–20 of (61|41|31) reviews/);
+    expect(within(screen.getByRole('region', { name: 'Google Rating Overview' })).getByText('61')).toBeTruthy();
+  });
+
   it('refreshes background status without clearing the Inbox or interrupting Settings', async () => {
     let poll;
     const interval = vi.spyOn(globalThis, 'setInterval').mockImplementation(callback => { poll = callback; return 321; });
