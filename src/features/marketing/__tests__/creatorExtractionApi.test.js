@@ -39,3 +39,6 @@ it('falls back to bounded public inspection only when no official connection is 
  stage();vi.stubGlobal('fetch',vi.fn(async(url,options)=>new Response(JSON.stringify(url.endsWith('/creator-profile')?{applicable:false}:url.endsWith('inspection_access')?(JSON.parse(options.body).p_begin?'lease':null):{accounts:[]}))));inspectProfile.mockResolvedValue({metadata_status:'unavailable',reason:'provider_access_restricted'});
  const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/happinesskopitiam/'};const response=res();await handler(request,response);expect(inspectProfile).toHaveBeenCalledOnce();expect(response.json).toHaveBeenCalledWith(expect.objectContaining({reason:'provider_access_restricted'}));
 });
+it('never retries restricted public access during official-only image renewal',async()=>{
+ stage();vi.stubGlobal('fetch',vi.fn(async url=>new Response(JSON.stringify(url.endsWith('/creator-profile')?{applicable:false}:{accounts:[]}))));const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/happinesskopitiam/',officialOnly:true};const response=res();await handler(request,response);expect(response.json).toHaveBeenCalledWith(expect.objectContaining({reason:'official_profile_connection_unavailable'}));expect(inspectProfile).not.toHaveBeenCalled();
+});

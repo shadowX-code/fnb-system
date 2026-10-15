@@ -14,9 +14,9 @@ export const creatorService={
  directory:(org)=>rpc('marketing_creator_directory',{p_org:org,p_brand:null}),
  history:(org,post,after=null)=>rpc('marketing_creator_metric_history',{p_org:org,p_post:post,p_after:after,p_size:25}),
  read:(org,brand)=>rpc('marketing_creator_workspace',{p_org:org,p_brand:brand||null}),
- profile:async(org,brand,url)=>{
+ profile:async(org,brand,url,{officialOnly=false}={})=>{
  const {data:{session}}=await supabase.auth.getSession();
- const response=await fetch('/api/marketing-creator-inspect',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session?.access_token||'')},body:JSON.stringify({org,brand,url,kind:'profile'})});
+ const response=await fetch('/api/marketing-creator-inspect',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session?.access_token||'')},body:JSON.stringify({org,brand,url,kind:'profile',...(officialOnly?{officialOnly:true}:{})})});
  const data=await response.json();if(!response.ok)throw new Error(data.error||'Profile details unavailable.');return data;
  },
  preview:async(org,brand,url)=>{
