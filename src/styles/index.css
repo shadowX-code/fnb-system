@@ -3056,3 +3056,14 @@
 
 /* Shared Columns menu, independent of page stylesheet loading. */
 .admin-column-picker{display:grid;gap:10px;padding:10px}.admin-column-picker legend{font-size:12px;font-weight:600;padding-bottom:12px}.admin-column-picker label{display:flex;align-items:center;gap:8px;font-size:13px}
+
+/* Shared bounded record filters and separate page-context controls. */
+@media(min-width:640px){
+ .admin-filter-toolbar [data-admin-filter-role="search"]{flex:1 1 280px;max-width:360px}
+ .admin-filter-toolbar[data-admin-filter-density="dense"] [data-admin-filter-role="search"]{flex-basis:240px;max-width:320px}
+ .admin-scope-controls>.admin-select,.admin-scope-controls>.month-picker-field{flex:0 1 220px;width:220px;max-width:100%}
+}
+.admin-calendar-navigation{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;min-width:0}
+.admin-calendar-navigation>.month-picker-field{width:200px;max-width:100%}
+.admin-calendar-navigation>.admin-form-field{flex:none}
+.admin-calendar-navigation .btn-secondary,.admin-calendar-navigation .month-picker-field-trigger{height:40px;min-height:40px}

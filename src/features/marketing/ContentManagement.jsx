@@ -1,9 +1,8 @@
+import AdminCalendarNavigation from '../../components/forms/AdminCalendarNavigation.jsx';
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   ChevronUp,
   Image,
   List,
@@ -409,15 +408,6 @@ export default function ContentManagement(
       render: (row) => row.heading || row.variant ? null : rowActions(row),
     },
   ];
-  const periodTitle = mode === "month"
-    ? new Intl.DateTimeFormat("en-MY", {
-      timeZone: "UTC",
-      month: "long",
-      year: "numeric",
-    }).format(new Date(`${anchor}T12:00:00Z`))
-    : `${formatDate(range.from)} – ${
-      formatDate(new Date(new Date(range.to).getTime() - 1))
-    }`;
   return (
     <div className="cm-root">
       <div className="cm-heading">
@@ -534,42 +524,7 @@ export default function ContentManagement(
       {view === "calendar"
         ? (
           <div className="cm-period">
-            <div className="cm-period-buttons">
-              <button
-                className="btn-secondary"
-                aria-label="Previous period"
-                onClick={() => setAnchor(shiftContentPeriod(anchor, mode, -1))}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                className="btn-secondary"
-                onClick={() => {
-                  setAnchor(
-                    localInput(new Date(), CONTENT_TIMEZONE).slice(0, 10),
-                  );
-                }}
-              >
-                Today
-              </button>
-              <button
-                className="btn-secondary"
-                aria-label="Next period"
-                onClick={() => setAnchor(shiftContentPeriod(anchor, mode, 1))}
-              >
-                <ChevronRight size={16} />
-              </button>
-              <strong>{periodTitle}</strong>
-              <input
-                className="control cm-period-date"
-                type="date"
-                aria-label="Calendar date"
-                value={anchor}
-                onChange={(e) => {
-                  if (e.target.value) setAnchor(e.target.value);
-                }}
-              />
-            </div>
+            <AdminCalendarNavigation value={anchor} onChange={setAnchor} onPrevious={()=>setAnchor(shiftContentPeriod(anchor,mode,-1))} onNext={()=>setAnchor(shiftContentPeriod(anchor,mode,1))}/>
             <AdminSegmentedControl
               label="Calendar period"
               value={mode}

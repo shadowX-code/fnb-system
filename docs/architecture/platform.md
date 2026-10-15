@@ -245,3 +245,5 @@ The Marketing Settings sidebar is Connections, Brand Knowledge and Brand Access 
 `PageHeader`/`WorkspacePage` supports opt-in `wrapTitle` for a full long page title at narrow widths; default consumers retain truncation. Marketing Brand Access uses this shared option.
 
 Canonical role list/detail/edit routes retain the optional `permission_workspace` query for shared matrix presentation (for example Marketing). It does not grant authority or change role data; Brand Access uses it when linking to the canonical Roles & Permissions owner.
+
+Shared `AdminFilterToolbar` bounds desktop search widths (360px normal, 320px dense) while retaining full-width mobile fields. Brand context remains separate in `admin-scope-controls`. `AdminCalendarNavigation` composes the canonical MonthPicker and DatePicker in Month/Year → Previous → Today → Next order; Today opens date selection and the picker’s Today action returns to the current date. Consumers retain period and timezone semantics.
