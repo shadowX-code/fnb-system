@@ -47,6 +47,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
     [modal, setModal] = useState(null),
     [detail,setDetail]=useState(null),
     [chosenBrand, setChosenBrand] = useState(""),
+    [oauthPurpose, setOAuthPurpose] = useState("publishing"),
     [selected, setSelected] = useState([]),
     [confirmed, setConfirmed] = useState(false),
     [notifications] = useState(true);
@@ -130,6 +131,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
   }
   function openModal(value){setDetail(null);setModal(value)}
   function openConnect(c = null) {
+    setOAuthPurpose("publishing");
     setChosenBrand(c?.brand_id || brandId || "");
     openModal({ type: "connect", connection: c });
     setConfirmed(false);
@@ -142,6 +144,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
           organizationId,
           chosenBrand,
           modal.connection?.id,
+          oauthPurpose,
         );
         if (generation !== lifetime.current) return;
         const url = new URL(result.authorization_url);
@@ -381,7 +384,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
               </button>
               <button
                 className="btn-primary"
-                disabled={busy || !chosenBrand}
+                disabled={busy || !chosenBrand || configuration?.oauth_routes?.[oauthPurpose]?.available === false}
                 onClick={launch}
               >
                 Continue to Meta
@@ -399,6 +402,17 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
               options={brands.map((b) => ({ value: b.id, label: b.name }))}
               placeholder="Select an existing brand"
             />
+            <SelectField
+              label="Connection purpose"
+              value={oauthPurpose}
+              onChange={setOAuthPurpose}
+              disabled={busy}
+              options={[
+                { value: 'publishing', label: 'Publishing & analytics' },
+                { value: 'messaging', label: 'Inbox, publishing & analytics', disabled: !configuration?.oauth_routes?.messaging?.available },
+              ]}
+            />
+            {oauthPurpose === 'messaging' ? <p>Review Inbox access in Meta. Receiving needs verified subscriptions and genuine delivery. Staff replies remain separately controlled.</p> : null}
             {modal.connection ? (
               <p>
                 Reconnect only {modal.connection.account_name}. Its brand and
