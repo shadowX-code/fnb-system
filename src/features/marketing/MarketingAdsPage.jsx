@@ -198,9 +198,17 @@ export default function MarketingAdsPage() {
   },[org,brand,from,to,refresh,periodMode,active?.health?.timezone]);
   function changeTab(next) {
     if(tab==='overview')overviewPeriod.current={from,to,periodMode};
-    if(next==='campaigns'&&tab!=='campaigns')setPeriodMode('lifetime');
+    if(next==='campaigns'&&tab!=='campaigns') {
+      const range=observedLifetime(data,account);
+      if(range){setFrom(range.from);setTo(range.to);}
+      setPeriodMode('lifetime');
+    }
     if(next==='overview'&&tab!=='overview') {const r=overviewPeriod.current||{...adsReportingPeriod(active?.health?.timezone||'Asia/Kuala_Lumpur',30),periodMode:'30'};setFrom(r.from);setTo(r.to);setPeriodMode(r.periodMode);}
     setTab(next);
+  }
+  function changeAccount(id) {
+    if(periodMode==='lifetime'){const range=observedLifetime(data,id);if(range){setFrom(range.from);setTo(range.to);}}
+    setAccount(id);
   }
   const lifetime=observedLifetime(data,account);
   useEffect(()=>{
@@ -458,7 +466,7 @@ export default function MarketingAdsPage() {
           </section>
         ))}
         {tab === "campaigns" && periodMode==='lifetime' && <p className="text-sm text-text-secondary" role="status">{lifetime?`Lifetime Performance · exact Meta-observed period ${lifetime.from}–${lifetime.to}. Widest saved observation; earlier lifetime activity is not established.`:'Lifetime Performance is awaiting its first complete historical observation. Available configuration is shown without invented metrics.'}</p>}
-        {tab === "campaigns" && data?.accounts.length > 0 && <AdsCampaigns key={`${org}:${brand}`} accounts={data.accounts} account={account} onAccount={setAccount} report={periodMode==='lifetime'&&!lifetime?data?.catalogs?.find(r=>r.connection_id===account)?.payload:report} brands={brands} canReview={data.organization_access && !brand} onReview={()=>setModal({kind:"preview",report})} onDetail={(row,level,onDrill)=>setModal({kind:"detail",row,level,onDrill})}/>}
+        {tab === "campaigns" && data?.accounts.length > 0 && <AdsCampaigns key={`${org}:${brand}`} accounts={data.accounts} account={account} onAccount={changeAccount} report={periodMode==='lifetime'&&!lifetime?data?.catalogs?.find(r=>r.connection_id===account)?.payload:report} brands={brands} canReview={data.organization_access && !brand} onReview={()=>setModal({kind:"preview",report})} onDetail={(row,level,onDrill)=>setModal({kind:"detail",row,level,onDrill})}/>}
         {tab === "management" && (
           <AdsManagement
             key={`${org}:${brand}:${account}`}

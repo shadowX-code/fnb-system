@@ -225,9 +225,11 @@ it('opens Campaigns on the widest observed exact period and restores Overview to
  const ranges=[{from:'2025-10-17',to:'2026-10-16',observed_at:'2026-10-16T10:00:00Z'},{from:'2023-09-16',to:'2026-10-16',observed_at:'2026-10-16T14:40:02Z'}];
  ads.read.mockImplementation(async(_o,_b,from,to)=>({organization_access:true,accounts:[{id:'supreme',name:'Supreme',account_id:'1547787575646373',generation:1,health:{timezone:'Asia/Singapore'}}],reports:[{connection_id:'supreme',date_from:from,date_to:to,payload:{account:{currency:'MYR'},configs:{campaigns:[]},insights:{campaign:[]}}}],coverage:[{connection_id:'supreme',ranges}],jobs:[]}));
  render(<MarketingAdsPage/>);await screen.findAllByText('Supreme');
+ const readsBeforeLifetime=ads.read.mock.calls.length;
  fireEvent.click(screen.getByRole('tab',{name:'Campaigns'}));
  await screen.findByText(/Lifetime Performance · exact Meta-observed period 2023-09-16–2026-10-16/);
  await waitFor(()=>expect(ads.read).toHaveBeenCalledWith('org','','2023-09-16','2026-10-16'));
+ expect(ads.read.mock.calls.slice(readsBeforeLifetime)).toEqual([['org','','2023-09-16','2026-10-16']]);
  expect(screen.queryByRole('button',{name:'Refresh data'})).toBeNull();expect(ads.sync).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole('tab',{name:'Overview'}));
  await waitFor(()=>expect(screen.getByRole('button',{name:'Period',exact:true}).textContent).toContain('Last 30 days'));
