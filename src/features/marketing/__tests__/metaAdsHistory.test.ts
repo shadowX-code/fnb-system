@@ -56,3 +56,13 @@ describe('historical field-specific provider rejection',()=>{
   expect(graph.request).toHaveBeenCalledTimes(3);
  });
 });
+
+describe('history turn deadline',()=>{
+ it('checkpoints successful pages before a slow turn expires, without masking revoked authority',async()=>{
+  const graph:any={request:vi.fn(async()=>({data:[]}))};let checks=0;
+  const result=await readAdsHistoryStep(graph,account,'secret','2025-10-17','2026-10-16',{},async()=>{if(++checks>1)throw new MetaError('ads_sync_time_limit')});
+  expect(result.complete).toBe(false);expect(result.state.requests).toBe(1);expect(result.state.step).toBe(1);
+  let revoked=0;
+  await expect(readAdsHistoryStep(graph,account,'secret','2025-10-17','2026-10-16',{},async()=>{if(++revoked>1)throw new MetaError('ads_authority_changed')})).rejects.toMatchObject({code:'ads_authority_changed'});
+ });
+});
