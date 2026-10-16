@@ -212,3 +212,10 @@ it('keeps discovery in Ad Accounts and hides redundant binding of already-connec
  expect(screen.getByRole('menuitem',{name:'Reconnect Meta'})).toBeTruthy();
  expect(ads.bind).not.toHaveBeenCalled();expect(ads.sync).not.toHaveBeenCalled();expect(ads.authorize).not.toHaveBeenCalled();
 });
+
+it('keeps selected reporting dates in review when only a configuration catalog exists',async()=>{
+ const payload={not_synced:true,scope:'organization',account:{id:'111',name:'Shared Account',currency:'MYR',timezone:'Asia/Singapore'},configs:{campaigns:[{id:'1',name:'Catalog campaign'}],adsets:[],ads:[]},insights:{}};
+ ads.read.mockResolvedValue({organization_access:true,accounts:[{id:'account',name:'Shared Account',account_id:'111',health:{currency:'MYR',timezone:'Asia/Singapore',read_verified:true}}],reports:[],catalogs:[{connection_id:'account',payload}],jobs:[]});
+ render(<MarketingAdsPage/>);await screen.findByText('Shared Account');fireEvent.click(screen.getByRole('tab',{name:'Campaigns'}));fireEvent.click(screen.getByRole('button',{name:'Review Brand attribution'}));
+ const call=ads.read.mock.calls[0];expect(screen.getByRole('dialog').textContent).toContain(`Selected reporting period ${call[2]}–${call[3]}`);expect(ads.sync).not.toHaveBeenCalled();expect(ads.attributeBatch).not.toHaveBeenCalled();
+});

@@ -498,8 +498,8 @@ export default function MarketingAdsPage() {
         >
           <p className="text-sm text-text-secondary">
             {modal.report.account.name} · {modal.report.account.currency} ·{" "}
-            {modal.report.account.timezone}. Reporting period{" "}
-            {modal.report.date_from}–{modal.report.date_to}. Meta configuration
+            {modal.report.account.timezone}. Selected reporting period{" "}
+            {modal.report.date_from||from}–{modal.report.date_to||to}. Meta configuration
             remains authoritative.
           </p>
           <MetricGrid
