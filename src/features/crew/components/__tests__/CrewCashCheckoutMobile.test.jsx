@@ -600,3 +600,21 @@ describe("Crew Cash Checkout mobile", () => {
     expect(document.querySelector(".crew-cash-ledger-list")).toBeNull();
   });
 });
+
+it("restarts cancelled evidence as a new linked empty attempt and blocks duplicate clicks", async () => {
+ const cancelled={id:"cancelled-1",business_date:"2026-08-21",status:"cancelled",denomination_counts:{"100":9},counted_cash:900,pos_expected_cash:900};
+ const child={id:"replacement-1",previous_checkout_id:cancelled.id,business_date:cancelled.business_date,status:"draft",denomination_counts:{},counted_cash:0,pos_expected_cash:null};
+ let resolve;const pending=new Promise(r=>{resolve=r;});
+ crewService.cashCheckoutMobile.mockResolvedValueOnce({...payload,checkout:cancelled,can_restart_checkout:true}).mockResolvedValue({...payload,checkout:child,can_continue_checkout:true});
+ crewService.saveCashCheckout.mockReturnValue(pending);
+ render(<CrewCashCheckoutMobile token="crew-session" onBack={()=>{}} />);
+ const start=await screen.findByRole("button",{name:"Start New Checkout"});
+ fireEvent.click(start);fireEvent.click(start);
+ expect(crewService.saveCashCheckout).toHaveBeenCalledTimes(1);
+ expect(crewService.saveCashCheckout).toHaveBeenCalledWith("crew-session","restart",{previous_checkout_id:"cancelled-1"});
+ expect(start.disabled).toBe(true);
+ resolve({checkout:child});
+ expect(await screen.findByText("Count Outlet Cash")).not.toBeNull();
+ expect(screen.getByRole("button",{name:"Save Draft"})).not.toBeNull();
+ expect(screen.queryByText("This checkout is completed and cannot be edited.")).toBeNull();
+});
