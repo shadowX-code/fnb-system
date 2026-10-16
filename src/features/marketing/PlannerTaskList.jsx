@@ -7,7 +7,7 @@ import FloatingLayer from '../../components/ui/FloatingLayer.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import DatePickerField from '../../components/forms/DatePickerField.jsx';
 import MarketingMediaPreview from './MarketingMediaPreview.jsx';
-import {listStatusMoves,plannerListGroups,taskDueState,taskStatuses,taskTypes} from './contentPlanner.js';
+import {taskPriorities,listStatusMoves,plannerListGroups,taskDueState,taskStatuses,taskTypes} from './contentPlanner.js';
 
 const statusName=value=>taskStatuses.find(s=>s.value===value)?.label||value;
 const typeName=value=>taskTypes.find(s=>s.value===value)?.label||value;
@@ -81,7 +81,7 @@ export default function PlannerTaskList({rows,prefs,members=[],orderLimitExceede
   }},
   {key:'brand',header:'Brand',width:154,className:'planner-list-brand-cell',render:task=><span className="planner-list-brand" title={task.brand_name}>{task.brand_name}</span>},
   {key:'status',header:'Status',width:142,className:'planner-list-status-cell',render:task=>{const moves=listStatusMoves(task,can('edit'),can('approve'));return <InlineValue task={task} field="status" label="Status" value={task.status} options={[task.status,...moves].map(value=>({value,label:statusName(value)}))} disabled={busy||!moves.length} state={fieldState[task.id]} onChange={value=>onStatus(task,value)}><Status task={task}/></InlineValue>}},
-  {key:'priority',header:'Priority',width:96,className:'planner-list-priority-cell',render:task=>property(task,'priority','Priority',<span className={`planner-list-priority${task.priority==='high'?' is-high':''}`}><Flag size={13}/>{task.priority==='high'?'High':'Normal'}</span>,[{value:'normal',label:'Normal'},{value:'high',label:'High'}])},
+  {key:'priority',header:'Priority',width:96,className:'planner-list-priority-cell',render:task=>property(task,'priority','Priority',<span className={`planner-list-priority${task.priority==='high'?' is-high':''}`}><Flag size={13}/>{task.priority==='high'?'High':'Normal'}</span>,taskPriorities)},
   {key:'due',header:'Production Due',width:142,className:'planner-list-due-cell',render:task=>property(task,'due_date','Production Due Date',<span className={`planner-list-date planner-due-${taskDueState(task)}`}><CalendarDays size={13}/><time dateTime={task.due_date}>{dueLabel(task.due_date)}</time></span>,null,true)},
   {key:'assignee',header:'Assignee',width:140,className:'planner-list-assignee-cell',render:task=>property(task,'assignee_id','Assignee',<span className={`planner-list-person${task.assignee_name?'':' is-unassigned'}`} title={task.assignee_name||'Unassigned'}><UserRound size={13}/><span>{task.assignee_name||'Unassigned'}</span></span>,[{value:'',label:'Unassigned'},...members.filter(m=>m.brand_ids.includes(task.brand_id)).map(m=>({value:m.id,label:m.name}))])},
   ...extras.map(key=>({key,header:key==='publish'?'Planned Publish':optionalColumns.find(c=>c.key===key).label,width:key==='publish'?160:100,className:'planner-list-extra-cell',render:task=><><span className="planner-list-extra-label">{optionalColumns.find(c=>c.key===key).label}</span>{key==='checklist'?<Checklist task={task}/>:key==='publish'?<time dateTime={task.planned_publish_date||undefined}>{dueLabel(task.planned_publish_date)}</time>:typeName(task.content_type)}</>})),
