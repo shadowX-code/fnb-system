@@ -340,7 +340,8 @@ export async function readAdsHistoryStep(graph: MetaGraph, account: any, token: 
    const rows=config?response.data:response.data.map((r:any)=>{const v=adsInsight(r);if(state.omitReach)v.metrics.reach={value:null,state:'unavailable',reason:'provider_rejected_range_with_reach'};return v;});
    const key=(row:any)=>config?row.id:[row.account_id,row.campaign_id,row.adset_id,row.ad_id,row.date_start,row.date_stop].join(':');
    const seen=new Map(target[stage].map((r:any)=>[key(r),r]));
-   for(const row of rows){const old=seen.get(key(row));if(old&&JSON.stringify(old)!==JSON.stringify(row))throw new MetaError('ads_page_overlap_changed');seen.set(key(row),row);}
+   const ordered=(_key:string,v:any)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v;
+   for(const row of rows){const old=seen.get(key(row));if(old&&JSON.stringify(old,ordered)!==JSON.stringify(row,ordered))throw new MetaError('ads_page_overlap_changed');seen.set(key(row),row);}
    target[stage]=[...seen.values()];
    state.requests++;state.page++;
    if(response.paging?.next){

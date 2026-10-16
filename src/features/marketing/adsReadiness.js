@@ -3,7 +3,7 @@ export function adsReportingDay(timezone,now=new Date()) {
   try {return new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(now)} catch {return null}
 }
 export function adsReportingPeriod(timezone,days=30,now=new Date()) {
-  const to=adsReportingDay(timezone,now);if(to&&days===365){const start=new Date(to+'T00:00:00Z');start.setUTCFullYear(start.getUTCFullYear()-1);start.setUTCDate(start.getUTCDate()+1);return {from:start.toISOString().slice(0,10),to};}return to?{from:new Date(Date.parse(to+'T00:00:00Z')-(days-1)*86400000).toISOString().slice(0,10),to}:null;
+  const to=adsReportingDay(timezone,now);if(to&&days===365){const end=new Date(to+'T00:00:00Z'),year=end.getUTCFullYear()-1,month=end.getUTCMonth(),last=new Date(Date.UTC(year,month+1,0)).getUTCDate();const start=new Date(Date.UTC(year,month,Math.min(end.getUTCDate(),last)));start.setUTCDate(start.getUTCDate()+1);return {from:start.toISOString().slice(0,10),to};}return to?{from:new Date(Date.parse(to+'T00:00:00Z')-(days-1)*86400000).toISOString().slice(0,10),to}:null;
 }
 export function adsManagementReason(health) {
   if(health?.manage_verified)return 'Verified; separate execution approval required';
