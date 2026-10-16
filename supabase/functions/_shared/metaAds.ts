@@ -337,7 +337,7 @@ export async function readAdsHistoryStep(graph: MetaGraph, account: any, token: 
     limit:50,after:state.after||undefined});
    if(!Array.isArray(response.data))throw new MetaError('ads_response_unreadable');
    if(state.omitReach){state.report.metric_warnings??={};state.report.metric_warnings[stage]={reach:'Provider rejected this range with Reach; core metrics succeeded without Reach.'};}
-   const rows=config?response.data:response.data.map((r:any)=>{const v=adsInsight(r);if(state.omitReach)v.metrics.reach={value:null,state:'unavailable',reason:'provider_rejected_range_with_reach'};return v;});
+   const rows=config?response.data:response.data.map((r:any)=>{const v=adsInsight(r);if(state.omitReach)v.metrics.reach={value:null,state:'unavailable',reason:'provider_rejected_range_with_reach'};if(v.attribution===state.report.insight_attribution)delete (v as any).attribution;return v;});
    const key=(row:any)=>config?row.id:[row.account_id,row.campaign_id,row.adset_id,row.ad_id,row.date_start,row.date_stop].join(':');
    const seen=new Map(target[stage].map((r:any)=>[key(r),r]));
    const ordered=(_key:string,v:any)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v;
@@ -370,7 +370,9 @@ export async function readAdsHistoryStep(graph: MetaGraph, account: any, token: 
   }
  }
  const withinTurn=await canContinue();
- if(JSON.stringify(state).length>2900000)throw new MetaError('ads_history_evidence_limit');
+ // The database packs repeated attribution and enforces the 3 MB UTF-8 storage
+ // budget. Bound the incoming expanded envelope too, before sending it there.
+ if(new TextEncoder().encode(JSON.stringify(state)).length>6000000)throw new MetaError('ads_history_evidence_limit');
  return {state,complete:withinTurn&&state.step===stages.length};
 }
 
@@ -381,7 +383,7 @@ export async function processAdsSync(
 ) {
   const call = async (name: string, args: any = {}) => {
     const { data, error } = await db.rpc(name, args);
-    if (error) throw new Error("ads_authority_changed");
+    if (error) throw new MetaError(error.code === '54000' ? 'ads_history_evidence_limit' : name === 'marketing_ads_finish' ? 'ads_report_finalization_failed' : "ads_authority_changed");
     return data;
   };
   const job = await call("marketing_ads_claim");
@@ -398,6 +400,15 @@ export async function processAdsSync(
       p_job: job.id,
       p_lease: job.lease,
     });
+    // A completed checkpoint already contains all provider evidence. Revalidate
+    // current database authority, then finalize without another provider read.
+    if (job.progress?.step === 8 && job.progress?.report) {
+      await call("marketing_ads_finish", {
+        p_job: job.id, p_lease: job.lease,
+        p_report: job.progress.report, p_error: null,
+      });
+      return true;
+    }
     const credential = await unseal(
       material.sealed_token,
       [
@@ -417,8 +428,11 @@ export async function processAdsSync(
     );
     if (Date.parse(job.date_to)-Date.parse(job.date_from)>93*86400000) {
       const next=await readAdsHistoryStep(graph,account,credential.token,job.date_from,job.date_to,job.progress,guard);
-      if(!next.complete){await call('marketing_ads_checkpoint',{p_job:job.id,p_lease:job.lease,p_progress:next.state});return true;}
-      report=next.state.report;
+      if(next.state.step===8)next.state.report.history={...next.state.report.history,completed_at:new Date().toISOString()};
+      // Persist the final page as well. A later lease owns finalization, so an
+      // RPC timeout or worker interruption cannot lose the last provider page.
+      await call('marketing_ads_checkpoint',{p_job:job.id,p_lease:job.lease,p_progress:next.state});
+      return true;
     } else report = await readAdsReport(graph,account,credential.token,job.date_from,job.date_to,guard);
   } catch (e) {
     error = e instanceof MetaError ? e.code : "ads_authority_changed";
