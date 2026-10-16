@@ -74,3 +74,33 @@ it('does not confuse a historical Drive snapshot with the current file version',
 it('a saved older snapshot does not preselect a newer Drive version',()=>{
  const older={...readyAsset,id:'older',source_metadata:{...readyAsset.source_metadata,version:'6'}};render(picker({onChange:vi.fn(),values:['older'],assets:[older]}));expect(screen.getByRole('button',{name:'Drive image'}).getAttribute('aria-pressed')).toBe('false');expect(screen.getByText('1 selected')).toBeTruthy();
 });
+
+it('allows mixed image, video and PDF references for a Reel task without publishing restrictions',async()=>{
+ const video={...readyAsset,id:'video',filename:'Reference.mp4',mime_type:'video/mp4',source_kind:'device',size_bytes:60000000};
+ const pdf={...video,id:'pdf',filename:'Brief.pdf',mime_type:'application/pdf'};
+ listing.mockResolvedValue({rows:[readyAsset,video,pdf],total_count:3});const save=vi.fn();
+ render(picker({attachments:true,format:'reel',onChange:save}));
+ fireEvent.click(screen.getByRole('button',{name:'Drive image'}));
+ fireEvent.click(screen.getByRole('tab',{name:'Existing FeedX media'}));
+ fireEvent.click(await screen.findByRole('button',{name:'Select Reference.mp4'}));fireEvent.click(screen.getByRole('button',{name:'Select Brief.pdf'}));
+ expect(screen.getByText('3 selected')).toBeTruthy();expect(screen.getByRole('button',{name:'Remove Drive.jpg'}).getAttribute('aria-pressed')).toBe('true');
+ importFile.mockResolvedValue(readyAsset);fireEvent.click(screen.getByRole('button',{name:'Done'}));
+ await waitFor(()=>expect(save).toHaveBeenCalledExactlyOnceWith(['snapshot','video','pdf']));
+ expect(importFile).toHaveBeenCalledWith('org','brand',driveFile,undefined);
+});
+it('keeps Publishing Reel selection MP4-only and single-select',async()=>{
+ const video={...readyAsset,id:'video',filename:'Publish.mp4',mime_type:'video/mp4',source_kind:'device'};
+ listing.mockResolvedValue({rows:[readyAsset,video,{...video,id:'pdf',mime_type:'application/pdf'}],total_count:3});
+ render(picker({format:'reel',onChange:vi.fn()}));fireEvent.click(screen.getByRole('button',{name:'Drive image'}));expect(screen.getByText('0 selected')).toBeTruthy();
+ fireEvent.click(screen.getByRole('tab',{name:'Existing FeedX media'}));await screen.findByRole('button',{name:'Select Publish.mp4'});
+ expect(screen.queryByRole('button',{name:'Select Drive.jpg'})).toBeNull();expect(screen.getAllByRole('button',{name:/^Select .*mp4$/})).toHaveLength(1);
+});
+it('uploads PDF task references without a publishing channel and keeps failed saves retryable',async()=>{
+ const pdf={...readyAsset,id:'pdf',filename:'Brief.pdf',mime_type:'application/pdf',source_kind:'device'};
+ uploadFile.mockResolvedValue(pdf);const save=vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+ render(picker({attachments:true,format:'reel',onChange:save}));fireEvent.click(screen.getByRole('tab',{name:'Upload from device'}));
+ const input=screen.getByLabelText('Upload task attachment');expect(input.accept).toContain('application/pdf');expect(input.accept).toContain('image/png');expect(input.accept).toContain('video/mp4');
+ const file=new File(['%PDF-1.7'],'Brief.pdf',{type:'application/pdf'});fireEvent.change(input,{target:{files:[file]}});await screen.findByText('1 selected');
+ expect(uploadFile).toHaveBeenCalledWith('org','brand',file,undefined);fireEvent.click(screen.getByRole('button',{name:'Done'}));await screen.findByRole('alert');expect(screen.getByText('1 selected')).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(screen.queryByRole('heading',{name:'Select media'})).toBeNull());expect(uploadFile).toHaveBeenCalledTimes(1);
+});

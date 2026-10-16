@@ -16,7 +16,7 @@ export const driveService={
  },
  import:(org,brand,file,channel)=>command('import',org,brand,{fileId:file.selection_id||file.id,version:file.version,channel}),
  async upload(org,brand,file,channel){
-  if(!['image/jpeg','image/png','image/webp','video/mp4'].includes(file.type)||file.size<1||file.size>104857600)throw new Error('Use JPG, PNG, WebP or MP4 up to 100 MB.');
+  if(!['image/jpeg','image/png','image/webp','video/mp4','application/pdf'].includes(file.type)||file.size<1||file.size>104857600)throw new Error('Use JPG, PNG, WebP, MP4 or PDF up to 100 MB.');
   const asset=await command('prepare-upload',org,brand,{filename:file.name,mime:file.type,size:file.size});
   const {error}=await supabase.storage.from('marketing-media').upload(asset.object_path,file,{contentType:file.type,upsert:false});if(error)throw new Error('Media upload failed. Try again.');
   return command('finalize-upload',org,brand,{assetId:asset.id,channel});
