@@ -41,7 +41,7 @@ export default function AdsAttributionReview({
     setError("");
     setConfirmation({
       items,
-      brand: "",
+      brand: items.length && items.every(c=>!c.evidence.conflict && c.evidence.matches.length===1 && c.evidence.matches[0]===items[0].evidence.matches[0]) ? items[0].evidence.matches[0] : "",
       request: crypto.randomUUID(),
       rows: items.map((c) => ({
         campaign_id: c.id,

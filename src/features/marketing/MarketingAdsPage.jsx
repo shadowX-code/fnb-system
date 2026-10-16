@@ -18,6 +18,8 @@ import {
   adsManagerUrl,
 } from "./adsPresentation.js";
 import { MetricGrid, Results } from "./AdsMetrics.jsx";
+import AdsHistoryCoverage from './AdsHistoryCoverage.jsx';
+import {campaignLifetime,historyFloor} from './adsHistory.js';
 import AdsCampaigns from "./AdsCampaigns.jsx";
 import ActionMenu from "../../components/ui/ActionMenu.jsx";
 import AdsPerformanceTrend from "./AdsPerformanceTrend.jsx";
@@ -69,7 +71,7 @@ export default function MarketingAdsPage() {
     [manageAccount, setManageAccount] = useState("");
   const brands = context.brands.filter((b) => b.organization_id === org),
     active = data?.accounts.find((a) => a.id === account),
-    report = data?.reports.find((r) => r.connection_id === account)?.payload;
+    report = data?.reports.find((r) => r.connection_id === account)?.payload || data?.catalogs?.find(r=>r.connection_id===account)?.payload;
   const reportingDay=adsReportingDay(active?.health?.timezone||"Asia/Kuala_Lumpur");
   useEffect(() => {
     let live = true;
@@ -108,7 +110,7 @@ export default function MarketingAdsPage() {
     const range = precedingPeriod(from, to);
     if (!range) {
       setLoading(false);
-      setError("Select a valid period of up to 94 days.");
+      setError("Select a valid period of up to 37 months.");
       return;
     }
     Promise.all([
@@ -171,7 +173,7 @@ export default function MarketingAdsPage() {
     });
   }
   useEffect(() => {
-    if(periodMode==="custom"||!active?.health?.timezone)return;
+    if(["custom","lifetime"].includes(periodMode)||!active?.health?.timezone)return;
     const range=adsReportingPeriod(active.health.timezone,Number(periodMode));
     if(range){setFrom(range.from);setTo(range.to);}
   },[account,active?.health?.timezone,periodMode,reportingDay]);
@@ -181,7 +183,7 @@ export default function MarketingAdsPage() {
     const seq=generation.current;
     const timer=setInterval(async()=>{
       if(document.hidden||inFlight)return;
-      const rolling=periodMode!=="custom"?adsReportingPeriod(active?.health?.timezone||"Asia/Kuala_Lumpur",Number(periodMode)):null;
+      const rolling=!["custom","lifetime"].includes(periodMode)?adsReportingPeriod(active?.health?.timezone||"Asia/Kuala_Lumpur",Number(periodMode)):null;
       if(rolling&&(rolling.from!==from||rolling.to!==to)){setFrom(rolling.from);setTo(rolling.to);return;}
       inFlight=true;
       try {
@@ -204,7 +206,7 @@ export default function MarketingAdsPage() {
     await act(async () => {
       await adsService.sync(a.id, from, to);
       const before = precedingPeriod(from, to);
-      await adsService.sync(a.id, before.from, before.to);
+      if(before.from>=historyFloor(to))await adsService.sync(a.id, before.from, before.to);
       setNotice("Reporting queued. This view updates automatically as synchronization completes.");
     });
   }
@@ -233,6 +235,7 @@ export default function MarketingAdsPage() {
         onChange={(v) => {
           setPeriodMode(v);
           if(v==="custom")return;
+          if(v==="lifetime"){setPeriodMode("custom");setTab("campaigns");setNotice("Open a campaign, then choose Campaign lifetime. Requests use its configured dates, bounded by available Meta history.");return;}
           const range=adsReportingPeriod(active?.health?.timezone||"Asia/Kuala_Lumpur",Number(v));
           if(range){setFrom(range.from);setTo(range.to);}
         }}
@@ -240,6 +243,8 @@ export default function MarketingAdsPage() {
           { value: "custom", label: "Custom / historical" },
           { value: "30", label: "Last 30 days" },
           { value: "90", label: "Last 90 days" },
+          { value: "365", label: "Last 12 months" },
+          { value: "lifetime", label: "Campaign lifetime" },
         ]}
       />
 
@@ -315,6 +320,7 @@ export default function MarketingAdsPage() {
             }
           />
         ) : null}
+        {data && ['overview','campaigns','accounts'].includes(tab) && (tab==='overview'?data.accounts:data.accounts.filter(a=>a.id===account)).map(a=><AdsHistoryCoverage key={a.id} data={data} account={a} from={from} to={to} busy={busy} onSync={data.organization_access?()=>act(async()=>{await adsService.sync(a.id,from,to);setNotice('Selected reporting period queued. Checkpointed history resumes automatically.');}):null}/>)}
         {tab === "overview" &&
           accountRows.map((a) => (
             <section className="ads-panel" key={a.id}>
@@ -343,7 +349,7 @@ export default function MarketingAdsPage() {
               />
               {!data.reports.some((r) => r.connection_id === a.id) && (
                 <p className="text-sm">
-                  Initial reporting starts automatically. Use Manage Connection in Ad Accounts for custom periods or recovery.
+                  No exact-period snapshot yet. Use Sync selected period above; changing dates never starts a provider request.
                 </p>
               )}
               <footer className="ads-observation">{data.reports.find(r=>r.connection_id===a.id)?.observed_at ? `Observed ${new Date(data.reports.find(r=>r.connection_id===a.id).observed_at).toLocaleString('en-MY', {timeZone:a.health?.timezone || 'Asia/Kuala_Lumpur'})}` : "No successful synchronization yet"} · Refreshes every six hours</footer>
@@ -595,7 +601,8 @@ export default function MarketingAdsPage() {
           onClose={() => setModal(null)}
         >
           <div className="space-y-5">
-            {modal.onDrill && <button className="btn-secondary" onClick={()=>{modal.onDrill();setModal(null)}}>View {modal.level === "campaign" ? "Ad Sets" : "Ads"}</button>}
+            {modal.level==='campaign' && campaignLifetime(modal.row,reportingDay,active?.health?.timezone) && <button className="btn-secondary" onClick={()=>{const r=campaignLifetime(modal.row,reportingDay,active?.health?.timezone);setPeriodMode('lifetime');setFrom(r.from);setTo(r.to);setModal(null);setNotice(`Campaign lifetime: ${modal.row.name} · ${r.from}–${r.to}${r.limited?' · limited to the requestable history window':''}. All metrics use this exact period; older observations are not fabricated.`);}}>Campaign lifetime</button>}
+          {modal.onDrill && <button className="btn-secondary" onClick={()=>{modal.onDrill();setModal(null)}}>View {modal.level === "campaign" ? "Ad Sets" : "Ads"}</button>}
             <Badge>{modal.row.effective_status || "Status unavailable"}</Badge>
             <MetricGrid
               row={insightFor(report, modal.level, modal.row.id)}

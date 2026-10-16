@@ -36,6 +36,12 @@ beforeEach(() => {
   batch.mockResolvedValue([]);
 });
 describe("attribution review confirmations", () => {
+  it("prefills only a unique verified identity suggestion and still waits for confirmation", () => {
+    render(<AdsAttributionReview {...props} identities={[{channel:'facebook',account_id:'99',brand_id:'brand'}]} />);
+    fireEvent.click(screen.getAllByRole('button',{name:'Review'})[0]);
+    expect(batch).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog').textContent).toContain('Brand');
+  });
   it("requires explicit review and confirmation and pins each selected revision", async () => {
     render(<AdsAttributionReview {...props} />);
     fireEvent.click(screen.getAllByLabelText("Select Campaign One")[0]);

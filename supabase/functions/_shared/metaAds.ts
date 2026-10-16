@@ -310,6 +310,61 @@ export async function readAdsReport(
       "Reporting may be delayed or revised by Meta. Reach is estimated and non-additive. Budget fields use Meta minor currency units.",
   };
 }
+// Long ranges use the same report shape and exact-period Meta aggregates. Each
+// tick reads at most three pages; only daily rows split into non-overlapping windows.
+export async function readAdsHistoryStep(graph: MetaGraph, account: any, token: string,
+ from: string, to: string, saved: any, guard: () => Promise<void>) {
+ const state = structuredClone(saved?.report ? saved : {step:0,page:0,after:null,window:from,requests:0,
+  report:{account,configs:{},insights:{},warnings:{},date_from:from,date_to:to,source:'Meta Marketing API',
+   history:{method:'exact_period_aggregates',daily_window_days:90,graph_version:graph.version,started_at:new Date().toISOString()},
+   observation:'Exact-period provider aggregates; daily rows are not summed into Reach. Meta may restrict older metrics.'}});
+ state.report.account=account;
+ const stages=['campaigns','adsets','ads','account','campaign','adset','ad','daily'];
+ const advance=()=>{state.step++;state.page=0;state.after=null;state.seen=[];state.window=from;state.omitReach=false;};
+ for(let calls=0;calls<3 && state.step<stages.length;calls++) {
+  const stage=stages[state.step],config=state.step<3,daily=stage==='daily';
+  if(state.requests>=220)throw new MetaError('ads_history_request_limit');
+  const end=daily?new Date(Math.min(Date.parse(to+'T00:00:00Z'),Date.parse(state.window+'T00:00:00Z')+89*86400000)).toISOString().slice(0,10):to;
+  const target=config?state.report.configs:state.report.insights;
+  target[stage]??=[];
+  await guard();
+  try {
+   const response=await graph.request(`act_${account.id}/${config?stage:'insights'}`,token,{
+    fields:config?ADS_CONFIG_FIELDS[stage as keyof typeof ADS_CONFIG_FIELDS]:['account_id','account_currency','campaign_id','adset_id','ad_id','date_start','date_stop',...insightFields.filter(f=>!state.omitReach||f!=='reach')].join(','),
+    ...(config?{}:{level:daily?'account':stage,time_range:{since:daily?state.window:from,until:end},use_unified_attribution_setting:true,action_report_time:'conversion',...(daily?{time_increment:1}:{})}),
+    limit:50,after:state.after||undefined});
+   if(!Array.isArray(response.data))throw new MetaError('ads_response_unreadable');
+   if(state.omitReach){state.report.metric_warnings??={};state.report.metric_warnings[stage]={reach:'Provider rejected this range with Reach; core metrics succeeded without Reach.'};}
+   const rows=config?response.data:response.data.map((r:any)=>{const v=adsInsight(r);if(state.omitReach)v.metrics.reach={value:null,state:'unavailable',reason:'provider_rejected_range_with_reach'};return v;});
+   const key=(row:any)=>config?row.id:[row.account_id,row.campaign_id,row.adset_id,row.ad_id,row.date_start,row.date_stop].join(':');
+   const seen=new Map(target[stage].map((r:any)=>[key(r),r]));
+   for(const row of rows){const old=seen.get(key(row));if(old&&JSON.stringify(old)!==JSON.stringify(row))throw new MetaError('ads_page_overlap_changed');seen.set(key(row),row);}
+   target[stage]=[...seen.values()];
+   state.requests++;state.page++;
+   if(response.paging?.next){
+    const next=response.paging?.cursors?.after;
+    if(typeof next!=='string'||!next||next.length>2048||(state.seen||[]).includes(next))throw new MetaError('ads_pagination_unavailable');
+    if(state.page>=10)throw new MetaError('ads_pagination_limit');
+    state.seen=[...(state.seen||[]),next];state.after=next;
+   } else if(daily&&end<to){state.window=new Date(Date.parse(end+'T00:00:00Z')+86400000).toISOString().slice(0,10);state.after=null;state.page=0;state.seen=[];}
+   else advance();
+  } catch(error) {
+   // Authority changes and temporary failures retry the same persisted cursor.
+   if(config || !(error instanceof MetaError) || error.retryable || ['ads_sync_time_limit','meta_permission_or_token_invalid','ads_authority_changed'].includes(error.code))throw error;
+   if(error.graphCode===100 && !state.omitReach){
+    state.omitReach=true;state.page=0;state.after=null;state.seen=[];state.window=from;target[stage]=[];state.requests++;
+    continue;
+   }
+   if(state.report.metric_warnings)delete state.report.metric_warnings[stage];
+   state.report.warnings[stage]=error.code;
+   target[stage]=[];state.requests++;advance();
+  }
+ }
+ await guard();
+ if(JSON.stringify(state).length>2900000)throw new MetaError('ads_history_evidence_limit');
+ return {state,complete:state.step===stages.length};
+}
+
 export async function processAdsSync(
   db: any,
   graph: MetaGraph,
@@ -351,14 +406,11 @@ export async function processAdsSync(
       material.meta_user_id,
       guard,
     );
-    report = await readAdsReport(
-      graph,
-      account,
-      credential.token,
-      job.date_from,
-      job.date_to,
-      guard,
-    );
+    if (Date.parse(job.date_to)-Date.parse(job.date_from)>93*86400000) {
+      const next=await readAdsHistoryStep(graph,account,credential.token,job.date_from,job.date_to,job.progress,guard);
+      if(!next.complete){await call('marketing_ads_checkpoint',{p_job:job.id,p_lease:job.lease,p_progress:next.state});return true;}
+      report=next.state.report;
+    } else report = await readAdsReport(graph,account,credential.token,job.date_from,job.date_to,guard);
   } catch (e) {
     error = e instanceof MetaError ? e.code : "ads_authority_changed";
   }

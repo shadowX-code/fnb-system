@@ -133,7 +133,7 @@ describe("Ads read-only workspace", () => {
     const before = ads.read.mock.calls.length;
     fireEvent.click(screen.getByRole("button", {name:"Date Range",exact:true}));
     fireEvent.click(screen.getByRole("button", {name:"Clear",exact:true}));
-    await screen.findByText("Select a valid period of up to 94 days.");
+    await screen.findByText("Select a valid period of up to 37 months.");
     expect(ads.read.mock.calls.length).toBe(before);
   });
 });

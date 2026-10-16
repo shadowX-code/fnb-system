@@ -1,0 +1,11 @@
+import {adsCoverage} from './adsHistory.js';
+export default function AdsHistoryCoverage({data,account,from,to,onSync,busy}) {
+ const h=adsCoverage(data,account.id,from,to),ranges=h.coverage?.ranges||[];
+ return <section className="ads-panel" aria-label={`Historical coverage · ${account.name}`}>
+  <div className="ads-account"><div><h3 className="font-semibold">Reporting coverage</h3><p className="text-sm text-text-secondary">{h.state==='not_synced'?'Selected period not yet synced. Campaign names come from the configuration catalog.':h.state==='syncing'?`Historical reporting in progress · ${h.job?.progress?.requests||0} pages saved. It resumes automatically.`:h.state==='failed'?'Selected period could not finish. Saved observations remain unchanged.':'Selected period observed from Meta. Missing campaign rows mean no activity was reported for this period; they are not recorded zeroes.'}</p></div>
+  {onSync&&h.state!=='syncing'&&<button className="btn-secondary" disabled={busy||!account.account_id||from<(h.coverage?.request_floor||'0000-01-01')} onClick={onSync}>{h.state==='not_synced'?'Sync selected period':'Refresh selected period'}</button>}</div>
+  {Object.keys(h.report?.payload?.warnings||{}).length>0&&<p className="text-sm text-text-secondary">Some reporting levels are unavailable from Meta. No partial level totals are shown.</p>}
+  {Object.keys(h.report?.payload?.metric_warnings||{}).length>0&&<p className="text-sm text-text-secondary">Meta restricted Reach for this historical range; available core metrics are retained. Reach remains unavailable.</p>}
+  <details className="ads-advanced"><summary>Stored historical periods ({ranges.length})</summary>{ranges.length?<ul>{ranges.map(r=><li key={`${r.from}:${r.to}`}>{r.from}–{r.to} · observed {new Date(r.observed_at).toLocaleString('en-MY',{timeZone:account.health?.timezone||'Asia/Kuala_Lumpur'})}{Object.keys(r.warnings||{}).length?' · partial provider availability':''}</li>)}</ul>:<p>No completed reporting snapshots.</p>}<p>These are separate exact-period observations, not continuous or lifetime coverage. New requests are bounded to the last 37 months; Meta may restrict older metrics. Reach and overlapping action counts are never summed across periods.</p></details>
+ </section>;
+}
