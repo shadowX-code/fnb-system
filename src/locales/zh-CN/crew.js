@@ -81,6 +81,8 @@ Object.assign(resources.performanceGuidance.attendance, { scheduledShifts:"已�
 Object.assign(resources.assets, { unitOptions: { unit: "个", piece: "件", set: "套", box: "盒", bottle: "瓶", pair: "对" } });
 Object.assign(resources.assets, { unableCreate: "无法新增此资产。已保留填写内容，请重试。", unableUpdate: "无法更新此资产。已保留填写内容，请重试。", assetCodeInUse: "该资产编号已被使用，请换一个。", categoryUnavailable: "该分类已不可用，请选择在用分类。", accessChanged: "您的资产权限已变更，请刷新后重试。" });
 Object.assign(resources.compliance, { submitHelp:"提交后将由管理员审核。", replaceHelp:"替换文件审核期间，当前已验证记录继续有效。", preparingPhoto:"正在准备照片…", photoError:"无法处理该照片。请选择其他图片。", photoRequired:"请先添加证明照片。", submitError:"无法提交文件。您的资料仍会保留，请重试。" });
+Object.assign(resources.cash, { replacementAttempt: "取消后的新结账记录",
+    startNewCheckout: "重新开始现金结账", });
 Object.assign(resources.cash, { startCheckout:"开始", continueCheckout:"继续", viewCheckout:"查看", submitForReview:"提交审核", businessDateLabel:"业务日期", completedAtLabel:"完成时间", varianceReasonBelow:"下方的差异原因", confirmHandover:"确认交接 {{amount}}" });
 Object.assign(resources.employmentRecords, { contractsBody:"合同性质的雇佣文件", warningsBody:"雇主正式发出的通讯及您的回应" });
 Object.assign(resources.employmentDocuments, { emptyBody:"雇主发送的合同会显示在这里。", completeError:"无法确认此雇佣文件。", completedAt:"确认于 {{date}}" });
