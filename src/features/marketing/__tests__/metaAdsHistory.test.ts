@@ -79,3 +79,13 @@ describe('database checkpoint JSON ordering',()=>{
   expect(result.state.report.warnings.account).toBeUndefined();
  });
 });
+
+describe('restricted daily windows',()=>{
+ it('keeps a denied old window as a gap and still reads eligible newer daily observations',async()=>{
+  const graph:any={request:vi.fn(async(_path,_token,p)=>{if(p.time_range.since==='2025-10-17')throw new MetaError('meta_error_100');return {data:[{...row,date_start:p.time_range.since,date_stop:p.time_range.since}]};})};
+  const saved={step:7,page:0,requests:7,window:'2025-10-17',report:{account,configs:{},insights:{},warnings:{}}};
+  const r=await readAdsHistoryStep(graph,account,'secret','2025-10-17','2026-04-14',saved,guard);
+  expect(r.complete).toBe(true);expect(r.state.report.daily_gaps).toEqual([{from:'2025-10-17',to:'2026-01-14',reason:'meta_error_100'}]);
+  expect(r.state.report.insights.daily).toHaveLength(1);expect(r.state.report.insights.daily[0].date_start).toBe('2026-01-15');
+ });
+});
