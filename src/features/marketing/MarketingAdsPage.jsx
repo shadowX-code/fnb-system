@@ -228,11 +228,12 @@ export default function MarketingAdsPage() {
         onClick={() => setRefresh((v) => v + 1)}
       >
         Refresh data
-      </button>} periodAfterFilters period={<FeedXDateRangePicker from={from} to={to} today={adsReportingPeriod(active?.health?.timezone||"Asia/Kuala_Lumpur")?.to||today()} onApply={({from,to})=>{setPeriodMode("custom");setFrom(from);setTo(to)}}/>}>
+      </button>} periodAfterFilters period={<FeedXDateRangePicker from={from} to={to} today={adsReportingPeriod(active?.health?.timezone||"Asia/Kuala_Lumpur")?.to||today()} onApply={({from,to})=>{setNotice("");setPeriodMode("custom");setFrom(from);setTo(to)}}/>}>
       <SelectField
         label="Period"
         value={periodMode}
         onChange={(v) => {
+          setNotice("");
           setPeriodMode(v);
           if(v==="custom")return;
           if(v==="lifetime"){setPeriodMode("custom");setTab("campaigns");setNotice("Open a campaign, then choose Campaign lifetime. Requests use its configured dates, bounded by available Meta history.");return;}
