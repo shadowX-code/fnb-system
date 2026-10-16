@@ -94,7 +94,7 @@ it('shows selected-period zero, unavailable spend and coverage before confirming
  fireEvent.click(screen.getAllByLabelText('Select Campaign One')[0]);fireEvent.click(screen.getAllByLabelText('Select Campaign Two')[0]);fireEvent.click(screen.getByRole('button',{name:'Review selected (2)'}));
  const dialog=within(screen.getByRole('dialog'));
  expect(dialog.getAllByText('MYR 0').length).toBeGreaterThan(0);
- expect(dialog.getAllByText('No activity reported').length).toBeGreaterThan(0);
+ expect(dialog.getAllByText('No campaign Insight returned · activity not established').length).toBeGreaterThan(0);
  expect(dialog.getAllByText('1/1 ads with identity').length).toBeGreaterThan(0);
  expect(dialog.getAllByText('Verified identities').length).toBeGreaterThan(0);
  expect(dialog.getByText(/Selected period: 2025-10-17/)).toBeTruthy();

@@ -19,7 +19,7 @@ import {
 } from "./adsPresentation.js";
 import { MetricGrid, Results } from "./AdsMetrics.jsx";
 import AdsHistoryCoverage from './AdsHistoryCoverage.jsx';
-import {campaignLifetime,historyFloor} from './adsHistory.js';
+import {campaignLifetime,observedLifetime} from './adsHistory.js';
 import AdsCampaigns from "./AdsCampaigns.jsx";
 import ActionMenu from "../../components/ui/ActionMenu.jsx";
 import AdsPerformanceTrend from "./AdsPerformanceTrend.jsx";
@@ -29,7 +29,7 @@ import AdsReportingContext from "./AdsReportingContext.jsx";
 import AdsAttributionReview from "./AdsAttributionReview.jsx";
 import { adsReadiness, adsReportingDay, adsReportingPeriod, adsManagementReason } from "./adsReadiness.js";
 import "./ads.css";
-const pollError="Reporting status could not refresh. Existing evidence remains visible; use Refresh data to retry.";
+const pollError="Reporting status could not refresh. Existing evidence remains visible; reopen Ad Accounts to check connection health.";
 const today = () =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kuala_Lumpur",
@@ -49,6 +49,7 @@ export default function MarketingAdsPage() {
   const auth = useAuth(),
     can = (p) => auth.hasPermission(p),
     generation = useRef(0);
+  const overviewPeriod = useRef(null);
   const [context, setContext] = useState({ organizations: [], brands: [] }),
     [org, setOrg] = useState(""),
     [brand, setBrand] = useState(""),
@@ -115,7 +116,7 @@ export default function MarketingAdsPage() {
     }
     Promise.all([
       adsService.read(org, brand, from, to),
-      adsService.read(org, brand, range.from, range.to),
+      periodMode==="lifetime"?Promise.resolve(null):adsService.read(org, brand, range.from, range.to),
       can("marketing_ads.connect")
         ? adsService.pending(org, brand)
         : Promise.resolve([]),
@@ -147,7 +148,7 @@ export default function MarketingAdsPage() {
     return () => {
       generation.current++;
     };
-  }, [org, brand, from, to, refresh]);
+  }, [org, brand, from, to, refresh, periodMode]);
   async function act(action) {
     const seq = generation.current;
     setBusy(true);
@@ -188,25 +189,41 @@ export default function MarketingAdsPage() {
       inFlight=true;
       try {
         const range=precedingPeriod(from,to);
-        const [current,before]=await Promise.all([adsService.read(org,brand,from,to),adsService.read(org,brand,range.from,range.to)]);
+        const [current,before]=await Promise.all([adsService.read(org,brand,from,to),periodMode==="lifetime"?Promise.resolve(null):adsService.read(org,brand,range.from,range.to)]);
         if(!cancelled&&seq===generation.current){setData(current);setPrevious(before);setNotice(value=>value===pollError?"":value);}
       } catch {if(!cancelled&&seq===generation.current)setNotice(pollError);}
       finally {inFlight=false;}
     },30000);
     return()=>{cancelled=true;clearInterval(timer)};
   },[org,brand,from,to,refresh,periodMode,active?.health?.timezone]);
+  function changeTab(next) {
+    if(tab==='overview')overviewPeriod.current={from,to,periodMode};
+    if(next==='campaigns'&&tab!=='campaigns')setPeriodMode('lifetime');
+    if(next==='overview'&&tab!=='overview') {const r=overviewPeriod.current||{...adsReportingPeriod(active?.health?.timezone||'Asia/Kuala_Lumpur',30),periodMode:'30'};setFrom(r.from);setTo(r.to);setPeriodMode(r.periodMode);}
+    setTab(next);
+  }
+  const lifetime=observedLifetime(data,account);
+  useEffect(()=>{
+    if(tab==='campaigns'&&periodMode==='lifetime'&&lifetime&&(lifetime.from!==from||lifetime.to!==to)){setFrom(lifetime.from);setTo(lifetime.to);}
+  },[tab,periodMode,account,lifetime?.from,lifetime?.to,from,to]);
+  useEffect(()=>{
+    if(!data?.organization_access||periodMode==='lifetime'||!['overview','campaigns'].includes(tab))return;
+    const candidate=(tab==='overview'?data.accounts:[active]).find(a=>a?.health?.automatic_history_enabled&&!data.reports.some(r=>r.connection_id===a.id&&r.date_from===from&&r.date_to===to)&&!data.jobs.some(j=>j.connection_id===a.id&&['queued','leased','retry'].includes(j.state)));
+    if(!candidate)return;
+    let live=true;
+    adsService.ensurePeriod(candidate.id,from,to).then(result=>{if(live&&result?.state==='syncing')setRefresh(v=>v+1)}).catch(()=>{if(live)setNotice('Automatic reporting could not be queued. Check Ad Accounts for recovery.');});
+    return()=>{live=false};
+  },[data,tab,periodMode,account,org,from,to,active?.generation,active?.health?.automatic_history_enabled]);
   function useAccount(a){setAccount(a.id);setModal(null);setTab("overview");setNotice("Using the existing shared Ad Account. Campaign brand attribution is preserved.");}
   const accountRows = (data?.accounts || []).map((a) => {
     const s = data.reports.find((r) => r.connection_id === a.id);
     return { ...a, summary: s?.payload.insights.account?.[0] };
   });
-  const beforeReport = previous?.reports.find(r => r.connection_id === account)?.payload;
+  const beforeReport = previous?.reports?.find(r => r.connection_id === account)?.payload;
   const connectedIds = new Set(accountRows.filter(a => a.account_id).map(a => a.account_id));
   async function syncPeriods(a) {
     await act(async () => {
       await adsService.sync(a.id, from, to);
-      const before = precedingPeriod(from, to);
-      if(before.from>=historyFloor(to))await adsService.sync(a.id, before.from, before.to);
       setNotice("Reporting queued. This view updates automatically as synchronization completes.");
     });
   }
@@ -223,12 +240,7 @@ export default function MarketingAdsPage() {
           selectBrandContext(context,v,org,setOrg,setBrand);
         }}
       />
-</div><AdminFilterToolbar compact denseFields ariaLabel="Ads date filters" secondaryActions={      <button
-        className="btn-secondary"
-        onClick={() => setRefresh((v) => v + 1)}
-      >
-        Refresh data
-      </button>} periodAfterFilters period={<FeedXDateRangePicker from={from} to={to} today={adsReportingPeriod(active?.health?.timezone||"Asia/Kuala_Lumpur")?.to||today()} onApply={({from,to})=>{setNotice("");setPeriodMode("custom");setFrom(from);setTo(to)}}/>}>
+</div><AdminFilterToolbar compact denseFields ariaLabel="Ads date filters"  periodAfterFilters period={<FeedXDateRangePicker from={from} to={to} today={adsReportingPeriod(active?.health?.timezone||"Asia/Kuala_Lumpur")?.to||today()} onApply={({from,to})=>{setNotice("");setPeriodMode("custom");setFrom(from);setTo(to)}}/>}>
       <SelectField
         label="Period"
         value={periodMode}
@@ -236,7 +248,7 @@ export default function MarketingAdsPage() {
           setNotice("");
           setPeriodMode(v);
           if(v==="custom")return;
-          if(v==="lifetime"){setPeriodMode("custom");setTab("campaigns");setNotice("Open a campaign, then choose Campaign lifetime. Requests use its configured dates, bounded by available Meta history.");return;}
+          if(v==="lifetime"){setTab("campaigns");return;}
           const range=adsReportingPeriod(active?.health?.timezone||"Asia/Kuala_Lumpur",Number(v));
           if(range){setFrom(range.from);setTo(range.to);}
         }}
@@ -245,7 +257,7 @@ export default function MarketingAdsPage() {
           { value: "30", label: "Last 30 days" },
           { value: "90", label: "Last 90 days" },
           { value: "365", label: "Last 12 months" },
-          { value: "lifetime", label: "Campaign lifetime" },
+          ...(tab==="campaigns"?[{ value: "lifetime", label: "Lifetime Performance" }]:[]),
         ]}
       />
 
@@ -271,7 +283,7 @@ export default function MarketingAdsPage() {
     >
       <AdminUnderlineTabs
         value={tab}
-        onChange={setTab}
+        onChange={changeTab}
         tabs={[
           { value: "overview", label: "Overview" },
           { value: "campaigns", label: "Campaigns" },
@@ -285,7 +297,7 @@ export default function MarketingAdsPage() {
           {notice}
         </p>
       )}
-      {precedingPeriod(from, to) && (
+      {periodMode!=="lifetime" && precedingPeriod(from, to) && (
         <p className="text-xs text-text-secondary">
           Compared with {precedingPeriod(from, to).from}–
           {precedingPeriod(from, to).to}. Reporting dates use the Meta account timezone.
@@ -321,7 +333,7 @@ export default function MarketingAdsPage() {
             }
           />
         ) : null}
-        {data && ['overview','campaigns','accounts'].includes(tab) && (tab==='overview'?data.accounts:data.accounts.filter(a=>a.id===account)).map(a=><AdsHistoryCoverage key={a.id} data={data} account={a} from={from} to={to} busy={busy} onSync={data.organization_access?()=>act(async()=>{await adsService.sync(a.id,from,to);setNotice('Selected reporting period queued. Checkpointed history resumes automatically.');}):null}/>)}
+        {data && ['overview','campaigns','accounts'].includes(tab) && (tab==='overview'?data.accounts:data.accounts.filter(a=>a.id===account)).map(a=><AdsHistoryCoverage key={a.id} data={data} account={a} from={from} to={to}/>)}
         {tab === "overview" &&
           accountRows.map((a) => (
             <section className="ads-panel" key={a.id}>
@@ -332,7 +344,7 @@ export default function MarketingAdsPage() {
               <MetricGrid
                 row={a.summary}
                 previous={
-                  previous?.reports.find((r) => r.connection_id === a.id)
+                  previous?.reports?.find((r) => r.connection_id === a.id)
                     ?.payload.insights.account?.[0]
                 }
                 currency={a.health?.currency}
@@ -364,7 +376,7 @@ export default function MarketingAdsPage() {
               <div className="flex flex-wrap items-center gap-3"><ConnectionStatus account={a} report={data.reports.find(r=>r.connection_id===a.id)?.payload}/>
               {data?.organization_access && <ActionMenu open={manageAccount===a.id} onOpenChange={open=>setManageAccount(open?a.id:"")} ariaLabel={`Manage ${a.name}`} trigger={({open,toggle})=><button className="btn-secondary" aria-haspopup="menu" aria-expanded={open} disabled={busy} onClick={toggle}>Manage Connection</button>}>
                 {can("marketing_ads.connect") && <button role="menuitem" onClick={()=>{setManageAccount("");connect(true)}}>Reconnect Meta</button>}
-                <button role="menuitem" disabled={!a.account_id} onClick={()=>{setManageAccount("");syncPeriods(a)}}>Retry Sync · selected periods</button>
+                <button role="menuitem" disabled={!a.account_id} onClick={()=>{setManageAccount("");syncPeriods(a)}}>Sync now</button>
                 {can("marketing_ads.connect") && <button role="menuitem" disabled={!a.account_id} onClick={()=>{setManageAccount("");setModal({kind:"disconnect",a})}}>Disconnect</button>}
               </ActionMenu>}</div>
             </div>
@@ -445,7 +457,8 @@ export default function MarketingAdsPage() {
             )}
           </section>
         ))}
-        {tab === "campaigns" && data?.accounts.length > 0 && <AdsCampaigns key={`${org}:${brand}`} accounts={data.accounts} account={account} onAccount={setAccount} report={report} brands={brands} canReview={data.organization_access && !brand} onReview={()=>setModal({kind:"preview",report})} onDetail={(row,level,onDrill)=>setModal({kind:"detail",row,level,onDrill})}/>}
+        {tab === "campaigns" && periodMode==='lifetime' && <p className="text-sm text-text-secondary" role="status">{lifetime?`Lifetime Performance · exact Meta-observed period ${lifetime.from}–${lifetime.to}. Widest saved observation; earlier lifetime activity is not established.`:'Lifetime Performance is awaiting its first complete historical observation. Available configuration is shown without invented metrics.'}</p>}
+        {tab === "campaigns" && data?.accounts.length > 0 && <AdsCampaigns key={`${org}:${brand}`} accounts={data.accounts} account={account} onAccount={setAccount} report={periodMode==='lifetime'&&!lifetime?data?.catalogs?.find(r=>r.connection_id===account)?.payload:report} brands={brands} canReview={data.organization_access && !brand} onReview={()=>setModal({kind:"preview",report})} onDetail={(row,level,onDrill)=>setModal({kind:"detail",row,level,onDrill})}/>}
         {tab === "management" && (
           <AdsManagement
             key={`${org}:${brand}:${account}`}
