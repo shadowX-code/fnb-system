@@ -21,7 +21,7 @@ export function precedingPeriod(from, to) {
     !Number.isFinite(start.getTime()) ||
     !Number.isFinite(end.getTime()) ||
     end < start ||
-    end - start > 93 * 86400000
+    end - start > 1133 * 86400000
   )
     return null;
   const days = Math.round((end - start) / 86400000) + 1;
@@ -112,7 +112,7 @@ export function adsDailySpend(report) {
   if (!report?.date_from || !report?.date_to) return [];
   const byDate = new Map((report.insights?.daily || []).map(r => [r.date_start, r.metrics?.spend?.value ?? null]));
   const rows = [];
-  for (let day = Date.parse(report.date_from + 'T00:00:00Z'), end = Date.parse(report.date_to + 'T00:00:00Z'); day <= end && rows.length < 94; day += 86400000) {
+  for (let day = Date.parse(report.date_from + 'T00:00:00Z'), end = Date.parse(report.date_to + 'T00:00:00Z'); day <= end && rows.length < 1134; day += 86400000) {
     const date = new Date(day).toISOString().slice(0, 10);
     rows.push({date, spend: byDate.get(date) ?? null});
   }

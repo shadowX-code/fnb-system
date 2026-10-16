@@ -1,3 +1,4 @@
+import {adsMetricAvailability} from './adsHistory.js';
 import {useEffect, useState} from 'react';
 import {SlidersHorizontal} from 'lucide-react';
 import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
@@ -25,11 +26,12 @@ export default function AdsCampaigns({accounts,account,onAccount,report,brands,c
   const currency = report?.account?.currency || accounts.find(a=>a.id===account)?.health?.currency;
   const brandName = row => brands.find(b=>b.id===campaign(row)?.feedx_brand_id)?.name || 'Unassigned';
   const resultTypes = [...new Set(['link_click', ...(report?.insights?.[level] || []).flatMap(r=>(r.actions || []).map(a=>a.type))])];
-  const resultCell = row => {const item=result(row);return <><span>{adsMetric({value:item?.value},'clicks')}</span><small className="block text-xs text-text-secondary">{item?.label || 'Select a result type'}</small></>};
+  const availability = row => adsMetricAvailability(report,level,insightFor(report,level,row.id));
+  const resultCell = row => {const item=result(row);return <><span>{adsMetric({value:item?.value},'clicks')}</span><small className="block text-xs text-text-secondary">{availability(row)||(item?.value==null?'Result not returned · '+(item?.label||'selected action'):item?.label) || 'Select a result type'}</small></>};
   const columns = [
     {key:'name',header:level==='campaign'?'Campaign':level==='adset'?'Ad Set':'Ad',className:'ads-campaign-name',render:r=><button className="ads-detail-link" onClick={()=>onDetail(r,level,level!=="ad"?()=>drill(r):null)}>{r.name}</button>},
     {key:'brand',header:'Brand',render:brandName},
-    {key:'spend',header:'Spend',align:'right',render:r=>adsMetric(insightFor(report,level,r.id)?.metrics?.spend,'spend',currency)},
+    {key:'spend',header:'Spend',align:'right',render:r=><span title={availability(r)||'Meta-reported spend'}>{adsMetric(insightFor(report,level,r.id)?.metrics?.spend,'spend',currency)}</span>},
     {key:'results',header:'Results',align:'right',render:resultCell},
     {key:'cost',header:'Cost/Result',align:'right',render:r=>adsMetric({value:result(r)?.cost},'spend',currency)},
     {key:'status',header:'Status',render:r=><Badge semantic tone={statusTone(r.effective_status)}>{r.effective_status?.replaceAll('_',' ') || 'Unavailable'}</Badge>},
