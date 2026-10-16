@@ -18,10 +18,14 @@ export function adsCoverage(data,connection,from,to) {
  const report=data?.reports?.find(r=>r.connection_id===connection&&r.date_from===from&&r.date_to===to);
  const coverage=data?.coverage?.find(r=>r.connection_id===connection);
  const job=data?.jobs?.find(j=>j.connection_id===connection&&j.date_from===from&&j.date_to===to&&['queued','leased','retry','failed','cancelled'].includes(j.state));
- return {report,coverage,job,state:job&&['queued','leased','retry'].includes(job.state)?'syncing':report?'observed':job?'failed':'not_synced'};
+ const relatedRanges=(coverage?.ranges||[]).filter(r=>r.from<=to&&r.to>=from);
+ const containingRange=relatedRanges.find(r=>r.from<=from&&r.to>=to);
+ // A wider aggregate is evidence of a completed import, not selected-period metrics.
+ const periodEvidence=report?'exact':containingRange?'broader':relatedRanges.length?'overlap':'none';
+ return {report,coverage,job,periodEvidence,containingRange,relatedRanges,state:job&&['queued','leased','retry'].includes(job.state)?'syncing':report?'observed':job?'failed':'not_synced'};
 }
 export function adsMetricAvailability(report,level,row) {
- if(report?.not_synced||!report)return 'Not yet synced';
+ if(report?.not_synced||!report)return 'Selected period not synced';
  if(report.warnings?.[level])return 'Provider unavailable';
  if(!row)return 'No activity reported';
  return null;

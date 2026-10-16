@@ -16,3 +16,14 @@ it('does not call provider-denied campaign rows no activity',()=>{
  render(<AdsHistoryCoverage data={{reports:[{connection_id:'a',date_from:'2025-10-17',date_to:'2026-10-16',payload:{warnings:{campaign:'meta_error_100'}}}]}} account={{id:'a',name:'Shared'}} from="2025-10-17" to="2026-10-16"/>);
  expect(screen.getByText(/observed with partial provider availability/)).toBeTruthy();expect(screen.queryByText(/Missing campaign rows mean no activity/)).toBeNull();
 });
+
+it('explains a contained subperiod without claiming campaign daily coverage or requesting data',()=>{
+ const sync=vi.fn();render(<AdsHistoryCoverage data={{coverage:[{connection_id:'a',ranges:[{from:'2025-10-17',to:'2026-10-16',observed_at:'2026-10-16T05:35:04Z'}]}]}} account={{id:'a',name:'Shared',account_id:'123'}} from="2026-04-20" to="2026-07-18" onSync={sync}/>);
+ expect(screen.getByText(/A broader report/).textContent).toContain('campaign totals cannot be split');
+ expect(screen.getByText(/A broader report/).textContent).toContain('2025-10-17–2026-10-16');
+ expect(screen.getByRole('button',{name:'Sync selected period'})).toBeTruthy();expect(sync).not.toHaveBeenCalled();
+});
+it('distinguishes overlapping coverage from a period with no observations',()=>{
+ render(<AdsHistoryCoverage data={{coverage:[{connection_id:'a',ranges:[{from:'2026-06-01',to:'2026-08-01'}]}]}} account={{id:'a',name:'Shared'}} from="2026-04-20" to="2026-07-18"/>);
+ expect(screen.getByText(/overlap part of this selection/)).toBeTruthy();
+});
