@@ -1,10 +1,10 @@
 import {beforeEach,it,expect,vi} from 'vitest';
-import {render,screen,fireEvent,cleanup,within} from '@testing-library/react';
+import {render,screen,fireEvent,cleanup,within,act} from '@testing-library/react';
 import ContentPlannerPage from '../ContentPlannerPage.jsx';
-const {planner,marketing,auth}=vi.hoisted(()=>({planner:{command:vi.fn(),read:vi.fn(),order:vi.fn()},marketing:{context:vi.fn(),assetUrl:vi.fn(),plannerPublishing:vi.fn()},auth:{user:{id:'planner-user'},hasPermission:vi.fn(()=>true)}}));
+const {planner,marketing,auth,media}=vi.hoisted(()=>({media:{props:null},planner:{command:vi.fn(),read:vi.fn(),order:vi.fn()},marketing:{context:vi.fn(),assetUrl:vi.fn(),plannerPublishing:vi.fn()},auth:{user:{id:'planner-user'},hasPermission:vi.fn(()=>true)}}));
 vi.mock('../plannerService.js',()=>({plannerService:planner}));vi.mock('../marketingService.js',()=>({marketingService:marketing}));vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>auth}));
 vi.mock('../../../components/forms/SelectField.jsx',()=>({default:({label,ariaLabel,value,onChange,options,disabled})=><label>{label}<select aria-label={ariaLabel||label} disabled={disabled} value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>}));
-vi.mock('../MarketingMediaPicker.jsx',()=>({default:()=>null}));
+vi.mock('../MarketingMediaPicker.jsx',()=>({default:props=>{media.props=props;return null}}));
 const task={id:'task',organization_id:'org',brand_id:'brand',brand_name:'Brand',title:'Real task',content_type:'post',due_date:'2026-10-12',planned_week:'2026-10-12',planned_publish_date:null,priority:'normal',brief:'Approved factual brief',reference_links:[],asset_ids:[],assets:[],history:[],status:'planned',blocked:false,blocker_reason:'',revision:1,manual_order:1,created_at:'2026-10-12'};
 const read={tasks:[task],members:[],targets:[],templates:[],drafts:[]};
 beforeEach(()=>{cleanup();localStorage.clear();window.history.replaceState({},'','/marketing/planner');vi.clearAllMocks();marketing.plannerPublishing.mockResolvedValue({rows:[],total_count:0});marketing.assetUrl.mockResolvedValue('https://example.com/preview.jpg');auth.hasPermission.mockImplementation(()=>true);marketing.context.mockResolvedValue({organizations:[{id:'org',name:'Org'}],brands:[{id:'brand',organization_id:'org',name:'Brand'}]});planner.read.mockResolvedValue(read);let current=read;planner.command.mockImplementation(async c=>{if(c.action==='save'){current={...current,tasks:current.tasks.map(t=>t.id===c.id?{...t,...c.payload,revision:t.revision+1}:t)};planner.read.mockResolvedValue(current);}return {}});});
@@ -198,4 +198,11 @@ it('limits initial assignees by Brand and clears selection when Brand changes',a
 it('retains optional create fields after an actionable server rejection',async()=>{
  planner.command.mockImplementation(async c=>{if(c.action==='create')throw new Error('Choose an authorized brand team member.');return {}});
  render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'New Task'}));const dialog=within(screen.getByRole('dialog',{name:'New creative task'}));fireEvent.change(dialog.getByLabelText(/Title/),{target:{value:'Keep draft'}});fireEvent.change(dialog.getByRole('textbox',{name:'Description'}),{target:{value:'Keep description'}});fireEvent.click(dialog.getByRole('button',{name:'Add task'}));await dialog.findByRole('alert');expect(dialog.getByRole('textbox',{name:'Description'}).value).toBe('Keep description');expect(dialog.getByLabelText(/Title/).value).toBe('Keep draft');
+});
+
+it('reports a task attachment failure to the shared picker and keeps the canonical media unchanged',async()=>{
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));planner.command.mockRejectedValueOnce(new Error('Task changed. Reopen and retry.'));let result;await act(async()=>{result=await media.props.onChange(['snapshot'])});expect(result).toBe(false);expect(media.props.values).toEqual([]);expect(screen.getByRole('alert').textContent).toContain('Task changed');expect(screen.getByRole('dialog',{name:'Creative task'})).toBeTruthy();
+});
+it('retries a saved attachment with the same request ID when the detail refresh fails',async()=>{
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'Add media to Real task'}));planner.command.mockResolvedValue({revision:2});planner.read.mockRejectedValueOnce(new Error('Refresh unavailable')).mockResolvedValueOnce({...read,tasks:[{...task,revision:2,asset_ids:['snapshot']}]});let result;await act(async()=>{result=await media.props.onChange(['snapshot'])});expect(result).toBe(false);const first=planner.command.mock.calls.at(-1)[0];await act(async()=>{result=await media.props.onChange(['snapshot'])});expect(result).toEqual({revision:2});expect(planner.command.mock.calls.at(-1)[0].requestId).toBe(first.requestId);expect(media.props.values).toEqual(['snapshot']);
 });
