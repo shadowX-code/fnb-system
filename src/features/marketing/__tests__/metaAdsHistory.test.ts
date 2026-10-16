@@ -66,3 +66,16 @@ describe('history turn deadline',()=>{
   await expect(readAdsHistoryStep(graph,account,'secret','2025-10-17','2026-10-16',{},async()=>{if(++revoked>1)throw new MetaError('ads_authority_changed')})).rejects.toMatchObject({code:'ads_authority_changed'});
  });
 });
+
+describe('database checkpoint JSON ordering',()=>{
+ it('deduplicates the same provider row after JSONB reorders its saved keys',async()=>{
+  const {adsInsight}=await import('../../../../supabase/functions/_shared/metaAds.ts');
+  const ordered=(_key:string,v:any)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v;
+  const original=JSON.parse(JSON.stringify(adsInsight(row),ordered));
+  const saved={step:3,page:1,after:'first',requests:4,window:'2025-10-17',report:{account,configs:{},insights:{account:[original]},warnings:{}}};
+  const graph:any={request:vi.fn(async()=>({data:[row]}))};
+  const result=await readAdsHistoryStep(graph,account,'secret','2025-10-17','2026-10-16',saved,guard);
+  expect(result.state.report.insights.account).toHaveLength(1);
+  expect(result.state.report.warnings.account).toBeUndefined();
+ });
+});

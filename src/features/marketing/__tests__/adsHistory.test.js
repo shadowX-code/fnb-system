@@ -1,6 +1,8 @@
+import {adsReportingPeriod} from '../adsReadiness.js';
 import {describe,it,expect} from 'vitest';
 import {historyFloor,campaignLifetime,adsCoverage,adsMetricAvailability} from '../adsHistory.js';
 describe('canonical historical presentation',()=>{
+ it('uses twelve calendar months including leap-day boundaries in account timezone',()=>{expect(adsReportingPeriod('Asia/Singapore',365,new Date('2024-02-29T00:00:00Z'))).toEqual({from:'2023-03-01',to:'2024-02-29'});});
  it('clamps calendar month ends and campaign lifetime to the requested history window',()=>{
   expect(historyFloor('2026-03-31')).toBe('2023-02-28');
   expect(campaignLifetime({start_time:'2020-01-01T00:00:00+0800'},'2026-10-16')).toEqual({from:'2023-09-16',to:'2026-10-16',limited:true});

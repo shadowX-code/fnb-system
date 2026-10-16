@@ -338,7 +338,7 @@ export default function MarketingAdsPage() {
               />
               {data.reports.some(r=>r.connection_id===a.id) && !a.summary && !Object.keys(data.reports.find(r=>r.connection_id===a.id)?.payload.warnings||{}).length && <p className="text-sm text-text-secondary">{brand?"No reporting rows are available for this brand. Campaigns must have explicit brand attribution; missing metrics are not zero.":"Meta returned no reporting rows for this period. Missing metrics remain unavailable."}</p>}
               <div className="ads-overview-analysis">
-                <AdsPerformanceTrend report={data.reports.find(r => r.connection_id === a.id)?.payload}/>
+                <AdsPerformanceTrend report={data.reports.find(r => r.connection_id === a.id)?.payload || data.catalogs?.find(r=>r.connection_id===a.id)?.payload}/>
                 <Results row={a.summary}/>
               </div>
               <AdsReportingContext
@@ -352,7 +352,7 @@ export default function MarketingAdsPage() {
                   No exact-period snapshot yet. Use Sync selected period above; changing dates never starts a provider request.
                 </p>
               )}
-              <footer className="ads-observation">{data.reports.find(r=>r.connection_id===a.id)?.observed_at ? `Observed ${new Date(data.reports.find(r=>r.connection_id===a.id).observed_at).toLocaleString('en-MY', {timeZone:a.health?.timezone || 'Asia/Kuala_Lumpur'})}` : "No successful synchronization yet"} · Refreshes every six hours</footer>
+              <footer className="ads-observation">{data.reports.find(r=>r.connection_id===a.id)?.observed_at ? `Observed ${new Date(data.reports.find(r=>r.connection_id===a.id).observed_at).toLocaleString('en-MY', {timeZone:a.health?.timezone || 'Asia/Kuala_Lumpur'})}` : "No observation for selected period"} · Current reporting refreshes every six hours</footer>
             </section>
           ))}
         {tab === "accounts" && <section className="ads-connections" aria-label="Connected Ad Accounts">
@@ -602,6 +602,7 @@ export default function MarketingAdsPage() {
         >
           <div className="space-y-5">
             {modal.level==='campaign' && campaignLifetime(modal.row,reportingDay,active?.health?.timezone) && <button className="btn-secondary" onClick={()=>{const r=campaignLifetime(modal.row,reportingDay,active?.health?.timezone);setPeriodMode('lifetime');setFrom(r.from);setTo(r.to);setModal(null);setNotice(`Campaign lifetime: ${modal.row.name} · ${r.from}–${r.to}${r.limited?' · limited to the requestable history window':''}. All metrics use this exact period; older observations are not fabricated.`);}}>Campaign lifetime</button>}
+          {modal.level==='campaign'&&!campaignLifetime(modal.row,reportingDay,active?.health?.timezone)&&<p className="text-sm text-text-secondary">Lifetime reporting is unavailable: this campaign has no usable configured dates within the requestable history window.</p>}
           {modal.onDrill && <button className="btn-secondary" onClick={()=>{modal.onDrill();setModal(null)}}>View {modal.level === "campaign" ? "Ad Sets" : "Ads"}</button>}
             <Badge>{modal.row.effective_status || "Status unavailable"}</Badge>
             <MetricGrid
