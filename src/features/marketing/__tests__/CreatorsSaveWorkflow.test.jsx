@@ -13,14 +13,14 @@ beforeEach(()=>{notify.mockReset();localStorage.clear();window.history.replaceSt
 afterEach(cleanup);
 async function open(){render(<CreatorsPage ui={{notify}}/>);fireEvent.click(await screen.findByRole('tab',{name:'Collaborations'}));fireEvent.click(await screen.findByRole('button',{name:'View Mixed collaboration'}));return within(screen.getByRole('dialog'))}
 it('acknowledges a committed save before workspace refresh and never overwrites later unsaved edits',async()=>{
- const refresh=deferred();service.read.mockResolvedValueOnce(data).mockReturnValueOnce(refresh.promise);service.command.mockResolvedValue({...c,revision:2});let drawer=await open();fireEvent.click(drawer.getByRole('button',{name:'Save',exact:true}));await waitFor(()=>expect(notify).toHaveBeenCalledWith({title:'Collaboration saved.',tone:'success'}));expect(screen.queryByText('Saved.')).toBeNull();drawer=within(screen.getByRole('dialog'));await waitFor(()=>expect(drawer.getByRole('button',{name:'Save',exact:true}).disabled).toBe(false));
+ const refresh=deferred();service.read.mockResolvedValueOnce(data).mockResolvedValueOnce(data).mockReturnValueOnce(refresh.promise);service.command.mockResolvedValue({...c,revision:2});let drawer=await open();fireEvent.click(drawer.getByRole('button',{name:'Save',exact:true}));await waitFor(()=>expect(notify).toHaveBeenCalledWith({title:'Collaboration saved.',tone:'success'}));expect(screen.queryByText('Saved.')).toBeNull();drawer=within(screen.getByRole('dialog'));await waitFor(()=>expect(drawer.getByRole('button',{name:'Save',exact:true}).disabled).toBe(false));
  fireEvent.change(drawer.getByLabelText('Collaboration Title *'),{target:{value:'Unsaved after save'}});refresh.resolve({...data,collaborations:[{...c,revision:2}]});await waitFor(()=>expect(drawer.getByLabelText('Collaboration Title *').value).toBe('Unsaved after save'));
 });
 it('retains failed edits, retries the exact request identity, and prevents concurrent submissions',async()=>{
  const pending=deferred();service.command.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({...c,revision:2,title:'Edited'});const drawer=await open();fireEvent.change(drawer.getByLabelText('Collaboration Title *'),{target:{value:'Edited'}});const form=screen.getByRole('dialog').querySelector('form');fireEvent.submit(form);fireEvent.submit(form);expect(service.command).toHaveBeenCalledTimes(1);expect(drawer.getByRole('button',{name:'Saving…'}).disabled).toBe(true);pending.resolve(Promise.reject(new Error('Temporary save failure. Retry.')));await drawer.findByRole('alert');expect(drawer.getByLabelText('Collaboration Title *').value).toBe('Edited');fireEvent.submit(form);await waitFor(()=>expect(service.command).toHaveBeenCalledTimes(2));expect(service.command.mock.calls[0][0].request).toBe(service.command.mock.calls[1][0].request);
 });
 it('child Post save updates its exact parent plan immediately without waiting for enrichment',async()=>{
- const refresh=deferred();service.read.mockResolvedValueOnce(data).mockReturnValueOnce(refresh.promise);service.preview.mockResolvedValue({platform:'instagram',canonical_url:'https://instagram.com/p/real/',metadata_status:'unavailable',message:'Manual details'});service.command.mockImplementation(async intent=>({id:'post',revision:1,brand_id:'b',creator_id:'creator',platform:'instagram',canonical_url:intent.payload.url,collaboration_id:'collab',deliverable_id:intent.payload.deliverable_id,publication_confirmed_at:'2026-10-14T00:00:00Z'}));
+ const refresh=deferred();service.read.mockResolvedValueOnce(data).mockResolvedValueOnce(data).mockReturnValueOnce(refresh.promise);service.preview.mockResolvedValue({platform:'instagram',canonical_url:'https://instagram.com/p/real/',metadata_status:'unavailable',message:'Manual details'});service.command.mockImplementation(async intent=>({id:'post',revision:1,brand_id:'b',creator_id:'creator',platform:'instagram',canonical_url:intent.payload.url,collaboration_id:'collab',deliverable_id:intent.payload.deliverable_id,publication_confirmed_at:'2026-10-14T00:00:00Z'}));
  let drawer=await open();fireEvent.click(drawer.getAllByRole('button',{name:'Add Post URL'})[0]);drawer=within(screen.getByRole('dialog'));fireEvent.change(drawer.getByLabelText('Post URL *'),{target:{value:'https://instagram.com/p/real/'}});fireEvent.click(drawer.getByRole('button',{name:'Inspect URL'}));await drawer.findByRole('heading',{name:'Post Preview'});fireEvent.click(drawer.getByRole('button',{name:'Save Post'}));await waitFor(()=>expect(within(screen.getByRole('dialog')).getByText('1/2 Published')).toBeTruthy());expect(within(screen.getByRole('dialog')).getByLabelText('Collaboration Title *').value).toBe('Mixed collaboration');expect(service.command.mock.calls[0][0].payload).toMatchObject({creator_id:'creator',deliverable_id:'d1',confirm_link:true,confirm_published:true});
 });
 
@@ -36,4 +36,28 @@ it('opens a Brand history chip as exact Creator collaboration filtering without 
  render(<CreatorsPage ui={{notify}}/>);fireEvent.click(await screen.findByRole('button',{name:'Brand: 1 collaborations'}));
  expect(screen.queryByRole('dialog')).toBeNull();expect(screen.getByRole('tab',{name:'Collaborations'}).getAttribute('aria-selected')).toBe('true');expect(await screen.findByRole('button',{name:'View Mixed collaboration'})).toBeTruthy();expect(screen.queryByRole('button',{name:'View Other collaboration'})).toBeNull();
  fireEvent.click(screen.getByRole('button',{name:'Creator',exact:true}));fireEvent.click(screen.getByRole('option',{name:'All',exact:true}));expect(screen.getByRole('button',{name:'View Other collaboration'})).toBeTruthy();
+});
+
+it('loads shared Directory independently from the remembered Brand and filters only actual authorized work',async()=>{
+ localStorage.setItem('marketing.creators.user',JSON.stringify({org:'org',brand:'b',view:'grid'}));
+ const worked={...data.creators[0],collaboration_history:[{brand_id:'b',collaboration_count:1}]};
+ service.read.mockResolvedValue({...data,creators:[worked,{...worked,id:'new-person',name:'Not worked yet',brand_ids:['b'],collaboration_history:[]}]});
+ render(<CreatorsPage ui={{notify}}/>);
+ await screen.findByRole('button',{name:'View Not worked yet'});
+ expect(service.read).toHaveBeenCalledWith('org',null);
+ expect(screen.queryByRole('button',{name:'Brand',exact:true})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Worked with Brand'}));fireEvent.click(screen.getByRole('option',{name:'Brand',exact:true}));
+ expect(screen.getByRole('button',{name:'View Creator'})).toBeTruthy();expect(screen.queryByRole('button',{name:'View Not worked yet'})).toBeNull();
+ expect(service.command).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('tab',{name:'Collaborations'}));await waitFor(()=>expect(service.read).toHaveBeenCalledWith('org','b'));
+ fireEvent.click(screen.getByRole('tab',{name:'Directory'}));await waitFor(()=>expect(service.read.mock.calls.at(-1)).toEqual(['org',null]));
+});
+it('creates a shared profile without inheriting the remembered Brand',async()=>{
+ localStorage.setItem('marketing.creators.user',JSON.stringify({org:'org',brand:'b'}));service.command.mockResolvedValue({id:'new',name:'Shared New',profile_scope:'organization'});
+ render(<CreatorsPage ui={{notify}}/>);await screen.findByRole('button',{name:'View Creator'});fireEvent.click(screen.getByRole('button',{name:'Add Creator'}));fireEvent.change(await screen.findByLabelText('Name *'),{target:{value:'Shared New'}});fireEvent.submit(screen.getByRole('dialog').querySelector('form'));
+ await waitFor(()=>expect(service.command).toHaveBeenCalledWith(expect.objectContaining({org:'org',brand:null,action:'save_creator'})));
+});
+it('preserves canonical Post deep links while Directory and commercial scopes are independent',async()=>{
+ window.history.replaceState({},'','/?post_id=post&marketing_brand=b');service.read.mockResolvedValue({...data,posts:[{id:'post',brand_id:'b',creator_id:'creator',platform:'instagram',caption:'Linked Post',canonical_url:'https://www.instagram.com/p/Fixture/',latest_metrics:{},revision:1}]});
+ render(<CreatorsPage ui={{notify}}/>);await screen.findByRole('dialog');expect(screen.getByRole('tab',{name:'Posts'}).getAttribute('aria-selected')).toBe('true');expect(service.read).toHaveBeenCalledWith('org','b');expect(screen.getByRole('dialog').textContent).toContain('Linked Post');
 });

@@ -3,10 +3,10 @@ import {render,screen,fireEvent,waitFor,cleanup} from '@testing-library/react';
 import CreatorEditor,{AccountEditor,CollaborationEditor,PostEditor,MetricsEditor} from '../CreatorEditors.jsx';
 import {creatorService} from '../creatorService.js';
 vi.mock('../MarketingMediaPicker.jsx',()=>({default:()=> <span>Canonical media picker</span>}));
-vi.mock('../creatorService.js',()=>({creatorService:{followersStatus:vi.fn().mockResolvedValue({}),refreshFollowers:vi.fn(),history:vi.fn(),preview:vi.fn(),manualPreview:vi.fn(),directory:vi.fn().mockResolvedValue({creators:[],accounts:[],options:[]}),profile:vi.fn().mockResolvedValue({metadata_status:'unavailable'})}}));
+vi.mock('../creatorService.js',()=>({creatorService:{followersStatus:vi.fn().mockResolvedValue({}),refreshFollowers:vi.fn(),history:vi.fn().mockResolvedValue({rows:[],total:0,next:null}),preview:vi.fn(),manualPreview:vi.fn(),directory:vi.fn().mockResolvedValue({creators:[],accounts:[],options:[]}),profile:vi.fn().mockResolvedValue({metadata_status:'unavailable'})}}));
 const brands=[{id:'b',organization_id:'org',name:'Authorized Brand',outlets:[]}];
 const data={creators:[{id:'c',name:'Creator',brand_ids:['b'],archived:false,categories:[]}],accounts:[],collaborations:[],posts:[],snapshots:[],members:[],campaigns:[]};
-const props={brands,data,defaultBrand:'b',assets:[],canMedia:false,busy:false,onClose:vi.fn(),onSave:vi.fn(),canManage:true};
+const props={org:'org',brands,data,defaultBrand:'b',assets:[],canMedia:false,busy:false,onClose:vi.fn(),onSave:vi.fn(),canManage:true};
 afterEach(()=>{cleanup();vi.clearAllMocks()});
 describe('Creator V1 staff workflows',()=>{
  it('requires only a Creator name without a brand relationship, without a social login',()=>{render(<CreatorEditor {...props}/>);fireEvent.change(screen.getByLabelText('Name *'),{target:{value:'Minimal Creator'}});fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({name:'Minimal Creator',categories:[],locations:[]}), null, undefined)});
