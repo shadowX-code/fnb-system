@@ -55,3 +55,7 @@ it('picker cards and plus toggle once while preview and folder navigation stay i
 it('picker List row keyboard activation selects rather than opening the preview',async()=>{
  connect();const select=vi.fn();render(<DriveMediaBrowser organizationId="org" brandId="brand" selectOnClick onSelect={select}/>);await screen.findByRole('button',{name:'Open folder Campaigns'});fireEvent.click(screen.getByRole('tab',{name:'List'}));fireEvent.keyDown(screen.getByRole('row',{name:'Select Beta.jpg'}),{key:'Enter'});expect(select).toHaveBeenCalledExactlyOnceWith(files[1]);expect(screen.queryByRole('dialog')).toBeNull();
 });
+
+it('uses the picker version-aware selection predicate consistently in Grid and List',async()=>{
+ connect();render(<DriveMediaBrowser organizationId="org" brandId="brand" selectOnClick onSelect={vi.fn()} selected={['a']} isSelected={file=>file.id==='b'}/>);await screen.findByRole('button',{name:'Open folder Campaigns'});expect(screen.getAllByRole('button',{name:'Remove Beta.jpg'})).toHaveLength(2);expect(screen.getAllByRole('button',{name:'Select Alpha.mp4'})).toHaveLength(2);fireEvent.click(screen.getByRole('tab',{name:'List'}));expect(screen.getByRole('row',{name:'Remove Beta.jpg'}).getAttribute('aria-selected')).toBe('true');expect(screen.getByRole('row',{name:'Select Alpha.mp4'}).getAttribute('aria-selected')).toBe('false');
+});
