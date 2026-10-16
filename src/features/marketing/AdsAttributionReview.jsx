@@ -226,7 +226,7 @@ export default function AdsAttributionReview({
                   <Badge>{c.effective_status}</Badge>
                 </div>
                 {evidence(c)}
-                <div>{spend(c)}</div>
+                <div><small className="text-text-secondary">Selected-period spend</small>{spend(c)}</div>
                 {coverage(c)}
                 {canManage && (
                   <button
@@ -334,7 +334,7 @@ export default function AdsAttributionReview({
             ]}/>
           </div>
           <div className="ads-mobile space-y-3">
-            {confirmation.items.map(c=><section key={c.id} className="ads-panel space-y-2"><strong className="break-words">{c.name}</strong><small className="block text-text-secondary">{c.id}</small><div>{spend(c)}</div>{coverage(c)}<p>Proposed Brand: {name(confirmation.brand)}</p>{evidence(c)}</section>)}
+            {confirmation.items.map(c=><section key={c.id} className="ads-panel space-y-2"><strong className="break-words">{c.name}</strong><small className="block text-text-secondary">{c.id}</small><div><small className="text-text-secondary">Selected-period spend</small>{spend(c)}</div>{coverage(c)}<p>Proposed Brand: {name(confirmation.brand)}</p>{evidence(c)}</section>)}
           </div>
           {error && (
             <p role="alert" className="text-red-600 text-sm">
