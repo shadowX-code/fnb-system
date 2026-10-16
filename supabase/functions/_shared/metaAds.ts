@@ -355,12 +355,18 @@ export async function readAdsHistoryStep(graph: MetaGraph, account: any, token: 
    // Authority changes and temporary failures retry the same persisted cursor.
    if(config || !(error instanceof MetaError) || error.retryable || ['ads_sync_time_limit','meta_permission_or_token_invalid','ads_authority_changed'].includes(error.code))throw error;
    if(error.graphCode===100 && !state.omitReach){
-    state.omitReach=true;state.page=0;state.after=null;state.seen=[];state.window=from;target[stage]=[];state.requests++;
+    state.omitReach=true;state.page=0;state.after=null;state.seen=[];target[stage]=daily?target[stage].filter((r:any)=>r.date_start<state.window):[];state.requests++;
     continue;
    }
    if(state.report.metric_warnings)delete state.report.metric_warnings[stage];
    state.report.warnings[stage]=error.code;
-   target[stage]=[];state.requests++;advance();
+   state.requests++;
+   if(daily){
+    // A restricted old window does not hide later eligible daily observations.
+    target[stage]=target[stage].filter((r:any)=>r.date_start<state.window);
+    state.report.daily_gaps??=[];state.report.daily_gaps.push({from:state.window,to:end,reason:error.code});
+    if(end<to){state.window=new Date(Date.parse(end+'T00:00:00Z')+86400000).toISOString().slice(0,10);state.after=null;state.page=0;state.seen=[];}else advance();
+   }else{target[stage]=[];advance();}
   }
  }
  const withinTurn=await canContinue();
