@@ -38,8 +38,16 @@ Evidence: `/private/tmp/feedx-ads-review-qa/`; logs and rollback receipts: `/pri
 
 ## Smallest Production release proposal
 
-Reconcile exact current main/live `2b1e290c50991b8372e73081c7694b17d5bb173a`, ledger 800 before action; stop on drift. Preserve all concurrent Media Picker/Planner and integration releases. Apply only `20261016061610_marketing_ads_catalog_projection.sql` (800→801), SHA-256 `5d068416659c698d5d925cb43521544ade9022e0759194378f688e60504f6edb`. Deploy the isolated successor frontend through one existing Vercel Git deployment; promote only that exact READY deployment to existing domains if needed. No Edge Functions, worker, environment, scheduler, credential, provider or execution changes are needed.
+Reconcile exact current main/live `18d7595a684ca0081a0892f8ab9716a5be552b95`, ledger 803 before action; stop on drift. Preserve all concurrent Media Picker/Planner and integration releases. Apply only `20261016061610_marketing_ads_catalog_projection.sql` (803→804), SHA-256 `5d068416659c698d5d925cb43521544ade9022e0759194378f688e60504f6edb`. Deploy the isolated successor frontend through one existing Vercel Git deployment; promote only that exact READY deployment to existing domains if needed. No Edge Functions, worker, environment, scheduler, credential, provider or execution changes are needed.
 
 Focused Production acceptance is read-only: read current/year/unsynced and Brand-scoped reporting, open the five-item confirmation, check partial exclusion and preserve stored observation/totals. Do not save attribution. Production release approval and the exact five mapping approvals remain separate.
 
-Rollback frontend to verified READY deployment `dpl_9ib7QJRaiBnKSKe9KX6J11fqybJj`. The additive read optimization can remain in place; if a query defect is found, prepare a forward repair restoring the previous function definition. No data restore, down migration or rewriting reporting evidence is needed.
+Rollback frontend to verified READY deployment `dpl_45WBqtCqr1b7GCRJDpJcZ2zsPPXu`. The additive read optimization can remain in place; if a query defect is found, prepare a forward repair restoring the previous function definition. No data restore, down migration or rewriting reporting evidence is needed.
+
+## Production reconciliation — successor approval required
+
+The approved `3c415ea0be2a153cbe33d6ad6f3be1445961b97f` predates live/main `18d7595a684ca0081a0892f8ab9716a5be552b95` (Planner working attachments). The successor merges that exact main unchanged. Production ledger is 803, with newer Planner conflict, authorization-plan and task-attachment receipts. The Ads migration remains unapplied. Its complete reviewed replacement string still matches the live RPC (function MD5 `8fb869baf9a135b964890a846c7d69c4`); its file checksum and all Ads runtime/test changes remain byte-identical to the approved RC. No Production writes occurred during reconciliation.
+
+The revised authorization must name the successor and ledger 803→804. Apply only the exact reviewed Ads migration; do not replay unrelated source migrations or deploy Edge Functions. Recheck main/live, ledger and the exact RPC guard immediately before execution and stop on further drift. Existing Staging acceptance remains applicable because the Ads changes are unchanged. Focused merged-build and Ads/attachment compatibility checks accompany this successor; Production acceptance remains pending approval.
+
+Successor compatibility verification: 53 tests pass across seven Ads/Media files; production build passes with the existing chunk-size advisory. Documentation Impact: updated release evidence and deployment/rollback baseline only; no new business contract.
