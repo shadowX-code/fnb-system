@@ -1,6 +1,6 @@
 -- Staging-only, synthetic evidence; all writes and claims roll back. No Meta calls.
 begin;
-set local statement_timeout='30s';
+set local statement_timeout='8s';
 select set_config('request.jwt.claims',(select jsonb_build_object('sub',e.auth_user_id,'role','authenticated')::text from marketing_connections c join employees e on e.id=c.connected_by where c.channel='ad_account' and c.provider_account_id='1547787575646373'),true);
 create temporary table finalization_qa_result(result jsonb) on commit drop;
 do $$
@@ -27,6 +27,9 @@ begin
  assert octet_length(packed::text)<3000000,'Packed fixture exceeds retained storage guard';
  assert marketing_private.ads_unpack_report(packed)=r,'Lossy provenance or metric compaction';
  assert marketing_private.ads_pack_report(packed)=packed,'Packing is not idempotent';
+ bad:=jsonb_set(packed,'{insights,daily,0,attribution}','"Explicit provider provenance override"');
+ assert marketing_private.ads_pack_report(bad)=bad,'Packed fast path changed an explicit provenance override';
+ assert marketing_private.ads_unpack_report(bad)#>>'{insights,daily,0,attribution}'='Explicit provider provenance override','Override lost on expansion';
  assert marketing_private.ads_unpack_report(r)=r,'Legacy report changed';
  assert marketing_private.ads_pack_report('{"insights":{"daily":[{"metrics":{"spend":{"value":null}}}]}}')='{"insights":{"daily":[{"metrics":{"spend":{"value":null}}}]}}'::jsonb,'Missing provenance invented';
  insert into marketing_private.ads_sync_jobs(id,connection_id,generation,actor_employee_id,date_from,date_to,state,lease,lease_until,attempts)
