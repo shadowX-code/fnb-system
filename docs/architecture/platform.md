@@ -220,7 +220,7 @@ Admin summary grids retain their existing mobile layout by default. Dashboards m
 
 ### Marketing Creators routing
 
-`marketing_creators` owns `/marketing/creators` within the existing Marketing workspace. Its Directory/Collaborations/Posts/Insights tabs share one route and the canonical shell. Scoped `marketing_org`, `marketing_brand` and `post_id` links are validated against the existing authorized context/read model. The [Marketing domain](../domains/marketing.md) owns Creator identity, relationship and evidence contracts.
+`marketing_creators` owns `/marketing/creators` within the existing Marketing workspace. Its Directory/Collaborations/Posts/Insights tabs share one route and the canonical shell. Creator Master and Social Profiles are tenant-shared under Creator View/Manage; private Collaboration, Post and Insights evidence remains per-member Brand-scoped. Directory does not require a Brand selection and never exposes Organization setup. Scoped `marketing_org`, `marketing_brand` and `post_id` links are validated against the existing authorized context/read model. The [Marketing domain](../domains/marketing.md) owns Creator identity, relationship and evidence contracts.
 
 ### Restaurant Brand And Outlet Management
 
