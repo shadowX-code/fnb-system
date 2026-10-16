@@ -46,3 +46,22 @@ it('uses canonical device upload and commits only on Done',async()=>{
 it('does not attach an in-flight import after the Brand changes',async()=>{
  let finish;importFile.mockImplementation(()=>new Promise(resolve=>{finish=resolve}));const save=vi.fn();const view=render(picker({onChange:save}));fireEvent.click(screen.getByRole('button',{name:'Drive image'}));fireEvent.click(screen.getByRole('button',{name:'Done'}));view.rerender(picker({brand:{id:'other',organization_id:'org'},onChange:save}));await act(async()=>finish(readyAsset));expect(save).not.toHaveBeenCalled();expect(screen.getByText('0 selected')).toBeTruthy();
 });
+it('shares selected state and deselection between Drive and Existing FeedX media',async()=>{
+ listing.mockResolvedValue({rows:[readyAsset],total_count:1});const save=vi.fn();render(picker({onChange:save}));
+ fireEvent.click(screen.getByRole('button',{name:'Drive image'}));
+ fireEvent.click(screen.getByRole('tab',{name:'Existing FeedX media'}));
+ const selected=await screen.findByRole('button',{name:'Remove Drive.jpg'});
+ expect(selected.getAttribute('aria-pressed')).toBe('true');expect(selected.textContent).toBe('Selected');expect(selected.closest('article').className).toContain('is-selected');expect(screen.getByText('1 selected')).toBeTruthy();
+ fireEvent.click(selected);expect(screen.getByText('0 selected')).toBeTruthy();
+ fireEvent.click(screen.getByRole('tab',{name:'Google Drive'}));expect(screen.getByRole('button',{name:'Drive image'}).getAttribute('aria-pressed')).toBe('false');
+ fireEvent.click(screen.getByRole('tab',{name:'Existing FeedX media'}));fireEvent.click(await screen.findByRole('button',{name:'Select Drive.jpg'}));expect(screen.getByText('1 selected')).toBeTruthy();
+ fireEvent.click(screen.getByRole('tab',{name:'Google Drive'}));expect(screen.getByRole('button',{name:'Drive image'}).getAttribute('aria-pressed')).toBe('true');
+ fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(save).toHaveBeenCalledExactlyOnceWith(['snapshot']));expect(importFile).not.toHaveBeenCalled();
+});
+it('keeps one selected Drive identity through source switches, failed save and retry',async()=>{
+ listing.mockResolvedValue({rows:[readyAsset],total_count:1});importFile.mockResolvedValue(readyAsset);const save=vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce({revision:2});render(picker({onChange:save}));
+ fireEvent.click(screen.getByRole('button',{name:'Drive image'}));fireEvent.click(screen.getByRole('tab',{name:'Existing FeedX media'}));await screen.findByRole('button',{name:'Remove Drive.jpg'});
+ fireEvent.click(screen.getByRole('button',{name:'Done'}));await screen.findByRole('alert');expect(screen.getByText('1 selected')).toBeTruthy();expect(screen.getByRole('button',{name:'Remove Drive.jpg'}).getAttribute('aria-pressed')).toBe('true');
+ fireEvent.click(screen.getByRole('tab',{name:'Google Drive'}));expect(screen.getByRole('button',{name:'Drive image'}).getAttribute('aria-pressed')).toBe('true');
+ fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(screen.queryByRole('heading',{name:'Select media'})).toBeNull());expect(importFile).toHaveBeenCalledTimes(1);expect(save.mock.calls).toEqual([[['snapshot']],[['snapshot']]]);
+});

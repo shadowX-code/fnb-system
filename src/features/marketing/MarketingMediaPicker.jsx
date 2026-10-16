@@ -22,6 +22,7 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
  useEffect(()=>{let live=true;if(!open||tab!=='existing')return;setLoading(true);marketingService.listing({organizationId:brand.organization_id,brandId:brand.id,kind:'assets',page,pageSize:20}).then(data=>{if(live){setRows(data.rows);setTotal(data.total_count);setKnown(current=>[...new Map([...current,...data.rows].map(a=>[a.id,a])).values()]);}}).catch(e=>{if(live)setError(e.message)}).finally(()=>{if(live)setLoading(false)});return()=>{live=false};},[open,tab,page,brand.id]);
  function assetFor(entry){return entry.id?known.find(a=>a.id===entry.id):null;}
  function driveKey(entry){return entry.file?fileKey(entry.file):assetFor(entry)?.source_metadata?.selection_id;}
+ function matchesAsset(entry,asset){return entry.id===asset.id||Boolean(asset.source_metadata?.selection_id&&driveKey(entry)===asset.source_metadata.selection_id);}
  function toggle(entry,match){
   if(disabled||saving.current)return;
   setError('');
@@ -33,7 +34,7 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
  function select(asset){
   if(!eligible(asset,format,channel)){setError('Choose compatible media: images up to 8 MB; Instagram images require JPEG. Videos require MP4.');return;}
   setKnown(current=>[...new Map([...current,asset].map(a=>[a.id,a])).values()]);
-  toggle({id:asset.id},entry=>entry.id===asset.id||Boolean(asset.source_metadata?.selection_id&&driveKey(entry)===asset.source_metadata.selection_id));
+  toggle({id:asset.id},entry=>matchesAsset(entry,asset));
  }
  async function upload(file){
   if(disabled||saving.current)return;
@@ -78,6 +79,6 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
   toggle({file},entry=>driveKey(entry)===fileKey(file));
  }}/>:null}
  {tab==='upload'?<div className="media-upload-zone"><Upload size={28}/><strong>Choose an image or video</strong><span>JPG, PNG, WebP or MP4 · up to 100 MB</span><label className="btn-primary">Choose file<input className="sr-only" aria-label="Upload post media" type="file" accept={format==='reel'?'video/mp4':channel==='instagram'?'image/jpeg':'image/jpeg,image/png,image/webp'} disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)upload(file)}}/></label></div>:null}
- {tab==='existing'?<><AsyncDataSurface loading={loading} error={null} isEmpty={!loading&&!rows.length} emptyTitle="No eligible saved media"><div className="drive-grid">{rows.filter(asset=>eligible(asset,format,channel)).map(asset=><article className={`drive-tile p-3 ${pending.some(entry=>entry.id===asset.id)?'is-selected':''}`} key={asset.id}><MarketingMediaPreview asset={asset}/><button className="btn-secondary" type="button" onClick={()=>select(asset)} aria-pressed={pending.some(entry=>entry.id===asset.id)} aria-label={`${pending.some(entry=>entry.id===asset.id)?'Remove':'Select'} ${asset.filename}`}>{pending.some(entry=>entry.id===asset.id)?'Selected':'Select media'}</button></article>)}</div></AsyncDataSurface><AdminPagination page={page} pageSize={20} total={total} onPageChange={setPage} onPageSizeChange={()=>{}}/></>:null}
+ {tab==='existing'?<><AsyncDataSurface loading={loading} error={null} isEmpty={!loading&&!rows.length} emptyTitle="No eligible saved media"><div className="drive-grid">{rows.filter(asset=>eligible(asset,format,channel)).map(asset=>{const selected=pending.some(entry=>matchesAsset(entry,asset));return <article className={`drive-tile p-3 ${selected?'is-selected':''}`} key={asset.id}><MarketingMediaPreview asset={asset}/><button className="btn-secondary" type="button" onClick={()=>select(asset)} aria-pressed={selected} aria-label={`${selected?'Remove':'Select'} ${asset.filename}`}>{selected?'Selected':'Select media'}</button></article>})}</div></AsyncDataSurface><AdminPagination page={page} pageSize={20} total={total} onPageChange={setPage} onPageSizeChange={()=>{}}/></>:null}
  </div></Modal>:null}</div>;
 }
