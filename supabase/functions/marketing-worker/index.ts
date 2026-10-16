@@ -1,3 +1,4 @@
+import {privacyProcessingAllowed} from '../_shared/marketingPrivacyExecution.mjs';
 import {publishingConfigured, publishingAccountAllowed} from '../_shared/marketingExecution.mjs';
 import {runtimeMetaMatches, PRODUCTION_RUNTIME} from '../_shared/marketingEnvironment.mjs';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
@@ -25,7 +26,7 @@ Deno.serve(async(req)=>{
  await call(db,'marketing_worker_health');
  await call(db,'marketing_ads_change_expire');
  // Retain failed write-ahead intents for retry; journal failures never alter publishing gates.
- if(!PRODUCTION_RUNTIME)try{for(const intent of await call(db,'marketing_privacy_journal_pending'))await commitJournal(db,intent);}catch{console.warn('marketing_privacy_journal_pending');}
+ if(privacyProcessingAllowed(PRODUCTION_RUNTIME,env))try{for(const intent of await call(db,'marketing_privacy_journal_pending'))await commitJournal(db,intent);}catch{console.warn('marketing_privacy_journal_pending');}
  await call(db,'marketing_inbox_process_events',{p_limit:20});
 
  const configured=['MARKETING_META_APP_ID','MARKETING_META_APP_SECRET','MARKETING_META_LOGIN_CONFIG_ID','MARKETING_META_GRAPH_VERSION','MARKETING_META_TOKEN_ENCRYPTION_KEY'].every(n=>env(n));
