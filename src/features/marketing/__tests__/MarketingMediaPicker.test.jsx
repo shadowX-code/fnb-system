@@ -6,7 +6,7 @@ const driveFile={id:'drive-image',selection_id:'shortcut',version:'7',name:'Driv
 const readyAsset={id:'snapshot',filename:'Drive.jpg',state:'ready',mime_type:'image/jpeg',size_bytes:100,source_kind:'drive',source_metadata:{selection_id:'shortcut',version:'7'}};
 vi.mock('../driveService.js',()=>({driveService:{import:importFile,upload:uploadFile}}));
 vi.mock('../marketingService.js',()=>({marketingService:{listing}}));
-vi.mock('../DriveMediaBrowser.jsx',()=>({default:({onSelect,selected})=><><button onClick={()=>onSelect(driveFile)} aria-pressed={selected.includes('shortcut')}>Drive image</button><button onClick={()=>onSelect({...driveFile,id:'pdf',selection_id:'pdf',mimeType:'application/pdf'})}>Unsupported file</button></>}));
+vi.mock('../DriveMediaBrowser.jsx',()=>({default:({onSelect,isSelected})=><><button onClick={()=>onSelect(driveFile)} aria-pressed={isSelected(driveFile)}>Drive image</button><button onClick={()=>onSelect({...driveFile,id:'pdf',selection_id:'pdf',mimeType:'application/pdf'})}>Unsupported file</button></>}));
 vi.mock('../MarketingMediaPreview.jsx',()=>({default:({asset})=><span>{asset.filename}</span>}));
 afterEach(()=>{cleanup();vi.clearAllMocks()});
 it('uses the canonical total_count to reach and select saved media after the first page',async()=>{
@@ -64,4 +64,13 @@ it('keeps one selected Drive identity through source switches, failed save and r
  fireEvent.click(screen.getByRole('button',{name:'Done'}));await screen.findByRole('alert');expect(screen.getByText('1 selected')).toBeTruthy();expect(screen.getByRole('button',{name:'Remove Drive.jpg'}).getAttribute('aria-pressed')).toBe('true');
  fireEvent.click(screen.getByRole('tab',{name:'Google Drive'}));expect(screen.getByRole('button',{name:'Drive image'}).getAttribute('aria-pressed')).toBe('true');
  fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(screen.queryByRole('heading',{name:'Select media'})).toBeNull());expect(importFile).toHaveBeenCalledTimes(1);expect(save.mock.calls).toEqual([[['snapshot']],[['snapshot']]]);
+});
+
+it('does not confuse a historical Drive snapshot with the current file version',async()=>{
+ const older={...readyAsset,id:'older',filename:'Older Drive.jpg',source_metadata:{...readyAsset.source_metadata,version:'6'}};
+ listing.mockResolvedValue({rows:[readyAsset,older],total_count:2});const save=vi.fn();render(picker({onChange:save,assets:[readyAsset,older]}));
+ fireEvent.click(screen.getByRole('button',{name:'Drive image'}));fireEvent.click(screen.getByRole('tab',{name:'Existing FeedX media'}));expect((await screen.findByRole('button',{name:'Remove Drive.jpg'})).getAttribute('aria-pressed')).toBe('true');expect(screen.getByRole('button',{name:'Select Older Drive.jpg'}).getAttribute('aria-pressed')).toBe('false');expect(screen.getByText('1 selected')).toBeTruthy();
+});
+it('a saved older snapshot does not preselect a newer Drive version',()=>{
+ const older={...readyAsset,id:'older',source_metadata:{...readyAsset.source_metadata,version:'6'}};render(picker({onChange:vi.fn(),values:['older'],assets:[older]}));expect(screen.getByRole('button',{name:'Drive image'}).getAttribute('aria-pressed')).toBe('false');expect(screen.getByText('1 selected')).toBeTruthy();
 });

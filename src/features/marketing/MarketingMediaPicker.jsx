@@ -21,8 +21,12 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
  useEffect(()=>{setKnown(current=>[...new Map([...current,...assets].map(a=>[a.id,a])).values()]);},[assets]);
  useEffect(()=>{let live=true;if(!open||tab!=='existing')return;setLoading(true);marketingService.listing({organizationId:brand.organization_id,brandId:brand.id,kind:'assets',page,pageSize:20}).then(data=>{if(live){setRows(data.rows);setTotal(data.total_count);setKnown(current=>[...new Map([...current,...data.rows].map(a=>[a.id,a])).values()]);}}).catch(e=>{if(live)setError(e.message)}).finally(()=>{if(live)setLoading(false)});return()=>{live=false};},[open,tab,page,brand.id]);
  function assetFor(entry){return entry.id?known.find(a=>a.id===entry.id):null;}
- function driveKey(entry){return entry.file?fileKey(entry.file):assetFor(entry)?.source_metadata?.selection_id;}
- function matchesAsset(entry,asset){return entry.id===asset.id||Boolean(asset.source_metadata?.selection_id&&driveKey(entry)===asset.source_metadata.selection_id);}
+ function driveIdentity(entry){
+  const source=assetFor(entry)?.source_metadata,key=entry.file?fileKey(entry.file):source?.selection_id,version=entry.file?.version??source?.version;
+  return key&&version!=null?JSON.stringify([key,String(version)]):null;
+ }
+ function matchesDrive(entry,file){const identity=driveIdentity(entry);return Boolean(identity&&identity===driveIdentity({file}));}
+ function matchesAsset(entry,asset){return entry.id===asset.id||Boolean(asset.source_kind==='drive'&&asset.source_metadata?.selection_id&&matchesDrive(entry,{selection_id:asset.source_metadata.selection_id,version:asset.source_metadata.version}));}
  function toggle(entry,match){
   if(disabled||saving.current)return;
   setError('');
@@ -74,9 +78,9 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
  <AdminSegmentedControl label="Media source" value={tab} onChange={value=>{if(!busy){setTab(value);setError('')}}} options={[{value:'drive',label:'Google Drive'},{value:'upload',label:'Upload from device'},{value:'existing',label:'Existing FeedX media'}]}/>
  {error?<p role="alert" className="text-sm text-danger mt-3">{error}</p>:null}
  <div inert={busy||disabled} className={`mt-4 ${busy||disabled?'pointer-events-none opacity-60':''}`}>
- {tab==='drive'?<DriveMediaBrowser organizationId={brand.organization_id} brandId={brand.id} selectOnClick selected={pending.map(driveKey).filter(Boolean)} onSelect={file=>{
+ {tab==='drive'?<DriveMediaBrowser organizationId={brand.organization_id} brandId={brand.id} selectOnClick isSelected={file=>pending.some(entry=>matchesDrive(entry,file))} onSelect={file=>{
   if(format==='reel'?file.mimeType!=='video/mp4':!file.mimeType.startsWith('image/')){setError('Choose an image for this task, or MP4 for a Reel.');return;}
-  toggle({file},entry=>driveKey(entry)===fileKey(file));
+  toggle({file},entry=>matchesDrive(entry,file));
  }}/>:null}
  {tab==='upload'?<div className="media-upload-zone"><Upload size={28}/><strong>Choose an image or video</strong><span>JPG, PNG, WebP or MP4 · up to 100 MB</span><label className="btn-primary">Choose file<input className="sr-only" aria-label="Upload post media" type="file" accept={format==='reel'?'video/mp4':channel==='instagram'?'image/jpeg':'image/jpeg,image/png,image/webp'} disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)upload(file)}}/></label></div>:null}
  {tab==='existing'?<><AsyncDataSurface loading={loading} error={null} isEmpty={!loading&&!rows.length} emptyTitle="No eligible saved media"><div className="drive-grid">{rows.filter(asset=>eligible(asset,format,channel)).map(asset=>{const selected=pending.some(entry=>matchesAsset(entry,asset));return <article className={`drive-tile p-3 ${selected?'is-selected':''}`} key={asset.id}><MarketingMediaPreview asset={asset}/><button className="btn-secondary" type="button" onClick={()=>select(asset)} aria-pressed={selected} aria-label={`${selected?'Remove':'Select'} ${asset.filename}`}>{selected?'Selected':'Select media'}</button></article>})}</div></AsyncDataSurface><AdminPagination page={page} pageSize={20} total={total} onPageChange={setPage} onPageSizeChange={()=>{}}/></>:null}
