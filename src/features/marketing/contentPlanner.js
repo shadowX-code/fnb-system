@@ -1,5 +1,6 @@
 export const PLANNER_TIMEZONE='Asia/Kuala_Lumpur';
 export const taskStatuses=[['planned','Planned'],['in_progress','In Progress'],['in_review','In Review'],['revision_needed','Revision Needed'],['completed','Completed']].map(([value,label])=>({value,label}));
+export const taskPriorities=[{value:'normal',label:'Normal'},{value:'high',label:'High'}];
 export const taskTypes=[['post','Post'],['reel','Reel'],['story','Story'],['photography','Photography'],['design','Design']].map(([value,label])=>({value,label}));
 export const todayKey=(date=new Date())=>new Intl.DateTimeFormat('en-CA',{timeZone:PLANNER_TIMEZONE,year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
 export const currentMonth=(date=new Date())=>todayKey(date).slice(0,7)+'-01';
