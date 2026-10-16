@@ -2,7 +2,7 @@ import { META_REDIRECT, META_SCOPES } from './metaSecurity.ts';
 import { adsErrorEvidence, type AdsErrorEvidence } from './metaAdsDiagnostics.ts';
 import { resolvePageRoleTasks, discoverAuthorizerAssignments, resolveBusinessPageTasks, type AuthorizerAssignment } from './metaPageTasks.ts';
 // Only explicitly selected non-secret fields may enter diagnostics. Never log provider bodies.
-export type MetaResponseEvidence={graph_error_subcode:number|null;error_permissions:string[]};
+export type MetaResponseEvidence={graph_error_subcode:number|null;error_permissions:string[];page_error?:{message:string|null;fbtrace_id:string|null}};
 export type MetaDiagnostic = Record<string, string | number | boolean | null | string[]>;
 const diagnosticScopes=new Set([...META_SCOPES,'public_profile','email','business_management','pages_manage_metadata','pages_messaging','ads_read','ads_management']);
 const diagnosticTasks=new Set(['ADVERTISE','ANALYZE','CREATE_CONTENT','MANAGE','MESSAGING','MODERATE','PROFILE_PLUS_ADVERTISE','PROFILE_PLUS_ANALYZE','PROFILE_PLUS_CREATE_CONTENT','PROFILE_PLUS_FULL_CONTROL','PROFILE_PLUS_MANAGE','PROFILE_PLUS_MESSAGING','PROFILE_PLUS_MODERATE']);
@@ -21,7 +21,8 @@ export class MetaGraph {
  private report(event:MetaDiagnostic) {try{this.diagnostic?.(event);}catch{/* Diagnostics must not change authorization behavior. */}}
  async request(path:string,token:string,params:Record<string,any>={},method='GET',inspect?:(status:number|null,code:number|null,evidence?:MetaResponseEvidence)=>void):Promise<any> {
   this.signal?.throwIfAborted();
-  if(!/^\/?(?:(?:act_)?\d+(?:_\d+)?|me|oauth|debug_token|t_\d{1,80})(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
+  const pageFollowers=method==='GET'&&/^[a-z][a-z\d._-]{0,159}$/i.test(path)&&params.fields==='id,username,link,followers_count'&&Object.keys(params).length===1;
+  if(!pageFollowers&&!/^\/?(?:(?:act_)?\d+(?:_\d+)?|me|oauth|debug_token|t_\d{1,80})(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
   const url=new URL(`https://graph.facebook.com/${this.config.version}/${path.replace(/^\//,'')}`);
   const form=new URLSearchParams();for(const [key,value] of Object.entries(params))if(value!==undefined&&value!==null)form.set(key,typeof value==='object'?JSON.stringify(value):String(value));
   if(token&&token!==`${this.config.appId}|${this.config.appSecret}`) {
@@ -44,7 +45,14 @@ export class MetaGraph {
    if(['me/accounts','me/permissions'].includes(path))this.report({event:'graph_response',endpoint:path,http_status:response.status,graph_error_code:null,returned_count:null,data_shape:'unreadable'});
    throw new MetaError('meta_response_unreadable',method!=='GET',method==='GET');
   }
-  inspect?.(response.status,Number.isSafeInteger(body?.error?.code)?body.error.code:null,{graph_error_subcode:Number.isSafeInteger(body?.error?.error_subcode)?body.error.error_subcode:null,error_permissions:[...diagnosticScopes,'pages_read_user_content'].filter(scope=>new RegExp(`\\b${scope}\\b`).test(String(body?.error?.message||'')))});
+  // Only fixed public Page metadata reads retain bounded, redacted error text.
+  const pageRead=method==='GET'&&/^[a-z\d._-]{1,160}$/i.test(path)&&params.fields==='id,username,link,followers_count'&&Object.keys(params).length===1;
+  const pageText=(value:unknown)=>{
+   if(typeof value!=='string'||value.length>4096)return null;
+   let text=value;for(const secret of [token,this.config.appSecret,form.get('appsecret_proof')||''].filter(Boolean))for(const encoded of new Set([secret,encodeURIComponent(secret)]))text=text.split(encoded).join('[redacted]');
+   return text.replace(/https?:\/\/[^\s<>]+/gi,'[documentation URL]').replace(/\bEAA[A-Za-z0-9_-]+/g,'[redacted]').replace(/[\u0000-\u001f\u007f]/g,' ').slice(0,1500);
+  };
+  inspect?.(response.status,Number.isSafeInteger(body?.error?.code)?body.error.code:null,{...(pageRead&&body.error?{page_error:{message:pageText(body.error.message),fbtrace_id:typeof body.error.fbtrace_id==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(body.error.fbtrace_id)&&![token,this.config.appSecret,form.get('appsecret_proof')||''].filter(Boolean).some(s=>body.error.fbtrace_id.includes(s))?body.error.fbtrace_id:null}}:{}),graph_error_subcode:Number.isSafeInteger(body?.error?.error_subcode)?body.error.error_subcode:null,error_permissions:[...diagnosticScopes,'pages_read_user_content'].filter(scope=>new RegExp(`\\b${scope}\\b`).test(String(body?.error?.message||'')))});
   if(['me/accounts','me/permissions'].includes(path))this.report({event:'graph_response',endpoint:path,http_status:response.status,graph_error_code:Number.isSafeInteger(body.error?.code)?body.error.code:null,returned_count:Array.isArray(body.data)?body.data.length:null,data_shape:Array.isArray(body.data)?'array':body.error?'error':'unexpected'});
   if(!response.ok||body.error) {
    const code=Number(body.error?.code); const auth=[10,190,200].includes(code);

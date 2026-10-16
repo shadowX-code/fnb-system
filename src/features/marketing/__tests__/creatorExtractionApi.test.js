@@ -1,3 +1,5 @@
+import {inspectProfile} from '../../../../server/creatorExtraction/profiles.mjs';
+vi.mock('../../../../server/creatorExtraction/profiles.mjs',async importOriginal=>({...await importOriginal(),inspectProfile:vi.fn()}));
 import {describe,it,expect,vi,afterEach} from 'vitest';
 import handler from '../../../../api/marketing-creator-inspect.mjs';
 import {inspectPublic} from '../../../../server/creatorExtraction/inspect.mjs';
@@ -20,3 +22,16 @@ it('profile mode rejects denied scope before public metadata or browser access',
 it('resolves XHS short identity before canonical lookup and always disables paid providers',async()=>{stage();const id='6a8fb7f30000000037034698',calls=[];vi.stubGlobal('fetch',vi.fn(async(url,options)=>{calls.push([url,JSON.parse(options.body)]);return new Response(JSON.stringify(url.endsWith('inspection_access')?(JSON.parse(options.body).p_begin?'lease':null):url.endsWith('creator_directory')?{accounts:[]}:{platform:'xhs',post_key:id,canonical_url:'https://www.xiaohongshu.com/explore/'+id}))}));inspectPublic.mockResolvedValue({platform:'xhs',post_id:id,canonical_url:'https://www.xiaohongshu.com/explore/'+id,original_url:'https://xhslink.com/o/test',metadata_status:'unavailable'});const request=req();request.body.url='https://xhslink.com/o/test';const response=res();await handler(request,response);expect(response.code).toBe(200);expect(inspectPublic).toHaveBeenCalledWith(request.body.url,expect.objectContaining({allowPaid:false}));expect(calls.filter(([url])=>url.endsWith('post_preview'))).toHaveLength(1);expect(calls.find(([url])=>url.endsWith('post_preview'))[1].p_url).toBe('https://www.xiaohongshu.com/explore/'+id);expect(response.json.mock.calls[0][0].post_key).toBe(id)});
 it('checks short-link Brand permission before any public request',async()=>{stage();vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('{}',{status:403})));const request=req();request.body.url='https://xhslink.com/o/test';const response=res();await handler(request,response);expect(response.code).toBe(400);expect(inspectPublic).not.toHaveBeenCalled()});
 
+
+it('prioritizes the scoped official profile read without public retries on provider denial',async()=>{
+ stage();const calls=[];vi.stubGlobal('fetch',vi.fn(async(url,options)=>{calls.push([url,JSON.parse(options.body)]);return new Response(JSON.stringify(url.endsWith('/creator-profile')?{applicable:true,metadata_status:'unavailable',reason:'meta_error_100',unavailable:{profile:'No eligible profile picture.'}}:{accounts:[]}))}));
+ const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/happinesskopitiam/'};const response=res();await handler(request,response);
+ expect(response.json).toHaveBeenCalledWith(expect.objectContaining({metadata_status:'unavailable',reason:'meta_error_100'}));expect(inspectProfile).not.toHaveBeenCalled();expect(calls.filter(([url])=>url.endsWith('/creator-profile'))).toHaveLength(1);expect(calls.some(([url])=>url.endsWith('inspection_access'))).toBe(false);
+});
+it('does not scrape Instagram when no same-Brand official connection is applicable',async()=>{
+ stage();vi.stubGlobal('fetch',vi.fn(async(url,options)=>new Response(JSON.stringify(url.endsWith('/creator-profile')?{applicable:false}:url.endsWith('inspection_access')?(JSON.parse(options.body).p_begin?'lease':null):{accounts:[]}))));inspectProfile.mockResolvedValue({metadata_status:'unavailable',reason:'provider_access_restricted'});
+ const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/happinesskopitiam/'};const response=res();await handler(request,response);expect(inspectProfile).not.toHaveBeenCalled();expect(response.json).toHaveBeenCalledWith(expect.objectContaining({reason:'official_profile_connection_unavailable'}));expect(fetch.mock.calls.some(([url])=>url.endsWith('inspection_access'))).toBe(false);
+});
+it('never retries restricted public access during official-only image renewal',async()=>{
+ stage();vi.stubGlobal('fetch',vi.fn(async url=>new Response(JSON.stringify(url.endsWith('/creator-profile')?{applicable:false}:{accounts:[]}))));const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/happinesskopitiam/',officialOnly:true};const response=res();await handler(request,response);expect(response.json).toHaveBeenCalledWith(expect.objectContaining({reason:'official_profile_connection_unavailable'}));expect(inspectProfile).not.toHaveBeenCalled();
+});

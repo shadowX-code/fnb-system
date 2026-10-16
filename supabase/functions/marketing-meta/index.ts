@@ -1,3 +1,5 @@
+import {readCreatorProfile} from '../_shared/metaCreatorProfile.ts';
+import {privacyProcessingAllowed} from '../_shared/marketingPrivacyExecution.mjs';
 import {metaOAuthRoute, metaOAuthRoutes} from '../_shared/metaOAuthRouting.mjs';
 import {publishingConfigured, productionPublishingConfigured, productionPublishingPolicy} from '../_shared/marketingExecution.mjs';
 import {runtimeMetaMatches, PRODUCTION_RUNTIME} from '../_shared/marketingEnvironment.mjs';
@@ -24,7 +26,7 @@ Deno.serve(async(req)=>{
  const missing=names.filter(n=>!env(n));
  if(path==='/configuration'&&req.method==='GET')return json(req,{configured:!missing.length,missing,redirect_uri:META_REDIRECT,app_domains:[new URL(RUNTIME_ORIGIN).hostname,new URL(RUNTIME_SUPABASE).hostname],deauthorization_uri:`${META_BASE}/deauthorize`,data_deletion_uri:`${META_BASE}/data-deletion`,permissions:META_SCOPES,oauth_routes:metaOAuthRoutes(env),test_execution_configured:!PRODUCTION_RUNTIME && publishingConfigured(env),production_execution_enabled:productionPublishingConfigured(env)});
  if(req.headers.get('origin')&&!origins.has(req.headers.get('origin')!))return json(req,{error:'Origin unavailable.'},403);
- if(PRODUCTION_RUNTIME && req.method==='POST' && ['/deauthorize','/data-deletion'].includes(path))return json(req,{error:'Privacy processing is disabled pending release approval.'},503);
+ if(!privacyProcessingAllowed(PRODUCTION_RUNTIME,env) && req.method==='POST' && ['/deauthorize','/data-deletion'].includes(path))return json(req,{error:'Privacy processing is disabled pending release approval.'},503);
  const service=createClient(RUNTIME_SUPABASE,env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSession:false,autoRefreshToken:false}});
  try {
   if(path.startsWith('/deletion-status/')&&req.method==='GET') {
@@ -48,7 +50,7 @@ Deno.serve(async(req)=>{
    return json(req,deletion?{url:`${META_BASE}/deletion-status/${confirmation}`,confirmation_code:confirmation}:{success:true});
   }
   let caller:any=null,user:any=null;
-  if(req.method==='POST'&&['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions'].includes(path)) {
+  if(req.method==='POST'&&['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions','/creator-profile'].includes(path)) {
    const bearer=req.headers.get('authorization')||'';if(!bearer.startsWith('Bearer '))return json(req,{error:'Sign in to Marketing.'},401);
    caller=createClient(RUNTIME_SUPABASE,env('SUPABASE_ANON_KEY'),{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
    const identity=await caller.auth.getUser();user=identity.data.user;if(identity.error||!user)return json(req,{error:'Sign in to Marketing.'},401);
@@ -70,8 +72,9 @@ Deno.serve(async(req)=>{
    if(reason)redirect.searchParams.set('meta_reason',reason);
    return new Response(null,{status:303,headers:{...headers(req),Location:redirect.toString()}});
   }
-  if(req.method!=='POST'||!['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions'].includes(path))return json(req,{error:'Endpoint unavailable.'},404);
+  if(req.method!=='POST'||!['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions','/creator-profile'].includes(path))return json(req,{error:'Endpoint unavailable.'},404);
   const raw=await req.text();if(raw.length>10000)return json(req,{error:'Request too large.'},413);const body=JSON.parse(raw);
+  if(path==='/creator-profile'){const result=await readCreatorProfile(caller,service,user.id,graph,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],body);console.info(JSON.stringify({tag:'marketing_creator_official_profile',applicable:result.applicable,reason:result.reason||null,http_status:result.http_status??null,graph_error_code:result.graph_error_code??null,method:result.method||null}));return json(req,result);}
   async function checkConnection(connectionId:string,recordEligibility=false){
    const material=await call(service,'marketing_meta_diagnostic_material',{p_connection:connectionId,p_auth_user:user.id});
    const credential=await unseal(material.sealed_token,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));

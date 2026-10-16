@@ -1,22 +1,15 @@
-import {useState} from 'react';
-import {safePostMediaUrl} from './contentManagement.js';
-import {creatorProfileLink} from './creatorProfiles.js';
+import {useEffect,useRef,useState} from 'react';
+import {creatorAvatarUrl,creatorInstagramAccount} from './creatorAvatar.js';
+import {renewCreatorAvatar} from './creatorAvatarRenewal.js';
+export {creatorAvatarUrl,creatorInstagramAccount} from './creatorAvatar.js';
 
-function profilePicture(account){
- const o=account?.public_observation;
- if(o?.source!=='public_profile_staff_confirmed'||o.avatar_kind!=='profile_picture'||o.profile_url!==creatorProfileLink(account)||!Number.isFinite(Date.parse(o.captured_at)))return null;
- const url=safePostMediaUrl(o.avatar_url);
- return url&&/^https:\/\/([a-z0-9-]+\.)*(cdninstagram\.com|fbcdn\.net)\//i.test(url)?url:null;
-}
-export function creatorInstagramAccount(creator,accounts=[]){
- const profiles=accounts.filter(a=>a.creator_id===creator.id&&!a.archived&&a.platform==='instagram').sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)));
- return profiles.find(a=>a.id===creator.primary_instagram_account_id)||profiles.find(profilePicture)||profiles[0]||null;
-}
-export function creatorAvatarUrl(creator,accounts=[]){return profilePicture(creatorInstagramAccount(creator,accounts));}
-export default function CreatorAvatar({creator,accounts=[],compact=false}){
- const url=creatorAvatarUrl(creator,accounts),[failed,setFailed]=useState(null);
+export default function CreatorAvatar({creator,accounts=[],compact=false,org,brandId,canRefresh=false}){
+ const base=creatorAvatarUrl(creator,accounts),[renewed,setRenewed]=useState(null),[failed,setFailed]=useState(null),alive=useRef(true);
+ useEffect(()=>{alive.current=true;return()=>{alive.current=false}},[]);
+ const url=renewed?.base===base?creatorAvatarUrl(creator,[renewed.account]):base;
+ async function imageFailed(){setFailed(url);if(!canRefresh||!org||!brandId)return;const account=creatorInstagramAccount(creator,accounts);try{const fresh=await renewCreatorAvatar({org,brand:brandId,creator,account});if(alive.current&&fresh)setRenewed({base,account:fresh})}catch{/* Accurate initials remain when renewal is unavailable. */}}
  const initials=(creator.name||'Creator').trim().split(/\s+/).slice(0,2).map(v=>v[0]).join('').toUpperCase();
  return <span className={`creator-avatar${compact?' creator-avatar-small':''}`}>
- {url&&failed!==url?<img src={url} alt={`${creator.name} Instagram profile picture`} loading="lazy" referrerPolicy="no-referrer" onError={()=>setFailed(url)}/>:<span aria-label={`${creator.name} initials`}>{initials}</span>}
+ {url&&failed!==url?<img src={url} alt={`${creator.name} Instagram profile picture`} loading="lazy" referrerPolicy="no-referrer" onError={imageFailed}/>:<span aria-label={`${creator.name} initials`}>{initials}</span>}
  </span>;
 }
