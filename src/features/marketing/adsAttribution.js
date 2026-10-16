@@ -42,16 +42,21 @@ export function campaignEvidence(report, brands = [], identities = []) {
       .map((b) => b.id);
     const conflict =
       pages.length > 1 || instagram.length > 1 || matched.length > 1;
+    const known = ads.filter(a => numeric(a.creative?.object_story_spec?.page_id) || numeric(a.creative?.object_story_spec?.instagram_user_id)).length;
+    const unmatched = pages.some(id=>!identities.some(i=>i.channel==='facebook'&&i.account_id===id)) || instagram.some(id=>!identities.some(i=>i.channel==='instagram'&&i.account_id===id));
+    const malformed = ads.some(a=>['page_id','instagram_user_id'].some(k=>a.creative?.object_story_spec?.[k]!=null&&!numeric(a.creative.object_story_spec[k])));
+    const status = conflict ? 'conflict' : !known ? 'unavailable' : known!==ads.length||malformed ? 'partial' : matched.length!==1||unmatched ? 'unmatched' : 'verified';
+    const ready = status==='verified';
     const key = conflict
       ? "conflict"
       : pages.length || instagram.length
-        ? `identity:${pages.join(",")}:${instagram.join(",")}`
+        ? `${status}:identity:${pages.join(",")}:${instagram.join(",")}`
         : hints.length
           ? `suggestion:${hints.join(",")}`
           : "unresolved";
     return {
       ...c,
-      evidence: { pages, instagram, matches: matched, hints, conflict, key },
+      evidence: { pages, instagram, matches: matched, hints, conflict, key, known, total:ads.length, status, ready },
     };
   });
 }
@@ -66,13 +71,13 @@ export function attributionGroups(rows) {
         label: e.conflict
           ? "Conflicting identities — individual review"
           : e.pages.length || e.instagram.length
-            ? `Page ${e.pages.join(", ") || "unavailable"} · Instagram ${e.instagram.join(", ") || "unavailable"}`
+            ? `${e.ready?'Verified':e.status==='partial'?'Partial identities':'Brand unverified'} · Page ${e.pages.join(", ") || "unavailable"} · Instagram ${e.instagram.join(", ") || "unavailable"}`
             : e.hints.length
               ? "Name suggestion — ownership unverified"
               : "Ownership unresolved",
-        batchable: !e.conflict && Boolean(e.pages.length || e.instagram.length),
+        batchable: e.ready,
       });
     groups.get(e.key).rows.push(row);
   }
-  return [...groups.values()];
+  return [...groups.values()].sort((a,b)=>Number(b.batchable)-Number(a.batchable));
 }

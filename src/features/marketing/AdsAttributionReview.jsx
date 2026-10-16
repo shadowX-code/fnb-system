@@ -8,6 +8,9 @@ import Badge from "../../components/ui/Badge.jsx";
 import EmptyState from "../../components/feedback/EmptyState.jsx";
 import { campaignEvidence, attributionGroups } from "./adsAttribution.js";
 import { adsService } from "./adsService.js";
+import { adsMetric, insightFor } from "./adsPresentation.js";
+import { adsMetricAvailability } from "./adsHistory.js";
+const evidenceLabels = {verified:'Verified identities',partial:'Partial identities',unavailable:'Identity unavailable',conflict:'Conflicting identities',unmatched:'Brand unverified'};
 export default function AdsAttributionReview({
   report,
   org,
@@ -15,6 +18,8 @@ export default function AdsAttributionReview({
   identities,
   canManage,
   onUpdated,
+  from,
+  to,
 }) {
   const [search, setSearch] = useState(""),
     [filter, setFilter] = useState("all"),
@@ -41,7 +46,7 @@ export default function AdsAttributionReview({
     setError("");
     setConfirmation({
       items,
-      brand: items.length && items.every(c=>!c.evidence.conflict && c.evidence.matches.length===1 && c.evidence.matches[0]===items[0].evidence.matches[0]) ? items[0].evidence.matches[0] : "",
+      brand: items.length && items.every(c=>c.evidence.ready && c.evidence.matches[0]===items[0].evidence.matches[0]) ? items[0].evidence.matches[0] : "",
       request: crypto.randomUUID(),
       rows: items.map((c) => ({
         campaign_id: c.id,
@@ -51,6 +56,14 @@ export default function AdsAttributionReview({
     });
   };
   const selection = rows.filter((c) => selected.includes(c.id));
+  const proposedBrand = confirmation?.items.length && confirmation.items.every(c=>c.evidence.ready&&c.evidence.matches[0]===confirmation.items[0].evidence.matches[0]) ? confirmation.items[0].evidence.matches[0] : '';
+  const canConfirm = confirmation && (proposedBrand && confirmation.brand===proposedBrand || confirmation.brand==='' && confirmation.items.some(c=>c.feedx_brand_id));
+  const period = `${report.date_from||from||'Unknown start'}–${report.date_to||to||'Unknown end'}`;
+  const spend = c => {
+    const row=insightFor(report,'campaign',c.id),metric=row?.metrics?.spend;
+    return <span className="block tabular-nums"><strong>{adsMetric(metric,'spend',report.account.currency)}</strong>{metric?.value==null&&<small className="block text-text-secondary">{adsMetricAvailability(report,'campaign',row)||'Spend unavailable'}</small>}</span>;
+  };
+  const coverage = c => <span className="block"><span className="tabular-nums">{c.evidence.known}/{c.evidence.total} ads with identity</span><small className="block text-text-secondary">{evidenceLabels[c.evidence.status]}</small></span>;
   const safeBatch =
     selection.length > 0 &&
     selection.every((c) => c.evidence.key === selection[0].evidence.key) &&
@@ -79,6 +92,7 @@ export default function AdsAttributionReview({
       type="checkbox"
       aria-label={`Select ${c.name}`}
       checked={selected.includes(c.id)}
+      disabled={!c.evidence.ready}
       onChange={(e) =>
         setSelected(
           e.target.checked
@@ -127,9 +141,7 @@ export default function AdsAttributionReview({
         )}
       </AdminFilterToolbar>
       <p className="text-xs text-text-secondary">
-        Identity evidence identifies the Meta asset, not its FeedX owner. Name
-        suggestions never assign a brand. Batch review requires one consistent
-        identity group.
+        Spend: {period} · {report.account.currency} · {report.account.timezone||'Account timezone unavailable'}. Only complete, consistent ad identities matched to one connected Brand can be assigned. Partial or unavailable evidence stays Unassigned. Names never establish ownership.
       </p>
       {error && (
         <p role="alert" className="text-sm text-red-600">
@@ -143,7 +155,7 @@ export default function AdsAttributionReview({
           <div className="ads-desktop">
             <DataTable
               density="compact"
-              minWidth={740}
+              minWidth={900}
               rows={visible}
               getRowKey={(c) => c.id}
               columns={[
@@ -161,6 +173,12 @@ export default function AdsAttributionReview({
                       </small>
                     </>
                   ),
+                },
+                {
+                  key: 'spend', header: 'Selected-period spend', render:spend,
+                },
+                {
+                  key:'coverage',header:'Ad identity coverage',render:coverage,
                 },
                 {
                   key: "brand",
@@ -208,6 +226,8 @@ export default function AdsAttributionReview({
                   <Badge>{c.effective_status}</Badge>
                 </div>
                 {evidence(c)}
+                <div>{spend(c)}</div>
+                {coverage(c)}
                 {canManage && (
                   <button
                     className="btn-secondary"
@@ -246,12 +266,14 @@ export default function AdsAttributionReview({
       {confirmation && (
         <Modal
           title={`Confirm attribution · ${confirmation.items.length} campaign${confirmation.items.length === 1 ? "" : "s"}`}
+          size="xl"
           onClose={() => !busy && setConfirmation(null)}
           footer={
             <button
               className="btn-primary"
-              disabled={busy}
+              disabled={busy||!canConfirm}
               onClick={async () => {
+                if(!canConfirm)return;
                 setBusy(true);
                 setError("");
                 try {
@@ -297,20 +319,23 @@ export default function AdsAttributionReview({
             }
             options={[
               { value: "", label: "Unassigned" },
-              ...brands.map((b) => ({ value: b.id, label: b.name })),
+              ...brands.filter(b=>b.id===proposedBrand).map((b) => ({ value: b.id, label: b.name })),
             ]}
           />
-          <ul className="space-y-2 my-4 max-h-72 overflow-auto">
-            {confirmation.items.map((c) => (
-              <li key={c.id}>
-                <strong>{c.name}</strong>
-                <span className="block text-sm">
-                  {name(c.feedx_brand_id)} → {name(confirmation.brand)}
-                </span>
-                {evidence(c)}
-              </li>
-            ))}
-          </ul>
+          <p className="my-3 text-sm text-text-secondary">Selected period: {period}. Unavailable spend is not zero; attribution never distributes shared-account spend.</p>
+          {!proposedBrand&&<p role="status" className="my-3 text-sm text-text-secondary">Identity evidence is incomplete or does not resolve to one Brand. Keep this campaign Unassigned until verified. Existing assignments can be cleared explicitly.</p>}
+          <div className="ads-desktop">
+            <DataTable density="compact" minWidth={760} rows={confirmation.items} getRowKey={c=>c.id} columns={[
+              {key:'campaign',header:'Campaign',render:c=><><strong>{c.name}</strong><small className="block text-text-secondary">{c.id}</small></>},
+              {key:'spend',header:'Selected-period spend',render:spend},
+              {key:'coverage',header:'Ad identity coverage',render:coverage},
+              {key:'brand',header:'Proposed Brand',render:()=>name(confirmation.brand)},
+              {key:'evidence',header:'Evidence',render:evidence},
+            ]}/>
+          </div>
+          <div className="ads-mobile space-y-3">
+            {confirmation.items.map(c=><section key={c.id} className="ads-panel space-y-2"><strong className="break-words">{c.name}</strong><small className="block text-text-secondary">{c.id}</small><div>{spend(c)}</div>{coverage(c)}<p>Proposed Brand: {name(confirmation.brand)}</p>{evidence(c)}</section>)}
+          </div>
           {error && (
             <p role="alert" className="text-red-600 text-sm">
               {error}

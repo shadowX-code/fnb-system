@@ -514,6 +514,8 @@ export default function MarketingAdsPage() {
           </p>
           <AdsAttributionReview
             report={modal.report}
+            from={from}
+            to={to}
             org={org}
             brands={brands}
             identities={identities}
