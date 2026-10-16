@@ -27,6 +27,16 @@ export function adsCoverage(data,connection,from,to) {
 export function adsMetricAvailability(report,level,row) {
  if(report?.not_synced||!report)return 'Selected period not synced';
  if(report.warnings?.[level])return 'Provider unavailable';
- if(!row)return 'No activity reported';
+ if(!row)return 'No campaign Insight returned · activity not established';
  return null;
+}
+
+// Use one real exact-period observation, never totals assembled across snapshots.
+export function observedLifetime(data,connection) {
+ const ranges=data?.coverage?.find(r=>r.connection_id===connection)?.ranges||[];
+ return [...ranges].sort((a,b)=>(Date.parse(b.to)-Date.parse(b.from))-(Date.parse(a.to)-Date.parse(a.from))||b.to.localeCompare(a.to)||String(b.observed_at).localeCompare(String(a.observed_at)))[0]||null;
+}
+
+export function partialAdsReport(report) {
+ return [report?.warnings,report?.metric_warnings,report?.daily_gaps].some(value=>value&&Object.keys(value).length>0);
 }

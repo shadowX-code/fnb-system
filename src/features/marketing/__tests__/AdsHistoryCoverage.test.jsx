@@ -5,11 +5,11 @@ afterEach(cleanup);
 it('explains an unsynced period outside the request window and makes no implicit request',()=>{
  const sync=vi.fn();render(<AdsHistoryCoverage data={{coverage:[{connection_id:'a',request_floor:'2023-09-16',ranges:[]}]}} account={{id:'a',name:'Shared',account_id:'123'}} from="2020-01-01" to="2020-12-31" onSync={sync}/>);
  expect(screen.getByText(/starts before the request window/).textContent).toContain('2023-09-16');
- expect(screen.getByRole('button',{name:'Sync selected period'}).disabled).toBe(true);expect(sync).not.toHaveBeenCalled();
+ expect(screen.queryByRole('button',{name:'Sync selected period'})).toBeNull();expect(sync).not.toHaveBeenCalled();
 });
-it('requires an explicit action even when a range is available',()=>{
+it('removes redundant per-period sync actions',()=>{
  const sync=vi.fn();render(<AdsHistoryCoverage data={{coverage:[{connection_id:'a',request_floor:'2023-09-16',ranges:[]}]}} account={{id:'a',name:'Shared',account_id:'123'}} from="2025-10-17" to="2026-10-16" onSync={sync}/>);
- expect(sync).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Sync selected period'}));expect(sync).toHaveBeenCalledOnce();
+ expect(sync).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'Sync selected period'})).toBeNull();
 });
 
 it('does not call provider-denied campaign rows no activity',()=>{
@@ -21,7 +21,7 @@ it('explains a contained subperiod without claiming campaign daily coverage or r
  const sync=vi.fn();render(<AdsHistoryCoverage data={{coverage:[{connection_id:'a',ranges:[{from:'2025-10-17',to:'2026-10-16',observed_at:'2026-10-16T05:35:04Z'}]}]}} account={{id:'a',name:'Shared',account_id:'123'}} from="2026-04-20" to="2026-07-18" onSync={sync}/>);
  expect(screen.getByText(/A broader report/).textContent).toContain('campaign totals cannot be split');
  expect(screen.getByText(/A broader report/).textContent).toContain('2025-10-17–2026-10-16');
- expect(screen.getByRole('button',{name:'Sync selected period'})).toBeTruthy();expect(sync).not.toHaveBeenCalled();
+ expect(screen.queryByRole('button',{name:'Sync selected period'})).toBeNull();expect(sync).not.toHaveBeenCalled();
 });
 it('distinguishes overlapping coverage from a period with no observations',()=>{
  render(<AdsHistoryCoverage data={{coverage:[{connection_id:'a',ranges:[{from:'2026-06-01',to:'2026-08-01'}]}]}} account={{id:'a',name:'Shared'}} from="2026-04-20" to="2026-07-18"/>);

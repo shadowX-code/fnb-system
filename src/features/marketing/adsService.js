@@ -97,6 +97,7 @@ export const adsService = {
       p_expected_revision: revision,
       p_request: request,
     }),
+  ensurePeriod: (connection, from, to) => rpc("marketing_ads_ensure_period", {p_connection:connection,p_from:from,p_to:to}),
   sync: (connection, from, to) =>
     rpc("marketing_ads_request_sync", {
       p_connection: connection,

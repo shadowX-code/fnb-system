@@ -21,6 +21,7 @@ const { ads, service, auth } = vi.hoisted(() => ({
     authorize: vi.fn(),
     bind: vi.fn(),
     sync: vi.fn(),
+    ensurePeriod: vi.fn(),
     disconnect: vi.fn(),
   },
   service: { context: vi.fn() },
@@ -206,7 +207,7 @@ it('keeps discovery in Ad Accounts and hides redundant binding of already-connec
  fireEvent.click(screen.getByRole('tab',{name:'Campaigns'}));
  expect(screen.queryByRole('button',{name:'Connect shared account'})).toBeNull();expect(screen.queryByRole('button',{name:'Connect Ad Account'})).toBeNull();
  fireEvent.click(screen.getByRole('tab',{name:'Ad Accounts'}));
- expect(screen.getByText('Available Account')).toBeTruthy();expect(screen.queryByText('Already bound')).toBeNull();
+ expect(await screen.findByText('Available Account')).toBeTruthy();expect(screen.queryByText('Already bound')).toBeNull();
  expect(screen.getAllByRole('button',{name:'Connect shared account'})).toHaveLength(1);
  fireEvent.click(screen.getByRole('button',{name:'Manage Connection'}));
  expect(screen.getByRole('menuitem',{name:'Reconnect Meta'})).toBeTruthy();
@@ -216,6 +217,30 @@ it('keeps discovery in Ad Accounts and hides redundant binding of already-connec
 it('keeps selected reporting dates in review when only a configuration catalog exists',async()=>{
  const payload={not_synced:true,scope:'organization',account:{id:'111',name:'Shared Account',currency:'MYR',timezone:'Asia/Singapore'},configs:{campaigns:[{id:'1',name:'Catalog campaign'}],adsets:[],ads:[]},insights:{}};
  ads.read.mockResolvedValue({organization_access:true,accounts:[{id:'account',name:'Shared Account',account_id:'111',health:{currency:'MYR',timezone:'Asia/Singapore',read_verified:true}}],reports:[],catalogs:[{connection_id:'account',payload}],jobs:[]});
- render(<MarketingAdsPage/>);await screen.findByText('Shared Account');fireEvent.click(screen.getByRole('tab',{name:'Campaigns'}));fireEvent.click(screen.getByRole('button',{name:'Review Brand attribution'}));
+ render(<MarketingAdsPage/>);await screen.findByText('Shared Account');fireEvent.click(screen.getByRole('tab',{name:'Campaigns'}));fireEvent.click(await screen.findByRole('button',{name:'Review Brand attribution'}));
  const call=ads.read.mock.calls[0];expect(screen.getByRole('dialog').textContent).toContain(`Selected reporting period ${call[2]}–${call[3]}`);expect(ads.sync).not.toHaveBeenCalled();expect(ads.attributeBatch).not.toHaveBeenCalled();
+});
+
+it('opens Campaigns on the widest observed exact period and restores Overview to 30 days',async()=>{
+ const ranges=[{from:'2025-10-17',to:'2026-10-16',observed_at:'2026-10-16T10:00:00Z'},{from:'2023-09-16',to:'2026-10-16',observed_at:'2026-10-16T14:40:02Z'}];
+ ads.read.mockImplementation(async(_o,_b,from,to)=>({organization_access:true,accounts:[{id:'supreme',name:'Supreme',account_id:'1547787575646373',generation:1,health:{timezone:'Asia/Singapore'}}],reports:[{connection_id:'supreme',date_from:from,date_to:to,payload:{account:{currency:'MYR'},configs:{campaigns:[]},insights:{campaign:[]}}}],coverage:[{connection_id:'supreme',ranges}],jobs:[]}));
+ render(<MarketingAdsPage/>);await screen.findAllByText('Supreme');
+ fireEvent.click(screen.getByRole('tab',{name:'Campaigns'}));
+ await screen.findByText(/Lifetime Performance · exact Meta-observed period 2023-09-16–2026-10-16/);
+ await waitFor(()=>expect(ads.read).toHaveBeenCalledWith('org','','2023-09-16','2026-10-16'));
+ expect(screen.queryByRole('button',{name:'Refresh data'})).toBeNull();expect(ads.sync).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('tab',{name:'Overview'}));
+ await waitFor(()=>expect(screen.getByRole('button',{name:'Period',exact:true}).textContent).toContain('Last 30 days'));
+});
+
+it('automatically requests an eligible missing selection once and polls its canonical job',async()=>{
+ let queued=false;
+ ads.read.mockImplementation(async()=>({organization_access:true,accounts:[{id:'a',name:'Shared Account',account_id:'111',generation:3,health:{automatic_history_enabled:true,timezone:'Asia/Singapore'}}],reports:[],jobs:queued?[{connection_id:'a',state:'queued'}]:[]}));
+ ads.ensurePeriod.mockImplementation(async()=>{queued=true;return {state:'syncing'}});
+ render(<MarketingAdsPage/>);await waitFor(()=>expect(ads.ensurePeriod).toHaveBeenCalledTimes(1));
+ await screen.findByText('Shared Account');expect(ads.sync).not.toHaveBeenCalled();expect(ads.bind).not.toHaveBeenCalled();
+});
+it('never initiates automatic shared reporting for a Brand-only reader',async()=>{
+ ads.read.mockResolvedValue({organization_access:false,accounts:[{id:'a',name:'Brand account',account_id:'111',health:{automatic_history_enabled:true}}],reports:[],jobs:[]});
+ render(<MarketingAdsPage/>);await screen.findByText('Brand account');expect(ads.ensurePeriod).not.toHaveBeenCalled();
 });
