@@ -24,7 +24,7 @@ export default async function handler(req,res){
     if(!official.ok)throw new Error('official_profile_unavailable');
     const result=await official.json();
     if(result.applicable===true){await rpc('marketing_creator_directory',scope);const {applicable,...profile}=result;return res.status(200).json(profile);}
-    if(body.officialOnly===true)return res.status(200).json({metadata_status:'unavailable',reason:'official_profile_connection_unavailable',unavailable:{profile:'An eligible authorized Instagram connection is unavailable. Initials remain available.'}});
+    return res.status(200).json({metadata_status:'unavailable',reason:'official_profile_connection_unavailable',unavailable:{profile:'Connect an eligible Instagram account for this Brand. No public profile request was made; saved details and initials remain available.'}});
    }
    lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
    const profile=await inspectProfile(body.url);
