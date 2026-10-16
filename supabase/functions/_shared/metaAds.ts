@@ -319,6 +319,8 @@ export async function readAdsHistoryStep(graph: MetaGraph, account: any, token: 
    history:{method:'exact_period_aggregates',daily_window_days:90,graph_version:graph.version,started_at:new Date().toISOString()},
    observation:'Exact-period provider aggregates; daily rows are not summed into Reach. Meta may restrict older metrics.'}});
  state.report.account=account;
+ const initialRequests=state.requests;
+ const canContinue=async()=>{try{await guard();return true;}catch(e){if(e instanceof MetaError&&e.code==='ads_sync_time_limit'&&state.requests>initialRequests)return false;throw e;}};
  const stages=['campaigns','adsets','ads','account','campaign','adset','ad','daily'];
  const advance=()=>{state.step++;state.page=0;state.after=null;state.seen=[];state.window=from;state.omitReach=false;};
  for(let calls=0;calls<3 && state.step<stages.length;calls++) {
@@ -327,7 +329,7 @@ export async function readAdsHistoryStep(graph: MetaGraph, account: any, token: 
   const end=daily?new Date(Math.min(Date.parse(to+'T00:00:00Z'),Date.parse(state.window+'T00:00:00Z')+89*86400000)).toISOString().slice(0,10):to;
   const target=config?state.report.configs:state.report.insights;
   target[stage]??=[];
-  await guard();
+  if(!await canContinue())return {state,complete:false};
   try {
    const response=await graph.request(`act_${account.id}/${config?stage:'insights'}`,token,{
     fields:config?ADS_CONFIG_FIELDS[stage as keyof typeof ADS_CONFIG_FIELDS]:['account_id','account_currency','campaign_id','adset_id','ad_id','date_start','date_stop',...insightFields.filter(f=>!state.omitReach||f!=='reach')].join(','),
@@ -360,9 +362,9 @@ export async function readAdsHistoryStep(graph: MetaGraph, account: any, token: 
    target[stage]=[];state.requests++;advance();
   }
  }
- await guard();
+ const withinTurn=await canContinue();
  if(JSON.stringify(state).length>2900000)throw new MetaError('ads_history_evidence_limit');
- return {state,complete:state.step===stages.length};
+ return {state,complete:withinTurn&&state.step===stages.length};
 }
 
 export async function processAdsSync(
