@@ -52,3 +52,9 @@ it('does not silently finish recursive search when a folder has another provider
 it('rechecks queued folder containment after a move, and returns no sibling data',async()=>{
  const fetcher=vi.fn(async(url:any)=>new Response(JSON.stringify(new URL(url).pathname.endsWith('/outside')?nodes.outside:nodes.root)));const result=await new GoogleDrive('test',fetcher as any).searchPage('brand','x','',{queue:[{id:'outside',phase:'matches',after:''}],visited:1});expect(result.files).toHaveLength(0);expect(result.state).toBeNull();expect(fetcher.mock.calls.some(([url])=>new URL(url).pathname.endsWith('/files'))).toBe(false);
 });
+
+it('validates PDF bytes for task references without accepting HTML or arbitrary documents',()=>{
+ expect(()=>verifySnapshot(new TextEncoder().encode('%PDF-1.7\n'),'application/pdf')).not.toThrow();
+ expect(()=>verifySnapshot(new TextEncoder().encode('<html>not a PDF</html>'),'application/pdf')).toThrow();
+ expect(()=>verifySnapshot(new TextEncoder().encode('%PDF-1.7'),'text/html')).toThrow();
+});
