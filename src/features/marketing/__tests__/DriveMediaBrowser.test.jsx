@@ -46,3 +46,12 @@ it('debounces a search burst into one browse call and cancels abandoned requests
  fireEvent.change(screen.getByRole('searchbox',{name:'Search'}),{target:{value:'B'}});fireEvent.change(screen.getByRole('searchbox',{name:'Search'}),{target:{value:'Be'}});fireEvent.change(screen.getByRole('searchbox',{name:'Search'}),{target:{value:'Beta'}});
  await waitFor(()=>expect(service.browse).toHaveBeenLastCalledWith('org','brand',expect.objectContaining({search:'Beta'})));expect(service.browse.mock.calls.length-before).toBe(1);const signal=service.browse.mock.calls.at(-1)[2].signal;mounted.unmount();expect(signal.aborted).toBe(true);
 });
+
+it('picker cards and plus toggle once while preview and folder navigation stay independent',async()=>{
+ connect();const select=vi.fn();const view=render(<DriveMediaBrowser organizationId="org" brandId="brand" selectOnClick onSelect={select}/>);await screen.findByRole('button',{name:'Open folder Campaigns'});
+ const selects=screen.getAllByRole('button',{name:'Select Beta.jpg'});fireEvent.click(selects[0]);expect(select).toHaveBeenCalledTimes(1);fireEvent.click(selects[1]);expect(select).toHaveBeenCalledTimes(2);expect(screen.queryByRole('dialog')).toBeNull();
+ view.rerender(<DriveMediaBrowser organizationId="org" brandId="brand" selectOnClick onSelect={select} selected={['b']}/>);expect(screen.getAllByRole('button',{name:'Remove Beta.jpg'})).toHaveLength(2);fireEvent.click(screen.getByRole('button',{name:'Preview Beta.jpg'}));expect(await screen.findByRole('dialog',{name:'Beta.jpg'})).toBeTruthy();expect(select).toHaveBeenCalledTimes(2);
+});
+it('picker List row keyboard activation selects rather than opening the preview',async()=>{
+ connect();const select=vi.fn();render(<DriveMediaBrowser organizationId="org" brandId="brand" selectOnClick onSelect={select}/>);await screen.findByRole('button',{name:'Open folder Campaigns'});fireEvent.click(screen.getByRole('tab',{name:'List'}));fireEvent.keyDown(screen.getByRole('row',{name:'Select Beta.jpg'}),{key:'Enter'});expect(select).toHaveBeenCalledExactlyOnceWith(files[1]);expect(screen.queryByRole('dialog')).toBeNull();
+});
