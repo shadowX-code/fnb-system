@@ -152,7 +152,7 @@
 .marketing-inbox-analytics { font-size: 12px; padding: 8px 0; border-bottom: 1px solid var(--theme-border); }
 .marketing-inbox-analytics summary { cursor: pointer; font-weight: 600; }
 .marketing-inbox-analytics p { margin: 8px 0; }
-.marketing-inbox-row:focus-visible, .inbox-text-button:focus-visible, .inbox-status-tabs button:focus-visible { outline: 2px solid var(--theme-primary); outline-offset: -2px; }
+.marketing-inbox-row:focus-visible, .inbox-text-button:focus-visible, .inbox-status-tabs button:focus-visible { outline: 2px solid var(--inbox-accent); outline-offset: -2px; }
 @media(max-width:1279px) {
  .marketing-inbox-grid, .marketing-inbox-grid.details-open { grid-template-columns: minmax(250px, 290px) 8px minmax(0,1fr); }
  .workspace-panel-resizer { visibility: hidden; pointer-events: none; }
