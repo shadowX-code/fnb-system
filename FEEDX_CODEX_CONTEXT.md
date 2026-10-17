@@ -79,6 +79,10 @@ Action-time approval is still required for exceptional external mutations outsid
 
 Production actions, including linking or pushing the Production database, merging `main`, and deploying Production, always require separate explicit Production authorization.
 
+### Production Secret Custody
+
+Yap Hy (FeedX Owner) is the designated Production secret custodian and manually maintains recovery records. Before generating or rotating any Production secret, encryption key, API credential or token, explain its purpose, environment and storage destination and obtain explicit approval. Generation approval does not authorize installation or activation. After generation, identify exactly which credential the custodian must record and use a secure local or provider-native handoff; never expose values in chat, logs or Git. Do not install or activate the credential until the custodian confirms that the recovery copy is secured. Reuse existing Production secret infrastructure where appropriate; do not require a new password manager or vault solely for Marketing. Continue independent non-secret preparation while awaiting these gates.
+
 `main` is the Production branch and `dev` is the Staging/integration branch. Short-lived task branches and worktrees may isolate work. Preserve unrelated changes and never automatically reset, clean, stash, overwrite, prune, or delete a dirty worktree, protected workspace, or branch with unique or unclear work. Before cleanup, verify patch equivalence and reconcile required changes; ancestry alone is insufficient. Detailed delivery and worktree procedures live in `docs/architecture/platform.md`.
 
 ## Risk-Based Verification

@@ -1,0 +1,36 @@
+{
+  "production_sha": "cefc744c10b75da0683b75060253524bcdfe8b87",
+  "deployment": "dpl_2y9LjzMqQfsbudMsk1YUZu4XoPoJ",
+  "state": "READY",
+  "domain": "os.feedx.my",
+  "migration": "20261016165619",
+  "migration_checksum": "9694fb7a1ca41d293eab2d8560a23e9876d04ccfbcb6079c06e095756357089f",
+  "ledger": 812,
+  "functions": {
+    "marketing-meta": 23,
+    "marketing-worker": 24
+  },
+  "unchanged_evidence": true,
+  "jobs": [
+    {
+      "active": false,
+      "id": 10,
+      "name": "feedx_marketing_meta_housekeeping"
+    },
+    {
+      "active": true,
+      "id": 11,
+      "name": "feedx_marketing_meta_worker"
+    },
+    {
+      "active": true,
+      "id": 12,
+      "name": "feedx_customer_import_worker"
+    }
+  ],
+  "authority_functions_match_staging": 10,
+  "production_relationship_writes": false,
+  "provider_changes": false,
+  "acceptance": "Authenticated shared Directory, Grid/List, actual empty Worked-with-Brand history, unsaved cross-Brand reuse selector, saved Koh Kah avatar/31 followers, canonical Brand-scoped reads, 390px mobile without document overflow. No Collaboration saved. Restricted-member and synthetic legacy-note scenarios reuse Staging L3; Production has zero legacy profile notes.",
+  "remaining_limitation": "Organization-level Meta enrichment remains gated; no Brand credential borrowing."
+}

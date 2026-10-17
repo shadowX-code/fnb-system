@@ -1,0 +1,824 @@
+{
+  "date": "2026-10-17",
+  "purpose": "Historical local Git reconciliation; no deployment or database execution",
+  "before": {
+    "registrations": 103,
+    "existing": 26,
+    "localMain": "e6e4ab1aa36c5eba560a1b14db2dc563c48aad39",
+    "dev": "2de2e60d234db8f6b3efe51499ccdab8bb6bfa74"
+  },
+  "fastForwardedMain": "cefc744c10b75da0683b75060253524bcdfe8b87",
+  "removedRegistrations": [
+    {
+      "path": "/private/tmp/feedx-company-ph-statutory-production",
+      "branch": "refs/heads/codex/company-ph-statutory-production",
+      "head": "c64b4e76f51f6477474ab4734e95804368767565"
+    },
+    {
+      "path": "/private/tmp/feedx-employment-history-ui",
+      "branch": "refs/heads/codex/employment-history-blocker-ui",
+      "head": "335a5b8070f9af5ae6ede426b84b5325487e328b"
+    },
+    {
+      "path": "/private/tmp/feedx-fg-tags-a4-production",
+      "branch": "refs/heads/codex/finished-goods-tags-a4-production",
+      "head": "5224eeade2e7438c7810c2aa8524422443e9e1ab"
+    },
+    {
+      "path": "/private/tmp/feedx-legal-entity-null-normalization",
+      "branch": "refs/heads/codex/legal-entity-null-normalization",
+      "head": "12570a4ff3ff83dadf606a88a8d4316ac697eabf"
+    },
+    {
+      "path": "/private/tmp/feedx-legal-entity-null-production",
+      "branch": "refs/heads/codex/legal-entity-null-production",
+      "head": "d0f7012d780fe9d96504e95b983259ffb60bcb7d"
+    },
+    {
+      "path": "/private/tmp/feedx-lindung-na-production",
+      "branch": "refs/heads/codex/lindung-not-applicable-production",
+      "head": "e880ecf1afa7f8f8200bf13bd73b47e201862523"
+    },
+    {
+      "path": "/private/tmp/feedx-lindung-setup-production",
+      "branch": "refs/heads/codex/payroll-lindung-setup-production",
+      "head": "f66deb6fc92540a6429560a2d55adf73e99759c3"
+    },
+    {
+      "path": "/private/tmp/feedx-lindung-simple-production",
+      "branch": "refs/heads/codex/lindung-simple-production",
+      "head": "fc001660fbea2d1696db129e6adc85be4f8a1dcd"
+    },
+    {
+      "path": "/private/tmp/feedx-marketing-inbox-live",
+      "branch": "refs/heads/codex/marketing-inbox-live",
+      "head": "9f458c71c86724ee9a29afe1a06c45a4aa5e2285"
+    },
+    {
+      "path": "/private/tmp/feedx-marketing-phase2",
+      "branch": "refs/heads/codex/marketing-phase2-inbox",
+      "head": "ac40cb63fea7271f3318cece7b11ecc56705033b"
+    },
+    {
+      "path": "/private/tmp/feedx-marketing-selects",
+      "branch": "refs/heads/codex/marketing-selects",
+      "head": "7faccbc594dc1efbd1b4ea0fe928d1e2338a7866"
+    },
+    {
+      "path": "/private/tmp/feedx-marketing-task-evidence",
+      "branch": "refs/heads/codex/marketing-oauth-task-evidence",
+      "head": "96e3af7092428844232b6c660b3e85155d414f45"
+    },
+    {
+      "path": "/private/tmp/feedx-meta-inbox-reliability",
+      "branch": "refs/heads/codex/meta-inbox-reliability",
+      "head": "389e45c4ac825165e1aa3b3f930393d7c14e8dda"
+    },
+    {
+      "path": "/private/tmp/feedx-outlet-law-coverage",
+      "branch": "refs/heads/codex/outlet-law-coverage",
+      "head": "e4ed82fb0997c4b70ced17dcf00e8ff8b277a01d"
+    },
+    {
+      "path": "/private/tmp/feedx-outlet-law-coverage-production",
+      "branch": "refs/heads/codex/outlet-law-coverage-production",
+      "head": "145cc1317a6c67d458bc070dcac543caed3ab52b"
+    },
+    {
+      "path": "/private/tmp/feedx-payable-review-production",
+      "branch": "refs/heads/codex/payable-review-production",
+      "head": "87172e5ad71c215d15f1524358c6bcb55c384c1a"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-absence-ph-production",
+      "branch": "refs/heads/codex/payroll-absence-ph-production",
+      "head": "acd86c41c975355bde7343ddbe0bb8acd25de447"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-auto-production",
+      "branch": "refs/heads/codex/payroll-auto-production",
+      "head": "b95941903d93d70cf5078c4556556364b8900fd2"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-auto-review",
+      "branch": "refs/heads/codex/payroll-auto-review",
+      "head": "685e81e34a168454a4f032405e1ec9ffcb7fb7a8"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-combined-production",
+      "branch": "refs/heads/codex/payroll-combined-production",
+      "head": "fd1755aef891dfc8424152711be481cf255d37c4"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-control-center",
+      "branch": "refs/heads/codex/payroll-control-center",
+      "head": "b74731d80e2e05983407b623d15627aefd40470a"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-entity-permission-scope",
+      "branch": "refs/heads/codex/payroll-entity-permission-scope",
+      "head": "230f80ecfbb01fe42a86be5bea49dc0d7366263a"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-entity-scope-production",
+      "branch": "refs/heads/codex/payroll-entity-scope-production",
+      "head": "720c2ea49f6c318360ae89feffb20631281fcf53"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-fast-decision-production",
+      "branch": "refs/heads/codex/payroll-fast-decision-production",
+      "head": "b0f25a6175b53951c628bb0c5c3437c7a4bf10d0"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-granular-production",
+      "branch": "refs/heads/codex/payroll-granular-production",
+      "head": "94d84221a9d1fea8300a4e19fa94d160bc4c26c4"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-historical-pay-correction",
+      "branch": "refs/heads/codex/payroll-historical-pay-correction",
+      "head": "2f6a2c71ace0841a7fef028d64069f94401cd91e"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-holiday-date-resolution",
+      "branch": "refs/heads/codex/payroll-holiday-date-resolution",
+      "head": "588525b2d4c94d541bf381e4da57a4030a583732"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-holiday-operational-workflow",
+      "branch": "refs/heads/codex/payroll-holiday-operational-workflow",
+      "head": "b5297454b4cd7eac50eeac688be7836bc8232b2c"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-holiday-production",
+      "branch": "refs/heads/codex/payroll-holiday-production",
+      "head": "58e7e617fb8fde8a504065147d3fe12158bfecb7"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-holiday-proposals",
+      "branch": "refs/heads/codex/payroll-holiday-proposals",
+      "head": "a941f01162a21806ccad55f90a7c8611c984f033"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-holiday-three-step-production",
+      "branch": "refs/heads/codex/payroll-holiday-three-step-production",
+      "head": "fb514805ce3c9fc591f62cd9fba8ca559633b41d"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-lindung",
+      "branch": "refs/heads/codex/payroll-lindung-v1",
+      "head": "c8458a717c2378cb31604df5310473c194521de7"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-lindung-column-production",
+      "branch": "refs/heads/codex/payroll-lindung-column-production",
+      "head": "28ba35cd02c160d995096d6573fcde118d46feb1"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-lindung-setup-ux",
+      "branch": "refs/heads/codex/lindung-not-applicable",
+      "head": "6043b338714959432ba3c405b69076092c8586d5"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-lindung-system-wages",
+      "branch": "refs/heads/codex/payroll-lindung-system-wages",
+      "head": "f08500acb3bcc9171d2bb3b3f7470dd5a96d6746"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-monthly-explainability",
+      "branch": "refs/heads/codex/payroll-monthly-explainability",
+      "head": "4b909cba088f9d0f384d97a6361b421400f86f28"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-pay-rule-order-production",
+      "branch": "refs/heads/codex/payroll-pay-rule-order-production",
+      "head": "ac4ecbc241ff2b2de4976eef8b25e61843c97571"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-pay-rule-order-repair",
+      "branch": "refs/heads/codex/payroll-pay-rule-order-repair",
+      "head": "0d9cd181647fa33c902ff91229063e11fde8ea35"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-pending-production",
+      "branch": "refs/heads/codex/payroll-pending-production",
+      "head": "37184e053c737a56d9e0e1519602d5cab1597c40"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-persistence-production",
+      "branch": "refs/heads/codex/payroll-persistence-production",
+      "head": "57b1fa46ebc1289a103345ef58919a508eb38256"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-ph-preview-production",
+      "branch": "refs/heads/codex/payroll-ph-preview-production",
+      "head": "e237a962e285da57899164a21a1bfb0f3bd9059c"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-ph-preview-safety",
+      "branch": "refs/heads/codex/payroll-ph-preview-safety",
+      "head": "dcb0dd727f477cc84b12186184ffa3948e46cfb9"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-ph-production",
+      "branch": "refs/heads/codex/payroll-ph-production",
+      "head": "de7a5fbcd656bcd6205e160a9da9e4da9901b9a2"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-ph-profile",
+      "branch": "refs/heads/codex/payroll-ph-profile",
+      "head": "31600e4bc056dbfd03a2fc19495f4c99af0c2e83"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-ph-profile-production",
+      "branch": "refs/heads/codex/payroll-ph-profile-production",
+      "head": "3d8965ee4566d7dd49e6d133dfc64e894638cbc4"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-ph-treatment",
+      "branch": "refs/heads/codex/payroll-ph-treatment",
+      "head": "943a0b5b8753050ff1b4e9591131311724a41817"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-ph-treatment-production",
+      "branch": "refs/heads/codex/payroll-ph-treatment-production",
+      "head": "9e91d572c36a9c69db52af3417f8d8e6b8a8a030"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-ph-unified-production",
+      "branch": "refs/heads/codex/payroll-ph-unified-production",
+      "head": "b089b8195dff8136b5edb6c4866f3825d8ee60da"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-ph-unified-treatment",
+      "branch": "refs/heads/codex/payroll-ph-unified-treatment",
+      "head": "0bff60fc11958864d23f5da22babb197be2feb65"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-population-production",
+      "branch": "refs/heads/codex/payroll-population-production",
+      "head": "b05370d8a9a8e551879d8718a5409e9a5f18de09"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-population-scope",
+      "branch": "refs/heads/codex/payroll-population-candidate-scope",
+      "head": "818076c14d7b3e0c9d022ca6805da1d58a57aaa0"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-population-scope-production",
+      "branch": "refs/heads/codex/payroll-population-scope-production",
+      "head": "dd1192ad43bc138e02369ed25dc55b800aa3a555"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-prepare-polish",
+      "branch": "refs/heads/codex/payroll-prepare-polish",
+      "head": "53e94548db235aa3ca6cbdf141504062674c9adc"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-production-candidate",
+      "branch": "refs/heads/codex/payroll-lindung-production-candidate",
+      "head": "7bb86ac4538ce11596a98c5f80f01ad249cbd96f"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-projection-gaps",
+      "branch": "refs/heads/codex/payroll-projection-gaps",
+      "head": "27ca4bb118f6e1a3212fb58661b670b7dbc73565"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-run-context",
+      "branch": "refs/heads/codex/payroll-run-context",
+      "head": "6bdb8fec19b253ebe4e492a80fb7789bf692eb88"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-run-operational-ux",
+      "branch": "refs/heads/codex/payroll-run-operational-ux",
+      "head": "188b1424887d38e92c681cefd193af7c459be5a5"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-run-refinement-production",
+      "branch": "refs/heads/codex/payroll-run-refinement-production",
+      "head": "963c3c248037ace65bb2e77e53429435d7577814"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-source-reconciliation-production",
+      "branch": "refs/heads/codex/payroll-source-reconciliation-production",
+      "head": "d9b251150791367a0845511ca2f9b2ba3f6c90bc"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-stage-hierarchy",
+      "branch": "refs/heads/codex/payroll-stage-hierarchy",
+      "head": "1f91c830fd46984082a30093b2793d7d3cb2dc85"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-time-earnings",
+      "branch": "refs/heads/codex/payroll-time-earnings",
+      "head": "41602ecbd3581d6fbe41df72823df2ca418c414c"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-time-evidence-access",
+      "branch": "refs/heads/codex/payroll-time-evidence-access",
+      "head": "9a20cba8326c7d06910a624d2c7f085b29f76cfe"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-time-evidence-production",
+      "branch": "refs/heads/codex/payroll-time-evidence-production",
+      "head": "216b5d75bf7e3bff28ea3d7b3b8414b69ce71e1a"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-time-save-latency",
+      "branch": "refs/heads/codex/payroll-time-save-latency",
+      "head": "7635b95dbb884e6042662a314d0a8d36780af3da"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-time-semantics",
+      "branch": "refs/heads/codex/payroll-time-semantics",
+      "head": "24d39d10e22bfb112102af6ab297e75c4b0d39ee"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-ux-basic-production",
+      "branch": "refs/heads/codex/payroll-ux-basic-production",
+      "head": "92e63034a53cac9d9aa6e17d3e73578c70324d5d"
+    },
+    {
+      "path": "/private/tmp/feedx-payroll-workplace-guidance-production",
+      "branch": "refs/heads/codex/payroll-workplace-guidance-production",
+      "head": "09e37c0cba83e4359076d1f8f2d4fe5e64e18496"
+    },
+    {
+      "path": "/private/tmp/feedx-people-jurisdiction-production",
+      "branch": "refs/heads/codex/people-jurisdiction-production",
+      "head": "93e073608cad1b38749050de8a4eb74ed9edf305"
+    },
+    {
+      "path": "/private/tmp/feedx-ph-context",
+      "branch": "refs/heads/codex/ph-context-lifecycle",
+      "head": "65098fb64ed18e8886b4b11e118e14d2ea07eb80"
+    },
+    {
+      "path": "/private/tmp/feedx-ph-context-production",
+      "branch": "refs/heads/codex/ph-context-production",
+      "head": "f72880f91e066312d4f6025c3be0f734e77ee827"
+    },
+    {
+      "path": "/private/tmp/feedx-privacy-public-release",
+      "branch": "refs/heads/codex/privacy-public-release",
+      "head": "f2f293c71738d3f0b603cfd425515294687aed28"
+    },
+    {
+      "path": "/private/tmp/feedx-privacy-release-records",
+      "branch": "refs/heads/codex/marketing-meta-ads",
+      "head": "f24f247a3c1162c9db1c529920c0eda4d3071a34"
+    },
+    {
+      "path": "/private/tmp/feedx-rbac-phase1-production",
+      "branch": "refs/heads/codex/rbac-phase1-production",
+      "head": "f45ad71e2cbc036ebb183856d5bd2cb5bf0acc57"
+    },
+    {
+      "path": "/private/tmp/feedx-retire-outlet-law-coverage",
+      "branch": "refs/heads/codex/retire-outlet-law-coverage",
+      "head": "731269e86fd9a2871ec69035e25207433a098733"
+    },
+    {
+      "path": "/private/tmp/feedx-statutory-ia-production",
+      "branch": "refs/heads/codex/statutory-setup-ia-production",
+      "head": "a233f8756a8544fe3e6736152e4b72f45ddef172"
+    },
+    {
+      "path": "/private/tmp/feedx-statutory-setup-ia",
+      "branch": "refs/heads/codex/statutory-setup-ia",
+      "head": "22d2aaaec87da566ac119be4f4d038efe3d18144"
+    },
+    {
+      "path": "/private/tmp/feedx-v3-report-diagnostics",
+      "branch": "refs/heads/codex/recruitment-v3-report",
+      "head": "a57c0b9ce0f89966d7b349014f9aa8bfb23ef71e"
+    }
+  ],
+  "preservedWorktrees": [
+    {
+      "path": "/Users/deron/Dev/feedx",
+      "branch": "refs/heads/codex/product-yearly-read-recovery-production",
+      "headBefore": "aa9752b59cc35615755affe76736d079a4ff0d2a",
+      "dirtyFilesBefore": [
+        {
+          "status": " M FEEDX_CODEX_CONTEXT.md",
+          "path": "FEEDX_CODEX_CONTEXT.md",
+          "sha256": "ef283941ff2fbc1d633f827157d1ea5893d2a8e8de34601fb0a45a9e3d946133"
+        },
+        {
+          "status": " M docs/domains/crew-performance-and-reward.md",
+          "path": "docs/domains/crew-performance-and-reward.md",
+          "sha256": "8a8b9947af1685969ec352e1e898038a50936bb2f8c07510a2e579b7061dcedc"
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/feedx-creator-shared-directory",
+      "branch": "refs/heads/codex/creator-shared-directory",
+      "headBefore": "ea142f50d16b5ac6fa4bcd69c6f355589172e3e3",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-google-reviews-production",
+      "branch": "refs/heads/codex/google-reviews-production-candidate",
+      "headBefore": "7e9c6a187f00314d5920d2b85cd1df0a7bb23930",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-marketing-employee-nicknames-production",
+      "branch": "refs/heads/codex/marketing-employee-nicknames-production",
+      "headBefore": "12176aa1c18efb496b43262ec0e441d52a88e61b",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-media-source-production",
+      "branch": "refs/heads/codex/media-source-production",
+      "headBefore": "2b1e290c50991b8372e73081c7694b17d5bb173a",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-member-profile-production",
+      "branch": "refs/heads/codex/marketing-member-profile-production",
+      "headBefore": "4f08f7253c089747244e870fbe61676b3aa93b63",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-member-profile-readiness",
+      "branch": "refs/heads/codex/marketing-member-profile-readiness",
+      "headBefore": "b2bd7c64d86c7c5b0b6db459019dcc9db9e81a1c",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-navigation-role-ui-release",
+      "branch": "refs/heads/codex/restaurant-navigation-role-ui-release-v2",
+      "headBefore": "04d962432a60d0885f4c3730b4be48112de6b302",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-planner-initial-fields-production",
+      "branch": "refs/heads/codex/planner-initial-fields-production",
+      "headBefore": "25000a2cb3b5996cd48423c284bc57d051bd8fac",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-role-ui-production-reconciled",
+      "branch": "refs/heads/codex/restaurant-role-ui-production-reconciled",
+      "headBefore": "cef56e1e8ab2ff56a194d800be79976fe248eeee",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-shared-creators-production",
+      "branch": "refs/heads/codex/shared-creators-production",
+      "headBefore": "cefc744c10b75da0683b75060253524bcdfe8b87",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-task-general-attachments-production",
+      "branch": "refs/heads/codex/task-general-attachments-production",
+      "headBefore": "18d7595a684ca0081a0892f8ab9716a5be552b95",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-task-media-production",
+      "branch": "refs/heads/codex/task-media-production",
+      "headBefore": "1363a156eee83f7b41f7b6a0834ef9a91f974701",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/private/tmp/feedx-team-nickname-production-rc",
+      "branch": "refs/heads/codex/team-nickname-production",
+      "headBefore": "e76f3ebdc217d2f067a222922c205e983c79e1c9",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/Users/deron/.codex/worktrees/admin-startup-recovery/feedx",
+      "branch": null,
+      "headBefore": "b05b09db813e068696d1cf4d3236fe964488592d",
+      "dirtyFilesBefore": [
+        {
+          "status": " M docs/architecture/platform.md",
+          "path": "docs/architecture/platform.md",
+          "sha256": "191a5b2874870aad93055810e5a9b144e91fa9d070044dd9a812eec2eb25faa1"
+        },
+        {
+          "status": " M src/app/AdminApp.jsx",
+          "path": "src/app/AdminApp.jsx",
+          "sha256": "9f85765b267cd2f950eb2202d3ce0a2200c4b1513264e2b101be4e9ff816865d"
+        },
+        {
+          "status": " M src/app/__tests__/WorkspaceEntry.test.jsx",
+          "path": "src/app/__tests__/WorkspaceEntry.test.jsx",
+          "sha256": "f301d5163bf8957724a39029fbbcbb9511920b83d75b4cc00d351cb1ef4ddc46"
+        },
+        {
+          "status": " M src/auth/AuthContext.jsx",
+          "path": "src/auth/AuthContext.jsx",
+          "sha256": "343ef0f11d09c3d138a47c1d19ac62d6d5e3927e94c691c81993d499bd198987"
+        },
+        {
+          "status": " M src/auth/__tests__/authEmployeeIdentity.test.js",
+          "path": "src/auth/__tests__/authEmployeeIdentity.test.js",
+          "sha256": "5d31cd43d264e62ded0f881a51433620e791f3271286210f8815f477c8071918"
+        },
+        {
+          "status": " M src/auth/authService.js",
+          "path": "src/auth/authService.js",
+          "sha256": "ec851d03678cc6c37dc86656da61e6d833ef159a8f083e40590486a9fa659a29"
+        },
+        {
+          "status": "?? src/auth/AdminStartupSurface.jsx",
+          "path": "src/auth/AdminStartupSurface.jsx",
+          "sha256": "e7eb307ed5e5719c9ab37b0889551d04c5f7e6d7bcc9e372ae56a5cbb4a7807f"
+        },
+        {
+          "status": "?? src/auth/__tests__/AuthBootstrap.test.jsx",
+          "path": "src/auth/__tests__/AuthBootstrap.test.jsx",
+          "sha256": "2fa4f86ebfab602e329d7c8618029967b1757b47cfb3246155e717b5f6438af5"
+        },
+        {
+          "status": "?? src/auth/__tests__/AuthBootstrapTransport.test.js",
+          "path": "src/auth/__tests__/AuthBootstrapTransport.test.js",
+          "sha256": "7e9cbd49a99fa3383b1dfa8bd676fab00758a322fa34c3d3075535b35a0218b9"
+        },
+        {
+          "status": "?? src/auth/authBootstrap.js",
+          "path": "src/auth/authBootstrap.js",
+          "sha256": "8b9aa57b3c753a234c8455eab761ec410f95f2ae8ae802ed2cfe319044f5f99c"
+        }
+      ]
+    },
+    {
+      "path": "/Users/deron/.codex/worktrees/crew-production-candidate/feedx",
+      "branch": "refs/heads/codex/crew-production-release-candidate",
+      "headBefore": "4d71e1f1a557ccbee365d958faeb116cc6bc999d",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/Users/deron/.codex/worktrees/crew-task-team-projection/feedx",
+      "branch": "refs/heads/dev",
+      "headBefore": "2de2e60d234db8f6b3efe51499ccdab8bb6bfa74",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/Users/deron/.codex/worktrees/fg-tags-staging-verify/feedx",
+      "branch": null,
+      "headBefore": "4a16ef524f6c8f46bb961cba116d4b5d6429f8f0",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/Users/deron/.codex/worktrees/finished-goods-tags-print/feedx",
+      "branch": "refs/heads/codex/finished-goods-tags-print",
+      "headBefore": "ddf9004939174a470397c26f2fe4a8c05a8c8cf1",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/Users/deron/.codex/worktrees/historical-baseline-release/feedx",
+      "branch": "refs/heads/codex/payroll-statutory-coverage-explanation",
+      "headBefore": "27ef85d773810da87070bd7deed1661c21deab0b",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/Users/deron/.codex/worktrees/leave-historical-production/feedx",
+      "branch": "refs/heads/codex/leave-historical-production",
+      "headBefore": "b1facd7adadd3ba2391ed483ffa7e15d366f9dc2",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/Users/deron/.codex/worktrees/planner-conflict-recovery/feedx",
+      "branch": null,
+      "headBefore": "4c2ce5d98b5a9f74389628c7c4286103882be498",
+      "dirtyFilesBefore": [
+        {
+          "status": " M FEEDX_DEVELOPMENT_LOG.md",
+          "path": "FEEDX_DEVELOPMENT_LOG.md",
+          "sha256": "1945d81d6fbd265cc94185c21cb9e495b382570a683f0671d3866ccca0f96ff2"
+        },
+        {
+          "status": " M docs/architecture/trusted-authorities.md",
+          "path": "docs/architecture/trusted-authorities.md",
+          "sha256": "2898c93e483dfa5b79ec4557c7e6150ca1bafcc342d0435047038be4eb3d6145"
+        },
+        {
+          "status": " M docs/domains/marketing.md",
+          "path": "docs/domains/marketing.md",
+          "sha256": "4c6058119c1e70f5f9266a2202917bb243e70c91bbdf2a544cf245e047554702"
+        },
+        {
+          "status": "?? docs/releases/2026-10-16-production-loading-retry-incident.md",
+          "path": "docs/releases/2026-10-16-production-loading-retry-incident.md",
+          "sha256": "7c99b5c65f8e77331147927b7f4d820c48f7181ff8b1be9825b1c13d68b310a8"
+        },
+        {
+          "status": "?? qa/staging/marketingPlannerConflict.rollback.sql",
+          "path": "qa/staging/marketingPlannerConflict.rollback.sql",
+          "sha256": "a9491b2b7ff130411a1d0df2dbc84f479cabc968ed5e7ab5c91991c0143fce55"
+        },
+        {
+          "status": "?? qa/staging/platformCachedAuthorization.rollback.sql",
+          "path": "qa/staging/platformCachedAuthorization.rollback.sql",
+          "sha256": "0f898243b7511ce4503a54dd957e531a05f81c344803ab653b558eb7adfcb90e"
+        },
+        {
+          "status": "?? supabase/migrations/20261016062921_marketing_planner_nonretryable_revision_conflict.sql",
+          "path": "supabase/migrations/20261016062921_marketing_planner_nonretryable_revision_conflict.sql",
+          "sha256": "b6cfce52165787f506db88357841c9a7a84f3b31a8f2cd9a96efd91138de0170"
+        },
+        {
+          "status": "?? supabase/migrations/20261016070206_platform_cached_authorization_read_plans.sql",
+          "path": "supabase/migrations/20261016070206_platform_cached_authorization_read_plans.sql",
+          "sha256": "23f24107923f5421659efaf5205eca008149176262d9dd8984c493a644049322"
+        }
+      ]
+    },
+    {
+      "path": "/Users/deron/.codex/worktrees/production-analytics-release/feedx",
+      "branch": "refs/heads/codex/production-analytics-release",
+      "headBefore": "7dab88d8b050c253ae395171482e148fbf05e70e",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/Users/deron/.codex/worktrees/production-monthly-performance/feedx",
+      "branch": "refs/heads/codex/production-monthly-performance",
+      "headBefore": "e44e662b8e7a0d46e06244f4887a91847f461509",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/Users/deron/.codex/worktrees/roles-permissions-release/feedx",
+      "branch": "refs/heads/main",
+      "headBefore": "e6e4ab1aa36c5eba560a1b14db2dc563c48aad39",
+      "dirtyFilesBefore": []
+    },
+    {
+      "path": "/Users/deron/Dev/feedx-guest-ai",
+      "branch": "refs/heads/guest-ai/dev",
+      "headBefore": "06d27e71cf91117d4ce3e44306740d568332759e",
+      "dirtyFilesBefore": []
+    }
+  ],
+  "branchesBefore": [
+    "refs/heads/codex/company-ph-statutory-production c64b4e76f51f6477474ab4734e95804368767565",
+    "refs/heads/codex/creator-shared-directory ea142f50d16b5ac6fa4bcd69c6f355589172e3e3",
+    "refs/heads/codex/crew-production-release-candidate 4d71e1f1a557ccbee365d958faeb116cc6bc999d",
+    "refs/heads/codex/crm-tags f69d212d36077e75e2fc0aa6c9d4d8446a0d1e36",
+    "refs/heads/codex/employment-history-blocker-ui 335a5b8070f9af5ae6ede426b84b5325487e328b",
+    "refs/heads/codex/finance-analysis fa6220d065363cf1e3de5e0d91aae0cc90d16ec1",
+    "refs/heads/codex/finance-analysis-sections 2140e874043c2ec7821e7b7144d8a8a86e0d9c99",
+    "refs/heads/codex/finance-cash 1cb09dea6a8296bdb8ef89b9d0409fb8189fbb14",
+    "refs/heads/codex/finance-costs ab4f2f09f50b438720c563938f8a1ee5aaa2d72b",
+    "refs/heads/codex/finance-data-sources 4900d4ca5d730c94344dfeb9e15b14a5c2a6319e",
+    "refs/heads/codex/finance-foundation-phase-1 db90b8ab2704405cc24a03e045f7dc433f35bc55",
+    "refs/heads/codex/finance-pages-refinement e7515e70a7b6611af0075dd1aa92cd9ec59e3c23",
+    "refs/heads/codex/finance-visual-system 9bbfccc0fc32a63f9f1894a163d64df8a0b6124a",
+    "refs/heads/codex/finished-goods-tags-a4-production 5224eeade2e7438c7810c2aa8524422443e9e1ab",
+    "refs/heads/codex/finished-goods-tags-print ddf9004939174a470397c26f2fe4a8c05a8c8cf1",
+    "refs/heads/codex/google-business-phase-one 38178438d740815810a189f61073e450bf3cda00",
+    "refs/heads/codex/google-owner-replies 8dbece0ddcb3d4f69c987b78748093a0ff01a6d3",
+    "refs/heads/codex/google-rating-overview 3b8cbd3fff0c54295ad58c110188242bdc5f582b",
+    "refs/heads/codex/google-reply-auto-sync ac44ecd9a40456130b7e15b8c5c6b3d7059b4f51",
+    "refs/heads/codex/google-reply-readback 63eb493b3e947d84e8ed51f0c6f81958302d5fdd",
+    "refs/heads/codex/google-review-avatars cb1b2b77ab4069277e0c8f6ab556720850dc5986",
+    "refs/heads/codex/google-review-pagination 0104cc3ef0c32128367708dd7422738d28d753c2",
+    "refs/heads/codex/google-reviews-operational ff19f6eb42f4dfba19a758d609d76d7f27e68c4a",
+    "refs/heads/codex/google-reviews-operational-production 8746759ae513cfe5908125a238b895395a271585",
+    "refs/heads/codex/google-reviews-production-candidate 7e9c6a187f00314d5920d2b85cd1df0a7bb23930",
+    "refs/heads/codex/google-reviews-ui-polish b1f9f35d5aa80dea299276dcbbc6d7e84657c118",
+    "refs/heads/codex/leave-historical-production b1facd7adadd3ba2391ed483ffa7e15d366f9dc2",
+    "refs/heads/codex/legal-entity-null-normalization 12570a4ff3ff83dadf606a88a8d4316ac697eabf",
+    "refs/heads/codex/legal-entity-null-production d0f7012d780fe9d96504e95b983259ffb60bcb7d",
+    "refs/heads/codex/lindung-not-applicable 6043b338714959432ba3c405b69076092c8586d5",
+    "refs/heads/codex/lindung-not-applicable-production e880ecf1afa7f8f8200bf13bd73b47e201862523",
+    "refs/heads/codex/lindung-simple-production fc001660fbea2d1696db129e6adc85be4f8a1dcd",
+    "refs/heads/codex/malaysian-generated-voice-spike f52c09ffff2fb45d1729cad4ed2004cc5145543f",
+    "refs/heads/codex/marketing-audience-import 9d5cb18c85d65caecce23476371419daf3a03eb0",
+    "refs/heads/codex/marketing-content-polish 90a4ced8615d4b8ac26ab5f9612e07c6184b6afd",
+    "refs/heads/codex/marketing-conversations 16ed1a5d8405871f70e07aa71555f7acfd55327d",
+    "refs/heads/codex/marketing-crm e658a8458c89265f960972f6aac44d7f2e023348",
+    "refs/heads/codex/marketing-employee-nicknames-production 12176aa1c18efb496b43262ec0e441d52a88e61b",
+    "refs/heads/codex/marketing-filter-bars f36ee20ff636283b9440313e5c58a58de931d586",
+    "refs/heads/codex/marketing-hybrid-whatsapp 96a2b740834212df24f3bcef3470d8f6e2154ebc",
+    "refs/heads/codex/marketing-inbox-conversations eb0239b2a25ed8577a4ff240cced6ad8d4441bd1",
+    "refs/heads/codex/marketing-inbox-live 9f458c71c86724ee9a29afe1a06c45a4aa5e2285",
+    "refs/heads/codex/marketing-member-profile-production 4f08f7253c089747244e870fbe61676b3aa93b63",
+    "refs/heads/codex/marketing-member-profile-readiness b2bd7c64d86c7c5b0b6db459019dcc9db9e81a1c",
+    "refs/heads/codex/marketing-meta 86d1f000bc46f69ea6415e574995a3f2e6f7ce1f",
+    "refs/heads/codex/marketing-meta-ads f24f247a3c1162c9db1c529920c0eda4d3071a34",
+    "refs/heads/codex/marketing-oauth-task-evidence 96e3af7092428844232b6c660b3e85155d414f45",
+    "refs/heads/codex/marketing-phase0 cebb0aa6c9a7456794bbbd3671ccba3efdb0f36e",
+    "refs/heads/codex/marketing-phase2-inbox ac40cb63fea7271f3318cece7b11ecc56705033b",
+    "refs/heads/codex/marketing-publishing-acceptance a3e1f3e010e8b980daab0ccdb106a4a6fceffb4d",
+    "refs/heads/codex/marketing-selects 7faccbc594dc1efbd1b4ea0fe928d1e2338a7866",
+    "refs/heads/codex/marketing-social-onboarding bbd6cd101cf49a05a18364f5d6a49bdfe124d14e",
+    "refs/heads/codex/media-source-production 2b1e290c50991b8372e73081c7694b17d5bb173a",
+    "refs/heads/codex/meta-inbox-reliability 389e45c4ac825165e1aa3b3f930393d7c14e8dda",
+    "refs/heads/codex/outlet-law-coverage e4ed82fb0997c4b70ced17dcf00e8ff8b277a01d",
+    "refs/heads/codex/outlet-law-coverage-production 145cc1317a6c67d458bc070dcac543caed3ab52b",
+    "refs/heads/codex/payable-review-production 87172e5ad71c215d15f1524358c6bcb55c384c1a",
+    "refs/heads/codex/payroll-absence-ph-production acd86c41c975355bde7343ddbe0bb8acd25de447",
+    "refs/heads/codex/payroll-auto-production b95941903d93d70cf5078c4556556364b8900fd2",
+    "refs/heads/codex/payroll-auto-review 685e81e34a168454a4f032405e1ec9ffcb7fb7a8",
+    "refs/heads/codex/payroll-combined-production fd1755aef891dfc8424152711be481cf255d37c4",
+    "refs/heads/codex/payroll-control-center b74731d80e2e05983407b623d15627aefd40470a",
+    "refs/heads/codex/payroll-entity-permission-scope 230f80ecfbb01fe42a86be5bea49dc0d7366263a",
+    "refs/heads/codex/payroll-entity-scope-production 720c2ea49f6c318360ae89feffb20631281fcf53",
+    "refs/heads/codex/payroll-fast-decision-production b0f25a6175b53951c628bb0c5c3437c7a4bf10d0",
+    "refs/heads/codex/payroll-granular-production 94d84221a9d1fea8300a4e19fa94d160bc4c26c4",
+    "refs/heads/codex/payroll-historical-pay-correction 2f6a2c71ace0841a7fef028d64069f94401cd91e",
+    "refs/heads/codex/payroll-holiday-date-resolution 588525b2d4c94d541bf381e4da57a4030a583732",
+    "refs/heads/codex/payroll-holiday-operational-workflow b5297454b4cd7eac50eeac688be7836bc8232b2c",
+    "refs/heads/codex/payroll-holiday-production 58e7e617fb8fde8a504065147d3fe12158bfecb7",
+    "refs/heads/codex/payroll-holiday-proposals a941f01162a21806ccad55f90a7c8611c984f033",
+    "refs/heads/codex/payroll-holiday-three-step-production fb514805ce3c9fc591f62cd9fba8ca559633b41d",
+    "refs/heads/codex/payroll-lindung-column-production 28ba35cd02c160d995096d6573fcde118d46feb1",
+    "refs/heads/codex/payroll-lindung-production-candidate 7bb86ac4538ce11596a98c5f80f01ad249cbd96f",
+    "refs/heads/codex/payroll-lindung-setup-production f66deb6fc92540a6429560a2d55adf73e99759c3",
+    "refs/heads/codex/payroll-lindung-system-wages f08500acb3bcc9171d2bb3b3f7470dd5a96d6746",
+    "refs/heads/codex/payroll-lindung-v1 c8458a717c2378cb31604df5310473c194521de7",
+    "refs/heads/codex/payroll-monthly-explainability 4b909cba088f9d0f384d97a6361b421400f86f28",
+    "refs/heads/codex/payroll-pay-rule-order-production ac4ecbc241ff2b2de4976eef8b25e61843c97571",
+    "refs/heads/codex/payroll-pay-rule-order-repair 0d9cd181647fa33c902ff91229063e11fde8ea35",
+    "refs/heads/codex/payroll-pending-production 37184e053c737a56d9e0e1519602d5cab1597c40",
+    "refs/heads/codex/payroll-persistence-production 57b1fa46ebc1289a103345ef58919a508eb38256",
+    "refs/heads/codex/payroll-ph-preview-production e237a962e285da57899164a21a1bfb0f3bd9059c",
+    "refs/heads/codex/payroll-ph-preview-safety dcb0dd727f477cc84b12186184ffa3948e46cfb9",
+    "refs/heads/codex/payroll-ph-production de7a5fbcd656bcd6205e160a9da9e4da9901b9a2",
+    "refs/heads/codex/payroll-ph-profile 31600e4bc056dbfd03a2fc19495f4c99af0c2e83",
+    "refs/heads/codex/payroll-ph-profile-production 3d8965ee4566d7dd49e6d133dfc64e894638cbc4",
+    "refs/heads/codex/payroll-ph-treatment 943a0b5b8753050ff1b4e9591131311724a41817",
+    "refs/heads/codex/payroll-ph-treatment-production 9e91d572c36a9c69db52af3417f8d8e6b8a8a030",
+    "refs/heads/codex/payroll-ph-unified-production b089b8195dff8136b5edb6c4866f3825d8ee60da",
+    "refs/heads/codex/payroll-ph-unified-treatment 0bff60fc11958864d23f5da22babb197be2feb65",
+    "refs/heads/codex/payroll-population-candidate-scope 818076c14d7b3e0c9d022ca6805da1d58a57aaa0",
+    "refs/heads/codex/payroll-population-production b05370d8a9a8e551879d8718a5409e9a5f18de09",
+    "refs/heads/codex/payroll-population-scope-production dd1192ad43bc138e02369ed25dc55b800aa3a555",
+    "refs/heads/codex/payroll-prepare-polish 53e94548db235aa3ca6cbdf141504062674c9adc",
+    "refs/heads/codex/payroll-projection-gaps 27ca4bb118f6e1a3212fb58661b670b7dbc73565",
+    "refs/heads/codex/payroll-run-context 6bdb8fec19b253ebe4e492a80fb7789bf692eb88",
+    "refs/heads/codex/payroll-run-operational-ux 188b1424887d38e92c681cefd193af7c459be5a5",
+    "refs/heads/codex/payroll-run-refinement-production 963c3c248037ace65bb2e77e53429435d7577814",
+    "refs/heads/codex/payroll-source-reconciliation-production d9b251150791367a0845511ca2f9b2ba3f6c90bc",
+    "refs/heads/codex/payroll-stage-hierarchy 1f91c830fd46984082a30093b2793d7d3cb2dc85",
+    "refs/heads/codex/payroll-statutory-coverage-explanation 27ef85d773810da87070bd7deed1661c21deab0b",
+    "refs/heads/codex/payroll-time-earnings 41602ecbd3581d6fbe41df72823df2ca418c414c",
+    "refs/heads/codex/payroll-time-evidence-access 9a20cba8326c7d06910a624d2c7f085b29f76cfe",
+    "refs/heads/codex/payroll-time-evidence-production 216b5d75bf7e3bff28ea3d7b3b8414b69ce71e1a",
+    "refs/heads/codex/payroll-time-save-latency 7635b95dbb884e6042662a314d0a8d36780af3da",
+    "refs/heads/codex/payroll-time-semantics 24d39d10e22bfb112102af6ab297e75c4b0d39ee",
+    "refs/heads/codex/payroll-ux-basic-production 92e63034a53cac9d9aa6e17d3e73578c70324d5d",
+    "refs/heads/codex/payroll-workplace-guidance-production 09e37c0cba83e4359076d1f8f2d4fe5e64e18496",
+    "refs/heads/codex/people-jurisdiction-production 93e073608cad1b38749050de8a4eb74ed9edf305",
+    "refs/heads/codex/ph-context-lifecycle 65098fb64ed18e8886b4b11e118e14d2ea07eb80",
+    "refs/heads/codex/ph-context-production f72880f91e066312d4f6025c3be0f734e77ee827",
+    "refs/heads/codex/planner-initial-fields-production 25000a2cb3b5996cd48423c284bc57d051bd8fac",
+    "refs/heads/codex/privacy-public-release f2f293c71738d3f0b603cfd425515294687aed28",
+    "refs/heads/codex/privacy-release-records 9bae59bfa29d9807f69d7119e027f4d43c1bd6e1",
+    "refs/heads/codex/product-analytics-complete-reads c211636e222331454fc07d6bd0a1504758c79ab3",
+    "refs/heads/codex/product-analytics-production-release 19b03a127f3c4c5d6331961cc02297d4123a6259",
+    "refs/heads/codex/product-complete-read-repair 5946c78e2e123425ab906f325aca15a6ae98c069",
+    "refs/heads/codex/product-yearly-read-recovery-production aa9752b59cc35615755affe76736d079a4ff0d2a",
+    "refs/heads/codex/production-analytics-release 7dab88d8b050c253ae395171482e148fbf05e70e",
+    "refs/heads/codex/production-monthly-performance e44e662b8e7a0d46e06244f4887a91847f461509",
+    "refs/heads/codex/rbac-phase1-production f45ad71e2cbc036ebb183856d5bd2cb5bf0acc57",
+    "refs/heads/codex/recruitment-adaptive-guidance bd6afe261e9c2749b2deb2a5c7f5081429659c7c",
+    "refs/heads/codex/recruitment-admin-system-pass 3cfac35bd6b1425afa492fbb23e992a879c6f88f",
+    "refs/heads/codex/recruitment-candidate-controls d270b670ef364318369289e0e197dea1fa46bd85",
+    "refs/heads/codex/recruitment-candidate-journey 86e2dc2fc99cc8045fde02b47e4e265dbebe8421",
+    "refs/heads/codex/recruitment-candidate-plan-refinement 92b3eec48ac66c8e5701b97c153856ec31a46b70",
+    "refs/heads/codex/recruitment-conversation-orientation c7b4bf9a80a8f02b503991ae34e6765227311d93",
+    "refs/heads/codex/recruitment-conversation-voice c6c6af29cc583caa3b47170ca0b2954030395149",
+    "refs/heads/codex/recruitment-final-polish 9836adaf7c03bdb18421f2c43a16d92c72768f29",
+    "refs/heads/codex/recruitment-intelligence-v2 4ae7dd80926ee9ef101694636df5fa67f7caa4f1",
+    "refs/heads/codex/recruitment-interview-recovery 49c8c4107727ecf76d45a808cbf1b0254491323f",
+    "refs/heads/codex/recruitment-journey-closure 407f02ff418693084d826f52faa1fd8c6eafd5d5",
+    "refs/heads/codex/recruitment-navigation-refinement 4cbd47904665013ec610521e367178cbd5948102",
+    "refs/heads/codex/recruitment-opening-offerings 4013a98b0f071a4ec04eb51ad7fed0dd8b5172b8",
+    "refs/heads/codex/recruitment-operations-refinement 5c3316343c01d6b321a2da71efa34883709d9f55",
+    "refs/heads/codex/recruitment-persistent-profile-drafts d64abb339909aee836830c83de5fd718906385fb",
+    "refs/heads/codex/recruitment-preference-sync 3b930479377682b4bc6d8aa3902e054522a76408",
+    "refs/heads/codex/recruitment-review-fit e71053984e077b9b5fe1d481365ff02aef8e20c5",
+    "refs/heads/codex/recruitment-rubric-review 11f62184e97cbe5cc8e41664782650ba0b15a8ca",
+    "refs/heads/codex/recruitment-v3-report a57c0b9ce0f89966d7b349014f9aa8bfb23ef71e",
+    "refs/heads/codex/recruitment-v4-physical-defects 36c8c79c918b8dbb504e2d72c3a2e72cd3dc2b54",
+    "refs/heads/codex/recruitment-workspace-ui 7b9b3292087e19a33f503aa00f6a7053ead47cc1",
+    "refs/heads/codex/restaurant-navigation-role-ui-release a73342f405348e95611eca9b13b226a4a23c7831",
+    "refs/heads/codex/restaurant-navigation-role-ui-release-v2 04d962432a60d0885f4c3730b4be48112de6b302",
+    "refs/heads/codex/restaurant-role-ui-production-reconciled cef56e1e8ab2ff56a194d800be79976fe248eeee",
+    "refs/heads/codex/retire-outlet-law-coverage 731269e86fd9a2871ec69035e25207433a098733",
+    "refs/heads/codex/select-option-states 245517e5a73f334e671bea284b6402ab7b2604ff",
+    "refs/heads/codex/shared-creators-production cefc744c10b75da0683b75060253524bcdfe8b87",
+    "refs/heads/codex/statutory-setup-ia 22d2aaaec87da566ac119be4f4d038efe3d18144",
+    "refs/heads/codex/statutory-setup-ia-production a233f8756a8544fe3e6736152e4b72f45ddef172",
+    "refs/heads/codex/task-general-attachments-production 18d7595a684ca0081a0892f8ab9716a5be552b95",
+    "refs/heads/codex/task-media-production 1363a156eee83f7b41f7b6a0834ef9a91f974701",
+    "refs/heads/codex/team-nickname-production e76f3ebdc217d2f067a222922c205e983c79e1c9",
+    "refs/heads/dev 2de2e60d234db8f6b3efe51499ccdab8bb6bfa74",
+    "refs/heads/guest-ai/dev 06d27e71cf91117d4ce3e44306740d568332759e",
+    "refs/heads/main e6e4ab1aa36c5eba560a1b14db2dc563c48aad39"
+  ],
+  "prune": {
+    "removed": 77,
+    "remaining": 26,
+    "branchesDeleted": 0,
+    "existingWorktreesRemoved": 0
+  }
+}

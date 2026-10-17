@@ -1,5 +1,11 @@
 # FeedX Development Log
 
+## 2026-10-17 - Git reconciliation of completed Production recovery and Creator release
+
+Recovered the exact Production-applied incident migrations `20261016062921` and `20261016070206` with checksum-matched source, rollback-only regression probes and the completed [incident receipt](docs/releases/2026-10-16-production-loading-retry-incident.md). Planner business conflicts use non-retryable PT409; shared authorization helpers reuse execution plans without caching permission answers. The recorded Production recovery preserved data, grants, schedules and complete-read enforcement. This reconciliation does not execute either migration again. Canonical owners: `docs/architecture/trusted-authorities.md` and `docs/domains/marketing.md`.
+
+Corrected the [Shared Creator release record](docs/releases/2026-10-17-shared-creator-directory-readiness.md) against its completed Production receipt: SHA `cefc744c10b75da0683b75060253524bcdfe8b87`, ledger 812, marketing-meta v23 and marketing-worker v24. Active startup-recovery work and all original dirty worktrees remain preserved; see [Git reconciliation](docs/audits/2026-10-17-git-worktree-reconciliation.md). No deployment or Production mutation is part of this reconciliation.
+
 ## 2026-10-16 — Canonical ongoing Staff Reply authority
 
 Normal Production Staff Replies use the existing tenant/Brand, Role, connected-account, Meta, window, generation, approval and receipt authorities without a second manually maintained account registry. Exact account/peer lists remain mandatory for controlled testing and independently optional emergency restrictions for normal operation; malformed restrictions fail closed. Deployment enables no execution. Meta App-role acceptance does not establish general-customer Advanced Access. Publishing and Staging test gates remain unchanged. Canonical owner: docs/domains/marketing.md.
