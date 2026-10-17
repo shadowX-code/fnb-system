@@ -66,6 +66,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   useAuth.mockReturnValue({ user: { id: "user" }, hasPermission: () => true });
   inboxService.sendStatus.mockResolvedValue({recipient_allowed:true});
+  inboxService.preview.mockResolvedValue({state:'human_required'});
   inboxService.profiles.mockResolvedValue({ profiles: {} });
   marketingService.context.mockResolvedValue({
     organizations: [{ id: "o", name: "Organization" }],
@@ -406,4 +407,11 @@ it.each([true, false])('gates Customer Directory by its canonical route permissi
  fireEvent.click(screen.getByRole('button',{name:'Show customer details'}));
  const context=screen.getByRole('complementary',{name:'Customer details'});
  expect(Boolean(within(context).queryByRole('link',{name:/Open Customer Directory/}))).toBe(allowed);
+});
+
+it('automatically previews the latest incoming question without creating a draft or calling AI',async()=>{
+ inboxService.preview.mockResolvedValue({state:'human_takeover',faq:{id:'f',answer:'Approved fact'}});
+ render(<MarketingInboxPage/>);await select();
+ await screen.findByText('Approved fact');expect(inboxService.preview).toHaveBeenCalledWith('c','Hello');
+ expect(inboxService.command).not.toHaveBeenCalled();expect(inboxService.suggest).not.toHaveBeenCalled();
 });

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, Send, BookOpen } from "lucide-react";
+import {aiSuggestionUnavailable,faqPreviewMessage} from "./inboxKnowledge.js";
 import { replyAvailability } from "./inboxPresentation.js";
 export default function InboxReplyComposer({
   current,
@@ -70,6 +71,9 @@ export default function InboxReplyComposer({
       a.source_version === c.version,
   );
   const outbox = current.outbox?.find((o) => o.draft_id === draft?.id);
+  const faqQuestion = [...(current.messages||[])].reverse().find(m=>m.kind==='incoming'||(c.channel==='internal'&&m.kind==='note'))?.body||'';
+  const faqUnavailable = !current.knowledge?.approved_for_replies ? 'Approve current Brand Knowledge in FAQ & AI settings.' : !faqQuestion.trim() ? 'A customer question is needed. Internal cases can use a team note as a test question.' : faqQuestion.length>500 ? 'This message exceeds the 500-character FAQ matching limit. Review the FAQ Library instead.' : '';
+  const aiUnavailable = aiSuggestionUnavailable(current,configuration);
   const requiresApproval = current.reply_requires_approval !== false;
   const directReady =
     !requiresApproval &&
@@ -123,7 +127,8 @@ export default function InboxReplyComposer({
         {mode === "reply" && can("ai") && (
           <button
             className="btn-secondary"
-            disabled={busy || !configuration?.ai_configured}
+            disabled={busy || Boolean(aiUnavailable)}
+            title={aiUnavailable||"Prepare a grounded suggestion for staff review"}
             onClick={suggest}
           >
             <Sparkles size={14} />
@@ -134,21 +139,17 @@ export default function InboxReplyComposer({
           <button
             className="btn-secondary"
             disabled={
-              busy || !current.messages?.some((m) => m.kind === "incoming")
+              busy || Boolean(faqUnavailable)
             }
-            onClick={() =>
-              faqPreview(
-                [...current.messages]
-                  .reverse()
-                  .find((m) => m.kind === "incoming")?.body || "",
-              )
-            }
+            title={faqUnavailable||'Match the current question to an approved answer'}
+            onClick={()=>faqPreview(faqQuestion)}
           >
             <BookOpen size={14} />
             Approved FAQ
           </button>
         )}
       </div>
+      {mode === "reply" && can("ai") && aiUnavailable && <p className="inbox-assistance-status" role="status">{aiUnavailable}</p>}
       {mode === "reply" && suggestion && (
         <div className="inbox-suggestion" aria-label="AI suggested reply">
           <strong>Suggested reply · needs review</strong>
@@ -156,12 +157,12 @@ export default function InboxReplyComposer({
           {suggestion.body.human_required && (
             <p>A person needs to handle this request.</p>
           )}
-          {(!requiresApproval || can("approve")) && (
+          {(!(requiresApproval || suggestion.body.human_required) || can("approve")) && (
             <button
               className="btn-secondary"
               disabled={busy}
               onClick={() => {
-                if (requiresApproval) reviewAI(suggestion.id, true);
+                if (requiresApproval || suggestion.body.human_required) reviewAI(suggestion.id, true);
                 else {
                   setText(suggestion.body.text);
                   setDirty(true);
@@ -183,10 +184,10 @@ export default function InboxReplyComposer({
       )}
       {mode === "reply" && preview && (
         <div className="inbox-suggestion">
-          <strong>Approved FAQ</strong>
+          <strong>{preview.faq ? 'Suggested FAQ · approved answer' : 'Approved FAQ'}</strong>
           <p>
             {preview.faq?.answer ||
-              "No approved answer. Ask a team member to help."}
+              faqPreviewMessage(preview)}
           </p>
           {preview.faq && can("reply") && (
             <button

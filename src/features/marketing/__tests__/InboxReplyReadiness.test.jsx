@@ -58,3 +58,8 @@ it('restores only the exact conversation draft after chat/list navigation',()=>{
  expect(screen.getByLabelText('Reply').value).toBe('Conversation C draft');
  expect(p.onDirectSend).not.toHaveBeenCalled();
 });
+it('inserts a reviewed grounded suggestion without sending or losing the separate note',()=>{
+ const p=props({current:{...current,knowledge:{approved_for_replies:true},policy:{ai_allowed:true},artifacts:[{id:'a',kind:'reply',state:'proposed',source_version:1,body:{text:'Approved fact answer',human_required:false}}]}});
+ render(<InboxReplyComposer {...p}/>);fireEvent.click(screen.getByRole('button',{name:'Internal note',exact:true}));fireEvent.change(screen.getByLabelText('Internal note'),{target:{value:'Keep private note'}});fireEvent.click(screen.getByRole('button',{name:'Reply',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Use suggestion'}));
+ expect(screen.getByLabelText('Reply').value).toBe('Approved fact answer');expect(p.onDirectSend).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Internal note',exact:true}));expect(screen.getByLabelText('Internal note').value).toBe('Keep private note');
+});
