@@ -762,3 +762,7 @@ Removed Outlet coverage UI/services and dedicated database objects through a gua
 ## 2026-10-16 — Google Reviews Staging operational authority
 
 Register six explicit Google Reviews permissions in the canonical matrix, preserve equivalent prior grants, and separate scoped review operations from all-outlet connection/mapping administration. Add Staging-only half-hour read synchronization using pg_cron/pg_net, short-lived run capabilities and the shared manual sync authority. Preserve Google-write confirmation, encrypted credentials/cache lifecycle and disabled Performance scoring. See `docs/domains/crew-performance-and-reward.md` and `docs/testing/google-reviews-operational.md`. Production is excluded.
+
+### 2026-10-17 — Content Studio planning and published targets
+
+Planning Insights moves to its own authorized Content Studio route, sharing the canonical planner controller and date/filter preferences. Compact category badges are shared across task and calendar surfaces. Production reviewers can complete/request revision directly from Planned/In Progress without approving Content or publishing. Monthly target progress is now published-first, deduplicated across channels/revisions by first observed publication month, with Scheduled and production pipeline separate and missing publication evidence explicit. No Production deployment or provider execution is part of Staging implementation.

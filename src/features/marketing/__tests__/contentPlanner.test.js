@@ -12,7 +12,7 @@ describe('Creative planner presentation',()=>{
   expect(plannerListGroups(rows,'brand').map(g=>g.tasks.map(t=>t.id))).toEqual([['a'],['b']]);expect(JSON.stringify(rows)).toBe(before);expect(plannerListGroups(rows,'assignee')[0].label).toBe('Unassigned');
  });
  it('List review choices depend on reviewer authority and blockers, while reopen depends on edit',()=>{
-  expect(listStatusMoves(task('a',{status:'in_review'}),true,false)).toEqual([]);expect(listStatusMoves(task('a',{status:'in_review'}),false,true)).toEqual(['completed','revision_needed']);expect(listStatusMoves(task('a',{status:'in_review',blocked:true}),true,true)).toEqual([]);expect(listStatusMoves(task('a',{status:'completed'}),true,false)).toEqual(['in_progress']);
+  expect(listStatusMoves(task('a',{status:'in_review'}),true,false)).toEqual([]);expect(listStatusMoves(task('a',{status:'in_review'}),false,true)).toEqual(['revision_needed','completed']);expect(listStatusMoves(task('a',{status:'in_review',blocked:true}),true,true)).toEqual([]);expect(listStatusMoves(task('a',{status:'completed'}),true,false)).toEqual(['in_progress']);
  });
  it('uses Malaysia month independently of browser time zone',()=>expect(currentMonth(new Date('2026-09-30T17:00:00Z'))).toBe('2026-10-01'));
  it('keeps Monday planning weeks independent from deadlines',()=>{expect(weekOf('2026-10-01')).toBe('2026-09-28');expect(monthWeeks('2026-10-01')).toEqual(['2026-09-28','2026-10-05','2026-10-12','2026-10-19','2026-10-26']);});
