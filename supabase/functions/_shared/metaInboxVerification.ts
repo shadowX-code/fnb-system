@@ -1,6 +1,7 @@
 import { MetaGraph, MetaError } from './metaGraph.ts';
 import { hash, STAGING_SUPABASE } from './metaSecurity.ts';
 import { inboxConnectorContracts } from './metaInboxAdapters.ts';
+import { retainedOAuthAccountTasks } from './metaPageTasks.ts';
 
 // Independent read-only messaging resolver. Never alters publishing authority.
 export async function verifyInboxConnection(graph:MetaGraph, appId:string, appToken:string, connection:any, credential:any, guard:()=>Promise<void>, inbound:any[]=[], onSubscriptions?:(response:any)=>void, options?:{recentWindow?:boolean;onConversations?:(response:any)=>void} ) {
@@ -39,6 +40,10 @@ export async function verifyInboxConnection(graph:MetaGraph, appId:string, appTo
    tasks=messagingTasks(snapshot.tasks);if(tasks.length)source='oauth_accounts';
   }
   if(!tasks.length&&connection.capabilities?.page_task_source==='accounts'&&connection.capabilities?.page_tasks_verified===true&&connection.meta_user_id===debug.user_id&&owner?.id===pageId&&/^\d{1,30}$/.test(owner?.business?.id||'')&&(debug.granular_scopes||[]).some((g:any)=>g.scope==='business_management'&&g.target_ids?.includes(owner.business.id))){tasks=messagingTasks(connection.capabilities.page_tasks);if(tasks.length)source='oauth_accounts';}
+  if(!snapshot&&!tasks.length&&!owner?.business?.id&&(!owner||owner.id===pageId)){
+   const retained=retainedOAuthAccountTasks(connection,{subject:String(debug.user_id),pageId,accountVerified});
+   if(retained){tasks=messagingTasks(retained);if(tasks.length)source='oauth_accounts_current_generation';}
+  }
   if(!tasks.length){
    const roles=await read(`${pageId}/roles`,credential.token,{uid:debug.user_id,fields:'id,is_active,tasks',limit:2});
    if(roles?.data?.length===1&&!roles.paging?.next&&roles.data[0].id===debug.user_id&&roles.data[0].is_active===true){tasks=messagingTasks(roles.data[0].tasks);if(tasks.length)source='exact_authorizer_roles';}

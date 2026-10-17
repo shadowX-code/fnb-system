@@ -81,3 +81,15 @@ export function resolveOAuthTaskEvidence(e:OAuthTaskEvidence|undefined,current:{
  const tasks=e.tasks.filter(t=>['MANAGE','CREATE_CONTENT'].includes(t));
  return {state:tasks.length?'verified':'not_granted',source:'oauth_accounts',tasks,can_create:tasks.length>0,reason:tasks.length?null:'content_task_not_granted'};
 }
+
+// /me/accounts tasks are authorizer evidence; Business metadata is a separate resource.
+// The service resolver proves that these protected discovery facts belong to this OAuth epoch.
+export function retainedOAuthAccountTasks(connection:any,current:{subject:string;pageId:string;accountVerified:boolean}):string[]|null {
+ const c=connection,cap=c.capabilities;
+ if(c.oauth_accounts_generation_verified!==true||!Number.isSafeInteger(c.credential_generation)||c.credential_generation<1
+ ||!numeric(current.subject)||c.meta_user_id!==current.subject||!numeric(current.pageId)||!current.accountVerified
+ ||!numeric(c.provider_account_id)||!['facebook','instagram'].includes(c.channel)||(c.channel==='facebook'&&c.provider_account_id!==current.pageId)
+ ||cap?.discovery_path!=='accounts'||cap.page_task_source!=='accounts'||cap.page_tasks_verified!==true||cap.page_task_state==='unverified'
+ ||!Array.isArray(cap.page_tasks)||!cap.page_tasks.length||cap.page_tasks.length>30||cap.page_tasks.some((t:unknown)=>typeof t!=='string'))return null;
+ return cap.page_tasks;
+}

@@ -1,7 +1,7 @@
 import { MetaGraph, MetaError } from './metaGraph.ts';
 import { META_SCOPES, hash } from './metaSecurity.ts';
 import { facebookPostFields } from './metaSynchronization.ts';
-import { resolvePageRoleTasks, resolveBusinessPageTasks, resolveBusinessUserPageTasks, type AuthorizerAssignment, type OAuthTaskEvidence, resolveOAuthTaskEvidence, discoverAuthorizerAssignments } from './metaPageTasks.ts';
+import { resolvePageRoleTasks, resolveBusinessPageTasks, resolveBusinessUserPageTasks, type AuthorizerAssignment, type OAuthTaskEvidence, resolveOAuthTaskEvidence, discoverAuthorizerAssignments, retainedOAuthAccountTasks } from './metaPageTasks.ts';
 // Fixed GETs only. No provider bodies, messages, personal subjects or credentials leave this module.
 export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appToken:string,connection:any,token:string,guard:()=>Promise<void>,publishingChecks=false,assignment?:AuthorizerAssignment, oauthEvidence?:OAuthTaskEvidence,onEvidence?:(e:OAuthTaskEvidence)=>Promise<void>) {
  const id=connection.provider_account_id;
@@ -39,7 +39,7 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
    publishingEvidence.scope_target_mismatches=required.filter(scope=>Array.isArray(debug?.granular_scopes)&&debug.granular_scopes.some((g:any)=>g?.scope===scope&&Array.isArray(g.target_ids)&&g.target_ids.length>0)&&!debug.granular_scopes.some((g:any)=>g?.scope===scope&&Array.isArray(g.target_ids)&&g.target_ids.some((target:unknown)=>[pageId,id].includes(String(target)))));
    const page=await read('page_posting_capability',pageId,token,{fields:'id,can_post'});
    if(String(page?.id)===pageId&&typeof page?.can_post==='boolean')publishingEvidence.can_post=page.can_post;
-   let owner:any=null, snapshot=oauthEvidence;
+   let owner:any=null, snapshot=oauthEvidence, retainedTasks:string[]|null=null, linkedIdentity:any=null;
    // Legacy accounts evidence is already persisted by service-only OAuth stage/bind.
    // Adopt it only for this exact retained authorizer, generation and business grant.
    const legacy=connection.capabilities?.page_task_source==='accounts'&&connection.capabilities?.page_tasks_verified===true&&connection.meta_user_id===debug?.user_id;
@@ -50,6 +50,18 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
     snapshot={subject:debug.user_id,pageId,businessId,generation:connection.credential_generation,tokenHash:hashValue,tasks:connection.capabilities.page_tasks};
    }
    let tasks=snapshot?resolveOAuthTaskEvidence(snapshot,{subject:String(debug?.user_id||''),pageId,businessId,generation:connection.credential_generation,tokenHash:hashValue}):null;
+   if(!snapshot&&!businessId&&legacy&&(!owner||String(owner.id)===pageId)&&String(debug.profile_id)===pageId&&typeof debug.data_access_expires_at==='number'&&(debug.data_access_expires_at===0||debug.data_access_expires_at>Date.now()/1000)) {
+    if(connection.channel==='instagram') {
+     linkedIdentity=await read('linked_instagram_identity',pageId,token,{fields:'id,instagram_business_account{id}'});
+     identityMatches=String(linkedIdentity?.id)===pageId&&String(linkedIdentity?.instagram_business_account?.id)===id;
+    }
+    retainedTasks=retainedOAuthAccountTasks(connection,{subject:String(debug?.user_id||''),pageId,accountVerified:identityMatches});
+    if(retainedTasks){
+     const content=retainedTasks.filter(t=>['MANAGE','CREATE_CONTENT'].includes(t));
+     tasks={state:content.length?'verified':'not_granted',source:'oauth_accounts_current_generation',tasks:content,can_create:content.length>0,reason:content.length?null:'content_task_not_granted'};
+     publishingEvidence.business_context=owner?'not_returned':'unavailable';
+    }
+   }
    // Snapshot binding failures fail closed; do not resurrect stale authority via another edge.
    if(!tasks)tasks=await resolvePageRoleTasks(pageId,String(debug?.user_id||''),(path,params)=>read('authorizer_page_roles',path,token,params));
    if(!snapshot&&tasks.state==='unverified'&&tokenEvidence.granted_scopes.includes('pages_manage_metadata')&&assignment&&(!(debug.granular_scopes||[]).some((g:any)=>g.scope==='pages_manage_metadata'&&g.target_ids?.length)||(debug.granular_scopes||[]).some((g:any)=>g.scope==='pages_manage_metadata'&&g.target_ids?.includes(pageId))))tasks=await resolveBusinessPageTasks(pageId,String(debug?.user_id||''),assignment,(path,params)=>read('authorizer_page_assignment',path,token,params));
@@ -96,6 +108,9 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
     }
     // A current exact active person role can establish direct Page assignment.
     if(!snapshot&&tasks.source==='page_roles'&&tasks.state==='verified')provenance='direct_page';
+    // Unknown Business ownership is not direct-person or Business Manager evidence.
+    // Cover either access mode conservatively; never infer an owner from names or /roles IDs.
+    if(provenance==='unverified'&&retainedTasks&&tasks.state==='verified'&&tasks.can_create&&tokenEvidence.granted_scopes.some((s:string)=>['ads_read','ads_management'].includes(s)))provenance='oauth_accounts_current_generation';
     publishingEvidence.assignment_provenance=provenance;
     if(provenance==='unverified') {
      publishingEvidence.blockers.push('page_assignment_provenance_unverified');
@@ -103,7 +118,7 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
     }
     if(provenance==='business_manager'&&!tokenEvidence.granted_scopes.some((s:string)=>['ads_read','ads_management'].includes(s)))publishingEvidence.blockers.push('business_manager_ads_read_required');
 
-    const link=await read('linked_instagram_identity',pageId,token,{fields:'id,instagram_business_account{id}'});
+    const link=linkedIdentity||await read('linked_instagram_identity',pageId,token,{fields:'id,instagram_business_account{id}'});
     identityMatches=String(link?.id)===pageId&&String(link?.instagram_business_account?.id)===id;
     if(identityMatches) {
      const professional=await read('instagram_account_identity',id,token,{fields:'id'});

@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {resolvePageRoleTasks,discoverAuthorizerAssignments,resolveBusinessPageTasks,resolveBusinessUserPageTasks} from '../../../../supabase/functions/_shared/metaPageTasks.ts';
+import {retainedOAuthAccountTasks,resolvePageRoleTasks,discoverAuthorizerAssignments,resolveBusinessPageTasks,resolveBusinessUserPageTasks} from '../../../../supabase/functions/_shared/metaPageTasks.ts';
 describe('authorizing-user Page roles evidence',()=>{
  it('requires exact active authorizer and explicit content tasks',async()=>{
   const read=vi.fn().mockResolvedValue({data:[{id:'789',is_active:true,tasks:['MANAGE','ANALYZE'],name:'private-name'}]});
@@ -59,3 +59,14 @@ describe('business Page tasks for exact OAuth authorizer',()=>{
  const unused=vi.fn();expect((await resolveBusinessUserPageTasks('111','999',a,unused)).state).toBe('unverified');expect(unused).not.toHaveBeenCalled();
  });
  });
+
+
+describe('protected OAuth epoch task projection',()=>{
+ const c={channel:'facebook',provider_account_id:'111',credential_generation:1,meta_user_id:'789',oauth_accounts_generation_verified:true,capabilities:{discovery_path:'accounts',page_task_source:'accounts',page_tasks_verified:true,page_tasks:['MESSAGING']}};
+ const current={subject:'789',pageId:'111',accountVerified:true};
+ it('accepts only protected current account evidence',()=>{
+  expect(retainedOAuthAccountTasks(c,current)).toEqual(['MESSAGING']);
+  for(const patch of [{oauth_accounts_generation_verified:false},{credential_generation:0},{credential_generation:1.5},{meta_user_id:'999'},{provider_account_id:'999'},{channel:'tiktok'},...['discovery_path','page_task_source','page_tasks_verified','page_task_state','page_tasks'].map(key=>({capabilities:{...c.capabilities,[key]:key==='page_task_state'?'unverified':null}}))])expect(retainedOAuthAccountTasks({...c,...patch},current)).toBeNull();
+  for(const patch of [{accountVerified:false},{subject:'999'},{pageId:'999'}])expect(retainedOAuthAccountTasks(c,{...current,...patch})).toBeNull();
+ });
+});
