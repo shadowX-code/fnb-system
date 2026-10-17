@@ -22,6 +22,7 @@ async function invoke(path, options = {}) {
   return data;
 }
 export const inboxService = {
+  faqHistory: (brand,faq) => rpc("marketing_faq_history",{p_brand:brand,p_faq:faq}),
   faqSettings: brand => rpc("marketing_faq_settings_read",{p_brand:brand}),
   historyStatus:connection=>rpc("marketing_inbox_history_status",{p_connection:connection}),
   requestHistory:connection=>rpc("marketing_inbox_history_request",{p_connection:connection}),

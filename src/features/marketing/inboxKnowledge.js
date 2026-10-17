@@ -1,11 +1,11 @@
 export function aiSuggestionUnavailable(current,configuration) {
  if(!current?.knowledge?.approved_for_replies)return 'Approve the current facts on Brand Knowledge.';
  if(!current?.policy?.ai_allowed)return 'AI suggestions are disabled for this Brand. An Inbox administrator can enable them in FAQ & AI settings.';
- if(!configuration?.ai_configured)return 'The AI provider is unavailable. Contact a platform administrator; approved FAQs remain available.';
+ if(!configuration?.ai_configured)return 'The AI provider is unavailable. Contact a platform administrator; active FAQs remain available.';
  return '';
 }
 export function faqPreviewMessage(preview) {
- return {off:'FAQ matching is disabled for this Brand.',knowledge_unapproved:'No approved FAQ matched. Factual answers require current approved Brand Knowledge.',escalate:'This request needs a person. No FAQ answer was selected.',unavailable:'FAQ matching is temporarily unavailable. Try Approved FAQ again.'}[preview?.state]||'No unique approved FAQ matches this question. Review the FAQ Library or write a staff reply.';
+ return {off:'FAQ matching is disabled for this Brand.',escalate:'This request needs a person. No FAQ answer was selected.',unavailable:'FAQ matching is temporarily unavailable. Try FAQ suggestions again.'}[preview?.state]||'No unique active FAQ is available for this question. Operational facts may need confirmation. Review the FAQ Library or write a staff reply.';
 }
 
 export function faqApprovalUnavailable(faq,knowledge,templates=[]) {
