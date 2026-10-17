@@ -157,9 +157,9 @@ Deno.serve(async (req) => {
     if(!configured)return json({error:'AI is unavailable. Save knowledge manually or ask an administrator to check the existing provider.'},409);
     let claim:any,requestId:string|undefined;
     try {
-      const raw=await req.text();if(raw.length>1000)return json({error:'Request too large.'},413);
+      const raw=await req.text();if(raw.length>6000)return json({error:'Request too large.'},413);
       const body=JSON.parse(raw);requestId=body.requestId;
-      const prepared=await rpc(caller,'marketing_knowledge_ai_prepare',{p_request:requestId,p_brand:body.brandId,p_kind:body.kind,p_entry:body.entryId||null});
+      const prepared=await rpc(caller,'marketing_knowledge_ai_prepare',{p_request:requestId,p_brand:body.brandId,p_kind:body.kind,p_entry:body.entryId||null,p_preview:body.preview||null});
       if(prepared.state!=='prepared')return json(prepared);
       claim=await rpc(service,'marketing_knowledge_ai_claim',{p_request:requestId,p_auth_user:identity.data.user.id});
       let bytes:Uint8Array|undefined;
@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
       const value=await requestKnowledgeAI(claim.kind,claim,env('OPENAI_API_KEY'),env('MARKETING_AI_MODEL'),bytes);
       return json(await rpc(service,'marketing_knowledge_ai_finish',{p_request:requestId,p_lease:claim.lease,p_result:value.result,p_usage:value.usage}));
     }catch(error) {
-      const reason=error instanceof Error&&['invalid_menu_file','ai_shape_invalid','ai_provider_failed','ai_provider_incomplete','ai_rate_limited'].includes(error.message)?error.message:'knowledge_ai_unavailable';
+      const reason=error instanceof Error&&['invalid_menu_file','menu_items_invalid','menu_warning_invalid','menu_currency_invalid','menu_text_invalid','menu_price_invalid','ai_shape_invalid','ai_provider_failed','ai_provider_incomplete','ai_rate_limited'].includes(error.message)?error.message:'knowledge_ai_unavailable';
       if(claim)try{await rpc(service,'marketing_knowledge_ai_finish',{p_request:requestId,p_lease:claim.lease,p_result:{},p_usage:(error as any)?.usage||{},p_error:reason});}catch{}
       // No file contents, private URLs or raw provider errors in diagnostics.
       return json({error:reason==='invalid_menu_file'?'The file does not match its declared format. Choose the original PDF or image.':'Knowledge AI is unavailable or this request is not eligible. Check Brand AI consent, permissions and request status before retrying.'},409);

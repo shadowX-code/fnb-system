@@ -58,8 +58,8 @@ export const marketingService = {
     const {error}=await supabase.storage.from(entry.bucket).upload(entry.object_path,file,{contentType:file.type,upsert:false});
     throwSupabaseError('marketing.menu_upload',error);return entry;
   },
-  async knowledgeAI(requestId,brandId,kind,entryId=null) {
-    const {data,error}=await supabase.functions.invoke('marketing-inbox/knowledge',{body:{requestId,brandId,kind,entryId}});
+  async knowledgeAI(requestId,brandId,kind,entryId=null,preview=null) {
+    const {data,error}=await supabase.functions.invoke('marketing-inbox/knowledge',{body:{requestId,brandId,kind,entryId,preview}});
     if(error)throw new Error('Knowledge AI unavailable. Check Brand AI consent and provider configuration; no confirmed knowledge was changed.');return data;
   },
   async menuSource(entry) {

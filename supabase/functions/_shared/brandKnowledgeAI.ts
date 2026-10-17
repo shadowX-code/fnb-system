@@ -2,7 +2,7 @@
 export async function requestKnowledgeAI(kind:string,material:any,key:string,model:string,bytes?:Uint8Array,transport:typeof fetch=fetch) {
  if(!key||!model)throw new Error('ai_not_configured');
  const started=Date.now();
- const text={type:'string'}, nullable={type:['string','null']};
+ const text={type:'string'}, nullable={type:['string','null'],description:'Bare decimal amount only, e.g. 3.50 or 0.00. No currency symbol, words, ranges or separators. Null if not one clearly readable amount.',pattern:'^[0-9]{1,6}(\\.[0-9]{1,2})?$'};
  const schema=kind==='menu'?{type:'object',properties:{items:{type:'array',maxItems:100,items:{type:'object',properties:{name:text,category:text,description:text,price:nullable},required:['name','category','description','price'],additionalProperties:false}},currency:{type:['string','null'],enum:['MYR','SGD','USD',null]},warnings:{type:'array',items:text,maxItems:10},partial:{type:'boolean'}},required:['items','currency','warnings','partial'],additionalProperties:false}:{type:'object',properties:{text},required:['text'],additionalProperties:false};
  let content:any;
  if(kind==='menu') {
@@ -27,6 +27,11 @@ export function validMenuBytes(b:Uint8Array,mime:string) {
 }
 export function validateKnowledgeAI(kind:string,v:any) {
  if(kind==='tone') {if(typeof v?.text!=='string'||!v.text.trim()||v.text.length>1000||/\d|\b(open|price|discount|refund|reserv|guarantee)|营业|价格|退款/i.test(v.text))throw new Error('ai_shape_invalid');return;}
- if(!Array.isArray(v?.items)||v.items.length>100||!Array.isArray(v.warnings)||v.warnings.length>10||v.warnings.some((s:any)=>typeof s!=='string'||s.length>500)||typeof v.partial!=='boolean'||![null,'MYR','SGD','USD'].includes(v.currency))throw new Error('ai_shape_invalid');
- for(const i of v.items)if(typeof i.name!=='string'||!i.name.trim()||i.name.length>160||typeof i.category!=='string'||i.category.length>120||typeof i.description!=='string'||i.description.length>600||i.price!==null&&(typeof i.price!=='string'||!/^\d{1,6}(\.\d{1,2})?$/.test(i.price)))throw new Error('ai_shape_invalid');
+ if(!Array.isArray(v?.items)||v.items.length>100)throw new Error('menu_items_invalid');
+ if(!Array.isArray(v.warnings)||v.warnings.length>10||v.warnings.some((s:any)=>typeof s!=='string'||s.length>500)||typeof v.partial!=='boolean')throw new Error('menu_warning_invalid');
+ if(![null,'MYR','SGD','USD'].includes(v.currency))throw new Error('menu_currency_invalid');
+ for(const i of v.items) {
+  if(typeof i.name!=='string'||!i.name.trim()||i.name.length>160||typeof i.category!=='string'||i.category.length>120||typeof i.description!=='string'||i.description.length>600)throw new Error('menu_text_invalid');
+  if(i.price!==null&&(typeof i.price!=='string'||!/^\d{1,6}(\.\d{1,2})?$/.test(i.price)))throw new Error('menu_price_invalid');
+ }
 }
