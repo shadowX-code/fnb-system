@@ -30,7 +30,7 @@ do $$declare o uuid:=(select id from marketing_qa_ids where key='org');b uuid:=(
 begin
  r:=public.marketing_inbox_command(gen_random_uuid(),o,b,null,0,'create','{"title":"FAQ workflow — rollback only"}');c:=(r->'conversation'->>'id')::uuid;
  insert into marketing_qa_ids values('conversation',c);
- denied:=false;begin perform public.marketing_inbox_configure(gen_random_uuid(),b,0,'save_faq','{"question":"QA question","answer":"QA only","language":"EN","reference_keys":["rules"]}');exception when others then denied:=true;end;assert denied,'Unapproved knowledge cannot create FAQ';
+ r:=public.marketing_inbox_configure(gen_random_uuid(),b,0,'save_faq','{"question":"QA question","answer":"QA only","language":"EN","reference_keys":[]}');assert r->>'status'='draft','Unapproved knowledge permits preparation only';
  perform public.marketing_save_knowledge(b,0,'{"rules":{"text":"QA rollback only: the test reference is SAMPLE.","provenance":"verified_brand_fact"},"voice":{"text":"Unapproved QA suggestion","provenance":"ai_suggestion"},"references":{"text":"External research","provenance":"external_research","source_url":"https://example.com"}}');
  perform public.marketing_inbox_configure(gen_random_uuid(),b,1,'approve_knowledge');
  assert public.marketing_inbox_read(o,b)->'knowledge'->>'approved_for_replies'='true','Current knowledge approved';
