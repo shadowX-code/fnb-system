@@ -305,7 +305,7 @@ it("prevents sending outside the messaging window even when staff sending is con
   expect(
     screen.getByRole("button", { name: "Send", exact: true }).disabled,
   ).toBe(true);
-  expect(screen.getByText(/Reply window closed/)).toBeTruthy();
+  expect(await screen.findByText(/Reply window closed/)).toBeTruthy();
 });
 
 it('keeps an unsaved reply while refreshing the same conversation',async()=>{
@@ -340,7 +340,7 @@ it('uses an editable AI proposal as a human-confirmed staff reply without autono
  detail.reply_requires_approval=false;
  detail.artifacts=[{id:'ai-one',kind:'reply',state:'proposed',source_version:2,body:{text:'Approved brand fact',human_required:false}}];
  inboxService.configuration.mockResolvedValue({staff_send_configured:true});inboxService.sendStaffReply.mockResolvedValue({state:'sent'});
- render(<MarketingInboxPage/>);await select();fireEvent.click(screen.getByRole('button',{name:'Use suggestion'}));
+ render(<MarketingInboxPage/>);await select();fireEvent.click(screen.getByRole('button',{name:'Use Reply'}));
  fireEvent.change(screen.getByLabelText('Reply'),{target:{value:'Edited by a person'}});
  await waitFor(()=>expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(false));
  expect(inboxService.sendStaffReply).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Send',exact:true}));

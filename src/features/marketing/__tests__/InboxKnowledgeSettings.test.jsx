@@ -14,7 +14,7 @@ it('keeps fact verification separate from FAQ approval and preserves policy',()=
 });
 it('hides policy mutation from unauthorized readers',()=>{render(<InboxKnowledgeSettings {...props()} can={()=>false}/>);expect(screen.queryByRole('button',{name:'Save brand settings'})).toBeNull()});
 it('distinguishes knowledge, Brand consent, provider and matching availability',()=>{
- expect(aiSuggestionUnavailable({},{})).toMatch(/Knowledge/);
+ expect(aiSuggestionUnavailable({},{})).toMatch(/disabled for this Brand/);
  expect(aiSuggestionUnavailable({knowledge:{approved_for_replies:true}},{})).toMatch(/disabled for this Brand/);
  expect(aiSuggestionUnavailable({knowledge:{approved_for_replies:true},policy:{ai_allowed:true}},{})).toMatch(/provider is unavailable/);
  expect(aiSuggestionUnavailable({knowledge:{approved_for_replies:true},policy:{ai_allowed:true}},{ai_configured:true})).toBe('');

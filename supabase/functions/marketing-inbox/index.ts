@@ -1,3 +1,4 @@
+import {requestInboxAssistant} from '../_shared/inboxAssistant.ts';
 import {staffReplyConfigured, staffReplyAllowed} from '../_shared/marketingExecution.mjs';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { STAGING_ORIGIN, STAGING_SUPABASE, connectionBinding, unseal } from "../_shared/metaSecurity.ts";
@@ -230,9 +231,6 @@ Deno.serve(async (req) => {
   if (path !== "/suggest" || req.method !== "POST") {
     return json({ error: "Endpoint unavailable." }, 404);
   }
-  if (!configured) {
-    return json({ error: "Marketing AI provider is unavailable." }, 503);
-  }
   const raw = await req.text();
   if (raw.length > 4000) return json({ error: "Request too large." }, 413);
   let body;
@@ -260,10 +258,10 @@ Deno.serve(async (req) => {
     });
     if (!claim) return json({ state: "already_claimed_or_superseded" });
     aiStage = "provider";
-    const result = await requestInboxAI(
+    const result = await requestInboxAssistant(
       claim,
-      env("OPENAI_API_KEY"),
-      env("MARKETING_AI_MODEL"),
+      configured ? env("OPENAI_API_KEY") : "",
+      configured ? env("MARKETING_AI_MODEL") : "",
     );
     aiStage = "record";
     return json(

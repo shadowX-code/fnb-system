@@ -37,7 +37,7 @@ import "./marketingInbox.css";
 import { notifyConversationsChanged } from "./useConversationReplyCount.js";
 import InboxReplyComposer from "./InboxReplyComposer.jsx";
 import {aiSuggestionUnavailable} from "./inboxKnowledge.js";
-import { socialIdentity, conversationTimeline, replyOutcomeMessage, replyWasAccepted, replyStateLabel } from "./inboxPresentation.js";
+import { socialIdentity, conversationTimeline, replyOutcomeMessage, replyWasAccepted, replyStateLabel, replySourceLabel } from "./inboxPresentation.js";
 const label = (s) =>
   String(s || "")
     .replaceAll("_", " ")
@@ -519,10 +519,15 @@ export default function MarketingInboxPage() {
       ...patch,
     });
   }
-  function suggestReply() {
+  function suggestReply(previousArtifact) {
     return mutate(
       { scope, id: c.id, version: c.version, kind: "reply" },
-      (id) => inboxService.suggest(id, c, "reply"),
+      async (id) => {
+        if (typeof previousArtifact === "string") await inboxService.reviewAI(previousArtifact,false);
+        const result=await inboxService.suggest(id, c, "reply");
+        if (["generating","cooldown"].includes(result?.state)) throw new Error(result.state==="generating"?"A suggestion is already being prepared. Please wait.":"Please wait before requesting another suggestion.");
+        return result;
+      },
       "Suggestion prepared for review.",
     );
   }
@@ -1070,7 +1075,7 @@ export default function MarketingInboxPage() {
                     <p>{d.body}</p>
                     {d.source_references?.length > 0 && (
                       <small>
-                        Approved facts: {d.source_references.join(", ")}
+                        Sources: {d.source_references.map(replySourceLabel).join(", ")}
                       </small>
                     )}
                     <div className="marketing-inbox-actions">

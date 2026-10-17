@@ -1,5 +1,4 @@
 export function aiSuggestionUnavailable(current,configuration) {
- if(!current?.knowledge?.approved_for_replies)return 'Approve the current facts on Brand Knowledge.';
  if(!current?.policy?.ai_allowed)return 'AI suggestions are disabled for this Brand. An Inbox administrator can enable them in FAQ & AI settings.';
  if(!configuration?.ai_configured)return 'The AI provider is unavailable. Contact a platform administrator; active FAQs remain available.';
  return '';

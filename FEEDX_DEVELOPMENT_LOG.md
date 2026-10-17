@@ -1025,3 +1025,7 @@ Added bounded, review-gated independent journal checkpoints with verified write-
 ### 2026-10-17 — Content Studio planning and published targets
 
 Planning Insights moves to its own authorized Content Studio route, sharing the canonical planner controller and date/filter preferences. Compact category badges are shared across task and calendar surfaces. Production reviewers can complete/request revision directly from Planned/In Progress without approving Content or publishing. Monthly target progress is now published-first, deduplicated across channels/revisions by first observed publication month, with Scheduled and production pipeline separate and missing publication evidence explicit. No Production deployment or provider execution is part of Staging implementation.
+
+## 2026-10-18 — Marketing Inbox hybrid assistant (Staging)
+
+Extended the existing Suggest Only request/artifact lifecycle with no-token exact FAQ routing, GPT-5 mini semantic proposals, bounded source/context retrieval, editable sourced replies and advisory human handoff. Current Active FAQ/operational authority, Brand consent, source freshness, staff approval and explicit sending remain enforced; no automated assignment, closure or customer sending. Added per-conversation request deduplication, source-version cache and honest latency/token/cost/failure evidence. Production is excluded.
