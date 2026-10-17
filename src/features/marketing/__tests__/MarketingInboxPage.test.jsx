@@ -415,3 +415,12 @@ it('automatically previews the latest incoming question without creating a draft
  await screen.findByText('Approved fact');expect(inboxService.preview).toHaveBeenCalledWith('c','Hello');
  expect(inboxService.command).not.toHaveBeenCalled();expect(inboxService.suggest).not.toHaveBeenCalled();
 });
+it('revalidates FAQ suggestions on canonical refresh without losing an unsent reply',async()=>{
+ inboxService.preview.mockResolvedValue({state:'human_takeover',faq:{id:'f',answer:'Previously approved FAQ answer'}});
+ render(<MarketingInboxPage/>);await select();await screen.findByText('Previously approved FAQ answer');
+ fireEvent.change(screen.getByRole('textbox',{name:'Reply',exact:true}),{target:{value:'Unsent staff text'}});
+ inboxService.preview.mockResolvedValue({state:'human_required',faq:null});
+ fireEvent.click(screen.getByRole('button',{name:'Refresh',exact:true}));
+ await waitFor(()=>expect(screen.queryByText('Previously approved FAQ answer')).toBeNull());
+ expect(inboxService.preview.mock.calls.length).toBeGreaterThan(1);expect(screen.getByRole('textbox',{name:'Reply',exact:true}).value).toBe('Unsent staff text');expect(inboxService.command).not.toHaveBeenCalled();
+});

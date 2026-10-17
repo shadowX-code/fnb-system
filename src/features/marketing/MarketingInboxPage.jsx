@@ -447,7 +447,7 @@ export default function MarketingInboxPage() {
     if(c?.id && mayMatchFAQ && latestQuestion?.trim() && latestQuestion.length<=500)
       inboxService.preview(c.id,latestQuestion).then(value=>{if(live)setPreview(value)}).catch(()=>{if(live)setPreview({state:'unavailable'})});
     return ()=>{live=false};
-  },[c?.id,c?.version,current?.knowledge?.revision,current?.knowledge?.approved_for_replies,current?.policy?.automation_mode,latestQuestion,mayMatchFAQ]);
+  },[refresh,c?.id,c?.version,current?.knowledge?.revision,current?.knowledge?.approved_for_replies,current?.policy?.automation_mode,latestQuestion,mayMatchFAQ]);
   function openCase() {
     setModal({ type: "create", title: "" });
   }
