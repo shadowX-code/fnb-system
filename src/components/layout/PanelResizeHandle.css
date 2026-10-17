@@ -1,6 +1,6 @@
 .workspace-panel-resizer { min-width: 0; cursor: col-resize; touch-action: none; display: grid; place-items: center; border-radius: 8px; outline-offset: -2px; }
 .workspace-panel-resizer > span { width: 3px; height: 36px; background: var(--theme-border); border-radius: 4px; opacity: 0; transition: opacity 150ms; }
 .workspace-panel-resizer:hover > span, .workspace-panel-resizer:focus-visible > span { opacity: 1; }
-.workspace-panel-resizer:focus-visible { outline: 2px solid var(--theme-primary); }
+.workspace-panel-resizer:focus-visible { outline: 2px solid var(--factory-success-text); }
 
 @media(prefers-reduced-motion:reduce) { .workspace-panel-resizer > span { transition: none; } }
