@@ -368,3 +368,25 @@ it('renders canonical persisted profiles even when optional enrichment is unavai
  expect(screen.getByRole('heading',{name:'Verified Profile'})).toBeTruthy();
  expect(screen.queryByText('Instagram customer')).toBeNull();
 });
+it('shows honest customer context and existing notes without creating CRM relationships',async()=>{
+ render(<MarketingInboxPage/>);await select();
+ fireEvent.click(screen.getByRole('button',{name:'Show customer details'}));
+ const context=screen.getByRole('complementary',{name:'Customer details'});
+ expect(within(context).getByText(/No verified CRM customer link/)).toBeTruthy();
+ expect(within(context).getByRole('link',{name:/Open Customer Directory/}).getAttribute('href')).toBe('/marketing/customers');
+ fireEvent.click(within(context).getByRole('tab',{name:'Notes',exact:true}));
+ expect(within(context).getByText('Team follow-up')).toBeTruthy();
+ fireEvent.click(within(context).getByRole('tab',{name:'History',exact:true}));
+ expect(within(context).getByText('Reply approvals & AI history')).toBeTruthy();
+ expect(inboxService.command).not.toHaveBeenCalled();
+});
+it('preserves an unsent draft across context tabs, closing context and chat/list navigation',async()=>{
+ render(<MarketingInboxPage/>);await select();
+ fireEvent.change(screen.getByRole('textbox',{name:'Reply',exact:true}),{target:{value:'Unsent session draft'}});
+ fireEvent.click(screen.getByRole('button',{name:'Show customer details'}));
+ fireEvent.click(screen.getByRole('tab',{name:'Notes',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Close customer details'}));
+ expect(screen.getByRole('textbox',{name:'Reply',exact:true}).value).toBe('Unsent session draft');
+ fireEvent.click(screen.getByRole('button',{name:'Back to conversations'}));await select();
+ expect(screen.getByRole('textbox',{name:'Reply',exact:true}).value).toBe('Unsent session draft');
+});

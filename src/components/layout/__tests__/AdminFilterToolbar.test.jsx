@@ -163,3 +163,14 @@ it("applies auto-search to primary and disclosed shared dropdowns without changi
   fireEvent.click(screen.getByRole('button',{name:'Tag',exact:true}));
   expect(screen.getByRole('textbox',{name:'Search Tag'})).toBeTruthy();
 });
+it('supports compact icon-only disclosure without losing its accessible filter label',()=>{
+ render(<AdminFilterToolbar moreFiltersIconOnly moreFilters={<Field label="Assignee"/>}/>);
+ const toggle=screen.getByRole('button',{name:'More filters'});
+ expect(toggle.textContent).not.toContain('Filters');
+ fireEvent.click(toggle);expect(screen.getByLabelText('Assignee')).toBeTruthy();
+});
+it('supports a visually hidden shared search label while preserving its accessible name',()=>{
+ render(<AdminSearchField hideLabel label="Search" ariaLabel="Search conversations" value="" onChange={vi.fn()}/>);
+ expect(screen.getByRole('searchbox',{name:'Search conversations'})).toBeTruthy();
+ expect(screen.getByText('Search').className).toBe('sr-only');
+});

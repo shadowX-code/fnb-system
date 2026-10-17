@@ -13,6 +13,7 @@ export default function InboxReplyComposer({
   faqPreview,
   onSend,
   onDirectSend,
+  draftCache,
 }) {
   const c = current.conversation;
   const latestSentAt = Math.max(0,...(current.outbox || []).filter(o=>['sent','delivered','read'].includes(o.state)&&o.sent_at).map(o=>Date.parse(o.sent_at)));
@@ -25,21 +26,41 @@ export default function InboxReplyComposer({
         current.outbox?.find((o) => o.draft_id === d.id)?.state,
       ),
   );
-  const [text, setText] = useState(draft?.body || ""),
-    [mode, setMode] = useState("reply"),
-    [dirty, setDirty] = useState(false),
-    [sourceArtifact, setSourceArtifact] = useState(null);
+  // Drafts remain in session memory only; the parent clears them on staff/Brand scope changes.
+  const localCache = useRef(new Map());
+  const cache = draftCache || localCache.current;
+  const restore = () => {
+    const saved = cache.get(c.id);
+    const mode = saved?.mode || 'reply';
+    return { mode, ...(saved?.[mode] || {text: mode === 'reply' ? draft?.body || '' : '', dirty: false, sourceArtifact: null}) };
+  };
+  const [editor, setEditor] = useState(restore);
+  const editorRef = useRef(editor);
+  const {text,mode,dirty,sourceArtifact} = editor;
+  function remember(next) {
+    editorRef.current = next;
+    const previous = cache.get(c.id) || {};
+    cache.set(c.id, {...previous, mode: next.mode, [next.mode]: {text:next.text,dirty:next.dirty,sourceArtifact:next.sourceArtifact}});
+    if (cache.size > 25) cache.delete(cache.keys().next().value);
+    setEditor(next);
+  }
+  const setText = text => remember({...editorRef.current,text});
+  const setDirty = dirty => remember({...editorRef.current,dirty});
+  const setSourceArtifact = sourceArtifact => remember({...editorRef.current,sourceArtifact});
+  function switchMode(mode) {
+    if (editorRef.current.mode === mode) return;
+    const saved = cache.get(c.id)?.[mode];
+    remember({mode,...(saved || {text:mode==='reply'?draft?.body||'':'',dirty:false,sourceArtifact:null})});
+  }
   const previousConversation = useRef(c.id);
   useEffect(() => {
-    const changed = previousConversation.current !== c.id;
-    previousConversation.current = c.id;
-    if (changed || !dirty) {
-      setText(draft?.body || "");
-      setDirty(false);
-      setMode("reply");
-      setSourceArtifact(null);
+    if (previousConversation.current !== c.id) {
+      previousConversation.current = c.id;
+      const next = restore();editorRef.current = next;setEditor(next);
+    } else if (!editorRef.current.dirty && editorRef.current.mode === 'reply') {
+      remember({...editorRef.current,text:draft?.body||'',sourceArtifact:null});
     }
-  }, [c.id, draft?.id]);
+  }, [c.id,draft?.id]);
   const exact = draft && text === draft.body;
   const unavailable = replyAvailability(current, configuration, can("send"));
   const suggestion = current.artifacts?.find(
@@ -81,10 +102,7 @@ export default function InboxReplyComposer({
             className={`inbox-text-button ${mode === "reply" ? "active" : ""}`}
             aria-pressed={mode === "reply"}
             onClick={() => {
-              setMode("reply");
-              setText(draft?.body || "");
-              setDirty(false);
-              setSourceArtifact(null);
+              switchMode("reply");
             }}
           >
             Reply
@@ -95,10 +113,7 @@ export default function InboxReplyComposer({
             className={`inbox-text-button ${mode === "note" ? "active" : ""}`}
             aria-pressed={mode === "note"}
             onClick={() => {
-              setMode("note");
-              setText("");
-              setDirty(false);
-              setSourceArtifact(null);
+              switchMode("note");
             }}
           >
             <StickyNote size={14} />
