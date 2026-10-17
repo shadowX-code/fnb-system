@@ -53,5 +53,5 @@ it('separates saved tone from unsaved preview and clears preview on a changed se
 });
 it('does not call an approved but incomplete identity fully ready',()=>{
  render(<Workspace brand={brand} data={{...data,knowledge_approval_revision:3}} can={()=>false}/>);
- expect(screen.getByRole('button',{name:'Brand Identity Partial'})).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Brand Identity: Partial'})).toBeTruthy();
 });
