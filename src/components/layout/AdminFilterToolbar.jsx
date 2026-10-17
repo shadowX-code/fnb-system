@@ -57,6 +57,7 @@ export default function AdminFilterToolbar({
   filters,
   children,
   moreFilters,
+  moreFiltersIconOnly = false,
   activeFilters = [],
   onClear,
   secondaryActions,
@@ -90,7 +91,7 @@ export default function AdminFilterToolbar({
           {fields.map(({ field, slot, role, width }, index) => <div className={`${denseFields ? role === "outlet" ? "w-full sm:w-[200px]" : role === "search" ? "w-full min-w-0 sm:flex-[1_1_240px]" : role === "period" || role === "date-range" || role === "date-range-navigation" ? width : "w-full sm:w-[150px]" : width} ${role === "search" ? "min-w-0" : "min-w-0 shrink-0"} admin-filter-field`.trim()} data-admin-filter-slot={slot} data-admin-filter-role={role} key={field?.key || index}>{filterSelection(field)}</div>)}
         </div>
         {moreFilters || activeFilters.length || secondaryActions || primaryActions ? <div className="flex w-full flex-wrap items-end sm:w-auto sm:justify-end" data-admin-filter-actions>
-          {moreFilters ? <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} align="right" width={340} ariaLabel="More filters" trigger={({ toggle, ariaLabel: menuLabel }) => <button className={`btn-secondary h-10 shrink-0 px-3 text-sm ${moreOpen ? "border-primary/40 bg-primary/5 text-primary" : ""}`} type="button" aria-label={menuLabel} aria-expanded={moreOpen} onClick={toggle}><SlidersHorizontal size={15} /> Filters</button>}><div className="grid gap-3 p-1">{filterSelection(moreFilters)}</div></ActionMenu> : null}
+          {moreFilters ? <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} align="right" width={340} ariaLabel="More filters" trigger={({ toggle, ariaLabel: menuLabel }) => <button className={`btn-secondary h-10 shrink-0 px-3 text-sm ${moreOpen ? "border-primary/40 bg-primary/5 text-primary" : ""}`} type="button" aria-label={menuLabel} title={moreFiltersIconOnly ? menuLabel : undefined} aria-expanded={moreOpen} onClick={toggle}><SlidersHorizontal size={15} />{!moreFiltersIconOnly && " Filters"}</button>}><div className="grid gap-3 p-1">{filterSelection(moreFilters)}</div></ActionMenu> : null}
           {activeFilters.length ? <button className="btn-secondary h-10 shrink-0 px-3 text-sm" type="button" onClick={onClear}>Clear all</button> : null}
           {secondaryActions ? <div className="flex flex-wrap gap-2">{secondaryActions}</div> : null}
           {primaryActions ? <div className="flex flex-wrap gap-2">{primaryActions}</div> : null}

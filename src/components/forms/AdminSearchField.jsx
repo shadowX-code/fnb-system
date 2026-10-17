@@ -1,10 +1,10 @@
 import { Search } from "lucide-react";
 
 /** Canonical labeled search control for AdminFilterToolbar consumers. */
-export default function AdminSearchField({ label = "Search", value, onChange, placeholder = "Search", ariaLabel, maxLength }) {
+export default function AdminSearchField({ label = "Search", value, onChange, placeholder = "Search", ariaLabel, maxLength, hideLabel = false }) {
   return (
     <label className="admin-search-field">
-      <span>{label}</span>
+      <span className={hideLabel ? "sr-only" : undefined}>{label}</span>
       <span className="admin-search-field-control">
         <Search aria-hidden="true" size={16} />
         <input

@@ -36,3 +36,25 @@ it.each([
  expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
  expect(p.onDirectSend).not.toHaveBeenCalled();
 });
+it('keeps independent unsent reply and internal-note text while switching modes',()=>{
+ const p=props();render(<InboxReplyComposer {...p}/>);
+ fireEvent.change(screen.getByLabelText('Reply'),{target:{value:'Customer reply draft'}});
+ fireEvent.click(screen.getByRole('button',{name:'Internal note',exact:true}));
+ fireEvent.change(screen.getByLabelText('Internal note'),{target:{value:'Private staff note'}});
+ fireEvent.click(screen.getByRole('button',{name:'Reply',exact:true}));
+ expect(screen.getByLabelText('Reply').value).toBe('Customer reply draft');
+ fireEvent.click(screen.getByRole('button',{name:'Internal note',exact:true}));
+ expect(screen.getByLabelText('Internal note').value).toBe('Private staff note');
+ expect(p.command).not.toHaveBeenCalled();expect(p.onDirectSend).not.toHaveBeenCalled();
+});
+it('restores only the exact conversation draft after chat/list navigation',()=>{
+ const draftCache=new Map();const p=props({draftCache});
+ const first=render(<InboxReplyComposer {...p}/>);
+ fireEvent.change(screen.getByLabelText('Reply'),{target:{value:'Conversation C draft'}});first.unmount();
+ const other=render(<InboxReplyComposer {...p} current={{...current,conversation:{...current.conversation,id:'other'}}}/>);
+ expect(screen.getByLabelText('Reply').value).toBe('');
+ fireEvent.change(screen.getByLabelText('Reply'),{target:{value:'Other draft'}});other.unmount();
+ render(<InboxReplyComposer {...p}/>);
+ expect(screen.getByLabelText('Reply').value).toBe('Conversation C draft');
+ expect(p.onDirectSend).not.toHaveBeenCalled();
+});

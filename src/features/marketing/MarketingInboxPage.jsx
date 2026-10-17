@@ -13,9 +13,14 @@ import {
   Check,
   CheckCheck,
   MoreHorizontal,
+  ArrowUpRight,
+  StickyNote,
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext.jsx";
-import WorkspacePage from "../../components/layout/WorkspacePage.jsx";
+import { WorkspaceSurface } from "../../components/layout/WorkspacePage.jsx";
+import PanelResizeHandle from "../../components/layout/PanelResizeHandle.jsx";
+import AdminSegmentedControl from "../../components/forms/AdminSegmentedControl.jsx";
+import AdminUnderlineTabs from "../../components/navigation/AdminUnderlineTabs.jsx";
 import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
@@ -95,9 +100,9 @@ function State({ value }) {
           value,
         )
           ? "danger"
-          : ["review", "proposed", "human_takeover"].includes(value)
+          : ["review", "proposed", "human_takeover", "pending"].includes(value)
             ? "warning"
-            : ["approved", "resolved"].includes(value)
+            : ["approved", "resolved", "open"].includes(value)
               ? "success"
               : "neutral"
       }
@@ -149,9 +154,43 @@ export default function MarketingInboxPage() {
     [refresh, setRefresh] = useState(0),
     [configuration, setConfiguration] = useState(null);
   const [verification, setVerification] = useState(null),
-    [detailsOpen, setDetailsOpen] = useState(false),
+    [detailsOpen, setDetailsOpen] = useState(() => window.matchMedia?.("(min-width: 1280px)").matches || false),
     [actionsOpen, setActionsOpen] = useState(false),
     [sendStatus, setSendStatus] = useState(null);
+  const composerDrafts = useRef(new Map());
+  const contextPanelRef = useRef(null), contextToggleRef = useRef(null);
+  const [wideContext, setWideContext] = useState(() => window.matchMedia?.("(min-width: 1280px)").matches || false);
+  const workspaceRef = useRef(null), followMessages = useRef(true);
+  const [contextTab, setContextTab] = useState('profile');
+  const [panelWidths, setPanelWidths] = useState({ list: 320, context: 290 });
+  useEffect(() => {
+    const media = window.matchMedia?.('(min-width: 1280px)');
+    if (!media) return;
+    const adapt = () => { setWideContext(media.matches); setDetailsOpen(media.matches); };
+    media.addEventListener('change', adapt);
+    return () => media.removeEventListener('change', adapt);
+  }, []);
+  useEffect(() => {
+    if (!workspaceRef.current || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (window.innerWidth < 1280) return;
+      const available = entry.contentRect.width - 360;
+      setPanelWidths(widths => {
+        const context = detailsOpen ? Math.min(widths.context,Math.max(260,available-260)) : widths.context;
+        const list = Math.min(widths.list,Math.max(260,available-(detailsOpen?context:0)));
+        return list === widths.list && context === widths.context ? widths : {list,context};
+      });
+    });
+    observer.observe(workspaceRef.current);
+    return () => observer.disconnect();
+  }, [detailsOpen]);
+  useEffect(() => {
+    if (detailsOpen && !wideContext) contextPanelRef.current?.focus();
+  }, [detailsOpen,wideContext]);
+  function closeContext() {
+    setDetailsOpen(false);
+    contextToggleRef.current?.focus();
+  }
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [loading, setLoading] = useState(false),
@@ -215,9 +254,10 @@ export default function MarketingInboxPage() {
     };
   }, [auth.user?.id]);
   useEffect(() => {
+    composerDrafts.current.clear();
     setPage(1);
     setSelected("");
-    setDetailsOpen(false);
+    setContextTab("profile");
     setModal(null);
     setNotice("");
     setPreview(null);
@@ -449,70 +489,21 @@ export default function MarketingInboxPage() {
       live = false;
     };
   }, [detailKey]);
-  const controls = <div className="marketing-inbox-controls">
-    <div className="admin-scope-controls" aria-label="Marketing scope">
-      <SelectField searchable="auto"
-        label="Brand"
-        value={brand}
-        onChange={v=>selectBrandContext(context,v,org,setOrg,setBrand)}
-        options={[
-          { value: "", label: "All" },
-          ...context.brands.map((b) => ({ value: b.id, label: b.name })),
-        ]}
-      />
-</div>
-    <AdminFilterToolbar compact denseFields ariaLabel="Conversation filters"
-      search={<AdminSearchField label="Search" ariaLabel="Search conversations" value={search} maxLength={100} onChange={value=>{setSearch(value);setPage(1);setSelected('')}}/>}
-      moreFilters={<>          <SelectField
-            label="Channel"
-            value={channel}
-            onChange={(v) => {
-              setChannel(v);
-              setPage(1);
-              setSelected("");
-            }}
-            options={[
-              { value: "social", label: "All" },
-              { value: "facebook", label: "Facebook" },
-              { value: "instagram", label: "Instagram" },
-              { value: "internal", label: "Internal cases" },
-            ]}
-          />
-          <SelectField
-            label="Assignee"
-            value={assignee}
-            onChange={(v) => {
-              setAssignee(v);
-              setPage(1);
-              setSelected("");
-            }}
-            options={[
-              { value: "", label: "All" },
-              { value: "me", label: "Assigned to me" },
-              { value: "unassigned", label: "Unassigned" },
-              ...(data?.members || []).map((m) => ({
-                value: m.id,
-                label: m.name,
-              })),
-            ]}
-          />
-          <label className="marketing-inbox-check">
-            <input
-              type="checkbox"
-              checked={unread}
-              onChange={(e) => {
-                setUnread(e.target.checked);
-                setPage(1);
-              }}
-            />
-            Unread only
-          </label>
-</>}/>
-  </div>;
+  const controls = <AdminFilterToolbar compact denseFields ariaLabel="Conversation filters" className="inbox-list-filters" moreFiltersIconOnly
+    filters={<>
+      <SelectField searchable="auto" ariaLabel="Brand" value={brand}
+        onChange={value => selectBrandContext(context,value,org,setOrg,setBrand)}
+        options={[{value:'',label:'All Brands'},...context.brands.map(b=>({value:b.id,label:b.name}))]} />
+      <SelectField ariaLabel="Channel" value={channel} onChange={value=>{setChannel(value);setPage(1);setSelected('');}}
+        options={[{value:'social',label:'All Channels'},{value:'facebook',label:'Messenger'},{value:'instagram',label:'Instagram'},{value:'internal',label:'Internal cases'}]} />
+    </>}
+    moreFilters={<><SelectField label="Assignee" value={assignee} onChange={value=>{setAssignee(value);setPage(1);setSelected('');}}
+      options={[{value:'',label:'All'},{value:'me',label:'Assigned to me'},{value:'unassigned',label:'Unassigned'},...(data?.members||[]).map(m=>({value:m.id,label:m.name}))]} />
+      <label className="marketing-inbox-check"><input type="checkbox" checked={unread} onChange={event=>{setUnread(event.target.checked);setPage(1);}}/>Unread only</label></>} />;
   const identity = c ? socialIdentity(c) : null;
   const timeline = current ? conversationTimeline(current) : [];
   useEffect(() => {
-    if (historyRef.current && historyPage === 1)
+    if (historyRef.current && historyPage === 1 && followMessages.current)
       historyRef.current.scrollTop = historyRef.current.scrollHeight;
   }, [c?.id, current?.messages?.length, historyPage]);
   function handling(patch) {
@@ -543,15 +534,30 @@ export default function MarketingInboxPage() {
   }
   return (
     <div className={`inbox-page ${selected ? "inbox-chat-open" : ""}`}>
-      <WorkspacePage
-        section="Marketing"
-        title="Conversations"
-        controls={controls}
-        className="inbox-workspace-content"
-        actions={
-          <>
+      <WorkspaceSurface tone="workspace" className="inbox-workspace-content" aria-label="Conversations workspace">
+        {error && (
+          <p role="alert" className="text-danger inbox-feedback">
+            {error}
+          </p>
+        )}
+        {notice && (
+          <p role="status" className="inbox-feedback">
+            {notice}
+          </p>
+        )}
+        <div
+          ref={workspaceRef}
+          style={{'--inbox-list-width': `${panelWidths.list}px`, '--inbox-context-width': `${panelWidths.context}px`}}
+          className={`marketing-inbox-grid ${selected ? "has-selection" : ""} ${detailsOpen ? "details-open" : ""}`}
+        >
+          <section className="marketing-inbox-list" aria-label="Conversations" inert={detailsOpen && !wideContext}>
+            <div className="inbox-list-heading"><h1>{channel === 'internal' ? 'Internal cases' : 'Conversations'}</h1>
+              <span className="inbox-list-count">{data?.total ?? '—'}</span>
+              <div className="inbox-list-commands"><>
             <button
-              className="btn-secondary"
+              className="icon-btn"
+              aria-label="Refresh"
+              title="Refresh conversations"
               onClick={() => {
                 setRefresh((r) => r + 1);
                 inboxService
@@ -562,7 +568,7 @@ export default function MarketingInboxPage() {
               disabled={busy}
             >
               <RefreshCw size={16} />
-              Refresh
+              <span className="sr-only">Refresh</span>
             </button>
             <ActionMenu
               open={actionsOpen}
@@ -618,49 +624,13 @@ export default function MarketingInboxPage() {
                 Internal case
               </button>
             )}
-          </>
-        }
-      >
-        {error && (
-          <p role="alert" className="text-danger inbox-feedback">
-            {error}
-          </p>
-        )}
-        {notice && (
-          <p role="status" className="inbox-feedback">
-            {notice}
-          </p>
-        )}
-        <div
-          className={`marketing-inbox-grid ${selected ? "has-selection" : ""} ${detailsOpen ? "details-open" : ""}`}
-        >
-          <section className="marketing-inbox-list" aria-label="Conversations">
-            <div className="inbox-list-heading">
-              <h2>
-                {channel === "internal" ? "Internal cases" : "Conversations"}
-              </h2>
-              <span>{data?.total ?? "—"}</span>
+          </></div>
             </div>
-            <div
-              className="inbox-status-tabs"
-              role="tablist"
-              aria-label="Conversation status"
-            >
-              {["", "open", "pending", "resolved"].map((v) => (
-                <button
-                  key={v}
-                  role="tab"
-                  aria-selected={status === v}
-                  onClick={() => {
-                    setStatus(v);
-                    setPage(1);
-                    setSelected("");
-                  }}
-                >
-                  {v ? label(v) : "All"}
-                </button>
-              ))}
-            </div>
+            <div className="inbox-list-search"><AdminSearchField hideLabel label="Search" ariaLabel="Search conversations" placeholder="Search messages or keywords…" value={search} maxLength={100} onChange={value=>{setSearch(value);setPage(1);setSelected('');}} /></div>
+            <AdminSegmentedControl className="inbox-status-tabs" label="Conversation status" value={status}
+              onChange={value=>{setStatus(value);setPage(1);setSelected('');}}
+              options={['','open','pending','resolved'].map(value=>({value,label:value?label(value):'All'}))} />
+            {controls}
             <div className="inbox-list-scroll">
               {loading && (
                 <div role="status" className="inbox-list-skeleton">
@@ -683,7 +653,7 @@ export default function MarketingInboxPage() {
                     setHistoryPage(1);
                     setModal(null);
                     setPreview(null);
-                    setDetailsOpen(false);
+                    followMessages.current = true;
                   }}
                 >
                   <CustomerAvatar conversation={row} />
@@ -722,7 +692,7 @@ export default function MarketingInboxPage() {
                       )}
                     </span>
                     <span className="inbox-row-assignment">
-                      {row.assignee_name || "Unassigned"}
+                      <State value={row.status} />{row.assignee_name ? <span>{row.assignee_name}</span> : null}
                       {row.priority === "high" || row.priority === "urgent"
                         ? ` · ${label(row.priority)}`
                         : ""}
@@ -747,8 +717,11 @@ export default function MarketingInboxPage() {
               }}
             />
           </section>
+          <PanelResizeHandle label="Conversation list width" value={panelWidths.list} min={260} max={420}
+            onChange={value=>setPanelWidths(widths=>({...widths,list:Math.min(value,Math.max(260,(workspaceRef.current?.clientWidth||1200)-(detailsOpen?widths.context+16:8)-340))}))} />
           <section
             className="marketing-inbox-thread"
+            inert={detailsOpen && !wideContext}
             aria-label="Conversation history"
           >
             {!c ? (
@@ -783,33 +756,16 @@ export default function MarketingInboxPage() {
                       {c.medium === "comment" ? " · Comment" : ""}
                     </p>
                   </div>
-                  <span className="inbox-takeover-state">
-                    {c.takeover ? "Human handling" : "AI suggestions"}
-                    <small>Auto-replies off</small>
-                  </span>
-                  <button
-                    className="icon-btn"
-                    aria-label={
-                      detailsOpen
-                        ? "Hide customer details"
-                        : "Show customer details"
-                    }
-                    aria-expanded={detailsOpen}
-                    onClick={() => setDetailsOpen((v) => !v)}
-                  >
-                    <PanelRight size={18} />
-                  </button>
-                </header>
-                <div className="inbox-header-controls">
+<div className={`inbox-header-controls inbox-status-${c.status}`}>
                   <SelectField
-                    label="Status"
+                    ariaLabel="Status"
                     value={c.status}
                     disabled={busy || !can("manage")}
                     onChange={(status) => handling({ status })}
                     options={options(["open", "pending", "resolved"])}
                   />
                   <SelectField
-                    label="Assignment"
+                    ariaLabel="Assignment"
                     value={c.assigned_to || ""}
                     disabled={busy || !can("manage")}
                     onChange={(assigned_to) => handling({ assigned_to })}
@@ -822,6 +778,20 @@ export default function MarketingInboxPage() {
                     ]}
                   />
                 </div>
+                  <button
+                    className="icon-btn"
+                    ref={contextToggleRef}
+                    aria-label={
+                      detailsOpen
+                        ? "Hide customer details"
+                        : "Show customer details"
+                    }
+                    aria-expanded={detailsOpen}
+                    onClick={() => setDetailsOpen((v) => !v)}
+                  >
+                    <PanelRight size={18} />
+                  </button>
+                </header>
                 {!!c.escalation_reasons?.length && (
                   <p role="status" className="marketing-inbox-escalation">
                     Needs a person: {c.escalation_reasons.map(label).join(", ")}
@@ -831,6 +801,7 @@ export default function MarketingInboxPage() {
                 <div
                   ref={historyRef}
                   className="marketing-inbox-history"
+                  onScroll={event=>{const el=event.currentTarget;followMessages.current=el.scrollHeight-el.scrollTop-el.clientHeight<96;}}
                   aria-label="Messages"
                 >
                   {current.total > 30 && (
@@ -913,6 +884,8 @@ export default function MarketingInboxPage() {
                   ))}
                 </div>
                 <InboxReplyComposer
+                  key={`${scope}:${c.id}`}
+                  draftCache={composerDrafts.current}
                   current={current}
                   configuration={
                     sendStatus?.key === detailKey
@@ -951,31 +924,44 @@ export default function MarketingInboxPage() {
               </>
             )}
           </section>
-          {c && detailsOpen && (
+          {detailsOpen && <PanelResizeHandle label="Customer context width" value={panelWidths.context} min={260} max={360} reverse
+            onChange={value=>setPanelWidths(widths=>({...widths,context:Math.min(value,Math.max(260,(workspaceRef.current?.clientWidth||1200)-widths.list-16-340))}))} />}
+          {detailsOpen && (
             <aside
               className="marketing-inbox-operations"
               aria-label="Customer details"
+              ref={contextPanelRef}
+              tabIndex={-1}
+              onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();closeContext();}}}
             >
               <div className="inbox-details-heading">
-                <h2>Customer & handling</h2>
+                <h2>Customer Context</h2>
                 <button
                   className="icon-btn"
                   aria-label="Close customer details"
-                  onClick={() => setDetailsOpen(false)}
+                  onClick={closeContext}
                 >
                   <X size={18} />
                 </button>
               </div>
-              <CustomerAvatar conversation={c} />
-              <h3>{identity.name}</h3>
-              <p>
-                {identity.known
-                  ? "Social profile"
-                  : identity.unavailableReason}
-              </p>
-              <p className="inbox-muted">
-                Social identity · no verified FeedX customer link
-              </p>
+              {!c ? <div className="marketing-inbox-empty"><UserRound size={30}/><p>Select a conversation to see customer context.</p></div> : <>
+              <div className="inbox-context-identity"><CustomerAvatar conversation={c} /><div><h3>{identity.name}</h3><p>{c.channel === 'facebook' ? 'Messenger' : label(c.channel)}{c.customer_profile?.handle ? ` · @${c.customer_profile.handle}` : ''}</p></div></div>
+              <AdminUnderlineTabs ariaLabel="Customer context" value={contextTab} onChange={setContextTab} tabs={[{value:'profile',label:'Profile'},{value:'history',label:'History'},{value:'notes',label:'Notes'}]} />
+              {contextTab === 'profile' && <div className="inbox-context-section">
+              {!identity.known && <p className="inbox-profile-unavailable">{identity.unavailableReason}</p>}
+                  <span className="inbox-takeover-state">
+                    {c.takeover ? "Human handling" : "AI suggestions"}
+                    <small>Auto-replies off</small>
+                  </span>
+
+              <h3>Basic information</h3><dl>
+                <dt>Name</dt><dd>{identity.known ? identity.name : 'Not available from Meta'}</dd>
+                <dt>Brand</dt><dd>{data?.rows.find(row=>row.id===c.id)?.brand_name || brands.find(b=>b.id===c.brand_id)?.name || 'Unavailable'}</dd>
+                <dt>Channel</dt><dd>{c.channel === 'facebook' ? 'Messenger' : label(c.channel)}</dd>
+              </dl>
+              <section className="inbox-crm-context"><h3>CRM customer</h3><p className="inbox-muted">No verified CRM customer link. Contact details are unavailable.</p>
+                {auth.hasPermission('platform_customers.view') && <a className="btn-secondary" href="/marketing/customers">Open Customer Directory<ArrowUpRight size={14}/></a>}
+              </section>
               <div className="inbox-handling-controls">
                 {" "}
                 <SelectField
@@ -1064,6 +1050,16 @@ export default function MarketingInboxPage() {
                   )}
                 </>
               )}
+              </div>}
+              {contextTab === 'notes' && <section className="inbox-context-section"><h3>Internal notes</h3>
+                <p className="inbox-muted">Team-only notes from the loaded conversation history. Add a note using Internal note in the composer.</p>
+                {current.messages.filter(message=>message.kind==='note').length ? current.messages.filter(message=>message.kind==='note').map(message=><article className="inbox-context-note" key={message.id}><strong>{message.actor_name||'Team member'}</strong><p>{message.body}</p><time>{stamp(message.occurred_at)}</time></article>) : <div className="inbox-context-empty"><StickyNote size={22}/><p>No notes in the loaded history.</p></div>}
+              </section>}
+              {contextTab === 'history' && <section className="inbox-context-section"><h3>Conversation history</h3><dl>
+                <dt>Recorded since</dt><dd>{c.created_at ? stamp(c.created_at) : 'Unavailable'}</dd>
+                <dt>Last inbound</dt><dd>{c.last_inbound_at ? stamp(c.last_inbound_at) : 'Unavailable'}</dd>
+                <dt>History entries</dt><dd>{current.total ?? 'Unavailable'}</dd>
+              </dl><p className="inbox-muted">This conversation only. Other Pages and customers are not matched by name.</p>
               {c.summary && (
                 <div className="marketing-inbox-summary">
                   <strong>
@@ -1244,6 +1240,8 @@ export default function MarketingInboxPage() {
                     </p>
                   ))}
               </details>
+              </section>}
+              </>}
             </aside>
           )}
         </div>
@@ -1439,7 +1437,7 @@ export default function MarketingInboxPage() {
             )}
           </Modal>
         )}
-      </WorkspacePage>
+      </WorkspaceSurface>
     </div>
   );
 }
