@@ -55,6 +55,18 @@ it('normal staff mode still cannot bypass canonical conversation approval or aut
  expect((await fixture.handler(request('/send-staff-reply'))).status).toBe(409);
  expect(fixture.rpc.mock.calls.map(c=>c[0])).toEqual(['marketing_inbox_staff_send_scope','marketing_inbox_prepare_staff_reply']);
 });
+it.each([
+ {MARKETING_INBOX_REPLY_ACCOUNT_IDS:'111'},
+ {MARKETING_INBOX_REPLY_PEER_IDS:'333'},
+ {MARKETING_INBOX_REPLY_ACCOUNT_IDS:'111,*'},
+])('normal staff mode preserves supplied emergency restrictions: %j',async restrictions=>{
+ environment({MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_MODE:'normal',...restrictions});
+ fixture.rpc.mockResolvedValue({data:{account:'999',peer:'777'},error:null});
+ await import('../../../../supabase/functions/marketing-inbox/index.ts');
+ expect((await fixture.handler(request('/send-staff-reply'))).status).toBe(403);
+ expect(fixture.rpc.mock.calls.map(c=>c[0])).not.toContain('marketing_inbox_prepare_staff_reply');
+ expect(fixture.publish).not.toHaveBeenCalled();
+});
 it('normal publishing mode cannot bypass the canonical job guard',async()=>{
  environment({MARKETING_META_PUBLISHING_ENABLED:'true',MARKETING_META_PUBLISHING_MODE:'normal'});
  fixture.rpc.mockImplementation(async name=>name==='marketing_job_guard'?{error:{message:'Approved revision or Brand authority changed.'},data:null}:{error:null,data:name==='marketing_claim_job'?{id:'job',lease_token:'lease',state:'leased'}:null});

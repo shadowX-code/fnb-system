@@ -1,0 +1,267 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-17",
+  "status": "Prepared local source/history reconciliation; not pushed or deployed",
+  "branch": "codex/marketing-source-history-reconciliation",
+  "production_base": "cefc744c10b75da0683b75060253524bcdfe8b87",
+  "protected_origin_dev": "2de2e60d234db8f6b3efe51499ccdab8bb6bfa74",
+  "protected_local_dev": "4d29ba31f6e6e5b6594385d40dff276ac6130ec0",
+  "incorporated_local_commit": "4d29ba31f6e6e5b6594385d40dff276ac6130ec0",
+  "incorporation_method": "Scoped cherry-pick; documentation conflicts retain Production baseline plus intended reconciliation additions",
+  "production_project": "oyfobxdoyfuzsodogpgs",
+  "production_ledger_count": 812,
+  "migrations": [
+    {
+      "version": "20261015071330",
+      "name": "inbox_analytics_social_scope",
+      "source_file": "supabase/migrations/20261015071330_inbox_analytics_social_scope.sql",
+      "source_sha256": "42f6b01b447e0dd000cb236f24f479153ff678d744c09518c446bed30ce98421",
+      "production_statement_sha256": "42f6b01b447e0dd000cb236f24f479153ff678d744c09518c446bed30ce98421",
+      "already_applied": true,
+      "executed_by_this_task": false
+    },
+    {
+      "version": "20261015174328",
+      "name": "marketing_privacy_journal_compaction",
+      "source_file": "supabase/migrations/20261015174328_marketing_privacy_journal_compaction.sql",
+      "source_sha256": "da44fc31f78acc6dd1548943ed619e4be05f381e1bfa5955c5b6a251c74f83e6",
+      "production_statement_sha256": "da44fc31f78acc6dd1548943ed619e4be05f381e1bfa5955c5b6a251c74f83e6",
+      "already_applied": true,
+      "executed_by_this_task": false
+    },
+    {
+      "version": "20261016062921",
+      "name": "marketing_planner_nonretryable_revision_conflict",
+      "source_file": "supabase/migrations/20261016062921_marketing_planner_nonretryable_revision_conflict.sql",
+      "source_sha256": "b6cfce52165787f506db88357841c9a7a84f3b31a8f2cd9a96efd91138de0170",
+      "production_statement_sha256": "b6cfce52165787f506db88357841c9a7a84f3b31a8f2cd9a96efd91138de0170",
+      "already_applied": true,
+      "executed_by_this_task": false
+    },
+    {
+      "version": "20261016070206",
+      "name": "platform_cached_authorization_read_plans",
+      "source_file": "supabase/migrations/20261016070206_platform_cached_authorization_read_plans.sql",
+      "source_sha256": "23f24107923f5421659efaf5205eca008149176262d9dd8984c493a644049322",
+      "production_statement_sha256": "23f24107923f5421659efaf5205eca008149176262d9dd8984c493a644049322",
+      "already_applied": true,
+      "executed_by_this_task": false
+    },
+    {
+      "version": "20261016133152",
+      "name": "marketing_ads_report_finalization",
+      "source_file": "supabase/migrations/20261016133152_marketing_ads_report_finalization.sql",
+      "source_sha256": "c1e4c3f2b7bf28098277cce15eb53e66186bff0e9c12b1f245c7b4f55f1bda9c",
+      "production_statement_sha256": "c1e4c3f2b7bf28098277cce15eb53e66186bff0e9c12b1f245c7b4f55f1bda9c",
+      "already_applied": true,
+      "executed_by_this_task": false
+    },
+    {
+      "version": "20261016141927",
+      "name": "marketing_ads_packed_checkpoint_fast_path",
+      "source_file": "supabase/migrations/20261016141927_marketing_ads_packed_checkpoint_fast_path.sql",
+      "source_sha256": "e9c24c7e2c2e2e1b89b3f3820997f4716e8be06997c9552a58e443cf2c2c9624",
+      "production_statement_sha256": "e9c24c7e2c2e2e1b89b3f3820997f4716e8be06997c9552a58e443cf2c2c9624",
+      "already_applied": true,
+      "executed_by_this_task": false
+    }
+  ],
+  "identity_aliases": [
+    {
+      "repository_version": "20261014032018",
+      "staging_git_alias": "20261014030902",
+      "staging_ledger_version": "20261014032018",
+      "production_ledger_version": "20261014032018",
+      "name": "marketing_creator_public_inspection",
+      "source_file": "supabase/migrations/20261014032018_marketing_creator_public_inspection.sql",
+      "production_statement_sha256": "86d9045ac8e250126c09304140de19893ad023350b2ab2e79532f8911eba61ca",
+      "action": "Preserve immutable source and existing live ledger identity; no alias migration or replay"
+    },
+    {
+      "repository_version": "20261014033939",
+      "staging_git_alias": "20261014033913",
+      "staging_ledger_version": "20261014033939",
+      "production_ledger_version": "20261014033939",
+      "name": "marketing_creator_inspection_budget_scope",
+      "source_file": "supabase/migrations/20261014033939_marketing_creator_inspection_budget_scope.sql",
+      "production_statement_sha256": "e9c2d57fc0269a627364fb638a8e1f87a9c8427e4f615749b01b3a08551d2e80",
+      "action": "Preserve immutable source and existing live ledger identity; no alias migration or replay"
+    },
+    {
+      "repository_version": "20261014045332",
+      "staging_git_alias": "20261014045243",
+      "staging_ledger_version": "20261014045332",
+      "production_ledger_version": "20261014045332",
+      "name": "marketing_creator_xhs_preview_host",
+      "source_file": "supabase/migrations/20261014045332_marketing_creator_xhs_preview_host.sql",
+      "production_statement_sha256": "9668232ec08040c9327d7e9f4a21523b9fbe6176b551ee1d331c03052023414c",
+      "action": "Preserve immutable source and existing live ledger identity; no alias migration or replay"
+    },
+    {
+      "repository_version": "20261016074750",
+      "staging_git_alias": null,
+      "staging_ledger_version": "20261016074750",
+      "production_ledger_version": "20261016083440",
+      "name": "marketing_task_attachment_documents",
+      "source_file": "supabase/migrations/20261016074750_marketing_task_attachment_documents.sql",
+      "production_statement_sha256": "17d4a562a4febb947ec65a8572387df84a86bf7b648c85199002e149a865ed2a",
+      "action": "Preserve immutable source and existing live ledger identity; no alias migration or replay"
+    }
+  ],
+  "deployed_bundles": [
+    {
+      "slug": "marketing-inbox",
+      "version": 19,
+      "bundle_sha256": "6a6e84a3cee0a04eba5d49f944821f5f060921478dbc0304302abff46b2f0c5a",
+      "files": [
+        {
+          "path": "supabase/functions/marketing-inbox/index.ts",
+          "deployed_sha256": "8ca5915943be8da6fde25a38a046a00962407cfc71650622e3390deea8e9b88a",
+          "candidate_sha256": "8ca5915943be8da6fde25a38a046a00962407cfc71650622e3390deea8e9b88a",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/marketingExecution.mjs",
+          "deployed_sha256": "f3d13c730f6870d8cdad45fc38bf9f58128a2d22614285973ccb8395471223b3",
+          "candidate_sha256": "f3d13c730f6870d8cdad45fc38bf9f58128a2d22614285973ccb8395471223b3",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/marketingEnvironment.mjs",
+          "deployed_sha256": "4b5bbca0bfeae2e367dcf474934e2f0cfc0beb51c72bd8bf652ce68e9a4e0a34",
+          "candidate_sha256": "4b5bbca0bfeae2e367dcf474934e2f0cfc0beb51c72bd8bf652ce68e9a4e0a34",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/metaSecurity.ts",
+          "deployed_sha256": "d97c253e91169d360d752295c1d46cae460f0c873877fb4c62d2a37a06db455f",
+          "candidate_sha256": "d97c253e91169d360d752295c1d46cae460f0c873877fb4c62d2a37a06db455f",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/metaInboxProfile.ts",
+          "deployed_sha256": "869aa6af4f19d2c9fd67c45b2213f1e42675c6ac16f25fb568a562363939530a",
+          "candidate_sha256": "869aa6af4f19d2c9fd67c45b2213f1e42675c6ac16f25fb568a562363939530a",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/metaGraph.ts",
+          "deployed_sha256": "07fcf5237eb3edec895ba9b52f7ca793357ac6d107a7a527f619c78b5011728c",
+          "candidate_sha256": "f111749f2c2967130fd79c4dbde8a117646ea8fe219a2e915546fd0522c9d5f8",
+          "equal": false
+        },
+        {
+          "path": "supabase/functions/_shared/metaAdsDiagnostics.ts",
+          "deployed_sha256": "d598f5342025f3b500615a10f192f167c762c0bb9f32ea07853132ecf78ca753",
+          "candidate_sha256": "d598f5342025f3b500615a10f192f167c762c0bb9f32ea07853132ecf78ca753",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/metaPageTasks.ts",
+          "deployed_sha256": "af9c58c4d4b27f04388663bfccc4d9a208a6389cc2483665a0fd65e41a5228d2",
+          "candidate_sha256": "af9c58c4d4b27f04388663bfccc4d9a208a6389cc2483665a0fd65e41a5228d2",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/metaInboxVerification.ts",
+          "deployed_sha256": "67e51af4d66374061893794925139b5c86669160dd9788bf4fa7dafd9b285529",
+          "candidate_sha256": "67e51af4d66374061893794925139b5c86669160dd9788bf4fa7dafd9b285529",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/metaInboxAdapters.ts",
+          "deployed_sha256": "de229598e00cfd1ee1e7deb5314baa0a101d26e010a74bc4f1ab8f8c12ae1c5f",
+          "candidate_sha256": "de229598e00cfd1ee1e7deb5314baa0a101d26e010a74bc4f1ab8f8c12ae1c5f",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/marketingInbox.ts",
+          "deployed_sha256": "528bf691da4cee493dae16c56cb4c2919cb98806af53110a1e85f3792b6de776",
+          "candidate_sha256": "528bf691da4cee493dae16c56cb4c2919cb98806af53110a1e85f3792b6de776",
+          "equal": true
+        }
+      ]
+    },
+    {
+      "slug": "marketing-privacy",
+      "version": 18,
+      "bundle_sha256": "9da449300e303ade1b7704ab32c40bc23c811b6071319028297fe2ac4c98bd1d",
+      "files": [
+        {
+          "path": "supabase/functions/marketing-privacy/index.ts",
+          "deployed_sha256": "4cc27937de24fecb24b2c684e0d7e837fc23c9de66f695224e6d23efddd11e44",
+          "candidate_sha256": "4cc27937de24fecb24b2c684e0d7e837fc23c9de66f695224e6d23efddd11e44",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/marketingPrivacyExecution.mjs",
+          "deployed_sha256": "c2f016fe44422ee1a2a79f6051447031c23d8891f11b3d2e40a8ea41fdf6168f",
+          "candidate_sha256": "c2f016fe44422ee1a2a79f6051447031c23d8891f11b3d2e40a8ea41fdf6168f",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/marketingEnvironment.mjs",
+          "deployed_sha256": "4b5bbca0bfeae2e367dcf474934e2f0cfc0beb51c72bd8bf652ce68e9a4e0a34",
+          "candidate_sha256": "4b5bbca0bfeae2e367dcf474934e2f0cfc0beb51c72bd8bf652ce68e9a4e0a34",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/metaSecurity.ts",
+          "deployed_sha256": "d97c253e91169d360d752295c1d46cae460f0c873877fb4c62d2a37a06db455f",
+          "candidate_sha256": "d97c253e91169d360d752295c1d46cae460f0c873877fb4c62d2a37a06db455f",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/marketingExecution.mjs",
+          "deployed_sha256": "42ae12c6862dc65800a7e775b5d94084e8ba7233d1fda1fa8c030c20b0be252f",
+          "candidate_sha256": "f3d13c730f6870d8cdad45fc38bf9f58128a2d22614285973ccb8395471223b3",
+          "equal": false
+        },
+        {
+          "path": "supabase/functions/_shared/privacyBlob.ts",
+          "deployed_sha256": "e4027555d1befedea3fb2aabbe4c8b36442d867f9eb6e16ba2a9f20e692f7ffc",
+          "candidate_sha256": "e4027555d1befedea3fb2aabbe4c8b36442d867f9eb6e16ba2a9f20e692f7ffc",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/privacyJournal.ts",
+          "deployed_sha256": "39008c882689969e7061abd07979fee5203e611351cb438905d28f50372bec64",
+          "candidate_sha256": "39008c882689969e7061abd07979fee5203e611351cb438905d28f50372bec64",
+          "equal": true
+        },
+        {
+          "path": "supabase/functions/_shared/privacyRetention.ts",
+          "deployed_sha256": "b16b76679c625841eaa5a7cba9fea91a6f906028edcba3afe809f719a4b1049f",
+          "candidate_sha256": "b16b76679c625841eaa5a7cba9fea91a6f906028edcba3afe809f719a4b1049f",
+          "equal": true
+        }
+      ]
+    }
+  ],
+  "intentional_shared_source_differences": [
+    {
+      "file": "supabase/functions/_shared/metaGraph.ts",
+      "reason": "Retain newer released main helper for exact Facebook follower reads and redacted Page diagnostics; do not downgrade it to the older Inbox-bundled dependency."
+    },
+    {
+      "file": "supabase/functions/_shared/marketingExecution.mjs",
+      "reason": "Use live Inbox's optional normal-mode emergency restrictions; older Privacy/Meta/Worker helper copies have identical publishing and OAuth behavior but lack this independent staff restriction."
+    }
+  ],
+  "verification": {
+    "focused_local_tests": 91,
+    "live_migration_execution": false,
+    "edge_deployments": false,
+    "settings_changes": false,
+    "pushes": false,
+    "main_updates": false,
+    "source_hashes_verified": true
+  },
+  "exclusions": [
+    "Staging-only Creator Inspection optimization 2de2e60d234db8f6b3efe51499ccdab8bb6bfa74",
+    "Staging-only XHS Reader pilot",
+    "Frontend/Product workflow changes",
+    "All original dirty worktree files",
+    "Provider and scheduler activation"
+  ]
+}

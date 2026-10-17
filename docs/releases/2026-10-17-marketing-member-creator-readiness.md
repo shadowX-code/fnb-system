@@ -1,5 +1,11 @@
 # Marketing Employee names and official Creator enrichment
 
+Status: historical readiness record, superseded by the completed Production release `4f08f7253c089747244e870fbe61676b3aa93b63` and then [Shared Creator Directory](2026-10-17-shared-creator-directory-readiness.md). The pending scope below is not authorization to repeat migrations or provider setup.
+
+Completed release: ledger 809 -> 811; marketing-meta v22 / marketing-worker v23. Nickname projections and official profile handling passed focused acceptance. Friends Corner already had `friendscorner.my` connected since 15 October; the earlier missing-connection diagnosis below was incorrect. Existing same-Brand access returned a 31-follower Koka observation and a genuine avatar preview, discarded without saving. No new connection or Creator relationship was needed. The later shared-Directory release preserves this evidence but gates new organization-level enrichment; see the current domain contract. Current Production is `cefc744c1`, ledger 812, Meta v23 / worker v24.
+
+## Historical pre-release baseline and diagnosis
+
 Production baseline: 43dda1ee168234e2d477812bd203d55746a20fba, ledger809; marketing-meta21, marketing-worker22. No Production mutation performed.
 
 ## Confirmed diagnosis
@@ -22,7 +28,7 @@ Existing rollback-only nickname regression passed assigned/blocker/member/histor
 
 Focused candidate verification:55 provider/identity/API/Ads tests plus39 Creator UI/save/avatar tests passed; Staging focused35 tests passed; Stage and isolated Production build passed. Current Production function-body compatibility validated read-only: all seven guarded nickname patches match. No broad QA rerun.
 
-## Prepared release scope — requires explicit Production approval
+## Historical approved release scope - completed
 
 1. Recheck main/liveSHA, ledger809, Meta21, worker22 and migration checksums. Stop on drift.
 2. Apply only the two pending migrations below, in listed order: ledger809→811. Preserve existing field values, employee identities, roles, Brands and provider bindings.
@@ -32,7 +38,7 @@ Focused candidate verification:55 provider/identity/API/Ads tests plus39 Creator
 
 Worker follower integration permits one official follower read per idle tick after Publishing claims, under eight-second provider timeout, canonical ninety-second lease, same-Brand/generation checks, daily due time and five-minute manual cooldown. The migration adopts existing eligible profiles; enabling this function version authorizes bounded official follower synchronization, not OAuth or permission expansion. If those provider reads are not approved, hold worker deployment rather than claim followers operational. No manual follower input can become official evidence.
 
-The following provider/account action is separate: identify and explicitly approve a legitimate Friends Corner FB/IG connection before first Production Koka refresh/save/follower acceptance. Do not change Creator Brand relationships just to obtain access. Staging success does not establish Production App Advanced Access. No new permission is proven necessary by this diagnosis.
+Historical proposed provider action was unnecessary: the existing Friends Corner binding was verified during Production acceptance. Do not reconnect or change Creator relationships on the basis of the earlier diagnosis. Neither that acceptance nor Staging success establishes general-customer Advanced Access; current shared enrichment remains separately gated.
 
 ## Recovery
 
