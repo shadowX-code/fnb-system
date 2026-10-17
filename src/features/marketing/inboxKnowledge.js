@@ -9,6 +9,7 @@ export function faqPreviewMessage(preview) {
 }
 
 export function faqApprovalUnavailable(faq,knowledge,templates=[]) {
+ if(Object.hasOwn(faq,'approval_issue'))return faq.approval_issue||'';
  if(faq.answer_kind==='general') {
   const template=templates.find(t=>t.key===faq.template_key);
   return template?.answers?.[faq.language]===faq.answer&&!(faq.reference_keys||[]).length ? '' : 'Choose the supplied fact-free general template wording before approval.';

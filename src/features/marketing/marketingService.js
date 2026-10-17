@@ -52,6 +52,7 @@ export const marketingService = {
   teamBrandAccess: org => rpc('platform_team_brand_access', {p_org:org}),
   memberBrandAccess: (org,employee,brands,revision,request) => rpc('platform_member_brand_access', {p_org:org,p_employee:employee,p_brands:brands,p_expected_revision:revision,p_request:request}),
   accessFingerprint: () => rpc('marketing_access_fingerprint'),
+  knowledgeWorkspace: brandId => rpc('marketing_knowledge_workspace',{p_brand:brandId}),
   knowledge: (brandId, revision, profile) => rpc('marketing_save_knowledge', { p_brand: brandId, p_expected_revision: revision, p_profile: profile }),
   content: ({ requestId, command, organizationId, brandId, content, payload = {} }) => rpc('marketing_content_command', {
     p_request_id: requestId, p_command: command, p_org: organizationId, p_brand: brandId,
