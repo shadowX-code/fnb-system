@@ -145,7 +145,7 @@ export default function InboxReplyComposer({
             onClick={()=>faqPreview(faqQuestion)}
           >
             <BookOpen size={14} />
-            Approved FAQ
+            FAQ suggestions
           </button>
         )}
       </div>
@@ -184,8 +184,8 @@ export default function InboxReplyComposer({
       )}
       {mode === "reply" && preview && (
         <div className="inbox-suggestion">
-          <strong>{preview.faq ? 'Approved FAQ suggestion' : 'Approved FAQ'}</strong>
-          {preview.faq?<small>{preview.faq.question} · {preview.faq.answer_kind==='general'?'Approved conversational reply':`Brand Knowledge revision ${preview.faq.knowledge_revision}`} · {preview.faq.match_method==='reviewed_topic'?'Reviewed topic match':'Approved phrasing'}</small>:null}
+          <strong>{preview.faq ? 'Active FAQ suggestion' : 'FAQ suggestions'}</strong>
+          {preview.faq?<small>{preview.faq.question} · Brand FAQ Library · {preview.faq.match_method==='published_topic'?'Related question':'Matching question'}</small>:null}
           <p>
             {preview.faq?.answer ||
               faqPreviewMessage(preview)}
