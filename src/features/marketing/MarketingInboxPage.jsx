@@ -961,7 +961,7 @@ export default function MarketingInboxPage() {
                 <dt>Channel</dt><dd>{c.channel === 'facebook' ? 'Messenger' : label(c.channel)}</dd>
               </dl>
               <section className="inbox-crm-context"><h3>CRM customer</h3><p className="inbox-muted">No verified CRM customer link. Contact details are unavailable.</p>
-                {auth.hasPermission('platform_customers.view') && <a className="btn-secondary" href="/marketing/customers">Open Customer Directory<ArrowUpRight size={14}/></a>}
+                {auth.hasPermission('marketing_audience.view') && <a className="btn-secondary" href="/marketing/customers">Open Customer Directory<ArrowUpRight size={14}/></a>}
               </section>
               <div className="inbox-handling-controls">
                 {" "}

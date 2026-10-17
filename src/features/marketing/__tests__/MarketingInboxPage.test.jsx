@@ -9,11 +9,12 @@ import {
   within,
 } from "@testing-library/react";
 import MarketingInboxPage from "../MarketingInboxPage.jsx";
+import { useAuth } from "../../../auth/AuthContext.jsx";
 import { marketingService } from "../marketingService.js";
 import { inboxService } from "../inboxService.js";
 import { conversationTimeline, socialIdentity, replyOutcomeMessage, replyWasAccepted } from "../inboxPresentation.js";
 vi.mock("../../../auth/AuthContext.jsx", () => ({
-  useAuth: () => ({ user: { id: "user" }, hasPermission: () => true }),
+  useAuth: vi.fn(),
 }));
 vi.mock("../marketingService.js", () => ({
   marketingService: { context: vi.fn() },
@@ -63,6 +64,7 @@ const draft = {
 let detail;
 beforeEach(() => {
   vi.resetAllMocks();
+  useAuth.mockReturnValue({ user: { id: "user" }, hasPermission: () => true });
   inboxService.sendStatus.mockResolvedValue({recipient_allowed:true});
   inboxService.profiles.mockResolvedValue({ profiles: {} });
   marketingService.context.mockResolvedValue({
@@ -396,4 +398,12 @@ it('returns keyboard focus to the chat after closing customer context',async()=>
  fireEvent.click(screen.getByRole('button',{name:'Show customer details'}));
  fireEvent.keyDown(screen.getByRole('complementary',{name:'Customer details'}),{key:'Escape'});
  await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole('button',{name:'Show customer details'})));
+});
+
+it.each([true, false])('gates Customer Directory by its canonical route permission (allowed=%s)', async allowed => {
+ useAuth.mockReturnValue({user:{id:'user'},hasPermission:permission => permission === 'marketing_audience.view' ? allowed : permission === 'platform_customers.view' ? !allowed : true});
+ render(<MarketingInboxPage/>);await select();
+ fireEvent.click(screen.getByRole('button',{name:'Show customer details'}));
+ const context=screen.getByRole('complementary',{name:'Customer details'});
+ expect(Boolean(within(context).queryByRole('link',{name:/Open Customer Directory/}))).toBe(allowed);
 });
