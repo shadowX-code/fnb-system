@@ -1,6 +1,18 @@
-# Shared Creator Directory — scoped Production release plan
+# Shared Creator Directory — completed Production release
 
-Status: implemented and verified on canonical Staging; Production unchanged. QA level: L3 Canonical.
+Status: released to Production on 17 October 2026. QA level: completed Staging L3 Canonical plus focused authenticated Production acceptance. The pre-release baseline and approval scope below are historical evidence, not pending execution instructions.
+
+## Completed Production receipt
+
+- Production/main SHA: `cefc744c10b75da0683b75060253524bcdfe8b87`.
+- Vercel deployment: `dpl_2y9LjzMqQfsbudMsk1YUZu4XoPoJ`, READY and serving `os.feedx.my`.
+- Only the reviewed `20261016165619_creator_shared_directory.sql` migration was applied; ledger 811 -> 812. SHA-256: `9694fb7a1ca41d293eab2d8560a23e9876d04ccfbcb6079c06e095756357089f`.
+- Functions: `marketing-meta` v23 and `marketing-worker` v24. Ten affected authority functions match the tested Staging definitions.
+- Authenticated acceptance passed shared Directory Grid/List, optional Worked with Brand filtering, unsaved cross-Brand reuse, saved Koh Kah avatar/31 followers and Brand-scoped reads. At 390px there was no document overflow. No Collaboration or profile was saved during acceptance.
+- Captured identity, evidence, relationship and connection hashes and scheduler states remained unchanged. Restricted-member and synthetic legacy-note scenarios reuse completed Staging L3 evidence; Production had no legacy profile notes, so those cases were not freshly reproduced there.
+- Organization-level Meta enrichment remains gated; Brand credentials are not borrowed.
+
+The original [Production receipt](2026-10-17-shared-creator-directory-production-receipt.json) is retained verbatim. This documentation reconciliation performs no migration, function delivery, application deployment or Production write.
 
 ## Ownership and migration
 
@@ -44,7 +56,7 @@ Official professional-profile Business Discovery is the relevant provider API, n
 
 Provider reference: Meta's official Instagram API collection: https://www.postman.com/meta/instagram/folder/u4g5a2a/instagram-api-with-facebook-login . Its professional-account eligibility does not establish FeedX tenant-level authorization.
 
-## Production baseline and isolation
+## Historical pre-release Production baseline and isolation
 
 Read-only baseline verified:
 - main/live 4f08f7253c089747244e870fbe61676b3aa93b63; READY deployment dpl_3HwR73WHCcV6JJF75cgZWRTBr6Vg.
@@ -53,9 +65,9 @@ Read-only baseline verified:
 - Every deployed dependency file in both Production function bundles matches the isolated candidate except the intentionally changed metaCreatorProfile.ts. Entry points, Ads packed-report finalization, execution gates, environment routing, Publishing, Inbox, privacy and other dependencies remain byte-identical.
 - Candidate preserves Production Creator API environment validation and excludes the Staging-only XHS Reader UI/runtime.
 
-## Exact prospective approval scope
+## Historical approved release scope
 
-No action below has been performed on Production.
+This was the separately approved execution scope, subsequently completed as recorded above. It is retained for traceability and is not authorization to repeat any action.
 
 1. Recheck current main/live, ledger, functions and migration checksum; stop on drift and reconcile before approval is reused.
 2. Apply only 20261016165619_creator_shared_directory.sql, expected ledger 811→812.
@@ -71,6 +83,6 @@ No migrations beyond this one, other Edge Functions, scheduler/secret/runtime fl
 
 The database transaction aborts on a conflict or preservation failure. After a committed additive migration, retain shared_notes and all legacy/history evidence. A frontend rollback must use the previous verified READY deployment only under explicit release/rollback authority; keep the additive schema and investigate with forward corrections. Do not restore old broad raw-note projections, drop shared notes or reverse newly shared records automatically. Function rollback/recovery must preserve the no-Brand-token enrichment boundary. No database restore or destructive cleanup is required.
 
-Directory release: GO for a separately approved scoped Production release. Live organization-level Meta profile enrichment: NO-GO pending the explicit connection/consent contract described above. Production deployment remains unapproved.
+Directory release: completed and accepted on Production. Live organization-level Meta profile enrichment remains NO-GO pending the explicit connection/consent contract described above. No further Production action is authorized by this historical record.
 
 Documentation Impact: Updated docs/domains/marketing.md and docs/architecture/platform.md.

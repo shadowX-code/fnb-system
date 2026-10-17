@@ -1,5 +1,11 @@
 # FeedX Development Log
 
+## 2026-10-17 - Git reconciliation of completed Production recovery and Creator release
+
+Recovered the exact Production-applied incident migrations `20261016062921` and `20261016070206` with checksum-matched source, rollback-only regression probes and the completed [incident receipt](docs/releases/2026-10-16-production-loading-retry-incident.md). Planner business conflicts use non-retryable PT409; shared authorization helpers reuse execution plans without caching permission answers. The recorded Production recovery preserved data, grants, schedules and complete-read enforcement. This reconciliation does not execute either migration again. Canonical owners: `docs/architecture/trusted-authorities.md` and `docs/domains/marketing.md`.
+
+Corrected the [Shared Creator release record](docs/releases/2026-10-17-shared-creator-directory-readiness.md) against its completed Production receipt: SHA `cefc744c10b75da0683b75060253524bcdfe8b87`, ledger 812, marketing-meta v23 and marketing-worker v24. Active startup-recovery work and all original dirty worktrees remain preserved; see [Git reconciliation](docs/audits/2026-10-17-git-worktree-reconciliation.md). No deployment or Production mutation is part of this reconciliation.
+
 ## 2026-10-15 — Dormant Marketing Production application candidate
 
 Prepared an isolated application successor after the approved ledger-793 database baseline. Production privacy endpoints, Meta removal callbacks, worker journal retries and the shared journal adapter now refuse processing despite installed credentials. Staging privacy behavior and all 133 migration source files remain unchanged. No Production deployment, main merge, scheduler activation or provider operation occurred. Canonical owner: docs/domains/marketing.md.

@@ -27,6 +27,8 @@ Policies must align with the actual caller model:
 UI permission checks improve usability but do not replace RLS or in-authority validation.
 Read policies must avoid leaking records, identities, private content, or cross-outlet state.
 
+Platform's shared role, permission and outlet helpers own authorization execution cost as well as semantics. Their PL/pgSQL static queries reuse prepared execution plans; this is not a cache of role/permission results or a client/JWT authority replacement. Current Employee precedence, disabled-access denial, legacy-only fallback, permission aliases and outlet scope must remain unchanged. Verify complete authenticated read sets and allow/deny cases when optimizing these helpers; never remove RLS or completeness checks to improve latency.
+
 ## Security Definer Functions And Grants
 
 Every `SECURITY DEFINER` authority must use a controlled `search_path` and schema-qualified objects where appropriate.
@@ -68,6 +70,8 @@ Employee role assignment and employee/Auth linkage use their canonical controlle
 Role configuration changes use the established trusted save authority.
 
 ## Immutable Evidence And Versions
+
+Expected business revision conflicts exposed through PostgREST must use a non-retryable application error such as `PT409` (HTTP 409), not PostgreSQL engine serialization failure `40001`. The conflict still rejects the stale intent; callers reload and review canonical state rather than automatically resubmitting it. This distinction prevents transport-level transaction retry loops without weakening version checks.
 
 Finalized business evidence is append-only or changed through an explicit reversal, correction, superseding version, or controlled reopen lifecycle.
 Published content and schedules pin the versions consumed by downstream activity.
