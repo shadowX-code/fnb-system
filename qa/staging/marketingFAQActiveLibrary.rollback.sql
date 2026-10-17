@@ -48,9 +48,9 @@ r:=public.marketing_inbox_configure(gen_random_uuid(),b,0,'save_faq','{"question
 assert (r->>'is_active')::boolean,'Operational answer may be managed active';
 assert r->>'use_issue' is not null,'Unknown canonical hours explicitly unavailable';
 assert public.marketing_inbox_faq_preview(c,'Hours?')->'faq'='null'::jsonb,'Unsupported facts not suggested';
-r:=public.marketing_inbox_configure(gen_random_uuid(),b,0,'save_faq','{"question":"Your location?","answer":"An invented address","category":"location","is_active":true}');
+r:=public.marketing_inbox_configure(gen_random_uuid(),b,0,'save_faq','{"question":"where is your outlet?","answer":"An invented address","category":"location","is_active":true}');
 assert r->>'use_issue' is not null,'Unknown Outlet never inferred';
-assert public.marketing_inbox_faq_preview(c,'Your location?')->'faq'='null'::jsonb,'Unknown location excluded';
+assert public.marketing_inbox_faq_preview(c,'where is your outlet?')->'faq'='null'::jsonb,'Unknown location excluded';
 r:=public.marketing_inbox_configure(gen_random_uuid(),b,0,'save_faq','{"question":"Need assistance?","answer":"Please tell our team how we can help.","category":"services","is_active":false}');
 assert not (r->>'is_active')::boolean,'Save Inactive';
 assert jsonb_array_length(public.marketing_faq_history(b,f)->'events')=3,'Publication history retained';

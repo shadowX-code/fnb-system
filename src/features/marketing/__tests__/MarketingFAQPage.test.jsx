@@ -40,3 +40,9 @@ it('shows only primary fields and operational availability without blocking mana
  render(<MarketingFAQPage/>);await screen.findByText('Hello');expect(screen.getByText('Staff must confirm the Outlet.')).toBeTruthy();
  fireEvent.click(screen.getByRole('button',{name:'New FAQ'}));expect(screen.queryByText('Advanced Options')).toBeNull();expect(screen.queryByText('Supporting knowledge')).toBeNull();expect(screen.getByRole('textbox',{name:'Alternative Questions'})).toBeTruthy();
 });
+
+it('keeps a failed save visible inside the editor without closing the draft',async()=>{
+ inboxService.configure.mockRejectedValue(new Error('FAQ changed. Reload before saving.'));render(<MarketingFAQPage/>);await screen.findByText('Hello');fireEvent.click(screen.getByRole('button',{name:'New FAQ'}));
+ fireEvent.change(screen.getByRole('textbox',{name:'Question'}),{target:{value:'Unsaved question'}});fireEvent.change(screen.getByRole('textbox',{name:'Answer'}),{target:{value:'Unsaved answer'}});fireEvent.click(screen.getByRole('button',{name:'Save Inactive'}));
+ expect(await within(screen.getByRole('dialog')).findByRole('alert')).toHaveProperty('textContent','FAQ changed. Reload before saving.');expect(screen.getByRole('textbox',{name:'Question'}).value).toBe('Unsaved question');
+});
