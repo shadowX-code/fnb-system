@@ -158,7 +158,7 @@ export default function InboxReplyComposer({
       {mode === "reply" && !suggestion && handoff.length>0 && <div className="inbox-assistance-handoff" role="status"><strong>Needs Human Attention</strong><p>{handoff.map(reason=>reason.replaceAll('_',' ')).join(' · ')}. Use the existing assignment or handling controls; AI never assigns or sends.</p></div>}
       {mode === "reply" && suggestion && (
         <section className="inbox-suggestion" aria-label="AI suggested reply">
-          <div className="inbox-assistance-heading"><strong>{assistanceLabel(suggestion.body.classification)}</strong><small>{suggestion.body.match_source==='deterministic'?'FAQ match · no AI tokens':'Suggest only'}</small></div>
+          <div className="inbox-assistance-heading"><strong>{assistanceLabel(suggestion.body.classification)}</strong><small>{suggestion.body.match_source==='deterministic'?(suggestion.body.matched_faq_ids?.length?'FAQ match · no AI tokens':'Staff handling · no AI tokens'):'Suggest only'}</small></div>
           <p>{suggestion.body.text}</p>
           {suggestion.body.handoff_reasons?.length>0 && <p className="inbox-assistance-status">Staff review: {suggestion.body.handoff_reasons.map(reason=>reason.replaceAll('_',' ')).join(' · ')}</p>}
           {suggestion.body.unresolved_questions?.length>0 && <details><summary>Needs confirmation ({suggestion.body.unresolved_questions.length})</summary><ul>{suggestion.body.unresolved_questions.map((question,i)=><li key={i}>{question}</li>)}</ul></details>}

@@ -521,7 +521,7 @@ export default function MarketingInboxPage() {
   }
   function suggestReply(previousArtifact) {
     return mutate(
-      { scope, id: c.id, version: c.version, kind: "reply" },
+      { scope, id: c.id, version: c.version, kind: "reply", regenerate: typeof previousArtifact === "string" ? previousArtifact : null },
       async (id) => {
         if (typeof previousArtifact === "string") await inboxService.reviewAI(previousArtifact,false);
         const result=await inboxService.suggest(id, c, "reply");

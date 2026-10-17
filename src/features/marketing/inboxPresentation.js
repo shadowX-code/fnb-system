@@ -97,7 +97,7 @@ export const replyStateLabel = state => ({blocked:'Not sent',prepared:'Queued',p
 
 export function replySourceLabel(reference) {
   if (typeof reference === 'string') return reference.replaceAll('_', ' ');
-  if (reference?.artifact_id) return 'AI suggestion · staff reviewed';
+  if (reference?.artifact_id) return 'AI suggestion';
   if (reference?.faq_id) return `Active FAQ · revision ${reference.faq_revision ?? 'unavailable'}`;
   return 'Source evidence';
 }
