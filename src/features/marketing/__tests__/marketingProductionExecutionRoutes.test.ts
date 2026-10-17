@@ -14,6 +14,16 @@ function environment(extra:Record<string,string>={}){
  vi.stubGlobal('Deno',{serve:(handler:any)=>{fixture.handler=handler},env:{get:(key:string)=>values[key]}});
 }
 const replies={MARKETING_INBOX_STAFF_REPLY_ENABLED:'true',MARKETING_INBOX_REPLY_ACCOUNT_IDS:'111',MARKETING_INBOX_REPLY_PEER_IDS:'333'};
+it.each([
+  [{MARKETING_AI_ENABLED:'true',OPENAI_API_KEY:'fixture'},false],
+  [{MARKETING_AI_ENABLED:'false',OPENAI_API_KEY:'fixture',MARKETING_AI_MODEL:'gpt-5-mini'},false],
+  [{MARKETING_AI_ENABLED:'true',OPENAI_API_KEY:'fixture',MARKETING_AI_MODEL:'gpt-5-mini'},true],
+])('Production manual AI suggestions require the existing explicit flag, key and model: %j',async(extra,ready)=>{
+  environment(extra as Record<string,string>);
+  await import('../../../../supabase/functions/marketing-inbox/index.ts');
+  const response=await fixture.handler(new Request('https://oyfobxdoyfuzsodogpgs.supabase.co/functions/v1/marketing-inbox/configuration',{headers:{authorization:'Bearer fixture'}}));
+  const state=await response.json();expect(state.ai_configured).toBe(ready);expect(state.sending_enabled).toBe(false);expect(fixture.publish).not.toHaveBeenCalled();
+});
 const request=(path:string)=>new Request('https://oyfobxdoyfuzsodogpgs.supabase.co/functions/v1/marketing-inbox'+path,{method:'POST',headers:{authorization:'Bearer fixture','content-type':'application/json'},body:JSON.stringify({conversationId:'conversation',text:'Approved fixture reply',requestId:'request',version:1})});
 it.each(['/send-approved','/send-staff-reply'])('Production %s defaults closed before recording any send intent',async path=>{
  environment({MARKETING_INBOX_SEND_ENABLED:'true',MARKETING_INBOX_TEST_PEER_IDS:'333'});

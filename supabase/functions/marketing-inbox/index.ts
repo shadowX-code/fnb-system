@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
   if (identity.error || !identity.data.user) {
     return json({ error: "Sign in to Marketing." }, 401);
   }
-  const configured = !PRODUCTION_RUNTIME && env("MARKETING_AI_ENABLED") === "true" &&
+  const configured = env("MARKETING_AI_ENABLED") === "true" &&
     Boolean(env("OPENAI_API_KEY") && env("MARKETING_AI_MODEL"));
   if (path === "/configuration" && req.method === "GET") {
     return json({

@@ -1,5 +1,7 @@
 # Marketing Inbox verification
 
+Current FAQ publication uses Active/Inactive and `qa/staging/marketingFAQActiveLibrary.rollback.sql`; it does not require Brand Knowledge or FAQ approval. Older approval-specific fixtures below document their historical lifecycle and must not be used as the current FAQ acceptance contract. Profile authority evidence uses `qa/staging/marketingInboxProfiles.rollback.sql`; real Staging identities in that fixture must never be copied into Production.
+
 Use only Staging Supabase `ujkzdaaadnvcfayuldmh` and the canonical Staging Git deployment. No real Meta message/post/ad or OAuth change belongs in this rehearsal.
 
 - Run the Marketing unit/workflow tests, Marketing workspace ownership/permission contract and shared role permission regressions, production build, `git diff --check`, and Deno check for `marketing-inbox` / `marketing-worker`.
