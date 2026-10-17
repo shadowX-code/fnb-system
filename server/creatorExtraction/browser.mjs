@@ -1,10 +1,17 @@
-import {chromium as playwright} from 'playwright-core';
-import chromium from '@sparticuz/chromium';
+import {boundedTiming} from './diagnostics.mjs';
 import {boundedGet} from './network.mjs';
 import {allowedResource,platformUrl} from './urls.mjs';
 // No user browser/profile, stealth, CAPTCHA handling or authentication is used.
-export async function renderPublic(url,platform,budget,{executablePath,urlResolver=platformUrl}={}){
+export async function renderPublic(url,platform,budget,{executablePath,urlResolver=platformUrl,diagnostics}={}){
+ let stage='load',started=performance.now();
+ const nextStage=next=>{if(diagnostics){diagnostics[stage+'_ms']=boundedTiming(started);diagnostics.stage=next||stage;}stage=next;started=performance.now();};
+ if(diagnostics)diagnostics.stage=stage;
+ try{
+ const {chromium:playwright}=await import('playwright-core');
+ const {default:chromium}=await import('@sparticuz/chromium');
+ nextStage('launch');
  const browser=await playwright.launch({executablePath:executablePath||await chromium.executablePath(),args:[...(executablePath?[]:chromium.args),'--dns-prefetch-disable','--force-webrtc-ip-handling-policy=disable_non_proxied_udp'],headless:true,timeout:12000});
+ nextStage('render');
  try{
   const context=await browser.newContext({serviceWorkers:'block',acceptDownloads:false});
   await context.routeWebSocket('**/*',socket=>socket.close());
@@ -25,5 +32,8 @@ export async function renderPublic(url,platform,budget,{executablePath,urlResolv
   await page.goto(url,{waitUntil:'domcontentloaded',timeout:Math.min(18000,Math.max(1,budget.deadline-Date.now()))});
   await page.waitForFunction(()=>document.querySelector('article time,#detail-title,#SIGI_STATE,script[type="application/ld+json"],meta[property="og:description"]'),{},{timeout:4000}).catch(()=>{});
   const html=await page.content();return {html:html.slice(0,5000000),url:page.url(),status:mainStatus,method:'public_browser'};
- }finally{await browser.close()}
+ }catch(error){if(diagnostics)diagnostics.failed_stage=stage;throw error;}
+ finally{nextStage('cleanup');await browser.close()}
+ }catch(error){if(diagnostics)diagnostics.failed_stage||=stage;throw error;}
+ finally{nextStage(null)}
 }

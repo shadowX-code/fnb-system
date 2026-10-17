@@ -4,8 +4,8 @@ import {platformUrl,publicThumbnail,allowedResource} from './urls.mjs';
 const clean=(v,max=8000)=>typeof v==='string'?v.trim().slice(0,max):null;
 export function metric(v){if(typeof v==='number')return Number.isSafeInteger(v)&&v>=0?v:null;if(typeof v!=='string')return null;const m=v.trim().replace(/,/g,'').match(/^(\d+(?:\.\d+)?)\s*([kKmM万亿]?)$/);if(!m)return null;const n=Number(m[1])*({'k':1000,'m':1000000,'万':10000,'亿':100000000}[m[2].toLowerCase()]||1);return Number.isSafeInteger(n)?n:null;}
 function date(v){if(typeof v==='string'&&/^\d{4}-\d\d-\d\d$/.test(v)&&(Number.isNaN(Date.parse(v))||new Date(v).toISOString().slice(0,10)!==v))return null;if(typeof v==='number'&&v>1000000000&&v<10000000000000){const d=new Date(v<100000000000?v*1000:v);if(d.getTime()<=Date.now()+300000)return {value:d.toISOString(),precision:'instant'}}if(typeof v==='string'&&/^\d{4}-\d\d-\d\d(?:T.*)?$/.test(v)&&!Number.isNaN(Date.parse(v))&&Date.parse(v)<=Date.now()+300000)return {value:v,precision:v.length===10?'date':'instant'};return null;}
-export function extractMetadata(html,url,method='public_html'){
- const parsed=platformUrl(url),$=load(html),fields={},provenance={},metrics={};
+export function extractMetadata(html,url,method='public_html',document){
+ const parsed=platformUrl(url),$=document||load(html),fields={},provenance={},metrics={};
  const put=(key,value,source)=>{if(value!==null&&value!==undefined&&value!==''&&fields[key]===undefined){fields[key]=value;provenance[key]={source,method}}};
  const count=(key,value,source)=>{const n=metric(value);if(n!==null&&metrics[key]===undefined){metrics[key]=n;provenance[key]={source,method,estimated:typeof value==='string'&&/[km万亿]/i.test(value)}}};
  const pub=(value,source)=>{const d=date(value);if(d){put('published_at',d.value,source);put('date_precision',d.precision,source)}};
