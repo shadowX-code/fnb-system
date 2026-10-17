@@ -21,8 +21,17 @@ export function filterTasks(tasks,{search='',assignee='',status='',brand='',bloc
 export function taskPayload(task){return Object.fromEntries(['title','checklist','content_type','assignee_id','due_date','planned_publish_date','priority','brief','reference_links','asset_ids','blocked','blocker_reason','blocker_owner','planned_week'].map(key=>[key,task[key]??(key==='reference_links'||key==='asset_ids'||key==='checklist'?[]:key==='blocked'?false:'')]));}
 export function plannerPreferences(user){try{const p=JSON.parse(localStorage.getItem(`marketing.planner.${user}`)||'{}');return {...p,view:['board','list','month'].includes(p.view)?p.view:'board',groupBy:['status','brand','assignee'].includes(p.groupBy)?p.groupBy:'',listColumns:Array.isArray(p.listColumns)?p.listColumns.filter(v=>['checklist','publish','type'].includes(v)):[],month:/^\d{4}-\d{2}-01$/.test(p.month)?p.month:currentMonth()};}catch{return {view:'board',groupBy:'',listColumns:[],month:currentMonth()};}}
 
+export function taskStatusAction(task,status,canEdit,canApprove){
+ if(task.status===status)return canEdit?'order':null;
+ if(['planned','in_progress','in_review'].includes(task.status)&&!task.blocked&&canApprove){
+  if(status==='completed')return 'approve';
+  if(status==='revision_needed')return 'request_revision';
+ }
+ if(task.status==='completed'&&status==='in_progress'&&canEdit)return 'save';
+ return allowedMoves(task,canEdit).includes(status)?'transition':null;
+}
 export function listStatusMoves(task,canEdit,canApprove){
- return [...allowedMoves(task,canEdit),...(task.status==='in_review'&&!task.blocked&&canApprove?['completed','revision_needed']:[]),...(task.status==='completed'&&canEdit?['in_progress']:[])];
+ return taskStatuses.map(s=>s.value).filter(status=>status!==task.status&&taskStatusAction(task,status,canEdit,canApprove));
 }
 export function canReorderList(prefs,canEdit,count){
  return canEdit&&prefs.sort==='manual'&&!prefs.groupBy&&!prefs.brand&&!prefs.search&&!prefs.status&&!prefs.assignee&&!prefs.blocked&&count<=500;

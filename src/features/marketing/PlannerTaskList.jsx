@@ -1,16 +1,16 @@
 import {useEffect,useId,useRef,useState} from 'react';
 import {ArrowDown,ArrowUp,CalendarDays,Flag,GripVertical,Image as ImageIcon,ListChecks,LoaderCircle,MoreHorizontal,SlidersHorizontal,UserRound} from 'lucide-react';
 import DataTable from '../../components/tables/DataTable.jsx';
+import ContentTypeBadge from './ContentTypeBadge.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import ActionMenu from '../../components/ui/ActionMenu.jsx';
 import FloatingLayer from '../../components/ui/FloatingLayer.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import DatePickerField from '../../components/forms/DatePickerField.jsx';
 import MarketingMediaPreview from './MarketingMediaPreview.jsx';
-import {taskPriorities,listStatusMoves,plannerListGroups,taskDueState,taskStatuses,taskTypes} from './contentPlanner.js';
+import {taskPriorities,listStatusMoves,plannerListGroups,taskDueState,taskStatuses} from './contentPlanner.js';
 
 const statusName=value=>taskStatuses.find(s=>s.value===value)?.label||value;
-const typeName=value=>taskTypes.find(s=>s.value===value)?.label||value;
 const dueLabel=value=>value?new Intl.DateTimeFormat('en-MY',{day:'numeric',month:'short',timeZone:'Asia/Kuala_Lumpur'}).format(new Date(value+'T00:00:00+08:00')):'Not set';
 const optionalColumns=[{key:'checklist',label:'Checklist'},{key:'publish',label:'Planned Publish Date'},{key:'type',label:'Content Type'}];
 function Status({task}){return <Badge semantic tone={task.status==='completed'?'success':task.status==='revision_needed'?'danger':task.status==='in_review'?'warning':task.status==='in_progress'?'info':'neutral'}>{statusName(task.status)}</Badge>}
@@ -76,7 +76,7 @@ export default function PlannerTaskList({rows,prefs,members=[],orderLimitExceede
    return <div className="planner-list-task">
     {reorderable?<button className="planner-list-drag" aria-label={`Reorder ${task.title}. Use Arrow Up or Arrow Down to move within this page.`} disabled={busy||fieldState[task.id]?.saving} onPointerDown={e=>startOrder(e,task)} onKeyDown={e=>{const i=rows.findIndex(t=>t.id===task.id),dest=rows[i+(e.key==='ArrowUp'?-1:1)];if(['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();if(dest)onReorder(task.id,dest.id,e.key==='ArrowDown')}}}><GripVertical size={15}/></button>:null}
     <span className="planner-list-thumbnail">{assets.length?<MarketingMediaPreview compact asset={assets[0]} assets={assets}/>:<button type="button" className="planner-list-no-media" aria-label={`Open ${task.title}`} onClick={()=>onOpen(task)}><ImageIcon size={17}/></button>}</span>
-    <div className="planner-list-task-copy"><button className="planner-list-title" onClick={()=>onOpen(task)}><strong>{task.title}</strong></button><div className="planner-list-task-meta">{!extras.includes('type')?<span>{typeName(task.content_type)}</span>:null}{!extras.includes('checklist')&&(task.checklist||[]).length?<Checklist task={task}/>:null}{task.blocked?<span className="planner-list-blocked" title={task.blocker_reason||'Blocked'}>Blocked</span>:null}</div></div>
+    <div className="planner-list-task-copy"><button className="planner-list-title" onClick={()=>onOpen(task)}><strong>{task.title}</strong></button><div className="planner-list-task-meta">{!extras.includes('type')?<ContentTypeBadge value={task.content_type}/>:null}{!extras.includes('checklist')&&(task.checklist||[]).length?<Checklist task={task}/>:null}{task.blocked?<span className="planner-list-blocked" title={task.blocker_reason||'Blocked'}>Blocked</span>:null}</div></div>
    </div>
   }},
   {key:'brand',header:'Brand',width:154,className:'planner-list-brand-cell',render:task=><span className="planner-list-brand" title={task.brand_name}>{task.brand_name}</span>},
@@ -84,7 +84,7 @@ export default function PlannerTaskList({rows,prefs,members=[],orderLimitExceede
   {key:'priority',header:'Priority',width:96,className:'planner-list-priority-cell',render:task=>property(task,'priority','Priority',<span className={`planner-list-priority${task.priority==='high'?' is-high':''}`}><Flag size={13}/>{task.priority==='high'?'High':'Normal'}</span>,taskPriorities)},
   {key:'due',header:'Production Due',width:142,className:'planner-list-due-cell',render:task=>property(task,'due_date','Production Due Date',<span className={`planner-list-date planner-due-${taskDueState(task)}`}><CalendarDays size={13}/><time dateTime={task.due_date}>{dueLabel(task.due_date)}</time></span>,null,true)},
   {key:'assignee',header:'Assignee',width:140,className:'planner-list-assignee-cell',render:task=>property(task,'assignee_id','Assignee',<span className={`planner-list-person${task.assignee_name?'':' is-unassigned'}`} title={task.assignee_name||'Unassigned'}><UserRound size={13}/><span>{task.assignee_name||'Unassigned'}</span></span>,[{value:'',label:'Unassigned'},...members.filter(m=>m.brand_ids.includes(task.brand_id)).map(m=>({value:m.id,label:m.name}))])},
-  ...extras.map(key=>({key,header:key==='publish'?'Planned Publish':optionalColumns.find(c=>c.key===key).label,width:key==='publish'?160:100,className:'planner-list-extra-cell',render:task=><><span className="planner-list-extra-label">{optionalColumns.find(c=>c.key===key).label}</span>{key==='checklist'?<Checklist task={task}/>:key==='publish'?<time dateTime={task.planned_publish_date||undefined}>{dueLabel(task.planned_publish_date)}</time>:typeName(task.content_type)}</>})),
+  ...extras.map(key=>({key,header:key==='publish'?'Planned Publish':optionalColumns.find(c=>c.key===key).label,width:key==='publish'?160:100,className:'planner-list-extra-cell',render:task=><><span className="planner-list-extra-label">{optionalColumns.find(c=>c.key===key).label}</span>{key==='checklist'?<Checklist task={task}/>:key==='publish'?<time dateTime={task.planned_publish_date||undefined}>{dueLabel(task.planned_publish_date)}</time>:<ContentTypeBadge value={task.content_type}/>}</>})),
   {key:'actions',header:'Actions',width:76,className:'planner-list-actions-cell',render:(task)=>{const i=rows.findIndex(t=>t.id===task.id);return <TaskActions task={task} can={can} busy={busy||fieldState[task.id]?.saving} previous={rows[i-1]} next={rows[i+1]} reorderable={reorderable} onOpen={onOpen} onMedia={onMedia} onStatus={onStatus} onReorder={onReorder}/>}},
  ].map(column=>({...column,headerClassName:column.className}));
  return <section className="planner-task-list" aria-label="Creative task list">

@@ -3067,3 +3067,11 @@
 .admin-calendar-navigation>.month-picker-field{width:200px;max-width:100%}
 .admin-calendar-navigation>.admin-form-field{flex:none}
 .admin-calendar-navigation .btn-secondary,.admin-calendar-navigation .month-picker-field-trigger{height:40px;min-height:40px}
+
+/* Content-category tones remain distinct from workflow status; use the shared Badge. */
+.badge.content-type-badge{border-radius:5px;gap:4px;font-size:.6875rem;line-height:1.35;padding:2px 6px;white-space:nowrap}
+:root[data-resolved-theme="dark"] .badge-indigo{background:color-mix(in srgb,var(--color-indigo-500) 15%,transparent);border-color:var(--color-indigo-800);color:var(--color-indigo-200)}
+:root[data-resolved-theme="dark"] .badge-violet{background:color-mix(in srgb,var(--color-violet-500) 15%,transparent);border-color:var(--color-violet-800);color:var(--color-violet-200)}
+:root[data-resolved-theme="dark"] .badge-fuchsia{background:color-mix(in srgb,var(--color-fuchsia-500) 15%,transparent);border-color:var(--color-fuchsia-800);color:var(--color-fuchsia-200)}
+:root[data-resolved-theme="dark"] .badge-cyan{background:color-mix(in srgb,var(--color-cyan-500) 15%,transparent);border-color:var(--color-cyan-800);color:var(--color-cyan-200)}
+:root[data-resolved-theme="dark"] .badge-orange{background:color-mix(in srgb,var(--color-orange-500) 15%,transparent);border-color:var(--color-orange-800);color:var(--color-orange-200)}

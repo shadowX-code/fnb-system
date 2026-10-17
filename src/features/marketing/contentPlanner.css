@@ -65,3 +65,19 @@
 .planner-list-table .admin-table-row.planner-list-drop-after{box-shadow:inset 0 -2px var(--theme-primary)}
 
 .planner-header-actions{flex-wrap:wrap}.planner-period .month-picker-field{min-width:180px}.planner-period .month-picker-field-label{font-size:.75rem;color:var(--theme-muted)}
+
+/* Published progress is primary; production remains a quiet secondary pipeline. */
+.planner-brand-targets{grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:1rem;align-items:start}
+.planner-brand-target{padding:1rem;background:var(--theme-surface-raised)}
+.planner-brand-target>header h4{font-size:.875rem;line-height:1.4;overflow-wrap:anywhere}
+.planner-scorecard-types{grid-template-columns:1fr;gap:.9rem}
+.planner-scorecard-section h5{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.planner-scorecard-section h5>span:last-child{font-size:.6875rem;font-weight:400}
+.planner-scorecard-number{margin:.4rem 0}.planner-scorecard-number>strong{font-size:1.65rem}
+.planner-target-pipeline{display:grid;gap:.65rem;margin-top:1rem;padding-top:.85rem;border-top:1px solid var(--theme-border);font-size:.75rem}
+.planner-target-pipeline>div{display:flex;justify-content:space-between;gap:.75rem}
+.planner-target-pipeline dt{color:var(--theme-muted)}.planner-target-pipeline dd{text-align:right;font-variant-numeric:tabular-nums}
+.planner-target-pipeline dd span{display:block;color:var(--theme-muted);font-size:.6875rem;margin-top:.2rem}
+.planner-target-evidence{font-size:.75rem;line-height:1.5;color:var(--theme-muted);margin-top:.8rem}
+.planner-header-actions{flex-wrap:wrap}.planner-header-actions>.btn-secondary{min-height:36px}
+@media(max-width:640px){.planner-brand-targets{grid-template-columns:1fr}.planner-insights-header{padding:.8rem}.planner-insights-header [role="tablist"]{max-width:100%}.planner-scorecard-types{grid-template-columns:1fr 1fr;gap:.8rem}.planner-scorecard-section h5{align-items:start;flex-direction:column}}

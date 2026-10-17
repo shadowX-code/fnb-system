@@ -1017,3 +1017,7 @@ Register six explicit Google Reviews permissions in the canonical matrix, preser
 ## 2026-10-16 — Marketing journal retention authority preparation
 
 Added bounded, review-gated independent journal checkpoints with verified write-before-delete, resumable SQL/Blob coordination and checkpoint-aware restore deduplication. Ninety-day routine floor, thirty-day reviews, completed follow-up and legal-hold guards preserve minimal recovery/suppression authority. Focused Staging synthetic contract verification; Production privacy and CRM scheduler activation remain separate approval boundaries.
+
+### 2026-10-17 — Content Studio planning and published targets
+
+Planning Insights moves to its own authorized Content Studio route, sharing the canonical planner controller and date/filter preferences. Compact category badges are shared across task and calendar surfaces. Production reviewers can complete/request revision directly from Planned/In Progress without approving Content or publishing. Monthly target progress is now published-first, deduplicated across channels/revisions by first observed publication month, with Scheduled and production pipeline separate and missing publication evidence explicit. No Production deployment or provider execution is part of Staging implementation.

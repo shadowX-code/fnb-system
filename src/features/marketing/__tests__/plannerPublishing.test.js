@@ -14,3 +14,10 @@ it('does not combine unrelated external posts or lose unavailable channel timing
  expect(publishingEntries([],[external,{...external,key:'meta:two'}])).toHaveLength(2);
  const receipt={...record,channels:[{channel:'facebook',status:'published',actual_at:null}]};expect(publishingEntries([],[receipt])[0].channels[0].actual_at).toBeNull();
 });
+
+it('classifies publishing formats into canonical Content Types rather than showing image/text as task categories',async()=>{
+ const {publicationContentType}=await import('../plannerPublishing.js');
+ expect(publicationContentType({channels:[{format:'image'}]})).toBe('post');
+ expect(publicationContentType({channels:[{media_product_type:'REELS'}]})).toBe('reel');
+ expect(publicationContentType({channels:[{media_product_type:'STORY'}]})).toBe('story');
+});

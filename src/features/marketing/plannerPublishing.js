@@ -21,3 +21,11 @@ export function publishingEntries(tasks,records){
  }
  return entries;
 }
+
+export function publicationContentType(record,channels=record?.channels||[]){
+ const type=record?.payload?.planner_type;
+ if(['post','reel','story','design','photography'].includes(type))return type;
+ const channel=channels[0]||{};
+ if(channel.format==='reel'||channel.media_product_type==='REELS'||channel.media_type==='REEL')return 'reel';
+ return channel.format==='story'||channel.media_product_type==='STORY'?'story':'post';
+}
