@@ -162,6 +162,7 @@ export default function InboxReplyComposer({
           <p>{suggestion.body.text}</p>
           {suggestion.body.handoff_reasons?.length>0 && <p className="inbox-assistance-status">Staff review: {suggestion.body.handoff_reasons.map(reason=>reason.replaceAll('_',' ')).join(' · ')}</p>}
           {suggestion.body.unresolved_questions?.length>0 && <details><summary>Needs confirmation ({suggestion.body.unresolved_questions.length})</summary><ul>{suggestion.body.unresolved_questions.map((question,i)=><li key={i}>{question}</li>)}</ul></details>}
+          {suggestion.body.matches?.some(match=>match.use_issue) && <details><summary>Related FAQs need confirmation</summary><ul>{suggestion.body.matches.filter(match=>match.use_issue).map(match=><li key={match.id}>{match.question} · {match.use_issue}</li>)}</ul></details>}
           {suggestion.body.sources?.length>0 && <details><summary>Sources ({suggestion.body.sources.length})</summary><ul>{suggestion.body.sources.map(source=><li key={source.key}>{source.kind==='faq'?'Active FAQ':'Approved Brand Intelligence'} · {source.label}</li>)}</ul></details>}
           <div className="marketing-inbox-actions">
             {can("reply") && <button className="btn-secondary" disabled={busy} onClick={()=>{setText(suggestion.body.text);setDirty(true);setSourceArtifact(suggestion.id);}}>Use Reply</button>}
