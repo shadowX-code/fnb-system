@@ -41,3 +41,4 @@
 @media(max-width:767px){.knowledge-inline-editor .knowledge-form{grid-template-columns:1fr}.knowledge-inline-editor>footer{padding:.75rem 0}.knowledge-editor-footer>div{flex-wrap:wrap;justify-content:flex-end}.knowledge-tone-controls{gap:1rem}.knowledge-tone-controls .admin-segmented-control{max-width:100%}.knowledge-upload input{width:100%}.knowledge-entry-list:has(.knowledge-outlet-facts){grid-template-columns:1fr}}
 .practical-knowledge:has(.knowledge-inline-editor) .knowledge-area{padding-bottom:0}.knowledge-inline-editor{padding-top:.25rem}.knowledge-inline-editor .knowledge-editor-footer{background:var(--theme-surface)}
 .knowledge-tone-controls>div{min-width:0;max-width:100%}
+.knowledge-form>*{min-width:0}
