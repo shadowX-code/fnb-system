@@ -72,7 +72,7 @@ export default function InboxReplyComposer({
   );
   const outbox = current.outbox?.find((o) => o.draft_id === draft?.id);
   const faqQuestion = [...(current.messages||[])].reverse().find(m=>m.kind==='incoming'||(c.channel==='internal'&&m.kind==='note'))?.body||'';
-  const faqUnavailable = !current.knowledge?.approved_for_replies ? 'Approve current Brand Knowledge in FAQ & AI settings.' : !faqQuestion.trim() ? 'A customer question is needed. Internal cases can use a team note as a test question.' : faqQuestion.length>500 ? 'This message exceeds the 500-character FAQ matching limit. Review the FAQ Library instead.' : '';
+  const faqUnavailable = !faqQuestion.trim() ? 'A customer question is needed. Internal cases can use a team note as a test question.' : faqQuestion.length>500 ? 'This message exceeds the 500-character FAQ matching limit. Review the FAQ Library instead.' : '';
   const aiUnavailable = aiSuggestionUnavailable(current,configuration);
   const requiresApproval = current.reply_requires_approval !== false;
   const directReady =
@@ -184,7 +184,8 @@ export default function InboxReplyComposer({
       )}
       {mode === "reply" && preview && (
         <div className="inbox-suggestion">
-          <strong>{preview.faq ? 'Suggested FAQ · approved answer' : 'Approved FAQ'}</strong>
+          <strong>{preview.faq ? 'Approved FAQ suggestion' : 'Approved FAQ'}</strong>
+          {preview.faq?<small>{preview.faq.question} · {preview.faq.answer_kind==='general'?'General template':`Brand Knowledge revision ${preview.faq.knowledge_revision}`} · {preview.faq.match_method==='reviewed_topic'?'Reviewed topic match':'Approved phrasing'}</small>:null}
           <p>
             {preview.faq?.answer ||
               faqPreviewMessage(preview)}
@@ -195,7 +196,7 @@ export default function InboxReplyComposer({
               disabled={busy}
               onClick={async () => {const result=await command("faq_draft", {faq_id:preview.faq.id});if(result){setText(preview.faq.answer);setDirty(false);setSourceArtifact(null);}}}
             >
-              Use FAQ
+              Use Reply
             </button>
           )}
         </div>

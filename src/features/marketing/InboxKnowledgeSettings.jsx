@@ -1,42 +1,23 @@
 import {useEffect, useState} from 'react';
 import Badge from '../../components/ui/Badge.jsx';
-import AdminSearchField from '../../components/forms/AdminSearchField.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
-import {faqApprovalUnavailable,faqStateLabel} from './inboxKnowledge.js';
 
-export default function InboxKnowledgeSettings({data,configuration,can,busy,configure,onEdit,onKnowledge,footerActions=false}) {
- const [search,setSearch]=useState(''),[category,setCategory]=useState('');
+export default function InboxKnowledgeSettings({data,configuration,can,busy,configure,onKnowledge}) {
  const [policy,setPolicy]=useState(data?.policy||{revision:0,automation_mode:'suggest',ai_allowed:false});
  useEffect(()=>setPolicy(data?.policy||{revision:0,automation_mode:'suggest',ai_allowed:false}),[data?.policy?.revision]);
- const knowledge=data?.knowledge,faqs=data?.faqs||[];
+ const knowledge=data?.knowledge;
  const facts=Object.entries(knowledge?.profile||{}).filter(([,v])=>v.provenance==='verified_brand_fact'&&v.text?.trim());
  const approved=Boolean(knowledge?.approved_for_replies);
- const createReason=!can('configure')?'FAQ management permission is required.':faqs.length>=100?'The 100-FAQ limit has been reached. Review existing FAQs.':'';
- const categories=[...new Set(faqs.map(f=>f.category||'General'))].sort();
- const visible=faqs.filter(f=>(!category||(f.category||'General')===category)&&[f.question,f.answer,...(f.alternative_questions||[])].join(' ').toLocaleLowerCase().includes(search.toLocaleLowerCase()));
  return <form id="inbox-settings-form" className="inbox-knowledge-settings" onSubmit={event=>{event.preventDefault();if(can('configure'))configure('policy',policy.revision,{automation_mode:policy.automation_mode,ai_allowed:Boolean(policy.ai_allowed),staff_reply_requires_approval:Boolean(policy.staff_reply_requires_approval)})}}>
   <section aria-labelledby="inbox-knowledge-heading"><header><h3 id="inbox-knowledge-heading">Brand Knowledge</h3><Badge tone={approved?'success':'warning'}>{approved?'Approved for replies':knowledge?'Approval needed':'Not configured'}</Badge></header>
-   <p>Only human-verified facts from the approved current revision support FAQ and AI replies. Research and AI-generated suggestions are excluded.</p>
+   <p>Factual FAQs and AI suggestions use only human-verified facts from the approved current revision. Approving knowledge is separate from approving an FAQ. General conversational templates make no Brand factual claims.</p>
    {facts.length?<details><summary>Review verified facts · revision {knowledge.revision}</summary><dl>{facts.map(([key,value])=><div key={key}><dt>{key.replaceAll('_',' ')}</dt><dd>{value.text}</dd></div>)}</dl></details>:<p>Add verified Brand facts before requesting reply approval.</p>}
    <div className="marketing-inbox-actions">{onKnowledge?<a className="btn-secondary" href={onKnowledge}>Open Brand Knowledge</a>:null}{!approved&&facts.length>0&&can('approve')?<button type="button" className="btn-primary" disabled={busy} onClick={()=>configure('approve_knowledge',knowledge.revision)}>Approve this knowledge revision</button>:null}</div>
    {!approved&&!can('approve')?<p>Ask a staff member with Inbox approval permission to approve the current revision.</p>:null}
   </section>
-  <section aria-labelledby="inbox-faq-heading"><header><h3 id="inbox-faq-heading">FAQ Library <span>{faqs.length}/100</span></h3><button type="button" className="btn-secondary" disabled={busy||Boolean(createReason)} title={createReason||'Create an answer for review'} onClick={()=>onEdit({question:'',answer:'',language:'EN',category:'General',alternative_questions:[],reference_keys:[],revision:0})}>New FAQ</button></header>
-   {createReason?<p role="status">{createReason}</p>:null}
-   <div className="inbox-faq-filters"><AdminSearchField label="Search FAQs" value={search} onChange={setSearch} placeholder="Search questions or answers…"/><SelectField label="Category" value={category} onChange={setCategory} options={[{value:'',label:'All categories'},...categories.map(value=>({value,label:value}))]}/></div>
-   {visible.length?visible.map(f=>{const approvalReason=faqApprovalUnavailable(f,knowledge);return <article className="inbox-faq-entry" key={f.id}>
-    <header><strong>{f.question}</strong><Badge tone={f.status==='approved'&&!approvalReason?'success':'neutral'}>{faqStateLabel(f)}</Badge></header>
-    <p>{f.answer}</p><small>{f.category||'General'} · {f.language} · {f.knowledge_revision ? `Knowledge revision ${f.knowledge_revision}` : 'No supporting knowledge linked'}</small>
-    {approvalReason&&f.status!=='disabled'?<p className="inbox-faq-prerequisite">{approvalReason} {onKnowledge?<a href={onKnowledge}>Open Brand Knowledge</a>:null}</p>:null}
-    {f.alternative_questions?.length?<details><summary>Alternative questions ({f.alternative_questions.length})</summary><ul>{f.alternative_questions.map((q,i)=><li key={i}>{q}</li>)}</ul></details>:null}
-    <div className="marketing-inbox-actions">{can('configure')?<><button type="button" className="btn-secondary" disabled={busy} onClick={()=>onEdit(f)}>Edit FAQ</button>{f.status!=='disabled'?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>configure('disable_faq',f.revision,{id:f.id})}>Disable FAQ</button>:null}{f.status==='draft'?<button type="button" className="btn-secondary" disabled={busy||Boolean(approvalReason)} title={approvalReason||'Submit the supported draft for approval'} onClick={()=>configure('request_faq_review',f.revision,{id:f.id})}>Request approval</button>:null}</>:null}
-    {['draft','review'].includes(f.status)&&can('approve')?<><button type="button" className="btn-primary" disabled={busy||Boolean(approvalReason)} title={approvalReason||'Approve this exact FAQ revision'} onClick={()=>configure('approve_faq',f.revision,{id:f.id})}>Approve exact FAQ</button><button type="button" className="btn-secondary" disabled={busy} onClick={()=>configure('reject_faq',f.revision,{id:f.id})}>Reject FAQ</button></>:null}</div>
-   </article>}):<div className="inbox-faq-empty"><p>{faqs.length?'No FAQs match these filters.':'Start by drafting your common customer questions and answers. You can save drafts before Brand Knowledge is approved.'}</p>{!faqs.length?<p>Before approval, add verified Brand facts, approve the knowledge revision and link supporting facts to each FAQ. {onKnowledge?<a href={onKnowledge}>Open Brand Knowledge</a>:null}</p>:null}</div>}
-
-  </section>
   <section aria-labelledby="inbox-ai-heading"><header><h3 id="inbox-ai-heading">AI Suggestions</h3><Badge>{configuration?.ai_configured?'Provider configured':'Provider unavailable'}</Badge></header><p>Suggestions use approved Brand facts and permitted conversation context. Staff review and explicitly send every reply.</p>{!configuration?.ai_configured?<p>The AI provider is unavailable. A platform administrator must configure the existing integration; approved FAQs remain available.</p>:null}
    {can('configure')?<><SelectField label="FAQ matching" value={policy.automation_mode||'suggest'} onChange={automation_mode=>setPolicy(p=>({...p,automation_mode}))} options={[{value:'off',label:'Off'},{value:'suggest',label:'Suggest replies'},{value:'faq',label:'Prepare FAQ drafts'}]}/><label className="marketing-inbox-check"><input type="checkbox" checked={Boolean(policy.ai_allowed)} onChange={e=>setPolicy(p=>({...p,ai_allowed:e.target.checked}))}/>Allow AI suggestions with approved facts and conversation history with direct contact details removed</label></>:<p>{policy.ai_allowed?'Brand AI consent enabled.':'Brand AI consent is disabled. Ask an authorized Inbox administrator.'}</p>}
   </section>
-  <section aria-labelledby="inbox-approval-heading"><h3 id="inbox-approval-heading">Reply Approval</h3><p>All replies require an explicit staff send. Sensitive requests and escalations retain their existing approval requirements. Automatic customer replies remain disabled.</p>{can('configure')?<><label className="marketing-inbox-check"><input type="checkbox" checked={Boolean(policy.staff_reply_requires_approval)} onChange={e=>setPolicy(p=>({...p,staff_reply_requires_approval:e.target.checked}))}/>Require approval for all staff replies</label>{!footerActions?<button type="submit" className="btn-primary" disabled={busy}>Save brand settings</button>:null}</>:null}</section>
+  <section aria-labelledby="inbox-approval-heading"><h3 id="inbox-approval-heading">Reply Approval</h3><p>All replies require an explicit staff send. Sensitive requests and escalations retain their existing approval requirements. Automatic customer replies remain disabled.</p>{can('configure')?<><label className="marketing-inbox-check"><input type="checkbox" checked={Boolean(policy.staff_reply_requires_approval)} onChange={e=>setPolicy(p=>({...p,staff_reply_requires_approval:e.target.checked}))}/>Require approval for all staff replies</label><button type="submit" className="btn-primary" disabled={busy}>Save brand settings</button></>:null}</section>
  </form>;
 }

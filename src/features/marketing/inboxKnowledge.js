@@ -8,7 +8,11 @@ export function faqPreviewMessage(preview) {
  return {off:'FAQ matching is disabled for this Brand.',knowledge_unapproved:'Approve current Brand Knowledge before using FAQs.',escalate:'This request needs a person. No FAQ answer was selected.',unavailable:'FAQ matching is temporarily unavailable. Try Approved FAQ again.'}[preview?.state]||'No unique approved FAQ matches this question. Review the FAQ Library or write a staff reply.';
 }
 
-export function faqApprovalUnavailable(faq,knowledge) {
+export function faqApprovalUnavailable(faq,knowledge,templates=[]) {
+ if(faq.answer_kind==='general') {
+  const template=templates.find(t=>t.key===faq.template_key);
+  return template?.answers?.[faq.language]===faq.answer&&!(faq.reference_keys||[]).length ? '' : 'Choose the supplied fact-free general template wording before approval.';
+ }
  if(!knowledge?.revision)return 'Add verified Brand facts in Brand Knowledge and approve its current revision.';
  if(!knowledge.approved_for_replies)return `Approve Brand Knowledge revision ${knowledge.revision} for replies.`;
  if(faq.knowledge_revision!==knowledge.revision)return 'Edit and save this FAQ against the current Brand Knowledge revision.';

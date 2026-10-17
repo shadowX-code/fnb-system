@@ -36,8 +36,7 @@ import "./marketing.css";
 import "./marketingInbox.css";
 import { notifyConversationsChanged } from "./useConversationReplyCount.js";
 import InboxReplyComposer from "./InboxReplyComposer.jsx";
-import InboxKnowledgeSettings from "./InboxKnowledgeSettings.jsx";
-import {aiSuggestionUnavailable,faqApprovalUnavailable} from "./inboxKnowledge.js";
+import {aiSuggestionUnavailable} from "./inboxKnowledge.js";
 import { socialIdentity, conversationTimeline, replyOutcomeMessage, replyWasAccepted, replyStateLabel } from "./inboxPresentation.js";
 const label = (s) =>
   String(s || "")
@@ -423,13 +422,6 @@ export default function MarketingInboxPage() {
         inboxService.command(id, org, c?.brand_id || brand, c, name, payload),
     );
   }
-  async function configure(name, revision, payload = {}) {
-    const expectedScope = activeScope.current;
-    const result = await mutate({ command: name, scope, revision, payload }, (id) =>
-      inboxService.configure(id, brand, revision, name, payload));
-    if (result && expectedScope === activeScope.current) setModal({type:'settings'});
-    return result;
-  }
   async function faqPreview(text) {
     const s = scope,
       key = detailKey;
@@ -605,26 +597,7 @@ export default function MarketingInboxPage() {
               >
                 Diagnostics
               </button>
-              {(
-                <button
-                  role="menuitem"
-                  title={!brand?'Select a Brand filter to manage its FAQs and AI settings.':undefined}
-                  disabled={busy || !data || !brand}
-                  onClick={() => {
-                    setActionsOpen(false);
-                    setModal({
-                      type: "settings",
-                      policy: data?.policy || {
-                        revision: 0,
-                        automation_mode: "suggest",
-                        ai_allowed: false,
-                      },
-                    });
-                  }}
-                >
-                  FAQ & AI settings
-                </button>
-              )}
+              <a role="menuitem" href={`/marketing/faq-ai${c?.brand_id||brand?`?marketing_brand=${c?.brand_id||brand}&marketing_org=${org}`:''}`} target="_blank" rel="noopener noreferrer" title="Open FAQ Management in a new tab and keep this conversation draft">FAQ Management <ArrowUpRight size={13}/></a>
             </ActionMenu>
             {channel === "internal" && can("manage") && (
               <button
@@ -1264,10 +1237,7 @@ export default function MarketingInboxPage() {
             title={label(
               modal.type === "settings" ? "FAQ & AI Settings" : modal.type === "faq" ? "FAQ Draft" : modal.type,
             )}
-            description={['settings','faq'].includes(modal.type) ? brands.find(b=>b.id===brand)?.name : undefined}
-            size={modal.type==='settings'?'md':'sm'}
-            footerClassName={['settings','faq'].includes(modal.type)?'flex-wrap':undefined}
-            footer={modal.type==='settings'?<><button type="button" className="btn-secondary" disabled={busy} onClick={()=>setModal(null)}>Done</button>{can('configure')?<button type="submit" form="inbox-settings-form" className="btn-primary" disabled={busy}>Save brand settings</button>:null}</>:modal.type==='faq'?<><button type="button" className="btn-secondary" disabled={busy} onClick={()=>setModal({type:'settings'})}>Back to FAQ Library</button><button type="submit" form="inbox-faq-form" className="btn-primary" disabled={busy||!can('configure')}>Save FAQ draft</button></>:null}
+
             onClose={() => {
               if (!busy) setModal(null);
             }}
@@ -1434,12 +1404,9 @@ export default function MarketingInboxPage() {
                 setModal={setModal}
                 busy={busy}
                 data={data}
-                configuration={configuration}
-                knowledgeHref={auth.hasPermission('marketing_settings.view') ? `/marketing/brand-knowledge?marketing_brand=${brand}&marketing_org=${org}` : null}
                 can={can}
                 members={current?.members || []}
                 command={command}
-                configure={configure}
                 preview={faqPreview}
                 send={(draft) =>
                   mutate(
@@ -1468,10 +1435,7 @@ function InboxModal({
   data,
   can,
   members,
-  configuration,
-  knowledgeHref,
   command,
-  configure,
   preview,
   send,
 }) {
@@ -1493,76 +1457,6 @@ function InboxModal({
         </button>
       </div>
     );
-  if (m.type === "settings") return <InboxKnowledgeSettings footerActions data={data} configuration={configuration} can={can} busy={busy} configure={configure} onKnowledge={knowledgeHref} onEdit={faq=>setModal({type:'faq',...faq})}/>;
-  if (m.type === "faq") {
-    return (
-      <form
-        id="inbox-faq-form"
-        className="marketing-inbox-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if(!can('configure'))return;
-          configure("save_faq", m.revision, {
-            id: m.id,
-            question: m.question,
-            answer: m.answer,
-            language: m.language,
-            category: m.category,
-            alternative_questions: m.alternativeText !== undefined ? m.alternativeText.split("\n").map(v=>v.trim()).filter(Boolean) : (m.alternative_questions||[]),
-            reference_keys: m.reference_keys,
-          });
-        }}
-      >
-        <Field
-          label="FAQ question"
-          value={m.question}
-          onChange={(e) => set("question", e.target.value)}
-          maxLength={500}
-          required
-        />
-        <Area
-          label="Answer for review"
-          value={m.answer}
-          onChange={(e) => set("answer", e.target.value)}
-          maxLength={4000}
-          required
-        />
-        <SelectField
-          label="Language"
-          value={m.language}
-          onChange={(v) => set("language", v)}
-          options={options(["EN", "ZH", "BM"])}
-        />
-        <Field label="Category" value={m.category||'General'} maxLength={80} required onChange={e=>set('category',e.target.value)}/>
-        <Area label="Alternative questions (optional)" value={m.alternativeText ?? (m.alternative_questions||[]).join('\n')} maxLength={5010} onChange={e=>set('alternativeText',e.target.value)} />
-        <p>One phrasing per line, up to 10. Matching is exact apart from spacing and capitalization; edits require a new approval.</p>
-        <p>Drafts are private preparation. Approval and reply use require approved current Brand Knowledge and valid supporting facts.</p>
-        {faqApprovalUnavailable({...m,knowledge_revision:data?.knowledge?.revision},data?.knowledge)?<p role="status">{faqApprovalUnavailable({...m,knowledge_revision:data?.knowledge?.revision},data?.knowledge)} {knowledgeHref?<a href={knowledgeHref}>Open Brand Knowledge</a>:null}</p>:null}
-        <fieldset>
-          <legend>Supporting facts (optional for drafts)</legend>
-          {[...new Set([...Object.entries(data?.knowledge?.profile || {}).filter(([,v])=>v.provenance==='verified_brand_fact'&&v.text?.trim()).map(([key])=>key),...(m.reference_keys||[])])]
-            .map(k => (
-              <label key={k} className="marketing-inbox-check">
-                <input
-                  type="checkbox"
-                  checked={m.reference_keys.includes(k)}
-                  onChange={(e) =>
-                    set(
-                      "reference_keys",
-                      e.target.checked
-                        ? [...m.reference_keys, k]
-                        : m.reference_keys.filter((x) => x !== k),
-                    )
-                  }
-                />
-                {label(k)}
-              </label>
-            ))}
-        </fieldset>
-
-      </form>
-    );
-  }
   return (
     <form
       className="marketing-inbox-form"

@@ -54,6 +54,7 @@ const AssetTrackingPage = lazy(() => import("../features/sales-purchase/pages/As
 const MarketingAdsPage = lazy(() => import("../features/marketing/MarketingAdsPage.jsx"));
 const MarketingOutreachPage = lazy(() => import("../features/marketing/MarketingOutreachPage.jsx"));
 const MarketingInboxPage = lazy(() => import("../features/marketing/MarketingInboxPage.jsx"));
+const MarketingFAQPage = lazy(() => import("../features/marketing/MarketingFAQPage.jsx"));
 const MarketingSettingsPage = lazy(() => import("../features/marketing/MarketingSettingsPage.jsx"));
 const MarketingWorkspacePage = lazy(() => import("../features/marketing/MarketingWorkspacePage.jsx"));
 const RecruitmentPage = lazy(() => import("../features/recruitment/RecruitmentPage.jsx"));
@@ -89,6 +90,7 @@ export const routeDetails = {
   marketing_analytics: { component: MarketingWorkspacePage, props: { section: "analytics" }, permission: "marketing_workspace.access AND marketing_analytics.view", description: "Publishing outcomes and available evidence." },
   marketing_settings: { component: MarketingSettingsPage, props: { section: "legacy" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Compatibility entry for saved Settings and OAuth callbacks." },
   marketing_connections: { component: MarketingSettingsPage, props: { section: "connections" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Brand social and Google Drive connections." },
+  marketing_faq: { component: MarketingFAQPage, permission: "marketing_workspace.access AND marketing_inbox.view", description: "Brand FAQ management, factual support and grounded reply settings." },
   marketing_knowledge: { component: MarketingSettingsPage, props: { section: "knowledge" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Brand identity, guidance and evidence." },
   marketing_brand_access: { component: MarketingSettingsPage, props: { section: "access" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Authorized Brand access and team role scopes." },
   finance_data_sources: { description: "Financial source connection, authority, mapping, reconciliation and readiness.", component: FinanceDataSourcesPage },
