@@ -11,3 +11,14 @@ it('nested media dialog handles Escape without closing the post form',()=>{
  const parentClose=vi.fn(),childClose=vi.fn();render(<Modal title="Post" onClose={parentClose}><input aria-label="Caption"/><Modal title="Picker" onClose={childClose}><button>Select</button></Modal></Modal>);
  fireEvent.keyDown(screen.getByRole('button',{name:'Select'}),{key:'Escape'});expect(childClose).toHaveBeenCalledOnce();expect(parentClose).not.toHaveBeenCalled();cleanup();
 });
+
+it('resets scroll and focuses the dialog when switching views, preserving same-view edits and original focus return',()=>{
+ const trigger=document.createElement('button');document.body.append(trigger);trigger.focus();
+ const view=render(<Modal title="FAQ Library" onClose={()=>{}}><input aria-label="Draft field"/></Modal>);
+ const dialog=screen.getByRole('dialog'),body=dialog.children[1];body.scrollTop=300;screen.getByLabelText('Draft field').focus();
+ view.rerender(<Modal title="FAQ Library" onClose={()=>{}}><input aria-label="Draft field" value="Edited" readOnly/></Modal>);
+ expect(body.scrollTop).toBe(300);
+ view.rerender(<Modal title="FAQ Draft" onClose={()=>{}}><input aria-label="Draft field"/></Modal>);
+ expect(body.scrollTop).toBe(0);expect(document.activeElement).toBe(dialog);
+ view.unmount();expect(document.activeElement).toBe(trigger);trigger.remove();
+});

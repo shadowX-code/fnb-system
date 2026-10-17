@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 const sizeClasses = {
   sm: "max-w-lg",
   md: "max-w-2xl",
@@ -21,7 +21,7 @@ export default function Modal({
   headerActions,
   placement = "center",
 }) {
-  const panelRef = useRef(null), closeRef = useRef(onClose);
+  const panelRef = useRef(null), bodyRef = useRef(null), previousTitle = useRef(title), closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
     const previous = document.activeElement, panel = panelRef.current;
@@ -39,6 +39,12 @@ export default function Modal({
     panel.addEventListener('keydown', key);
     return () => {panel.removeEventListener('keydown', key);if(previous?.isConnected)previous.focus?.();};
   }, []);
+  useLayoutEffect(() => {
+    if (previousTitle.current === title) return;
+    previousTitle.current = title;
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+    panelRef.current?.focus();
+  }, [title]);
   const widthClass = sizeClasses[size] ?? sizeClasses.sm;
 
   return (
@@ -56,7 +62,7 @@ export default function Modal({
             </button>
           </div>
         </div>
-        <div className={`min-h-0 flex-1 overflow-y-auto p-4 ${bodyClassName}`}>{children}</div>
+        <div ref={bodyRef} className={`min-h-0 flex-1 overflow-y-auto p-4 ${bodyClassName}`}>{children}</div>
         {footer ? <div className={`sticky bottom-0 z-10 flex shrink-0 justify-end gap-2 border-t border-border bg-[var(--theme-surface-nested)] p-3 ${footerClassName}`}>{footer}</div> : null}
       </div>
     </div>
