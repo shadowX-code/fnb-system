@@ -151,8 +151,7 @@ export default function MarketingInboxPage() {
   const [verification, setVerification] = useState(null),
     [detailsOpen, setDetailsOpen] = useState(false),
     [actionsOpen, setActionsOpen] = useState(false),
-    [sendStatus, setSendStatus] = useState(null),
-    [profiles, setProfiles] = useState({ scope: null, rows: {} });
+    [sendStatus, setSendStatus] = useState(null);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [loading, setLoading] = useState(false),
@@ -416,24 +415,19 @@ export default function MarketingInboxPage() {
   );
   useEffect(() => {
     let live = true;
-    setProfiles({ scope, rows: {} });
     const ids = JSON.parse(profileIds);
     if (ids.length)
       inboxService
         .profiles(ids)
-        .then((result) => {
-          if (live && activeScope.current === scope)
-            setProfiles({ scope, rows: result.profiles || {} });
+        .then(() => {
+          // Canonical list/detail projections remain the only display authority.
+          if (live && activeScope.current === scope) setRefresh((r) => r + 1);
         })
         .catch(() => {});
     return () => {
       live = false;
     };
   }, [scope, profileIds]);
-  const withProfile = (row) => ({
-    ...row,
-    customer_profile: profiles.scope === scope ? profiles.rows[row.id] : null,
-  });
   useEffect(() => {
     const timer = setInterval(() => {
       if (document.visibilityState !== "hidden" && !busyRef.current)
@@ -515,7 +509,7 @@ export default function MarketingInboxPage() {
           </label>
 </>}/>
   </div>;
-  const identity = c ? socialIdentity(withProfile(c)) : null;
+  const identity = c ? socialIdentity(c) : null;
   const timeline = current ? conversationTimeline(current) : [];
   useEffect(() => {
     if (historyRef.current && historyPage === 1)
@@ -692,10 +686,10 @@ export default function MarketingInboxPage() {
                     setDetailsOpen(false);
                   }}
                 >
-                  <CustomerAvatar conversation={withProfile(row)} />
+                  <CustomerAvatar conversation={row} />
                   <span className="inbox-row-content">
                     <span className="inbox-row-top">
-                      <strong>{socialIdentity(withProfile(row)).name}</strong>
+                      <strong>{socialIdentity(row).name}</strong>
                       <time
                         title={stamp(row.latest_message_at || row.updated_at)}
                       >
@@ -776,7 +770,7 @@ export default function MarketingInboxPage() {
                   >
                     <ArrowLeft size={18} />
                   </button>
-                  <CustomerAvatar conversation={withProfile(c)} />
+                  <CustomerAvatar conversation={c} />
                   <div className="inbox-thread-identity">
                     <h2>{identity.name}</h2>
                     <p>
@@ -972,12 +966,12 @@ export default function MarketingInboxPage() {
                   <X size={18} />
                 </button>
               </div>
-              <CustomerAvatar conversation={withProfile(c)} />
+              <CustomerAvatar conversation={c} />
               <h3>{identity.name}</h3>
               <p>
                 {identity.known
                   ? "Social profile"
-                  : "Customer profile unavailable"}
+                  : identity.unavailableReason}
               </p>
               <p className="inbox-muted">
                 Social identity · no verified FeedX customer link

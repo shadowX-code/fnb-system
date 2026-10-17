@@ -357,3 +357,14 @@ it('labels external Meta outbound without staff attribution and retains exact st
  expect(bubble.textContent).toContain('Meta');expect(bubble.textContent).toContain('Read');
  expect(bubble.textContent).not.toContain('Team member');
 });
+it('renders canonical persisted profiles even when optional enrichment is unavailable', async()=>{
+ const existing=inboxService.read.getMockImplementation();
+ inboxService.read.mockImplementation(async(...args)=>{const result=await existing(...args);return {...result,rows:result.rows.map(row=>({...row,customer_profile:{display_name:'Verified Profile',available:true}}))};});
+ inboxService.profiles.mockRejectedValue(new Error('temporary profile read failure'));
+ detail.conversation={...conversation,customer_profile:{display_name:'Verified Profile',available:true}};
+ render(<MarketingInboxPage/>);
+ fireEvent.click(await screen.findByRole('button',{name:/Verified Profile/}));
+ await screen.findByText('Team follow-up');
+ expect(screen.getByRole('heading',{name:'Verified Profile'})).toBeTruthy();
+ expect(screen.queryByText('Instagram customer')).toBeNull();
+});

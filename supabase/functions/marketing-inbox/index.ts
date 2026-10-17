@@ -1,7 +1,7 @@
 import {staffReplyConfigured, staffReplyAllowed} from '../_shared/marketingExecution.mjs';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { STAGING_ORIGIN, STAGING_SUPABASE, connectionBinding, unseal } from "../_shared/metaSecurity.ts";
-import {profileFields,sanitizeInboxProfile} from "../_shared/metaInboxProfile.ts";
+import {enrichInboxProfile} from "../_shared/metaInboxProfile.ts";
 import { MetaGraph, MetaError } from "../_shared/metaGraph.ts";
 import { verifyInboxConnection } from "../_shared/metaInboxVerification.ts";
 import { advanceInboxDelivery, inboxConnectorContracts } from "../_shared/metaInboxAdapters.ts";
@@ -163,13 +163,7 @@ Deno.serve(async (req) => {
         while(pending.length) {
           const id=pending.shift()!;
           try {
-            const material=await rpc(service,'marketing_inbox_profile_material',{p_conversation:id,p_auth_user:identity.data.user.id});
-            const connection=material.connection;
-            const credential=await unseal(connection.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(connection));
-            const result=await graph.request(material.peer,credential.token,{fields:profileFields(connection.channel)});
-            const fresh=await rpc(service,'marketing_inbox_profile_material',{p_conversation:id,p_auth_user:identity.data.user.id});
-            if(fresh.generation!==material.generation||fresh.peer!==material.peer)throw new Error('profile_scope_changed');
-            profiles[id]=sanitizeInboxProfile(result,connection.channel);
+            profiles[id]=await enrichInboxProfile(service,graph.withSignal(AbortSignal.timeout(5000)),[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],id,identity.data.user.id);
           }catch{profiles[id]={available:false};}
         }
       }));

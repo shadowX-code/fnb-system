@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-17 — Durable Inbox provider-profile enrichment
+
+Staging Inbox now persists minimal official Meta customer-profile observations behind the existing conversation/Brand authority and provides bounded historical enrichment through the existing worker. Exact peer/account/generation binding, leases, denial backoff, redacted provider evidence, canonical list/detail projections and erasure/credential-removal cascades replace ephemeral lookups that discarded failures. No Customer Master merge, message delivery/assignment change, provider configuration change or Production delivery. Canonical owner: `docs/domains/marketing.md`; rollback verification: `qa/staging/marketingInboxProfiles.rollback.sql`.
+
 ## 2026-10-17 - Git reconciliation of completed Production recovery and Creator release
 
 Recovered the exact Production-applied incident migrations `20261016062921` and `20261016070206` with checksum-matched source, rollback-only regression probes and the completed [incident receipt](docs/releases/2026-10-16-production-loading-retry-incident.md). Planner business conflicts use non-retryable PT409; shared authorization helpers reuse execution plans without caching permission answers. The recorded Production recovery preserved data, grants, schedules and complete-read enforcement. This reconciliation does not execute either migration again. Canonical owners: `docs/architecture/trusted-authorities.md` and `docs/domains/marketing.md`.

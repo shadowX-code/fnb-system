@@ -2,7 +2,7 @@ import { META_REDIRECT, META_SCOPES } from './metaSecurity.ts';
 import { adsErrorEvidence, type AdsErrorEvidence } from './metaAdsDiagnostics.ts';
 import { resolvePageRoleTasks, discoverAuthorizerAssignments, resolveBusinessPageTasks, type AuthorizerAssignment } from './metaPageTasks.ts';
 // Only explicitly selected non-secret fields may enter diagnostics. Never log provider bodies.
-export type MetaResponseEvidence={graph_error_subcode:number|null;error_permissions:string[];page_error?:{message:string|null;fbtrace_id:string|null}};
+export type MetaResponseEvidence={graph_error_subcode:number|null;error_permissions:string[];profile_error?:{message:string|null;fbtrace_id:string|null};page_error?:{message:string|null;fbtrace_id:string|null}};
 export type MetaDiagnostic = Record<string, string | number | boolean | null | string[]>;
 const diagnosticScopes=new Set([...META_SCOPES,'public_profile','email','business_management','pages_manage_metadata','pages_messaging','ads_read','ads_management']);
 const diagnosticTasks=new Set(['ADVERTISE','ANALYZE','CREATE_CONTENT','MANAGE','MESSAGING','MODERATE','PROFILE_PLUS_ADVERTISE','PROFILE_PLUS_ANALYZE','PROFILE_PLUS_CREATE_CONTENT','PROFILE_PLUS_FULL_CONTROL','PROFILE_PLUS_MANAGE','PROFILE_PLUS_MESSAGING','PROFILE_PLUS_MODERATE']);
@@ -47,12 +47,14 @@ export class MetaGraph {
   }
   // Only fixed public Page metadata reads retain bounded, redacted error text.
   const pageRead=method==='GET'&&/^[a-z\d._-]{1,160}$/i.test(path)&&params.fields==='id,username,link,followers_count'&&Object.keys(params).length===1;
+  const profileRead=method==='GET'&&/^\d{1,30}$/.test(path)&&['first_name,last_name,profile_pic','name,username,profile_pic'].includes(params.fields)&&Object.keys(params).length===1;
   const pageText=(value:unknown)=>{
    if(typeof value!=='string'||value.length>4096)return null;
    let text=value;for(const secret of [token,this.config.appSecret,form.get('appsecret_proof')||''].filter(Boolean))for(const encoded of new Set([secret,encodeURIComponent(secret)]))text=text.split(encoded).join('[redacted]');
+   if(profileRead)text=text.split(path).join('[peer]');
    return text.replace(/https?:\/\/[^\s<>]+/gi,'[documentation URL]').replace(/\bEAA[A-Za-z0-9_-]+/g,'[redacted]').replace(/[\u0000-\u001f\u007f]/g,' ').slice(0,1500);
   };
-  inspect?.(response.status,Number.isSafeInteger(body?.error?.code)?body.error.code:null,{...(pageRead&&body.error?{page_error:{message:pageText(body.error.message),fbtrace_id:typeof body.error.fbtrace_id==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(body.error.fbtrace_id)&&![token,this.config.appSecret,form.get('appsecret_proof')||''].filter(Boolean).some(s=>body.error.fbtrace_id.includes(s))?body.error.fbtrace_id:null}}:{}),graph_error_subcode:Number.isSafeInteger(body?.error?.error_subcode)?body.error.error_subcode:null,error_permissions:[...diagnosticScopes,'pages_read_user_content'].filter(scope=>new RegExp(`\\b${scope}\\b`).test(String(body?.error?.message||'')))});
+  inspect?.(response.status,Number.isSafeInteger(body?.error?.code)?body.error.code:null,{...(pageRead&&body.error?{page_error:{message:pageText(body.error.message),fbtrace_id:typeof body.error.fbtrace_id==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(body.error.fbtrace_id)&&![token,this.config.appSecret,form.get('appsecret_proof')||''].filter(Boolean).some(s=>body.error.fbtrace_id.includes(s))?body.error.fbtrace_id:null}}:{}),...(profileRead&&body.error?{profile_error:{message:pageText(body.error.message),fbtrace_id:typeof body.error.fbtrace_id==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(body.error.fbtrace_id)&&![token,this.config.appSecret].filter(Boolean).some(s=>body.error.fbtrace_id.includes(s))?body.error.fbtrace_id:null}}:{}),graph_error_subcode:Number.isSafeInteger(body?.error?.error_subcode)?body.error.error_subcode:null,error_permissions:[...diagnosticScopes,'pages_read_user_content'].filter(scope=>new RegExp(`\\b${scope}\\b`).test(String(body?.error?.message||'')))});
   if(['me/accounts','me/permissions'].includes(path))this.report({event:'graph_response',endpoint:path,http_status:response.status,graph_error_code:Number.isSafeInteger(body.error?.code)?body.error.code:null,returned_count:Array.isArray(body.data)?body.data.length:null,data_shape:Array.isArray(body.data)?'array':body.error?'error':'unexpected'});
   if(!response.ok||body.error) {
    const code=Number(body.error?.code); const auth=[10,190,200].includes(code);
