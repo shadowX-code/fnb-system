@@ -14,6 +14,7 @@ export function socialIdentity(conversation) {
     handle,
     avatar: profile?.avatar_url,
     known: Boolean(profile?.display_name || handle),
+    unavailableReason: profile?.diagnostic?.status === 'denied' ? 'Meta has not made this customer profile available.' : 'Customer profile unavailable',
   };
 }
 export function conversationTimeline(detail) {

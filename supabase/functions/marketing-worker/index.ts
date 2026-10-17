@@ -1,3 +1,4 @@
+import {runInboxProfile} from '../_shared/metaInboxProfile.ts';
 import {runCreatorFollowers} from '../_shared/metaCreatorProfile.ts';
 import {privacyProcessingAllowed} from '../_shared/marketingPrivacyExecution.mjs';
 import {publishingConfigured, publishingAccountAllowed} from '../_shared/marketingExecution.mjs';
@@ -89,6 +90,8 @@ Deno.serve(async(req)=>{
    if(Date.now()-started<15000)try{await checkHealth();}catch{console.warn('marketing_connection_health_pending');}
    await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'processed',outcome:result.outcome});
   }
+  // Independent four-second profile read; failure never blocks message ingestion or publishing.
+  try{await runInboxProfile(db,graph.withSignal(AbortSignal.timeout(4000)),[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')]);}catch{console.warn('marketing_inbox_profile_pending');}
   // One API read per idle tick; publishing always claims first. A separate deadline
   // bounds follower work without consuming connection-health or publishing leases.
   try{const followerGraph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')},fetch,undefined,AbortSignal.timeout(8000));await runCreatorFollowers(db,followerGraph,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')]);}catch{console.warn('marketing_creator_followers_pending');}
