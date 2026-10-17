@@ -8,11 +8,11 @@ describe('independent Meta capability states',()=>{
  });
  it('requires current receiving authority for delivery readiness',()=>{
   expect(socialCapabilities({...connected,messaging:{delivery_verified:true,receiving_verified:true}}).messaging.state).toBe('delivery_verified');
-  expect(socialCapabilities({...connected,messaging:{delivery_verified:true,receiving_verified:false}}).messaging.state).toBe('connected');
+  expect(socialCapabilities({...connected,messaging:{delivery_verified:true,receiving_verified:false}}).messaging.state).toBe('action_required');
   expect(socialCapabilities({...connected,status:'expired',messaging:{configuration_verified:true,delivery_verified:true}}).messaging.reason).toBe('reconnect');
  });
  it('offers action only for actionable failures, without treating first delivery as an issue',()=>{
-  expect(socialAccountIssues({...connected,messaging:{configuration_verified:true}})).toEqual([]);
+  expect(socialAccountIssues({...connected,messaging:{configuration_verified:true,receiving_verified:true}})).toEqual([]);
   expect(socialAccountIssues({...connected,health:{credential_valid:false,publishing:{state:'action_required',reason:'authorization_unverified'}},checks:{error_code:'meta_temporarily_unavailable'}})).toEqual([]);
   expect(socialNeedsReconnect({...connected,expires_at:'2000-01-01'})).toBe(true);
   expect(socialNeedsReconnect({...connected,health:{credential_valid:false},checks:{error_code:'meta_temporarily_unavailable'}})).toBe(false);
@@ -20,4 +20,12 @@ describe('independent Meta capability states',()=>{
   expect(socialStateLabel('connected')).toBe('OAuth Connected');
   expect(socialStateLabel('connected','insights')).toBe('Access Granted');
  });
+});
+
+it('never hides a canonical processing blocker behind configuration or cached healthy evidence',()=>{
+ for(const state of ['permission_unavailable','authorization_unverified','configuration_unverified','connection_unavailable']){
+  const value=socialCapabilities({...connected,health:{messaging:{state:'awaiting_first_delivery'}},messaging:{state,configuration_verified:true,delivery_verified:true,receiving_verified:false}}).messaging;
+  expect(value.state).toBe(state==='permission_unavailable'?'permission_required':'action_required');
+ }
+ expect(socialCapabilities({...connected,messaging:{state:'receive_verified',configuration_verified:true,delivery_verified:true,receiving_verified:true}}).messaging.state).toBe('delivery_verified');
 });

@@ -10,7 +10,7 @@ const job={connection_id:'fixture',generation:1,lease:'lease',auth_user_id:'acto
 const material={id:'fixture',credential_generation:1,channel:'facebook'};
 const evidence={authorization_verified:true,subscriptions_verified:true,page_id:'111',evidence:[],app_webhook:{registered:true,active:true,callback_matches:true,fields:['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes']}};
 const installed={data:[{id:'app',subscribed_fields:['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes']}]};
-function database(messaging:any={configuration_verified:true,delivery_verified:false}) {
+function database(messaging:any={receiving_verified:true,configuration_verified:true,delivery_verified:false}) {
  return {rpc:vi.fn(async(name:string)=>({error:null,data:name==='marketing_meta_health_claim'?job:name==='marketing_meta_health_guard'?true:name==='marketing_meta_diagnostic_material'?material:name==='marketing_inbox_verification_events'?[]:name==='marketing_inbox_record_verification'?messaging:null}))};
 }
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
@@ -27,7 +27,7 @@ describe('bounded automatic connection health',()=>{
  });
  it('distinguishes configuration from signed delivery and stores no recovered bodies in health',async()=>{
   for(const delivered of [false,true]){
-   const db=database({configuration_verified:true,delivery_verified:delivered});
+   const db=database({receiving_verified:true,configuration_verified:true,delivery_verified:delivered});
    vi.mocked(readRecentInbox).mockResolvedValue({events:[{body:'private'}],state:'available',reason:'recent_window_checked',complete:false} as any);
    const result=await runConnectionHealth(db,{withSignal(){return this}} as any,{appId:'app'},['key']);
    expect(result.messaging.state).toBe(delivered?'delivery_verified':'awaiting_first_delivery');

@@ -52,13 +52,13 @@ export async function runConnectionHealth(db:any,graph:MetaGraph,config:any,keys
   Object.assign(health,{echo_subscription_status:inbox.echo_subscription_status});
   if(repair==='failed')health.messaging={state:'needs_attention',reason:'subscription_install_rejected'};
   if(!inbox.subscriptions_verified&&inbox.authorization_verified&&plan.reason==='app_setup_required')health.messaging={state:'needs_attention',reason:'app_setup_required'};
-  if(messaging.configuration_verified)health.messaging={state:messaging.delivery_verified?'delivery_verified':'awaiting_first_delivery',reason:messaging.delivery_verified?'ready':'inbound_pending'};
+  if(messaging.receiving_verified&&messaging.configuration_verified)health.messaging={state:messaging.delivery_verified?'delivery_verified':'awaiting_first_delivery',reason:messaging.delivery_verified?'ready':'inbound_pending'};
   health.insights=material.last_synced_at&&material.capabilities?.insights&&health.insights.state!=='permission_required'?{state:'connected',reason:'metrics_from_sync'}:health.insights;
   await guard();
   if(snapshot||productionPublishingPolicy(material,false)!==null)await boundedCall('marketing_meta_record_eligibility',{...actor,p_sealed:snapshot?await seal({...credential,oauthTaskEvidence:snapshot},keys[0],connectionBinding(material)):null,p_verified:health.publishing.state==='verified'});
   // Reconciliation is a bounded fallback; provider reads never prove webhook delivery.
   let recovery:any={state:'unavailable',reason:'configuration_unverified',complete:false};
-  if(messaging.configuration_verified) {
+  if(messaging.receiving_verified&&messaging.configuration_verified) {
    recovery=await readRecentInbox(graph,material,credential.token,inbox.page_id,guard,Date.now(),recent);
    if(recovery.events.length)await boundedCall('marketing_inbox_reconcile',{...args,p_events:recovery.events});
    const {events,...summary}=recovery;recovery=summary;
