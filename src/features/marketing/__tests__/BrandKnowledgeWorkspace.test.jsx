@@ -51,3 +51,7 @@ it('separates saved tone from unsaved preview and clears preview on a changed se
  fireEvent.click(screen.getByRole('button',{name:'Preview reply tone'}));await screen.findByText('Welcome!');
  fireEvent.click(screen.getByRole('button',{name:'Calm'}));expect(screen.queryByText('Welcome!')).toBeNull();expect(service.knowledgeCommand).not.toHaveBeenCalled();
 });
+it('does not call an approved but incomplete identity fully ready',()=>{
+ render(<Workspace brand={brand} data={{...data,knowledge_approval_revision:3}} can={()=>false}/>);
+ expect(screen.getByRole('button',{name:'Brand Identity Partial'})).toBeTruthy();
+});
