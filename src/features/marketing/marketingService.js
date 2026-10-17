@@ -52,6 +52,20 @@ export const marketingService = {
   teamBrandAccess: org => rpc('platform_team_brand_access', {p_org:org}),
   memberBrandAccess: (org,employee,brands,revision,request) => rpc('platform_member_brand_access', {p_org:org,p_employee:employee,p_brands:brands,p_expected_revision:revision,p_request:request}),
   accessFingerprint: () => rpc('marketing_access_fingerprint'),
+  knowledgeCommand:(request,brand,command,entry,revision,data)=>rpc('marketing_knowledge_command',{p_request:request,p_brand:brand,p_command:command,p_entry:entry||null,p_revision:revision,p_data:data}),
+  async uploadMenu(brand,file) {
+    const entry=await rpc('marketing_knowledge_prepare_file',{p_brand:brand,p_filename:file.name,p_mime:file.type,p_size:file.size});
+    const {error}=await supabase.storage.from(entry.bucket).upload(entry.object_path,file,{contentType:file.type,upsert:false});
+    throwSupabaseError('marketing.menu_upload',error);return entry;
+  },
+  async knowledgeAI(requestId,brandId,kind,entryId=null) {
+    const {data,error}=await supabase.functions.invoke('marketing-inbox/knowledge',{body:{requestId,brandId,kind,entryId}});
+    if(error)throw new Error('Knowledge AI unavailable. Check Brand AI consent and provider configuration; no confirmed knowledge was changed.');return data;
+  },
+  async menuSource(entry) {
+    const {data,error}=await supabase.storage.from('marketing-knowledge').createSignedUrl(entry.object_path,300);
+    throwSupabaseError('marketing.menu_source',error);return data.signedUrl;
+  },
   knowledgeWorkspace: brandId => rpc('marketing_knowledge_workspace',{p_brand:brandId}),
   knowledge: (brandId, revision, profile) => rpc('marketing_save_knowledge', { p_brand: brandId, p_expected_revision: revision, p_profile: profile }),
   content: ({ requestId, command, organizationId, brandId, content, payload = {} }) => rpc('marketing_content_command', {
