@@ -1,11 +1,12 @@
 import {describe,it,expect,vi} from 'vitest';
+import { RUNTIME_SUPABASE } from '../../../../supabase/functions/_shared/metaSecurity.ts';
 import {verifyInboxConnection} from '../../../../supabase/functions/_shared/metaInboxVerification.ts';
 import {MetaError} from '../../../../supabase/functions/_shared/metaGraph.ts';
 const permissions=['pages_messaging','pages_manage_metadata','instagram_basic','instagram_manage_messages'];
 const connection={channel:'facebook',provider_account_id:'111',meta_user_id:'333',credential_generation:5,capabilities:{page_task_source:'accounts',page_tasks_verified:true,page_tasks:['MESSAGING']}};
 function graph(overrides:any={}) {
  return {request:vi.fn(async(path:string,_token:string,_params:any,_method:string,inspect:any)=>{
-  const value=overrides[path]??({'444/subscriptions':{data:['page','instagram'].map(object=>({object,active:true,callback_url:'https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/marketing-inbox/webhook',fields:(object==='page'?['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes']:['messages','messaging_postbacks','messaging_seen']).map(name=>({name}))}))},'debug_token':{data:{is_valid:true,type:'PAGE',app_id:'444',profile_id:'111',user_id:'333',expires_at:0,data_access_expires_at:0,scopes:permissions,granular_scopes:[{scope:'business_management',target_ids:['555']}]}},'me':{id:'111'},'111':{id:'111',business:{id:'555'},instagram_business_account:{id:'666'}},'111/subscribed_apps':{data:[{id:'444',subscribed_fields:['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes']}]},'111/conversations':{data:[{participants:{data:[{id:'777'}]},messages:{data:[{id:'actual-mid'}]}}]}} as any)[path];
+  const value=overrides[path]??({'444/subscriptions':{data:['page','instagram'].map(object=>({object,active:true,callback_url:`${RUNTIME_SUPABASE}/functions/v1/marketing-inbox/webhook`,fields:(object==='page'?['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes']:['messages','messaging_postbacks','messaging_seen']).map(name=>({name}))}))},'debug_token':{data:{is_valid:true,type:'PAGE',app_id:'444',profile_id:'111',user_id:'333',expires_at:0,data_access_expires_at:0,scopes:permissions,granular_scopes:[{scope:'business_management',target_ids:['555']}]}},'me':{id:'111'},'111':{id:'111',business:{id:'555'},instagram_business_account:{id:'666'}},'111/subscribed_apps':{data:[{id:'444',subscribed_fields:['messages','messaging_postbacks','message_deliveries','message_reads','message_echoes']}]},'111/conversations':{data:[{participants:{data:[{id:'777'}]},messages:{data:[{id:'actual-mid'}]}}]}} as any)[path];
   if(value instanceof Error){inspect?.(400,190,{graph_error_subcode:463});throw value;}
   inspect?.(200,null,{});return value;
  })};
@@ -13,7 +14,7 @@ function graph(overrides:any={}) {
 const verify=(g:any,c:any=connection,inbound:any[]=[])=>verifyInboxConnection(g,'444','test-app-token',c,{token:'test-page-token'},async()=>{},inbound);
 describe('independent messaging capability verification',()=>{
  it('verifies the exact app callback without returning callback secrets or unrelated subscriptions',async()=>{
-  const result=await verify(graph({'444/subscriptions':{data:[{object:'page',active:true,callback_url:'https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/marketing-inbox/webhook',verify_token:'never-return-this',fields:[{name:'messages'},{name:'leadgen'}]}]}}));
+  const result=await verify(graph({'444/subscriptions':{data:[{object:'page',active:true,callback_url:`${RUNTIME_SUPABASE}/functions/v1/marketing-inbox/webhook`,verify_token:'never-return-this',fields:[{name:'messages'},{name:'leadgen'}]}]}}));
   expect(result.app_webhook).toEqual({object:'page',registered:true,active:true,callback_matches:true,fields:['messages']});
   expect(JSON.stringify(result)).not.toContain('never-return-this');
   expect((await verify(graph({'444/subscriptions':{data:[{object:'page',active:true,callback_url:'https://wrong.invalid',fields:[]}]}}))).app_webhook.callback_matches).toBe(false);
@@ -31,7 +32,7 @@ describe('independent messaging capability verification',()=>{
  it('checks Instagram seen on the app object and read receipts on its linked Page',async()=>{
   const c={...connection,channel:'instagram',provider_account_id:'666'};
   expect((await verify(graph(),c)).subscriptions_verified).toBe(true);
-  const incompleteApp={data:[{object:'instagram',active:true,callback_url:'https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/marketing-inbox/webhook',fields:[{name:'messages'},{name:'messaging_postbacks'}]}]};
+  const incompleteApp={data:[{object:'instagram',active:true,callback_url:`${RUNTIME_SUPABASE}/functions/v1/marketing-inbox/webhook`,fields:[{name:'messages'},{name:'messaging_postbacks'}]}]};
   const noSeen=await verify(graph({'444/subscriptions':incompleteApp}),c);
   expect(noSeen.subscriptions_verified).toBe(false);expect(noSeen.missing_subscriptions).toContain('messaging_seen');
   const noReads=await verify(graph({'111/subscribed_apps':{data:[{id:'444',subscribed_fields:['messages','messaging_postbacks']}]}}),c);
