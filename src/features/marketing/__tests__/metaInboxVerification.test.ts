@@ -69,3 +69,15 @@ it('persists only observed Inbox permissions, including missing-grant revocation
  expect(result.missing_permissions).toContain('pages_messaging');
  expect(result.authorization_verified).toBe(false);
 });
+
+it.each(['facebook','instagram'])('verifies retained current %s OAuth messaging tasks despite optional owner denial',async channel=>{
+ const c={...connection,channel,provider_account_id:channel==='instagram'?'666':'111',oauth_accounts_generation_verified:true,capabilities:{...connection.capabilities,discovery_path:'accounts'}};
+ // Instagram first verifies the exact linkage; only the separate owner field is denied.
+ const g=graph();const request=g.request;
+ g.request=vi.fn(async(path,token,params,method,inspect)=>path==='111'&&params.fields==='id,business{id}'?null:request(path,token,params,method,inspect));
+ const result=await verify(g,c);
+ expect(result).toMatchObject({authorization_verified:true,task_source:'oauth_accounts_current_generation',real_inbound_verified:false});
+ expect(g.request.mock.calls.some(([path])=>path.endsWith('/roles'))).toBe(false);
+ for(const patch of [{oauth_accounts_generation_verified:false},{meta_user_id:'999'},{capabilities:{...c.capabilities,page_tasks:['MANAGE']}},{capabilities:{...c.capabilities,discovery_path:'business_owned'}}])expect((await verify(g,{...c,...patch})).authorization_verified).toBe(false);
+ expect((await verify(g,c,[])).real_inbound_verified).toBe(false);
+});

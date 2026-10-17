@@ -170,3 +170,41 @@ describe('generation-bound OAuth task evidence',()=>{
   }
  });
 });
+
+describe('current OAuth tasks when optional Business metadata is denied',()=>{
+ beforeEach(()=>vi.stubGlobal('crypto',webcrypto));afterEach(()=>vi.unstubAllGlobals());
+ const c={provider_account_id:'111',channel:'facebook',credential_generation:1,meta_user_id:'789',oauth_accounts_generation_verified:true,capabilities:{discovery_path:'accounts',page_task_source:'accounts',page_tasks_verified:true,page_tasks:['CREATE_CONTENT','MESSAGING'],execution_enabled:false}};
+ const scopes=['pages_manage_posts','pages_show_list','pages_read_engagement','pages_manage_metadata','instagram_basic','instagram_content_publish','ads_read'];
+ function transportFor(extra:any={},link='333') {return vi.fn(async(url:string)=>{
+  const u=new URL(url),path=u.pathname.split('/').pop(),fields=u.searchParams.get('fields');
+  if(path==='debug_token')return response({data:{is_valid:true,app_id:'123',type:'PAGE',profile_id:'111',user_id:'789',expires_at:0,data_access_expires_at:0,scopes,...extra}});
+  if(path==='me')return response({id:'111'});
+  if(path==='111'&&fields==='id,business{id}')return response({error:{code:200,message:'requires business_management'}},403);
+  if(path==='111'&&fields?.includes('instagram_business_account'))return response({id:'111',instagram_business_account:{id:link}});
+  if(path==='111')return response({id:'111',can_post:true});
+  if(path==='333')return response({id:'333'});
+  if(path==='roles')return response({data:[{id:'999',is_active:true,tasks:['CREATE_CONTENT']}]});
+  if(path==='content_publishing_limit')return response({data:[{quota_usage:0,config:{quota_total:100}}]});
+  return response({data:[]});
+ });}
+ it.each(['facebook','instagram'])('uses exact retained %s OAuth authority without inventing Business ownership or enabling execution',async channel=>{
+  const transport=transportFor(),save=vi.fn();const connection={...c,channel,provider_account_id:channel==='instagram'?'333':'111'};
+  const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',connection,'token',vi.fn(),true,undefined,undefined,save);
+  expect(result.publishing_evidence).toMatchObject({eligibility:'verified',page_task_source:'oauth_accounts_current_generation',business_context:'unavailable'});
+  if(channel==='instagram')expect(result.publishing_evidence.assignment_provenance).toBe('oauth_accounts_current_generation');
+  expect(result.publishing_enabled).toBe(false);expect(save).not.toHaveBeenCalled();
+  expect(transport.mock.calls.some(([url])=>/roles|assigned_users|assigned_pages/.test(url))).toBe(false);
+  expect(transport.mock.calls.every(([,init])=>init.method==='GET')).toBe(true);
+ });
+ it('fails closed for stale lineage, authorizer, grant, target, token and linkage mismatches',async()=>{
+  const scenarios=[{patch:{oauth_accounts_generation_verified:false}},{patch:{meta_user_id:'999'}},{extra:{scopes:scopes.filter(s=>s!=='instagram_content_publish')}},{extra:{granular_scopes:[{scope:'instagram_content_publish',target_ids:['999']}]}},{extra:{app_id:'999'}},{extra:{is_valid:false}},{extra:{expires_at:1}},{extra:{data_access_expires_at:1}},{extra:{profile_id:'999'}},{link:'999'},{extra:{scopes:scopes.filter(s=>s!=='ads_read')}},{patch:{capabilities:{...c.capabilities,page_tasks:['ANALYZE']}}}];
+  for(const s of scenarios){
+   const result=await diagnoseMetaConnection(new MetaGraph(config,transportFor(s.extra,s.link)),'123','app-token',{...c,channel:'instagram',provider_account_id:'333',...s.patch},'token',vi.fn(),true);
+   expect(result.publishing_evidence.eligibility).not.toBe('verified');expect(result.publishing_enabled).toBe(false);
+  }
+ });
+ it('never rescues a mismatched sealed OAuth snapshot',async()=>{
+  const result=await diagnoseMetaConnection(new MetaGraph(config,transportFor()),'123','app-token',c,'token',vi.fn(),true,undefined,{subject:'789',pageId:'111',businessId:'777',generation:2,tokenHash:'wrong',tasks:['CREATE_CONTENT']});
+  expect(result.publishing_evidence.eligibility).toBe('unverified');
+ });
+});
