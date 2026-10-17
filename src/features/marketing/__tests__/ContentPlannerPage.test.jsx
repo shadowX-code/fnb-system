@@ -214,3 +214,47 @@ it('Drawer can request revision directly from Planned and cannot offer completio
  cleanup();auth.hasPermission.mockImplementation(code=>!code.endsWith('.approve'));render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));
  expect(screen.queryByRole('button',{name:'Complete production',exact:true})).toBeNull();expect(screen.queryByRole('button',{name:'Request Revision',exact:true})).toBeNull();
 });
+
+it('keeps search and all production filters in the shared bar, retaining List grouping through Board switches',async()=>{
+ localStorage.setItem('marketing.planner.planner-user',JSON.stringify({month:'2026-10-01',brand:'brand',search:'Real',assignee:'unassigned',status:'planned',sort:'title',groupBy:'status',view:'list'}));
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
+ const bar=screen.getByRole('region',{name:'Planner filters'});
+ expect(bar.hasAttribute('data-admin-filter-toolbar')).toBe(true);
+ expect(within(bar).getByRole('searchbox',{name:'Search'}).value).toBe('Real');
+ for(const label of ['Assignee','Status','Handling','Sort','Group By'])expect(within(bar).getByRole('combobox',{name:label})).toBeTruthy();
+ expect(within(bar).getByRole('button',{name:'Columns'})).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'Filters',exact:true})).toBeNull();
+ fireEvent.click(within(bar).getByRole('tab',{name:'Board',exact:true}));
+ expect(screen.queryByRole('combobox',{name:'Group By'})).toBeNull();expect(screen.queryByRole('button',{name:'Columns'})).toBeNull();
+ expect(within(bar).getByRole('combobox',{name:'Status'}).value).toBe('planned');
+ expect(within(bar).getByRole('searchbox',{name:'Search'}).value).toBe('Real');
+ fireEvent.click(within(bar).getByRole('tab',{name:'List',exact:true}));
+ expect(within(bar).getByRole('combobox',{name:'Group By'}).value).toBe('status');
+ fireEvent.click(within(bar).getByRole('button',{name:'Remove Status filter'}));
+ expect(within(bar).getByRole('combobox',{name:'Status'}).value).toBe('');
+ fireEvent.click(within(bar).getByRole('button',{name:'Clear all'}));
+ expect(within(bar).getByRole('searchbox',{name:'Search'}).value).toBe('');
+ expect(within(bar).getByRole('combobox',{name:'Assignee'}).value).toBe('');
+ expect(within(bar).getByRole('combobox',{name:'Sort'}).value).toBe('title');
+ expect(within(bar).getByRole('combobox',{name:'Group By'}).value).toBe('status');
+ expect(screen.getByRole('combobox',{name:'Brand'}).value).toBe('brand');
+ expect(screen.getByRole('button',{name:'Planning month'}).textContent).toContain('October 2026');
+ expect(planner.order).not.toHaveBeenCalled();expect(planner.command.mock.calls.every(([command])=>command.action==='open_month')).toBe(true);
+});
+it('keeps the same visible shared filters and saved values across Planning Insights calendar tabs',async()=>{
+ localStorage.setItem('marketing.planner.planner-user',JSON.stringify({month:'2026-10-01',search:'Real',sort:'due',groupBy:'brand'}));
+ const first=render(<ContentPlannerPage surface="insights"/>);await screen.findAllByText('Real task');
+ const bar=screen.getByRole('region',{name:'Planning Insights filters'});
+ expect(within(bar).getByRole('searchbox',{name:'Search'}).value).toBe('Real');
+ for(const label of ['Assignee','Status','Handling','Sort'])expect(within(bar).getByRole('combobox',{name:label})).toBeTruthy();
+ expect(screen.queryByRole('combobox',{name:'Group By'})).toBeNull();expect(screen.queryByRole('button',{name:'Filters',exact:true})).toBeNull();
+ fireEvent.change(within(bar).getByRole('combobox',{name:'Status'}),{target:{value:'planned'}});
+ fireEvent.click(screen.getByRole('tab',{name:'Monthly Publish'}));
+ expect(within(bar).getByRole('combobox',{name:'Status'}).value).toBe('planned');
+ expect(within(bar).getByRole('combobox',{name:'Sort'}).value).toBe('due');
+ first.unmount();render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
+ expect(screen.getByRole('searchbox',{name:'Search'}).value).toBe('Real');
+ expect(screen.getByRole('combobox',{name:'Status'}).value).toBe('planned');
+ fireEvent.click(screen.getByRole('tab',{name:'List',exact:true}));
+ expect(screen.getByRole('combobox',{name:'Group By'}).value).toBe('brand');
+});

@@ -50,8 +50,13 @@ function TaskActions({task,can,busy,previous,next,reorderable,onOpen,onMedia,onS
  </ActionMenu>
 }
 
-export default function PlannerTaskList({rows,prefs,members=[],orderLimitExceeded=false,onPreferences,can,busy,fieldState={},reorderable,onChange,onStatus,onOpen,onMedia,onReorder}){
- const [columnsOpen,setColumnsOpen]=useState(false),[dropTarget,setDropTarget]=useState(''),drag=useRef(null),dragCleanup=useRef(()=>{});
+export function PlannerListColumns({value=[],onChange}){
+ const [open,setOpen]=useState(false);
+ return <ActionMenu open={open} onOpenChange={setOpen} ariaLabel="Planner columns" width={236} trigger={({toggle,open})=><button className="btn-secondary" aria-expanded={open} aria-haspopup="menu" onClick={toggle}><SlidersHorizontal size={14}/>Columns</button>}><fieldset className="planner-list-columns"><legend>Additional columns</legend>{optionalColumns.map(column=><label key={column.key}><input type="checkbox" checked={value.includes(column.key)} onChange={e=>onChange(e.target.checked?[...value,column.key]:value.filter(key=>key!==column.key))}/>{column.label}</label>)}</fieldset></ActionMenu>
+}
+
+export default function PlannerTaskList({rows,prefs,members=[],orderLimitExceeded=false,can,busy,fieldState={},reorderable,onChange,onStatus,onOpen,onMedia,onReorder}){
+ const [dropTarget,setDropTarget]=useState(''),drag=useRef(null),dragCleanup=useRef(()=>{});
  const extras=prefs.listColumns||[],groups=plannerListGroups(rows,prefs.groupBy);
  useEffect(()=>{dragCleanup.current();drag.current=null;setDropTarget('')},[prefs.groupBy,prefs.sort,rows,reorderable]);
  useEffect(()=>()=>dragCleanup.current(),[]);
@@ -88,9 +93,7 @@ export default function PlannerTaskList({rows,prefs,members=[],orderLimitExceede
   {key:'actions',header:'Actions',width:76,className:'planner-list-actions-cell',render:(task)=>{const i=rows.findIndex(t=>t.id===task.id);return <TaskActions task={task} can={can} busy={busy||fieldState[task.id]?.saving} previous={rows[i-1]} next={rows[i+1]} reorderable={reorderable} onOpen={onOpen} onMedia={onMedia} onStatus={onStatus} onReorder={onReorder}/>}},
  ].map(column=>({...column,headerClassName:column.className}));
  return <section className="planner-task-list" aria-label="Creative task list">
-  <div className="planner-list-toolbar"><SelectField label="Group By" value={prefs.groupBy||''} onChange={groupBy=>onPreferences({groupBy})} options={[{value:'',label:'None'},{value:'status',label:'Status'},{value:'brand',label:'Brand'},{value:'assignee',label:'Assignee'}]}/><span className="planner-list-hint">{prefs.groupBy?'Groups show tasks on this page.':reorderable?'Drag the handle to reorder tasks on this page.':orderLimitExceeded?'Manual ordering supports plans with up to 500 tasks.':'Reorder in All Brands with Manual Order, no grouping or filters.'}</span>
-   <ActionMenu open={columnsOpen} onOpenChange={setColumnsOpen} ariaLabel="Planner columns" width={236} trigger={({toggle,open})=><button className="btn-secondary" aria-expanded={open} aria-haspopup="menu" onClick={toggle}><SlidersHorizontal size={14}/>Columns</button>}><fieldset className="planner-list-columns"><legend>Additional columns</legend>{optionalColumns.map(column=><label key={column.key}><input type="checkbox" checked={extras.includes(column.key)} onChange={e=>onPreferences({listColumns:e.target.checked?[...extras,column.key]:extras.filter(key=>key!==column.key)})}/>{column.label}</label>)}</fieldset></ActionMenu>
-  </div>
+  <p className="planner-list-hint mb-2">{prefs.groupBy?'Groups show tasks on this page.':reorderable?'Drag the handle to reorder tasks on this page.':orderLimitExceeded?'Manual ordering supports plans with up to 500 tasks.':'Reorder in All Brands with Manual Order, no grouping or filters.'}</p>
   {groups.map(group=><section key={group.key} className="planner-list-group" aria-label={group.label?`${group.label} tasks on this page`:undefined}>{group.label?<header className="planner-list-group-heading"><h3>{group.label}</h3><span>{group.tasks.length} {group.tasks.length===1?'task':'tasks'} on this page</span></header>:null}<DataTable columns={columns} rows={group.tasks} getRowKey={task=>task.id} density="compact" columnSpacing="compact" minWidth={920+extras.reduce((sum,key)=>sum+(key==='publish'?160:100),0)} tableClassName={`planner-list-table${extras.length?' has-extras':''}`} onRowClick={task=>onOpen(task)} getRowProps={task=>({tabIndex:0,'aria-label':`Open ${task.title}`,className:dropTarget?.id===task.id?(dropTarget.after?'planner-list-drop-after':'planner-list-drop-target'):'',onKeyDown:e=>{if(e.target===e.currentTarget&&['Enter',' '].includes(e.key)){e.preventDefault();onOpen(task)}},'data-planner-task':task.id})}/></section>)}
  </section>
 }
