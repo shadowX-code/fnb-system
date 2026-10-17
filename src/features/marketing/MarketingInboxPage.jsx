@@ -37,7 +37,7 @@ import "./marketingInbox.css";
 import { notifyConversationsChanged } from "./useConversationReplyCount.js";
 import InboxReplyComposer from "./InboxReplyComposer.jsx";
 import InboxKnowledgeSettings from "./InboxKnowledgeSettings.jsx";
-import {aiSuggestionUnavailable} from "./inboxKnowledge.js";
+import {aiSuggestionUnavailable,faqApprovalUnavailable} from "./inboxKnowledge.js";
 import { socialIdentity, conversationTimeline, replyOutcomeMessage, replyWasAccepted, replyStateLabel } from "./inboxPresentation.js";
 const label = (s) =>
   String(s || "")
@@ -1262,8 +1262,12 @@ export default function MarketingInboxPage() {
         {modal && (
           <Modal
             title={label(
-              modal.type === "settings" ? "FAQ & AI Settings" : modal.type,
+              modal.type === "settings" ? "FAQ & AI Settings" : modal.type === "faq" ? "FAQ Draft" : modal.type,
             )}
+            description={['settings','faq'].includes(modal.type) ? brands.find(b=>b.id===brand)?.name : undefined}
+            size={modal.type==='settings'?'md':'sm'}
+            footerClassName={['settings','faq'].includes(modal.type)?'flex-wrap':undefined}
+            footer={modal.type==='settings'?<><button type="button" className="btn-secondary" disabled={busy} onClick={()=>setModal(null)}>Done</button>{can('configure')?<button type="submit" form="inbox-settings-form" className="btn-primary" disabled={busy}>Save brand settings</button>:null}</>:modal.type==='faq'?<><button type="button" className="btn-secondary" disabled={busy} onClick={()=>setModal({type:'settings'})}>Back to FAQ Library</button><button type="submit" form="inbox-faq-form" className="btn-primary" disabled={busy||!can('configure')}>Save FAQ draft</button></>:null}
             onClose={() => {
               if (!busy) setModal(null);
             }}
@@ -1489,13 +1493,15 @@ function InboxModal({
         </button>
       </div>
     );
-  if (m.type === "settings") return <InboxKnowledgeSettings data={data} configuration={configuration} can={can} busy={busy} configure={configure} onKnowledge={knowledgeHref} onEdit={faq=>setModal({type:'faq',...faq})}/>;
+  if (m.type === "settings") return <InboxKnowledgeSettings footerActions data={data} configuration={configuration} can={can} busy={busy} configure={configure} onKnowledge={knowledgeHref} onEdit={faq=>setModal({type:'faq',...faq})}/>;
   if (m.type === "faq") {
     return (
       <form
+        id="inbox-faq-form"
         className="marketing-inbox-form"
         onSubmit={(e) => {
           e.preventDefault();
+          if(!can('configure'))return;
           configure("save_faq", m.revision, {
             id: m.id,
             question: m.question,
@@ -1530,11 +1536,12 @@ function InboxModal({
         <Field label="Category" value={m.category||'General'} maxLength={80} required onChange={e=>set('category',e.target.value)}/>
         <Area label="Alternative questions (optional)" value={m.alternativeText ?? (m.alternative_questions||[]).join('\n')} maxLength={5010} onChange={e=>set('alternativeText',e.target.value)} />
         <p>One phrasing per line, up to 10. Matching is exact apart from spacing and capitalization; edits require a new approval.</p>
+        <p>Drafts are private preparation. Approval and reply use require approved current Brand Knowledge and valid supporting facts.</p>
+        {faqApprovalUnavailable({...m,knowledge_revision:data?.knowledge?.revision},data?.knowledge)?<p role="status">{faqApprovalUnavailable({...m,knowledge_revision:data?.knowledge?.revision},data?.knowledge)} {knowledgeHref?<a href={knowledgeHref}>Open Brand Knowledge</a>:null}</p>:null}
         <fieldset>
-          <legend>Supporting approved facts (required)</legend>
-          {Object.entries(data?.knowledge?.profile || {})
-            .filter(([, v]) => v.provenance === "verified_brand_fact")
-            .map(([k]) => (
+          <legend>Supporting facts (optional for drafts)</legend>
+          {[...new Set([...Object.entries(data?.knowledge?.profile || {}).filter(([,v])=>v.provenance==='verified_brand_fact'&&v.text?.trim()).map(([key])=>key),...(m.reference_keys||[])])]
+            .map(k => (
               <label key={k} className="marketing-inbox-check">
                 <input
                   type="checkbox"
@@ -1552,13 +1559,7 @@ function InboxModal({
               </label>
             ))}
         </fieldset>
-        <button
-          className="btn-primary"
-          disabled={busy || !m.reference_keys.length}
-        >
-          Save FAQ draft
-        </button>
-        <button type="button" className="btn-secondary" disabled={busy} onClick={()=>setModal({type:'settings'})}>Back to FAQ Library</button>
+
       </form>
     );
   }

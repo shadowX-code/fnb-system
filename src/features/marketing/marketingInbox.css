@@ -204,3 +204,6 @@
 .inbox-knowledge-settings summary { cursor:pointer; font-size:.875rem; }
 .inbox-assistance-status { font-size:.75rem; color:var(--theme-muted); margin:0; line-height:1.5; }
 @media(max-width:600px) { .inbox-faq-filters { grid-template-columns:1fr; } }
+
+.inbox-faq-prerequisite,.inbox-faq-empty { font-size:.875rem; line-height:1.6; }
+.inbox-knowledge-settings a:not(.btn-secondary),.marketing-inbox-form p a { color:var(--factory-success-text); text-decoration:underline; text-underline-offset:3px; }
