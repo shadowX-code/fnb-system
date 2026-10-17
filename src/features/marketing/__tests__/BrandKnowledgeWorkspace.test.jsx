@@ -16,3 +16,38 @@ it('does not expose management actions to a read-only user',()=>{render(<Workspa
 it('previews unsaved tone without writing Brand knowledge or sending',async()=>{service.knowledgeAI.mockResolvedValue({state:'completed',result:{text:'Hello! How can our team help?'}});render(<Workspace brand={brand} data={data} can={()=>true}/>);fireEvent.click(screen.getByRole('tab',{name:'Tone & Persona'}));fireEvent.click(screen.getByRole('button',{name:'Edit Tone & Persona'}));fireEvent.click(screen.getAllByRole('button',{name:'Preview reply tone'}).find(b=>!b.disabled));await screen.findByText('Hello! How can our team help?');expect(service.knowledgeAI).toHaveBeenCalledWith(expect.any(String),'brand','tone',null,expect.objectContaining({tone:'warm'}));expect(service.knowledgeCommand).not.toHaveBeenCalled()});
 
 it('creates a new promotion at revision zero independently of Brand Knowledge revision',async()=>{render(<Workspace brand={brand} data={data} can={()=>true} onSaved={()=>{}}/>);fireEvent.click(screen.getByRole('tab',{name:'Promotions'}));fireEvent.click(screen.getByRole('button',{name:'Add Promotion'}));fireEvent.change(screen.getByRole('textbox',{name:'Promotion name *'}),{target:{value:'QA offer'}});fireEvent.change(screen.getByRole('textbox',{name:'Promotion details'}),{target:{value:'QA details'}});fireEvent.click(screen.getByRole('button',{name:'Save Promotion'}));await waitFor(()=>expect(service.knowledgeCommand).toHaveBeenCalledWith(expect.any(String),'brand','promotion',undefined,0,expect.objectContaining({name:'QA offer'})))});
+
+it('reads guided audience rather than losing it behind an empty legacy projection',()=>{
+ render(<Workspace brand={brand} data={{...data,knowledge:[{brand_id:'brand',profile:{identity:{fields:{audience:'Families at lunch',positioning:'Local comfort food'}}}}]}} can={()=>false}/>);
+ expect(screen.getByText('Families at lunch')).toBeTruthy();
+});
+it('renders source-bound menu prices with genuine zero and unavailable kept distinct',()=>{
+ const entry={id:'m',kind:'menu',state:'confirmed',revision:2,filename:'menu.pdf',data:{name:'Current Menu',currency:'MYR',items:[{name:'Tea',category:'Drinks',price:null},{name:'Water',category:'Drinks',price:'0'},{name:'Toast',category:'Food',price:'4.80'}]}};
+ render(<Workspace brand={brand} data={{...data,customer_knowledge:[entry]}} can={()=>false}/>);
+ fireEvent.click(screen.getByRole('tab',{name:'Products & Menu'}));
+ expect(screen.getByRole('cell',{name:'Unavailable'})).toBeTruthy();expect(screen.getByRole('cell',{name:'0.00'})).toBeTruthy();
+ fireEvent.change(screen.getByRole('searchbox',{name:'Search menu items'}),{target:{value:'Toast'}});
+ expect(screen.getByRole('cell',{name:'4.80'})).toBeTruthy();expect(screen.queryByRole('cell',{name:'Water'})).toBeNull();
+ expect(service.knowledgeCommand).not.toHaveBeenCalled();
+});
+it('keeps inactive source evidence readable and excluded from AI without exposing confirmation',()=>{
+ const entry={id:'m',kind:'menu',state:'inactive',filename:'old.pdf',data:{name:'Old Menu',items:[{name:'Tea',price:'1'}]}};
+ render(<Workspace brand={brand} data={{...data,customer_knowledge:[entry]}} can={()=>true}/>);
+ fireEvent.click(screen.getByRole('tab',{name:'Products & Menu'}));
+ expect(screen.getByText('Excluded from AI')).toBeTruthy();expect(screen.getByRole('button',{name:'View source'})).toBeTruthy();expect(screen.queryByRole('button',{name:'Confirm Menu'})).toBeNull();
+});
+it('opens a focused promotion drawer without creating records and preserves unsaved edits',()=>{
+ render(<Workspace brand={brand} data={data} can={()=>true}/>);fireEvent.click(screen.getByRole('tab',{name:'Promotions'}));
+ expect(screen.queryByRole('textbox',{name:'Promotion details'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Add Promotion'}));expect(screen.getByRole('dialog',{name:'Add Promotion'})).toBeTruthy();
+ fireEvent.change(screen.getByRole('textbox',{name:'Promotion details'}),{target:{value:'Unsaved offer'}});
+ fireEvent.click(screen.getByRole('button',{name:'Close drawer'}));expect(screen.getByRole('dialog',{name:'Discard unsaved changes?'})).toBeTruthy();
+ expect(service.knowledgeCommand).not.toHaveBeenCalled();
+});
+it('separates saved tone from unsaved preview and clears preview on a changed setting',async()=>{
+ service.knowledgeAI.mockResolvedValue({state:'completed',result:{text:'Welcome!'}});
+ render(<Workspace brand={brand} data={data} can={()=>true}/>);fireEvent.click(screen.getByRole('tab',{name:'Tone & Persona'}));fireEvent.click(screen.getByRole('button',{name:'Edit Tone & Persona'}));
+ fireEvent.click(screen.getByRole('button',{name:'Friendly'}));expect(screen.getByText('Unsaved settings')).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Preview reply tone'}));await screen.findByText('Welcome!');
+ fireEvent.click(screen.getByRole('button',{name:'Calm'}));expect(screen.queryByText('Welcome!')).toBeNull();expect(service.knowledgeCommand).not.toHaveBeenCalled();
+});
