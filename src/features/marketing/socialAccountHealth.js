@@ -31,7 +31,9 @@ export function socialCapabilities(c) {
       ? { state: "needs_attention", reason: c.checks.error_code }
       : c.messaging?.delivery_verified && c.messaging?.receiving_verified
       ? { state: "delivery_verified", reason: "ready" }
-      : c.messaging?.configuration_verified
+      : (c.messaging?.receiving_verified === false || ["connection_unavailable", "authorization_unverified", "configuration_unverified", "permission_unavailable"].includes(c.messaging?.state))
+      ? { state: c.messaging.state === "permission_unavailable" ? "permission_required" : "action_required", reason: c.messaging.state === "permission_unavailable" ? "permission_missing" : c.messaging.state === "configuration_unverified" ? "subscriptions_missing" : "authorization_unverified" }
+      : c.messaging?.receiving_verified && c.messaging?.configuration_verified
       ? { state: "awaiting_first_delivery", reason: "inbound_pending" }
       : c.health?.messaging || {
           state:

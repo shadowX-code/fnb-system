@@ -19,7 +19,7 @@ describe('independent messaging capability verification',()=>{
   expect((await verify(graph({'444/subscriptions':{data:[{object:'page',active:true,callback_url:'https://wrong.invalid',fields:[]}]}}))).app_webhook.callback_matches).toBe(false);
  });
  it('requires explicit messaging tasks and real inbound matches, never read or posting success',async()=>{
-  const result=await verify(graph());expect(result.authorization_verified).toBe(true);expect(result.real_inbound_verified).toBe(false);
+  const result=await verify(graph());expect(result.authorization_verified).toBe(true);expect(result.granted_permissions).toEqual(['pages_messaging','pages_manage_metadata']);expect(result.real_inbound_verified).toBe(false);
   const posting=await verify(graph(),{...connection,capabilities:{...connection.capabilities,page_tasks:['MANAGE','CREATE_CONTENT']}});expect(posting.authorization_verified).toBe(false);
  });
  it('separates echo configuration from incoming delivery and rejects ambiguous installation evidence',async()=>{const old={id:'444',subscribed_fields:['messages','messaging_postbacks','message_deliveries','message_reads']};const result=await verify(graph({'111/subscribed_apps':{data:[old]}}));expect(result.authorization_verified).toBe(true);expect(result.subscriptions_verified).toBe(true);expect(result.echo_subscriptions_verified).toBe(false);expect(result.echo_subscription_status).toEqual({app:true,page:false});for(const response of [{data:[{...old,subscribed_fields:[...old.subscribed_fields,'message_echoes']}],paging:{next:'more'}},{data:[old,old]}])expect((await verify(graph({'111/subscribed_apps':response}))).echo_subscription_status.page).toBe(false);});
@@ -60,4 +60,11 @@ describe('independent messaging capability verification',()=>{
   expect(result.subscriptions_verified).toBe(false);expect(result.evidence.find((e:any)=>e.endpoint==='111/subscribed_apps')).toMatchObject({http_status:400,graph_error_code:190,graph_error_subcode:463});
   expect(JSON.stringify(result)).not.toContain('test-page-token');expect(JSON.stringify(result)).not.toContain('test-app-token');
  });
+});
+
+it('persists only observed Inbox permissions, including missing-grant revocation',async()=>{
+ const result=await verify(graph({'debug_token':{data:{is_valid:true,type:'PAGE',app_id:'444',profile_id:'111',user_id:'333',expires_at:0,data_access_expires_at:0,scopes:['pages_manage_metadata']}}}));
+ expect(result.granted_permissions).toEqual(['pages_manage_metadata']);
+ expect(result.missing_permissions).toContain('pages_messaging');
+ expect(result.authorization_verified).toBe(false);
 });

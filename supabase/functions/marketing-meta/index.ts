@@ -87,7 +87,7 @@ Deno.serve(async(req)=>{
    const messaging=await call(service,'marketing_inbox_record_verification',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation,p_evidence:inbox});
    let sync:any=null;try{if(publishing.token.valid&&publishing.credential_identity_matches)sync=await readMetaPosts(graph,material,credential.token,guard);}catch{/* Independent metrics denial never invalidates publishing or messaging. */}
    const health=capabilityHealth(publishing,inbox,sync);
-   if(messaging.configuration_verified){health.messaging={state:messaging.delivery_verified?'delivery_verified':'awaiting_first_delivery',reason:messaging.delivery_verified?'ready':'inbound_pending'};}
+   if(messaging.receiving_verified&&messaging.configuration_verified){health.messaging={state:messaging.delivery_verified?'delivery_verified':'awaiting_first_delivery',reason:messaging.delivery_verified?'ready':'inbound_pending'};}
    let plan:any={eligible:false,missing:[],reason:'subscription_read_unavailable'};
    try{if(inbox.page_id){await guard();const installed=await graph.request(`${inbox.page_id}/subscribed_apps`,credential.token,{fields:'id,subscribed_fields',limit:100});plan=subscriptionPlan(material.channel,config.appId,inbox,installed);}}catch{/* Installation is unavailable unless a complete response was verified. */}
    await guard();
@@ -106,13 +106,16 @@ Deno.serve(async(req)=>{
    const checkpoint=async(state:string)=>{await call(service,'marketing_meta_subscription_intent',{...args,p_state:state});};
    return installSubscriptions(plan,state,guard,checkpoint,async()=>subscriptionPlan(material.channel,config.appId,inbox,await graph.request(`${plan.page_id}/subscribed_apps`,credential.token,{fields:'id,subscribed_fields',limit:100})),()=>graph.request(`${plan.page_id}/subscribed_apps`,credential.token,{subscribed_fields:plan.fields},'POST'));
   }
-  if(['/health','/subscription-plan','/subscriptions'].includes(path)){
+  if(path==='/health'){
+   await call(service,'marketing_meta_request_health',{p_connection:body.connectionId,p_auth_user:user.id});
+   return json(req,{state:'verification_pending',execution_separately_controlled:true});
+  }
+  if(['/subscription-plan','/subscriptions'].includes(path)){
    const checked=await checkConnection(body.connectionId);
    if(path==='/subscriptions'){
     if(body.approveSubscriptions!==true||!body.requestId||JSON.stringify(body.expectedPlan)!==JSON.stringify({page_id:checked.plan.page_id,fields:checked.plan.fields}))return json(req,{error:'Review and confirm the current Inbox update installation.'},409);
     const outcome=await subscribe(checked,body.requestId);return json(req,{state:outcome,execution_separately_controlled:true});
    }
-   if(path==='/health')await call(service,'marketing_meta_request_health',{p_connection:checked.material.id,p_auth_user:user.id});
    return json(req,{health:checked.health,plan:checked.plan,echo_subscriptions_verified:checked.inbox.echo_subscriptions_verified,execution_separately_controlled:true});
   }
   if(path==='/diagnose'||path==='/retry-sync') {

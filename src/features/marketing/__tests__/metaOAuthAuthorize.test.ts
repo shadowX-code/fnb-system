@@ -29,3 +29,20 @@ it('does not produce an OAuth URL after canonical reconnect denial',async()=>{
  const response=await fixture.handler(request('messaging','wrong-brand-account'));
  expect(response.status).not.toBe(200);expect(JSON.stringify(await response.json())).not.toContain('authorization_url');
 });
+
+it('queues self-service verification under the existing scoped authority without immediate provider reads',async()=>{
+ const fetcher=vi.fn();vi.stubGlobal('fetch',fetcher);
+ await import('../../../../supabase/functions/marketing-meta/index.ts');
+ const response=await fixture.handler(new Request('https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/marketing-meta/health',{method:'POST',headers:{authorization:'Bearer fixture','content-type':'application/json'},body:JSON.stringify({connectionId:'existing-account'})}));
+ expect(response.status).toBe(200);expect(await response.json()).toMatchObject({state:'verification_pending',execution_separately_controlled:true});
+ expect(fixture.rpc.mock.calls.map(c=>c[0])).toEqual(['marketing_meta_request_health']);
+ expect(fixture.rpc).toHaveBeenCalledWith('marketing_meta_request_health',{p_connection:'existing-account',p_auth_user:'actor'});
+ expect(fetcher).not.toHaveBeenCalled();
+});
+it('does not queue verification after canonical Brand/actor denial',async()=>{
+ fixture.rpc.mockResolvedValue({data:null,error:{code:'42501'}});
+ await import('../../../../supabase/functions/marketing-meta/index.ts');
+ const response=await fixture.handler(new Request('https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/marketing-meta/health',{method:'POST',headers:{authorization:'Bearer fixture','content-type':'application/json'},body:JSON.stringify({connectionId:'foreign-account'})}));
+ expect(response.status).not.toBe(200);
+ expect(fixture.rpc.mock.calls.map(c=>c[0])).toEqual(['marketing_meta_request_health']);
+});

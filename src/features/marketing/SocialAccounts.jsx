@@ -313,6 +313,9 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
                           Reconnect
                         </button>
                         ) : null}
+                        {!needsReconnect && (issues.length > 0 || c.checks?.error_code || capabilities.messaging.reason === "verification_pending") ? (
+                          <button className="btn-secondary" disabled={busy} onClick={() => perform(() => marketingService.refreshMetaHealth(c.id), "Verification queued. FeedX will update this account automatically.")}>Retry Verification</button>
+                        ) : null}
                         {issues.length && !needsReconnect ? (
                           <button className="btn-secondary" disabled={busy} onClick={() => openModal({ type: "issue", connection: c, issues })}>Resolve Issue</button>
                         ) : null}
@@ -612,10 +615,10 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
         </Modal>
       ) : null}
       {modal?.type === "issue" ? (
-        <Modal title={`Account access · ${modal.connection.account_name}`} onClose={() => setModal(null)}>
+        <Modal title={`Account access · ${modal.connection.account_name}`} onClose={() => setModal(null)} footer={<button className="btn-secondary" disabled={busy} onClick={() => perform(() => marketingService.refreshMetaHealth(modal.connection.id), "Verification queued. FeedX will update this account automatically.")}>Retry Verification</button>}>
           <p>FeedX has completed the available automatic checks. Review the following account access with your Page administrator or FeedX administrator.</p>
           {modal.issues.map(([name, value]) => <p key={name}><strong>{name === "messaging" ? "Inbox" : name === "publishing" ? "Publishing" : "Insights"}</strong>: {socialReason(value.reason)}</p>)}
-          <p>FeedX checks again automatically after access is restored. Technical details are available from Connection Details.</p>
+          <p>After your Page administrator restores access, retry verification here. Expired or revoked authorization requires Reconnect. Technical details are available from Connection Details.</p>
         </Modal>
       ) : null}
       {modal?.type === "diagnostics" ? (
