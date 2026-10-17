@@ -9,7 +9,7 @@ const props=()=>({data,configuration:{ai_configured:false},can:()=>true,busy:fal
 it('keeps fact verification separate from FAQ approval and preserves policy',()=>{
  const p=props();render(<InboxKnowledgeSettings {...p} data={{...data,knowledge:{...data.knowledge,approved_for_replies:false}}}/>);
  expect(screen.queryByRole('button',{name:'New FAQ'})).toBeNull();expect(screen.queryByText('Excluded research')).toBeNull();
- fireEvent.click(screen.getByRole('button',{name:'Approve this knowledge revision'}));expect(p.configure).toHaveBeenCalledWith('approve_knowledge',3);
+ expect(screen.queryByRole('button',{name:'Approve this knowledge revision'})).toBeNull();expect(screen.getByRole('link',{name:'Open Brand Knowledge'})).toBeTruthy();
  fireEvent.click(screen.getByRole('button',{name:'Save brand settings'}));expect(p.configure).toHaveBeenCalledWith('policy',1,expect.objectContaining({staff_reply_requires_approval:true}));
 });
 it('hides policy mutation from unauthorized readers',()=>{render(<InboxKnowledgeSettings {...props()} can={()=>false}/>);expect(screen.queryByRole('button',{name:'Save brand settings'})).toBeNull()});

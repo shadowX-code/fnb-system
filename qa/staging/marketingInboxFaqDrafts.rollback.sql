@@ -34,13 +34,13 @@ begin
  assert r->>'status'='draft' and r->>'knowledge_revision'='0','Draft can exist without knowledge or facts';
  assert public.marketing_inbox_configure(req,b,0,'save_faq','{"question":"Draft-only question","answer":"UNVERIFIED DRAFT ANSWER","language":"EN","reference_keys":[]}')->>'id'=f::text,'Draft save replay';
  r:=public.marketing_inbox_configure(gen_random_uuid(),b,1,'save_faq',jsonb_build_object('id',f,'question','Draft-only question','answer','UNVERIFIED DRAFT ANSWER edited','language','EN','reference_keys','[]'::jsonb));assert r->>'revision'='2','Edit before knowledge';
- denied:=false;begin perform public.marketing_inbox_configure(gen_random_uuid(),b,2,'approve_faq',jsonb_build_object('id',f));exception when others then denied:=true;end;assert denied,'No knowledge cannot approve';
+ denied:=false;begin perform public.marketing_inbox_configure(gen_random_uuid(),b,2,'approve_faq',jsonb_build_object('id',f,'review_confirmation','supported'));exception when others then denied:=true;end;assert denied,'No knowledge cannot approve';
  denied:=false;begin perform public.marketing_inbox_configure(gen_random_uuid(),b,2,'request_faq_review',jsonb_build_object('id',f));exception when others then denied:=true;end;assert denied,'No knowledge cannot submit approval';
  assert public.marketing_inbox_faq_preview(c,'Draft-only question')->>'state'='knowledge_unapproved','Unapproved draft is never a reply';
  denied:=false;begin perform public.marketing_inbox_command(gen_random_uuid(),o,b,c,1,'faq_draft',jsonb_build_object('faq_id',f));exception when others then denied:=true;end;assert denied,'Draft FAQ cannot enter customer reply';
  perform public.marketing_save_knowledge(b,0,'{"identity":{"text":"Approved QA identity only.","provenance":"verified_brand_fact"}}');
  r:=public.marketing_inbox_configure(gen_random_uuid(),b,2,'save_faq',jsonb_build_object('id',f,'question','Draft-only question','answer','UNVERIFIED DRAFT ANSWER edited','language','EN','reference_keys',jsonb_build_array('identity')));assert r->>'status'='draft','Can save proposed support before knowledge approval';
- denied:=false;begin perform public.marketing_inbox_configure(gen_random_uuid(),b,3,'approve_faq',jsonb_build_object('id',f));exception when others then denied:=true;end;assert denied,'Unapproved knowledge cannot approve even with references';
+ denied:=false;begin perform public.marketing_inbox_configure(gen_random_uuid(),b,3,'approve_faq',jsonb_build_object('id',f,'review_confirmation','supported'));exception when others then denied:=true;end;assert denied,'Unapproved knowledge cannot approve even with references';
  perform public.marketing_inbox_configure(gen_random_uuid(),b,1,'approve_knowledge');
  assert public.marketing_inbox_faq_preview(c,'Draft-only question')->'faq'='null'::jsonb,'Approved knowledge does not auto-approve drafts';
  req:=gen_random_uuid();perform public.marketing_inbox_configure(gen_random_uuid(),b,0,'policy','{"automation_mode":"suggest","ai_allowed":true}');
@@ -49,7 +49,7 @@ begin
  r:=public.marketing_inbox_configure(gen_random_uuid(),b,3,'save_faq',jsonb_build_object('id',f,'question','Draft-only question','answer','Approved QA identity only.','language','EN','reference_keys',jsonb_build_array('identity')));
  r:=public.marketing_inbox_configure(gen_random_uuid(),b,4,'request_faq_review',jsonb_build_object('id',f));assert r->>'status'='review' and r->>'revision'='5','Pending Approval is explicit and versioned';
  assert public.marketing_inbox_faq_preview(c,'Draft-only question')->'faq'='null'::jsonb,'Pending FAQ excluded';
- denied:=false;begin perform public.marketing_inbox_configure(gen_random_uuid(),b,4,'approve_faq',jsonb_build_object('id',f));exception when others then denied:=true;end;assert denied,'Stale approver revision rejected';
+ denied:=false;begin perform public.marketing_inbox_configure(gen_random_uuid(),b,4,'approve_faq',jsonb_build_object('id',f,'review_confirmation','supported'));exception when others then denied:=true;end;assert denied,'Stale approver revision rejected';
 end;$$;
 reset role;
 do $$declare a jsonb;
@@ -70,13 +70,13 @@ insert into public.role_permissions(role_id,permission_id) select (select id fro
 set local role authenticated;
 do $$declare b uuid:=(select id from marketing_qa_ids where key='brand');c uuid:=(select id from marketing_qa_ids where key='conversation');f uuid:=(select id from marketing_qa_ids where key='faq');r jsonb;denied boolean;
 begin
- r:=public.marketing_inbox_configure(gen_random_uuid(),b,5,'approve_faq',jsonb_build_object('id',f));assert r->>'status'='approved','Existing exact-revision approval succeeds';
+ r:=public.marketing_inbox_configure(gen_random_uuid(),b,5,'approve_faq',jsonb_build_object('id',f,'review_confirmation','supported'));assert r->>'status'='approved','Existing exact-revision approval succeeds';
  assert public.marketing_inbox_faq_preview(c,'Draft-only question')->'faq'->>'id'=f::text,'Only approved supported FAQ matches';
  perform public.marketing_save_knowledge(b,1,'{"identity":{"text":"New QA fact revision.","provenance":"verified_brand_fact"}}');
  assert public.marketing_inbox_faq_preview(c,'Draft-only question')->>'state'='knowledge_unapproved','Knowledge change immediately blocks use';
  r:=public.marketing_inbox_configure(gen_random_uuid(),b,5,'save_faq',jsonb_build_object('id',f,'question','Draft-only question','answer','Another draft','language','EN','reference_keys',jsonb_build_array('unknown_key')));assert r->>'status'='draft','Can prepare replacement draft while knowledge unapproved';
  perform public.marketing_inbox_configure(gen_random_uuid(),b,2,'approve_knowledge');
- denied:=false;begin perform public.marketing_inbox_configure(gen_random_uuid(),b,6,'approve_faq',jsonb_build_object('id',f));exception when others then denied:=true;end;assert denied,'Unknown support cannot approve';
+ denied:=false;begin perform public.marketing_inbox_configure(gen_random_uuid(),b,6,'approve_faq',jsonb_build_object('id',f,'review_confirmation','supported'));exception when others then denied:=true;end;assert denied,'Unknown support cannot approve';
  perform public.marketing_inbox_configure(gen_random_uuid(),b,6,'disable_faq',jsonb_build_object('id',f));
  assert public.marketing_inbox_faq_preview(c,'Draft-only question')->'faq'='null'::jsonb,'Disabled FAQ excluded';
 end;$$;
