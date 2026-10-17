@@ -390,3 +390,10 @@ it('preserves an unsent draft across context tabs, closing context and chat/list
  fireEvent.click(screen.getByRole('button',{name:'Back to conversations'}));await select();
  expect(screen.getByRole('textbox',{name:'Reply',exact:true}).value).toBe('Unsent session draft');
 });
+
+it('returns keyboard focus to the chat after closing customer context',async()=>{
+ render(<MarketingInboxPage/>);await select();
+ fireEvent.click(screen.getByRole('button',{name:'Show customer details'}));
+ fireEvent.keyDown(screen.getByRole('complementary',{name:'Customer details'}),{key:'Escape'});
+ await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole('button',{name:'Show customer details'})));
+});

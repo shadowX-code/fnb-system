@@ -189,7 +189,7 @@ export default function MarketingInboxPage() {
   }, [detailsOpen,wideContext]);
   function closeContext() {
     setDetailsOpen(false);
-    contextToggleRef.current?.focus();
+    requestAnimationFrame(() => contextToggleRef.current?.focus());
   }
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
