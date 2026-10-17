@@ -6,6 +6,7 @@ import BrandsPage from "../features/brands/BrandsPage.jsx";
 const MarketingAdsPage = lazy(() => import("../features/marketing/MarketingAdsPage.jsx"));
 const MarketingOutreachPage = lazy(() => import("../features/marketing/MarketingOutreachPage.jsx"));
 const MarketingInboxPage = lazy(() => import("../features/marketing/MarketingInboxPage.jsx"));
+const MarketingFAQPage = lazy(() => import("../features/marketing/MarketingFAQPage.jsx"));
 const MarketingSettingsPage = lazy(() => import("../features/marketing/MarketingSettingsPage.jsx"));
 const MarketingWorkspacePage = lazy(() => import("../features/marketing/MarketingWorkspacePage.jsx"));
 import DashboardOverviewPage from "../features/sales-purchase/pages/DashboardOverviewPage.jsx";
@@ -83,6 +84,7 @@ export const routeDetails = {
   marketing_settings: { component: MarketingSettingsPage, props: { section: "legacy" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Compatibility entry for saved Settings and OAuth callbacks." },
   marketing_connections: { component: MarketingSettingsPage, props: { section: "connections" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Brand social and Google Drive connections." },
   marketing_knowledge: { component: MarketingSettingsPage, props: { section: "knowledge" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Brand identity, guidance and evidence." },
+  marketing_faq: { component: MarketingFAQPage, permission: "marketing_workspace.access AND marketing_inbox.view", description: "Brand FAQ Library, activation and grounded reply settings." },
   marketing_brand_access: { component: MarketingSettingsPage, props: { section: "access" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Authorized Brand access and team role scopes." },
   dashboard: {
     description: "Monthly HQ management overview for outlet health, alerts, operations and team moments.",

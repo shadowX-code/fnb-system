@@ -248,6 +248,7 @@ export const moduleRegistry: AppModule[] = [
 { id: "marketing_settings", section: "Settings", label: "Settings permissions", route: "/marketing/settings", icon: "marketing_settings", sidebar: false, workspace: "marketing", permissions: { view: true, manage: true, configure: true } },
 { id: "marketing_connections", section: "Settings", label: "Connections", route: "/marketing/connections", icon: "marketing_settings", sidebar: true, workspace: "marketing", readPermission: "marketing_workspace.access AND marketing_settings.view", permissions: {} },
 { id: "marketing_knowledge", section: "Settings", label: "Brand Knowledge", route: "/marketing/brand-knowledge", icon: "marketing_content", sidebar: true, workspace: "marketing", readPermission: "marketing_workspace.access AND marketing_settings.view", permissions: {} },
+{ id: "marketing_faq", section: "Settings", label: "FAQ & AI", route: "/marketing/faq-ai", icon: "marketing_inbox", sidebar: true, workspace: "marketing", readPermission: "marketing_workspace.access AND marketing_inbox.view", permissions: {} },
 { id: "marketing_brand_access", section: "Settings", label: "Team & Brand Access", route: "/marketing/brand-access", icon: "marketing_settings", sidebar: true, workspace: "marketing", readPermission: "marketing_workspace.access AND marketing_settings.view", permissions: {} },
 { id: "brands", section: "System", label: "Brands", route: "/system/brands", icon: "outlets", sidebar: true, workspace: "restaurant", readPermission: "platform_organizations.manage", permissions: {} },
 {
