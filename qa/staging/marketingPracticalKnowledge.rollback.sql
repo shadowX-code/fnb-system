@@ -97,3 +97,33 @@ do $$declare b uuid:=(select id from marketing_qa_ids where key='brand');org uui
  assert facts::text like '%outlet_required%' and not facts::text like '%8.90%','Linked canonical Outlet price not inferred into unknown context';
 end;$$;
 select 'knowledge authority checks passed' result;
+
+-- Unsaved preview is not a knowledge publication.
+set local role authenticated;
+select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from marketing_qa_ids where key='user'),'role','authenticated')::text,true);
+do $$declare req uuid:=gen_random_uuid();r jsonb;begin
+ r:=public.marketing_knowledge_ai_prepare(req,(select id from marketing_qa_ids where key='brand'),'tone',null,'{"tone":"friendly","formality":"casual","emoji":"light","language":"customer","guidelines":"Be concise."}');insert into marketing_qa_ids values('tone_request',req);
+end;$$;
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+do $$declare r jsonb;before_profile jsonb;req uuid:=(select id from marketing_qa_ids where key='tone_request');begin
+ select profile into before_profile from public.marketing_knowledge where brand_id=(select id from marketing_qa_ids where key='brand');
+ r:=public.marketing_knowledge_ai_claim(req,(select id from marketing_qa_ids where key='user'));
+ assert r->'profile'->'fields'->>'tone'='friendly','Unsaved style input reaches the existing provider material';
+ perform public.marketing_knowledge_ai_finish(req,(r->>'lease')::uuid,'{"text":"Hello! How can our team help?"}','{"model":"fixture","input":0,"output":0,"latency_ms":1}');
+ assert before_profile=(select profile from public.marketing_knowledge where brand_id=(select id from marketing_qa_ids where key='brand')),'Tone preview never saves knowledge';
+end;$$;
+
+-- Contradictory menu prices never establish a verified amount.
+reset role;
+do $$declare m public.marketing_customer_knowledge;other_id uuid:=gen_random_uuid();f jsonb;begin
+ select * into m from public.marketing_customer_knowledge where id=(select id from marketing_qa_ids where key='menu');
+ update public.marketing_customer_knowledge set data=jsonb_build_object('name','QA conflict A','currency','MYR','source_date','2026-10-17','outlet_ids','[]'::jsonb,'items','[{"name":"QA unique price item","price":"3.50"}]'::jsonb),state='confirmed' where id=m.id;
+ insert into public.marketing_customer_knowledge(id,brand_id,kind,state,data,created_by) values(other_id,m.brand_id,'menu','confirmed',jsonb_build_object('name','QA conflict B','currency','MYR','source_date','2026-10-17','outlet_ids','[]'::jsonb,'items','[{"name":"QA unique price item","price":"4.50"}]'::jsonb),m.created_by);
+ f:=marketing_private.customer_knowledge_facts(m.brand_id);
+ assert f::text like '%conflicting_confirmed_menus%' and not f::text like '%3.50%' and not f::text like '%4.50%','Ambiguous current menu prices withheld';
+ update public.marketing_customer_knowledge set state='inactive' where id=other_id;
+ assert marketing_private.customer_knowledge_facts(m.brand_id)::text like '%3.50%','Deactivating conflicting source restores known price';
+end;$$;
+
+select 'all practical knowledge authority fixtures passed' result;
