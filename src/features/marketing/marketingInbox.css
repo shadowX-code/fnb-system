@@ -11,13 +11,13 @@
 .inbox-feedback { font-size: 12px; margin: 0 0 8px; }
 .marketing-inbox-grid {
   display: grid;
-  grid-template-columns: minmax(260px, var(--inbox-list-width, 320px)) 10px minmax(0, 1fr);
+  grid-template-columns: minmax(260px, var(--inbox-list-width, 340px)) 10px minmax(0, 1fr);
   height: calc(100dvh - 76px);
   min-height: 500px;
   position: relative;
   min-width: 0;
 }
-.marketing-inbox-grid.details-open { grid-template-columns: minmax(260px,var(--inbox-list-width,320px)) 10px minmax(0,1fr) 10px minmax(260px,var(--inbox-context-width,290px)); }
+.marketing-inbox-grid.details-open { grid-template-columns: minmax(260px,var(--inbox-list-width,340px)) 10px minmax(0,1fr) 10px minmax(260px,var(--inbox-context-width,290px)); }
 .marketing-inbox-list, .marketing-inbox-thread, .marketing-inbox-operations {
   min-width: 0; min-height: 0; background: var(--inbox-surface);
   border: 1px solid var(--inbox-border); border-radius: 14px;
@@ -33,7 +33,7 @@
 .inbox-list-search { padding: 0 16px 12px; }
 .inbox-list-search .admin-search-field { display: block; }
 .inbox-list-search .control { font-size: 12px; min-height: 38px; border-radius: 9px; }
-.inbox-status-tabs { display: flex; gap: 4px; margin: 0 16px 12px; padding: 0; background: transparent; border: 0; box-shadow: none; }
+.inbox-status-tabs { width: calc(100% - 32px); display: flex; gap: 4px; margin: 0 16px 12px; padding: 0; background: transparent; border: 0; box-shadow: none; }
 .inbox-status-tabs button { flex: 1; min-width: 0; min-height: 34px; padding: 7px 5px; border-radius: 7px; color: var(--inbox-muted); font-size: 12px; font-weight: 500; }
 .inbox-status-tabs button[aria-selected=true] { background: var(--theme-primary-soft); color: var(--inbox-accent); font-weight: 650; box-shadow: none; }
 .inbox-list-filters.admin-filter-toolbar { border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 0 16px 14px; }

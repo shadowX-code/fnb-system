@@ -162,7 +162,7 @@ export default function MarketingInboxPage() {
   const [wideContext, setWideContext] = useState(() => window.matchMedia?.("(min-width: 1280px)").matches || false);
   const workspaceRef = useRef(null), followMessages = useRef(true);
   const [contextTab, setContextTab] = useState('profile');
-  const [panelWidths, setPanelWidths] = useState({ list: 320, context: 290 });
+  const [panelWidths, setPanelWidths] = useState({ list: 340, context: 290 });
   useEffect(() => {
     const media = window.matchMedia?.('(min-width: 1280px)');
     if (!media) return;
@@ -705,6 +705,7 @@ export default function MarketingInboxPage() {
               ))}
             </div>
             <AdminPagination
+              compact
               page={page}
               pageSize={pageSize}
               total={data?.total || 0}
