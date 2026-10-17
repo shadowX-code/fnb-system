@@ -60,7 +60,7 @@ export const marketingService = {
   },
   async knowledgeAI(requestId,brandId,kind,entryId=null,preview=null) {
     const {data,error}=await supabase.functions.invoke('marketing-inbox/knowledge',{body:{requestId,brandId,kind,entryId,preview}});
-    if(error)throw new Error('Knowledge AI unavailable. Check Brand AI consent and provider configuration; no confirmed knowledge was changed.');return data;
+    if(error){let message='Knowledge AI unavailable. Check Brand AI consent and provider configuration; no confirmed knowledge was changed.';if(error.context instanceof Response){try{message=(await error.context.json()).error||message}catch{}}throw new Error(message)}return data;
   },
   async menuSource(entry) {
     const {data,error}=await supabase.storage.from('marketing-knowledge').createSignedUrl(entry.object_path,300);

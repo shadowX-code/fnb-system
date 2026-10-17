@@ -19,6 +19,9 @@ async function rpc(db: any, name: string, args: any = {}) {
   const { data, error } = await db.rpc(name, args);
   if (error) {
     const safe:Record<string,string>={
+      'Enable this Brand’s AI consent in FAQ & AI first.':'Enable this Brand’s AI consent in FAQ & AI first.',
+      'Daily knowledge AI limit reached (10).':'Daily knowledge AI limit reached (10).',
+      'A knowledge AI request is already running. Check again shortly.':'A knowledge AI request is already running. Check again shortly.',
       'This reply requires review and approval.':'This reply needs approval. Save a draft and request review in reply history.',
       'Conversation changed. Review the latest messages.':'Conversation changed. Review the latest messages before sending.',
       'A reply is already in progress or recorded. Check its result.':'A reply is already in progress or recorded. Check its status before retrying.',
@@ -174,7 +177,7 @@ Deno.serve(async (req) => {
       const reason=error instanceof Error&&['invalid_menu_file','menu_items_invalid','menu_warning_invalid','menu_currency_invalid','menu_text_invalid','menu_price_invalid','ai_shape_invalid','ai_provider_failed','ai_provider_incomplete','ai_rate_limited'].includes(error.message)?error.message:'knowledge_ai_unavailable';
       if(claim)try{await rpc(service,'marketing_knowledge_ai_finish',{p_request:requestId,p_lease:claim.lease,p_result:{},p_usage:(error as any)?.usage||{},p_error:reason});}catch{}
       // No file contents, private URLs or raw provider errors in diagnostics.
-      return json({error:reason==='invalid_menu_file'?'The file does not match its declared format. Choose the original PDF or image.':'Knowledge AI is unavailable or this request is not eligible. Check Brand AI consent, permissions and request status before retrying.'},409);
+      return json({error:(error as {safeMessage?:string})?.safeMessage||(reason==='invalid_menu_file'?'The file does not match its declared format. Choose the original PDF or image.':'Knowledge AI is unavailable or this request is not eligible. Check Brand AI consent, permissions and request status before retrying.')},409);
     }
   }
   if(path==='/profiles'&&req.method==='POST') {
