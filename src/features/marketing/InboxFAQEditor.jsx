@@ -4,11 +4,12 @@ import AdminFormField from '../../components/forms/AdminFormField.jsx';
 import TextareaField from '../../components/forms/TextareaField.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import {FAQ_CATEGORIES} from './faqCategories.js';
-export default function InboxFAQEditor({faq,data,brandName,busy,onClose,onSave}){
+export default function InboxFAQEditor({faq,data,brandName,busy,error,onClose,onSave}){
  const [form,setForm]=useState({...faq,category:faq.category||'general',alternativeText:(faq.alternative_questions||[]).join('\n')});
  const set=(key,value)=>setForm(f=>({...f,[key]:value}));
  return <Modal title={faq.id?'Edit FAQ':'New FAQ'} description={brandName} onClose={()=>{if(!busy)onClose()}} footerClassName="flex-wrap" footer={<><button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>Cancel</button><button type="submit" name="publication" value="inactive" form="faq-editor-form" className="btn-secondary" disabled={busy}>Save Inactive</button><button type="submit" name="publication" value="active" form="faq-editor-form" className="btn-primary" disabled={busy}>Save & Activate</button></>}>
  <form id="faq-editor-form" className="marketing-inbox-form" onSubmit={event=>{event.preventDefault();onSave({...form,is_active:event.nativeEvent.submitter?.value==='active',alternative_questions:form.alternativeText.split('\n').map(q=>q.trim()).filter(Boolean)})}}>
+ {error?<p role="alert" className="text-danger">{error}</p>:null}
  <AdminFormField label="Question" required><input className="control" aria-label="Question" value={form.question} onChange={e=>set('question',e.target.value)} maxLength={500} required disabled={busy}/></AdminFormField>
  <TextareaField label="Answer" ariaLabel="Answer" value={form.answer} onChange={value=>set('answer',value)} rows={5} maxLength={4000} required disabled={busy} helper="Write the answer your team would use. Staff can edit it before sending."/>
  <SelectField label="Category" required searchable value={form.category} onChange={value=>set('category',value)} options={data?.categories||FAQ_CATEGORIES} disabled={busy}/>
