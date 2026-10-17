@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Send, BookOpen, StickyNote } from "lucide-react";
+import { Sparkles, Send, BookOpen } from "lucide-react";
 import { replyAvailability } from "./inboxPresentation.js";
 export default function InboxReplyComposer({
   current,
@@ -116,7 +116,6 @@ export default function InboxReplyComposer({
               switchMode("note");
             }}
           >
-            <StickyNote size={14} />
             Internal note
           </button>
         )}

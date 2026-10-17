@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import AlertTriangle from "lucide-react/dist/esm/icons/alert-triangle";
 import Check from "lucide-react/dist/esm/icons/check";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
+import ChevronLeft from "lucide-react/dist/esm/icons/chevron-left";
+import ChevronRight from "lucide-react/dist/esm/icons/chevron-right";
 import FloatingLayer from "../ui/FloatingLayer.jsx";
 
 const PAGE_SIZES = [20, 50, 100];
@@ -494,7 +496,7 @@ export function AdminTableLoadState({ state, label, onRetry, permissionMessage =
   );
 }
 
-export default function AdminPagination({ page = 1, pageSize = 20, total = 0, loading = false, noun = "records", onPageChange, onPageSizeChange }) {
+export default function AdminPagination({ page = 1, pageSize = 20, total = 0, loading = false, noun = "records", onPageChange, onPageSizeChange, compact = false }) {
   const safeTotal = nonNegativeTotal(total);
   if (!safeTotal) return null;
   const safePageSize = validPageSize(pageSize);
@@ -504,28 +506,28 @@ export default function AdminPagination({ page = 1, pageSize = 20, total = 0, lo
   const to = Math.min(safePage * safePageSize, safeTotal);
   const items = adminPageItems(safePage, totalPages);
   return (
-    <div className="border-t border-border px-4 py-3">
+    <div className="border-t border-border px-4 py-3" data-pagination-density={compact ? "compact" : "normal"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm font-semibold text-text-secondary">Showing {from.toLocaleString("en-MY")}–{to.toLocaleString("en-MY")} of {safeTotal.toLocaleString("en-MY")}{noun ? ` ${noun}` : ""}</div>
-        <div className="flex items-center gap-3">
+        <div className={`${compact ? "text-xs font-medium" : "text-sm font-semibold"} text-text-secondary`}>Showing {from.toLocaleString("en-MY")}–{to.toLocaleString("en-MY")} of {safeTotal.toLocaleString("en-MY")}{noun ? ` ${noun}` : ""}</div>
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary">
             <span className="whitespace-nowrap">Rows per page</span>
             {onPageSizeChange ? <PageSizeSelect value={safePageSize} loading={loading} onChange={onPageSizeChange} /> : <span>{safePageSize}</span>}
           </div>
-          <div className="hidden items-center gap-1 md:flex">
-            <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={loading || safePage <= 1} onClick={() => onPageChange?.(safePage - 1)}>Previous</button>
-            {items.map((item) => typeof item === "number" ? (
+          <div className={compact ? "flex items-center gap-1" : "hidden items-center gap-1 md:flex"}>
+            <button className={`btn-secondary ${compact ? "p-2" : "px-3 py-2"} text-xs`} type="button" aria-label="Previous" disabled={loading || safePage <= 1} onClick={() => onPageChange?.(safePage - 1)}>{compact ? <ChevronLeft size={14}/> : "Previous"}</button>
+            {compact ? <span className="px-1 text-xs text-text-secondary" aria-label={`Page ${safePage} of ${totalPages}`}>{safePage}/{totalPages}</span> : items.map((item) => typeof item === "number" ? (
               <button key={item} className={`h-9 min-w-9 rounded-lg border px-2 text-xs font-bold transition ${item === safePage ? "border-primary bg-primary text-white" : "border-border bg-surface text-text-secondary hover:border-primary hover:text-primary"}`} type="button" disabled={loading} aria-current={item === safePage ? "page" : undefined} onClick={() => onPageChange?.(item)}>{item}</button>
             ) : <span key={item} className="px-1 text-sm font-bold text-text-muted">…</span>)}
-            <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={loading || safePage >= totalPages} onClick={() => onPageChange?.(safePage + 1)}>Next</button>
+            <button className={`btn-secondary ${compact ? "p-2" : "px-3 py-2"} text-xs`} type="button" aria-label="Next" disabled={loading || safePage >= totalPages} onClick={() => onPageChange?.(safePage + 1)}>{compact ? <ChevronRight size={14}/> : "Next"}</button>
           </div>
         </div>
       </div>
-      <div className="mt-3 flex items-center justify-between gap-3 md:hidden">
+      {!compact && <div className="mt-3 flex items-center justify-between gap-3 md:hidden">
         <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={loading || safePage <= 1} onClick={() => onPageChange?.(safePage - 1)}>Previous</button>
         <span className="text-sm font-bold text-text-secondary">Page {safePage} of {totalPages}</span>
         <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={loading || safePage >= totalPages} onClick={() => onPageChange?.(safePage + 1)}>Next</button>
-      </div>
+      </div>}
     </div>
   );
 }
