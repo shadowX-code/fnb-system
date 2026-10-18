@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Send, BookOpen } from "lucide-react";
+import { Sparkles, Send, BookOpen, ThumbsUp, ThumbsDown } from "lucide-react";
 import {handoffHints,assistanceLabel} from '../../../supabase/functions/_shared/inboxAssistance.mjs';
-import {aiSuggestionUnavailable,faqPreviewMessage} from "./inboxKnowledge.js";
+import {aiSuggestionUnavailable,faqPreviewMessage,aiSourceLabel} from "./inboxKnowledge.js";
+import SelectField from '../../components/forms/SelectField.jsx';
 import { replyAvailability } from "./inboxPresentation.js";
 export default function InboxReplyComposer({
   current,
@@ -11,6 +12,7 @@ export default function InboxReplyComposer({
   command,
   suggest,
   reviewAI,
+  feedbackAI,
   preview,
   faqPreview,
   onSend,
@@ -71,6 +73,8 @@ export default function InboxReplyComposer({
       a.state === "proposed" &&
       a.source_version === c.version,
   );
+  const feedback=current.ai_feedback?.find(f=>f.artifact_id===suggestion?.id);
+  const setupHref=c.brand_id?`/marketing/faq-ai?marketing_brand=${c.brand_id}`:null;
   const outbox = current.outbox?.find((o) => o.draft_id === draft?.id);
   const faqQuestion = [...(current.messages||[])].reverse().find(m=>m.kind==='incoming'||(c.channel==='internal'&&m.kind==='note'))?.body||'';
   const faqUnavailable = !faqQuestion.trim() ? 'A customer question is needed. Internal cases can use a team note as a test question.' : faqQuestion.length>500 ? 'This message exceeds the 500-character FAQ matching limit. Review the FAQ Library instead.' : '';
@@ -154,7 +158,7 @@ export default function InboxReplyComposer({
           </button>
         )}
       </div>
-      {mode === "reply" && can("ai") && aiUnavailable && <p className="inbox-assistance-status" role="status">{aiUnavailable}</p>}
+      {mode === "reply" && can("ai") && aiUnavailable && <p className="inbox-assistance-status" role="status">{aiUnavailable} {can('configure')&&setupHref?<a href={setupHref}>Open FAQ & AI settings</a>:null}</p>}
       {mode === "reply" && !suggestion && handoff.length>0 && <div className="inbox-assistance-handoff" role="status"><strong>Needs Human Attention</strong><p>{handoff.map(reason=>reason.replaceAll('_',' ')).join(' · ')}. Use the existing assignment or handling controls; AI never assigns or sends.</p></div>}
       {mode === "reply" && suggestion && (
         <section className="inbox-suggestion" aria-label="AI suggested reply">
@@ -163,12 +167,13 @@ export default function InboxReplyComposer({
           {suggestion.body.handoff_reasons?.length>0 && <p className="inbox-assistance-status">Staff review: {suggestion.body.handoff_reasons.map(reason=>reason.replaceAll('_',' ')).join(' · ')}</p>}
           {suggestion.body.unresolved_questions?.length>0 && <details><summary>Needs confirmation ({suggestion.body.unresolved_questions.length})</summary><ul>{suggestion.body.unresolved_questions.map((question,i)=><li key={i}>{question}</li>)}</ul></details>}
           {suggestion.body.matches?.some(match=>match.use_issue) && <details><summary>Related FAQs need confirmation</summary><ul>{suggestion.body.matches.filter(match=>match.use_issue).map(match=><li key={match.id}>{match.question} · {match.use_issue}</li>)}</ul></details>}
-          {suggestion.body.sources?.length>0 && <details><summary>Sources ({suggestion.body.sources.length})</summary><ul>{suggestion.body.sources.map(source=><li key={source.key}>{source.kind==='faq'?'Active FAQ':'Approved Brand Intelligence'} · {source.label}</li>)}</ul></details>}
+          {suggestion.body.sources?.length>0 && <details><summary>Sources ({suggestion.body.sources.length})</summary><ul>{suggestion.body.sources.map(source=><li key={source.key}>{aiSourceLabel(source)} · {source.label}</li>)}</ul></details>}
           <div className="marketing-inbox-actions">
             {can("reply") && <button className="btn-secondary" disabled={busy} onClick={()=>{setText(suggestion.body.text);setDirty(true);setSourceArtifact(suggestion.id);}}>Use Reply</button>}
             {can('ai') && <button className="inbox-text-button" disabled={busy||Boolean(aiUnavailable)} onClick={()=>suggest(suggestion.id)}>Regenerate</button>}
             <button className="inbox-text-button" disabled={busy} onClick={()=>reviewAI(suggestion.id,false)}>Dismiss</button>
           </div>
+          {can('ai')&&feedbackAI?<div className="inbox-ai-feedback" aria-label="Suggestion feedback"><span>Was this helpful?</span><button type="button" className="inbox-text-button" aria-pressed={feedback?.helpful===true} disabled={busy} onClick={()=>feedbackAI(suggestion.id,true,null)}><ThumbsUp size={14}/>Helpful</button><button type="button" className="inbox-text-button" aria-pressed={feedback?.helpful===false} disabled={busy} onClick={()=>feedbackAI(suggestion.id,false,null)}><ThumbsDown size={14}/>Not Helpful</button>{feedback?.helpful===false?<SelectField label="What could improve?" value={feedback.reason||''} disabled={busy} onChange={reason=>feedbackAI(suggestion.id,false,reason||null)} options={[{value:'',label:'Optional reason'},{value:'incorrect_facts',label:'Incorrect facts'},{value:'wrong_outlet',label:'Wrong Outlet'},{value:'missed_question',label:'Missed a question'},{value:'language_tone',label:'Language or tone'},{value:'missing_knowledge',label:'Missing knowledge'},{value:'not_relevant',label:'Not relevant'},{value:'other',label:'Other'}]}/>:null}{feedback?<small role="status">Feedback saved</small>:null}</div>:null}
           <small className="inbox-muted">Review and edit before sending. {suggestion.body.human_required?'Staff approval is required.':''}</small>
         </section>
       )}

@@ -1,5 +1,9 @@
 export function aiSuggestionUnavailable(current,configuration) {
+ if(current?.policy?.automation_mode==='off')return 'AI suggestions are off for this Brand. An Inbox administrator can select Suggest replies in FAQ & AI settings.';
  if(!current?.policy?.ai_allowed)return 'AI suggestions are disabled for this Brand. An Inbox administrator can enable them in FAQ & AI settings.';
+ if(!configuration)return 'Checking AI setup…';
+ if(configuration.ai_status==='missing_model')return 'An AI model is not configured. Ask a platform administrator to configure the existing model.';
+ if(configuration.ai_status==='disabled')return 'The AI service is disabled. Ask a platform administrator; normal messaging remains available.';
  if(!configuration?.ai_configured)return 'The AI provider is unavailable. Contact a platform administrator; active FAQs remain available.';
  return '';
 }
@@ -24,3 +28,5 @@ export function faqApprovalUnavailable(faq,knowledge,templates=[]) {
 export function faqStateLabel(faq) {
  return {draft:'Draft',review:'Pending Approval',approved:'Approved',disabled:'Disabled',rejected:'Rejected'}[faq.status]||'Unavailable';
 }
+
+export const aiSourceLabel = source => source.key?.startsWith('menu:')?'Products & Menu':source.key?.startsWith('promotion:')?'Current Promotion':source.key?.startsWith('outlet:')?'Restaurant Outlet':({faq:'Active FAQ',brand_intelligence:'Brand Intelligence'}[source.kind]||'Brand Knowledge');

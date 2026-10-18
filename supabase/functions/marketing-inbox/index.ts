@@ -150,6 +150,8 @@ Deno.serve(async (req) => {
   if (path === "/configuration" && req.method === "GET") {
     return json({
       ai_configured: configured,
+      ai_model: env('MARKETING_AI_MODEL') || null,
+      ai_status: env('MARKETING_AI_ENABLED')!=='true'?'disabled':!env('MARKETING_AI_MODEL')?'missing_model':!env('OPENAI_API_KEY')?'missing_provider':'ready',
       webhook_configured: Boolean(env("MARKETING_INBOX_WEBHOOK_VERIFY_TOKEN")),
       sending_enabled: false,
       staff_send_configured: staffReplyConfigured(env),

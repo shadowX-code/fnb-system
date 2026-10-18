@@ -17,3 +17,18 @@ describe('canonical hybrid assistant',()=>{
  it('records unknown provider usage honestly, never retries and preserves handoff',async()=>{const fetch=vi.fn().mockRejectedValue(new Error('network timeout'));const r=await requestInboxAssistant(input('Boleh bantu sikit?'),'fixture-key','gpt-5-mini',fetch);expect(fetch).toHaveBeenCalledTimes(1);expect(r.input).toBeNull();expect(r.output).toBeNull();expect(r.body).toMatchObject({match_source:'fallback',failure_reason:'ai_unavailable',classification:'insufficient_knowledge'});expect(r.body.latency_ms).toBeGreaterThanOrEqual(0)});
  it('retains reported token usage when completed output is invalid',async()=>{const fetch=vi.fn().mockResolvedValue(response({...proposal,reference_keys:['invented']}));const r=await requestInboxAssistant(input('Can somebody assist?'),'fixture-key','gpt-5-mini',fetch);expect(r).toMatchObject({input:200,output:50,body:{match_source:'fallback',failure_reason:'ai_evidence_invalid'}})});
 });
+
+it('keeps grounded suggestions advisory after staff escalation instead of permanently discarding answers',async()=>{
+ const i={...input(),escalated:true};const fetch=vi.fn();const r=await requestInboxAssistant(i,'','',fetch);
+ expect(r.body).toMatchObject({text:faq.answer,human_required:true,classification:'needs_human_attention',handoff_reasons:['existing_escalation']});expect(fetch).not.toHaveBeenCalled();
+ const semantic=validateAssistant(proposal,{...input('Could you assist?'),escalated:true});expect(semantic.text).toBe(faq.answer);expect(semantic.human_required).toBe(true);
+});
+it('recognizes local-language safety and human handoffs without turning negated refunds into a request',()=>{
+ for(const q of ['Makanan ada lipas','我想找店員','Saya nak cakap dengan kakitangan','食物過敏'])expect(assistantHandoff(q).length).toBeGreaterThan(0);
+ for(const q of ["I don't want a refund",'Tak perlu bayaran balik','不用退款'])expect(assistantHandoff(q)).not.toContain('refund');
+});
+it('records a provider timeout distinctly with unknown token usage and no retry',async()=>{
+ const fetch=vi.fn().mockRejectedValue(new DOMException('Timed out','TimeoutError'));
+ const r=await requestInboxAssistant(input('Could you assist?'),'fixture-key','gpt-5-mini',fetch);
+ expect(r.body.failure_reason).toBe('ai_provider_timeout');expect(r.input).toBeNull();expect(fetch).toHaveBeenCalledTimes(1);
+});

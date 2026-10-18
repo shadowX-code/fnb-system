@@ -209,3 +209,9 @@
 .inbox-knowledge-settings a:not(.btn-secondary),.marketing-inbox-form p a { color:var(--factory-success-text); text-decoration:underline; text-underline-offset:3px; }
 
 .inbox-assistance-heading{display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap}.inbox-suggestion details{font-size:.8125rem;margin-block:.35rem}.inbox-suggestion summary{cursor:pointer;color:var(--inbox-muted)}.inbox-suggestion ul{padding-inline-start:1.25rem;margin-block:.35rem}.inbox-assistance-handoff{padding:.625rem .75rem;background:var(--inbox-nested);border-radius:12px;font-size:.8125rem}.inbox-assistance-handoff p{margin:.25rem 0 0;color:var(--inbox-muted)}
+
+.inbox-ai-feedback{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;border-top:1px solid var(--theme-border);padding-top:8px;margin-top:8px;font-size:12px;color:var(--theme-text-secondary)}
+.inbox-ai-feedback .inbox-text-button{display:inline-flex;align-items:center;gap:5px;font-size:12px}
+.inbox-ai-feedback [aria-pressed=true]{color:var(--theme-primary);background:var(--theme-surface-nested)}
+.inbox-ai-feedback .admin-form-field{flex-basis:100%;max-width:260px}
+.inbox-assistance-status a{color:var(--theme-primary);text-decoration:underline;text-underline-offset:3px}

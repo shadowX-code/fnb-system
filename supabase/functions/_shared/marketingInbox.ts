@@ -170,11 +170,11 @@ export function standardWindowOpen(
 }
 export function inboxRisks(text: string): string[] {
   return Object.entries({
-    complaint: /(complaint|complain|rude|wrong order|投诉|不满|aduan|kecewa)/i,
+    complaint: /(complaint|complain|rude|wrong order|投诉|投訴|不满|不滿|aduan|kecewa)/i,
     refund: /(refund|money back|chargeback|退款|退钱|bayaran balik)/i,
-    allergen: /(allerg|anaphyla|过敏|alerg|alahan)/i,
+    allergen: /(allerg|anaphyla|过敏|過敏|alerg|alahan)/i,
     food_safety:
-      /(food poison|unsafe|vomit|diarrh|raw meat|spoilt|spoiled|mould|mold|食物中毒|呕吐|腹泻|变质|keracunan|muntah|cirit|basi)/i,
+      /(food poison|unsafe|vomit|diarrh|raw meat|spoilt|spoiled|mould|mold|食物中毒|呕吐|嘔吐|腹泻|腹瀉|变质|變質|蟑螂|keracunan|muntah|cirit|basi|lipas)/i,
   }).filter(([, r]) => r.test(text)).map(([k]) => k);
 }
 export const INBOX_INTENTS=["brand_identity","menu","pricing","operating_hours","locations","promotions","reservations","complaint","refund","allergen","food_safety","sensitive","unknown"];
@@ -186,6 +186,7 @@ export function aiInput(input: any) {
     kind: input.kind,
     escalated: Boolean(input.escalated),
     facts: input.facts,
+    outlet_context: input.outlet_context || null,
     latest_customer_message: scrub(String(input.history.filter((m: any) => m.kind === "incoming").at(-1)?.text || "")),
     internal_test_question: input.history.some((m: any) => m.kind === "incoming") ? "" : scrub(String(input.history.filter((m: any) => m.kind === "note").at(-1)?.text || "")),
     history: input.history.map((m: any) => ({
