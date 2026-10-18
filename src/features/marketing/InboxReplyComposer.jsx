@@ -161,13 +161,15 @@ export default function InboxReplyComposer({
       {mode === "reply" && can("ai") && aiUnavailable && <p className="inbox-assistance-status" role="status">{aiUnavailable} {can('configure')&&setupHref?<a href={setupHref}>Open FAQ & AI settings</a>:null}</p>}
       {mode === "reply" && !suggestion && handoff.length>0 && <div className="inbox-assistance-handoff" role="status"><strong>Needs Human Attention</strong><p>{handoff.map(reason=>reason.replaceAll('_',' ')).join(' · ')}. Use the existing assignment or handling controls; AI never assigns or sends.</p></div>}
       {mode === "reply" && suggestion && (
-        <section className="inbox-suggestion" aria-label="AI suggested reply">
+        <section className="inbox-suggestion inbox-ai-suggestion" aria-label="AI suggested reply">
+          <div className="inbox-suggestion-content">
           <div className="inbox-assistance-heading"><strong>{assistanceLabel(suggestion.body.classification)}</strong><small>{suggestion.body.match_source==='deterministic'?(suggestion.body.matched_faq_ids?.length?'FAQ match · no AI tokens':'Staff handling · no AI tokens'):'Suggest only'}</small></div>
           <p>{suggestion.body.text}</p>
           {suggestion.body.handoff_reasons?.length>0 && <p className="inbox-assistance-status">Staff review: {suggestion.body.handoff_reasons.map(reason=>reason.replaceAll('_',' ')).join(' · ')}</p>}
           {suggestion.body.unresolved_questions?.length>0 && <details><summary>Needs confirmation ({suggestion.body.unresolved_questions.length})</summary><ul>{suggestion.body.unresolved_questions.map((question,i)=><li key={i}>{question}</li>)}</ul></details>}
           {suggestion.body.matches?.some(match=>match.use_issue) && <details><summary>Related FAQs need confirmation</summary><ul>{suggestion.body.matches.filter(match=>match.use_issue).map(match=><li key={match.id}>{match.question} · {match.use_issue}</li>)}</ul></details>}
           {suggestion.body.sources?.length>0 && <details><summary>Sources ({suggestion.body.sources.length})</summary><ul>{suggestion.body.sources.map(source=><li key={source.key}>{aiSourceLabel(source)} · {source.label}</li>)}</ul></details>}
+          </div>
           <div className="marketing-inbox-actions">
             {can("reply") && <button className="btn-secondary" disabled={busy} onClick={()=>{setText(suggestion.body.text);setDirty(true);setSourceArtifact(suggestion.id);}}>Use Reply</button>}
             {can('ai') && <button className="inbox-text-button" disabled={busy||Boolean(aiUnavailable)} onClick={()=>suggest(suggestion.id)}>Regenerate</button>}
