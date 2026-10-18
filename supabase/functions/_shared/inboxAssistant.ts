@@ -21,7 +21,7 @@ function base(text:string,lang:string) {
  return {text,question:'',language:lang,reference_keys:[],matched_faq_ids:[],unresolved_questions:[],handoff_reasons:[],human_required:true,intent:'unknown',classification:'insufficient_knowledge'};
 }
 export function assistantFallback(input:any,reason:string,handoff=assistantHandoff(latest(input))) {
- const question=latest(input),lang=language(question),outlet=operational.test(question)&&!input.outlet_known;
+ const question=latest(input),lang=language(question),outlet=operational.test(question)&&!input.outlet_known&&(input.outlet_context?.eligible_count==null||input.outlet_context.eligible_count>1);
  const text=handoff.length
   ?{EN:'Thank you for letting us know. A member of our team will need to review your request.',ZH:'谢谢你告诉我们。这个情况需要由工作人员进一步了解和处理。',BM:'Terima kasih kerana memaklumkan kami. Permintaan ini perlu disemak oleh kakitangan kami.'}[lang]
   :outlet?{EN:'Which outlet do you mean? Our team needs to confirm the current details before advising you.',ZH:'请问你指的是哪一家分店？我们需要先向工作人员确认最新资料。',BM:'Cawangan mana yang anda maksudkan? Kakitangan kami perlu mengesahkan maklumat terkini dahulu.'}[lang]
@@ -60,6 +60,13 @@ export function validateAssistant(value:any,input:any) {
  const unsupportedPrice=restaurant.length>0 && !cited.some((f:any)=>f.category==='promotions'||f.category==='general') && amounts.some(amount=>!restaurant.some((f:any)=>f.items?.some((item:any)=>item.price!=null&&!item.price_issue&&Number(item.price)===amount)));
  if(unsupportedStock||unsupportedPrice)return {...assistantFallback(input,unsupportedStock?'availability_unverified':'price_unverified',[]),intent:value.intent,matched_faq_ids:value.matched_faq_ids};
 
+ // A mixed question may have an exact usable FAQ answer and an unsupported operational intent.
+ // Preserve only the server-supplied answer, never the model's unverified operational prose.
+ if(operational.test(q)&&!operationalSource&&/[?？].+[?？]|\b(and|also|dan|juga)\b|还有|還有|以及/i.test(q)&&!blocked.length&&!assistantHandoff(q).length) {
+  const supported=input.faqs.filter((f:any)=>!f.use_issue&&f.answer&&f.category==='general'&&value.reference_keys.includes(`faq:${f.id}:${f.revision}`));
+  const text=[...new Set(supported.map((f:any)=>f.answer))].join(' ');
+  if(text&&text.length<=1200){const fallback=assistantFallback(input,'partial_operational_knowledge',[]);return {...fallback,text:text+'\n'+fallback.text,reference_keys:supported.map((f:any)=>`faq:${f.id}:${f.revision}`),matched_faq_ids:supported.map((f:any)=>f.id),intent:value.intent};}
+ }
  if(!citedFAQ&&!identitySource&&!directSource&&!value.human_required||blocked.length&&!directSource||promises.test(value.text)||unsupportedNumber||operational.test(q)&&!operationalSource) {
   const issue=unsupportedNumber?'unsupported_numeric_claim':promises.test(value.text)?'unsupported_action_claim':blocked.length&&!directSource?'blocked_faq_evidence':!citedFAQ&&!identitySource&&!directSource&&!value.human_required?'source_required':'operational_evidence_unavailable';
   return {...assistantFallback(input,issue,[]),intent:value.intent,matched_faq_ids:value.matched_faq_ids};

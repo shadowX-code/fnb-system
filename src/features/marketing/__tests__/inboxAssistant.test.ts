@@ -32,3 +32,9 @@ it('records a provider timeout distinctly with unknown token usage and no retry'
  const r=await requestInboxAssistant(input('Could you assist?'),'fixture-key','gpt-5-mini',fetch);
  expect(r.body.failure_reason).toBe('ai_provider_timeout');expect(r.input).toBeNull();expect(fetch).toHaveBeenCalledTimes(1);
 });
+
+it('preserves exact sourced FAQ text for mixed intents while discarding unsupported operational prose',()=>{
+ const i={...input('Can you help? Also what is the menu price?'),outlet_context:{eligible_count:0}};
+ const r=validateAssistant({...proposal,text:'Please tell our team how we can help. Meals cost RM 50.',human_required:true,unresolved_questions:['Menu price?']},i);
+ expect(r.text).toContain(faq.answer);expect(r.text).not.toContain('50');expect(r.text).not.toContain('Which outlet');expect(r.classification).toBe('insufficient_knowledge');expect(r.reference_keys).toEqual(proposal.reference_keys);
+});
