@@ -3,3 +3,5 @@
 @media(max-width:720px){.outlet-hours-weekly{grid-template-columns:minmax(0,1fr);gap:8px}.outlet-hours-weekly .outlet-hours-day{grid-template-columns:90px minmax(0,1fr) 34px}.outlet-hours-weekly .outlet-hours-periods{grid-column:1;grid-row:auto}.outlet-hours-weekly>.btn-ghost{grid-column:1}.outlet-hours-period{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.outlet-hours-period>label{max-width:none;min-height:30px}.outlet-hours-copy-actions .btn-primary{flex:1}.outlet-hours-copy-actions button{white-space:normal}}
 
 .outlet-hours-row>.btn-ghost{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}@media(max-width:720px){.outlet-hours-copy-actions{display:grid;grid-template-columns:minmax(0,1fr)}.outlet-hours-copy-actions button{width:100%;min-height:36px;white-space:nowrap}}
+
+.outlet-hours-status{min-width:0;flex:1}

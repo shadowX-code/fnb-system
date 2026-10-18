@@ -31,3 +31,27 @@ it('preserves legacy branding fields without exposing branding controls or a sec
  render(<Editor outlet={{id:'o',name:'Outlet',logo_path:'existing.png',brand_accent_color:'#123456'}} canEdit onClose={()=>{}}/>);
  expect(screen.queryByRole('button',{name:'Branding'})).toBeNull();expect(screen.queryByLabelText('Accent Color')).toBeNull();
 });
+
+it('prevents the reported Saturday save, keeps feedback in the footer and focuses closing time on every retry',async()=>{
+ const data=emptyOutletServices();data.weekly_hours[6]={day:6,status:'open',periods:[{opens:'10:00',closes:'10:00',overnight:false}]};read.mockResolvedValue({profile:{revision:2,data},can_edit:true});
+ render(<Editor outlet={{id:'o',name:'Outlet'}} initialSection="contact" canEdit onClose={()=>{}}/>);await screen.findByLabelText('Public phone');fireEvent.change(screen.getByLabelText('Public phone'),{target:{value:'Draft'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save Changes'}));const alert=await screen.findByRole('alert');expect(alert.textContent).toContain('Saturday');expect(alert.closest('footer')).toBeTruthy();expect(document.activeElement).toBe(screen.getByRole('button',{name:'Saturday closes 1'}));expect(save).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Save Changes'}));expect(document.activeElement).toBe(screen.getByRole('button',{name:'Saturday closes 1'}));expect(screen.getByLabelText('Public phone').value).toBe('Draft');
+});
+it('checks changed hidden sections before any writes and focuses the exact GPS field',async()=>{
+ render(<Editor outlet={{id:'o',name:'Outlet',attendance_location_enabled:true,attendance_latitude:'',attendance_longitude:''}} initialSection="attendance" canEdit onClose={()=>{}}/>);
+ fireEvent.change(screen.getByLabelText('Latitude'),{target:{value:'999'}});fireEvent.click(screen.getByRole('button',{name:'Contact & Hours'}));await screen.findByLabelText('Public phone');fireEvent.change(screen.getByLabelText('Public phone'),{target:{value:'Draft'}});fireEvent.click(screen.getByRole('button',{name:'Save Changes'}));await screen.findByRole('alert');expect(document.activeElement.dataset.outletField).toBe('attendance_latitude');expect(master).not.toHaveBeenCalled();expect(save).not.toHaveBeenCalled();
+});
+it('does not validate untouched master fields when independently saving valid hours and clears dirty state from the receipt',async()=>{
+ save.mockImplementation(async(request,id,revision,data)=>({outlet_id:id,revision:revision+1,data}));
+ render(<Editor outlet={{id:'o',name:'Outlet',attendance_location_enabled:true,attendance_latitude:'',attendance_longitude:''}} initialSection="contact" canEdit onClose={()=>{}}/>);await screen.findByLabelText('Public phone');fireEvent.change(screen.getByLabelText('Public phone'),{target:{value:'Saved contact'}});fireEvent.click(screen.getByRole('button',{name:'Save Changes'}));await waitFor(()=>expect(screen.getByRole('button',{name:'Save Changes'}).disabled).toBe(true));expect(screen.getByRole('status').textContent).toBe('Changes saved.');expect(screen.queryByText('Unsaved changes')).toBeNull();expect(master).not.toHaveBeenCalled();expect(screen.getByLabelText('Public phone').value).toBe('Saved contact');
+});
+it('routes hidden invalid hours back to their source before saving a changed master',async()=>{
+ render(<Editor outlet={{id:'o',name:'Outlet'}} initialSection="contact" canEdit onClose={()=>{}}/>);await screen.findByLabelText('Public phone');
+ fireEvent.change(screen.getByLabelText('Website (HTTPS)'),{target:{value:'invalid'}});fireEvent.click(screen.getByRole('button',{name:'General'}));fireEvent.change(screen.getByLabelText('Outlet Name *'),{target:{value:'Draft name'}});fireEvent.click(screen.getByRole('button',{name:'Save Changes'}));await screen.findByRole('alert');expect(document.activeElement.dataset.outletField).toBe('website');expect(master).not.toHaveBeenCalled();expect(save).not.toHaveBeenCalled();
+});
+
+it('shows a revision conflict beside Save, retains edits and focuses the feedback without silently reloading',async()=>{
+ const conflict=new Error('Outlet service information changed. Reload before saving.');conflict.cause={code:'40001'};save.mockRejectedValueOnce(conflict);
+ render(<Editor outlet={{id:'o',name:'Outlet'}} initialSection="contact" onClose={()=>{}}/>);await screen.findByLabelText('Public phone');fireEvent.change(screen.getByLabelText('Public phone'),{target:{value:'Keep this draft'}});fireEvent.click(screen.getByRole('button',{name:'Save Changes'}));const feedback=await screen.findByRole('alert');expect(feedback.textContent).toContain('Keep a copy of your edits');expect(document.activeElement).toBe(feedback);expect(screen.getByLabelText('Public phone').value).toBe('Keep this draft');expect(read).toHaveBeenCalledOnce();
+});
