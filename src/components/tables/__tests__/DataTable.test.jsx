@@ -39,3 +39,10 @@ it('shares text-selection and nested-control protection with mobile consumers',(
  for(const target of row.querySelectorAll('summary,button'))expect(shouldIgnoreRowClick({type:'click',currentTarget:row,target})).toBe(true);
  expect(shouldIgnoreRowClick({type:'click',currentTarget:row,target:row.firstChild})).toBe(false);
 });
+
+it('exposes native keyboard sort controls, direction and right-aligned numeric headers without sorting rows locally',()=>{
+ const sort=vi.fn();const {container}=render(<DataTable rows={[{id:'b',amount:9},{id:'a',amount:100}]} getRowKey={r=>r.id} columns={[{key:'amount',header:'Spend',align:'right',sortDirection:'desc',onSort:sort}]}/>);
+ const header=container.querySelector('th'),button=header.querySelector('button');
+ expect(header.getAttribute('aria-sort')).toBe('descending');expect(button.type).toBe('button');expect(button.getAttribute('aria-label')).toBe('Sort by Spend, ascending');
+ fireEvent.click(button);expect(sort).toHaveBeenCalledOnce();expect([...container.querySelectorAll('td')].map(e=>e.textContent)).toEqual(['9','100']);
+});

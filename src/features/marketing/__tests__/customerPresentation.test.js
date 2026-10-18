@@ -10,7 +10,7 @@ it('preserves legacy visibility and persists independent user choices and reset'
  localStorage.setItem('marketing.customers.columns.legacy', JSON.stringify(['name','email']));
  expect(preferredCustomerColumns('legacy')).toEqual(['name','email','consent','activity','actions']);
  saveCustomerColumns('legacy',['name','email']);
- expect(preferredCustomerColumns('legacy')).toEqual(['name','email']);
+ expect(preferredCustomerColumns('legacy')).toEqual(['name','email','actions']);
  expect(preferredCustomerColumns('other')).toEqual(DEFAULT_CUSTOMER_COLUMNS);
  saveCustomerColumns('legacy',DEFAULT_CUSTOMER_COLUMNS);
  expect(preferredCustomerColumns('legacy')).toEqual(DEFAULT_CUSTOMER_COLUMNS);
@@ -22,4 +22,7 @@ it('formats imported zero, amounts and dates without substituting unavailable da
  expect(posMetric(c,'avg_spent')).toContain('12.50');
  expect(posMetric(c,'member_since')).toBe('—');
  expect(posMetric(c,'last_visit')).toBe(customerDate('2026-10-13'));
+});
+it('never hides identity/actions from old preferences and ignores removed keys',()=>{
+ saveCustomerColumns('locked',['total_spent','removed']);expect(preferredCustomerColumns('locked')).toEqual(['name','total_spent','actions']);
 });
