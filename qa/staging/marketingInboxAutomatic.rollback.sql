@@ -178,5 +178,37 @@ do $$declare c public.marketing_conversations;p public.marketing_inbox_policies;
  assert marketing_private.inbox_auto_translation('欢迎光临。','EN') is null,'Unsupported reverse translation hands off';
 end;$$;
 
+-- Exercise the real ingestion authority, not only the after-insert queue trigger.
+-- Isolated fixture events are synthetic; they do not establish provider delivery evidence.
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+do $$declare b uuid:=(select id from marketing_qa_ids where key='brand');conn uuid:=(select id from marketing_qa_ids where key='connection');c uuid:=gen_random_uuid();m uuid;result jsonb;mode_ text;before_ int;begin
+ update marketing_inbox_policies set ai_conversation_ids=null,ai_reply_mode='safe_auto',ai_enabled_at=now(),revision=revision+1 where brand_id=b;
+ insert into marketing_conversations(id,organization_id,brand_id,channel,connection_id,participant_key,title,last_inbound_at,connection_generation)
+ select c,organization_id,brand_id,'facebook',id,'qa-semantic-peer','QA ingestion semantic regression',now(),credential_generation from marketing_connections where id=conn;
+ foreach mode_ in array array['safe_auto','ai_first'] loop
+  update marketing_inbox_policies set ai_reply_mode=mode_ where brand_id=b;
+  insert into marketing_private.inbox_events(event_key,connection_id,generation,payload,fingerprint,evidence_source,due_at)
+  values('qa-ingestion-'||mode_,conn,1,jsonb_build_object('kind','incoming','peer_id','qa-semantic-peer','event_id','qa-ingestion-'||mode_,'body','你们是什么品牌？','occurred_at',now()),'qa-isolated-'||mode_,'signed_webhook','2000-01-01');
+  result:=marketing_inbox_process_events(1);assert result->>'processed'='1','Canonical ingestion succeeds';
+  assert not(select takeover from marketing_conversations where id=c),'Legacy FAQ miss cannot preempt automatic semantic matching';
+  assert(select cardinality(escalation_reasons) from marketing_conversations where id=c)=0,'No invented uncertainty before semantic matching';
+  select id into m from marketing_conversation_messages where conversation_id=c and provider_message_id='qa-ingestion-'||mode_;
+  assert(select state from marketing_private.inbox_automatic_turns where message_id=m)='queued','Semantic question remains queued for shared engine';
+  assert not exists(select 1 from marketing_reply_drafts where conversation_id=c),'No parallel legacy draft';
+ end loop;
+ insert into marketing_private.inbox_events(event_key,connection_id,generation,payload,fingerprint,evidence_source,due_at)
+ values('qa-ingestion-risk',conn,1,jsonb_build_object('kind','incoming','peer_id','qa-semantic-peer','event_id','qa-ingestion-risk','body','I need a refund','occurred_at',now()),'qa-isolated-risk','signed_webhook','2000-01-01');
+ perform marketing_inbox_process_events(1);
+ assert(select takeover and cardinality(escalation_reasons)>0 from marketing_conversations where id=c),'Ingestion safety escalation remains mandatory';
+ assert not exists(select 1 from marketing_private.inbox_automatic_turns where conversation_id=c and state='queued'),'Risk cancels all queued work';
+ update marketing_inbox_policies set ai_reply_mode='suggest_only' where brand_id=b;
+ update marketing_conversations set takeover=false,escalation_reasons='{}' where id=c;
+ insert into marketing_private.inbox_events(event_key,connection_id,generation,payload,fingerprint,evidence_source,due_at)
+ values('qa-ingestion-suggest',conn,1,jsonb_build_object('kind','incoming','peer_id','qa-semantic-peer','event_id','qa-ingestion-suggest','body','unmatched legacy question','occurred_at',now()),'qa-isolated-suggest','signed_webhook','2000-01-01');
+ perform marketing_inbox_process_events(1);
+ assert(select takeover from marketing_conversations where id=c),'Suggest Only legacy handling preserved';
+end;$$;
+
 select 'Automatic policy, shared generation, canonical text, replay, takeover, stale sources, receipts, clarification and Brand isolation passed' result;
 rollback;
