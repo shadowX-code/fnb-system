@@ -7,7 +7,7 @@ export function blobJournalStore():JournalStore & {remove:(path:string)=>Promise
  const token=env('MARKETING_ERASURE_JOURNAL_READ_WRITE_TOKEN');
  if(!token||!journalKeys().length)throw new Error('journal_not_configured');
  return {
-  remove:async(path)=>{await del(path,{token});const remaining=await get(path,{access:'private',token,useCache:false});if(remaining&&remaining.statusCode!==404)throw new Error('journal_delete_unconfirmed');},
+  remove:async(path)=>{await del(path,{token});const remaining=await get(path,{access:'private',token,useCache:false});if(remaining)throw new Error('journal_delete_unconfirmed');},
   put:async(path,body)=>{try{await put(path,body,{access:'private',token,addRandomSuffix:false,allowOverwrite:false,contentType:'application/json'});}catch{const existing=await get(path,{access:'private',token,useCache:false});if(!existing||existing.statusCode!==200)throw new Error('journal_write_unavailable');}},
   get:async(path)=>{const result=await get(path,{access:'private',token,useCache:false});if(!result||result.statusCode!==200||!result.stream)throw new Error('journal_read_unavailable');return await new Response(result.stream).text();}
  };

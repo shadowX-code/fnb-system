@@ -56,7 +56,7 @@ export async function runCreatorFollowers(db:any,graph:any,keys:string[]){
    result=await readCreatorFollowers(graph,account,material,credential.token);
   }
  }catch(error){
-  const code=String(error?.code||'');
+  const code=error&&typeof error==='object'&&'code' in error?String(error.code):'';
   result={status:/^meta_(permission_or_token_invalid|error_(10|100|200))$/.test(code)?'unavailable':'failed',reason:code==='meta_permission_or_token_invalid'?'meta_permission_or_token_invalid':code==='meta_error_100'||code==='meta_error_10'||code==='meta_error_200'?'profile_not_available_with_current_meta_access':/^meta_(?:error_\d+|response_uncertain|response_unreadable)$/.test(code)?code:'provider_read_failed'};
  }
  await rpc('marketing_creator_followers_finish',{p_account:account.id,p_lease:account.followers_lease,p_connection:account.connection_id,p_generation:account.connection_generation,p_count:result.count??null,p_source:result.source??null,p_status:result.status,p_reason:result.reason??null});
