@@ -202,6 +202,7 @@ do $$declare b uuid:=(select id from marketing_qa_ids where key='brand');conn uu
  perform marketing_inbox_process_events(1);
  assert(select takeover and cardinality(escalation_reasons)>0 from marketing_conversations where id=c),'Ingestion safety escalation remains mandatory';
  assert not exists(select 1 from marketing_private.inbox_automatic_turns where conversation_id=c and state='queued'),'Risk cancels all queued work';
+ assert exists(select 1 from marketing_private.inbox_automatic_turns t join marketing_conversation_messages m on m.id=t.message_id where t.conversation_id=c and m.provider_message_id='qa-ingestion-risk' and t.state='handoff' and t.reason='safety_or_human_request' and t.summary like '%refund%'),'Ingestion risk retains canonical handoff reason and context';
  update marketing_inbox_policies set ai_reply_mode='suggest_only' where brand_id=b;
  update marketing_conversations set takeover=false,escalation_reasons='{}' where id=c;
  insert into marketing_private.inbox_events(event_key,connection_id,generation,payload,fingerprint,evidence_source,due_at)

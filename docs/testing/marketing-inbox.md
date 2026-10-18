@@ -56,3 +56,5 @@ Final live-mode acceptance additionally requires exact human-controlled channel 
 The automatic rollback suite also exercises the complete canonical inbound event processor with isolated synthetic events: unmatched Chinese questions must remain eligible for semantic processing in both automatic modes, without parallel legacy drafts. Genuine risk must still cancel queued work; Suggest Only legacy handling remains unchanged. These rollback events never establish real Meta delivery acceptance.
 
 Automatic renderer regression covers duplicate FAQ/identity citations after translation, retention of both provenance keys, and real newline separation for distinct grounded facts. A corrected fixture is not a corrected live message: preserve the original receipt and require fresh authorized real-channel acceptance.
+
+Canonical ingestion risk fixtures must verify both immediate send cancellation and the resulting handoff reason/context. Checking the queue trigger alone misses legacy ingestion behavior. Do not replay live safety messages to repair historical telemetry.
