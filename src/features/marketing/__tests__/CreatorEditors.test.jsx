@@ -108,3 +108,12 @@ it('saves a new XHS identity when public enrichment is unavailable without follo
  fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://xiaohongshu.com/user/profile/5DCAAAD4000000000100911C/?source=share'}});fireEvent.blur(screen.getByLabelText('Profile URL'));await screen.findByText('Public XHS details unavailable.');
  fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(onSave).toHaveBeenCalledWith(expect.objectContaining({creator_id:'c',platform:'xhs',external_id:'5dcaaad4000000000100911c',profile_url:'https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911c'}));expect(onSave.mock.calls[0][0]).not.toHaveProperty('followers');
 });
+
+it('retains duplicate feedback when an in-flight enrichment finishes without changing identity',async()=>{
+ let finish;creatorService.profile.mockReturnValueOnce(new Promise(resolve=>{finish=resolve}));
+ const conflict={account_id:'existing',creator_id:'other',creator_name:'Existing Creator',same_creator:false},onSave=vi.fn().mockResolvedValue({identityConflict:conflict});
+ render(<AccountEditor {...props} creator={data.creators[0]} org="org" onSave={onSave}/>);
+ fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911c'}});fireEvent.blur(screen.getByLabelText('Profile URL'));
+ fireEvent.submit(screen.getByRole('dialog').querySelector('form'));await screen.findByText('Linked to Existing Creator');
+ finish({metadata_status:'unavailable',unavailable:{profile:'Profile unavailable.'}});await screen.findByText('Profile unavailable.');expect(screen.getByText('Linked to Existing Creator')).toBeTruthy();expect(screen.getByRole('button',{name:'Save'}).disabled).toBe(true);
+});
