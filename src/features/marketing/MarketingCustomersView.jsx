@@ -27,7 +27,7 @@ export default function MarketingCustomersView({userId,org,brand,inactive=false,
  const openConsent=c=>show('consent',{id:c.id,state:contactState(c),source:'Customer request'});
  const actions=c=><CustomerActions customer={c} can={can} show={show} openConsent={openConsent}/>;
  return <section className="outreach-customers">
-  <AdminSummaryGrid variant="compact" ariaLabel="Customer summary" items={[
+  <AdminSummaryGrid variant="compact" mobileColumns={2} ariaLabel="Customer summary" items={[
    {key:'total',label:'Total Customers'}, {key:'subscribed',label:'WhatsApp Subscribers'},
    {key:'not_subscribed',label:'Not Subscribed'}, {key:'do_not_contact',label:'Do Not Contact'}
   ].map(item=>({...item,value:result?.summary?.[item.key],state:result?.summary?'ready':loading?'loading':'unavailable'}))}/>

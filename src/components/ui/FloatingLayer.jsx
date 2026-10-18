@@ -113,7 +113,7 @@ export default function FloatingLayer({
   useEffect(() => {
     if (!open || !focusOnOpen) return undefined;
     const frame = window.requestAnimationFrame(() => {
-      const target = layerRef.current?.querySelector("input, button, [href], select, textarea, [tabindex]:not([tabindex='-1'])");
+      const target = layerRef.current?.querySelector("input:not(:disabled):not([type=hidden]), button:not(:disabled), [href], select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1']):not(:disabled)");
       target?.focus?.();
     });
     return () => window.cancelAnimationFrame(frame);
