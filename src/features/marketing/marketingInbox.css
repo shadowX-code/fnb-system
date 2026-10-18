@@ -215,3 +215,7 @@
 .inbox-ai-feedback [aria-pressed=true]{color:var(--theme-primary);background:var(--theme-surface-nested)}
 .inbox-ai-feedback .admin-form-field{flex-basis:100%;max-width:260px}
 .inbox-assistance-status a{color:var(--theme-primary);text-decoration:underline;text-underline-offset:3px}
+
+.inbox-ai-suggestion{max-height:none;overflow:visible}
+.inbox-suggestion-content{max-height:160px;overflow:auto;overflow-wrap:anywhere}
+.inbox-suggestion-content>p{margin:6px 0;white-space:pre-wrap}
