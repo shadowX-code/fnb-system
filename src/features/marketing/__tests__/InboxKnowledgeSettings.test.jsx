@@ -30,3 +30,5 @@ it('exposes three modes with a server pause and mandatory safety, never silently
  const p=props();render(<InboxKnowledgeSettings {...p} data={{...data,policy:{...data.policy,ai_allowed:true,ai_reply_mode:'ai_first'}}} configuration={{ai_configured:true,ai_auto_configured:false,ai_model:'gpt-5-mini'}}/>);
  expect(screen.getByText('AI First')).toBeTruthy();expect(screen.getByText('Automatic delivery is disabled by the server.')).toBeTruthy();expect(screen.getByText(/Safety escalation is mandatory/)).toBeTruthy();expect(p.configure).not.toHaveBeenCalled();
 });
+
+it('labels unsaved policy edits without changing live mode',()=>{const p=props();render(<InboxKnowledgeSettings {...p}/>);fireEvent.click(screen.getByRole('checkbox',{name:/Allow AI to use/}));expect(screen.getByText('Unsaved changes')).toBeTruthy();expect(p.configure).not.toHaveBeenCalled()});
