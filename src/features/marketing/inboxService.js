@@ -94,6 +94,7 @@ export const inboxService = {
         kind,
       },
     }),
+  feedback: (artifact, helpful, reason=null) => rpc('marketing_inbox_feedback',{p_artifact:artifact,p_helpful:helpful,p_reason:reason}),
   reviewAI: (id, approve) =>
     rpc("marketing_inbox_review_ai", { p_artifact: id, p_approve: approve }),
 };

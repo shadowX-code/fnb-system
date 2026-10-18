@@ -61,6 +61,10 @@ do $$declare r jsonb;c uuid:=(select id from marketing_qa_ids where key='convers
  r:=public.marketing_inbox_command(gen_random_uuid(),(select id from marketing_qa_ids where key='org'),(select id from marketing_qa_ids where key='brand'),c,v,'draft',jsonb_build_object('body','Edited staff reply','source_artifact',a));
  assert r->'draft'->>'status'='draft','Use Reply never approves or sends';
  assert r->'draft'->'source_references'->0->>'artifact_id'=a::text,'Edited suggestion retains source provenance';
+ perform public.marketing_inbox_feedback(a,true);perform public.marketing_inbox_feedback(a,true);
+ assert jsonb_array_length(public.marketing_inbox_detail(c)->'ai_feedback')=1,'Duplicate feedback has one record';
+ perform public.marketing_inbox_feedback(a,false,'missing_knowledge');
+ assert public.marketing_inbox_detail(c)->'ai_feedback'->0->>'reason'='missing_knowledge','Feedback correction updates exact artifact';
  perform public.marketing_inbox_configure(gen_random_uuid(),(select id from marketing_qa_ids where key='brand'),1,'deactivate_faq',jsonb_build_object('id',f));
  begin perform public.marketing_inbox_command(gen_random_uuid(),(select id from marketing_qa_ids where key='org'),(select id from marketing_qa_ids where key='brand'),c,v,'draft',jsonb_build_object('body','Stale answer','source_artifact',a));exception when others then denied:=true;end;assert denied,'Deactivated/stale source cannot be used';
  assert exists(select 1 from jsonb_array_elements(public.marketing_inbox_detail(c)->'artifacts') x where x->>'id'=a::text and x->>'state'='superseded'),'Read model hides stale source as usable suggestion';

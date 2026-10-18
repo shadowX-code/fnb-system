@@ -888,6 +888,7 @@ export default function MarketingInboxPage() {
                   command={command}
                   suggest={suggestReply}
                   reviewAI={reviewSuggestion}
+                  feedbackAI={(artifact,helpful,reason)=>mutate({scope,artifact,helpful,reason},()=>inboxService.feedback(artifact,helpful,reason),'Feedback saved.')}
                   preview={preview}
                   faqPreview={faqPreview}
                   onSend={(draft) => setModal({ type: "send", draft })}
@@ -950,7 +951,7 @@ export default function MarketingInboxPage() {
                 <dt>Brand</dt><dd>{data?.rows.find(row=>row.id===c.id)?.brand_name || brands.find(b=>b.id===c.brand_id)?.name || 'Unavailable'}</dd>
                 <dt>Channel</dt><dd>{c.channel === 'facebook' ? 'Messenger' : label(c.channel)}</dd>
               </dl>
-              <SelectField label="Outlet context" value={c.outlet_id||''} disabled={busy||!can("manage")} onChange={value=>command("outlet_context",{outlet_id:value||null})} options={[{value:'',label:'Unknown / Ask customer'},...(current?.outlet_options||[]).map(o=>({value:o.id,label:o.name}))]}/><p className="inbox-muted">Select only the customer’s confirmed Outlet. AI will not infer it from the Brand or message history.</p>
+              <SelectField label="Outlet context" value={(current?.outlet_context ? current.outlet_context.outlet_id : c.outlet_id)||''} disabled={busy||!can("manage")} onChange={value=>command("outlet_context",{outlet_id:value||null})} options={[{value:'',label:'Unknown / Ask customer'},...(current?.outlet_options||[]).map(o=>({value:o.id,label:o.name}))]}/><p className="inbox-muted">{current?.outlet_context?.source==='single_outlet'?'Using the only active linked Outlet.':current?.outlet_context?.source?.includes('reference')?'Using the customer’s explicit Outlet reference.':'Confirm the customer’s Outlet when it is unclear.'} Changes apply to future suggestions.</p>
               <section className="inbox-crm-context"><h3>CRM customer</h3><p className="inbox-muted">No verified CRM customer link. Contact details are unavailable.</p>
                 {auth.hasPermission('marketing_audience.view') && <a className="btn-secondary" href="/marketing/customers">Open Customer Directory<ArrowUpRight size={14}/></a>}
               </section>
