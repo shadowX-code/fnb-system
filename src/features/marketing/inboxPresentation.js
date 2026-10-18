@@ -102,3 +102,7 @@ export function replySourceLabel(reference) {
   if (reference?.faq_id) return `Active FAQ · revision ${reference.faq_revision ?? 'unavailable'}`;
   return 'Source evidence';
 }
+
+export function automaticReplyReason(reason) {
+ return ({safe_translation_unavailable:'A verified reply in the customer’s language is unavailable. Staff should reply.',safety_or_human_request:'This enquiry needs a team member.',insufficient_knowledge:'Current knowledge cannot safely answer this enquiry.',outside_automatic_scope:'This conversation is outside the enabled AI scope.',generation_quota_or_authority:'AI is paused. Check usage limits and Brand access.',automatic_processing_failed:'AI could not finish safely. Staff should review the conversation.',delivery_uncertain:'Delivery is uncertain. Check the existing send result before taking further action.',provider_rejected:'The messaging provider rejected this reply.',decision_changed:'The conversation or supporting information changed.',clarification_loop:'The customer still needs help after clarification.',conversation_response_limit:'The automatic response limit was reached.',human_or_conversation_changed:'Staff handling or conversation eligibility changed.'})[reason]||String(reason||'').replaceAll('_',' ');
+}

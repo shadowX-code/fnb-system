@@ -149,5 +149,30 @@ do $$declare r jsonb;denied boolean:=false;begin
  assert not has_function_privilege('authenticated','marketing_inbox_auto_claim()','EXECUTE'),'Browser cannot claim';assert not has_function_privilege('authenticated','marketing_inbox_auto_finish(uuid,uuid,jsonb,text,integer,integer,uuid)','EXECUTE'),'Browser cannot forge automatic authorization';
 end;$$;
 reset role;
+
+-- Exact test scope excludes other conversations before ownership and generation.
+set local role authenticated;
+select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from marketing_qa_ids where key='user'),'role','authenticated')::text,true);
+do $$declare b uuid:=(select id from marketing_qa_ids where key='brand');c uuid:=(select id from marketing_qa_ids where key='conversation');r jsonb;rev int;begin
+ r:=marketing_faq_settings_read(b);rev:=(r->'policy'->>'revision')::int;
+ r:=marketing_inbox_configure(gen_random_uuid(),b,rev,'policy',jsonb_build_object('automation_mode','suggest','ai_allowed',true,'ai_reply_mode','ai_first','ai_conversation_ids',jsonb_build_array(c)));
+ assert r->'ai_conversation_ids'=jsonb_build_array(c),'Canonical exact conversation policy';
+end;$$;
+reset role;
+do $$declare c public.marketing_conversations;p public.marketing_inbox_policies;x uuid:=gen_random_uuid();before_ int;begin
+ select * into c from marketing_conversations where id=(select id from marketing_qa_ids where key='conversation');select * into p from marketing_inbox_policies where brand_id=c.brand_id;
+ c.id:=x;assert marketing_private.inbox_auto_issue(c,p)='outside_automatic_scope','Other conversation fails before generation';
+ insert into marketing_conversations(id,organization_id,brand_id,channel,connection_id,participant_key,title,last_inbound_at,connection_generation) values(x,c.organization_id,c.brand_id,'facebook',c.connection_id,'778','QA excluded customer',now(),1);
+ assert(select takeover from marketing_conversations where id=x),'New excluded conversation stays human-owned';
+ select count(*) into before_ from marketing_private.inbox_automatic_turns;
+ insert into marketing_conversation_messages(conversation_id,kind,body,provider_message_id,occurred_at,evidence_source) values(x,'incoming','Can you help?','qa-excluded-signed',now(),'signed_webhook');
+ assert(select count(*) from marketing_private.inbox_automatic_turns)=before_,'Excluded conversation never enqueues';
+ assert marketing_private.inbox_auto_translation('Our brand name is QA Brand.','ZH')='我们的品牌是QA Brand。','Chinese preserves exact source entity';
+ assert marketing_private.inbox_auto_translation('Our brand name is QA Brand.','BM')='Nama jenama kami ialah QA Brand.','Malay preserves exact source entity';
+ assert marketing_private.inbox_auto_translation('Our brand name is QA Brand.','EN')='Our brand name is QA Brand.','English and Manglish source';
+ assert marketing_private.inbox_auto_translation('Unverified translation of opening hours.','ZH') is null,'No model-certified free translation';
+ assert marketing_private.inbox_auto_translation('欢迎光临。','EN') is null,'Unsupported reverse translation hands off';
+end;$$;
+
 select 'Automatic policy, shared generation, canonical text, replay, takeover, stale sources, receipts, clarification and Brand isolation passed' result;
 rollback;

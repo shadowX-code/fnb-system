@@ -37,7 +37,7 @@ import "./marketingInbox.css";
 import { notifyConversationsChanged } from "./useConversationReplyCount.js";
 import InboxReplyComposer from "./InboxReplyComposer.jsx";
 import {aiSuggestionUnavailable} from "./inboxKnowledge.js";
-import { socialIdentity, conversationTimeline, replyOutcomeMessage, replyWasAccepted, replyStateLabel, replySourceLabel } from "./inboxPresentation.js";
+import { automaticReplyReason, socialIdentity, conversationTimeline, replyOutcomeMessage, replyWasAccepted, replyStateLabel, replySourceLabel } from "./inboxPresentation.js";
 const label = (s) =>
   String(s || "")
     .replaceAll("_", " ")
@@ -946,7 +946,7 @@ export default function MarketingInboxPage() {
                     <small>{configuration?.ai_auto_configured&&current.ai_handling?.mode!=='suggest_only'?'Channel and policy checks apply':'Automatic delivery off'}</small>
                   </span>
 
-              {current.ai_handling?.last_turn?<div className="inbox-ai-turn-state"><Badge>{label(current.ai_handling.last_turn.state)}</Badge><p>{current.ai_handling.last_turn.reason?.replaceAll('_',' ')}</p>{current.ai_handling.last_turn.summary?<details><summary>Handoff context</summary><p>{current.ai_handling.last_turn.summary}</p></details>:null}</div>:null}
+              {current.ai_handling?.last_turn?<div className="inbox-ai-turn-state"><Badge>{label(current.ai_handling.last_turn.state)}</Badge><p>{automaticReplyReason(current.ai_handling.last_turn.reason)}</p>{current.ai_handling.last_turn.summary?<details><summary>Handoff context</summary><p>{current.ai_handling.last_turn.summary}</p></details>:null}</div>:null}
               <h3>Basic information</h3><dl>
                 <dt>Name</dt><dd>{identity.known ? identity.name : 'Not available from Meta'}</dd>
                 <dt>Brand</dt><dd>{data?.rows.find(row=>row.id===c.id)?.brand_name || brands.find(b=>b.id===c.brand_id)?.name || 'Unavailable'}</dd>
