@@ -14,9 +14,9 @@ it('does not expose Organization configuration in Brand management',async()=>{br
 it('requires an explicit Brand context for multi-scope creation',async()=>{brandService.read.mockResolvedValue({...data,scope_brand_required:true});render(<BrandsPage/>);fireEvent.click(await screen.findByRole('button',{name:'Add Brand'}));fireEvent.change(screen.getByLabelText('Brand Name *'),{target:{value:'New Brand'}});expect(screen.getByRole('button',{name:'Review Changes'}).disabled).toBe(true);expect(screen.getByRole('button',{name:'Brand access context',exact:true})).toBeTruthy();});
 
 it('separates linked/available Outlets, hides QA choices by default and shows relationship evidence before confirmation',async()=>{
- brandService.read.mockResolvedValue({...data,outlets:[...data.outlets,{id:'qa',name:'QA Demo Outlet',code:'QA-DEMO',is_active:true},{id:'shared',name:'Shared Outlet',code:'SH',location:'Ipoh',is_active:true,brands:[{id:'other',name:'Other Brand'}]}]});render(<BrandsPage/>);
+ brandService.read.mockResolvedValue({...data,outlets:[...data.outlets,{id:'qa',name:'QA Demo Outlet',code:'QA-DEMO',is_active:true},{id:'inactive-qa',name:'QA Inactive Outlet',is_active:false},{id:'shared',name:'Shared Outlet',code:'SH',location:'Ipoh',is_active:true,brands:[{id:'other',name:'Other Brand'}]}]});render(<BrandsPage/>);
  fireEvent.click(await screen.findByRole('button',{name:'View Brand'}));fireEvent.click(screen.getByRole('button',{name:'Linked Outlets'}));
- expect(screen.queryByRole('button',{name:'Add QA Demo Outlet'})).toBeNull();expect(screen.getByText('Linked Brands: Other Brand')).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'Add QA Demo Outlet'})).toBeNull();expect(screen.getByLabelText('Show QA / Demo (1)')).toBeTruthy();expect(screen.getByText('Linked Brands: Other Brand')).toBeTruthy();
  fireEvent.click(screen.getByRole('button',{name:'Add Shared Outlet'}));expect(screen.getByText('Add: Shared Outlet')).toBeTruthy();expect(brandService.command).not.toHaveBeenCalled();
  fireEvent.click(screen.getByLabelText(/Show QA \/ Demo/));expect(screen.getByRole('button',{name:'Add QA Demo Outlet'})).toBeTruthy();
  fireEvent.click(screen.getByRole('button',{name:'General'}));fireEvent.click(screen.getByRole('button',{name:'Linked Outlets'}));expect(screen.getByRole('button',{name:'Remove Shared Outlet'})).toBeTruthy();
