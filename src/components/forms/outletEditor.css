@@ -2,3 +2,9 @@
 @media(max-width:640px){.outlet-editor-panel{padding:18px 16px}.outlet-editor-nav{padding:8px}.outlet-editor-nav button{padding:9px 10px}.outlet-editor-nav button svg{display:none}.outlet-editor-grid,.outlet-policy-row{grid-template-columns:minmax(0,1fr)}.outlet-policy-row{gap:9px}.outlet-logo-preview img{width:80px;height:70px}}
 
 @media(max-width:640px){.outlet-editor-nav.has-4-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.outlet-editor-nav.has-4-sections button{justify-content:flex-start;white-space:normal}}
+
+.outlet-service-footer>.outlet-editor-feedback{display:block;flex:1;min-width:0;font-size:13px;line-height:1.5;color:var(--theme-muted)}
+.outlet-service-footer>.outlet-editor-feedback.is-error{color:var(--factory-danger-text);font-weight:500}
+.outlet-editor-feedback:focus-visible{outline:2px solid var(--theme-primary);outline-offset:3px}
+.outlet-service-footer>.outlet-editor-actions{flex-shrink:0}
+@media(max-width:600px){.outlet-service-footer:has(.outlet-editor-feedback){flex-wrap:wrap}.outlet-service-footer>.outlet-editor-feedback{flex-basis:100%;width:100%}}
