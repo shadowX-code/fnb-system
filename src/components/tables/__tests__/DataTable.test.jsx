@@ -35,3 +35,10 @@ it("ships the canonical mobile stacking CSS with labeled cells and keeps scroll 
  const normal=render(<DataTable rows={[]} columns={[]} getRowKey={row=>row.id}/>);
  expect(normal.container.querySelector("table").dataset.mobileLayout).toBe("scroll");
 });
+
+it('exposes native keyboard sort controls, direction and right-aligned numeric headers without sorting rows locally',()=>{
+ const sort=vi.fn();const {container}=render(<DataTable rows={[{id:'b',amount:9},{id:'a',amount:100}]} getRowKey={r=>r.id} columns={[{key:'amount',header:'Spend',align:'right',sortDirection:'desc',onSort:sort}]}/>);
+ const header=container.querySelector('th'),button=header.querySelector('button');
+ expect(header.getAttribute('aria-sort')).toBe('descending');expect(button.type).toBe('button');expect(button.getAttribute('aria-label')).toBe('Sort by Spend, ascending');
+ fireEvent.click(button);expect(sort).toHaveBeenCalledOnce();expect([...container.querySelectorAll('td')].map(e=>e.textContent)).toEqual(['9','100']);
+});

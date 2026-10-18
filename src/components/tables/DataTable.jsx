@@ -1,3 +1,6 @@
+import {ArrowDown, ArrowUp, ArrowUpDown} from 'lucide-react';
+import './tableControls.css';
+
 export function shouldIgnoreRowClick(event) {
     const selection = window.getSelection?.();
     if (event.type === "click" && selection?.toString() && event.currentTarget.contains(selection.anchorNode)) return true;
@@ -17,12 +20,15 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
               <th
                   key={column.key}
                   data-priority={column.priority}
+                  aria-sort={column.onSort ? column.sortDirection === 'asc' ? 'ascending' : column.sortDirection === 'desc' ? 'descending' : 'none' : undefined}
                   style={column.width ? { width: column.width } : undefined}
                   className={`admin-table-header-cell ${column.headerClassName ?? ""} ${column.align === "right" ? "text-right" : ""} ${
                   column.sticky ? "table-sticky-cell sticky left-0 z-10" : ""
                 }`}
               >
-                {column.header}
+                {column.onSort ? <button type="button" className="admin-table-sort" onClick={column.onSort} aria-label={`Sort by ${column.header}${column.sortDirection === 'asc' ? ', descending' : ', ascending'}`}>
+                  <span>{column.header}</span>{column.sortDirection === 'asc' ? <ArrowUp size={14} aria-hidden="true"/> : column.sortDirection === 'desc' ? <ArrowDown size={14} aria-hidden="true"/> : <ArrowUpDown size={14} aria-hidden="true"/>}
+                </button> : column.header}
               </th>
             ))}
           </tr>
