@@ -210,5 +210,19 @@ do $$declare b uuid:=(select id from marketing_qa_ids where key='brand');conn uu
  assert(select takeover from marketing_conversations where id=c),'Suggest Only legacy handling preserved';
 end;$$;
 
+-- Multiple citations may support the same sentence; keep provenance without repeated prose.
+do $$declare a public.marketing_inbox_ai_artifacts;material jsonb;r jsonb;f uuid:=gen_random_uuid();begin
+ a.body:=jsonb_build_object('language','ZH','intent','brand_identity','classification','suggestion_available','human_required',false,'reference_keys',jsonb_build_array('identity','faq:'||f||':1'),'unresolved_questions','[]'::jsonb,'handoff_reasons','[]'::jsonb);
+ material:=jsonb_build_object('history',jsonb_build_array(jsonb_build_object('kind','incoming','text','你们是什么品牌？')),'facts',jsonb_build_object('identity',jsonb_build_object('text','Our brand name is QA Brand.')),'faqs',jsonb_build_array(jsonb_build_object('id',f,'revision',1,'question','What is your brand name?','answer','Our brand name is QA Brand.','category','general')));
+ r:=marketing_private.inbox_auto_answer(a,material,'safe_auto');
+ assert r->>'text'='我们的品牌是QA Brand。','Identical translated identity and FAQ appear once';
+ assert jsonb_array_length(r->'keys')=2,'Both provenance keys retained';
+ material:=jsonb_set(material,'{facts,identity,text}','"A verified brand story."');
+ material:=jsonb_set(material,'{history,0,text}','"What is your brand name?"');a.body:=jsonb_set(a.body,'{language}','"EN"');
+ r:=marketing_private.inbox_auto_answer(a,material,'ai_first');
+ assert r->>'text'='A verified brand story.'||chr(10)||'Our brand name is QA Brand.','Different facts use a real newline';
+ assert position(chr(92)||'n' in r->>'text')=0,'No visible escaped separator';
+end;$$;
+
 select 'Automatic policy, shared generation, canonical text, replay, takeover, stale sources, receipts, clarification and Brand isolation passed' result;
 rollback;
