@@ -91,3 +91,20 @@ it('shows the provider limitation without changing the saved profile or fabricat
  fireEvent.click(screen.getByRole('button',{name:'Refresh public profile'}));await screen.findByText('The platform restricted public profile access. Existing saved details remain unchanged.');
  expect(onSave).not.toHaveBeenCalled();fireEvent.submit(screen.getByRole('dialog').querySelector('form'));const {followers,followers_captured_at,...profile}=record;expect(onSave).toHaveBeenCalledWith({...profile,creator_id:'c'});expect(screen.queryByLabelText('Followers')).toBeNull();expect(onSave.mock.calls[0][0]).not.toHaveProperty('followers');
 });
+
+it.each([true,false])('opens canonical duplicate targets without reassigning (same Creator: %s)',async same=>{
+ const conflict={account_id:'existing',creator_id:same?'c':'other',creator_name:'Existing Creator',same_creator:same,archived:false},onSave=vi.fn().mockResolvedValue({identityConflict:conflict}),onOpenConflict=vi.fn();
+ render(<AccountEditor {...props} creator={data.creators[0]} onSave={onSave} onOpenConflict={onOpenConflict}/>);
+ fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911c'}});
+ fireEvent.submit(screen.getByRole('dialog').querySelector('form'));await screen.findByText(same?'Already Linked':'Linked to Existing Creator');
+ expect(screen.getByRole('button',{name:'Save'}).disabled).toBe(true);
+ fireEvent.click(screen.getByRole('button',{name:same?'Open Existing Profile':'Review Link'}));expect(onOpenConflict).toHaveBeenCalledWith(conflict,true);
+ if(!same){fireEvent.click(screen.getByRole('button',{name:'Open Creator'}));expect(onOpenConflict).toHaveBeenCalledWith(conflict,false)}
+ expect(onSave).toHaveBeenCalledTimes(1);fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911d'}});expect(screen.getByRole('button',{name:'Save'}).disabled).toBe(false);
+});
+it('saves a new XHS identity when public enrichment is unavailable without follower input',async()=>{
+ creatorService.profile.mockResolvedValueOnce({metadata_status:'unavailable',unavailable:{profile:'Public XHS details unavailable.'}});const onSave=vi.fn();
+ render(<AccountEditor {...props} creator={data.creators[0]} org="org" onSave={onSave}/>);
+ fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://xiaohongshu.com/user/profile/5DCAAAD4000000000100911C/?source=share'}});fireEvent.blur(screen.getByLabelText('Profile URL'));await screen.findByText('Public XHS details unavailable.');
+ fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(onSave).toHaveBeenCalledWith(expect.objectContaining({creator_id:'c',platform:'xhs',external_id:'5dcaaad4000000000100911c',profile_url:'https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911c'}));expect(onSave.mock.calls[0][0]).not.toHaveProperty('followers');
+});

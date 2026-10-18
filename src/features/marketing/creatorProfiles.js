@@ -28,3 +28,9 @@ export function creatorProfileLink(account){
 
 // Browser edits never submit server-owned follower evidence, including legacy values.
 export function creatorProfilePayload(p){const {_inspectedUrl,followers,followers_captured_at,followers_source,followers_sync_status,followers_sync_reason,followers_attempted_at,followers_due_at,followers_lease,followers_lease_until,...result}=p;if(!result.public_observation)delete result.public_observation;return result}
+
+// Only the canonical command resolves association conflicts; provider failures stay independent.
+export function creatorAccountConflict(error){
+ if(error?.code!=='23505'||typeof error.details!=='string')return null;
+ try{const value=JSON.parse(error.details);return value.kind==='creator_account_conflict'&&value.account_id&&value.creator_id&&typeof value.same_creator==='boolean'?value:null}catch{return null}
+}
