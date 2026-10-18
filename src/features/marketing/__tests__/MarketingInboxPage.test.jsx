@@ -424,3 +424,11 @@ it('revalidates FAQ suggestions on canonical refresh without losing an unsent re
  await waitFor(()=>expect(screen.queryByText('Previously approved FAQ answer')).toBeNull());
  expect(inboxService.preview.mock.calls.length).toBeGreaterThan(1);expect(screen.getByRole('textbox',{name:'Reply',exact:true}).value).toBe('Unsent staff text');expect(inboxService.command).not.toHaveBeenCalled();
 });
+
+it('uses explicit Outlet context via canonical versioned command and preserves the local reply draft',async()=>{
+ detail.outlet_options=[{id:'outlet',name:'Confirmed Outlet'}];inboxService.command.mockResolvedValue({conversation});
+ render(<MarketingInboxPage/>);await select();fireEvent.change(screen.getByLabelText('Reply'),{target:{value:'Keep this draft'}});
+ fireEvent.click(screen.getByRole('button',{name:'Show customer details'}));fireEvent.click(screen.getByRole('button',{name:'Outlet context'}));fireEvent.click(screen.getByRole('option',{name:'Confirmed Outlet'}));
+ await waitFor(()=>expect(inboxService.command).toHaveBeenCalledWith(expect.any(String),'o','b',conversation,'outlet_context',{outlet_id:'outlet'}));
+ expect(screen.getByLabelText('Reply').value).toBe('Keep this draft');expect(inboxService.sendStaffReply).not.toHaveBeenCalled();
+});

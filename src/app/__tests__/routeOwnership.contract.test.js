@@ -117,3 +117,5 @@ describe("FeedX canonical route contract", () => {
     expect(adminRouteDefinitions.flatMap((route) => route.query.map((entry) => entry.key))).not.toContain("audit");
   });
 });
+
+it('owns exact Outlet source links without retaining Outlet context on unrelated routes',()=>{expect(canonicalPathForRoute('outlets',{}, {outletId:'outlet-A'})).toBe('/restaurant/operations/outlets?outletId=outlet-A');expect(resolveCanonicalPath('/restaurant/operations/outlets','?outletId=outlet-A').query.outletId).toBe('outlet-A');expect(canonicalAdminUrlForRoute('marketing_knowledge',{}, {},'?outletId=outlet-A')).not.toContain('outletId')});

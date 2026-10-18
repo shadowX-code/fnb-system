@@ -1,0 +1,14 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+import {render,screen,fireEvent,cleanup,waitFor} from '@testing-library/react';
+import Page from '../OutletManagementPage.jsx';
+import {canonicalPathForRoute} from '../../../../app/routeOwnership.js';
+const {list,brands,read}=vi.hoisted(()=>({list:vi.fn(),brands:vi.fn(),read:vi.fn()}));
+vi.mock('../../../../services/outletService.js',()=>({outletService:{listOutlets:list}}));
+vi.mock('../../../../services/brandService.js',()=>({brandService:{outletBrands:brands}}));
+vi.mock('../../../../auth/AuthContext.jsx',()=>({useAuth:()=>({hasPermission:()=>true})}));
+vi.mock('../../../../components/forms/OutletEditor.jsx',()=>({default:({outlet,initialSection,onClose})=>{const outletId=outlet.id;read(outletId,initialSection);return <div role="dialog" aria-label="Source editor"><span>{outletId}</span><button onClick={onClose}>Close source</button></div>}}));
+const store={salesRecords:[],purchaseRecords:[],outletTaxConfigs:[],outlets:[]};
+beforeEach(()=>{vi.clearAllMocks();list.mockResolvedValue([{id:'allowed',name:'Accessible Outlet',code:'QA',status:'active',is_active:true}]);brands.mockResolvedValue([])});
+afterEach(()=>{cleanup();window.history.replaceState(null,'','/')});
+it('opens only the accessible exact Outlet from the canonical source link and clears the link on close',async()=>{window.history.replaceState(null,'',canonicalPathForRoute('outlets',{}, {outletId:'allowed',section:'contact'}));render(<Page store={store} setStore={()=>{}} ui={{notify:vi.fn()}}/>);await screen.findByRole('dialog',{name:'Source editor'});expect(screen.getByText('allowed')).toBeTruthy();expect(read).toHaveBeenCalledWith('allowed','contact');fireEvent.click(screen.getByRole('button',{name:'Close source'}));await waitFor(()=>expect(screen.queryByRole('dialog')).toBeNull());expect(window.location.search).not.toContain('outletId')});
+it('does not pass an arbitrary or inaccessible Outlet from the URL to the editor',async()=>{window.history.replaceState(null,'',canonicalPathForRoute('outlets',{}, {outletId:'not-authorized'}));render(<Page store={store} setStore={()=>{}} ui={{notify:vi.fn()}}/>);await screen.findByRole('alert');expect(screen.queryByRole('dialog')).toBeNull();expect(read).not.toHaveBeenCalled();expect(screen.getByRole('alert').textContent).toContain('unavailable for your access')});

@@ -774,3 +774,12 @@ Planning Insights moves to its own authorized Content Studio route, sharing the 
 ## 2026-10-18 — Marketing Inbox hybrid assistant (Staging)
 
 Extended the existing Suggest Only request/artifact lifecycle with no-token exact FAQ routing, GPT-5 mini semantic proposals, bounded source/context retrieval, editable sourced replies and advisory human handoff. Current Active FAQ/operational authority, Brand consent, source freshness, staff approval and explicit sending remain enforced; no automated assignment, closure or customer sending. Added per-conversation request deduplication, source-version cache and honest latency/token/cost/failure evidence. Production is excluded.
+
+
+## 2026-10-18 — Practical Brand AI knowledge (Staging)
+
+Five-area Brand Knowledge reuses existing Brand/RBAC, Restaurant references and Inbox assistant authorities. Private menu extraction remains unconfirmed until manager review; direct current promotions require no Campaign; confirmed applicable knowledge participates in the existing stale-source/draft/send guards. Identity/tone save directly without duplicate FAQ approval. Existing legacy evidence and staff-controlled sending remain unchanged. See Marketing domain and Inbox testing contracts.
+
+### Restaurant source-editor consolidation
+
+Brand Master owns the active Brand logo/accent through existing scoped Brand commands and retained branding storage; unambiguous legacy references are preserved without copying files. Brand and Outlet Master share drawer navigation. Outlet operational details remain Restaurant-owned; Marketing consumes them read-only. Linked Outlet changes retain explicit confirmation and existing tenant/Brand rules.

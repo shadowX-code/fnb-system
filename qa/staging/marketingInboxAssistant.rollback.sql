@@ -63,6 +63,7 @@ do $$declare r jsonb;c uuid:=(select id from marketing_qa_ids where key='convers
  assert r->'draft'->'source_references'->0->>'artifact_id'=a::text,'Edited suggestion retains source provenance';
  perform public.marketing_inbox_configure(gen_random_uuid(),(select id from marketing_qa_ids where key='brand'),1,'deactivate_faq',jsonb_build_object('id',f));
  begin perform public.marketing_inbox_command(gen_random_uuid(),(select id from marketing_qa_ids where key='org'),(select id from marketing_qa_ids where key='brand'),c,v,'draft',jsonb_build_object('body','Stale answer','source_artifact',a));exception when others then denied:=true;end;assert denied,'Deactivated/stale source cannot be used';
+ assert exists(select 1 from jsonb_array_elements(public.marketing_inbox_detail(c)->'artifacts') x where x->>'id'=a::text and x->>'state'='superseded'),'Read model hides stale source as usable suggestion';
  perform public.marketing_inbox_review_ai(a,false);
 end;$$;
 -- A later advisory handoff must not perform workflow mutations.

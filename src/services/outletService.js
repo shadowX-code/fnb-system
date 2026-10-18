@@ -68,7 +68,6 @@ export const outletService = {
       attendance_latitude: outlet.attendance_latitude === "" || outlet.attendance_latitude == null ? null : Number(outlet.attendance_latitude),
       attendance_longitude: outlet.attendance_longitude === "" || outlet.attendance_longitude == null ? null : Number(outlet.attendance_longitude),
       attendance_radius_meters: Number(outlet.attendance_radius_meters || 100),
-      brand_accent_color: /^#[0-9a-fA-F]{6}$/.test(outlet.brand_accent_color || "") ? outlet.brand_accent_color.toUpperCase() : null,
       updated_at: new Date().toISOString(),
     };
 
@@ -90,31 +89,6 @@ export const outletService = {
     }).catch(() => {});
     console.info("[Supabase:outlets.save] Saved to Supabase", { outletId: data.id, name: data.name });
     return mapOutlet(data);
-  },
-
-  async uploadLogo(outletId, file) {
-    if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 2 * 1024 * 1024) throw new Error("Use a PNG, JPG, or WebP logo up to 2 MB.");
-    const { data: prepared, error: prepareError } = await supabase.rpc("outlet_prepare_logo_upload", { p_outlet_id: outletId, p_filename: file.name, p_mime_type: file.type, p_size: file.size });
-    throwSupabaseError("outlets.logo.prepare", prepareError);
-    const { error: uploadError } = await supabase.storage.from(prepared.bucket).upload(prepared.object_path, file, { contentType: file.type, upsert: false });
-    if (uploadError) {
-      await supabase.rpc("outlet_finalize_logo_remove", { p_media_id: prepared.id });
-      throwSupabaseError("outlets.logo.upload", uploadError);
-    }
-    const { data, error } = await supabase.rpc("outlet_finalize_logo_upload", { p_media_id: prepared.id });
-    throwSupabaseError("outlets.logo.finalize", error);
-    return data;
-  },
-
-  async removeLogo(outletId) {
-    const { data: prepared, error: prepareError } = await supabase.rpc("outlet_prepare_logo_remove", { p_outlet_id: outletId });
-    throwSupabaseError("outlets.logo.remove", prepareError);
-    if (!prepared?.removed) return prepared;
-    const { error: deleteError } = await supabase.storage.from(prepared.bucket).remove([prepared.object_path]);
-    throwSupabaseError("outlets.logo.delete", deleteError);
-    const { error: finalizeError } = await supabase.rpc("outlet_finalize_logo_remove", { p_media_id: prepared.id });
-    throwSupabaseError("outlets.logo.finalizeRemove", finalizeError);
-    return prepared;
   },
 
   async deactivateOutlet(outlet) {
