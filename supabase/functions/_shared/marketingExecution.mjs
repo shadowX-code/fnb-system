@@ -55,3 +55,14 @@ export function metaOAuthScopes(base,get=executionEnv) {
   ...(get('MARKETING_META_OAUTH_INBOX_ENABLED')==='true'?['pages_manage_metadata','pages_messaging','instagram_manage_messages']:[])];
  return [...new Set([...base,...added])];
 }
+
+// Independent kill switch: staff sending and Brand consent never implicitly enable AI execution.
+export function aiAutoReplyConfigured(get=executionEnv) {
+ return Boolean(environment(get))&&get('MARKETING_INBOX_AI_AUTO_ENABLED')==='true'&&get('MARKETING_AI_ENABLED')==='true'&&Boolean(get('MARKETING_AI_MODEL')&&get('OPENAI_API_KEY'));
+}
+export function aiAutoReplyAllowed(account,peer,get=executionEnv) {
+ const runtime=environment(get);if(!aiAutoReplyConfigured(get)||!numericId(account)||!numericId(peer))return false;
+ if(runtime.environment==='staging')return staffReplyAllowed(account,peer,get);
+ const accounts=get('MARKETING_INBOX_AI_ACCOUNT_IDS'),peers=get('MARKETING_INBOX_AI_PEER_IDS');
+ return (!accounts||ids(accounts).includes(account))&&(!peers||ids(peers).includes(peer));
+}

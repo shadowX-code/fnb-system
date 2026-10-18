@@ -63,3 +63,7 @@ it('inserts a reviewed grounded suggestion without sending or losing the separat
  render(<InboxReplyComposer {...p}/>);fireEvent.click(screen.getByRole('button',{name:'Internal note',exact:true}));fireEvent.change(screen.getByLabelText('Internal note'),{target:{value:'Keep private note'}});fireEvent.click(screen.getByRole('button',{name:'Reply',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Use Reply'}));
  expect(screen.getByLabelText('Reply').value).toBe('Approved fact answer');expect(p.onDirectSend).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Internal note',exact:true}));expect(screen.getByLabelText('Internal note').value).toBe('Keep private note');
 });
+it('requires explicit human ownership before staff sends in an automatic mode',()=>{
+ const p=props({current:{...current,conversation:{...current.conversation,takeover:false},ai_handling:{mode:'ai_first'}}});
+ render(<InboxReplyComposer {...p}/>);expect(screen.getByText(/Take over this conversation before sending/)).toBeTruthy();
+});

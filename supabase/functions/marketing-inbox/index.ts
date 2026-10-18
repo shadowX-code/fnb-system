@@ -1,3 +1,5 @@
+import {deliverInboxReply} from '../_shared/inboxDelivery.ts';
+import {aiAutoReplyConfigured} from '../_shared/marketingExecution.mjs';
 import {requestKnowledgeAI} from '../_shared/brandKnowledgeAI.ts';
 import {requestInboxAssistant} from '../_shared/inboxAssistant.ts';
 import {staffReplyConfigured, staffReplyAllowed} from '../_shared/marketingExecution.mjs';
@@ -5,13 +7,12 @@ import {runtimeMetaMatches, PRODUCTION_RUNTIME} from '../_shared/marketingEnviro
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { RUNTIME_ORIGIN, RUNTIME_SUPABASE, connectionBinding, unseal } from "../_shared/metaSecurity.ts";
 import {enrichInboxProfile} from "../_shared/metaInboxProfile.ts";
-import { MetaGraph, MetaError } from "../_shared/metaGraph.ts";
+import { MetaGraph } from "../_shared/metaGraph.ts";
 import { verifyInboxConnection } from "../_shared/metaInboxVerification.ts";
-import { advanceInboxDelivery, inboxConnectorContracts } from "../_shared/metaInboxAdapters.ts";
+import { inboxConnectorContracts } from "../_shared/metaInboxAdapters.ts";
 import {
   normalizeInboxWebhook,
   inboxWebhookRejection,
-  requestInboxAI,
   verifyInboxSignature,
 } from "../_shared/marketingInbox.ts";
 const env = (n: string) => Deno.env.get(n) || "";
@@ -20,6 +21,8 @@ async function rpc(db: any, name: string, args: any = {}) {
   const { data, error } = await db.rpc(name, args);
   if (error) {
     const safe:Record<string,string>={
+      'Take over this conversation before sending a staff reply.':'Take over this conversation before sending a staff reply.',
+      'Use Resume AI after checking current eligibility.':'Use Resume AI after checking current eligibility.',
       'Enable this Brand’s AI consent in FAQ & AI first.':'Enable this Brand’s AI consent in FAQ & AI first.',
       'Daily knowledge AI limit reached (10).':'Daily knowledge AI limit reached (10).',
       'A knowledge AI request is already running. Check again shortly.':'A knowledge AI request is already running. Check again shortly.',
@@ -150,6 +153,7 @@ Deno.serve(async (req) => {
   if (path === "/configuration" && req.method === "GET") {
     return json({
       ai_configured: configured,
+      ai_auto_configured: configured&&aiAutoReplyConfigured(env),
       ai_model: env('MARKETING_AI_MODEL') || null,
       ai_status: env('MARKETING_AI_ENABLED')!=='true'?'disabled':!env('MARKETING_AI_MODEL')?'missing_model':!env('OPENAI_API_KEY')?'missing_provider':'ready',
       webhook_configured: Boolean(env("MARKETING_INBOX_WEBHOOK_VERIFY_TOKEN")),
@@ -226,7 +230,7 @@ Deno.serve(async (req) => {
   }
   if (['/send-approved','/send-staff-reply'].includes(path) && req.method==='POST') {
     if(!staffReplyConfigured(env))return json({error:'Staff sending is disabled pending explicit test approval.'},403);
-    let draftId:string|undefined,lease:string|undefined,ownsLease=false;
+    let draftId:string|undefined;
     try {
       const raw=await req.text();if(raw.length>12000)return json({error:'Request too large.'},413);
       const body=JSON.parse(raw);draftId=body.draftId;
@@ -236,26 +240,10 @@ Deno.serve(async (req) => {
         if(!staffReplyAllowed(scope.account,scope.peer,env))return json({error:'Recipient is outside the approved test scope.'},403);
         const prepared=await rpc(caller,'marketing_inbox_prepare_staff_reply',{p_request:body.requestId,p_conversation:body.conversationId,p_version:body.version,p_body:body.text,p_artifact:body.sourceArtifactId||null});draftId=prepared.draft_id;
       }else await rpc(caller,'marketing_inbox_prepare_send',{p_request:body.requestId,p_draft:draftId});
-      let material=await rpc(service,'marketing_inbox_send_material',{p_draft:draftId,p_auth_user:identity.data.user.id});
-      const conn=material.connection;
-      if(!staffReplyAllowed(conn.provider_account_id,material.recipient,env))return json({error:'This recipient is outside the approved test scope.'},403);
-      const credential=await unseal(conn.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(conn));
       const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')});
-      const guard=async()=>{const current=await rpc(service,'marketing_inbox_send_material',{p_draft:draftId,p_auth_user:identity.data.user.id});if(current.connection.credential_generation!==conn.credential_generation||!staffReplyAllowed(current.connection.provider_account_id,current.recipient,env))throw new Error('connection_changed');};
-      // Revalidate the independent operation immediately before attempting a write.
-      if(material.state==='prepared'){
-        const fresh=await verifyInboxConnection(graph,env('MARKETING_META_APP_ID'),`${env('MARKETING_META_APP_ID')}|${env('MARKETING_META_APP_SECRET')}`,conn,credential,guard);
-        if(!fresh.authorization_verified||!fresh.subscriptions_verified)throw new Error('messaging_authority_changed');
-      }
-      lease=material.lease;
-      const checkpoint=async(state:any)=>{const result=await rpc(service,'marketing_inbox_send_checkpoint',{p_draft:draftId,p_auth_user:identity.data.user.id,p_lease:lease||null,p_state:state});lease=result.lease;if(state.pending)ownsLease=true;};
-      const result=await advanceInboxDelivery({channel:conn.channel,authority:material.authority,recipient:material.recipient,text:material.text,state:material.receipt?{receipt:material.receipt}:material.state==='failed'?{failed:material.failure_code||'provider_rejected'}:['pending','reconciling'].includes(material.state)?{pending:true}:{},guard,checkpoint,post:async(path,params)=>{
-        try{return await graph.request(path,credential.token,params,'POST');}catch(error){if(error instanceof MetaError&&!error.uncertain)throw Object.assign(new Error('provider_rejected'),{definitive:true,graphCode:error.graphCode});throw error;}
-      }});
-      if(result.state==='reconciling'&&lease&&ownsLease)await checkpoint({});
+      const result=await deliverInboxReply(service,graph,env,draftId!,identity.data.user.id,(account,peer)=>staffReplyAllowed(account,peer,env));
       return json(result);
     }catch(error){
-      if(draftId&&lease&&ownsLease)try{await rpc(service,'marketing_inbox_send_checkpoint',{p_draft:draftId,p_auth_user:identity.data.user.id,p_lease:lease,p_state:{}});}catch{}
       return json({error:(error as {safeMessage?:string})?.safeMessage||'Reply unavailable. Check connection status, reply window and any existing send result.'},409);
     }
   }

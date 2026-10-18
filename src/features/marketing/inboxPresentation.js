@@ -80,6 +80,7 @@ export function replyAvailability(current, configuration, canSend) {
     return "Messaging connection needs verification";
   if (current.reply_authority?.verified === false) return "Reconnect or refresh this messaging connection";
   if (current.reply_authority?.recent === false) return "Refresh connection status before sending";
+  if((current.ai_handling?.mode||current.policy?.ai_reply_mode||'suggest_only')!=='suggest_only'&&!c.takeover)return "Take over this conversation before sending a staff reply";
   return "";
 }
 

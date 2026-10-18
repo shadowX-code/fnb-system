@@ -783,3 +783,7 @@ Five-area Brand Knowledge reuses existing Brand/RBAC, Restaurant references and 
 ### Restaurant source-editor consolidation
 
 Brand Master owns the active Brand logo/accent through existing scoped Brand commands and retained branding storage; unambiguous legacy references are preserved without copying files. Brand and Outlet Master share drawer navigation. Outlet operational details remain Restaurant-owned; Marketing consumes them read-only. Linked Outlet changes retain explicit confirmation and existing tenant/Brand rules.
+
+## 2026-10-19 — Inbox AI customer service authority (Staging)
+
+Added dormant Brand-level Suggest Only, Safe Auto Reply and AI First policies around the existing assistant and canonical delivery ledger. Current-source rendering, fresh send authorization, takeover/resume, bounded turns and uncertain-write handling govern automatic execution independently of generation. Settings, handling and Brand performance reuse the Inbox/FAQ workspace. Controlled rollback fixtures verify delivery contracts; no live automatic sending or Production activation is included.

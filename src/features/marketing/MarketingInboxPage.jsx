@@ -942,10 +942,11 @@ export default function MarketingInboxPage() {
               {contextTab === 'profile' && <div className="inbox-context-section">
               {!identity.known && <p className="inbox-profile-unavailable">{identity.unavailableReason}</p>}
                   <span className="inbox-takeover-state">
-                    {c.takeover ? "Human handling" : "AI suggestions"}
-                    <small>Auto-replies off</small>
+                    {c.takeover||c.assigned_to ? "Human handling" : current.ai_handling?.mode==='ai_first'?'AI First':current.ai_handling?.mode==='safe_auto'?'Safe Auto Reply':"AI suggestions"}
+                    <small>{configuration?.ai_auto_configured&&current.ai_handling?.mode!=='suggest_only'?'Channel and policy checks apply':'Automatic delivery off'}</small>
                   </span>
 
+              {current.ai_handling?.last_turn?<div className="inbox-ai-turn-state"><Badge>{label(current.ai_handling.last_turn.state)}</Badge><p>{current.ai_handling.last_turn.reason?.replaceAll('_',' ')}</p>{current.ai_handling.last_turn.summary?<details><summary>Handoff context</summary><p>{current.ai_handling.last_turn.summary}</p></details>:null}</div>:null}
               <h3>Basic information</h3><dl>
                 <dt>Name</dt><dd>{identity.known ? identity.name : 'Not available from Meta'}</dd>
                 <dt>Brand</dt><dd>{data?.rows.find(row=>row.id===c.id)?.brand_name || brands.find(b=>b.id===c.brand_id)?.name || 'Unavailable'}</dd>
@@ -971,11 +972,11 @@ export default function MarketingInboxPage() {
                     busy ||
                     !can("manage") ||
                     c.opted_out ||
-                    Boolean(c.escalation_reasons?.length)
+                    Boolean(c.escalation_reasons?.length) || (c.takeover&&current.ai_handling?.mode&&current.ai_handling.mode!=='suggest_only'&&!configuration?.ai_auto_configured)
                   }
-                  onClick={() => handling({ takeover: !c.takeover })}
+                  onClick={() => c.takeover&&current.ai_handling?.mode&&current.ai_handling.mode!=='suggest_only'?mutate({scope,conversation:c.id,version:c.version,action:'resume_ai'},request=>inboxService.resumeAI(request,c),'AI resumed for new eligible messages.'):handling({ takeover: !c.takeover })}
                 >
-                  {c.takeover ? "Human takeover on" : "Take over"}
+                  {c.takeover ? current.ai_handling?.mode&&current.ai_handling.mode!=='suggest_only'?"Resume AI":"Human takeover on" : "Take over"}
                 </button>
               </div>
               <dl>
@@ -1135,7 +1136,7 @@ export default function MarketingInboxPage() {
                     {d.status === "approved" && (
                       <p className="text-sm text-text-secondary">
                         {d.source_version === c.version
-                          ? "Approval recorded for this history version."
+                          ? d.automatic?"Automatic Brand policy authorization recorded.":"Approval recorded for this history version."
                           : "Historical approval; conversation history changed."}{" "}
                         Delivery:{" "}
                         {replyStateLabel(
