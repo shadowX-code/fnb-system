@@ -22,5 +22,5 @@ export function posMetric(c,key){const value=c.pos_snapshot?.metrics?.[key];if(v
 
 export const CUSTOMER_SORT_KEYS = ['name','phone_e164','birthday','total_visit','total_spent','avg_spent','last_visit','member_since'];
 export const customerSortDirection = (sort,key) => (!sort && key==='name') || sort===`${key}_asc` ? 'asc' : sort===`${key}_desc` ? 'desc' : undefined;
-export const nextCustomerSort = (sort,key) => `${key}_${customerSortDirection(sort,key)==='asc'?'desc':'asc'}`;
+export const nextCustomerSort = (sort,key) => key==='name' ? customerSortDirection(sort,key)==='asc'?'name_desc':'' : `${key}_${customerSortDirection(sort,key)==='asc'?'desc':'asc'}`;
 export const CUSTOMER_SORT_OPTIONS = [{value:'',label:'Name A–Z'},...CUSTOMER_COLUMNS.filter(([key])=>CUSTOMER_SORT_KEYS.includes(key)).flatMap(([key,label])=>['asc','desc'].filter(direction=>key!=='name'||direction!=='asc').map(direction=>({value:`${key}_${direction}`,label:key==='name'?'Name Z–A':`${label} · ${direction==='asc'?'Ascending':'Descending'}`}))),{value:'activity',label:'Latest campaign activity'}];

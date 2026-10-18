@@ -1,5 +1,5 @@
 import {beforeEach, expect, it} from 'vitest';
-import {CUSTOMER_COLUMNS, DEFAULT_CUSTOMER_COLUMNS, preferredCustomerColumns, saveCustomerColumns, posMetric, customerDate} from '../customerPresentation.js';
+import {CUSTOMER_COLUMNS, DEFAULT_CUSTOMER_COLUMNS, preferredCustomerColumns, saveCustomerColumns, posMetric, customerDate, nextCustomerSort} from '../customerPresentation.js';
 beforeEach(()=>localStorage.clear());
 it('defaults to the operational nine columns and exposes sixteen choices',()=>{
  expect(CUSTOMER_COLUMNS).toHaveLength(16);
@@ -26,3 +26,5 @@ it('formats imported zero, amounts and dates without substituting unavailable da
 it('never hides identity/actions from old preferences and ignores removed keys',()=>{
  saveCustomerColumns('locked',['total_spent','removed']);expect(preferredCustomerColumns('locked')).toEqual(['name','total_spent','actions']);
 });
+
+it('returns Name A–Z to the existing default sort contract',()=>{expect(nextCustomerSort('', 'name')).toBe('name_desc');expect(nextCustomerSort('name_desc','name')).toBe('');expect(nextCustomerSort('total_spent_desc','name')).toBe('')});
