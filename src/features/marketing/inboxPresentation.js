@@ -94,3 +94,10 @@ export function replyOutcomeMessage(result) {
 export function replyWasAccepted(result){return ['sent','delivered','read'].includes(result?.state);}
 
 export const replyStateLabel = state => ({blocked:'Not sent',prepared:'Queued',pending:'Sending',sent:'Provider accepted',delivered:'Delivered',read:'Read',failed:'Failed',reconciling:'Unknown · reconciling'})[state] || 'Unavailable';
+
+export function replySourceLabel(reference) {
+  if (typeof reference === 'string') return reference.replaceAll('_', ' ');
+  if (reference?.artifact_id) return 'AI suggestion · staff reviewed';
+  if (reference?.faq_id) return `Active FAQ · revision ${reference.faq_revision ?? 'unavailable'}`;
+  return 'Source evidence';
+}
