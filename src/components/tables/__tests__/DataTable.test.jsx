@@ -1,7 +1,7 @@
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, fireEvent } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import DataTable from "../DataTable.jsx";
 
 describe("DataTable", () => {
