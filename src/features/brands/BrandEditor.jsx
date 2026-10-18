@@ -26,8 +26,9 @@ export default function BrandEditor({record,data,outletName,onClose,onSaved}) {
  const image=preview||(!removed&&record?.logo_path?brandService.logoUrl(record.logo_path,record.logo_version):'');
  const matches=o=>!query||[o.name,o.code,o.location].join(' ').toLowerCase().includes(query.toLowerCase());
  const linked=data.outlets.filter(o=>ids.includes(o.id)&&matches(o));
- const available=data.outlets.filter(o=>!ids.includes(o.id)&&o.is_active&&(!o.organization_id||o.organization_id===org||(!record&&!data.scope_brand_required))&&(showQa||!isQaOutlet(o))&&matches(o));
- const hiddenQa=data.outlets.filter(o=>!ids.includes(o.id)&&isQaOutlet(o)).length;
+ const eligible=data.outlets.filter(o=>!ids.includes(o.id)&&o.is_active&&(!o.organization_id||o.organization_id===org||(!record&&!data.scope_brand_required))&&matches(o));
+ const available=eligible.filter(o=>showQa||!isQaOutlet(o));
+ const hiddenQa=eligible.filter(isQaOutlet).length;
  function reviewChanges(){
   if(!name.trim()){setSection('general');setError('Enter a Brand name.');return}
   if(accent&&!/^#[\da-fA-F]{6}$/.test(accent)){setSection('branding');setError('Use a six-digit accent color, such as #236647.');return}

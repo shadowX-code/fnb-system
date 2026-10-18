@@ -1,9 +1,10 @@
+import {creatorAccountConflict} from './creatorProfiles.js';
 import {redactUrlQueries} from '../../../server/creatorExtraction/urls.mjs';
 import {supabase} from '../../lib/supabase';
 import {throwSupabaseError} from '../../services/supabaseError.js';
 async function rpc(name,args){
  const controller=new AbortController();let timer;
- try{const {data,error}=await Promise.race([supabase.rpc(name,args).abortSignal(controller.signal),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('The request took too long. Your edits are kept. Retry to check the same save safely.'))},30000)})]);throwSupabaseError(`marketing.${name}`,error?{code:error.code,message:redactUrlQueries(error.message),details:redactUrlQueries(error.details),hint:redactUrlQueries(error.hint)}:null);return data;}finally{clearTimeout(timer)}
+ try{const {data,error}=await Promise.race([supabase.rpc(name,args).abortSignal(controller.signal),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('The request took too long. Your edits are kept. Retry to check the same save safely.'))},30000)})]);const conflict=creatorAccountConflict(error);if(conflict){const problem=new Error(error.message);problem.identityConflict=conflict;throw problem;}throwSupabaseError(`marketing.${name}`,error?{code:error.code,message:redactUrlQueries(error.message),details:redactUrlQueries(error.details),hint:redactUrlQueries(error.hint)}:null);return data;}finally{clearTimeout(timer)}
 }
 // Public extraction retains field evidence; authorized Meta fallback stays read-only.
 export const creatorPostAdapters={
