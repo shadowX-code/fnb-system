@@ -10,6 +10,7 @@ export default function InboxKnowledgeSettings({data,configuration,can,busy,conf
  useEffect(()=>setPolicy(data?.policy||{revision:0,automation_mode:'suggest',ai_allowed:false}),[data?.policy]);
  const change=(key,value)=>setPolicy(p=>({...p,[key]:value}));
  const mode=policy.ai_reply_mode||'suggest_only',automatic=mode!=='suggest_only',window_=policy.ai_schedule||defaultWindow;
+ const dirty=JSON.stringify(policy)!==JSON.stringify(data?.policy||{revision:0,automation_mode:'suggest',ai_allowed:false});
  const approved=Boolean(data?.knowledge?.approved_for_replies||data?.knowledge?.manager_confirmed);
  const missing=[!policy.ai_allowed&&'Enable Brand AI consent.',!configuration?.ai_configured&&'Ask an administrator to check the existing model/provider.',automatic&&!configuration?.ai_auto_configured&&'Automatic delivery is disabled by the server.',automatic&&(!can('ai')||!can('send'))&&'Automatic modes require AI and send authority.'].filter(Boolean);
  return <form id="inbox-settings-form" className="inbox-knowledge-settings" onSubmit={event=>{event.preventDefault();if(can('configure'))configure('policy',policy.revision,{automation_mode:automatic?'suggest':policy.automation_mode||'suggest',ai_allowed:Boolean(policy.ai_allowed),staff_reply_requires_approval:Boolean(policy.staff_reply_requires_approval),ai_reply_mode:mode,ai_availability:policy.ai_availability||'always',ai_timezone:policy.ai_timezone||'Asia/Kuala_Lumpur',ai_schedule:window_})}}>
@@ -17,7 +18,7 @@ export default function InboxKnowledgeSettings({data,configuration,can,busy,conf
    <p>Active FAQs and saved Brand Identity and Tone guide suggestions. Products, current Promotions and Outlet details retain their canonical sources. Missing facts stay unresolved.</p>
    {onKnowledge?<a className="btn-secondary" href={onKnowledge}>Open Brand Knowledge</a>:null}
   </section>
-  <section aria-labelledby="inbox-ai-heading"><header><h3 id="inbox-ai-heading">AI customer service</h3><Badge tone={missing.length?'warning':'success'}>{missing.length?'Setup required':automatic?'Eligible when channel checks pass':'Suggest Only ready'}</Badge></header>
+  <section aria-labelledby="inbox-ai-heading"><header><h3 id="inbox-ai-heading">AI customer service</h3>{dirty?<Badge tone="warning">Unsaved changes</Badge>:null}<Badge tone={missing.length?'warning':'success'}>{missing.length?'Setup required':automatic?'Eligible when channel checks pass':'Suggest Only ready'}</Badge></header>
    {configuration?.ai_model?<p>Model: {configuration.ai_model} · {data?.faqs?.filter(f=>f.is_active&&!f.use_issue).length||0} usable Active FAQs</p>:null}
    {can('configure')?<><SelectField label="AI mode" value={mode} onChange={v=>change('ai_reply_mode',v)} options={AI_REPLY_MODES}/><p>{mode==='suggest_only'?'Staff review, edit and explicitly send every reply.':mode==='safe_auto'?'Automatically answer low-risk, fully supported enquiries. Exceptions go to staff.':'Handle supported follow-ups, clarify the Outlet when needed and hand exceptions to staff.'}</p>
     <label className="marketing-inbox-check"><input type="checkbox" checked={Boolean(policy.ai_allowed)} onChange={e=>change('ai_allowed',e.target.checked)}/>Allow AI to use this Brand’s permitted knowledge and bounded conversation context</label>

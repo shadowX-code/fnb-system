@@ -16,6 +16,7 @@ begin
  insert into public.brands(id,organization_id,name) values(b,o,'QA Authorized Brand'),(other_b,o,'QA Restricted Brand');
  insert into public.marketing_role_scopes values(o,r,false);
  insert into public.marketing_role_brands values(o,r,b);
+ insert into public.platform_member_brands(organization_id,employee_id,brand_id) values(o,e,b);
  insert into auth.users(id,email,aud,role) values(other_u,'marketing-scope-'||other_u::text||'@example.invalid','authenticated','authenticated');
  insert into public.employees(id,auth_user_id,full_name,email,role_id,enable_system_login,access_state,is_active,workplace) values(other_e,other_u,'QA Out of People Scope','marketing-scope-'||other_u::text||'@example.invalid',r,true,'active',true,'Management');
  insert into marketing_qa_ids values('other_employee',other_e);
