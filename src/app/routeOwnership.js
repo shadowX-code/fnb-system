@@ -24,6 +24,7 @@ export function canonicalRouteId(routeId = "") {
 }
 
 const productQueryStateByRouteId = Object.freeze({
+  outlets: [{ key: "outletId" }],
   crew_google_reviews: [{ key: "google_result" }],
   roles: [{ key: "permission_workspace" }],
   "purchase-comparison": [{ key: "supplier" }],

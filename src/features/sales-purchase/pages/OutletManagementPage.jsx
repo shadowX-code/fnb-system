@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Plus, Settings, Trash2, Clock } from "lucide-react";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import useAdminLocation from '../../../app/useAdminLocation.js';
+import {navigateAdminRoute} from '../../../app/routeOwnership.js';
 import OutletServiceEditor from '../../../components/forms/OutletServiceEditor.jsx';
 import EntityModal from "../components/EntityModal.jsx";
 import { outletService } from "../../../services/outletService.js";
@@ -26,6 +28,8 @@ function latestPeriod(store) {
 
 export default function OutletManagementPage({ store, setStore, ui }) {
   const auth=useAuth();
+  const route=useAdminLocation(),requestedOutlet=route?.query?.outletId,handledOutlet=useRef(null);
+  const [sourceLinkError,setSourceLinkError]=useState('');
   const [links,setLinks]=useState([]),[linksError,setLinksError]=useState(''),[search,setSearch]=useState(''),[status,setStatus]=useState('active'),[page,setPage]=useState(1),[size,setSize]=useState(20);
   useEffect(()=>{let live=true;brandService.outletBrands().then(r=>{if(live)setLinks(r)}).catch(e=>{if(live)setLinksError(e.message)});return()=>{live=false}},[]);
   useEffect(()=>{setPage(1)},[search,status]);
@@ -35,6 +39,15 @@ export default function OutletManagementPage({ store, setStore, ui }) {
   const [modal, setModal] = useState(null);
   const [serviceOutlet,setServiceOutlet]=useState(null);
   const currentPeriod = latestPeriod(store);
+  useEffect(()=>{
+    if(!requestedOutlet){handledOutlet.current=null;setSourceLinkError('');return}
+    if(loading||loadError||handledOutlet.current===requestedOutlet)return;
+    handledOutlet.current=requestedOutlet;
+    const target=outlets.find(outlet=>outlet.id===requestedOutlet);
+    setServiceOutlet(target||null);setSourceLinkError(target?'':'This Outlet is unavailable for your access. Choose an accessible Outlet below.');
+  },[requestedOutlet,loading,loadError,outlets]);
+  function closeServiceOutlet(){setServiceOutlet(null);if(requestedOutlet)navigateAdminRoute('outlets',{}, {},{replace:true})}
+
 
   useEffect(() => {
     let ignore = false;
@@ -144,6 +157,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
       />
       <AdminFilterToolbar compact search={<AdminSearchField label="Search" value={search} onChange={setSearch} placeholder="Search name, code or location…"/>} filters={<SelectField label="Status" value={status} onChange={setStatus} options={[{value:'',label:'All'},{value:'active',label:'Active'},{value:'inactive',label:'Inactive'}]}/>} onClear={()=>{setSearch('');setStatus('active')}}/>
       {linksError?<p className="text-sm text-text-secondary" role="status">Linked Brand information is unavailable. Outlet management remains available.</p>:null}
+      {sourceLinkError?<p role="alert" className="text-sm text-text-secondary">{sourceLinkError}</p>:null}
       <Card>
         {loading ? (
           <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading outlets...</div>
@@ -154,7 +168,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
         )}
       </Card>
       <AdminPagination page={safePage} pageSize={size} total={rows.length} onPageChange={setPage} onPageSizeChange={v=>{setSize(v);setPage(1)}} noun="outlets"/>
-      {serviceOutlet?<OutletServiceEditor outletId={serviceOutlet.id} onClose={()=>setServiceOutlet(null)} onSaved={()=>ui.notify({title:"Outlet service information saved"})}/>:null}
+      {serviceOutlet?<OutletServiceEditor key={serviceOutlet.id} outletId={serviceOutlet.id} onClose={closeServiceOutlet} onSaved={()=>ui.notify({title:"Outlet service information saved"})}/>:null}
       {modal ? (
         <EntityModal
           title={modal.mode === "add" ? "Add Outlet" : "Edit Outlet"}

@@ -2,8 +2,8 @@ import {useEffect,useRef,useState} from 'react';
 import {Plus,Pencil,History,Sparkles} from 'lucide-react';
 import Drawer from '../../components/ui/Drawer.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
+import {outletServiceMissing} from '../../services/outletServiceProfileService.js';
 import RestaurantProductLibrary, {productPrice} from './RestaurantProductLibrary.jsx';
-import OutletServiceEditor from '../../components/forms/OutletServiceEditor.jsx';
 import ConfirmDialog from '../../components/feedback/ConfirmDialog.jsx';
 import AdminUnderlineTabs from '../../components/navigation/AdminUnderlineTabs.jsx';
 import AdminFormField from '../../components/forms/AdminFormField.jsx';
@@ -25,7 +25,7 @@ function KnowledgeEditor({menu,title,footer,children,...props}) {
 }
 export default function BrandKnowledgeWorkspace({brand,data,can,onSaved}) {
  const current=data.knowledge?.find(k=>k.brand_id===brand.id),profile=current?.profile||{},entries=data.customer_knowledge||[],outlets=data.canonical_outlets||[];
- const [area,setArea]=useState('identity'),[editor,setEditor]=useState(null),[busy,setBusy]=useState(false),[activity,setActivity]=useState(''),[error,setError]=useState(''),[discard,setDiscard]=useState(false),[preview,setPreview]=useState(null),[source,setSource]=useState(null),[request,setRequest]=useState(null),[serviceOutlet,setServiceOutlet]=useState(null),[productRevision,setProductRevision]=useState(0);
+ const [area,setArea]=useState('identity'),[editor,setEditor]=useState(null),[busy,setBusy]=useState(false),[activity,setActivity]=useState(''),[error,setError]=useState(''),[discard,setDiscard]=useState(false),[preview,setPreview]=useState(null),[source,setSource]=useState(null),[request,setRequest]=useState(null),[productRevision,setProductRevision]=useState(0);
  const destination=useRef(null),live=useRef(true),canEdit=can('marketing_settings.manage');
  useEffect(()=>{live.current=true;return()=>{live.current=false}},[]);
  const dirty=editor&&JSON.stringify(editor.value)!==JSON.stringify(editor.original);
@@ -46,7 +46,7 @@ export default function BrandKnowledgeWorkspace({brand,data,can,onSaved}) {
  const title=areas.find(a=>a.value===area)?.label;
  const identityReady=current&&((current.confirmed_revision===current.revision&&current.confirmed_keys?.includes('identity'))||data.knowledge_approval_revision===current.revision);
  const identityCount=Object.values(identityValues(profile)).filter(v=>v.trim()).length;
- const readiness={identity:identityReady?(identityCount===4?'Ready':'Partial'):profile.identity?.text||profile.positioning?.text?'Needs review':'Missing',menu:data.product_count?`${data.product_count} products`:'No products',promotions:entries.some(e=>e.kind==='promotion'&&promotionState(e)==='Current')?'Current':entries.some(e=>e.kind==='promotion'&&promotionState(e)==='Upcoming')?'Upcoming':entries.some(e=>e.kind==='promotion'&&promotionState(e)==='Expired')?'Expired':'None current',outlets:outlets.length?(outlets.every(o=>o.service_profile)?'Configured':'Needs details'):'Not linked',tone:profile.voice?.fields&&current?.confirmed_revision===current?.revision&&current.confirmed_keys?.includes('voice')?'Ready':profile.voice?.text?'Needs review':'Missing'};
+ const readiness={identity:identityReady?(identityCount===4?'Ready':'Partial'):profile.identity?.text||profile.positioning?.text?'Needs review':'Missing',menu:data.product_count?`${data.product_count} products`:'No products',promotions:entries.some(e=>e.kind==='promotion'&&promotionState(e)==='Current')?'Current':entries.some(e=>e.kind==='promotion'&&promotionState(e)==='Upcoming')?'Upcoming':entries.some(e=>e.kind==='promotion'&&promotionState(e)==='Expired')?'Expired':'None current',outlets:outlets.length?(outlets.every(o=>!outletServiceMissing(o).length)?'Configured':'Needs details'):'Not linked',tone:profile.voice?.fields&&current?.confirmed_revision===current?.revision&&current.confirmed_keys?.includes('voice')?'Ready':profile.voice?.text?'Needs review':'Missing'};
  const menuEntries=entries.filter(e=>e.kind==='menu'),promotions=entries.filter(e=>e.kind==='promotion');
  const applicable=ids=>ids?.length?ids.map(id=>outlets.find(o=>o.id===id)?.name||'Unavailable Outlet').join(', '):'All Brand Outlets';
  const applicability=()=> <fieldset className="knowledge-outlet-options"><legend>Applicable Outlets</legend><p className="field-helper">Leave all unselected for Brand-wide knowledge. Outlet-specific answers require confirmed conversation context.</p>{outlets.filter(o=>o.is_active).map(o=><label key={o.id}><input type="checkbox" disabled={busy} checked={editor.value.outlet_ids.includes(o.id)} onChange={e=>change('outlet_ids',e.target.checked?[...editor.value.outlet_ids,o.id]:editor.value.outlet_ids.filter(id=>id!==o.id))}/>{o.name}</label>)}{!outlets.length?<p className="field-helper">No mapped Outlets. This knowledge applies to the Brand only.</p>:null}</fieldset>;
@@ -66,7 +66,7 @@ export default function BrandKnowledgeWorkspace({brand,data,can,onSaved}) {
     {menuEntries.length?<details className="knowledge-menu-archive"><summary>Uploaded menu history · {menuEntries.length}</summary><p className="field-helper">Original files and previous confirmations are preserved as history. Current product facts resolve from Restaurant sources.</p><MenuLibrary entries={menuEntries} outlets={outlets} canEdit={false} busy={busy} onSource={viewSource} source={source}/></details>:null}
    </>:null}
    {area==='promotions'?<PromotionList entries={promotions} stateOf={promotionState} applicable={applicable} canEdit={canEdit} busy={busy} onEdit={e=>open('promotion',e)} onDeactivate={deactivate}/>:null}
-   {area==='outlets'?<OutletPanel outlets={outlets} onEdit={setServiceOutlet}/>:null}
+   {area==='outlets'?<OutletPanel outlets={outlets}/>:null}
    {area==='tone'&&!editor?<SavedTone profile={profile} preview={preview} busy={busy} canEdit={canEdit} onPreview={()=>tonePreview()}/>:null}
   </section>
   {editor?<KnowledgeEditor menu={editor.kind!=='tone'} title={editor.kind==='product'?'Product details & Marketing copy':editor.kind==='promotion'?(editor.entry?'Edit Promotion':'Add Promotion'):editor.kind==='identity'?'Edit Brand Identity':'Edit Tone & Persona'} width="md" onClose={close} closeOnEscape={!discard} footer={<div className="knowledge-editor-footer"><span>{dirty?'Unsaved changes':'Saved information stays unchanged until you save.'}</span><div><button className="btn-secondary" disabled={busy} onClick={close}>Cancel</button><button className="btn-primary" disabled={busy||!canEdit||!dirty&&!(editor.kind==='tone'&&!profile.voice?.fields)&&!(editor.kind==='product'&&editor.entry.supplement&&!editor.entry.supplement.current)} onClick={save}>{busy?activity:editor.kind==='promotion'?'Save Promotion':'Save Changes'}</button></div></div>}>
@@ -80,7 +80,6 @@ export default function BrandKnowledgeWorkspace({brand,data,can,onSaved}) {
   </KnowledgeEditor>:null}
   <details className="settings-history"><summary><History size={14}/>Existing knowledge & history</summary><p>Previous records and revision evidence are preserved. Unconfirmed legacy content does not become current AI knowledge automatically.</p>{Object.entries(profile).filter(([,v])=>v?.text).map(([key,v])=><details key={key}><summary>{key} · {v.provenance==='verified_brand_fact'?'Human-recorded':'Unconfirmed'}</summary><p className="knowledge-reference-text">{v.text}</p></details>)}{(data.events||[]).filter(e=>['knowledge_saved','customer_knowledge_saved'].includes(e.action)).map(e=><p key={e.id}>{stamp(e.created_at)} · {e.action==='knowledge_saved'?'Brand knowledge revision':'Customer knowledge saved'} {e.details?.revision||''}</p>)}</details>
 
-  {serviceOutlet?<OutletServiceEditor outletId={serviceOutlet.id} onClose={()=>setServiceOutlet(null)} onSaved={()=>onSaved()}/>:null}
   <ConfirmDialog request={discard?{title:'Discard unsaved changes?',message:'Saved knowledge and original files stay unchanged.',confirmLabel:'Discard Changes',cancelLabel:'Continue Editing',danger:true}:null} onCancel={()=>{setDiscard(false);destination.current=null}} onConfirm={()=>{setDiscard(false);setEditor(null);setPreview(null);if(destination.current){setArea(destination.current);destination.current=null}}}/>
  </div>;
 }
