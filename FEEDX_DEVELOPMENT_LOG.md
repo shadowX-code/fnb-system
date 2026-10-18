@@ -1034,3 +1034,7 @@ Extended the existing Suggest Only request/artifact lifecycle with no-token exac
 ## 2026-10-18 — Practical Brand AI knowledge (Staging)
 
 Five-area Brand Knowledge reuses existing Brand/RBAC, Restaurant references and Inbox assistant authorities. Private menu extraction remains unconfirmed until manager review; direct current promotions require no Campaign; confirmed applicable knowledge participates in the existing stale-source/draft/send guards. Identity/tone save directly without duplicate FAQ approval. Existing legacy evidence and staff-controlled sending remain unchanged. See Marketing domain and Inbox testing contracts.
+
+### Restaurant source-editor consolidation
+
+Brand Master owns the active Brand logo/accent through existing scoped Brand commands and retained branding storage; unambiguous legacy references are preserved without copying files. Brand and Outlet Master share drawer navigation. Outlet operational details remain Restaurant-owned; Marketing consumes them read-only. Linked Outlet changes retain explicit confirmation and existing tenant/Brand rules.

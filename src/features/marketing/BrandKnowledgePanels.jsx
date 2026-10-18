@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react';
 import {WEEKDAYS,describeHours,outletServiceMissing} from '../../services/outletServiceProfileService.js';
 import {Building2,Utensils,Tag,MessageSquare,FileText,ExternalLink,Upload,CheckCircle2,AlertCircle,Clock,MapPin,Sparkles,ArrowRight,Users,BookOpen,Star} from 'lucide-react';
 import {canonicalPathForRoute} from '../../app/routeOwnership.js';
+import {brandService} from '../../services/brandService.js';
 import Badge from '../../components/ui/Badge.jsx';
 import EmptyState from '../../components/feedback/EmptyState.jsx';
 import DataTable from '../../components/tables/DataTable.jsx';
@@ -18,7 +19,7 @@ const promotionDate=value=>new Intl.DateTimeFormat('en-MY',{day:'numeric',month:
 const stateTone=state=>['Ready','Confirmed','Current','Active'].includes(state)?'success':['Needs review','Needs confirmation','Partial','Upcoming'].includes(state)?'warning':'neutral';
 
 export function KnowledgeHeader({brand}) {
- return <header className="knowledge-brand-header"><div className="knowledge-brand-heading"><h2>{brand.name}</h2><Badge tone={brand.is_active===false?'neutral':'success'}>{brand.is_active===false?'Inactive':'Active'}</Badge></div><a className="btn-secondary btn-sm" href={`/marketing/faq-ai?marketing_brand=${brand.id}`}>FAQ Library <ArrowRight size={14}/></a></header>;
+ return <header className="knowledge-brand-header"><div className="knowledge-brand-heading">{brand.logo_path?<img className="knowledge-brand-logo" src={brandService.logoUrl(brand.logo_path,brand.logo_version)} alt={`${brand.name} logo`}/>:null}<h2>{brand.name}</h2><Badge tone={brand.is_active===false?'neutral':'success'}>{brand.is_active===false?'Inactive':'Active'}</Badge></div><a className="btn-secondary btn-sm" href={`/marketing/faq-ai?marketing_brand=${brand.id}`}>FAQ Library <ArrowRight size={14}/></a></header>;
 }
 
 export function IdentityPanel({profile,current}) {
@@ -58,7 +59,7 @@ export function OutletPanel({outlets}) {
   <section className="knowledge-outlet-schedule"><h5>Regular hours</h5>{data?.weekly_hours?.length?<dl>{data.weekly_hours.map(day=><div key={day.day}><dt>{WEEKDAYS[day.day]}</dt><dd>{describeHours(day)}</dd></div>)}</dl>:<p className="knowledge-missing">Not recorded at Outlet Master</p>}</section>
   {data?.special_hours?.length?<details className="knowledge-outlet-exceptions"><summary>Special hours · {data.special_hours.length} dates</summary>{data.special_hours.map(day=><div key={day.date}><strong>{day.date}</strong><span>{describeHours(day)}</span>{day.reason?<small>{day.reason}</small>:null}</div>)}</details>:null}
   <section className="knowledge-outlet-policy"><h5>Service information</h5><p className={data?.service_policies?'knowledge-policy-copy':'knowledge-missing'}>{data?.service_policies||'No service policies recorded'}</p></section>
-  <footer><span>{o.service_profile?`Updated ${formatKnowledgeDate(o.service_profile.updated_at)}`:'Maintained in Restaurant Outlet Master'}</span><a className="btn-secondary btn-sm" href={canonicalPathForRoute('outlets',{}, {outletId:o.id})}>Manage at Source<ExternalLink size={12}/></a></footer>
+  <footer><span>{o.service_profile?`Updated ${formatKnowledgeDate(o.service_profile.updated_at)}`:'Maintained in Restaurant Outlet Master'}</span><a className="btn-secondary btn-sm" href={canonicalPathForRoute('outlets',{}, {outletId:o.id,section:'contact'})}>Manage at Source<ExternalLink size={12}/></a></footer>
  </section>})}</div>{!outlets.length?<section className="knowledge-outlet-empty"><AlertCircle size={22}/><div><h4>No Outlets linked to this Brand</h4><p>Manage the existing Brand–Outlet relationship at source. No Outlet will be guessed.</p><a className="btn-secondary btn-sm" href={canonicalPathForRoute('brands')}>Manage at Source <ExternalLink size={12}/></a></div></section>:null}<p className="field-helper">Read-only Restaurant information. Inbox AI uses Outlet-specific facts only for the customer's confirmed Outlet.</p></>;
 }
 
