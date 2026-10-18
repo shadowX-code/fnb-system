@@ -22,6 +22,8 @@ async function invoke(path, options = {}) {
   return data;
 }
 export const inboxService = {
+  aiPerformance:(brand,days=7)=>rpc('marketing_inbox_ai_performance',{p_brand:brand,p_days:days}),
+  resumeAI:(request,conversation)=>rpc('marketing_inbox_ai_resume',{p_request:request,p_conversation:conversation.id,p_version:conversation.version}),
   faqHistory: (brand,faq) => rpc("marketing_faq_history",{p_brand:brand,p_faq:faq}),
   faqSettings: brand => rpc("marketing_faq_settings_read",{p_brand:brand}),
   historyStatus:connection=>rpc("marketing_inbox_history_status",{p_connection:connection}),

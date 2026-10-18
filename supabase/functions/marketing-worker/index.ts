@@ -1,3 +1,4 @@
+import {runInboxAutomatic} from '../_shared/inboxAutomatic.ts';
 import {runInboxProfile} from '../_shared/metaInboxProfile.ts';
 import {runCreatorFollowers} from '../_shared/metaCreatorProfile.ts';
 import {publishingConfigured, publishingAccountAllowed} from '../_shared/marketingExecution.mjs';
@@ -88,6 +89,8 @@ Deno.serve(async(req)=>{
    if(Date.now()-started<15000)try{await checkHealth();}catch{console.warn('marketing_connection_health_pending');}
    await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'processed',outcome:result.outcome});
   }
+  // Reserve alternating idle minutes for existing health/Social/Ads/profile work.
+  if(Math.floor(started/60000)%2===0&&await runInboxAutomatic(db,graph,env)){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'inbox_ai_turn'});}
   // Independent four-second profile read; failure never blocks message ingestion or publishing.
   try{await runInboxProfile(db,graph.withSignal(AbortSignal.timeout(4000)),[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')]);}catch{console.warn('marketing_inbox_profile_pending');}
   // One API read per idle tick; publishing always claims first. A separate deadline

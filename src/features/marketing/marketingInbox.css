@@ -219,3 +219,13 @@
 .inbox-ai-suggestion{max-height:none;overflow:visible}
 .inbox-suggestion-content{max-height:160px;overflow:auto;overflow-wrap:anywhere}
 .inbox-suggestion-content>p{margin:6px 0;white-space:pre-wrap}
+
+.inbox-ai-schedule{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-block:12px}
+.inbox-ai-schedule fieldset,.inbox-ai-schedule>p{grid-column:1/-1}
+.inbox-ai-days{display:flex;gap:12px;flex-wrap:wrap;margin-block:8px}.inbox-ai-days label{display:flex;align-items:center;gap:5px;font-size:12px}
+.inbox-ai-time-range{display:grid;grid-template-columns:1fr 1fr;gap:12px;grid-column:1/-1}
+.inbox-ai-readiness{padding:12px;background:var(--inbox-nested);border-radius:8px}.inbox-ai-readiness ul{padding-inline-start:18px;margin-block:6px}
+.inbox-ai-turn-state{padding-block:10px;font-size:12px}.inbox-ai-turn-state p{margin-block:6px;overflow-wrap:anywhere}
+.inbox-ai-performance-heading{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-block:16px}
+.inbox-ai-performance{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 20px}.inbox-ai-performance>div{padding-block:14px;border-bottom:1px solid var(--theme-border)}.inbox-ai-performance dt{font-size:12px;color:var(--theme-text-secondary)}.inbox-ai-performance dd{font-size:18px;font-weight:600;margin-top:4px;font-variant-numeric:tabular-nums}
+@media(max-width:640px){.inbox-ai-schedule{grid-template-columns:1fr}.inbox-ai-performance{grid-template-columns:repeat(2,minmax(0,1fr))}.inbox-ai-performance-heading{align-items:stretch;flex-wrap:wrap}}
