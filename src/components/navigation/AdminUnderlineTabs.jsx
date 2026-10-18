@@ -4,7 +4,7 @@ export default function AdminUnderlineTabs({ value, onChange, tabs, ariaLabel = 
       const active = tab.value === value;
       const Icon = tab.icon;
       return <button key={tab.value} className={`border-b-2 px-3 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${active ? "border-[var(--factory-success-text)] text-[var(--factory-success-text)]" : "border-transparent text-text-secondary hover:border-border hover:text-text-primary"}`}
-        type="button" role="tab" aria-selected={active} onClick={() => onChange(tab.value)}>{Icon ? <Icon size={15} aria-hidden="true" className="mr-1.5 inline-block align-text-bottom" /> : null}{tab.label}</button>;
+        aria-label={tab.status && typeof tab.label === "string" ? tab.label : undefined} aria-description={tab.status || undefined} type="button" role="tab" aria-selected={active} onClick={() => onChange(tab.value)}>{Icon ? <Icon size={15} aria-hidden="true" className="mr-1.5 inline-block align-text-bottom" /> : null}{tab.label}{tab.status ? <span className="admin-tab-status" aria-hidden="true">{tab.status}</span> : null}</button>;
     })}</div>
   </div>;
 }

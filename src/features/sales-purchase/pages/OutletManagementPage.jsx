@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Plus, Settings, Trash2 } from "lucide-react";
+import { Plus, Settings, Trash2, Clock } from "lucide-react";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import OutletServiceEditor from '../../../components/forms/OutletServiceEditor.jsx';
 import EntityModal from "../components/EntityModal.jsx";
 import { outletService } from "../../../services/outletService.js";
 import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
@@ -32,6 +33,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [modal, setModal] = useState(null);
+  const [serviceOutlet,setServiceOutlet]=useState(null);
   const currentPeriod = latestPeriod(store);
 
   useEffect(() => {
@@ -113,7 +115,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
       header: "Action",
       align: "right",
       render: (row) => (
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2"><button className="icon-btn" aria-label={`Service information for ${row.name}`} onClick={()=>setServiceOutlet(row)}><Clock size={15}/></button>
           <button className="icon-btn" disabled={!auth.hasPermission("outlets.edit")} aria-label={`Edit ${row.name}`} onClick={() => setModal({ mode: "edit", row })}><Settings size={15} /></button>
           <button className="icon-btn" disabled={row.status!=="active"||!auth.hasPermission("outlets.delete")} aria-label={`Deactivate ${row.name}`} onClick={async () => {
             if (await ui.confirm({ title: "Deactivate outlet?", message: `${row.name} will stay in historical records but be hidden from default active selectors.`, danger: true, confirmLabel: "Deactivate" })) {
@@ -152,6 +154,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
         )}
       </Card>
       <AdminPagination page={safePage} pageSize={size} total={rows.length} onPageChange={setPage} onPageSizeChange={v=>{setSize(v);setPage(1)}} noun="outlets"/>
+      {serviceOutlet?<OutletServiceEditor outletId={serviceOutlet.id} onClose={()=>setServiceOutlet(null)} onSaved={()=>ui.notify({title:"Outlet service information saved"})}/>:null}
       {modal ? (
         <EntityModal
           title={modal.mode === "add" ? "Add Outlet" : "Edit Outlet"}

@@ -66,6 +66,8 @@ export const marketingService = {
     const {data,error}=await supabase.storage.from('marketing-knowledge').createSignedUrl(entry.object_path,300);
     throwSupabaseError('marketing.menu_source',error);return data.signedUrl;
   },
+  knowledgeProducts:({brandId,search='',category='',outlet='',page=1,size=20})=>rpc('marketing_knowledge_products',{p_brand:brandId,p_search:search,p_category:category,p_outlet:outlet||null,p_page:page,p_size:size}),
+  productDescription:(request,brand,entry,revision,data)=>rpc('marketing_product_description_save',{p_request:request,p_brand:brand,p_outlet:entry.outlet_id,p_product_key:entry.product_key,p_revision:revision,p_source_hash:entry.source_hash,p_data:data}),
   knowledgeWorkspace: brandId => rpc('marketing_knowledge_workspace',{p_brand:brandId}),
   knowledge: (brandId, revision, profile) => rpc('marketing_save_knowledge', { p_brand: brandId, p_expected_revision: revision, p_profile: profile }),
   content: ({ requestId, command, organizationId, brandId, content, payload = {} }) => rpc('marketing_content_command', {

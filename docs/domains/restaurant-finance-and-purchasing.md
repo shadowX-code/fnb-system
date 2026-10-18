@@ -70,3 +70,9 @@ Finance is the long-term workspace owner for statements and intelligence. Its Ph
 
 Legacy report labels or routes may remain compatibility entry points but do not define separate domains.
 Do not infer accounting-ledger, banking, payroll, or external ERP scope unless current contracts explicitly introduce it.
+
+### Outlet service information and product knowledge consumers
+
+Restaurant owns one `outlet_service_profiles` record per canonical Outlet: public contact details, IANA timezone, seven-day regular hours, at most 30 special-date overrides, explicit overnight opening periods and supplemental service policies. The shared source editor is reused by Outlet Master and authorized Brand Knowledge consumers. Writes require existing `outlets.edit` and Outlet access, an expected revision and retry-safe request ID; immutable history preserves actor and prior versions. A Marketing Brand relationship grants scoped service-metadata visibility, not Outlet editing or financial access. Canonical addresses remain in the existing Outlet Master editor. Unknown hours/contact data is never auto-filled.
+
+Marketing reads latest completed Product Analytics identity through canonical Brand–Outlet mappings; it receives no sales amounts/quantities. POS history establishes an observation, not current availability or retail price. Only one explicit same-Outlet active Recipe mapping with a positive configured price can supply an unvaried product price; default zero, variants and ambiguous mappings remain unavailable. Marketing owns supplemental descriptions and customer-facing inclusion separately, with source-change invalidation; it cannot alter Restaurant product names, price or availability.
