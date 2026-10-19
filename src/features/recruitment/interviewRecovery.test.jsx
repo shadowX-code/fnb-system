@@ -15,7 +15,7 @@ vi.mock("./InterviewRecording.js",()=>({InterviewRecording:class {
   stop() { this.recorder.state="inactive"; this.captureStopped=new Promise(()=>{}); this.stopPromise=new Promise(()=>{}); return this.stopPromise; }
 }}));
 vi.mock("./RecruitmentRealtimeSession.js",()=>({RecruitmentRealtimeSession:class {
-  constructor(props) { this.props=props; qa.transports.push(this); }
+  constructor(props) { this.props=props; this.conversation={confirmAnswer:vi.fn().mockReturnValue(true),clearAnswer:vi.fn(),interrupt:vi.fn().mockReturnValue(true)};qa.transports.push(this); }
   async refreshContext() {}
   async flush() {return qa.flush();}
   async connect({signal}={}) {signal?.addEventListener("abort",()=>this.close(),{once:true});await qa.connect(); if(!this.closed)this.props.onStatus?.("connected");}
@@ -305,4 +305,55 @@ it('page-cache restore during hung acquisition clears busy and fences the late o
  const stop=vi.fn();await act(async()=>resolveOld({getTracks:()=>[{stop}]}));
  expect(stop).toHaveBeenCalled();expect(qa.begin).toHaveBeenCalledOnce();
  expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+});
+it('the physical mute-before-background sequence reconstructs a distinct native output on the first Continue tap',async()=>{
+ const {default:fixture}=await import('../../../qa/recruitment/safariTurnRecovery.fixture.json');
+ const devices=mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ const prior=qa.transports.at(-1),output=prior.props.audioElement;
+ act(()=>qa.captures.at(-1).props.onLost('media_track_muted'));
+ for(const event of fixture.recovery.filter(r=>r.type==='recovery.visibility')) {
+  vi.spyOn(document,'hidden','get').mockReturnValue(event.hidden);fireEvent(document,new Event('visibilitychange'));
+ }
+ const button=screen.getByRole('button',{name:'Continue interview'});expect(button.disabled).toBe(false);
+ fireEvent.click(button);expect(devices.start).toHaveBeenCalledTimes(2);expect(screen.getByText('Checking this browser tab')).toBeTruthy();
+ await screen.findByRole('button',{name:'Finish interview'});expect(qa.transports.at(-1).props.audioElement).not.toBe(output);expect(prior.closed).toBe(true);
+});
+it('synchronous native activation failure records handler entry and a correlated failure, then permits retry',async()=>{
+ const {recruitmentService}=await import('./recruitmentService.js');mount();
+ qa.activation.mockImplementationOnce(()=>{throw new DOMException('native closed','InvalidStateError');});
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));
+ expect(screen.getByRole('button',{name:'Continue interview'}).disabled).toBe(false);
+ await act(async()=>{});
+ const records=recruitmentService.observeRecovery.mock.calls.map(args=>args[3]);
+ // On cold bootstrap these remain locally buffered until tab identity is acquired.
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ const flushed=recruitmentService.observeRecovery.mock.calls.map(args=>args[3]);
+ const failure=flushed.find(r=>r.stage==='native activation'&&r.code==='InvalidStateError');
+ expect(failure).toBeTruthy();expect(flushed.some(r=>r.stage==='continue.tap'&&r.request_id===failure.request_id)).toBe(true);
+});
+it('an interrupted pending completion check cannot disable Continue or finish the replacement generation',async()=>{
+ let resolveCheck;qa.evidence.mockImplementationOnce(()=>new Promise(resolve=>resolveCheck=resolve));
+ mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ fireEvent.click(screen.getByRole('button',{name:'Finish interview'}));await waitFor(()=>expect(resolveCheck).toBeTypeOf('function'));
+ act(()=>qa.captures.at(-1).props.onLost('media_track_muted'));
+ const button=screen.getByRole('button',{name:'Continue interview'});expect(button.disabled).toBe(false);fireEvent.click(button);
+ await screen.findByRole('button',{name:'Finish interview'});
+ await act(async()=>resolveCheck({can_finish:true}));expect(qa.finish).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:'Finish interview'})).toBeTruthy();
+});
+it('pointer intent and first-tap handler share one correlation ID through fresh native activation',async()=>{
+ const {recruitmentService}=await import('./recruitmentService.js');const devices=mount();
+ const button=screen.getByRole('button',{name:'Continue interview'});fireEvent.pointerDown(button);fireEvent.click(button);
+ expect(devices.start).toHaveBeenCalledOnce();await screen.findByRole('button',{name:'Finish interview'});
+ const records=recruitmentService.observeRecovery.mock.calls.map(args=>args[3]);
+ const pointer=records.find(r=>r.stage==='continue.pointer');expect(pointer).toBeTruthy();
+ expect(records.find(r=>r.stage==='continue.tap').request_id).toBe(pointer.request_id);
+ expect(records.some(r=>r.code==='dependency_completed'&&r.request_id===pointer.request_id)).toBe(true);
+});
+it('candidate Send/Try again/explicit interruption delegate intent without allocating another generation',async()=>{
+ mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ const t=qa.transports.at(-1);act(()=>t.props.onTurnState({listening:true,text:'我可以做周末。',canSend:true,canInterrupt:false}));
+ expect(screen.getByRole('group',{name:'Your answer'})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Send answer'}));expect(t.conversation.confirmAnswer).toHaveBeenCalledOnce();
+ fireEvent.click(screen.getByRole('button',{name:'Try again'}));expect(t.conversation.clearAnswer).toHaveBeenCalledOnce();
+ act(()=>t.props.onTurnState({listening:false,text:'',canSend:false,canInterrupt:true}));fireEvent.click(screen.getByRole('button',{name:'I’d like to speak'}));expect(t.conversation.interrupt).toHaveBeenCalledOnce();
+ expect(qa.connect).toHaveBeenCalledOnce();expect(screen.queryByRole('button',{name:'Reconnect AI'})).toBeNull();
 });

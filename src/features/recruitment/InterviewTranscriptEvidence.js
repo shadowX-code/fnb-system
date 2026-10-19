@@ -10,7 +10,7 @@ export class InterviewTranscriptEvidence {
     this.startedAt=Date.parse(startedAt);this.persistence=Promise.resolve();
     this.times=new Map();this.completedItems=new Set();this.itemOrder=new Map();
     this.pendingFinal=new Map();this.aiFinals=new Map();this.responseItems=new Map();
-    this.inputBoundaries=new Map();this.outputActive=new Set();
+    this.inputBoundaries=new Map();this.outputActive=new Set();this.pendingCandidates=new Map();
     this.receipts=new Map();this.cancelled=new Set();this.order=0;this.generation=0;
   }
   observe(event) {
@@ -84,13 +84,11 @@ export class InterviewTranscriptEvidence {
       const boundary = this.inputBoundaries.get(event.item_id);
       // VAD/commit is provenance, not speaker attestation. Overlap is retained
       // conservatively as unverified, including genuine barge-in, for review.
-      if (!boundary?.started || !boundary?.stopped || !boundary?.committed || boundary.overlap)
+      if (!this.requireAcceptance && (!boundary?.started || !boundary?.stopped || !boundary?.committed || boundary.overlap))
         this.queueAnnotation(event.item_id, "unverified_candidate");
-      this.saveFinal({
-        itemId: event.item_id,
-        speaker: "candidate",
-        transcript: event.transcript,
-      }).catch(() => this.onStatus("transcript-pending"));
+      const final={itemId:event.item_id,speaker:"candidate",transcript:event.transcript,elapsedMs:Math.max(0,Date.now()-this.startedAt)};
+      if (this.requireAcceptance) this.pendingCandidates.set(event.item_id,final);
+      else this.saveFinal(final).catch(() => this.onStatus("transcript-pending"));
     }
     if (
       event.type === "response.output_audio_transcript.done" &&
@@ -106,12 +104,23 @@ export class InterviewTranscriptEvidence {
   }
   candidateEligible(itemId) {
     const b = this.inputBoundaries.get(itemId);
-    return Boolean(b?.started && b.stopped && b.committed && !b.overlap);
+    return Boolean(b?.started && b.stopped && b.committed && !b.overlap && !b.rejected);
   }
-  async saveFinal({ itemId, speaker, transcript }) {
+  acceptCandidate(itemId) {
+    const final=this.pendingCandidates.get(itemId);
+    if (!final || !this.candidateEligible(itemId)) return false;
+    this.pendingCandidates.delete(itemId);
+    this.saveFinal(final).catch(()=>this.onStatus("transcript-pending"));return true;
+  }
+  rejectCandidate(itemId) {
+    const boundary=this.inputBoundaries.get(itemId);if(boundary)boundary.rejected=true;
+    const final=this.pendingCandidates.get(itemId);this.pendingCandidates.delete(itemId);
+    if(final) {this.queueAnnotation(itemId,"unverified_candidate");this.saveFinal(final).catch(()=>this.onStatus("transcript-pending"));}
+  }
+  async saveFinal({ itemId, speaker, transcript, elapsedMs }) {
     const order = this.itemOrder.get(itemId);
     if (!order) {
-      this.pendingFinal.set(itemId, { itemId, speaker, transcript });
+      this.pendingFinal.set(itemId, { itemId, speaker, transcript, elapsedMs });
       return;
     }
     if (this.completedItems.has(itemId)) return;
@@ -125,7 +134,7 @@ export class InterviewTranscriptEvidence {
       itemId,
       speaker,
       transcript: transcript.trim(),
-      elapsedMs: Math.max(0, Date.now() - this.startedAt),
+      elapsedMs: elapsedMs ?? Math.max(0, Date.now() - this.startedAt),
       startMs: this.times.get(itemId) ?? null,
     };
     try {
@@ -215,6 +224,7 @@ export class InterviewTranscriptEvidence {
   }
 
   close() {
+    for (const itemId of this.pendingCandidates.keys()) this.rejectCandidate(itemId);
     for (const [itemId, final] of this.aiFinals) {
       // Generated text may exceed heard speech. Retain it only with explicit uncertainty.
       this.queueAnnotation(itemId, "truncated");

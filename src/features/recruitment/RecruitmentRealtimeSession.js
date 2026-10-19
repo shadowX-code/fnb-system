@@ -19,6 +19,7 @@ export class RecruitmentRealtimeSession {
     recoveryId,
     onTool,
     onCompletion,
+    onTurnState = () => {},
   }) {
     this.token = token;
     this.recoveryId = recoveryId;
@@ -36,7 +37,12 @@ export class RecruitmentRealtimeSession {
     this.generation = 0;
     this.closed = false;
     this.flushing = false;
-    this.conversation = new OpenAIInterviewConversation({candidateEligible:itemId=>this.evidence.candidateEligible(itemId),send:event=>this.send(event), onTool, onCompletion,
+    this.conversation = new OpenAIInterviewConversation({candidateEligible:itemId=>this.evidence.candidateEligible(itemId),
+      onInput:open=>{if(this.providerMicrophone && !this.closed)this.providerMicrophone.enabled=open;
+        if(open && this.conversation?.controlled && !this.evidence.outputActive.size)this.evidence.interruptionBoundary=false;},
+      onTurnState:view=>{if(!this.closed){onTurnState(view);this.onEvent({type:"candidate.answer.preview",...view});}},
+      onAcceptCandidate:itemId=>{if(this.evidence.acceptCandidate(itemId)){this.trace({type:"input_audio_buffer.committed",item_id:itemId,phase:"candidate_confirmed"});this.onEvent({type:"candidate.answer.accepted",item_id:itemId});}},
+      onRejectCandidate:itemId=>this.evidence.rejectCandidate(itemId),send:event=>this.send(event), onTool, onCompletion,
       onOrientation:receipt=>this.trace({type:"output_audio_buffer.stopped",phase:"orientation_complete",...receipt}),
       onRecovery:reason=>{this.trace({type:"transport.disconnected",status:reason});this.disconnected(reason);}});
     this.audioPlaying = false;
@@ -68,6 +74,9 @@ export class RecruitmentRealtimeSession {
     if (this.closed) throw new Error("Interview session was replaced.");
     this.generation = secret.generation;
     if (secret.conversation_protocol !== "continuity-v2") throw Error("The interviewer needs the current interview version. Please reload this page.");
+    if (secret.turn_policy !== "controlled-turns-v1") throw Error("The interviewer needs the current turn policy. Please reload this page.");
+    this.conversation.controlled = true;
+    this.evidence.requireAcceptance = true;
     this.conversation.presentationOwned = true;
     this.conversation.orientationRequired = secret.orientation_required === true;
     this.conversation.instructions = secret.conversation_instructions;
@@ -140,7 +149,10 @@ export class RecruitmentRealtimeSession {
     const microphone = this.mediaStream.getAudioTracks()[0];
     if (!microphone || microphone.readyState !== "live")
       throw new Error("Microphone is unavailable.");
-    peer.addTrack(microphone, this.mediaStream);
+    // Gate a dedicated provider clone; raw microphone evidence is never muted.
+    this.providerMicrophone = microphone.clone();
+    this.providerMicrophone.enabled = false;
+    peer.addTrack(this.providerMicrophone, new MediaStream([this.providerMicrophone]));
     const channel = peer.createDataChannel("oai-events");
     this.channel = channel;
     channel.onmessage = (message) => {
@@ -240,10 +252,10 @@ export class RecruitmentRealtimeSession {
     this.trace(event);
     if (["conversation.item.input_audio_transcription.completed","conversation.item.input_audio_transcription.failed"].includes(event.type))
       this.trace({type:"input_audio_buffer.committed",item_id:event.item_id,phase:event.type.endsWith("completed") ? "transcription_completed" : "transcription_failed"});
-    const accepted = this.conversation.event(event);
-    this.audioPlaying = this.conversation.playing;
     this.evidence.cancelled=this.conversation.cancelled;
     this.evidence.observe(event);
+    const accepted = this.conversation.event(event);
+    this.audioPlaying = this.conversation.playing;
     if (!accepted) return;
     this.onEvent(event);
   }
@@ -281,7 +293,7 @@ export class RecruitmentRealtimeSession {
     this.disconnectionSent = true;
     this.trace({type:"transport.disconnected"});
     this.markUnfinishedSpeech();
-    this.onStatus(reason === "repeated_unverified_input" ? "audio-interference" : "disconnected");
+    this.onStatus(reason === "repeated_unverified_input" ? "audio-interference" : reason?.startsWith("transcription_") ? "transcription-unavailable" : "disconnected");
     recruitmentService
       .providerDisconnected(this.token, this.clientId, this.generation)
       .catch(() => {});
@@ -299,8 +311,9 @@ export class RecruitmentRealtimeSession {
     this.rejectConnection = null;
     this.remoteTrackCleanup?.();
     this.remoteTrackCleanup = null;
-    this.channel?.close();
-    this.peer?.close();
+    for (const cleanup of [()=>this.channel?.close(),()=>this.peer?.close(),()=>this.providerMicrophone?.stop()]) {
+      try {cleanup();} catch {this.trace({type:"transport.closed",status:"native_cleanup_failed"});}
+    }
     if (this.playbackOwner) this.playbackOwner.dispose();
     else if (!interviewPlaybackOwner(this.audioElement)) { this.audioElement.pause?.(); this.audioElement.srcObject = null; }
     for (const {type,listener} of this.playbackListeners || []) this.audioElement.removeEventListener?.(type,listener);

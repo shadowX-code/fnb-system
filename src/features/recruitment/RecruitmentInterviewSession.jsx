@@ -58,6 +58,7 @@ export default function RecruitmentInterviewSession({
   const [actionState, setActionState] = useState("IDLE"),
     [partialConfirm, setPartialConfirm] = useState(false),
     [presence, setPresence] = useState(initialPresence),
+    [turnView, setTurnView] = useState({text:"",canSend:false,canInterrupt:false,listening:false}),
     [completedAt, setCompletedAt] = useState(entry.completed_at);
   const [submissionState, setSubmissionState] = useState(
     entry.status === "finalizing" ? "PENDING" : "IDLE",
@@ -66,6 +67,7 @@ export default function RecruitmentInterviewSession({
     recording = useRef(null),
     ai = useRef(null),
     audio = useRef(null),
+    audioHost = useRef(null),
     session = useRef(null),
     finishing = useRef(false),
     finishReason = useRef(null),
@@ -78,7 +80,7 @@ export default function RecruitmentInterviewSession({
     starting = useRef(false),
     releaseClient = useRef(null),
     recovery = useRef(null);
-  const clientClaim = useRef(null);
+  const clientClaim = useRef(null), continueIntent = useRef(null);
   const machine = useRef(null),
     recoveryId = useRef(null),
     observations = useRef([]);
@@ -88,6 +90,8 @@ export default function RecruitmentInterviewSession({
       record: { type, at: Date.now(), hidden: document.hidden, ...details },
     };
     observations.current.push(item);
+    if (observations.current.length > 80) observations.current.shift();
+    queueMicrotask(() => {
     if (!clientId.current) return;
     for (const event of observations.current.splice(0, 40))
       bounded(
@@ -100,6 +104,7 @@ export default function RecruitmentInterviewSession({
         "Saving recovery observation",
         { timeoutMs: 5000 },
       ).catch(() => {});
+    });
   }
   if (!machine.current)
     machine.current = new InterviewTransportGeneration((view) => {
@@ -111,6 +116,7 @@ export default function RecruitmentInterviewSession({
         request_id: machine.current?.operation?.id || recoveryId.current,
       });
     });
+  machine.current.onDiagnostic = details => observe("recovery.command",details);
   async function claimClient(signal) {
     if (releaseClient.current) return;
     if (!clientClaim.current) {
@@ -263,6 +269,8 @@ export default function RecruitmentInterviewSession({
     )
       return;
     const wasPaused = paused.current;
+    // Interruption invalidates an outstanding check, never an accepted submission.
+    actionOwner.current = null;setActionState("IDLE");setPartialConfirm(false);
     paused.current = true;
     machine.current.cancel();
     setStatus("interrupted");
@@ -316,6 +324,9 @@ export default function RecruitmentInterviewSession({
       audioElement: audio.current,
       signal,
       onRemote: (stream) => recording.current?.remote(stream),
+      onTurnState: view => {
+        if (alive.current && !paused.current && recoveryId.current === generation) setTurnView(view);
+      },
       onEvent: (event) => {
         if (
           alive.current &&
@@ -345,7 +356,9 @@ export default function RecruitmentInterviewSession({
             : "interviewer_connection_lost",
         );
         setError(
-          state === "audio-interference"
+          state === "transcription-unavailable"
+            ? "Your last answer could not be recognized. Tap Continue interview to retry. Earlier submitted answers are retained."
+            : state === "audio-interference"
             ? "Audio was repeatedly interrupted by uncertain microphone input. Use earphones or a quieter place, then tap Continue interview. Saved answers are retained."
             : "The interviewer was interrupted. Tap Continue interview; your saved answers are retained.",
         );
@@ -365,11 +378,18 @@ export default function RecruitmentInterviewSession({
     }
   }
   async function start() {
+    const requestId = continueIntent.current || crypto.randomUUID();
+    continueIntent.current = null;
+    observe("recovery.command", {stage:"continue.tap",state:machine.current.state,request_id:requestId});
     if (document.hidden) {
+      observe("recovery.error",{stage:"continue.guard",code:"page_hidden",request_id:requestId});
       setError("Return to this page before resuming.");
       return;
     }
-    if (["RESUMED", "RECOVERING"].includes(machine.current.state) || finishing.current) return;
+    if (finishing.current || machine.current.state === "RECOVERING" || (machine.current.state === "RESUMED" && statusRef.current !== "interrupted")) {
+      observe("recovery.command",{stage:"continue.guard",code:finishing.current ? "submission_pending" : "already_active",request_id:requestId});
+      return;
+    }
     let activation, mediaPromise, playback;
     let operation;
     try {
@@ -382,10 +402,14 @@ export default function RecruitmentInterviewSession({
         });
         mediaPromise.catch(() => {});
         activation = InterviewRecording.activateAudio();
-        playback = activateInterviewPlayback(audio.current, activation.context);
+        const output = document.createElement("audio");
+        audioHost.current?.replaceChildren(output);
+        audio.current = output;
+        playback = activateInterviewPlayback(output, activation.context);
         owner.controller.signal.addEventListener("abort", () => playback?.dispose(), {once:true});
-      });
+      }, requestId);
     } catch (cause) {
+      observe("recovery.error",{stage:"native activation",code:cause.name || "native_activation_failed",request_id:requestId});
       setError(
         "Native audio could not start. Tap Continue interview to try again.",
       );
@@ -403,6 +427,7 @@ export default function RecruitmentInterviewSession({
     setError("");
     setAiStatus("recovering");
     setPresence(initialPresence);
+    setTurnView({text:"",canSend:false,canInterrupt:false,listening:false});
     setRecoveryNotice("");
     let media,
       capture,
@@ -492,6 +517,7 @@ export default function RecruitmentInterviewSession({
             "This interview has already ended. Please contact your recruiter if another interview is needed.",
         );
         machine.current.finish(operation, "TERMINAL");
+        playback?.dispose();
         devices.stop();
         activation.context.close().catch(() => {});
         return;
@@ -509,6 +535,7 @@ export default function RecruitmentInterviewSession({
       if (session.current.status === "finalizing") {
         setStatus("finalizing");
         machine.current.finish(operation, "TERMINAL");
+        playback?.dispose();
         devices.stop();
         activation.context.close().catch(() => {});
         return;
@@ -915,7 +942,10 @@ export default function RecruitmentInterviewSession({
           previewRef={preview}
         >
           {!submitting && recoveryView.state === "RECOVERY_REQUIRED" && status === "interrupted" && (
-            <button className="candidate-button is-primary" disabled={busy || finishing.current} onClick={start}>
+            <button className="candidate-button is-primary" disabled={finishing.current} onPointerDown={()=>{
+              continueIntent.current=crypto.randomUUID();
+              observe("recovery.command",{stage:"continue.pointer",state:machine.current.state,request_id:continueIntent.current});
+            }} onClick={start}>
               Continue interview
             </button>
           )}
@@ -923,6 +953,22 @@ export default function RecruitmentInterviewSession({
           status === "interviewing" &&
           session.current ? (
             <div className="recruitment-actions">
+              {turnView.listening && <div role="group" aria-label="Your answer" className="candidate-answer">
+                <p>Speak naturally. Review the recognized words, then send your answer.</p>
+                {turnView.text && <p className="candidate-answer-preview" aria-live="polite">{turnView.text}</p>}
+                {turnView.waiting && <p role="status">Recognizing your answer…</p>}
+                <button className="candidate-button is-primary" disabled={!turnView.canSend} onClick={()=>{
+                  const accepted=machine.current.confirmAnswer();
+                  observe("recovery.command",{stage:"answer.send",code:accepted ? "accepted" : "not_ready",request_id:recoveryId.current});
+                  setError(accepted ? "" : "Finish speaking and wait for your answer to appear, then try Send answer again.");
+                }}>Send answer</button>
+                <button className="candidate-button is-secondary" onClick={()=>machine.current.clearAnswer()}>Try again</button>
+              </div>}
+              {turnView.canInterrupt && <button className="candidate-button is-secondary" onClick={()=>{
+                const accepted=machine.current.interrupt();
+                observe("recovery.command",{stage:"answer.interrupt",code:accepted ? "requested" : "not_ready",request_id:recoveryId.current});
+                if(!accepted)setError("Please wait for the interviewer to finish, then speak your answer.");
+              }}>I’d like to speak</button>}
               <button
                 className="candidate-button is-secondary"
                 disabled={busy}
@@ -980,7 +1026,7 @@ export default function RecruitmentInterviewSession({
           )}
         </RecruitmentInterviewRoom>
       )}
-      <audio ref={audio} autoPlay />
+      <div ref={audioHost} hidden aria-hidden="true" />
     </>
   );
 }

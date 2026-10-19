@@ -5,11 +5,11 @@ import { recruitmentService } from "./recruitmentService.js";
 // The generation owns the conversational runtime. React receives display state
 // and terminal intent; it never schedules responses or handles provider tools.
 export class InterviewTransportGeneration extends InterviewRecovery {
-  begin(activate) {
-    const operation=super.begin(activate); // native gesture acquisition first
+  begin(activate, requestId) {
+    const operation=super.begin(activate, requestId); // native gesture acquisition first
     this.closeInterviewer();return operation;
   }
-  async connectInterviewer({token,clientId,recoveryId,mediaStream,startedAt,audioElement,onStatus,onRemote,onRecovery,onCompletion,onEvent=()=>{},signal}) {
+  async connectInterviewer({token,clientId,recoveryId,mediaStream,startedAt,audioElement,onStatus,onRemote,onRecovery,onCompletion,onTurnState=()=>{},onEvent=()=>{},signal}) {
     this.closeInterviewer();
     const current = () => this.transport === transport && !transport.closed;
     const assess = () => {
@@ -28,11 +28,12 @@ export class InterviewTransportGeneration extends InterviewRecovery {
       this.assessment=pending;return pending;
     };
     const transport = new RecruitmentRealtimeSession({token,clientId,recoveryId,mediaStream,startedAt,audioElement,
+      onTurnState:view=>{if(current())onTurnState(view);},
       onRemote:stream=>{if(current())onRemote(stream);},
       onStatus:state=>{
         if (!current()) return;
         onStatus(state);
-        if (["disconnected","audio-blocked","audio-interference"].includes(state)) onRecovery(state);
+        if (["disconnected","audio-blocked","audio-interference","transcription-unavailable"].includes(state)) onRecovery(state);
       },
       onTool:async()=>{
         const result = await assess();
@@ -47,7 +48,7 @@ export class InterviewTransportGeneration extends InterviewRecovery {
         if (!current()) return;
         onEvent(event);
         if(event.type === "input_audio_buffer.speech_started") this.completion=null;
-        if(event.type === "conversation.item.input_audio_transcription.completed") {
+        if(event.type === "candidate.answer.accepted" || (event.type === "conversation.item.input_audio_transcription.completed" && !transport.conversation?.controlled)) {
           // Coalesce server coverage work, independently of provider turn progress.
           this.refreshCoverage ||= setTimeout(async()=>{
             this.refreshCoverage=null;
@@ -63,9 +64,14 @@ export class InterviewTransportGeneration extends InterviewRecovery {
     if (!current()) throw Error("Interview was replaced.");
     return transport;
   }
+  confirmAnswer() { return this.transport?.conversation?.confirmAnswer() || false; }
+  clearAnswer() { this.transport?.conversation?.clearAnswer(); }
+  interrupt() { return this.transport?.conversation?.interrupt() || false; }
   closeInterviewer() {
     clearTimeout(this.refreshCoverage);this.refreshCoverage=null;
-    this.transport?.close();this.transport=null;this.completion=null;this.assessment=null;this.lastAssessment=null;
+    const previous=this.transport;
+    this.transport=null;this.completion=null;this.assessment=null;this.lastAssessment=null;
+    try {previous?.close();} catch {this.onDiagnostic?.({stage:"old transport disposal",code:"cleanup_failed",request_id:this.operation?.id});}
   }
-  cancel() { this.closeInterviewer(); super.cancel(); }
+  cancel() { super.cancel(); this.closeInterviewer(); }
 }

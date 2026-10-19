@@ -6,6 +6,7 @@ import {
 } from "./prompt.ts";
 import { continuationContext } from "./context.ts";
 import { interviewerProfile } from "./voice.ts";
+import { interviewTurnDetection } from "./turnDetection.ts";
 
 const allowedOrigins = new Set([
   "https://interview.feedx.my",
@@ -256,13 +257,7 @@ Deno.serve(async (request) => {
               "F&B recruitment interview in Malaysia. English, Bahasa Malaysia and Mandarin/Cantonese Chinese, including natural Malaysian code-switching. Preserve the actual words; do not translate or invent speech from silence.",
           },
           noise_reduction: { type: "near_field" },
-          turn_detection: {
-            type: "semantic_vad",
-            eagerness: "low",
-            create_response: body.conversation_version === "provider-owned-v1",
-            interrupt_response:
-              body.conversation_version === "provider-owned-v1",
-          },
+          turn_detection: interviewTurnDetection(body.conversation_version),
         },
         output: { voice: interviewerProfile.voice },
       },
@@ -307,6 +302,7 @@ Deno.serve(async (request) => {
     value: secret.value,
     expires_at: secret.expires_at,
     generation: context.generation,
+    turn_policy: body.conversation_version === "controlled-turns-v1" ? "controlled-turns-v1" : "provider-owned-v1",
     conversation_protocol: continuity ? "continuity-v2" : "receipt-v1",
     orientation_required: !continuity && orientationEnabled && !context.orientation_complete && !context.orientation_presented,
     introduction_pending: !continuity && orientationEnabled && context.orientation_presented && !context.orientation_complete,

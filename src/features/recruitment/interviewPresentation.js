@@ -10,6 +10,8 @@ export const languageLabel = (value) =>
 export const initialPresence = { state: "connecting", prompt: "", item: null };
 export function observeInterviewPresence(current, event) {
   const type = event.type;
+  if (type === "candidate.answer.preview") return {...current,state:event.listening ? "listening" : current.state};
+  if (type === "candidate.answer.accepted") return {...current,state:"thinking"};
   if (
     type === "input_audio_buffer.speech_started" ||
     type === "output_audio_buffer.cleared"

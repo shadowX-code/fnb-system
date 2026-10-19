@@ -43,24 +43,31 @@ export function readyInterviewMedia(stream, signal) {
 export class InterviewRecovery {
   constructor(onState) { this.onState = onState; this.state = "RECOVERY_REQUIRED"; }
   transition(state, stage = "") { this.state = state; this.stage = stage; this.onState?.({ state, stage }); }
-  begin(activate) {
+  begin(activate, requestId = crypto.randomUUID()) {
     const previous = this.operation;
-    const operation = { id: crypto.randomUUID(), controller: new AbortController() };
+    const operation = { id: requestId, controller: new AbortController() };
     this.operation = operation;
-    try { activate?.(operation); } catch(error) { operation.controller.abort(); this.operation = null; previous?.controller.abort(); this.transition("RECOVERY_REQUIRED"); throw error; }
+    this.transition("RECOVERING", "preparing");
+    try { activate?.(operation); } catch(error) { operation.controller.abort(); this.operation = null; previous?.controller.abort(); this.transition("RECOVERY_REQUIRED"); error.recoveryId = operation.id; throw error; }
     // Abort after the new gesture has invoked native acquisition; old continuations
     // already fail the current-operation fence synchronously.
     if (previous) queueMicrotask(() => previous.controller.abort());
-    this.transition("RECOVERING", "preparing");
     return operation;
   }
   current(operation) { return this.operation === operation && !operation.controller.signal.aborted; }
   async step(operation, stage, work, options = {}) {
     if (!this.current(operation)) throw Error("Recovery was replaced.");
     this.transition("RECOVERING", stage);
-    const value = await bounded(work(operation.controller.signal), stage, { ...options, signal: operation.controller.signal });
-    if (!this.current(operation)) throw Error("Recovery was replaced.");
-    return value;
+    this.onDiagnostic?.({stage,code:"dependency_started",request_id:operation.id});
+    try {
+      const value = await bounded(work(operation.controller.signal), stage, { ...options, signal: operation.controller.signal });
+      if (!this.current(operation)) throw Error("Recovery was replaced.");
+      this.onDiagnostic?.({stage,code:"dependency_completed",request_id:operation.id});
+      return value;
+    } catch (error) {
+      this.onDiagnostic?.({stage,code:error.code || error.name || "dependency_failed",request_id:operation.id});
+      throw error;
+    }
   }
   finish(operation, state) {
     if (this.operation !== operation) return;

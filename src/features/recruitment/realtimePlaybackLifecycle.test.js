@@ -5,7 +5,8 @@ vi.mock('./interviewTranscriptQueue.js',()=>({interviewTranscriptQueue:{put:vi.f
 import {RecruitmentRealtimeSession} from './RecruitmentRealtimeSession.js';
 let peers=[];let sessions=[];let initialPeerState;
 beforeEach(()=>{
- initialPeerState="connected";vi.clearAllMocks();qa.secret.mockResolvedValue({generation:1,conversation_protocol:'continuity-v2',conversation_instructions:'[FEEDX ORIENTATION]opening[/FEEDX ORIENTATION]',first_response_instructions:'opening'});qa.connected.mockResolvedValue();qa.disconnected.mockResolvedValue();
+ initialPeerState="connected";vi.clearAllMocks();qa.secret.mockResolvedValue({generation:1,turn_policy:'controlled-turns-v1',conversation_protocol:'continuity-v2',conversation_instructions:'[FEEDX ORIENTATION]opening[/FEEDX ORIENTATION]',first_response_instructions:'opening'});qa.connected.mockResolvedValue();qa.disconnected.mockResolvedValue();
+ vi.stubGlobal('MediaStream',class {constructor(tracks){this.tracks=tracks;}});
  vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,text:async()=> 'sdp'}));
  vi.stubGlobal('RTCPeerConnection',class{
   constructor(){peers.push(this);this.connectionState=initialPeerState;this.remote=Object.assign(new EventTarget(),{kind:'audio',readyState:'live',muted:false});}addTrack(){} createDataChannel(){return {readyState:'open',send:vi.fn(),close:vi.fn()};}
@@ -16,8 +17,9 @@ beforeEach(()=>{
 afterEach(()=>{sessions.forEach(s=>s.close());sessions=[];peers=[];vi.unstubAllGlobals();});
 function setup(play=vi.fn().mockResolvedValue()){
  const listeners={};const audio={play,pause:vi.fn(),paused:false,readyState:4,addEventListener:(t,f)=>listeners[t]=f,removeEventListener:vi.fn()};const status=vi.fn();
- const s=new RecruitmentRealtimeSession({token:'a'.repeat(64),clientId:'client',recoveryId:'recovery',mediaStream:{getAudioTracks:()=>[{readyState:'live',getSettings:()=>({echoCancellation:true})}]},audioElement:audio,startedAt:new Date().toISOString(),onStatus:status});
- s.attemptKey='fixture';sessions.push(s);return {s,audio,status,listeners};
+ const original={readyState:'live',enabled:true,stop:vi.fn(),getSettings:()=>({echoCancellation:true}),clone:()=>({enabled:true,stop:vi.fn()})};
+ const s=new RecruitmentRealtimeSession({token:'a'.repeat(64),clientId:'client',recoveryId:'recovery',mediaStream:{getAudioTracks:()=>[original]},audioElement:audio,startedAt:new Date().toISOString(),onStatus:status});
+ s.attemptKey='fixture';sessions.push(s);return {s,audio,status,listeners,original};
 }
 it('no entry or connected acknowledgement exists until native remote playback is ready',async()=>{
  let ready;const q=setup(vi.fn().mockImplementation(()=>new Promise(r=>ready=r)));const pending=q.s.connect();
@@ -78,4 +80,11 @@ it('track loss during the server connected acknowledgement cannot publish a fals
  peers[0].remote.readyState='ended';peers[0].remote.dispatchEvent(new Event('ended'));acknowledge();
  await expect(pending).rejects.toThrow();expect(q.status).not.toHaveBeenCalledWith('connected');
  expect(q.s.channel.send).not.toHaveBeenCalled();
+});
+it('provider gating uses a disposable microphone clone while original recording input remains untouched',async()=>{
+ const q=setup();await q.s.connect();
+ const original=q.original;
+ expect(q.s.providerMicrophone).not.toBe(original);expect(q.s.providerMicrophone.enabled).toBe(false);
+ q.s.conversation.setInput(true);expect(q.s.providerMicrophone.enabled).toBe(true);
+ const stop=q.s.providerMicrophone.stop;q.s.close();expect(stop).toHaveBeenCalledOnce();expect(original.enabled).toBe(true);expect(original.stop).not.toHaveBeenCalled();
 });

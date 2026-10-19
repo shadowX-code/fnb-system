@@ -1,0 +1,906 @@
+{
+  "attempt": "bb659c76-6239-41d8-9843-88ba8cd15637",
+  "baseline": "b6fa5179e4a23da8c63feb52b8569b162727c323",
+  "recovery": [
+    {
+      "at": 1792423339256,
+      "type": "recovery.media",
+      "stage": "getUserMedia.requested",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423339264,
+      "type": "recovery.transition",
+      "stage": "tab ownership",
+      "state": "RECOVERING",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423339264,
+      "type": "recovery.command",
+      "stage": "resume",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423339264,
+      "type": "recovery.transition",
+      "stage": "preparing",
+      "state": "RECOVERING",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423339264,
+      "type": "recovery.media",
+      "stage": "audio.activation",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a",
+      "audio_state": "suspended"
+    },
+    {
+      "at": 1792423339284,
+      "code": "camera_granted",
+      "type": "recovery.media",
+      "stage": "permissions",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423339284,
+      "type": "recovery.media",
+      "stage": "audio.activated",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a",
+      "audio_state": "running"
+    },
+    {
+      "at": 1792423339284,
+      "code": "microphone_granted",
+      "type": "recovery.media",
+      "stage": "permissions",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423339302,
+      "type": "recovery.media",
+      "stage": "getUserMedia.resolved",
+      "hidden": false,
+      "tracks": [
+        {
+          "kind": "video",
+          "muted": false,
+          "state": "live"
+        },
+        {
+          "kind": "audio",
+          "muted": false,
+          "state": "live"
+        }
+      ],
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423339306,
+      "type": "recovery.bootstrap",
+      "stage": "tab.identity",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c"
+    },
+    {
+      "at": 1792423339306,
+      "type": "recovery.transition",
+      "stage": "camera and microphone",
+      "state": "RECOVERING",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423339307,
+      "type": "recovery.transition",
+      "stage": "device readiness",
+      "state": "RECOVERING",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423339308,
+      "type": "recovery.media",
+      "stage": "tracks.validated",
+      "hidden": false,
+      "tracks": [
+        {
+          "kind": "video",
+          "muted": false,
+          "state": "live"
+        },
+        {
+          "kind": "audio",
+          "muted": false,
+          "state": "live"
+        }
+      ],
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a",
+      "audio_state": "running"
+    },
+    {
+      "at": 1792423339308,
+      "type": "recovery.transition",
+      "stage": "server state",
+      "state": "RECOVERING",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423339308,
+      "type": "recovery.bootstrap",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423340111,
+      "type": "recovery.transition",
+      "stage": "server resume",
+      "state": "RECOVERING",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423340666,
+      "type": "recovery.transition",
+      "stage": "transcript partition",
+      "state": "RECOVERING",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423340667,
+      "type": "recovery.transition",
+      "stage": "recent transcript",
+      "state": "RECOVERING",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423340754,
+      "type": "recovery.transition",
+      "stage": "fresh recording",
+      "state": "RECOVERING",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423341656,
+      "type": "recovery.transition",
+      "stage": "interviewer playback",
+      "state": "RECOVERING",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423341657,
+      "type": "recovery.transition",
+      "stage": "fresh AI session",
+      "state": "RECOVERING",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423347702,
+      "type": "recovery.transition",
+      "stage": "",
+      "state": "RESUMED",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423409521,
+      "type": "recovery.transition",
+      "stage": "",
+      "state": "RECOVERY_REQUIRED",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423410153,
+      "type": "recovery.visibility",
+      "stage": "background",
+      "hidden": true,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423410154,
+      "type": "recovery.transition",
+      "stage": "",
+      "state": "RECOVERY_REQUIRED",
+      "hidden": true,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    },
+    {
+      "at": 1792423416751,
+      "type": "recovery.visibility",
+      "stage": "foreground",
+      "hidden": false,
+      "client_tag": "0d6b720a3ba8f3ea610f8f51adadfb8c",
+      "request_id": "4c991aba-2707-434c-851c-813fa69f4f7a"
+    }
+  ],
+  "audio": [
+    {
+      "type": "playback.waiting",
+      "owner": null,
+      "phase": "browser",
+      "status": null,
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 5957,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "playback.playing",
+      "owner": null,
+      "phase": "browser",
+      "status": null,
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 5972,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "transport.connected",
+      "owner": null,
+      "phase": "continuity-v2",
+      "status": "aec:true;noise:unknown;peer:connected;remote:live",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 7278,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "client.response.create",
+      "owner": "session:1",
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 7279,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.created",
+      "owner": "session:1",
+      "phase": null,
+      "status": "in_progress",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 7850,
+      "response_id": "resp_EajTwPLqJPiDg2XlGRVYs",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.output_item.added",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajTwc5xvEvYjJhmI5wjJ",
+      "playing": false,
+      "elapsed_ms": 8256,
+      "response_id": "resp_EajTwPLqJPiDg2XlGRVYs",
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 8558,
+      "response_id": "resp_EajTwPLqJPiDg2XlGRVYs",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.done",
+      "owner": "session:1",
+      "phase": null,
+      "status": "completed",
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 14277,
+      "response_id": "resp_EajTwPLqJPiDg2XlGRVYs",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.speech_started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajU6QzzGcG6DL875yfKn",
+      "playing": true,
+      "elapsed_ms": 18211,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.cleared",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 18212,
+      "response_id": "resp_EajTwPLqJPiDg2XlGRVYs",
+      "audio_end_ms": null
+    },
+    {
+      "type": "conversation.item.truncated",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajTwc5xvEvYjJhmI5wjJ",
+      "playing": false,
+      "elapsed_ms": 18219,
+      "response_id": null,
+      "audio_end_ms": 9700
+    },
+    {
+      "type": "input_audio_buffer.speech_stopped",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajU6QzzGcG6DL875yfKn",
+      "playing": false,
+      "elapsed_ms": 18886,
+      "response_id": null,
+      "audio_end_ms": 11920
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajU6QzzGcG6DL875yfKn",
+      "playing": false,
+      "elapsed_ms": 18890,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.created",
+      "owner": null,
+      "phase": null,
+      "status": "in_progress",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 18896,
+      "response_id": "resp_EajU7Kn8W8hQd2CByn135",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.output_item.added",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajU7mUaySEGcfPgXKNaV",
+      "playing": false,
+      "elapsed_ms": 19255,
+      "response_id": "resp_EajU7Kn8W8hQd2CByn135",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": "transcription_completed",
+      "status": null,
+      "item_id": "item_EajU6QzzGcG6DL875yfKn",
+      "playing": false,
+      "elapsed_ms": 19343,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 19561,
+      "response_id": "resp_EajU7Kn8W8hQd2CByn135",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.done",
+      "owner": null,
+      "phase": null,
+      "status": "completed",
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 22718,
+      "response_id": "resp_EajU7Kn8W8hQd2CByn135",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.speech_started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUH4YNNd1rXvqB8lxM8",
+      "playing": true,
+      "elapsed_ms": 28853,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.cleared",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 28853,
+      "response_id": "resp_EajU7Kn8W8hQd2CByn135",
+      "audio_end_ms": null
+    },
+    {
+      "type": "conversation.item.truncated",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajU7mUaySEGcfPgXKNaV",
+      "playing": false,
+      "elapsed_ms": 28858,
+      "response_id": null,
+      "audio_end_ms": 9280
+    },
+    {
+      "type": "input_audio_buffer.speech_stopped",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUH4YNNd1rXvqB8lxM8",
+      "playing": false,
+      "elapsed_ms": 31186,
+      "response_id": null,
+      "audio_end_ms": 22780
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUH4YNNd1rXvqB8lxM8",
+      "playing": false,
+      "elapsed_ms": 31188,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.created",
+      "owner": null,
+      "phase": null,
+      "status": "in_progress",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 31194,
+      "response_id": "resp_EajUJouAmIlYvujKANjYQ",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.output_item.added",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUJVJF4tQ9O0HR28Gjd",
+      "playing": false,
+      "elapsed_ms": 31466,
+      "response_id": "resp_EajUJouAmIlYvujKANjYQ",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": "transcription_completed",
+      "status": null,
+      "item_id": "item_EajUH4YNNd1rXvqB8lxM8",
+      "playing": false,
+      "elapsed_ms": 31697,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 31723,
+      "response_id": "resp_EajUJouAmIlYvujKANjYQ",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.done",
+      "owner": null,
+      "phase": null,
+      "status": "completed",
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 33506,
+      "response_id": "resp_EajUJouAmIlYvujKANjYQ",
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.stopped",
+      "owner": null,
+      "phase": "dialogue_committed",
+      "status": null,
+      "item_id": "item_EajUJVJF4tQ9O0HR28Gjd",
+      "playing": true,
+      "elapsed_ms": 39115,
+      "response_id": "resp_EajUJouAmIlYvujKANjYQ",
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.stopped",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 39115,
+      "response_id": "resp_EajUJouAmIlYvujKANjYQ",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.speech_started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUSomXq78I7TvBDU25a",
+      "playing": false,
+      "elapsed_ms": 40162,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUSomXq78I7TvBDU25a",
+      "playing": false,
+      "elapsed_ms": 42863,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.speech_stopped",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUSomXq78I7TvBDU25a",
+      "playing": false,
+      "elapsed_ms": 42863,
+      "response_id": null,
+      "audio_end_ms": 34240
+    },
+    {
+      "type": "response.created",
+      "owner": null,
+      "phase": null,
+      "status": "in_progress",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 42870,
+      "response_id": "resp_EajUVIMpOggqru2CdS2Vs",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": "transcription_completed",
+      "status": null,
+      "item_id": "item_EajUSomXq78I7TvBDU25a",
+      "playing": false,
+      "elapsed_ms": 43285,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.output_item.added",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUVmJFHlx9L0sFE9EHG",
+      "playing": false,
+      "elapsed_ms": 43335,
+      "response_id": "resp_EajUVIMpOggqru2CdS2Vs",
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 43574,
+      "response_id": "resp_EajUVIMpOggqru2CdS2Vs",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.done",
+      "owner": null,
+      "phase": null,
+      "status": "completed",
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 45781,
+      "response_id": "resp_EajUVIMpOggqru2CdS2Vs",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.speech_started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUdE9IDmgJkVWEZC8L0",
+      "playing": true,
+      "elapsed_ms": 51122,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.cleared",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 51122,
+      "response_id": "resp_EajUVIMpOggqru2CdS2Vs",
+      "audio_end_ms": null
+    },
+    {
+      "type": "conversation.item.truncated",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUVmJFHlx9L0sFE9EHG",
+      "playing": false,
+      "elapsed_ms": 51138,
+      "response_id": null,
+      "audio_end_ms": 7560
+    },
+    {
+      "type": "input_audio_buffer.speech_stopped",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUdE9IDmgJkVWEZC8L0",
+      "playing": false,
+      "elapsed_ms": 53894,
+      "response_id": null,
+      "audio_end_ms": 45420
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUdE9IDmgJkVWEZC8L0",
+      "playing": false,
+      "elapsed_ms": 53894,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.created",
+      "owner": null,
+      "phase": null,
+      "status": "in_progress",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 53902,
+      "response_id": "resp_EajUgqOVk8aqpIG8CBozd",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.output_item.added",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUgg8PSapNalviAjTxC",
+      "playing": false,
+      "elapsed_ms": 54179,
+      "response_id": "resp_EajUgqOVk8aqpIG8CBozd",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": "transcription_completed",
+      "status": null,
+      "item_id": "item_EajUdE9IDmgJkVWEZC8L0",
+      "playing": false,
+      "elapsed_ms": 54241,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 54421,
+      "response_id": "resp_EajUgqOVk8aqpIG8CBozd",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.done",
+      "owner": null,
+      "phase": null,
+      "status": "completed",
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 56477,
+      "response_id": "resp_EajUgqOVk8aqpIG8CBozd",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.speech_started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUkuPuyQtHsSW9Ckj2P",
+      "playing": true,
+      "elapsed_ms": 57972,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.cleared",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 57972,
+      "response_id": "resp_EajUgqOVk8aqpIG8CBozd",
+      "audio_end_ms": null
+    },
+    {
+      "type": "conversation.item.truncated",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUgg8PSapNalviAjTxC",
+      "playing": false,
+      "elapsed_ms": 57975,
+      "response_id": null,
+      "audio_end_ms": 3540
+    },
+    {
+      "type": "input_audio_buffer.speech_stopped",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUkuPuyQtHsSW9Ckj2P",
+      "playing": false,
+      "elapsed_ms": 63340,
+      "response_id": null,
+      "audio_end_ms": 51540
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUkuPuyQtHsSW9Ckj2P",
+      "playing": false,
+      "elapsed_ms": 63342,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.created",
+      "owner": null,
+      "phase": null,
+      "status": "in_progress",
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 63347,
+      "response_id": "resp_EajUpmyGiEI02XKpA42vS",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.output_item.added",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": "item_EajUpYMeItWNEwToT5DDQ",
+      "playing": false,
+      "elapsed_ms": 63596,
+      "response_id": "resp_EajUpmyGiEI02XKpA42vS",
+      "audio_end_ms": null
+    },
+    {
+      "type": "input_audio_buffer.committed",
+      "owner": null,
+      "phase": "transcription_completed",
+      "status": null,
+      "item_id": "item_EajUkuPuyQtHsSW9Ckj2P",
+      "playing": false,
+      "elapsed_ms": 63811,
+      "response_id": null,
+      "audio_end_ms": null
+    },
+    {
+      "type": "output_audio_buffer.started",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": false,
+      "elapsed_ms": 63837,
+      "response_id": "resp_EajUpmyGiEI02XKpA42vS",
+      "audio_end_ms": null
+    },
+    {
+      "type": "response.done",
+      "owner": null,
+      "phase": null,
+      "status": "completed",
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 67314,
+      "response_id": "resp_EajUpmyGiEI02XKpA42vS",
+      "audio_end_ms": null
+    },
+    {
+      "type": "transport.closed",
+      "owner": null,
+      "phase": null,
+      "status": null,
+      "item_id": null,
+      "playing": true,
+      "elapsed_ms": 69099,
+      "response_id": null,
+      "audio_end_ms": null
+    }
+  ]
+}

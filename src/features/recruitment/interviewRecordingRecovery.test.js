@@ -181,3 +181,12 @@ it("activates audio synchronously and exposes a finite error if native resume ne
   await vi.advanceTimersByTimeAsync(10100);await assertion;
   expect(recruitmentService.evidence).not.toHaveBeenCalled();vi.useRealTimers();
 });
+it('old native audio is released synchronously even when recorder onstop never arrives; late finalization cannot close a replacement',async()=>{
+ vi.useFakeTimers();recordingStore.unit.mockResolvedValue();recordingStore.chunks.mockResolvedValue([]);recruitmentService.evidence.mockResolvedValue({});
+ const close=vi.fn().mockResolvedValue(),stop=vi.fn();
+ const recorder=new InterviewRecording({token:'a'.repeat(64),clientId:'client',startedAt:new Date().toISOString(),stream:{getTracks:()=>[{stop}]},onStatus:vi.fn()});
+ recorder.unit={id:'old',closed:false};recorder.context={close};recorder.recorder={state:'recording',stop:vi.fn()};
+ const pending=recorder.stop('page_backgrounded');expect(close).toHaveBeenCalledOnce();expect(stop).toHaveBeenCalledOnce();
+ await vi.advanceTimersByTimeAsync(10100);await pending;recorder.dispose();expect(close).toHaveBeenCalledOnce();
+ expect(recruitmentService.evidence).toHaveBeenCalledWith('invalid',expect.anything(),expect.anything(),{unit_id:'old'});
+});

@@ -20,3 +20,11 @@ it('late old coverage cannot clear or overwrite a replacement generation assessm
  await connect(m);const fresh=m.assess();await Promise.resolve();await Promise.resolve();oldResolve({can_finish:true});await old;
  expect(m.assessment).not.toBeNull();expect(m.lastAssessment).toBeNull();newResolve({can_finish:false});await fresh;expect(m.lastAssessment.can_finish).toBe(false);m.cancel();
 });
+it('a native cleanup exception cannot latch the new recovery in RECOVERING without an operation',()=>{
+ const diagnostics=vi.fn(),m=new InterviewTransportGeneration();m.onDiagnostic=diagnostics;
+ m.transport={close:()=>{throw new DOMException('old renderer','InvalidStateError');}};
+ const activate=vi.fn();const operation=m.begin(activate);
+ expect(activate).toHaveBeenCalledOnce();expect(m.current(operation)).toBe(true);
+ expect(m.transport).toBeNull();expect(diagnostics).toHaveBeenCalledWith(expect.objectContaining({code:'cleanup_failed'}));
+ m.finish(operation,'RECOVERY_REQUIRED');expect(m.state).toBe('RECOVERY_REQUIRED');
+});

@@ -13,3 +13,10 @@ it('native playback rejection remains an actionable rejected dependency rather t
  const element={play:vi.fn().mockRejectedValue(new DOMException('denied','NotAllowedError')),pause:vi.fn()};
  const owner=activateInterviewPlayback(element,context());await expect(owner.ready).rejects.toMatchObject({name:'NotAllowedError'});owner.dispose();
 });
+it('native stop errors on an abandoned renderer cannot block fresh gesture playback',()=>{
+ const oldContext=context();const source=oldContext.createConstantSource();source.stop=()=>{throw Error('already stopped');};oldContext.createConstantSource=()=>source;
+ const oldElement={play:vi.fn().mockResolvedValue(),pause:vi.fn()},freshElement={play:vi.fn().mockResolvedValue(),pause:vi.fn()};
+ const old=activateInterviewPlayback(oldElement,oldContext);
+ expect(()=>activateInterviewPlayback(freshElement,context())).not.toThrow();
+ old.dispose();expect(freshElement.play).toHaveBeenCalledOnce();
+});

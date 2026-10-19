@@ -43,3 +43,9 @@ it('the preparation microphone meter activates native audio in the same Check ge
  act(()=>{request=result.current.start();expect(acquire).toHaveBeenCalledOnce();expect(resume).toHaveBeenCalledOnce();});
  await act(async()=>request);expect(result.current.state.status).toBe('ready');
 });
+it('an obsolete native track that throws on stop cannot poison the next acquisition until refresh',async()=>{
+ const old=stream(),fresh=stream();old.getTracks()[0].stop.mockImplementation(()=>{throw Error('stale native track');});
+ acquire.mockResolvedValueOnce(old).mockResolvedValueOnce(fresh);const {result}=renderHook(()=>useInterviewDevices());
+ await act(async()=>result.current.start({meter:false}));act(()=>result.current.stop());expect(result.current.streamRef.current).toBeNull();
+ await act(async()=>result.current.start({meter:false}));expect(result.current.streamRef.current).toBe(fresh);expect(result.current.state.status).toBe('ready');
+});

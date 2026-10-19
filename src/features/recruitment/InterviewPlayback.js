@@ -1,10 +1,11 @@
 // One native playback element owner per fresh generation. A running Web Audio
 // context alone does not unlock HTML audio on WebKit.
 const owners = new WeakMap();
+let activeOwner;
 export const interviewPlaybackOwner = element => element && owners.get(element);
 export function activateInterviewPlayback(element, context) {
   if (!element || !context?.createMediaStreamDestination) return null;
-  const previous = owners.get(element);
+  const previous = activeOwner;
   previous?.dispose();
   const destination = context.createMediaStreamDestination();
   const silence = context.createConstantSource();
@@ -18,15 +19,20 @@ export function activateInterviewPlayback(element, context) {
     dispose() {
       if (owner.disposed) return;
       owner.disposed = true;
-      silence.stop(); silence.disconnect();
-      destination.stream.getTracks().forEach(track => track.stop());
+      // Native disposal must never prevent the replacement gesture from proceeding.
+      for (const dispose of [()=>silence.stop(),()=>silence.disconnect(),...destination.stream.getTracks().map(track=>()=>track.stop())]) {
+        try {dispose();} catch { /* The abandoned native object may already be closed. */ }
+      }
       if (owners.get(element) !== owner) return;
       owners.delete(element);
-      element.pause(); element.srcObject = null;
+      try {element.pause();} catch { /* Already disposed native output. */ }
+      try {element.srcObject = null;} catch { /* Abandoned native renderer. */ }
+      if (activeOwner !== owner) return;
+      activeOwner = null;
       try { if (audioSession?.type === "play-and-record") audioSession.type = previousType; } catch { /* Optional browser capability. */ }
     },
   };
-  owners.set(element, owner);
+  owners.set(element, owner);activeOwner=owner;
   element.playsInline = true; element.muted = false;
   element.srcObject = destination.stream;
   // Must execute in the Start/Continue gesture, before any unrelated await.

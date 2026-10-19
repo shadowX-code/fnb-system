@@ -81,3 +81,7 @@
   outline-offset: 3px;
 }
 .candidate-room-controls .candidate-button { width: 100%; }
+
+.candidate-answer { display: grid; gap: 10px; width: 100%; min-width: 0; }
+.recruitment-public .candidate-answer p { margin: 0; }
+.candidate-answer-preview { max-height: 160px; overflow: auto; }

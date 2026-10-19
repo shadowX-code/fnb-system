@@ -63,10 +63,18 @@ export class InterviewRecording {
     if (this.unit && !this.stopping) this.stop("recovery_aborted").catch(() => {});
     this.stopping = true;
     clearInterval(this.timer);
-    this.remoteSource?.disconnect();
-    this.stream?.getTracks().forEach(track => track.stop());
-    this.context?.close().catch(() => {});
-    this.audioActivation?.context.close().catch(() => {});
+    this.releaseNative();
+  }
+  releaseNative() {
+    if (this.nativeReleased) return;
+    this.nativeReleased=true;
+    const contexts=[...new Set([this.context,this.audioActivation?.context])].filter(Boolean);
+    const operations=[
+      ...(this.stream?.getTracks() || []).map(track=>()=>track.stop()),
+      ()=>this.remoteSource?.disconnect(),
+      ...contexts.map(context=>()=>context.close().catch(()=>{})),
+    ];
+    for (const release of operations) {try {release();} catch { /* Already abandoned native resource. */ }}
   }
   async start({ signal } = {}) {
     const active = () => { if (signal?.aborted) throw Error("Recording recovery was replaced."); };
@@ -217,19 +225,18 @@ export class InterviewRecording {
     this.stopping = true;
     clearInterval(this.timer);
     this.captureStopped = (async () => {
-      let closed = true;
+      let stopped = Promise.resolve(true);
       if (this.recorder && this.recorder.state !== "inactive") {
-        closed = await new Promise((resolve) => {
+        stopped = new Promise((resolve) => {
           // Mobile suspension can prevent onstop. Do not hold recovery indefinitely.
           const timer = setTimeout(() => resolve(false), 10000);
           this.resolveStop = () => { clearTimeout(timer); resolve(true); };
           try { this.recorder.stop(); } catch { clearTimeout(timer); resolve(false); }
         });
       }
-      // Release hardware before persistence/upload. WebKit close() can remain pending.
-      this.stream?.getTracks().forEach((t) => t.stop());
-      this.remoteSource?.disconnect();
-      this.context?.close().catch(() => {});
+      // Issue native teardown now, never from a late onstop/upload callback after replacement.
+      this.releaseNative();
+      const closed = await stopped;
       await bounded(this.writing, "Saving recording bytes");
       this.unit = {
         ...this.unit,

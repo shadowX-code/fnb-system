@@ -1,0 +1,63 @@
+{
+  "synthetic_only": true,
+  "physical_iOS_verified": false,
+  "comparison": [
+    {
+      "policy": "semantic_auto",
+      "provider_configuration": {
+        "type": "semantic_vad",
+        "eagerness": "low",
+        "create_response": true,
+        "interrupt_response": true
+      },
+      "noise_vad_starts": 0,
+      "noise_cancellations": 0,
+      "quiet_answer_transcribed": true,
+      "quiet_automatic_responses": 1,
+      "explicit_accepted_responses": null
+    },
+    {
+      "policy": "server_tuned",
+      "provider_configuration": {
+        "type": "server_vad",
+        "threshold": 0.85,
+        "silence_duration_ms": 1200,
+        "prefix_padding_ms": 300,
+        "create_response": true,
+        "interrupt_response": true
+      },
+      "noise_vad_starts": 0,
+      "noise_cancellations": 0,
+      "quiet_answer_transcribed": true,
+      "quiet_automatic_responses": 1,
+      "explicit_accepted_responses": null
+    },
+    {
+      "policy": "controlled",
+      "provider_configuration": {
+        "type": "semantic_vad",
+        "eagerness": "low",
+        "create_response": false,
+        "interrupt_response": false
+      },
+      "noise_vad_starts": 0,
+      "noise_cancellations": 0,
+      "quiet_answer_transcribed": true,
+      "quiet_automatic_responses": 0,
+      "explicit_accepted_responses": 1
+    }
+  ],
+  "adapter_check": {
+    "passed": true,
+    "generations": [
+      1,
+      2
+    ],
+    "same_attempt_start": true,
+    "accepted_candidates": 1,
+    "recoveries": [],
+    "provider_errors": [],
+    "explicit_provider_cancellation_acknowledged": true,
+    "output_drain_and_clear_receipts": "modeled for WebSocket; not WebRTC/physical playback"
+  }
+}
