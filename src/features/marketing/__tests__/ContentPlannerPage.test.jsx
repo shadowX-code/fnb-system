@@ -193,11 +193,30 @@ it('retains optional create fields after an actionable server rejection',async()
  render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'New Task'}));const dialog=within(screen.getByRole('dialog',{name:'New creative task'}));fireEvent.change(dialog.getByLabelText(/Title/),{target:{value:'Keep draft'}});fireEvent.change(dialog.getByRole('textbox',{name:'Description'}),{target:{value:'Keep description'}});fireEvent.click(dialog.getByRole('button',{name:'Add task'}));await dialog.findByRole('alert');expect(dialog.getByRole('textbox',{name:'Description'}).value).toBe('Keep description');expect(dialog.getByLabelText(/Title/).value).toBe('Keep draft');
 });
 
-it('reports a task attachment failure to the shared picker and keeps the canonical media unchanged',async()=>{
- render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));planner.command.mockRejectedValueOnce(new Error('Task changed. Reopen and retry.'));let result;await act(async()=>{result=await media.props.onChange(['snapshot'])});expect(result).toBe(false);expect(media.props.values).toEqual([]);expect(screen.getByRole('alert').textContent).toContain('Task changed');expect(screen.getByRole('dialog',{name:'Creative task'})).toBeTruthy();
+it('keeps unsaved attachment selection after failure without changing canonical media',async()=>{
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));planner.command.mockRejectedValueOnce(new Error('Task changed. Reopen and retry.'));let result;await act(async()=>{result=await media.props.onChange(['snapshot'])});expect(result).toBe(false);expect(media.props.values).toEqual(['snapshot']);expect(read.tasks[0].asset_ids).toEqual([]);expect(screen.getByRole('alert').textContent).toContain('Task changed');expect(screen.getByRole('dialog',{name:'Creative task'})).toBeTruthy();
 });
-it('retries a saved attachment with the same request ID when the detail refresh fails',async()=>{
- render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'Add media to Real task'}));planner.command.mockResolvedValue({revision:2});planner.read.mockRejectedValueOnce(new Error('Refresh unavailable')).mockResolvedValueOnce({...read,tasks:[{...task,revision:2,asset_ids:['snapshot']}]});let result;await act(async()=>{result=await media.props.onChange(['snapshot'])});expect(result).toBe(false);const first=planner.command.mock.calls.at(-1)[0];await act(async()=>{result=await media.props.onChange(['snapshot'])});expect(result).toEqual({revision:2});expect(planner.command.mock.calls.at(-1)[0].requestId).toBe(first.requestId);expect(media.props.values).toEqual(['snapshot']);
+it('retains an accepted media revision when refresh fails and uses it for the next save',async()=>{
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'Add media to Real task'}));
+ planner.command.mockResolvedValueOnce({...task,revision:2,asset_ids:['snapshot']});planner.read.mockRejectedValueOnce(new Error('Refresh unavailable'));
+ let result;await act(async()=>{result=await media.props.onChange(['snapshot'])});expect(result.revision).toBe(2);expect(media.props.values).toEqual(['snapshot']);expect(screen.getByText('Saved. Activity could not refresh; your saved revision is retained.')).toBeTruthy();
+ planner.command.mockResolvedValueOnce({...task,revision:3,asset_ids:[]});planner.read.mockResolvedValueOnce({...read,tasks:[{...task,revision:3,asset_ids:[]}]});
+ await act(async()=>{await media.props.onChange([])});expect(planner.command.mock.calls.at(-1)[0]).toMatchObject({revision:2,payload:{month:'2026-10-01',asset_ids:[]}});expect(media.props.values).toEqual([]);
+});
+it('reconciles stale media saves without overwriting unrelated changes or regressing to an older read',async()=>{
+ const original={...task,asset_ids:['a']};planner.read.mockResolvedValue({...read,tasks:[original]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));
+ const latest={...original,revision:2,priority:'high'};planner.read.mockResolvedValue({...read,tasks:[latest]});
+ planner.command.mockRejectedValueOnce(Object.assign(new Error('Task changed'),{cause:{code:'PT409'}})).mockResolvedValueOnce({...latest,revision:3,asset_ids:[]});
+ await act(async()=>{await media.props.onChange([])});expect(media.props.values).toEqual([]);
+ expect(planner.command.mock.calls.at(-1)[0]).toMatchObject({revision:2,payload:{month:'2026-10-01',asset_ids:[]}});expect(Object.keys(planner.command.mock.calls.at(-1)[0].payload)).toEqual(['month','asset_ids']);
+ planner.command.mockResolvedValueOnce({...latest,revision:4,asset_ids:['a']});await act(async()=>{await media.props.onChange(['a'])});expect(planner.command.mock.calls.at(-1)[0].revision).toBe(3);
+});
+it('loads conflicting latest media explicitly while keeping unsaved removal for review and saving',async()=>{
+ const original={...task,asset_ids:['a']};planner.read.mockResolvedValue({...read,tasks:[original]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));
+ const latest={...original,revision:2,asset_ids:['b'],assets:[{id:'b',filename:'Concurrent.jpg'}]};planner.read.mockResolvedValue({...read,tasks:[latest]});planner.command.mockRejectedValueOnce(Object.assign(new Error('Task changed'),{cause:{code:'PT409'}}));
+ await act(async()=>{expect(await media.props.onChange([])).toBe(false)});expect(media.props.values).toEqual([]);expect(screen.getByText(/Latest attached media: Concurrent.jpg/)).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Load latest task · keep my edits'}));expect(media.props.values).toEqual([]);
+ planner.command.mockResolvedValueOnce({...latest,revision:3,asset_ids:[]});fireEvent.click(screen.getByRole('button',{name:'Save changes',exact:true}));await vi.waitFor(()=>expect(planner.command.mock.calls.at(-1)[0]).toMatchObject({revision:2,payload:{month:'2026-10-01',asset_ids:[]}}));
 });
 
 it.each(['planned','in_progress'])('Drawer can complete %s production with reviewer authority without a review hop',async status=>{
