@@ -32,6 +32,7 @@ import Badge from "../../components/ui/Badge.jsx";
 import { formatDateTime } from "../../lib/dateTime.js";
 import { marketingService } from "./marketingService.js";
 import { inboxService } from "./inboxService.js";
+import {inboxStatusDescription,inboxStatusOptions,inboxStatusTabs} from './inboxStatus.js';
 import "./marketing.css";
 import "./marketingInbox.css";
 import { notifyConversationsChanged } from "./useConversationReplyCount.js";
@@ -516,6 +517,7 @@ export default function MarketingInboxPage() {
       assigned_to: c.assigned_to || "",
       tags: c.tags,
       takeover: c.takeover,
+      resolution_hold: Boolean(c.resolution_hold),
       ...patch,
     });
   }
@@ -619,7 +621,7 @@ export default function MarketingInboxPage() {
             <div className="inbox-list-search"><AdminSearchField hideLabel label="Search" ariaLabel="Search conversations" placeholder="Search messages or keywords…" value={search} maxLength={100} onChange={value=>{setSearch(value);setPage(1);setSelected('');}} /></div>
             <AdminSegmentedControl className="inbox-status-tabs" label="Conversation status" value={status}
               onChange={value=>{setStatus(value);setPage(1);setSelected('');}}
-              options={['','open','pending','resolved'].map(value=>({value,label:value?label(value):'All'}))} />
+              options={inboxStatusTabs(data?.status_counts)} />
             {controls}
             <div className="inbox-list-scroll">
               {loading && (
@@ -753,7 +755,7 @@ export default function MarketingInboxPage() {
                     value={c.status}
                     disabled={busy || !can("manage")}
                     onChange={(status) => handling({ status })}
-                    options={options(["open", "pending", "resolved"])}
+                    options={inboxStatusOptions}
                   />
                   <SelectField
                     ariaLabel="Assignment"
@@ -783,6 +785,7 @@ export default function MarketingInboxPage() {
                     <PanelRight size={18} />
                   </button>
                 </header>
+                <div className="inbox-status-context" role="status"><span>{inboxStatusDescription(c.status)}</span><span>Last activity: {stamp(c.last_activity_at || timeline.at(-1)?.occurred_at || c.updated_at)}</span>{c.resolution_hold?<strong>Unresolved follow-up · automatic resolution blocked</strong>:null}</div>
                 {!!c.escalation_reasons?.length && (
                   <p role="status" className="marketing-inbox-escalation">
                     Needs a person: {c.escalation_reasons.map(label).join(", ")}
@@ -1014,6 +1017,7 @@ export default function MarketingInboxPage() {
                         assigned_to: c.assigned_to || "",
                         tags: c.tags.join(", "),
                         takeover: c.takeover,
+                        resolution_hold: Boolean(c.resolution_hold),
                       })
                     }
                   >
@@ -1480,6 +1484,7 @@ function InboxModal({
               .map((t) => t.trim())
               .filter(Boolean),
             takeover: m.takeover,
+            resolution_hold: Boolean(m.resolution_hold),
           });
         } else if (m.type === "preview") {
           preview(m.question);
@@ -1544,7 +1549,7 @@ function InboxModal({
             label="Status"
             value={m.status}
             onChange={(v) => set("status", v)}
-            options={options(["open", "pending", "resolved"])}
+            options={inboxStatusOptions}
           />
           <SelectField
             label="Priority"
@@ -1575,6 +1580,7 @@ function InboxModal({
             />
             Human takeover (sensitive cases always retain this)
           </label>
+          <label className="marketing-inbox-check"><input type="checkbox" checked={Boolean(m.resolution_hold)} onChange={e=>set('resolution_hold',e.target.checked)}/>Unresolved follow-up or task · prevent automatic resolution</label>
         </>
       )}
       <button className="btn-primary" disabled={busy}>
