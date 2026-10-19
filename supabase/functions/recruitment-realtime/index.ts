@@ -56,7 +56,8 @@ Deno.serve(async (request) => {
   if (!tokenPattern.test(token) || !uuidPattern.test(clientId))
     return json(request, { error: "Interview request is invalid." }, 400);
 
-  const orientationEnabled = body.orientation_version === "receipt-v1";
+  const continuity = body.orientation_version === "continuity-v2";
+  const orientationEnabled = continuity || body.orientation_version === "receipt-v1";
   const url = Deno.env.get("SUPABASE_URL") || Deno.env.get("PROJECT_URL");
   const serviceKey =
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
@@ -133,6 +134,7 @@ Deno.serve(async (request) => {
     )
       return json(request, { error: "Interview was replaced." }, 409);
     const context = continuationContext(state, attempt, config, opening, annotations || [], traces || []);
+    if (continuity) context.conversation_protocol = "continuity-v2";
     if (!orientationEnabled) { delete context.orientation_complete; delete context.orientation_presented; }
     return json(request, {
       generation: attempt.provider_generation,
@@ -194,6 +196,7 @@ Deno.serve(async (request) => {
   const continuation = continuationContext(durable, {provider_generation:context.generation,preferred_language:context.preferred_language},
     {...context,interview_profile:context.interview_profile},
     {...context.opening, employment_preference:context.employment_preference}, annotations || [], traces || []);
+  if (continuity) context.conversation_protocol = "continuity-v2";
   if (orientationEnabled) { context.orientation_complete = continuation.orientation_complete; context.orientation_presented = continuation.orientation_presented; }
   context.turns = continuation.turns;
   context.current_findings = durable.current_findings || [];
@@ -226,7 +229,7 @@ Deno.serve(async (request) => {
       model: "gpt-realtime-1.5",
       output_modalities: ["audio"],
       tools: [
-        ...(orientationEnabled ? [{
+        ...(orientationEnabled && !continuity ? [{
           type:"function",name:"confirm_orientation",
           description:"Silently confirm presentation only in the same response after speaking the workplace, position, confirmed role scope, approximate duration and self-introduction invitation. Then listen, without more speech. Never use a short Hello/Hi/OK as a substitute for the required orientation. This is not evidence coverage or completion permission.",
           parameters:{type:"object",properties:{},required:[],additionalProperties:false},
@@ -304,8 +307,9 @@ Deno.serve(async (request) => {
     value: secret.value,
     expires_at: secret.expires_at,
     generation: context.generation,
-    orientation_required: orientationEnabled && !context.orientation_complete && !context.orientation_presented,
-    introduction_pending: orientationEnabled && context.orientation_presented && !context.orientation_complete,
+    conversation_protocol: continuity ? "continuity-v2" : "receipt-v1",
+    orientation_required: !continuity && orientationEnabled && !context.orientation_complete && !context.orientation_presented,
+    introduction_pending: !continuity && orientationEnabled && context.orientation_presented && !context.orientation_complete,
     conversation_instructions: interviewInstructions(context),
     first_response_instructions: firstInterviewResponse(context),
     max_ends_at: context.max_ends_at,

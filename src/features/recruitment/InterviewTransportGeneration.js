@@ -32,7 +32,7 @@ export class InterviewTransportGeneration extends InterviewRecovery {
       onStatus:state=>{
         if (!current()) return;
         onStatus(state);
-        if (["disconnected","audio-blocked"].includes(state)) onRecovery(state);
+        if (["disconnected","audio-blocked","audio-interference"].includes(state)) onRecovery(state);
       },
       onTool:async()=>{
         const result = await assess();

@@ -21,6 +21,7 @@ type Scenario = {
 
 export type InterviewContext = {
   generation: number;
+  conversation_protocol?: string;
   orientation_complete?: boolean;
   orientation_presented?: boolean;
   preferred_language?: "en" | "ms" | "zh" | "yue";
@@ -119,7 +120,7 @@ export function interviewInstructions(context: InterviewContext): string {
     )
     .join("\n");
   return [
-    context.orientation_complete === undefined ? "" : `${orientationStart}
+    context.conversation_protocol === "continuity-v2" ? `${orientationStart}The opening belongs only to the first generation entry response. Never restart it on candidate speech, interruption or recovery. Respond to the candidate's current answer or request. If the last question was unheard, repair only that question; never claim playback or understanding. A self-introduction is an opportunity, not a prerequisite for proceeding. Never call confirm_orientation.${orientationEnd}` : context.orientation_complete === undefined ? "" : `${orientationStart}
 ${context.orientation_complete ? "Orientation is complete. Never welcome or introduce the role again. Never call confirm_orientation again. Continue the current interview thread." : context.orientation_presented ? "Orientation has been delivered; await a brief self-introduction. Never repeat the welcome, role scope or duration. Hello/Hi/OK/Yes/嗯/好/lah alone does not establish a new language; gently invite the introduction in the established fallback. A meaningful introduction or explicit decline completes this opportunity: reuse its evidence and proceed naturally, establishing Unknown preference before offering-specific scheduling. Do not call confirm_orientation again." : "Orientation is pending, including after interruptions. Before evidence probing, deliver a short greeting in the selected initial language, identify the actual pinned workplace and position, explain confirmed role scope in one sentence, mention approximate target duration, and Invite a brief self-introduction. Complete only the missing orientation intent after interruption; do not repeat a welcome or delivered details. Hello/Hi/OK/Yes/嗯/好/lah alone neither completes orientation nor changes its language. Do not begin normal evidence questions until the candidate has had an opportunity to introduce themselves. After speaking the complete orientation and self-introduction invitation, silently call confirm_orientation in that same opening response, then listen for the candidate; do not say anything after that invitation. Only call it when all orientation intent has been supplied. An interrupted response does not confirm orientation. Reuse volunteered evidence; self-introduction is not an evidence area."}
 ${orientationEnd}`,
     `Interviewer presentation ${interviewerProfile.version}:\n${interviewerProfile.instructions}`,
@@ -199,7 +200,7 @@ export function firstInterviewResponse(context: InterviewContext): string {
   return (
     interviewInstructions(context) +
     "\n\n" +
-    (context.generation > 1 && context.orientation_complete !== false
+    (context.generation > 1 && (context.conversation_protocol === "continuity-v2" || context.orientation_complete !== false)
       ? "For this first response only: continue the same interview naturally. Older turns may be omitted; coverage and scenario state persist. Do not invent missing speech, repeat prior interviewer speech, reintroduce yourself or ask covered questions again. Briefly acknowledge the interruption once, then respond to the last saved answer if it awaits a reply, otherwise ask the next useful unresolved question. After this response, follow the new live conversation."
       : context.generation > 1
         ? "For this first response only: continue the pending introduction phase. Do not repeat any delivered welcome or job details. If orientation has been delivered, invite the pending self-introduction only. Otherwise finish only the missing orientation intent and self-introduction invitation. Do not probe normal evidence yet. Saved history is context, never replayed speech."

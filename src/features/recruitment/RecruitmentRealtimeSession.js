@@ -1,3 +1,4 @@
+import { interviewPlaybackOwner } from "./InterviewPlayback.js";
 import { bounded } from "./interviewRecovery.js";
 import { OpenAIInterviewConversation } from "./OpenAIInterviewConversation.js";
 import { recruitmentService } from "./recruitmentService.js";
@@ -25,6 +26,7 @@ export class RecruitmentRealtimeSession {
     this.mediaStream = mediaStream;
     this.startedAt = Date.parse(startedAt);
     this.audioElement = audioElement;
+    this.playbackOwner = interviewPlaybackOwner(audioElement);
     this.onStatus = onStatus || (() => {});
     this.onEvent = onEvent || (() => {});
     this.onRemote = onRemote || (() => {});
@@ -36,7 +38,7 @@ export class RecruitmentRealtimeSession {
     this.flushing = false;
     this.conversation = new OpenAIInterviewConversation({candidateEligible:itemId=>this.evidence.candidateEligible(itemId),send:event=>this.send(event), onTool, onCompletion,
       onOrientation:receipt=>this.trace({type:"output_audio_buffer.stopped",phase:"orientation_complete",...receipt}),
-      onRecovery:reason=>{this.trace({type:"transport.disconnected",status:reason});this.disconnected();}});
+      onRecovery:reason=>{this.trace({type:"transport.disconnected",status:reason});this.disconnected(reason);}});
     this.audioPlaying = false;
     this.eventSequence = 0;
   }
@@ -65,6 +67,8 @@ export class RecruitmentRealtimeSession {
     );
     if (this.closed) throw new Error("Interview session was replaced.");
     this.generation = secret.generation;
+    if (secret.conversation_protocol !== "continuity-v2") throw Error("The interviewer needs the current interview version. Please reload this page.");
+    this.conversation.presentationOwned = true;
     this.conversation.orientationRequired = secret.orientation_required === true;
     this.conversation.instructions = secret.conversation_instructions;
     this.conversation.introductionPending = secret.introduction_pending === true;
@@ -74,24 +78,33 @@ export class RecruitmentRealtimeSession {
     this.peer = peer;
     this.playbackListeners = ["playing", "pause", "waiting", "stalled", "ended", "error"].map(type => {
       const listener = () => {
-        if (this.closed || this.peer !== peer) return;
+        if (this.closed || this.peer !== peer || !this.ownsPlayback()) return;
         this.trace({type:"playback." + (type === "error" ? "blocked" : type),phase:"browser"});
-        if (["pause","stalled","error"].includes(type) && this.audioPlaying) this.disconnected();
+        const unavailable = (type === "pause" && this.audioElement.paused) || (type === "stalled" && this.audioElement.readyState < 3) || (type === "error" && this.audioElement.error);
+        if (unavailable && this.audioPlaying) this.disconnected();
       };
       this.audioElement.addEventListener?.(type, listener);
       return {type, listener};
     });
+    let playbackReady, playbackFailed;
+    const remotePlayback = new Promise((resolve,reject) => {playbackReady=resolve;playbackFailed=reject;});
+    remotePlayback.catch(() => {});
+    this.rejectPlayback = playbackFailed;
     peer.ontrack = (event) => {
-      if (this.closed || this.peer !== peer) return;
+      if (this.closed || this.peer !== peer || !this.ownsPlayback()) return;
       this.onRemote(event.streams[0]);
       this.audioElement.srcObject = event.streams[0];
-      this.audioElement.play().catch(() => {
+      bounded(this.audioElement.play(), "Interviewer playback", {signal,timeoutMs:8000}).then(() => {
+        if (!this.closed && this.peer === peer && this.ownsPlayback()) playbackReady();
+      }).catch((error) => {
+        if (this.closed || this.peer !== peer || !this.ownsPlayback()) return;
+        playbackFailed(error);
         this.trace({type:"playback.blocked",phase:"browser"});
         this.onStatus("audio-blocked");
       });
     };
     peer.onconnectionstatechange = () => {
-      if (this.closed || this.peer !== peer) return;
+      if (this.closed || this.peer !== peer || !this.ownsPlayback()) return;
       if (["disconnected", "failed", "closed"].includes(peer.connectionState))
         this.disconnected();
     };
@@ -150,6 +163,8 @@ export class RecruitmentRealtimeSession {
         );
       });
       if (this.closed || this.peer !== peer) throw new Error("Interview session was replaced.");
+      await bounded(remotePlayback, "Interviewer playback", {signal,timeoutMs:8000});
+      if (this.closed || this.peer !== peer) throw Error("Interview session was replaced.");
       await recruitmentService.providerConnected(
         this.token,
         this.clientId,
@@ -158,7 +173,8 @@ export class RecruitmentRealtimeSession {
         signal,
       );
       if (this.closed) throw Error("Interview session was replaced.");
-      this.trace({type:"transport.connected",phase:secret.orientation_required ? "orientation_pending" : null});
+      const settings = microphone.getSettings?.() || {};
+      this.trace({type:"transport.connected",phase:secret.orientation_required ? "orientation_pending" : "continuity-v2",status:`aec:${settings.echoCancellation ?? "unknown"};noise:${settings.noiseSuppression ?? "unknown"}`});
       this.onStatus("connected");
       this.flush().catch(() => this.onStatus("transcript-pending"));
       if (this.closed) throw Error("Interview session was replaced.");
@@ -171,6 +187,8 @@ export class RecruitmentRealtimeSession {
       throw error;
     }
   }
+
+  ownsPlayback() { return !this.playbackOwner || interviewPlaybackOwner(this.audioElement) === this.playbackOwner; }
 
   send(event) {
     if (!this.closed && this.channel?.readyState === "open")
@@ -186,7 +204,7 @@ export class RecruitmentRealtimeSession {
     }
     if (this.closed) return;
     this.trace(event);
-    if (event.type.startsWith("conversation.item.input_audio_transcription."))
+    if (["conversation.item.input_audio_transcription.completed","conversation.item.input_audio_transcription.failed"].includes(event.type))
       this.trace({type:"input_audio_buffer.committed",item_id:event.item_id,phase:event.type.endsWith("completed") ? "transcription_completed" : "transcription_failed"});
     const accepted = this.conversation.event(event);
     this.audioPlaying = this.conversation.playing;
@@ -207,7 +225,7 @@ export class RecruitmentRealtimeSession {
     if (!allowed.test(event.type)) return;
     const record = { type: event.type, response_id: event.response_id || event.response?.id || null,
       item_id: event.item_id || event.item?.id || null, owner: event.owner || event.response?.metadata?.owner || null,
-      status: event.response?.status || event.error?.code || event.status || null, phase: event.item?.phase || event.phase || null,
+      status: event.response?.status || event.error?.code || event.status || null, phase: event.item?.phase || event.phase || (event.type === "response.function_call_arguments.done" ? event.name : null),
       audio_end_ms: event.audio_end_ms ?? null, playing: event.phase === "browser" ? !this.audioElement.paused : this.audioPlaying,
       elapsed_ms: Math.max(0, Date.now() - this.startedAt) };
     const item = { key: `${this.attemptKey}:${this.generation}:trace:${crypto.randomUUID()}`,
@@ -224,12 +242,12 @@ export class RecruitmentRealtimeSession {
   set generation(value) { this.evidence.generation=value; }
   get persistence() { return this.evidence.persistence; }
   set persistence(value) { this.evidence.persistence=value; }
-  disconnected() {
+  disconnected(reason) {
     if (this.closed || this.disconnectionSent) return;
     this.disconnectionSent = true;
     this.trace({type:"transport.disconnected"});
     this.markUnfinishedSpeech();
-    this.onStatus("disconnected");
+    this.onStatus(reason === "repeated_unverified_input" ? "audio-interference" : "disconnected");
     recruitmentService
       .providerDisconnected(this.token, this.clientId, this.generation)
       .catch(() => {});
@@ -241,10 +259,12 @@ export class RecruitmentRealtimeSession {
     this.trace({ type: "transport.closed" });
     this.evidence.close();
     this.closed = true;
+    this.rejectPlayback?.(Error("Interview session was replaced."));
+    this.rejectPlayback = null;
     this.channel?.close();
     this.peer?.close();
-    this.audioElement.pause?.();
-    this.audioElement.srcObject = null;
+    if (this.playbackOwner) this.playbackOwner.dispose();
+    else if (!interviewPlaybackOwner(this.audioElement)) { this.audioElement.pause?.(); this.audioElement.srcObject = null; }
     for (const {type,listener} of this.playbackListeners || []) this.audioElement.removeEventListener?.(type,listener);
     this.peer = null;
     this.channel = null;

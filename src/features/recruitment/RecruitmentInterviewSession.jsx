@@ -1,3 +1,4 @@
+import { activateInterviewPlayback } from "./InterviewPlayback.js";
 import RecruitmentInterviewRoom, {
   InterviewComplete,
 } from "./RecruitmentInterviewRoom.jsx";
@@ -29,6 +30,7 @@ const recoveryLabels = {
   "fresh recording": "Starting a new recording",
   "fresh AI session": "Preparing your interviewer",
   "device readiness": "Waiting for camera and microphone",
+  "interviewer playback": "Preparing interviewer audio",
 };
 
 export default function RecruitmentInterviewSession({
@@ -343,7 +345,9 @@ export default function RecruitmentInterviewSession({
             : "interviewer_connection_lost",
         );
         setError(
-          "The interviewer was interrupted. Tap Continue interview; your saved answers are retained.",
+          state === "audio-interference"
+            ? "Audio was repeatedly interrupted by uncertain microphone input. Use earphones or a quieter place, then tap Continue interview. Saved answers are retained."
+            : "The interviewer was interrupted. Tap Continue interview; your saved answers are retained.",
         );
       },
       onCompletion: (reason) => {
@@ -366,7 +370,7 @@ export default function RecruitmentInterviewSession({
       return;
     }
     if (["RESUMED", "RECOVERING"].includes(machine.current.state) || finishing.current) return;
-    let activation, mediaPromise;
+    let activation, mediaPromise, playback;
     let operation;
     try {
       operation = machine.current.begin((owner) => {
@@ -378,6 +382,8 @@ export default function RecruitmentInterviewSession({
         });
         mediaPromise.catch(() => {});
         activation = InterviewRecording.activateAudio();
+        playback = activateInterviewPlayback(audio.current, activation.context);
+        owner.controller.signal.addEventListener("abort", () => playback?.dispose(), {once:true});
       });
     } catch (cause) {
       setError(
@@ -386,6 +392,8 @@ export default function RecruitmentInterviewSession({
       setStatus("interrupted");
       setAiStatus("paused");
       devices.stop();
+      playback?.dispose();
+      activation?.context.close().catch(() => {});
       return;
     }
     observe("recovery.command", { stage: "resume", request_id: operation.id });
@@ -585,6 +593,7 @@ export default function RecruitmentInterviewSession({
       if (document.hidden || paused.current)
         throw Error("Return to this page and tap Continue interview again.");
       setStatus("starting");
+      await step("interviewer playback", () => playback?.ready || Promise.resolve(), {timeoutMs:8000});
       await step(
         "fresh AI session",
         (signal) => createFreshInterviewer(signal),

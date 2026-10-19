@@ -7,6 +7,7 @@ export class OpenAIInterviewConversation {
     this.responses = new Map(); this.turns = new Map(); this.tools = new Map();
     this.cancelled = new Set(); this.revision = 0; this.closed = false;
     this.speaking = false; this.playing = false; this.owner = null;
+    this.activeAudioResponse = null; this.uncertainInterruptions = 0;
   }
   watch(key, reason, timeout = 30000) {
     this.unwatch(key);
@@ -24,6 +25,11 @@ export class OpenAIInterviewConversation {
     this.entryRevision = this.revision;
     this.watch("entry", "entry_response_timeout");
     this.send({type:"response.create", response:{instructions, metadata:{owner,feedx_kind:"entry"}}});
+    if (this.presentationOwned) {
+      this.orientationRequired = false; this.introductionPending = false;
+      this.orientationConfirmed = true;
+      this.updateContext(this.instructions);
+    }
   }
   event(e) {
     if (this.closed) return false;
@@ -48,6 +54,10 @@ export class OpenAIInterviewConversation {
       this.introductionPending = false;
       this.orientationConfirmed = true;
       this.updateContext(this.instructions);
+    }
+    if (this.presentationOwned && e.type === "conversation.item.input_audio_transcription.completed") {
+      if (this.candidateEligible(e.item_id)) this.uncertainInterruptions = 0;
+      else if (++this.uncertainInterruptions >= 3) this.onRecovery("repeated_unverified_input");
     }
     if (e.type === "response.created") {
       if (this.responses.has(id)) return false;
@@ -79,27 +89,36 @@ export class OpenAIInterviewConversation {
       if (e.response.status === "cancelled") this.cancelled.add(id);
       if (["failed","incomplete"].includes(e.response.status)) this.onRecovery("response_failed");
       if (response?.drained && response.status === "completed" && !response.cancelled && response.itemId) response.delivered = true;
+      this.commitDialogue(id, response);
       this.settleCompletion(response);
       for (const tool of this.tools.values()) if (tool.responseId === id) tool.orientation ? this.settleOrientation(tool) : this.continueTool(tool);
     }
     if (e.type === "output_audio_buffer.started") {
-      this.playing = true;
+      this.activeAudioResponse = id; this.playing = true;
       this.watch(`audio:${id}`, "audio_playback_timeout", 90000);
     }
     if (["output_audio_buffer.stopped","output_audio_buffer.cleared"].includes(e.type)) {
-      this.playing = false; this.unwatch(`audio:${id}`);
+      if (this.activeAudioResponse === id) { this.activeAudioResponse = null; this.playing = false; }
+      this.unwatch(`audio:${id}`);
       if (e.type === "output_audio_buffer.cleared") { this.cancelled.add(id); const r = this.responses.get(id); if(r) r.cancelled = true; }
       const response = this.responses.get(id);
       if (e.type === "output_audio_buffer.stopped" && response) response.drained = true;
       if (response?.drained && response.status === "completed" && !this.cancelled.has(id) && response.itemId)
         response.delivered = true;
       for (const tool of this.tools.values()) if (tool.orientation && tool.responseId === id) this.settleOrientation(tool);
+      this.commitDialogue(id, response);
       this.settleCompletion(response);
     }
     if (e.type === "response.function_call_arguments.done" && !this.tools.has(e.call_id)) {
       if (this.responses.get(id)?.revision !== this.revision) return false;
       const tool = {callId:e.call_id,responseId:id,revision:this.revision};
       this.tools.set(e.call_id, tool);
+      if (e.name === "confirm_orientation" && this.presentationOwned) {
+        // Retire a late legacy tool without requesting any replay/continuation.
+        tool.sent = true;
+        this.send({type:"conversation.item.create",item:{type:"function_call_output",call_id:tool.callId,output:JSON.stringify({orientation_delivered:false,next:"Continue the current candidate thread; never restart the opening."})}});
+        return true;
+      }
       if (e.name === "confirm_orientation") {
         tool.orientation = true;
         this.watch("orientation:" + tool.callId, "orientation_audio_timeout", 15000);
@@ -121,6 +140,11 @@ export class OpenAIInterviewConversation {
     }
     if (e.type === "error") this.onRecovery("provider_error");
     return true;
+  }
+  commitDialogue(id, response) {
+    if (!this.presentationOwned || !response?.delivered || response.dialogueCommitted || response.cancelled || this.cancelled.has(id) || this.closed) return;
+    response.dialogueCommitted = true;
+    this.onOrientation({phase:"dialogue_committed",response_id:id,item_id:response.itemId});
   }
   settleCompletion(response) {
     // Provider generation and audio drain may arrive in either order. Only one
@@ -171,7 +195,9 @@ export class OpenAIInterviewConversation {
   updateContext(instructions) {
     if ((this.orientationConfirmed || this.orientationPresented) && instructions) instructions = instructions.replace(
       /\[FEEDX ORIENTATION\][\s\S]*?\[\/FEEDX ORIENTATION\]/,
-      this.orientationConfirmed
+      this.presentationOwned
+        ? "[FEEDX ORIENTATION]The opening was attempted. Never restart the welcome, role description or duration, even after interruption. Do not claim unheard speech was delivered. Respond to the current candidate answer or repair only the missing question. Self-introduction is optional and must never block interview progress. Never call confirm_orientation.[/FEEDX ORIENTATION]"
+        : this.orientationConfirmed
         ? "[FEEDX ORIENTATION]Orientation is complete. Never welcome or introduce the role again. Never call confirm_orientation again. Continue the current interview thread.[/FEEDX ORIENTATION]"
         : "[FEEDX ORIENTATION]Orientation has been delivered. Never repeat the welcome, role scope or duration. Await a brief self-introduction; Hello/Hi/OK/Yes/嗯/好/lah alone does not change language. After meaningful introduction or explicit decline, reuse its evidence and continue naturally; establish Unknown preference before offering-specific scheduling. Never call confirm_orientation again.[/FEEDX ORIENTATION]");
     if (this.closed || !instructions || instructions === this.instructions) return;
