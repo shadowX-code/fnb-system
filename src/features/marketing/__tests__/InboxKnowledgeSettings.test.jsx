@@ -16,7 +16,11 @@ it('separates draft mode from saved status and cancels without a mutation',()=>{
 });
 it('submits the existing revision-bound contract including consent and staff policy',()=>{
  const p=props();render(<InboxKnowledgeSettings {...p}/>);choose('Safe Auto Reply');fireEvent.click(screen.getByRole('checkbox',{name:/Require approval/}));fireEvent.click(screen.getByRole('button',{name:'Save changes'}));
- expect(p.configure).toHaveBeenCalledWith('policy',3,{automation_mode:'suggest',ai_allowed:true,ai_reply_mode:'safe_auto',staff_reply_requires_approval:true,ai_availability:'always',ai_timezone:'Asia/Kuala_Lumpur',ai_schedule:{days:[0,1,2,3,4,5,6],start:'09:00',end:'22:00'}});
+ expect(p.configure).toHaveBeenCalledWith('policy',3,{automation_mode:'suggest',ai_allowed:true,ai_reply_mode:'safe_auto',staff_reply_requires_approval:true,ai_availability:'always',ai_timezone:'Asia/Kuala_Lumpur',ai_schedule:{days:[0,1,2,3,4,5,6],start:'09:00',end:'22:00'},auto_resolve_enabled:false,auto_resolve_hours:48});
+});
+it('keeps auto resolution off by default and saves only supported waiting periods',()=>{
+ const p=props();render(<InboxKnowledgeSettings {...p}/>);expect(screen.getByRole('checkbox',{name:/Auto Resolve eligible/}).checked).toBe(false);expect(screen.queryByRole('button',{name:'Resolve after inactivity'})).toBeNull();
+ fireEvent.click(screen.getByRole('checkbox',{name:/Auto Resolve eligible/}));expect(screen.getByText('48 hours')).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Save changes'}));expect(p.configure.mock.calls[0][2]).toMatchObject({auto_resolve_enabled:true,auto_resolve_hours:48,ai_reply_mode:'suggest_only',ai_allowed:true});
 });
 it('keeps automatic save consent/permission guards and allows manual setup independently',()=>{
  const p=props();render(<InboxKnowledgeSettings {...p} can={a=>a!=='send'} data={{...data,policy:{...data.policy,ai_allowed:false}}}/>);choose('AI First');expect(screen.getByRole('button',{name:'Save changes'}).disabled).toBe(true);expect(screen.getByText('Additional permission needed')).toBeTruthy();

@@ -70,10 +70,12 @@
 .inbox-thread-identity h2 { margin: 0; font-size: 15px; line-height: 1.35; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .inbox-thread-identity p { color: var(--inbox-muted); font-size: 11px; margin: 4px 0 0; line-height: 1.5; }
 .inbox-header-controls { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.inbox-header-controls .admin-select:first-child { width: 95px; }
+.inbox-header-controls .admin-select:first-child { width: 200px; }
 .inbox-header-controls .admin-select:last-child { width: 126px; }
 .inbox-header-controls .control { min-height: 34px; height: 34px; padding: 6px 9px; font-size: 11px; border-radius: 8px; }
 .inbox-header-controls.inbox-status-open .admin-select:first-child > button { background: var(--theme-primary-soft); color: var(--inbox-accent); border-color: transparent; }
+.inbox-status-context{display:flex;flex-wrap:wrap;gap:4px 16px;padding:7px 16px;border-top:1px solid var(--theme-border);font-size:11px;color:var(--theme-muted)}
+.inbox-status-context strong{font-weight:600;color:var(--theme-text)}
 .inbox-takeover-state { display: flex; align-items: center; gap: 7px; color: var(--inbox-muted); font-size: 11px; margin: 16px 0; }
 .inbox-takeover-state small { font-size: inherit; }
 .inbox-takeover-state small::before { content: '·'; margin-right: 7px; }
