@@ -843,8 +843,16 @@ export default function RecruitmentInterviewSession({
       }
     };
     const pagehide = () => pause("page_closed");
+    const pageshow = (event) => {
+      // Safari can restore a suspended page before delivering visibility events.
+      if (event.persisted) {
+        observe("recovery.visibility", {stage:"page_restored",request_id:recoveryId.current});
+        pause("page_restored");
+      }
+    };
     document.addEventListener("visibilitychange", hidden);
     window.addEventListener("pagehide", pagehide);
+    window.addEventListener("pageshow", pageshow);
     return () => {
       alive.current = false;
       const ownsCapture =
@@ -856,6 +864,7 @@ export default function RecruitmentInterviewSession({
       clearTimeout(maxTimer.current);
       document.removeEventListener("visibilitychange", hidden);
       window.removeEventListener("pagehide", pagehide);
+      window.removeEventListener("pageshow", pageshow);
       releaseClient.current?.();
       releaseClient.current = null;
       ai.current?.close();

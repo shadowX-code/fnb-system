@@ -281,3 +281,28 @@ it('partial stop confirms once and shows submission immediately while evidence u
  expect(qa.finish.mock.calls[0][2]).toBe('candidate_stop');
  expect(screen.getByText(/saved with partial evidence/)).toBeTruthy();
 });
+
+it("Safari page-cache restore discards even an apparently active owner before the first Continue tap",async()=>{
+ const devices=mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));
+ await screen.findByRole("button",{name:"Finish interview"});
+ const old=qa.transports.at(-1);
+ // pageshow can be the first delivered lifecycle event after WebKit suspension.
+ const restored=new Event("pageshow");Object.defineProperty(restored,"persisted",{value:true});
+ fireEvent(window,restored);
+ expect(old.closed).toBe(true);
+ const button=screen.getByRole("button",{name:"Continue interview"});expect(button.disabled).toBe(false);
+ fireEvent.click(button);expect(devices.start).toHaveBeenCalledTimes(2);
+ await screen.findByRole("button",{name:"Finish interview"});
+ expect(qa.transports.at(-1)).not.toBe(old);expect(qa.begin).toHaveBeenCalledTimes(2);
+});
+
+it('page-cache restore during hung acquisition clears busy and fences the late old operation',async()=>{
+ let resolveOld;const devices=mount();devices.start.mockImplementationOnce(()=>new Promise(r=>resolveOld=r));
+ fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));
+ const restored=new Event("pageshow");Object.defineProperty(restored,"persisted",{value:true});fireEvent(window,restored);
+ const button=screen.getByRole("button",{name:"Continue interview"});expect(button.disabled).toBe(false);
+ fireEvent.click(button);await screen.findByRole("button",{name:"Finish interview"});
+ const stop=vi.fn();await act(async()=>resolveOld({getTracks:()=>[{stop}]}));
+ expect(stop).toHaveBeenCalled();expect(qa.begin).toHaveBeenCalledOnce();
+ expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+});

@@ -90,12 +90,38 @@ export class RecruitmentRealtimeSession {
     const remotePlayback = new Promise((resolve,reject) => {playbackReady=resolve;playbackFailed=reject;});
     remotePlayback.catch(() => {});
     this.rejectPlayback = playbackFailed;
+    let connectionReady, connectionFailed;
+    const connection = new Promise((resolve,reject) => {connectionReady=resolve;connectionFailed=reject;});
+    connection.catch(() => {});
+    this.rejectConnection = connectionFailed;
     peer.ontrack = (event) => {
       if (this.closed || this.peer !== peer || !this.ownsPlayback()) return;
+      const track = event.track;
+      if (track?.kind !== "audio" || track.readyState !== "live" || !event.streams[0]) {
+        playbackFailed(Error("Interviewer audio is unavailable. Tap Continue interview to try again."));
+        return;
+      }
+      this.remoteTrack = track;
+      const ended = () => {
+        if (this.closed || this.peer !== peer || !this.ownsPlayback()) return;
+        this.trace({type:"playback.ended",phase:"remote_track"});
+        playbackFailed(Error("Interviewer audio stopped. Tap Continue interview to try again."));
+        this.disconnected();
+      };
+      track.addEventListener("ended", ended);
+      this.remoteTrackCleanup?.();
+      this.remoteTrackCleanup = () => track.removeEventListener("ended", ended);
       this.onRemote(event.streams[0]);
       this.audioElement.srcObject = event.streams[0];
-      bounded(this.audioElement.play(), "Interviewer playback", {signal,timeoutMs:8000}).then(() => {
-        if (!this.closed && this.peer === peer && this.ownsPlayback()) playbackReady();
+      let nativePlayback;
+      try { nativePlayback = this.audioElement.play(); }
+      catch (error) { nativePlayback = Promise.reject(error); }
+      bounded(nativePlayback, "Interviewer playback", {signal,timeoutMs:8000}).then(() => {
+        if (!this.closed && this.peer === peer && this.ownsPlayback()) {
+          if (track.readyState !== "live" || this.audioElement.paused || this.audioElement.muted || this.audioElement.volume === 0)
+            throw Error("Interviewer audio could not start. Tap Continue interview to try again.");
+          playbackReady();
+        }
       }).catch((error) => {
         if (this.closed || this.peer !== peer || !this.ownsPlayback()) return;
         playbackFailed(error);
@@ -105,8 +131,11 @@ export class RecruitmentRealtimeSession {
     };
     peer.onconnectionstatechange = () => {
       if (this.closed || this.peer !== peer || !this.ownsPlayback()) return;
-      if (["disconnected", "failed", "closed"].includes(peer.connectionState))
+      if (peer.connectionState === "connected") connectionReady();
+      if (["disconnected", "failed", "closed"].includes(peer.connectionState)) {
+        connectionFailed(Error("The interviewer connection stopped. Tap Continue interview to try again."));
         this.disconnected();
+      }
     };
     const microphone = this.mediaStream.getAudioTracks()[0];
     if (!microphone || microphone.readyState !== "live")
@@ -163,7 +192,10 @@ export class RecruitmentRealtimeSession {
         );
       });
       if (this.closed || this.peer !== peer) throw new Error("Interview session was replaced.");
-      await bounded(remotePlayback, "Interviewer playback", {signal,timeoutMs:8000});
+      if (peer.connectionState === "connected") connectionReady();
+      await bounded(Promise.all([remotePlayback, connection]), "Interviewer audio connection", {signal,timeoutMs:8000});
+      if (this.remoteTrack?.readyState !== "live" || peer.connectionState !== "connected" || this.audioElement.paused)
+        throw Error("Interviewer audio is unavailable. Tap Continue interview to try again.");
       if (this.closed || this.peer !== peer) throw Error("Interview session was replaced.");
       await recruitmentService.providerConnected(
         this.token,
@@ -172,9 +204,11 @@ export class RecruitmentRealtimeSession {
         this.recoveryId,
         signal,
       );
-      if (this.closed) throw Error("Interview session was replaced.");
+      if (this.closed || this.disconnectionSent || !this.ownsPlayback()) throw Error("Interview session was replaced.");
+      if (this.remoteTrack?.readyState !== "live" || peer.connectionState !== "connected" || this.audioElement.paused)
+        throw Error("Interviewer audio stopped. Tap Continue interview to try again.");
       const settings = microphone.getSettings?.() || {};
-      this.trace({type:"transport.connected",phase:secret.orientation_required ? "orientation_pending" : "continuity-v2",status:`aec:${settings.echoCancellation ?? "unknown"};noise:${settings.noiseSuppression ?? "unknown"}`});
+      this.trace({type:"transport.connected",phase:secret.orientation_required ? "orientation_pending" : "continuity-v2",status:`aec:${settings.echoCancellation ?? "unknown"};noise:${settings.noiseSuppression ?? "unknown"};peer:${peer.connectionState};remote:${this.remoteTrack.readyState}`});
       this.onStatus("connected");
       this.flush().catch(() => this.onStatus("transcript-pending"));
       if (this.closed) throw Error("Interview session was replaced.");
@@ -261,6 +295,10 @@ export class RecruitmentRealtimeSession {
     this.closed = true;
     this.rejectPlayback?.(Error("Interview session was replaced."));
     this.rejectPlayback = null;
+    this.rejectConnection?.(Error("Interview session was replaced."));
+    this.rejectConnection = null;
+    this.remoteTrackCleanup?.();
+    this.remoteTrackCleanup = null;
     this.channel?.close();
     this.peer?.close();
     if (this.playbackOwner) this.playbackOwner.dispose();
