@@ -57,3 +57,7 @@ it('preserves existing scheduled days, overnight times and timezone across mode 
  expect(screen.getByRole('checkbox',{name:'Mon'}).checked).toBe(true);expect(screen.getByRole('checkbox',{name:'Tue'}).checked).toBe(false);expect(screen.getByRole('button',{name:'Starts'}).textContent).toContain('10:00 pm');expect(screen.getByRole('button',{name:'Ends'}).textContent).toContain('2:00 am');
  choose('Suggest Only');expect(screen.queryByRole('button',{name:'Starts'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Save changes'}));expect(p.configure).toHaveBeenCalledWith('policy',3,expect.objectContaining({ai_availability:'scheduled',ai_timezone:'Asia/Singapore',ai_schedule:schedule,ai_reply_mode:'suggest_only'}));
 });
+it('uses canonical channel evidence only for automatic setup and never blocks healthy channels for other accounts',()=>{
+ const p=props(),{rerender}=render(<InboxKnowledgeSettings {...p} channels={{connections:[]}}/>);expect(screen.queryByText('No connected Inbox channel')).toBeNull();choose('AI First');expect(screen.getByText('No connected Inbox channel')).toBeTruthy();
+ rerender(<InboxKnowledgeSettings {...p} channels={{connections:[{messaging:{receiving_verified:true}},{messaging:{receiving_verified:false}}]}}/>);expect(screen.queryByText('Inbox channels need attention')).toBeNull();expect(screen.queryByText('No connected Inbox channel')).toBeNull();expect(screen.getByText(/1 of 2 channels/)).toBeTruthy();
+});
