@@ -212,3 +212,22 @@ it('accepts signed standby echoes and preserves unavailable outgoing direction',
  expect(normalizeInboxWebhook({object:'page',entry:[{id:'111',standby:[event]}]},time)[0]).toMatchObject({kind:'echo',peer_id:'222',body:'Meta page reply'});
  expect(normalizeInboxWebhook({object:'page',entry:[{id:'111',messaging:[{...event,message:{...event.message,is_deleted:true}}]}]},time)[0].kind).toBe('echo');
 });
+
+it('retains outbound app evidence without claiming a native automation identity',async()=>{
+ const {normalizeInboxWebhookEvidence}=await import('../../../../supabase/functions/_shared/marketingInbox.ts');const t=Date.now();
+ const rows=await normalizeInboxWebhookEvidence({object:'page',entry:[{id:'111',messaging:[{sender:{id:'111'},recipient:{id:'222'},timestamp:t,message:{mid:'external-mid',is_echo:true,app_id:123456,text:'An actual sent reply'}}]}]},t);
+ expect(rows[0]).toMatchObject({kind:'echo',provider_app_id:'123456',peer_id:'222'});expect(rows[0]).not.toHaveProperty('automation_handled');
+});
+it('separates displayed prompts from selections and deduplicates exact postback deliveries',async()=>{
+ const {normalizeInboxWebhookEvidence}=await import('../../../../supabase/functions/_shared/marketingInbox.ts');const t=Date.now();
+ expect(await normalizeInboxWebhookEvidence({object:'page',entry:[{id:'111',messaging:[]}]},t)).toEqual([]);
+ const selected={sender:{id:'222'},recipient:{id:'111'},timestamp:t,postback:{title:'Opening hours?',payload:'hours'}};
+ const payload={object:'page',entry:[{id:'111',messaging:[selected]}]};const a=await normalizeInboxWebhookEvidence(payload,t),b=await normalizeInboxWebhookEvidence(payload,t);
+ expect(a).toEqual(b);expect(a[0]).toMatchObject({kind:'attachment',interaction_type:'postback',interaction_payload:'hours',body:'Opening hours?'});expect(a[0].event_id).toMatch(/^postback:[a-f0-9]{64}$/);
+ const c=await normalizeInboxWebhookEvidence({object:'page',entry:[{id:'111',messaging:[{...selected,postback:{...selected.postback,payload:'another'}}]}]},t);expect(c[0].event_id).not.toBe(a[0].event_id);
+});
+it('keeps quick-reply selections as customer input, never business replies',async()=>{
+ const {normalizeInboxWebhookEvidence}=await import('../../../../supabase/functions/_shared/marketingInbox.ts');const t=Date.now();
+ const [row]=await normalizeInboxWebhookEvidence({object:'instagram',entry:[{id:'111',messaging:[{sender:{id:'222'},recipient:{id:'111'},timestamp:t,message:{mid:'customer-selection',text:'Menu?',quick_reply:{payload:'menu'}}}]}]},t);
+ expect(row).toMatchObject({kind:'incoming',interaction_type:'quick_reply',interaction_payload:'menu'});
+});

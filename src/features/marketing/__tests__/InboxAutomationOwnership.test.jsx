@@ -1,0 +1,9 @@
+import React from 'react';
+import {afterEach,it,expect,vi} from 'vitest';
+import {cleanup,render,screen,fireEvent} from '@testing-library/react';
+import InboxAutomationOwnership from '../InboxAutomationOwnership.jsx';
+afterEach(cleanup);
+const connection={id:'c',credential_generation:5,account_name:'QA Page',channel:'facebook',automation:{owner:'unknown',revision:2,issue:'automation_owner_not_feedx'}};
+it('defaults unknown without activating or mutating a policy',()=>{const configure=vi.fn();render(<InboxAutomationOwnership connection={connection} can={()=>true} configure={configure}/>);expect(screen.getByText('Automatic replies paused')).toBeTruthy();expect(screen.getByRole('button',{name:'Confirm ownership'}).disabled).toBe(true);expect(configure).not.toHaveBeenCalled()});
+it('requires explicit native-automation confirmation and submits exact generation/revision',async()=>{const configure=vi.fn();render(<InboxAutomationOwnership connection={connection} can={()=>true} configure={configure}/>);fireEvent.click(screen.getByRole('button',{name:'Automation owner · QA Page'}));fireEvent.click(await screen.findByRole('option',{name:'FeedX — other automatic replies disabled'}));expect(screen.getByRole('button',{name:'Confirm ownership'}).disabled).toBe(true);fireEvent.click(screen.getByRole('checkbox'));fireEvent.click(screen.getByRole('button',{name:'Confirm ownership'}));expect(configure).toHaveBeenCalledWith('automation_owner',2,{connection_id:'c',generation:5,owner:'feedx',native_disabled:true})});
+it('does not describe an unknown external echo as an automated answer',()=>{render(<InboxAutomationOwnership connection={{...connection,automation:{owner:'feedx',revision:3,issue:'external_outbound_observed'}}} can={()=>false} configure={vi.fn()}/>);expect(screen.getByRole('status').textContent).toContain('outside FeedX');expect(screen.queryByRole('button',{name:'Confirm ownership'})).toBeNull()});

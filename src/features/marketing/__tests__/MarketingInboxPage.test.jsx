@@ -357,7 +357,7 @@ it('labels external Meta outbound without staff attribution and retains exact st
  render(<MarketingInboxPage/>);await select();
  const bubble=screen.getByText('Provider-originated answer').closest('article');
  expect(bubble.getAttribute('aria-label')).toBe('Outgoing message');
- expect(bubble.textContent).toContain('Meta');expect(bubble.textContent).toContain('Read');
+ expect(bubble.textContent).toContain('Outside FeedX');expect(bubble.textContent).toContain('Read');
  expect(bubble.textContent).not.toContain('Team member');
 });
 it('renders canonical persisted profiles even when optional enrichment is unavailable', async()=>{

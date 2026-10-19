@@ -28,3 +28,5 @@
 
 .ai-settings-check-details{margin-top:14px;font-size:12px}.ai-settings-check-details>summary{cursor:pointer;font-weight:600;padding:5px 0;color:var(--theme-text)}.ai-settings-check-details>summary:focus-visible{outline:2px solid var(--factory-success-text);outline-offset:3px}
 @media(max-width:600px){.inbox-ai-settings{height:calc(100dvh - 280px);min-height:400px;gap:12px}.ai-settings-heading p{display:none}.ai-settings-saved{padding-bottom:12px}.ai-settings-footer{padding:10px 0}.ai-settings-footer>div:first-child{font-size:11px}.ai-settings-footer>div:first-child>span{max-width:44ch}}
+
+.inbox-automation-owner{display:grid;gap:10px;padding:14px 0;border-top:1px solid var(--theme-border);margin-top:14px;font-size:12px}.inbox-automation-owner header{display:flex;align-items:start;flex-wrap:wrap;gap:6px}.inbox-automation-owner .marketing-inbox-check{align-items:start;line-height:1.5}.inbox-automation-owner input{margin-top:3px;flex-shrink:0;accent-color:var(--factory-success-text)}

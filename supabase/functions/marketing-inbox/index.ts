@@ -10,7 +10,7 @@ import { MetaGraph } from "../_shared/metaGraph.ts";
 import { verifyInboxConnection } from "../_shared/metaInboxVerification.ts";
 import { inboxConnectorContracts } from "../_shared/metaInboxAdapters.ts";
 import {
-  normalizeInboxWebhook,
+  normalizeInboxWebhookEvidence,
   inboxWebhookRejection,
   verifyInboxSignature,
 } from "../_shared/marketingInbox.ts";
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
     let events, payload;
     try {
       payload = JSON.parse(new TextDecoder().decode(bytes));
-      events = normalizeInboxWebhook(payload);
+      events = await normalizeInboxWebhookEvidence(payload);
     } catch (error) {
       // Fixed contract codes only, after HMAC verification. Never log payloads/peers/text.
       console.warn(JSON.stringify(inboxWebhookRejection(payload, error)));

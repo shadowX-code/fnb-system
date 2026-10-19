@@ -9,6 +9,9 @@ export type InboxEvent = {
   body: string;
   medium?: "dm" | "comment";
   thread_id?: string;
+  provider_app_id?: string;
+  interaction_type?: string;
+  interaction_payload?: string;
 };
 const id = (v: unknown) => typeof v === "string" && /^\d{1,32}$/.test(v);
 export async function verifyInboxSignature(
@@ -78,6 +81,8 @@ export function normalizeInboxWebhook(
         peer_id: peer,
         occurred_at: new Date(eventTime).toISOString(),
       };
+      if (echo && id(String(e.message?.app_id||''))) Object.assign(base,{provider_app_id:String(e.message.app_id)});
+      if (!echo && e.message?.quick_reply && typeof e.message.quick_reply.payload==='string' && e.message.quick_reply.payload.length<=1000) Object.assign(base,{interaction_type:'quick_reply',interaction_payload:e.message.quick_reply.payload});
       if (e.message) {
         if (
           typeof e.message.mid !== "string" || e.message.mid.length > 300 ||
@@ -119,6 +124,10 @@ export function normalizeInboxWebhook(
             8000,
           ),
         });
+      } else if (e.postback) {
+        if (typeof e.postback.title!=='string' || e.postback.title.length>1000 || typeof e.postback.payload!=='string' || e.postback.payload.length>1000) throw new Error('invalid_postback');
+        // Selection is inbound evidence, not proof an Ads FAQ was displayed or answered. Keep it advisory.
+        events.push({...base,kind:'attachment',event_id:'postback:pending',body:e.postback.title||'[Customer selected a button]',interaction_type:'postback',interaction_payload:e.postback.payload});
       } else if (e.delivery) {
         if (!Array.isArray(e.delivery.mids) || e.delivery.mids.length > 1000) {
           throw new Error("invalid_receipt");
@@ -152,10 +161,20 @@ export function normalizeInboxWebhook(
   }
   return events;
 }
+/** Preserve synchronous parser callers; canonical ingress adds collision-resistant selection identity. */
+export async function normalizeInboxWebhookEvidence(payload:any,now=Date.now()) {
+ const events=normalizeInboxWebhook(payload,now);
+ for(const event of events) if(event.interaction_type==='postback') {
+  const bytes=new TextEncoder().encode(JSON.stringify([event.channel,event.account_id,event.peer_id,event.occurred_at,event.body,event.interaction_payload]));
+  const digest=await crypto.subtle.digest('SHA-256',bytes);
+  event.event_id='postback:'+Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+ }
+ return events;
+}
 export function inboxWebhookRejection(payload: any, error: unknown) {
   const reasons = ["invalid_webhook", "invalid_comment_contract", "webhook_batch_too_large",
     "account_identity_mismatch", "invalid_message_id", "invalid_message_text",
-    "invalid_attachments", "invalid_receipt"];
+    "invalid_attachments", "invalid_receipt", "invalid_postback"];
   const reason = error instanceof Error && reasons.includes(error.message)
     ? error.message : "invalid_contract";
   return { event: "marketing_inbox_webhook_rejected", object:

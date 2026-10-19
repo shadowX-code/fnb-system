@@ -848,7 +848,9 @@ export default function MarketingInboxPage() {
                               : "Message content unavailable")}
                         </p>
                         <footer>
-                          {m.kind === "echo" && m.message_origin === "meta" ? <span>Meta · </span> : null}
+                          {m.kind === "echo" && m.sender_type === "feedx_ai" ? <span>FeedX AI · </span> : m.kind === "echo" && m.sender_type === "feedx_staff" ? <span>Staff reply · </span> : null}
+                          {m.provider_context?.interaction_type ? <span>Customer selection · </span> : null}
+                          {m.kind === "echo" && m.message_origin === "meta" ? <span>Outside FeedX · </span> : null}
                           {m.evidence_source === "historical_import" ? <span>Imported history · </span> : m.evidence_source === "recent_api" ? <span>Recovered from Meta · </span> : null}
                           <time title={stamp(m.occurred_at)}>
                             {clock(m.occurred_at)}

@@ -32,7 +32,7 @@ do $$declare b uuid:=(select id from marketing_qa_ids where key='brand');r jsonb
 end;$$;
 reset role;
 do $$declare o uuid:=(select id from marketing_qa_ids where key='org');b uuid:=(select id from marketing_qa_ids where key='brand');conn uuid:=gen_random_uuid();c uuid:=gen_random_uuid();m uuid:=gen_random_uuid();begin
- insert into marketing_connections(id,organization_id,brand_id,channel,provider_account_id,account_name,status,expires_at,capabilities,credential_generation) values(conn,o,b,'facebook','999999999998','QA isolated automatic delivery','test_authorized',now()+interval '1 day','{"granted_scopes":["pages_messaging","pages_manage_metadata"],"execution_enabled":false}',1);
+ insert into marketing_connections(id,organization_id,brand_id,channel,provider_account_id,account_name,status,expires_at,capabilities,credential_generation,inbox_automation_owner,inbox_automation_generation,inbox_automation_confirmed_at) values(conn,o,b,'facebook','999999999998','QA isolated automatic delivery','test_authorized',now()+interval '1 day','{"granted_scopes":["pages_messaging","pages_manage_metadata"],"execution_enabled":false}',1,'feedx',1,now()-interval '1 minute');
  insert into marketing_private.credentials(connection_id,credential_reference,sealed_token,meta_user_id,expires_at) values(conn,'qa-rolled-back','{}','888',now()+interval '1 day');
  insert into marketing_private.inbox_authority(connection_id,generation,receive_verified,send_verified,webhook_verified,verified_at,page_id,page_tasks,granted_scopes) values(conn,1,true,true,true,now(),'999999999998',array['MESSAGING'],array['pages_messaging','pages_manage_metadata']);
  insert into marketing_conversations(id,organization_id,brand_id,channel,connection_id,participant_key,title,last_inbound_at,connection_generation) values(c,o,b,'facebook',conn,'777','QA automatic fixture',now(),1);
@@ -225,5 +225,36 @@ do $$declare a public.marketing_inbox_ai_artifacts;material jsonb;r jsonb;f uuid
  assert position(chr(92)||'n' in r->>'text')=0,'No visible escaped separator';
 end;$$;
 
-select 'Automatic policy, shared generation, canonical text, replay, takeover, stale sources, receipts, clarification and Brand isolation passed' result;
+-- Channel ownership is independent of manual replies and can only authorize future turns.
+set local role authenticated;
+select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from marketing_qa_ids where key='user'),'role','authenticated')::text,true);
+do $$declare b uuid:=(select id from marketing_qa_ids where key='brand');conn uuid:=(select id from marketing_qa_ids where key='connection');req uuid:=gen_random_uuid();r jsonb;payload jsonb;denied boolean;begin
+ payload:=jsonb_build_object('connection_id',conn,'generation',1,'owner','feedx','native_disabled',false);
+ denied:=false;begin perform marketing_inbox_configure(req,b,0,'automation_owner',payload);exception when others then denied:=true;end;assert denied,'Native ownership acknowledgement required';
+ payload:=jsonb_set(payload,'{native_disabled}','true');
+ r:=marketing_inbox_configure(req,b,0,'automation_owner',payload);
+ assert r=marketing_inbox_configure(req,b,0,'automation_owner',payload),'Ownership confirmation retry is idempotent';
+ denied:=false;begin perform marketing_inbox_configure(gen_random_uuid(),b,0,'automation_owner',payload);exception when others then denied:=true;end;assert denied,'Stale ownership revision rejected';
+ denied:=false;begin perform marketing_inbox_configure(gen_random_uuid(),(select id from marketing_qa_ids where key='other_brand'),1,'automation_owner',payload);exception when others then denied:=true;end;assert denied,'Other Brand cannot confirm ownership';
+ payload:=jsonb_set(payload,'{generation}','2');
+ denied:=false;begin perform marketing_inbox_configure(gen_random_uuid(),b,1,'automation_owner',payload);exception when others then denied:=true;end;assert denied,'Credential generation mismatch rejected';
+end;$$;
+reset role;
+do $$declare conn uuid:=(select id from marketing_qa_ids where key='connection');c uuid:=(select id from marketing_qa_ids where key='conversation');d uuid:=gen_random_uuid();begin
+ assert marketing_private.inbox_automation_issue(conn) is null,'Explicit current ownership accepted';
+ assert marketing_private.inbox_automation_issue(conn,now()-interval '1 day')='automation_ownership_changed','Old inbound cannot replay after confirmation';
+ update marketing_connections set inbox_automation_owner='unknown' where id=conn;
+ assert marketing_private.inbox_automation_issue(conn)='automation_owner_not_feedx','Unknown ownership blocks automatic handling';
+ update marketing_connections set inbox_automation_owner='meta' where id=conn;
+ assert marketing_private.inbox_automation_issue(conn)='automation_owner_not_feedx','Meta ownership blocks automatic handling';
+ update marketing_connections set inbox_automation_owner='feedx',inbox_automation_generation=2 where id=conn;
+ assert marketing_private.inbox_automation_issue(conn)='automation_owner_not_feedx','Reconnect invalidates ownership';
+ update marketing_connections set inbox_automation_generation=1 where id=conn;
+ insert into marketing_conversation_messages(conversation_id,kind,body,provider_message_id,occurred_at,evidence_source) values(c,'echo','QA outside reply','qa-coexistence-echo',clock_timestamp(),'signed_webhook');
+ assert marketing_private.inbox_automation_issue(conn)='external_outbound_observed','Actual outside echo blocks claim and delivery gates';
+ insert into marketing_reply_drafts(id,conversation_id,body,source_version,provenance) values(d,c,'QA exact receipt',1,'human');
+ insert into marketing_reply_outbox(draft_id,state,provider_message_id) values(d,'sent','qa-coexistence-echo');
+ assert marketing_private.inbox_automation_issue(conn) is null,'Exact same-conversation FeedX receipt resolves echo-before-checkpoint ambiguity';
+end;$$;
+select 'Automatic policy, ownership, shared generation, canonical text, replay, takeover, stale sources, receipts, clarification and Brand isolation passed' result;
 rollback;
