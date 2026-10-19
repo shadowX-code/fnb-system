@@ -51,7 +51,7 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
  }
  async function confirm(selection=pending,close=true){
   if(disabled||saving.current)return;
-  const expectedScope=scope;saving.current=true;setBusy(true);setError('');
+  const expectedScope=scope;saving.current=true;setBusy(true);setError('');setPending(selection);
   try{
    const ids=[];
    for(const entry of selection){
@@ -75,7 +75,7 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
   finally{if(activeScope.current===expectedScope){saving.current=false;setBusy(false)}}
  }
  return <div className="space-y-3"><div className="media-selection">{values.map(id=>{const asset=known.find(a=>a.id===id);return <div className="media-selection-item" key={id}>{asset?<MarketingMediaPreview compact={thumbnailPreviews} cover={thumbnailPreviews} asset={asset} assets={values.map(id=>known.find(a=>a.id===id)).filter(Boolean)}/>:<p className="text-sm">Saved media · preview unavailable</p>}<button type="button" className="icon-btn" aria-label={`Remove ${asset?.filename||'media'}`} disabled={disabled||busy} onClick={()=>confirm(values.filter(value=>value!==id).map(id=>({id})),false)}><X size={15}/></button></div>})}</div><button type="button" className="btn-secondary" disabled={disabled||busy} onClick={()=>{setPending(values.map(id=>({id})));setOpen(true);setError('')}}><Plus size={15}/>{values.length&&!attachments&&format!=='carousel'?'Replace media':'Add media'}</button>
- {!open&&error?<p role="alert" className="text-sm text-danger">{error}</p>:null}
+ {!open&&error?<div><p role="alert" className="text-sm text-danger">{error}</p><button type="button" className="btn-secondary" disabled={disabled||busy} onClick={()=>confirm(pending,false)}>Retry media save</button></div>:null}
  {open?<Modal title="Select media" size="xl" onClose={()=>{if(!busy)setOpen(false)}} footer={<><span className="mr-auto text-sm text-text-secondary">{busy?'Saving media…':`${pending.length} selected`}</span><button className="btn-primary" type="button" disabled={busy||disabled} onClick={()=>confirm()}>{busy?'Saving…':'Done'}</button></>}>
  {attachments?<p className="text-sm text-text-secondary mb-3">Working files and references for any task type · up to 10 files. Publishing formats are checked separately.</p>:null}
  <AdminSegmentedControl label="Media source" value={tab} onChange={value=>{if(!busy){setTab(value);setError('')}}} options={[{value:'drive',label:'Google Drive'},{value:'upload',label:'Upload from device'},{value:'existing',label:'Existing FeedX media'}]}/>

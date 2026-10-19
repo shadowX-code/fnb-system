@@ -9,6 +9,13 @@ vi.mock('../marketingService.js',()=>({marketingService:{listing}}));
 vi.mock('../DriveMediaBrowser.jsx',()=>({default:({onSelect,isSelected})=><><button onClick={()=>onSelect(driveFile)} aria-pressed={isSelected(driveFile)}>Drive image</button><button onClick={()=>onSelect({...driveFile,id:'pdf',selection_id:'pdf',mimeType:'application/pdf'})}>Unsupported file</button></>}));
 vi.mock('../MarketingMediaPreview.jsx',()=>({default:({asset})=><span>{asset.filename}</span>}));
 afterEach(()=>{cleanup();vi.clearAllMocks()});
+it('keeps a failed inline unlink for retry without uploading, importing or deleting the asset',async()=>{
+ const save=vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce({revision:2});
+ render(<MarketingMediaPicker brand={{id:'brand',organization_id:'org'}} attachments values={['snapshot']} assets={[readyAsset]} onChange={save}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Remove Drive.jpg'}));await screen.findByRole('alert');
+ fireEvent.click(screen.getByRole('button',{name:'Retry media save'}));await waitFor(()=>expect(save).toHaveBeenCalledTimes(2));
+ expect(save.mock.calls).toEqual([[[]],[[]]]);expect(importFile).not.toHaveBeenCalled();expect(uploadFile).not.toHaveBeenCalled();
+});
 it('uses the canonical total_count to reach and select saved media after the first page',async()=>{
  const asset=n=>({id:`asset-${n}`,filename:`Image ${n}`,state:'ready',mime_type:'image/jpeg',size_bytes:100});
  listing.mockResolvedValueOnce({rows:Array.from({length:20},(_,i)=>asset(i+1)),total_count:21,page:1,page_size:20}).mockResolvedValueOnce({rows:[asset(21)],total_count:21,page:2,page_size:20});
