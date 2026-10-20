@@ -249,6 +249,7 @@ Deno.serve(async (request) => {
         },
       ],
       instructions: interviewInstructions(context),
+      ...(body.conversation_version === "controlled-auto-v1" ? {include:["item.input_audio_transcription.logprobs"]} : {}),
       audio: {
         input: {
           transcription: {
@@ -302,7 +303,7 @@ Deno.serve(async (request) => {
     value: secret.value,
     expires_at: secret.expires_at,
     generation: context.generation,
-    turn_policy: body.conversation_version === "controlled-turns-v1" ? "controlled-turns-v1" : "provider-owned-v1",
+    turn_policy: ["controlled-auto-v1","controlled-turns-v1"].includes(body.conversation_version) ? body.conversation_version : "provider-owned-v1",
     conversation_protocol: continuity ? "continuity-v2" : "receipt-v1",
     orientation_required: !continuity && orientationEnabled && !context.orientation_complete && !context.orientation_presented,
     introduction_pending: !continuity && orientationEnabled && context.orientation_presented && !context.orientation_complete,

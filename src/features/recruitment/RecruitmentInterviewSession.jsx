@@ -953,16 +953,20 @@ export default function RecruitmentInterviewSession({
           status === "interviewing" &&
           session.current ? (
             <div className="recruitment-actions">
-              {turnView.listening && <div role="group" aria-label="Your answer" className="candidate-answer">
-                <p>Speak naturally. Review the recognized words, then send your answer.</p>
-                {turnView.text && <p className="candidate-answer-preview" aria-live="polite">{turnView.text}</p>}
-                {turnView.waiting && <p role="status">Recognizing your answer…</p>}
-                <button className="candidate-button is-primary" disabled={!turnView.canSend} onClick={()=>{
-                  const accepted=machine.current.confirmAnswer();
-                  observe("recovery.command",{stage:"answer.send",code:accepted ? "accepted" : "not_ready",request_id:recoveryId.current});
-                  setError(accepted ? "" : "Finish speaking and wait for your answer to appear, then try Send answer again.");
-                }}>Send answer</button>
-                <button className="candidate-button is-secondary" onClick={()=>machine.current.clearAnswer()}>Try again</button>
+              {turnView.listening && <div className="candidate-answer">
+                {turnView.uncertain && <p role="status">We couldn’t confidently recognize that answer. Speak again, or check the words in Answer controls.</p>}
+                <details>
+                  <summary>Answer controls</summary>
+                  <p>Answers are sent automatically when you finish speaking. If detection misses your answer, you can check and submit it here.</p>
+                  {turnView.text && <p className="candidate-answer-preview">{turnView.text}</p>}
+                  {turnView.waiting && <p role="status">Recognizing your answer…</p>}
+                  <button className="candidate-button is-secondary" disabled={!turnView.canSend} onClick={()=>{
+                    const accepted=machine.current.confirmAnswer();
+                    observe("recovery.command",{stage:"answer.manual",code:accepted ? "accepted" : "not_ready",request_id:recoveryId.current});
+                    setError(accepted ? "" : "Finish speaking and wait for the recognized words, then try again.");
+                  }}>Use these words</button>
+                  <button className="candidate-button is-secondary" onClick={()=>machine.current.clearAnswer()}>Discard recognized words</button>
+                </details>
               </div>}
               {turnView.canInterrupt && <button className="candidate-button is-secondary" onClick={()=>{
                 const accepted=machine.current.interrupt();

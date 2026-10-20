@@ -349,11 +349,13 @@ it('pointer intent and first-tap handler share one correlation ID through fresh 
  expect(records.find(r=>r.stage==='continue.tap').request_id).toBe(pointer.request_id);
  expect(records.some(r=>r.code==='dependency_completed'&&r.request_id===pointer.request_id)).toBe(true);
 });
-it('candidate Send/Try again/explicit interruption delegate intent without allocating another generation',async()=>{
+it('automatic flow keeps manual confirmation optional and delegates interruption without allocating another generation',async()=>{
  mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
  const t=qa.transports.at(-1);act(()=>t.props.onTurnState({listening:true,text:'我可以做周末。',canSend:true,canInterrupt:false}));
- expect(screen.getByRole('group',{name:'Your answer'})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Send answer'}));expect(t.conversation.confirmAnswer).toHaveBeenCalledOnce();
- fireEvent.click(screen.getByRole('button',{name:'Try again'}));expect(t.conversation.clearAnswer).toHaveBeenCalledOnce();
+ expect(screen.queryByRole('button',{name:'Send answer'})).toBeNull();expect(screen.queryByRole('button',{name:'Try again'})).toBeNull();
+ expect(screen.getByText('Answer controls').closest('details').hasAttribute('open')).toBe(false);fireEvent.click(screen.getByText('Answer controls'));
+ fireEvent.click(screen.getByRole('button',{name:'Use these words'}));expect(t.conversation.confirmAnswer).toHaveBeenCalledOnce();
+ fireEvent.click(screen.getByRole('button',{name:'Discard recognized words'}));expect(t.conversation.clearAnswer).toHaveBeenCalledOnce();
  act(()=>t.props.onTurnState({listening:false,text:'',canSend:false,canInterrupt:true}));fireEvent.click(screen.getByRole('button',{name:'I’d like to speak'}));expect(t.conversation.interrupt).toHaveBeenCalledOnce();
  expect(qa.connect).toHaveBeenCalledOnce();expect(screen.queryByRole('button',{name:'Reconnect AI'})).toBeNull();
 });

@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-20",
+  "synthetic_only": true,
+  "physical_certified": false,
+  "model": "gpt-realtime-1.5",
+  "transcription_model": "gpt-4o-transcribe",
+  "voice_unchanged": "marin",
+  "provider_policy": {
+    "type": "semantic_vad",
+    "eagerness": "low",
+    "create_response": false,
+    "interrupt_response": false
+  },
+  "include": [
+    "item.input_audio_transcription.logprobs"
+  ],
+  "samples": [
+    {
+      "sample": "quiet English",
+      "automatic_responses": 1,
+      "manual_submission": false,
+      "asr_tokens": 16,
+      "mean_logprob": -0.01628
+    },
+    {
+      "sample": "short Yes",
+      "automatic_responses": 1,
+      "manual_submission": false,
+      "asr_tokens": 2,
+      "mean_logprob": -0.10087
+    },
+    {
+      "sample": "Bahasa Melayu",
+      "automatic_responses": 1,
+      "manual_submission": false,
+      "asr_tokens": 19,
+      "mean_logprob": -1e-05
+    },
+    {
+      "sample": "Mandarin",
+      "automatic_responses": 1,
+      "manual_submission": false,
+      "asr_tokens": 20,
+      "mean_logprob": -0.0018
+    },
+    {
+      "sample": "Cantonese",
+      "automatic_responses": 1,
+      "manual_submission": false,
+      "asr_tokens": 28,
+      "mean_logprob": -0.00326
+    }
+  ],
+  "generated_breath_like_noise": {
+    "advanced": false,
+    "recorded_iphone_audio": false
+  },
+  "reconstruction": {
+    "same_attempt": true,
+    "prior_generation": 2,
+    "replacement_generation": 3,
+    "context_retained": true,
+    "opening_not_replayed": true,
+    "explicit_provider_cancellation_acknowledged": true,
+    "websocket_output_drain_and_clear_receipts": "modeled; not proof of WebRTC audibility"
+  },
+  "provider_errors": [],
+  "recoveries": [],
+  "terminal": {
+    "status": "failed",
+    "recording_state": "failed"
+  }
+}

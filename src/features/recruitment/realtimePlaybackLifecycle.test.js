@@ -5,7 +5,7 @@ vi.mock('./interviewTranscriptQueue.js',()=>({interviewTranscriptQueue:{put:vi.f
 import {RecruitmentRealtimeSession} from './RecruitmentRealtimeSession.js';
 let peers=[];let sessions=[];let initialPeerState;
 beforeEach(()=>{
- initialPeerState="connected";vi.clearAllMocks();qa.secret.mockResolvedValue({generation:1,turn_policy:'controlled-turns-v1',conversation_protocol:'continuity-v2',conversation_instructions:'[FEEDX ORIENTATION]opening[/FEEDX ORIENTATION]',first_response_instructions:'opening'});qa.connected.mockResolvedValue();qa.disconnected.mockResolvedValue();
+ initialPeerState="connected";vi.clearAllMocks();qa.secret.mockResolvedValue({generation:1,turn_policy:'controlled-auto-v1',conversation_protocol:'continuity-v2',conversation_instructions:'[FEEDX ORIENTATION]opening[/FEEDX ORIENTATION]',first_response_instructions:'opening'});qa.connected.mockResolvedValue();qa.disconnected.mockResolvedValue();
  vi.stubGlobal('MediaStream',class {constructor(tracks){this.tracks=tracks;}});
  vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,text:async()=> 'sdp'}));
  vi.stubGlobal('RTCPeerConnection',class{
@@ -87,4 +87,19 @@ it('provider gating uses a disposable microphone clone while original recording 
  expect(q.s.providerMicrophone).not.toBe(original);expect(q.s.providerMicrophone.enabled).toBe(false);
  q.s.conversation.setInput(true);expect(q.s.providerMicrophone.enabled).toBe(true);
  const stop=q.s.providerMicrophone.stop;q.s.close();expect(stop).toHaveBeenCalledOnce();expect(original.enabled).toBe(true);expect(original.stop).not.toHaveBeenCalled();
+});
+it('the live session automatically accepts evidence before one response, while raw recording input stays live',async()=>{
+ const q=setup();await q.s.connect();const consume=e=>q.s.consume(JSON.stringify(e));
+ consume({type:'response.created',response:{id:'entry',metadata:{feedx_kind:'entry',owner:'session:1'}}});
+ consume({type:'response.output_item.added',response_id:'entry',item:{type:'message',id:'ai-entry'}});
+ consume({type:'output_audio_buffer.started',response_id:'entry'});
+ consume({type:'response.done',response:{id:'entry',status:'completed'}});
+ consume({type:'output_audio_buffer.stopped',response_id:'entry'});expect(q.s.providerMicrophone.enabled).toBe(true);
+ consume({type:'input_audio_buffer.speech_started',item_id:'candidate',audio_start_ms:1000});
+ consume({type:'input_audio_buffer.speech_stopped',item_id:'candidate',audio_end_ms:2500});
+ consume({type:'input_audio_buffer.committed',item_id:'candidate'});
+ const final={type:'conversation.item.input_audio_transcription.completed',item_id:'candidate',transcript:'Saya boleh kerja hujung minggu.',logprobs:[{logprob:-0.02}]};consume(final);consume(final);
+ expect(q.s.evidence.completedItems.has('candidate')).toBe(true);expect(q.s.evidence.pendingCandidates.size).toBe(0);
+ expect(q.s.providerMicrophone.enabled).toBe(false);expect(q.original.enabled).toBe(true);expect(q.original.stop).not.toHaveBeenCalled();
+ expect(q.s.channel.send.mock.calls.filter(([raw])=>JSON.parse(raw).type==='response.create')).toHaveLength(2);
 });

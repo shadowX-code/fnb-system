@@ -1,6 +1,7 @@
+import { automaticTurnDecision } from "./interviewTurnAcceptance.js";
 import { meaningfulSpeech } from "../../../supabase/functions/recruitment-realtime/orientation.ts";
-// Owns provider conversation policy. Controlled turns require explicit answer
-// acceptance; VAD/ASR alone cannot interrupt output or submit hiring evidence.
+// Owns provider conversation policy. Controlled automatic acceptance combines
+// end-of-turn provenance and ASR uncertainty; only deliberate intent interrupts output.
 export class OpenAIInterviewConversation {
   constructor({send, onRecovery, onTool, onCompletion, onOrientation = () => {}, trace = () => {}, candidateEligible = () => true, onInput = () => {}, onTurnState = () => {}, onAcceptCandidate = () => {}, onRejectCandidate = () => {}}) {
     Object.assign(this, {send, onRecovery, onTool, onCompletion:onCompletion||(()=>{}), onOrientation, trace, candidateEligible, onInput, onTurnState, onAcceptCandidate, onRejectCandidate});
@@ -9,6 +10,7 @@ export class OpenAIInterviewConversation {
     this.speaking = false; this.playing = false; this.owner = null;
     this.drafts = new Map(); this.pendingInputs = new Set(); this.blockedInputs = new Set(); this.committedInputs = new Set();
     this.activeAudioResponse = null; this.uncertainInterruptions = 0;
+    this.inputSignals = new Map(); this.processedInputs = new Set(); this.uncertainInputs = new Set();
   }
   watch(key, reason, timeout = 30000) {
     this.unwatch(key);
@@ -164,6 +166,7 @@ export class OpenAIInterviewConversation {
     if (!this.controlled || this.closed) return;
     this.onTurnState({
       text:[...this.drafts.values()].join(" "),
+      uncertain:this.uncertainInputs.size > 0,
       canSend:!!this.inputOpen && !this.speaking && !this.pendingInputs.size && !!this.drafts.size,
       listening:!!this.inputOpen,
       waiting:!!this.pendingInputs.size,
@@ -177,12 +180,28 @@ export class OpenAIInterviewConversation {
   }
   controlledEvent(e) {
     const item=e.item_id, id=e.response_id || e.response?.id;
+    if (this.processedInputs.has(item) && e.type.startsWith("input_audio_buffer.")) return false;
     if (e.type === "input_audio_buffer.speech_started") {
       if (!this.inputOpen) {this.blockedInputs.add(item);return false;}
+      if (this.automatic) {
+        // A new utterance replaces uncertain hypotheses, never promotes them.
+        for (const prior of this.uncertainInputs) this.discardInput(prior);
+        this.uncertainInputs.clear();
+        this.inputSignals.set(item,{started:true,startMs:e.audio_start_ms});
+      }
       this.pendingInputs.add(item);
     }
     if (e.type.startsWith("input_audio_buffer.") && this.blockedInputs.has(item)) return false;
-    if (e.type === "input_audio_buffer.committed") this.committedInputs.add(item);
+    if (e.type === "input_audio_buffer.committed") {
+      this.committedInputs.add(item);
+      const signal=this.inputSignals.get(item);if(signal)signal.committed=true;
+    }
+    if (e.type === "input_audio_buffer.speech_stopped") {
+      const signal=this.inputSignals.get(item);if(signal){signal.stopped=true;signal.endMs=e.audio_end_ms;}
+    }
+    if (e.type === "conversation.item.input_audio_transcription.delta" && Array.isArray(e.logprobs) && e.logprobs.length) {
+      const signal=this.inputSignals.get(item);if(signal)signal.logprobs=[...(signal.logprobs||[]),...e.logprobs];
+    }
     if (e.type === "input_audio_buffer.speech_stopped" && this.pendingInputs.has(item)) this.watch(`transcription:${item}`,"transcription_timeout",15000);
     if (e.type === "conversation.item.input_audio_transcription.failed") {
       this.pendingInputs.delete(item);this.unwatch(`transcription:${item}`);
@@ -190,14 +209,27 @@ export class OpenAIInterviewConversation {
       if (!this.blockedInputs.has(item) && this.inputOpen) this.onRecovery("transcription_failed");return false;
     }
     if (e.type === "conversation.item.input_audio_transcription.completed") {
+      if (this.processedInputs.has(item)) return false;
+      this.processedInputs.add(item);
       this.pendingInputs.delete(item);this.unwatch(`transcription:${item}`);
       const text=(e.transcript || "").trim();
       // Preserve short acknowledgements in every language; only nonverbal markers are excluded.
       const verbal=/[\p{L}\p{N}]/u.test(text) && !/^[\s\p{P}]*(?:noise|breathing|silence|music|inaudible)[\s\p{P}]*$/iu.test(text);
       if (this.blockedInputs.has(item) || !this.inputOpen || !this.candidateEligible(item) || !verbal) {
         this.committedInputs.delete(item);this.onRejectCandidate(item);this.send({type:"conversation.item.delete",item_id:item});
-      } else this.drafts.set(item,text);
-      this.speaking=false;this.emitTurn();return false;
+      } else {
+        this.drafts.set(item,text);
+        if (this.automatic) {
+          const signal=this.inputSignals.get(item)||{};
+          if(Array.isArray(e.logprobs) && e.logprobs.length)signal.logprobs=e.logprobs;
+          const decision=automaticTurnDecision(signal,text);
+          if(decision!=="accept")this.uncertainInputs.add(item);
+          this.trace({type:"input_audio_buffer.committed",item_id:item,phase:"turn_acceptance",status:decision});
+        }
+      }
+      if (this.owner===item) this.speaking=false;
+      if (this.automatic && !this.uncertainInputs.size) this.confirmAnswer("automatic");
+      this.emitTurn();return false;
     }
     if (this.interrupting === id && (e.type === "output_audio_buffer.cleared" || (e.type === "response.done" && !this.activeAudioResponse))) {
       this.unwatch("explicit-interruption");this.interrupting=null;
@@ -205,13 +237,18 @@ export class OpenAIInterviewConversation {
     }
     return true;
   }
-  confirmAnswer() {
+  discardInput(item) {
+    this.drafts.delete(item);this.committedInputs.delete(item);
+    this.onRejectCandidate(item);this.send({type:"conversation.item.delete",item_id:item});
+  }
+  confirmAnswer(mode = "manual") {
     if (!this.controlled || this.closed || !this.inputOpen || this.speaking || this.pendingInputs.size || !this.drafts.size) return false;
     const items=[...this.drafts.keys()];
     if (!items.every(item=>this.candidateEligible(item))) {this.clearAnswer();return false;}
+    this.acceptanceMode=mode;
     this.acceptedOwner=`answer:${crypto.randomUUID()}`;
     for (const item of items) {this.onAcceptCandidate(item);this.committedInputs.delete(item);}
-    this.drafts.clear();this.awaitingResponse=true;this.setInput(false);
+    this.drafts.clear();this.uncertainInputs.clear();this.awaitingResponse=true;this.setInput(false);
     this.send({type:"input_audio_buffer.clear"});
     this.watch("entry","accepted_answer_response_timeout");
     this.send({type:"response.create",response:{metadata:{feedx_kind:"answer",owner:this.acceptedOwner}}});
@@ -224,7 +261,7 @@ export class OpenAIInterviewConversation {
       this.onRejectCandidate(item);this.send({type:"conversation.item.delete",item_id:item});
     }
     for (const item of this.pendingInputs) {this.blockedInputs.add(item);this.unwatch(`transcription:${item}`);}
-    this.drafts.clear();this.pendingInputs.clear();this.committedInputs.clear();this.speaking=false;this.emitTurn();
+    this.drafts.clear();this.uncertainInputs.clear();this.pendingInputs.clear();this.committedInputs.clear();this.speaking=false;this.emitTurn();
   }
   interrupt() {
     if (!this.controlled || this.closed || this.inputOpen || this.interrupting) return false;

@@ -81,6 +81,7 @@ export class InterviewTranscriptEvidence {
       event.item_id &&
       event.transcript?.trim()
     ) {
+      if (this.completedItems.has(event.item_id) || this.pendingCandidates.has(event.item_id)) return;
       const boundary = this.inputBoundaries.get(event.item_id);
       // VAD/commit is provenance, not speaker attestation. Overlap is retained
       // conservatively as unverified, including genuine barge-in, for review.

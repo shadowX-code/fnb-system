@@ -33,3 +33,11 @@ it('background/close quarantines an unsubmitted answer, preserving acknowledged 
  answer('draft','Unsubmitted draft');evidence.close();await evidence.persistence;
  expect(qa.put.mock.calls.filter(([x])=>x.kind==='unverified_candidate').map(([x])=>x.itemId)).toEqual(['draft']);
 });
+
+it('duplicate provider finals cannot re-quarantine an already accepted turn',async()=>{
+ answer('candidate','I served customers.');evidence.acceptCandidate('candidate');await evidence.persistence;
+ evidence.observe({type:'conversation.item.input_audio_transcription.completed',item_id:'candidate',transcript:'I served customers.'});
+ evidence.close();await evidence.persistence;
+ expect(qa.put.mock.calls.filter(([x])=>x.speaker==='candidate')).toHaveLength(1);
+ expect(qa.put.mock.calls.some(([x])=>x.kind==='unverified_candidate')).toBe(false);
+});

@@ -41,8 +41,8 @@ export class RecruitmentRealtimeSession {
       onInput:open=>{if(this.providerMicrophone && !this.closed)this.providerMicrophone.enabled=open;
         if(open && this.conversation?.controlled && !this.evidence.outputActive.size)this.evidence.interruptionBoundary=false;},
       onTurnState:view=>{if(!this.closed){onTurnState(view);this.onEvent({type:"candidate.answer.preview",...view});}},
-      onAcceptCandidate:itemId=>{if(this.evidence.acceptCandidate(itemId)){this.trace({type:"input_audio_buffer.committed",item_id:itemId,phase:"candidate_confirmed"});this.onEvent({type:"candidate.answer.accepted",item_id:itemId});}},
-      onRejectCandidate:itemId=>this.evidence.rejectCandidate(itemId),send:event=>this.send(event), onTool, onCompletion,
+      onAcceptCandidate:itemId=>{if(this.evidence.acceptCandidate(itemId)){this.trace({type:"input_audio_buffer.committed",item_id:itemId,phase:this.conversation.acceptanceMode === "automatic" ? "candidate_auto_accepted" : "candidate_confirmed"});this.onEvent({type:"candidate.answer.accepted",item_id:itemId});}},
+      onRejectCandidate:itemId=>this.evidence.rejectCandidate(itemId),trace:event=>this.trace(event),send:event=>this.send(event), onTool, onCompletion,
       onOrientation:receipt=>this.trace({type:"output_audio_buffer.stopped",phase:"orientation_complete",...receipt}),
       onRecovery:reason=>{this.trace({type:"transport.disconnected",status:reason});this.disconnected(reason);}});
     this.audioPlaying = false;
@@ -74,8 +74,9 @@ export class RecruitmentRealtimeSession {
     if (this.closed) throw new Error("Interview session was replaced.");
     this.generation = secret.generation;
     if (secret.conversation_protocol !== "continuity-v2") throw Error("The interviewer needs the current interview version. Please reload this page.");
-    if (secret.turn_policy !== "controlled-turns-v1") throw Error("The interviewer needs the current turn policy. Please reload this page.");
+    if (secret.turn_policy !== "controlled-auto-v1") throw Error("The interviewer needs the current turn policy. Please reload this page.");
     this.conversation.controlled = true;
+    this.conversation.automatic = true;
     this.evidence.requireAcceptance = true;
     this.conversation.presentationOwned = true;
     this.conversation.orientationRequired = secret.orientation_required === true;
