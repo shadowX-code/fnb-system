@@ -81,7 +81,9 @@ do $$declare c uuid:=(select id from marketing_qa_ids where key='connection');u 
  assert r=marketing_whatsapp_local_command(req,c,1,'pause'),'Exact shutdown retry is idempotent';
  assert (marketing_whatsapp_local_command(req,c,1,'pause'))->>'generation'='2' and r->>'provider_offboarded'='false','Pause is local and fences generation';
  assert not marketing_private.whatsapp_receiving(c),'Paused receiving disabled';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','service_role')::text,true);
  r:=marketing_inbox_receive(jsonb_build_array(jsonb_build_object('channel','whatsapp','account_id','201','waba_id','200','peer_id','60110000000','kind','incoming','event_id','wamid.paused','occurred_at',clock_timestamp(),'body','Do not retain paused content','medium','dm')));
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated')::text,true);
  assert r->>'accepted'='0' and not exists(select 1 from marketing_private.inbox_events where payload->>'event_id'='wamid.paused'),'Paused live content is discarded';
  perform marketing_whatsapp_lifecycle(jsonb_build_array(jsonb_build_object('field','history','waba_id','200','phone_id','201','occurred_at',clock_timestamp(),'hash',repeat('9',64),'progress',100,'sealed_payload','{"version":1}')));
  assert exists(select 1 from marketing_private.whatsapp_lifecycle_events where connection_id=c and generation=2 and sealed_payload is null),'Paused sync retains minimal completion evidence only';
