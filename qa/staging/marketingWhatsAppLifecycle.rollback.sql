@@ -79,8 +79,13 @@ do $$declare c uuid:=(select id from marketing_qa_ids where key='connection');u 
  insert into marketing_private.inbox_events(event_key,connection_id,generation,payload,fingerprint,due_at) values('wa.lifecycle.old',c,1,'{}','fixture',now()-interval '100 years');
  r:=marketing_whatsapp_local_command(req,c,1,'pause');
  assert r=marketing_whatsapp_local_command(req,c,1,'pause'),'Exact shutdown retry is idempotent';
- assert r->>'generation'='2' and r->>'provider_offboarded'='false','Pause is local and fences generation';
+ assert (marketing_whatsapp_local_command(req,c,1,'pause'))->>'generation'='2' and r->>'provider_offboarded'='false','Pause is local and fences generation';
  assert not marketing_private.whatsapp_receiving(c),'Paused receiving disabled';
+ r:=marketing_inbox_receive(jsonb_build_array(jsonb_build_object('channel','whatsapp','account_id','201','waba_id','200','peer_id','60110000000','kind','incoming','event_id','wamid.paused','occurred_at',clock_timestamp(),'body','Do not retain paused content','medium','dm')));
+ assert r->>'accepted'='0' and not exists(select 1 from marketing_private.inbox_events where payload->>'event_id'='wamid.paused'),'Paused live content is discarded';
+ perform marketing_whatsapp_lifecycle(jsonb_build_array(jsonb_build_object('field','history','waba_id','200','phone_id','201','occurred_at',clock_timestamp(),'hash',repeat('9',64),'progress',100,'sealed_payload','{"version":1}')));
+ assert exists(select 1 from marketing_private.whatsapp_lifecycle_events where connection_id=c and generation=2 and sealed_payload is null),'Paused sync retains minimal completion evidence only';
+
  assert exists(select 1 from marketing_private.credentials where connection_id=c),'Pause retains encrypted authorization';
  assert exists(select 1 from marketing_private.inbox_events where event_key='wa.lifecycle.old' and state='blocked'),'Pause blocks queued events';
  assert(select provider_account_id='201' and whatsapp_waba_id='200' from marketing_connections where id=c),'Pause preserves identity';

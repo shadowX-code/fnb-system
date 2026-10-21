@@ -166,3 +166,15 @@ do $$declare f record;begin
  if f.proname='marketing_whatsapp_local_command' then execute format('grant execute on function %s to authenticated',f.signature);end if;
  end loop;
 end;$$;
+
+-- Local shutdown discards live content, while minimal lifecycle/sync completion metadata can still settle.
+do $$declare f text;needle text;begin
+ f:=pg_get_functiondef('marketing_private.whatsapp_enqueue(jsonb)'::regprocedure);
+ needle:=$part$ if c.id is null then return 'unbound';end if;$part$;
+ if strpos(f,needle)=0 then raise exception 'WhatsApp intake baseline changed';end if;
+ f:=replace(f,needle,$part$ if c.id is null or c.whatsapp_local_state<>'active' then return 'unbound';end if;$part$);execute f;
+ f:=pg_get_functiondef('public.marketing_whatsapp_lifecycle(jsonb)'::regprocedure);
+ needle:=$part$ts,item->'sealed_payload')$part$;
+ if strpos(f,needle)=0 then raise exception 'WhatsApp lifecycle payload baseline changed';end if;
+ f:=replace(f,needle,$part$ts,case when c.whatsapp_local_state='active' then item->'sealed_payload' else null end)$part$);execute f;
+end;$$;
