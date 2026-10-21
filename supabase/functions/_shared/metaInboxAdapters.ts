@@ -4,6 +4,7 @@
 import {messagingIntent} from './marketingInbox.ts';
 export type InboxDeliveryState={pending?:boolean;receipt?:string;failed?:string};
 export async function advanceInboxDelivery(input:{channel:'facebook'|'instagram';authority:any;recipient:string;text:string;state:InboxDeliveryState;guard:()=>Promise<void>;checkpoint:(state:InboxDeliveryState)=>Promise<void>;post:(path:string,body:any)=>Promise<any>}) {
+ if (!['facebook','instagram'].includes(input.channel)) throw new Error('messaging_channel_disabled');
  const {state}=input;
  if(state.receipt)return {state:'sent',receipt:state.receipt};
  if(state.failed)return {state:'failed',code:state.failed};

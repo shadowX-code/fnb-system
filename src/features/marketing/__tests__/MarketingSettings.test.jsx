@@ -5,6 +5,7 @@ import BrandKnowledgeWorkspace from '../BrandKnowledgeWorkspace.jsx';
 import BrandAccessConsole from '../BrandAccessConsole.jsx';
 const {service,roles,auth}=vi.hoisted(()=>({service:{context:vi.fn(),read:vi.fn(),knowledgeWorkspace:vi.fn(),knowledge:vi.fn(),setup:vi.fn(),teamAccess:vi.fn(),roleScope:vi.fn(),teamBrandAccess:vi.fn(),memberBrandAccess:vi.fn()},roles:{listRoleOptions:vi.fn()},auth:{user:{id:'user'},profile:{id:'actor',role_name:'owner'},hasPermission:vi.fn(()=>true)}}));
 vi.mock('../marketingService.js',()=>({marketingService:service}));vi.mock('../../../services/roleService.js',()=>({roleService:roles}));vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>auth}));
+vi.mock('../WhatsAppConnections.jsx',()=>({default:()=> <h2>WhatsApp Business App</h2>}));
 vi.mock('../SocialAccounts.jsx',()=>({default:()=> <h2>Meta Social Accounts</h2>}));vi.mock('../GoogleDriveSettings.jsx',()=>({default:()=> <h2>Google Drive</h2>}));
 vi.mock('../../../components/forms/SelectField.jsx',()=>({default:({label,value,onChange,options,disabled})=><label>{label}<select aria-label={label} disabled={disabled} value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>}));
 const brand={id:'brand',organization_id:'org',name:'Idamans',timezone:'Asia/Kuala_Lumpur',outlets:[]};

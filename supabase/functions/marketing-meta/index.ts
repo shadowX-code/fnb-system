@@ -1,3 +1,4 @@
+import {whatsappSignupHandler} from '../_shared/whatsappSignupHandler.ts';
 import {readCreatorProfile} from '../_shared/metaCreatorProfile.ts';
 import {privacyProcessingAllowed} from '../_shared/marketingPrivacyExecution.mjs';
 import {metaOAuthRoute, metaOAuthRoutes} from '../_shared/metaOAuthRouting.mjs';
@@ -50,10 +51,14 @@ Deno.serve(async(req)=>{
    return json(req,deletion?{url:`${META_BASE}/deletion-status/${confirmation}`,confirmation_code:confirmation}:{success:true});
   }
   let caller:any=null,user:any=null;
-  if(req.method==='POST'&&['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions','/creator-profile'].includes(path)) {
+  if(req.method==='POST'&&(path.startsWith('/whatsapp/')||['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions','/creator-profile'].includes(path))) {
    const bearer=req.headers.get('authorization')||'';if(!bearer.startsWith('Bearer '))return json(req,{error:'Sign in to Marketing.'},401);
    caller=createClient(RUNTIME_SUPABASE,env('SUPABASE_ANON_KEY'),{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
    const identity=await caller.auth.getUser();user=identity.data.user;if(identity.error||!user)return json(req,{error:'Sign in to Marketing.'},401);
+  }
+  if(path.startsWith('/whatsapp/')&&req.method==='POST'){
+   const raw=await req.text();if(raw.length>10000)return json(req,{error:'Request too large.'},413);
+   return json(req,await whatsappSignupHandler(path,JSON.parse(raw),caller,service,user.id,env));
   }
   if(missing.length)return json(req,{error:'Meta server configuration is incomplete.',missing},503);
   const graph=new MetaGraph(config,fetch,path==='/callback'?event=>console.info(JSON.stringify({tag:'marketing_meta_discovery_v1',...event})):undefined);
@@ -74,7 +79,7 @@ Deno.serve(async(req)=>{
   }
   if(req.method!=='POST'||!['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions','/creator-profile'].includes(path))return json(req,{error:'Endpoint unavailable.'},404);
   const raw=await req.text();if(raw.length>10000)return json(req,{error:'Request too large.'},413);const body=JSON.parse(raw);
-  if(path==='/creator-profile'){const result=await readCreatorProfile(caller,service,user.id,graph,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],body);console.info(JSON.stringify({tag:'marketing_creator_official_profile',applicable:result.applicable,reason:result.reason||null,http_status:result.http_status??null,graph_error_code:result.graph_error_code??null,method:result.method||null}));return json(req,result);}
+  if(path==='/creator-profile'){const result:any=await readCreatorProfile(caller,service,user.id,graph,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],body);console.info(JSON.stringify({tag:'marketing_creator_official_profile',applicable:result.applicable,reason:result.reason||null,http_status:result.http_status??null,graph_error_code:result.graph_error_code??null,method:result.method||null}));return json(req,result);}
   async function checkConnection(connectionId:string,recordEligibility=false){
    const material=await call(service,'marketing_meta_diagnostic_material',{p_connection:connectionId,p_auth_user:user.id});
    const credential=await unseal(material.sealed_token,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));

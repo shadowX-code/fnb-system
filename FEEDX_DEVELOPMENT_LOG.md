@@ -787,3 +787,8 @@ Brand Master owns the active Brand logo/accent through existing scoped Brand com
 ## 2026-10-19 — Inbox AI customer service authority (Staging)
 
 Added dormant Brand-level Suggest Only, Safe Auto Reply and AI First policies around the existing assistant and canonical delivery ledger. Current-source rendering, fresh send authorization, takeover/resume, bounded turns and uncertain-write handling govern automatic execution independently of generation. Settings, handling and Brand performance reuse the Inbox/FAQ workspace. Controlled rollback fixtures verify delivery contracts; no live automatic sending or Production activation is included.
+
+
+## 22 October 2026 — WhatsApp dormant Production candidate
+
+Prepared an isolated candidate from Production `4dcef1a96`, recovered four exact historical SQL receipts without database execution, documented Staging aliases, and added the two-field compatibility prerequisite. Integrated verified WhatsApp Foundation/Embedded Signup/Lifecycle code through Production-aware Connections and two Edge bundles. Retained FB/IG, CRM, Ads, Drive, Worker, privacy and execution policy. Local PostgreSQL 17.6 schema rehearsal and focused provider/UI/Production checks reuse completed Staging L3 evidence. No push, deployment, shared SQL mutation, Meta changes, credentials or activation. Exact scope/approval and rollback: `docs/releases/2026-10-22-whatsapp-dormant-production.md`.
