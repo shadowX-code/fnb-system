@@ -277,3 +277,63 @@ it('keeps the same visible shared filters and saved values across Planning Insig
  fireEvent.click(screen.getByRole('tab',{name:'List',exact:true}));
  expect(screen.getByRole('combobox',{name:'Group By'}).value).toBe('brand');
 });
+
+it.each(['planned','in_progress','in_review'].flatMap(status=>['approve','request_revision'].map(action=>({status,action}))))('confirms $action from $status before closing, without waiting for refresh',async({status,action})=>{
+ const original={...task,status};planner.read.mockResolvedValue({...read,tasks:[original]});
+ let complete,refresh;planner.command.mockImplementation(c=>c.action===action?new Promise(resolve=>{complete=resolve}):Promise.resolve({}));
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));
+ if(action==='request_revision'){fireEvent.click(screen.getByRole('button',{name:'Request Revision',exact:true}));fireEvent.change(screen.getByRole('textbox',{name:'Review feedback (optional)'}),{target:{value:'Keep this feedback'}});}
+ planner.read.mockImplementation(()=>new Promise(resolve=>{refresh=resolve}));
+ const submit=screen.getByRole('button',{name:action==='request_revision'?'Request Revision':status==='in_review'?'Approve':'Complete production',exact:true});
+ fireEvent.click(submit);fireEvent.click(submit);
+ expect(submit.disabled).toBe(true);expect(screen.getAllByText('Saving…').length).toBeGreaterThan(0);expect(planner.command.mock.calls.filter(([c])=>c.action===action)).toHaveLength(1);
+ expect(screen.getByRole('dialog',{name:'Creative task'})).toBeTruthy();
+ const result={...original,status:action==='approve'?'completed':'revision_needed',revision:2,updated_at:new Date().toISOString(),approved_revision:action==='approve'?2:null};
+ await act(async()=>{complete(result)});
+ expect(screen.queryByRole('dialog',{name:'Creative task'})).toBeNull();expect(refresh).toBeTypeOf('function');
+ expect(within(screen.getByRole('region',{name:action==='approve'?'Completed':'Revision Needed'})).getByText('Real task')).toBeTruthy();
+ fireEvent.click(screen.getByRole('tab',{name:'List',exact:true}));expect(within(screen.getByRole('table')).getByText(action==='approve'?'Completed':'Revision Needed')).toBeTruthy();
+ expect(planner.command.mock.calls.filter(([c])=>c.action==='open_month')).toHaveLength(1);expect(marketing.plannerPublishing).not.toHaveBeenCalled();
+ await act(async()=>{refresh({...read,tasks:[original]})});
+ expect(within(screen.getByRole('table')).getByText(action==='approve'?'Completed':'Revision Needed')).toBeTruthy();
+});
+
+it('keeps review feedback and exact request identity after an uncertain failure',async()=>{
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Request Revision',exact:true}));
+ fireEvent.change(screen.getByRole('textbox',{name:'Review feedback (optional)'}),{target:{value:'Keep composition feedback'}});
+ planner.command.mockRejectedValueOnce(new Error('Connection lost. Check and retry.'));
+ fireEvent.click(screen.getByRole('button',{name:'Request Revision',exact:true}));await screen.findByRole('alert');
+ expect(screen.getByRole('textbox',{name:'Review feedback (optional)'}).value).toBe('Keep composition feedback');expect(screen.getByRole('button',{name:'Request Revision',exact:true}).disabled).toBe(false);
+ const first=planner.command.mock.calls.at(-1)[0];planner.command.mockResolvedValueOnce({...task,status:'revision_needed',revision:2});
+ fireEvent.click(screen.getByRole('button',{name:'Request Revision',exact:true}));await vi.waitFor(()=>expect(screen.queryByRole('dialog',{name:'Creative task'})).toBeNull());
+ expect(planner.command.mock.calls.at(-1)[0]).toEqual(first);expect(planner.read).toHaveBeenCalledTimes(2);
+});
+
+it('keeps confirmed Board review success if background ordering fails',async()=>{
+ const original={...task,status:'in_review'};planner.read.mockResolvedValue({...read,tasks:[original]});let finish;
+ planner.command.mockImplementation(c=>c.action==='request_revision'?new Promise(resolve=>{finish=resolve}):Promise.resolve({}));
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.keyDown(screen.getByRole('button',{name:/Move Real task/}),{key:'ArrowRight'});
+ const modal=await screen.findByRole('dialog',{name:'Request Revision'});fireEvent.change(within(modal).getByRole('textbox'),{target:{value:'Board feedback'}});fireEvent.click(within(modal).getByRole('button',{name:'Request Revision',exact:true}));
+ expect(within(screen.getByRole('region',{name:'In Review'})).getByText('Real task')).toBeTruthy();
+ const accepted={...original,status:'revision_needed',revision:2};let refresh;
+ planner.read.mockImplementation(()=>new Promise(resolve=>{refresh=resolve}));planner.order.mockRejectedValueOnce(new Error('Order changed'));
+ await act(async()=>{finish(accepted)});expect(screen.queryByRole('dialog',{name:'Request Revision'})).toBeNull();expect(within(screen.getByRole('region',{name:'Revision Needed'})).getByText('Real task')).toBeTruthy();
+ await act(async()=>{refresh({...read,tasks:[accepted]})});await screen.findByText(/Task saved. Activity or position could not refresh/);
+ expect(within(screen.getByRole('region',{name:'Revision Needed'})).getByText('Real task')).toBeTruthy();expect(planner.command.mock.calls.filter(([c])=>c.action==='request_revision')).toHaveLength(1);
+});
+
+it('does not report review success or close feedback on a canonical revision conflict',async()=>{
+ render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Request Revision',exact:true}));
+ planner.command.mockRejectedValueOnce(Object.assign(new Error('Task changed. Reload before continuing.'),{cause:{code:'PT409'}}));fireEvent.click(screen.getByRole('button',{name:'Request Revision',exact:true}));await screen.findByRole('alert');expect(screen.getByRole('dialog',{name:'Creative task'})).toBeTruthy();expect(planner.read).toHaveBeenCalledTimes(1);expect(screen.queryByText('Revision requested.')).toBeNull();
+});
+
+it.each(['completed','revision_needed'])('List confirmation applies %s once while its refresh is pending',async status=>{
+ localStorage.setItem('marketing.planner.planner-user',JSON.stringify({month:'2026-10-01',view:'list'}));render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
+ fireEvent.click(screen.getByRole('button',{name:'Status for Real task'}));fireEvent.change(screen.getByRole('combobox',{name:'Status options for Real task'}),{target:{value:status}});
+ const modal=await screen.findByRole('dialog',{name:status==='completed'?'Approve production':'Request Revision'});let complete,refresh;
+ planner.command.mockImplementation(()=>new Promise(resolve=>{complete=resolve}));planner.read.mockImplementation(()=>new Promise(resolve=>{refresh=resolve}));
+ const button=within(modal).getByRole('button',{name:status==='completed'?'Approve':'Request Revision',exact:true});fireEvent.click(button);fireEvent.click(button);expect(button.disabled).toBe(true);
+ expect(within(screen.getByRole('table')).getByText('Planned')).toBeTruthy();await act(async()=>{complete({...task,status,revision:2,updated_at:new Date().toISOString()})});
+ expect(screen.queryByRole('dialog')).toBeNull();expect(within(screen.getByRole('table')).getByText(status==='completed'?'Completed':'Revision Needed')).toBeTruthy();expect(refresh).toBeTypeOf('function');
+ expect(planner.command.mock.calls.filter(([c])=>c.action!=='open_month')).toHaveLength(1);
+});
