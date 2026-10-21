@@ -1,3 +1,4 @@
+import {whatsappSignupHandler} from '../_shared/whatsappSignupHandler.ts';
 import {metaOAuthRoute, metaOAuthRoutes} from '../_shared/metaOAuthRouting.mjs';
 import {publishingConfigured, productionPublishingConfigured, productionPublishingPolicy} from '../_shared/marketingExecution.mjs';
 import {readCreatorProfile} from '../_shared/metaCreatorProfile.ts';
@@ -47,10 +48,14 @@ Deno.serve(async(req)=>{
    return json(req,deletion?{url:`${META_BASE}/deletion-status/${confirmation}`,confirmation_code:confirmation}:{success:true});
   }
   let caller:any=null,user:any=null;
-  if(req.method==='POST'&&['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions','/creator-profile'].includes(path)) {
+  if(req.method==='POST'&&(path.startsWith('/whatsapp/')||['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions','/creator-profile'].includes(path))) {
    const bearer=req.headers.get('authorization')||'';if(!bearer.startsWith('Bearer '))return json(req,{error:'Sign in to Marketing.'},401);
    caller=createClient(STAGING_SUPABASE,env('SUPABASE_ANON_KEY'),{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
    const identity=await caller.auth.getUser();user=identity.data.user;if(identity.error||!user)return json(req,{error:'Sign in to Marketing.'},401);
+  }
+  if(path.startsWith('/whatsapp/')&&req.method==='POST'){
+   const raw=await req.text();if(raw.length>10000)return json(req,{error:'Request too large.'},413);
+   return json(req,await whatsappSignupHandler(path,JSON.parse(raw),caller,service,user.id,env));
   }
   if(missing.length)return json(req,{error:'Meta server configuration is incomplete.',missing},503);
   const graph=new MetaGraph(config,fetch,path==='/callback'?event=>console.info(JSON.stringify({tag:'marketing_meta_discovery_v1',...event})):undefined);
@@ -164,5 +169,5 @@ Deno.serve(async(req)=>{
    outcomes.push({id:connection.id,health});
   }
   return json(req,{connections,outcomes,execution_separately_controlled:true});
- }catch(error) {return json(req,{error:error instanceof MetaError&&error.graphCode===190?'Meta authorization expired or was revoked. Reconnect this account.':error instanceof MetaError&&[10,200].includes(error.graphCode||0)?'Meta has not authorized this operation. Review account access or contact your FeedX administrator about App Review.':'The connection could not be updated. Reload account selection, check brand ownership and resolve any pending delivery before trying again.'},409);}
+ }catch(error) {if(path.startsWith('/whatsapp/'))return json(req,{error:error instanceof MetaError&&error.code==='coexistence_unsupported'?'Meta could not verify Business App Coexistence for this number. Keep using the mobile app and contact your FeedX administrator.':error instanceof MetaError&&error.code==='whatsapp_verification_required'?'WhatsApp onboarding requires verified Meta access and an approved Brand pilot. Check eligibility before continuing.':'WhatsApp verification could not finish. Check the connection state before trying again; a new Meta signup may be required.'},409);return json(req,{error:error instanceof MetaError&&error.graphCode===190?'Meta authorization expired or was revoked. Reconnect this account.':error instanceof MetaError&&[10,200].includes(error.graphCode||0)?'Meta has not authorized this operation. Review account access or contact your FeedX administrator about App Review.':'The connection could not be updated. Reload account selection, check brand ownership and resolve any pending delivery before trying again.'},409);}
 });

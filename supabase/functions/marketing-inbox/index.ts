@@ -1,3 +1,4 @@
+import {whatsappLifecycle} from '../_shared/whatsappLifecycle.ts';
 import {normalizeWhatsAppWebhook, whatsappConnectorContract} from '../_shared/whatsappInbox.ts';
 import {deliverInboxReply} from '../_shared/inboxDelivery.ts';
 import {aiAutoReplyConfigured} from '../_shared/marketingExecution.mjs';
@@ -117,16 +118,18 @@ Deno.serve(async (req) => {
         env("MARKETING_META_APP_SECRET"),
       )
     ) return json({ error: "Invalid webhook signature." }, 401);
-    let events, payload;
+    let events, payload, lifecycle;
     try {
       payload = JSON.parse(new TextDecoder().decode(bytes));
       events = payload?.object === 'whatsapp_business_account' ? normalizeWhatsAppWebhook(payload) : await normalizeInboxWebhookEvidence(payload);
+      lifecycle = payload?.object === 'whatsapp_business_account' ? await whatsappLifecycle(payload,env('MARKETING_META_TOKEN_ENCRYPTION_KEY')) : [];
     } catch (error) {
       // Fixed contract codes only, after HMAC verification. Never log payloads/peers/text.
       console.warn(JSON.stringify(inboxWebhookRejection(payload, error)));
       return json({ error: "Invalid webhook contract." }, 400);
     }
     try {
+      if(lifecycle.length)await rpc(service,"marketing_whatsapp_lifecycle",{p_events:lifecycle});
       await rpc(service, "marketing_inbox_receive", { p_events: events });
       return json({ received: true });
     } catch {

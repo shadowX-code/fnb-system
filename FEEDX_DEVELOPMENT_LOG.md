@@ -1046,3 +1046,8 @@ Brand Master owns the active Brand logo/accent through existing scoped Brand com
 ## 2026-10-19 — Inbox AI customer service authority (Staging)
 
 Added dormant Brand-level Suggest Only, Safe Auto Reply and AI First policies around the existing assistant and canonical delivery ledger. Current-source rendering, fresh send authorization, takeover/resume, bounded turns and uncertain-write handling govern automatic execution independently of generation. Settings, handling and Brand performance reuse the Inbox/FAQ workspace. Controlled rollback fixtures verify delivery contracts; no live automatic sending or Production activation is included.
+
+
+## 2026-10-21 — Marketing WhatsApp Embedded Signup on Staging
+
+Added gated official v4/v5 WhatsApp Embedded Signup and Business App Coexistence to canonical Connections, using server-side BISU exchange, exact Brand/business/WABA/phone authority, encrypted credentials, generation-safe reconnect and deterministic provider/rollback fixtures. Once-only subscription/synchronization intent, encrypted history/contact quarantine, provider-offboarding invalidation and privacy cleanup reuse the existing Inbox boundary/worker. Platform readiness evidence, one-Brand pilot approval and live activation are deliberately absent. Sending, AI and campaign execution remain disabled. See `docs/testing/marketing-whatsapp-signup.md` for prerequisites and evidence limits.
