@@ -499,7 +499,7 @@ export default function MarketingInboxPage() {
         onChange={value => selectBrandContext(context,value,org,setOrg,setBrand)}
         options={[{value:'',label:'All Brands'},...context.brands.map(b=>({value:b.id,label:b.name}))]} />
       <SelectField ariaLabel="Channel" value={channel} onChange={value=>{setChannel(value);setPage(1);setSelected('');}}
-        options={[{value:'social',label:'All Channels'},{value:'facebook',label:'Messenger'},{value:'instagram',label:'Instagram'},{value:'internal',label:'Internal cases'}]} />
+        options={[{value:'social',label:'All Channels'},{value:'facebook',label:'Messenger'},{value:'instagram',label:'Instagram'},{value:'whatsapp',label:'WhatsApp'},{value:'internal',label:'Internal cases'}]} />
     </>}
     moreFilters={<><SelectField label="Assignee" value={assignee} onChange={value=>{setAssignee(value);setPage(1);setSelected('');}}
       options={[{value:'',label:'All'},{value:'me',label:'Assigned to me'},{value:'unassigned',label:'Unassigned'},...(data?.members||[]).map(m=>({value:m.id,label:m.name}))]} />

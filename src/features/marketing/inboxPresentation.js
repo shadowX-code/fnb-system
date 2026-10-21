@@ -10,7 +10,7 @@ export function socialIdentity(conversation) {
       profile?.display_name ||
       (handle
         ? `@${handle.replace(/^@/, "")}`
-        : `${conversation.channel === "instagram" ? "Instagram" : "Facebook"} customer`),
+        : `${conversation.channel === "whatsapp" ? "WhatsApp" : conversation.channel === "instagram" ? "Instagram" : "Facebook"} customer`),
     handle,
     avatar: profile?.avatar_url,
     known: Boolean(profile?.display_name || handle),
@@ -68,6 +68,7 @@ export function conversationTimeline(detail) {
 export function replyAvailability(current, configuration, canSend) {
   const c = current.conversation;
   if (c.channel === "internal") return "Internal case · no customer recipient";
+  if (c.channel === "whatsapp") return "WhatsApp sending is disabled";
   if (c.opted_out) return "Customer opted out · replies are paused";
   if (c.status === "resolved") return "Reopen this conversation to reply";
   if (c.medium && c.medium !== "dm") return "Comment replies are unavailable";

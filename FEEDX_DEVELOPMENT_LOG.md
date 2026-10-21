@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-21 — Disabled WhatsApp connector foundation
+
+Extended canonical Marketing connections and the existing signed Inbox/worker/outbox authorities for Brand-owned WhatsApp phone/WABA metadata, generation-bound durable messages and Coexistence echoes, exact receipt deduplication and early/out-of-order reconciliation. Retained current dev ownership safeguards; WhatsApp sends, onboarding and AI remain disabled. No global credentials, parallel notification queue, provider calls or CRM/consent inference. Verification and pilot prerequisites: docs/testing/marketing-whatsapp-foundation.md. Canonical owner: docs/domains/marketing.md.
+
 ## 2026-10-17 — Durable Inbox provider-profile enrichment
 
 Staging Inbox now persists minimal official Meta customer-profile observations behind the existing conversation/Brand authority and provides bounded historical enrichment through the existing worker. Exact peer/account/generation binding, leases, denial backoff, redacted provider evidence, canonical list/detail projections and erasure/credential-removal cascades replace ephemeral lookups that discarded failures. No Customer Master merge, message delivery/assignment change, provider configuration change or Production delivery. Canonical owner: `docs/domains/marketing.md`; rollback verification: `qa/staging/marketingInboxProfiles.rollback.sql`.

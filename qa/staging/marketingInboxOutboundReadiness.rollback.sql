@@ -94,8 +94,13 @@ do $$declare o uuid:=(select id from marketing_qa_ids where key='org');b uuid:=(
  perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated')::text,true);
  foreach status_name in array array['pending','resolved','open'] loop
   select version into v from public.marketing_conversations where id=c;
-  perform public.marketing_inbox_command(gen_random_uuid(),o,b,c,v,'update',jsonb_build_object('status',status_name,'priority','normal','assigned_to',e,'tags',jsonb_build_array('QA'),'takeover',true));
-  assert (select status=status_name and assigned_to=e and takeover from public.marketing_conversations where id=c),'Status/assignment/takeover retained';
+  -- Current lifecycle keeps uncertain outbound work Open; never hide it as waiting/completed.
+  denied:=false;
+  begin perform public.marketing_inbox_command(gen_random_uuid(),o,b,c,v,'update',jsonb_build_object('status',status_name,'priority','normal','assigned_to',e,'tags',jsonb_build_array('QA'),'takeover',true));
+  exception when invalid_parameter_value then denied:=true;end;
+  if status_name in ('pending','resolved') then assert denied,'Uncertain delivery blocks waiting/completion';
+  else assert not denied,'Open assignment remains available';end if;
+  assert (select status='open' and assigned_to=e and takeover from public.marketing_conversations where id=c),'Unknown delivery remains visible to staff';
  end loop;
  select version into v from public.marketing_conversations where id=c;
  perform public.marketing_inbox_command(gen_random_uuid(),o,b,c,v,'note','{"body":"Disposable internal note"}');

@@ -1,3 +1,4 @@
+import {normalizeWhatsAppWebhook, whatsappConnectorContract} from '../_shared/whatsappInbox.ts';
 import {deliverInboxReply} from '../_shared/inboxDelivery.ts';
 import {aiAutoReplyConfigured} from '../_shared/marketingExecution.mjs';
 import {requestKnowledgeAI} from '../_shared/brandKnowledgeAI.ts';
@@ -119,7 +120,7 @@ Deno.serve(async (req) => {
     let events, payload;
     try {
       payload = JSON.parse(new TextDecoder().decode(bytes));
-      events = await normalizeInboxWebhookEvidence(payload);
+      events = payload?.object === 'whatsapp_business_account' ? normalizeWhatsAppWebhook(payload) : await normalizeInboxWebhookEvidence(payload);
     } catch (error) {
       // Fixed contract codes only, after HMAC verification. Never log payloads/peers/text.
       console.warn(JSON.stringify(inboxWebhookRejection(payload, error)));
@@ -159,7 +160,7 @@ Deno.serve(async (req) => {
       sending_enabled: false,
       staff_send_configured: staffReplyConfigured(env),
       webhook_url: `${STAGING_SUPABASE}/functions/v1/marketing-inbox/webhook`,
-      connectors: inboxConnectorContracts,
+      connectors: {...inboxConnectorContracts, whatsapp: whatsappConnectorContract},
     });
   }
   if(path==='/knowledge'&&req.method==='POST') {

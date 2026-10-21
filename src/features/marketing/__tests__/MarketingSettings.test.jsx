@@ -1,3 +1,4 @@
+vi.mock('../WhatsAppConnections.jsx',()=>({default:()=> <h2>WhatsApp Cloud API</h2>}));
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {render,screen,fireEvent,cleanup,within,waitFor} from '@testing-library/react';
 import MarketingSettingsPage,{legacySettingsDestination} from '../MarketingSettingsPage.jsx';
