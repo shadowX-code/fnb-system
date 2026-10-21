@@ -1051,3 +1051,8 @@ Added dormant Brand-level Suggest Only, Safe Auto Reply and AI First policies ar
 ## 2026-10-21 — Marketing WhatsApp Embedded Signup on Staging
 
 Added gated official v4/v5 WhatsApp Embedded Signup and Business App Coexistence to canonical Connections, using server-side BISU exchange, exact Brand/business/WABA/phone authority, encrypted credentials, generation-safe reconnect and deterministic provider/rollback fixtures. Once-only subscription/synchronization intent, encrypted history/contact quarantine, provider-offboarding invalidation and privacy cleanup reuse the existing Inbox boundary/worker. Platform readiness evidence, one-Brand pilot approval and live activation are deliberately absent. Sending, AI and campaign execution remain disabled. See `docs/testing/marketing-whatsapp-signup.md` for prerequisites and evidence limits.
+
+
+## 2026-10-22 — WhatsApp lifecycle readiness correction
+
+Added generation-checked local Pause/Disconnect and explicit verified Resume, corrected recovery from expired verification, and retained immutable once-only synchronization evidence through credential cleanup and same-number reconnect. Staged Embedded Signup now resolves provider IDs only against an approved Brand/business/number intent. Existing Marketing authority, Inbox worker, encrypted credential and shared UI paths remain canonical; FB/IG behavior and all WhatsApp live-onboarding/sending/AI/campaign disablement remain unchanged. Lifecycle rollback and provider/UI fixtures cover recovery, stale work and identity conflicts. See `docs/testing/marketing-whatsapp-signup.md`.

@@ -51,3 +51,21 @@ it('never exchanges or mutates provider state while server pilot activation is d
  expect(await whatsappSignupHandler('/whatsapp/readiness',{organizationId:'org',brandId:'brand'},caller,service,'user',env)).toMatchObject({eligible:false,state:'verification_required',reason:'pilot_activation_required'});
  await expect(whatsappSignupHandler('/whatsapp/begin',{organizationId:'org',brandId:'brand'},caller,service,'user',env)).rejects.toThrow('whatsapp_verification_required');expect(service.rpc).not.toHaveBeenCalled();expect(caller.rpc.mock.calls.every(x=>x[0]==='marketing_whatsapp_readiness')).toBe(true);
 });
+
+it('resolves a v4 WABA-only finish to the exact pre-approved phone, then verifies provider assets',async()=>{
+ const {resolveWhatsAppSignupAssets}=await import('../../../../supabase/functions/_shared/whatsappOnboarding.ts');
+ const {hash}=await import('../../../../supabase/functions/_shared/metaSecurity.ts');const phoneHash=await hash('+60119900000');
+ const session={waba_id:null,phone_id:null,customer_business_id:'202',approved_phone_hash:phoneHash};
+ const g=graph({'200/phone_numbers':{data:[{id:'201',display_phone_number:'+60 11-9900 000'}]},'201':{id:'201',is_on_biz_app:true,platform_type:'CLOUD_API',display_phone_number:'+60119900000'}});
+ const expected=await resolveWhatsAppSignupAssets(g,'fixture',session,{mode:'coexistence',waba_id:'200'});
+ expect(expected.phone_id).toBe('201');expect((await verifyWhatsAppAssets(g,c,'fixture',expected)).approved_phone_hash).toBe(phoneHash);
+ const wrong=graph({'201':{id:'201',is_on_biz_app:true,platform_type:'CLOUD_API',display_phone_number:'+60118800000'}});
+ await expect(verifyWhatsAppAssets(wrong,c,'fixture',expected)).rejects.toThrow('whatsapp_approved_phone_mismatch');
+});
+it('rejects ambiguous staged phone discovery and an unapproved business',async()=>{
+ const {resolveWhatsAppSignupAssets}=await import('../../../../supabase/functions/_shared/whatsappOnboarding.ts');const {hash}=await import('../../../../supabase/functions/_shared/metaSecurity.ts');
+ const session={waba_id:null,phone_id:null,customer_business_id:'202',approved_phone_hash:await hash('+60119900000')};
+ const g=graph({'200/phone_numbers':{data:[{id:'201',display_phone_number:'+60119900000'},{id:'202',display_phone_number:'+60119900000'}]}});
+ await expect(resolveWhatsAppSignupAssets(g,'fixture',session,{mode:'coexistence',waba_id:'200'})).rejects.toThrow('whatsapp_approved_phone_mismatch');
+ await expect(resolveWhatsAppSignupAssets(g,'fixture',session,{mode:'coexistence',waba_id:'200',business_id:'666'})).rejects.toThrow('whatsapp_signup_assets_mismatch');
+});

@@ -24,6 +24,7 @@ export const marketingService = {
   beginWhatsApp:body=>meta('whatsapp/begin',body),
   completeWhatsApp:body=>meta('whatsapp/complete',body),
   verifyWhatsApp:body=>meta('whatsapp/verify',body),
+  whatsappLocalCommand:(request,connection,generation,action)=>rpc('marketing_whatsapp_local_command',{p_request:request,p_connection:connection,p_generation:generation,p_action:action}),
   dashboardOperations:(org,brand,signal)=>rpc('marketing_dashboard_operations',{p_org:org,p_brand:brand||null},signal),
   socialPublications:(org,brand,from,to,signal)=>rpc('marketing_social_publications',{p_org:org,p_brand:brand||null,p_from:from||null,p_to:to||null},signal),
   plannerPublishing:(org,brand,from,to,linked)=>rpc('marketing_planner_publishing',{p_org:org,p_brand:brand||null,p_from:from,p_to:to,p_linked:linked}),
