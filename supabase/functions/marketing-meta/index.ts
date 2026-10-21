@@ -76,7 +76,7 @@ Deno.serve(async(req)=>{
   }
   if(req.method!=='POST'||!['/authorize','/bind','/diagnose','/retry-sync','/health','/subscription-plan','/subscriptions','/creator-profile'].includes(path))return json(req,{error:'Endpoint unavailable.'},404);
   const raw=await req.text();if(raw.length>10000)return json(req,{error:'Request too large.'},413);const body=JSON.parse(raw);
-  if(path==='/creator-profile'){const result=await readCreatorProfile(caller,service,user.id,graph,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],body);console.info(JSON.stringify({tag:'marketing_creator_official_profile',applicable:result.applicable,reason:result.reason||null,http_status:result.http_status??null,graph_error_code:result.graph_error_code??null,method:result.method||null}));return json(req,result);}
+  if(path==='/creator-profile'){const result=await readCreatorProfile(caller,service,user.id,graph,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],body);console.info(JSON.stringify({tag:'marketing_creator_official_profile',applicable:result.applicable,reason:result.reason||null}));return json(req,result);}
   async function checkConnection(connectionId:string,recordEligibility=false){
    const material=await call(service,'marketing_meta_diagnostic_material',{p_connection:connectionId,p_auth_user:user.id});
    const credential=await unseal(material.sealed_token,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));

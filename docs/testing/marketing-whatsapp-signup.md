@@ -2,7 +2,7 @@
 
 ## Delivered contract
 
-Phase 2 builds on `71bec23b8`. Migration `20261021150315_marketing_whatsapp_embedded_signup.sql` adds private readiness evidence, one-Brand pilot authority, actor-bound single-use signup sessions, generation-bound onboarding steps and encrypted synchronization quarantine. No readiness record, pilot approval, credential or enabled environment flag is seeded by deployment.
+Phase 2 builds on `71bec23b8`. Migration `20261021150315_marketing_whatsapp_embedded_signup.sql` adds private readiness evidence, one-Brand pilot authority, actor-bound single-use signup sessions, generation-bound onboarding steps and encrypted synchronization quarantine. Its forward signup-recovery migration exposes consumed-but-unconfirmed attempts as Action Required and requires a fresh generation after provider disconnection. No readiness record, pilot approval, credential or enabled environment flag is seeded by deployment.
 
 Connections owns Connect, Retry Verification and Reconnect. The server and database validate Settings Configure, active Brand/member access, exact authorized business/WABA/phone and expected generation. Ordinary viewers receive safe state only. Official SDK v4/v5 completion is paired with the SDK authorization-code callback in either arrival order. Trusted origins are exact matches; the code remains in memory and is exchanged server-side once. SDK loading occurs only after authorized preparation; Continue calls `FB.login` synchronously from the user gesture. Cancellation, scope change and timeout remove listeners.
 

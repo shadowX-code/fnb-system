@@ -45,6 +45,8 @@ reset role;
 do $$declare s uuid:=(select id from marketing_qa_ids where key='session');u uuid:=(select id from marketing_qa_ids where key='user');r jsonb;proof jsonb;conn uuid;denied boolean;begin
  denied:=false;begin perform marketing_whatsapp_consume(s,gen_random_uuid(),repeat('a',64));exception when insufficient_privilege then denied:=true;end;assert denied,'Wrong callback actor denied';
  r:=marketing_whatsapp_consume(s,u,repeat('a',64));
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated')::text,true);
+ assert marketing_whatsapp_connections((select id from marketing_qa_ids where key='org'),(select id from marketing_qa_ids where key='brand'))->>'signup_state'='action_required','Consumed unconfirmed exchange is visible';
  denied:=false;begin perform marketing_whatsapp_consume(s,u,repeat('a',64));exception when insufficient_privilege then denied:=true;end;assert denied,'Code session consumed once';
  proof:=jsonb_build_object('app_id','100','waba_id','200','phone_id','201','business_id','202','is_on_biz_app',true,'platform_type','CLOUD_API','subject','999','scopes',jsonb_build_array('whatsapp_business_management','whatsapp_business_messaging'),'expires_at',now()+interval '1 hour');
  denied:=false;begin perform marketing_whatsapp_bind(s,u,'{"version":1,"ciphertext":"synthetic-only"}',proof||'{"phone_id":"666"}');exception when others then denied:=true;end;assert denied,'Wrong exact phone rejected';
@@ -90,6 +92,9 @@ do $$declare s uuid:=(select id from marketing_qa_ids where key='reconnect_sessi
  assert(select issue='provider_disconnected' from marketing_private.whatsapp_onboarding where connection_id=c),'Signed removal blocks current authority';
  perform marketing_whatsapp_lifecycle(jsonb_build_array(jsonb_build_object('field','account_update','waba_id','200','occurred_at',clock_timestamp(),'hash',repeat('e',64),'event','ACCOUNT_RECONNECTED')));
  assert(select issue='provider_disconnected' from marketing_private.whatsapp_onboarding where connection_id=c),'Reconnected event cannot restore authority';
+ denied:=false;begin perform marketing_whatsapp_record_verification(c,u,2,proof);exception when others then denied:=true;end;assert denied,'Provider removal requires a fresh generation';
+ perform marketing_whatsapp_record_verification(c,u,2,'{"issue":"provider_verification_required"}');
+ assert(select issue='provider_disconnected' from marketing_private.whatsapp_onboarding where connection_id=c),'Failed verification cannot erase disconnect evidence';
  delete from marketing_private.credentials where connection_id=c;
  assert not exists(select 1 from marketing_private.whatsapp_lifecycle_events where connection_id=c),'Credential erasure removes quarantined personal data';
 end;$$;

@@ -37,13 +37,14 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
    .catch(e=>{if(currentScope.current===requested){setPrepared(null);setError(e.message);}})
    .finally(()=>{if(currentScope.current===requested)setBusy(false);});
  }
- const readiness=current?.readiness,state=current?.connections?.[0]?.state||'not_connected';
+ const readiness=current?.readiness,state=current?.connections?.[0]?.state||current?.signup_state||'not_connected';
  return <section className="card p-5" aria-label="WhatsApp Cloud API">
   <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">WhatsApp Business App</h2><Badge tone={state==='connected'?'success':state==='action_required'?'warning':'neutral'}>{labels[state]||'Not Connected'}</Badge></div>
   <p className="mt-2 text-sm">Connect an eligible WhatsApp Business App account through Meta while staff keep using the mobile app. This pilot receives messages only. Sending, AI replies and campaign execution are disabled.</p>
   <AsyncDataSurface loading={loading} error={error} hasData={!!current} onRetry={()=>setRefresh(n=>n+1)}>
    {current?<>
     {brandId&&!current.connections?.length?<div className="mt-3"><Badge tone="neutral">{labels[readiness?.state]||'Verification Required'}</Badge></div>:null}
+    {current.signup_state==='action_required'&&!current.connections?.length?<p className="mt-3 text-sm">The previous Meta signup could not be confirmed. Start a new connection after reviewing the account in Meta.</p>:null}
     {!brandId?<p className="mt-3 text-sm">Select one Brand to verify or connect WhatsApp.</p>:<p className="mt-3 text-sm" role="status">{reasons[readiness?.reason]||'Verify eligibility before connecting.'}</p>}
     {current.connections?.length?<ul className="mt-3 space-y-3">{current.connections.map(c=><li key={c.id} className="text-sm">
      <div><strong>{c.account_name}</strong> · {brands.find(b=>b.id===c.brand_id)?.name||'Authorized Brand'} · {labels[c.state]||'Action Required'}</div>
