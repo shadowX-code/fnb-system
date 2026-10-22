@@ -337,3 +337,23 @@ it.each(['completed','revision_needed'])('List confirmation applies %s once whil
  expect(screen.queryByRole('dialog')).toBeNull();expect(within(screen.getByRole('table')).getByText(status==='completed'?'Completed':'Revision Needed')).toBeTruthy();expect(refresh).toBeTypeOf('function');
  expect(planner.command.mock.calls.filter(([c])=>c.action!=='open_month')).toHaveLength(1);
 });
+
+it('shows current revision instructions on Board cards and full feedback/history in Task Detail',async()=>{
+ const feedback='Current instructions — revise the opening shot.\n保留品牌标志，让字幕更易读。\nCheck the final frame before review.\nFull final instruction remains available in detail.';
+ const revised={...task,status:'revision_needed',revision:6,review_feedback:'Do not use the stale projection',assignee_name:'Kai Lin',asset_ids:['asset'],assets:[{id:'asset',state:'ready',filename:'reference.jpg',mime_type:'image/jpeg'}],history:[{revision:6,action:'ordered',date:'2026-10-22T00:00:00Z'},{revision:5,action:'request_revision',date:'2026-10-22T00:00:00Z',feedback},{revision:3,action:'transition',date:'2026-10-21T00:00:00Z'},{revision:2,action:'request_revision',date:'2026-10-20T00:00:00Z',feedback:'Old resolved instructions'}]};
+ planner.read.mockResolvedValue({...read,tasks:[revised]});auth.hasPermission.mockImplementation(code=>!code.endsWith('.approve'));render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
+ const column=within(screen.getByRole('region',{name:'Revision Needed'})),panel=column.getByRole('complementary',{name:'Revision request feedback'});
+ expect(panel.classList.contains('is-compact')).toBe(true);expect(panel.textContent).toBe(feedback);expect(column.queryByText('Old resolved instructions')).toBeNull();expect(column.queryByText('Do not use the stale projection')).toBeNull();
+ expect(column.getByRole('button',{name:'Preview reference.jpg'})).toBeTruthy();expect(column.getByText('Post')).toBeTruthy();expect(column.getByLabelText('Kai Lin')).toBeTruthy();expect(column.getByRole('button',{name:/Move Real task/})).toBeTruthy();
+ fireEvent.click(column.getByRole('button',{name:'View Real task'}));const detail=within(screen.getByRole('dialog',{name:'Creative task'}));expect(detail.getByRole('complementary',{name:'Revision request feedback'}).classList.contains('is-compact')).toBe(false);expect(detail.getByRole('complementary',{name:'Revision request feedback'}).textContent).toBe(feedback);expect(detail.getByText('Old resolved instructions')).toBeTruthy();expect(detail.queryByRole('button',{name:'Request Revision',exact:true})).toBeNull();
+});
+it('keeps a newer blank request neutral and hides revision feedback on other columns',async()=>{
+ const history=[{revision:2,action:'request_revision',feedback:'Old resolved instructions'},{revision:3,action:'transition'},{revision:4,action:'request_revision',feedback:''}];
+ planner.read.mockResolvedValue({...read,tasks:[{...task,status:'revision_needed',revision:4,review_feedback:'Stale fallback must not leak',history},{...task,id:'active',title:'In production',status:'in_progress',revision:5,history}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
+ expect(within(screen.getByRole('region',{name:'Revision Needed'})).getByText('No revision instructions provided')).toBeTruthy();expect(within(screen.getByRole('region',{name:'In Progress'})).queryByRole('complementary',{name:'Revision request feedback'})).toBeNull();expect(screen.queryByText('Old resolved instructions')).toBeNull();
+});
+it('projects the just-confirmed revision event before its background history refresh',async()=>{
+ const previous={...task,revision:3,history:[{revision:2,action:'request_revision',feedback:'Old resolved instructions'},{revision:3,action:'transition'}]};planner.read.mockResolvedValue({...read,tasks:[previous]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');fireEvent.click(screen.getByRole('button',{name:'View Real task'}));fireEvent.click(screen.getByRole('button',{name:'Request Revision',exact:true}));fireEvent.change(screen.getByRole('textbox',{name:'Review feedback (optional)'}),{target:{value:'New confirmed instructions'}});
+ planner.read.mockImplementation(()=>new Promise(()=>{}));planner.command.mockResolvedValueOnce({...previous,history:undefined,status:'revision_needed',revision:4,review_feedback:'New confirmed instructions',updated_at:'2026-10-22T00:00:00Z'});
+ fireEvent.click(screen.getByRole('button',{name:'Request Revision',exact:true}));await screen.findByText('Revision requested.');expect(within(screen.getByRole('region',{name:'Revision Needed'})).getByRole('complementary',{name:'Revision request feedback'}).textContent).toBe('New confirmed instructions');
+});
