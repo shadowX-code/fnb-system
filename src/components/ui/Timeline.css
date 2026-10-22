@@ -1,0 +1,1 @@
+.timeline-date-groups{display:flex;flex-direction:column;gap:.85rem}.timeline-date-heading{margin:0 0 .65rem;font-size:.75rem;font-weight:600;color:var(--theme-muted)}.timeline-event-feedback{margin-top:.5rem;padding:.6rem .7rem;border-radius:8px;background:var(--theme-subtle);color:var(--theme-text);font-size:.8125rem;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
