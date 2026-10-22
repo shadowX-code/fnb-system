@@ -77,6 +77,8 @@ Admin cross-domain presentation primitives live under `src/components/`: `PageHe
 
 `ConfirmDialog` owns safe-action initial focus, keyboard containment, Escape cancellation and restoration to the invoking control. Feature editors own dirty-state detection and decide whether dismissal needs a confirmation; the shared dialog does not save or discard business records itself.
 
+The shared `Timeline` renders semantic event icons, actor/time metadata and optional date groups in an explicit timezone. Consumers map domain actions centrally and may preserve canonical input order rather than re-sort by timestamps. Expandable low-priority groups and visible-history paging remain presentation concerns; they never merge or rewrite source audit records. Review feedback is distinct full-text event content. Existing consumers retain their default date ordering and presentation.
+
 ### Admin Page Composition
 
 `AdminFilterToolbar` is full available page width in both standard and compact density. Compact changes spacing, not container width. Dense period controls retain their canonical width; month pickers fit within that field so the shared gap remains clear beside Search. `admin-scope-controls` provides separate wrapping Brand context; Marketing record filters consume the shared toolbar and labeled search/date-range controls rather than Factory-specific wrappers. Search receives flexible space while select fields remain bounded and wrap at narrower widths. Content save state and local table presentation modes belong in the content section header rather than the query toolbar; Par Levels keeps its existing autosave authority and uses `AdminSegmentedControl` there for Outlet/Matrix views.
