@@ -57,6 +57,11 @@ export function recentCompleted(task,today=todayKey()){
  const stamp=completedAt(task);if(!stamp||!Number.isFinite(Date.parse(stamp)))return false;
  const day=todayKey(new Date(stamp));return day>=shiftDate(today,-6)&&day<=today;
 }
+export function revisionInstructions(task){
+ if(task.status!=='revision_needed')return null;
+ const latest=[...(task.history||[])].filter(h=>Number.isInteger(h.revision)&&h.revision<=task.revision&&['request_revision','transition','approve'].includes(h.action)).sort((a,b)=>b.revision-a.revision)[0];
+ return latest?.action==='request_revision'&&typeof latest.feedback==='string'?latest.feedback.trim():'';
+}
 export function monthDays(month){
  const start=weekOf(month),end=shiftMonth(month,1);let last=shiftDate(end,-1);
  last=shiftDate(last,6-((new Date(last+'T12:00:00Z').getUTCDay()+6)%7));

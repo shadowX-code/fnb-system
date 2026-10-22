@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {completedAt,recentCompleted,monthDays,taskDueState,todayKey,weekOf,monthWeeks,allowedMoves,plannerSummary,sortedTasks,filterTasks,currentMonth,listStatusMoves,canReorderList,plannerListGroups} from '../contentPlanner.js';
+import {revisionInstructions,completedAt,recentCompleted,monthDays,taskDueState,todayKey,weekOf,monthWeeks,allowedMoves,plannerSummary,sortedTasks,filterTasks,currentMonth,listStatusMoves,canReorderList,plannerListGroups} from '../contentPlanner.js';
 const task=(id,patch={})=>({id,title:id,brand_id:'brand',brand_name:'Brand',status:'planned',due_date:'2026-10-12',created_at:'2026-10-01',manual_order:0,...patch});
 describe('Creative planner presentation',()=>{
  it('limits List ordering to a complete unfiltered manual presentation',()=>{
@@ -33,4 +33,14 @@ it('recent completions use seven KL calendar days and the latest approval rather
 });
 it('month grids include complete Monday-Sunday rows across year and leap boundaries',()=>{
  expect(monthDays('2026-10-01')).toHaveLength(35);expect(monthDays('2026-10-01')[0]).toBe('2026-09-28');expect(monthDays('2026-10-01').at(-1)).toBe('2026-11-01');expect(monthDays('2024-02-01')).toContain('2024-02-29');
+});
+
+it('reads revision instructions only from the active canonical request cycle',()=>{
+ const active={status:'revision_needed',revision:8,review_feedback:'Ignore duplicated projection',history:[{revision:2,action:'request_revision',feedback:'Old resolved instructions'},{revision:3,action:'transition'},{revision:5,action:'request_revision',feedback:'  Current instructions\n第二行  '},{revision:7,action:'save',feedback:'Unrelated snapshot text'},{revision:8,action:'ordered'}]};
+ expect(revisionInstructions(active)).toBe('Current instructions\n第二行');expect(revisionInstructions({...active,history:[...active.history].reverse()})).toBe('Current instructions\n第二行');
+ expect(revisionInstructions({...active,status:'in_progress'})).toBeNull();expect(revisionInstructions({...active,status:'completed'})).toBeNull();
+ expect(revisionInstructions({...active,history:[...active.history,{revision:6,action:'transition'}]})).toBe('');expect(revisionInstructions({...active,history:[...active.history,{revision:6,action:'approve'}]})).toBe('');
+ expect(revisionInstructions({...active,history:[...active.history,{revision:8,action:'request_revision',feedback:'  '}]})).toBe('');
+ expect(revisionInstructions({...active,history:[]})).toBe('');expect(revisionInstructions({...active,history:undefined})).toBe('');
+ expect(revisionInstructions({...active,history:[...active.history,{revision:9,action:'request_revision',feedback:'Future snapshot'}]})).toBe('Current instructions\n第二行');
 });
