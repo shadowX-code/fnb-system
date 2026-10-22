@@ -77,7 +77,7 @@ export default function Timeline({ events = [], variant = "compact", newestFirst
                 </div>
                 {event.status ? <Badge tone={event.statusTone || "neutral"}>{event.status}</Badge> : null}
               </div>
-              <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 type-caption text-text-muted">
+              <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 type-caption text-text-secondary">
                 <time dateTime={toDate(timestamp)?.toISOString()}>{showDate?formatDate(timestamp,timeZone):null}{formatTime(timestamp,timeZone)?`${showDate?" · ":""}${formatTime(timestamp,timeZone)}`:showDate?"":"No time"}</time>
                 {event.actor ? <span>{event.actor}</span> : null}
                 {event.outlet ? <span>{event.outlet}</span> : null}

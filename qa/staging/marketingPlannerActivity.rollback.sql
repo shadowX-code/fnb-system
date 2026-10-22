@@ -41,6 +41,8 @@ begin
  assert h->3->>'feedback'=E'Full review feedback\n第二行','Full original review feedback';
  begin perform public.marketing_planner_read(gen_random_uuid(),m,b);exception when insufficient_privilege then denied:=true;end;
  assert denied,'Foreign organization stays denied';
+ denied:=false;begin perform public.marketing_planner_read(o,m,gen_random_uuid());exception when insufficient_privilege then denied:=true;end;
+ assert denied,'Foreign Brand stays denied';
  assert not has_function_privilege('anon','public.marketing_planner_read(uuid,date,uuid)','execute'),'Anonymous remains denied';
 end;$test$;
 reset role;
