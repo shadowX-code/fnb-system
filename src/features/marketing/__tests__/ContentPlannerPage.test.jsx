@@ -357,3 +357,12 @@ it('projects the just-confirmed revision event before its background history ref
  planner.read.mockImplementation(()=>new Promise(()=>{}));planner.command.mockResolvedValueOnce({...previous,history:undefined,status:'revision_needed',revision:4,review_feedback:'New confirmed instructions',updated_at:'2026-10-22T00:00:00Z'});
  fireEvent.click(screen.getByRole('button',{name:'Request Revision',exact:true}));await screen.findByText('Revision requested.');expect(within(screen.getByRole('region',{name:'Revision Needed'})).getByRole('complementary',{name:'Revision request feedback'}).textContent).toBe('New confirmed instructions');
 });
+
+it('feedback Popover stays separate from Task Detail and Board dragging',async()=>{
+ const height=vi.spyOn(HTMLElement.prototype,'scrollHeight','get').mockReturnValue(180),visible=vi.spyOn(HTMLElement.prototype,'clientHeight','get').mockReturnValue(60);
+ try{
+  planner.read.mockResolvedValue({...read,tasks:[{...task,status:'revision_needed',revision:2,history:[{revision:2,action:'request_revision',feedback:'Long current instructions'}]}]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
+  planner.command.mockClear();const panel=screen.getByRole('button',{name:'Read full revision instructions'});fireEvent.pointerDown(panel,{button:0,clientX:10,clientY:10});fireEvent.click(panel);expect(screen.getByRole('tooltip').textContent).toBe('Long current instructions');expect(screen.queryByRole('dialog',{name:'Creative task'})).toBeNull();expect(document.body.classList.contains('admin-kanban-dragging')).toBe(false);expect(planner.command).not.toHaveBeenCalled();
+  fireEvent.keyDown(panel,{key:'Escape'});expect(screen.queryByRole('tooltip')).toBeNull();expect(screen.getByRole('button',{name:/Move Real task/})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'View Real task'}));expect(screen.getByRole('dialog',{name:'Creative task'})).toBeTruthy();
+ }finally{height.mockRestore();visible.mockRestore()}
+});
