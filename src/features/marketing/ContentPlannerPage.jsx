@@ -10,6 +10,7 @@ import TextareaField from '../../components/forms/TextareaField.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
+import TruncatedTextPopover from '../../components/ui/TruncatedTextPopover.jsx';
 import AdminKanbanBoard from '../../components/ui/AdminKanbanBoard.jsx';
 import MonthPickerField from '../../components/forms/MonthPickerField.jsx';
 import ActionMenu from '../../components/ui/ActionMenu.jsx';
@@ -39,7 +40,7 @@ const emptyData={tasks:[],members:[],targets:[],templates:[],drafts:[]};
 function StateBadge({task}){return <Badge tone={task.status==='completed'?'success':task.status==='revision_needed'?'danger':task.status==='in_review'?'warning':'neutral'}>{statusName(task.status)}</Badge>;}
 function RevisionFeedback({task,compact=false}){
  const feedback=revisionInstructions(task);if(feedback===null)return null;
- return <aside aria-label="Revision request feedback" className={`planner-revision-feedback${compact?' is-compact':''}${feedback?'':' is-empty'}`}><MessageSquare size={14} aria-hidden="true"/><p className="planner-feedback">{feedback||'No revision instructions provided'}</p></aside>;
+ return <aside aria-label="Revision request feedback" onPointerDown={event=>{if(compact)event.stopPropagation()}} onClick={event=>{if(compact)event.stopPropagation()}} className={`planner-revision-feedback${compact?' is-compact':''}${feedback?'':' is-empty'}`}>{compact&&feedback?<TruncatedTextPopover text={feedback} label="Read full revision instructions" className="planner-revision-preview" textClassName="planner-feedback"><MessageSquare size={14} aria-hidden="true"/></TruncatedTextPopover>:<><MessageSquare size={14} aria-hidden="true"/><p className="planner-feedback">{feedback||'No revision instructions provided'}</p></>}</aside>;
 }
 function DateField(props){return <DatePickerField {...props}/>;}
 export default function ContentPlannerPage({surface="planner"}){
