@@ -1,48 +1,59 @@
-import {useEffect,useState} from 'react';
-import {CheckCircle2,AlertCircle,Copy,Image as ImageIcon} from 'lucide-react';
+import {useEffect,useLayoutEffect,useRef,useState} from 'react';
+import {Check,CheckCircle2,AlertCircle,Copy,Image as ImageIcon} from 'lucide-react';
 import AdminFormField from '../../components/forms/AdminFormField.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
 import DateTimePickerField from '../../components/forms/DateTimePickerField.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import MarketingMediaPicker from './MarketingMediaPicker.jsx';
-import CaptionLibrary from './CaptionLibrary.jsx';
+import CaptionLibrary,{insertCaptionText} from './CaptionLibrary.jsx';
+import SocialChannelIcon from './SocialChannelIcon.jsx';
 import {PostMedia} from './PostDetail.jsx';
 import {marketingService} from './marketingService.js';
 import {localInput} from './marketingCalendar.js';
 import {CONTENT_TIMEZONE,contentStatusLabel} from './contentManagement.js';
 import {POST_FORMATS,variantIssues,publishingAccount,mediaMetadataIssues} from './postEditor.js';
 import {isVideoFormat,publishingMediaEligible,extendedInstagramVariant} from './publishingMedia.js';
+import {publishingIntent,publishingStatus} from './publishingPlan.js';
 import './postEditor.css';
 const label=contentStatusLabel;
-export default function PostEditor({payload,onChange,brand,assets=[],plannedLocal,onPlannedChange,busy=false,can=()=>false}) {
+export default function PostEditor({payload,onChange,brand,assets=[],plannedLocal,onPlannedChange,busy=false,can=()=>false,content}) {
  const [selected,setSelected]=useState(payload.variants[0]?.channel||'facebook'),[view,setView]=useState('editor'),[cache,setCache]=useState([]),[accounts,setAccounts]=useState(null),[accountError,setAccountError]=useState(''),[retry,setRetry]=useState(0),[copied,setCopied]=useState(''),[videoEnabled,setVideoEnabled]=useState(false),[extendedEnabled,setExtendedEnabled]=useState(false),[observations,setObservations]=useState({});
  useEffect(()=>{let live=true;marketingService.metaConfiguration().then(value=>{if(live){setVideoEnabled(value.facebook_video_execution_enabled===true);setExtendedEnabled(value.instagram_extended_execution_enabled===true)}}).catch(()=>{});return()=>{live=false}},[]);
+ const captionInput=useRef(null),positions=useRef({}),pendingCursor=useRef(null),removedVariants=useRef({});
  const allAssets=[...new Map([...assets,...cache].map(a=>[a.id,a])).values()];
  const variant=payload.variants.find(v=>v.channel===selected)||payload.variants[0];
  const channel=variant?.channel||selected,other=payload.variants.find(v=>v.channel!==channel);
+ useLayoutEffect(()=>{const pending=pendingCursor.current;if(pending?.channel===channel){captionInput.current?.focus();captionInput.current?.setSelectionRange(pending.cursor,pending.cursor);positions.current[channel]=pending.cursor;pendingCursor.current=null;}},[channel,variant?.caption]);
  const patchVariant=patch=>onChange({...payload,variants:payload.variants.map(v=>v.channel===channel?{...v,...patch}:v)});
  useEffect(()=>{let live=true;setAccounts(null);setAccountError('');marketingService.integrations(brand.organization_id,brand.id,'content').then(result=>{if(live)setAccounts(result.connections||[])}).catch(e=>{if(live)setAccountError(e.message||'Account eligibility unavailable.');});return()=>{live=false}},[brand.organization_id,brand.id,retry]);
  const account=variant&&publishingAccount(variant,accounts,brand);
  const storyAvailable=publishingAccount({channel:'instagram',format:'story'},accounts,brand)?.capabilities?.story_business_verified===true;
  const issues=variant?[...variantIssues(variant,allAssets,brand),...mediaMetadataIssues(variant,allAssets,observations)]:['Select at least one channel.'];
  const planned=plannedLocal??(payload.planned_at?localInput(new Date(payload.planned_at),CONTENT_TIMEZONE):'');
+ const intent=publishingIntent(payload),savedStatus=publishingStatus(content);
  const dateError=planned&&!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(planned)?'Choose both a date and time, or clear the date to leave this post unplanned.':'';
- function toggleChannel(name,checked){setCopied('');onChange({...payload,variants:checked?[...payload.variants,{channel:name,format:name==='facebook'?'text':'image',caption:'',asset_ids:[]}]:payload.variants.filter(v=>v.channel!==name)});if(checked)setSelected(name);}
+ function toggleChannel(name,checked){setCopied('');if(!checked)removedVariants.current[name]=payload.variants.find(v=>v.channel===name);onChange({...payload,variants:checked?[...payload.variants,removedVariants.current[name]||{channel:name,format:name==='facebook'?'text':'image',caption:'',asset_ids:[]}]:payload.variants.filter(v=>v.channel!==name)});if(checked)setSelected(name);}
+ function insertSaved(text,kind){const result=insertCaptionText(variant.caption,text,channel==='instagram'?2200:63206,positions.current[channel]??variant.caption.length,kind);pendingCursor.current={channel,cursor:result.cursor};patchVariant({caption:result.value});}
  return <div className="post-editor-workspace" data-mobile-view={view}>
  <div className="post-editor-mobile-tabs"><AdminSegmentedControl label="Post workspace" value={view} onChange={setView} options={[{value:'editor',label:'Editor'},{value:'preview',label:'Preview'}]}/></div>
  <div className="post-editor-fields"><fieldset disabled={busy} className="post-editor-section">
  <AdminFormField label="Creative concept title" required helper="Internal title · shared across channels"><input className="control" value={payload.title} maxLength={200} onChange={e=>onChange({...payload,title:e.target.value})}/></AdminFormField>
- <DateTimePickerField label="Planned publishing" timezone={CONTENT_TIMEZONE} helper="Optional · planning does not schedule or publish" value={planned} onChange={onPlannedChange} error={dateError}/>
+ <section className="post-publishing-plan" aria-label="Publishing Plan"><h3>Publishing Plan</h3><div className="post-publishing-status"><Badge>{savedStatus.label}</Badge><span>{content?'Saved status':'New post'}</span></div>
+ <div className="post-publishing-options" role="radiogroup" aria-label="Publishing intention">{[{value:'draft',label:'Save as Draft'},{value:'after_approval',label:'Publish after approval'},{value:'schedule',label:'Schedule Publishing'}].map(option=><label key={option.value}><input type="radio" name="publishing-intention" checked={intent===option.value} onChange={()=>{onChange({...payload,publishing_plan:option.value,...(option.value==='schedule'?{}:{planned_at:null})});if(option.value!=='schedule')onPlannedChange('');}}/>{option.label}</label>)}</div>
+ {intent==='schedule'?<DateTimePickerField label="Publishing date & time" timezone={CONTENT_TIMEZONE} helper="Intended time · confirm the schedule after approval" value={planned} onChange={onPlannedChange} error={dateError}/>:null}
+ <p className="post-editor-help">{intent==='after_approval'?'After approval, confirm Publish and authorize the exact content and accounts. Nothing sends automatically.':intent==='schedule'?'Saving records your intended time. Approval, schedule confirmation and execution authorization remain separate.':'Keep this post as a draft. Submit it for approval when ready.'}</p>
+ {content&&content.status!=='draft'?<p className="post-editor-help">{savedStatus.next} Saving edits creates a new draft revision and invalidates its approval.</p>:null}
+ </section>
  {brand.outlet_ids?.length?<fieldset className="post-outlet-targets"><legend>Outlet targets</legend>{brand.outlet_ids.map(id=><label key={id}><input type="checkbox" checked={payload.outlet_ids.includes(id)} onChange={e=>onChange({...payload,outlet_ids:e.target.checked?[...payload.outlet_ids,id]:payload.outlet_ids.filter(v=>v!==id)})}/>{brand.outlets?.find(o=>o.id===id)?.name||'Brand outlet'}</label>)}</fieldset>:null}
  </fieldset>
  <section className="post-editor-section" aria-label="Channel content">
- <div className="post-channel-heading"><h3>Channel content</h3><fieldset disabled={busy} className="post-channel-selection"><legend className="sr-only">Channels</legend>{Object.keys(POST_FORMATS).map(name=><label key={name}><input type="checkbox" checked={payload.variants.some(v=>v.channel===name)} onChange={e=>toggleChannel(name,e.target.checked)}/>{label(name)}</label>)}</fieldset></div>
+ <div className="post-channel-heading"><h3>Channel content</h3><div role="group" aria-label="Publishing channels" className="post-channel-selection">{Object.keys(POST_FORMATS).map(name=>{const checked=payload.variants.some(v=>v.channel===name);return <button type="button" key={name} className="post-channel-chip" disabled={busy} aria-pressed={checked} onClick={()=>toggleChannel(name,!checked)}><span aria-hidden="true"><SocialChannelIcon value={name}/></span>{label(name)}{checked?<Check size={13} aria-hidden="true"/>:null}</button>})}</div></div>
  {variant?<><AdminSegmentedControl label="Edit channel" value={channel} onChange={value=>{setSelected(value);setCopied('')}} options={payload.variants.map(v=>({value:v.channel,label:label(v.channel)}))}/>
  <fieldset disabled={busy} className="post-channel-fields">
  <SelectField label={`${label(channel)} format`} value={variant.format} onChange={format=>patchVariant({format,asset_ids:[]})} options={[...(POST_FORMATS[channel]||[]),...(!POST_FORMATS[channel]?.includes(variant.format)?[variant.format]:[])].map(format=>({value:format,label:format==='story'&&!storyAvailable?'Story · Business verification required':channel==='facebook'&&format==='video'?'Video Post':label(format),disabled:!POST_FORMATS[channel]?.includes(format)||format==='story'&&!storyAvailable}))}/>
- <AdminFormField label={variant.format==='story'?'Story description (internal only)':`${label(channel)} caption`} helper={`${variant.caption?.length||0} / ${channel==='instagram'?'2,200':'63,206'} characters`}><textarea className="control post-caption-input" rows={5} value={variant.caption} maxLength={channel==='instagram'?2200:63206} onChange={e=>patchVariant({caption:e.target.value})}/></AdminFormField>
- <CaptionLibrary key={channel} brand={brand} can={can} caption={variant.caption} limit={channel==='instagram'?2200:63206} disabled={busy} onInsert={caption=>patchVariant({caption})}/>
+ <AdminFormField label={variant.format==='story'?'Story description (internal only)':`${label(channel)} caption`} helper={`${variant.caption?.length||0} / ${channel==='instagram'?'2,200':'63,206'} characters`}><textarea key={channel} ref={captionInput} onSelect={e=>{positions.current[channel]=e.currentTarget.selectionStart}} className="control post-caption-input" rows={5} value={variant.caption} maxLength={channel==='instagram'?2200:63206} onChange={e=>patchVariant({caption:e.target.value})}/></AdminFormField>
+ <CaptionLibrary key={channel} brand={brand} can={can} disabled={busy} onInsert={insertSaved}/>
  {other?<div className="post-caption-copy"><button type="button" className="btn-secondary" disabled={busy||!other.caption||other.caption.length>(channel==='instagram'?2200:63206)} onClick={()=>{patchVariant({caption:other.caption});setCopied(`Caption copied from ${label(other.channel)}.`)}}><Copy size={14}/>Copy caption from {label(other.channel)}</button>{copied?<span role="status">{copied}</span>:null}</div>:null}
  {other&&isVideoFormat(variant.format)&&isVideoFormat(other.format)&&other.asset_ids.length===1&&allAssets.some(a=>a.id===other.asset_ids[0]&&a.brand_id===brand.id&&a.organization_id===brand.organization_id&&publishingMediaEligible(a,variant.format,channel))?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>patchVariant({asset_ids:[...other.asset_ids]})}><Copy size={14}/>Use {label(other.channel)} video</button>:null}
  {variant.format!=='text'?<MarketingMediaPicker key={channel} thumbnailPreviews disabled={busy} channel={channel} brand={brand} format={variant.format} values={variant.asset_ids} assets={allAssets} onAssetsResolved={records=>setCache(current=>[...new Map([...current,...records].map(a=>[a.id,a])).values()])} onChange={asset_ids=>patchVariant({asset_ids})}/>:null}

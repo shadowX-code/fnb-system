@@ -29,7 +29,10 @@ export default function Modal({
     panel.focus();
     const key = event => {
       if (event.target.closest('[role="dialog"]') !== panel) return;
-      if (event.key === 'Escape') { event.preventDefault(); closeRef.current?.(); }
+      if (event.key === 'Escape') {
+        if (event.defaultPrevented || event.target.closest('[data-floating-ancestors]')) return;
+        event.preventDefault(); closeRef.current?.();
+      }
       if (event.key !== 'Tab') return;
       const items = controls(), first = items[0], last = items.at(-1);
       if (!first) { event.preventDefault(); panel.focus(); }

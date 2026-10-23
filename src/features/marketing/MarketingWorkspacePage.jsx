@@ -11,6 +11,7 @@ import { marketingService } from './marketingService.js';
 import { localInput, scheduleInstant } from './marketingCalendar.js';
 import './marketing.css';
 import PostEditor from './PostEditor.jsx';
+import {publishingPlanPayload} from './publishingPlan.js';
 import DateTimePickerField from '../../components/forms/DateTimePickerField.jsx';
 import MediaLibrary from './MediaLibrary.jsx';
 import { MarketingOverview, MarketingSocialAnalytics } from './MarketingDashboards.jsx';
@@ -30,7 +31,7 @@ const descriptions = {
 };
 const emptyContext = { organizations: [], brands: [] };
 const titleCase = value => value.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
-const newPayload = () => ({ title: '', outlet_ids: [], variants: [{ channel: 'facebook', format: 'text', caption: '', asset_ids: [] }] });
+const newPayload = () => ({ title: '', outlet_ids: [], publishing_plan:'draft', variants: [{ channel: 'facebook', format: 'text', caption: '', asset_ids: [] }] });
 
 export default function MarketingWorkspacePage(props){return props.section==='settings'?<MarketingSettingsPage section="legacy"/>:<MarketingContentWorkspace {...props}/>;}
 function MarketingContentWorkspace({ section = 'overview' }) {
@@ -171,13 +172,13 @@ function MarketingContentWorkspace({ section = 'overview' }) {
       {error ? <p className="mr-auto text-sm text-rose-600" role="alert">{error}</p> : null}
       <button className="btn-secondary" disabled={busy} onClick={()=>setModal(null)}>Close</button>
       {modal.type!=='review' ? <button className="btn-primary" disabled={busy} onClick={()=>{
-        if(modal.type==='content'){try{const payload=modal.plannedLocal===undefined?modal.payload:{...modal.payload,planned_at:modal.plannedLocal?scheduleInstant(modal.plannedLocal,'Asia/Kuala_Lumpur'):null,planned_timezone:'Asia/Kuala_Lumpur'};command('save',modal.content,payload);}catch(e){setError(e.message);}}
+        if(modal.type==='content'){try{const payload=publishingPlanPayload(modal.payload,modal.plannedLocal);command('save',modal.content,payload);}catch(e){setError(e.message);}}
         if(modal.type==='schedule'){try{command('schedule',modal.content,{scheduled_at:scheduleInstant(modal.local,modal.timezone),timezone:modal.timezone});}catch(e){setError(e.message);}}
       }}>{busy?'Saving…':modal.type==='schedule'?'Save schedule':'Save'}</button> : null}
       {modal.type==='review' && !modal.content.channels?.some(v=>['leased','reconciling','succeeded'].includes(v.job_state)) ? <>
         {!['published','cancelled'].includes(modal.content.status) && can('marketing_content.edit') ? <button className="btn-secondary" disabled={busy} onClick={()=>open({type:'content',content:modal.content,payload:structuredClone(modal.content.payload)})}>Edit</button> : null}
         {['draft','rejected'].includes(modal.content.status) && can('marketing_content.review') ? <button className="btn-secondary" disabled={busy} onClick={()=>command('review',modal.content)}>Submit review</button> : null}
-        {modal.content.status==='approved' && can('marketing_content.publish') ? <button className="btn-secondary" disabled={busy} onClick={()=>open({type:'schedule',content:modal.content,local:'',timezone})}>Schedule</button> : null}
+        {modal.content.status==='approved' && can('marketing_content.publish') ? <button className="btn-secondary" disabled={busy} onClick={()=>open({type:'schedule',content:modal.content,local:modal.content.payload?.planned_at?localInput(new Date(modal.content.payload.planned_at),'Asia/Kuala_Lumpur'):'',timezone:'Asia/Kuala_Lumpur'})}>Publish / Schedule…</button> : null}
         {!['published','cancelled'].includes(modal.content.status) && can('marketing_content.cancel') ? <button className="btn-secondary" disabled={busy} onClick={()=>command('cancel',modal.content)}>Cancel</button> : null}
       </> : null}
       {modal.type==='review' && modal.content.status==='review' && can('marketing_content.approve') ? <><button className="btn-secondary" disabled={busy||!modal.reason?.trim()} onClick={()=>command('reject',modal.content,{reason:modal.reason})}>Reject</button><button className="btn-primary" disabled={busy} onClick={()=>command('approve',modal.content)}>Approve revision {modal.content.revision}</button></> : null}
@@ -194,7 +195,7 @@ function ModalBody({modal,setModal,brands,brand,assets,can,detail,onExecutionCom
   if(modal.type==='review')return <PostDetail content={detail?.content||modal.content} assets={assets} events={detail?.events||[]}>{detail?.content?<PublishingOperations key={`operations:${detail.content.id}:${detail.content.revision}`} content={detail.content} can={can} command={command} busy={busy}/>:null}{detail?.content ? <PublishAuthorization key={`${detail.content.id}:${detail.content.revision}`} content={detail.content} onComplete={onExecutionComplete}/> : <p role="status">Verifying the saved revision before publishing approval.</p>}{modal.content.status==='review'&&can('marketing_content.approve')?<AdminFormField label="Rejection reason (required to reject)"><textarea className="control" value={modal.reason||''} onChange={e=>change({reason:e.target.value})}/></AdminFormField>:null}</PostDetail>;
   if(modal.type==='content') {
     const currentBrand=brands.find(b=>b.id===(modal.content?.brand_id||brand?.id));
-    return <PostEditor key={modal.content?.id||'new'} payload={modal.payload} onChange={payload=>change({payload})} brand={currentBrand} assets={assets} plannedLocal={modal.plannedLocal} onPlannedChange={plannedLocal=>change({plannedLocal})} busy={busy} can={can}/>;
+    return <PostEditor key={modal.content?.id||'new'} content={modal.content} payload={modal.payload} onChange={payload=>change({payload})} brand={currentBrand} assets={assets} plannedLocal={modal.plannedLocal} onPlannedChange={plannedLocal=>change({plannedLocal})} busy={busy} can={can}/>;
   }
   return null;
 }
