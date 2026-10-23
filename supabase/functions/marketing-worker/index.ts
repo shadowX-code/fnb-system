@@ -60,7 +60,7 @@ Deno.serve(async(req)=>{
     if(videoReadOnly&&!job.provider_state?.objects?.fb_video&&!job.provider_state?.pending&&!job.provider_state?.post_id)throw new MetaError('facebook_video_not_enabled');
     const material=await call(db,'marketing_meta_connection_material',{p_connection:connection.id});
     const retained=await unseal(material.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
-    const eligibility=await diagnoseMetaConnection(graph,env('MARKETING_META_APP_ID'),`${env('MARKETING_META_APP_ID')}|${env('MARKETING_META_APP_SECRET')}`,material,retained.token,async()=>{await guard();},true,retained.authorizerAssignment,retained.oauthTaskEvidence);
+    const eligibility=await diagnoseMetaConnection(graph,env('MARKETING_META_APP_ID'),`${env('MARKETING_META_APP_ID')}|${env('MARKETING_META_APP_SECRET')}`,material,retained.token,async()=>{await guard();},true,retained.authorizerAssignment,retained.oauthTaskEvidence,undefined,variant.format==='story');
     if(eligibility.publishing_evidence?.eligibility!=='verified')throw new MetaError('publishing_eligibility_unverified');
     if(!variant||!connection.capabilities.formats?.includes(variant.format))throw new MetaError('channel_format_unavailable');
     const state=job.provider_state||{},assets=await call(db,'marketing_job_assets',{p_job:job.id,p_lease:job.lease_token});

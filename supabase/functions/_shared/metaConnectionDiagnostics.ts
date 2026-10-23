@@ -3,7 +3,7 @@ import { META_SCOPES, hash } from './metaSecurity.ts';
 import { facebookPostFields } from './metaSynchronization.ts';
 import { resolvePageRoleTasks, resolveBusinessPageTasks, resolveBusinessUserPageTasks, type AuthorizerAssignment, type OAuthTaskEvidence, resolveOAuthTaskEvidence, discoverAuthorizerAssignments, retainedOAuthAccountTasks } from './metaPageTasks.ts';
 // Fixed GETs only. No provider bodies, messages, personal subjects or credentials leave this module.
-export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appToken:string,connection:any,token:string,guard:()=>Promise<void>,publishingChecks=false,assignment?:AuthorizerAssignment, oauthEvidence?:OAuthTaskEvidence,onEvidence?:(e:OAuthTaskEvidence)=>Promise<void>) {
+export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appToken:string,connection:any,token:string,guard:()=>Promise<void>,publishingChecks=false,assignment?:AuthorizerAssignment, oauthEvidence?:OAuthTaskEvidence,onEvidence?:(e:OAuthTaskEvidence)=>Promise<void>,storyChecks=false) {
  const id=connection.provider_account_id;
  if(!/^\d{1,30}$/.test(id))throw new MetaError('invalid_meta_account');
  const evidence:any[]=[];
@@ -127,8 +127,10 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
      const row=limit?.data?.[0];
      if(Number.isSafeInteger(row?.quota_usage)&&row.quota_usage>=0)publishingEvidence.quota_usage=row.quota_usage;
      if(Number.isSafeInteger(row?.config?.quota_total)&&row.config.quota_total>0)publishingEvidence.quota_total=row.config.quota_total;
-     const type=await read('instagram_story_account_type',id,token,{fields:'id,account_type'},2000);
-     publishingEvidence.story_business_verified=String(type?.id)===id&&type?.account_type==='BUSINESS';
+     if(storyChecks) {
+      const type=await read('instagram_story_account_type',id,token,{fields:'id,account_type'},2000);
+      publishingEvidence.story_business_verified=String(type?.id)===id&&type?.account_type==='BUSINESS';
+     }
     }
    }
   }

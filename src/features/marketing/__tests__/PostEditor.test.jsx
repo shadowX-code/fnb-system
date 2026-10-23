@@ -35,3 +35,8 @@ it('reuses one existing MP4 across channels without copying captions or importin
  expect(screen.getByLabelText(/Facebook caption/).value).toBe('FB independent');expect(screen.getByRole('button',{name:'Remove Shared.mp4'})).toBeTruthy();
  fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));expect(screen.getByLabelText(/Instagram caption/).value).toBe('IG independent');expect(screen.getByRole('button',{name:'Remove Shared.mp4'})).toBeTruthy();
 });
+
+it('keeps Stories unavailable without exact verified Business capability while preserving other formats',async()=>{
+ render(<Harness/>);await screen.findByText(/No currently eligible account/);fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Instagram format'}));
+ const story=screen.getByRole('option',{name:'Story · Business verification required'});expect(story.disabled).toBe(true);expect(screen.getByRole('option',{name:'Reel',exact:true}).disabled).toBe(false);
+});
