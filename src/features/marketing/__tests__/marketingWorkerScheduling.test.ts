@@ -45,3 +45,23 @@ it('still runs one health turn when no publishing job is due',async()=>{
  expect(fixture.db.rpc).toHaveBeenCalledWith('marketing_claim_reconciliation',{});expect(fixture.db.rpc).toHaveBeenCalledWith('marketing_claim_job',{});
  expect(fixture.publish).not.toHaveBeenCalled();expect(fixture.health).toHaveBeenCalledTimes(1);expect(fixture.followers).toHaveBeenCalledOnce();
 });
+it('wires video submissions to fresh canonical submission authority rather than its cached initial readiness',async()=>{
+ const initialGet=Deno.env.get;
+ vi.stubGlobal('Deno',{env:{get:(key:string)=>key==='MARKETING_META_FACEBOOK_VIDEO_ENABLED'?'true':initialGet(key)}});
+ let revoked=false;
+ fixture.db.rpc.mockImplementation(async(name:string,args:any)=>{
+  if(name==='marketing_job_guard'&&args.p_submission&&revoked)return {data:null,error:{message:'expired'}};
+  return {data:name==='marketing_claim_job'?{id:'job',lease_token:'lease',channel:'facebook',state:'leased',payload:{variants:[{channel:'facebook',format:'video',asset_ids:[]}]}}:
+   name==='marketing_job_guard'?{id:'connection',channel:'facebook',credential_generation:1,status:'test_authorized',provider_account_id:'111',facebook_video_authorized:true,capabilities:{formats:['video']}}:
+   name==='marketing_meta_connection_material'?{credential_generation:1,sealed_token:{}}:
+   name==='marketing_job_assets'||name==='marketing_privacy_journal_pending'?[]:null,error:null};
+ });
+ fixture.publish.mockImplementationOnce(async(input:any)=>{
+  await input.submissionGuard();revoked=true;
+  await expect(input.submissionGuard()).rejects.toThrow('marketing_authority_rejected');
+  return {outcome:'uncertain',code:'authorization_revoked_before_submission'};
+ });
+ await tick();expect(fixture.publish).toHaveBeenCalledOnce();
+ expect(fixture.db.rpc.mock.calls.filter(([n,a])=>n==='marketing_job_guard'&&a.p_submission)).toHaveLength(2);
+ expect(fixture.db.rpc).toHaveBeenCalledWith('marketing_finish_job',expect.objectContaining({p_outcome:'uncertain'}));
+});

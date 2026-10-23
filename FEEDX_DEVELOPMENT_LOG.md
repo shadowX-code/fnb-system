@@ -1060,3 +1060,8 @@ Added generation-checked local Pause/Disconnect and explicit verified Resume, co
 ## 2026-10-23 — Content publishing and Draft workflow (Staging)
 
 Canonical publisher authorization now supports explicit Publish Now / future Schedule from a saved Draft with Publish + Execute permissions, retaining Review/Approval when a revision is in that workflow. Reuses existing jobs/execution/receipts with current identity/generation and idempotency guards. Draft discovery/counts and runtime status share the canonical Content projection; undated Drafts remain available without date filtering. Production and external publishing remain separately authorized.
+
+
+## 2026-10-24 — Temporary Facebook Video/Reel execution expiry
+
+The existing connection execution policy now supports a finite, generation-bound Facebook Video/Reel authorization capped at 30 minutes. The canonical job guard and provider transport revalidate every new submission; explicit revocation blocks subsequent operations while checkpoint/receipt reconciliation remains available. Default-off gates and existing Publishing/Instagram authorities are preserved. Verification uses rollback-only Staging records and controlled provider transports, with no live publishing.

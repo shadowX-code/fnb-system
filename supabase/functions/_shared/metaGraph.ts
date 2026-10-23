@@ -13,10 +13,11 @@ export class MetaError extends Error {
 }
 export type MetaConfig={appId:string;appSecret:string;configId:string;version:string};
 export class MetaGraph {
- constructor(private config:MetaConfig,private transport:typeof fetch=fetch,private diagnostic?:(event:MetaDiagnostic)=>void,private signal?:AbortSignal) {
+ constructor(private config:MetaConfig,private transport:typeof fetch=fetch,private diagnostic?:(event:MetaDiagnostic)=>void,private signal?:AbortSignal,private beforeWrite?:()=>Promise<void>) {
   if(!/^v\d+\.0$/.test(config.version))throw new MetaError('meta_version_not_configured');
  }
- withSignal(signal:AbortSignal):MetaGraph {return new MetaGraph(this.config,this.transport,this.diagnostic,this.signal?AbortSignal.any([this.signal,signal]):signal);}
+ withSignal(signal:AbortSignal):MetaGraph {return new MetaGraph(this.config,this.transport,this.diagnostic,this.signal?AbortSignal.any([this.signal,signal]):signal,this.beforeWrite);}
+ withWriteGuard(guard:()=>Promise<void>):MetaGraph {return new MetaGraph(this.config,this.transport,this.diagnostic,this.signal,guard);}
  get version():string {return this.config.version;}
  // Never follow a provider-supplied upload URL or send credentials to another host.
  async uploadReel(videoId:string,token:string,source:string):Promise<any>{
@@ -24,6 +25,7 @@ export class MetaGraph {
   if(!/^\d{1,30}$/.test(videoId))throw new MetaError('invalid_meta_video');
   const url=new URL(source);if(url.protocol!=='https:'||url.username||url.password||/[\r\n]/.test(source))throw new MetaError('invalid_meta_media_source');
   let response:Response;
+  await this.beforeWrite?.();
   try{response=await this.transport(`https://rupload.facebook.com/video-upload/${this.config.version}/${videoId}`,{method:'POST',headers:{Authorization:`OAuth ${token}`,file_url:source},redirect:'error',signal:this.signal?AbortSignal.any([this.signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});}catch{throw new MetaError('meta_video_upload_uncertain',true);}
   let result:any;try{result=await response.json();}catch{throw new MetaError('meta_video_upload_uncertain',true);}
   if(result?.error){const code=Number(result.error.code);throw new MetaError('meta_video_upload_rejected',false,[4,17,32,613].includes(code),code);}
@@ -45,6 +47,7 @@ export class MetaGraph {
   }
   if(method==='GET')url.search=form.toString();
   let response:Response;
+  if(method!=='GET')await this.beforeWrite?.();
   try { response=await this.transport(url,{method,headers:{...(token?{Authorization:`Bearer ${token}`}:{ }),...(method!=='GET'?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body:method==='GET'?undefined:form.toString(),signal:this.signal?AbortSignal.any([this.signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000),redirect:'error'}); }
   catch {
    inspect?.(null,null);
