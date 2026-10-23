@@ -37,10 +37,11 @@ import "./marketing.css";
 import "./marketingInbox.css";
 import { notifyConversationsChanged } from "./useConversationReplyCount.js";
 import InboxReplyComposer from "./InboxReplyComposer.jsx";
+import WhatsAppMessageContent, { whatsAppProvenance } from "./WhatsAppMessageContent.jsx";
 import {aiSuggestionUnavailable} from "./inboxKnowledge.js";
 import { automaticReplyReason, socialIdentity, conversationTimeline, replyOutcomeMessage, replyWasAccepted, replyStateLabel, replySourceLabel } from "./inboxPresentation.js";
 const label = (s) =>
-  String(s || "")
+  s === "whatsapp" ? "WhatsApp" : String(s || "")
     .replaceAll("_", " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 const options = (values, empty) => [
@@ -442,7 +443,7 @@ export default function MarketingInboxPage() {
     }
   }
   const latestQuestion = historyPage === 1 ? [...(current?.messages||[])].reverse().find(m=>m.kind==='incoming')?.body : '';
-  const mayMatchFAQ = can('reply');
+  const mayMatchFAQ = can('reply') && c?.channel !== 'whatsapp';
   useEffect(()=>{
     let live=true;setPreview(null);
     if(c?.id && mayMatchFAQ && latestQuestion?.trim() && latestQuestion.length<=500)
@@ -633,6 +634,7 @@ export default function MarketingInboxPage() {
                 <div className="marketing-inbox-empty">
                   <MessageSquareText size={28} />
                   <p>No conversations match your filters.</p>
+                  {channel === "whatsapp" && <p>WhatsApp onboarding is disabled. Verified messages will appear here after an authorized connection is ready.</p>}
                 </div>
               )}
               {data?.rows.map((row) => (
@@ -844,18 +846,19 @@ export default function MarketingInboxPage() {
                             {m.actor_name || "Team member"}
                           </strong>
                         )}
-                        <p>
+                        {c.channel === "whatsapp" && m.kind !== "note" ? <WhatsAppMessageContent message={m} /> : <p>
                           {m.body ||
                             (m.kind === "attachment"
                               ? "Attachment · preview unavailable"
                               : "Message content unavailable")}
-                        </p>
+                        </p>}
                         <footer>
-                          {m.kind === "echo" && m.sender_type === "feedx_ai" ? <span>FeedX AI · </span> : m.kind === "echo" && m.sender_type === "feedx_staff" ? <span>Staff reply · </span> : null}
+                          {c.channel === "whatsapp" && m.kind !== "note" ? <span>{whatsAppProvenance(m)} · </span> : null}
+                          {c.channel !== "whatsapp" && m.kind === "echo" && m.sender_type === "feedx_ai" ? <span>FeedX AI · </span> : c.channel !== "whatsapp" && m.kind === "echo" && m.sender_type === "feedx_staff" ? <span>Staff reply · </span> : null}
                           {m.provider_context?.interaction_type ? <span>Customer selection · </span> : null}
-                          {m.kind === "echo" && m.message_origin === "meta" ? <span>Outside FeedX · </span> : null}
-                          {m.evidence_source === "historical_import" ? <span>Imported history · </span> : m.evidence_source === "recent_api" ? <span>Recovered from Meta · </span> : null}
-                          <time title={stamp(m.occurred_at)}>
+                          {c.channel !== "whatsapp" && m.kind === "echo" && m.message_origin === "meta" ? <span>Outside FeedX · </span> : null}
+                          {c.channel !== "whatsapp" && m.evidence_source === "historical_import" ? <span>Imported history · </span> : c.channel !== "whatsapp" && m.evidence_source === "recent_api" ? <span>Recovered from Meta · </span> : null}
+                          <time dateTime={m.occurred_at} title={stamp(m.occurred_at)}>
                             {clock(m.occurred_at)}
                           </time>
                           {m.kind === "echo" && (
@@ -870,6 +873,7 @@ export default function MarketingInboxPage() {
                               {["read", "delivered", "sent"].includes(
                                 m.send_state,
                               )
+                                || (c.channel === "whatsapp" && ["failed", "reconciling", "pending", "prepared", "blocked"].includes(m.send_state))
                                 ? replyStateLabel(m.send_state)
                                 : "Status unavailable"}
                             </span>
@@ -882,6 +886,7 @@ export default function MarketingInboxPage() {
                 <InboxReplyComposer
                   key={`${scope}:${c.id}`}
                   draftCache={composerDrafts.current}
+                  canViewConnections={auth.hasPermission("marketing_settings.view")}
                   current={current}
                   configuration={
                     sendStatus?.key === detailKey
@@ -976,12 +981,13 @@ export default function MarketingInboxPage() {
                   disabled={
                     busy ||
                     !can("manage") ||
+                    c.channel === "whatsapp" ||
                     c.opted_out ||
                     Boolean(c.escalation_reasons?.length) || (c.takeover&&current.ai_handling?.mode&&current.ai_handling.mode!=='suggest_only'&&!configuration?.ai_auto_configured)
                   }
                   onClick={() => c.takeover&&current.ai_handling?.mode&&current.ai_handling.mode!=='suggest_only'?mutate({scope,conversation:c.id,version:c.version,action:'resume_ai'},request=>inboxService.resumeAI(request,c),'AI resumed for new eligible messages.'):handling({ takeover: !c.takeover })}
                 >
-                  {c.takeover ? current.ai_handling?.mode&&current.ai_handling.mode!=='suggest_only'?"Resume AI":"Human takeover on" : "Take over"}
+                  {c.channel === "whatsapp" ? "Human handling · AI disabled" : c.takeover ? current.ai_handling?.mode&&current.ai_handling.mode!=='suggest_only'?"Resume AI":"Human takeover on" : "Take over"}
                 </button>
               </div>
               <dl>

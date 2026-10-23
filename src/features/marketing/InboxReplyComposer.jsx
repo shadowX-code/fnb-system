@@ -18,6 +18,7 @@ export default function InboxReplyComposer({
   onSend,
   onDirectSend,
   draftCache,
+  canViewConnections = false,
 }) {
   const c = current.conversation;
   const latestSentAt = Math.max(0,...(current.outbox || []).filter(o=>['sent','delivered','read'].includes(o.state)&&o.sent_at).map(o=>Date.parse(o.sent_at)));
@@ -107,6 +108,24 @@ export default function InboxReplyComposer({
       setDirty(false);
     }
   }
+  // WhatsApp execution remains unavailable independently of general messaging/AI flags.
+  // Team notes continue through the same permission-checked canonical note authority.
+  if (c.channel === "whatsapp" && mode === "reply") return (
+    <div className="inbox-composer" aria-label="Reply composer">
+      <div className="inbox-composer-tools">
+        {can("reply") && <button className="inbox-text-button active" aria-pressed="true">Staff Reply</button>}
+        {can("manage") && <button className="inbox-text-button" onClick={() => switchMode("note")}>Internal note</button>}
+        <span className="inbox-tool-spacer" />
+        {can("ai") && <button className="btn-secondary" disabled title="WhatsApp AI suggestions and automatic replies are disabled."><Sparkles size={14} />AI Suggested Reply</button>}
+      </div>
+      <p className="inbox-assistance-status" role="status">WhatsApp Staff Reply is disabled. Onboarding awaits Meta verification and an authorized receive-only pilot. Sending, AI replies and campaigns remain off.</p>
+      <p className="inbox-muted">{current.channel_capability?.receiving_verified ? "Receiving verification is recorded; this does not enable replies." : "Receiving has not been verified for this conversation."} Mobile-app replies remain separate from FeedX sending.</p>
+      {canViewConnections && <a className="inbox-text-button" href={`/marketing/connections?marketing_brand=${encodeURIComponent(c.brand_id || '')}`}>View Connections</a>}
+      <label className="sr-only" htmlFor={`inbox-compose-${c.id}`}>Staff Reply</label>
+      <textarea id={`inbox-compose-${c.id}`} className="control" rows={2} disabled placeholder="WhatsApp Staff Reply is unavailable" />
+      <div className="inbox-composer-footer"><p>Receive-only preparation · no message will be sent</p>{can("reply") && <button className="btn-primary" disabled><Send size={14} />Send</button>}</div>
+    </div>
+  );
   return (
     <div className="inbox-composer" aria-label="Reply composer">
       <div className="inbox-composer-tools">
@@ -118,7 +137,7 @@ export default function InboxReplyComposer({
               switchMode("reply");
             }}
           >
-            Reply
+            {c.channel === "whatsapp" ? "Staff Reply" : "Reply"}
           </button>
         )}
         {can("manage") && (
