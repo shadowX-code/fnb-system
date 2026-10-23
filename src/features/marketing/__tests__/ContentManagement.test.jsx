@@ -45,11 +45,12 @@ const props = {
 beforeEach(() => {
   cleanup();
   localStorage.clear();
+  localStorage.setItem("admin.presentation.marketing.content.test-user","list");
   vi.clearAllMocks();
   service.contentManagement.mockResolvedValue({
     rows: [row],
     total_count: 1,
-    day_counts: { "2026-05-22": 1 },
+    day_counts: { "2026-05-22": 1 },draft_count:3,
   });
 });
 it("starts as a dense List, identifies external origin and opens a read-only detail", async () => {
@@ -170,3 +171,7 @@ it('opens a row through pointer, keyboard and View once, while expansion stays i
  fireEvent.click(screen.getByRole('button',{name:'Close modal'}));
  fireEvent.click(tr);expect(await screen.findByRole('dialog')).toBeTruthy();
 });
+
+it('defaults to Calendar for users without a view preference',async()=>{localStorage.clear();render(<ContentManagement {...props}/>);await waitFor(()=>expect(service.contentManagement).toHaveBeenCalled());expect(screen.getByRole('tab',{name:'Calendar'}).getAttribute('aria-selected')).toBe('true');});
+it('opens canonical undated Drafts in the existing editor and synchronizes quick/status filters',async()=>{const draft={...row,key:'draft',id:'draft',origin:'feedx',status:'draft',revision:4,payload:{title:'Saved Draft',outlet_ids:[],variants:[{channel:'facebook',format:'text',caption:'Retained caption',asset_ids:[]}]},title:'Saved Draft',display_at:null,channels:[{channel:'facebook',status:'draft'}]};service.contentManagement.mockResolvedValue({rows:[draft],total_count:1,draft_count:3});render(<ContentManagement {...props}/>);const shortcut=await screen.findByRole('button',{name:'Drafts 3'});fireEvent.click(shortcut);await waitFor(()=>expect(service.contentManagement).toHaveBeenLastCalledWith(expect.objectContaining({view:'list',status:'draft',from:null,to:null})));fireEvent.click(screen.getAllByRole('button',{name:'Saved Draft',exact:true})[0]);expect(props.open).toHaveBeenCalledWith(expect.objectContaining({type:'content',content:draft,payload:draft.payload}));fireEvent.click(screen.getByRole('button',{name:'Scheduled',exact:true}));expect(screen.getByRole('button',{name:'Status',exact:true}).textContent).toContain('Scheduled');fireEvent.click(screen.getByRole('button',{name:'Status',exact:true}));fireEvent.click(screen.getByRole('option',{name:'Published',exact:true}));expect(screen.getByRole('button',{name:'Published',exact:true}).getAttribute('aria-pressed')).toBe('true');});
+it('refreshes counts without dropping active Brand, search or Draft filters',async()=>{const view=render(<ContentManagement {...props}/>);fireEvent.click(await screen.findByRole('button',{name:'Drafts 3'}));fireEvent.change(screen.getByRole('searchbox',{name:'Search content'}),{target:{value:'Lunch'}});await waitFor(()=>expect(service.contentManagement).toHaveBeenLastCalledWith(expect.objectContaining({search:'Lunch',status:'draft'})));service.contentManagement.mockResolvedValue({rows:[],total_count:0,draft_count:4});view.rerender(<ContentManagement {...props} refresh={2}/>);await screen.findByRole('button',{name:'Drafts 4'});expect(service.contentManagement).toHaveBeenLastCalledWith(expect.objectContaining({brandId:props.brandId,search:'Lunch',status:'draft',view:'list'}));});

@@ -3,6 +3,9 @@ import { useAuth } from '../../auth/AuthContext.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import AdminPagination from '../../components/tables/AdminPagination.jsx';
 import {isVideoFormat,extendedInstagramVariant} from './publishingMedia.js';
+import DateTimePickerField from '../../components/forms/DateTimePickerField.jsx';
+import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
+import {localInput,scheduleInstant} from './marketingCalendar.js';
 import { marketingService } from './marketingService.js';
 const label = value => value.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 const stamp = value => value ? new Intl.DateTimeFormat('en-MY', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(value)) : 'Unavailable';
@@ -10,22 +13,31 @@ const active = c => ['test_authorized', 'production_authorized'].includes(c.stat
 
 export { default as MetaConnections } from './SocialAccounts.jsx';
 
-export function PublishAuthorization({ content, onComplete }) {
-  const auth = useAuth(), [connections, setConnections] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false), [accepted, setAccepted] = useState(false),[videoEnabled,setVideoEnabled]=useState(false),[extendedEnabled,setExtendedEnabled]=useState(false);
-  const request = useRef(crypto.randomUUID()), lifetime = useRef(0);
-  const variants=content.payload.variants.filter(v=>!content.channels||content.channels.some(c=>c.channel===v.channel&&['blocked','queued','retry'].includes(c.job_state)));
-  const extended=variants.some(v=>extendedInstagramVariant(v,content.channels?.flatMap(c=>c.assets||[])||[]));
-  useEffect(() => {
-    let live = true; lifetime.current++;setConnections(null);setError('');setAccepted(false);
-    if(!['scheduled','failed'].includes(content.status) || !auth.hasPermission('marketing_content.execute') || !auth.hasPermission('marketing_content.publish')) return () => { live = false;lifetime.current++; };
-    Promise.all([marketingService.integrations(content.organization_id, content.brand_id, 'content'),(extended||variants.some(v=>v.channel==='facebook'&&isVideoFormat(v.format)))?marketingService.metaConfiguration():Promise.resolve({})]).then(([data,config]) => { if (live){setConnections(data.connections);setVideoEnabled(config.facebook_video_execution_enabled===true);setExtendedEnabled(config.instagram_extended_execution_enabled===true);} }).catch(e => { if (live) setError(e.message); });
-    return () => { live = false;lifetime.current++; };
-  }, [content.id, content.revision, content.status, auth.user?.id]);
-  if (!['scheduled','failed'].includes(content.status) || !auth.hasPermission('marketing_content.execute') || !auth.hasPermission('marketing_content.publish')) return null;
-  const selected = variants.map(v => connections?.find(c => c.channel === v.channel && active(c) && c.capabilities.publishing && c.capabilities.execution_enabled && c.capabilities.formats.includes(v.format)));
-  const videoBlocked=extended&&!extendedEnabled||variants.some(v=>v.channel==='facebook'&&isVideoFormat(v.format))&&!videoEnabled;
-  const ready = variants.length>0&&!videoBlocked&&selected.every(Boolean);
-  return <section className="card p-4 space-y-3"><h3 className="font-semibold">External publishing approval</h3>{videoBlocked?<p role="status">New video/Story execution is disabled pending separate live acceptance and activation.</p>:null}<p className="text-sm">Authorize revision {content.revision} for {stamp(content.scheduled_at)}. Posts due now may be sent by the worker immediately after authorization.</p>{variants.map((v, i) => <p className="text-sm" key={v.channel}>{label(v.channel)} → {selected[i]?.account_name || 'No enabled account for this format'}{selected[i] ? ` · Meta account ${selected[i].provider_account_id} · Test authorization` : ''}</p>)}{error ? <p role="alert" className="text-sm text-rose-600">{error}</p> : null}<label className="flex gap-2 items-start text-sm"><input type="checkbox" checked={accepted} disabled={!ready || busy} onChange={e => setAccepted(e.target.checked)} />I approve sending this exact caption and media to the listed accounts.</label><button className="btn-primary" disabled={!ready || !accepted || busy} onClick={async () => { const generation = lifetime.current;setBusy(true);try { await marketingService.execute(request.current, content, selected.map(c => c.id));if (generation === lifetime.current) onComplete(); } catch (e) { if (generation === lifetime.current) setError(e.message); } finally { if (generation === lifetime.current) setBusy(false); } }}>Authorize external publishing</button>{connections && !ready ? <p className="text-sm text-text-secondary">Connect an authorized account and configure its test-account allowlist before enabling external execution.</p> : null}</section>;
+export function PublishAuthorization({content,onComplete,intent=null}) {
+ const auth=useAuth(),[connections,setConnections]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[accepted,setAccepted]=useState(false),[config,setConfig]=useState({}),[mode,setMode]=useState(intent?.mode||'now'),[local,setLocal]=useState(intent?.scheduled_at?localInput(new Date(intent.scheduled_at),'Asia/Kuala_Lumpur'):'');
+ const request=useRef(null),sending=useRef(false),lifetime=useRef(0);
+ const direct=Boolean(intent)&&['draft','approved'].includes(content.status),allowed=auth.hasPermission('marketing_content.execute')&&auth.hasPermission('marketing_content.publish')&&(direct||['scheduled','failed'].includes(content.status));
+ const variants=direct?content.payload.variants:content.payload.variants.filter(v=>!content.channels||content.channels.some(c=>c.channel===v.channel&&['blocked','queued','retry'].includes(c.job_state)));
+ const extended=variants.some(v=>extendedInstagramVariant(v,content.channels?.flatMap(c=>c.assets||[])||[]));
+ useEffect(()=>{let live=true;lifetime.current++;setConnections(null);setError('');setAccepted(false);if(allowed)Promise.all([marketingService.integrations(content.organization_id,content.brand_id,'content'),marketingService.metaConfiguration()]).then(([data,value])=>{if(live){setConnections(data.connections);setConfig(value)}}).catch(e=>{if(live)setError(e.message)});return()=>{live=false;lifetime.current++}},[content.id,content.revision,content.status,auth.user?.id,allowed]);
+ if(!allowed)return null;
+ const selected=variants.map(v=>connections?.find(c=>c.organization_id===content.organization_id&&c.brand_id===content.brand_id&&c.channel===v.channel&&active(c)&&c.capabilities.publishing&&c.capabilities.execution_enabled&&c.capabilities.formats.includes(v.format)));
+ const videoBlocked=extended&&config.instagram_extended_execution_enabled!==true||variants.some(v=>v.channel==='facebook'&&isVideoFormat(v.format))&&config.facebook_video_execution_enabled!==true;
+ const executionReady=config.test_execution_configured===true||config.production_execution_enabled===true;
+ let scheduledAt=null,dateError='';if(direct&&mode==='schedule'){try{scheduledAt=scheduleInstant(local,'Asia/Kuala_Lumpur');if(Date.parse(scheduledAt)<=Date.now())throw new Error('Choose a future publishing date and time.');}catch(e){dateError=e.message}}
+ const ready=variants.length>0&&!videoBlocked&&executionReady&&!dateError&&selected.every(Boolean);
+ return <section className="card p-4 space-y-3" aria-label="Publishing confirmation"><h3 className="font-semibold">{direct?'Confirm publishing':'External publishing approval'}</h3>
+ {direct?<><AdminSegmentedControl label="Publishing action" value={mode} onChange={value=>{setMode(value);setAccepted(false)}} options={[{value:'now',label:'Publish Now'},{value:'schedule',label:'Schedule'}]}/>{mode==='schedule'?<DateTimePickerField label="Publishing" timezone="Asia/Kuala_Lumpur" value={local} onChange={value=>{setLocal(value);setAccepted(false)}} error={dateError}/>:null}<p className="text-sm">{content.status==='draft'?'Your Publish and Execute permissions authorize this exact saved revision without a separate review.':'This revision retains its existing approval.'} {mode==='now'?'Confirming may publish immediately.':'Confirming activates the chosen future schedule.'}</p></>:<p className="text-sm">Authorize revision {content.revision} for {stamp(content.scheduled_at)}. Posts due now may be sent immediately after authorization.</p>}
+ {videoBlocked?<p role="status">New video/Story execution is disabled pending separate live acceptance and activation.</p>:null}{connections&&!executionReady?<p role="status">Publishing execution is disabled. The saved draft remains available.</p>:null}
+ {variants.map((v,i)=><p className="text-sm" key={v.channel}>{label(v.channel)} → {selected[i]?.account_name||'No enabled account for this format'}{selected[i]?` · Meta account ${selected[i].provider_account_id}`:''}</p>)}
+ {error?<p role="alert" className="text-sm text-rose-600">{error}</p>:null}<label className="flex gap-2 items-start text-sm"><input type="checkbox" checked={accepted} disabled={!ready||busy} onChange={e=>setAccepted(e.target.checked)}/>I approve sending this exact caption and media to the listed accounts.</label>
+ <button className="btn-primary" disabled={!ready||!accepted||busy} onClick={async()=>{
+  if(sending.current)return;const generation=lifetime.current;sending.current=true;setBusy(true);setError('');
+  const payload=direct?{confirm:true,timezone:'Asia/Kuala_Lumpur',...(mode==='schedule'?{scheduled_at:scheduledAt}:{}),accounts:selected.map(c=>({connection_id:c.id,provider_account_id:c.provider_account_id,generation:c.credential_generation,channel:c.channel}))}:null;
+  const fp=JSON.stringify([content.id,content.revision,mode,payload,selected.map(c=>c.id)]);if(request.current?.fp!==fp)request.current={fp,id:crypto.randomUUID()};
+  try{if(direct)await marketingService.content({requestId:request.current.id,command:mode==='schedule'?'schedule_publish':'publish_now',organizationId:content.organization_id,brandId:content.brand_id,content,payload});else await marketingService.execute(request.current.id,content,selected.map(c=>c.id));if(generation===lifetime.current)onComplete();}catch(e){if(generation===lifetime.current)setError(e.message)}finally{sending.current=false;if(generation===lifetime.current)setBusy(false)}
+ }}>{busy?'Confirming…':direct?mode==='schedule'?'Confirm Schedule':'Confirm Publish Now':'Authorize external publishing'}</button>
+ {connections&&!ready?<p className="text-sm text-text-secondary">Publishing requires eligible enabled accounts, the current connection generation and an available execution policy. Resolve any reported prerequisite before confirming.</p>:null}</section>;
 }
 
 export function SocialEvidence({ organizationId, brandId }) {

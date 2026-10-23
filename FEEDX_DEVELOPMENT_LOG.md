@@ -792,3 +792,7 @@ Added dormant Brand-level Suggest Only, Safe Auto Reply and AI First policies ar
 ## 22 October 2026 — WhatsApp dormant Production candidate
 
 Prepared an isolated candidate from Production `4dcef1a96`, recovered four exact historical SQL receipts without database execution, documented Staging aliases, and added the two-field compatibility prerequisite. Integrated verified WhatsApp Foundation/Embedded Signup/Lifecycle code through Production-aware Connections and two Edge bundles. Retained FB/IG, CRM, Ads, Drive, Worker, privacy and execution policy. Local PostgreSQL 17.6 schema rehearsal and focused provider/UI/Production checks reuse completed Staging L3 evidence. No push, deployment, shared SQL mutation, Meta changes, credentials or activation. Exact scope/approval and rollback: `docs/releases/2026-10-22-whatsapp-dormant-production.md`.
+
+## 2026-10-23 — Content publishing and Draft workflow (Staging)
+
+Canonical publisher authorization now supports explicit Publish Now / future Schedule from a saved Draft with Publish + Execute permissions, retaining Review/Approval when a revision is in that workflow. Reuses existing jobs/execution/receipts with current identity/generation and idempotency guards. Draft discovery/counts and runtime status share the canonical Content projection; undated Drafts remain available without date filtering. Production and external publishing remain separately authorized.

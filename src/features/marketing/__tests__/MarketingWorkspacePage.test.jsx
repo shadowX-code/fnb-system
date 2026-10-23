@@ -7,7 +7,7 @@ vi.mock('../marketingService.js',()=>({marketingService:service}));
 vi.mock('../MetaIntegrationPanels.jsx',async importOriginal=>({...await importOriginal(),MetaConnections:()=>null}));
 const context={organizations:[{id:'org',name:'Organization'}],brands:[{id:'brand',organization_id:'org',name:'Brand',timezone:'Asia/Kuala_Lumpur',outlet_ids:[]}],actor_employee_id:'actor'};
 const read={rows:[],total:0,summary:{review:0,approved:0,scheduled:0,published:0},assets:[],jobs:[],knowledge:[],connections:[],role_scopes:[]};
-beforeEach(()=>{cleanup();sessionStorage.clear();window.history.replaceState({},'','/');vi.clearAllMocks();service.metaConfiguration.mockResolvedValue({facebook_video_execution_enabled:false});auth.hasPermission.mockImplementation(()=>true);service.context.mockResolvedValue(context);service.contentManagement.mockResolvedValue({rows:[],total_count:0,day_counts:{}});service.read.mockResolvedValue(read);service.listing.mockResolvedValue({rows:[],total_count:0});service.setup.mockResolvedValue({outlets:[],employees:[],roles:[],members:[]});service.teamAccess.mockResolvedValue({});service.content.mockResolvedValue({});service.integrations.mockResolvedValue({connections:[]});});
+beforeEach(()=>{cleanup();localStorage.setItem('admin.presentation.marketing.content.user','list');sessionStorage.clear();window.history.replaceState({},'','/');vi.clearAllMocks();service.metaConfiguration.mockResolvedValue({facebook_video_execution_enabled:false,test_execution_configured:true});auth.hasPermission.mockImplementation(()=>true);service.context.mockResolvedValue(context);service.contentManagement.mockResolvedValue({rows:[],total_count:0,day_counts:{}});service.read.mockResolvedValue(read);service.listing.mockResolvedValue({rows:[],total_count:0});service.setup.mockResolvedValue({outlets:[],employees:[],roles:[],members:[]});service.teamAccess.mockResolvedValue({});service.content.mockResolvedValue({});service.integrations.mockResolvedValue({connections:[]});});
 describe('native Marketing foundation',()=>{
   it('reports unavailable evidence without invented social metrics',async()=>{
     service.socialPublications.mockResolvedValue({posts:[],connections:[]});service.observedGrowth.mockResolvedValue({rows:[],first_observation_date:null});service.socialPerformance.mockResolvedValue({rows:[],windows:[],first_observation_date:null});
@@ -27,7 +27,7 @@ describe('native Marketing foundation',()=>{
     render(<MarketingWorkspacePage section="content"/>);
     fireEvent.click(await screen.findByRole('button',{name:'Create Post'}));
     fireEvent.change(screen.getByLabelText(/Creative concept title/),{target:{value:'Lunch creative'}});
-    fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));
+    fireEvent.click(screen.getByRole('button',{name:'Save Draft',exact:true}));
     await waitFor(()=>expect(service.content).toHaveBeenCalled());
     expect(service.content.mock.calls[0][0]).toMatchObject({organizationId:'org',brandId:'brand',command:'save',payload:{title:'Lunch creative'}});
     expect(service.content.mock.calls[0][0].requestId).toMatch(/^[\da-f-]{36}$/);
@@ -59,7 +59,7 @@ async function openScheduled(){render(<MarketingWorkspacePage section="calendar"
 
 it('waits for canonical detail and resolves both authorized channels with its tenant scope, without execution',async()=>{
  mockScheduledList();let resolve;service.detail.mockImplementationOnce(()=>new Promise(r=>{resolve=r;}));
- service.integrations.mockResolvedValue({connections:['facebook','instagram'].map(channel=>({id:channel+'-connection',brand_id:'brand',channel,account_name:'Authorized '+channel,provider_account_id:channel==='facebook'?'111':'222',credential_generation:2,status:'test_authorized',expires_at:'2099-01-01T00:00:00Z',capabilities:{publishing:true,execution_enabled:true,formats:[channel==='facebook'?'text':'image']}}))});
+ service.integrations.mockResolvedValue({connections:['facebook','instagram'].map(channel=>({id:channel+'-connection',organization_id:'org',brand_id:'brand',channel,account_name:'Authorized '+channel,provider_account_id:channel==='facebook'?'111':'222',credential_generation:2,status:'test_authorized',expires_at:'2099-01-01T00:00:00Z',capabilities:{publishing:true,execution_enabled:true,formats:[channel==='facebook'?'text':'image']}}))});
  await openScheduled();await screen.findByText('Verifying the saved revision before publishing approval.');
  expect(service.integrations).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'Authorize external publishing'})).toBeNull();
  resolve(savedDetail(savedContent));await screen.findByText(/Authorized facebook/);await screen.findByText(/Authorized instagram/);
@@ -89,16 +89,16 @@ it('uses canonical date/time controls and saves the Malaysia wall clock as a UTC
  render(<MarketingWorkspacePage section="calendar"/>);fireEvent.click(await screen.findByRole('button',{name:'Create Post'}));
  expect(document.querySelector('input[type="datetime-local"]')).toBeNull();
  fireEvent.change(screen.getByLabelText(/Creative concept title/),{target:{value:'Timed draft'}});
- fireEvent.click(screen.getByRole('radio',{name:'Schedule Publishing'}));
+ fireEvent.click(screen.getByRole('radio',{name:'Schedule'}));
  const date=screen.getByLabelText('Publishing date & time date');fireEvent.change(date,{target:{value:'24 Oct 2026'}});fireEvent.blur(date);
- fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));expect(service.content).not.toHaveBeenCalled();await screen.findByText('Choose a valid publishing date and time.');
+ fireEvent.click(screen.getByRole('button',{name:'Save & Continue',exact:true}));expect(service.content).not.toHaveBeenCalled();await screen.findByText(/Choose a valid/);
  fireEvent.click(screen.getByRole('button',{name:'Publishing date & time time'}));fireEvent.click(screen.getByRole('button',{name:'Done',exact:true}));
- fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));await waitFor(()=>expect(service.content).toHaveBeenCalled());
+ fireEvent.click(screen.getByRole('button',{name:'Save & Continue',exact:true}));await waitFor(()=>expect(service.content).toHaveBeenCalled());
  expect(service.content.mock.calls[0][0]).toMatchObject({command:'save',payload:{planned_at:'2026-10-24T01:00:00.000Z',planned_timezone:'Asia/Kuala_Lumpur'}});expect(service.execute).not.toHaveBeenCalled();
 });
 it('editing an approved revision preserves the expected revision and performs only canonical save',async()=>{
  service.contentManagement.mockResolvedValue({rows:[{...scheduledRow,status:'approved'}],total_count:1});service.detail.mockResolvedValue(savedDetail({...savedContent,status:'approved'}));
  render(<MarketingWorkspacePage section="calendar"/>);fireEvent.click((await screen.findAllByRole('button',{name:'View Scoped publishing test',exact:true}))[0]);
- fireEvent.click(screen.getByRole('button',{name:'Edit',exact:true}));fireEvent.change(screen.getByLabelText(/Creative concept title/),{target:{value:'Revised title'}});fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Edit',exact:true}));fireEvent.change(screen.getByLabelText(/Creative concept title/),{target:{value:'Revised title'}});fireEvent.click(screen.getByRole('button',{name:'Save Draft',exact:true}));
  await waitFor(()=>expect(service.content).toHaveBeenCalled());expect(service.content.mock.calls[0][0]).toMatchObject({command:'save',content:{id:'content',revision:1,status:'approved'},payload:{title:'Revised title'}});expect(service.execute).not.toHaveBeenCalled();
 });

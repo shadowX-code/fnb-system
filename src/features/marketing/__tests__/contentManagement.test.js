@@ -8,11 +8,11 @@ import {
 } from "../contentManagement.js";
 beforeEach(() => localStorage.clear());
 describe("shared Content Management contracts", () => {
-  it("defaults to List and persists a user-specific preference", () => {
-    expect(preferredContentView("a")).toBe("list");
+  it("defaults to Calendar and persists a user-specific preference", () => {
+    expect(preferredContentView("a")).toBe("calendar");
     saveContentView("a", "calendar");
     expect(preferredContentView("a")).toBe("calendar");
-    expect(preferredContentView("b")).toBe("list");
+    expect(preferredContentView("b")).toBe("calendar");
   });
   it("uses inclusive KL date filters and exclusive UTC bounds consistently", () => {
     expect(

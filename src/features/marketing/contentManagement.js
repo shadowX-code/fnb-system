@@ -4,19 +4,16 @@ import {
   scheduleInstant,
 } from "./marketingCalendar.js";
 export const CONTENT_TIMEZONE = "Asia/Kuala_Lumpur";
-export const contentStatusLabel = (status) =>
-  status === "review"
-    ? "Pending approval"
-    : String(status || "").replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+export const contentStatusLabel = status => ({review:'Review',approved:'Ready to Publish',awaiting_authorization:'Awaiting Authorization'}[status] || String(status||'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()));
 export function preferredContentView(userId) {
   try {
     return localStorage.getItem(
         `admin.presentation.marketing.content.${userId}`,
-      ) === "calendar"
-      ? "calendar"
-      : "list";
+      ) === "list"
+      ? "list"
+      : "calendar";
   } catch {
-    return "list";
+    return "calendar";
   }
 }
 export function saveContentView(userId, value) {
