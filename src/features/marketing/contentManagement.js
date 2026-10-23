@@ -4,6 +4,11 @@ import {
   scheduleInstant,
 } from "./marketingCalendar.js";
 export const CONTENT_TIMEZONE = "Asia/Kuala_Lumpur";
+export function contentTimestamp(value, missing = 'Unavailable') {
+  return value && Number.isFinite(Date.parse(value))
+    ? new Intl.DateTimeFormat('en-MY', {timeZone: CONTENT_TIMEZONE, dateStyle: 'medium', timeStyle: 'short'}).format(new Date(value))
+    : missing;
+}
 export const contentStatusLabel = status => ({review:'Review',approved:'Ready to Publish',awaiting_authorization:'Awaiting Authorization'}[status] || String(status||'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()));
 export function preferredContentView(userId) {
   try {
