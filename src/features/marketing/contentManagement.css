@@ -20,3 +20,5 @@
 .cm-table .cm-content{min-width:220px}.cm-table .cm-date,.cm-table .badge{white-space:nowrap}
 
 .cm-publishing-operations{display:grid;gap:10px}.cm-execution{display:grid;gap:6px;padding-block:12px;border-bottom:1px solid var(--theme-border)}.cm-execution-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}.cm-operation-confirm{display:grid;gap:12px;padding:14px;background:var(--theme-surface-nested);border-radius:10px}.cm-operation-confirm .cm-actions{justify-content:flex-end}.cm-execution .cm-actions{margin-top:4px}
+
+.media-order-controls{display:flex;align-items:center;gap:4px;padding:4px;background:var(--theme-surface-nested);font-size:12px}.media-order-controls>span{margin-right:auto;padding-inline:4px;font-variant-numeric:tabular-nums}.media-order-controls .icon-btn{min-width:30px;min-height:30px}

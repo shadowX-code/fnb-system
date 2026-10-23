@@ -1,4 +1,4 @@
-import {facebookVideoConfigured} from '../_shared/marketingExecution.mjs';
+import {facebookVideoConfigured,instagramExtendedConfigured} from '../_shared/marketingExecution.mjs';
 import {runInboxAutomatic} from '../_shared/inboxAutomatic.ts';
 import {runInboxProfile} from '../_shared/metaInboxProfile.ts';
 import {runCreatorFollowers} from '../_shared/metaCreatorProfile.ts';
@@ -64,6 +64,11 @@ Deno.serve(async(req)=>{
     if(eligibility.publishing_evidence?.eligibility!=='verified')throw new MetaError('publishing_eligibility_unverified');
     if(!variant||!connection.capabilities.formats?.includes(variant.format))throw new MetaError('channel_format_unavailable');
     const state=job.provider_state||{},assets=await call(db,'marketing_job_assets',{p_job:job.id,p_lease:job.lease_token});
+    const mediaTypes=variant.asset_ids.map((id:string)=>assets.find((a:any)=>a.id===id)?.mime_type);
+    const extendedInstagram=job.channel==='instagram'&&(variant.format==='story'||variant.format==='carousel'&&mediaTypes.includes('video/mp4'));
+    const extendedReadOnly=extendedInstagram&&!instagramExtendedConfigured(env);
+    if(extendedReadOnly&&!state.pending&&!state.post_id&&!state.objects?.container)throw new MetaError('instagram_extended_not_enabled');
+    if(variant.format==='story'&&eligibility.publishing_evidence?.story_business_verified!==true)throw new MetaError('instagram_story_business_unverified');
     const checkpoint=(s:any)=>call(db,'marketing_job_checkpoint',{p_job:job.id,p_lease:job.lease_token,p_state:s});
     state.verified_assets||=[];
     // One immutable asset per tick bounds downloads. All bytes are validated before
@@ -84,7 +89,7 @@ Deno.serve(async(req)=>{
       const {data,error}=await db.storage.from('marketing-media').createSignedUrl(asset.object_path,3600);
       if(error||!data)throw new MetaError('media_source_unavailable',false,true);mediaUrls.push(data.signedUrl);
      }
-     result=await advanceMetaPublish({graph,accountId:connection.provider_account_id,token,variant,mediaUrls,state,checkpoint,guard:async()=>{await guard();},reconcileOnly:job.state==='reconciling'||videoReadOnly});
+     result=await advanceMetaPublish({graph,accountId:connection.provider_account_id,token,variant,mediaUrls,mediaTypes,state,checkpoint,guard:async()=>{await guard();},reconcileOnly:job.state==='reconciling'||videoReadOnly||extendedReadOnly});
     }
    }catch(error){result={outcome:error instanceof MetaError&&!error.uncertain?(error.retryable?'retryable_failure':'permanent_failure'):'uncertain',code:error instanceof MetaError?error.code:'publishing_authority_changed'};}
    if(job.state==='reconciling'&&result.outcome!=='published')result={outcome:'uncertain',code:result.code||'manual_reconciliation_required'};

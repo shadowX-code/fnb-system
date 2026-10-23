@@ -1,4 +1,4 @@
-import {facebookVideoConfigured} from '../_shared/marketingExecution.mjs';
+import {facebookVideoConfigured,instagramExtendedConfigured} from '../_shared/marketingExecution.mjs';
 import {whatsappSignupHandler} from '../_shared/whatsappSignupHandler.ts';
 import {readCreatorProfile} from '../_shared/metaCreatorProfile.ts';
 import {privacyProcessingAllowed} from '../_shared/marketingPrivacyExecution.mjs';
@@ -26,7 +26,7 @@ Deno.serve(async(req)=>{
  const path=new URL(req.url).pathname.split('/marketing-meta')[1]||'/';
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:headers(req)});
  const missing=names.filter(n=>!env(n));
- if(path==='/configuration'&&req.method==='GET')return json(req,{configured:!missing.length,missing,facebook_video_execution_enabled:facebookVideoConfigured(env),redirect_uri:META_REDIRECT,app_domains:[new URL(RUNTIME_ORIGIN).hostname,new URL(RUNTIME_SUPABASE).hostname],deauthorization_uri:`${META_BASE}/deauthorize`,data_deletion_uri:`${META_BASE}/data-deletion`,permissions:META_SCOPES,oauth_routes:metaOAuthRoutes(env),test_execution_configured:!PRODUCTION_RUNTIME && publishingConfigured(env),production_execution_enabled:productionPublishingConfigured(env)});
+ if(path==='/configuration'&&req.method==='GET')return json(req,{configured:!missing.length,missing,facebook_video_execution_enabled:facebookVideoConfigured(env),instagram_extended_execution_enabled:instagramExtendedConfigured(env),redirect_uri:META_REDIRECT,app_domains:[new URL(RUNTIME_ORIGIN).hostname,new URL(RUNTIME_SUPABASE).hostname],deauthorization_uri:`${META_BASE}/deauthorize`,data_deletion_uri:`${META_BASE}/data-deletion`,permissions:META_SCOPES,oauth_routes:metaOAuthRoutes(env),test_execution_configured:!PRODUCTION_RUNTIME && publishingConfigured(env),production_execution_enabled:productionPublishingConfigured(env)});
  if(req.headers.get('origin')&&!origins.has(req.headers.get('origin')!))return json(req,{error:'Origin unavailable.'},403);
  if(!privacyProcessingAllowed(PRODUCTION_RUNTIME,env) && req.method==='POST' && ['/deauthorize','/data-deletion'].includes(path))return json(req,{error:'Privacy processing is disabled pending release approval.'},503);
  const service=createClient(RUNTIME_SUPABASE,env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSession:false,autoRefreshToken:false}});

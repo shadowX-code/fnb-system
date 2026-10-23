@@ -71,3 +71,17 @@ describe('source-backed synchronization',()=>{
   expect(result.after).toBe('opaque-cursor');expect(result.posts[0].metrics).toEqual({likes:4,comments:0});expect(result.posts[0].unavailable_metrics.reach).toBe('platform_metric_unavailable');expect(JSON.stringify(result)).not.toContain('secret');
  });
 });
+
+it('preserves mixed carousel order and waits for the video child before creating the parent',async()=>{
+ const request=vi.fn().mockResolvedValueOnce({id:'901'}).mockResolvedValueOnce({id:'902'}).mockResolvedValueOnce({status_code:'IN_PROGRESS'}).mockResolvedValueOnce({status_code:'FINISHED'}).mockResolvedValueOnce({id:'903'}).mockResolvedValueOnce({status_code:'FINISHED'}).mockResolvedValueOnce({id:'904'}),h=harness(request);
+ const patch={variant:{...variant,channel:'instagram',format:'carousel'},mediaTypes:['video/mp4','image/jpeg']};
+ for(let i=0;i<5;i++)expect((await h.run(patch)).outcome).toBe('waiting');
+ expect(request.mock.calls[0][2]).toEqual({media_type:'VIDEO',video_url:'https://example.invalid/a',is_carousel_item:true});
+ expect(request.mock.calls[4][2]).toEqual({media_type:'CAROUSEL',children:['901','902'],caption:variant.caption});
+ expect(await h.run(patch)).toEqual({outcome:'published',postId:'904'});expect(JSON.stringify(h.getState())).not.toContain('https:');
+});
+it.each(['image/jpeg','video/mp4'])('creates a Story container without claiming caption/sticker support (%s)',async mime=>{
+ const h=harness(vi.fn().mockResolvedValueOnce({id:'801'}));await h.run({variant:{...variant,channel:'instagram',format:'story',asset_ids:['a']},mediaUrls:['https://example.invalid/a'],mediaTypes:[mime]});
+ expect(h.request.mock.calls[0][2]).toEqual({media_type:'STORIES',[mime==='video/mp4'?'video_url':'image_url']:'https://example.invalid/a'});
+});
+it('retains generic pending intent when authority fails after persistence, without a Meta write',async()=>{const h=harness();h.guard.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new MetaError('scope_changed'));expect((await h.run()).outcome).toBe('uncertain');expect(h.request).not.toHaveBeenCalled();expect(h.getState().pending).toBe('photo_0');});

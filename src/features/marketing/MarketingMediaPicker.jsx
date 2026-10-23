@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {Upload,Plus,X} from 'lucide-react';
+import {Upload,Plus,X,ChevronLeft,ChevronRight} from 'lucide-react';
 import Modal from '../../components/feedback/Modal.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
@@ -8,7 +8,7 @@ import MarketingMediaPreview from './MarketingMediaPreview.jsx';
 import DriveMediaBrowser from './DriveMediaBrowser.jsx';
 import {driveService} from './driveService.js';
 import {marketingService} from './marketingService.js';
-import {publishingMediaEligible,isVideoFormat} from './publishingMedia.js';
+import {publishingMediaEligible,publishingMimeTypes} from './publishingMedia.js';
 const EMPTY_ASSETS=[];
 const fileKey=file=>file.selection_id||file.id;
 const attachmentTypes=['image/jpeg','image/png','image/webp','video/mp4','application/pdf'];
@@ -35,7 +35,7 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
   setError('');
   if(pending.some(match)){setPending(pending.filter(value=>!match(value)));return;}
   if(!attachments&&format!=='carousel'){setPending([entry]);return;}
-  if(pending.length>=10){setError(attachments?'A task supports up to 10 attachments. Remove a file first.':'A carousel supports up to 10 images. Remove an image first.');return;}
+  if(pending.length>=10){setError(attachments?'A task supports up to 10 attachments. Remove a file first.':'A carousel supports up to 10 items. Remove an item first.');return;}
   setPending([...pending,entry]);
  }
  function select(asset){
@@ -45,6 +45,7 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
  }
  async function upload(file){
   if(disabled||saving.current)return;
+  if(!eligible({state:'ready',mime_type:file.type,size_bytes:file.size},format,mediaChannel,attachments)){setError(attachments?'Choose a supported attachment up to 100 MB.':'Choose compatible media: images up to 8 MB, MP4 up to 50 MB.');return;}
   const expectedScope=scope;saving.current=true;setBusy(true);setError('');
   try{const asset=await driveService.upload(brand.organization_id,brand.id,file,mediaChannel);if(activeScope.current!==expectedScope)return;
    saving.current=false;select(asset);
@@ -77,7 +78,7 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
   }catch(e){if(activeScope.current===expectedScope)setError(e.message||'Media could not be saved. Try again.');}
   finally{if(activeScope.current===expectedScope){saving.current=false;setBusy(false)}}
  }
- return <div className="space-y-3"><div className="media-selection">{values.map(id=>{const asset=known.find(a=>a.id===id);return <div className="media-selection-item" key={id}>{asset?<MarketingMediaPreview compact={thumbnailPreviews} cover={thumbnailPreviews} asset={asset} assets={values.map(id=>known.find(a=>a.id===id)).filter(Boolean)}/>:<p className="text-sm">Saved media · preview unavailable</p>}<button type="button" className="icon-btn" aria-label={`Remove ${asset?.filename||'media'}`} disabled={disabled||busy} onClick={()=>confirm(values.filter(value=>value!==id).map(id=>({id})),false)}><X size={15}/></button></div>})}</div><button type="button" className="btn-secondary" disabled={disabled||busy} onClick={()=>{setPending(values.map(id=>({id})));setOpen(true);setError('')}}><Plus size={15}/>{values.length&&!attachments&&format!=='carousel'?'Replace media':'Add media'}</button>
+ return <div className="space-y-3"><div className="media-selection">{values.map((id,index)=>{const asset=known.find(a=>a.id===id);return <div className="media-selection-item" key={id}>{asset?<MarketingMediaPreview compact={thumbnailPreviews} cover={thumbnailPreviews} asset={asset} assets={values.map(id=>known.find(a=>a.id===id)).filter(Boolean)}/>:<p className="text-sm">Saved media · preview unavailable</p>}{!attachments&&format==='carousel'?<div className="media-order-controls"><span>{index+1}</span>{[-1,1].map(direction=><button key={direction} type="button" className="icon-btn" disabled={disabled||busy||index+direction<0||index+direction>=values.length} aria-label={`Move ${asset?.filename||'media'} ${direction<0?'earlier':'later'}`} onClick={()=>{const next=[...values];[next[index],next[index+direction]]=[next[index+direction],next[index]];confirm(next.map(id=>({id})),false)}}>{direction<0?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}</button>)}</div>:null}<button type="button" className="icon-btn" aria-label={`Remove ${asset?.filename||'media'}`} disabled={disabled||busy} onClick={()=>confirm(values.filter(value=>value!==id).map(id=>({id})),false)}><X size={15}/></button></div>})}</div><button type="button" className="btn-secondary" disabled={disabled||busy} onClick={()=>{setPending(values.map(id=>({id})));setOpen(true);setError('')}}><Plus size={15}/>{values.length&&!attachments&&format!=='carousel'?'Replace media':'Add media'}</button>
  {!open&&error?<div><p role="alert" className="text-sm text-danger">{error}</p><button type="button" className="btn-secondary" disabled={disabled||busy} onClick={()=>confirm(pending,false)}>Retry media save</button></div>:null}
  {open?<Modal title="Select media" size="xl" onClose={()=>{if(!busy)setOpen(false)}} footer={<><span className="mr-auto text-sm text-text-secondary">{busy?'Saving media…':`${pending.length} selected`}</span><button className="btn-primary" type="button" disabled={busy||disabled} onClick={()=>confirm()}>{busy?'Saving…':'Done'}</button></>}>
  {attachments?<p className="text-sm text-text-secondary mb-3">Working files and references for any task type · up to 10 files. Publishing formats are checked separately.</p>:null}
@@ -85,10 +86,10 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
  {error?<p role="alert" className="text-sm text-danger mt-3">{error}</p>:null}
  <div inert={busy||disabled} className={`mt-4 ${busy||disabled?'pointer-events-none opacity-60':''}`}>
  {tab==='drive'?<DriveMediaBrowser organizationId={brand.organization_id} brandId={brand.id} selectOnClick includeDocuments={attachments} isSelected={file=>pending.some(entry=>matchesDrive(entry,file))} onSelect={file=>{
-  if(attachments?!attachmentTypes.includes(file.mimeType):isVideoFormat(format)?file.mimeType!=='video/mp4':!file.mimeType.startsWith('image/')){setError(attachments?'Choose a JPG, PNG, WebP, MP4 or PDF attachment.':'Choose an image, or MP4 for a Reel.');return;}
+  if(attachments?!attachmentTypes.includes(file.mimeType):!publishingMimeTypes(format,channel).includes(file.mimeType)){setError(attachments?'Choose a JPG, PNG, WebP, MP4 or PDF attachment.':'Choose an image, or MP4 for a Reel.');return;}
   toggle({file},entry=>matchesDrive(entry,file));
  }}/>:null}
- {tab==='upload'?<div className="media-upload-zone"><Upload size={28}/><strong>{attachments?'Choose a task attachment':'Choose an image or video'}</strong><span>{attachments?'JPG, PNG, WebP, MP4 or PDF':'JPG, PNG, WebP or MP4'} · up to 100 MB</span><label className="btn-primary">Choose file<input className="sr-only" aria-label={attachments?'Upload task attachment':'Upload post media'} type="file" accept={attachments?attachmentTypes.join(','):isVideoFormat(format)?'video/mp4':channel==='instagram'?'image/jpeg':'image/jpeg,image/png,image/webp'} disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)upload(file)}}/></label></div>:null}
+ {tab==='upload'?<div className="media-upload-zone"><Upload size={28}/><strong>{attachments?'Choose a task attachment':'Choose an image or video'}</strong><span>{attachments?'JPG, PNG, WebP, MP4 or PDF':'JPG, PNG, WebP or MP4'} · up to 100 MB</span><label className="btn-primary">Choose file<input className="sr-only" aria-label={attachments?'Upload task attachment':'Upload post media'} type="file" accept={attachments?attachmentTypes.join(','):publishingMimeTypes(format,channel).join(',')} disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)upload(file)}}/></label></div>:null}
  {tab==='existing'?<><AsyncDataSurface loading={loading} error={null} isEmpty={!loading&&!rows.length} emptyTitle="No eligible saved media"><div className="drive-grid">{rows.filter(asset=>eligible(asset,format,mediaChannel,attachments)).map(asset=>{const selected=pending.some(entry=>matchesAsset(entry,asset));return <article className={`drive-tile p-3 ${selected?'is-selected':''}`} key={asset.id}><MarketingMediaPreview asset={asset}/><button className="btn-secondary" type="button" onClick={()=>select(asset)} aria-pressed={selected} aria-label={`${selected?'Remove':'Select'} ${asset.filename}`}>{selected?'Selected':'Select media'}</button></article>})}</div></AsyncDataSurface><AdminPagination page={page} pageSize={20} total={total} onPageChange={setPage} onPageSizeChange={()=>{}}/></>:null}
  </div></Modal>:null}</div>;
 }

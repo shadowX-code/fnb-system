@@ -69,3 +69,5 @@ export function aiAutoReplyAllowed(account,peer,get=executionEnv) {
 
 // Independent opt-in; existing Page publishing activation cannot enable a new video path.
 export function facebookVideoConfigured(get=executionEnv){return Boolean(environment(get))&&get('MARKETING_META_FACEBOOK_VIDEO_ENABLED')==='true';}
+
+export const instagramExtendedConfigured=(get=executionEnv)=>Boolean(environment(get))&&get('MARKETING_META_INSTAGRAM_EXTENDED_ENABLED')==='true';

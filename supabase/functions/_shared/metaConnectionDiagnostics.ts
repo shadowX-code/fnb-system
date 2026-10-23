@@ -7,10 +7,10 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
  const id=connection.provider_account_id;
  if(!/^\d{1,30}$/.test(id))throw new MetaError('invalid_meta_account');
  const evidence:any[]=[];
- const read=async(label:string,path:string,credential:string,params:any)=>{
+ const read=async(label:string,path:string,credential:string,params:any,timeout?:number)=>{
   await guard();let item:any={check:label,endpoint:path==='debug_token'?'debug_token':path==='me'?'me':path.endsWith('/business_users')?'authorizer/business_users':path.endsWith('/assigned_pages')?'business_authorizer/assigned_pages':path,http_status:null,graph_error_code:null,graph_error_subcode:null,error_permissions:[]};
   try {
-   const value=await graph.request(path,credential,params,'GET',(status,code,detail)=>{item={...item,http_status:status,graph_error_code:code,...detail};});
+   const value=await (timeout?graph.withSignal(AbortSignal.timeout(timeout)):graph).request(path,credential,params,'GET',(status,code,detail)=>{item={...item,http_status:status,graph_error_code:code,...detail};});
    item.success=true;
    if(Array.isArray(value.data))item.returned_count=value.data.length;
    evidence.push(item);return value;
@@ -127,6 +127,8 @@ export async function diagnoseMetaConnection(graph:MetaGraph,appId:string,appTok
      const row=limit?.data?.[0];
      if(Number.isSafeInteger(row?.quota_usage)&&row.quota_usage>=0)publishingEvidence.quota_usage=row.quota_usage;
      if(Number.isSafeInteger(row?.config?.quota_total)&&row.config.quota_total>0)publishingEvidence.quota_total=row.config.quota_total;
+     const type=await read('instagram_story_account_type',id,token,{fields:'id,account_type'},2000);
+     publishingEvidence.story_business_verified=String(type?.id)===id&&type?.account_type==='BUSINESS';
     }
    }
   }

@@ -194,7 +194,7 @@ function ModalBody({modal,setModal,brands,brand,assets,can,detail,onExecutionCom
   if(modal.type==='review')return <PostDetail content={detail?.content||modal.content} assets={assets} events={detail?.events||[]}>{detail?.content?<PublishingOperations key={`operations:${detail.content.id}:${detail.content.revision}`} content={detail.content} can={can} command={command} busy={busy}/>:null}{detail?.content ? <PublishAuthorization key={`${detail.content.id}:${detail.content.revision}`} content={detail.content} onComplete={onExecutionComplete}/> : <p role="status">Verifying the saved revision before publishing approval.</p>}{modal.content.status==='review'&&can('marketing_content.approve')?<AdminFormField label="Rejection reason (required to reject)"><textarea className="control" value={modal.reason||''} onChange={e=>change({reason:e.target.value})}/></AdminFormField>:null}</PostDetail>;
   if(modal.type==='content') {
     const currentBrand=brands.find(b=>b.id===(modal.content?.brand_id||brand?.id));
-    return <PostEditor key={modal.content?.id||'new'} payload={modal.payload} onChange={payload=>change({payload})} brand={currentBrand} assets={assets} plannedLocal={modal.plannedLocal} onPlannedChange={plannedLocal=>change({plannedLocal})} busy={busy}/>;
+    return <PostEditor key={modal.content?.id||'new'} payload={modal.payload} onChange={payload=>change({payload})} brand={currentBrand} assets={assets} plannedLocal={modal.plannedLocal} onPlannedChange={plannedLocal=>change({plannedLocal})} busy={busy} can={can}/>;
   }
   return null;
 }
