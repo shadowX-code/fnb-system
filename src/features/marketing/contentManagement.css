@@ -18,3 +18,5 @@
 .cm-table tr[tabindex]:focus-visible{outline:2px solid var(--theme-primary);outline-offset:-2px}
 
 .cm-table .cm-content{min-width:220px}.cm-table .cm-date,.cm-table .badge{white-space:nowrap}
+
+.cm-publishing-operations{display:grid;gap:10px}.cm-execution{display:grid;gap:6px;padding-block:12px;border-bottom:1px solid var(--theme-border)}.cm-execution-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}.cm-operation-confirm{display:grid;gap:12px;padding:14px;background:var(--theme-surface-nested);border-radius:10px}.cm-operation-confirm .cm-actions{justify-content:flex-end}.cm-execution .cm-actions{margin-top:4px}
