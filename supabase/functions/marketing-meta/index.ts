@@ -126,7 +126,7 @@ Deno.serve(async(req)=>{
    const credential=await unseal(material.sealed_token,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
    const guard=async()=>{const current=await call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user.id});if(current.credential_generation!==material.credential_generation)throw new Error('connection_changed');};
    let evidence:any;
-   const result=await diagnoseMetaConnection(graph,config.appId,`${config.appId}|${config.appSecret}`,material,credential.token,guard,path==='/diagnose',credential.authorizerAssignment,credential.oauthTaskEvidence,async value=>{evidence=value;});
+   const result=await diagnoseMetaConnection(graph,config.appId,`${config.appId}|${config.appSecret}`,material,credential.token,guard,path==='/diagnose',credential.authorizerAssignment,credential.oauthTaskEvidence,async value=>{evidence=value;},path==='/diagnose');
    if(path==='/retry-sync') {
     if(!verifiedFacebookRead(result,material))return json(req,{error:'Facebook read access could not be verified. Check connection details.'},409);
     await call(service,'marketing_meta_retry_sync_verified',{p_connection:material.id,p_auth_user:user.id,p_generation:material.credential_generation});

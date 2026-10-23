@@ -1,4 +1,4 @@
-import {productionPublishingPolicy} from './marketingExecution.mjs';
+import {productionPublishingPolicy,instagramExtendedConfigured} from './marketingExecution.mjs';
 import { MetaGraph, MetaError } from './metaGraph.ts';
 import { connectionBinding, unseal, seal } from './metaSecurity.ts';
 import { diagnoseMetaConnection } from './metaConnectionDiagnostics.ts';
@@ -28,8 +28,9 @@ export async function runConnectionHealth(db:any,graph:MetaGraph,config:any,keys
   const material=await boundedCall('marketing_meta_diagnostic_material',{p_connection:job.connection_id,p_auth_user:job.auth_user_id});
   const credential=await unseal(material.sealed_token,keys,connectionBinding(material));
   const actor={p_connection:material.id,p_generation:material.credential_generation,p_auth_user:job.auth_user_id};
+  const storyChecks=instagramExtendedConfigured()||material.capabilities?.story_business_verified===true;
   let snapshot:any;
-  const publishing=await diagnoseMetaConnection(graph,config.appId,`${config.appId}|${config.appSecret}`,material,credential.token,guard,true,credential.authorizerAssignment,credential.oauthTaskEvidence,async value=>{snapshot=value;});
+  const publishing=await diagnoseMetaConnection(graph,config.appId,`${config.appId}|${config.appSecret}`,material,credential.token,guard,true,credential.authorizerAssignment,credential.oauthTaskEvidence,async value=>{snapshot=value;},storyChecks);
   const inbound=await boundedCall('marketing_inbox_verification_events',{p_connection:material.id,p_auth_user:job.auth_user_id});
   let installation:any,recent:any;
   const inboxOptions={recentWindow:true,onConversations:(value:any)=>{recent=value;}};
@@ -56,7 +57,7 @@ export async function runConnectionHealth(db:any,graph:MetaGraph,config:any,keys
   health.insights=material.last_synced_at&&material.capabilities?.insights&&health.insights.state!=='permission_required'?{state:'connected',reason:'metrics_from_sync'}:health.insights;
   await guard();
   if(snapshot||productionPublishingPolicy(material,false)!==null)await boundedCall('marketing_meta_record_eligibility',{...actor,p_sealed:snapshot?await seal({...credential,oauthTaskEvidence:snapshot},keys[0],connectionBinding(material)):null,p_verified:health.publishing.state==='verified'});
-  if(material.channel==='instagram')await boundedCall('marketing_meta_record_formats',{...actor,p_business:health.publishing.state==='verified'&&publishing.publishing_evidence?.story_business_verified===true});
+  if(material.channel==='instagram'&&storyChecks)await boundedCall('marketing_meta_record_formats',{...actor,p_business:health.publishing.state==='verified'&&publishing.publishing_evidence?.story_business_verified===true});
   // Reconciliation is a bounded fallback; provider reads never prove webhook delivery.
   let recovery:any={state:'unavailable',reason:'configuration_unverified',complete:false};
   if(messaging.receiving_verified&&messaging.configuration_verified) {

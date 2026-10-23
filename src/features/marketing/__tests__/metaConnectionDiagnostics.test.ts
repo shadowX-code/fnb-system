@@ -37,7 +37,7 @@ describe('read-only Meta connection diagnostics',()=>{
   const connection={provider_account_id:'333',channel:'instagram',capabilities:{publishing:false,execution_enabled:false}},before=JSON.stringify(connection),guard=vi.fn();
   const result=await diagnoseMetaConnection(new MetaGraph(config,transport),'123','app-token',connection,'token-secret',guard,true);
   expect(result.credential_identity_matches).toBe(true);expect(result.publishing_evidence).toMatchObject({eligibility:'unverified',page_id:'111',can_post:true,page_tasks_verified:false,professional_account_verified:true,quota_usage:0,quota_total:100,missing_scopes:[],blockers:['page_tasks_unverified','page_assignment_provenance_unverified']});
-  expect(result.publishing_enabled).toBe(false);expect(JSON.stringify(connection)).toBe(before);expect(guard).toHaveBeenCalledTimes(9);
+  expect(result.publishing_enabled).toBe(false);expect(JSON.stringify(connection)).toBe(before);expect(guard).toHaveBeenCalledTimes(8);
   expect(transport.mock.calls.every(([,init])=>init.method==='GET')).toBe(true);
   expect(result.evidence.find(r=>r.check==='authorizer_page_roles')).toMatchObject({http_status:400,graph_error_code:100});
   for(const forbidden of ['token-secret','private-subject','app-token'])expect(JSON.stringify(result)).not.toContain(forbidden);
@@ -182,7 +182,7 @@ describe('current OAuth tasks when optional Business metadata is denied',()=>{
   if(path==='111'&&fields==='id,business{id}')return response({error:{code:200,message:'requires business_management'}},403);
   if(path==='111'&&fields?.includes('instagram_business_account'))return response({id:'111',instagram_business_account:{id:link}});
   if(path==='111')return response({id:'111',can_post:true});
-  if(path==='333'&&fields==='id,account_type')return response({id:link,account_type:extra.account_type});
+  if(path==='333'&&fields==='id,account_type')return extra.storyDenied?response({error:{code:100,message:'unsupported field'}},400):response({id:link,account_type:extra.account_type});
   if(path==='333')return response({id:'333'});
   if(path==='roles')return response({data:[{id:'999',is_active:true,tasks:['CREATE_CONTENT']}]});
   if(path==='content_publishing_limit')return response({data:[{quota_usage:0,config:{quota_total:100}}]});
@@ -194,10 +194,12 @@ describe('current OAuth tasks when optional Business metadata is denied',()=>{
   expect(result.publishing_evidence).toMatchObject({eligibility:'verified',page_task_source:'oauth_accounts_current_generation',business_context:'unavailable'});
   if(channel==='instagram')expect(result.publishing_evidence.assignment_provenance).toBe('oauth_accounts_current_generation');
   expect(result.publishing_enabled).toBe(false);expect(save).not.toHaveBeenCalled();
+  expect(transport.mock.calls.some(([url])=>new URL(url).searchParams.get('fields')==='id,account_type')).toBe(false);
   expect(transport.mock.calls.some(([url])=>/roles|assigned_users|assigned_pages/.test(url))).toBe(false);
   expect(transport.mock.calls.every(([,init])=>init.method==='GET')).toBe(true);
  });
- it.each(['BUSINESS','MEDIA_CREATOR',undefined])('keeps Story capability separate from Professional publishing (%s)',async type=>{const result=await diagnoseMetaConnection(new MetaGraph(config,transportFor({account_type:type})),'123','app-token',{...c,channel:'instagram',provider_account_id:'333'},'token',vi.fn(),true);expect(result.publishing_evidence.eligibility).toBe('verified');expect(result.publishing_evidence.story_business_verified).toBe(type==='BUSINESS');});
+ it.each(['BUSINESS','MEDIA_CREATOR',undefined])('keeps Story capability separate from Professional publishing (%s)',async type=>{const result=await diagnoseMetaConnection(new MetaGraph(config,transportFor({account_type:type})),'123','app-token',{...c,channel:'instagram',provider_account_id:'333'},'token',vi.fn(),true,undefined,undefined,undefined,true);expect(result.publishing_evidence.eligibility).toBe('verified');expect(result.publishing_evidence.story_business_verified).toBe(type==='BUSINESS');});
+ it('retains ordinary publishing eligibility when explicit Story account-type proof is denied',async()=>{const result=await diagnoseMetaConnection(new MetaGraph(config,transportFor({storyDenied:true})),'123','app-token',{...c,channel:'instagram',provider_account_id:'333'},'token',vi.fn(),true,undefined,undefined,undefined,true);expect(result.publishing_evidence.eligibility).toBe('verified');expect(result.publishing_evidence.story_business_verified).toBe(false);expect(result.evidence.find(e=>e.check==='instagram_story_account_type')).toMatchObject({http_status:400,graph_error_code:100});});
  it('fails closed for stale lineage, authorizer, grant, target, token and linkage mismatches',async()=>{
   const scenarios=[{patch:{oauth_accounts_generation_verified:false}},{patch:{meta_user_id:'999'}},{extra:{scopes:scopes.filter(s=>s!=='instagram_content_publish')}},{extra:{granular_scopes:[{scope:'instagram_content_publish',target_ids:['999']}]}},{extra:{app_id:'999'}},{extra:{is_valid:false}},{extra:{expires_at:1}},{extra:{data_access_expires_at:1}},{extra:{profile_id:'999'}},{link:'999'},{extra:{scopes:scopes.filter(s=>s!=='ads_read')}},{patch:{capabilities:{...c.capabilities,page_tasks:['ANALYZE']}}}];
   for(const s of scenarios){
