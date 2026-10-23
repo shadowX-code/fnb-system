@@ -22,3 +22,4 @@ it('resets scroll and focuses the dialog when switching views, preserving same-v
  expect(body.scrollTop).toBe(0);expect(document.activeElement).toBe(dialog);
  view.unmount();expect(document.activeElement).toBe(trigger);trigger.remove();
 });
+it('leaves Escape to a nested shared floating layer without closing the editor',()=>{const close=vi.fn();render(<Modal title="Editor" onClose={close}><div data-floating-ancestors=""><input aria-label="Saved text search"/></div></Modal>);fireEvent.keyDown(screen.getByLabelText('Saved text search'),{key:'Escape'});expect(close).not.toHaveBeenCalled();fireEvent.keyDown(screen.getByRole('dialog'),{key:'Escape'});expect(close).toHaveBeenCalledOnce();});
