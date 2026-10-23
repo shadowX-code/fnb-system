@@ -172,3 +172,5 @@ Brand Master exclusively owns the active Brand logo reference and accent color. 
 Outlet source-editor links own `outletId` and `section` query state, resolve only against the authorized Outlet list and clear on close. Marketing Manage at Source opens Contact & Hours without granting editing authority.
 
 `DataTable` provides opt-in server-controlled sorting through column `onSort`/`sortDirection`, semantic `aria-sort` and native keyboard buttons; it never reorders supplied rows. Shared `ColumnSettings` uses the canonical `FloatingLayer` for viewport-aware placement, scrolling, keyboard dismissal/focus return, required columns, selected counts and reset. Consumers own user preference storage and data queries.
+
+Shared `FloatingLayer` keeps popovers inside their modal accessibility tree and observes content-size changes so search, inline editing and validation remain anchored and viewport-bounded. Modal Escape handling leaves nested floating controls to dismiss first.

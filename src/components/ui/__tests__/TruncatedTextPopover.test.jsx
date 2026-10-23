@@ -1,11 +1,12 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {cleanup,fireEvent,render,screen,act} from '@testing-library/react';
 import TruncatedTextPopover from '../TruncatedTextPopover.jsx';
-let resize;
+let resizes;
 beforeEach(()=>{
+ resizes=[];
  vi.spyOn(HTMLElement.prototype,'scrollHeight','get').mockReturnValue(180);
  vi.spyOn(HTMLElement.prototype,'clientHeight','get').mockReturnValue(60);
- vi.stubGlobal('ResizeObserver',class{constructor(callback){resize=callback}observe(){}disconnect(){}});
+ vi.stubGlobal('ResizeObserver',class{constructor(callback){resizes.push(callback)}observe(){}disconnect(){}});
  vi.stubGlobal('PointerEvent',class extends MouseEvent{constructor(type,options={}){super(type,options);this.pointerType=options.pointerType||'mouse'}});
 });
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals()});
@@ -24,7 +25,7 @@ it('does not offer a popup or extra tab stop for a fully visible preview',()=>{
  vi.spyOn(HTMLElement.prototype,'scrollHeight','get').mockReturnValue(60);const {container}=show({text:'Short feedback'});expect(screen.queryByRole('button')).toBeNull();fireEvent.pointerEnter(container.firstChild);fireEvent.click(container.firstChild);expect(screen.queryByRole('tooltip')).toBeNull();
 });
 it('rechecks truncation when layout changes and closes a popup that is no longer needed',()=>{
- show();fireEvent.click(screen.getByRole('button'));expect(screen.getByRole('tooltip')).toBeTruthy();vi.spyOn(HTMLElement.prototype,'scrollHeight','get').mockReturnValue(60);act(()=>resize());expect(screen.queryByRole('tooltip')).toBeNull();expect(screen.queryByRole('button')).toBeNull();
+ show();fireEvent.click(screen.getByRole('button'));expect(screen.getByRole('tooltip')).toBeTruthy();vi.spyOn(HTMLElement.prototype,'scrollHeight','get').mockReturnValue(60);act(()=>resizes.slice().forEach(resize=>resize()));expect(screen.queryByRole('tooltip')).toBeNull();expect(screen.queryByRole('button')).toBeNull();
 });
 it('replaces full text with the current source and bounds the shared floating layer',()=>{
  const view=show();fireEvent.click(screen.getByRole('button'));view.rerender(<TruncatedTextPopover text="New cycle feedback"/>);const popup=screen.getByRole('tooltip');expect(popup.textContent).toBe('New cycle feedback');expect(popup.parentElement.parentElement.style.maxHeight).toBe('320px');expect(popup.style.overflowWrap).toBe('anywhere');expect(popup.parentElement.parentElement.className).toContain('overflow-y-auto');

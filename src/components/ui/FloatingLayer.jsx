@@ -78,8 +78,10 @@ export default function FloatingLayer({
     if (!open) return undefined;
     updatePosition();
     const frame = window.requestAnimationFrame(updatePosition);
-    return () => window.cancelAnimationFrame(frame);
-  }, [open, align, offset, width, minWidth, maxHeight, estimatedHeight, placement, anchorRect]);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updatePosition);
+    if (layerRef.current) observer?.observe(layerRef.current);
+    return () => { window.cancelAnimationFrame(frame); observer?.disconnect(); };
+  }, [open, align, offset, width, minWidth, maxHeight, estimatedHeight, placement, anchorRect, anchorRef]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -116,7 +118,9 @@ export default function FloatingLayer({
       const target = layerRef.current?.querySelector("input:not(:disabled):not([type=hidden]), button:not(:disabled), [href], select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1']):not(:disabled)");
       target?.focus?.();
     });
-    return () => window.cancelAnimationFrame(frame);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updatePosition);
+    if (layerRef.current) observer?.observe(layerRef.current);
+    return () => { window.cancelAnimationFrame(frame); observer?.disconnect(); };
   }, [open, focusOnOpen]);
 
   if (!open) return null;
