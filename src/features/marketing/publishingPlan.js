@@ -16,6 +16,6 @@ export function publishingStatus(content){
  if(status==='review')return {label:'Review',next:'An authorized reviewer must approve this revision.'};
  if(status==='approved')return {label:'Ready to Publish',next:'Choose Publish Now or Schedule, then confirm the exact revision and eligible accounts.'};
  if(status==='scheduled')return {label:'Scheduled',next:content.channels?.some(c=>c.job_state==='blocked')?'Confirm external publishing authorization for the pending channels.':'Delivery follows each channel’s saved schedule and execution safeguards.'};
- if(status==='draft'||status==='rejected')return {label:status==='draft'?'Draft':'Revision Needed',next:'Save the content, then submit it for approval. The publishing plan does not send.'};
+ if(status==='draft'||status==='rejected')return {label:status==='draft'?'Draft':'Revision Needed',next:'Save a draft, request review, or use the publishing actions available to you. Saving does not send.'};
  return {label:status.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()),next:''};
 }
