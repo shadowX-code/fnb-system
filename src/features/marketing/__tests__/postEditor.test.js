@@ -18,3 +18,6 @@ it('requires current scoped account capability independently of execution activa
  for(const patch of [{brand_id:'other'},{organization_id:'other'},{expires_at:'2000-01-01'},{status:'disconnected'},{capabilities:{publishing:false,formats:['image']}}])expect(publishingAccount(variant,[{...account,...patch}],brand)).toBeUndefined();
  expect(publishingAccount({...variant,format:'reel'},[account],brand)).toBeUndefined();
 });
+
+import {mediaMetadataIssues} from '../postEditor.js';
+it('shows known incompatible video/Story metadata without inferring publishability from MIME',()=>{const a={id:'v',filename:'Short.mp4',mime_type:'video/mp4'},m={v:{width:320,height:180,duration:2}};expect(mediaMetadataIssues({channel:'facebook',format:'video',asset_ids:['v']},[a],m)).toEqual([]);for(const v of [{channel:'facebook',format:'reel'},{channel:'instagram',format:'story'},{channel:'instagram',format:'carousel'}])expect(mediaMetadataIssues({...v,asset_ids:['v']},[a],m)).toHaveLength(1);});

@@ -111,3 +111,8 @@ it('uploads PDF task references without a publishing channel and keeps failed sa
  expect(uploadFile).toHaveBeenCalledWith('org','brand',file,undefined);fireEvent.click(screen.getByRole('button',{name:'Done'}));await screen.findByRole('alert');expect(screen.getByText('1 selected')).toBeTruthy();
  fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(screen.queryByRole('heading',{name:'Select media'})).toBeNull());expect(uploadFile).toHaveBeenCalledTimes(1);
 });
+
+it('reorders carousel media through the existing association callback without reimporting',async()=>{
+ const asset=readyAsset,brand={id:'brand',organization_id:'org'};const onChange=vi.fn().mockResolvedValue(undefined);render(<MarketingMediaPicker brand={brand} format="carousel" channel="instagram" values={['snapshot','second']} assets={[asset,{...asset,id:'second',filename:'Second.jpg'}]} onChange={onChange}/>);
+ fireEvent.click(screen.getByRole('button',{name:`Move ${asset.filename} later`}));await waitFor(()=>expect(onChange).toHaveBeenCalledWith(['second','snapshot']));expect(importFile).not.toHaveBeenCalled();
+});

@@ -16,7 +16,7 @@ export class MetaGraph {
  constructor(private config:MetaConfig,private transport:typeof fetch=fetch,private diagnostic?:(event:MetaDiagnostic)=>void,private signal?:AbortSignal) {
   if(!/^v\d+\.0$/.test(config.version))throw new MetaError('meta_version_not_configured');
  }
- withSignal(signal:AbortSignal):MetaGraph {return new MetaGraph(this.config,this.transport,this.diagnostic,signal);}
+ withSignal(signal:AbortSignal):MetaGraph {return new MetaGraph(this.config,this.transport,this.diagnostic,this.signal?AbortSignal.any([this.signal,signal]):signal);}
  get version():string {return this.config.version;}
  // Never follow a provider-supplied upload URL or send credentials to another host.
  async uploadReel(videoId:string,token:string,source:string):Promise<any>{

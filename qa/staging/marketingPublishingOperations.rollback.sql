@@ -83,5 +83,15 @@ begin
  assert not has_function_privilege('authenticated',(select oid from pg_proc where proname='content_job_operation'),'execute'),'Private mutation helper inaccessible';
  begin perform public.marketing_content_command(gen_random_uuid(),'recover_channel',gen_random_uuid(),b,c,1,'{}');failed:=false;exception when others then failed:=true;end;assert failed,'Tenant authority retained';
 end;$schedule_cancel$;
+reset role;
+do $last_channel$
+declare c uuid:=(select id from activity_fixture where key='content');j uuid:=(select id from activity_fixture where key='facebook');lease uuid:=gen_random_uuid();
+begin
+ update public.marketing_content set status='scheduled' where id=c;
+ update public.marketing_jobs set state='leased',lease_token=lease,lease_expires_at=now()+interval '2 minutes' where id=j;
+ perform public.marketing_finish_job(j,lease,'published','999999999991_999');
+ assert (select status='cancelled' from public.marketing_content where id=c),'A completed sibling plus cancelled remainder is terminal, not stuck Scheduled';
+ assert (select provider_post_id='999999999991_999' and state='succeeded' from public.marketing_jobs where id=j),'Finalization preserves successful receipt';
+end;$last_channel$;
 rollback;
 select 'PASS: channel recovery/reschedule/cancel, exact retry, receipt/checkpoint retention, generation/revision/tenant guards and failed-sibling claim; all fixtures rolled back' as result;

@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {facebookVideoConfigured,publishingConfigured,publishingAccountAllowed,productionPublishingPolicy,staffReplyConfigured,staffReplyAllowed,metaOAuthScopes} from '../../../../supabase/functions/_shared/marketingExecution.mjs';
+import {instagramExtendedConfigured,facebookVideoConfigured,publishingConfigured,publishingAccountAllowed,productionPublishingPolicy,staffReplyConfigured,staffReplyAllowed,metaOAuthScopes} from '../../../../supabase/functions/_shared/marketingExecution.mjs';
 const prod={SUPABASE_URL:'https://oyfobxdoyfuzsodogpgs.supabase.co',MARKETING_ENVIRONMENT:'production',MARKETING_META_APP_ID:'2182829996001809',MARKETING_META_LOGIN_CONFIG_ID:'2027095767950085'};
 const staging={SUPABASE_URL:'https://ujkzdaaadnvcfayuldmh.supabase.co',MARKETING_ENVIRONMENT:'staging',MARKETING_META_APP_ID:'2204918033458414',MARKETING_META_LOGIN_CONFIG_ID:'1398015649111006'};
 const connection={channel:'facebook',provider_account_id:'111',credential_generation:1,status:'test_authorized'};
@@ -112,3 +112,5 @@ describe('normal Production operation after controlled acceptance',()=>{
 });
 
 it('requires a separate exact video opt-in even when existing Production publishing is active',()=>{expect(facebookVideoConfigured(reader({...prod,...publishing}))).toBe(false);expect(facebookVideoConfigured(reader({...prod,...publishing,MARKETING_META_FACEBOOK_VIDEO_ENABLED:'true'}))).toBe(true);expect(facebookVideoConfigured(reader({...prod,MARKETING_META_FACEBOOK_VIDEO_ENABLED:'TRUE'}))).toBe(false);expect(facebookVideoConfigured(reader({MARKETING_META_FACEBOOK_VIDEO_ENABLED:'true'}))).toBe(false);});
+
+it('keeps extended Instagram execution independently disabled until its exact opt-in',()=>{expect(instagramExtendedConfigured(reader({...prod,...publishing}))).toBe(false);expect(instagramExtendedConfigured(reader({...prod,...publishing,MARKETING_META_INSTAGRAM_EXTENDED_ENABLED:'true'}))).toBe(true);expect(instagramExtendedConfigured(reader({...prod,SUPABASE_URL:'wrong',MARKETING_META_INSTAGRAM_EXTENDED_ENABLED:'true'}))).toBe(false);});
