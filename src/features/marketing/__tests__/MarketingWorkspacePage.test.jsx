@@ -84,3 +84,20 @@ it('discards canonical detail after the review is closed',async()=>{
  fireEvent.click(screen.getByRole('button',{name:'Close',exact:true}));resolve(savedDetail(savedContent));
  await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Content revision'})).toBeNull());expect(service.integrations).not.toHaveBeenCalled();
 });
+
+it('uses canonical date/time controls and saves the Malaysia wall clock as a UTC instant',async()=>{
+ render(<MarketingWorkspacePage section="calendar"/>);fireEvent.click(await screen.findByRole('button',{name:'Create Post'}));
+ expect(document.querySelector('input[type="datetime-local"]')).toBeNull();
+ fireEvent.change(screen.getByLabelText(/Creative concept title/),{target:{value:'Timed draft'}});
+ const date=screen.getByLabelText('Planned publishing date');fireEvent.change(date,{target:{value:'24 Oct 2026'}});fireEvent.blur(date);
+ fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));expect(service.content).not.toHaveBeenCalled();await screen.findByText('Choose a valid publishing date and time.');
+ fireEvent.click(screen.getByRole('button',{name:'Planned publishing time'}));fireEvent.click(screen.getByRole('button',{name:'Done',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));await waitFor(()=>expect(service.content).toHaveBeenCalled());
+ expect(service.content.mock.calls[0][0]).toMatchObject({command:'save',payload:{planned_at:'2026-10-24T01:00:00.000Z',planned_timezone:'Asia/Kuala_Lumpur'}});expect(service.execute).not.toHaveBeenCalled();
+});
+it('editing an approved revision preserves the expected revision and performs only canonical save',async()=>{
+ service.contentManagement.mockResolvedValue({rows:[{...scheduledRow,status:'approved'}],total_count:1});service.detail.mockResolvedValue(savedDetail({...savedContent,status:'approved'}));
+ render(<MarketingWorkspacePage section="calendar"/>);fireEvent.click((await screen.findAllByRole('button',{name:'View Scoped publishing test',exact:true}))[0]);
+ fireEvent.click(screen.getByRole('button',{name:'Edit',exact:true}));fireEvent.change(screen.getByLabelText(/Creative concept title/),{target:{value:'Revised title'}});fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));
+ await waitFor(()=>expect(service.content).toHaveBeenCalled());expect(service.content.mock.calls[0][0]).toMatchObject({command:'save',content:{id:'content',revision:1,status:'approved'},payload:{title:'Revised title'}});expect(service.execute).not.toHaveBeenCalled();
+});
