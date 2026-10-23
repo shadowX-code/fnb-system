@@ -82,3 +82,9 @@ it('does not offer an unavailable Messaging route',async()=>{
   render(<PublishAuthorization content={{id:'video',organization_id:'org',brand_id:'brand',revision:1,status:'scheduled',scheduled_at:'2099-01-01',payload:{variants:[{channel:'facebook',format:'video'}]}}} onComplete={vi.fn()}/>);
   await screen.findByText(/QA Test Page/);expect(screen.getByRole('button',{name:'Authorize external publishing'}).disabled).toBe(true);expect(screen.getByRole('checkbox').disabled).toBe(true);expect(marketingService.execute).not.toHaveBeenCalled();
  });
+
+it('authorizes only the pending sibling of a partially published revision',async()=>{
+ marketingService.integrations.mockResolvedValue({connections:[{...connection,id:'ig',channel:'instagram',capabilities:{publishing:true,execution_enabled:true,formats:['image']}}]});
+ const content={id:'partial',organization_id:'org',brand_id:'brand',revision:2,status:'failed',scheduled_at:'2099-01-01',payload:{variants:[{channel:'facebook',format:'text'},{channel:'instagram',format:'image'}]},channels:[{channel:'facebook',job_state:'succeeded'},{channel:'instagram',job_state:'blocked'}]};
+ render(<PublishAuthorization content={content} onComplete={vi.fn()}/>);await screen.findByText(/QA Test Page/);fireEvent.click(screen.getByRole('checkbox'));fireEvent.click(screen.getByRole('button',{name:'Authorize external publishing'}));await waitFor(()=>expect(marketingService.execute).toHaveBeenCalledWith(expect.any(String),content,['ig']));
+});

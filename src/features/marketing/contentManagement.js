@@ -7,7 +7,7 @@ export const CONTENT_TIMEZONE = "Asia/Kuala_Lumpur";
 export const contentStatusLabel = (status) =>
   status === "review"
     ? "Pending approval"
-    : String(status || "").replace(/\b\w/g, (c) => c.toUpperCase());
+    : String(status || "").replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
 export function preferredContentView(userId) {
   try {
     return localStorage.getItem(

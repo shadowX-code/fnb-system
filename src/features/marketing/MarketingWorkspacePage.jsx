@@ -17,6 +17,7 @@ import { MarketingOverview, MarketingSocialAnalytics } from './MarketingDashboar
 import MarketingSettingsPage from './MarketingSettingsPage.jsx';
 import ContentManagement from './ContentManagement.jsx';
 import PostDetail from './PostDetail.jsx';
+import PublishingOperations from './PublishingOperations.jsx';
 import { PublishAuthorization } from './MetaIntegrationPanels.jsx';
 
 const labels = { overview: 'Overview', content: 'Content Management', media: 'Media Library', calendar: 'Content Management', analytics: 'Social Analytics' };
@@ -181,16 +182,16 @@ function MarketingContentWorkspace({ section = 'overview' }) {
       </> : null}
       {modal.type==='review' && modal.content.status==='review' && can('marketing_content.approve') ? <><button className="btn-secondary" disabled={busy||!modal.reason?.trim()} onClick={()=>command('reject',modal.content,{reason:modal.reason})}>Reject</button><button className="btn-primary" disabled={busy} onClick={()=>command('approve',modal.content)}>Approve revision {modal.content.revision}</button></> : null}
     </>}>
-      <ModalBody modal={modal} setModal={setModal} brands={brands} brand={brand} assets={[...new Map([...(data?.assets||[]),...(currentDetail?.assets||[])].map(a=>[a.id,a])).values()]} can={can} onExecutionComplete={()=>{setModal(null);setRefresh(v=>v+1);setNotice('External execution authorized for the reviewed revision.');}} detail={currentDetail} busy={busy}/>
+      <ModalBody modal={modal} setModal={setModal} brands={brands} brand={brand} assets={[...new Map([...(data?.assets||[]),...(currentDetail?.assets||[])].map(a=>[a.id,a])).values()]} can={can} onExecutionComplete={()=>{setModal(null);setRefresh(v=>v+1);setNotice('External execution authorized for the reviewed revision.');}} detail={currentDetail} busy={busy} command={command}/>
     </Modal> : null}
   </WorkspacePage>;
 }
 
-function ModalBody({modal,setModal,brands,brand,assets,can,detail,onExecutionComplete,busy}) {
+function ModalBody({modal,setModal,brands,brand,assets,can,detail,onExecutionComplete,busy,command}) {
   const change=patch=>setModal(current=>({...current,...patch}));
   const field=(label,key,type='text')=><AdminFormField label={label}><input className="control" type={type} value={modal[key]||''} onChange={e=>change({[key]:e.target.value})}/></AdminFormField>;
   if(modal.type==='schedule')return <div className="space-y-4"><p className="text-sm">Scheduling pins revision {modal.content.revision}. Execution requires a separate approval of this exact revision to enabled Meta accounts.</p><DateTimePickerField label="Publishing" timezone={modal.timezone} value={modal.local} onChange={local=>change({local})}/>{field('Timezone','timezone')}</div>;
-  if(modal.type==='review')return <PostDetail content={modal.content} assets={assets} events={detail?.events||[]}>{detail?.content ? <PublishAuthorization key={`${detail.content.id}:${detail.content.revision}`} content={detail.content} onComplete={onExecutionComplete}/> : <p role="status">Verifying the saved revision before publishing approval.</p>}{modal.content.status==='review'&&can('marketing_content.approve')?<AdminFormField label="Rejection reason (required to reject)"><textarea className="control" value={modal.reason||''} onChange={e=>change({reason:e.target.value})}/></AdminFormField>:null}</PostDetail>;
+  if(modal.type==='review')return <PostDetail content={detail?.content||modal.content} assets={assets} events={detail?.events||[]}>{detail?.content?<PublishingOperations key={`operations:${detail.content.id}:${detail.content.revision}`} content={detail.content} can={can} command={command} busy={busy}/>:null}{detail?.content ? <PublishAuthorization key={`${detail.content.id}:${detail.content.revision}`} content={detail.content} onComplete={onExecutionComplete}/> : <p role="status">Verifying the saved revision before publishing approval.</p>}{modal.content.status==='review'&&can('marketing_content.approve')?<AdminFormField label="Rejection reason (required to reject)"><textarea className="control" value={modal.reason||''} onChange={e=>change({reason:e.target.value})}/></AdminFormField>:null}</PostDetail>;
   if(modal.type==='content') {
     const currentBrand=brands.find(b=>b.id===(modal.content?.brand_id||brand?.id));
     return <PostEditor key={modal.content?.id||'new'} payload={modal.payload} onChange={payload=>change({payload})} brand={currentBrand} assets={assets} plannedLocal={modal.plannedLocal} onPlannedChange={plannedLocal=>change({plannedLocal})} busy={busy}/>;
