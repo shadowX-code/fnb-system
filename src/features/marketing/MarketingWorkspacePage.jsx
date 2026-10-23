@@ -10,7 +10,8 @@ import Modal from '../../components/feedback/Modal.jsx';
 import { marketingService } from './marketingService.js';
 import { localInput, scheduleInstant } from './marketingCalendar.js';
 import './marketing.css';
-import MarketingMediaPicker from './MarketingMediaPicker.jsx';
+import PostEditor from './PostEditor.jsx';
+import DateTimePickerField from '../../components/forms/DateTimePickerField.jsx';
 import MediaLibrary from './MediaLibrary.jsx';
 import { MarketingOverview, MarketingSocialAnalytics } from './MarketingDashboards.jsx';
 import MarketingSettingsPage from './MarketingSettingsPage.jsx';
@@ -165,11 +166,11 @@ function MarketingContentWorkspace({ section = 'overview' }) {
       {brand?.is_active===false?<p className="text-sm text-text-secondary">Inactive Brand · historical records and existing schedules remain available. Reactivate the Brand to start new work.</p>:null}
       {data && brand && section==='calendar' ? <ContentManagement key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} refresh={refresh} open={open} command={command} busy={busy} can={can}/> : null}
     </AsyncDataSurface>
-    {modal ? <Modal title={{content:modal.content?'Revise content':'Create Post',review:'Content revision',schedule:'Schedule publishing',}[modal.type]} description={modal.type==='content'?'Saving material changes invalidates approval.':null} size={['content','review'].includes(modal.type)?'lg':'sm'} placement={modal.type==='review'?'right':'center'} onClose={()=>{if(!busy)setModal(null);}} footer={<>
+    {modal ? <Modal title={{content:modal.content?'Revise content':'Create Post',review:'Content revision',schedule:'Schedule publishing',}[modal.type]} description={modal.type==='content'?'Saving material changes invalidates approval.':null} size={modal.type==='content'?'3xl':modal.type==='review'?'lg':'sm'} panelClassName={modal.type==='content'?'post-editor-modal':''} footerClassName={modal.type==='content'?'post-editor-modal-footer':''} placement={modal.type==='review'?'right':'center'} onClose={()=>{if(!busy)setModal(null);}} footer={<>
       {error ? <p className="mr-auto text-sm text-rose-600" role="alert">{error}</p> : null}
       <button className="btn-secondary" disabled={busy} onClick={()=>setModal(null)}>Close</button>
       {modal.type!=='review' ? <button className="btn-primary" disabled={busy} onClick={()=>{
-        if(modal.type==='content')command('save',modal.content,modal.payload);
+        if(modal.type==='content'){try{const payload=modal.plannedLocal===undefined?modal.payload:{...modal.payload,planned_at:modal.plannedLocal?scheduleInstant(modal.plannedLocal,'Asia/Kuala_Lumpur'):null,planned_timezone:'Asia/Kuala_Lumpur'};command('save',modal.content,payload);}catch(e){setError(e.message);}}
         if(modal.type==='schedule'){try{command('schedule',modal.content,{scheduled_at:scheduleInstant(modal.local,modal.timezone),timezone:modal.timezone});}catch(e){setError(e.message);}}
       }}>{busy?'Saving…':modal.type==='schedule'?'Save schedule':'Save'}</button> : null}
       {modal.type==='review' && !modal.content.channels?.some(v=>['leased','reconciling','succeeded'].includes(v.job_state)) ? <>
@@ -180,23 +181,19 @@ function MarketingContentWorkspace({ section = 'overview' }) {
       </> : null}
       {modal.type==='review' && modal.content.status==='review' && can('marketing_content.approve') ? <><button className="btn-secondary" disabled={busy||!modal.reason?.trim()} onClick={()=>command('reject',modal.content,{reason:modal.reason})}>Reject</button><button className="btn-primary" disabled={busy} onClick={()=>command('approve',modal.content)}>Approve revision {modal.content.revision}</button></> : null}
     </>}>
-      <ModalBody modal={modal} setModal={setModal} brands={brands} brand={brand} assets={[...new Map([...(data?.assets||[]),...(currentDetail?.assets||[])].map(a=>[a.id,a])).values()]} can={can} onExecutionComplete={()=>{setModal(null);setRefresh(v=>v+1);setNotice('External execution authorized for the reviewed revision.');}} detail={currentDetail}/>
+      <ModalBody modal={modal} setModal={setModal} brands={brands} brand={brand} assets={[...new Map([...(data?.assets||[]),...(currentDetail?.assets||[])].map(a=>[a.id,a])).values()]} can={can} onExecutionComplete={()=>{setModal(null);setRefresh(v=>v+1);setNotice('External execution authorized for the reviewed revision.');}} detail={currentDetail} busy={busy}/>
     </Modal> : null}
   </WorkspacePage>;
 }
 
-function Checks({values,onChange,options,label}) { return <fieldset className="space-y-2"><legend className="text-sm font-semibold">{label}</legend>{options.map(o=><label className="flex items-center gap-2 text-sm" key={o.id}><input type="checkbox" checked={values.includes(o.id)} onChange={e=>onChange(e.target.checked?[...values,o.id]:values.filter(id=>id!==o.id))}/>{o.name}</label>)}</fieldset>; }
-function ModalBody({modal,setModal,brands,brand,assets,can,detail,onExecutionComplete}) {
+function ModalBody({modal,setModal,brands,brand,assets,can,detail,onExecutionComplete,busy}) {
   const change=patch=>setModal(current=>({...current,...patch}));
   const field=(label,key,type='text')=><AdminFormField label={label}><input className="control" type={type} value={modal[key]||''} onChange={e=>change({[key]:e.target.value})}/></AdminFormField>;
-  if(modal.type==='schedule')return <div className="space-y-4"><p className="text-sm">Scheduling pins revision {modal.content.revision}. Execution requires a separate approval of this exact revision to enabled Meta accounts.</p>{field('Publishing time','local','datetime-local')}{field('Timezone','timezone')}</div>;
+  if(modal.type==='schedule')return <div className="space-y-4"><p className="text-sm">Scheduling pins revision {modal.content.revision}. Execution requires a separate approval of this exact revision to enabled Meta accounts.</p><DateTimePickerField label="Publishing" timezone={modal.timezone} value={modal.local} onChange={local=>change({local})}/>{field('Timezone','timezone')}</div>;
   if(modal.type==='review')return <PostDetail content={modal.content} assets={assets} events={detail?.events||[]}>{detail?.content ? <PublishAuthorization key={`${detail.content.id}:${detail.content.revision}`} content={detail.content} onComplete={onExecutionComplete}/> : <p role="status">Verifying the saved revision before publishing approval.</p>}{modal.content.status==='review'&&can('marketing_content.approve')?<AdminFormField label="Rejection reason (required to reject)"><textarea className="control" value={modal.reason||''} onChange={e=>change({reason:e.target.value})}/></AdminFormField>:null}</PostDetail>;
   if(modal.type==='content') {
-    const payload=modal.payload;
-    const update=patch=>change({payload:{...payload,...patch}});
-    const variant=(index,patch)=>update({variants:payload.variants.map((v,i)=>i===index?{...v,...patch}:v)});
     const currentBrand=brands.find(b=>b.id===(modal.content?.brand_id||brand?.id));
-    return <div className="space-y-5"><AdminFormField label="Creative concept title" required><input className="control" value={payload.title} maxLength={200} onChange={e=>update({title:e.target.value})}/></AdminFormField><AdminFormField label="Planned publishing date" helper="Optional · Asia/Kuala_Lumpur"><input className="control" type="datetime-local" value={payload.planned_at ? localInput(new Date(payload.planned_at),'Asia/Kuala_Lumpur') : ''} onChange={e=>{try{update({planned_at:e.target.value?scheduleInstant(e.target.value,'Asia/Kuala_Lumpur'):null,planned_timezone:'Asia/Kuala_Lumpur'});}catch{ /* Incomplete native date input. */ }}} /></AdminFormField><Checks label="Outlet targets" values={payload.outlet_ids} onChange={outlet_ids=>update({outlet_ids})} options={(currentBrand?.outlet_ids||[]).map(id=>({id,name:currentBrand?.outlets?.find(o=>o.id===id)?.name||'Brand outlet'}))}/><fieldset className="space-y-2"><legend className="text-sm font-semibold">Channels</legend>{['facebook','instagram'].map(channel=><label className="mr-4 inline-flex items-center gap-2 text-sm" key={channel}><input type="checkbox" checked={payload.variants.some(v=>v.channel===channel)} onChange={e=>update({variants:e.target.checked?[...payload.variants,{channel,format:channel==='instagram'?'image':'text',caption:'',asset_ids:[]}]:payload.variants.filter(v=>v.channel!==channel)})}/>{titleCase(channel)}</label>)}</fieldset>{payload.variants.map((v,index)=><section className="marketing-variant" key={v.channel}><h3>{titleCase(v.channel)} variant</h3><SelectField label={`${titleCase(v.channel)} format`} value={v.format} onChange={format=>variant(index,{format,asset_ids:[]})} options={['text','image','carousel','reel'].filter(format=>v.channel!=='instagram'||format!=='text').map(format=>({value:format,label:titleCase(format)}))}/><AdminFormField label={`${titleCase(v.channel)} caption`} helper={v.channel==='instagram'?'Up to 2,200 characters.':'Up to 63,206 characters.'}><textarea className="control min-h-28" value={v.caption} maxLength={v.channel==='instagram'?2200:63206} onChange={e=>variant(index,{caption:e.target.value})}/></AdminFormField>{v.format!=='text'?<MarketingMediaPicker channel={v.channel} assets={assets} brand={currentBrand} format={v.format} values={v.asset_ids} onChange={asset_ids=>variant(index,{asset_ids})}/>:null}<p className="text-xs text-text-secondary">{v.format==='carousel'?'Choose 2–10 images.':v.format==='reel'?'Choose one MP4 video. Platform duration and aspect ratio checks are required before external publishing.':v.format==='image'?'Choose one image. Platform media validation is required before external publishing.':'Facebook text post.'}</p></section>)}</div>;
+    return <PostEditor key={modal.content?.id||'new'} payload={modal.payload} onChange={payload=>change({payload})} brand={currentBrand} assets={assets} plannedLocal={modal.plannedLocal} onPlannedChange={plannedLocal=>change({plannedLocal})} busy={busy}/>;
   }
   return null;
 }

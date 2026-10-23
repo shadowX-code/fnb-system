@@ -8,11 +8,12 @@ import MarketingMediaPreview from './MarketingMediaPreview.jsx';
 import DriveMediaBrowser from './DriveMediaBrowser.jsx';
 import {driveService} from './driveService.js';
 import {marketingService} from './marketingService.js';
+import {publishingMediaEligible} from './publishingMedia.js';
 const EMPTY_ASSETS=[];
 const fileKey=file=>file.selection_id||file.id;
 const attachmentTypes=['image/jpeg','image/png','image/webp','video/mp4','application/pdf'];
-const eligible=(asset,format,channel,attachments=false)=>attachments?asset.state==='ready'&&attachmentTypes.includes(asset.mime_type)&&asset.size_bytes<=104857600:asset.state==='ready'&&(format==='reel'?asset.mime_type==='video/mp4':asset.mime_type?.startsWith('image/'))&&(asset.size_bytes<=(format==='reel'?52428800:8388608))&&(channel!=='instagram'||format==='reel'||asset.mime_type==='image/jpeg');
-export default function MarketingMediaPicker({brand,format,channel,values=[],assets=EMPTY_ASSETS,onChange,disabled=false,thumbnailPreviews=false,initialOpen=false,attachments=false}){
+const eligible=(asset,format,channel,attachments=false)=>attachments?asset.state==='ready'&&attachmentTypes.includes(asset.mime_type)&&asset.size_bytes<=104857600:publishingMediaEligible(asset,format,channel);
+export default function MarketingMediaPicker({brand,format,channel,values=[],assets=EMPTY_ASSETS,onChange,onAssetsResolved,disabled=false,thumbnailPreviews=false,initialOpen=false,attachments=false}){
  const mediaChannel=attachments?undefined:channel;
  const scope=JSON.stringify([brand.organization_id,brand.id,format,mediaChannel,attachments]);const activeScope=useRef(scope);activeScope.current=scope;
  const saving=useRef(false),prepared=useRef(new Map());
@@ -67,6 +68,8 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
     }
     if(!ids.includes(id))ids.push(id);
    }
+   const resolved=[...known,...prepared.current.values()];
+   onAssetsResolved?.(ids.map(id=>resolved.find(a=>a.id===id)).filter(Boolean));
    const result=await onChange(ids);
    if(activeScope.current!==expectedScope)return;
    if(result===false)throw new Error('Media could not be saved. Your selection is kept. Review the task error and try again.');
