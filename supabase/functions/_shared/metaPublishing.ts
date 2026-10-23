@@ -1,3 +1,5 @@
+import {verifyFacebookVideo} from './metaVideoMedia.ts';
+import {advanceFacebookVideo} from './metaFacebookVideo.ts';
 import { MetaError, MetaGraph } from './metaGraph.ts';
 export type MetaVariant={channel:'facebook'|'instagram';format:string;caption:string;asset_ids:string[]};
 export type MetaLedger={pending?:string;objects?:Record<string,string>;post_id?:string;polls?:number;started_at?:string};
@@ -5,6 +7,7 @@ export type MetaPublishResult={outcome:'published';postId:string}|{outcome:'wait
 // Each invocation advances one durable operation. No in-memory polling or blind POST retries.
 export async function advanceMetaPublish(input:{graph:MetaGraph;accountId:string;token:string;variant:MetaVariant;mediaUrls:string[];state:MetaLedger;checkpoint:(s:MetaLedger)=>Promise<void>;guard:()=>Promise<void>;reconcileOnly?:boolean}):Promise<MetaPublishResult> {
  const {graph,accountId,token,variant:v,mediaUrls,checkpoint,guard}=input;
+ if(v.channel==='facebook'&&['video','reel'].includes(v.format))return advanceFacebookVideo(input);
  const s:MetaLedger=structuredClone(input.state);s.objects||={};s.started_at||=new Date().toISOString();
  const read=async(id:string,params:any)=>{await guard();return graph.request(id,token,params);};
  if(s.post_id) {
@@ -63,12 +66,13 @@ export function testAccountEnabled(accountId:string,allowlist:string):boolean {
 }
 // Check bytes, not browser MIME assertions. Instagram images currently use this
 // adapter's conservative JPEG subset; other library formats remain previewable.
-export function verifyMetaMedia(bytes:Uint8Array,mime:string,channel:string):void {
+export function verifyMetaMedia(bytes:Uint8Array,mime:string,channel:string,format?:string):void {
  const signature=mime==='image/jpeg'?bytes[0]===255&&bytes[1]===216&&bytes[2]===255:
  mime==='image/png'?[137,80,78,71,13,10,26,10].every((x,i)=>bytes[i]===x):
  mime==='image/webp'?new TextDecoder().decode(bytes.slice(0,4))==='RIFF'&&new TextDecoder().decode(bytes.slice(8,12))==='WEBP':
  mime==='video/mp4'?new TextDecoder().decode(bytes.slice(4,8))==='ftyp':false;
  if(!signature||!bytes.length||bytes.length>104857600)throw new MetaError('media_bytes_invalid');
+ if(channel==='facebook'&&['video','reel'].includes(format||'')){if(mime!=='video/mp4'||bytes.length>52428800)throw new MetaError('facebook_video_requires_mp4_under_50mb');verifyFacebookVideo(bytes,format!);}
  if(channel==='instagram'&&mime.startsWith('image/')) {
   if(mime!=='image/jpeg'||bytes.length>8388608)throw new MetaError('instagram_requires_jpeg_under_8mb');
   let offset=2,dimensions:{width:number;height:number}|null=null;

@@ -66,3 +66,6 @@ export function aiAutoReplyAllowed(account,peer,get=executionEnv) {
  const accounts=get('MARKETING_INBOX_AI_ACCOUNT_IDS'),peers=get('MARKETING_INBOX_AI_PEER_IDS');
  return (!accounts||ids(accounts).includes(account))&&(!peers||ids(peers).includes(peer));
 }
+
+// Independent opt-in; existing Page publishing activation cannot enable a new video path.
+export function facebookVideoConfigured(get=executionEnv){return Boolean(environment(get))&&get('MARKETING_META_FACEBOOK_VIDEO_ENABLED')==='true';}

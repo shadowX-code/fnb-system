@@ -8,7 +8,7 @@ import MarketingMediaPreview from './MarketingMediaPreview.jsx';
 import DriveMediaBrowser from './DriveMediaBrowser.jsx';
 import {driveService} from './driveService.js';
 import {marketingService} from './marketingService.js';
-import {publishingMediaEligible} from './publishingMedia.js';
+import {publishingMediaEligible,isVideoFormat} from './publishingMedia.js';
 const EMPTY_ASSETS=[];
 const fileKey=file=>file.selection_id||file.id;
 const attachmentTypes=['image/jpeg','image/png','image/webp','video/mp4','application/pdf'];
@@ -85,10 +85,10 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
  {error?<p role="alert" className="text-sm text-danger mt-3">{error}</p>:null}
  <div inert={busy||disabled} className={`mt-4 ${busy||disabled?'pointer-events-none opacity-60':''}`}>
  {tab==='drive'?<DriveMediaBrowser organizationId={brand.organization_id} brandId={brand.id} selectOnClick includeDocuments={attachments} isSelected={file=>pending.some(entry=>matchesDrive(entry,file))} onSelect={file=>{
-  if(attachments?!attachmentTypes.includes(file.mimeType):format==='reel'?file.mimeType!=='video/mp4':!file.mimeType.startsWith('image/')){setError(attachments?'Choose a JPG, PNG, WebP, MP4 or PDF attachment.':'Choose an image, or MP4 for a Reel.');return;}
+  if(attachments?!attachmentTypes.includes(file.mimeType):isVideoFormat(format)?file.mimeType!=='video/mp4':!file.mimeType.startsWith('image/')){setError(attachments?'Choose a JPG, PNG, WebP, MP4 or PDF attachment.':'Choose an image, or MP4 for a Reel.');return;}
   toggle({file},entry=>matchesDrive(entry,file));
  }}/>:null}
- {tab==='upload'?<div className="media-upload-zone"><Upload size={28}/><strong>{attachments?'Choose a task attachment':'Choose an image or video'}</strong><span>{attachments?'JPG, PNG, WebP, MP4 or PDF':'JPG, PNG, WebP or MP4'} · up to 100 MB</span><label className="btn-primary">Choose file<input className="sr-only" aria-label={attachments?'Upload task attachment':'Upload post media'} type="file" accept={attachments?attachmentTypes.join(','):format==='reel'?'video/mp4':channel==='instagram'?'image/jpeg':'image/jpeg,image/png,image/webp'} disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)upload(file)}}/></label></div>:null}
+ {tab==='upload'?<div className="media-upload-zone"><Upload size={28}/><strong>{attachments?'Choose a task attachment':'Choose an image or video'}</strong><span>{attachments?'JPG, PNG, WebP, MP4 or PDF':'JPG, PNG, WebP or MP4'} · up to 100 MB</span><label className="btn-primary">Choose file<input className="sr-only" aria-label={attachments?'Upload task attachment':'Upload post media'} type="file" accept={attachments?attachmentTypes.join(','):isVideoFormat(format)?'video/mp4':channel==='instagram'?'image/jpeg':'image/jpeg,image/png,image/webp'} disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)upload(file)}}/></label></div>:null}
  {tab==='existing'?<><AsyncDataSurface loading={loading} error={null} isEmpty={!loading&&!rows.length} emptyTitle="No eligible saved media"><div className="drive-grid">{rows.filter(asset=>eligible(asset,format,mediaChannel,attachments)).map(asset=>{const selected=pending.some(entry=>matchesAsset(entry,asset));return <article className={`drive-tile p-3 ${selected?'is-selected':''}`} key={asset.id}><MarketingMediaPreview asset={asset}/><button className="btn-secondary" type="button" onClick={()=>select(asset)} aria-pressed={selected} aria-label={`${selected?'Remove':'Select'} ${asset.filename}`}>{selected?'Selected':'Select media'}</button></article>})}</div></AsyncDataSurface><AdminPagination page={page} pageSize={20} total={total} onPageChange={setPage} onPageSizeChange={()=>{}}/></>:null}
  </div></Modal>:null}</div>;
 }

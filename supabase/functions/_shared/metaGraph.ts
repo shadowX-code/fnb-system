@@ -18,6 +18,19 @@ export class MetaGraph {
  }
  withSignal(signal:AbortSignal):MetaGraph {return new MetaGraph(this.config,this.transport,this.diagnostic,signal);}
  get version():string {return this.config.version;}
+ // Never follow a provider-supplied upload URL or send credentials to another host.
+ async uploadReel(videoId:string,token:string,source:string):Promise<any>{
+  this.signal?.throwIfAborted();
+  if(!/^\d{1,30}$/.test(videoId))throw new MetaError('invalid_meta_video');
+  const url=new URL(source);if(url.protocol!=='https:'||url.username||url.password||/[\r\n]/.test(source))throw new MetaError('invalid_meta_media_source');
+  let response:Response;
+  try{response=await this.transport(`https://rupload.facebook.com/video-upload/${this.config.version}/${videoId}`,{method:'POST',headers:{Authorization:`OAuth ${token}`,file_url:source},redirect:'error',signal:this.signal?AbortSignal.any([this.signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});}catch{throw new MetaError('meta_video_upload_uncertain',true);}
+  let result:any;try{result=await response.json();}catch{throw new MetaError('meta_video_upload_uncertain',true);}
+  if(result?.error){const code=Number(result.error.code);throw new MetaError('meta_video_upload_rejected',false,[4,17,32,613].includes(code),code);}
+  if(!response.ok||result.success!==true)throw new MetaError('meta_video_upload_uncertain',true);
+  return {success:true};
+ }
+
  private report(event:MetaDiagnostic) {try{this.diagnostic?.(event);}catch{/* Diagnostics must not change authorization behavior. */}}
  async request(path:string,token:string,params:Record<string,any>={},method='GET',inspect?:(status:number|null,code:number|null,evidence?:MetaResponseEvidence)=>void):Promise<any> {
   this.signal?.throwIfAborted();
@@ -140,7 +153,7 @@ export class MetaGraph {
    const permitted=(scope:string)=>scopes.has(scope)&&(!(debug.granular_scopes||[]).some((g:any)=>g.scope===scope&&g.target_ids?.length)|| (debug.granular_scopes||[]).some((g:any)=>g.scope===scope&&g.target_ids?.some((id:string)=>[row.id,row.instagram_business_account?.id].includes(id))));
    const create=taskState!=='not_granted'&&(row.tasks||[]).some((x:string)=>['CREATE_CONTENT','MANAGE','PROFILE_PLUS_CREATE_CONTENT','PROFILE_PLUS_FULL_CONTROL'].includes(x));
    const taskEvidence={page_tasks_verified:taskSource!==null,page_tasks: selected(row.tasks,diagnosticTasks),page_task_source:taskSource,page_task_state:taskState==='unverified'?'unverified':create?'verified':'not_granted'};
-   const fb={id:row.id,name:String(row.name||'Facebook Page').slice(0,200),channel:'facebook',capabilities:{publishing:permitted('pages_manage_posts')&&permitted('pages_read_engagement')&&create,posts:permitted('pages_read_engagement'),insights:permitted('read_insights'),formats:['text','image','carousel'],granted_scopes:[...scopes],discovery_path:source,...taskEvidence}};
+   const fb={id:row.id,name:String(row.name||'Facebook Page').slice(0,200),channel:'facebook',capabilities:{publishing:permitted('pages_manage_posts')&&permitted('pages_read_engagement')&&create,posts:permitted('pages_read_engagement'),insights:permitted('read_insights'),formats:['text','image','carousel','video','reel'],granted_scopes:[...scopes],discovery_path:source,...taskEvidence}};
    accounts.push(fb);tokens[`facebook:${row.id}`]=row.access_token;
    if(ig&&numericId(ig.id)) {
     accounts.push({id:ig.id,name:String(ig.username||`${row.name} Instagram`).slice(0,200),channel:'instagram',capabilities:{publishing:permitted('instagram_basic')&&permitted('instagram_content_publish')&&permitted('pages_read_engagement')&&create,posts:permitted('instagram_basic'),insights:permitted('instagram_manage_insights'),formats:['image','carousel','reel'],granted_scopes:[...scopes],discovery_path:source,...taskEvidence},page_id:row.id});
