@@ -67,3 +67,9 @@ it('requires explicit human ownership before staff sends in an automatic mode',(
  const p=props({current:{...current,conversation:{...current.conversation,takeover:false},ai_handling:{mode:'ai_first'}}});
  render(<InboxReplyComposer {...p}/>);expect(screen.getByText(/Take over this conversation before sending/)).toBeTruthy();
 });
+it('keeps WhatsApp reply and AI entry points disabled independently of general flags and hides unavailable permissions',()=>{
+ const p=props({current:{...current,conversation:{...current.conversation,channel:'whatsapp'},policy:{ai_allowed:true}},configuration:{staff_send_configured:true,ai_configured:true,ai_auto_configured:true},can:permission=>permission==='manage'});
+ render(<InboxReplyComposer {...p}/>);
+ expect(screen.getByRole('textbox',{name:'Staff Reply'}).disabled).toBe(true);expect(screen.queryByRole('button',{name:'Send',exact:true})).toBeNull();expect(screen.queryByRole('button',{name:'AI Suggested Reply'})).toBeNull();expect(screen.queryByRole('link',{name:'View Connections'})).toBeNull();
+ expect(screen.getByRole('button',{name:'Internal note'})).toBeTruthy();
+});

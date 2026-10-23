@@ -1,4 +1,5 @@
 export function aiSuggestionUnavailable(current,configuration) {
+ if(current?.conversation?.channel==='whatsapp')return 'WhatsApp AI suggestions and automatic replies are disabled.';
  if(current?.policy?.automation_mode==='off')return 'AI suggestions are off for this Brand. An Inbox administrator can select Suggest replies in FAQ & AI settings.';
  if(!current?.policy?.ai_allowed)return 'AI suggestions are disabled for this Brand. An Inbox administrator can enable them in FAQ & AI settings.';
  if(!configuration)return 'Checking AI setup…';

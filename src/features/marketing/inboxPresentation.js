@@ -62,6 +62,7 @@ export function conversationTimeline(detail) {
     .sort(
       (a, b) =>
         new Date(a.occurred_at) - new Date(b.occurred_at) ||
+        (detail.conversation?.channel === "whatsapp" && Number.isSafeInteger(a.sequence) && Number.isSafeInteger(b.sequence) ? a.sequence - b.sequence : 0) ||
         String(a.id).localeCompare(String(b.id)),
     );
 }
