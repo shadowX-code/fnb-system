@@ -12,6 +12,7 @@
 .cm-table th{white-space:nowrap;overflow-wrap:normal}.cm-post-detail h3{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.cm-post-performance .cm-post-media img,.cm-post-performance .cm-post-media video{max-height:160px}.cm-post-performance .cm-media-empty{min-height:80px}
 
 .cm-channel{display:inline-flex;align-items:center;justify-content:center;flex:none}
+.cm-fact-help{display:block;margin-top:4px;color:var(--theme-muted);font-size:11px;line-height:1.5}.cm-post-facts{grid-template-columns:124px minmax(0,1fr)}
 .cm-channel svg{width:19px;height:19px}
 .cm-channel-instagram{color:#D62976}
 .cm-table .cm-channel-facebook svg{color:#1877F2}

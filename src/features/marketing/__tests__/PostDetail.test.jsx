@@ -13,3 +13,31 @@ it('shows canonical Facebook interactions and keeps per-metric source secondary'
  const channel={channel:'facebook',status:'published',metrics:{likes:10,reactions:11,interactions:12,shares:1},metric_provenance:{interactions:{source:'insights.post_activity_by_action_type',period:'lifetime',graph_version:'v26.0',observed_at:'2026-10-13T01:09:00Z'}}};
  render(<PostDetail content={{title:'Verified Facebook post',channels:[channel]}}/>);fireEvent.click(screen.getByRole('tab',{name:'Performance'}));expect(screen.getByText('12')).toBeTruthy();expect(screen.getByText(/insights.post_activity_by_action_type/)).toBeTruthy();expect(screen.getByText('Technical & synchronization details').parentElement.open).toBe(false);
 });
+
+const fact = label => screen.getByText(label, {selector:'dt'}).nextElementSibling.textContent;
+it('shows Scope A Publish Now receipt time separately from unavailable Meta time and has no fake schedule',()=>{
+ render(<PostDetail content={{status:'published',scheduled_at:'2026-10-23T16:29:03Z',channels:[{channel:'facebook',status:'published',job_id:'fb',publishing_intention:'now',processing_started_at:'2026-10-23T16:30:03Z',receipt_confirmed_at:'2026-10-23T16:30:07Z',permalink:'https://www.facebook.com/622626120924115/posts/122185797554804842/'}]}}/>);
+ expect(fact('Published At')).toBe('Meta timestamp unavailable');
+ expect(fact('Scheduled For')).toBe('Publish Now · no schedule');
+ expect(fact('Processing Started')).toContain('12:30 am');
+ expect(fact('Receipt Confirmed')).toContain('12:30 am');
+ expect(fact('Receipt Confirmed')).toContain('not Meta’s publication timestamp');
+ expect(screen.getByRole('link',{name:'Open on Facebook'}).getAttribute('href')).toContain('/posts/122185797554804842/');
+});
+it('keeps the original Scope A Instagram schedule, processing and receipt timestamps distinct',()=>{
+ render(<PostDetail content={{status:'published',scheduled_at:'2026-10-23T16:46:19Z',payload:{planned_at:'2026-10-23T16:43:00Z'},channels:[{channel:'instagram',status:'published',job_id:'ig',publishing_intention:'schedule',scheduled_at:'2026-10-23T16:43:00Z',processing_started_at:'2026-10-23T16:45:10Z',receipt_confirmed_at:'2026-10-23T16:47:11Z',provider_post_id:'18150091540612612'}]}}/>);
+ expect(fact('Scheduled For')).toContain('12:43 am');expect(fact('Scheduled For')).not.toContain('12:46 am');
+ expect(fact('Processing Started')).toContain('12:45 am');expect(fact('Receipt Confirmed')).toContain('12:47 am');
+ expect(fact('Published At')).toBe('Meta timestamp unavailable');
+ expect(screen.getByText(/Public URL unavailable/)).toBeTruthy();expect(screen.queryByRole('link')).toBeNull();
+});
+it('switches independent channel results without inheriting a failed sibling or inventing publication',()=>{
+ render(<PostDetail content={{status:'failed',channels:[{channel:'facebook',status:'published',actual_at:'2026-10-23T16:30:04Z',receipt_confirmed_at:'2026-10-23T16:30:07Z',permalink:'https://www.facebook.com/123/posts/456/'},{channel:'instagram',status:'failed',job_id:'ig',scheduled_at:'2026-10-23T16:43:00Z'}]}}/>);
+ expect(fact('Published At')).toContain('12:30 am');expect(screen.queryByText('Failed')).toBeNull();
+ fireEvent.click(screen.getByRole('tab',{name:'Instagram'}));expect(fact('Published At')).toBe('Not published');
+ expect(screen.getAllByText('Failed')).toHaveLength(2);expect(screen.queryByText('Receipt Confirmed')).toBeNull();expect(screen.queryByRole('link')).toBeNull();
+});
+it('never falls back to a retry checkpoint for legacy missing schedule evidence',()=>{
+ render(<PostDetail content={{status:'scheduled',scheduled_at:'2026-10-23T16:46:19Z',channels:[{channel:'instagram',status:'scheduled',job_id:'legacy'}]}}/>);
+ expect(fact('Scheduled For')).toBe('Schedule evidence unavailable');expect(screen.queryByText('Processing Started')).toBeNull();
+});
