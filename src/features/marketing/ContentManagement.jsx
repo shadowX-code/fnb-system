@@ -205,7 +205,7 @@ export default function ContentManagement(
   { organizationId, brandId, refresh, open, command, busy, can },
 ) {
   const auth = useAuth();
-  const [view, setView] = useState(() => preferredContentView(auth.user?.id));
+  const [view, setView] = useState(() => new URLSearchParams(window.location.search).get("status")==="draft"?"list":preferredContentView(auth.user?.id));
   const [mode, setMode] = useState("month");
   const [anchor, setAnchor] = useState(() =>
     localInput(new Date(), CONTENT_TIMEZONE).slice(0, 10)
@@ -231,7 +231,7 @@ export default function ContentManagement(
     setExpanded({});
   }, [organizationId, brandId, auth.user?.id]);
   useEffect(() => {
-    setView(preferredContentView(auth.user?.id));
+    setView(new URLSearchParams(window.location.search).get("status")==="draft"?"list":preferredContentView(auth.user?.id));
     setMetricColumns(preferredMetricColumns(auth.user?.id));
   }, [auth.user?.id]);
   const bounds = useMemo(() => {
@@ -260,13 +260,10 @@ export default function ContentManagement(
     enabled: Boolean(organizationId && brandId) && !bounds.error,
     shouldClearOnError: () => true,
     loadPage: async ({ page, pageSize }) => {
-      if (bounds.empty) {
-        return { rows: [], total_count: 0, summary: { day_counts: {} } };
-      }
       const result = await marketingService.contentManagement({
         organizationId,
         brandId,
-        ...bounds,
+        ...(bounds.empty?calendarRange(anchor,mode,CONTENT_TIMEZONE):bounds),
         search: query,
         channel,
         status,
@@ -276,7 +273,7 @@ export default function ContentManagement(
         pageSize,
         view,
       });
-      return { ...result, summary: { day_counts: result.day_counts } };
+      return { ...result, ...(bounds.empty?{rows:[],total_count:0}:{}), summary: { day_counts: bounds.empty?{}:result.day_counts,draft_count:result.draft_count } };
     },
   });
   const current = state.loadedQuerySignature === signature;
@@ -290,8 +287,10 @@ export default function ContentManagement(
     setView(value);
     saveContentView(auth.user?.id, value);
   }
+  function changeStatus(value){setStatus(value);if(value==='draft'){changeView('list');setFrom('');setTo('');}}
   function show(row) {
     if (row.origin === "meta") setExternal(row);
+    else if(row.status==="draft"&&can("marketing_content.edit"))open({type:"content",content:row,payload:structuredClone(row.payload)});
     else open({ type: "review", content: row });
   }
   function rowActions(row) {
@@ -436,6 +435,7 @@ export default function ContentManagement(
         />
         <div className="cm-heading-tools"><span className="cm-muted">{current ? `${state.total} content records · ` : ""}Asia/Kuala_Lumpur</span>{view==='list'?<ActionMenu open={columnsOpen} onOpenChange={setColumnsOpen} ariaLabel="Metric columns" width={224} trigger={({toggle,open})=><button className="btn-secondary" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><SlidersHorizontal size={14}/> Columns</button>}><fieldset className="admin-column-picker"><legend>Performance columns</legend>{POST_METRICS.filter(m=>!m.unit).map(m=><label key={m.key}><input type="checkbox" checked={metricColumns.includes(m.key)} onChange={e=>{const next=e.target.checked?[...metricColumns,m.key]:metricColumns.filter(k=>k!==m.key);setMetricColumns(next);saveMetricColumns(auth.user?.id,next)}}/>{m.label}</label>)}</fieldset></ActionMenu>:null}</div>
       </div>
+      <div className="cm-quick-filters" role="group" aria-label="Quick content filters">{[{value:'',label:'All'},{value:'draft',label:'Drafts'},{value:'scheduled',label:'Scheduled'},{value:'published',label:'Published'}].map(filter=><button type="button" className="btn-secondary" key={filter.value} aria-label={filter.value==='draft'?`Drafts ${current&&Number.isInteger(state.summary?.draft_count)?state.summary.draft_count:'…'}`:filter.label} aria-pressed={status===filter.value} onClick={()=>changeStatus(filter.value)}>{filter.label}{filter.value==='draft'?<span className="cm-draft-count">{current&&Number.isInteger(state.summary?.draft_count)?state.summary.draft_count:'…'}</span>:null}</button>)}</div>
       <AdminFilterToolbar
         compact
         denseFields
@@ -454,7 +454,7 @@ export default function ContentManagement(
             <SelectField
               label="Status"
               value={status}
-              onChange={setStatus}
+              onChange={changeStatus}
               options={statuses}
             />
           </>
@@ -511,7 +511,7 @@ export default function ContentManagement(
               key: "status",
               label: "Status",
               value: contentStatusLabel(status),
-              onRemove: () => setStatus(""),
+              onRemove: () => changeStatus(""),
             }
             : null,
         ].filter(Boolean)}

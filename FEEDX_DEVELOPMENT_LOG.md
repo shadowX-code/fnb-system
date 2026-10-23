@@ -1056,3 +1056,7 @@ Added gated official v4/v5 WhatsApp Embedded Signup and Business App Coexistence
 ## 2026-10-22 — WhatsApp lifecycle readiness correction
 
 Added generation-checked local Pause/Disconnect and explicit verified Resume, corrected recovery from expired verification, and retained immutable once-only synchronization evidence through credential cleanup and same-number reconnect. Staged Embedded Signup now resolves provider IDs only against an approved Brand/business/number intent. Existing Marketing authority, Inbox worker, encrypted credential and shared UI paths remain canonical; FB/IG behavior and all WhatsApp live-onboarding/sending/AI/campaign disablement remain unchanged. Lifecycle rollback and provider/UI fixtures cover recovery, stale work and identity conflicts. See `docs/testing/marketing-whatsapp-signup.md`.
+
+## 2026-10-23 — Content publishing and Draft workflow (Staging)
+
+Canonical publisher authorization now supports explicit Publish Now / future Schedule from a saved Draft with Publish + Execute permissions, retaining Review/Approval when a revision is in that workflow. Reuses existing jobs/execution/receipts with current identity/generation and idempotency guards. Draft discovery/counts and runtime status share the canonical Content projection; undated Drafts remain available without date filtering. Production and external publishing remain separately authorized.
