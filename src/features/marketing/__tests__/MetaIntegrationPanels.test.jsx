@@ -75,3 +75,10 @@ it('does not offer an unavailable Messaging route',async()=>{
  expect(screen.getByRole('option',{name:'Inbox, publishing & analytics'}).disabled).toBe(true);
  expect(marketingService.authorizeMeta).not.toHaveBeenCalled();
 });
+
+ it('blocks FB video authorization behind its independent opt-in even with eligible account evidence',async()=>{
+  marketingService.integrations.mockResolvedValue({connections:[{...connection,capabilities:{publishing:true,execution_enabled:true,formats:['video']}}]});
+  marketingService.metaConfiguration.mockResolvedValue({configured:true,facebook_video_execution_enabled:false});
+  render(<PublishAuthorization content={{id:'video',organization_id:'org',brand_id:'brand',revision:1,status:'scheduled',scheduled_at:'2099-01-01',payload:{variants:[{channel:'facebook',format:'video'}]}}} onComplete={vi.fn()}/>);
+  await screen.findByText(/QA Test Page/);expect(screen.getByRole('button',{name:'Authorize external publishing'}).disabled).toBe(true);expect(screen.getByRole('checkbox').disabled).toBe(true);expect(marketingService.execute).not.toHaveBeenCalled();
+ });

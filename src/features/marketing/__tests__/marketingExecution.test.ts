@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {publishingConfigured,publishingAccountAllowed,productionPublishingPolicy,staffReplyConfigured,staffReplyAllowed,metaOAuthScopes} from '../../../../supabase/functions/_shared/marketingExecution.mjs';
+import {facebookVideoConfigured,publishingConfigured,publishingAccountAllowed,productionPublishingPolicy,staffReplyConfigured,staffReplyAllowed,metaOAuthScopes} from '../../../../supabase/functions/_shared/marketingExecution.mjs';
 const prod={SUPABASE_URL:'https://oyfobxdoyfuzsodogpgs.supabase.co',MARKETING_ENVIRONMENT:'production',MARKETING_META_APP_ID:'2182829996001809',MARKETING_META_LOGIN_CONFIG_ID:'2027095767950085'};
 const staging={SUPABASE_URL:'https://ujkzdaaadnvcfayuldmh.supabase.co',MARKETING_ENVIRONMENT:'staging',MARKETING_META_APP_ID:'2204918033458414',MARKETING_META_LOGIN_CONFIG_ID:'1398015649111006'};
 const connection={channel:'facebook',provider_account_id:'111',credential_generation:1,status:'test_authorized'};
@@ -110,3 +110,5 @@ describe('normal Production operation after controlled acceptance',()=>{
   expect(metaOAuthScopes(['read_insights'],reader({...prod,...publishing,...replies,MARKETING_META_PUBLISHING_MODE:'normal',MARKETING_INBOX_REPLY_MODE:'normal'}))).toEqual(['read_insights']);
  });
 });
+
+it('requires a separate exact video opt-in even when existing Production publishing is active',()=>{expect(facebookVideoConfigured(reader({...prod,...publishing}))).toBe(false);expect(facebookVideoConfigured(reader({...prod,...publishing,MARKETING_META_FACEBOOK_VIDEO_ENABLED:'true'}))).toBe(true);expect(facebookVideoConfigured(reader({...prod,MARKETING_META_FACEBOOK_VIDEO_ENABLED:'TRUE'}))).toBe(false);expect(facebookVideoConfigured(reader({MARKETING_META_FACEBOOK_VIDEO_ENABLED:'true'}))).toBe(false);});

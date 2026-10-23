@@ -1,3 +1,4 @@
+import {facebookVideoConfigured} from '../_shared/marketingExecution.mjs';
 import {whatsappSignupHandler} from '../_shared/whatsappSignupHandler.ts';
 import {metaOAuthRoute, metaOAuthRoutes} from '../_shared/metaOAuthRouting.mjs';
 import {publishingConfigured, productionPublishingConfigured, productionPublishingPolicy} from '../_shared/marketingExecution.mjs';
@@ -23,7 +24,7 @@ Deno.serve(async(req)=>{
  const path=new URL(req.url).pathname.split('/marketing-meta')[1]||'/';
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:headers(req)});
  const missing=names.filter(n=>!env(n));
- if(path==='/configuration'&&req.method==='GET')return json(req,{configured:!missing.length,missing,redirect_uri:META_REDIRECT,app_domains:[new URL(STAGING_ORIGIN).hostname,new URL(STAGING_SUPABASE).hostname],deauthorization_uri:`${META_BASE}/deauthorize`,data_deletion_uri:`${META_BASE}/data-deletion`,permissions:META_SCOPES,oauth_routes:metaOAuthRoutes(env),test_execution_configured:publishingConfigured(env),production_execution_enabled:productionPublishingConfigured(env)});
+ if(path==='/configuration'&&req.method==='GET')return json(req,{configured:!missing.length,missing,facebook_video_execution_enabled:facebookVideoConfigured(env),redirect_uri:META_REDIRECT,app_domains:[new URL(STAGING_ORIGIN).hostname,new URL(STAGING_SUPABASE).hostname],deauthorization_uri:`${META_BASE}/deauthorize`,data_deletion_uri:`${META_BASE}/data-deletion`,permissions:META_SCOPES,oauth_routes:metaOAuthRoutes(env),test_execution_configured:publishingConfigured(env),production_execution_enabled:productionPublishingConfigured(env)});
  if(req.headers.get('origin')&&!origins.has(req.headers.get('origin')!))return json(req,{error:'Origin unavailable.'},403);
  const service=createClient(STAGING_SUPABASE,env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSession:false,autoRefreshToken:false}});
  try {
