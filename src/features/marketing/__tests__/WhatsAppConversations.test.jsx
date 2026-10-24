@@ -50,3 +50,19 @@ it('uses the existing note authority without making a WhatsApp draft or enabling
  await waitFor(()=>expect(inboxService.command).toHaveBeenCalledWith(expect.any(String),'org','brand-a',conversation,'note',{body:'Private fixture note'}));
  fireEvent.click(screen.getByRole('button',{name:'Staff Reply',exact:true}));expect(screen.getByRole('textbox',{name:'Staff Reply'}).disabled).toBe(true);expect(inboxService.sendStaffReply).not.toHaveBeenCalled();
 });
+
+it('labels provider lifecycle without replacing live/mobile/history provenance',async()=>{
+ const {whatsAppProvenance}=await import('../WhatsAppMessageContent.jsx');
+ expect(whatsAppProvenance({kind:'incoming',evidence_source:'signed_webhook',provider_lifecycle:{kind:'edit'}})).toBe('Edited on WhatsApp · Live inbound');
+ expect(whatsAppProvenance({kind:'echo',message_origin:'meta',provider_lifecycle:{kind:'revoke'}})).toBe('Deleted on WhatsApp · Mobile app reply · outside FeedX');
+});
+it('renders canonical edited and deleted content without revealing superseded text or adding timeline rows',async()=>{
+ inboxService.detail.mockImplementation(async(_id,page)=>{const value=detail(page);return {...value,messages:value.messages.map(m=>m.id===10?{...m,body:'Message deleted on WhatsApp',provider_lifecycle:{kind:'revoke'}}:m.id===16?{...m,body:'Corrected customer message',provider_lifecycle:{kind:'edit'}}:m)}});
+ await open();
+ expect(screen.getByText('Message deleted on WhatsApp',{selector:'p'})).toBeTruthy();
+ expect(screen.getByText('Corrected customer message',{selector:'p'})).toBeTruthy();
+ expect(screen.getByText('Edited on WhatsApp · Live inbound ·')).toBeTruthy();
+ expect(screen.getByText('Deleted on WhatsApp · Mobile app reply · outside FeedX ·')).toBeTruthy();
+ expect(screen.queryByText('I will help you from the mobile app.')).toBeNull();
+ expect(inboxService.suggest).not.toHaveBeenCalled();expect(inboxService.sendStaffReply).not.toHaveBeenCalled();
+});

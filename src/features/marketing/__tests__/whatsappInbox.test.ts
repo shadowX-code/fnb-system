@@ -25,8 +25,8 @@ describe('disabled WhatsApp provider fixtures',()=>{
   expect(normalizeWhatsAppWebhook(wire({messages:[msg]},'history'),now)).toEqual([]);
  });
  it('bounds input and rejects malformed identities, timestamps and shapes',()=>{
-  for(const change of [{from:'not-a-peer'},{id:''},{timestamp:String(now/1000+301)},{text:{body:'x'.repeat(8001)}}])expect(()=>normalizeWhatsAppWebhook(wire({messages:[{...msg,...change}]}),now)).toThrow();
-  expect(()=>normalizeWhatsAppWebhook(wire({messages:{}}),now)).toThrow();
+  for(const change of [{from:'not-a-peer'},{id:''},{timestamp:String(now/1000+301)},{text:{body:'x'.repeat(8001)}}])expect(normalizeWhatsAppWebhook(wire({messages:[{...msg,...change}]}),now)).toEqual([]);
+  expect(normalizeWhatsAppWebhook(wire({messages:{}}),now)).toEqual([]);
   expect(()=>normalizeWhatsAppWebhook({object:'whatsapp_business_account',entry:Array(1001).fill({})},now)).toThrow();
  });
  it('does not infer attachments or execute any provider request',()=>{
@@ -48,4 +48,23 @@ describe('disabled WhatsApp provider fixtures',()=>{
   expect(await verifyInboxSignature(bytes,'sha256=00',secret)).toBe(false);
   expect(await normalizeInboxWebhookEvidence({object:'page',entry:[]})).toEqual([]);
  });
+});
+
+it('normalizes edit/revoke identities independently from the immutable original and preserves echo direction',()=>{
+ const edit={...msg,id:'wamid.edit',type:'edit',edit:{original_message_id:msg.id,message:{type:'text',text:{body:'Corrected text'}}}};
+ const revoke={...msg,id:'wamid.revoke',type:'revoke',revoke:{original_message_id:msg.id}};
+ const events=normalizeWhatsAppWebhook(wire({messages:[edit,revoke,msg,edit]}),now);
+ expect(events.map(x=>x.kind)).toEqual(['edit','revoke','incoming','edit']);
+ expect(events[0]).toMatchObject({event_id:'wamid.edit',target_message_id:msg.id,target_direction:'incoming',body:'Corrected text'});
+ expect(events[1]).toMatchObject({target_message_id:msg.id,body:''});
+ expect(normalizeWhatsAppWebhook(wire({message_echoes:[{...edit,to:msg.from}]},'smb_message_echoes'),now)[0].target_direction).toBe('outgoing');
+ expect(msg.text.body).toBe('Opening hours?');
+});
+it('isolates malformed messages, targets, collections, entries and statuses from valid signed siblings',()=>{
+ const reject=vi.fn();const p=wire({messages:[null,{...msg,type:'future_unknown'},{...msg,id:'wamid.bad-edit',type:'edit',edit:{original_message_id:'bad id'}},msg],statuses:[{}, {id:'wamid.receipt',recipient_id:msg.from,timestamp,status:'read'}]});
+ p.entry.push({id:'100',changes:[{field:'messages',value:{messaging_product:'whatsapp',metadata:{phone_number_id:'bad'},messages:[msg]}},{field:'messages',value:{messaging_product:'whatsapp',metadata:{phone_number_id:'201'},messages:{},statuses:[{id:'wamid.other',recipient_id:msg.from,timestamp,status:'sent'}]}}]} as any);
+ p.entry.push(null as any);
+ expect(normalizeWhatsAppWebhook(p,now,reject).map(x=>x.event_id)).toEqual([msg.id,'wamid.receipt','wamid.other']);
+ expect(reject.mock.calls.length).toBeGreaterThan(4);
+ expect(()=>normalizeWhatsAppWebhook({object:'page',entry:[]},now)).toThrow();
 });

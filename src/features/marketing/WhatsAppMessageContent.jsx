@@ -9,6 +9,8 @@ const media = {
 };
 
 export function whatsAppProvenance(message) {
+  const lifecycle = message.provider_lifecycle?.kind;
+  if (lifecycle) return `${lifecycle === 'revoke' ? 'Deleted' : 'Edited'} on WhatsApp · ${whatsAppProvenance({...message, provider_lifecycle:null})}`;
   const historical = message.evidence_source === 'historical_import';
   // Import provenance takes priority over live attribution. An observation is never a send receipt.
   if (historical) return 'Synced history · automation excluded';
