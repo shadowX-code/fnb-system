@@ -13,6 +13,7 @@ export default function ReelCoverEditor({variant,brand,assets,onChange,onAssetsR
  const previewKey=JSON.stringify([brand.organization_id,brand.id,videoId,cover.mode,imageId,offset,video?.id,video?.state,image?.id,image?.state,retry]);
  useEffect(()=>{
   const controller=new AbortController();let objectUrl;setPreview({key:previewKey,url:'',state:videoId?'loading':'empty',error:''});
+  if(!videoId)return()=>controller.abort();
   const timer=setTimeout(async()=>{
    try{
     if(cover.mode==='image'){
