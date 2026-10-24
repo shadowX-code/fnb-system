@@ -71,3 +71,16 @@ export function aiAutoReplyAllowed(account,peer,get=executionEnv) {
 export function facebookVideoConfigured(get=executionEnv){return Boolean(environment(get))&&get('MARKETING_META_FACEBOOK_VIDEO_ENABLED')==='true';}
 
 export const instagramExtendedConfigured=(get=executionEnv)=>Boolean(environment(get))&&get('MARKETING_META_INSTAGRAM_EXTENDED_ENABLED')==='true';
+
+// Read-only recovery opt-in; it never grants permission to submit a publication.
+export function facebookReceiptRecoveryAllowed(job,get=executionEnv,now=Date.now(),postId) {
+ if(!environment(get)||job?.state!=='reconciling'||job.channel!=='facebook')return false;
+ try{
+  const raw=get('MARKETING_META_FACEBOOK_RECEIPT_RECOVERY');if(typeof raw!=='string'||raw.length>1024)return false;
+  const permit=JSON.parse(raw),start=Date.parse(permit.issued_at),end=Date.parse(permit.expires_at);
+  return permit.job_id===job.id&&permit.connection_id===job.connection_id&&permit.generation===job.connection_generation
+   &&typeof permit.post_id==='string'&&/^\d{1,30}_\d{1,30}$/.test(permit.post_id)&&(postId===undefined||permit.post_id===postId)
+   &&numericId(permit.video_id)&&permit.video_id===job.provider_state?.objects?.fb_video
+   &&Number.isFinite(start)&&Number.isFinite(end)&&end>start&&end-start<=300000&&now>=start&&now<end;
+ }catch{return false;}
+}

@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {instagramExtendedConfigured,facebookVideoConfigured,publishingConfigured,publishingAccountAllowed,productionPublishingPolicy,staffReplyConfigured,staffReplyAllowed,metaOAuthScopes} from '../../../../supabase/functions/_shared/marketingExecution.mjs';
+import {facebookReceiptRecoveryAllowed,instagramExtendedConfigured,facebookVideoConfigured,publishingConfigured,publishingAccountAllowed,productionPublishingPolicy,staffReplyConfigured,staffReplyAllowed,metaOAuthScopes} from '../../../../supabase/functions/_shared/marketingExecution.mjs';
 const prod={SUPABASE_URL:'https://oyfobxdoyfuzsodogpgs.supabase.co',MARKETING_ENVIRONMENT:'production',MARKETING_META_APP_ID:'2182829996001809',MARKETING_META_LOGIN_CONFIG_ID:'2027095767950085'};
 const staging={SUPABASE_URL:'https://ujkzdaaadnvcfayuldmh.supabase.co',MARKETING_ENVIRONMENT:'staging',MARKETING_META_APP_ID:'2204918033458414',MARKETING_META_LOGIN_CONFIG_ID:'1398015649111006'};
 const connection={channel:'facebook',provider_account_id:'111',credential_generation:1,status:'test_authorized'};
@@ -114,3 +114,33 @@ describe('normal Production operation after controlled acceptance',()=>{
 it('requires a separate exact video opt-in even when existing Production publishing is active',()=>{expect(facebookVideoConfigured(reader({...prod,...publishing}))).toBe(false);expect(facebookVideoConfigured(reader({...prod,...publishing,MARKETING_META_FACEBOOK_VIDEO_ENABLED:'true'}))).toBe(true);expect(facebookVideoConfigured(reader({...prod,MARKETING_META_FACEBOOK_VIDEO_ENABLED:'TRUE'}))).toBe(false);expect(facebookVideoConfigured(reader({MARKETING_META_FACEBOOK_VIDEO_ENABLED:'true'}))).toBe(false);});
 
 it('keeps extended Instagram execution independently disabled until its exact opt-in',()=>{expect(instagramExtendedConfigured(reader({...prod,...publishing}))).toBe(false);expect(instagramExtendedConfigured(reader({...prod,...publishing,MARKETING_META_INSTAGRAM_EXTENDED_ENABLED:'true'}))).toBe(true);expect(instagramExtendedConfigured(reader({...prod,SUPABASE_URL:'wrong',MARKETING_META_INSTAGRAM_EXTENDED_ENABLED:'true'}))).toBe(false);});
+
+describe('job-specific read-only Facebook receipt recovery permit',()=>{
+ const now=Date.parse('2026-10-24T02:00:00Z');
+ const job={id:'job',connection_id:'connection',connection_generation:3,channel:'facebook',state:'reconciling',provider_state:{objects:{fb_video:'1830341231428452'}}};
+ const permit={job_id:'job',connection_id:'connection',generation:3,video_id:'1830341231428452',post_id:'622626120924115_122185805978804842',issued_at:new Date(now).toISOString(),expires_at:new Date(now+300000).toISOString()};
+ const get=(patch:any={})=>reader({...prod,MARKETING_META_FACEBOOK_RECEIPT_RECOVERY:JSON.stringify({...permit,...patch})});
+ it('is absent by default and never enables publishing or video execution',()=>{
+  expect(facebookReceiptRecoveryAllowed(job,reader(prod),now)).toBe(false);
+  expect(facebookReceiptRecoveryAllowed(job,get(),now)).toBe(true);
+  expect(publishingConfigured(get())).toBe(false);expect(facebookVideoConfigured(get())).toBe(false);
+ });
+ it.each([{job_id:'other'},{connection_id:'other'},{generation:2},{generation:'3'},{video_id:'999'},{post_id:'not-a-post'},{issued_at:'invalid'},{expires_at:'invalid'},{expires_at:new Date(now+300001).toISOString()},{expires_at:new Date(now).toISOString()}])('fails closed on mismatched or invalid authorization %j',patch=>{
+  expect(facebookReceiptRecoveryAllowed(job,get(patch),now)).toBe(false);
+ });
+ it('binds the actual returned Post identity before receipt persistence',()=>{
+  expect(facebookReceiptRecoveryAllowed(job,get(),now,permit.post_id)).toBe(true);
+  expect(facebookReceiptRecoveryAllowed(job,get(),now,'622626120924115_999')).toBe(false);
+ });
+ it('expires server-side at five minutes and allows immediate revocation',()=>{
+  expect(facebookReceiptRecoveryAllowed(job,get(),now-1)).toBe(false);expect(facebookReceiptRecoveryAllowed(job,get(),now+299999)).toBe(true);expect(facebookReceiptRecoveryAllowed(job,get(),now+300000)).toBe(false);
+  expect(facebookReceiptRecoveryAllowed(job,reader(prod),now+1)).toBe(false);
+ });
+ it('cannot authorize another state, channel, generation or environment',()=>{
+  for(const patch of [{state:'running'},{channel:'instagram'},{connection_generation:4}])expect(facebookReceiptRecoveryAllowed({...job,...patch},get(),now)).toBe(false);
+  expect(facebookReceiptRecoveryAllowed(job,reader({MARKETING_META_FACEBOOK_RECEIPT_RECOVERY:JSON.stringify(permit)}),now)).toBe(false);
+ });
+ it.each(['{','null','[]','true','x'.repeat(1025)])('rejects malformed permit %s',raw=>{
+  expect(facebookReceiptRecoveryAllowed(job,reader({...prod,MARKETING_META_FACEBOOK_RECEIPT_RECOVERY:raw}),now)).toBe(false);
+ });
+});

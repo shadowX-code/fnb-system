@@ -1,4 +1,4 @@
-import {facebookVideoConfigured,instagramExtendedConfigured} from '../_shared/marketingExecution.mjs';
+import {facebookVideoConfigured,facebookReceiptRecoveryAllowed,instagramExtendedConfigured} from '../_shared/marketingExecution.mjs';
 import {runInboxAutomatic} from '../_shared/inboxAutomatic.ts';
 import {runInboxProfile} from '../_shared/metaInboxProfile.ts';
 import {runCreatorFollowers} from '../_shared/metaCreatorProfile.ts';
@@ -89,7 +89,7 @@ Deno.serve(async(req)=>{
       const {data,error}=await db.storage.from('marketing-media').createSignedUrl(asset.object_path,3600);
       if(error||!data)throw new MetaError('media_source_unavailable',false,true);mediaUrls.push(data.signedUrl);
      }
-     result=await advanceMetaPublish({graph,accountId:connection.provider_account_id,token,variant,mediaUrls,mediaTypes,state,checkpoint,guard:async()=>{await guard();},submissionGuard:async()=>{if(!facebookVideoConfigured(env))throw new MetaError('facebook_video_not_enabled');await guard(true);},reconcileOnly:job.state==='reconciling'||videoReadOnly||extendedReadOnly});
+     result=await advanceMetaPublish({graph,accountId:connection.provider_account_id,token,variant,mediaUrls,mediaTypes,state,checkpoint,guard:async()=>{await guard();},allowFacebookReceiptLookup:(postId)=>job.state!=='reconciling'||facebookReceiptRecoveryAllowed(job,env,Date.now(),postId),submissionGuard:async()=>{if(!facebookVideoConfigured(env))throw new MetaError('facebook_video_not_enabled');await guard(true);},reconcileOnly:job.state==='reconciling'||videoReadOnly||extendedReadOnly});
     }
    }catch(error){result={outcome:error instanceof MetaError&&!error.uncertain?(error.retryable?'retryable_failure':'permanent_failure'):'uncertain',code:error instanceof MetaError?error.code:'publishing_authority_changed'};}
    if(job.state==='reconciling'&&result.outcome!=='published')result={outcome:'uncertain',code:result.code||'manual_reconciliation_required'};

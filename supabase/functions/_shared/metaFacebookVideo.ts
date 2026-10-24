@@ -3,7 +3,7 @@ import type {MetaVariant,MetaLedger,MetaPublishResult} from './metaPublishing.ts
 const numeric=(id:unknown)=>typeof id==='string'&&/^\d{1,30}$/.test(id);
 // Meta Video and Reel writes return different receipts. Persist intent before each
 // write; only an exact Page-owned published video + provider post ID can complete.
-export async function advanceFacebookVideo(input:{graph:MetaGraph;accountId:string;token:string;variant:MetaVariant;mediaUrls:string[];state:MetaLedger;checkpoint:(s:MetaLedger)=>Promise<void>;guard:()=>Promise<void>;submissionGuard?:()=>Promise<void>;reconcileOnly?:boolean}):Promise<MetaPublishResult>{
+export async function advanceFacebookVideo(input:{graph:MetaGraph;accountId:string;token:string;variant:MetaVariant;mediaUrls:string[];state:MetaLedger;checkpoint:(s:MetaLedger)=>Promise<void>;guard:()=>Promise<void>;submissionGuard?:()=>Promise<void>;allowFacebookReceiptLookup?:(postId?:string)=>boolean;reconcileOnly?:boolean}):Promise<MetaPublishResult>{
  const {graph,accountId,token,variant:v,guard,checkpoint}=input,s=structuredClone(input.state);
  s.objects||={};s.started_at||=new Date().toISOString();
  const writeGraph=input.submissionGuard?graph.withWriteGuard(input.submissionGuard):null;
@@ -35,10 +35,32 @@ export async function advanceFacebookVideo(input:{graph:MetaGraph;accountId:stri
  catch(error){return finished||s.pending||s.post_id?uncertain('facebook_video_receipt_unavailable'):{outcome:error instanceof MetaError&&!error.uncertain&&!error.retryable?'permanent_failure':'retryable_failure',code:error instanceof MetaError?error.code:'facebook_video_status_unavailable'};}
  if(evidence.id!==video||evidence.from?.id!==accountId)return uncertain('facebook_video_identity_mismatch');
  if(evidence.published===true&&evidence.status?.video_status==='ready'){
-  const post=evidence.post_id;
-  if(typeof post!=='string'||!post.startsWith(accountId+'_')||!/^\d+_\d+$/.test(post)||s.post_id&&s.post_id!==post)return uncertain('facebook_video_post_receipt_missing');
   if(!finished&&!publishingPending&&!s.post_id)return uncertain('facebook_video_publication_unexpected');
+  let post=evidence.post_id,receiptSource='video_post_id' as 'video_post_id'|'page_posts_video_permalink';
+  const ownedPost=(id:unknown):id is string=>typeof id==='string'&&id.startsWith(accountId+'_')&&/^\d+_\d+$/.test(id);
+  if(!ownedPost(post)){
+   // A conflicting explicit Page post must never be replaced by a guessed identity.
+   if(typeof post==='string'&&/^\d+_\d+$/.test(post))return uncertain('facebook_video_identity_mismatch');
+   if(!input.allowFacebookReceiptLookup?.())return uncertain('facebook_video_post_receipt_missing');
+   let posts:any;
+   try{await guard();if(!input.allowFacebookReceiptLookup?.())return uncertain('facebook_video_post_receipt_missing');posts=await graph.request(`${accountId}/posts`,token,{fields:'id,permalink_url',limit:25});}
+   catch(error){return uncertain(error instanceof MetaError?error.code:'facebook_video_post_receipt_unavailable');}
+   if(!Array.isArray(posts?.data)||posts.data.length>25)return uncertain('facebook_video_post_receipt_unavailable');
+   const matches=posts.data.filter((row:any)=>{
+    if(typeof row?.permalink_url!=='string'||row.permalink_url.length>2048)return false;
+    try{const url=new URL(row.permalink_url);return url.protocol==='https:'&&['facebook.com','www.facebook.com'].includes(url.hostname)
+     &&!url.username&&!url.password&&!url.port&&url.pathname.replace(/\/$/,'')===`/reel/${video}`;}catch{return false;}
+   });
+   if(matches.some((row:any)=>!ownedPost(row.id)))return uncertain('facebook_video_identity_mismatch');
+   const ids=[...new Set(matches.map((row:any)=>row.id))];
+   if(ids.length!==1)return uncertain(ids.length?'facebook_video_post_receipt_ambiguous':'facebook_video_post_receipt_missing');
+   post=ids[0];
+   if(!input.allowFacebookReceiptLookup?.(post))return uncertain('facebook_video_post_receipt_mismatch');
+   receiptSource='page_posts_video_permalink';
+  }
+  if(s.post_id&&s.post_id!==post)return uncertain('facebook_video_identity_mismatch');
   // A retained video ID allows read-only recovery of a lost finish response.
+  s.facebook_receipt={source:receiptSource,video_id:video,post_id:post,video_post_id:typeof evidence.post_id==='string'&&/^\d+(?:_\d+)?$/.test(evidence.post_id)&&evidence.post_id.length<=61?evidence.post_id:null};
   s.post_id=post;delete s.pending;await checkpoint(s);return {outcome:'published',postId:post};
  }
  if(s.post_id||s.pending||input.reconcileOnly)return uncertain('facebook_video_publication_unverified');

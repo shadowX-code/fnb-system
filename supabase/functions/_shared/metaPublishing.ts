@@ -2,10 +2,10 @@ import {verifyFacebookVideo} from './metaVideoMedia.ts';
 import {advanceFacebookVideo} from './metaFacebookVideo.ts';
 import { MetaError, MetaGraph } from './metaGraph.ts';
 export type MetaVariant={channel:'facebook'|'instagram';format:string;caption:string;asset_ids:string[]};
-export type MetaLedger={pending?:string;objects?:Record<string,string>;post_id?:string;polls?:number;started_at?:string};
+export type MetaLedger={pending?:string;objects?:Record<string,string>;post_id?:string;polls?:number;started_at?:string;facebook_receipt?:{source:'video_post_id'|'page_posts_video_permalink';video_id:string;post_id:string;video_post_id:string|null}};
 export type MetaPublishResult={outcome:'published';postId:string}|{outcome:'waiting';code:string}|{outcome:'uncertain'|'retryable_failure'|'permanent_failure';code:string};
 // Each invocation advances one durable operation. No in-memory polling or blind POST retries.
-export async function advanceMetaPublish(input:{graph:MetaGraph;accountId:string;token:string;variant:MetaVariant;mediaUrls:string[];mediaTypes?:string[];state:MetaLedger;checkpoint:(s:MetaLedger)=>Promise<void>;guard:()=>Promise<void>;submissionGuard?:()=>Promise<void>;reconcileOnly?:boolean}):Promise<MetaPublishResult> {
+export async function advanceMetaPublish(input:{graph:MetaGraph;accountId:string;token:string;variant:MetaVariant;mediaUrls:string[];mediaTypes?:string[];state:MetaLedger;checkpoint:(s:MetaLedger)=>Promise<void>;guard:()=>Promise<void>;submissionGuard?:()=>Promise<void>;allowFacebookReceiptLookup?:(postId?:string)=>boolean;reconcileOnly?:boolean}):Promise<MetaPublishResult> {
  const {graph,accountId,token,variant:v,mediaUrls,checkpoint,guard}=input;
  if(v.channel==='facebook'&&['video','reel'].includes(v.format))return advanceFacebookVideo(input);
  const s:MetaLedger=structuredClone(input.state);s.objects||={};s.started_at||=new Date().toISOString();
