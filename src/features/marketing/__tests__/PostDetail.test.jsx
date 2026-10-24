@@ -1,7 +1,7 @@
 import { beforeEach,it,expect,vi } from 'vitest';
 import {render,screen,fireEvent,cleanup} from '@testing-library/react';
 import PostDetail from '../PostDetail.jsx';
-vi.mock('../marketingService.js',()=>({marketingService:{assetUrl:vi.fn().mockResolvedValue('https://private.example/a.jpg')}}));
+vi.mock('../marketingService.js',()=>({marketingService:{assetUrl:vi.fn().mockResolvedValue('https://private.example/a.jpg'),publicationAvailability:vi.fn().mockResolvedValue({state:'manually_removed',manual_revision:1,manual_confirmation:{state:'confirmed',actor_name:'Reviewer',at:'2026-10-24T10:00:00Z'}})}}));
 beforeEach(cleanup);
 const content={title:'Actual post',origin:'meta',brand_name:'Idamans',channels:[{channel:'instagram',status:'published',caption:'Real caption',media:[{type:'image',url:'https://scontent.cdninstagram.com/a.jpg'},{type:'video',url:'https://scontent.cdninstagram.com/a.mp4'}],metrics:{reach:0,views:3,interactions:0},unavailable_metrics:{saves:'platform_permission_unavailable'}}]};
 it('uses real carousel media with read-only overview and hides technical evidence by default',()=>{
@@ -40,4 +40,12 @@ it('switches independent channel results without inheriting a failed sibling or 
 it('never falls back to a retry checkpoint for legacy missing schedule evidence',()=>{
  render(<PostDetail content={{status:'scheduled',scheduled_at:'2026-10-23T16:46:19Z',channels:[{channel:'instagram',status:'scheduled',job_id:'legacy'}]}}/>);
  expect(fact('Scheduled For')).toBe('Schedule evidence unavailable');expect(screen.queryByText('Processing Started')).toBeNull();
+});
+
+it('uses the canonical confirmation result immediately in shared Detail facts while keeping Published',async()=>{
+ render(<PostDetail canManageAvailability content={{title:'Isolated post',status:'published',channels:[{channel:'facebook',status:'published',connection_id:'conn',provider_post_id:'111_222',availability:{state:'available',manual_revision:0},metrics:{views:17}}]}}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Mark as Removed'}));fireEvent.click(screen.getByRole('dialog').querySelector('.btn-primary'));
+ await screen.findByText(/Staff confirmation: Reviewer/);
+ expect(fact('Live availability')).toContain('Removed · staff confirmed');expect(fact('Live availability')).not.toContain('Live on Meta');expect(screen.getAllByText('Published').length).toBeGreaterThan(0);
+ fireEvent.click(screen.getByRole('tab',{name:'Performance'}));expect(screen.getByText('17')).toBeTruthy();
 });
