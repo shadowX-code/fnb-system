@@ -23,12 +23,22 @@ export async function advanceMetaPublish(input:{graph:MetaGraph;accountId:string
   }
   return {outcome:'uncertain',code:'meta_write_response_uncertain'};
  }
- if(input.reconcileOnly)return {outcome:'uncertain',code:'manual_reconciliation_required'};
+ if(input.reconcileOnly){
+  if(v.channel==='instagram'&&s.objects.container){
+   try{const status=await read(s.objects.container,{fields:'status_code'});return {outcome:'uncertain',code:status.status_code==='PUBLISHED'?'published_receipt_unavailable':'meta_publication_unverified'};}
+   catch{return {outcome:'uncertain',code:'receipt_verification_unavailable'};}
+  }
+  return {outcome:'uncertain',code:'manual_reconciliation_required'};
+ }
+ const extended=v.channel==='instagram'&&(v.format==='story'||v.format==='carousel'&&input.mediaTypes?.includes('video/mp4'));
+ const writeGuard=extended?input.submissionGuard:guard;
  async function write(operation:string,path:string,params:any):Promise<MetaPublishResult> {
   let providerCall=false;
   try {
-   await guard();s.pending=operation;await checkpoint(s);
-   await guard();providerCall=true;const result=await graph.request(path,token,params,'POST');providerCall=false;
+   if(!writeGuard)throw new MetaError('instagram_extended_submission_guard_missing');
+   const writeGraph=extended?graph.withWriteGuard(async()=>{await writeGuard();providerCall=true;}):graph;
+   await writeGuard();s.pending=operation;await checkpoint(s);
+   await writeGuard();providerCall=!extended;const result=await writeGraph.request(path,token,params,'POST');providerCall=false;
    if(!/^\d+(?:_\d+)?$/.test(String(result.id)))return {outcome:'uncertain',code:'missing_provider_evidence'};
    if(operation==='publish')s.post_id=String(result.id);else s.objects![operation]=String(result.id);
    delete s.pending;await checkpoint(s);
