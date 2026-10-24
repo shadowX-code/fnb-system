@@ -65,3 +65,17 @@ it('wires video submissions to fresh canonical submission authority rather than 
  expect(fixture.db.rpc.mock.calls.filter(([n,a])=>n==='marketing_job_guard'&&a.p_submission)).toHaveLength(2);
  expect(fixture.db.rpc).toHaveBeenCalledWith('marketing_finish_job',expect.objectContaining({p_outcome:'uncertain'}));
 });
+it.each([false,true])('keeps existing Video reconciliation read-only and lookup explicitly permitted=%s',async permitted=>{
+ const job={id:'existing-video-job',connection_id:'connection',connection_generation:1,lease_token:'existing-lease',channel:'facebook',state:'reconciling',provider_state:{objects:{fb_video:'1830341231428452',fb_finish:'1830341231428452'}},payload:{variants:[{channel:'facebook',format:'video',caption:'retained',asset_ids:[]}]}};
+ const baseGet=(globalThis as any).Deno.env.get,now=Date.now();
+ (globalThis as any).Deno.env.get=(key:string)=>key==='MARKETING_META_FACEBOOK_RECEIPT_RECOVERY'?permitted?JSON.stringify({job_id:job.id,connection_id:job.connection_id,generation:1,video_id:'1830341231428452',issued_at:new Date(now-1000).toISOString(),expires_at:new Date(now+60000).toISOString()}):undefined:baseGet(key);
+ fixture.db.rpc.mockImplementation(async(name:string)=>({data:name==='marketing_claim_reconciliation'?job:name==='marketing_job_guard'?{id:'connection',channel:'facebook',credential_generation:1,status:'test_authorized',provider_account_id:'111',capabilities:{formats:['video']}}:name==='marketing_meta_connection_material'?{credential_generation:1,sealed_token:{}}:name==='marketing_job_assets'?[]:null,error:null}));
+ fixture.publish.mockImplementationOnce(async(input:any)=>{
+  expect(input.reconcileOnly).toBe(true);expect(input.allowFacebookReceiptLookup()).toBe(permitted);
+  expect(input.state).toEqual(job.provider_state);await expect(input.submissionGuard()).rejects.toThrow();
+  return {outcome:'uncertain',code:'facebook_video_post_receipt_missing'};
+ });
+ expect((await tick()).status).toBe(200);expect(fixture.publish).toHaveBeenCalledOnce();
+ expect(fixture.db.rpc.mock.calls.some(([name])=>name==='marketing_claim_job')).toBe(false);
+ expect(fixture.db.rpc.mock.calls.find(([name])=>name==='marketing_finish_job')?.[1]).toMatchObject({p_job:job.id,p_outcome:'uncertain'});
+});
