@@ -1,9 +1,9 @@
 import {MetaError,MetaGraph} from './metaGraph.ts';
-export type AvailabilityObservation={id:string;state:'available'|'unavailable'|'access_restricted'|'temporarily_unavailable';source:'owned_feed'|'object_read';reason:string};
+export type AvailabilityObservation={id:string;state:'available'|'unavailable'|'access_restricted'|'temporarily_unavailable';source:'owned_feed'|'object_read';reason:string;calendar_control_check?:boolean;calendar_control_id?:string;graph_error_code?:number;graph_error_subcode?:number|null};
 const idPattern=/^\d{1,30}(?:_\d{1,30})?$/;
 // A missing list row is not deletion evidence. Only one known object is probed per
 // existing Social Sync turn; this does not enumerate another feed or fetch Insights.
-export async function observePostAvailability(graph:MetaGraph,connection:{channel:string},token:string,posts:{id:string;media_product_type?:string}[],targets:{id:string;require_object_read?:boolean}[],guard:()=>Promise<void>):Promise<AvailabilityObservation[]>{
+export async function observePostAvailability(graph:MetaGraph,connection:{channel:string;provider_account_id?:string},token:string,posts:{id:string;media_product_type?:string}[],targets:{id:string;require_object_read?:boolean}[],guard:()=>Promise<void>):Promise<AvailabilityObservation[]>{
  const observations:AvailabilityObservation[]=posts.filter(p=>idPattern.test(p.id)&&p.media_product_type!=='STORY').slice(0,2).map(p=>({id:p.id,state:'available',source:'owned_feed',reason:'provider_observed'}));
  const target=targets.slice(0,1).find(t=>idPattern.test(t.id)&&(t.require_object_read===true||!observations.some(o=>o.id===t.id)));if(!target)return observations;
  const existing=observations.findIndex(o=>o.id===target.id);if(existing>=0)observations.splice(existing,1);
@@ -20,7 +20,26 @@ export async function observePostAvailability(graph:MetaGraph,connection:{channe
   // Graph 100/33 explicitly conflates nonexistent objects with unavailable access.
   // Neither this code nor a successful-but-empty response proves deletion.
   const missing=code===100&&(subcode===33||subcode===null);
-  observations.push({id:target.id,state:restricted?'access_restricted':missing?'unavailable':'temporarily_unavailable',source:'object_read',reason:restricted?'permission_or_token':missing?'object_missing_or_unreadable':'provider_temporary'});
+  const observation:AvailabilityObservation={id:target.id,state:restricted?'access_restricted':missing?'unavailable':'temporarily_unavailable',source:'object_read',reason:restricted?'permission_or_token':missing?'object_missing_or_unreadable':'provider_temporary'};
+  observations.push(observation);
+  if(connection.provider_account_id){
+   observation.graph_error_code=Number(code)||0;observation.graph_error_subcode=subcode;
+   const isolated=connection.channel==='facebook'?code===10:code===100&&subcode===33;
+   const control=isolated&&posts.find(p=>p.id!==target.id&&idPattern.test(p.id)&&p.media_product_type!=='STORY'&&(connection.channel!=='facebook'||p.id.split('_')[0]===connection.provider_account_id));
+   if(control){
+    // One additional exact-object GET, same token/fields and lease. No feed absence or error proves deletion.
+    observation.calendar_control_id=control.id;
+    await guard();
+    let healthy=false;
+    try{
+     const result=await graph.withSignal(AbortSignal.timeout(5000)).request(control.id,token,{fields:connection.channel==='facebook'?'id,is_published,permalink_url':'id,permalink'});
+     healthy=String(result.id)===control.id&&(connection.channel==='facebook'?result.is_published===true:typeof result.permalink==='string'&&/^https:\/\/(?:www\.)?instagram\.com\/(?:p|reel)\//.test(result.permalink));
+    }catch{/* Failed control restores visibility; it never supplies an unreadability streak. */}
+    const index=observations.findIndex(o=>o.id===control.id);
+    const checked:AvailabilityObservation={id:control.id,state:healthy?'available':'temporarily_unavailable',source:'object_read',reason:healthy?'provider_observed':'provider_temporary',calendar_control_check:true};
+    if(index>=0)observations[index]=checked;else observations.push(checked);
+   }else observation.calendar_control_check=true;
+  }
  }
  await guard();return observations;
 }
