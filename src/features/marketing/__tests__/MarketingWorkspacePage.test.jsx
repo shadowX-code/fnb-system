@@ -86,6 +86,7 @@ it('discards canonical detail after the review is closed',async()=>{
 });
 
 it('uses canonical date/time controls and saves the Malaysia wall clock as a UTC instant',async()=>{
+ vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date('2026-10-23T00:00:00Z'));try{
  render(<MarketingWorkspacePage section="calendar"/>);fireEvent.click(await screen.findByRole('button',{name:'Create Post'}));
  expect(document.querySelector('input[type="datetime-local"]')).toBeNull();
  fireEvent.change(screen.getByLabelText(/Creative concept title/),{target:{value:'Timed draft'}});
@@ -95,6 +96,7 @@ it('uses canonical date/time controls and saves the Malaysia wall clock as a UTC
  fireEvent.click(screen.getByRole('button',{name:'Publishing date & time time'}));fireEvent.click(screen.getByRole('button',{name:'Done',exact:true}));
  fireEvent.click(screen.getByRole('button',{name:'Save & Continue',exact:true}));await waitFor(()=>expect(service.content).toHaveBeenCalled());
  expect(service.content.mock.calls[0][0]).toMatchObject({command:'save',payload:{planned_at:'2026-10-24T01:00:00.000Z',planned_timezone:'Asia/Kuala_Lumpur'}});expect(service.execute).not.toHaveBeenCalled();
+ }finally{vi.useRealTimers();}
 });
 it('editing an approved revision preserves the expected revision and performs only canonical save',async()=>{
  service.contentManagement.mockResolvedValue({rows:[{...scheduledRow,status:'approved'}],total_count:1});service.detail.mockResolvedValue(savedDetail({...savedContent,status:'approved'}));
