@@ -1,8 +1,8 @@
+import {publishingFormatEnabled} from '../../../supabase/functions/_shared/publishingFormatPolicy.mjs';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import AdminPagination from '../../components/tables/AdminPagination.jsx';
-import {isVideoFormat,extendedInstagramVariant} from './publishingMedia.js';
 import DateTimePickerField from '../../components/forms/DateTimePickerField.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
 import {localInput,scheduleInstant} from './marketingCalendar.js';
@@ -18,17 +18,17 @@ export function PublishAuthorization({content,onComplete,intent=null}) {
  const request=useRef(null),sending=useRef(false),lifetime=useRef(0);
  const direct=Boolean(intent)&&['draft','approved'].includes(content.status),allowed=auth.hasPermission('marketing_content.execute')&&auth.hasPermission('marketing_content.publish')&&(direct||['scheduled','failed'].includes(content.status));
  const variants=direct?content.payload.variants:content.payload.variants.filter(v=>!content.channels||content.channels.some(c=>c.channel===v.channel&&['blocked','queued','retry'].includes(c.job_state)));
- const extended=variants.some(v=>extendedInstagramVariant(v,content.channels?.flatMap(c=>c.assets||[])||[]));
+ const media=content.channels?.flatMap(c=>c.assets||[])||[];
  useEffect(()=>{let live=true;lifetime.current++;setConnections(null);setError('');setAccepted(false);if(allowed)Promise.all([marketingService.integrations(content.organization_id,content.brand_id,'content'),marketingService.metaConfiguration()]).then(([data,value])=>{if(live){setConnections(data.connections);setConfig(value)}}).catch(e=>{if(live)setError(e.message)});return()=>{live=false;lifetime.current++}},[content.id,content.revision,content.status,auth.user?.id,allowed]);
  if(!allowed)return null;
  const selected=variants.map(v=>connections?.find(c=>c.organization_id===content.organization_id&&c.brand_id===content.brand_id&&c.channel===v.channel&&active(c)&&c.capabilities.publishing&&c.capabilities.execution_enabled&&c.capabilities.formats.includes(v.format)));
- const videoBlocked=extended&&config.instagram_extended_execution_enabled!==true||variants.some(v=>v.channel==='facebook'&&isVideoFormat(v.format))&&config.facebook_video_execution_enabled!==true;
+ const videoBlocked=variants.some((v,i)=>!publishingFormatEnabled(v,(v.asset_ids||[]).map(id=>media.find(a=>a.id===id)?.mime_type),selected[i]?.format_authorizations,config)||v.format==='carousel'&&(v.asset_ids||[]).some(id=>!media.some(a=>a.id===id)));
  const executionReady=config.test_execution_configured===true||config.production_execution_enabled===true;
  let scheduledAt=null,dateError='';if(direct&&mode==='schedule'){try{scheduledAt=scheduleInstant(local,'Asia/Kuala_Lumpur');if(Date.parse(scheduledAt)<=Date.now())throw new Error('Choose a future publishing date and time.');}catch(e){dateError=e.message}}
  const ready=variants.length>0&&!videoBlocked&&executionReady&&!dateError&&selected.every(Boolean);
  return <section className="card p-4 space-y-3" aria-label="Publishing confirmation"><h3 className="font-semibold">{direct?'Confirm publishing':'External publishing approval'}</h3>
  {direct?<><AdminSegmentedControl label="Publishing action" value={mode} onChange={value=>{setMode(value);setAccepted(false)}} options={[{value:'now',label:'Publish Now'},{value:'schedule',label:'Schedule'}]}/>{mode==='schedule'?<DateTimePickerField label="Publishing" timezone="Asia/Kuala_Lumpur" value={local} onChange={value=>{setLocal(value);setAccepted(false)}} error={dateError}/>:null}<p className="text-sm">{content.status==='draft'?'Your publishing permissions allow you to confirm this saved revision without a separate review.':'This revision retains its existing approval.'} {mode==='now'?'Confirming may publish immediately.':'Confirming activates the chosen future schedule.'}</p></>:<p className="text-sm">Authorize revision {content.revision} for {stamp(content.scheduled_at)}. Posts due now may be sent immediately after authorization.</p>}
- {videoBlocked?<p role="status">New video/Story execution is disabled pending separate live acceptance and activation.</p>:null}{connections&&!executionReady?<p role="status">Publishing execution is disabled. The saved draft remains available.</p>:null}
+ {videoBlocked?<p role="status">Publishing for this format is disabled for the selected account or its media details are unavailable.</p>:null}{connections&&!executionReady?<p role="status">Publishing execution is disabled. The saved draft remains available.</p>:null}
  {variants.map((v,i)=><p className="text-sm" key={v.channel}>{label(v.channel)} → {selected[i]?.account_name||'No enabled account for this format'}{selected[i]?` · Meta account ${selected[i].provider_account_id}`:''}</p>)}
  {error?<p role="alert" className="text-sm text-rose-600">{error}</p>:null}<label className="flex gap-2 items-start text-sm"><input type="checkbox" checked={accepted} disabled={!ready||busy} onChange={e=>setAccepted(e.target.checked)}/>I approve sending this exact caption and media to the listed accounts.</label>
  <button className="btn-primary" disabled={!ready||!accepted||busy} onClick={async()=>{
