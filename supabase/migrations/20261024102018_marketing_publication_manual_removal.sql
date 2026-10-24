@@ -169,5 +169,3 @@ CREATE OR REPLACE FUNCTION public.marketing_content_management(p_org uuid, p_bra
 AS $function$
  select public.marketing_content_management(p_org,p_brand,p_from,p_to,p_search,p_channel,p_status,p_sort,p_group,p_page,p_page_size,p_view,false);
 $function$;
-
-

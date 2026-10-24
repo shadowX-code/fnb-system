@@ -22,4 +22,3 @@ begin
 end;$$;
 revoke all on function public.marketing_meta_availability_targets(uuid,integer,uuid) from public,anon,authenticated;
 grant execute on function public.marketing_meta_availability_targets(uuid,integer,uuid) to service_role;
-
