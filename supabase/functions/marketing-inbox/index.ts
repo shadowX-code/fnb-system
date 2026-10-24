@@ -1,3 +1,4 @@
+import {normalizePublicationRemovals} from '../_shared/metaPostAvailability.ts';
 import {whatsappLifecycle} from '../_shared/whatsappLifecycle.ts';
 import {normalizeWhatsAppWebhook, whatsappConnectorContract} from '../_shared/whatsappInbox.ts';
 import {deliverInboxReply} from '../_shared/inboxDelivery.ts';
@@ -118,9 +119,10 @@ Deno.serve(async (req) => {
         env("MARKETING_META_APP_SECRET"),
       )
     ) return json({ error: "Invalid webhook signature." }, 401);
-    let events, payload, lifecycle;
+    let events, payload, lifecycle, publicationRemovals;
     try {
       payload = JSON.parse(new TextDecoder().decode(bytes));
+      publicationRemovals = await normalizePublicationRemovals(payload);
       events = payload?.object === 'whatsapp_business_account' ? normalizeWhatsAppWebhook(payload) : await normalizeInboxWebhookEvidence(payload);
       lifecycle = payload?.object === 'whatsapp_business_account' ? await whatsappLifecycle(payload,env('MARKETING_META_TOKEN_ENCRYPTION_KEY')) : [];
     } catch (error) {
@@ -129,6 +131,7 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid webhook contract." }, 400);
     }
     try {
+      if(publicationRemovals.length)await rpc(service,"marketing_meta_publication_events",{p_events:publicationRemovals});
       if(lifecycle.length)await rpc(service,"marketing_whatsapp_lifecycle",{p_events:lifecycle});
       await rpc(service, "marketing_inbox_receive", { p_events: events });
       return json({ received: true });

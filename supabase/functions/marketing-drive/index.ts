@@ -1,12 +1,13 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import {STAGING_ORIGIN,STAGING_SUPABASE,hash,nonce,seal,unseal,base64url,tokenEncryptionReady} from '../_shared/metaSecurity.ts';
 import {GoogleDrive,DriveError,DRIVE_SCOPE,DRIVE_FOLDER,DRIVE_SHORTCUT,driveId,verifySnapshot,byteHash,googleGrant} from '../_shared/googleDrive.ts';
-import {verifyMetaMedia} from '../_shared/metaPublishing.ts';
+import {verifyMetaMedia} from '../_shared/metaMedia.ts';
 const env=(name:string)=>Deno.env.get(name)||'';
 const REDIRECT=STAGING_SUPABASE+'/functions/v1/marketing-drive/callback';
 const configured=()=>['CLIENT_ID','CLIENT_SECRET','TOKEN_ENCRYPTION_KEY'].every(n=>env('MARKETING_GOOGLE_DRIVE_'+n));
 const binding=(org:string,generation:number)=>`drive:${org}:${generation}`;
-const messages:Record<string,string>={reconnect_required:'Reconnect Google Drive in Marketing Settings.',drive_permission_required:'Google Drive access is unavailable. Check the folder sharing and connection.',outside_brand_folder:'This file is outside the selected brand folder.',shortcut_outside_brand_folder:'This shortcut points outside the brand folder.',source_changed:'The Drive file changed. Refresh and select it again.',media_format_mismatch:'The file content does not match its media format.',media_format_unavailable:'Select a downloadable JPG, PNG, WebP or MP4 up to 100 MB.',file_unavailable:'The file or folder is no longer available.',search_scope_too_large:'This brand folder tree exceeds the search limit. Browse folders or use Open in Drive.',drive_configuration_required:'Google Drive configuration needs administrator attention.',thumbnail_unavailable:'Thumbnail unavailable. Open the file to preview it.',drive_unavailable:'Google Drive is temporarily unavailable. Try again.'};
+const messages:Record<string,string>={reel_cover_invalid:'Choose a 9:16 JPEG cover, 540–1440 pixels wide and up to 8 MB.',reconnect_required:'Reconnect Google Drive in Marketing Settings.',drive_permission_required:'Google Drive access is unavailable. Check the folder sharing and connection.',outside_brand_folder:'This file is outside the selected brand folder.',shortcut_outside_brand_folder:'This shortcut points outside the brand folder.',source_changed:'The Drive file changed. Refresh and select it again.',media_format_mismatch:'The file content does not match its media format.',media_format_unavailable:'Select a downloadable JPG, PNG, WebP or MP4 up to 100 MB.',file_unavailable:'The file or folder is no longer available.',search_scope_too_large:'This brand folder tree exceeds the search limit. Browse folders or use Open in Drive.',drive_configuration_required:'Google Drive configuration needs administrator attention.',thumbnail_unavailable:'Thumbnail unavailable. Open the file to preview it.',drive_unavailable:'Google Drive is temporarily unavailable. Try again.'};
+function verifyPublishingMedia(bytes:Uint8Array,mime:string,channel:string,format?:string){try{verifyMetaMedia(bytes,mime,channel,format);}catch(error){if(format==='reel_cover')throw new DriveError('reel_cover_invalid');throw error;}}
 Deno.serve(async req=>{
  const headers={'Access-Control-Allow-Origin':STAGING_ORIGIN,'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, GET, OPTIONS','Cache-Control':'no-store','Vary':'Origin'};
  const reply=(data:any,status=200)=>new Response(JSON.stringify(data),{status,headers:{...headers,'Content-Type':'application/json'}});
@@ -49,7 +50,7 @@ Deno.serve(async req=>{
    const {data:assets,error}=await db.rpc('marketing_drive_asset',{p_user:user,p_asset:body.assetId});if(error)throw new Error('Media access unavailable.');const asset=assets;
    if(asset.organization_id!==org||asset.brand_id!==brand)throw new Error('Media scope changed.');
    const download=await db.storage.from('marketing-media').download(asset.object_path);if(download.error||!download.data||download.data.size!==Number(asset.size_bytes))throw new Error('Uploaded media unavailable.');
-   const bytes=new Uint8Array(await download.data.arrayBuffer());verifySnapshot(bytes,asset.mime_type);if(['facebook','instagram'].includes(body.channel))verifyMetaMedia(bytes,asset.mime_type,body.channel);
+   const bytes=new Uint8Array(await download.data.arrayBuffer());verifySnapshot(bytes,asset.mime_type);if(['facebook','instagram'].includes(body.channel))verifyPublishingMedia(bytes,asset.mime_type,body.channel,body.format==='reel_cover'?'reel_cover':undefined);
    return reply(await call('finalize',{id:asset.id,sha256:await byteHash(bytes)}));
   }
   if(action==='disconnect'){await call('disconnect');return reply({ok:true});}
@@ -104,7 +105,7 @@ Deno.serve(async req=>{
    const scoped=await drive.scoped(driveId(body.fileId),root.root_id),file=scoped.file;
    if(body.version&&body.version!==file.version)throw new DriveError('source_changed');
    if(action==='preview'&&body.representation==='thumbnail'){const thumbnail=await drive.thumbnail(file);await guard();return new Response(thumbnail.bytes as Uint8Array<ArrayBuffer>,{headers:{...headers,'Content-Type':thumbnail.mime,'X-Content-Type-Options':'nosniff'}});}
-   const bytes=await drive.download(file);verifySnapshot(bytes,file.mimeType);if(action==='import'&&['facebook','instagram'].includes(body.channel))verifyMetaMedia(bytes,file.mimeType,body.channel);await guard();
+   const bytes=await drive.download(file);verifySnapshot(bytes,file.mimeType);if(action==='import'&&['facebook','instagram'].includes(body.channel))verifyPublishingMedia(bytes,file.mimeType,body.channel,body.format==='reel_cover'?'reel_cover':undefined);await guard();
    if(action==='preview')return new Response(bytes as Uint8Array<ArrayBuffer>,{headers:{...headers,'Content-Type':file.mimeType,'X-Content-Type-Options':'nosniff'}});
    const asset=await call('prepare',{filename:file.name,mime_type:file.mimeType,size_bytes:bytes.length,source_kind:'drive',generation:material.generation,revision:root.revision,sha256:await byteHash(bytes),source_metadata:{file_id:file.id,selection_id:scoped.node.id,version:file.version,modified_at:file.modifiedTime,md5:file.md5Checksum||null,root_id:root.root_id,mapping_revision:root.revision}});
    if(asset.reused)return reply(asset);const upload=await db.storage.from('marketing-media').upload(asset.object_path,bytes,{contentType:file.mimeType,upsert:false});if(upload.error)throw new Error('Publishing snapshot upload failed. Retry selection.');

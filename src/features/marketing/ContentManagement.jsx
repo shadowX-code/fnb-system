@@ -1,3 +1,4 @@
+import PostLiveAvailability from './PostLiveAvailability.jsx';
 import AdminCalendarNavigation from '../../components/forms/AdminCalendarNavigation.jsx';
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
@@ -396,7 +397,7 @@ export default function ContentManagement(
       render: (row) =>
         row.heading
           ? null
-          : <Status value={row.variant?.status || row.status} />,
+          : <div className="flex flex-col items-start gap-1"><Status value={row.variant?.status || row.status} /><PostLiveAvailability channels={row.variant?[row.variant]:row.channels}/></div>,
     },
     ...metricColumns.map(key=>({key, header:POST_METRICS.find(m=>m.key===key).label, width:"76px", headerClassName:"whitespace-nowrap", align:"right",render:row=>{
       if(row.heading)return null;
@@ -586,7 +587,7 @@ export default function ContentManagement(
                       <article className="card cm-mobile-row" key={row.key} tabIndex={0} aria-label={`View ${row.title}`} onClick={event=>{if(!event.target.closest("button, a, input"))show(row)}} onKeyDown={event=>{if(event.target===event.currentTarget&&["Enter"," "].includes(event.key)){event.preventDefault();show(row)}}}>
                         {contentCell(row)}
                         <div className="cm-mobile-meta">
-                          <Status value={row.status} />
+                          <Status value={row.status} /><PostLiveAvailability channels={row.channels}/>
                           <PublishDate row={row} />
                         </div>
                         <div className="cm-channels">
@@ -605,7 +606,7 @@ export default function ContentManagement(
                           ? row.channels.map((v) => (
                             <div className="cm-mobile-variant" key={v.channel}>
                               <Channel value={v.channel} />
-                              <Status value={v.status} />
+                              <Status value={v.status} /><PostLiveAvailability channels={[v]}/>
                               <PublishDate row={row} channel={v} />
                               <span className="cm-muted">{contentStatusLabel(v.job_state || v.status)}</span>
                               <Performance
@@ -685,7 +686,7 @@ export default function ContentManagement(
                               </Fragment>
                             ))}
                           </small>
-                          <Status value={row.status} />
+                          <Status value={row.status} /><PostLiveAvailability channels={row.channels}/>
                           {row.origin === "meta"
                             ? <small>External · Meta</small>
                             : null}

@@ -6,10 +6,12 @@ import {publishingConfigured, publishingAccountAllowed} from '../_shared/marketi
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { STAGING_SUPABASE, connectionBinding, unseal, hash } from '../_shared/metaSecurity.ts';
 import { MetaError, MetaGraph } from '../_shared/metaGraph.ts';
+import {publishingAssetIds,verifyCoverFrame} from '../_shared/metaReelCover.ts';
 import { advanceMetaPublish, verifyMetaMedia } from '../_shared/metaPublishing.ts';
 import { diagnoseMetaConnection } from '../_shared/metaConnectionDiagnostics.ts';
 import { runConnectionHealth } from '../_shared/metaConnectionHealth.ts';
 import { runInboxHistory } from '../_shared/metaInboxHistory.ts';
+import {observePostAvailability} from '../_shared/metaPostAvailability.ts';
 import { readMetaPosts } from '../_shared/metaSynchronization.ts';
 import { processAdsSync } from '../_shared/metaAds.ts';
 import { cleanupTemporaryMedia } from '../_shared/marketingMediaCleanup.ts';
@@ -71,23 +73,26 @@ Deno.serve(async(req)=>{
     state.verified_assets||=[];
     // One immutable asset per tick bounds downloads. All bytes are validated before
     // the first Meta write; previews alone never establish publishing compatibility.
-    const next=variant.asset_ids.find((id:string)=>!state.verified_assets.includes(id));
+    const pinnedIds=publishingAssetIds(variant);
+    const next=pinnedIds.find((id:string)=>!state.verified_assets.includes(id));
     if(next&&!job.provider_state?.pending&&!job.provider_state?.post_id&&job.state!=='reconciling') {
      const asset=assets.find((a:any)=>a.id===next);
      if(!asset||asset.size_bytes>(asset.mime_type==='video/mp4'?52428800:8388608))throw new MetaError('media_size_unsupported');
      await guard();const {data:blob,error}=await db.storage.from('marketing-media').download(asset.object_path);
      if(error||!blob||blob.size!==Number(asset.size_bytes))throw new MetaError('media_source_unavailable',false,true);
-     verifyMetaMedia(new Uint8Array(await blob.arrayBuffer()),asset.mime_type,job.channel,variant.format);
+     const bytes=new Uint8Array(await blob.arrayBuffer()),coverAsset=variant.reel_cover?.mode==='image'&&next===variant.reel_cover.asset_id;
+     verifyMetaMedia(bytes,asset.mime_type,job.channel,coverAsset?'reel_cover':variant.format);
+     if(next===variant.asset_ids[0]&&variant.reel_cover?.mode==='frame')verifyCoverFrame(variant,bytes);
      state.verified_assets.push(next);await checkpoint(state);result={outcome:'waiting',code:'media_verifying'};
     } else {
-     const mediaUrls=[];
+     const mediaUrls=[];let coverUrl:string|undefined;
      // Do not request signed URLs while only reconciling an existing receipt.
-     if(job.state!=='reconciling'&&!videoReadOnly&&!extendedReadOnly&&!state.pending&&!state.post_id)for(const id of variant.asset_ids) {
+     if(job.state!=='reconciling'&&!videoReadOnly&&!extendedReadOnly&&!state.pending&&!state.post_id)for(const id of pinnedIds) {
       const asset=assets.find((a:any)=>a.id===id);if(!asset)throw new MetaError('media_source_unavailable');
       const {data,error}=await db.storage.from('marketing-media').createSignedUrl(asset.object_path,3600);
-      if(error||!data)throw new MetaError('media_source_unavailable',false,true);mediaUrls.push(data.signedUrl);
+      if(error||!data)throw new MetaError('media_source_unavailable',false,true);if(variant.reel_cover?.mode==='image'&&id===variant.reel_cover.asset_id)coverUrl=data.signedUrl;else mediaUrls.push(data.signedUrl);
      }
-     result=await advanceMetaPublish({graph,accountId:connection.provider_account_id,token,variant,mediaUrls,mediaTypes,state,checkpoint,guard:async()=>{await guard();},allowFacebookReceiptLookup:(postId)=>job.state!=='reconciling'||facebookReceiptRecoveryAllowed(job,env,Date.now(),postId),submissionGuard:async()=>{if(facebookVideo&&!facebookVideoConfigured(env))throw new MetaError('facebook_video_not_enabled');if(extendedInstagram&&!instagramExtendedConfigured(env))throw new MetaError('instagram_extended_not_enabled');await guard(true);},reconcileOnly:job.state==='reconciling'||videoReadOnly||extendedReadOnly});
+     result=await advanceMetaPublish({graph,accountId:connection.provider_account_id,token,variant,mediaUrls,mediaTypes,coverUrl,state,checkpoint,guard:async()=>{await guard();},allowFacebookReceiptLookup:(postId)=>job.state!=='reconciling'||facebookReceiptRecoveryAllowed(job,env,Date.now(),postId),submissionGuard:async()=>{if(facebookVideo&&!facebookVideoConfigured(env))throw new MetaError('facebook_video_not_enabled');if(extendedInstagram&&!instagramExtendedConfigured(env))throw new MetaError('instagram_extended_not_enabled');await guard(true);},reconcileOnly:job.state==='reconciling'||videoReadOnly||extendedReadOnly});
     }
    }catch(error){result={outcome:error instanceof MetaError&&!error.uncertain?(error.retryable?'retryable_failure':'permanent_failure'):'uncertain',code:error instanceof MetaError?error.code:'publishing_authority_changed'};}
    if(job.state==='reconciling'&&result.outcome!=='published')result={outcome:'uncertain',code:result.code||'manual_reconciliation_required'};
@@ -118,9 +123,9 @@ Deno.serve(async(req)=>{
   const connection=await call(db,'marketing_meta_sync_claim');
   if(connection) {
    const guard=async()=>{if(!await call(db,'marketing_meta_sync_guard',{p_connection:connection.id,p_generation:connection.credential_generation,p_lease:connection.sync_lease}))throw new Error('synchronization_authority_changed');};
-   let posts:any[]=[],after:string|null=null,errorCode:string|null=null;
-   try{const token=await tokenFor(connection);const result=await readMetaPosts(graph,connection,token,guard);posts=result.posts;after=result.after;}catch(error){errorCode=error instanceof MetaError?error.code:'sync_unavailable';}
-   await call(db,'marketing_meta_sync_finish',{p_connection:connection.id,p_generation:connection.credential_generation,p_lease:connection.sync_lease,p_posts:posts,p_after:after,p_error:errorCode});
+   let posts:any[]=[],after:string|null=null,errorCode:string|null=null,availability:any[]=[];
+   try{const token=await tokenFor(connection);const result=await readMetaPosts(graph,connection,token,guard);posts=result.posts;after=result.after;const targets=await call(db,'marketing_meta_availability_targets',{p_connection:connection.id,p_generation:connection.credential_generation,p_lease:connection.sync_lease});availability=await observePostAvailability(graph,connection,token,posts,targets||[],guard);}catch(error){errorCode=error instanceof MetaError?error.code:'sync_unavailable';}
+   await call(db,'marketing_meta_sync_finish',{p_connection:connection.id,p_generation:connection.credential_generation,p_lease:connection.sync_lease,p_posts:posts,p_after:after,p_error:errorCode,p_availability:availability});
   }
   const adsProcessed=connection?false:await processAdsSync(db,graph,env);
   await call(db,'marketing_worker_health',{p_completed:true});return reply({status:connection?'synchronized':adsProcessed?'ads_synchronized':'idle'});
