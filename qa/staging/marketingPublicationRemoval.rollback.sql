@@ -24,7 +24,7 @@ begin
 end; $$;
 
 do $$
-declare o uuid:=(select id from marketing_qa_ids where key='org');b uuid:=(select id from marketing_qa_ids where key='brand');e uuid:=(select id from marketing_qa_ids where key='employee');fb uuid:=gen_random_uuid();ig uuid:=gen_random_uuid();c uuid:=gen_random_uuid();lease uuid:=gen_random_uuid();
+declare o uuid:=(select id from marketing_qa_ids where key='org');b uuid:=(select id from marketing_qa_ids where key='brand');e uuid:=(select id from marketing_qa_ids where key='employee');fb uuid:=gen_random_uuid();ig uuid:=gen_random_uuid();c uuid:=gen_random_uuid();lease uuid:=gen_random_uuid();restricted uuid;
 begin
  insert into marketing_connections(id,organization_id,brand_id,channel,provider_account_id,account_name,status,expires_at,capabilities,credential_generation,connected_by,connected_at,sync_lease,sync_lease_until)
  values(fb,o,b,'facebook','999999999998','QA removal FB','test_authorized',now()+interval '1 day','{"posts":false,"execution_enabled":false}',1,e,now()-interval '1 day',lease,now()+interval '1 hour'),(ig,o,b,'instagram','999999999997','QA removal IG','test_authorized',now()+interval '1 day','{"posts":false,"execution_enabled":false}',1,e,now()-interval '1 day',null,null);
@@ -36,6 +36,9 @@ begin
  values(o,b,c,1,'facebook','succeeded',now(),e,'999999999998_777',fb,1),(o,b,c,1,'instagram','succeeded',now(),e,'999997700',ig,1);
  insert into marketing_social_posts(organization_id,brand_id,connection_id,connection_generation,provider_account_id,provider_post_id,channel,published_at,metrics)
  values(o,b,fb,1,'999999999998','999999999998_777','facebook',now(),'{"views":17}'),(o,b,ig,1,'999999999997','999997700','instagram',now(),'{"views":23}');
+ insert into marketing_connections(organization_id,brand_id,channel,provider_account_id,status,capabilities)
+ values(o,(select id from marketing_qa_ids where key='other_brand'),'facebook','999999999996','not_connected','{}') returning id into restricted;
+ insert into marketing_qa_ids values('restricted_connection',restricted);
  insert into marketing_qa_ids values('fb',fb),('ig',ig),('content',c),('lease',lease),('manual_request',gen_random_uuid());
 end;$$;
 set local role authenticated;
@@ -43,6 +46,7 @@ select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from 
 do $$
 declare f uuid:=(select id from marketing_qa_ids where key='fb');i uuid:=(select id from marketing_qa_ids where key='ig');req uuid:=(select id from marketing_qa_ids where key='manual_request');o uuid:=(select id from marketing_qa_ids where key='org');b uuid:=(select id from marketing_qa_ids where key='brand');r jsonb; denied boolean:=false;
 begin
+ begin perform marketing_publication_availability_command(gen_random_uuid(),(select id from marketing_qa_ids where key='restricted_connection'),'999999999996_111',0,'mark_removed');exception when insufficient_privilege then denied:=true;end;assert denied,'Same-tenant unauthorized Brand denied';denied:=false;
  r:=marketing_publication_availability_command(req,f,'999999999998_777',0,'mark_removed');
  assert r->>'state'='manually_removed','Manual source distinct';
  assert r->'manual_confirmation'->>'actor_name'='QA Marketing Rollback','Server actor';
