@@ -101,6 +101,7 @@ const safePermalink = (value) => {
   }
 };
 function Status({ value }) {
+  if(value==="published")return <span className="cm-muted cm-publication-receipt">Published · historical</span>;
   return (
     <Badge
       tone={["failed", "rejected"].includes(value)
@@ -221,6 +222,7 @@ export default function ContentManagement(
   const [group, setGroup] = useState("");
   const [expanded, setExpanded] = useState({});
   const [external, setExternal] = useState(null);
+  const [showRemoved,setShowRemoved]=useState(false),[availabilityRefresh,setAvailabilityRefresh]=useState(0);
   const [metricColumns,setMetricColumns]=useState(()=>preferredMetricColumns(auth.user?.id));
   const [columnsOpen,setColumnsOpen]=useState(false);
   useEffect(() => {
@@ -254,6 +256,8 @@ export default function ContentManagement(
     sort,
     group,
     refresh,
+    showRemoved,
+    availabilityRefresh,
   ]);
   const [state, actions] = useAdminPagedQuery({
     storageKey: `marketing.content-management.${auth.user?.id}`,
@@ -273,6 +277,7 @@ export default function ContentManagement(
         page,
         pageSize,
         view,
+        showRemoved,
       });
       return { ...result, ...(bounds.empty?{rows:[],total_count:0}:{}), summary: { day_counts: bounds.empty?{}:result.day_counts,draft_count:result.draft_count } };
     },
@@ -397,7 +402,7 @@ export default function ContentManagement(
       render: (row) =>
         row.heading
           ? null
-          : <div className="flex flex-col items-start gap-1"><Status value={row.variant?.status || row.status} /><PostLiveAvailability channels={row.variant?[row.variant]:row.channels}/></div>,
+          : <div className="flex flex-col items-start gap-1"><PostLiveAvailability channels={row.variant?[row.variant]:row.channels}/><Status value={row.variant?.status || row.status} /></div>,
     },
     ...metricColumns.map(key=>({key, header:POST_METRICS.find(m=>m.key===key).label, width:"76px", headerClassName:"whitespace-nowrap", align:"right",render:row=>{
       if(row.heading)return null;
@@ -436,6 +441,7 @@ export default function ContentManagement(
         />
         <div className="cm-heading-tools"><span className="cm-muted">{current ? `${state.total} content records · ` : ""}Asia/Kuala_Lumpur</span>{view==='list'?<ActionMenu open={columnsOpen} onOpenChange={setColumnsOpen} ariaLabel="Metric columns" width={224} trigger={({toggle,open})=><button className="btn-secondary" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><SlidersHorizontal size={14}/> Columns</button>}><fieldset className="admin-column-picker"><legend>Performance columns</legend>{POST_METRICS.filter(m=>!m.unit).map(m=><label key={m.key}><input type="checkbox" checked={metricColumns.includes(m.key)} onChange={e=>{const next=e.target.checked?[...metricColumns,m.key]:metricColumns.filter(k=>k!==m.key);setMetricColumns(next);saveMetricColumns(auth.user?.id,next)}}/>{m.label}</label>)}</fieldset></ActionMenu>:null}</div>
       </div>
+      {view==="calendar"?<label className="cm-show-removed"><input type="checkbox" checked={showRemoved} onChange={e=>setShowRemoved(e.target.checked)}/> Show Removed</label>:null}
       <div className="cm-quick-filters" role="group" aria-label="Quick content filters">{[{value:'',label:'All'},{value:'draft',label:'Drafts'},{value:'scheduled',label:'Scheduled'},{value:'published',label:'Published'}].map(filter=><button type="button" className="btn-secondary" key={filter.value} aria-label={filter.value==='draft'?`Drafts ${current&&Number.isInteger(state.summary?.draft_count)?state.summary.draft_count:'…'}`:filter.label} aria-pressed={status===filter.value} onClick={()=>changeStatus(filter.value)}>{filter.label}{filter.value==='draft'?<span className="cm-draft-count">{current&&Number.isInteger(state.summary?.draft_count)?state.summary.draft_count:'…'}</span>:null}</button>)}</div>
       <AdminFilterToolbar
         compact
@@ -587,7 +593,7 @@ export default function ContentManagement(
                       <article className="card cm-mobile-row" key={row.key} tabIndex={0} aria-label={`View ${row.title}`} onClick={event=>{if(!event.target.closest("button, a, input"))show(row)}} onKeyDown={event=>{if(event.target===event.currentTarget&&["Enter"," "].includes(event.key)){event.preventDefault();show(row)}}}>
                         {contentCell(row)}
                         <div className="cm-mobile-meta">
-                          <Status value={row.status} /><PostLiveAvailability channels={row.channels}/>
+                          <PostLiveAvailability channels={row.channels}/><Status value={row.status} />
                           <PublishDate row={row} />
                         </div>
                         <div className="cm-channels">
@@ -606,7 +612,7 @@ export default function ContentManagement(
                           ? row.channels.map((v) => (
                             <div className="cm-mobile-variant" key={v.channel}>
                               <Channel value={v.channel} />
-                              <Status value={v.status} /><PostLiveAvailability channels={[v]}/>
+                              <PostLiveAvailability channels={[v]}/><Status value={v.status} />
                               <PublishDate row={row} channel={v} />
                               <span className="cm-muted">{contentStatusLabel(v.job_state || v.status)}</span>
                               <Performance
@@ -686,7 +692,7 @@ export default function ContentManagement(
                               </Fragment>
                             ))}
                           </small>
-                          <Status value={row.status} /><PostLiveAvailability channels={row.channels}/>
+                          <PostLiveAvailability channels={row.channels}/><Status value={row.status} />
                           {row.origin === "meta"
                             ? <small>External · Meta</small>
                             : null}
@@ -728,7 +734,7 @@ export default function ContentManagement(
       {external
         ? (
           <Modal title="Post details" placement="right" onClose={()=>setExternal(null)}>
-            <PostDetail content={external}/>
+            <PostDetail content={external} canManageAvailability={can('marketing_content.publish')} onAvailabilityChanged={()=>setAvailabilityRefresh(v=>v+1)}/>
           </Modal>
         )
         : null}
