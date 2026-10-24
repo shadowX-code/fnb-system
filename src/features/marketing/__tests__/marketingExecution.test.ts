@@ -144,3 +144,11 @@ describe('job-specific read-only Facebook receipt recovery permit',()=>{
   expect(facebookReceiptRecoveryAllowed(job,reader({...prod,MARKETING_META_FACEBOOK_RECEIPT_RECOVERY:raw}),now)).toBe(false);
  });
 });
+
+it.each(['622626120924115','17841473217923034','106367211603584','17841449508947386','113234221623434','17841457435511713','1040350135817796','17841480457084204','860213937170340','17841477783086333','999999999999'])('normal publishing policy supports current and future verified account %s without broadening format switches',account=>{
+ const get=reader({...prod,MARKETING_META_PUBLISHING_ENABLED:'true',MARKETING_META_PUBLISHING_MODE:'normal'});
+ expect(productionPublishingPolicy({...connection,provider_account_id:account},true,get)).toBe(true);
+ expect(productionPublishingPolicy({...connection,provider_account_id:account},false,get)).toBe(false);
+ expect(facebookVideoConfigured(get)).toBe(false);expect(instagramExtendedConfigured(get)).toBe(false);
+ expect(productionPublishingPolicy({...connection,provider_account_id:account},true,reader({...prod,MARKETING_META_PUBLISHING_ENABLED:'true',MARKETING_META_PUBLISHING_MODE:'controlled',MARKETING_META_PUBLISH_ACCOUNT_IDS:'622626120924115,17841473217923034'}))).toBe(['622626120924115','17841473217923034'].includes(account));
+});
