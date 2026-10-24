@@ -118,15 +118,19 @@ it('keeps extended Instagram execution independently disabled until its exact op
 describe('job-specific read-only Facebook receipt recovery permit',()=>{
  const now=Date.parse('2026-10-24T02:00:00Z');
  const job={id:'job',connection_id:'connection',connection_generation:3,channel:'facebook',state:'reconciling',provider_state:{objects:{fb_video:'1830341231428452'}}};
- const permit={job_id:'job',connection_id:'connection',generation:3,video_id:'1830341231428452',issued_at:new Date(now).toISOString(),expires_at:new Date(now+300000).toISOString()};
+ const permit={job_id:'job',connection_id:'connection',generation:3,video_id:'1830341231428452',post_id:'622626120924115_122185805978804842',issued_at:new Date(now).toISOString(),expires_at:new Date(now+300000).toISOString()};
  const get=(patch:any={})=>reader({...prod,MARKETING_META_FACEBOOK_RECEIPT_RECOVERY:JSON.stringify({...permit,...patch})});
  it('is absent by default and never enables publishing or video execution',()=>{
   expect(facebookReceiptRecoveryAllowed(job,reader(prod),now)).toBe(false);
   expect(facebookReceiptRecoveryAllowed(job,get(),now)).toBe(true);
   expect(publishingConfigured(get())).toBe(false);expect(facebookVideoConfigured(get())).toBe(false);
  });
- it.each([{job_id:'other'},{connection_id:'other'},{generation:2},{generation:'3'},{video_id:'999'},{issued_at:'invalid'},{expires_at:'invalid'},{expires_at:new Date(now+300001).toISOString()},{expires_at:new Date(now).toISOString()}])('fails closed on mismatched or invalid authorization %j',patch=>{
+ it.each([{job_id:'other'},{connection_id:'other'},{generation:2},{generation:'3'},{video_id:'999'},{post_id:'not-a-post'},{issued_at:'invalid'},{expires_at:'invalid'},{expires_at:new Date(now+300001).toISOString()},{expires_at:new Date(now).toISOString()}])('fails closed on mismatched or invalid authorization %j',patch=>{
   expect(facebookReceiptRecoveryAllowed(job,get(patch),now)).toBe(false);
+ });
+ it('binds the actual returned Post identity before receipt persistence',()=>{
+  expect(facebookReceiptRecoveryAllowed(job,get(),now,permit.post_id)).toBe(true);
+  expect(facebookReceiptRecoveryAllowed(job,get(),now,'622626120924115_999')).toBe(false);
  });
  it('expires server-side at five minutes and allows immediate revocation',()=>{
   expect(facebookReceiptRecoveryAllowed(job,get(),now-1)).toBe(false);expect(facebookReceiptRecoveryAllowed(job,get(),now+299999)).toBe(true);expect(facebookReceiptRecoveryAllowed(job,get(),now+300000)).toBe(false);

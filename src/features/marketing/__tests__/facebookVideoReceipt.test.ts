@@ -79,3 +79,8 @@ it('rechecks short-lived recovery permission after the asynchronous authority gu
  expect((await h.run({allowFacebookReceiptLookup:allowed})).outcome).toBe('uncertain');
  expect(h.transport).toHaveBeenCalledOnce();expect(h.state().post_id).toBeUndefined();
 });
+
+it('refuses a verified provider Post outside the separately authorized recovery identity',async()=>{
+ const h=setup();expect(await h.run({allowFacebookReceiptLookup:(candidate?:string)=>candidate===undefined||candidate===account+'_999'})).toMatchObject({outcome:'uncertain',code:'facebook_video_post_receipt_mismatch'});
+ expect(h.state().post_id).toBeUndefined();expect(h.transport).toHaveBeenCalledTimes(2);expect(h.submissionGuard).not.toHaveBeenCalled();
+});

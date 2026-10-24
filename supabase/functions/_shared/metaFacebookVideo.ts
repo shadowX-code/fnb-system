@@ -3,7 +3,7 @@ import type {MetaVariant,MetaLedger,MetaPublishResult} from './metaPublishing.ts
 const numeric=(id:unknown)=>typeof id==='string'&&/^\d{1,30}$/.test(id);
 // Meta Video and Reel writes return different receipts. Persist intent before each
 // write; only an exact Page-owned published video + provider post ID can complete.
-export async function advanceFacebookVideo(input:{graph:MetaGraph;accountId:string;token:string;variant:MetaVariant;mediaUrls:string[];state:MetaLedger;checkpoint:(s:MetaLedger)=>Promise<void>;guard:()=>Promise<void>;submissionGuard?:()=>Promise<void>;allowFacebookReceiptLookup?:()=>boolean;reconcileOnly?:boolean}):Promise<MetaPublishResult>{
+export async function advanceFacebookVideo(input:{graph:MetaGraph;accountId:string;token:string;variant:MetaVariant;mediaUrls:string[];state:MetaLedger;checkpoint:(s:MetaLedger)=>Promise<void>;guard:()=>Promise<void>;submissionGuard?:()=>Promise<void>;allowFacebookReceiptLookup?:(postId?:string)=>boolean;reconcileOnly?:boolean}):Promise<MetaPublishResult>{
  const {graph,accountId,token,variant:v,guard,checkpoint}=input,s=structuredClone(input.state);
  s.objects||={};s.started_at||=new Date().toISOString();
  const writeGraph=input.submissionGuard?graph.withWriteGuard(input.submissionGuard):null;
@@ -54,7 +54,9 @@ export async function advanceFacebookVideo(input:{graph:MetaGraph;accountId:stri
    if(matches.some((row:any)=>!ownedPost(row.id)))return uncertain('facebook_video_identity_mismatch');
    const ids=[...new Set(matches.map((row:any)=>row.id))];
    if(ids.length!==1)return uncertain(ids.length?'facebook_video_post_receipt_ambiguous':'facebook_video_post_receipt_missing');
-   post=ids[0];receiptSource='page_posts_video_permalink';
+   post=ids[0];
+   if(!input.allowFacebookReceiptLookup?.(post))return uncertain('facebook_video_post_receipt_mismatch');
+   receiptSource='page_posts_video_permalink';
   }
   if(s.post_id&&s.post_id!==post)return uncertain('facebook_video_identity_mismatch');
   // A retained video ID allows read-only recovery of a lost finish response.
