@@ -20,3 +20,18 @@ it('distinguishes manual from provider proof and keeps mixed confirmed removal e
 it('keeps draft/no-receipt rows separate from live availability',()=>{expect(publicationAvailability([{channel:'facebook',status:'draft'}])).toBeNull();expect(publicationAvailability([channel('facebook','unknown')]).label).toBe('Not checked');});
 it('preserves partial channel availability without changing publication status',()=>{const channels=[channel('facebook','deleted'),channel('instagram','available')];expect(publicationAvailability(channels)).toMatchObject({state:'partial',label:'Partly removed'});expect(channels.every(c=>c.status==='published')).toBe(true);});
 it('distinguishes access errors, temporary failures, unavailable objects and explicit removal',()=>{expect(new Set(['available','unavailable','access_restricted','temporarily_unavailable','deleted','unknown'].map(state=>liveAvailabilityInfo({state}).label)).size).toBe(6);expect(liveAvailabilityInfo({state:'unavailable'}).help).toContain('does not prove deletion');expect(publicationAvailability([channel('facebook','available'),channel('instagram','unknown')]).label).toBe('Partly checked');});
+
+it('labels guarded unreadability as unverified hiding without changing provider state',()=>{
+ for(const state of ['access_restricted','unavailable']){
+  const availability={state,calendar_visibility:{hidden:true,policy:'isolated_unreadable'}};
+  expect(liveAvailabilityInfo(availability).label).toBe('Unverified · hidden from Calendar');expect(liveAvailabilityInfo(availability).help).toContain('does not prove');expect(availability.state).toBe(state);
+ }
+});
+
+it('preserves manual provenance and does not label partial evidence as a fully hidden publication',()=>{
+ const policy={hidden:true,policy:'isolated_unreadable'};
+ expect(liveAvailabilityInfo({state:'manually_removed',calendar_visibility:policy}).label).toBe('Removed · staff confirmed');
+ const fb=channel('facebook','access_restricted'),ig=channel('instagram','unavailable');fb.availability.calendar_visibility=policy;ig.availability.calendar_visibility=policy;
+ expect(publicationAvailability([fb,ig])).toMatchObject({state:'unverified',label:'Unverified · hidden from Calendar'});
+ fb.availability.state='unavailable';ig.availability.calendar_visibility={hidden:false};expect(publicationAvailability([fb,ig]).label).toBe('Unavailable on Meta');
+});

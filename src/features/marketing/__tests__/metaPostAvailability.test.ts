@@ -46,3 +46,33 @@ it('does not promote Instagram events, API recovery, FAQ suggestions or malforme
 it('requires an exact object check when a feed echo conflicts with signed removal evidence',async()=>{
  const g=graph({error:{code:100,error_subcode:33}},400);const result=await observePostAvailability(g.client,{channel:'facebook'},'fixture-token',[{id:'111_222'}],[{id:'111_222',require_object_read:true}],vi.fn());expect(g.transport).toHaveBeenCalledTimes(1);expect(result).toEqual([{id:'111_222',state:'unavailable',source:'object_read',reason:'object_missing_or_unreadable'}]);
 });
+
+it.each([
+ ['facebook','622626120924115','622626120924115_122185112336804842','622626120924115_122171025848804842',10,null],
+ ['facebook','622626120924115','622626120924115_122185797554804842','622626120924115_122171025848804842',10,null],
+ ['facebook','622626120924115','622626120924115_122185805978804842','622626120924115_122171025848804842',10,null],
+ ['facebook','622626120924115','622626120924115_122185828154804842','622626120924115_122171025848804842',10,null],
+ ['instagram','17841473217923034','17994359174848654','17980316511001412',100,33],
+ ['instagram','17841473217923034','18150091540612612','17980316511001412',100,33],
+ ['instagram','17841473217923034','18099943967385775','17980316511001412',100,33],
+ ['instagram','17841473217923034','18097331618228238','17980316511001412',100,33]
+])('replays actual read-only %s case %s/%s with a same-token positive control, never deletion',async(channel,account,target,control,code,subcode)=>{
+ const transport=vi.fn(async(url:any)=>new Response(JSON.stringify(String(url).includes('/'+target+'?')?{error:{code,error_subcode:subcode}}:{id:control,is_published:true,permalink:'https://www.instagram.com/p/fixture/'}),{status:String(url).includes('/'+target+'?')?400:200}));
+ const client=new MetaGraph(config,transport),result=await observePostAvailability(client,{channel,provider_account_id:account},'fixture-token',[{id:control}],[{id:target},{id:'777'}],vi.fn());
+ expect(transport).toHaveBeenCalledTimes(2);expect(result.find(o=>o.id===target)).toMatchObject({calendar_control_id:control,graph_error_code:code,graph_error_subcode:subcode});
+ expect(result.find(o=>o.id===control)).toMatchObject({state:'available',source:'object_read',calendar_control_check:true});expect(result.some(o=>(o.state as any)==='deleted')).toBe(false);
+ const calls=transport.mock.calls;expect(new URL(String(calls[0][0])).searchParams.get('fields')).toBe(new URL(String(calls[1][0])).searchParams.get('fields'));
+});
+it.each([190,200,4])('never qualifies account-wide or temporary error %s',async code=>{
+ const g=graph({error:{code}},400);const result=await observePostAvailability(g.client,{channel:'facebook',provider_account_id:'111'},'fixture-token',[{id:'111_444'}],[{id:'111_222'}],vi.fn());
+ expect(g.transport).toHaveBeenCalledTimes(1);expect(result.find(o=>o.id==='111_222')).toMatchObject({calendar_control_check:true});expect(result.find(o=>o.id==='111_222')?.calendar_control_id).toBeUndefined();
+});
+it('failed live control blocks the streak and is bounded to two reads',async()=>{
+ const g=graph({error:{code:10}},400);const result=await observePostAvailability(g.client,{channel:'facebook',provider_account_id:'111'},'fixture-token',[{id:'111_444'}],[{id:'111_222'}],vi.fn());
+ expect(g.transport).toHaveBeenCalledTimes(2);expect(result.find(o=>o.id==='111_444')).toMatchObject({state:'temporarily_unavailable',calendar_control_check:true});
+});
+it('no live control, another Page control or Story cannot qualify',async()=>{
+ for(const posts of [[],[{id:'999_444'}],[{id:'111_444',media_product_type:'STORY'}]]){
+  const g=graph({error:{code:10}},400);const result=await observePostAvailability(g.client,{channel:'facebook',provider_account_id:'111'},'fixture-token',posts,[{id:'111_222'}],vi.fn());expect(g.transport).toHaveBeenCalledTimes(1);expect(result.find(o=>o.id==='111_222')?.calendar_control_id).toBeUndefined();
+ }
+});
