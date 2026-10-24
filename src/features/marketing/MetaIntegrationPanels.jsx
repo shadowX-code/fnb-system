@@ -3,9 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import AdminPagination from '../../components/tables/AdminPagination.jsx';
-import DateTimePickerField from '../../components/forms/DateTimePickerField.jsx';
-import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
-import {localInput,scheduleInstant} from './marketingCalendar.js';
 import { marketingService } from './marketingService.js';
 const label = value => value.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 const stamp = value => value ? new Intl.DateTimeFormat('en-MY', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(value)) : 'Unavailable';
@@ -13,31 +10,44 @@ const active = c => ['test_authorized', 'production_authorized'].includes(c.stat
 
 export { default as MetaConnections } from './SocialAccounts.jsx';
 
-export function PublishAuthorization({content,onComplete,intent=null}) {
- const auth=useAuth(),[connections,setConnections]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[accepted,setAccepted]=useState(false),[config,setConfig]=useState({}),[mode,setMode]=useState(intent?.mode||'now'),[local,setLocal]=useState(intent?.scheduled_at?localInput(new Date(intent.scheduled_at),'Asia/Kuala_Lumpur'):'');
+export function PublishAuthorization({content,onComplete,intent=null,brandName,onEdit}) {
+ const auth=useAuth(),[connections,setConnections]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[acceptedFor,setAcceptedFor]=useState(null),[config,setConfig]=useState({});
  const request=useRef(null),sending=useRef(false),lifetime=useRef(0);
+ const mode=intent?.mode,scheduledAt=intent?.scheduled_at;
  const direct=Boolean(intent)&&['draft','approved'].includes(content.status),allowed=auth.hasPermission('marketing_content.execute')&&auth.hasPermission('marketing_content.publish')&&(direct||['scheduled','failed'].includes(content.status));
  const variants=direct?content.payload.variants:content.payload.variants.filter(v=>!content.channels||content.channels.some(c=>c.channel===v.channel&&['blocked','queued','retry'].includes(c.job_state)));
  const media=content.channels?.flatMap(c=>c.assets||[])||[];
- useEffect(()=>{let live=true;lifetime.current++;setConnections(null);setError('');setAccepted(false);if(allowed)Promise.all([marketingService.integrations(content.organization_id,content.brand_id,'content'),marketingService.metaConfiguration()]).then(([data,value])=>{if(live){setConnections(data.connections);setConfig(value)}}).catch(e=>{if(live)setError(e.message)});return()=>{live=false;lifetime.current++}},[content.id,content.revision,content.status,auth.user?.id,allowed]);
+ const savedFingerprint=JSON.stringify([content.id,content.organization_id,content.brand_id,content.revision,content.status,content.payload,content.channels,intent]);
+ useEffect(()=>{let live=true;lifetime.current++;setConnections(null);setError('');setAcceptedFor(null);if(allowed)Promise.all([marketingService.integrations(content.organization_id,content.brand_id,'content'),marketingService.metaConfiguration()]).then(([data,value])=>{if(live){setConnections(data.connections);setConfig(value)}}).catch(e=>{if(live)setError(e.message)});return()=>{live=false;lifetime.current++}},[savedFingerprint,auth.user?.id,allowed]);
  if(!allowed)return null;
  const selected=variants.map(v=>connections?.find(c=>c.organization_id===content.organization_id&&c.brand_id===content.brand_id&&c.channel===v.channel&&active(c)&&c.capabilities.publishing&&c.capabilities.execution_enabled&&c.capabilities.formats.includes(v.format)));
  const videoBlocked=variants.some((v,i)=>!publishingFormatEnabled(v,(v.asset_ids||[]).map(id=>media.find(a=>a.id===id)?.mime_type),selected[i]?.format_authorizations,config)||v.format==='carousel'&&(v.asset_ids||[]).some(id=>!media.some(a=>a.id===id)));
  const executionReady=config.test_execution_configured===true||config.production_execution_enabled===true;
- let scheduledAt=null,dateError='';if(direct&&mode==='schedule'){try{scheduledAt=scheduleInstant(local,'Asia/Kuala_Lumpur');if(Date.parse(scheduledAt)<=Date.now())throw new Error('Choose a future publishing date and time.');}catch(e){dateError=e.message}}
- const ready=variants.length>0&&!videoBlocked&&executionReady&&!dateError&&selected.every(Boolean);
- return <section className="card p-4 space-y-3" aria-label="Publishing confirmation"><h3 className="font-semibold">{direct?'Confirm publishing':'External publishing approval'}</h3>
- {direct?<><AdminSegmentedControl label="Publishing action" value={mode} onChange={value=>{setMode(value);setAccepted(false)}} options={[{value:'now',label:'Publish Now'},{value:'schedule',label:'Schedule'}]}/>{mode==='schedule'?<DateTimePickerField label="Publishing" timezone="Asia/Kuala_Lumpur" value={local} onChange={value=>{setLocal(value);setAccepted(false)}} error={dateError}/>:null}<p className="text-sm">{content.status==='draft'?'Your publishing permissions allow you to confirm this saved revision without a separate review.':'This revision retains its existing approval.'} {mode==='now'?'Confirming may publish immediately.':'Confirming activates the chosen future schedule.'}</p></>:<p className="text-sm">Authorize revision {content.revision} for {stamp(content.scheduled_at)}. Posts due now may be sent immediately after authorization.</p>}
+ let intentError='';
+ if(direct){
+  if(!['now','schedule'].includes(mode))intentError='Return to the editor and choose Publish Now or Schedule.';
+  else if(mode==='schedule'&&(typeof scheduledAt!=='string'||!scheduledAt.includes('T')||!/(Z|[+-]\d{2}:\d{2})$/.test(scheduledAt)||!Number.isFinite(Date.parse(scheduledAt))||Date.parse(scheduledAt)<=Date.now()))intentError='Return to the editor and choose a valid future publishing date and time.';
+ }
+ const confirmation=JSON.stringify([savedFingerprint,selected,config]);
+ const ready=variants.length>0&&!videoBlocked&&executionReady&&!intentError&&selected.every(Boolean);
+ const accepted=acceptedFor===confirmation;
+ return <section className="space-y-4" aria-label="Publishing confirmation"><h3 className="font-semibold">{direct?'Publishing summary':'External publishing approval'}</h3>
+ <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm"><dt className="text-text-secondary">Brand</dt><dd className="font-medium break-words">{brandName||content.brand_name||'Brand unavailable'}</dd><dt className="text-text-secondary">Action</dt><dd>{direct?mode==='schedule'?'Schedule Publishing':mode==='now'?'Publish Now':'Choose in editor':'Authorize pending channels'}</dd>
+ {direct&&mode==='schedule'?<><dt className="text-text-secondary">Scheduled for</dt><dd>{Number.isFinite(Date.parse(scheduledAt))?stamp(scheduledAt):'Date and time required'}<span className="block text-xs text-text-secondary">Asia/Kuala_Lumpur</span></dd></>:null}</dl>
+ <ul className="divide-y divide-border rounded-xl border border-border">{variants.map((v,i)=><li className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm" key={v.channel}><span><strong>{label(v.channel)}</strong><span className="block text-text-secondary">{selected[i]?.account_name||'No enabled account for this format'}</span></span><span className="badge">{label(v.format)}</span></li>)}</ul>
+ {intentError?<p role="alert" className="text-sm text-rose-600">{intentError}</p>:null}
  {videoBlocked?<p role="status">Publishing for this format is disabled for the selected account or its media details are unavailable.</p>:null}{connections&&!executionReady?<p role="status">Publishing execution is disabled. The saved draft remains available.</p>:null}
- {variants.map((v,i)=><p className="text-sm" key={v.channel}>{label(v.channel)} → {selected[i]?.account_name||'No enabled account for this format'}{selected[i]?` · Meta account ${selected[i].provider_account_id}`:''}</p>)}
- {error?<p role="alert" className="text-sm text-rose-600">{error}</p>:null}<label className="flex gap-2 items-start text-sm"><input type="checkbox" checked={accepted} disabled={!ready||busy} onChange={e=>setAccepted(e.target.checked)}/>I approve sending this exact caption and media to the listed accounts.</label>
- <button className="btn-primary" disabled={!ready||!accepted||busy} onClick={async()=>{
-  if(sending.current)return;const generation=lifetime.current;sending.current=true;setBusy(true);setError('');
+ {error?<p role="alert" className="text-sm text-rose-600">{error}</p>:null}
+ <p className="text-sm text-text-secondary">{direct?mode==='schedule'?'This confirms the saved content for the time shown above.':mode==='now'?'This confirms the saved content for immediate publishing.':'Choose a publishing action in the editor.':'This authorizes only pending channels of the saved revision.'}</p>
+ <details className="text-sm text-text-secondary"><summary className="cursor-pointer">Connection details</summary><p className="mt-2">Saved revision {content.revision}</p>{selected.filter(Boolean).map(c=><p className="break-all" key={c.id}>{label(c.channel)} · {c.provider_account_id} · Connection version {c.credential_generation}</p>)}</details>
+ <label className="flex gap-2 items-start text-sm"><input type="checkbox" checked={accepted} disabled={!ready||busy} onChange={e=>setAcceptedFor(e.target.checked?confirmation:null)}/>I approve sending this exact caption and media to the listed accounts.</label>
+ <div className="flex flex-wrap justify-end gap-2">{direct&&onEdit?<button className="btn-secondary" disabled={busy} onClick={onEdit}>Back to editor</button>:null}<button className="btn-primary" disabled={!ready||!accepted||busy} onClick={async()=>{
+  if(sending.current||!ready||!accepted)return;const generation=lifetime.current;sending.current=true;setBusy(true);setError('');
   const payload=direct?{confirm:true,timezone:'Asia/Kuala_Lumpur',...(mode==='schedule'?{scheduled_at:scheduledAt}:{}),accounts:selected.map(c=>({connection_id:c.id,provider_account_id:c.provider_account_id,generation:c.credential_generation,channel:c.channel}))}:null;
-  const fp=JSON.stringify([content.id,content.revision,mode,payload,selected.map(c=>c.id)]);if(request.current?.fp!==fp)request.current={fp,id:crypto.randomUUID()};
-  try{if(direct)await marketingService.content({requestId:request.current.id,command:mode==='schedule'?'schedule_publish':'publish_now',organizationId:content.organization_id,brandId:content.brand_id,content,payload});else await marketingService.execute(request.current.id,content,selected.map(c=>c.id));if(generation===lifetime.current)onComplete();}catch(e){if(generation===lifetime.current)setError(e.message)}finally{sending.current=false;if(generation===lifetime.current)setBusy(false)}
- }}>{busy?'Confirming…':direct?mode==='schedule'?'Confirm Schedule':'Confirm Publish Now':'Authorize external publishing'}</button>
- {connections&&!ready?<p className="text-sm text-text-secondary">Publishing requires eligible enabled accounts, the current connection generation and an available execution policy. Resolve any reported prerequisite before confirming.</p>:null}</section>;
+  const fp=JSON.stringify([confirmation,payload]);if(request.current?.fp!==fp)request.current={fp,id:crypto.randomUUID()};
+  try{if(direct)await marketingService.content({requestId:request.current.id,command:mode==='schedule'?'schedule_publish':'publish_now',organizationId:content.organization_id,brandId:content.brand_id,content,payload});else await marketingService.execute(request.current.id,content,selected.map(c=>c.id));if(generation===lifetime.current)onComplete();}catch(e){if(generation===lifetime.current){setError(e.message);if(e.cause?.code==='40001'||e.cause?.code==='42501')setAcceptedFor(null);}}finally{sending.current=false;if(generation===lifetime.current)setBusy(false)}
+ }}>{busy?'Confirming…':direct?mode==='schedule'?'Confirm Schedule':'Confirm Publish':'Authorize external publishing'}</button></div>
+ {connections&&!ready?<p className="text-sm text-text-secondary">Resolve the reported prerequisites before confirming. Your saved content remains available.</p>:null}</section>;
 }
 
 export function SocialEvidence({ organizationId, brandId }) {

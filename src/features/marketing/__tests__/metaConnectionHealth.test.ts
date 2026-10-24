@@ -80,3 +80,19 @@ it('refreshes only the generation-bound Production publishing policy, independen
  await runConnectionHealth(db,{withSignal(){return this}} as any,{appId:'app'},['key']);
  expect(db.rpc).toHaveBeenCalledWith('marketing_meta_execution_policy',{p_connection:'fixture',p_generation:1,p_enabled:false});
 });
+
+it.each([
+ ['Idamans','622626120924115',3],['Happiness','106367211603584',1],['Hola','113234221623434',1],['JYMT','1040350135817796',1],['Friends Corner','860213937170340',1],['Future verified Brand','999999999999',1]
+])('normal onboarding verifies and activates only canonical standard publishing for %s',async(_brand,account,generation)=>{
+ const values:Record<string,string>={SUPABASE_URL:'https://oyfobxdoyfuzsodogpgs.supabase.co',MARKETING_ENVIRONMENT:'production',MARKETING_META_APP_ID:'2182829996001809',MARKETING_META_LOGIN_CONFIG_ID:'2027095767950085',MARKETING_META_PUBLISHING_ENABLED:'true',MARKETING_META_PUBLISHING_MODE:'normal'};
+ vi.stubGlobal('Deno',{env:{get:(key:string)=>values[key]}});
+ for(const channel of ['facebook','instagram']){
+  const db=database(),original=db.rpc.getMockImplementation()!;
+  db.rpc.mockImplementation(async(name:string,...args:any[])=>name==='marketing_meta_diagnostic_material'?{data:{...material,status:'test_authorized',channel,credential_generation:generation,provider_account_id:account},error:null}:original(name,...args));
+  await runConnectionHealth(db,{withSignal(){return this}} as any,{appId:'app'},['key']);
+  expect(db.rpc).toHaveBeenCalledWith('marketing_meta_record_eligibility',expect.objectContaining({p_generation:generation,p_verified:true}));
+  expect(db.rpc).toHaveBeenCalledWith('marketing_meta_execution_policy',{p_connection:'fixture',p_generation:generation,p_enabled:true});
+  expect(db.rpc.mock.calls.filter(([name])=>name==='marketing_meta_execution_policy')).toHaveLength(1);
+  expect(db.rpc.mock.calls.some(([name,args])=>name==='marketing_meta_execution_policy'&&(args as any).p_format)).toBe(false);
+ }
+});
