@@ -165,6 +165,27 @@ begin
   perform marketing_private.record_publication_availability(c.id,1,l,jsonb_build_array(sample||'{"state":"available","reason":"provider_observed"}'));
   v:=marketing_private.publication_availability_projection(c.id,1,c.provider_account_id,target);
   assert v->>'provider_state'='available' and not(v#>>'{calendar_visibility,hidden}')::boolean,'Authoritative positive read recovers Calendar';
+  -- Reconnect: older receipt generation cannot reuse its streak, but NEW proof may describe the same account/post.
+  l:=gen_random_uuid();update marketing_connections set credential_generation=2,sync_lease=l where id=c.id;
+  perform marketing_private.record_publication_availability(c.id,2,l,batch);
+  assert(select jsonb_array_length(calendar_checks)=1 from marketing_private.publication_availability where connection_id=c.id and connection_generation=2 and provider_post_id=target),'Old generation streak is never copied';
+  assert not(marketing_private.publication_availability_projection(c.id,1,c.provider_account_id,target)#>>'{calendar_visibility,hidden}')::boolean,'Historical receipt stays visible until new-generation proof is complete';
+  checks:=marketing_private.advance_calendar_checks('[]',sample||'{"_calendar_isolated_verified":true}',gen_random_uuid(),at_time,now()-interval '2 days');
+  checks:=marketing_private.advance_calendar_checks(checks,sample||'{"_calendar_isolated_verified":true}',gen_random_uuid(),at_time+interval '6 hours',now()-interval '2 days');
+  update marketing_private.publication_availability set calendar_checks=checks where connection_id=c.id and connection_generation=2 and provider_post_id=target;
+  l:=gen_random_uuid();update marketing_connections set sync_lease=l where id=c.id;
+  perform marketing_private.record_publication_availability(c.id,2,l,batch);
+  v:=marketing_private.publication_availability_projection(c.id,1,c.provider_account_id,target);
+  if v#>>'{manual_confirmation,state}'='conflict' then
+   assert not(v#>>'{calendar_visibility,hidden}')::boolean,'Manual conflict remains visible even with fresh current-generation negative checks';
+   perform marketing_publication_availability_command(gen_random_uuid(),c.id,target,(v->>'manual_revision')::integer,'clear_manual');
+  end if;
+  assert(marketing_private.publication_availability_projection(c.id,1,c.provider_account_id,target)#>>'{calendar_visibility,hidden}')::boolean,'Fresh current-generation proof can hide the historical same-account receipt';
+  assert not(marketing_private.publication_availability_projection(c.id,3,c.provider_account_id,target)#>>'{calendar_visibility,hidden}')::boolean,'Impossible future generation stays visible';
+  assert not(marketing_private.publication_availability_projection(c.id,1,'999999999995',target)#>>'{calendar_visibility,hidden}')::boolean,'Changed account identity cannot inherit visibility proof';
+  perform marketing_private.record_publication_availability(c.id,2,l,jsonb_build_array(sample||'{"state":"available","reason":"provider_observed"}'));
+  assert not(marketing_private.publication_availability_projection(c.id,1,c.provider_account_id,target)#>>'{calendar_visibility,hidden}')::boolean,'Current positive recovery also restores historical receipts';
+
  end loop;
  assert(select count(*)=2 and bool_and(state='succeeded') from marketing_jobs where content_id=(select id from marketing_qa_ids where key='content')),'Receipts unchanged';
  assert(select sum((metrics->>'views')::int)=40 from marketing_social_posts where brand_id=(select id from marketing_qa_ids where key='brand')),'Insights unchanged';
