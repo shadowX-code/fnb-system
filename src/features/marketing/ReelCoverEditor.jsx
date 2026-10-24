@@ -13,11 +13,11 @@ export default function ReelCoverEditor({variant,brand,assets,onChange,onAssetsR
  const previewKey=JSON.stringify([brand.organization_id,brand.id,videoId,cover.mode,imageId,offset,video?.id,video?.state,image?.id,image?.state,retry]);
  useEffect(()=>{
   const controller=new AbortController();let objectUrl;setPreview({key:previewKey,url:'',state:videoId?'loading':'empty',error:''});
-  if(!videoId)return()=>controller.abort();
+  if(!videoId||cover.mode==='image'&&!imageId){setPreview({key:previewKey,url:'',state:'empty',error:''});return()=>controller.abort();}
   const timer=setTimeout(async()=>{
    try{
     if(cover.mode==='image'){
-     if(!image)throw new Error('Choose a 9:16 JPEG cover to preview.');
+     if(!image)throw new Error('Selected cover details are unavailable. Reopen the Media Library.');
      const url=await marketingService.assetUrl(image);if(!controller.signal.aborted)setPreview({key:previewKey,url,state:'ready',error:''});
     }else{
      if(!video)throw new Error('Selected video details are unavailable. Reopen the Media Library.');
@@ -33,13 +33,13 @@ export default function ReelCoverEditor({variant,brand,assets,onChange,onAssetsR
  // Metadata callbacks do not restart extraction or cross a Brand/channel boundary.
  },[previewKey]);
  const current=preview.key===previewKey?preview:{state:'loading',url:''};
- function select(mode){onChange(mode==='automatic'?{mode}:{mode,video_asset_id:videoId,...(mode==='frame'?{offset_ms:0}:{asset_id:''})});}
+ function select(mode){if(mode===cover.mode)return;onChange(mode==='automatic'?{mode}:{mode,video_asset_id:videoId,...(mode==='frame'?{offset_ms:0}:{asset_id:''})});}
  return <section className="post-reel-cover" aria-label={`${instagram?'Instagram':'Facebook'} Reel cover`}>
  <div className="post-reel-cover-heading"><h4>Reel cover</h4><span>{instagram?'Instagram only':'Selected by Facebook'}</span></div>
  {instagram?<><AdminSegmentedControl label="Instagram cover source" value={cover.mode} onChange={select} options={[{value:'automatic',label:'Automatic',disabled},{value:'frame',label:'Video frame',disabled:disabled||!videoId},{value:'image',label:'Custom image',disabled:disabled||!videoId}]}/>
  {cover.mode==='frame'?<AdminFormField label="Frame time (seconds)" helper="Uses this frame from the selected video. H.264 MP4 required."><input className="control" type="number" min="0" max="3600" step="0.1" value={Number.isFinite(offset)?offset/1000:''} disabled={disabled} onChange={e=>onChange({...cover,offset_ms:e.target.value===''?null:Math.round(Number(e.target.value)*1000)})}/></AdminFormField>:null}
  {cover.mode==='image'?<><MarketingMediaPicker brand={brand} channel="instagram" format="reel_cover" values={imageId?[imageId]:[]} assets={assets} disabled={disabled} thumbnailPreviews onAssetsResolved={onAssetsResolved} onChange={ids=>onChange(ids.length?{mode:'image',video_asset_id:videoId,asset_id:ids[0]}:{mode:'automatic'})}/><p className="post-editor-help">9:16 JPEG · 540–1440 pixels wide · up to 8 MB. The original video stays unchanged.</p></>:null}</>:<p className="post-editor-help">The Page Reel publishing API does not provide verified custom-cover controls. Facebook selects the published cover.</p>}
- <div className="post-cover-placements" aria-busy={current.state==='loading'}>{[{key:'reel',label:'Reel · 9:16'},...(instagram?[{key:'grid',label:'Profile grid · 3:4'}]:[])].map(placement=><figure key={placement.key}><div className={`post-cover-image post-cover-${placement.key}`}>{current.url?<img src={current.url} alt={`${placement.key==='grid'?'Profile grid':'Reel'} cover preview`} onLoad={e=>{if(imageId)onMetadata?.(imageId,{width:e.currentTarget.naturalWidth,height:e.currentTarget.naturalHeight})}} onError={()=>setPreview({key:previewKey,url:'',state:'error',error:'Cover image could not be loaded.'})}/>:<span><ImageIcon size={18}/>{current.state==='loading'?'Loading preview…':videoId?'Preview unavailable':'Choose a video'}</span>}</div><figcaption>{placement.label}</figcaption></figure>)}</div>
+ <div className="post-cover-placements" aria-busy={current.state==='loading'}>{[{key:'reel',label:'Reel · 9:16'},...(instagram?[{key:'grid',label:'Profile grid · 3:4'}]:[])].map(placement=><figure key={placement.key}><div className={`post-cover-image post-cover-${placement.key}`}>{current.url?<img src={current.url} alt={`${placement.key==='grid'?'Profile grid':'Reel'} cover preview`} onLoad={e=>{if(imageId)onMetadata?.(imageId,{width:e.currentTarget.naturalWidth,height:e.currentTarget.naturalHeight})}} onError={()=>setPreview({key:previewKey,url:'',state:'error',error:'Cover image could not be loaded.'})}/>:<span><ImageIcon size={18}/>{current.state==='loading'?'Loading preview…':current.state==='empty'?videoId?'Choose a cover':'Choose a video':'Preview unavailable'}</span>}</div><figcaption>{placement.label}</figcaption></figure>)}</div>
  <p className="post-editor-help">{instagram?'Placement previews use a center crop; Meta controls final placement and may adjust cropping.':'First-frame preview only; it does not control Facebook’s cover.'}</p>
  {current.error?<div className="post-cover-error" role="status"><span>{current.error}</span>{videoId?<button type="button" className="btn-secondary" disabled={disabled} onClick={()=>setRetry(v=>v+1)}>Retry preview</button>:null}</div>:null}
  </section>;
