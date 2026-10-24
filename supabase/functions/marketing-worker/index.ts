@@ -64,8 +64,8 @@ Deno.serve(async(req)=>{
     const state=job.provider_state||{},assets=await call(db,'marketing_job_assets',{p_job:job.id,p_lease:job.lease_token});
     const mediaTypes=variant.asset_ids.map((id:string)=>assets.find((a:any)=>a.id===id)?.mime_type);
     const extendedInstagram=job.channel==='instagram'&&(variant.format==='story'||variant.format==='carousel'&&mediaTypes.includes('video/mp4'));
-    const extendedReadOnly=extendedInstagram&&!instagramExtendedConfigured(env);
-    if(extendedReadOnly&&!state.pending&&!state.post_id&&!state.objects?.container)throw new MetaError('instagram_extended_not_enabled');
+    const extendedReadOnly=extendedInstagram&&(!instagramExtendedConfigured(env)||connection.instagram_extended_authorized!==true);
+    if(extendedReadOnly&&!state.pending&&!state.post_id&&!state.objects?.container&&!Object.keys(state.objects||{}).some(k=>/^child_\d+$/.test(k)))throw new MetaError('instagram_extended_not_enabled');
     if(variant.format==='story'&&eligibility.publishing_evidence?.story_business_verified!==true)throw new MetaError('instagram_story_business_unverified');
     const checkpoint=(s:any)=>call(db,'marketing_job_checkpoint',{p_job:job.id,p_lease:job.lease_token,p_state:s});
     state.verified_assets||=[];
@@ -82,12 +82,12 @@ Deno.serve(async(req)=>{
     } else {
      const mediaUrls=[];
      // Do not request signed URLs while only reconciling an existing receipt.
-     if(job.state!=='reconciling'&&!state.pending&&!state.post_id)for(const id of variant.asset_ids) {
+     if(job.state!=='reconciling'&&!videoReadOnly&&!extendedReadOnly&&!state.pending&&!state.post_id)for(const id of variant.asset_ids) {
       const asset=assets.find((a:any)=>a.id===id);if(!asset)throw new MetaError('media_source_unavailable');
       const {data,error}=await db.storage.from('marketing-media').createSignedUrl(asset.object_path,3600);
       if(error||!data)throw new MetaError('media_source_unavailable',false,true);mediaUrls.push(data.signedUrl);
      }
-     result=await advanceMetaPublish({graph,accountId:connection.provider_account_id,token,variant,mediaUrls,mediaTypes,state,checkpoint,guard:async()=>{await guard();},allowFacebookReceiptLookup:(postId)=>job.state!=='reconciling'||facebookReceiptRecoveryAllowed(job,env,Date.now(),postId),submissionGuard:async()=>{if(!facebookVideoConfigured(env))throw new MetaError('facebook_video_not_enabled');await guard(true);},reconcileOnly:job.state==='reconciling'||videoReadOnly||extendedReadOnly});
+     result=await advanceMetaPublish({graph,accountId:connection.provider_account_id,token,variant,mediaUrls,mediaTypes,state,checkpoint,guard:async()=>{await guard();},allowFacebookReceiptLookup:(postId)=>job.state!=='reconciling'||facebookReceiptRecoveryAllowed(job,env,Date.now(),postId),submissionGuard:async()=>{if(facebookVideo&&!facebookVideoConfigured(env))throw new MetaError('facebook_video_not_enabled');if(extendedInstagram&&!instagramExtendedConfigured(env))throw new MetaError('instagram_extended_not_enabled');await guard(true);},reconcileOnly:job.state==='reconciling'||videoReadOnly||extendedReadOnly});
     }
    }catch(error){result={outcome:error instanceof MetaError&&!error.uncertain?(error.retryable?'retryable_failure':'permanent_failure'):'uncertain',code:error instanceof MetaError?error.code:'publishing_authority_changed'};}
    if(job.state==='reconciling'&&result.outcome!=='published')result={outcome:'uncertain',code:result.code||'manual_reconciliation_required'};

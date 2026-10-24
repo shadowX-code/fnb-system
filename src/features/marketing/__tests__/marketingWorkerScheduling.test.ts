@@ -79,3 +79,16 @@ it.each([false,true])('keeps existing Video reconciliation read-only and lookup 
  expect(fixture.db.rpc.mock.calls.some(([name])=>name==='marketing_claim_job')).toBe(false);
  expect(fixture.db.rpc.mock.calls.find(([name])=>name==='marketing_finish_job')?.[1]).toMatchObject({p_job:job.id,p_outcome:'uncertain'});
 });
+it.each([false,true])('preserves partial Instagram carousel checkpoints with current Extended authorization=%s',async authorized=>{
+ const job={id:'existing-mixed-job',connection_id:'connection',connection_generation:1,lease_token:'lease',channel:'instagram',state:'leased',provider_state:{objects:{child_0:'800'},verified_assets:['image','video']},payload:{variants:[{channel:'instagram',format:'carousel',caption:'retained',asset_ids:['image','video']}]}};
+ const baseGet=(globalThis as any).Deno.env.get;(globalThis as any).Deno.env.get=(key:string)=>key==='MARKETING_META_INSTAGRAM_EXTENDED_ENABLED'?'true':baseGet(key);
+ fixture.db.storage.from.mockReturnValue({createSignedUrl:vi.fn().mockResolvedValue({data:{signedUrl:'https://private.example/fixture'},error:null})});
+ fixture.db.rpc.mockImplementation(async(name:string,args:any)=>({data:name==='marketing_claim_job'?job:name==='marketing_job_guard'?{id:'connection',channel:'instagram',credential_generation:1,status:'test_authorized',provider_account_id:'111',instagram_extended_authorized:authorized,capabilities:{formats:['carousel']}}:name==='marketing_meta_connection_material'?{credential_generation:1,sealed_token:{}}:name==='marketing_job_assets'?[{id:'image',mime_type:'image/jpeg'},{id:'video',mime_type:'video/mp4'}]:null,error:name==='marketing_job_guard'&&args.p_submission&&!authorized?{message:'Expired authorization'}:null}));
+ fixture.publish.mockImplementationOnce(async(input:any)=>{
+  expect(input.reconcileOnly).toBe(!authorized);expect(input.state.objects).toEqual({child_0:'800'});
+  if(authorized)await expect(input.submissionGuard()).resolves.toBeUndefined();else await expect(input.submissionGuard()).rejects.toThrow();
+  return {outcome:'uncertain',code:'manual_reconciliation_required'};
+ });
+ expect((await tick()).status).toBe(200);expect(fixture.publish).toHaveBeenCalledOnce();
+ if(!authorized)expect(fixture.db.storage.from).not.toHaveBeenCalled();
+});

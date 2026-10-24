@@ -6,7 +6,7 @@ const variant={channel:'facebook' as const,format:'carousel',caption:'Reviewed c
 function harness(request:any=vi.fn()) {
  let ledger:MetaLedger={};const checkpoints:MetaLedger[]=[];
  const checkpoint=async(s:MetaLedger)=>{ledger=structuredClone(s);checkpoints.push(ledger);};const guard=vi.fn().mockResolvedValue(undefined);
- return {request,guard,checkpoints,run:(patch:any={})=>advanceMetaPublish({graph:{request} as any,accountId:'111',token:'unit-token',variant,mediaUrls:['https://example.invalid/a','https://example.invalid/b'],state:ledger,checkpoint,guard,...patch}),getState:()=>ledger};
+ return {request,guard,checkpoints,run:(patch:any={})=>advanceMetaPublish({graph:{request,withWriteGuard:(authorize:any)=>({request:async(...args:any[])=>{await authorize();return request(...args)}})} as any,accountId:'111',token:'unit-token',variant,mediaUrls:['https://example.invalid/a','https://example.invalid/b'],state:ledger,checkpoint,guard,...patch}),getState:()=>ledger};
 }
 describe('durable Meta publishing',()=>{
  it('checkpoints unpublished Facebook uploads once and uses the actual feed receipt',async()=>{
@@ -24,7 +24,7 @@ describe('durable Meta publishing',()=>{
  it('retains uncertainty when persistence fails after Meta accepted a post',async()=>{
   let saved:MetaLedger={};const request=vi.fn().mockResolvedValue({id:'111_904'}),guard=vi.fn().mockResolvedValue(undefined);
   const checkpoint=async(s:MetaLedger)=>{if(s.post_id)throw new Error('db unavailable');saved=structuredClone(s);};
-  const input={graph:{request} as any,accountId:'111',token:'unit',variant:{...variant,format:'text',asset_ids:[]},mediaUrls:[],checkpoint,guard};
+  const input={graph:{request,withWriteGuard:(authorize:any)=>({request:async(...args:any[])=>{await authorize();return request(...args)}})} as any,accountId:'111',token:'unit',variant:{...variant,format:'text',asset_ids:[]},mediaUrls:[],checkpoint,guard};
   expect((await advanceMetaPublish({...input,state:{}})).outcome).toBe('uncertain');
   expect((await advanceMetaPublish({...input,state:saved})).outcome).toBe('uncertain');expect(request).toHaveBeenCalledTimes(1);
  });
@@ -74,14 +74,14 @@ describe('source-backed synchronization',()=>{
 
 it('preserves mixed carousel order and waits for the video child before creating the parent',async()=>{
  const request=vi.fn().mockResolvedValueOnce({id:'901'}).mockResolvedValueOnce({id:'902'}).mockResolvedValueOnce({status_code:'IN_PROGRESS'}).mockResolvedValueOnce({status_code:'FINISHED'}).mockResolvedValueOnce({id:'903'}).mockResolvedValueOnce({status_code:'FINISHED'}).mockResolvedValueOnce({id:'904'}),h=harness(request);
- const patch={variant:{...variant,channel:'instagram',format:'carousel'},mediaTypes:['video/mp4','image/jpeg']};
+ const patch={variant:{...variant,channel:'instagram',format:'carousel'},mediaTypes:['video/mp4','image/jpeg'],submissionGuard:vi.fn().mockResolvedValue(undefined)};
  for(let i=0;i<5;i++)expect((await h.run(patch)).outcome).toBe('waiting');
  expect(request.mock.calls[0][2]).toEqual({media_type:'VIDEO',video_url:'https://example.invalid/a',is_carousel_item:true});
  expect(request.mock.calls[4][2]).toEqual({media_type:'CAROUSEL',children:['901','902'],caption:variant.caption});
  expect(await h.run(patch)).toEqual({outcome:'published',postId:'904'});expect(JSON.stringify(h.getState())).not.toContain('https:');
 });
 it.each(['image/jpeg','video/mp4'])('creates a Story container without claiming caption/sticker support (%s)',async mime=>{
- const h=harness(vi.fn().mockResolvedValueOnce({id:'801'}));await h.run({variant:{...variant,channel:'instagram',format:'story',asset_ids:['a']},mediaUrls:['https://example.invalid/a'],mediaTypes:[mime]});
+ const h=harness(vi.fn().mockResolvedValueOnce({id:'801'}));await h.run({variant:{...variant,channel:'instagram',format:'story',asset_ids:['a']},mediaUrls:['https://example.invalid/a'],mediaTypes:[mime],submissionGuard:vi.fn().mockResolvedValue(undefined)});
  expect(h.request.mock.calls[0][2]).toEqual({media_type:'STORIES',[mime==='video/mp4'?'video_url':'image_url']:'https://example.invalid/a'});
 });
 it('retains generic pending intent when authority fails after persistence, without a Meta write',async()=>{const h=harness();h.guard.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new MetaError('scope_changed'));expect((await h.run()).outcome).toBe('uncertain');expect(h.request).not.toHaveBeenCalled();expect(h.getState().pending).toBe('photo_0');});
