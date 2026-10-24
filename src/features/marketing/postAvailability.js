@@ -14,8 +14,8 @@ export function liveAvailabilityInfo(availability){
 export function publicationAvailability(channels){
  const posts=(channels||[]).filter(c=>c.provider_post_id);if(!posts.length)return null;
  const states=posts.map(p=>LIVE_AVAILABILITY[p.availability?.state]?p.availability.state:'unknown'),unique=[...new Set(states)];
- const details=posts.map(p=>`${p.channel==='instagram'?'Instagram':'Facebook'}: ${liveAvailabilityInfo(p.availability).label}`).join(' · ');
- if(unique.length===1)return {...liveAvailabilityInfo(posts[0].availability),details,state:unique[0]};
+ const details=posts.map(p=>`${p.channel==='instagram'?'Instagram':'Facebook'}: ${liveAvailabilityInfo(p.availability).label}${p.availability?.manual_confirmation?.state==='conflict'?' (staff confirmation conflict)':''}`).join(' · ');
+ if(unique.length===1)return {...liveAvailabilityInfo((posts.find(p=>p.availability?.manual_confirmation?.state==='conflict')||posts[0]).availability),details,state:unique[0]};
  if(states.every(s=>['deleted','manually_removed'].includes(s)))return {state:'removed',label:'Removed · mixed confirmation',tone:'warning',help:'Every published channel is confirmed removed. Review each channel for provider or staff provenance. Original receipts and historical Insights remain intact.',details};
  return {state:'partial',label:states.some(s=>['deleted','manually_removed'].includes(s))?'Partly removed':states.includes('unavailable')?'Partly unavailable':'Partly checked',tone:'warning',help:'Channel availability differs. Publication receipts and channel results remain independent.',details};
 }
