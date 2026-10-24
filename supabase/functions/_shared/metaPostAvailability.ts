@@ -24,7 +24,7 @@ export async function observePostAvailability(graph:MetaGraph,connection:{channe
   observations.push(observation);
   if(connection.provider_account_id){
    observation.graph_error_code=Number(code)||0;observation.graph_error_subcode=subcode;
-   const isolated=connection.channel==='facebook'?code===10:code===100&&subcode===33;
+   const isolated=!(error instanceof MetaError&&error.retryable)&&(connection.channel==='facebook'?code===10:code===100&&subcode===33);
    const control=isolated&&posts.find(p=>p.id!==target.id&&idPattern.test(p.id)&&p.media_product_type!=='STORY'&&(connection.channel!=='facebook'||p.id.split('_')[0]===connection.provider_account_id));
    if(control){
     // One additional exact-object GET, same token/fields and lease. No feed absence or error proves deletion.

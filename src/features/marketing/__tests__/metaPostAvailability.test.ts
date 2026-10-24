@@ -76,3 +76,11 @@ it('no live control, another Page control or Story cannot qualify',async()=>{
   const g=graph({error:{code:10}},400);const result=await observePostAvailability(g.client,{channel:'facebook',provider_account_id:'111'},'fixture-token',posts,[{id:'111_222'}],vi.fn());expect(g.transport).toHaveBeenCalledTimes(1);expect(result.find(o=>o.id==='111_222')?.calendar_control_id).toBeUndefined();
  }
 });
+
+it.each([429,500,503])('retryable HTTP %s never qualifies even if Meta reuses object error code 10',async status=>{
+ const g=graph({error:{code:10}},status);const result=await observePostAvailability(g.client,{channel:'facebook',provider_account_id:'111'},'fixture-token',[{id:'111_444'}],[{id:'111_222'}],vi.fn());
+ expect(g.transport).toHaveBeenCalledTimes(1);expect(result.find(o=>o.id==='111_222')?.calendar_control_id).toBeUndefined();expect(result.find(o=>o.id==='111_222')).toMatchObject({calendar_control_check:true});
+});
+it('transient Meta object errors cannot qualify on a successful HTTP transport',async()=>{
+ const g=graph({error:{code:10,is_transient:true}},400);const result=await observePostAvailability(g.client,{channel:'facebook',provider_account_id:'111'},'fixture-token',[{id:'111_444'}],[{id:'111_222'}],vi.fn());expect(g.transport).toHaveBeenCalledTimes(1);expect(result.find(o=>o.id==='111_222')?.calendar_control_id).toBeUndefined();
+});
