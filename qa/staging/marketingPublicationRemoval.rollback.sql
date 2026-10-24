@@ -72,6 +72,7 @@ reset role;
 do $$
 declare f uuid:=(select id from marketing_qa_ids where key='fb');l uuid:=(select id from marketing_qa_ids where key='lease');r jsonb;
 begin
+ assert marketing_meta_availability_targets(f,1,l)->0->>'require_object_read'='true','Manual confirmation requires exact-object recovery';
  perform marketing_private.record_publication_availability(f,1,l,'[{"id":"999999999998_777","state":"access_restricted","source":"object_read","reason":"permission_or_token"}]');
  r:=marketing_private.publication_availability_projection(f,1,'999999999998','999999999998_777');
  assert r->>'state'='manually_removed' and r->>'provider_state'='access_restricted','Ambiguous provider failure retains manual evidence';
