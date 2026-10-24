@@ -1,6 +1,13 @@
 import {it,expect} from 'vitest';
 import {publicationAvailability,liveAvailabilityInfo} from '../postAvailability.js';
 const channel=(channel,state)=>({channel,provider_post_id:channel==='facebook'?'111_222':'333',status:'published',availability:{state}});
+it('explains Calendar eligibility without changing canonical availability or claiming deletion',()=>{
+ const evidence={state:'unavailable',calendar_visibility:{hidden:true}};
+ expect(liveAvailabilityInfo(evidence)).toMatchObject({label:'Unavailable on Meta',tone:'warning'});
+ expect(liveAvailabilityInfo(evidence).help).toContain('every channel qualifies');
+ expect(liveAvailabilityInfo(evidence).help).toContain('does not prove deletion');
+ expect(evidence.state).toBe('unavailable');
+});
 it('distinguishes manual from provider proof and keeps mixed confirmed removal explicit',()=>{
  expect(liveAvailabilityInfo({state:'manually_removed'}).help).toContain('not provider-verified');
  expect(publicationAvailability([channel('facebook','deleted'),channel('instagram','manually_removed')])).toMatchObject({state:'removed',label:'Removed · mixed confirmation'});

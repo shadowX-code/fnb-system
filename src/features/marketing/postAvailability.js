@@ -8,7 +8,8 @@ export const LIVE_AVAILABILITY={
  unknown:{label:'Not checked',tone:'neutral',help:'Current provider availability has not been verified. Published describes the historical publication receipt.'}
 };
 export function liveAvailabilityInfo(availability){
- const info=LIVE_AVAILABILITY[availability?.state]||LIVE_AVAILABILITY.unknown;
+ const base=LIVE_AVAILABILITY[availability?.state]||LIVE_AVAILABILITY.unknown;
+ const info=availability?.calendar_visibility?.hidden?{...base,help:base.help+' Repeated checks qualify this channel for default Calendar hiding when every channel qualifies. List and publication history remain available.'}:base;
  return availability?.manual_confirmation?.state==='conflict'?{...info,tone:'warning',help:info.help+' Meta observed this post live after the staff confirmation. Review the conflicting evidence.'}:info;
 }
 export function publicationAvailability(channels){
