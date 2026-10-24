@@ -52,7 +52,7 @@ it('wires video submissions to fresh canonical submission authority rather than 
  fixture.db.rpc.mockImplementation(async(name:string,args:any)=>{
   if(name==='marketing_job_guard'&&args.p_submission&&revoked)return {data:null,error:{message:'expired'}};
   return {data:name==='marketing_claim_job'?{id:'job',lease_token:'lease',channel:'facebook',state:'leased',payload:{variants:[{channel:'facebook',format:'video',asset_ids:[]}]}}:
-   name==='marketing_job_guard'?{id:'connection',channel:'facebook',credential_generation:1,status:'test_authorized',provider_account_id:'111',facebook_video_authorized:true,capabilities:{formats:['video']}}:
+   name==='marketing_job_guard'?{id:'connection',channel:'facebook',credential_generation:1,status:'test_authorized',provider_account_id:'111',facebook_video_authorized:true,format_authorizations:{facebook_video:'temporary'},capabilities:{formats:['video']}}:
    name==='marketing_meta_connection_material'?{credential_generation:1,sealed_token:{}}:
    name==='marketing_job_assets'||name==='marketing_privacy_journal_pending'?[]:null,error:null};
  });
@@ -91,4 +91,18 @@ it.each([false,true])('preserves partial Instagram carousel checkpoints with cur
  });
  expect((await tick()).status).toBe(200);expect(fixture.publish).toHaveBeenCalledOnce();
  if(!authorized)expect(fixture.db.storage.from).not.toHaveBeenCalled();
+});
+it.each([['facebook','video','facebook_video'],['facebook','reel','facebook_reel'],['instagram','carousel','instagram_mixed_carousel']])('routine %s/%s pins authority and reaches the shared adapter with QA gates off',async(channel,format,key)=>{
+ const job={id:'routine-job',channel,state:'leased',lease_token:'lease',provider_state:{verified_assets:['pic','vid']},payload:{variants:[{channel,format,asset_ids:format==='carousel'?['pic','vid']:['vid']} ]}};
+ const c={id:'connection',channel,credential_generation:1,status:'test_authorized',provider_account_id:'111',format_authorizations:{[key]:'routine'},capabilities:{formats:[format]}};
+ fixture.db.storage.from.mockReturnValue({createSignedUrl:vi.fn().mockResolvedValue({data:{signedUrl:'https://private.test/fixture'},error:null})});
+ fixture.db.rpc.mockImplementation(async(name:string)=>({data:name==='marketing_claim_job'?job:name==='marketing_job_guard'?c:name==='marketing_meta_connection_material'?{credential_generation:1,sealed_token:{}}:name==='marketing_job_assets'?[{id:'pic',mime_type:'image/jpeg',object_path:'pic'},{id:'vid',mime_type:'video/mp4',object_path:'vid'}]:name==='marketing_privacy_journal_pending'?[]:null,error:null}));
+ fixture.publish.mockImplementationOnce(async input=>{expect(input.state.format_authorization_kind).toBe('routine');expect(input.reconcileOnly).toBe(false);await input.submissionGuard();c.format_authorizations={};await expect(input.submissionGuard()).rejects.toThrow('format_execution_disabled');return {outcome:'uncertain',code:'admitted_result_unavailable'};});
+ await tick();expect(fixture.publish).toHaveBeenCalledOnce();expect(fixture.db.rpc).toHaveBeenCalledWith('marketing_job_checkpoint',expect.objectContaining({p_state:expect.objectContaining({format_authorization_kind:'routine'})}));
+});
+it('a later QA lease cannot resume an existing routine-prepared mixed job',async()=>{
+ const get=Deno.env.get;(globalThis as any).Deno.env.get=(key:string)=>key==='MARKETING_META_INSTAGRAM_EXTENDED_ENABLED'?'true':get(key);
+ const job={id:'held',channel:'instagram',state:'leased',lease_token:'lease',provider_state:{format_authorization_kind:'routine',verified_assets:['pic','vid'],objects:{child_0:'800'}},payload:{variants:[{channel:'instagram',format:'carousel',asset_ids:['pic','vid']} ]}};
+ fixture.db.rpc.mockImplementation(async(name:string)=>({data:name==='marketing_claim_job'?job:name==='marketing_job_guard'?{id:'connection',channel:'instagram',credential_generation:1,status:'test_authorized',provider_account_id:'111',format_authorizations:{instagram_mixed_carousel:'temporary'},capabilities:{formats:['carousel']}}:name==='marketing_meta_connection_material'?{credential_generation:1,sealed_token:{}}:name==='marketing_job_assets'?[{id:'pic',mime_type:'image/jpeg'},{id:'vid',mime_type:'video/mp4'}]:name==='marketing_privacy_journal_pending'?[]:null,error:null}));
+ fixture.publish.mockImplementationOnce(async input=>{expect(input.reconcileOnly).toBe(true);await expect(input.submissionGuard()).rejects.toThrow('format_execution_disabled');return {outcome:'uncertain',code:'retain_existing_child'};});await tick();expect(fixture.publish).toHaveBeenCalledOnce();expect(fixture.db.storage.from).not.toHaveBeenCalled();
 });

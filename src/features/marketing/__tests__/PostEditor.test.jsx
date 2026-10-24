@@ -36,9 +36,9 @@ it('reuses one existing MP4 across channels without copying captions or importin
  fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));expect(screen.getByLabelText(/Instagram caption/).value).toBe('IG independent');expect(screen.getByRole('button',{name:'Remove Shared.mp4'})).toBeTruthy();
 });
 
-it('keeps Stories unavailable without exact verified Business capability while preserving other formats',async()=>{
+it('keeps Stories unavailable independently of Business capability while preserving other formats',async()=>{
  render(<Harness/>);await screen.findByText(/No currently eligible account/);fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Instagram format'}));
- const story=screen.getByRole('option',{name:'Story · Business verification required'});expect(story.disabled).toBe(true);expect(screen.getByRole('option',{name:'Reel',exact:true}).disabled).toBe(false);
+ const story=screen.getByRole('option',{name:'Story · execution disabled'});expect(story.disabled).toBe(true);expect(screen.getByRole('option',{name:'Reel',exact:true}).disabled).toBe(false);
 });
 
 it('uses independent accessible channel chips and restores deselected variants with media and draft text',async()=>{render(<Harness/>);await screen.findByText(/No currently eligible account/);const fb=screen.getByRole('button',{name:'Facebook',exact:true}),ig=screen.getByRole('button',{name:'Instagram',exact:true});expect(fb.getAttribute('aria-pressed')).toBe('true');fireEvent.click(ig);expect(screen.queryByRole('tab',{name:'Instagram',exact:true})).toBeNull();fireEvent.click(ig);expect(screen.getByLabelText(/Instagram caption/).value).toBe('IG caption');expect(screen.getByRole('button',{name:'Remove Real.jpg'})).toBeTruthy();fireEvent.click(fb);fireEvent.click(ig);expect(screen.queryByRole('group',{name:'Caption saved text'})).toBeNull();fireEvent.click(fb);expect(screen.getByLabelText(/Facebook caption/).value).toBe('FB caption');});
