@@ -14,11 +14,11 @@ export const driveService={
   const response=await fetch(base+'/preview',{method:'POST',headers:{Authorization:`Bearer ${data.session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({organizationId:org,brandId:brand,fileId:file.selection_id||file.id,version:file.version,representation}),signal,cache:'no-store'});
   if(!response.ok){let message='Media preview unavailable.';try{message=(await response.json()).error||message;}catch{}throw new Error(message);}return response.blob();
  },
- import:(org,brand,file,channel)=>command('import',org,brand,{fileId:file.selection_id||file.id,version:file.version,channel}),
- async upload(org,brand,file,channel){
+ import:(org,brand,file,channel,format)=>command('import',org,brand,{fileId:file.selection_id||file.id,version:file.version,channel,...(format==='reel_cover'?{format}:{})}),
+ async upload(org,brand,file,channel,format){
   if(!['image/jpeg','image/png','image/webp','video/mp4','application/pdf'].includes(file.type)||file.size<1||file.size>104857600)throw new Error('Use JPG, PNG, WebP, MP4 or PDF up to 100 MB.');
   const asset=await command('prepare-upload',org,brand,{filename:file.name,mime:file.type,size:file.size});
   const {error}=await supabase.storage.from('marketing-media').upload(asset.object_path,file,{contentType:file.type,upsert:false});if(error)throw new Error('Media upload failed. Try again.');
-  return command('finalize-upload',org,brand,{assetId:asset.id,channel});
+  return command('finalize-upload',org,brand,{assetId:asset.id,channel,...(format==='reel_cover'?{format}:{})});
  }
 };
