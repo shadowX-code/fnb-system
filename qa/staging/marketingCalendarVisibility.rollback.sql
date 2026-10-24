@@ -60,6 +60,8 @@ do $$declare f uuid:=(select id from marketing_qa_ids where key='fb');l uuid:=(s
  assert marketing_private.advance_calendar_checks(checks,o,gen_random_uuid(),now(),null)='[]','Pending first verification stays visible';
  insert into marketing_private.publication_availability(connection_id,connection_generation,provider_account_id,provider_post_id,state,source,reason,checked_at,last_available_at,calendar_checks)
  values(f,1,'999999999998','999999999998_777','unavailable','object_read','not_public',now(),now()-interval '2 days',jsonb_build_array(checks->0,checks->1));
+ -- Advance to a new isolated Sync lease; replaying the first lease must not count.
+ l:=gen_random_uuid();update marketing_connections set sync_lease=l where id=f;update marketing_qa_ids set id=l where key='lease';
  perform marketing_private.record_publication_availability(f,1,l,jsonb_build_array(o));
  select calendar_checks into checks from marketing_private.publication_availability where connection_id=f;
  assert jsonb_array_length(checks)=3,'Canonical recorder accepts third distinct spaced check';
