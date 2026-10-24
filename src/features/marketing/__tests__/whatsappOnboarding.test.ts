@@ -39,7 +39,7 @@ it('an uncertain one-shot sync is never replayed, including a retry',async()=>{
 });
 it('stale generation guard stops all provider mutations',async()=>{const g=graph();await expect(finishWhatsAppOnboarding(g,c,'fixture','200','201',steps().step,async()=>{throw new Error('stale')})).rejects.toThrow('stale');expect(g.request).not.toHaveBeenCalled();});
 it('quarantines sync data encrypted and exposes only progress, no contact text',async()=>{
- const key=btoa('x'.repeat(32));const payload={entry:[{id:'200',changes:[{field:'history',value:{metadata:{phone_number_id:'201'},history:[{metadata:{progress:100},threads:[{id:'private-peer',messages:[{text:{body:'private text'}}]}]}]}}]}]};
+ const key=btoa('x'.repeat(32));const payload={object:'whatsapp_business_account',entry:[{id:'200',changes:[{field:'history',value:{metadata:{phone_number_id:'201'},history:[{metadata:{progress:100},threads:[{id:'private-peer',messages:[{text:{body:'private text'}}]}]}]}}]}]};
  const r=await whatsappLifecycle(payload,key);expect(r[0].progress).toBe(100);expect(r[0].sealed_payload.version).toBe(1);expect(JSON.stringify(r)).not.toContain('private');
 });
 
@@ -68,4 +68,11 @@ it('rejects ambiguous staged phone discovery and an unapproved business',async()
  const g=graph({'200/phone_numbers':{data:[{id:'201',display_phone_number:'+60119900000'},{id:'202',display_phone_number:'+60119900000'}]}});
  await expect(resolveWhatsAppSignupAssets(g,'fixture',session,{mode:'coexistence',waba_id:'200'})).rejects.toThrow('whatsapp_approved_phone_mismatch');
  await expect(resolveWhatsAppSignupAssets(g,'fixture',session,{mode:'coexistence',waba_id:'200',business_id:'666'})).rejects.toThrow('whatsapp_signup_assets_mismatch');
+});
+
+it('isolates malformed lifecycle changes and retains encrypted valid history; encryption failures still fail closed',async()=>{
+ const key=btoa('x'.repeat(32));const reject=vi.fn();const value={metadata:{phone_number_id:'201'},history:[{metadata:{progress:100},threads:[]}]};
+ const payload={object:'whatsapp_business_account',entry:[{id:'200',changes:[{field:'history',value:{...value,history:[null]}},{field:'smb_app_state_sync',value:null},{field:'history',value}]}]};
+ const events=await whatsappLifecycle(payload,key,Date.now(),reject);expect(events).toHaveLength(1);expect(events[0].progress).toBe(100);expect(reject).toHaveBeenCalledTimes(2);
+ await expect(whatsappLifecycle(payload,'missing-key')).rejects.toThrow();
 });

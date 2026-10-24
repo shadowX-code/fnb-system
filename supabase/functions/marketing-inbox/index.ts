@@ -121,16 +121,18 @@ Deno.serve(async (req) => {
       )
     ) return json({ error: "Invalid webhook signature." }, 401);
     let events, payload, lifecycle, publicationRemovals;
+    let whatsappRejected=0;const rejectWhatsApp=()=>{whatsappRejected++;};
     try {
       payload = JSON.parse(new TextDecoder().decode(bytes));
       publicationRemovals = await normalizePublicationRemovals(payload);
-      events = payload?.object === 'whatsapp_business_account' ? normalizeWhatsAppWebhook(payload) : normalizeInboxWebhook(payload);
-      lifecycle = payload?.object === 'whatsapp_business_account' ? await whatsappLifecycle(payload,env('MARKETING_META_TOKEN_ENCRYPTION_KEY')) : [];
+      events = payload?.object === 'whatsapp_business_account' ? normalizeWhatsAppWebhook(payload,Date.now(),rejectWhatsApp) : normalizeInboxWebhook(payload);
+      lifecycle = payload?.object === 'whatsapp_business_account' ? await whatsappLifecycle(payload,env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),Date.now(),rejectWhatsApp) : [];
     } catch (error) {
       // Fixed contract codes only, after HMAC verification. Never log payloads/peers/text.
       console.warn(JSON.stringify(inboxWebhookRejection(payload, error)));
       return json({ error: "Invalid webhook contract." }, 400);
     }
+    if(whatsappRejected)console.warn(JSON.stringify({code:'whatsapp_items_rejected',count:whatsappRejected}));
     try {
       if(publicationRemovals.length)await rpc(service,"marketing_meta_publication_events",{p_events:publicationRemovals});
       if(lifecycle.length)await rpc(service,"marketing_whatsapp_lifecycle",{p_events:lifecycle});
