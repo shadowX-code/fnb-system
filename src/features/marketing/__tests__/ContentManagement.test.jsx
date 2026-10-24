@@ -178,11 +178,11 @@ it('refreshes counts without dropping active Brand, search or Draft filters',asy
 
 it('keeps removed visibility a server filter, Calendar-only, and preserves List history',async()=>{
  render(<ContentManagement {...props}/>);await screen.findByRole('table');
- expect(screen.queryByRole('checkbox',{name:'Show Removed'})).toBeNull();
+ expect(screen.queryByRole('checkbox',{name:'Show Unverified / Removed'})).toBeNull();
  fireEvent.click(screen.getByRole('tab',{name:'Calendar'}));
- const toggle=await screen.findByRole('checkbox',{name:'Show Removed'});expect(toggle.checked).toBe(false);
+ const toggle=await screen.findByRole('checkbox',{name:'Show Unverified / Removed'});expect(toggle.checked).toBe(false);
  await waitFor(()=>expect(service.contentManagement).toHaveBeenLastCalledWith(expect.objectContaining({view:'calendar',showRemoved:false})));
  fireEvent.click(toggle);await waitFor(()=>expect(service.contentManagement).toHaveBeenLastCalledWith(expect.objectContaining({view:'calendar',showRemoved:true})));
- fireEvent.click(screen.getByRole('tab',{name:'List'}));expect(screen.queryByRole('checkbox',{name:'Show Removed'})).toBeNull();
+ fireEvent.click(screen.getByRole('tab',{name:'List'}));expect(screen.queryByRole('checkbox',{name:'Show Unverified / Removed'})).toBeNull();
  await waitFor(()=>expect(service.contentManagement).toHaveBeenLastCalledWith(expect.objectContaining({view:'list'})));
 });
