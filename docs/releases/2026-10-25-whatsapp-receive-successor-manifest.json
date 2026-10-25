@@ -1,0 +1,307 @@
+{
+  "status": "LOCAL_CANDIDATE_REQUIRES_SEPARATE_PRODUCTION_APPROVAL",
+  "supersedes": "05c3c36b5807347ae639c305d732b25b4fe655eb",
+  "production_baseline": {
+    "sha": "440d04a409f39001cef7c72b524b689f58f45009",
+    "ledger_count": 868,
+    "latest_version": "20261024150847",
+    "project_ref": "oyfobxdoyfuzsodogpgs",
+    "inbox_version": 37,
+    "inbox_bundle_sha256": "ad7d216da23e5e63bb46a1f547170521efab64207c2a90de02f24d5a8c2e1eb3",
+    "whatsapp_connections": 0,
+    "readiness": 0,
+    "pilot_approvals": 0,
+    "required_authority_md5": {
+      "public.marketing_inbox_detail": "af7ddcaa78aa34a2ba16ba1f028331a2",
+      "public.marketing_inbox_process_events": "58f1362205463d65c7ed142a4e89b73e",
+      "public.marketing_inbox_read": "f86259e8ff141f3266b4006d9b61a331",
+      "marketing_private.whatsapp_enqueue": "88ef4947847e05e844824747b34f8cdb"
+    },
+    "provider_context_must_be_absent": true,
+    "required_helpers_absent": [
+      "marketing_private.whatsapp_reconcile_changes(uuid,integer)",
+      "marketing_private.whatsapp_message_state(public.marketing_conversation_messages)"
+    ]
+  },
+  "execution_order_note": "Explicit allowlist: compatibility FIRST despite its later timestamp. Apply both SQL files and their exact source-version receipts atomically. Never broad db push, timestamp rewriting, applied migration replay or ledger equality repair.",
+  "ordered_migrations": [
+    {
+      "path": "supabase/migrations/20261025011621_marketing_whatsapp_receive_context_compatibility.sql",
+      "sha256": "34b5ed71171fd6e63c3fe879b6acafd1c0b381c98d72897142b9e7c892c3cf27"
+    },
+    {
+      "path": "supabase/migrations/20261024185401_marketing_whatsapp_message_lifecycle.sql",
+      "sha256": "7a2f3c1cf3631fdf9040c5288fb81c54e93c7b7736e2805366bbf787d72ec990"
+    }
+  ],
+  "expected_ledger_after": {
+    "count": 870,
+    "latest_version": "20261025011621"
+  },
+  "edge": {
+    "slug": "marketing-inbox",
+    "verify_jwt": false,
+    "entrypoint_path": "functions/marketing-inbox/index.ts",
+    "source_set_sha256": "6066ffd40574ba103729db1e9e5c0942feee4e4dbea76dcf0015b2661e0f6902",
+    "source_set_hash_definition": "SHA256 of compact sorted-key JSON array of name/sha256 entries in files order; not a provider ezbr bundle hash",
+    "files": [
+      {
+        "name": "functions/marketing-inbox/index.ts",
+        "mode": "replace_from_rc",
+        "source_path": "supabase/functions/marketing-inbox/index.ts",
+        "baseline_sha256": "b247a2783ffe9a8ac00896f9ece1cb712729aefdffca49fdb861fbad72933689",
+        "sha256": "6dd165ae96aecd86745afc6942b6c425b3c3a2d61c68fa66eee13625319b5ecc"
+      },
+      {
+        "name": "functions/_shared/metaPostAvailability.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "83aaaf614289c533129798a9b1ee02b1407386db3533f36896932beea9a0301c",
+        "sha256": "83aaaf614289c533129798a9b1ee02b1407386db3533f36896932beea9a0301c"
+      },
+      {
+        "name": "functions/_shared/metaGraph.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "2f9f5e0e537b35da533c205195122abe16557e3613f7ed996c8f998bf074034c",
+        "sha256": "2f9f5e0e537b35da533c205195122abe16557e3613f7ed996c8f998bf074034c"
+      },
+      {
+        "name": "functions/_shared/metaSecurity.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "d97c253e91169d360d752295c1d46cae460f0c873877fb4c62d2a37a06db455f",
+        "sha256": "d97c253e91169d360d752295c1d46cae460f0c873877fb4c62d2a37a06db455f"
+      },
+      {
+        "name": "functions/_shared/marketingExecution.mjs",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "785824d094bcab6715e38bd82b4ee7157a369554ae825320658f9ec9fc1edeaa",
+        "sha256": "785824d094bcab6715e38bd82b4ee7157a369554ae825320658f9ec9fc1edeaa"
+      },
+      {
+        "name": "functions/_shared/marketingEnvironment.mjs",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "4b5bbca0bfeae2e367dcf474934e2f0cfc0beb51c72bd8bf652ce68e9a4e0a34",
+        "sha256": "4b5bbca0bfeae2e367dcf474934e2f0cfc0beb51c72bd8bf652ce68e9a4e0a34"
+      },
+      {
+        "name": "functions/_shared/metaAdsDiagnostics.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "d598f5342025f3b500615a10f192f167c762c0bb9f32ea07853132ecf78ca753",
+        "sha256": "d598f5342025f3b500615a10f192f167c762c0bb9f32ea07853132ecf78ca753"
+      },
+      {
+        "name": "functions/_shared/metaPageTasks.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "4a10a09cd45fcf0029806b66e64ca0473aeb19f6f9b076c64c1ae653d4899921",
+        "sha256": "4a10a09cd45fcf0029806b66e64ca0473aeb19f6f9b076c64c1ae653d4899921"
+      },
+      {
+        "name": "functions/_shared/whatsappInbox.ts",
+        "mode": "replace_from_rc",
+        "source_path": "supabase/functions/_shared/whatsappInbox.ts",
+        "baseline_sha256": "6a8d9dbc47a2a62c8a095330ac645f94636c7c6af9de264b9c27095de0385758",
+        "sha256": "0c95e9f36d9c987d0d56cd54b2f72b91cd5cc1a6df3cb1d725209b24a3b153dc"
+      },
+      {
+        "name": "functions/_shared/whatsappLifecycle.ts",
+        "mode": "replace_from_rc",
+        "source_path": "supabase/functions/_shared/whatsappLifecycle.ts",
+        "baseline_sha256": "f638854efb172d1c85ab5add28dd995a47fbcaec58c726e4896028fd7ca4c159",
+        "sha256": "3f0005bcaebca37c7e818549c299a22d42966643f74cfb62e12e933740f2a970"
+      },
+      {
+        "name": "functions/_shared/inboxDelivery.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "dc2cd90e7fc77b9110f341ebe9da9a401ceb57df33451487b2560ea971e604f3",
+        "sha256": "dc2cd90e7fc77b9110f341ebe9da9a401ceb57df33451487b2560ea971e604f3"
+      },
+      {
+        "name": "functions/_shared/metaInboxVerification.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "3cc00b7a193f2fde15dbb296a76bfb925efebc87719861a3c1ee8b8c8b41c9f6",
+        "sha256": "3cc00b7a193f2fde15dbb296a76bfb925efebc87719861a3c1ee8b8c8b41c9f6"
+      },
+      {
+        "name": "functions/_shared/metaInboxAdapters.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "82677f23fc12da7b8605e250a438a6abda5a053bd2d48d7008065d931a03ceb3",
+        "sha256": "82677f23fc12da7b8605e250a438a6abda5a053bd2d48d7008065d931a03ceb3"
+      },
+      {
+        "name": "functions/_shared/marketingInbox.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "45710a67f64f348fec1d3a12d6c39f64bb22a2847e9a1ed501e2552536d5c4eb",
+        "sha256": "45710a67f64f348fec1d3a12d6c39f64bb22a2847e9a1ed501e2552536d5c4eb"
+      },
+      {
+        "name": "functions/_shared/brandKnowledgeAI.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "faeb0befcbe7fd8b6e220cad52cae753bedacf2c936dd36664dba717764f098e",
+        "sha256": "faeb0befcbe7fd8b6e220cad52cae753bedacf2c936dd36664dba717764f098e"
+      },
+      {
+        "name": "functions/_shared/inboxAssistant.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "3e29b0f8bbb08930be21d60e5e2bbd76c161fc77ef8f7518c9f15a6f6385629f",
+        "sha256": "3e29b0f8bbb08930be21d60e5e2bbd76c161fc77ef8f7518c9f15a6f6385629f"
+      },
+      {
+        "name": "functions/_shared/inboxAssistance.mjs",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "f19b3e83a61ec1dbfaa12888a786a326f7e39bbd07604ba9e74a5a21de75c88c",
+        "sha256": "f19b3e83a61ec1dbfaa12888a786a326f7e39bbd07604ba9e74a5a21de75c88c"
+      },
+      {
+        "name": "functions/_shared/metaInboxProfile.ts",
+        "mode": "preserve_deployed_bytes",
+        "source_path": null,
+        "baseline_sha256": "63c638ec2529b91d48609d5189db58b990d91d963183d3152ecd3ce83d5a0f24",
+        "sha256": "63c638ec2529b91d48609d5189db58b990d91d963183d3152ecd3ce83d5a0f24"
+      }
+    ]
+  },
+  "frontend": {
+    "path": "src/features/marketing/WhatsAppMessageContent.jsx",
+    "sha256": "4932c13281c7dac141c64941872678601ddd7cc3ee7730d9961d89ec603593e9",
+    "scope": "Only the two already-reviewed Edited/Deleted on WhatsApp provenance labels; canonical Vercel Git integration on exact approved successor SHA."
+  },
+  "preserved_runtime_files": {
+    "package.json": "71880a729488c1fe59ab1c427c025a465a454ea94f58c5919bb94aa52bdbb304",
+    "package-lock.json": "bfdafc058b275e7ac8300eabf8d480986986c545d9b414aacdb171fc4ba02a92",
+    "vercel.json": "3521777eea82182af286cce35635fc050c60f76fbdb3ceff17938e1d3956436b",
+    "supabase/functions/marketing-meta/index.ts": "ea0ab8ada25d10aa3c319ddcb39fd0cc849accfabcbb663a280522b487abbf4d",
+    "supabase/functions/marketing-worker/index.ts": "781883937cd4008abbb02d50ff8ec5a58c73e661ec8daa9cd10c4ce8dc808979",
+    "supabase/functions/_shared/marketingEnvironment.mjs": "4b5bbca0bfeae2e367dcf474934e2f0cfc0beb51c72bd8bf652ce68e9a4e0a34",
+    "supabase/functions/_shared/metaSecurity.ts": "d97c253e91169d360d752295c1d46cae460f0c873877fb4c62d2a37a06db455f",
+    "supabase/functions/_shared/whatsappSignupHandler.ts": "5051592723c229212eeaf0fde63d3aabab2bdbd9fbb0845e68254dd426ab4fbb"
+  },
+  "rehearsal": {
+    "postgres": "17.6",
+    "input_sha256": {
+      "catalog-0.json": "5d71bd35050802d620ea332cd4cf416f4bee0bf3b3a13b6071eeb18318506f15",
+      "schemas.json": "6243c22ddf73b7d908f2e367cdf239cf6c9ed13f829d619c05f3cf5ca634d70b",
+      "default-acl.json": "6529bbd65cf68bbd6bea313a853d48c8022608c05dc6f9f5466d60f97ffcb0de",
+      "function-identities.json": "7c5a620ce28ec0c108ad58419992fcc95a6f33ef17484ba6cfd80abed3b97c01",
+      "permissions.json": "2c6c246d027f9376fc9f056813228ac75af3496750d56db9fcafcdae876ac445",
+      "functions-0.json": "dac3d8ba83dca15baeb30085d7defc4c17b76969429412412d9005b4c3f3c84b",
+      "functions-1.json": "7a8ac93da81686922ae528d907ad158f9420db21ee78efc8e8e774d4c4a63856",
+      "functions-10.json": "93aab43a299a22e68215279ea0672e0f0b953ba47066affa243caf578ce73520",
+      "functions-11.json": "825bdfe4d7cb31a6e5846732555ba50e01b252be6b97f470372b1bedf1f8bc90",
+      "functions-12.json": "1335cbd1087576d1777f9abb1cda9add46939a75445157a11fe256ed5d89f6d6",
+      "functions-13.json": "a07da8e285d8c04b05939b51e31af2e6e49169237e39c79413fa414748704004",
+      "functions-14.json": "5f29cf42bc0e49d1da7e1213cda7fdccb1fd3e8bd9f2d0ce014ae68a2bd35821",
+      "functions-15.json": "2185ed5859e1f2c33d48187e233d8a5a6feb200941ab99b071118bf1063ac661",
+      "functions-16.json": "3c1da3fb085286ca4e8810796a6b537f7fff8124a38465e8989f4bd9cbdaeb81",
+      "functions-17.json": "20b23a2691ffd104d2ae51be0f1c90cd768ef454665fb78e5757a5937ff92ca2",
+      "functions-18.json": "b7b1c3e669b81977f67d3f0a01d655e2da6e7c76e97e96103485c4be9b5d194b",
+      "functions-19.json": "58f757621d3559cfde72c3c2874cd3c6247e77fdde1d0c806e492a84021ed488",
+      "functions-2.json": "6b39f27579cd1eff2eb20baa81df6517e1b585b49b4c289eb31cdac8f4545beb",
+      "functions-20.json": "bdc801be79487935972ce0b7a2911f22a46efb01788a55208e3305942230890c",
+      "functions-21.json": "c597df3782cf8d64dc4e500f1fab8d4d5cf3d4549018dddbb04bb7af743f2603",
+      "functions-22.json": "04b184755199ad0ecef4c42984df6ca4e7b57c4055bb5cac388afdc9d26c972f",
+      "functions-23.json": "d6b1968b0b5eafec39d4c2914e33c9870032471ffb6f6b675a2de6a3c27e96c9",
+      "functions-3.json": "32b9e49175b2cdf5c6bff4aecc857b7b868bff3fca32aa4529addf38f037bf41",
+      "functions-4.json": "354aff4b02f303b5028723bd0fbe36c0b042bea28ea678c9f9ecf7688952a06c",
+      "functions-5.json": "97ecd4c530b1d2e083a83a90d29257960dfc1132b9bbc57428a62cc75c4c2631",
+      "functions-6.json": "254e3a73734df9c93b65f11c3a95254d40320b40fc36dccece2d3b131a223779",
+      "functions-7.json": "4c4f68e813e0f59b8dc9ec9daebcf63e51d708946f61b493bc079d4454ce57f7",
+      "functions-8.json": "3e170329456cf2183b5bef097d75e1fd827deb922ad1a6bffba16a0dfa4320b7",
+      "functions-9.json": "274cc81100455b70810929898a339a8d9b530424432fbe5bb7efa2a0bed26871"
+    },
+    "result": {
+      "baseline": {
+        "count": 868,
+        "latest": "20261024150847"
+      },
+      "captured_tables": 144,
+      "captured_functions": 416,
+      "production_definitions_exact": true,
+      "original_failure_reproduced": "42703",
+      "fb_ig_rows_and_reads_unchanged": true,
+      "context_null_and_oversize_rejected": true,
+      "changed_existing_authorities": [
+        "marketing_inbox_detail(uuid,integer,integer)",
+        "marketing_inbox_process_events(integer)",
+        "marketing_inbox_read(uuid,uuid,text,text,text,integer,integer,text,boolean)",
+        "marketing_private.whatsapp_enqueue(jsonb)"
+      ],
+      "existing_function_grants_owners_preserved": true,
+      "table_security_preserved": true,
+      "whatsapp_execution_gates_preserved": true,
+      "no_broader_ai_ownership": true,
+      "whatsapp_lifecycle_fixture": true,
+      "transaction_rolled_back": true,
+      "migrations": [
+        {
+          "name": "20261025011621_marketing_whatsapp_receive_context_compatibility.sql",
+          "sha256": "34b5ed71171fd6e63c3fe879b6acafd1c0b381c98d72897142b9e7c892c3cf27"
+        },
+        {
+          "name": "20261024185401_marketing_whatsapp_message_lifecycle.sql",
+          "sha256": "7a2f3c1cf3631fdf9040c5288fb81c54e93c7b7736e2805366bbf787d72ec990"
+        }
+      ]
+    },
+    "signed_http_tests": {
+      "count": 3,
+      "bundle": "exact 18 source files above; fifteen preserved dependencies; Production runtime identity, mocked DB and forbidden network"
+    },
+    "reused_evidence": "Staging 3be25957d: 70 focused tests, L3 rollback fixtures/build/authenticated browser. Previous Production candidate 68 tests/build. Application and Edge source bytes unchanged from stopped RC."
+  },
+  "rollback": {
+    "requires_separate_approval": true,
+    "scope": "Governed frontend and marketing-inbox rollback or forward SQL correction. Keep the context column, its serialization exclusion, append-only correction evidence, deduplication, privacy erasure and sync receipts. Never drop new kinds after correction rows exist, restore a whole-row projection that exposes raw context, or replay/offboard/activate as recovery."
+  },
+  "disabled": [
+    "WhatsApp onboarding",
+    "history import",
+    "Staff Reply",
+    "AI replies",
+    "campaigns",
+    "outbound execution"
+  ],
+  "not_included": [
+    "marketing-meta deployment",
+    "marketing-worker deployment",
+    "broader Staging AI ownership lifecycle",
+    "FB/IG context population",
+    "new provider settings or permissions",
+    "credentials",
+    "pilot approvals",
+    "real-number binding",
+    "business-data import"
+  ],
+  "schema_comparison": {
+    "Production_message_columns": 11,
+    "Staging_message_columns": 12,
+    "only_added_column": "provider_context",
+    "existing_column_definitions_equal": true,
+    "owner": "postgres",
+    "rls_enabled": true,
+    "new_context_type": "jsonb",
+    "new_context_default": "'{}'::jsonb",
+    "new_context_not_null": true,
+    "new_context_octet_limit": 8192,
+    "Staging_only_unrelated_index_not_imported": "marketing_inbox_external_echo",
+    "Staging_snapshot_sha256": "753157f10be85c1abc1b7e06f9f33df833eb8e4b2624bb38d46bfa996b063d4e",
+    "message_grants_equal": true,
+    "message_policies_equal": true,
+    "message_trigger_definitions_equal": true
+  },
+  "release_checks": {
+    "qa/release/rehearseWhatsAppReceive.mjs": "f33a095269e2032791a92c20ee39f2ea73fadb623f84bd3f9592efb53f98aa6e"
+  }
+}
