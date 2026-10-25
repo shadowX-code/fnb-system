@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-25 — Ads management prerequisites
+
+Added same-authorizer reporting grant continuity without rewriting Meta observations, an unconfigured dedicated Ads Management login route, credential-bound read-only Page/post/minimum-budget preflight, and an absent-by-default service-only paused-create permit. Current authorization and Brand attribution still scope every report. Source erasure removes inherited access; current mutation approvals remain generation-bound. The partial Staging campaign is unchanged. Canonical owner: docs/domains/marketing.md. Verification includes 24-snapshot rollback-only generation/erasure/isolation contracts, paused-boundary and shared Graph regression tests, build and a complete authorized annual read; real OAuth, identity verification and Ads creation remain separately gated.
+
 ## 2026-10-25 — Scoped Create Ads workspace
 
 Extended existing Ads revisions with incomplete local drafts, Facebook published-post binding, shared image selection, local targeting and account-timezone schedules. Paused creation preserves exact source identities, checkpoints and uncertain-write protection; Production execution remains disabled and live Ads creation/delivery acceptance is still required. Verified with 134 focused tests, rollback-only authority checks, build and exact Staging Edge bundle type-check. Canonical owner: docs/domains/marketing.md.

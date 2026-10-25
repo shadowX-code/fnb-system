@@ -1,4 +1,6 @@
 import { MetaError, MetaGraph } from "./metaGraph.ts";
+import { PRODUCTION_RUNTIME } from "./marketingEnvironment.mjs";
+import { adsExecutionAllowed } from "./metaAdsPrerequisites.ts";
 import { adsPages, verifyAdsAccount, ADS_CONFIG_FIELDS } from "./metaAds.ts";
 import { connectionBinding, unseal } from "./metaSecurity.ts";
 import { verifyMetaMedia } from "./metaPublishing.ts";
@@ -316,6 +318,8 @@ export async function advanceAdsChange({
     if(step==="creative" && change.configuration.creative_source==="facebook_post")
       await verifyAdsCreateReadiness(graph,token,change.configuration,guard);
     await checkpoint({ ...state, pending: step });
+    // Recheck revocation/expiry after the durable write-ahead checkpoint, immediately before submission.
+    await guard();
     let body: any;
     if (step === "image") {
       let binary = "";
@@ -458,15 +462,10 @@ export async function executeAdsChange(
   };
   const args = { p_request: claim.id, p_lease: claim.lease };
   const guard = async () => {
-    if (
-      !claim.provider_state?.reconcile_only &&
-      (env("MARKETING_ADS_EXECUTION_ENABLED") !== "true" ||
-        !env("MARKETING_ADS_EXECUTION_APPROVALS")
-          .split(",")
-          .includes(claim.fingerprint))
-    )
+    const material = await call("marketing_ads_change_material", args);
+    if (!claim.provider_state?.reconcile_only && !adsExecutionAllowed(env, material.change, PRODUCTION_RUNTIME))
       throw new MetaError("ads_execution_disabled");
-    return call("marketing_ads_change_material", args);
+    return material;
   };
   try {
     const material = await guard(),

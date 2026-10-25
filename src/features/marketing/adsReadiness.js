@@ -29,3 +29,9 @@ export function adsReadiness(account,report,now=Date.now()) {
   if(report)return {label:'Ready',tone:'success',reason:'Meta reporting is synchronized for the selected period.'};
   return {label:'Connected',tone:'neutral',reason:account?.last_synced_at?'This period has not been synchronized. Current reporting refreshes automatically; eligible missing historical periods synchronize automatically after platform activation.':'Authorization is retained. Initial reporting is queued automatically after confirmation.'};
 }
+export function adsAuthorizationReason(reason) {
+  if(reason==='ads_read_not_granted')return 'Meta did not grant Ad reporting access. The existing login configuration must provide ads_read (or ads_management); Page permissions do not grant Ad Account reporting.';
+  if(reason==='ads_management_required')return 'Meta did not grant Ads Management. Check the dedicated Ads login configuration with the account owner. Existing connections are unchanged.';
+  if(reason==='ads_management_login_changed')return 'The dedicated Ads login configuration changed. Ask an administrator to verify it before starting a new authorization. Existing connections are unchanged.';
+  return 'Meta authorization could not complete. Check authorized Ad Account access and try Connect Meta again.';
+}

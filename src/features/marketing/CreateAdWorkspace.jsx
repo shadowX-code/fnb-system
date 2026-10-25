@@ -10,10 +10,11 @@ import EmptyState from '../../components/feedback/EmptyState.jsx';
 import MarketingMediaPicker from './MarketingMediaPicker.jsx';
 import MarketingMediaPreview from './MarketingMediaPreview.jsx';
 import {adsService} from './adsService.js';
+import AdsPrerequisites from './AdsPrerequisites.jsx';
 import {adsManagementReason} from './adsReadiness.js';
 import {createAdConfiguration,newAdForm,reopenAdForm} from './adsCreateModel.js';
 const sections=['Setup','Audience','Creative','Review'];
-export default function CreateAdWorkspace({org,brand,brands,accounts,data,previous,onClose,onSave}) {
+export default function CreateAdWorkspace({org,brand,brands,accounts,data,previous,onClose,onSave,managementLoginReady=false,canConnect=false}) {
  const [brandId,setBrand]=useState(previous?.brand_id||brand||brands[0]?.id||''),[connection,setConnection]=useState(previous?.connection_id||accounts[0]?.id||'');
  const account=accounts.find(a=>a.id===connection),zone=account?.health?.timezone;
  const [form,setForm]=useState(()=>previous?reopenAdForm(previous,zone||'UTC'):newAdForm()),[section,setSection]=useState('Setup'),[busy,setBusy]=useState(false),[error,setError]=useState(''),[cityQuery,setCityQuery]=useState(''),[cities,setCities]=useState([]),[cityBusy,setCityBusy]=useState(false),[cityError,setCityError]=useState(''),[cache,setCache]=useState([]);
@@ -54,6 +55,7 @@ export default function CreateAdWorkspace({org,brand,brands,accounts,data,previo
      </>}
     </>:null}
     {section==='Review'?<>
+     <AdsPrerequisites org={org} brand={brandId} connection={connection} page={form.page_id} source={form.creative_source==='facebook_post'?form.source_job_id:null} accountId={account?.account_id} managementLoginReady={managementLoginReady} canConnect={canConnect}/>
      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm"><dt className="text-text-secondary">Brand</dt><dd>{activeBrand?.name||'Not selected'}</dd><dt className="text-text-secondary">Account</dt><dd>{account?.name||'Not selected'}</dd><dt className="text-text-secondary">Creative</dt><dd>{form.creative_source==='facebook_post'?'Promote original Facebook post':'New image ad'}</dd><dt className="text-text-secondary">Budget</dt><dd>{form.budget?`MYR ${form.budget} lifetime`:'Missing'}</dd><dt className="text-text-secondary">Schedule</dt><dd>{form.start_local.replace('T',' ')||'Missing'} → {form.end_local.replace('T',' ')||'Missing'} · {zone||'Timezone unavailable'}</dd><dt className="text-text-secondary">Creation state</dt><dd>Paused — activation requires a separate reviewed action</dd></dl>
      <div className="border-t border-border pt-4 space-y-3"><h3 className="font-semibold text-sm">Advertiser declarations</h3><p className="text-xs text-text-secondary">Use verified Meta advertiser and payer identity IDs from Ads Manager. These are not Page IDs.</p><div className="grid gap-4 sm:grid-cols-2">{input('universal_beneficiary','Advertiser (beneficiary) identity ID',{inputMode:'numeric'})}{input('universal_payer','Payer identity ID',{inputMode:'numeric'})}</div></div>
      <div className="rounded-lg bg-surface-secondary p-3 space-y-2 text-sm"><p><CheckCircle2 size={15} className="inline mr-1"/>Saving never creates an ad or spends budget.</p><p>{account?.health?.manage_verified?'Ads management verified.':'Ads management is not verified; execution remains unavailable.'}</p><p>Review and approval pin this revision. Meta creation and delivery acceptance remain separate.</p></div>
