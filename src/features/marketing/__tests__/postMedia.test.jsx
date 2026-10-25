@@ -46,3 +46,13 @@ it('retains private draft media, handles signed image failure, and ignores late 
  await waitFor(()=>expect(screen.getByRole('img').getAttribute('src')).toContain('current.jpg'));
  resolveOld('https://private.example/old.jpg');await Promise.resolve();expect(screen.getByRole('img').getAttribute('src')).toContain('current.jpg');
 });
+
+it('never leaks a prior Brand/channel image when independent identities are selected',async()=>{
+ const fb='https://scontent.fbcdn.net/page-a.jpg',ig='https://scontent.cdninstagram.com/brand-b.jpg';
+ const {rerender}=render(<PostMedia channel={{channel:'facebook',provider_post_id:'111_222',brand_id:'brand-a',media:[{type:'image',url:fb}]}}/>);
+ expect((await screen.findByRole('img')).getAttribute('src')).toBe(fb);
+ rerender(<PostMedia channel={{channel:'instagram',provider_post_id:'222',brand_id:'brand-b',media:[{type:'image',url:ig}]}}/>);
+ await waitFor(()=>expect(screen.getByRole('img').getAttribute('src')).toBe(ig));
+ rerender(<PostMedia channel={{channel:'instagram',provider_post_id:'unresolved',brand_id:'brand-c',media:[]}}/>);
+ expect(screen.queryByRole('img')).toBeNull();expect(marketingService.assetUrl).not.toHaveBeenCalled();
+});

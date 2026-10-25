@@ -186,3 +186,23 @@ it('keeps removed visibility a server filter, Calendar-only, and preserves List 
  fireEvent.click(screen.getByRole('tab',{name:'List'}));expect(screen.queryByRole('checkbox',{name:'Show Unverified / Removed'})).toBeNull();
  await waitFor(()=>expect(service.contentManagement).toHaveBeenLastCalledWith(expect.objectContaining({view:'list'})));
 });
+
+it('shares retired-snapshot provider media across List, Calendar, Detail and Performance',async()=>{
+ const image='https://scontent.cdninstagram.com/published-lifecycle.jpg';
+ const retired={id:'retired-snapshot',state:'retired',mime_type:'image/jpeg'};
+ service.contentManagement.mockResolvedValue({rows:[{...row,channels:[{...row.channels[0],asset:retired,assets:[retired],media:[{type:'image',url:image}],thumbnail_url:image}]}],total_count:1,day_counts:{'2026-05-22':1},draft_count:0});
+ render(<ContentManagement {...props}/>);
+ await screen.findByRole('table');
+ await waitFor(()=>expect(document.querySelector('.cm-thumbnail img')?.getAttribute('src')).toBe(image));
+ fireEvent.click(screen.getAllByRole('button',{name:'Real external post',exact:true})[0]);
+ await screen.findByRole('dialog');
+ await waitFor(()=>expect(document.querySelector('.cm-post-media img')?.getAttribute('src')).toBe(image));
+ fireEvent.click(screen.getByRole('tab',{name:'Performance',exact:true}));
+ expect(document.querySelector('.cm-post-media img')?.getAttribute('src')).toBe(image);
+ fireEvent.click(screen.getByRole('button',{name:'Close modal',exact:true}));
+ fireEvent.click(screen.getByRole('tab',{name:'Calendar',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Month / Year'}));
+ fireEvent.click(screen.getByRole('gridcell',{name:'May',exact:true}));
+ await waitFor(()=>expect(document.querySelector('.cm-thumbnail img')?.getAttribute('src')).toBe(image));
+ expect(service.assetUrl).not.toHaveBeenCalled();
+});

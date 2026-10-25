@@ -131,7 +131,7 @@ Deno.serve(async(req)=>{
   if(connection) {
    const guard=async()=>{if(!await call(db,'marketing_meta_sync_guard',{p_connection:connection.id,p_generation:connection.credential_generation,p_lease:connection.sync_lease}))throw new Error('synchronization_authority_changed');};
    let posts:any[]=[],after:string|null=null,errorCode:string|null=null,availability:any[]=[];
-   try{const token=await tokenFor(connection);const result=await readMetaPosts(graph,connection,token,guard);posts=result.posts;after=result.after;const targets=await call(db,'marketing_meta_availability_targets',{p_connection:connection.id,p_generation:connection.credential_generation,p_lease:connection.sync_lease});availability=await observePostAvailability(graph,connection,token,posts,targets||[],guard);}catch(error){errorCode=error instanceof MetaError?error.code:'sync_unavailable';}
+   try{const token=await tokenFor(connection);const result=await readMetaPosts(graph,connection,token,guard);posts=result.posts;after=result.after;const targets=await call(db,'marketing_meta_availability_targets',{p_connection:connection.id,p_generation:connection.credential_generation,p_lease:connection.sync_lease});availability=await observePostAvailability(graph,connection,token,posts,targets||[],guard);}catch(error){posts=[];after=null;availability=[];errorCode=error instanceof MetaError?error.code:'sync_unavailable';}
    await call(db,'marketing_meta_sync_finish',{p_connection:connection.id,p_generation:connection.credential_generation,p_lease:connection.sync_lease,p_posts:posts,p_after:after,p_error:errorCode,p_availability:availability});
   }
   const adsProcessed=connection?false:await processAdsSync(db,graph,env);

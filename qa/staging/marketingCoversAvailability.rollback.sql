@@ -74,6 +74,24 @@ begin
  perform public.marketing_meta_sync_finish(c,1,lease,jsonb_build_array(p),null,null);
  assert (marketing_private.publication_availability_projection(c,1,'999999999991','999999999991_888')->>'state')='unknown','Legacy six-argument sync remains compatible';
  select md5(to_jsonb(s)::text) into before_hash from public.marketing_social_posts s where connection_id=c;
+ -- Reuse this isolated publication for failed-turn and atomic persistence regression.
+ update public.marketing_connections set sync_lease_until=now()+interval '5 minutes' where id=c;
+ perform public.marketing_meta_sync_finish(c,1,lease,'[]',null,'sync_unavailable','[]');
+ select md5(to_jsonb(s)::text) into after_hash from public.marketing_social_posts s where connection_id=c;
+ assert before_hash=after_hash,'Failed Sync without a committed batch preserves existing media, metrics and identity';
+ update public.marketing_connections set sync_lease_until=now()+interval '5 minutes' where id=c;
+ denied:=false;
+ begin
+  perform public.marketing_meta_sync_finish(c,1,lease,jsonb_build_array(p||jsonb_build_object('caption','Uncommitted change'),jsonb_build_object('id','invalid-provider-id')),null,null);
+ exception when others then denied:=true;end;
+ assert denied,'Malformed later evidence rejects the complete batch';
+ select md5(to_jsonb(s)::text) into after_hash from public.marketing_social_posts s where connection_id=c;
+ assert before_hash=after_hash,'Rejected batch rolls back earlier writes instead of corrupting retained evidence';
+ p:=p||jsonb_build_object('thumbnail_url','https://scontent.fbcdn.net/normal-sync-fresh.jpg','media',jsonb_build_array(jsonb_build_object('type','image','url','https://scontent.fbcdn.net/normal-sync-fresh.jpg')));
+ perform public.marketing_meta_sync_finish(c,1,lease,jsonb_build_array(p),null,null);
+ assert (select thumbnail_url='https://scontent.fbcdn.net/normal-sync-fresh.jpg' and media->0->>'url'='https://scontent.fbcdn.net/normal-sync-fresh.jpg' and metrics->>'likes'='0' and not metrics?'reach' from public.marketing_social_posts where connection_id=c),'Normal Sync refresh persists usable media while zero stays zero and missing stays unavailable';
+ select md5(to_jsonb(s)::text) into before_hash from public.marketing_social_posts s where connection_id=c;
+
  update public.marketing_connections set sync_lease_until=now()+interval '5 minutes' where id=c;
  observation:=jsonb_build_array(jsonb_build_object('id','999999999991_888','state','available','source','owned_feed','reason','provider_observed'));
  perform public.marketing_meta_sync_finish(c,1,lease,'[]',null,null,observation);

@@ -1,5 +1,5 @@
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
-const fixture=vi.hoisted(()=>({db:{rpc:vi.fn(),storage:{from:vi.fn()}},health:vi.fn(),publish:vi.fn(),followers:vi.fn(),handler:null as any}));
+const fixture=vi.hoisted(()=>({db:{rpc:vi.fn(),storage:{from:vi.fn()}},health:vi.fn(),publish:vi.fn(),followers:vi.fn(),read:vi.fn(),observe:vi.fn(),handler:null as any}));
 vi.mock('https://esm.sh/@supabase/supabase-js@2.105.4',()=>({createClient:()=>fixture.db}));
 vi.mock('../../../../supabase/functions/_shared/metaSecurity.ts',()=>({META_SCOPES:[],META_REDIRECT:'fixture',STAGING_SUPABASE:'https://ujkzdaaadnvcfayuldmh.supabase.co',hash:async(v:string)=>v,connectionBinding:()=>'',unseal:async()=>({token:'fixture'})}));
 vi.mock('../../../../supabase/functions/_shared/metaCreatorProfile.ts',()=>({runCreatorFollowers:fixture.followers}));
@@ -7,7 +7,8 @@ vi.mock('../../../../supabase/functions/_shared/metaConnectionHealth.ts',()=>({r
 vi.mock('../../../../supabase/functions/_shared/metaConnectionDiagnostics.ts',()=>({diagnoseMetaConnection:async()=>({publishing_evidence:{eligibility:'verified'}})}));
 vi.mock('../../../../supabase/functions/_shared/metaPublishing.ts',()=>({advanceMetaPublish:fixture.publish,testAccountEnabled:()=>true,verifyMetaMedia:()=>{}}));
 vi.mock('../../../../supabase/functions/_shared/metaInboxHistory.ts',()=>({runInboxHistory:async()=>false}));
-vi.mock('../../../../supabase/functions/_shared/metaSynchronization.ts',()=>({readMetaPosts:vi.fn()}));
+vi.mock('../../../../supabase/functions/_shared/metaSynchronization.ts',()=>({readMetaPosts:fixture.read}));
+vi.mock('../../../../supabase/functions/_shared/metaPostAvailability.ts',()=>({observePostAvailability:fixture.observe}));
 vi.mock('../../../../supabase/functions/_shared/metaAds.ts',()=>({processAdsSync:async()=>false}));
 vi.mock('../../../../supabase/functions/_shared/privacyBlob.ts',()=>({commitJournal:vi.fn()}));
 beforeEach(async()=>{
@@ -105,4 +106,22 @@ it('a later QA lease cannot resume an existing routine-prepared mixed job',async
  const job={id:'held',channel:'instagram',state:'leased',lease_token:'lease',provider_state:{format_authorization_kind:'routine',verified_assets:['pic','vid'],objects:{child_0:'800'}},payload:{variants:[{channel:'instagram',format:'carousel',asset_ids:['pic','vid']} ]}};
  fixture.db.rpc.mockImplementation(async(name:string)=>({data:name==='marketing_claim_job'?job:name==='marketing_job_guard'?{id:'connection',channel:'instagram',credential_generation:1,status:'test_authorized',provider_account_id:'111',format_authorizations:{instagram_mixed_carousel:'temporary'},capabilities:{formats:['carousel']}}:name==='marketing_meta_connection_material'?{credential_generation:1,sealed_token:{}}:name==='marketing_job_assets'?[{id:'pic',mime_type:'image/jpeg'},{id:'vid',mime_type:'video/mp4'}]:name==='marketing_privacy_journal_pending'?[]:null,error:null}));
  fixture.publish.mockImplementationOnce(async input=>{expect(input.reconcileOnly).toBe(true);await expect(input.submissionGuard()).rejects.toThrow('format_execution_disabled');return {outcome:'uncertain',code:'retain_existing_child'};});await tick();expect(fixture.publish).toHaveBeenCalledOnce();expect(fixture.db.storage.from).not.toHaveBeenCalled();
+});
+
+// A traversal can succeed before the required paired availability reads fail.
+// That failed turn must not persist its partial media/Insights or advance a cursor.
+it.each(['provider failure','expired authority'])('keeps valid stored evidence after a late Social Sync %s',async reason=>{
+ fixture.health.mockResolvedValue(null);
+ const stored={id:'111_222',media:[{type:'image',url:'https://scontent.fbcdn.net/retained.jpg'}],metrics:{views:9}};
+ let persisted=structuredClone(stored);
+ fixture.read.mockResolvedValue({posts:[{id:'111_222',media:[],metrics:{},unavailable_metrics:{preview:'platform_metric_unavailable'}}],after:'uncommitted-next-page'});
+ fixture.observe.mockRejectedValue(new Error(reason));
+ fixture.db.rpc.mockImplementation(async(name:string,args:any)=>{
+  if(name==='marketing_meta_sync_finish'&&args.p_posts.length)persisted=args.p_posts[0];
+  return {error:null,data:name==='marketing_meta_sync_claim'?{id:'connection',credential_generation:1,channel:'facebook',provider_account_id:'111'}:name==='marketing_meta_connection_material'?{credential_generation:1,sealed_token:{}}:name==='marketing_meta_availability_targets'?[]:null};
+ });
+ await tick();
+ expect(fixture.observe).toHaveBeenCalledOnce();
+ expect(fixture.db.rpc).toHaveBeenCalledWith('marketing_meta_sync_finish',expect.objectContaining({p_posts:[],p_after:null,p_availability:[],p_error:'sync_unavailable'}));
+ expect(persisted).toEqual(stored);expect(fixture.publish).not.toHaveBeenCalled();
 });
