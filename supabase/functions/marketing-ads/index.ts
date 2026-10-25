@@ -490,6 +490,9 @@ Deno.serve(async (req) => {
         "Meta authorization expired or does not permit this operation.",
       ads_request_rejected:
         "This advertising configuration is unavailable or changed. Check brand ownership, supported settings and the current revision.",
+      ads_management_required: "Meta ads_management is missing. Drafts remain available; an authorized account owner must resolve management access before execution.",
+      ad_tasks_unverified: "The current authorizer’s Ad Account advertising/management task is unverified.",
+      account_not_active: "Meta does not currently classify this Ad Account as active for management.",
       ads_management_not_granted: "Meta Ads management permission is missing. Drafts are available; an authorized account owner must resolve management access before execution.",
       ad_page_authorization_unverified: "The current authorizer’s Page advertising task could not be verified.",
       ad_source_post_unverified: "Meta did not verify this exact post’s promotion eligibility, objective or unchanged content. Choose another post; do not recreate it.",
