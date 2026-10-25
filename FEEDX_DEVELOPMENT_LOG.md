@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-26 — Spill-free Ads evidence expansion
+
+Removed wide JSON tuplestores and ordered row aggregates from canonical packed-report expansion and Brand projection. Native bounded arrays preserve exact order, explicit provenance, zero/missing values and existing guards. Staging verification covers complete 26-snapshot repeated/concurrent reads at the Production memory budget and maximum accepted row count; Production remains separately gated. Canonical owner: docs/domains/marketing.md.
+
 ## 2026-10-26 — Bounded Ads stored-report projection
 
 Separated authorized snapshot metadata from full evidence loading in the existing Ads reporting RPC. Exact-period reports and fallback catalogs load only selected snapshots; coverage and existence decisions reuse metadata. Existing continuity, Brand attribution, complete-report/resource guards and original observations remain intact. Verified with representative packed large-report rollback fixtures, prior-contract equality, background refresh, missing periods, Brand isolation and generation rotation; Production remains a separate release approval. Canonical owner: docs/domains/marketing.md.
