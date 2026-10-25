@@ -37,7 +37,8 @@ export class MetaGraph {
  async request(path:string,token:string,params:Record<string,any>={},method='GET',inspect?:(status:number|null,code:number|null,evidence?:MetaResponseEvidence)=>void):Promise<any> {
   this.signal?.throwIfAborted();
   const pageFollowers=method==='GET'&&/^[a-z][a-z\d._-]{0,159}$/i.test(path)&&params.fields==='id,username,link,followers_count'&&Object.keys(params).length===1;
-  if(!pageFollowers&&!/^\/?(?:(?:act_)?\d+(?:_\d+)?|me|oauth|debug_token|t_\d{1,80})(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
+  const adsCitySearch=method==='GET'&&path==='search'&&params.type==='adgeolocation'&&params.country_code==='MY'&&Array.isArray(params.location_types)&&params.location_types.length===1&&params.location_types[0]==='city'&&typeof params.q==='string'&&params.q.length>=2&&params.q.length<=80;
+  if(!pageFollowers&&!adsCitySearch&&!/^\/?(?:(?:act_)?\d+(?:_\d+)?|me|oauth|debug_token|t_\d{1,80})(?:\/[a-z_]+)?$/.test(path))throw new MetaError('invalid_meta_endpoint');
   const url=new URL(`https://graph.facebook.com/${this.config.version}/${path.replace(/^\//,'')}`);
   const form=new URLSearchParams();for(const [key,value] of Object.entries(params))if(value!==undefined&&value!==null)form.set(key,typeof value==='object'?JSON.stringify(value):String(value));
   if(token&&token!==`${this.config.appId}|${this.config.appSecret}`) {

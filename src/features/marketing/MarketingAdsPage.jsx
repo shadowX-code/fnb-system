@@ -1,3 +1,4 @@
+import { adsAuthorizationReason } from "./adsReadiness.js";
 import {resolveBrandContext,selectBrandContext} from './brandContext.js';
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
@@ -84,7 +85,7 @@ export default function MarketingAdsPage() {
         setContext(c);
         const query = new URLSearchParams(location.search), next=resolveBrandContext(c,query.get("marketing_brand"),query.get("marketing_org"));
         setOrg(next.org);setBrand(next.brand);
-        if(query.get("meta_result")==="authorization_failed")setNotice(query.get("meta_reason")==="ads_read_not_granted"?"Meta did not grant Ad reporting access. The existing login configuration must provide ads_read (or ads_management); Page permissions do not grant Ad Account reporting.":"Meta authorization could not complete. Check authorized Ad Account access and try Connect Meta again.");
+        if(query.get("meta_result")==="authorization_failed")setNotice(adsAuthorizationReason(query.get("meta_reason")));
         else if(query.get("meta_result")==="cancelled")setNotice("Meta authorization was cancelled. Existing Ad Accounts are unchanged.");
       })
       .catch((e) => {

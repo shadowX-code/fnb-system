@@ -21,6 +21,7 @@ async function command(path, body) {
   return data;
 }
 export const adsService = {
+  readOnlyPreflight: (body) => command("read-only-preflight", body),
   locations: (body) => command("targeting-locations", body),
   createReadiness: (body) => command("create-readiness", body),
   changes: (org, brand) =>
@@ -46,8 +47,8 @@ export const adsService = {
     }),
   pending: (org, brand) =>
     rpc("marketing_ads_pending", { p_org: org, p_brand: null }),
-  authorize: (organizationId, brandId) =>
-    command("authorize", { organizationId, brandId: null }),
+  authorize: (organizationId, brandId, authorizationPurpose = "reporting") =>
+    command("authorize", { organizationId, brandId: null, authorizationPurpose }),
   preview: (sessionId, accountId, from, to) =>
     command("preview", { sessionId, accountId, from, to }),
   discovery: (org) => rpc("marketing_ads_discovery_read", { p_org: org }),

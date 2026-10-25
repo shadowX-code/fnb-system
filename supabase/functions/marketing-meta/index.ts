@@ -1,4 +1,5 @@
 import {facebookVideoConfigured,instagramExtendedConfigured} from '../_shared/marketingExecution.mjs';
+import {adsManagementLoginConfig} from '../_shared/metaAdsPrerequisites.ts';
 import {whatsappSignupHandler} from '../_shared/whatsappSignupHandler.ts';
 import {readCreatorProfile} from '../_shared/metaCreatorProfile.ts';
 import {privacyProcessingAllowed} from '../_shared/marketingPrivacyExecution.mjs';
@@ -70,9 +71,11 @@ Deno.serve(async(req)=>{
    let result='cancelled',reason='';
    if(!query.has('error')) {
     try {
+     if(session.ads_management_config_id && adsManagementLoginConfig(env,config.configId)!==session.ads_management_config_id)throw new MetaError('ads_management_login_changed');
      const discovery=session.purpose==='ads'?await discoverAds(graph,query.get('code')||''):await graph.exchange(query.get('code')||'');
+     if(session.ads_management_config_id && !discovery.accounts.some((a:any)=>a.granted_scopes?.includes('ads_management')))throw new MetaError('ads_management_required');
      await call(service,session.purpose==='ads'?'marketing_ads_stage':'marketing_meta_stage',{p_session:session.id,p_user_id:discovery.userId,p_sealed:await seal(discovery,key,`oauth:${session.id}`),p_accounts:discovery.accounts});result='select_account';
-    }catch(error){result='authorization_failed';if(session.purpose==='ads'&&error instanceof MetaError&&['ads_read_not_granted','meta_permission_or_token_invalid','ads_pagination_limit','user_token_required'].includes(error.code))reason=error.code;}
+    }catch(error){result='authorization_failed';if(session.purpose==='ads'&&error instanceof MetaError&&['ads_read_not_granted','ads_management_required','ads_management_login_changed','meta_permission_or_token_invalid','ads_pagination_limit','user_token_required'].includes(error.code))reason=error.code;}
    }
    const redirect=new URL(`${RUNTIME_ORIGIN}/marketing/${session.purpose==='ads'?'ads':'settings'}`);redirect.searchParams.set('meta_result',result);redirect.searchParams.set('marketing_org',session.organization_id);redirect.searchParams.set('marketing_brand',session.brand_id);
    if(reason)redirect.searchParams.set('meta_reason',reason);

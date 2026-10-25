@@ -1,5 +1,6 @@
 import {runtimeMetaMatches, PRODUCTION_RUNTIME} from '../_shared/marketingEnvironment.mjs';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
+import { adsManagementLoginConfig, adsExecutionAllowed, adsReadOnlyPreflight } from "../_shared/metaAdsPrerequisites.ts";
 import {
   RUNTIME_SUPABASE,
   RUNTIME_ORIGIN,
@@ -84,6 +85,7 @@ Deno.serve(async (req) => {
         "/validate-adset",
         "/create-readiness",
         "/targeting-locations",
+        "/read-only-preflight",
       ].includes(path)
     )
       return reply({ error: "Endpoint unavailable." }, 404);
@@ -94,7 +96,21 @@ Deno.serve(async (req) => {
           Boolean(env("OPENAI_API_KEY") && env("MARKETING_AI_MODEL")),
         external_execution_enabled:
           !PRODUCTION_RUNTIME && env("MARKETING_ADS_EXECUTION_ENABLED") === "true",
+        management_login_ready: Boolean(adsManagementLoginConfig(env, env("MARKETING_META_LOGIN_CONFIG_ID"))),
       });
+    if (path === "/read-only-preflight") {
+      const args = { p_auth_user: identity.user.id, p_org: body.organizationId, p_brand: body.brandId, p_connection: body.connectionId, p_page_id: body.pageId, p_source_job: body.sourceJobId || null };
+      const material = await call(service, "marketing_ads_preflight_material", args), c = material.connection;
+      const grant = await unseal(c.sealed_token, [env("MARKETING_META_TOKEN_ENCRYPTION_KEY"), env("MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY")], connectionBinding(c));
+      const signal = AbortSignal.timeout(15000);
+      const graph = new MetaGraph({ appId: env("MARKETING_META_APP_ID"), appSecret: env("MARKETING_META_APP_SECRET"), configId: env("MARKETING_META_LOGIN_CONFIG_ID"), version: env("MARKETING_META_GRAPH_VERSION") },
+        (input, init) => fetch(input, { ...init, signal: AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])]) }));
+      const guard = async () => {
+        const current = await call(service, "marketing_ads_preflight_material", args);
+        if (current.connection.credential_generation !== c.credential_generation || current.connection.meta_user_id !== c.meta_user_id || current.page.id !== material.page.id || current.page.credential_generation !== material.page.credential_generation || JSON.stringify(current.source_post) !== JSON.stringify(material.source_post)) throw new MetaError("ads_authority_changed");
+      };
+      return reply(await adsReadOnlyPreflight(graph, grant.token, env("MARKETING_META_APP_ID"), env("MARKETING_META_APP_SECRET"), material, guard));
+    }
     if (path === "/validate-adset") {
       const args = {
         p_request: body.requestId,
@@ -219,13 +235,8 @@ Deno.serve(async (req) => {
       });
     }
     if (path === "/execute-change") {
-      if (
-        PRODUCTION_RUNTIME || env("MARKETING_ADS_EXECUTION_ENABLED") !== "true" ||
-        !body.fingerprint ||
-        !env("MARKETING_ADS_EXECUTION_APPROVALS")
-          .split(",")
-          .includes(body.fingerprint)
-      )
+      const revision = await call(service, "marketing_ads_execution_preflight", { p_request: body.requestId, p_auth_user: identity.user.id, p_fingerprint: body.fingerprint });
+      if (!adsExecutionAllowed(env, revision, PRODUCTION_RUNTIME))
         return reply(
           {
             error:
@@ -353,14 +364,20 @@ Deno.serve(async (req) => {
         503,
       );
     if (path === "/authorize") {
+      if (body.authorizationPurpose && !["reporting", "management"].includes(body.authorizationPurpose)) throw new MetaError("ads_request_rejected");
+      const management = body.authorizationPurpose === "management";
+      const managementConfig = adsManagementLoginConfig(env, config.configId);
+      if (management && !managementConfig) return reply({ error: "Dedicated Ads Management authorization is not configured. Reporting and Publishing are unchanged." }, 503);
       const state = nonce();
-      await call(caller, "marketing_ads_begin", {
+      await call(caller, management ? "marketing_ads_management_begin" : "marketing_ads_begin", management ? {
+        p_org: body.organizationId, p_state_hash: await hash(state), p_config_id: managementConfig,
+      } : {
         p_org: body.organizationId,
         p_brand: body.brandId,
         p_state_hash: await hash(state),
       });
       return reply({
-        authorization_url: authorizationUrl(config, state),
+        authorization_url: authorizationUrl(management ? { ...config, configId: managementConfig! } : config, state),
         execution_enabled: false,
       });
     }

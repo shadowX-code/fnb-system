@@ -59,7 +59,8 @@ export default function AdsManagement({
     [form, setForm] = useState(initial),
     [selectedBrand, setSelectedBrand] = useState(brand),
     [connection, setConnection] = useState(reportingAccounts[0]?.id || ""),
-    [enabled, setEnabled] = useState(false);
+    [enabled, setEnabled] = useState(false),
+    [managementLoginReady, setManagementLoginReady] = useState(false);
   const accounts = (data?.accounts?.length ? data.accounts : reportingAccounts).map(a=>({...a,health:reportingAccounts.find(r=>r.id===a.id)?.health||a.health}));
   const sequence = useRef(0),
     intent = useRef(null), createdRequest=useRef(0);
@@ -82,6 +83,7 @@ export default function AdsManagement({
               : r.accounts?.[0]?.id || reportingAccounts[0]?.id || "",
           );
           setEnabled(c.external_execution_enabled === true);
+          setManagementLoginReady(c.management_login_ready === true);
         }
       })
       .catch((e) => {
@@ -348,7 +350,7 @@ export default function AdsManagement({
         )}
       </AsyncDataSurface>
       {showCreateAction && can("marketing_ads.manage") && <button className="btn-primary" disabled={loading||busy} onClick={()=>setModal({kind:"create"})}>Create Ad</button>}
-      {modal?.kind === "create" && <CreateAdWorkspace key={modal.previous?.id||"new"} org={org} brand={brand} brands={brands} accounts={accounts} data={data||{}} previous={modal.previous} onClose={()=>setModal(null)} onSave={async(body)=>{const n=sequence.current;const row=await adsService.prepareChange(body);if(n!==sequence.current)return row;setModal(null);setNotice(body.configuration.draft_only?"Ad draft saved. No provider changes were made.":"Ad revision prepared. Review and approval are required; nothing was sent to Meta.");setRefresh(n=>n+1);return row;}}/>}
+      {modal?.kind === "create" && <CreateAdWorkspace key={modal.previous?.id||"new"} managementLoginReady={managementLoginReady} canConnect={can("marketing_ads.connect")} org={org} brand={brand} brands={brands} accounts={accounts} data={data||{}} previous={modal.previous} onClose={()=>setModal(null)} onSave={async(body)=>{const n=sequence.current;const row=await adsService.prepareChange(body);if(n!==sequence.current)return row;setModal(null);setNotice(body.configuration.draft_only?"Ad draft saved. No provider changes were made.":"Ad revision prepared. Review and approval are required; nothing was sent to Meta.");setRefresh(n=>n+1);return row;}}/>}
       {modal?.kind === "form" && (
         <Modal
           title={
