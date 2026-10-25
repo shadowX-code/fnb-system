@@ -1,3 +1,4 @@
+import { postThumbnailItem, usePostMediaSource } from './postMedia.js';
 import PostLiveAvailability from './PostLiveAvailability.jsx';
 import AdminCalendarNavigation from '../../components/forms/AdminCalendarNavigation.jsx';
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -117,23 +118,7 @@ function Status({ value }) {
   );
 }
 export function Thumbnail({ channel }) {
-  const [url, setUrl] = useState(channel?.thumbnail_url || "");
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    let live = true;
-    setFailed(false);
-    setUrl(channel?.thumbnail_url || "");
-    if (channel?.asset?.mime_type?.startsWith("image/")) {
-      marketingService.assetUrl(channel.asset).then((value) => {
-        if (live) setUrl(value);
-      }).catch(() => {
-        if (live) setFailed(true);
-      });
-    }
-    return () => {
-      live = false;
-    };
-  }, [channel?.asset?.id, channel?.thumbnail_url]);
+  const {url, failed, onError} = usePostMediaSource(postThumbnailItem(channel || {}));
   return (
     <span className="cm-thumbnail">
       {url && !failed
@@ -143,7 +128,7 @@ export function Thumbnail({ channel }) {
             alt=""
             loading="lazy"
             referrerPolicy="no-referrer"
-            onError={() => setFailed(true)}
+            onError={onError}
           />
         )
         : (

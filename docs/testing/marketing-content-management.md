@@ -9,3 +9,10 @@ QA level: L3 (scoped read RPC, immutable planning payload validation, optional s
 - Adapter tests cover optional thumbnail rejection/unavailability, trusted HTTPS media hosts, token-material exclusion and preserved credential/authority failures. Existing sync, publishing, OAuth, Inbox and route regressions remain in the focused Marketing suite.
 - Deliver through clean `origin/dev`, matching READY Git deployment on `fnb-system-staging`, then authenticated List/Calendar/Library/Analytics checks. Verify existing historical Meta posts, actual zero metrics, read-only detail, month/week/date navigation, persistent preferred view and mobile no-overflow behavior. A read-only sync refresh may verify current thumbnails using existing credentials; no OAuth changes or publishing execution is involved.
 - Record a representative screenshot. Preserve connection bindings, publishing Unverified/execution disabled and Production unchanged. Do not create persistent content fixtures when rollback mutation evidence and existing real social posts suffice.
+
+
+### Published media after temporary snapshot cleanup
+
+`postMedia.test.jsx` covers the Happiness failure shape: retired image snapshot plus exact synchronized Instagram image; thumbnail and Detail/Performance must render the provider image without signing the retired object. Also verify a ready snapshot signing failure falls back only once, expired CDN evidence shows unavailable, refreshed normal-Sync URLs recover, carousel order stays intact, untrusted hosts/token-bearing URLs are rejected, and a late prior-channel signed URL cannot replace the current channel. Never restore or indefinitely retain temporary publishing files for preview QA.
+
+Facebook numeric zero, omitted action buckets, denied protected count edges, current Views/Unique Viewers, and Instagram metrics retain the existing `metaSynchronization.test.ts` and `PostDetail.test.jsx` contracts. Empty provider aggregate objects are unavailable, never invented zero; Unique Viewers is not relabelled Reach.
