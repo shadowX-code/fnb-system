@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-25 — Scoped Create Ads workspace
+
+Extended existing Ads revisions with incomplete local drafts, Facebook published-post binding, shared image selection, local targeting and account-timezone schedules. Paused creation preserves exact source identities, checkpoints and uncertain-write protection; Production execution remains disabled and live Ads creation/delivery acceptance is still required. Verified with 134 focused tests, rollback-only authority checks, build and exact Staging Edge bundle type-check. Canonical owner: docs/domains/marketing.md.
+
 ## 2026-10-17 - Marketing deployed-source history reconciliation candidate
 
 Prepared an isolated Production-based local candidate incorporating `4d29ba31f`, exact live Inbox emergency restrictions and Privacy checkpoint/recovery source. Restored four additional already-applied migrations against Production ledger SHA-256, documented immutable identity aliases and corrected stale runtime/release guidance. Focused mocked authority/recovery checks passed; no push, main update, SQL execution, Edge deployment or activation is included. Canonical owner: `docs/domains/marketing.md`; exact scope and provenance: [source reconciliation](docs/releases/2026-10-17-marketing-source-history-reconciliation.md).

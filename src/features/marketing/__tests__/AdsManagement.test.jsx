@@ -84,17 +84,18 @@ describe("native Ads control surface", () => {
   it("prepares locally without invoking external execution and preserves compact canonical controls", async () => {
     render(<AdsManagement {...props} />);
     await screen.findByText("No advertising revisions");
-    fireEvent.click(screen.getByRole("button", { name: "Prepare change" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Ad" }));
     expect(await screen.findByRole("dialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab",{name:"Review",exact:true}));
     const beneficiary = screen.getByLabelText(
       "Advertiser (beneficiary) identity ID",
     );
     const payer = screen.getByLabelText("Payer identity ID");
     expect(beneficiary.value).toBe("");
     expect(payer.value).toBe("");
-    expect(beneficiary.required && payer.required).toBe(true);
-    expect(screen.getByRole("button", { name: "Save revision" })).toBeTruthy();
-    expect(screen.getByText(/Creation starts paused/)).toBeTruthy();
+    expect(beneficiary.required || payer.required).toBe(false);
+    expect(screen.getByRole("button", { name: "Save Draft" })).toBeTruthy();
+    expect(screen.getAllByText(/Creation starts paused/).length).toBeGreaterThan(0);
     expect(ads.executeChange).not.toHaveBeenCalled();
   });
   it("keeps an approved revision disabled when Meta management and execution are unavailable", async () => {

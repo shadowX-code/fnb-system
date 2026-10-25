@@ -46,6 +46,7 @@ function ConnectionStatus({ account, report }) {
   return <div className="ads-reporting-status" role="status"><Badge semantic tone={state.tone}>{state.label === "Ready" ? "Reporting Ready" : state.label}</Badge>{state.label !== "Ready" && <p className="text-sm text-text-secondary">{state.reason}</p>}</div>;
 }
 export default function MarketingAdsPage() {
+  const [createRequest,setCreateRequest]=useState(0);
   const auth = useAuth(),
     can = (p) => auth.hasPermission(p),
     generation = useRef(0);
@@ -278,7 +279,7 @@ export default function MarketingAdsPage() {
       description="Advertising performance and decisions across your brands."
       controls={controls}
       actions={
-        tab === "accounts" && can("marketing_ads.connect") && data?.organization_access !== false ? (
+        tab !== "accounts" && can("marketing_ads.manage") ? <button className="btn-primary" onClick={()=>{changeTab("management");setCreateRequest(n=>n+1);}}>Create Ad</button> : tab === "accounts" && can("marketing_ads.connect") && data?.organization_access !== false ? (
           <button
             className="btn-primary"
             disabled={busy || !org}
@@ -468,7 +469,7 @@ export default function MarketingAdsPage() {
         {tab === "campaigns" && periodMode==='lifetime' && <p className="text-sm text-text-secondary" role="status">{lifetime?`Lifetime Performance · exact Meta-observed period ${lifetime.from}–${lifetime.to}. Widest saved observation; earlier lifetime activity is not established.`:'Lifetime Performance is awaiting its first complete historical observation. Available configuration is shown without invented metrics.'}</p>}
         {tab === "campaigns" && data?.accounts.length > 0 && <AdsCampaigns key={`${org}:${brand}`} accounts={data.accounts} account={account} onAccount={changeAccount} report={periodMode==='lifetime'&&!lifetime?data?.catalogs?.find(r=>r.connection_id===account)?.payload:report} brands={brands} canReview={data.organization_access && !brand} onReview={()=>setModal({kind:"preview",report})} onDetail={(row,level,onDrill)=>setModal({kind:"detail",row,level,onDrill})}/>}
         {tab === "management" && (
-          <AdsManagement
+          <AdsManagement createRequest={createRequest}
             key={`${org}:${brand}:${account}`}
             org={org}
             brand={brand}
