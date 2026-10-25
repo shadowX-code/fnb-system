@@ -42,6 +42,7 @@ const initial = () => ({
 export default function AdsManagement({
   org,
   createRequest = 0,
+  showCreateAction = true,
   brand,
   brands,
   accounts: reportingAccounts,
@@ -318,7 +319,7 @@ export default function AdsManagement({
                     key: "maximum_budget",
                     header: "Maximum lifetime budget",
                     render: (r) =>
-                      r.operation === "pause"
+                      r.configuration.draft_only ? "Draft — not validated" : r.operation === "pause"
                         ? "No budget change"
                         : money(r.maximum_budget),
                   },
@@ -335,7 +336,7 @@ export default function AdsManagement({
                   </p>
                   <Badge>{r.state}</Badge>
                   <p>
-                    {r.operation === "pause"
+                    {r.configuration.draft_only ? "Draft — not validated" : r.operation === "pause"
                       ? "No budget change"
                       : money(r.maximum_budget)}
                   </p>
@@ -346,8 +347,8 @@ export default function AdsManagement({
           </>
         )}
       </AsyncDataSurface>
-      {can("marketing_ads.manage") && <button className="btn-primary" disabled={loading||busy} onClick={()=>setModal({kind:"create"})}>Create Ad</button>}
-      {modal?.kind === "create" && <CreateAdWorkspace key={modal.previous?.id||"new"} org={org} brand={brand} brands={brands} accounts={accounts} data={data||{}} previous={modal.previous} onClose={()=>setModal(null)} onSave={async(body)=>{const row=await adsService.prepareChange(body);setModal(null);setNotice(body.configuration.draft_only?"Ad draft saved. No provider changes were made.":"Ad revision prepared. Review and approval are required; nothing was sent to Meta.");setRefresh(n=>n+1);return row;}}/>}
+      {showCreateAction && can("marketing_ads.manage") && <button className="btn-primary" disabled={loading||busy} onClick={()=>setModal({kind:"create"})}>Create Ad</button>}
+      {modal?.kind === "create" && <CreateAdWorkspace key={modal.previous?.id||"new"} org={org} brand={brand} brands={brands} accounts={accounts} data={data||{}} previous={modal.previous} onClose={()=>setModal(null)} onSave={async(body)=>{const n=sequence.current;const row=await adsService.prepareChange(body);if(n!==sequence.current)return row;setModal(null);setNotice(body.configuration.draft_only?"Ad draft saved. No provider changes were made.":"Ad revision prepared. Review and approval are required; nothing was sent to Meta.");setRefresh(n=>n+1);return row;}}/>}
       {modal?.kind === "form" && (
         <Modal
           title={
@@ -736,7 +737,7 @@ function RevisionDetail({
         <div>
           <dt>Budget envelope</dt>
           <dd>
-            {r.operation === "pause" ? "No change" : money(r.maximum_budget)}
+            {r.configuration.draft_only ? "Draft — not validated" : r.operation === "pause" ? "No change" : money(r.maximum_budget)}
           </dd>
         </div>
         <div>

@@ -469,7 +469,7 @@ export default function MarketingAdsPage() {
         {tab === "campaigns" && periodMode==='lifetime' && <p className="text-sm text-text-secondary" role="status">{lifetime?`Lifetime Performance · exact Meta-observed period ${lifetime.from}–${lifetime.to}. Widest saved observation; earlier lifetime activity is not established.`:'Lifetime Performance is awaiting its first complete historical observation. Available configuration is shown without invented metrics.'}</p>}
         {tab === "campaigns" && data?.accounts.length > 0 && <AdsCampaigns key={`${org}:${brand}`} accounts={data.accounts} account={account} onAccount={changeAccount} report={periodMode==='lifetime'&&!lifetime?data?.catalogs?.find(r=>r.connection_id===account)?.payload:report} brands={brands} canReview={data.organization_access && !brand} onReview={()=>setModal({kind:"preview",report})} onDetail={(row,level,onDrill)=>setModal({kind:"detail",row,level,onDrill})}/>}
         {tab === "management" && (
-          <AdsManagement createRequest={createRequest}
+          <AdsManagement createRequest={createRequest} showCreateAction={false}
             key={`${org}:${brand}:${account}`}
             org={org}
             brand={brand}
