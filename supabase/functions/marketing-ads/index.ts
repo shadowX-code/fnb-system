@@ -11,7 +11,7 @@ import {
 } from "../_shared/metaSecurity.ts";
 import { MetaGraph, MetaError } from "../_shared/metaGraph.ts";
 import { verifyAdsAccount, readAdsReport } from "../_shared/metaAds.ts";
-import { bytesHash, executeAdsChange } from "../_shared/metaAdsManagement.ts";
+import { bytesHash, executeAdsChange, verifyAdsCreateReadiness } from "../_shared/metaAdsManagement.ts";
 import { validatePausedAdSet } from "../_shared/metaAdsValidation.ts";
 import { requestAdsAI, estimateAdsAICost } from "../_shared/marketingAdsAI.ts";
 const env = (n: string) => Deno.env.get(n) || "";
@@ -56,6 +56,9 @@ Deno.serve(async (req) => {
   );
   const call = async (db: any, name: string, args: any) => {
     const { data, error } = await db.rpc(name, args);
+    if(error?.code==="P0001" && ["marketing_ads_change_prepare","marketing_ads_workspace_material"].includes(name)) {
+      const failure=new MetaError("ads_configuration_invalid");failure.message=String(error.message).slice(0,240);throw failure;
+    }
     if (error)
       throw new MetaError(
         error.code === "42501" ? "scope_denied" : "ads_request_rejected",
@@ -78,6 +81,8 @@ Deno.serve(async (req) => {
         "/execute-change",
         "/reconcile-change",
         "/validate-adset",
+        "/create-readiness",
+        "/targeting-locations",
       ].includes(path)
     )
       return reply({ error: "Endpoint unavailable." }, 404);
@@ -145,13 +150,30 @@ Deno.serve(async (req) => {
       });
       return reply(result);
     }
+    if(path==="/create-readiness" || path==="/targeting-locations") {
+      const args={p_auth_user:identity.user.id,p_org:body.organizationId,p_brand:body.brandId,p_connection:body.connectionId,p_request:path==="/create-readiness"?body.requestId:null,p_fingerprint:body.fingerprint||null};
+      const material=await call(service,"marketing_ads_workspace_material",{...args,p_reserve:true}), c=material.connection;
+      const grant=await unseal(c.sealed_token,[env("MARKETING_META_TOKEN_ENCRYPTION_KEY"),env("MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY")],connectionBinding(c));
+      const graph=new MetaGraph({appId:env("MARKETING_META_APP_ID"),appSecret:env("MARKETING_META_APP_SECRET"),configId:env("MARKETING_META_LOGIN_CONFIG_ID"),version:env("MARKETING_META_GRAPH_VERSION")});
+      const guard=async()=>{await call(service,"marketing_ads_workspace_material",args);};
+      const health=await verifyAdsAccount(graph,env("MARKETING_META_APP_ID"),env("MARKETING_META_APP_SECRET"),grant.token,c.provider_account_id,c.meta_user_id,guard);
+      if(!health.manage_verified) throw new MetaError(health.manage_reason||"ads_management_not_granted");
+      if(path==="/targeting-locations") {
+        const q=String(body.query||"").trim();
+        if(q.length<2 || q.length>80) throw new MetaError("ad_city_query_invalid");
+        const result=await graph.request("search",grant.token,{type:"adgeolocation",location_types:["city"],country_code:"MY",q,limit:10});
+        return reply({locations:(result.data||[]).filter((r:any)=>r.country_code==="MY" && r.type==="city" && /^\d{1,30}$/.test(r.key)).map((r:any)=>({key:r.key,name:String(r.name).slice(0,150),region:String(r.region||"").slice(0,100)}))});
+      }
+      await verifyAdsCreateReadiness(graph,grant.token,material.change.configuration,guard);
+      return reply({identity_verified:true,creation_verified:false,delivery_verified:false,message:"Identity checks passed. Meta targeting, minimum budget and delivery still require separately authorized paused creation acceptance."});
+    }
     if (path === "/prepare-change") {
       const visible = await call(caller, "marketing_ads_changes_read", {
         p_org: body.organizationId,
         p_brand: body.brandId,
       });
       let mediaHash: string | null = null;
-      if (body.operation === "create") {
+      if (body.operation === "create" && body.configuration?.draft_only !== true && body.configuration?.creative_source !== "facebook_post") {
         const asset = visible.assets.find(
           (a: any) =>
             a.id === body.configuration?.asset_id &&
@@ -468,12 +490,17 @@ Deno.serve(async (req) => {
         "Meta authorization expired or does not permit this operation.",
       ads_request_rejected:
         "This advertising configuration is unavailable or changed. Check brand ownership, supported settings and the current revision.",
+      ads_management_not_granted: "Meta Ads management permission is missing. Drafts are available; an authorized account owner must resolve management access before execution.",
+      ad_page_authorization_unverified: "The current authorizer’s Page advertising task could not be verified.",
+      ad_source_post_unverified: "Meta did not verify this exact post’s promotion eligibility, objective or unchanged content. Choose another post; do not recreate it.",
+      ad_source_post_incompatible: "Existing-post promotion supports Facebook Feed and Awareness only.",
+      ad_city_authorization_unverified: "Meta could not verify the selected Malaysian city. Search and select it again.",
       ad_media_unavailable:
         "Choose an available image from this brand’s Content Library.",
     };
     return reply(
       {
-        error: messages[code] || "Ad Account connection could not be verified.",
+        error: code==="ads_configuration_invalid" && e instanceof MetaError ? e.message : messages[code] || "Ad Account connection could not be verified.",
         code,
       },
       409,

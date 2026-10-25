@@ -4,6 +4,7 @@ import {
   advanceAdsChange,
   bytesHash,
   createPayloads,
+  matchingLocalAudience,
 } from "../../../../supabase/functions/_shared/metaAdsManagement.ts";
 import { MetaError } from "../../../../supabase/functions/_shared/metaGraph.ts";
 const base = {
@@ -374,4 +375,35 @@ it("does not repeat an ambiguous existing-campaign mutation after restart", asyn
     outcome: "reconciling",
   });
   expect(h.request).not.toHaveBeenCalled();
+});
+
+const promoted=()=>({...structuredClone(base),configuration:{...structuredClone(base.configuration),create_contract_version:3,creative_source:"facebook_post",objective:"OUTCOME_AWARENESS",placements:"facebook_feed",promoted_object:{page_id:"222"},audience:{type:"radius",latitude:4.6,longitude:101.1,radius:5},source_post:{provider_post_id:"222_555",page_id:"222",format:"image",caption:"Original post"}}});
+function postHarness({changed=false,otherSource=false,partial=false}={}) {
+ const change=promoted(),h=harness(change),expected=createPayloads(change,{campaign_id:"901",adset_id:"902",creative_id:"903"});
+ h.request.mockImplementation(async(path,token,params,method)=>{
+  if(path==="me/accounts")return {data:[{id:"222",tasks:["ADVERTISE"]}]};
+  if(path==="222_555")return {id:"222_555",from:{id:"222"},message:changed?"Changed externally":"Original post",is_published:true,is_eligible_for_promotion:true,allowed_advertising_objectives:["OUTCOME_AWARENESS"],attachments:{data:[{media_type:"photo"}]}};
+  if(method==="POST") {if(partial&&path.endsWith("adcreatives"))throw new MetaError("network_uncertain",true);return {id:path.endsWith("campaigns")?"901":path.endsWith("adsets")?"902":path.endsWith("adcreatives")?"903":"904"};}
+  if(path==="902")return {regional_regulated_categories:change.configuration.regional_regulated_categories,regional_regulation_identities:change.configuration.regional_regulation_identities,promoted_object:{page_id:"222"}};
+  if(path.endsWith("/campaigns"))return {data:[{id:"901",...expected.campaign}]};
+  if(path.endsWith("/adsets"))return {data:[{id:"902",...expected.adset}]};
+  if(path.endsWith("/ads"))return {data:[{id:"904",campaign_id:"901",adset_id:"902",status:"PAUSED",creative:{id:"903",object_story_id:otherSource?"222_666":"222_555"}}]};
+  throw new Error(`Unexpected ${method} ${path}`);
+ });return h;
+}
+it("references the exact original post without image upload, reconciles all paused identities and records the source",async()=>{
+ const h=postHarness(),result=await h.run();expect(result).toMatchObject({outcome:"succeeded",receipt:{source_post_id:"222_555",status:"PAUSED",reconciled:true}});
+ const writes=h.request.mock.calls.filter(c=>c[3]==="POST");expect(writes).toHaveLength(4);expect(writes.some(c=>c[0].includes("adimages"))).toBe(false);
+ expect(writes.find(c=>c[0].endsWith("adcreatives"))[2]).toEqual({name:"Reviewed · Creative",object_story_id:"222_555"});
+ expect(h.writes.filter(c=>c.pending).map(c=>c.pending)).toEqual(["campaign","adset","creative","ad"]);
+});
+it("blocks changed source content before a provider write",async()=>{const h=postHarness({changed:true});await expect(h.run()).rejects.toThrow("ad_source_post_unverified");expect(h.request.mock.calls.some(c=>c[3]==="POST")).toBe(false);});
+it("does not accept a different existing post in a provider receipt",async()=>{expect(await postHarness({otherSource:true}).run()).toMatchObject({outcome:"reconciling"});});
+it("preserves accepted campaign/adset IDs and never repeats an uncertain existing-post creative submission",async()=>{
+ const h=postHarness({partial:true});await expect(h.run()).rejects.toThrow("network_uncertain");expect(h.state()).toMatchObject({campaign_id:"901",adset_id:"902",pending:"creative"});const calls=h.request.mock.calls.length;expect(await h.run({state:h.state()})).toMatchObject({outcome:"reconciling"});expect(h.request).toHaveBeenCalledTimes(calls);
+});
+it("reconciles exact local targeting and rejects broadened national targeting",()=>{
+ const g={custom_locations:[{latitude:"4.6",longitude:101.1,radius:5,distance_unit:"kilometer"}]};expect(matchingLocalAudience(g,promoted().configuration.audience)).toBe(true);expect(matchingLocalAudience({...g,countries:["MY"]},promoted().configuration.audience)).toBe(false);
+ expect(matchingLocalAudience({cities:[{key:"1",radius:17,distance_unit:"kilometer"}]},{type:"city",key:"1",radius:17})).toBe(true);
+ expect(matchingLocalAudience({...g,custom_locations:[...g.custom_locations,...g.custom_locations]},promoted().configuration.audience)).toBe(false);
 });

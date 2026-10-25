@@ -21,6 +21,8 @@ async function command(path, body) {
   return data;
 }
 export const adsService = {
+  locations: (body) => command("targeting-locations", body),
+  createReadiness: (body) => command("create-readiness", body),
   changes: (org, brand) =>
     rpc("marketing_ads_changes_read", { p_org: org, p_brand: brand || null }),
   prepareChange: (body) => command("prepare-change", body),

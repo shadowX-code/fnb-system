@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { marketingService } from "./marketingService.js";
 import { adsService } from "./adsService.js";
 import { adsManagerUrl } from "./adsPresentation.js";
+import CreateAdWorkspace from "./CreateAdWorkspace.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
 import DatePickerField from "../../components/forms/DatePickerField.jsx";
@@ -40,6 +41,7 @@ const initial = () => ({
 });
 export default function AdsManagement({
   org,
+  createRequest = 0,
   brand,
   brands,
   accounts: reportingAccounts,
@@ -59,7 +61,7 @@ export default function AdsManagement({
     [enabled, setEnabled] = useState(false);
   const accounts = (data?.accounts?.length ? data.accounts : reportingAccounts).map(a=>({...a,health:reportingAccounts.find(r=>r.id===a.id)?.health||a.health}));
   const sequence = useRef(0),
-    intent = useRef(null);
+    intent = useRef(null), createdRequest=useRef(0);
   useEffect(() => {
     const n = ++sequence.current;
     setLoading(true);
@@ -91,6 +93,7 @@ export default function AdsManagement({
       sequence.current++;
     };
   }, [org, brand, refresh]);
+  useEffect(()=>{if(data && createRequest>createdRequest.current){createdRequest.current=createRequest;setModal({kind:"create"});}},[data,createRequest]);
   const edit = (k, v) => {
     intent.current = null;
     setForm((f) => ({ ...f, [k]: v }));
@@ -180,11 +183,13 @@ export default function AdsManagement({
   }
   function openNew() {
     intent.current = null;
-    setForm(initial());
+    setForm({...initial(),operation:"pause"});
     setModal({ kind: "form" });
     setNotice("");
   }
   function revise(r) {
+    if(r.operation==="create" && r.state!=="reconciling" && !r.configuration.recovery_source){setModal({kind:"create",previous:r});return;}
+
     const c = r.configuration;
     intent.current = null;
     setSelectedBrand(r.brand_id);
@@ -239,7 +244,7 @@ export default function AdsManagement({
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-semibold">Controlled advertising</h2>
+          <h2 className="font-semibold">Ads workspace</h2>
           <p className="text-sm text-text-secondary">
             Prepare, review and approve exact changes. AI recommendations stay
             advisory.
@@ -258,7 +263,7 @@ export default function AdsManagement({
             disabled={!accounts.length || busy}
             onClick={openNew}
           >
-            Prepare change
+            Manage campaign
           </button>
         )}
       </div>
@@ -341,6 +346,8 @@ export default function AdsManagement({
           </>
         )}
       </AsyncDataSurface>
+      {can("marketing_ads.manage") && <button className="btn-primary" disabled={loading||busy} onClick={()=>setModal({kind:"create"})}>Create Ad</button>}
+      {modal?.kind === "create" && <CreateAdWorkspace key={modal.previous?.id||"new"} org={org} brand={brand} brands={brands} accounts={accounts} data={data||{}} previous={modal.previous} onClose={()=>setModal(null)} onSave={async(body)=>{const row=await adsService.prepareChange(body);setModal(null);setNotice(body.configuration.draft_only?"Ad draft saved. No provider changes were made.":"Ad revision prepared. Review and approval are required; nothing was sent to Meta.");setRefresh(n=>n+1);return row;}}/>}
       {modal?.kind === "form" && (
         <Modal
           title={
@@ -400,7 +407,7 @@ export default function AdsManagement({
                 label="Change"
                 value={form.operation}
                 options={[
-                  { value: "create", label: "Create paused campaign" },
+                  ...(modal.previous?.operation==="create"?[{ value: "create", label: "Create paused campaign" }]:[]),
                   { value: "pause", label: "Pause campaign" },
                   { value: "resume", label: "Resume bounded campaign" },
                   { value: "budget", label: "Adjust lifetime budget" },
@@ -669,6 +676,8 @@ export default function AdsManagement({
             onExecute={() => act(() => adsService.executeChange(modal.row))}
             onReconcile={() => act(() => adsService.reconcileChange(modal.row))}
             onValidate={() => act(() => adsService.validateAdSet(modal.row))}
+            onCheckReadiness={async()=>{setBusy(true);setError("");setModal(m=>({...m,readiness:null}));try{const result=await adsService.createReadiness({organizationId:org,brandId:modal.row.brand_id,connectionId:modal.row.connection_id,requestId:modal.row.id,fingerprint:modal.row.fingerprint});setNotice(result.message);setModal(m=>({...m,readiness:result.message}));}catch(e){setError(e.message);}finally{setBusy(false);}}}
+            readinessMessage={modal.readiness}
           />
         </Modal>
       )}
@@ -686,6 +695,8 @@ function RevisionDetail({
   onExecute,
   onReconcile,
   onValidate,
+  onCheckReadiness,
+  readinessMessage,
 }) {
   return (
     <div className="space-y-4">
@@ -706,6 +717,10 @@ function RevisionDetail({
         <Badge>Revision {r.revision}</Badge>
         <Badge>{r.brand}</Badge>
       </div>
+      {r.configuration.create_contract_version===3 && can("marketing_ads.manage") && ["draft","review","approved"].includes(r.state) ? <button className="btn-secondary" disabled={busy||!r.current||!manage} onClick={onCheckReadiness}>Check Meta readiness (read only)</button>:null}
+      {r.configuration.draft_only ? <p className="text-sm text-text-secondary">Incomplete draft. Choose Revise to complete the ad before review. Saving does not send anything to Meta.</p>:null}
+      {r.configuration.source_post ? <section className="space-y-2"><h3 className="font-semibold">Original Facebook post</h3><p className="whitespace-pre-wrap text-sm">{r.configuration.source_post.caption||"No caption"}</p><a className="text-sm text-primary underline" target="_blank" rel="noreferrer" href={`https://www.facebook.com/${r.configuration.source_post.provider_post_id}`}>View original post</a></section>:null}
+      {readinessMessage ? <p role="status" className="text-sm text-text-secondary">{readinessMessage}</p>:null}
       {error && <p role="alert">{error}</p>}
       {!r.current && ["draft", "review", "approved"].includes(r.state) && (
         <p role="status">
@@ -727,7 +742,7 @@ function RevisionDetail({
         <div>
           <dt>Operation</dt>
           <dd className="!text-sm">
-            {r.operation === "create" ? "Create PAUSED hierarchy" : r.operation}
+            {r.operation === "create" ? "Create paused ad" : r.operation}
           </dd>
         </div>
         <div>
@@ -824,7 +839,7 @@ function RevisionDetail({
             Reconcile receipts
           </button>
         )}
-        {can("marketing_ads.manage") && r.state === "draft" && (
+        {can("marketing_ads.manage") && r.state === "draft" && !r.configuration.draft_only && (
           <button
             disabled={busy || !r.current}
             className="btn-primary"

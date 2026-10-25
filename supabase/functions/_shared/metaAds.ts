@@ -8,7 +8,7 @@ export const ADS_CONFIG_FIELDS = {
     "id,name,objective,status,effective_status,daily_budget,lifetime_budget,start_time,stop_time,updated_time,special_ad_categories",
   adsets:
     "id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,start_time,end_time,targeting,optimization_goal,billing_event,attribution_spec,updated_time",
-  ads: "id,name,campaign_id,adset_id,status,effective_status,creative{id,name,object_story_spec,thumbnail_url},updated_time",
+  ads: "id,name,campaign_id,adset_id,status,effective_status,creative{id,name,object_story_id,object_story_spec,thumbnail_url},updated_time",
 };
 
 const tasks = new Set([

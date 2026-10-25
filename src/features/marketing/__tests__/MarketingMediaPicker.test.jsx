@@ -36,7 +36,7 @@ it('toggles Drive selection locally, confirms once and waits for task persistenc
  fireEvent.click(screen.getByRole('button',{name:'Drive image'}));expect(screen.getByText('1 selected')).toBeTruthy();expect(screen.getByRole('button',{name:'Drive image'}).getAttribute('aria-pressed')).toBe('true');
  fireEvent.click(screen.getByRole('button',{name:'Drive image'}));expect(screen.getByText('0 selected')).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Drive image'}));expect(importFile).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(save).toHaveBeenCalledWith(['snapshot']));expect(screen.getByRole('heading',{name:'Select media'})).toBeTruthy();expect(screen.getByRole('button',{name:'Saving…'}).disabled).toBe(true);fireEvent.click(screen.getByRole('button',{name:'Saving…'}));expect(importFile).toHaveBeenCalledTimes(1);expect(save).toHaveBeenCalledTimes(1);
- await act(async()=>finish({revision:2}));expect(screen.queryByRole('heading',{name:'Select media'})).toBeNull();expect(importFile).toHaveBeenCalledWith('org','brand',driveFile,'facebook');
+ await act(async()=>finish({revision:2}));expect(screen.queryByRole('heading',{name:'Select media'})).toBeNull();expect(importFile).toHaveBeenCalledWith('org','brand',driveFile,'facebook','carousel');
 });
 it.each([false,new Error('Task changed. Reload and retry.')])('keeps selection after save failure and retries without importing another snapshot (%s)',async failure=>{
  importFile.mockResolvedValue(readyAsset);const save=vi.fn().mockImplementationOnce(()=>failure instanceof Error?Promise.reject(failure):failure).mockResolvedValueOnce({revision:2});render(picker({onChange:save}));fireEvent.click(screen.getByRole('button',{name:'Drive image'}));fireEvent.click(screen.getByRole('button',{name:'Done'}));await screen.findByRole('alert');expect(screen.getByText('1 selected')).toBeTruthy();expect(screen.getByRole('button',{name:'Drive image'}).getAttribute('aria-pressed')).toBe('true');fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(screen.queryByRole('heading',{name:'Select media'})).toBeNull());expect(importFile).toHaveBeenCalledTimes(1);expect(save).toHaveBeenCalledTimes(2);
@@ -48,7 +48,7 @@ it('preserves a saved Drive reference and prevents duplicate attachment across s
  importFile.mockResolvedValue(readyAsset);const save=vi.fn();render(picker({onChange:save,values:['snapshot'],assets:[readyAsset]}));expect(screen.getByRole('button',{name:'Drive image'}).getAttribute('aria-pressed')).toBe('true');fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(save).toHaveBeenCalledWith(['snapshot']));expect(importFile).not.toHaveBeenCalled();
 });
 it('uses canonical device upload and commits only on Done',async()=>{
- uploadFile.mockResolvedValue(readyAsset);const save=vi.fn();render(picker({onChange:save}));fireEvent.click(screen.getByRole('tab',{name:'Upload from device'}));const file=new File(['image'],'Upload.jpg',{type:'image/jpeg'});fireEvent.change(screen.getByLabelText('Upload post media'),{target:{files:[file]}});await screen.findByText('1 selected');expect(uploadFile).toHaveBeenCalledWith('org','brand',file,'facebook');expect(save).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(save).toHaveBeenCalledWith(['snapshot']));
+ uploadFile.mockResolvedValue(readyAsset);const save=vi.fn();render(picker({onChange:save}));fireEvent.click(screen.getByRole('tab',{name:'Upload from device'}));const file=new File(['image'],'Upload.jpg',{type:'image/jpeg'});fireEvent.change(screen.getByLabelText('Upload post media'),{target:{files:[file]}});await screen.findByText('1 selected');expect(uploadFile).toHaveBeenCalledWith('org','brand',file,'facebook','carousel');expect(save).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(save).toHaveBeenCalledWith(['snapshot']));
 });
 it('does not attach an in-flight import after the Brand changes',async()=>{
  let finish;importFile.mockImplementation(()=>new Promise(resolve=>{finish=resolve}));const save=vi.fn();const view=render(picker({onChange:save}));fireEvent.click(screen.getByRole('button',{name:'Drive image'}));fireEvent.click(screen.getByRole('button',{name:'Done'}));view.rerender(picker({brand:{id:'other',organization_id:'org'},onChange:save}));await act(async()=>finish(readyAsset));expect(save).not.toHaveBeenCalled();expect(screen.getByText('0 selected')).toBeTruthy();
@@ -93,7 +93,7 @@ it('allows mixed image, video and PDF references for a Reel task without publish
  expect(screen.getByText('3 selected')).toBeTruthy();expect(screen.getByRole('button',{name:'Remove Drive.jpg'}).getAttribute('aria-pressed')).toBe('true');
  importFile.mockResolvedValue(readyAsset);fireEvent.click(screen.getByRole('button',{name:'Done'}));
  await waitFor(()=>expect(save).toHaveBeenCalledExactlyOnceWith(['snapshot','video','pdf']));
- expect(importFile).toHaveBeenCalledWith('org','brand',driveFile,undefined);
+ expect(importFile).toHaveBeenCalledWith('org','brand',driveFile,undefined,'reel');
 });
 it('keeps Publishing Reel selection MP4-only and single-select',async()=>{
  const video={...readyAsset,id:'video',filename:'Publish.mp4',mime_type:'video/mp4',source_kind:'device'};
@@ -108,7 +108,7 @@ it('uploads PDF task references without a publishing channel and keeps failed sa
  render(picker({attachments:true,format:'reel',onChange:save}));fireEvent.click(screen.getByRole('tab',{name:'Upload from device'}));
  const input=screen.getByLabelText('Upload task attachment');expect(input.accept).toContain('application/pdf');expect(input.accept).toContain('image/png');expect(input.accept).toContain('video/mp4');
  const file=new File(['%PDF-1.7'],'Brief.pdf',{type:'application/pdf'});fireEvent.change(input,{target:{files:[file]}});await screen.findByText('1 selected');
- expect(uploadFile).toHaveBeenCalledWith('org','brand',file,undefined);fireEvent.click(screen.getByRole('button',{name:'Done'}));await screen.findByRole('alert');expect(screen.getByText('1 selected')).toBeTruthy();
+ expect(uploadFile).toHaveBeenCalledWith('org','brand',file,undefined,'reel');fireEvent.click(screen.getByRole('button',{name:'Done'}));await screen.findByRole('alert');expect(screen.getByText('1 selected')).toBeTruthy();
  fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(screen.queryByRole('heading',{name:'Select media'})).toBeNull());expect(uploadFile).toHaveBeenCalledTimes(1);
 });
 

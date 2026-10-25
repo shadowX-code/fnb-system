@@ -5,7 +5,7 @@ import { verifyMetaMedia } from "./metaPublishing.ts";
 const numericId = (v: unknown) => typeof v === "string" && /^\d{1,30}$/.test(v);
 export async function bytesHash(bytes: Uint8Array) {
   return Array.from(
-    new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+    new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes))),
     (b) => b.toString(16).padStart(2, "0"),
   ).join("");
 }
@@ -48,10 +48,23 @@ export async function campaignTree(
       .sort((a: any, b: any) => a.id.localeCompare(b.id)),
   };
 }
+export function matchingLocalAudience(actual:any,expected:any) {
+  if(!actual || actual.countries?.length || actual.regions?.length || actual.zips?.length || actual.country_groups?.length) return false;
+  if(expected.type==="city") {
+    const rows=actual.cities;
+    return !actual.custom_locations?.length && rows?.length===1 && rows[0].key===expected.key && Number(rows[0].radius)===expected.radius && rows[0].distance_unit==="kilometer";
+  }
+  const rows=actual.custom_locations;
+  return !actual.cities?.length && rows?.length===1 && Number(rows[0].latitude)===expected.latitude && Number(rows[0].longitude)===expected.longitude && Number(rows[0].radius)===expected.radius && rows[0].distance_unit==="kilometer";
+}
 export function createPayloads(change: any, ids: any) {
   const c = change.configuration;
   const targeting: any = {
-    geo_locations: { countries: ["MY"] },
+    geo_locations: c.create_contract_version === 3
+      ? c.audience.type === "city"
+        ? { cities: [{key:c.audience.key,radius:c.audience.radius,distance_unit:"kilometer"}] }
+        : { custom_locations: [{latitude:c.audience.latitude,longitude:c.audience.longitude,radius:c.audience.radius,distance_unit:"kilometer",country:"MY"}] }
+      : { countries: ["MY"] },
     age_min: Number(c.age_min),
     age_max: Number(c.age_max),
     publisher_platforms:
@@ -98,7 +111,9 @@ export function createPayloads(change: any, ids: any) {
         ? { destination_type: "WEBSITE" }
         : {}),
     },
-    creative: {
+    creative: c.creative_source === "facebook_post" ? {
+      name: `${c.name} · Creative`, object_story_id: c.source_post.provider_post_id,
+    } : {
       name: `${c.name} · Creative`,
       object_story_spec: {
         page_id: c.page_id,
@@ -154,6 +169,28 @@ async function verifyCreativeAccess(
     page.instagram_business_account?.id !== config.instagram_id
   )
     throw new MetaError("ad_instagram_identity_unverified");
+}
+// Public SDK fields; a missing eligibility signal fails closed rather than guessing.
+export async function verifyAdsCreateReadiness(graph: MetaGraph,token: string,config: any,guard: () => Promise<void>) {
+  await verifyCreativeAccess(graph,token,config,guard);
+  if (config.create_contract_version !== 3) return;
+  if (config.audience?.type === "city") {
+    await guard();
+    const result = await graph.request("search",token,{type:"adgeolocation",location_types:["city"],country_code:"MY",q:config.audience.name,limit:25});
+    if (!result.data?.some((r:any)=>r.key===config.audience.key && r.country_code==="MY" && r.type==="city" && r.name===config.audience.name))
+      throw new MetaError("ad_city_authorization_unverified");
+  }
+  if (config.creative_source === "facebook_post") {
+    if(config.objective!=="OUTCOME_AWARENESS" || config.placements!=="facebook_feed" || config.source_post?.page_id!==config.page_id)
+      throw new MetaError("ad_source_post_incompatible");
+    await guard();
+    const post = await graph.request(config.source_post.provider_post_id,token,{fields:"id,from{id},message,is_published,is_eligible_for_promotion,allowed_advertising_objectives,attachments{media_type}"});
+    const attachments=post.attachments?.data||[];
+    if(post.id!==config.source_post.provider_post_id || post.from?.id!==config.page_id || post.is_published!==true || post.is_eligible_for_promotion!==true || (post.message||"")!==config.source_post.caption
+      || !Array.isArray(post.allowed_advertising_objectives) || !post.allowed_advertising_objectives.includes(config.objective)
+      || (config.source_post.format==="image" ? attachments.length!==1 || attachments[0].media_type!=="photo" : attachments.length!==0))
+      throw new MetaError("ad_source_post_unverified");
+  }
 }
 export async function advanceAdsChange({
   graph,
@@ -262,20 +299,22 @@ export async function advanceAdsChange({
       throw new MetaError("adset_declaration_revision_required");
     if (Date.parse(change.configuration.start_time) <= Date.now())
       throw new MetaError("ad_schedule_elapsed");
-    await verifyCreativeAccess(graph, token, change.configuration, guard);
-    if (
+    await verifyAdsCreateReadiness(graph, token, change.configuration, guard);
+    if (change.configuration.creative_source !== "facebook_post" && (
       !bytes ||
       (await bytesHash(bytes)) !== change.configuration.media.sha256
-    )
+    ))
       throw new MetaError("ad_creative_changed");
   }
   // Every accepted creation is checkpointed. A pending POST is never automatically repeated.
-  for (const step of ["image", "campaign", "adset", "creative", "ad"]) {
+  for (const step of (change.configuration.creative_source === "facebook_post" ? ["campaign", "adset", "creative", "ad"] : ["image", "campaign", "adset", "creative", "ad"])) {
     const key = step === "image" ? "image_hash" : `${step}_id`;
     if (state[key]) continue;
     if (reconcileOnly || state.pending)
       return { outcome: "reconciling", code: "manual_reconciliation_required" };
     await guard();
+    if(step==="creative" && change.configuration.creative_source==="facebook_post")
+      await verifyAdsCreateReadiness(graph,token,change.configuration,guard);
     await checkpoint({ ...state, pending: step });
     let body: any;
     if (step === "image") {
@@ -323,8 +362,9 @@ export async function advanceAdsChange({
     ad = tree.ads.find((r: any) => r.id === state.ad_id);
   const spec = ad?.creative?.object_story_spec,
     expectedSpec = createPayloads(change, state).creative.object_story_spec;
-  const matchingCreative =
-    spec?.page_id === expectedSpec.page_id &&
+  const matchingCreative = change.configuration.creative_source === "facebook_post"
+    ? ad?.creative?.object_story_id === change.configuration.source_post.provider_post_id
+    : !!expectedSpec && spec?.page_id === expectedSpec.page_id &&
     (change.configuration.placements === "facebook_feed" ||
       spec?.instagram_user_id === expectedSpec.instagram_user_id) &&
     ["image_hash", "link", "message", "name"].every(
@@ -353,7 +393,9 @@ export async function advanceAdsChange({
           change.configuration.promoted_object?.page_id);
   }
   const matchingAudience =
-    canonical(targeting?.geo_locations?.countries) === canonical(["MY"]) &&
+    (change.configuration.create_contract_version === 3
+      ? matchingLocalAudience(targeting?.geo_locations,change.configuration.audience)
+      : canonical(targeting?.geo_locations?.countries) === canonical(["MY"])) &&
     Number(targeting?.age_min) === Number(change.configuration.age_min) &&
     Number(targeting?.age_max) === Number(change.configuration.age_max) &&
     canonical([...(targeting?.publisher_platforms || [])].sort()) ===
@@ -362,6 +404,8 @@ export async function advanceAdsChange({
           ...createPayloads(change, state).adset.targeting.publisher_platforms,
         ].sort(),
       );
+  const expectedTargeting=createPayloads(change,state).adset.targeting;
+  const matchingPlacements=["facebook_positions","instagram_positions"].every(key=>canonical([...(targeting?.[key]||[])].sort())===canonical([...(expectedTargeting[key]||[])].sort()));
   const matchingSchedule =
     Date.parse(set?.start_time) ===
       Date.parse(change.configuration.start_time) &&
@@ -369,7 +413,7 @@ export async function advanceAdsChange({
   if (
     !matchingCreative ||
     !matchingAudience ||
-    !matchingSchedule ||
+    !matchingSchedule || !matchingPlacements ||
     !matchingDeclaration ||
     set?.optimization_goal !==
       createPayloads(change, state).adset.optimization_goal ||
@@ -393,7 +437,7 @@ export async function advanceAdsChange({
       adset_id: state.adset_id,
       creative_id: state.creative_id,
       ad_id: state.ad_id,
-      image_hash: state.image_hash,
+      ...(change.configuration.creative_source==="facebook_post" ? {source_post_id:change.configuration.source_post.provider_post_id} : {image_hash:state.image_hash}),
       fingerprint: change.fingerprint,
       reconciled: true,
       status: "PAUSED",
@@ -449,7 +493,7 @@ export async function executeAdsChange(
     if (!claim.provider_state?.reconcile_only && !health.manage_verified)
       throw new MetaError(health.manage_reason);
     let bytes: Uint8Array | undefined;
-    if (claim.operation === "create" && !claim.provider_state?.reconcile_only) {
+    if (claim.operation === "create" && claim.configuration.creative_source !== "facebook_post" && !claim.provider_state?.reconcile_only) {
       const m = claim.configuration.media;
       const { data, error } = await db.storage
         .from("marketing-media")
