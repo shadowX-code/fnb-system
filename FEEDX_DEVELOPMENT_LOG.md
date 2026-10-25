@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-26 — Bounded Ads stored-report projection
+
+Separated authorized snapshot metadata from full evidence loading in the existing Ads reporting RPC. Exact-period reports and fallback catalogs load only selected snapshots; coverage and existence decisions reuse metadata. Existing continuity, Brand attribution, complete-report/resource guards and original observations remain intact. Verified with representative packed large-report rollback fixtures, prior-contract equality, background refresh, missing periods, Brand isolation and generation rotation; Production remains a separate release approval. Canonical owner: docs/domains/marketing.md.
+
 ## 2026-10-25 — Ads management prerequisites
 
 Added same-authorizer reporting grant continuity without rewriting Meta observations, an unconfigured dedicated Ads Management login route, credential-bound read-only Page/post/minimum-budget preflight, and an absent-by-default service-only paused-create permit. Current authorization and Brand attribution still scope every report. Source erasure removes inherited access; current mutation approvals remain generation-bound. The partial Staging campaign is unchanged. Canonical owner: docs/domains/marketing.md. Verification includes 24-snapshot rollback-only generation/erasure/isolation contracts, paused-boundary and shared Graph regression tests, build and a complete authorized annual read; real OAuth, identity verification and Ads creation remain separately gated.

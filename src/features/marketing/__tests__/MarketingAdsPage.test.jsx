@@ -246,3 +246,23 @@ it('never initiates automatic shared reporting for a Brand-only reader',async()=
  ads.read.mockResolvedValue({organization_access:false,accounts:[{id:'a',name:'Brand account',account_id:'111',health:{automatic_history_enabled:true}}],reports:[],jobs:[]});
  render(<MarketingAdsPage/>);await screen.findByText('Brand account');expect(ads.ensurePeriod).not.toHaveBeenCalled();
 });
+
+
+it('does not overlap Lifetime refreshes or request an unrelated comparison period', async()=>{
+ const packet={organization_access:true,accounts:[{id:'supreme',name:'Supreme',account_id:'111',generation:2,health:{timezone:'Asia/Singapore'}}],reports:[],coverage:[{connection_id:'supreme',ranges:[{from:'2023-09-16',to:'2026-10-16'}]}],jobs:[]};
+ ads.read.mockResolvedValue(packet);
+ vi.useFakeTimers({toFake:['setInterval','clearInterval']});
+ render(<MarketingAdsPage/>);await screen.findAllByText('Supreme');
+ fireEvent.click(screen.getByRole('tab',{name:'Campaigns'}));
+ await screen.findByText(/Lifetime Performance · exact Meta-observed period/);
+ let release;ads.read.mockImplementation(()=>new Promise(resolve=>{release=resolve;}));
+ const before=ads.read.mock.calls.length;
+ await act(async()=>{await vi.advanceTimersByTimeAsync(30000)});
+ expect(ads.read.mock.calls.slice(before)).toEqual([['org','','2023-09-16','2026-10-16']]);
+ await act(async()=>{await vi.advanceTimersByTimeAsync(60000)});
+ expect(ads.read.mock.calls).toHaveLength(before+1);
+ await act(async()=>{release(packet);await Promise.resolve();});
+ await act(async()=>{await vi.advanceTimersByTimeAsync(30000)});
+ expect(ads.read.mock.calls).toHaveLength(before+2);
+ expect(ads.sync).not.toHaveBeenCalled();
+});
