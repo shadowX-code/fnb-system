@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-26 — Ads operational authorization readiness
+
+Completed same-account Management OAuth confirmation through the existing Ads connection authority, including connected-account visibility, pinned generation and same-authorizer/task checks. Added read-only exact-revision execution availability to the existing paused-create boundary, current reviewer/approver checks, duplicate-command protection and explicit uncertain-outcome feedback. Reporting provenance, Publishing credentials and quarantined partial execution remain intact; Meta configuration, identity verification, real paused creation and Production delivery are independently gated. Canonical owner: docs/domains/marketing.md.
+
 ## 2026-10-26 — Spill-free Ads evidence expansion
 
 Removed wide JSON tuplestores and ordered row aggregates from canonical packed-report expansion and Brand projection. Native bounded arrays preserve exact order, explicit provenance, zero/missing values and existing guards. Staging verification covers complete 26-snapshot repeated/concurrent reads at the Production memory budget and maximum accepted row count; Production remains separately gated. Canonical owner: docs/domains/marketing.md.

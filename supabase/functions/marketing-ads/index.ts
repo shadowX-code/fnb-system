@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { PRODUCTION_RUNTIME } from "../_shared/marketingEnvironment.mjs";
-import { adsManagementLoginConfig, adsExecutionAllowed, adsReadOnlyPreflight } from "../_shared/metaAdsPrerequisites.ts";
+import { adsManagementLoginConfig, adsExecutionAllowed, adsExecutionStatus, adsReadOnlyPreflight } from "../_shared/metaAdsPrerequisites.ts";
 import {
   STAGING_SUPABASE,
   STAGING_ORIGIN,
@@ -61,6 +61,10 @@ Deno.serve(async (req) => {
     if(error?.code==="P0001" && ["marketing_ads_change_prepare","marketing_ads_workspace_material"].includes(name)) {
       const failure=new MetaError("ads_configuration_invalid");failure.message=String(error.message).slice(0,240);throw failure;
     }
+    if (name === "marketing_ads_bind" && ["ads_management_authorizer_changed", "ads_management_required"].includes(error?.message))
+      throw new MetaError(error.message);
+    if (name === "marketing_ads_bind" && ["Account ownership or connection changed.", "Connection changed."].includes(error?.message))
+      throw new MetaError("ads_connection_changed");
     if (error)
       throw new MetaError(
         error.code === "42501" ? "scope_denied" : "ads_request_rejected",
@@ -81,6 +85,7 @@ Deno.serve(async (req) => {
         "/capabilities",
         "/prepare-change",
         "/execute-change",
+        "/execution-status",
         "/reconcile-change",
         "/validate-adset",
         "/create-readiness",
@@ -182,7 +187,8 @@ Deno.serve(async (req) => {
         return reply({locations:(result.data||[]).filter((r:any)=>r.country_code==="MY" && r.type==="city" && /^\d{1,30}$/.test(r.key)).map((r:any)=>({key:r.key,name:String(r.name).slice(0,150),region:String(r.region||"").slice(0,100)}))});
       }
       await verifyAdsCreateReadiness(graph,grant.token,material.change.configuration,guard);
-      return reply({identity_verified:true,creation_verified:false,delivery_verified:false,message:"Identity checks passed. Meta targeting, minimum budget and delivery still require separately authorized paused creation acceptance."});
+      await guard();
+      return reply({identity_verified:true,identity_scope:"account_page_source",advertiser_payer_verified:false,creation_verified:false,delivery_verified:false,message:"Ad Account, Page and creative identity checks passed. Advertiser/payer verification, exact lifetime-budget acceptance, creation and delivery are not established by this read."});
     }
     if (path === "/prepare-change") {
       const visible = await call(caller, "marketing_ads_changes_read", {
@@ -234,8 +240,9 @@ Deno.serve(async (req) => {
         state: await executeAdsChange(service, graph, env, claim),
       });
     }
-    if (path === "/execute-change") {
+    if (path === "/execution-status" || path === "/execute-change") {
       const revision = await call(service, "marketing_ads_execution_preflight", { p_request: body.requestId, p_auth_user: identity.user.id, p_fingerprint: body.fingerprint });
+      if (path === "/execution-status") return reply(adsExecutionStatus(env, revision, PRODUCTION_RUNTIME));
       if (!adsExecutionAllowed(env, revision, PRODUCTION_RUNTIME))
         return reply(
           {
@@ -509,6 +516,8 @@ Deno.serve(async (req) => {
       ads_request_rejected:
         "This advertising configuration is unavailable or changed. Check brand ownership, supported settings and the current revision.",
       ads_management_required: "Meta ads_management is missing. Drafts remain available; an authorized account owner must resolve management access before execution.",
+      ads_management_authorizer_changed: "Use the same Meta authorizer as this Ad Account connection. No credential or historical report was changed; a different authorizer requires a separately reviewed connection change.",
+      ads_connection_changed: "The Ad Account or credential generation changed. Reopen Ad Accounts and confirm the current connection before continuing. Existing credentials and reports are unchanged.",
       ad_tasks_unverified: "The current authorizer’s Ad Account advertising/management task is unverified.",
       account_not_active: "Meta does not currently classify this Ad Account as active for management.",
       ads_management_not_granted: "Meta Ads management permission is missing. Drafts are available; an authorized account owner must resolve management access before execution.",
