@@ -1,3 +1,4 @@
+import {runInboxPlayground} from '../_shared/inboxPlayground.ts';
 import {normalizePublicationRemovals} from '../_shared/metaPostAvailability.ts';
 import {whatsappLifecycle} from '../_shared/whatsappLifecycle.ts';
 import {normalizeWhatsAppWebhook, whatsappConnectorContract} from '../_shared/whatsappInbox.ts';
@@ -23,6 +24,10 @@ async function rpc(db: any, name: string, args: any = {}) {
   const { data, error } = await db.rpc(name, args);
   if (error) {
     const safe:Record<string,string>={
+      'Daily AI request limit reached.':'The shared daily AI request limit has been reached. Try again after earlier requests expire.',
+      'Save Brand AI consent before testing.':'Save this Brand’s AI consent before testing.',
+      'Choose an active Outlet linked to this Brand.':'Choose an active Outlet linked to this Brand.',
+      'Test request identity changed.':'The test context changed. Start a new test turn.',
       'Take over this conversation before sending a staff reply.':'Take over this conversation before sending a staff reply.',
       'Use Resume AI after checking current eligibility.':'Use Resume AI after checking current eligibility.',
       'Enable this Brand’s AI consent in FAQ & AI first.':'Enable this Brand’s AI consent in FAQ & AI first.',
@@ -254,6 +259,13 @@ Deno.serve(async (req) => {
     }catch(error){
       return json({error:(error as {safeMessage?:string})?.safeMessage||'Reply unavailable. Check connection status, reply window and any existing send result.'},409);
     }
+  }
+  if(path==='/test-ai'&&req.method==='POST') {
+    if(!configured)return json({error:'AI provider is unavailable. Review AI readiness before testing.'},409);
+    const raw=await req.text();if(raw.length>24000)return json({error:'Test conversation is too long. Start a fresh simulation.'},413);
+    let body;try{body=JSON.parse(raw)}catch{return json({error:'Invalid test request.'},400)}
+    try{return json(await runInboxPlayground(caller,service,rpc,body,env('OPENAI_API_KEY'),env('MARKETING_AI_MODEL')))}
+    catch(error){return json({error:(error as {safeMessage?:string})?.safeMessage||'AI test unavailable. Check consent, permissions and the shared usage quota; no message was sent.'},409)}
   }
   if (path !== "/suggest" || req.method !== "POST") {
     return json({ error: "Endpoint unavailable." }, 404);

@@ -65,3 +65,6 @@ it('uses canonical channel evidence only for automatic setup and never blocks he
  const p=props(),{rerender}=render(<InboxKnowledgeSettings {...p} channels={{connections:[]}}/>);expect(screen.queryByText('No connected Inbox channel')).toBeNull();choose('AI First');expect(screen.getByText('No connected Inbox channel')).toBeTruthy();
  rerender(<InboxKnowledgeSettings {...p} channels={{connections:[{messaging:{receiving_verified:true}},{messaging:{receiving_verified:false}}]}}/>);expect(screen.queryByText('Inbox channels need attention')).toBeNull();expect(screen.queryByText('No connected Inbox channel')).toBeNull();expect(screen.getByText(/1 of 2 channels/)).toBeTruthy();
 });
+it('opens the selected draft mode for simulation without saving or activating it',()=>{
+ const p=props(),test=vi.fn();render(<InboxKnowledgeSettings {...p} onTest={test}/>);choose('AI First');fireEvent.click(screen.getByRole('button',{name:'Test AI'}));expect(test).toHaveBeenCalledWith('ai_first');expect(p.configure).not.toHaveBeenCalled();expect(screen.getByText('Staff review only')).toBeTruthy();
+});

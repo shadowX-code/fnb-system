@@ -15,7 +15,7 @@ const emptyPolicy={revision:0,automation_mode:'suggest',ai_allowed:false};
 const defaultWindow={days:[0,1,2,3,4,5,6],start:'09:00',end:'22:00'};
 const modeLabel=value=>AI_REPLY_MODES.find(x=>x.value===value)?.label||'Suggest Only';
 
-export default function InboxKnowledgeSettings({data,configuration,configurationError='',channels=null,onRetryConfiguration,can,busy,configure,onKnowledge,onConnections}) {
+export default function InboxKnowledgeSettings({data,configuration,configurationError='',channels=null,onRetryConfiguration,can,busy,configure,onKnowledge,onConnections,onTest}) {
  const saved=data?.policy||emptyPolicy;
  const [policy,setPolicy]=useState(saved);
  useEffect(()=>setPolicy(saved),[data?.policy]);
@@ -42,7 +42,7 @@ export default function InboxKnowledgeSettings({data,configuration,configuration
   event.preventDefault();if(!editable||saveBlocked)return;
   configure('policy',policy.revision,{automation_mode:automatic?'suggest':policy.automation_mode||'suggest',ai_allowed:Boolean(policy.ai_allowed),staff_reply_requires_approval:Boolean(policy.staff_reply_requires_approval),ai_reply_mode:mode,ai_availability:policy.ai_availability||'always',ai_timezone:policy.ai_timezone||'Asia/Kuala_Lumpur',ai_schedule:window_,auto_resolve_enabled:Boolean(policy.auto_resolve_enabled),auto_resolve_hours:policy.auto_resolve_hours||48});
  }}>
-  <header className="ai-settings-heading"><div><h2>AI Customer Service</h2><p>Choose how AI helps your team. Sending remains subject to consent and live channel checks.</p></div><Badge tone={savedReady?'info':'neutral'}>{status}</Badge></header>
+  <header className="ai-settings-heading"><div><h2>AI Customer Service</h2><p>Choose how AI helps your team. Sending remains subject to consent and live channel checks.</p></div><div className="ai-settings-heading-actions">{onTest&&can('configure')&&can('ai')?<button type="button" className="btn-secondary" onClick={()=>onTest(mode)} disabled={busy}>Test AI</button>:null}<Badge tone={savedReady?'info':'neutral'}>{status}</Badge></div></header>
   <div className="ai-settings-saved" aria-label="Saved AI status"><span>Saved mode <strong>{modeLabel(savedMode)}</strong></span><span>Brand consent <strong>{saved.ai_allowed?'Enabled':'Off'}</strong></span>{dirty?<Badge tone="warning">Unsaved changes</Badge>:null}{savedReady&&savedMode!=='suggest_only'&&configuration.ai_auto_configured?<span>Each conversation must pass send checks.</span>:null}</div>
   <div className="ai-settings-layout">
    <div className="ai-settings-main">

@@ -1,3 +1,4 @@
+import {InboxOperationalViews,InboxHandlingBar,InboxReminderMenu,inboxHandlingState} from './InboxOperations.jsx';
 import {resolveBrandContext,selectBrandContext} from './brandContext.js';
 import { useEffect, useRef, useState } from "react";
 import {
@@ -140,6 +141,7 @@ export default function MarketingInboxPage() {
   const [context, setContext] = useState({ organizations: [], brands: [] }),
     [org, setOrg] = useState(""),
     [brand, setBrand] = useState("");
+  const [view,setView]=useState("all");
   const [status, setStatus] = useState(""),
     [channel, setChannel] = useState("social"),
     [search, setSearch] = useState(""),
@@ -203,9 +205,10 @@ export default function MarketingInboxPage() {
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const scope = JSON.stringify([org, brand, auth.user?.id]),
-    listBaseKey=JSON.stringify([scope,status,channel,search,assignee,unread,page,pageSize]),
+    listBaseKey=JSON.stringify([scope,view,status,channel,search,assignee,unread,page,pageSize]),
     listKey = JSON.stringify([
       scope,
+      view,
       status,
       channel,
       search,
@@ -284,6 +287,7 @@ export default function MarketingInboxPage() {
       .read({
         org,
         brand,
+        view,
         status,
         channel,
         search,
@@ -619,6 +623,7 @@ export default function MarketingInboxPage() {
             )}
           </></div>
             </div>
+            <InboxOperationalViews value={view} counts={data?.view_counts} onChange={value=>{setView(value);setPage(1);}}/>
             <div className="inbox-list-search"><AdminSearchField hideLabel label="Search" ariaLabel="Search conversations" placeholder="Search messages or keywords…" value={search} maxLength={100} onChange={value=>{setSearch(value);setPage(1);setSelected('');}} /></div>
             <AdminSegmentedControl className="inbox-status-tabs" label="Conversation status" value={status}
               onChange={value=>{setStatus(value);setPage(1);setSelected('');}}
@@ -686,13 +691,11 @@ export default function MarketingInboxPage() {
                       )}
                     </span>
                     <span className="inbox-row-assignment">
-                      <State value={row.status} />{row.assignee_name ? <span>{row.assignee_name}</span> : null}
+                      <State value={row.status} /><span>{row.assignee_name||"Unassigned"}</span>{row.needs_reply?<span className="inbox-needs-reply">Needs reply</span>:null}{row.ai_mode&&row.ai_mode!=="suggest_only"||row.ai_handoff?<span>{inboxHandlingState(row,row.ai_mode,configuration?.ai_auto_configured,row.ai_handoff).label}</span>:null}{row.remind_at?<span className={Date.parse(row.remind_at)<=Date.now()?"inbox-reminder-due":""} title={stamp(row.remind_at)}>{Date.parse(row.remind_at)<=Date.now()?"Reminder due":"Reminder set"}</span>:null}
                       {row.priority === "high" || row.priority === "urgent"
                         ? ` · ${label(row.priority)}`
                         : ""}
-                      {row.escalation_reasons?.length
-                        ? " · Needs attention"
-                        : ""}
+
                     </span>
                   </span>
                 </button>
@@ -773,6 +776,7 @@ export default function MarketingInboxPage() {
                     ]}
                   />
                 </div>
+                  <InboxReminderMenu value={current.remind_at} busy={busy} onChange={remind_at=>command("remind",{remind_at})}/>
                   <button
                     className="icon-btn"
                     ref={contextToggleRef}
@@ -794,6 +798,7 @@ export default function MarketingInboxPage() {
                     .
                   </p>
                 )}
+                <InboxHandlingBar current={current} configuration={configuration} can={can} busy={busy} onTakeover={()=>handling({takeover:true})} onResume={()=>mutate({scope,conversation:c.id,version:c.version,action:"resume_ai"},request=>inboxService.resumeAI(request,c),"AI resumed for new eligible messages.")}/>
                 <div
                   ref={historyRef}
                   className="marketing-inbox-history"
@@ -951,19 +956,13 @@ export default function MarketingInboxPage() {
               <AdminUnderlineTabs ariaLabel="Customer context" value={contextTab} onChange={setContextTab} tabs={[{value:'profile',label:'Profile'},{value:'history',label:'History'},{value:'notes',label:'Notes'}]} />
               {contextTab === 'profile' && <div className="inbox-context-section">
               {!identity.known && <p className="inbox-profile-unavailable">{identity.unavailableReason}</p>}
-                  <span className="inbox-takeover-state">
-                    {c.takeover||c.assigned_to ? "Human handling" : current.ai_handling?.mode==='ai_first'?'AI First':current.ai_handling?.mode==='safe_auto'?'Safe Auto Reply':"AI suggestions"}
-                    <small>{configuration?.ai_auto_configured&&current.ai_handling?.mode!=='suggest_only'?'Channel and policy checks apply':'Automatic delivery off'}</small>
-                  </span>
-
-              {current.ai_handling?.last_turn?<div className="inbox-ai-turn-state"><Badge>{label(current.ai_handling.last_turn.state)}</Badge><p>{automaticReplyReason(current.ai_handling.last_turn.reason)}</p>{current.ai_handling.last_turn.summary?<details><summary>Handoff context</summary><p>{current.ai_handling.last_turn.summary}</p></details>:null}</div>:null}
-              <h3>Basic information</h3><dl>
+              <h3>Profile</h3><dl>
                 <dt>Name</dt><dd>{identity.known ? identity.name : 'Not available from Meta'}</dd>
                 <dt>Brand</dt><dd>{data?.rows.find(row=>row.id===c.id)?.brand_name || brands.find(b=>b.id===c.brand_id)?.name || 'Unavailable'}</dd>
                 <dt>Channel</dt><dd>{c.channel === 'facebook' ? 'Messenger' : label(c.channel)}</dd>
               </dl>
-              <SelectField label="Outlet context" value={(current?.outlet_context ? current.outlet_context.outlet_id : c.outlet_id)||''} disabled={busy||!can("manage")} onChange={value=>command("outlet_context",{outlet_id:value||null})} options={[{value:'',label:'Unknown / Ask customer'},...(current?.outlet_options||[]).map(o=>({value:o.id,label:o.name}))]}/><p className="inbox-muted">{current?.outlet_context?.source==='single_outlet'?'Using the only active linked Outlet.':current?.outlet_context?.source?.includes('reference')?'Using the customer’s explicit Outlet reference.':'Confirm the customer’s Outlet when it is unclear.'} Changes apply to future suggestions.</p>
-              <section className="inbox-crm-context"><h3>CRM customer</h3><p className="inbox-muted">No verified CRM customer link. Contact details are unavailable.</p>
+              <h3>Outlet Context</h3><SelectField label="Confirmed Outlet" ariaLabel="Outlet context" value={(current?.outlet_context ? current.outlet_context.outlet_id : c.outlet_id)||''} disabled={busy||!can("manage")} onChange={value=>command("outlet_context",{outlet_id:value||null})} options={[{value:'',label:'Unknown / Ask customer'},...(current?.outlet_options||[]).map(o=>({value:o.id,label:o.name}))]}/><p className="inbox-muted">{current?.outlet_context?.source==='single_outlet'?'Using the only active linked Outlet.':current?.outlet_context?.source?.includes('reference')?'Using the customer’s explicit Outlet reference.':'Confirm the customer’s Outlet when it is unclear.'} Changes apply to future suggestions.</p>
+              <section className="inbox-crm-context"><h3>CRM Summary</h3><p className="inbox-muted">No verified CRM customer link. Contact, visits and spend are unavailable.</p>
                 {auth.hasPermission('marketing_audience.view') && <a className="btn-secondary" href="/marketing/customers">Open Customer Directory<ArrowUpRight size={14}/></a>}
               </section>
               <div className="inbox-handling-controls">
@@ -975,20 +974,7 @@ export default function MarketingInboxPage() {
                   onChange={(priority) => handling({ priority })}
                   options={options(["low", "normal", "high", "urgent"])}
                 />
-                <button
-                  className="btn-secondary"
-                  aria-pressed={c.takeover}
-                  disabled={
-                    busy ||
-                    !can("manage") ||
-                    c.channel === "whatsapp" ||
-                    c.opted_out ||
-                    Boolean(c.escalation_reasons?.length) || (c.takeover&&current.ai_handling?.mode&&current.ai_handling.mode!=='suggest_only'&&!configuration?.ai_auto_configured)
-                  }
-                  onClick={() => c.takeover&&current.ai_handling?.mode&&current.ai_handling.mode!=='suggest_only'?mutate({scope,conversation:c.id,version:c.version,action:'resume_ai'},request=>inboxService.resumeAI(request,c),'AI resumed for new eligible messages.'):handling({ takeover: !c.takeover })}
-                >
-                  {c.channel === "whatsapp" ? "Human handling · AI disabled" : c.takeover ? current.ai_handling?.mode&&current.ai_handling.mode!=='suggest_only'?"Resume AI":"Human takeover on" : "Take over"}
-                </button>
+
               </div>
               <dl>
                 <dt>Assigned to</dt>
@@ -1000,6 +986,7 @@ export default function MarketingInboxPage() {
                 <dd>{c.tags.join(", ") || "No tags"}</dd>
                 <dt>Language</dt>
                 <dd>{c.language || "Unavailable"}</dd>
+                <dt>Last activity</dt><dd>{stamp(c.last_activity_at||c.last_inbound_at||c.updated_at)}</dd><dt>Personal reminder</dt><dd>{current.remind_at?stamp(current.remind_at):"Not set"}</dd>
                 <dt>Reply window</dt>
                 <dd>
                   {c.channel === "internal"

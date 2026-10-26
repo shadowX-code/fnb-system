@@ -239,3 +239,24 @@
 .inbox-media-placeholder > div { min-width: 0; }
 .inbox-media-placeholder strong { display: block; font-size: 13px; }
 .inbox-media-placeholder small { display: block; margin-top: 4px; font-size: 11px; line-height: 1.5; color: var(--inbox-muted); }
+
+/* Operational views and handling extend the existing three-column workspace. */
+.inbox-operational-views { display:grid;grid-template-columns:1fr 1fr;gap:3px;margin:0 14px 12px;padding:3px;background:var(--theme-surface-nested);box-shadow:none; }
+.inbox-operational-views button { display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:32px;min-width:0;padding:6px 9px;font-size:11px;border-radius:7px; }
+.inbox-view-count { font-variant-numeric:tabular-nums;opacity:.75; }
+.inbox-row-assignment { display:flex;align-items:center;flex-wrap:wrap;gap:5px;line-height:1.5; }
+.inbox-needs-reply { color:var(--factory-warning-text);font-weight:600; }
+.inbox-reminder-due { color:var(--factory-warning-text)!important;font-weight:600; }
+.inbox-handling-bar { padding:9px 16px;border-bottom:1px solid var(--inbox-border);background:var(--inbox-nested);font-size:11px; }
+.inbox-handling-line { display:flex;align-items:center;gap:8px; }
+.inbox-handling-line>span:not(:first-child) { color:var(--inbox-muted);line-height:1.5;flex:1;min-width:0; }
+.inbox-handling-line .btn-secondary { margin-left:auto;flex-shrink:0;min-height:32px;padding:6px 9px;font-size:11px; }
+.inbox-handling-bar details { margin-top:7px;color:var(--inbox-muted); }
+.inbox-handling-bar summary { cursor:pointer; }
+.inbox-handling-bar details p { margin:8px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6; }
+.inbox-reminder-menu { padding:4px; }
+.inbox-reminder-menu p { padding:6px 8px;margin:0;font-size:11px;color:var(--theme-muted); }
+.inbox-reminder-menu button { display:block;width:100%;text-align:left;padding:8px;border-radius:6px;font-size:12px; }
+.inbox-reminder-menu button:hover { background:var(--theme-surface-nested); }
+.ai-settings-heading-actions .btn-secondary { min-height:34px; }
+@media(max-width:720px) { .inbox-handling-line { flex-wrap:wrap; }.inbox-handling-line>span:not(:first-child) { flex-basis:55%; }.inbox-handling-bar { padding:9px 12px; }.inbox-thread-header { gap:7px; }.inbox-reminder-menu button { min-height:40px; } }

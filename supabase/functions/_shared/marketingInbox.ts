@@ -206,7 +206,7 @@ export function aiInput(input: any) {
     escalated: Boolean(input.escalated),
     facts: input.facts,
     outlet_context: input.outlet_context || null,
-    latest_customer_message: scrub(String(input.history.filter((m: any) => m.kind === "incoming").at(-1)?.text || "")),
+    latest_customer_message: scrub(String(input.current_question ?? input.history.filter((m: any) => m.kind === "incoming").at(-1)?.text ?? "")),
     internal_test_question: input.history.some((m: any) => m.kind === "incoming") ? "" : scrub(String(input.history.filter((m: any) => m.kind === "note").at(-1)?.text || "")),
     history: input.history.map((m: any) => ({
       kind: m.kind,

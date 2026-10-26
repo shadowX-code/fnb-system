@@ -8,6 +8,7 @@ const operational=/(open|clos|tonight|hours|menu|price|promo|reserv|book|availab
 const promises=/(\b(confirmed|guaranteed|approved|processed|reserved|refunded)\b|\b(we|i)(?:'ll| will| can)\s+(book|reserve|refund|compensate|apply (a )?discount)|we have (booked|reserved|refunded)|已(确认|安排|退款|预订)|退款成功|已經預訂|sudah (ditempah|dibayar|dipulangkan))/i;
 export const assistantHandoff=(text:string)=>{const current=text.replace(/\b(no need|do not want|don't want|tak nak|tak perlu)\s+(a\s+)?(refund|bayaran balik)\b|不需要退款|不用退款/gi,'');return [...inboxRisks(current),...handoffHints(current)];};
 function latest(input:any) {
+ if(typeof input.current_question==='string')return input.current_question;
  return [...input.history].reverse().find((m:any)=>m.kind==='incoming'||m.kind==='note')?.text||'';
 }
 function sourceFacts(input:any) {
@@ -88,6 +89,7 @@ export async function requestInboxAssistant(input:any,key:string,model:string,tr
   return done({...base(result.body.text,result.body.language),...result.body,classification:result.body.human_required?'needs_human_attention':'insufficient_knowledge',match_source:'semantic'},result.model,result.input,result.output);
  }
  const facts=sourceFacts(input),keys=Object.keys(facts);
+ if(!keys.length)return done({...assistantFallback(input,'knowledge_unavailable'),match_source:'fallback'},'unavailable');
  const fields:any={text:{type:'string',description:'One concise customer-facing reply to current_question only.'},question:{type:'string',description:'Always empty for a reply.'},language:{type:'string',enum:['EN','ZH','BM']},intent:{type:'string',enum:INBOX_INTENTS},human_required:{type:'boolean'},reference_keys:{type:'array',description:'Only exact source keys actually supporting this reply. Empty if no usable source. Do not enumerate the allowed values.',items:{type:'string',...(keys.length?{enum:keys}:{})},maxItems:keys.length?12:0},matched_faq_ids:{type:'array',description:'Select only FAQs that answer an intent in current_question, including blocked relevant FAQs. Usually zero, one or two IDs. Never list every candidate.',items:{type:'string',...(input.faqs.length?{enum:input.faqs.map((f:any)=>f.id)}:{})},maxItems:input.faqs.length?12:0},unresolved_questions:{type:'array',items:{type:'string'},maxItems:8},handoff_reasons:{type:'array',description:'Empty for routine greetings, neutral feedback, clarification or missing knowledge. Use only an actual consequential/sensitive request expressed by this customer.',items:{type:'string',enum:['complaint','refund','allergen','food_safety','human_request','compensation','special_arrangement','operational_decision']},maxItems:8}};
  let usage:any=null,usedModel=model;
  try {

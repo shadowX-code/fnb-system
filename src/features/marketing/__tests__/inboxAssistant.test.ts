@@ -38,3 +38,10 @@ it('preserves exact sourced FAQ text for mixed intents while discarding unsuppor
  const r=validateAssistant({...proposal,text:'Please tell our team how we can help. Meals cost RM 50.',human_required:true,unresolved_questions:['Menu price?']},i);
  expect(r.text).toContain(faq.answer);expect(r.text).not.toContain('50');expect(r.text).not.toContain('Which outlet');expect(r.classification).toBe('insufficient_knowledge');expect(r.reference_keys).toEqual(proposal.reference_keys);
 });
+it('evaluates the combined current burst rather than answering its harmless last message',async()=>{
+ const transport=vi.fn(),material={...input('What is your brand name?'),current_question:'I need a human about a refund.\nWhat is your brand name?'};
+ const r=await requestInboxAssistant(material,'fixture-key','gpt-5-mini',transport);expect(r.body.human_required).toBe(true);expect(transport).not.toHaveBeenCalled();
+});
+it('does not spend tokens when there are no usable knowledge sources',async()=>{
+ const transport=vi.fn(),r=await requestInboxAssistant({...input('What time are you open?'),faqs:[],facts:{}},'fixture-key','gpt-5-mini',transport);expect(r.body.failure_reason).toBe('knowledge_unavailable');expect(r.input).toBe(0);expect(transport).not.toHaveBeenCalled();
+});
