@@ -64,13 +64,21 @@ Deno.serve(async(req)=>{
   if(path==='/callback'&&req.method==='GET') {
    const query=new URL(req.url).searchParams;const state=query.get('state')||'';
    if(!/^[A-Za-z0-9_-]{43}$/.test(state))return json(req,{error:'Invalid authorization state.'},400);
-   const session=await call(service,'marketing_meta_consume',{p_state_hash:await hash(state)});
+   let session:any;
+   try {session=await call(service,'marketing_meta_consume',{p_state_hash:await hash(state)});}
+   catch {return json(req,{error:'This authorization is unavailable, expired or already used. Return to FeedX and start a fresh authorization.'},409);}
+   if(!session || !['social','ads'].includes(session.purpose) || ['id','organization_id','actor_employee_id'].some(key=>typeof session[key]!=='string' || !session[key]))return json(req,{error:'Authorization session evidence is unavailable. Return to FeedX and start a fresh authorization.'},409);
    let result='cancelled',reason='';
    if(!query.has('error')) {
     try {
-     if(session.ads_management_config_id && adsManagementLoginConfig(env,config.configId)!==session.ads_management_config_id)throw new MetaError('ads_management_login_changed');
+     const management=session.purpose==='ads' && session.ads_management_config_id!==null;
+     // An explicit null means Reporting; an omitted field is an incompatible session projection.
+     if(session.purpose==='ads') {
+      if(!Object.hasOwn(session,'ads_management_config_id') || management &&
+       (typeof session.ads_management_config_id!=='string' || adsManagementLoginConfig(env,config.configId)!==session.ads_management_config_id))throw new MetaError('ads_management_login_changed');
+     } else if(session.ads_management_config_id!=null)throw new MetaError('ads_management_login_changed');
      const discovery=session.purpose==='ads'?await discoverAds(graph,query.get('code')||''):await graph.exchange(query.get('code')||'');
-     if(session.ads_management_config_id && !discovery.accounts.some((a:any)=>a.granted_scopes?.includes('ads_management')))throw new MetaError('ads_management_required');
+     if(management && !discovery.accounts.some((a:any)=>a.granted_scopes?.includes('ads_management')))throw new MetaError('ads_management_required');
      await call(service,session.purpose==='ads'?'marketing_ads_stage':'marketing_meta_stage',{p_session:session.id,p_user_id:discovery.userId,p_sealed:await seal(discovery,key,`oauth:${session.id}`),p_accounts:discovery.accounts});result='select_account';
     }catch(error){result='authorization_failed';if(session.purpose==='ads'&&error instanceof MetaError&&['ads_read_not_granted','ads_management_required','ads_management_login_changed','meta_permission_or_token_invalid','ads_pagination_limit','user_token_required'].includes(error.code))reason=error.code;}
    }

@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-27 — Ads OAuth callback configuration boundary
+
+The canonical consumed OAuth session now projects the persisted dedicated Ads configuration. Callback validation rejects missing/mismatched evidence before token exchange, while explicit Reporting null and existing social sessions retain their paths. Expired/replayed state requires fresh authorization without extending expiry or rotating credentials. Verification covers synthetic fresh callbacks, revoked/expired state, account/authorizer/generation continuity and 26-period snapshot preservation. Canonical owner: docs/domains/marketing.md. Real OAuth and Production delivery remain independently authorized.
+
 ## 2026-10-26 — Ads operational authorization readiness
 
 Completed same-account Management OAuth confirmation through the existing Ads connection authority, including connected-account visibility, pinned generation and same-authorizer/task checks. Added read-only exact-revision execution availability to the existing paused-create boundary, current reviewer/approver checks, duplicate-command protection and explicit uncertain-outcome feedback. Reporting provenance, Publishing credentials and quarantined partial execution remain intact; Meta configuration, identity verification, real paused creation and Production delivery are independently gated. Canonical owner: docs/domains/marketing.md.

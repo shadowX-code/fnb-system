@@ -3,7 +3,7 @@ do $$
 declare org uuid;brand uuid;other_brand uuid;actor uuid;uid uuid;page marketing_connections;
  conn uuid:=gen_random_uuid();account text:='99'||(floor(random()*1000000000000)::bigint)::text;
  subject text:='990000001';session_id uuid;health jsonb;payload jsonb;before_hash text;result jsonb;projected jsonb;pending_account jsonb;
- period date;config jsonb;r jsonb;source_job uuid:=gen_random_uuid();content uuid:=gen_random_uuid();denied boolean;
+ period date;state_hash text;config jsonb;r jsonb;source_job uuid:=gen_random_uuid();content uuid:=gen_random_uuid();denied boolean;
 begin
  select c.* into page from marketing_connections c where c.channel='facebook' and c.status in ('test_authorized','production_authorized') and c.expires_at>now() limit 1;
  org:=page.organization_id;brand:=page.brand_id;
@@ -29,8 +29,11 @@ begin
  perform public.marketing_ads_attribute(org,account,'990009991',brand,0,gen_random_uuid());
  health:=jsonb_build_object('id',account,'currency','MYR','timezone','Asia/Singapore','account_status',1,'tasks','["ADVERTISE"]'::jsonb,'read_verified',true,'manage_verified',true,'granted_scopes','["ads_read","ads_management"]'::jsonb);
  for rotation in 1..2 loop
-  session_id:=public.marketing_ads_management_begin(org,encode(extensions.digest(gen_random_uuid()::text,'sha256'),'hex'),'999001');
-  update marketing_private.oauth_sessions set consumed_at=now(),sealed_discovery='{"synthetic":true}',meta_user_id=subject,accounts=jsonb_build_array(health) where id=session_id;
+  state_hash:=encode(extensions.digest(gen_random_uuid()::text,'sha256'),'hex');
+  session_id:=public.marketing_ads_management_begin(org,state_hash,'999001');
+  result:=public.marketing_meta_consume(state_hash);
+  assert result->>'ads_management_config_id'='999001','Callback lost the pinned management configuration';
+  perform public.marketing_ads_stage(session_id,subject,'{"synthetic":true}',jsonb_build_array(health));
   if rotation=1 then
    select a into pending_account from jsonb_array_elements(public.marketing_ads_pending(org,null)) s,
     lateral jsonb_array_elements(s->'accounts') a where s->>'id'=session_id::text and a->>'id'=account;
@@ -45,6 +48,8 @@ begin
    denied:=false;begin perform public.marketing_ads_bind(session_id,uid,account,null,'{"synthetic":true}',now()+interval '1 day',health,rotation);exception when others then denied:=true;end;assert denied,'Management rotation replaced a different authorizer';
    update marketing_private.oauth_sessions set meta_user_id=subject where id=session_id;
    denied:=false;begin perform public.marketing_ads_bind(session_id,uid,account,null,'{"synthetic":true}',now()+interval '1 day',health,rotation+1);exception when others then denied:=true;end;assert denied,'Stale generation accepted';
+   denied:=false;begin perform public.marketing_ads_bind(session_id,uid,account||'1',null,'{"synthetic":true}',now()+interval '1 day',health,rotation);exception when others then denied:=true;end;assert denied,'Mismatched Ad Account accepted';
+   denied:=false;begin perform public.marketing_ads_bind(session_id,uid,account,other_brand,'{"synthetic":true}',now()+interval '1 day',health,rotation);exception when others then denied:=true;end;assert denied,'Shared account rebound to a Brand';
    assert (select credential_generation from marketing_connections where id=conn)=1,'Failed authorization changed generation';
   end if;
   result:=public.marketing_ads_bind(session_id,uid,account,null,'{"synthetic":true}',now()+interval '1 day',health,rotation);
@@ -62,6 +67,7 @@ begin
    assert (select generation from marketing_private.ads_visible_snapshots(conn) where date_from='2024-01-01')=2;
   end if;
  end loop;
+ assert before_hash=(select md5(jsonb_agg(to_jsonb(s) order by date_from)::text) from marketing_private.ads_snapshots s where connection_id=conn and generation=1),'Second rotation changed original 26 observations';
  assert (select count(*) from marketing_private.ads_snapshots where connection_id=conn)=27,'History was deduplicated destructively';
  select value into projected from jsonb_array_elements(public.marketing_ads_read(org,other_brand,'2024-01-01','2024-01-31')->'reports') where value->>'connection_id'=conn::text;
  assert coalesce(jsonb_array_length(projected#>'{payload,configs,campaigns}'),0)=0,'Other Brand campaign leaked';
