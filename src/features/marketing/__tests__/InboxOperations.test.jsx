@@ -9,9 +9,14 @@ it('keeps operational views separate from status, exposes scoped counts and keyb
  expect(within(group).getByRole('tab',{name:'Needs Reply 3'})).toBeTruthy();
  fireEvent.keyDown(within(group).getByRole('tab',{name:'All 10'}),{key:'ArrowRight'});expect(change).toHaveBeenCalledWith('needs_reply');
 });
-it('does not claim automatic handling while the independent runtime gate is off',()=>{
+it('distinguishes a saved automatic mode from an actual active turn and the runtime gate',()=>{
  expect(inboxHandlingState({takeover:false},'ai_first',false).label).toBe('AI paused');
- expect(inboxHandlingState({takeover:false},'ai_first',true).label).toBe('AI Handling');
+ expect(inboxHandlingState({takeover:false},'ai_first',true).label).toBe('AI First');
+ expect(inboxHandlingState({takeover:false},'safe_auto',true).label).toBe('Safe Auto Reply');
+ for(const state of ['queued','generating','prepared','pending'])expect(inboxHandlingState({takeover:false},'ai_first',true,false,{state}).label).toBe('AI Handling');
+ for(const state of ['blocked','failed','superseded'])expect(inboxHandlingState({takeover:false},'ai_first',true,false,{state}).label).toBe('AI paused');
+ expect(inboxHandlingState({takeover:false},'ai_first',true,false,{state:'sent'}).label).toBe('AI First');
+ expect(inboxHandlingState({takeover:false},'ai_first',false,false,{state:'queued'}).label).toBe('AI paused');
  expect(inboxHandlingState({takeover:true},'ai_first',true).label).toBe('Staff Taken Over');
 });
 it('allows staff takeover during risk escalation but keeps Resume protected',()=>{

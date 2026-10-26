@@ -111,9 +111,9 @@
 .inbox-context-identity h3 { margin: 0 0 5px; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
 .inbox-context-identity p { margin: 0; color: var(--inbox-muted); font-size: 11px; overflow-wrap: anywhere; }
 .inbox-context-section h3 { margin: 18px 0 10px; font-size: 12px; font-weight: 650; }
-.inbox-context-section dl { margin: 8px 0 18px; }
-.inbox-context-section dl > dt { float: left; clear: left; color: var(--inbox-muted); width: 90px; padding: 8px 0; }
-.inbox-context-section dl > dd { text-align: right; padding: 8px 0 8px 94px; border-bottom: 1px solid var(--inbox-border); min-height: 34px; overflow-wrap: anywhere; }
+.inbox-context-section dl { display: grid; grid-template-columns: minmax(80px, .8fr) minmax(0, 1.2fr); column-gap: 8px; margin: 8px 0 18px; }
+.inbox-context-section dl > dt { color: var(--inbox-muted); padding: 8px 0; }
+.inbox-context-section dl > dd { margin: 0; text-align: right; padding: 8px 0; border-bottom: 1px solid var(--inbox-border); overflow-wrap: anywhere; }
 .inbox-muted, .inbox-profile-unavailable { color: var(--inbox-muted); font-size: 11px; line-height: 1.6; }
 .inbox-profile-unavailable { padding: 10px; border-radius: 8px; background: var(--inbox-nested); }
 .inbox-crm-context { padding: 0 0 16px; border-bottom: 1px solid var(--inbox-border); }
@@ -261,7 +261,7 @@
 
 /* Primary views and the exceptional attention queue have distinct hierarchy. */
 .inbox-view-navigation { padding:0 14px 12px;display:grid;gap:7px; }
-.inbox-operational-views { margin:0;grid-template-columns:auto minmax(0,1fr) auto;gap:3px; }
+.inbox-operational-views { width:100%;margin:0;grid-template-columns:auto minmax(0,1fr) auto;gap:3px; }
 .inbox-operational-views button { justify-content:center;gap:6px;padding:7px 8px;white-space:nowrap; }
 .inbox-view-count { font-size:10px;line-height:1.4;font-variant-numeric:tabular-nums;opacity:.85; }
 .inbox-attention-queue { display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 10px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--theme-muted);font-size:12px;text-align:left; }
@@ -299,7 +299,13 @@
 .inbox-context-identity { margin-bottom:14px; }
 .inbox-context-section h3 { margin-top:17px; }
 @media(max-width:720px) {
- .inbox-view-navigation { padding-inline:10px; }
+ .inbox-list-heading { gap:8px;padding:12px 14px; }
+ .inbox-list-heading h1 { font-size:clamp(18px,5vw,21px); }
+ .inbox-list-commands .icon-btn { width:36px;height:40px;min-height:40px; }
+ .inbox-view-navigation { padding:0 10px 8px;gap:4px; }
+ .inbox-list-search { padding-bottom:8px; }
+ .inbox-status-tabs { margin-bottom:8px; }
+ .inbox-list-filters.admin-filter-toolbar { padding-bottom:8px; }
  .inbox-attention-queue { min-height:40px; }
  .inbox-operational-views button { min-height:40px; }
  .inbox-header-controls { flex-wrap:nowrap; }
