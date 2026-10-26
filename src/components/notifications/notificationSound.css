@@ -1,0 +1,13 @@
+.notification-sound-settings { padding:14px;color:var(--theme-text);font-size:12px; }
+.notification-sound-settings header { display:flex;align-items:center;justify-content:space-between;gap:10px; }
+.notification-sound-settings header span { color:var(--theme-muted);font-size:11px; }
+.notification-sound-settings p { color:var(--theme-muted);line-height:1.5;margin:9px 0 12px; }
+.notification-sound-actions { display:flex;gap:6px;flex-wrap:wrap; }
+.notification-sound-actions .btn-secondary { min-height:34px;padding:6px 9px;font-size:12px; }
+.notification-volume { display:flex;align-items:center;gap:10px;margin-top:14px;font-size:12px; }
+.notification-volume input { min-width:0;flex:1;accent-color:var(--color-primary); }
+.notification-volume input:focus-visible { outline:2px solid var(--color-primary);outline-offset:4px; }
+.notification-volume output { min-width:3ch;font-variant-numeric:tabular-nums; }
+
+.notification-sound-disclosure { border-bottom:1px solid var(--theme-border);font-size:12px;color:var(--theme-text); }
+.notification-sound-disclosure>summary { cursor:pointer;padding:10px 16px; }

@@ -21,3 +21,7 @@ it('allows staff takeover during risk escalation but keeps Resume protected',()=
  rerender(<InboxHandlingBar current={{...current,conversation:{...current.conversation,takeover:true}}} configuration={{ai_auto_configured:true}} can={()=>true} busy={false} onResume={resume}/>);
  expect(screen.getByRole('button',{name:'Resume AI'}).disabled).toBe(true);expect(resume).not.toHaveBeenCalled();
 });
+it('keeps AI Handoff distinct from the three primary views and preserves overlapping counts',()=>{
+ const onChange=vi.fn();render(<InboxOperationalViews value="ai_handoff" onChange={onChange} counts={{all:11,needs_reply:11,mine:0,ai_handoff:2}}/>);
+ const primary=screen.getByRole('tablist',{name:'Conversation views'});expect(within(primary).getAllByRole('tab')).toHaveLength(3);expect(within(primary).getByRole('tab',{name:'Mine 0'})).toBeTruthy();expect(within(primary).queryByText('AI Handoff')).toBeNull();fireEvent.click(screen.getByRole('button',{name:'AI Handoff 2'}));expect(onChange).toHaveBeenCalledWith('ai_handoff');
+});

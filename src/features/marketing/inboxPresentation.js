@@ -108,3 +108,32 @@ export function replySourceLabel(reference) {
 export function automaticReplyReason(reason) {
  return ({refund:'Refund request',complaint:'Customer complaint',human_request:'Customer requested a person',food_safety:'Food-safety concern',safety:'Safety concern',allergy:'Allergy enquiry',compensation:'Compensation request',special_arrangement:'Special arrangement',safe_translation_unavailable:'A verified reply in the customer’s language is unavailable. Staff should reply.',safety_or_human_request:'This enquiry needs a team member.',insufficient_knowledge:'Current knowledge cannot safely answer this enquiry.',outside_automatic_scope:'This conversation is outside the enabled AI scope.',generation_quota_or_authority:'AI is paused. Check usage limits and Brand access.',automatic_processing_failed:'AI could not finish safely. Staff should review the conversation.',delivery_uncertain:'Delivery is uncertain. Check the existing send result before taking further action.',provider_rejected:'The messaging provider rejected this reply.',decision_changed:'The conversation or supporting information changed.',clarification_loop:'The customer still needs help after clarification.',conversation_response_limit:'The automatic response limit was reached.',human_or_conversation_changed:'Staff handling or conversation eligibility changed.'})[reason]||String(reason||'').replaceAll('_',' ');
 }
+
+
+const inboxLocalDay=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kuala_Lumpur',year:'numeric',month:'2-digit',day:'2-digit'});
+export function inboxActivityLabel(value,now=new Date()) {
+ const date=new Date(value);if(!value||!Number.isFinite(date.getTime()))return 'Unavailable';
+ return inboxLocalDay.format(date)===inboxLocalDay.format(now)?new Intl.DateTimeFormat('en-MY',{timeZone:'Asia/Kuala_Lumpur',hour:'numeric',minute:'2-digit'}).format(date):new Intl.DateTimeFormat('en-MY',{timeZone:'Asia/Kuala_Lumpur',day:'numeric',month:'short',...(date.getFullYear()!==now.getFullYear()?{year:'numeric'}:{})}).format(date);
+}
+export function inboxRowAttention(row) {
+ if(row.ai_handoff||row.escalation_reasons?.length)return {label:'Needs human',tone:'warning'};
+ if(row.needs_reply)return {label:'Needs reply',tone:'info'};
+ if(row.unread_count>0)return {label:'Unread',tone:'info'};
+ if(row.status==='pending')return {label:'Waiting for customer',tone:'neutral'};
+ if(row.status==='resolved')return {label:'Resolved',tone:'neutral'};
+ return {label:row.takeover||row.assigned_to?'Staff handling':'',tone:'neutral'};
+}
+export function inboxMessageSource(message) {
+ if(message.evidence_source==='historical_import')return 'Imported history';
+ if(message.evidence_source==='recent_api')return 'Recovered from Meta';
+ if(message.sender_type==='feedx_ai')return 'FeedX AI';
+ if(message.sender_type==='feedx_staff')return message.actor_name?`Staff · ${message.actor_name}`:'Staff';
+ if(message.kind==='echo'&&message.message_origin==='meta')return 'Meta / external';
+ return '';
+}
+export function inboxMessageContinues(previous,current) {
+ if(!previous||!current||previous.kind==='note'||current.kind==='note')return false;
+ const a=new Date(previous.occurred_at),b=new Date(current.occurred_at),delta=b-a;
+ return Number.isFinite(delta)&&delta>=0&&delta<=120000&&inboxLocalDay.format(a)===inboxLocalDay.format(b)&&
+  ['kind','actor_employee_id','sender_type','message_origin','evidence_source'].every(key=>previous[key]===current[key]);
+}

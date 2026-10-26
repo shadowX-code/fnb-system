@@ -7,6 +7,10 @@ Business behavior belongs in the canonical domain documents listed in `docs/READ
 
 Environment identities, authorization requirements, dirty-worktree safeguards, and risk-based QA levels remain governed by `FEEDX_CODEX_CONTEXT.md`.
 
+## Admin Notification Audio
+
+The shared `notificationSound` client owns optional audible attention, per-user/origin local preferences, browser audio readiness and bounded same-origin tab deduplication. Controls reuse the Admin notification popover and the same settings component in Inbox. Sounds default off; a persisted preference does not imply autoplay permission in another tab. Web Audio is initialized only after an explicit user gesture, and Web Locks serialize a bounded local seen ledger before playback. Unsupported/blocked storage, audio or coordination fails silent and cannot alter notification counts or business workflows. Domain read models own eligible event identity and scope; clients never infer actionable work from badge-count changes. Marketing currently supplies the only audible source and restricts it to its workspace. This does not create push delivery, a service worker or a new server scheduler.
+
 ## Delivery And Worktree Procedures
 
 `main` is the long-lived Production branch and `dev` is the long-lived Staging/integration branch. Short-lived `codex/*`, `hotfix/*`, or approved feature branches and worktrees isolate task work; they do not become alternate integration authorities.

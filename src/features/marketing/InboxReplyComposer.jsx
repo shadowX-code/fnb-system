@@ -152,7 +152,7 @@ export default function InboxReplyComposer({
             Internal note
           </button>
         )}
-        <span className="inbox-tool-spacer" />
+        <span className="inbox-tool-spacer" /><div className="inbox-reply-help" role="group" aria-label="Reply assistance">
         {mode === "reply" && can("ai") && (
           <button
             className="btn-secondary"
@@ -170,14 +170,14 @@ export default function InboxReplyComposer({
             disabled={
               busy || Boolean(faqUnavailable)
             }
-            title={faqUnavailable||'Match the current question to an approved answer'}
+            title={faqUnavailable||'Find a matching Active FAQ · no AI generation'}
             onClick={()=>faqPreview(faqQuestion)}
           >
             <BookOpen size={14} />
-            FAQ suggestions
+            FAQs
           </button>
         )}
-      </div>
+      </div></div>
       {mode === "reply" && can("ai") && aiUnavailable && <p className="inbox-assistance-status" role="status">{aiUnavailable} {can('configure')&&setupHref?<a href={setupHref}>Open FAQ & AI settings</a>:null}</p>}
       {mode === "reply" && !suggestion && !handoffVisibleInHeader && handoff.length>0 && <div className="inbox-assistance-handoff" role="status"><strong>Needs Human Attention</strong><p>{handoff.map(reason=>reason.replaceAll('_',' ')).join(' · ')}. Use the existing assignment or handling controls; AI never assigns or sends.</p></div>}
       {mode === "reply" && suggestion && (

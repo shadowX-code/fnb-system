@@ -1,4 +1,5 @@
-import {InboxOperationalViews,InboxHandlingBar,InboxReminderMenu,inboxHandlingState} from './InboxOperations.jsx';
+import NotificationSoundControls from '../../components/notifications/NotificationSoundControls.jsx';
+import {InboxOperationalViews,InboxHandlingBar,InboxReminderMenu} from './InboxOperations.jsx';
 import {resolveBrandContext,selectBrandContext} from './brandContext.js';
 import { useEffect, useRef, useState } from "react";
 import {
@@ -16,7 +17,7 @@ import {
   MoreHorizontal,
   ArrowUpRight,
   StickyNote,
-  Flag,
+  UserCheck,
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { WorkspaceSurface } from "../../components/layout/WorkspacePage.jsx";
@@ -37,11 +38,11 @@ import { inboxService } from "./inboxService.js";
 import {inboxStatusDescription,inboxStatusOptions,inboxStatusTabs} from './inboxStatus.js';
 import "./marketing.css";
 import "./marketingInbox.css";
-import { notifyConversationsChanged } from "./useConversationReplyCount.js";
+import { CONVERSATIONS_OBSERVED, notifyConversationsChanged } from "./useConversationReplyCount.js";
 import InboxReplyComposer from "./InboxReplyComposer.jsx";
 import WhatsAppMessageContent, { whatsAppProvenance } from "./WhatsAppMessageContent.jsx";
 import {aiSuggestionUnavailable} from "./inboxKnowledge.js";
-import { automaticReplyReason, socialIdentity, conversationTimeline, replyOutcomeMessage, replyWasAccepted, replyStateLabel, replySourceLabel } from "./inboxPresentation.js";
+import { inboxActivityLabel,inboxRowAttention,inboxMessageContinues,inboxMessageSource,automaticReplyReason, socialIdentity, conversationTimeline, replyOutcomeMessage, replyWasAccepted, replyStateLabel, replySourceLabel } from "./inboxPresentation.js";
 const label = (s) =>
   s === "whatsapp" ? "WhatsApp" : String(s || "")
     .replaceAll("_", " ")
@@ -197,6 +198,8 @@ export default function MarketingInboxPage() {
     setDetailsOpen(false);
     requestAnimationFrame(() => contextToggleRef.current?.focus());
   }
+  const [observedRevision,setObservedRevision]=useState(0),observedPending=useRef(false);
+  useEffect(()=>{const refresh=event=>{if(event.detail?.identity===auth.user?.id){if(busyRef.current)observedPending.current=true;else setObservedRevision(n=>n+1)}};window.addEventListener(CONVERSATIONS_OBSERVED,refresh);return()=>window.removeEventListener(CONVERSATIONS_OBSERVED,refresh)},[auth.user?.id]);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [loading, setLoading] = useState(false),
@@ -205,6 +208,7 @@ export default function MarketingInboxPage() {
     [preview, setPreview] = useState(null);
   const busyRef = useRef(busy);
   busyRef.current = busy;
+  useEffect(()=>{if(!busy&&observedPending.current){observedPending.current=false;setObservedRevision(n=>n+1)}},[busy]);
   const scope = JSON.stringify([org, brand, auth.user?.id]),
     listBaseKey=JSON.stringify([scope,view,status,channel,search,assignee,unread,page,pageSize]),
     listKey = JSON.stringify([
@@ -218,9 +222,10 @@ export default function MarketingInboxPage() {
       page,
       pageSize,
       refresh,
+      observedRevision,
     ]),
     detailBaseKey = JSON.stringify([scope, selected, historyPage]),
-    detailKey = JSON.stringify([scope, selected, historyPage, refresh]);
+    detailKey = JSON.stringify([scope, selected, historyPage, refresh,observedRevision]);
   const activeScope = useRef(scope);
   activeScope.current = scope;
   const activeDetail = useRef(detailKey);
@@ -578,6 +583,7 @@ export default function MarketingInboxPage() {
             <div className="inbox-list-heading"><h1>{channel === 'internal' ? 'Internal cases' : 'Conversations'}</h1>
               <span className="inbox-list-count">{data?.total ?? '—'}</span>
               <div className="inbox-list-commands"><>
+            <NotificationSoundControls identity={auth.profile?.id||auth.user?.id||"anonymous"}/>
             <button
               className="icon-btn"
               aria-label="Refresh"
@@ -651,62 +657,16 @@ export default function MarketingInboxPage() {
                   {channel === "whatsapp" && <p>WhatsApp onboarding is disabled. Verified messages will appear here after an authorized connection is ready.</p>}
                 </div>
               )}
-              {data?.rows.map((row) => (
-                <button
-                  className={`marketing-inbox-row ${selected === row.id ? "selected" : ""}`}
-                  key={row.id}
-                  aria-pressed={selected === row.id}
-                  onClick={() => {
-                    setSelected(row.id);
-                    setHistoryPage(1);
-                    setModal(null);
-                    setPreview(null);
-                    followMessages.current = true;
-                  }}
-                >
-                  <CustomerAvatar conversation={row} />
-                  <span className="inbox-row-content">
-                    <span className="inbox-row-top">
-                      <strong>{socialIdentity(row).name}</strong>
-                      <time
-                        title={stamp(row.latest_message_at || row.updated_at)}
-                      >
-                        {clock(row.latest_message_at || row.updated_at)}
-                      </time>
-                    </span>
-                    <span className="inbox-row-preview">
-                      {row.latest_message_kind === "note"
-                        ? "Note: "
-                        : row.latest_message_kind === "echo"
-                          ? "Sent: "
-                          : ""}
-                      {row.latest_message || "No messages yet"}
-                    </span>
-                    <span className="inbox-row-bottom">
-                      <span>
-                        {row.brand_name} ·{" "}
-                        {row.channel === "facebook"
-                          ? "Messenger"
-                          : label(row.channel)}
-                        {row.medium === "comment" ? " · Comment" : ""}
-                      </span>
-                      {row.unread_count > 0 && (
-                        <span
-                          className="inbox-unread"
-                          aria-label={`${row.unread_count} unread`}
-                        >
-                          {row.unread_count}
-                        </span>
-                      )}
-                    </span>
-                    <span className="inbox-row-assignment">
-                      <State value={row.status} /><span>{row.assignee_name||"Unassigned"}</span>{row.needs_reply&&!row.ai_handoff&&!row.escalation_reasons?.length?<span className="inbox-needs-reply">Needs reply</span>:null}{row.ai_mode&&row.ai_mode!=="suggest_only"||row.ai_handoff?<span>{inboxHandlingState(row,row.ai_mode,configuration?.ai_auto_configured,row.ai_handoff).label}</span>:null}{row.remind_at?<span className={Date.parse(row.remind_at)<=Date.now()?"inbox-reminder-due":""} title={stamp(row.remind_at)}>{Date.parse(row.remind_at)<=Date.now()?"Reminder due":"Reminder set"}</span>:null}
-                      {["high","urgent"].includes(row.priority)?<span role="img" className="inbox-row-priority" data-priority={row.priority} title={`${label(row.priority)} priority`} aria-label={`${label(row.priority)} priority`}><Flag size={11}/></span>:null}
-
-                    </span>
+              {data?.rows.map(row=>{
+                const activity=row.last_activity_at||row.latest_message_at||row.updated_at,attention=inboxRowAttention(row);
+                return <button key={row.id} className={`marketing-inbox-row ${selected===row.id?'selected':''} ${row.unread_count>0?'is-unread':''}`} aria-pressed={selected===row.id} title={`${label(row.status)} · ${label(row.priority)} priority`} onClick={()=>{setSelected(row.id);setHistoryPage(1);setModal(null);setPreview(null);followMessages.current=true}}>
+                  <CustomerAvatar conversation={row}/><span className="inbox-row-content">
+                    <span className="inbox-row-top"><strong>{socialIdentity(row).name}</strong><span className="inbox-row-time"><time dateTime={activity} title={stamp(activity)}>{inboxActivityLabel(activity)}</time>{row.unread_count>0?<span className="inbox-unread" aria-label={`${row.unread_count} unread`}>{row.unread_count}</span>:null}</span></span>
+                    <span className="inbox-row-preview">{row.latest_message_kind==='note'?'Note: ':row.latest_message_kind==='echo'?'Sent: ':''}{row.latest_message||'No messages yet'}</span>
+                    <span className="inbox-row-bottom"><span title={`${row.brand_name} · ${row.channel==='facebook'?'Messenger':label(row.channel)}`}>{row.brand_name} · {row.channel==='facebook'?'Messenger':label(row.channel)}{row.medium==='comment'?' · Comment':''}</span><span className="inbox-row-action">{attention.label?<Badge tone={attention.tone}>{attention.label}</Badge>:null}{row.assigned_to?<span role="img" title={`Assigned to ${row.assignee_name||'staff'}`} aria-label={`Assigned to ${row.assignee_name||'staff'}`}><UserCheck size={12}/></span>:null}{row.remind_at?<span className={Date.parse(row.remind_at)<=Date.now()?'inbox-reminder-due':''} title={stamp(row.remind_at)}>{Date.parse(row.remind_at)<=Date.now()?'Reminder due':'Reminder set'}</span>:null}</span></span>
                   </span>
-                </button>
-              ))}
+                </button>;
+              })}
             </div>
             <AdminPagination
               compact
@@ -763,6 +723,7 @@ export default function MarketingInboxPage() {
                   </div>
 <div className={`inbox-header-controls inbox-status-${c.status}`}>
                   <SelectField
+                    label="Status"
                     ariaLabel="Status"
                     value={c.status}
                     disabled={busy || !can("manage")}
@@ -770,6 +731,7 @@ export default function MarketingInboxPage() {
                     options={inboxStatusOptions}
                   />
                   <SelectField
+                    label="Assigned to"
                     ariaLabel="Assignment"
                     value={c.assigned_to || ""}
                     disabled={busy || !can("manage")}
@@ -834,7 +796,7 @@ export default function MarketingInboxPage() {
                     <p className="inbox-no-messages">No messages yet.</p>
                   )}
                   {timeline.map((m, index) => (
-                    <div className="inbox-timeline-entry" key={m.id}>
+                    <div className={`inbox-timeline-entry ${inboxMessageContinues(timeline[index-1],m)?"is-continuation":""}`} key={m.id}>
                       {(index === 0 ||
                         day(timeline[index - 1].occurred_at) !==
                           day(m.occurred_at)) && (
@@ -866,10 +828,8 @@ export default function MarketingInboxPage() {
                         </p>}
                         <footer>
                           {c.channel === "whatsapp" && m.kind !== "note" ? <span>{whatsAppProvenance(m)} · </span> : null}
-                          {c.channel !== "whatsapp" && m.kind === "echo" && m.sender_type === "feedx_ai" ? <span>FeedX AI · </span> : c.channel !== "whatsapp" && m.kind === "echo" && m.sender_type === "feedx_staff" ? <span>Staff reply · </span> : null}
-                          {m.provider_context?.interaction_type ? <span>Customer selection · </span> : null}
-                          {c.channel !== "whatsapp" && m.kind === "echo" && m.message_origin === "meta" ? <span>Outside FeedX · </span> : null}
-                          {c.channel !== "whatsapp" && m.evidence_source === "historical_import" ? <span>Imported history · </span> : c.channel !== "whatsapp" && m.evidence_source === "recent_api" ? <span>Recovered from Meta · </span> : null}
+                          {c.channel!=='whatsapp'&&!inboxMessageContinues(timeline[index-1],m)&&inboxMessageSource(m)?<span>{inboxMessageSource(m)} · </span>:null}
+                          {m.provider_context?.interaction_type?<span>Customer selection · </span>:null}
                           <time dateTime={m.occurred_at} title={stamp(m.occurred_at)}>
                             {clock(m.occurred_at)}
                           </time>
@@ -961,35 +921,20 @@ export default function MarketingInboxPage() {
               </div>
               {!c ? <div className="marketing-inbox-empty"><UserRound size={30}/><p>Select a conversation to see customer context.</p></div> : <>
               <div className="inbox-context-identity"><CustomerAvatar conversation={c} /><div><h3>{identity.name}</h3><p>{c.channel === 'facebook' ? 'Messenger' : label(c.channel)}{c.customer_profile?.handle ? ` · @${c.customer_profile.handle}` : ''}</p></div></div>
-              <AdminUnderlineTabs ariaLabel="Customer context" value={contextTab} onChange={setContextTab} tabs={[{value:'profile',label:'Profile'},{value:'history',label:'History'},{value:'notes',label:'Notes'}]} />
+              <AdminUnderlineTabs ariaLabel="Customer context" value={contextTab} onChange={setContextTab} tabs={[{value:'profile',label:'Profile'},{value:'history',label:'Activity'},{value:'notes',label:'Notes'}]} />
               {contextTab === 'profile' && <div className="inbox-context-section">
               {!identity.known && <p className="inbox-profile-unavailable">{identity.unavailableReason}</p>}
               <h3>Profile</h3><dl>
-                <dt>Name</dt><dd>{identity.known ? identity.name : 'Not available from Meta'}</dd>
-                <dt>Brand</dt><dd>{data?.rows.find(row=>row.id===c.id)?.brand_name || brands.find(b=>b.id===c.brand_id)?.name || 'Unavailable'}</dd>
+                                <dt>Brand</dt><dd>{data?.rows.find(row=>row.id===c.id)?.brand_name || brands.find(b=>b.id===c.brand_id)?.name || 'Unavailable'}</dd>
                 <dt>Channel</dt><dd>{c.channel === 'facebook' ? 'Messenger' : label(c.channel)}</dd>
               </dl>
-              <h3>Outlet Context</h3><SelectField label="Confirmed Outlet" ariaLabel="Outlet context" value={(current?.outlet_context ? current.outlet_context.outlet_id : c.outlet_id)||''} disabled={busy||!can("manage")} onChange={value=>command("outlet_context",{outlet_id:value||null})} options={[{value:'',label:'Unknown / Ask customer'},...(current?.outlet_options||[]).map(o=>({value:o.id,label:o.name}))]}/><p className="inbox-muted">{current?.outlet_context?.source==='single_outlet'?'Using the only active linked Outlet.':current?.outlet_context?.source?.includes('reference')?'Using the customer’s explicit Outlet reference.':'Confirm the customer’s Outlet when it is unclear.'} Changes apply to future suggestions.</p>
               <section className="inbox-crm-context"><h3>CRM Summary</h3><p className="inbox-muted">No verified CRM customer link. Contact, visits and spend are unavailable.</p>
                 {auth.hasPermission('marketing_audience.view') && <a className="btn-secondary" href="/marketing/customers">Open Customer Directory<ArrowUpRight size={14}/></a>}
               </section>
-              <div className="inbox-handling-controls">
-                {" "}
-                <SelectField
-                  label="Priority"
-                  value={c.priority}
-                  disabled={busy || !can("manage")}
-                  onChange={(priority) => handling({ priority })}
-                  options={options(["low", "normal", "high", "urgent"])}
-                />
+              <h3>Conversation context</h3><SelectField label="Confirmed Outlet" ariaLabel="Outlet context" value={(current?.outlet_context ? current.outlet_context.outlet_id : c.outlet_id)||''} disabled={busy||!can("manage")} onChange={value=>command("outlet_context",{outlet_id:value||null})} options={[{value:'',label:'Unknown / Ask customer'},...(current?.outlet_options||[]).map(o=>({value:o.id,label:o.name}))]}/><p className="inbox-muted">{current?.outlet_context?.source==='single_outlet'?'Using the only active linked Outlet.':current?.outlet_context?.source?.includes('reference')?'Using the customer’s explicit Outlet reference.':'Confirm the customer’s Outlet when it is unclear.'} Changes apply to future suggestions.</p>
 
-              </div>
               <dl>
-                <dt>Assigned to</dt>
-                <dd>
-                  {current.members?.find((m) => m.id === c.assigned_to)?.name ||
-                    "Unassigned"}
-                </dd>
+
                 <dt>Tags</dt>
                 <dd>{c.tags.join(", ") || "No tags"}</dd>
                 <dt>Language</dt>
@@ -1024,7 +969,7 @@ export default function MarketingInboxPage() {
                       })
                     }
                   >
-                    Edit handling & tags
+                    Tags & follow-up
                   </button>
                   <SelectField
                     label="Escalate to a person"
@@ -1250,7 +1195,7 @@ export default function MarketingInboxPage() {
         {modal && (
           <Modal
             title={label(
-              modal.type === "settings" ? "FAQ & AI Settings" : modal.type === "faq" ? "FAQ Draft" : modal.type,
+              modal.type === "handling" ? "Conversation settings" : modal.type === "settings" ? "FAQ & AI Settings" : modal.type === "faq" ? "FAQ Draft" : modal.type,
             )}
 
             onClose={() => {
@@ -1546,46 +1491,7 @@ function InboxModal({
           required
         />
       )}
-      {m.type === "handling" && (
-        <>
-          <SelectField
-            label="Status"
-            value={m.status}
-            onChange={(v) => set("status", v)}
-            options={inboxStatusOptions}
-          />
-          <SelectField
-            label="Priority"
-            value={m.priority}
-            onChange={(v) => set("priority", v)}
-            options={options(["low", "normal", "high", "urgent"])}
-          />
-          <SelectField
-            label="Assigned team member"
-            value={m.assigned_to}
-            onChange={(v) => set("assigned_to", v)}
-            options={[
-              { value: "", label: "Unassigned" },
-              ...members.map((p) => ({ value: p.id, label: p.name })),
-            ]}
-          />
-          <Field
-            label="Tags (comma separated, up to ten)"
-            value={m.tags}
-            onChange={(e) => set("tags", e.target.value)}
-            maxLength={410}
-          />
-          <label className="marketing-inbox-check">
-            <input
-              type="checkbox"
-              checked={m.takeover}
-              onChange={(e) => set("takeover", e.target.checked)}
-            />
-            Human takeover (sensitive cases always retain this)
-          </label>
-          <label className="marketing-inbox-check"><input type="checkbox" checked={Boolean(m.resolution_hold)} onChange={e=>set('resolution_hold',e.target.checked)}/>Unresolved follow-up or task · prevent automatic resolution</label>
-        </>
-      )}
+      {m.type === "handling" && <><SelectField label="Priority" value={m.priority} onChange={v=>set('priority',v)} options={options(['low','normal','high','urgent'])}/><Field label="Tags (comma separated, up to ten)" value={m.tags} onChange={e=>set('tags',e.target.value)} maxLength={410}/><label className="marketing-inbox-check"><input type="checkbox" checked={Boolean(m.resolution_hold)} onChange={e=>set('resolution_hold',e.target.checked)}/>Unresolved follow-up or task · prevent automatic resolution</label></>}
       <button className="btn-primary" disabled={busy}>
         {busy ? "Saving…" : m.type === "preview" ? "Preview FAQ" : "Save"}
       </button>

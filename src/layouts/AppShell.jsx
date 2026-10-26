@@ -1,6 +1,8 @@
 import "../components/layout/workspace.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Clock3, Download, Eye, EyeOff, Factory, FileText, FlaskConical, Gauge, KeyRound, LogOut, Link2, Menu, MessageSquareText, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShieldCheck, ShoppingCart, Sparkles, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
+import useNotificationSound from '../components/notifications/useNotificationSound.js';
+import {NotificationSoundSettings} from '../components/notifications/NotificationSoundControls.jsx';
 import useConversationReplyCount from "../features/marketing/useConversationReplyCount.js";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
@@ -489,7 +491,7 @@ function buildNotificationItems(store, auth, context = {}, readIds = new Set()) 
 
 const notificationTabs = ["All", "Tasks", "Alerts", "Data Health"];
 
-function NotificationPopover({ items, unreadCount, activeTab, onTabChange, onMarkAllRead, onAction, onClose }) {
+function NotificationPopover({ sound, items, unreadCount, activeTab, onTabChange, onMarkAllRead, onAction, onClose }) {
   const visibleItems = activeTab === "All" ? items : items.filter((item) => item.category === activeTab);
 
   return (
@@ -504,6 +506,7 @@ function NotificationPopover({ items, unreadCount, activeTab, onTabChange, onMar
           <button className="rounded-lg px-2 py-1 text-xs font-bold text-text-secondary hover:bg-slate-50" type="button" onClick={onClose}>Close</button>
         </div>
       </div>
+      {sound?<details className="notification-sound-disclosure"><summary>Inbox sounds · {sound.ready?'Ready':sound.enabled?'Enable in this tab':'Off'}</summary><NotificationSoundSettings sound={sound}/></details>:null}
       <div className="flex gap-1 border-b border-border px-3 py-2">
         {notificationTabs.map((tab) => {
           const count = tab === "All" ? items.length : items.filter((item) => item.category === tab).length;
@@ -1006,7 +1009,10 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
     () => buildNotificationItems(store, auth, notificationContext, notificationReadIds),
     [auth, notificationContext, notificationReadIds, store],
   );
-  const conversationReplyCount = useConversationReplyCount(workspace === "marketing" && sections.some(section=>section.items.some(item=>item.id==="marketing_inbox")), auth?.user?.id);
+  const inboxNotificationsEnabled=workspace === "marketing" && sections.some(section=>section.items.some(item=>item.id==="marketing_inbox"));
+  const notificationSounds=useNotificationSound(notificationUserKey);
+  useEffect(()=>{notificationSounds.client.setActive(inboxNotificationsEnabled);return()=>notificationSounds.client.setActive(false)},[notificationSounds.client,inboxNotificationsEnabled]);
+  const conversationReplyCount = useConversationReplyCount(inboxNotificationsEnabled, auth?.user?.id,notificationSounds.client);
   const unreadCount = notificationItems.filter((item) => !item.isRead).length;
   const resolvedTheme = themeChoice === "system" ? systemTheme : themeChoice;
 
@@ -1517,6 +1523,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
                 className="p-0"
               >
                 <NotificationPopover
+                  sound={inboxNotificationsEnabled?notificationSounds:null}
                   items={notificationItems}
                   unreadCount={unreadCount}
                   activeTab={notificationTab}

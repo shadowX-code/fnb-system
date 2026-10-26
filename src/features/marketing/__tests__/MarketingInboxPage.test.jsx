@@ -357,7 +357,7 @@ it('labels external Meta outbound without staff attribution and retains exact st
  render(<MarketingInboxPage/>);await select();
  const bubble=screen.getByText('Provider-originated answer').closest('article');
  expect(bubble.getAttribute('aria-label')).toBe('Outgoing message');
- expect(bubble.textContent).toContain('Outside FeedX');expect(bubble.textContent).toContain('Read');
+ expect(bubble.textContent).toContain('Meta / external');expect(bubble.textContent).toContain('Read');
  expect(bubble.textContent).not.toContain('Team member');
 });
 it('renders canonical persisted profiles even when optional enrichment is unavailable', async()=>{
@@ -379,7 +379,7 @@ it('shows honest customer context and existing notes without creating CRM relati
  expect(within(context).getByRole('link',{name:/Open Customer Directory/}).getAttribute('href')).toBe('/marketing/customers');
  fireEvent.click(within(context).getByRole('tab',{name:'Notes',exact:true}));
  expect(within(context).getByText('Team follow-up')).toBeTruthy();
- fireEvent.click(within(context).getByRole('tab',{name:'History',exact:true}));
+ fireEvent.click(within(context).getByRole('tab',{name:'Activity',exact:true}));
  expect(within(context).getByText('Reply approvals & AI history')).toBeTruthy();
  expect(inboxService.command).not.toHaveBeenCalled();
 });
@@ -436,7 +436,7 @@ it('keeps the latest message anchored on composer resize without pulling staff a
  const observers=[];vi.stubGlobal('ResizeObserver',class{constructor(callback){this.callback=callback;observers.push(this)}observe(target){this.target=target}disconnect(){}});
  try{
   render(<MarketingInboxPage/>);await select();const history=screen.getByLabelText('Messages');let height=1000;Object.defineProperties(history,{scrollHeight:{get:()=>height,configurable:true},clientHeight:{value:300,configurable:true},scrollTop:{value:700,writable:true,configurable:true}});
-  const observer=observers.find(o=>o.target===history);expect(observer).toBeTruthy();observer.callback([]);expect(history.scrollTop).toBe(1000);
+  await waitFor(()=>expect(observers.find(o=>o.target===history)).toBeTruthy());const observer=observers.find(o=>o.target===history);observer.callback([]);expect(history.scrollTop).toBe(1000);
   history.scrollTop=100;fireEvent.scroll(history);height=1200;observer.callback([]);expect(history.scrollTop).toBe(100);
  }finally{vi.unstubAllGlobals()}
 });
