@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   ArrowUpRight,
   StickyNote,
+  Flag,
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext.jsx";
 import { WorkspaceSurface } from "../../components/layout/WorkspacePage.jsx";
@@ -515,6 +516,14 @@ export default function MarketingInboxPage() {
     if (historyRef.current && historyPage === 1 && followMessages.current)
       historyRef.current.scrollTop = historyRef.current.scrollHeight;
   }, [c?.id, current?.messages?.length, historyPage]);
+  // Keep the newest message visible when async suggestion/composer panels change height.
+  // A staff member reading older messages keeps their scroll position.
+  useEffect(()=>{
+    const history=historyRef.current;
+    if(!history||typeof ResizeObserver==='undefined')return;
+    const observer=new ResizeObserver(()=>{if(historyPage===1&&followMessages.current)history.scrollTop=history.scrollHeight;});
+    observer.observe(history);return()=>observer.disconnect();
+  },[c?.id,historyPage]);
   function handling(patch) {
     return command("update", {
       status: c.status,
@@ -691,10 +700,8 @@ export default function MarketingInboxPage() {
                       )}
                     </span>
                     <span className="inbox-row-assignment">
-                      <State value={row.status} /><span>{row.assignee_name||"Unassigned"}</span>{row.needs_reply?<span className="inbox-needs-reply">Needs reply</span>:null}{row.ai_mode&&row.ai_mode!=="suggest_only"||row.ai_handoff?<span>{inboxHandlingState(row,row.ai_mode,configuration?.ai_auto_configured,row.ai_handoff).label}</span>:null}{row.remind_at?<span className={Date.parse(row.remind_at)<=Date.now()?"inbox-reminder-due":""} title={stamp(row.remind_at)}>{Date.parse(row.remind_at)<=Date.now()?"Reminder due":"Reminder set"}</span>:null}
-                      {row.priority === "high" || row.priority === "urgent"
-                        ? ` · ${label(row.priority)}`
-                        : ""}
+                      <State value={row.status} /><span>{row.assignee_name||"Unassigned"}</span>{row.needs_reply&&!row.ai_handoff&&!row.escalation_reasons?.length?<span className="inbox-needs-reply">Needs reply</span>:null}{row.ai_mode&&row.ai_mode!=="suggest_only"||row.ai_handoff?<span>{inboxHandlingState(row,row.ai_mode,configuration?.ai_auto_configured,row.ai_handoff).label}</span>:null}{row.remind_at?<span className={Date.parse(row.remind_at)<=Date.now()?"inbox-reminder-due":""} title={stamp(row.remind_at)}>{Date.parse(row.remind_at)<=Date.now()?"Reminder due":"Reminder set"}</span>:null}
+                      {["high","urgent"].includes(row.priority)?<span role="img" className="inbox-row-priority" data-priority={row.priority} title={`${label(row.priority)} priority`} aria-label={`${label(row.priority)} priority`}><Flag size={11}/></span>:null}
 
                     </span>
                   </span>
@@ -791,8 +798,8 @@ export default function MarketingInboxPage() {
                     <PanelRight size={18} />
                   </button>
                 </header>
-                <div className="inbox-status-context" role="status"><span>{inboxStatusDescription(c.status)}</span><span>Last activity: {stamp(c.last_activity_at || timeline.at(-1)?.occurred_at || c.updated_at)}</span>{c.resolution_hold?<strong>Unresolved follow-up · automatic resolution blocked</strong>:null}</div>
-                {!!c.escalation_reasons?.length && (
+                <div className="inbox-status-context" role="status"><span title={inboxStatusDescription(c.status)}>Last activity: {stamp(c.last_activity_at || timeline.at(-1)?.occurred_at || c.updated_at)}</span>{c.resolution_hold?<strong>Unresolved follow-up · automatic resolution blocked</strong>:null}</div>
+                {!!c.escalation_reasons?.length && !["facebook","instagram"].includes(c.channel) && (
                   <p role="status" className="marketing-inbox-escalation">
                     Needs a person: {c.escalation_reasons.map(label).join(", ")}
                     .
@@ -890,6 +897,7 @@ export default function MarketingInboxPage() {
                 </div>
                 <InboxReplyComposer
                   key={`${scope}:${c.id}`}
+                  handoffVisibleInHeader={["facebook","instagram"].includes(c.channel)&&Boolean(current.needs_human_attention||c.escalation_reasons?.length)}
                   draftCache={composerDrafts.current}
                   canViewConnections={auth.hasPermission("marketing_settings.view")}
                   current={current}

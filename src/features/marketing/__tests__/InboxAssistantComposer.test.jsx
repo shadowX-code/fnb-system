@@ -20,3 +20,7 @@ it('labels direct operational sources correctly even for older artifacts',()=>{
  const p=props();p.current.artifacts=[{...suggestion,body:{...suggestion.body,sources:[{key:'outlet:x',kind:'customer_knowledge',label:'Source Outlet'},{key:'menu:restaurant',kind:'customer_knowledge',label:'Menu'}]}}];
  render(<InboxReplyComposer {...p}/>);expect(screen.getByText(/Outlet.*Source Outlet/)).toBeTruthy();expect(screen.getByText(/Products.*Menu/)).toBeTruthy();
 });
+it('avoids duplicate handoff/empty-FAQ panels when the canonical header already shows them, preserving approval and drafts',()=>{
+ const p=props();p.current.artifacts=[];p.current.reply_requires_approval=true;p.current.messages=[{kind:'incoming',body:'I need a human about a refund.'}];p.preview={state:'human_required'};
+ render(<InboxReplyComposer {...p} handoffVisibleInHeader/>);expect(screen.queryByText('Needs Human Attention')).toBeNull();expect(screen.queryByText('This request needs a person. No FAQ answer was selected.')).toBeNull();fireEvent.change(screen.getByRole('textbox',{name:'Reply'}),{target:{value:'Unsent staff draft'}});expect(screen.getByRole('textbox',{name:'Reply'}).value).toBe('Unsent staff draft');expect(p.onDirectSend).not.toHaveBeenCalled();
+});

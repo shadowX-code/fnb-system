@@ -432,3 +432,11 @@ it('uses explicit Outlet context via canonical versioned command and preserves t
  await waitFor(()=>expect(inboxService.command).toHaveBeenCalledWith(expect.any(String),'o','b',conversation,'outlet_context',{outlet_id:'outlet'}));
  expect(screen.getByLabelText('Reply').value).toBe('Keep this draft');expect(inboxService.sendStaffReply).not.toHaveBeenCalled();
 });
+it('keeps the latest message anchored on composer resize without pulling staff away from older messages',async()=>{
+ const observers=[];vi.stubGlobal('ResizeObserver',class{constructor(callback){this.callback=callback;observers.push(this)}observe(target){this.target=target}disconnect(){}});
+ try{
+  render(<MarketingInboxPage/>);await select();const history=screen.getByLabelText('Messages');let height=1000;Object.defineProperties(history,{scrollHeight:{get:()=>height,configurable:true},clientHeight:{value:300,configurable:true},scrollTop:{value:700,writable:true,configurable:true}});
+  const observer=observers.find(o=>o.target===history);expect(observer).toBeTruthy();observer.callback([]);expect(history.scrollTop).toBe(1000);
+  history.scrollTop=100;fireEvent.scroll(history);height=1200;observer.callback([]);expect(history.scrollTop).toBe(100);
+ }finally{vi.unstubAllGlobals()}
+});

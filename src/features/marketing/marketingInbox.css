@@ -260,3 +260,7 @@
 .inbox-reminder-menu button:hover { background:var(--theme-surface-nested); }
 .ai-settings-heading-actions .btn-secondary { min-height:34px; }
 @media(max-width:720px) { .inbox-handling-line { flex-wrap:wrap; }.inbox-handling-line>span:not(:first-child) { flex-basis:55%; }.inbox-handling-bar { padding:9px 12px; }.inbox-thread-header { gap:7px; }.inbox-reminder-menu button { min-height:40px; } }
+
+.inbox-row-priority { display:inline-flex;color:var(--factory-warning-text); }
+.inbox-row-priority[data-priority="urgent"] { color:var(--factory-danger-text); }
+.inbox-row-assignment { overflow-wrap:anywhere; }
