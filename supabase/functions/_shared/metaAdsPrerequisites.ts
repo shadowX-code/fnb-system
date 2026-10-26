@@ -17,6 +17,16 @@ export function adsExecutionAllowed(env: (key: string) => string, change: any, p
     Date.parse(change.paused_create_expires_at) <= now + 30 * 60 * 1000;
 }
 
+export function adsExecutionStatus(env: (key: string) => string, change: any, production: boolean, now = Date.now()) {
+  const approved = change?.state === "approved" && change.approval_current === true && Date.parse(change.approval_expires_at) > now;
+  const available = approved && !change.configuration?.recovery_source && adsExecutionAllowed(env, change, production, now);
+  return { request_id: change.id, fingerprint: change.fingerprint, operation: change.operation,
+    available, scope: production ? "paused_create_only" : "reviewed_execution",
+    expires_at: available ? new Date(Math.min(Date.parse(change.approval_expires_at), production ? Date.parse(change.paused_create_expires_at) : Infinity)).toISOString() : null,
+    reason: !approved ? "approval_required" : !available ? "execution_not_authorized" : null,
+    activation_authorized: available && !production && change.operation === "resume" };
+}
+
 export async function adsReadOnlyPreflight(graph: MetaGraph, token: string, appId: string, appSecret: string, material: any, guard: () => Promise<void>) {
   const c = material.connection;
   const health = await verifyAdsAccount(graph, appId, appSecret, token, c.provider_account_id, c.meta_user_id, guard);

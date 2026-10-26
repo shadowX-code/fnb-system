@@ -214,6 +214,28 @@ it('keeps discovery in Ad Accounts and hides redundant binding of already-connec
  expect(ads.bind).not.toHaveBeenCalled();expect(ads.sync).not.toHaveBeenCalled();expect(ads.authorize).not.toHaveBeenCalled();
 });
 
+it('offers same-account management rotation and pins the discovered generation instead of a newer catalog generation',async()=>{
+ ads.read.mockResolvedValue({organization_access:true,accounts:[{id:'existing',name:'Connected Account',account_id:'111',generation:3,health:{currency:'MYR'}}],reports:[],jobs:[]});
+ ads.pending.mockResolvedValue([{id:'management-session',authorization_purpose:'management',accounts:[{id:'111',name:'Management Account',available:true,manage_verified:true,connected_generation:2}]}]);
+ ads.bind.mockRejectedValue(new Error('Connection changed. Reopen Ad Accounts before confirming.'));
+ render(<MarketingAdsPage/>);await screen.findByText('Connected Account');fireEvent.click(screen.getByRole('tab',{name:'Ad Accounts'}));
+ fireEvent.click(await screen.findByRole('button',{name:'Update Ads authorization'}));
+ expect(screen.getByText(/Publishing credentials are preserved/)).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Confirm Ads authorization'}));
+ await waitFor(()=>expect(ads.bind).toHaveBeenCalledWith('management-session','','111',2));
+ expect(await screen.findByText('Connection changed. Reopen Ad Accounts before confirming.')).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Confirm Ads authorization'})).toBeTruthy();
+ expect(ads.sync).not.toHaveBeenCalled();expect(ads.authorize).not.toHaveBeenCalled();
+});
+
+it('keeps changed-authorizer management discovery visible but cannot rotate credentials',async()=>{
+ ads.read.mockResolvedValue({organization_access:true,accounts:[{id:'existing',name:'Connected Account',account_id:'111',generation:2,health:{currency:'MYR'}}],reports:[],jobs:[]});
+ ads.pending.mockResolvedValue([{id:'management-session',authorization_purpose:'management',accounts:[{id:'111',name:'Management Account',available:true,connected_generation:2,authorization_blocker:'ads_management_authorizer_changed'}]}]);
+ render(<MarketingAdsPage/>);await screen.findByText('Connected Account');fireEvent.click(screen.getByRole('tab',{name:'Ad Accounts'}));
+ expect((await screen.findByRole('button',{name:'Update Ads authorization'})).disabled).toBe(true);
+ expect(screen.getByText(/Use the same Meta authorizer/)).toBeTruthy();expect(ads.bind).not.toHaveBeenCalled();
+});
+
 it('keeps selected reporting dates in review when only a configuration catalog exists',async()=>{
  const payload={not_synced:true,scope:'organization',account:{id:'111',name:'Shared Account',currency:'MYR',timezone:'Asia/Singapore'},configs:{campaigns:[{id:'1',name:'Catalog campaign'}],adsets:[],ads:[]},insights:{}};
  ads.read.mockResolvedValue({organization_access:true,accounts:[{id:'account',name:'Shared Account',account_id:'111',health:{currency:'MYR',timezone:'Asia/Singapore',read_verified:true}}],reports:[],catalogs:[{connection_id:'account',payload}],jobs:[]});

@@ -12,6 +12,7 @@ async function command(path, body) {
   );
   if (error) {
     let message = "Ad Account connection could not be completed.";
+    if (path === "execute-change") message = "The execution outcome is not confirmed. Refresh this revision and use read-only reconciliation; do not create another campaign or blindly retry.";
     if (error.context instanceof Response)
       try {
         message = (await error.context.json()).error || message;
@@ -38,6 +39,8 @@ export const adsService = {
     command("validate-adset", { requestId: r.id, fingerprint: r.fingerprint }),
   executeChange: (r) =>
     command("execute-change", { requestId: r.id, fingerprint: r.fingerprint }),
+  executionStatus: (r) =>
+    command("execution-status", { requestId: r.id, fingerprint: r.fingerprint }),
   read: (org, brand, from, to) =>
     rpc("marketing_ads_read", {
       p_org: org,

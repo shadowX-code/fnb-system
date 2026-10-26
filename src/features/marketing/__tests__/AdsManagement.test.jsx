@@ -8,6 +8,7 @@ const { ads } = vi.hoisted(() => ({
     transitionChange: vi.fn(),
     prepareChange: vi.fn(),
     executeChange: vi.fn(),
+    executionStatus: vi.fn(),
     validateAdSet: vi.fn(),
   },
 }));
@@ -39,8 +40,43 @@ beforeEach(() => {
   vi.clearAllMocks();
   ads.changes.mockResolvedValue({ changes: [], assets: [], pages: [] });
   ads.aiCapabilities.mockResolvedValue({ external_execution_enabled: false });
+  ads.executionStatus.mockResolvedValue({available:false});
 });
 describe("native Ads control surface", () => {
+  it('checks exact paused authorization independently of the global flag and prevents duplicate/uncertain execution',async()=>{
+    const row={id:'paused',brand_id:'brand',connection_id:'conn',account_id:'111',revision:1,operation:'create',maximum_budget:1000,state:'approved',current:true,configuration:{name:'Paused acceptance',create_contract_version:3},fingerprint:'pin',provider_state:{}};
+    ads.changes.mockResolvedValue({assets:[],pages:[],changes:[row]});
+    ads.executionStatus.mockResolvedValue({request_id:'paused',fingerprint:'pin',operation:'create',available:true,scope:'paused_create_only',expires_at:new Date(Date.now()+600000).toISOString()});
+    let fail;ads.executeChange.mockImplementation(()=>new Promise((_resolve,reject)=>{fail=reject}));
+    render(<AdsManagement {...props} accounts={[{...props.accounts[0],health:{...props.accounts[0].health,manage_verified:true}}]}/>);
+    await screen.findAllByText('Paused acceptance');fireEvent.click(screen.getAllByRole('button',{name:'Review revision'})[0]);
+    expect(screen.getByRole('button',{name:'Execute approved change'}).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button',{name:'Check execution authorization'}));
+    await screen.findByText(/Activation and spending are not authorized/);
+    const execute=screen.getByRole('button',{name:'Execute approved change'});expect(execute.disabled).toBe(false);fireEvent.click(execute);fireEvent.click(execute);
+    expect(ads.executeChange).toHaveBeenCalledTimes(1);
+    fail(new Error('Outcome uncertain. Refresh and reconcile.'));
+    await screen.findByText('Outcome uncertain. Refresh and reconcile.');expect(screen.getByRole('button',{name:'Execute approved change'}).disabled).toBe(true);
+    expect(ads.transitionChange).not.toHaveBeenCalled();
+  });
+  it('cannot use another fingerprint to enable execution',async()=>{
+    const row={id:'paused',brand_id:'brand',connection_id:'conn',account_id:'111',revision:1,operation:'create',maximum_budget:1000,state:'approved',current:true,configuration:{name:'Bound revision'},fingerprint:'pin',provider_state:{}};
+    ads.changes.mockResolvedValue({assets:[],pages:[],changes:[row]});
+    ads.executionStatus.mockResolvedValue({request_id:'paused',fingerprint:'other',operation:'create',available:true,expires_at:new Date(Date.now()+600000).toISOString()});
+    render(<AdsManagement {...props} accounts={[{...props.accounts[0],health:{...props.accounts[0].health,manage_verified:true}}]}/>);
+    await screen.findAllByText('Bound revision');fireEvent.click(screen.getAllByRole('button',{name:'Review revision'})[0]);fireEvent.click(screen.getByRole('button',{name:'Check execution authorization'}));
+    await screen.findByText('Authorization changed. Reopen the current revision.');expect(screen.getByRole('button',{name:'Execute approved change'}).disabled).toBe(true);expect(ads.executeChange).not.toHaveBeenCalled();
+  });
+  it('discards another Brand’s late authorization and releases pending controls',async()=>{
+    const row={id:'old',brand_id:'brand',connection_id:'conn',revision:1,operation:'create',state:'approved',current:true,configuration:{name:'Old Brand revision'},fingerprint:'old-pin',provider_state:{}};
+    ads.changes.mockResolvedValue({assets:[],pages:[],changes:[row]});let finish;
+    ads.executionStatus.mockImplementation(()=>new Promise(resolve=>{finish=resolve}));
+    const accounts=[{...props.accounts[0],health:{...props.accounts[0].health,manage_verified:true}}];
+    const {rerender}=render(<AdsManagement {...props} accounts={accounts}/>);await screen.findAllByText('Old Brand revision');fireEvent.click(screen.getAllByRole('button',{name:'Review revision'})[0]);fireEvent.click(screen.getByRole('button',{name:'Check execution authorization'}));
+    ads.changes.mockResolvedValue({assets:[],pages:[],changes:[]});rerender(<AdsManagement {...props} brand="other-brand" accounts={accounts}/>);await screen.findByText('No advertising revisions');
+    finish({request_id:'old',fingerprint:'old-pin',operation:'create',available:true,scope:'paused_create_only',expires_at:new Date(Date.now()+600000).toISOString()});
+    await vi.waitFor(()=>expect(screen.getByRole('button',{name:'Refresh revisions'}).disabled).toBe(false));expect(screen.queryByRole('button',{name:'Execute approved change'})).toBeNull();expect(ads.executeChange).not.toHaveBeenCalled();
+  });
   it("does not offer unsupported recovery execution even when ordinary management is enabled",async()=>{
     ads.aiCapabilities.mockResolvedValue({external_execution_enabled:true});
     ads.changes.mockResolvedValue({assets:[],pages:[],changes:[{id:'r',brand_id:'brand',connection_id:'conn',account_id:'111',revision:2,operation:'create',maximum_budget:1000,state:'approved',current:true,configuration:{name:'Declaration recovery',recovery_source:'original'},fingerprint:'pin',provider_state:{campaign_id:'222'}}]});

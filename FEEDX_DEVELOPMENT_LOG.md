@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-26 — Ads operational authorization readiness
+
+Completed same-account Management OAuth confirmation through the existing Ads connection authority, including connected-account visibility, pinned generation and same-authorizer/task checks. Added read-only exact-revision execution availability to the existing paused-create boundary, current reviewer/approver checks, duplicate-command protection and explicit uncertain-outcome feedback. Reporting provenance, Publishing credentials and quarantined partial execution remain intact; Meta configuration, identity verification, real paused creation and Production delivery are independently gated. Canonical owner: docs/domains/marketing.md.
+
 ## 2026-10-25 — Ads management prerequisites
 
 Added same-authorizer reporting grant continuity without rewriting Meta observations, an unconfigured dedicated Ads Management login route, credential-bound read-only Page/post/minimum-budget preflight, and an absent-by-default service-only paused-create permit. Current authorization and Brand attribution still scope every report. Source erasure removes inherited access; current mutation approvals remain generation-bound. The partial Staging campaign is unchanged. Canonical owner: docs/domains/marketing.md. Verification includes 24-snapshot rollback-only generation/erasure/isolation contracts, paused-boundary and shared Graph regression tests, build and a complete authorized annual read; real OAuth, identity verification and Ads creation remain separately gated.

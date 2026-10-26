@@ -50,7 +50,7 @@ export default function MarketingAdsPage() {
   const [createRequest,setCreateRequest]=useState(0);
   const auth = useAuth(),
     can = (p) => auth.hasPermission(p),
-    generation = useRef(0);
+    generation = useRef(0), actionPending = useRef(false);
   const overviewPeriod = useRef(null);
   const [context, setContext] = useState({ organizations: [], brands: [] }),
     [org, setOrg] = useState(""),
@@ -152,6 +152,8 @@ export default function MarketingAdsPage() {
     };
   }, [org, brand, from, to, refresh, periodMode]);
   async function act(action) {
+    if (actionPending.current) return;
+    actionPending.current = true;
     const seq = generation.current;
     setBusy(true);
     setError("");
@@ -165,6 +167,7 @@ export default function MarketingAdsPage() {
     } catch (e) {
       if (seq === generation.current) setError(e.message);
     } finally {
+      actionPending.current = false;
       setBusy(false);
     }
   }
@@ -420,23 +423,24 @@ export default function MarketingAdsPage() {
           ))}
         {tab === "accounts" && pending.map((session) => (
           <section key={session.id} className="ads-panel">
-            <h2 className="font-semibold">Available accounts</h2>
+            <h2 className="font-semibold">{session.authorization_purpose === "management" ? "Confirm Ads Management authorization" : "Available accounts"}</h2>
             <p className="text-sm text-text-secondary">
               Shared Ad Accounts can serve multiple authorized Brands. Read-only discovery
               creates no brand attribution or execution authority.
             </p>
-            {!session.accounts.filter(a => !connectedIds.has(a.id)).length ? (
+            {!session.accounts.filter(a => session.authorization_purpose === "management" || !connectedIds.has(a.id)).length ? (
               <p className="text-sm text-text-secondary">No additional accounts available. Connected accounts are listed above.</p>
             ) : (
-              session.accounts.filter(a => !connectedIds.has(a.id)).map((a) => (
+              session.accounts.filter(a => session.authorization_purpose === "management" || !connectedIds.has(a.id)).map((a) => (
                 <div key={a.id} className="ads-account">
                   <div>
                     <strong>{a.name}</strong>
                     <p className="text-sm text-text-secondary">
                       {a.currency} · {a.timezone} · {a.id}
                     </p>
+                    {a.authorization_blocker && <p className="text-sm text-text-secondary">{a.authorization_blocker === "ads_management_authorizer_changed" ? "Use the same Meta authorizer as the existing connection. Reporting and credentials are unchanged." : "Meta has not verified management permission and advertising tasks for this account."}</p>}
                   </div>
-                  <button
+                  {session.authorization_purpose !== "management" && <button
                     className="btn-secondary"
                     disabled={!a.available || busy}
                     onClick={() =>
@@ -452,14 +456,14 @@ export default function MarketingAdsPage() {
                     }
                   >
                     Read-only discovery
-                  </button>
+                  </button>}
                   {data?.organization_access && (
                     <button
                       className="btn-secondary"
-                      disabled={!a.available || busy}
-                      onClick={() => setModal({ kind: "bind", session, a })}
+                      disabled={!a.available || !!a.authorization_blocker || busy}
+                      onClick={() => setModal({ kind: "bind", session, a, expectedGeneration: a.connected_generation ?? data?.accounts.find(c => (c.account_id || c.account_slot) === a.id)?.generation ?? null })}
                     >
-                      Connect shared account
+                      {session.authorization_purpose === "management" && connectedIds.has(a.id) ? "Update Ads authorization" : "Connect shared account"}
                     </button>
                   )}
                 </div>
@@ -568,30 +572,28 @@ export default function MarketingAdsPage() {
             <button
               className="btn-primary"
               disabled={busy}
-              onClick={() =>
-                act(async () => {
-                  await adsService.bind(
+              onClick={async () => {
+                  const result = await act(() => adsService.bind(
                     modal.session.id,
                     brand,
                     modal.a.id,
-                    data?.accounts.find(
-                      (a) => (a.account_id || a.account_slot) === modal.a.id,
-                    )?.generation ?? null,
-                  );
+                    modal.expectedGeneration,
+                  ));
+                  if (!result) return;
                   setModal(null);
                   setNotice(
-                    "Ad Account confirmed. Initial 30-day reporting and the comparison period are queued automatically. Confirm campaign brands after reporting loads.",
+                    modal.session.authorization_purpose === "management" ? "Ads authorization updated. Saved reporting and Publishing connections are preserved; Ads execution remains separately controlled." : "Ad Account confirmed. Initial 30-day reporting and the comparison period are queued automatically. Confirm campaign brands after reporting loads.",
                   );
-                })
-              }
+              }}
             >
-              Confirm connection
+              {modal.session.authorization_purpose === "management" ? "Confirm Ads authorization" : "Confirm connection"}
             </button>
           }
         >
-          <p>Connect <strong>{modal.a.name}</strong> ({modal.a.id}) as a shared Ad Account? Campaign Brand attribution remains separate.</p>
+          {error && <p role="alert" className="mb-3 text-sm text-danger">{error}</p>}
+          <p>{modal.session.authorization_purpose === "management" ? "Confirm current management access for" : "Connect"} <strong>{modal.a.name}</strong> ({modal.a.id}) as a shared Ad Account? Campaign Brand attribution remains separate.</p>
           <p className="mt-3 text-sm text-text-secondary">
-            Reporting permissions are verified before binding. The first 30 days and comparison period sync automatically. This shared account is shared across permitted Brands; confirm individual campaign brands after reporting loads. Existing attribution is preserved when reconnecting.
+            {modal.session.authorization_purpose === "management" ? "Meta management permission, account identity, authorizer and the selected connection generation are rechecked. Existing reporting observations and FB/IG Publishing credentials are preserved. This does not create an ad or authorize spending." : "Reporting permissions are verified before binding. The first 30 days and comparison period sync automatically. This shared account is shared across permitted Brands; confirm individual campaign brands after reporting loads. Existing attribution is preserved when reconnecting."}
           </p>
         </Modal>
       )}

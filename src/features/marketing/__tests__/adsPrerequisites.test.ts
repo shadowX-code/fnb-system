@@ -1,5 +1,5 @@
 import {describe,it,expect,vi,afterEach} from 'vitest';
-import {adsExecutionAllowed,adsManagementLoginConfig,adsReadOnlyPreflight} from '../../../../supabase/functions/_shared/metaAdsPrerequisites.ts';
+import {adsExecutionAllowed,adsExecutionStatus,adsManagementLoginConfig,adsReadOnlyPreflight} from '../../../../supabase/functions/_shared/metaAdsPrerequisites.ts';
 import {MetaError,MetaGraph} from '../../../../supabase/functions/_shared/metaGraph.ts';
 import {advanceAdsChange} from '../../../../supabase/functions/_shared/metaAdsManagement.ts';
 import {webcrypto} from 'node:crypto';
@@ -19,6 +19,18 @@ describe('separate Ads management login',()=>{
  });
 });
 describe('Production paused creation boundary',()=>{
+ it('reports only fresh exact-revision paused authorization without authorizing activation',()=>{
+  const row={...change,id:'request',state:'approved',approval_current:true,approval_expires_at:new Date(now+3600000).toISOString()};
+  expect(adsExecutionStatus(env(),row,true,now)).toMatchObject({request_id:'request',fingerprint:'exact',available:true,scope:'paused_create_only',activation_authorized:false});
+  expect(adsExecutionStatus(env(),{...row,approval_expires_at:new Date(now+60000).toISOString()},true,now).expires_at).toBe(new Date(now+60000).toISOString());
+  for(const state of ['draft','review','executing','reconciling','reconciled','cancelled'])expect(adsExecutionStatus(env(),{...row,state},true,now).available).toBe(false);
+  for(const approval_expires_at of [null,'invalid',new Date(now).toISOString()])expect(adsExecutionStatus(env(),{...row,approval_expires_at},true,now).available).toBe(false);
+  expect(adsExecutionStatus(env({MARKETING_ADS_EXECUTION_ENABLED:''}),row,true,now).available).toBe(false);
+  expect(adsExecutionStatus(env(),{...row,approval_current:false},true,now).available).toBe(false);
+  expect(adsExecutionStatus(env(),row,true,now+900000).available).toBe(false);
+  expect(adsExecutionStatus(env(),{...row,operation:'resume'},true,now).activation_authorized).toBe(false);
+  expect(adsExecutionStatus(env(),{...row,configuration:{...row.configuration,recovery_source:'original'}},false,now).available).toBe(false);
+ });
  it('requires both existing runtime gates and an exact unexpired permit',()=>{
   expect(adsExecutionAllowed(env(),change,true,now)).toBe(true);
   for(const extra of [{MARKETING_ADS_EXECUTION_ENABLED:''},{MARKETING_ADS_EXECUTION_APPROVALS:'other'}])expect(adsExecutionAllowed(env(extra),change,true,now)).toBe(false);

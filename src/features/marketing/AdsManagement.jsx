@@ -63,7 +63,7 @@ export default function AdsManagement({
     [managementLoginReady, setManagementLoginReady] = useState(false);
   const accounts = (data?.accounts?.length ? data.accounts : reportingAccounts).map(a=>({...a,health:reportingAccounts.find(r=>r.id===a.id)?.health||a.health}));
   const sequence = useRef(0),
-    intent = useRef(null), createdRequest=useRef(0);
+    intent = useRef(null), createdRequest=useRef(0), actionPending=useRef(false);
   useEffect(() => {
     const n = ++sequence.current;
     setLoading(true);
@@ -105,6 +105,8 @@ export default function AdsManagement({
     pages = (data?.pages || []).filter((p) => p.brand_id === selectedBrand),
     assets = (data?.assets || []).filter((a) => a.brand_id === selectedBrand);
   async function act(fn) {
+    if (actionPending.current) return;
+    actionPending.current = true;
     const n = sequence.current;
     setBusy(true);
     setError("");
@@ -116,10 +118,28 @@ export default function AdsManagement({
       }
       return r;
     } catch (e) {
-      if (n === sequence.current) setError(e.message);
+      if (n === sequence.current) {
+        setError(e.message);
+        setModal(m=>m?.kind === "detail" ? {...m,execution:null} : m);
+      }
     } finally {
+      actionPending.current = false;
       setBusy(false);
     }
+  }
+  async function inspectRevision(kind) {
+    if (actionPending.current || modal?.kind !== "detail") return;
+    actionPending.current = true;
+    const n = sequence.current, row = modal.row;
+    setBusy(true);setError("");
+    setModal(m=>m?.kind === "detail" && m.row.id === row.id && m.row.fingerprint === row.fingerprint ? {...m,[kind]:null} : m);
+    try {
+      const result = kind === "execution" ? await adsService.executionStatus(row) : await adsService.createReadiness({organizationId:org,brandId:row.brand_id,connectionId:row.connection_id,requestId:row.id,fingerprint:row.fingerprint});
+      if (n !== sequence.current) return;
+      if (kind === "execution" && (result.request_id !== row.id || result.fingerprint !== row.fingerprint || result.operation !== row.operation)) throw new Error("Authorization changed. Reopen the current revision.");
+      setModal(m=>m?.kind === "detail" && m.row.id === row.id && m.row.fingerprint === row.fingerprint ? {...m,[kind]:kind === "execution" ? result : result.message} : m);
+    } catch(e) {if(n === sequence.current)setError(e.message);}
+    finally {actionPending.current=false;setBusy(false);}
   }
   const campaigns = (report?.configs?.campaigns || []).filter(
     (c) => c.feedx_brand_id === selectedBrand,
@@ -271,7 +291,7 @@ export default function AdsManagement({
         )}
       </div>
       <p className="text-sm text-text-secondary">
-        {!enabled ? "External execution is disabled. " : ""}
+        {!enabled ? "Execution requires separate authorization for the approved revision. " : ""}
         Creation starts paused. Each activation and budget adjustment requires
         its own reviewed approval.
       </p>
@@ -666,7 +686,6 @@ export default function AdsManagement({
           <RevisionDetail
             row={modal.row}
             can={can}
-            enabled={enabled}
             manage={
               accounts.find((a) => a.id === modal.row.connection_id)?.health
                 ?.manage_verified
@@ -677,9 +696,11 @@ export default function AdsManagement({
               act(() => adsService.transitionChange(modal.row, action))
             }
             onExecute={() => act(() => adsService.executeChange(modal.row))}
+            onCheckExecution={() => inspectRevision("execution")}
+            execution={modal.execution}
             onReconcile={() => act(() => adsService.reconcileChange(modal.row))}
             onValidate={() => act(() => adsService.validateAdSet(modal.row))}
-            onCheckReadiness={async()=>{setBusy(true);setError("");setModal(m=>({...m,readiness:null}));try{const result=await adsService.createReadiness({organizationId:org,brandId:modal.row.brand_id,connectionId:modal.row.connection_id,requestId:modal.row.id,fingerprint:modal.row.fingerprint});setNotice(result.message);setModal(m=>({...m,readiness:result.message}));}catch(e){setError(e.message);}finally{setBusy(false);}}}
+            onCheckReadiness={() => inspectRevision("readiness")}
             readinessMessage={modal.readiness}
           />
         </Modal>
@@ -690,17 +711,19 @@ export default function AdsManagement({
 function RevisionDetail({
   row: r,
   can,
-  enabled,
   manage,
   busy,
   error,
   onTransition,
   onExecute,
+  onCheckExecution,
+  execution,
   onReconcile,
   onValidate,
   onCheckReadiness,
   readinessMessage,
 }) {
+  const executionAvailable = execution?.available === true && execution.request_id === r.id && execution.fingerprint === r.fingerprint && execution.operation === r.operation && Date.parse(execution.expires_at) > Date.now();
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -874,8 +897,13 @@ function RevisionDetail({
             </button>
           )}
         {can("marketing_ads.execute") && r.state === "approved" && (
+          <button className="btn-secondary" disabled={busy || !r.current || !manage || !!r.configuration.recovery_source} onClick={onCheckExecution}>
+            Check execution authorization
+          </button>
+        )}
+        {can("marketing_ads.execute") && r.state === "approved" && (
           <button
-            disabled={busy || !r.current || !enabled || !manage || !!r.configuration.recovery_source}
+            disabled={busy || !r.current || !executionAvailable || !manage || !!r.configuration.recovery_source}
             className="btn-primary"
             onClick={onExecute}
           >
@@ -895,12 +923,13 @@ function RevisionDetail({
             </button>
           )}
       </div>
-      {r.state === "approved" && (!enabled || !manage) && (
+      {r.state === "approved" && (!executionAvailable || !manage) && (
         <p className="text-sm text-text-secondary">
           Execution unavailable. Management permission and separate
           authorization for this exact revision are required.
         </p>
       )}
+      {executionAvailable && execution.scope === "paused_create_only" && <p role="status" className="text-sm text-text-secondary">Paused creation is authorized for this exact revision. Activation and spending are not authorized; eligibility is checked again before every submission.</p>}
       {r.state === "approved" && r.configuration.recovery_source && <p className="text-sm text-text-secondary">This recovery revision supports review and validation only. Existing Meta receipts must be resolved before execution.</p>}
       {r.error_code && (
         <p className="text-sm">
