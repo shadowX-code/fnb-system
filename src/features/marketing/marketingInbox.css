@@ -61,8 +61,6 @@
 .inbox-row-bottom { font-size: 10px; color: var(--inbox-muted); line-height: 1.4; }
 .inbox-row-bottom > span:first-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .inbox-unread { display: inline-flex; min-width: 18px; height: 18px; align-items: center; justify-content: center; padding-inline: 4px; border-radius: 12px; background: var(--theme-primary); color: var(--theme-primary-contrast,#fff); font-weight: 650; }
-.inbox-row-assignment { display: flex; align-items: center; gap: 6px; color: var(--inbox-muted); font-size: 10px; }
-.inbox-row-assignment .badge { font-size: 10px; padding: 1px 7px; border: 0; }
 .marketing-inbox-list > div:last-child { padding: 8px 10px; border-top: 1px solid var(--inbox-border); font-size: 10px; }
 .marketing-inbox-list [aria-label="Rows per page"] { max-width: 64px; }
 .inbox-thread-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--inbox-border); }
@@ -113,9 +111,9 @@
 .inbox-context-identity h3 { margin: 0 0 5px; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
 .inbox-context-identity p { margin: 0; color: var(--inbox-muted); font-size: 11px; overflow-wrap: anywhere; }
 .inbox-context-section h3 { margin: 18px 0 10px; font-size: 12px; font-weight: 650; }
-.inbox-context-section dl { margin: 8px 0 18px; }
-.inbox-context-section dl > dt { float: left; clear: left; color: var(--inbox-muted); width: 90px; padding: 8px 0; }
-.inbox-context-section dl > dd { text-align: right; padding: 8px 0 8px 94px; border-bottom: 1px solid var(--inbox-border); min-height: 34px; overflow-wrap: anywhere; }
+.inbox-context-section dl { display: grid; grid-template-columns: minmax(80px, .8fr) minmax(0, 1.2fr); column-gap: 8px; margin: 8px 0 18px; }
+.inbox-context-section dl > dt { color: var(--inbox-muted); padding: 8px 0; }
+.inbox-context-section dl > dd { margin: 0; text-align: right; padding: 8px 0; border-bottom: 1px solid var(--inbox-border); overflow-wrap: anywhere; }
 .inbox-muted, .inbox-profile-unavailable { color: var(--inbox-muted); font-size: 11px; line-height: 1.6; }
 .inbox-profile-unavailable { padding: 10px; border-radius: 8px; background: var(--inbox-nested); }
 .inbox-crm-context { padding: 0 0 16px; border-bottom: 1px solid var(--inbox-border); }
@@ -239,3 +237,76 @@
 .inbox-media-placeholder > div { min-width: 0; }
 .inbox-media-placeholder strong { display: block; font-size: 13px; }
 .inbox-media-placeholder small { display: block; margin-top: 4px; font-size: 11px; line-height: 1.5; color: var(--inbox-muted); }
+
+/* Operational views and handling extend the existing three-column workspace. */
+.inbox-operational-views { display:grid;grid-template-columns:1fr 1fr;gap:3px;margin:0 14px 12px;padding:3px;background:var(--theme-surface-nested);box-shadow:none; }
+.inbox-operational-views button { display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:32px;min-width:0;padding:6px 9px;font-size:11px;border-radius:7px; }
+.inbox-view-count { font-variant-numeric:tabular-nums;opacity:.75; }
+.inbox-needs-reply { color:var(--factory-warning-text);font-weight:600; }
+.inbox-handling-bar { padding:9px 16px;border-bottom:1px solid var(--inbox-border);background:var(--inbox-nested);font-size:11px; }
+.inbox-handling-line { display:flex;align-items:center;gap:8px; }
+.inbox-handling-line>span:not(:first-child) { color:var(--inbox-muted);line-height:1.5;flex:1;min-width:0; }
+.inbox-handling-line .btn-secondary { margin-left:auto;flex-shrink:0;min-height:32px;padding:6px 9px;font-size:11px; }
+.inbox-handling-bar details { margin-top:7px;color:var(--inbox-muted); }
+.inbox-handling-bar summary { cursor:pointer; }
+.inbox-handling-bar details p { margin:8px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6; }
+.ai-settings-heading-actions .btn-secondary { min-height:34px; }
+@media(max-width:720px) { .inbox-handling-line { flex-wrap:wrap; }.inbox-handling-line>span:not(:first-child) { flex-basis:55%; }.inbox-handling-bar { padding:9px 12px; }.inbox-thread-header { gap:7px; } }
+
+
+/* Primary views and the exceptional attention queue have distinct hierarchy. */
+.inbox-view-navigation { padding:0 14px 12px;display:grid;gap:7px; }
+.inbox-operational-views { width:100%;margin:0;grid-template-columns:auto minmax(0,1fr) auto;gap:3px; }
+.inbox-operational-views button { justify-content:center;gap:6px;padding:7px 8px;white-space:nowrap; }
+.inbox-view-count { font-size:10px;line-height:1.4;font-variant-numeric:tabular-nums;opacity:.85; }
+.inbox-attention-queue { display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 10px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--theme-muted);font-size:12px;text-align:left; }
+.inbox-attention-queue .inbox-view-count { margin-left:auto;background:var(--theme-surface-nested);border-radius:5px;padding:1px 6px; }
+.inbox-attention-queue:hover { background:var(--theme-surface-nested);color:var(--theme-text); }
+.inbox-attention-queue.is-active { border-color:var(--theme-border);color:var(--factory-warning-text);background:var(--factory-warning-bg); }
+.inbox-attention-queue:focus-visible { outline:2px solid var(--inbox-accent);outline-offset:2px; }
+.marketing-inbox-row { padding:11px 10px;position:relative; }
+.marketing-inbox-row.selected { box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--inbox-accent) 25%,transparent); }
+.marketing-inbox-row.is-unread .inbox-row-top strong { font-weight:750; }
+.marketing-inbox-row.is-unread .inbox-row-preview { color:var(--theme-text); }
+.inbox-row-time,.inbox-row-action { display:flex;align-items:center;gap:5px;flex-shrink:0; }
+.inbox-row-action .badge { padding:1px 5px;font-size:10px;white-space:nowrap;border:0; }
+.inbox-row-action>span[role="img"] { color:var(--theme-muted);display:inline-flex; }
+.inbox-row-top .inbox-unread { min-width:16px;height:16px;font-size:9px; }
+.inbox-row-bottom { align-items:center;gap:5px; }
+.inbox-header-controls { align-items:flex-end; }
+.inbox-header-controls .admin-form-field-label { font-size:10px; }
+.inbox-header-controls>div:first-child { width:165px; }
+.inbox-header-controls>div:last-child { width:140px; }
+.inbox-header-controls .admin-select { width:100%; }
+.inbox-handling-bar { padding:8px 14px;background:transparent; }
+.inbox-handling-bar[data-attention="true"] { background:var(--factory-warning-bg); }
+.inbox-handling-line { align-items:center; }
+.inbox-handling-line .badge { flex-shrink:0; }
+.inbox-timeline-entry.is-continuation { margin-top:-6px; }
+.inbox-timeline-entry.is-continuation .marketing-inbox-message { border-top-left-radius:5px; }
+.inbox-timeline-entry.is-continuation .marketing-inbox-message.echo { border-top-left-radius:14px;border-top-right-radius:5px; }
+.inbox-composer { padding:10px 14px 12px; }
+.inbox-composer-tools { margin-bottom:8px;gap:5px; }
+.inbox-reply-help { display:flex;align-items:center;gap:2px; }
+.inbox-reply-help .btn-secondary { background:transparent;border-color:transparent;box-shadow:none;padding:5px 7px; }
+.inbox-reply-help .btn-secondary:hover:not(:disabled) { background:var(--inbox-nested); }
+.inbox-context-identity { margin-bottom:14px; }
+.inbox-context-section h3 { margin-top:17px; }
+@media(max-width:720px) {
+ .inbox-list-heading { gap:8px;padding:12px 14px; }
+ .inbox-list-heading h1 { font-size:clamp(18px,5vw,21px); }
+ .inbox-list-commands .icon-btn { width:36px;height:40px;min-height:40px; }
+ .inbox-view-navigation { padding:0 10px 8px;gap:4px; }
+ .inbox-list-search { padding-bottom:8px; }
+ .inbox-status-tabs { margin-bottom:8px; }
+ .inbox-list-filters.admin-filter-toolbar { padding-bottom:8px; }
+ .inbox-attention-queue { min-height:40px; }
+ .inbox-operational-views button { min-height:40px; }
+ .inbox-header-controls { flex-wrap:nowrap; }
+ .inbox-header-controls>div:first-child,.inbox-header-controls>div:last-child { flex:1;width:auto;max-width:none;min-width:0; }
+ .inbox-reply-help .btn-secondary { min-height:38px; }
+ .inbox-composer { padding:10px; }
+}
+
+.inbox-attention-queue[data-has-items="true"]>svg,.inbox-attention-queue[data-has-items="true"] .inbox-view-count { color:var(--factory-warning-text); }
+.inbox-attention-queue[data-has-items="true"] .inbox-view-count { background:var(--factory-warning-bg); }

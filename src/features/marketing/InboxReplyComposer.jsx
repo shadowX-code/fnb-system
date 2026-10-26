@@ -19,6 +19,7 @@ export default function InboxReplyComposer({
   onDirectSend,
   draftCache,
   canViewConnections = false,
+  handoffVisibleInHeader = false,
 }) {
   const c = current.conversation;
   const latestSentAt = Math.max(0,...(current.outbox || []).filter(o=>['sent','delivered','read'].includes(o.state)&&o.sent_at).map(o=>Date.parse(o.sent_at)));
@@ -151,7 +152,7 @@ export default function InboxReplyComposer({
             Internal note
           </button>
         )}
-        <span className="inbox-tool-spacer" />
+        <span className="inbox-tool-spacer" /><div className="inbox-reply-help" role="group" aria-label="Reply assistance">
         {mode === "reply" && can("ai") && (
           <button
             className="btn-secondary"
@@ -169,16 +170,16 @@ export default function InboxReplyComposer({
             disabled={
               busy || Boolean(faqUnavailable)
             }
-            title={faqUnavailable||'Match the current question to an approved answer'}
+            title={faqUnavailable||'Find a matching Active FAQ · no AI generation'}
             onClick={()=>faqPreview(faqQuestion)}
           >
             <BookOpen size={14} />
-            FAQ suggestions
+            FAQs
           </button>
         )}
-      </div>
+      </div></div>
       {mode === "reply" && can("ai") && aiUnavailable && <p className="inbox-assistance-status" role="status">{aiUnavailable} {can('configure')&&setupHref?<a href={setupHref}>Open FAQ & AI settings</a>:null}</p>}
-      {mode === "reply" && !suggestion && handoff.length>0 && <div className="inbox-assistance-handoff" role="status"><strong>Needs Human Attention</strong><p>{handoff.map(reason=>reason.replaceAll('_',' ')).join(' · ')}. Use the existing assignment or handling controls; AI never assigns or sends.</p></div>}
+      {mode === "reply" && !suggestion && !handoffVisibleInHeader && handoff.length>0 && <div className="inbox-assistance-handoff" role="status"><strong>Needs Human Attention</strong><p>{handoff.map(reason=>reason.replaceAll('_',' ')).join(' · ')}. Use the existing assignment or handling controls; AI never assigns or sends.</p></div>}
       {mode === "reply" && suggestion && (
         <section className="inbox-suggestion inbox-ai-suggestion" aria-label="AI suggested reply">
           <div className="inbox-suggestion-content">
@@ -198,7 +199,7 @@ export default function InboxReplyComposer({
           <small className="inbox-muted">Review and edit before sending. {suggestion.body.human_required?'Staff approval is required.':''}</small>
         </section>
       )}
-      {mode === "reply" && preview && (
+      {mode === "reply" && preview && (!handoffVisibleInHeader||preview.faq) && (
         <div className="inbox-suggestion">
           <strong>{preview.faq ? 'Active FAQ suggestion' : 'FAQ suggestions'}</strong>
           {preview.faq?<small>{preview.faq.question} · Brand FAQ Library · {preview.faq.match_method==='published_topic'?'Related question':'Matching question'}</small>:null}
