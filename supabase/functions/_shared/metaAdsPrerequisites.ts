@@ -22,7 +22,7 @@ export function adsExecutionStatus(env: (key: string) => string, change: any, pr
   const available = approved && !change.configuration?.recovery_source && adsExecutionAllowed(env, change, production, now);
   return { request_id: change.id, fingerprint: change.fingerprint, operation: change.operation,
     available, scope: production ? "paused_create_only" : "reviewed_execution",
-    expires_at: available ? (production ? change.paused_create_expires_at : change.approval_expires_at) : null,
+    expires_at: available ? new Date(Math.min(Date.parse(change.approval_expires_at), production ? Date.parse(change.paused_create_expires_at) : Infinity)).toISOString() : null,
     reason: !approved ? "approval_required" : !available ? "execution_not_authorized" : null,
     activation_authorized: available && !production && change.operation === "resume" };
 }

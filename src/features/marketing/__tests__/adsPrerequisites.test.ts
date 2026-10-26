@@ -22,6 +22,7 @@ describe('Production paused creation boundary',()=>{
  it('reports only fresh exact-revision paused authorization without authorizing activation',()=>{
   const row={...change,id:'request',state:'approved',approval_current:true,approval_expires_at:new Date(now+3600000).toISOString()};
   expect(adsExecutionStatus(env(),row,true,now)).toMatchObject({request_id:'request',fingerprint:'exact',available:true,scope:'paused_create_only',activation_authorized:false});
+  expect(adsExecutionStatus(env(),{...row,approval_expires_at:new Date(now+60000).toISOString()},true,now).expires_at).toBe(new Date(now+60000).toISOString());
   for(const state of ['draft','review','executing','reconciling','reconciled','cancelled'])expect(adsExecutionStatus(env(),{...row,state},true,now).available).toBe(false);
   for(const approval_expires_at of [null,'invalid',new Date(now).toISOString()])expect(adsExecutionStatus(env(),{...row,approval_expires_at},true,now).available).toBe(false);
   expect(adsExecutionStatus(env({MARKETING_ADS_EXECUTION_ENABLED:''}),row,true,now).available).toBe(false);
