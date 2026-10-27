@@ -13,6 +13,7 @@ export function publishingPlanPayload(payload,local){
 }
 export function publishingStatus(content){
  const status=content?.status||'draft';
+ if(status==='cancelled')return {label:'Deleted',next:'Retained in history. Restore as a draft, then confirm publishing again.'};
  if(status==='review')return {label:'Review',next:'An authorized reviewer must approve this revision.'};
  if(status==='approved')return {label:'Ready to Publish',next:'Choose Publish Now or Schedule, then confirm the exact revision and eligible accounts.'};
  if(status==='scheduled')return {label:'Scheduled',next:content.channels?.some(c=>c.job_state==='blocked')?'Confirm external publishing authorization for the pending channels.':'Delivery follows each channel’s saved schedule and execution safeguards.'};
