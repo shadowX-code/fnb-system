@@ -18,7 +18,7 @@ describe('Creative planner presentation',()=>{
  it('keeps Monday planning weeks independent from deadlines',()=>{expect(weekOf('2026-10-01')).toBe('2026-09-28');expect(monthWeeks('2026-10-01')).toEqual(['2026-09-28','2026-10-05','2026-10-12','2026-10-19','2026-10-26']);});
  it('never offers completion through status changes',()=>{for(const status of ['planned','in_progress','revision_needed','in_review','completed'])expect(allowedMoves(task('x',{status}),true)).not.toContain('completed');expect(allowedMoves(task('x'),false)).toEqual([]);});
  it('blocks review while blocked and exposes revision recovery',()=>{expect(allowedMoves(task('x',{status:'in_progress',blocked:true}),true)).toEqual(['planned']);expect(allowedMoves(task('x',{status:'revision_needed'}),true)).toContain('in_review');});
- it('counts outstanding deadlines separately from completed production',()=>expect(plannerSummary([task('a',{due_date:'2026-10-10'}),task('b',{blocked:true}),task('c',{status:'completed',due_date:'2026-10-10'}),task('d',{due_date:'2026-10-20'})],'2026-10-12')).toEqual({planned:4,completed:1,due:1,overdue:1,blocked:1}));
+ it('counts outstanding deadlines separately from completed production',()=>expect(plannerSummary([task('a',{due_date:'2026-10-10'}),task('b',{blocked:true}),task('c',{status:'completed',due_date:'2026-10-10'}),task('d',{due_date:'2026-10-20'})],'2026-10-12')).toEqual({planned:4,completed:1,due:1,overdue:1,blocked:1,carriedForward:0}));
  it('prioritizes unfinished overdue and blocked work, while manual order is explicit',()=>{const tasks=[task('done',{status:'completed',manual_order:1}),task('upcoming',{due_date:'2026-10-20',manual_order:2}),task('blocked',{blocked:true,manual_order:3}),task('late',{due_date:'2026-10-10',manual_order:4})];expect(sortedTasks(tasks,'workload','2026-10-12').map(t=>t.id)).toEqual(['late','blocked','upcoming','done']);expect(sortedTasks(tasks,'manual').map(t=>t.id)).toEqual(['done','upcoming','blocked','late']);});
  it('applies shared filters without mutating task records',()=>{const tasks=[task('a'),task('b',{brand_id:'other',assignee_id:'employee',blocked:true})];expect(filterTasks(tasks,{brand:'other',assignee:'employee',blocked:true})).toEqual([tasks[1]]);expect(tasks).toHaveLength(2);});
 });
@@ -43,4 +43,13 @@ it('reads revision instructions only from the active canonical request cycle',()
  expect(revisionInstructions({...active,history:[...active.history,{revision:8,action:'request_revision',feedback:'  '}]})).toBe('');
  expect(revisionInstructions({...active,history:[]})).toBe('');expect(revisionInstructions({...active,history:undefined})).toBe('');
  expect(revisionInstructions({...active,history:[...active.history,{revision:9,action:'request_revision',feedback:'Future snapshot'}]})).toBe('Current instructions\n第二行');
+});
+
+// The server supplies carried_forward; local confirmed terminal/deletion responses must remove it immediately.
+it('keeps carry-forward separate from overdue and counts each visible task once',()=>{
+ const rows=[task('old',{carried_forward:true,planning_month:'2026-09-01',due_date:'2026-11-15'}),task('late',{carried_forward:true,planning_month:'2026-10-01',due_date:'2026-10-20'}),task('month',{due_date:'2026-11-10'}),task('done',{carried_forward:true,status:'completed'}),task('deleted',{carried_forward:true,deleted_at:'2026-11-01'})];
+ const visible=filterTasks(rows);expect(visible.map(t=>t.id)).toEqual(['old','late','month']);
+ expect(plannerSummary(visible,'2026-11-01')).toMatchObject({planned:3,carriedForward:2,overdue:1});
+ expect(taskDueState(rows[0],'2026-11-01')).toBe('normal');expect(taskDueState(rows[1],'2026-11-01')).toBe('overdue');
+ expect(filterTasks(rows,{brand:'brand',status:'planned',search:'old'})).toEqual([rows[0]]);
 });

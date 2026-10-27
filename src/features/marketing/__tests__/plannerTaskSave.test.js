@@ -36,3 +36,10 @@ it('does not retry after the authorized UI scope changes',async()=>{
 it('refreshes untouched fields while retaining unsaved selections and description',()=>{
  const draft={...taskPayload(task),asset_ids:[],brief:'My unsaved description'};const fresh={...task,revision:4,title:'New title',asset_ids:['other']};const merged=mergeTaskDraft(draft,task,fresh);expect(merged).toMatchObject({title:'New title',asset_ids:[],brief:'My unsaved description'});expect(mergeTaskDraft(merged,fresh,{...fresh,revision:5,asset_ids:[],brief:merged.brief})).toEqual(merged);
 });
+
+it('rebases a carried task from the displayed month without treating its origin as a conflict',async()=>{
+ const task={id:'carry',brand_id:'b',organization_id:'o',planning_month:'2026-10-01',revision:1,status:'planned',asset_ids:['a']};
+ const service={command:vi.fn().mockRejectedValueOnce(Object.assign(new Error('stale'),{code:'PT409'})).mockResolvedValueOnce({...task,revision:3,asset_ids:[]}),read:vi.fn().mockResolvedValue({tasks:[{...task,revision:2,carried_forward:true}]})};
+ await savePlannerTask(service,{task,intent:{org:'o',brand:'b',action:'save',id:'carry',revision:1,payload:{month:'2026-11-01',asset_ids:[]}},attempt:{id:'first'},readBrand:'b'});
+ expect(service.read).toHaveBeenCalledWith('o','2026-11-01','b');expect(service.command.mock.calls[1][0].payload.month).toBe('2026-11-01');
+});

@@ -818,3 +818,8 @@ Canonical publisher authorization now supports explicit Publish Now / future Sch
 ## 2026-10-24 — Temporary Facebook Video/Reel execution expiry
 
 The existing connection execution policy now supports a finite, generation-bound Facebook Video/Reel authorization capped at 30 minutes. The canonical job guard and provider transport revalidate every new submission; explicit revocation blocks subsequent operations while checkpoint/receipt reconciliation remains available. Default-off gates and existing Publishing/Instagram authorities are preserved. Verification uses rollback-only Staging records and controlled provider transports, with no live publishing.
+
+### 27 October 2026 — Planner cross-month operational continuity
+- Added a shared canonical visibility predicate for selected-month tasks plus earlier active work; read-derived carry metadata and compact Board/List/count presentation retain original identities and schedules.
+- Manual order retains revision/Brand authority across visible months. Existing save context can no longer silently rewrite planning month; historical Completed and Planning Insights attribution remain intact.
+- Focused frontend regressions and rollback-only Staging authority tests cover month boundaries, four active states, completion/history, stale/retry guards, Brand isolation and recurrence deduplication. No Production execution authorized.
