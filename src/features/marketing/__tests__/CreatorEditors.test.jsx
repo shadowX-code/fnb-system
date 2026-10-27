@@ -81,14 +81,14 @@ it('saves an explicitly selected primary Instagram account through the Creator s
 });
 it('preserves account identity and saved optional details when same-profile extraction is unavailable',async()=>{
  creatorService.profile.mockResolvedValueOnce({metadata_status:'unavailable',profile_url:'https://www.instagram.com/one/'});
- render(<AccountEditor {...props} org="org" brandId="b" creator={data.creators[0]} record={{platform:'instagram',profile_url:'https://www.instagram.com/one/',handle:'one',external_id:'123',display_name:'Saved name',followers:12,followers_captured_at:'2026-10-01T00:00:00Z'}}/>);fireEvent.click(screen.getByRole('button',{name:'Refresh public profile'}));await screen.findByText('Public details unavailable. Add optional details manually.');fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({external_id:'123',display_name:'Saved name'}));
+ render(<AccountEditor {...props} org="org" brandId="b" creator={data.creators[0]} record={{platform:'instagram',profile_url:'https://www.instagram.com/one/',handle:'one',external_id:'123',display_name:'Saved name',followers:12,followers_captured_at:'2026-10-01T00:00:00Z'}}/>);fireEvent.click(screen.getByRole('button',{name:/^Refresh (public profile|Profile)$/}));await screen.findByText('Public details unavailable. Add optional details manually.');fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({external_id:'123',display_name:'Saved name'}));
 });
 
 it('shows the provider limitation without changing the saved profile or fabricating avatar evidence',async()=>{
  creatorService.profile.mockResolvedValueOnce({metadata_status:'unavailable',unavailable:{profile:'The platform restricted public profile access. Existing saved details remain unchanged.'}});
  const onSave=vi.fn(),record={id:'a',platform:'instagram',profile_url:'https://www.instagram.com/one/',handle:'one',external_id:'123',display_name:'Saved name',followers:12,followers_captured_at:'2026-10-01T00:00:00Z'};
  render(<AccountEditor {...props} onSave={onSave} org="org" brandId="b" creator={data.creators[0]} record={record}/>);
- fireEvent.click(screen.getByRole('button',{name:'Refresh public profile'}));await screen.findByText('The platform restricted public profile access. Existing saved details remain unchanged.');
+ fireEvent.click(screen.getByRole('button',{name:/^Refresh (public profile|Profile)$/}));await screen.findByText('The platform restricted public profile access. Existing saved details remain unchanged.');
  expect(onSave).not.toHaveBeenCalled();fireEvent.submit(screen.getByRole('dialog').querySelector('form'));const {followers,followers_captured_at,...profile}=record;expect(onSave).toHaveBeenCalledWith({...profile,creator_id:'c'});expect(screen.queryByLabelText('Followers')).toBeNull();expect(onSave.mock.calls[0][0]).not.toHaveProperty('followers');
 });
 
@@ -116,4 +116,17 @@ it('retains duplicate feedback when an in-flight enrichment finishes without cha
  fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911c'}});fireEvent.blur(screen.getByLabelText('Profile URL'));
  fireEvent.submit(screen.getByRole('dialog').querySelector('form'));await screen.findByText('Linked to Existing Creator');
  finish({metadata_status:'unavailable',unavailable:{profile:'Profile unavailable.'}});await screen.findByText('Profile unavailable.');expect(screen.getByText('Linked to Existing Creator')).toBeTruthy();expect(screen.getByRole('button',{name:'Save'}).disabled).toBe(true);
+});
+
+it('projects a server-persisted refresh without a browser save or a false unsaved-changes prompt',async()=>{
+ const record={id:'ig',creator_id:'c',platform:'instagram',handle:'one',external_id:'',profile_url:'https://www.instagram.com/one/',display_name:'Saved name',revision:2},onEnriched=vi.fn(),onClose=vi.fn();
+ const account={...record,followers:0,followers_source:'meta_instagram_business_discovery',followers_captured_at:'2026-10-28T00:00:00Z',followers_sync_status:'ready',public_observation:{source:'public_profile_staff_confirmed',source_hint:'Meta Instagram Business Discovery',avatar_kind:'profile_picture',avatar_url:'https://scontent.cdninstagram.com/new.jpg',profile_url:record.profile_url,captured_at:'2026-10-28T00:00:00Z'}};
+ creatorService.profile.mockResolvedValueOnce({metadata_status:'public_extracted',source:'Meta Instagram Business Discovery',profile_url:record.profile_url,avatar_kind:'profile_picture',avatar_url:account.public_observation.avatar_url,captured_at:account.followers_captured_at,account});
+ render(<AccountEditor {...props} record={record} creator={data.creators[0]} onEnriched={onEnriched} onClose={onClose}/>);fireEvent.click(screen.getByRole('button',{name:'Refresh Profile'}));await waitFor(()=>expect(onEnriched).toHaveBeenCalledWith(account));fireEvent.click(screen.getByRole('button',{name:'Close drawer',exact:true}));expect(onClose).toHaveBeenCalledTimes(1);expect(screen.queryByText('Discard unsaved changes?')).toBeNull();
+});
+
+it('preserves a saved profile identity when a refresh request fails',async()=>{
+ const record={id:'ig',creator_id:'c',platform:'instagram',handle:'one',external_id:'123',profile_url:'https://www.instagram.com/one/',display_name:'Saved name',revision:2},onClose=vi.fn();
+ creatorService.profile.mockRejectedValueOnce(new Error('Profile request unavailable.'));
+ render(<AccountEditor {...props} record={record} creator={data.creators[0]} onClose={onClose}/>);fireEvent.click(screen.getByRole('button',{name:'Refresh Profile'}));await screen.findByText('Profile refresh unavailable');expect(screen.getByLabelText('Platform Account ID').value).toBe('123');fireEvent.click(screen.getByRole('button',{name:'Close drawer',exact:true}));expect(onClose).toHaveBeenCalledTimes(1);expect(screen.queryByText('Discard unsaved changes?')).toBeNull();
 });

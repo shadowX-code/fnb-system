@@ -6,6 +6,7 @@ import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import {marketingService} from './marketingService.js';
 import {resolveBrandContext,selectBrandContext} from './brandContext.js';
 import SocialAccounts from './SocialAccounts.jsx';
+import CreatorEnrichmentDelegation from './CreatorEnrichmentDelegation.jsx';
 import WhatsAppConnections from './WhatsAppConnections.jsx';
 import GoogleDriveSettings from './GoogleDriveSettings.jsx';
 import BrandKnowledgeWorkspace from './BrandKnowledgeWorkspace.jsx';
@@ -31,7 +32,7 @@ export default function MarketingSettingsPage({section='connections',ui}){
  return <WorkspacePage section="Marketing · Settings" title={titles[page]} wrapTitle={page==='access'} density="compact" controls={context&&page!=='access'?<div className="admin-scope-controls" aria-label="Settings Brand context"><SelectField label="Brand" value={brandId} onChange={v=>selectBrandContext(context,v,org,setOrg,setBrandId)} searchable="auto" options={[...(page==='knowledge'?[]:[{value:'',label:'All'}]),...context.brands.map(b=>({value:b.id,label:b.name}))]}/></div>:null}>
  <AsyncDataSurface loading={loading} error={error} hasData={!!context} onRetry={()=>context?setRefresh(v=>v+1):setContextRefresh(v=>v+1)}>
  {context&&!org?<div className="card p-5 text-sm">Ask an administrator to grant Brand access and team permissions.</div>:null}
- {org&&page==='connections'?<div className="settings-connections"><SocialAccounts key={`${org}:${brandId}:${user}`} organizationId={org} brandId={brandId} brands={brands}/><WhatsAppConnections key={`whatsapp:${org}:${brandId}:${user}`} organizationId={org} brandId={brandId} brands={brands}/><GoogleDriveSettings key={`drive:${org}:${brandId}:${user}`} organizationId={org} brandId={brandId} brands={brands}/></div>:null}
+ {org&&page==='connections'?<div className="settings-connections"><SocialAccounts key={`${org}:${brandId}:${user}`} organizationId={org} brandId={brandId} brands={brands}/><CreatorEnrichmentDelegation key={`creator-enrichment:${org}:${user}`} org={org}/><WhatsAppConnections key={`whatsapp:${org}:${brandId}:${user}`} organizationId={org} brandId={brandId} brands={brands}/><GoogleDriveSettings key={`drive:${org}:${brandId}:${user}`} organizationId={org} brandId={brandId} brands={brands}/></div>:null}
  {org&&page==='knowledge'&&data?(brand?<BrandKnowledgeWorkspace key={`${org}:${brandId}:${user}`} brand={brand} data={data} can={can} onSaved={()=>{ui?.notify?.({title:'Brand Knowledge saved.',tone:'success'});setRefresh(v=>v+1)}}/>:<div className="card p-5 text-sm">Select an authorized Brand to view its knowledge.</div>):null}
  {org&&page==='access'?<BrandAccessConsole key={`${org}:${user}`} org={org} brands={brands} auth={auth} onSaved={()=>setRefresh(v=>v+1)}/>:null}
  </AsyncDataSurface>

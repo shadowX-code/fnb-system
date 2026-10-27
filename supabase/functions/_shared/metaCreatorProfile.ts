@@ -1,13 +1,58 @@
 import {connectionBinding,unseal} from './metaSecurity.ts';
-// Creator profiles are now shared. The existing Social OAuth contract is Brand-owned;
-// it cannot delegate those credentials to a tenant-wide enrichment operation.
-export async function readCreatorProfile(caller:any,_service:any,_userId:string,_graph:any,_keys:string[],body:any){
- const {org,handle}=body;
- if(!/^[a-f\d-]{36}$/i.test(org||'')||!/^[a-z\d._]{1,30}$/.test(handle||''))throw new Error('invalid_creator_profile');
- const {data,error}=await caller.rpc('marketing_creator_profile_connection',{p_org:org});
- if(error)throw new Error('creator_profile_scope_unavailable');
- if(data?.eligible!==false||data?.reason!=='organization_profile_authorization_required')throw new Error('creator_profile_scope_unavailable');
- return {applicable:false,reason:data.reason};
+// Credentials stay server-side and are usable here only through a request-bound public-read delegation.
+async function enrichmentRpc(db:any,name:string,args:any){
+ const {data,error}=await db.rpc(name,args);if(error)throw new Error('creator_enrichment_authority_changed');return data;
+}
+function publicObservation(profile:any,handle:string){
+ if(String(profile?.username||'').toLowerCase()!==handle||!/^\d{1,40}$/.test(String(profile?.id||'')))throw new Error('provider_identity_mismatch');
+ const observation:any={id:String(profile.id),username:handle};
+ if(profile.profile_picture_url){
+  let image:URL;try{image=new URL(profile.profile_picture_url)}catch{throw new Error('provider_profile_unavailable')}
+  if(image.protocol!=='https:'||image.username||image.password||image.port||!/(^|\.)(cdninstagram\.com|fbcdn\.net)$/.test(image.hostname)||image.searchParams.has('access_token'))throw new Error('provider_profile_unavailable');
+  observation.avatar_url=image.href;
+ }
+ if(profile.followers_count!=null){
+  if(typeof profile.followers_count!=='number'||!Number.isSafeInteger(profile.followers_count)||profile.followers_count<0||profile.followers_count>1e15)throw new Error('provider_profile_unavailable');
+  observation.followers=profile.followers_count;
+ }
+ if(!observation.avatar_url&&observation.followers==null)throw new Error('provider_profile_unavailable');
+ return observation;
+}
+export async function executeCreatorEnrichment(service:any,graph:any,keys:string[],request:string,userId:string|null){
+ try{
+  const args={p_request:request,p_auth_user:userId};
+  const material=await enrichmentRpc(service,'marketing_creator_enrichment_material',args);
+  if(material?.purpose!=='public_instagram_creator_enrichment'||material.request_id!==request||material.channel!=='instagram')throw new Error('creator_enrichment_authority_changed');
+  const credential=await unseal(material.sealed_token,keys,connectionBinding(material));
+  // Recheck after asynchronous decryption and immediately before the only provider GET.
+  const current=await enrichmentRpc(service,'marketing_creator_enrichment_material',args);
+  if(current?.purpose!==material.purpose||current.request_id!==request||current.id!==material.id||current.credential_generation!==material.credential_generation||connectionBinding(current)!==connectionBinding(material))throw new Error('creator_enrichment_authority_changed');
+  const direct=String(material.account_name||'').replace(/^@/,'').toLowerCase()===material.handle;
+  const fields=direct?'id,username,profile_picture_url,followers_count':`business_discovery.username(${material.handle}){id,username,profile_picture_url,followers_count}`;
+  const response=await graph.request(material.provider_account_id,credential.token,{fields});
+  const observation=publicObservation(direct?response:response.business_discovery,material.handle);
+  // This authority locks delegation + generation and atomically rejects late/stale responses.
+  return await enrichmentRpc(service,'marketing_creator_enrichment_finish',{...args,p_observation:observation,p_error:null});
+ }catch(error){
+  const code=error&&typeof error==='object'&&'code' in error?String(error.code):'';
+  const message=error instanceof Error?error.message:'';
+  const reason=message==='creator_enrichment_authority_changed'?'organization_profile_authorization_required':code==='meta_permission_or_token_invalid'?code:['provider_identity_mismatch','provider_profile_unavailable'].includes(message)?message:'provider_read_failed';
+  // Failure evidence is best effort. A revoked or rotated delegation must reject even this commit.
+  await service.rpc('marketing_creator_enrichment_finish',{p_request:request,p_auth_user:userId,p_observation:null,p_error:reason}).catch(()=>{});
+  return {state:'failed',reason};
+ }
+}
+export async function readCreatorProfile(caller:any,service:any,userId:string,graph:any,keys:string[],body:any){
+ const {org,handle,account_id=null}=body;
+ if(!/^[a-f\d-]{36}$/i.test(org||'')||!/^[a-z\d._]{1,30}$/.test(handle||'')||(account_id!==null&&!/^[a-f\d-]{36}$/i.test(account_id)))throw new Error('invalid_creator_profile');
+ const begin=await enrichmentRpc(caller,'marketing_creator_enrichment_begin',{p_org:org,p_handle:handle,p_account:account_id});
+ if(begin?.eligible===false&&begin.reason==='organization_profile_authorization_required')return {applicable:false,reason:begin.reason};
+ if(begin?.eligible!==true||!/^[a-f\d-]{36}$/i.test(begin.request_id||''))throw new Error('creator_profile_scope_unavailable');
+ try{
+  const result=await executeCreatorEnrichment(service,graph,keys,begin.request_id,userId);
+  if(result?.state!=='ready')return {applicable:true,metadata_status:'unavailable',reason:result?.reason||'provider_read_failed',unavailable:{profile:result?.reason==='organization_profile_authorization_required'?'Workspace profile authorization changed. Saved details are retained.':'The authorized provider could not refresh this profile. Saved details are retained.'}};
+  return {applicable:true,platform:'instagram',handle,identity_verified:false,metadata_status:'public_extracted',...result.observation,enrichment_receipt:result.enrichment_receipt,account:result.account};
+ }finally{await caller.rpc('marketing_creator_inspection_access',{p_org:org,p_brand:null,p_begin:false,p_lease:begin.request_id}).catch(()=>{})}
 }
 
 // Follower evidence is API-only: no HTML, browser, staff or paid fallback.
@@ -47,6 +92,7 @@ function validCount(count:unknown,source:string){
 export async function runCreatorFollowers(db:any,graph:any,keys:string[]){
  const rpc=async(name:string,args:any={})=>{const {data,error}=await db.rpc(name,args);if(error)throw new Error('creator_followers_authority_rejected');return data;};
  const account=await rpc('marketing_creator_followers_claim');if(!account)return false;
+ if(account.enrichment_request_id){await executeCreatorEnrichment(db,graph,keys,account.enrichment_request_id,null);return true;}
  let result:any={status:'unavailable',reason:'organization_profile_authorization_required'};
  try{
   if(account.connection_id){

@@ -23,3 +23,12 @@ it('recognizes only structured canonical account conflicts, never provider failu
  expect(creatorAccountConflict({code:'23505',details:JSON.stringify(identity)})).toEqual(identity);
  for(const error of [{code:'23505',details:'Key already exists'},{code:'42501',details:JSON.stringify(identity)},{message:'Provider unavailable'},{code:'23505',details:'{}'}])expect(creatorAccountConflict(error)).toBeNull();
 });
+
+it('does not resubmit stored observations as new evidence or replace their original source',async()=>{
+ const {creatorProfilePayload,creatorProfileObservation}=await import('../creatorProfiles.js');
+ const previous={source:'public_profile_staff_confirmed',source_hint:'Meta Instagram Business Discovery',avatar_kind:'profile_picture',avatar_url:'https://scontent.cdninstagram.com/saved.jpg',profile_url:'https://www.instagram.com/one/',captured_at:'2026-10-15T00:00:00Z'};
+ expect(creatorProfilePayload({id:'a',public_observation:previous})).not.toHaveProperty('public_observation');
+ for(const result of [{metadata_status:'unavailable'},{metadata_status:'public_extracted',avatar_url:null},{metadata_status:'public_extracted',avatar_url:'https://wrong.example/pic.jpg'}])expect(creatorProfileObservation(previous,result)).toBe(previous);
+ const fresh={metadata_status:'public_extracted',source:'Meta Instagram Business Discovery',avatar_url:'https://scontent.cdninstagram.com/new.jpg',avatar_kind:'profile_picture',profile_url:previous.profile_url,captured_at:'2026-10-28T00:00:00Z'};
+ expect(creatorProfilePayload({platform:'instagram',public_observation:creatorProfileObservation(previous,{...fresh,enrichment_receipt:'proof'})})).toMatchObject({platform:'instagram',profile_enrichment_receipt:'proof'});expect(creatorProfilePayload({platform:'instagram',public_observation:creatorProfileObservation(previous,fresh)})).not.toHaveProperty('public_observation');
+});
