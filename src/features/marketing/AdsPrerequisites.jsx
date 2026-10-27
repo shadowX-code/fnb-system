@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import Badge from '../../components/ui/Badge.jsx';
 import {adsService} from './adsService.js';
 
-const reasons={ads_management_required:'Authorize Ads Management with the account owner.',ad_page_authorization_unverified:'Meta has not confirmed advertising access to this Brand’s Page.',page_unavailable:'Page advertising access could not be checked.',minimum_budget_unavailable:'Meta’s account-specific minimum budget is unavailable. Do not assume a budget floor.',post_unavailable:'The selected post could not be checked with this Ads credential.',ad_source_post_unverified:'Meta has not confirmed this exact post is eligible for promotion.',source_post_not_selected:'Choose an existing published post to check promotion eligibility.',advertiser_payer_verification_required:'Verify the actual advertiser and payer in Meta. Draft identity IDs are not proof of verification.'};
+const reasons={ads_management_required:'Authorize Ads Management with the account owner.',ad_page_authorization_unverified:'Meta has not confirmed advertising access to this Brand’s Page.',page_unavailable:'Page advertising access could not be checked.',minimum_budget_unavailable:'Meta’s account-specific minimum budget is unavailable. Do not assume a budget floor.',post_unavailable:'The selected post could not be checked with this Ads credential.',ad_source_post_unverified:'Meta has not confirmed this exact post is eligible for promotion.',source_post_not_selected:'Choose an existing published post to check promotion eligibility.',advertiser_payer_verification_required:'Verify the Ad Account’s actual advertiser and payer in Meta. Draft identity IDs are not proof of verification.'};
 export default function AdsPrerequisites({org,brand,connection,page,source,accountId,managementLoginReady=false,canConnect=false}) {
  const [result,setResult]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const sequence=useRef(0),pending=useRef(false);
@@ -21,6 +21,6 @@ export default function AdsPrerequisites({org,brand,connection,page,source,accou
    {result.checks?.minimum_budget?.impressions_daily_minor!=null?<p>Meta impressions daily minimum: {new Intl.NumberFormat('en-MY',{style:'currency',currency:result.checks.minimum_budget.currency}).format(result.checks.minimum_budget.impressions_daily_minor/100)}. Exact lifetime budget acceptance remains unverified.</p>:null}
    <ul className="list-disc pl-4 space-y-1">{result.blockers.map(key=><li key={key}>{reasons[key]||'Meta could not verify this prerequisite. Review account authorization in Ads Manager.'}</li>)}</ul>
   </div>:null}
-  <a className="text-xs text-primary" href={`https://adsmanager.facebook.com/adsmanager/manage/advertising_settings${/^\d{1,30}$/.test(accountId||'')?`?act=${accountId}`:''}`} target="_blank" rel="noreferrer">Manage verification in Meta ↗</a>
+  <a className="text-xs text-primary" href={`https://adsmanager.facebook.com/adsmanager/manage/advertising_settings/beneficiary_payer${/^\d{1,30}$/.test(accountId||'')?`?act=${accountId}`:''}`} target="_blank" rel="noreferrer">Manage verification in Meta ↗</a>
  </section>;
 }
