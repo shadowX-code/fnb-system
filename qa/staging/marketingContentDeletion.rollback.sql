@@ -106,7 +106,32 @@ begin
  failed:=false;begin perform public.marketing_content_command(gen_random_uuid(),'cancel',o,b,c,2,jsonb_build_object('confirm',true,'expected_updated_at',d->>'updated_at'));exception when others then failed:=true;end;assert failed,'Server rejects whole-post deletion after partial success';
  failed:=false;begin perform public.marketing_content_command(gen_random_uuid(),'restore',o,b,c,2,jsonb_build_object('confirm',true,'expected_updated_at',d->>'updated_at'));exception when others then failed:=true;end;assert failed,'Server rejects duplicate recovery of partial publication';
 end;$deny_partial$;
+do $draft_deletion$
+declare o uuid:=(select id from deletion_qa where key='org');b uuid:=(select id from deletion_qa where key='brand');a uuid:=(select id from deletion_qa where key='asset');body jsonb;saved jsonb;d jsonb;c uuid;request uuid:=gen_random_uuid();result jsonb;
+begin
+ body:=jsonb_build_object('title','QA Delete Draft multi-channel','outlet_ids','[]'::jsonb,'publishing_plan','schedule','planned_at',now()+interval '1 day','planned_timezone','Asia/Kuala_Lumpur','variants',jsonb_build_array(
+  jsonb_build_object('channel','facebook','format','image','caption','FB draft only','asset_ids',jsonb_build_array(a)),
+  jsonb_build_object('channel','instagram','format','image','caption','IG draft only','asset_ids',jsonb_build_array(a))));
+ saved:=public.marketing_content_command(gen_random_uuid(),'save',o,b,null,0,body);c:=(saved->>'id')::uuid;insert into deletion_qa values('draft_content',c);
+ d:=public.marketing_content_detail(c)->'content';insert into deletion_qa values('draft_payload_md5',md5((d->'payload')::text)::uuid);assert d->>'status'='draft' and d->'lifecycle'->>'can_delete'='true','Saved intention is still a deletable Draft';
+ result:=public.marketing_content_command(request,'cancel',o,b,c,1,jsonb_build_object('confirm',true,'expected_updated_at',d->>'updated_at'));
+ assert result->>'status'='cancelled','Entire Draft uses canonical retained deletion';
+ assert public.marketing_content_management(o,b,null,null,'QA Delete Draft','','','date_desc','',1,20,'list',false,false)->>'total_count'='0','Deleted Draft hidden from default List';
+ assert public.marketing_content_management(o,b,now(),now()+interval '3 days','QA Delete Draft','','','date_desc','',1,20,'calendar',false,false)->>'total_count'='0','Deleted Draft hidden from default Calendar';
+ assert public.marketing_content_management(o,b,null,null,'QA Delete Draft','','','date_desc','',1,20,'list',false,true)->>'total_count'='1','Deleted Draft retained in Show Deleted history';
+end;$draft_deletion$;
 reset role;
+do $draft_evidence$
+declare c uuid:=(select id from deletion_qa where key='draft_content');body jsonb;
+begin
+ assert not exists(select 1 from public.marketing_jobs where content_id=c),'Draft deletion creates no publishing jobs';
+ select r.payload into body from public.marketing_content_revisions r where r.content_id=c and revision=1;
+ assert jsonb_array_length(body->'variants')=2 and body->'variants'->0->>'caption'='FB draft only' and body->'variants'->1->>'caption'='IG draft only','Both channel variants retained';
+ assert md5(body::text)::uuid=(select id from deletion_qa where key='draft_payload_md5'),'Exact original payload and revision retained';
+ assert (select count(*)=1 from public.marketing_events where content_id=c and action='cancel'),'Draft deletion actor/audit retained';
+ assert (select count(*)=1 from public.marketing_assets where id=(select id from deletion_qa where key='asset') and state='ready'),'Draft deletion preserves original Media Library asset';
+end;$draft_evidence$;
+
 delete from public.role_permissions where role_id=(select id from deletion_qa where key='role') and permission_id in (select id from public.permissions where code in ('marketing_content.cancel','marketing_content.edit'));
 set local role authenticated;
 do $deny_permissions$

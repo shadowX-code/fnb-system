@@ -120,3 +120,8 @@ export function preferredMetricColumns(userId) {
 export function saveMetricColumns(userId,columns) {
  try{localStorage.setItem(`admin.presentation.marketing.metrics.${userId}`,JSON.stringify(columns));}catch{}
 }
+
+// Eligibility comes from the canonical lifecycle; Draft deletion cannot cancel active channel work.
+export function canDeleteContentDraft(content){
+ return content?.status==='draft'&&content.lifecycle?.can_delete===true&&(content.channels||[]).every(channel=>!channel.job_state||channel.job_state==='cancelled');
+}

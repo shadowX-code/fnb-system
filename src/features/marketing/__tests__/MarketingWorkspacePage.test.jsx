@@ -136,3 +136,40 @@ it.each(['published','uncertain'])('never offers whole-post deletion or restorat
  service.contentManagement.mockResolvedValue({rows:[canonical],total_count:1});service.detail.mockResolvedValue(savedDetail(canonical));await openScheduled();await screen.findByRole('dialog',{name:'Content revision'});
  expect(screen.queryByRole('button',{name:'Delete Post',exact:true})).toBeNull();expect(screen.queryByRole('button',{name:'Restore Post',exact:true})).toBeNull();expect(service.content).not.toHaveBeenCalled();
 });
+
+const draftContent={...savedContent,status:'draft',approved_revision:null,scheduled_at:null,updated_at:'2026-10-28T02:00:00Z',lifecycle:{can_delete:true},channels:savedContent.channels.map(c=>({...c,status:'draft',job_state:null})),payload:{...savedContent.payload,publishing_plan:'draft'}};
+async function openDraftEditor(content=draftContent){
+ service.contentManagement.mockResolvedValue({rows:[content],total_count:1,day_counts:{},draft_count:1});service.detail.mockResolvedValue(savedDetail(content));
+ await openScheduled();if(content.status!=='draft')fireEvent.click(await screen.findByRole('button',{name:'Edit',exact:true}));await screen.findByRole('dialog',{name:'Edit Post'});
+ if(content.status==='draft'&&auth.hasPermission('marketing_content.cancel')&&content.lifecycle?.can_delete&&content.channels.every(c=>!c.job_state||c.job_state==='cancelled'))await screen.findByRole('button',{name:'Delete Draft',exact:true});
+}
+it('deletes the saved multi-channel Draft through canonical cancellation and refreshes active results',async()=>{
+ await openDraftEditor();const editor=screen.getByRole('dialog',{name:'Edit Post'});const button=within(editor).getByRole('button',{name:'Delete Draft',exact:true});expect(button.className).toContain('mr-auto');expect(within(editor).getByRole('button',{name:'Close',exact:true})).toBeTruthy();
+ fireEvent.click(button);const confirmation=screen.getByRole('dialog',{name:'Delete Draft?'});expect(within(confirmation).getByText('Scoped publishing test')).toBeTruthy();expect(within(confirmation).getByText('Facebook · Text')).toBeTruthy();expect(within(confirmation).getByText('Instagram · Image')).toBeTruthy();expect(within(confirmation).getAllByText('Draft · no active publishing schedule')).toHaveLength(2);expect(service.content).not.toHaveBeenCalled();
+ expect(within(confirmation).getByRole('button',{name:'Delete Draft',exact:true}).disabled).toBe(true);fireEvent.click(screen.getByRole('checkbox',{name:'Delete this draft and all listed channel variants.'}));
+ let complete;service.content.mockImplementationOnce(()=>new Promise(resolve=>{complete=resolve}));fireEvent.click(screen.getByRole('button',{name:'Delete Draft',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Saving…',exact:true}));expect(service.content).toHaveBeenCalledTimes(1);expect(service.content.mock.calls[0][0]).toMatchObject({command:'cancel',content:{id:'content',revision:1,status:'draft'},payload:{confirm:true,expected_updated_at:draftContent.updated_at}});
+ service.contentManagement.mockResolvedValue({rows:[],total_count:0,draft_count:0,day_counts:{}});complete({...draftContent,status:'cancelled'});await screen.findByText('Draft deleted. History retained.');await waitFor(()=>expect(screen.queryByRole('button',{name:'View Scoped publishing test',exact:true})).toBeNull());expect(service.execute).not.toHaveBeenCalled();
+});
+it.each(['Back to Edit','Close modal','Escape'])('preserves unsaved editor text and publishing intent when backing out with %s',async action=>{
+ await openDraftEditor();fireEvent.change(screen.getByLabelText(/Creative concept title/),{target:{value:'Unsaved draft title'}});fireEvent.click(screen.getByRole('radio',{name:'Publish Now'}));
+ fireEvent.click(screen.getByRole('button',{name:'Delete Draft',exact:true}));expect(screen.getByText(/discards any unsaved edits/)).toBeTruthy();
+ if(action==='Escape')fireEvent.keyDown(screen.getByRole('dialog'),{key:'Escape'});else fireEvent.click(screen.getByRole('button',{name:action,exact:true}));
+ await screen.findByRole('dialog',{name:'Edit Post'});expect(screen.getByLabelText(/Creative concept title/).value).toBe('Unsaved draft title');expect(screen.getByRole('radio',{name:'Publish Now'}).checked).toBe(true);expect(screen.getByRole('button',{name:'Save & Continue',exact:true})).toBeTruthy();expect(service.content).not.toHaveBeenCalled();
+});
+it('preserves unsaved selections on deletion failure and retries with the original request identity',async()=>{
+ await openDraftEditor();fireEvent.change(screen.getByLabelText(/Creative concept title/),{target:{value:'Keep my changes'}});fireEvent.click(screen.getByRole('button',{name:'Delete Draft',exact:true}));fireEvent.click(screen.getByRole('checkbox',{name:'Delete this draft and all listed channel variants.'}));service.content.mockRejectedValueOnce(new Error('Content or schedule changed. Close and reopen before continuing.'));
+ fireEvent.click(screen.getByRole('button',{name:'Delete Draft',exact:true}));await screen.findByText('Content or schedule changed. Close and reopen before continuing.');const first=service.content.mock.calls[0][0];expect(screen.queryByText('Draft deleted. History retained.')).toBeNull();
+ service.content.mockRejectedValueOnce(new Error('Retry unavailable.'));fireEvent.click(screen.getByRole('button',{name:'Delete Draft',exact:true}));await screen.findByText('Retry unavailable.');expect(service.content.mock.calls[1][0].requestId).toBe(first.requestId);fireEvent.click(screen.getByRole('button',{name:'Back to Edit'}));expect(screen.getByLabelText(/Creative concept title/).value).toBe('Keep my changes');
+});
+it('does not offer Draft deletion without Cancel authority or for unsaved new content',async()=>{
+ auth.hasPermission.mockImplementation(code=>code!=='marketing_content.cancel');await openDraftEditor();expect(screen.queryByRole('button',{name:'Delete Draft',exact:true})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Close',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Create Post'}));expect(screen.queryByRole('button',{name:'Delete Draft',exact:true})).toBeNull();expect(service.content).not.toHaveBeenCalled();
+});
+it.each(['scheduled','approved','review','failed'])('never exposes the editor Draft action for saved %s content',async status=>{
+ await openDraftEditor({...draftContent,status});expect(screen.queryByRole('button',{name:'Delete Draft',exact:true})).toBeNull();
+});
+it.each(['queued','blocked','retry','leased','reconciling','succeeded'])('never offers Draft deletion when a channel has %s work',async state=>{
+ await openDraftEditor({...draftContent,channels:[{...draftContent.channels[0],job_state:state}]});expect(screen.queryByRole('button',{name:'Delete Draft',exact:true})).toBeNull();expect(service.content).not.toHaveBeenCalled();
+});
+it('fails closed while canonical Draft eligibility is loading or unavailable',async()=>{
+ service.contentManagement.mockResolvedValue({rows:[draftContent],total_count:1,day_counts:{}});let resolve;service.detail.mockImplementationOnce(()=>new Promise(r=>{resolve=r}));await openScheduled();await screen.findByRole('dialog',{name:'Edit Post'});expect(screen.queryByRole('button',{name:'Delete Draft',exact:true})).toBeNull();resolve(savedDetail({...draftContent,lifecycle:{can_delete:false}}));await waitFor(()=>expect(service.detail).toHaveBeenCalled());expect(screen.queryByRole('button',{name:'Delete Draft',exact:true})).toBeNull();
+});
