@@ -54,6 +54,8 @@ begin
  assert rejected,'Stale revision must still fail';
  rejected:=false;begin perform public.marketing_planner_order(gen_random_uuid(),o,'2026-11-01',jsonb_build_array(jsonb_build_object('id',(select id from planner_carry_qa where key='future'),'revision',1)));exception when others then rejected:=true;end;
  assert rejected,'Future-month ordering must stay unavailable';
+ rejected:=false;begin perform public.marketing_planner_order(gen_random_uuid(),o,'2026-11-15',jsonb_build_array(jsonb_build_object('id',t,'revision',2)));exception when others then rejected:=true;end;
+ assert rejected,'Ordering cannot widen the read model to a noncanonical mid-month scope';
  rejected:=false;begin perform public.marketing_planner_order(gen_random_uuid(),o,'2026-11-01',jsonb_build_array(jsonb_build_object('id',(select id from planner_carry_qa where key='done'),'revision',1)));exception when others then rejected:=true;end;
  assert rejected,'Past terminal task ordering must stay unavailable';
  result:=public.marketing_planner_command(gen_random_uuid(),o,b,'save',t,2,jsonb_build_object('month','2026-11-01','priority','high'));
