@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-27 — Normal multi-Brand publishing formats
+
+Normal Publishing now derives FB Video/Reel and IG mixed-Carousel eligibility from current connection authority rather than individual routine grants. Editor/readiness/confirmation and provider submission share one format decision; existing mode, account/generation, approval, lease, checkpoint and uncertain-outcome safeguards remain. Temporary QA and historical grants remain intact, and Stories stays disabled. Verification uses five-Brand rollback-only scheduling/revocation fixtures and mocked provider execution; Production deployment/activation remains separate. Canonical owner: docs/domains/marketing.md.
+
 ## 2026-10-27 — Ads OAuth callback configuration boundary
 
 The canonical consumed OAuth session now projects the persisted dedicated Ads configuration. Callback validation rejects missing/mismatched evidence before token exchange, while explicit Reporting null and existing social sessions retain their paths. Expired/replayed state requires fresh authorization without extending expiry or rotating credentials. Verification covers synthetic fresh callbacks, revoked/expired state, account/authorizer/generation continuity and 26-period snapshot preservation. Canonical owner: docs/domains/marketing.md. Real OAuth and Production delivery remain independently authorized.

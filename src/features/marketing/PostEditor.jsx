@@ -20,8 +20,8 @@ import {publishingIntent,publishingStatus} from './publishingPlan.js';
 import './postEditor.css';
 const label=contentStatusLabel;
 export default function PostEditor({payload,onChange,brand,assets=[],plannedLocal,onPlannedChange,busy=false,can=()=>false,content}) {
- const [selected,setSelected]=useState(payload.variants[0]?.channel||'facebook'),[view,setView]=useState('editor'),[cache,setCache]=useState([]),[accounts,setAccounts]=useState(null),[accountError,setAccountError]=useState(''),[retry,setRetry]=useState(0),[copied,setCopied]=useState(''),[videoEnabled,setVideoEnabled]=useState(false),[extendedEnabled,setExtendedEnabled]=useState(false),[observations,setObservations]=useState({});
- useEffect(()=>{let live=true;marketingService.metaConfiguration().then(value=>{if(live){setVideoEnabled(value.facebook_video_execution_enabled===true);setExtendedEnabled(value.instagram_extended_execution_enabled===true)}}).catch(()=>{});return()=>{live=false}},[]);
+ const [selected,setSelected]=useState(payload.variants[0]?.channel||'facebook'),[view,setView]=useState('editor'),[cache,setCache]=useState([]),[accounts,setAccounts]=useState(null),[accountError,setAccountError]=useState(''),[retry,setRetry]=useState(0),[copied,setCopied]=useState(''),[configuration,setConfiguration]=useState(null),[configurationError,setConfigurationError]=useState(''),[observations,setObservations]=useState({});
+ useEffect(()=>{let live=true;setConfiguration(null);setConfigurationError('');marketingService.metaConfiguration().then(value=>{if(live)setConfiguration(value)}).catch(()=>{if(live)setConfigurationError('Publishing readiness could not be checked. Retry before confirming publication.');});return()=>{live=false}},[retry]);
  const captionInput=useRef(null),positions=useRef({}),pendingCursor=useRef(null),removedVariants=useRef({});
  const allAssets=[...new Map([...assets,...cache].map(a=>[a.id,a])).values()];
  const variant=payload.variants.find(v=>v.channel===selected)||payload.variants[0];
@@ -31,7 +31,7 @@ export default function PostEditor({payload,onChange,brand,assets=[],plannedLoca
  useEffect(()=>{let live=true;setAccounts(null);setAccountError('');marketingService.integrations(brand.organization_id,brand.id,'content').then(result=>{if(live)setAccounts(result.connections||[])}).catch(e=>{if(live)setAccountError(e.message||'Account eligibility unavailable.');});return()=>{live=false}},[brand.organization_id,brand.id,retry]);
  const account=variant&&publishingAccount(variant,accounts,brand);
  const formatTypes=(variant?.asset_ids||[]).map(id=>allAssets.find(a=>a.id===id)?.mime_type);
- const formatKey=publishingFormatKey(variant,formatTypes),formatReady=publishingFormatEnabled(variant,formatTypes,account?.format_authorizations,{facebook_video_execution_enabled:videoEnabled,instagram_extended_execution_enabled:extendedEnabled});
+ const formatKey=publishingFormatKey(variant,formatTypes),formatReady=publishingFormatEnabled(variant,formatTypes,account?.format_authorizations,configuration||{});
  const issues=variant?[...variantIssues(variant,allAssets,brand),...mediaMetadataIssues(variant,allAssets,observations)]:['Select at least one channel.'];
  const planned=plannedLocal??(payload.planned_at?localInput(new Date(payload.planned_at),CONTENT_TIMEZONE):'');
  const intent=publishingIntent(payload),savedStatus=publishingStatus(content);
@@ -70,10 +70,11 @@ export default function PostEditor({payload,onChange,brand,assets=[],plannedLoca
  {variant.format!=='text'?(variant.asset_ids.length?<PostMedia key={`${channel}:${variant.format}:${variant.asset_ids.join(',')}`} channel={variant} assets={allAssets} onMetadata={(id,metadata)=>setObservations(current=>({...current,[id]:metadata}))}/>:<div className="post-preview-placeholder"><ImageIcon size={26}/><span>Select media to preview this post</span></div>):null}
  <p className="post-preview-caption">{variant.caption||'Your caption preview will appear here.'}</p></article>:null}
  <section className="post-readiness" aria-label="Publishing readiness"><h3>Publishing readiness</h3>
- {channel==='facebook'&&isVideoFormat(variant?.format)&&!formatReady?<p><AlertCircle size={15}/>Facebook video execution is disabled. Separate format authorization is required.</p>:null}
- {variant?.format!=='story'&&extendedInstagramVariant(variant,allAssets)&&!formatReady?<p><AlertCircle size={15}/>Instagram video-carousel execution is disabled. Separate format authorization and current account eligibility are required.</p>:null}
+ {configurationError?<p role="alert">{configurationError} <button type="button" className="btn-secondary" onClick={()=>setRetry(n=>n+1)}>Retry publishing check</button></p>:!configuration?<p role="status">Checking publishing readiness…</p>:null}
+ {configuration&&channel==='facebook'&&isVideoFormat(variant?.format)&&!formatReady?<p><AlertCircle size={15}/>Facebook video execution is disabled for this account. Check current publishing eligibility and format support.</p>:null}
+ {configuration&&variant?.format!=='story'&&extendedInstagramVariant(variant,allAssets)&&!formatReady?<p><AlertCircle size={15}/>Instagram video-carousel execution is disabled for this account. Check current publishing eligibility and complete media details.</p>:null}
  {variant?.format==='story'?<p><AlertCircle size={15}/>Instagram Story execution is disabled.</p>:null}
- {formatKey&&formatReady&&account?.format_authorizations?.[formatKey]==='routine'?<p><CheckCircle2 size={15}/>Routine publishing enabled for this account.</p>:null}
+ {configuration&&formatKey&&formatReady?<p><CheckCircle2 size={15}/>Format available for the current publishing account.</p>:null}
  {!payload.title.trim()?<p><AlertCircle size={15}/>Add a creative concept title.</p>:null}
  {issues.length?<ul>{issues.map(issue=><li key={issue}><AlertCircle size={15}/><span>{issue}</span></li>)}</ul>:<p><CheckCircle2 size={15}/>Caption and selected media meet draft checks.</p>}
  {accountError?<div><p role="alert">{accountError}</p><button type="button" className="btn-secondary" onClick={()=>setRetry(v=>v+1)}>Retry account check</button></div>:accounts===null?<p role="status">Checking connected account…</p>:account?<p><CheckCircle2 size={15}/><span>{account.account_name} · Publishing eligible{!account.capabilities.execution_enabled?' · execution disabled':''}</span></p>:<p><AlertCircle size={15}/><span>No currently eligible account for this format. <a href={`/marketing/connections?marketing_org=${encodeURIComponent(brand.organization_id)}&marketing_brand=${encodeURIComponent(brand.id)}`}>Review Connections</a></span></p>}

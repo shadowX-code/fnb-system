@@ -1,4 +1,4 @@
-import {publishingFormatKey,publishingFormatEnabled} from '../_shared/publishingFormatPolicy.mjs';
+import {publishingFormatKey,publishingFormatEnabled,publishingFormatAuthorization} from '../_shared/publishingFormatPolicy.mjs';
 import {facebookVideoConfigured,facebookReceiptRecoveryAllowed,instagramExtendedConfigured} from '../_shared/marketingExecution.mjs';
 import {runInboxAutomatic} from '../_shared/inboxAutomatic.ts';
 import {runInboxProfile} from '../_shared/metaInboxProfile.ts';
@@ -57,7 +57,7 @@ Deno.serve(async(req)=>{
    try {
     const connection=await guard(),token=await tokenFor(connection),variant=job.payload.variants.find((v:any)=>v.channel===job.channel);
     const facebookVideo=variant?.channel==='facebook'&&['video','reel'].includes(variant.format);
-    const switches=()=>({facebook_video_execution_enabled:facebookVideoConfigured(env),instagram_extended_execution_enabled:instagramExtendedConfigured(env)});
+    const switches=()=>({normal_format_execution_enabled:publishingConfigured(env)&&env('MARKETING_META_PUBLISHING_MODE')==='normal',facebook_video_execution_enabled:facebookVideoConfigured(env),instagram_extended_execution_enabled:instagramExtendedConfigured(env)});
     const videoReadOnly=facebookVideo&&!publishingFormatEnabled(variant,[],connection.format_authorizations,switches());
     if(videoReadOnly&&!job.provider_state?.objects?.fb_video&&!job.provider_state?.pending&&!job.provider_state?.post_id)throw new MetaError('facebook_video_not_enabled');
     const material=await call(db,'marketing_meta_connection_material',{p_connection:connection.id});
@@ -68,7 +68,7 @@ Deno.serve(async(req)=>{
     const state=job.provider_state||{},assets=await call(db,'marketing_job_assets',{p_job:job.id,p_lease:job.lease_token});
     const mediaTypes=variant.asset_ids.map((id:string)=>assets.find((a:any)=>a.id===id)?.mime_type);
     const extendedInstagram=job.channel==='instagram'&&(variant.format==='story'||variant.format==='carousel'&&mediaTypes.includes('video/mp4'));
-    const key=publishingFormatKey(variant,mediaTypes),kind=key&&connection.format_authorizations?.[key];
+    const key=publishingFormatKey(variant,mediaTypes),kind=key&&publishingFormatAuthorization(variant,mediaTypes,connection.format_authorizations,switches());
     const prepared=Boolean(state.pending||state.post_id||Object.keys(state.objects||{}).length);
     const sourceChanged=Boolean(key&&((state.format_authorization_kind&&state.format_authorization_kind!==kind)||(!state.format_authorization_kind&&prepared)));
     const extendedReadOnly=extendedInstagram&&!publishingFormatEnabled(variant,mediaTypes,connection.format_authorizations,switches());
@@ -99,7 +99,7 @@ Deno.serve(async(req)=>{
       const {data,error}=await db.storage.from('marketing-media').createSignedUrl(asset.object_path,3600);
       if(error||!data)throw new MetaError('media_source_unavailable',false,true);if(variant.reel_cover?.mode==='image'&&id===variant.reel_cover.asset_id)coverUrl=data.signedUrl;else mediaUrls.push(data.signedUrl);
      }
-     result=await advanceMetaPublish({graph,accountId:connection.provider_account_id,token,variant,mediaUrls,mediaTypes,coverUrl,state,checkpoint,guard:async()=>{await guard();},allowFacebookReceiptLookup:(postId)=>job.state!=='reconciling'||facebookReceiptRecoveryAllowed(job,env,Date.now(),postId),submissionGuard:async()=>{const fresh=await guard(true);if(!publishingFormatEnabled(variant,mediaTypes,fresh.format_authorizations,switches())||key&&fresh.format_authorizations?.[key]!==state.format_authorization_kind)throw new MetaError('format_execution_disabled');},reconcileOnly:job.state==='reconciling'||formatReadOnly});
+     result=await advanceMetaPublish({graph,accountId:connection.provider_account_id,token,variant,mediaUrls,mediaTypes,coverUrl,state,checkpoint,guard:async()=>{await guard();},allowFacebookReceiptLookup:(postId)=>job.state!=='reconciling'||facebookReceiptRecoveryAllowed(job,env,Date.now(),postId),submissionGuard:async()=>{const fresh=await guard(true);if(!publishingFormatEnabled(variant,mediaTypes,fresh.format_authorizations,switches())||key&&publishingFormatAuthorization(variant,mediaTypes,fresh.format_authorizations,switches())!==state.format_authorization_kind)throw new MetaError('format_execution_disabled');},reconcileOnly:job.state==='reconciling'||formatReadOnly});
     }
    }catch(error){result={outcome:error instanceof MetaError&&!error.uncertain?(error.retryable?'retryable_failure':'permanent_failure'):'uncertain',code:error instanceof MetaError?error.code:'publishing_authority_changed'};}
    if(job.state==='reconciling'&&result.outcome!=='published')result={outcome:'uncertain',code:result.code||'manual_reconciliation_required'};

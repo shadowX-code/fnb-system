@@ -125,3 +125,13 @@ it.each(['provider failure','expired authority'])('keeps valid stored evidence a
  expect(fixture.db.rpc).toHaveBeenCalledWith('marketing_meta_sync_finish',expect.objectContaining({p_posts:[],p_after:null,p_availability:[],p_error:'sync_unavailable'}));
  expect(persisted).toEqual(stored);expect(fixture.publish).not.toHaveBeenCalled();
 });
+
+it.each([['facebook','video','facebook_video'],['facebook','reel','facebook_reel'],['instagram','carousel','instagram_mixed_carousel']])('normal %s/%s uses current eligibility with no grants and rechecks revocation',async(channel,format,key)=>{
+ const prior=Deno.env.get;Deno.env.get=(name:string)=>name==='MARKETING_META_PUBLISHING_MODE'?'normal':prior(name);
+ const job={id:'normal-job',channel,state:'leased',lease_token:'lease',provider_state:{verified_assets:['pic','vid']},payload:{variants:[{channel,format,asset_ids:format==='carousel'?['pic','vid']:['vid']}]}};
+ const c={id:'connection',channel,credential_generation:1,status:'test_authorized',provider_account_id:'111',format_authorizations:{normal_formats:[key]},capabilities:{formats:[format]}};
+ fixture.db.storage.from.mockReturnValue({createSignedUrl:vi.fn().mockResolvedValue({data:{signedUrl:'https://private.test/fixture'},error:null})});
+ fixture.db.rpc.mockImplementation(async(name:string)=>({data:name==='marketing_claim_job'?job:name==='marketing_job_guard'?c:name==='marketing_meta_connection_material'?{credential_generation:1,sealed_token:{}}:name==='marketing_job_assets'?[{id:'pic',mime_type:'image/jpeg'},{id:'vid',mime_type:'video/mp4'}]:name==='marketing_privacy_journal_pending'?[]:null,error:null}));
+ fixture.publish.mockImplementationOnce(async input=>{expect(input.state.format_authorization_kind).toBe('routine');expect(input.reconcileOnly).toBe(false);await input.submissionGuard();c.format_authorizations.normal_formats=[];await expect(input.submissionGuard()).rejects.toThrow('format_execution_disabled');c.format_authorizations.normal_formats=[key];Deno.env.get=(name:string)=>name==='MARKETING_META_PUBLISHING_MODE'?'controlled':prior(name);await expect(input.submissionGuard()).rejects.toThrow('format_execution_disabled');return {outcome:'uncertain',code:'retain-provider-evidence'};});
+ await tick();expect(fixture.publish).toHaveBeenCalledOnce();
+});
