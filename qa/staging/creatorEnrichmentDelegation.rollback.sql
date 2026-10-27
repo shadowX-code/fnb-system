@@ -144,7 +144,10 @@ do $$declare o uuid:=(select id from marketing_qa_ids where key='org');r jsonb;r
  payload:=jsonb_build_object('creator_id',(select id from marketing_qa_ids where key='creator'),'platform','instagram','handle','qa_delegate_new','profile_url','https://www.instagram.com/qa_delegate_new/','profile_enrichment_receipt',(select id from marketing_qa_ids where key='preview_request'));
  r:=marketing_creator_command(request,o,null,'save_account',null,0,payload);
  assert r->'public_observation'->>'avatar_url'='https://scontent.cdninstagram.com/new.jpg','Browser uses only server proof';
+ assert r->>'followers'='5' and r->>'followers_source'='meta_instagram_business_discovery' and r->>'followers_sync_status'='ready','New profile persists the same authorized follower receipt';
  assert marketing_creator_command(request,o,null,'save_account',null,0,payload)=r,'Canonical retry remains idempotent';
+ denied:=false;begin update public.marketing_creator_accounts set followers=999 where id=(r->>'id')::uuid;exception when insufficient_privilege then denied:=true;end;assert denied,'Browser cannot write follower evidence directly';
+ denied:=false;begin perform marketing_creator_command(gen_random_uuid(),o,null,'save_account',(r->>'id')::uuid,(r->>'revision')::int,(payload-'profile_enrichment_receipt')||jsonb_build_object('followers',999));exception when others then denied:=SQLERRM='Followers are system-sourced only.';end;assert denied,'Browser command cannot forge follower evidence';
  begin perform marketing_creator_command(gen_random_uuid(),o,null,'save_account',null,0,payload);exception when insufficient_privilege then denied:=true;end;assert denied,'One-use proof cannot create duplicate identities';
  before_data:=(select value from creator_qa_values where key='history');after_data:=marketing_creator_workspace(o,(select id from marketing_qa_ids where key='brand'));
  assert before_data->'posts'=after_data->'posts' and before_data->'collaborations'=after_data->'collaborations' and before_data->'snapshots'=after_data->'snapshots','Historical commercial evidence unchanged';
@@ -162,6 +165,7 @@ select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 do $$declare r jsonb;begin
  r:=marketing_creator_enrichment_finish((select id from marketing_qa_ids where key='stale_preview'),(select id from marketing_qa_ids where key='user'),'{"id":"77778","username":"qa_delegate_stale","avatar_url":"https://scontent.cdninstagram.com/stale.jpg"}',null);assert r->>'state'='ready';
+ update public.marketing_creator_accounts set followers_due_at='-infinity'::timestamptz where organization_id=(select id from marketing_qa_ids where key='org') and handle='qa_delegate_new';
  -- Only claim if the oldest due row is our uncommitted synthetic account.
  if (select ca.organization_id=(select id from marketing_qa_ids where key='org') from public.marketing_creator_accounts ca join public.marketing_creators cr on cr.id=ca.creator_id where not ca.archived and not cr.archived and ca.platform in ('facebook','instagram') and ca.followers_due_at<=now() and (ca.followers_lease_until is null or ca.followers_lease_until<now()) order by ca.followers_due_at,ca.id limit 1) then
   r:=marketing_creator_followers_claim();assert r->>'organization_id'=(select id::text from marketing_qa_ids where key='org');assert r->>'enrichment_request_id' is not null;
