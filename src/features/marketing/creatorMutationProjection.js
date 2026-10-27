@@ -1,6 +1,7 @@
 import {collaborationStatus} from './creatorPresentation.js';
 /** Apply only confirmed command results. Refresh may enrich them, never gates save acknowledgement. */
 export function applyCreatorMutation(data,action,value){
+ if(['save_account','archive_account'].includes(action))return {...data,accounts:[value,...data.accounts.filter(a=>a.id!==value.id)]};
  if(action==='save_collaboration'){
   return {...data,collaborations:[value,...data.collaborations.filter(c=>c.id!==value.id)],posts:data.posts};
  }
@@ -12,4 +13,4 @@ export function applyCreatorMutation(data,action,value){
  }
  return data;
 }
-export const immediateCreatorActions=new Set(['save_collaboration','save_post','link_post']);
+export const immediateCreatorActions=new Set(['save_account','archive_account','save_collaboration','save_post','link_post']);

@@ -61,3 +61,10 @@ it('preserves canonical Post deep links while Directory and commercial scopes ar
  window.history.replaceState({},'','/?post_id=post&marketing_brand=b');service.read.mockResolvedValue({...data,posts:[{id:'post',brand_id:'b',creator_id:'creator',platform:'instagram',caption:'Linked Post',canonical_url:'https://www.instagram.com/p/Fixture/',latest_metrics:{},revision:1}]});
  render(<CreatorsPage ui={{notify}}/>);await screen.findByRole('dialog');expect(screen.getByRole('tab',{name:'Posts'}).getAttribute('aria-selected')).toBe('true');expect(service.read).toHaveBeenCalledWith('org','b');expect(screen.getByRole('dialog').textContent).toContain('Linked Post');
 });
+
+it('projects confirmed account removal/restoration without rewriting linked Post or Collaboration evidence',async()=>{
+ const {applyCreatorMutation}=await import('../creatorMutationProjection.js');
+ const account={id:'ig',creator_id:'creator',platform:'instagram',revision:1},before={...data,accounts:[account],posts:[{id:'p',account_id:'ig',collaboration_id:'collab',public_observation:{source:'original'}}]};
+ const removed=applyCreatorMutation(before,'archive_account',{...account,revision:2,archived:true});expect(removed.posts).toBe(before.posts);expect(removed.collaborations).toBe(before.collaborations);expect(removed.accounts).toHaveLength(1);expect(removed.accounts[0].archived).toBe(true);
+ const restored=applyCreatorMutation(removed,'save_account',{...account,revision:3,archived:false});expect(restored.accounts).toHaveLength(1);expect(restored.accounts[0].id).toBe('ig');expect(restored.posts).toBe(before.posts);
+});

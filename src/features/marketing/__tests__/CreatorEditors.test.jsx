@@ -88,7 +88,7 @@ it('shows the provider limitation without changing the saved profile or fabricat
  creatorService.profile.mockResolvedValueOnce({metadata_status:'unavailable',unavailable:{profile:'The platform restricted public profile access. Existing saved details remain unchanged.'}});
  const onSave=vi.fn(),record={id:'a',platform:'instagram',profile_url:'https://www.instagram.com/one/',handle:'one',external_id:'123',display_name:'Saved name',followers:12,followers_captured_at:'2026-10-01T00:00:00Z'};
  render(<AccountEditor {...props} onSave={onSave} org="org" brandId="b" creator={data.creators[0]} record={record}/>);
- fireEvent.click(screen.getByRole('button',{name:'Refresh public profile'}));await screen.findByText('The platform restricted public profile access. Existing saved details remain unchanged.');
+ fireEvent.click(screen.getByRole('button',{name:'Refresh Profile'}));await screen.findByText('The platform restricted public profile access. Existing saved details remain unchanged.');
  expect(onSave).not.toHaveBeenCalled();fireEvent.submit(screen.getByRole('dialog').querySelector('form'));const {followers,followers_captured_at,...profile}=record;expect(onSave).toHaveBeenCalledWith({...profile,creator_id:'c'});expect(screen.queryByLabelText('Followers')).toBeNull();expect(onSave.mock.calls[0][0]).not.toHaveProperty('followers');
 });
 
@@ -116,4 +116,20 @@ it('retains duplicate feedback when an in-flight enrichment finishes without cha
  fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911c'}});fireEvent.blur(screen.getByLabelText('Profile URL'));
  fireEvent.submit(screen.getByRole('dialog').querySelector('form'));await screen.findByText('Linked to Existing Creator');
  finish({metadata_status:'unavailable',unavailable:{profile:'Profile unavailable.'}});await screen.findByText('Profile unavailable.');expect(screen.getByText('Linked to Existing Creator')).toBeTruthy();expect(screen.getByRole('button',{name:'Save'}).disabled).toBe(true);
+});
+
+it('confirms the exact social profile removal without deleting the Creator or saving unsaved edits',()=>{
+ const onRemove=vi.fn(),onSave=vi.fn();render(<AccountEditor {...props} creator={data.creators[0]} record={{id:'ig',platform:'instagram',handle:'one',profile_url:'https://www.instagram.com/one/'}} onRemove={onRemove} onSave={onSave}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Remove Social Profile'}));expect(screen.getByText(/Remove Instagram @one from Creator/)).toBeTruthy();expect(screen.getByText(/Posts, metrics and history are retained/)).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Cancel',exact:true}));expect(onRemove).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Remove Social Profile'}));fireEvent.click(screen.getByRole('button',{name:'Remove Profile',exact:true}));expect(onRemove).toHaveBeenCalledTimes(1);expect(onSave).not.toHaveBeenCalled();
+});
+it('restores the retained account identity rather than creating a replacement profile',()=>{
+ const onSave=vi.fn(),record={id:'ig',revision:4,archived:true,platform:'instagram',handle:'one',profile_url:'https://www.instagram.com/one/'};
+ render(<AccountEditor {...props} creator={data.creators[0]} record={record} onSave={onSave}/>);expect(screen.queryByRole('button',{name:'Remove Social Profile'})).toBeNull();expect(screen.getByLabelText('Profile URL').disabled).toBe(true);fireEvent.click(screen.getByRole('button',{name:'Restore Profile'}));expect(onSave).toHaveBeenCalledWith(expect.objectContaining({id:'ig',revision:4,creator_id:'c'}));
+});
+
+it('shows a fresh authorized avatar after the old image failed instead of retaining a hidden image element',async()=>{
+ const record={id:'ig',platform:'instagram',handle:'one',profile_url:'https://www.instagram.com/one/',display_name:'Saved name',public_observation:{source:'public_profile_staff_confirmed',source_hint:'Meta Instagram Business Discovery',avatar_kind:'profile_picture',profile_url:'https://www.instagram.com/one/',avatar_url:'https://scontent.cdninstagram.com/old.jpg',captured_at:'2026-10-15T00:00:00Z'}};
+ creatorService.profile.mockResolvedValueOnce({metadata_status:'public_extracted',profile_url:record.profile_url,source:'Meta Instagram Business Discovery',avatar_kind:'profile_picture',avatar_url:'https://scontent.cdninstagram.com/new.jpg',captured_at:'2026-10-28T00:00:00Z'});creatorService.refreshFollowers.mockResolvedValueOnce({followers_sync_status:'queued'});
+ render(<AccountEditor {...props} creator={data.creators[0]} org="org" record={record}/>);const old=screen.getByRole('img',{name:'Public profile'});fireEvent.error(old);expect(old.hidden).toBe(true);fireEvent.click(screen.getByRole('button',{name:'Refresh Profile'}));await waitFor(()=>expect(screen.getByRole('img',{name:'Public profile'}).getAttribute('src')).toContain('/new.jpg'));expect(screen.getByRole('img',{name:'Public profile'}).hidden).toBe(false);
 });
