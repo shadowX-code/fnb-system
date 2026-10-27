@@ -20,11 +20,11 @@ export default async function handler(req,res){
   if(profileMode){
    await rpc('marketing_creator_directory',scope);
    if(input.platform==='instagram'){
-    const official=await fetch(STAGING+'/functions/v1/marketing-meta/creator-profile',{method:'POST',headers:{apikey:process.env.VITE_SUPABASE_ANON_KEY||'',Authorization:req.headers.authorization,'Content-Type':'application/json'},body:JSON.stringify({org:body.org,handle:input.handle}),signal:AbortSignal.timeout(30000)});
+    const official=await fetch(STAGING+'/functions/v1/marketing-meta/creator-profile',{method:'POST',headers:{apikey:process.env.VITE_SUPABASE_ANON_KEY||'',Authorization:req.headers.authorization,'Content-Type':'application/json'},body:JSON.stringify({org:body.org,handle:input.handle,account_id:body.account_id||null}),signal:AbortSignal.timeout(30000)});
     if(!official.ok)throw new Error('official_profile_unavailable');
     const result=await official.json();
     if(result.applicable===true){await rpc('marketing_creator_directory',scope);const {applicable,...profile}=result;return res.status(200).json(profile);}
-    return res.status(200).json({metadata_status:'unavailable',reason:'organization_profile_authorization_required',unavailable:{profile:'Shared profile enrichment needs explicit workspace-level Meta authorization. Brand connections are not reused. Saved details and initials remain available.'}});
+    return res.status(200).json({metadata_status:'unavailable',reason:'organization_profile_authorization_required',unavailable:{profile:'Ask a workspace administrator to delegate an eligible Instagram connection for public Creator reads. Saved details and initials remain available.'}});
    }
    lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
    const profile=await inspectProfile(body.url);

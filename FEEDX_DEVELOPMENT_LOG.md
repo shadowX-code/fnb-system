@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-28 — Workspace Creator enrichment delegation
+
+Added explicit, default-dormant Workspace delegation of one current Instagram connection/generation for public Creator reads. Manual refresh and the existing follower queue share server-side request/result authority, revocable epochs and atomic persistence; browser observations cannot bypass it. Prior cached evidence survives failures and replacement. Canonical owner: docs/domains/marketing.md. Verification covers grant/revoke/regrant, generation rotation, late results, one-use proof, unauthorized writes, shared-directory isolation and history using rollback-only fixtures and controlled provider responses; real Meta activation and Production release remain separately gated.
+
 ## 2026-10-27 — Deleted schedules and same-content recovery
 
 Content Management uses confirmed Delete actions and canonical Show Deleted history visibility. Restore copies the exact cancelled payload into a new Draft revision on the original Content ID, retaining terminal jobs and requiring fresh execution confirmation. Content-first locking, timestamps, revision/retry checks and conservative delivery-evidence guards protect pending, partial and uncertain publishing. Staging rollback fixtures and scoped UI tests verify the lifecycle; Production recovery and deployment require separate approval. Canonical owner: docs/domains/marketing.md.

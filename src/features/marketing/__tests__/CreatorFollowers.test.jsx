@@ -15,3 +15,10 @@ it('uses one combined profile action and never queues against missing workspace 
  render(<CreatorFollowers org="org" account={{id:'a',platform:'instagram',followers:12,followers_source:'meta_instagram_business_discovery',followers_sync_status:'ready'}} canRefresh onRefreshProfile={onRefreshProfile}/>);
  expect(screen.queryByRole('button',{name:'Refresh Followers'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Refresh Profile'}));await screen.findByText('Workspace authorization required');expect(screen.getByText('12')).toBeTruthy();expect(creatorService.refreshFollowers).not.toHaveBeenCalled();
 });
+
+it('does not let a late old status read overwrite a newer server-persisted follower observation',async()=>{
+ let resolve;creatorService.followersStatus.mockReturnValueOnce(new Promise(r=>{resolve=r}));
+ const old={id:'a',platform:'instagram',followers:31,followers_source:'meta_instagram_business_discovery',followers_captured_at:'2026-10-17T00:00:00Z',followers_sync_status:'ready'};
+ const {rerender}=render(<CreatorFollowers org="org" account={old}/>);rerender(<CreatorFollowers org="org" account={{...old,followers:0,followers_captured_at:'2026-10-28T00:00:00Z'}}/>);
+ resolve(old);await screen.findByText('0');expect(screen.queryByText('31')).toBeNull();
+});

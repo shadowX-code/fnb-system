@@ -27,7 +27,7 @@ export function creatorProfileLink(account){
 }
 
 // Browser edits never submit server-owned follower evidence, including legacy values.
-export function creatorProfilePayload(p){const {_inspectedUrl,followers,followers_captured_at,followers_source,followers_sync_status,followers_sync_reason,followers_attempted_at,followers_due_at,followers_lease,followers_lease_until,...result}=p;if(!result.public_observation||result.public_observation.source==='public_profile_staff_confirmed')delete result.public_observation;return result}
+export function creatorProfilePayload(p){const {_inspectedUrl,followers,followers_captured_at,followers_source,followers_sync_status,followers_sync_reason,followers_attempted_at,followers_due_at,followers_lease,followers_lease_until,...result}=p;if(result.platform==='instagram'){if(result.public_observation?.enrichment_receipt)result.profile_enrichment_receipt=result.public_observation.enrichment_receipt;delete result.public_observation;}else if(!result.public_observation||result.public_observation.source==='public_profile_staff_confirmed')delete result.public_observation;return result}
 
 // Only the canonical command resolves association conflicts; provider failures stay independent.
 export function creatorAccountConflict(error){
@@ -38,7 +38,7 @@ export function creatorAccountConflict(error){
 // A partial refresh cannot date-stamp or erase a previously observed picture.
 export function creatorProfileObservation(previous,result){
  if(result.metadata_status!=='public_extracted')return previous;
- const fresh={source:result.source,captured_at:result.captured_at,avatar_url:result.avatar_url||null,avatar_kind:result.avatar_kind||null,profile_url:result.profile_url};
+ const fresh={source:result.source,captured_at:result.captured_at,avatar_url:result.avatar_url||null,avatar_kind:result.avatar_kind||null,profile_url:result.profile_url,...(result.enrichment_receipt?{enrichment_receipt:result.enrichment_receipt}:{})};
  const usable=/^https:\/\/([a-z0-9-]+\.)*(cdninstagram\.com|fbcdn\.net|xhscdn\.com|sns-i11\.rednotecdn\.com|tiktokcdn\.com|tiktokcdn-us\.com|tiktokv\.com|ibytedtos\.com)\//i.test(fresh.avatar_url||'');
  return usable?fresh:previous||{...fresh,avatar_url:null};
 }

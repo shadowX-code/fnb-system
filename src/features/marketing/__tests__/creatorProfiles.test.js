@@ -30,5 +30,5 @@ it('does not resubmit stored observations as new evidence or replace their origi
  expect(creatorProfilePayload({id:'a',public_observation:previous})).not.toHaveProperty('public_observation');
  for(const result of [{metadata_status:'unavailable'},{metadata_status:'public_extracted',avatar_url:null},{metadata_status:'public_extracted',avatar_url:'https://wrong.example/pic.jpg'}])expect(creatorProfileObservation(previous,result)).toBe(previous);
  const fresh={metadata_status:'public_extracted',source:'Meta Instagram Business Discovery',avatar_url:'https://scontent.cdninstagram.com/new.jpg',avatar_kind:'profile_picture',profile_url:previous.profile_url,captured_at:'2026-10-28T00:00:00Z'};
- expect(creatorProfilePayload({public_observation:creatorProfileObservation(previous,fresh)}).public_observation).toMatchObject({source:fresh.source,avatar_url:fresh.avatar_url,captured_at:fresh.captured_at});
+ expect(creatorProfilePayload({platform:'instagram',public_observation:creatorProfileObservation(previous,{...fresh,enrichment_receipt:'proof'})})).toMatchObject({platform:'instagram',profile_enrichment_receipt:'proof'});expect(creatorProfilePayload({platform:'instagram',public_observation:creatorProfileObservation(previous,fresh)})).not.toHaveProperty('public_observation');
 });
