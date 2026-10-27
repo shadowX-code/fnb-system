@@ -140,3 +140,9 @@ it('projects a server-persisted refresh without a browser save or a false unsave
  creatorService.profile.mockResolvedValueOnce({metadata_status:'public_extracted',source:'Meta Instagram Business Discovery',profile_url:record.profile_url,avatar_kind:'profile_picture',avatar_url:account.public_observation.avatar_url,captured_at:account.followers_captured_at,account});
  render(<AccountEditor {...props} record={record} creator={data.creators[0]} onEnriched={onEnriched} onClose={onClose}/>);fireEvent.click(screen.getByRole('button',{name:'Refresh Profile'}));await waitFor(()=>expect(onEnriched).toHaveBeenCalledWith(account));fireEvent.click(screen.getByRole('button',{name:'Close drawer',exact:true}));expect(onClose).toHaveBeenCalledTimes(1);expect(screen.queryByText('Discard unsaved changes?')).toBeNull();
 });
+
+it('preserves a saved profile identity when a refresh request fails',async()=>{
+ const record={id:'ig',creator_id:'c',platform:'instagram',handle:'one',external_id:'123',profile_url:'https://www.instagram.com/one/',display_name:'Saved name',revision:2},onClose=vi.fn();
+ creatorService.profile.mockRejectedValueOnce(new Error('Profile request unavailable.'));
+ render(<AccountEditor {...props} record={record} creator={data.creators[0]} onClose={onClose}/>);fireEvent.click(screen.getByRole('button',{name:'Refresh Profile'}));await screen.findByText('Profile refresh unavailable');expect(screen.getByLabelText('Platform Account ID').value).toBe('123');fireEvent.click(screen.getByRole('button',{name:'Close drawer',exact:true}));expect(onClose).toHaveBeenCalledTimes(1);expect(screen.queryByText('Discard unsaved changes?')).toBeNull();
+});
