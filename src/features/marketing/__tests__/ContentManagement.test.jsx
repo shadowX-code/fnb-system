@@ -42,6 +42,13 @@ const props = {
   command: vi.fn(),
   can: () => true,
 };
+
+it('requests deleted history explicitly for both views without changing the Meta visibility filter',async()=>{
+ render(<ContentManagement {...props}/>);await waitFor(()=>expect(service.contentManagement).toHaveBeenCalled());
+ expect(service.contentManagement.mock.calls.at(-1)[0]).toMatchObject({showDeleted:false,showRemoved:false});
+ fireEvent.click(screen.getByRole('checkbox',{name:'Show Deleted'}));await waitFor(()=>expect(service.contentManagement.mock.calls.at(-1)[0]).toMatchObject({showDeleted:true,showRemoved:false}));
+ fireEvent.click(screen.getByRole('tab',{name:/Calendar/}));await waitFor(()=>expect(service.contentManagement.mock.calls.at(-1)[0]).toMatchObject({view:'calendar',showDeleted:true,showRemoved:false}));
+});
 beforeEach(() => {
   cleanup();
   localStorage.clear();

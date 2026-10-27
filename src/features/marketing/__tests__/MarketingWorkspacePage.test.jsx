@@ -1,5 +1,5 @@
 import { describe,it,expect,vi,beforeEach } from 'vitest';
-import { render,screen,fireEvent,waitFor,cleanup } from '@testing-library/react';
+import { render,screen,fireEvent,waitFor,cleanup,within } from '@testing-library/react';
 import MarketingWorkspacePage from '../MarketingWorkspacePage.jsx';
 const {service,auth}=vi.hoisted(()=>({service:{metaConfiguration:vi.fn(),context:vi.fn(),read:vi.fn(),setup:vi.fn(),content:vi.fn(),detail:vi.fn(),teamAccess:vi.fn(),listing:vi.fn(),contentManagement:vi.fn(),integrations:vi.fn(),execute:vi.fn(),socialPublications:vi.fn(),observedGrowth:vi.fn(),socialPerformance:vi.fn()},auth:{user:{id:'user'},hasPermission:vi.fn(()=>true)}}));
 vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>auth}));
@@ -103,4 +103,36 @@ it('editing an approved revision preserves the expected revision and performs on
  render(<MarketingWorkspacePage section="calendar"/>);fireEvent.click((await screen.findAllByRole('button',{name:'View Scoped publishing test',exact:true}))[0]);
  fireEvent.click(screen.getByRole('button',{name:'Edit',exact:true}));fireEvent.change(screen.getByLabelText(/Creative concept title/),{target:{value:'Revised title'}});fireEvent.click(screen.getByRole('button',{name:'Save Draft',exact:true}));
  await waitFor(()=>expect(service.content).toHaveBeenCalled());expect(service.content.mock.calls[0][0]).toMatchObject({command:'save',content:{id:'content',revision:1,status:'approved'},payload:{title:'Revised title'}});expect(service.execute).not.toHaveBeenCalled();
+});
+
+it('requires an exact-channel deletion confirmation, prevents duplicate submits and preserves retry identity',async()=>{
+ mockScheduledList();const canonical={...savedContent,updated_at:'2026-10-27T11:00:00Z',lifecycle:{can_delete:true}};service.detail.mockResolvedValue(savedDetail(canonical));
+ await openScheduled();fireEvent.click(await screen.findByRole('button',{name:'Delete Scheduled Post',exact:true}));
+ expect(screen.getByRole('dialog',{name:'Delete Scheduled Post?'})).toBeTruthy();expect(service.content).not.toHaveBeenCalled();
+ expect(screen.getByText(/does not delete any published post on Meta/)).toBeTruthy();expect(within(screen.getByRole('region',{name:'Delete post summary'})).getAllByText(/1 Jan 2099/)).toHaveLength(2);
+ fireEvent.click(screen.getByRole('checkbox',{name:/Delete this unpublished/}));
+ let reject;service.content.mockImplementationOnce(()=>new Promise((_,r)=>{reject=r}));
+ fireEvent.click(screen.getByRole('button',{name:'Delete Post',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Saving…',exact:true}));
+ expect(service.content).toHaveBeenCalledTimes(1);const first=service.content.mock.calls[0][0];expect(first).toMatchObject({command:'cancel',content:{revision:1},payload:{confirm:true,expected_updated_at:canonical.updated_at}});
+ reject(new Error('Schedule changed. Reopen before continuing.'));await screen.findByText('Schedule changed. Reopen before continuing.');
+ expect(screen.getByRole('dialog',{name:'Delete Scheduled Post?'})).toBeTruthy();expect(screen.queryByText(/Post deleted/)).toBeNull();
+ service.content.mockResolvedValueOnce({...canonical,status:'cancelled'});fireEvent.click(screen.getByRole('button',{name:'Delete Post',exact:true}));
+ await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Delete Scheduled Post?'})).toBeNull());expect(service.content.mock.calls[1][0].requestId).toBe(first.requestId);expect(service.execute).not.toHaveBeenCalled();
+});
+
+it('restores deleted content into its new draft revision without publishing or changing variants',async()=>{
+ const deleted={...savedContent,status:'cancelled',updated_at:'2026-10-27T11:00:00Z',lifecycle:{can_restore:true},channels:savedContent.channels.map(v=>({...v,status:'cancelled',job_state:'cancelled'}))};
+ service.contentManagement.mockResolvedValue({rows:[deleted],total_count:1});service.detail.mockResolvedValue(savedDetail(deleted));
+ await openScheduled();fireEvent.click(await screen.findByRole('button',{name:'Restore Post',exact:true}));expect(service.content).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('checkbox',{name:/Restore as draft/}));
+ const draft={...deleted,status:'draft',revision:2,approved_revision:null,payload:deleted.payload};service.content.mockResolvedValueOnce(draft);service.detail.mockResolvedValue(savedDetail(draft));
+ fireEvent.click(screen.getByRole('button',{name:'Restore as Draft',exact:true}));await screen.findByRole('dialog',{name:'Edit Post'});
+ expect(service.content).toHaveBeenCalledTimes(1);expect(service.content.mock.calls[0][0]).toMatchObject({command:'restore',content:{id:'content',revision:1},payload:{confirm:true,expected_updated_at:deleted.updated_at}});
+ expect(screen.getByLabelText(/Creative concept title/).value).toBe(deleted.payload.title);expect(service.execute).not.toHaveBeenCalled();
+});
+
+it.each(['published','uncertain'])('never offers whole-post deletion or restoration for %s delivery',async status=>{
+ const canonical={...savedContent,status,lifecycle:{can_delete:false,can_restore:false},channels:[{...savedContent.channels[0],job_state:status==='published'?'succeeded':'reconciling'}]};
+ service.contentManagement.mockResolvedValue({rows:[canonical],total_count:1});service.detail.mockResolvedValue(savedDetail(canonical));await openScheduled();await screen.findByRole('dialog',{name:'Content revision'});
+ expect(screen.queryByRole('button',{name:'Delete Post',exact:true})).toBeNull();expect(screen.queryByRole('button',{name:'Restore Post',exact:true})).toBeNull();expect(service.content).not.toHaveBeenCalled();
 });

@@ -46,8 +46,8 @@ export const marketingService = {
   execute: (requestId, content, connections) => rpc('marketing_authorize_execution', { p_request: requestId, p_content: content.id, p_revision: content.revision, p_connections: connections }),
   captionLibrary:(brand,kind,search='',page=1)=>rpc('marketing_caption_library',{p_brand:brand,p_kind:kind,p_search:search,p_page:page,p_size:20}),
   saveCaption:(request,brand,item,data)=>rpc('marketing_caption_save',{p_request:request,p_brand:brand,p_id:item?.id||null,p_revision:item?.revision||0,p_data:data}),
-  contentManagement: ({ organizationId, brandId, from = null, to = null, search = '', channel = '', status = '', sort = 'date_desc', group = '', page = 1, pageSize = 20, view = 'list', showRemoved = false }) => rpc('marketing_content_management', {
-    p_org: organizationId, p_brand: brandId || null, p_from: from, p_to: to, p_search: search, p_channel: channel, p_status: status, p_sort: sort, p_group: group, p_page: page, p_page_size: pageSize, p_view: view, p_show_removed: showRemoved,
+  contentManagement: ({ organizationId, brandId, from = null, to = null, search = '', channel = '', status = '', sort = 'date_desc', group = '', page = 1, pageSize = 20, view = 'list', showRemoved = false, showDeleted = false }) => rpc('marketing_content_management', {
+    p_org: organizationId, p_brand: brandId || null, p_from: from, p_to: to, p_search: search, p_channel: channel, p_status: status, p_sort: sort, p_group: group, p_page: page, p_page_size: pageSize, p_view: view, p_show_removed: showRemoved, p_show_deleted: showDeleted,
   }),
   context: () => rpc('marketing_brand_context'),
   publicationAvailability: (request,connection,post,revision,command) => rpc('marketing_publication_availability_command',{p_request:request,p_connection:connection,p_post:post,p_expected_revision:revision,p_command:command}),
