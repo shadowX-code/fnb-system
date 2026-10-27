@@ -11,6 +11,10 @@ QA level: L3 (scoped read RPC, immutable planning payload validation, optional s
 - Record a representative screenshot. Preserve connection bindings, publishing Unverified/execution disabled and Production unchanged. Do not create persistent content fixtures when rollback mutation evidence and existing real social posts suffice.
 
 
+### Deleted schedules and recovery
+
+Run `qa/staging/marketingContentDeletion.rollback.sql` against canonical Staging. It verifies explicit/stale confirmation, Calendar/List/legacy-reader history visibility, unchanged payloads/media and terminal jobs, same-ID new Draft revision, fresh two-channel scheduling authorization, duplicate/retry and generation/Brand guards, in-flight claim exclusion and partial/uncertain visibility. Synthetic provider identities are rollback-only evidence; the suite makes no provider call and claims no real publishing delivery. UI regressions cover exact channel/time confirmation, failure/retry feedback, duplicate-click exclusion, Draft reopening and independent Show Deleted versus Meta visibility controls. Authenticated desktop/mobile QA uses existing content without saving, deleting, restoring or scheduling real records.
+
 ### Published media after temporary snapshot cleanup
 
 `postMedia.test.jsx` covers the Happiness failure shape: retired image snapshot plus exact synchronized Instagram image; thumbnail and Detail/Performance must render the provider image without signing the retired object. Also verify a ready snapshot signing failure falls back only once, expired CDN evidence shows unavailable, refreshed normal-Sync URLs recover, carousel order stays intact, untrusted hosts/token-bearing URLs are rejected, and a late prior-channel signed URL cannot replace the current channel. Never restore or indefinitely retain temporary publishing files for preview QA.

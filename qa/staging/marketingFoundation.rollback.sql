@@ -63,7 +63,7 @@ begin
  assert result->'evidence'->>'conversions'='unavailable','Conversions must remain unavailable';
  result:=public.marketing_read(o,b,'calendar',now(),now()+interval '2 days');assert result->>'total'='1','Calendar must include schedule';
  result:=public.marketing_content_detail(c);assert jsonb_array_length(result->'events')>=6,'Audit evidence missing';
- perform public.marketing_content_command(gen_random_uuid(),'cancel',o,b,c,2);
+ perform public.marketing_content_command(gen_random_uuid(),'cancel',o,b,c,2,jsonb_build_object('confirm',true,'expected_updated_at',result->'content'->>'updated_at'));
  result:=public.marketing_read(o,b,'content');assert result->'jobs'->0->>'state'='cancelled','Cancellation must stop unexecuted job';
  perform public.marketing_save_knowledge(b,0,'{"voice":{"text":"Warm and clear","provenance":"verified_brand_fact"}}');
  blocked:=false;begin perform public.marketing_save_knowledge(b,0,'{}');exception when serialization_failure then blocked:=true;end;assert blocked,'Knowledge lost update must fail';

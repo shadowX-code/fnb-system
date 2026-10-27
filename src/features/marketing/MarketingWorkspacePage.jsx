@@ -19,6 +19,7 @@ import MarketingSettingsPage from './MarketingSettingsPage.jsx';
 import ContentManagement from './ContentManagement.jsx';
 import PostDetail from './PostDetail.jsx';
 import PublishingOperations from './PublishingOperations.jsx';
+import ContentLifecycleConfirmation from './ContentLifecycleConfirmation.jsx';
 import { PublishAuthorization } from './MetaIntegrationPanels.jsx';
 
 const labels = { overview: 'Overview', content: 'Content Management', media: 'Media Library', calendar: 'Content Management', analytics: 'Social Analytics' };
@@ -53,7 +54,7 @@ function MarketingContentWorkspace({ section = 'overview' }) {
   const [modal, setModal] = useState(null);
   const [detail, setDetail] = useState(null);
   const [busy, setBusy] = useState(false);
-  const request = useRef(null), savingEditor=useRef(false);
+  const request = useRef(null), savingEditor=useRef(false), mutating=useRef(false);
   const lifetime = useRef(0);
   const callbackScopeApplied = useRef(false);
   const can = code => auth.hasPermission(code);
@@ -131,15 +132,16 @@ function MarketingContentWorkspace({ section = 'overview' }) {
     return () => {live=false;};
   }, [organizationId,brandId,booting,section,auth.user?.id]);
 
-  async function mutate(action, message) {
+  async function mutate(action, message, nextModal) {
+    if(mutating.current)return;mutating.current=true;
     const generation = lifetime.current;
     setBusy(true); setError('');
     try {
-      await action();
+      const result=await action();
       if (generation !== lifetime.current) return;
-      setModal(null); request.current = null; setNotice(message); setRefresh(v => v+1);
+      setModal(nextModal?nextModal(result):null); request.current = null; setNotice(message); setRefresh(v => v+1);
     } catch (e) { if (generation === lifetime.current) setError(e.message); }
-    finally { if (generation === lifetime.current) setBusy(false); }
+    finally { mutating.current=false;if (generation === lifetime.current) setBusy(false); }
   }
   async function saveEditor(){
     if(savingEditor.current)return;savingEditor.current=true;const generation=lifetime.current;setBusy(true);setError('');
@@ -157,7 +159,8 @@ function MarketingContentWorkspace({ section = 'overview' }) {
     const intent = { command: commandName, organizationId, brandId: content?.brand_id || brandId, content, payload };
     const fingerprint = JSON.stringify(intent);
     if (request.current?.fingerprint !== fingerprint) request.current = { fingerprint, id: crypto.randomUUID() };
-    return mutate(() => marketingService.content({ ...intent, requestId: request.current.id }), commandName === 'schedule' ? 'Publishing time saved. External execution requires a separate approval to enabled accounts.' : 'Content updated.');
+    const message=commandName==='restore'?'Restored as draft. Review the content and confirm publishing again.':commandName==='cancel'?'Post deleted. Pending delivery stopped; history retained.':commandName === 'schedule' ? 'Publishing time saved. External execution requires a separate approval to enabled accounts.' : 'Content updated.';
+    return mutate(() => marketingService.content({ ...intent, requestId: request.current.id }),message,commandName==='restore'?saved=>({type:'content',content:saved,payload:structuredClone(saved.payload)}):null);
   }
   const open = value => { setError(''); request.current = null; setModal(value); };
   const scopeControls = <div className="admin-scope-controls" aria-label="Marketing scope">
@@ -180,10 +183,11 @@ function MarketingContentWorkspace({ section = 'overview' }) {
       {brand?.is_active===false?<p className="text-sm text-text-secondary">Inactive Brand · historical records and existing schedules remain available. Reactivate the Brand to start new work.</p>:null}
       {data && brand && section==='calendar' ? <ContentManagement key={`${organizationId}:${brandId}:${auth.user?.id}`} organizationId={organizationId} brandId={brandId} refresh={refresh} open={open} command={command} busy={busy} can={can}/> : null}
     </AsyncDataSurface>
-    {modal ? <Modal title={{content:modal.content?'Edit Post':'Create Post',review:'Content revision',schedule:'Schedule publishing',publish:'Confirm publishing',}[modal.type]} description={modal.type==='content'?'Saving material changes invalidates approval.':null} size={modal.type==='content'?'3xl':modal.type==='review'?'lg':'sm'} panelClassName={modal.type==='content'?'post-editor-modal':''} footerClassName={modal.type==='content'?'post-editor-modal-footer':''} placement={modal.type==='review'?'right':'center'} onClose={()=>{if(!busy)setModal(null);}} footer={<>
+    {modal ? <Modal title={{content:modal.content?'Edit Post':'Create Post',review:'Content revision',schedule:'Schedule publishing',publish:'Confirm publishing',delete:modal.content?.status==='scheduled'?'Delete Scheduled Post?':'Delete Post?',restore:'Restore Post?'}[modal.type]} description={modal.type==='content'?'Saving material changes invalidates approval.':null} size={modal.type==='content'?'3xl':modal.type==='review'?'lg':'sm'} panelClassName={modal.type==='content'?'post-editor-modal':''} footerClassName={modal.type==='content'?'post-editor-modal-footer':''} placement={modal.type==='review'?'right':'center'} onClose={()=>{if(!busy)setModal(null);}} footer={<>
       {error ? <p className="mr-auto text-sm text-rose-600" role="alert">{error}</p> : null}
       <button className="btn-secondary" disabled={busy} onClick={()=>setModal(null)}>Close</button>
-      {!['review','publish'].includes(modal.type) ? <button className="btn-primary" disabled={busy} onClick={()=>{
+      {['delete','restore'].includes(modal.type)?<button className="btn-primary" disabled={busy||!modal.confirmed||!can(modal.type==='restore'?'marketing_content.edit':'marketing_content.cancel')||!currentDetail?.content.lifecycle?.[modal.type==='restore'?'can_restore':'can_delete']} onClick={()=>command(modal.type==='restore'?'restore':'cancel',currentDetail.content,{confirm:true,expected_updated_at:currentDetail.content.updated_at})}>{busy?'Saving…':modal.type==='restore'?'Restore as Draft':'Delete Post'}</button>:null}
+      {!['review','publish','delete','restore'].includes(modal.type) ? <button className="btn-primary" disabled={busy} onClick={()=>{
         if(modal.type==='content')saveEditor();
         if(modal.type==='schedule'){try{command('schedule',modal.content,{scheduled_at:scheduleInstant(modal.local,modal.timezone),timezone:modal.timezone});}catch(e){setError(e.message);}}
       }}>{busy?'Saving…':modal.type==='schedule'?'Save schedule':publishingIntent(modal.payload)==='draft'?'Save Draft':'Save & Continue'}</button> : null}
@@ -191,8 +195,9 @@ function MarketingContentWorkspace({ section = 'overview' }) {
         {!['published','cancelled'].includes(modal.content.status) && can('marketing_content.edit') ? <button className="btn-secondary" disabled={busy} onClick={()=>open({type:'content',content:modal.content,payload:structuredClone(modal.content.payload)})}>Edit</button> : null}
         {['draft','rejected'].includes(modal.content.status) && can('marketing_content.review') ? <button className="btn-secondary" disabled={busy} onClick={()=>command('review',modal.content)}>Submit review</button> : null}
         {['draft','approved'].includes(modal.content.status) && can('marketing_content.publish') && can('marketing_content.execute') ? <button className="btn-secondary" disabled={busy} onClick={()=>open({type:'publish',content:modal.content,intent:{mode:'now'}})}>Publish Now…</button> : null}
-        {!['published','cancelled'].includes(modal.content.status) && can('marketing_content.cancel') ? <button className="btn-secondary" disabled={busy} onClick={()=>command('cancel',modal.content)}>Cancel</button> : null}
       </> : null}
+      {modal.type==='review'&&currentDetail?.content.lifecycle?.can_delete&&can('marketing_content.cancel')?<button className="btn-secondary" disabled={busy} onClick={()=>open({type:'delete',content:currentDetail.content,confirmed:false})}>{modal.content.status==='scheduled'?'Delete Scheduled Post':'Delete Post'}</button>:null}
+      {modal.type==='review'&&currentDetail?.content.lifecycle?.can_restore&&can('marketing_content.edit')?<button className="btn-secondary" disabled={busy} onClick={()=>open({type:'restore',content:currentDetail.content,confirmed:false})}>Restore Post</button>:null}
       {modal.type==='review' && modal.content.status==='review' && can('marketing_content.approve') ? <><button className="btn-secondary" disabled={busy||!modal.reason?.trim()} onClick={()=>command('reject',modal.content,{reason:modal.reason})}>Reject</button><button className="btn-primary" disabled={busy} onClick={()=>command('approve',modal.content)}>Approve revision {modal.content.revision}</button></> : null}
     </>}>
       <ModalBody modal={modal} setModal={setModal} brands={brands} brand={brand} assets={[...new Map([...(data?.assets||[]),...(currentDetail?.assets||[])].map(a=>[a.id,a])).values()]} can={can} onExecutionComplete={()=>{setModal(null);setRefresh(v=>v+1);setNotice('External execution authorized for the reviewed revision.');}} detail={currentDetail} busy={busy} command={command} onAvailabilityChanged={()=>setRefresh(v=>v+1)}/>
@@ -203,6 +208,7 @@ function MarketingContentWorkspace({ section = 'overview' }) {
 function ModalBody({modal,setModal,brands,brand,assets,can,detail,onExecutionComplete,busy,command,onAvailabilityChanged}) {
   const change=patch=>setModal(current=>({...current,...patch}));
   const field=(label,key,type='text')=><AdminFormField label={label}><input className="control" type={type} value={modal[key]||''} onChange={e=>change({[key]:e.target.value})}/></AdminFormField>;
+  if(['delete','restore'].includes(modal.type))return detail?.content?<ContentLifecycleConfirmation key={`${detail.content.id}:${detail.content.revision}:${detail.content.updated_at}`} content={detail.content} restoring={modal.type==='restore'} accepted={Boolean(modal.confirmed)} onChange={confirmed=>change({confirmed})}/>:<p role="status">Verifying the saved content and scheduled channels.</p>;
   if(modal.type==='schedule')return <div className="space-y-4"><p className="text-sm">Scheduling pins revision {modal.content.revision}. Execution requires a separate approval of this exact revision to enabled Meta accounts.</p><DateTimePickerField label="Publishing" timezone={modal.timezone} value={modal.local} onChange={local=>change({local})}/>{field('Timezone','timezone')}</div>;
   if(modal.type==='publish')return detail?.content?<PublishAuthorization key={`${detail.content.id}:${detail.content.revision}`} content={detail.content} brandName={brand?.name} intent={modal.intent} onComplete={onExecutionComplete} onEdit={can('marketing_content.edit')?()=>change({type:'content',content:detail.content,payload:structuredClone(detail.content.payload),plannedLocal:detail.content.payload.planned_at?localInput(new Date(detail.content.payload.planned_at),'Asia/Kuala_Lumpur'):''}):null}/>:<p role="status">Verifying the saved revision before publishing confirmation.</p>;
   if(modal.type==='review')return <PostDetail content={detail?.content||modal.content} assets={assets} events={detail?.events||[]} canManageAvailability={can('marketing_content.publish')} onAvailabilityChanged={onAvailabilityChanged}>{detail?.content?<PublishingOperations key={`operations:${detail.content.id}:${detail.content.revision}`} content={detail.content} can={can} command={command} busy={busy}/>:null}{detail?.content ? <PublishAuthorization key={`${detail.content.id}:${detail.content.revision}`} content={detail.content} onComplete={onExecutionComplete}/> : <p role="status">Verifying the saved revision before publishing approval.</p>}{modal.content.status==='review'&&can('marketing_content.approve')?<AdminFormField label="Rejection reason (required to reject)"><textarea className="control" value={modal.reason||''} onChange={e=>change({reason:e.target.value})}/></AdminFormField>:null}</PostDetail>;

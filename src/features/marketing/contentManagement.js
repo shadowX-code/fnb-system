@@ -9,7 +9,7 @@ export function contentTimestamp(value, missing = 'Unavailable') {
     ? new Intl.DateTimeFormat('en-MY', {timeZone: CONTENT_TIMEZONE, dateStyle: 'medium', timeStyle: 'short'}).format(new Date(value))
     : missing;
 }
-export const contentStatusLabel = status => ({review:'Review',approved:'Ready to Publish',awaiting_authorization:'Awaiting Authorization'}[status] || String(status||'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()));
+export const contentStatusLabel = status => ({review:'Review',approved:'Ready to Publish',awaiting_authorization:'Awaiting Authorization',cancelled:'Deleted'}[status] || String(status||'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()));
 export function preferredContentView(userId) {
   try {
     return localStorage.getItem(
