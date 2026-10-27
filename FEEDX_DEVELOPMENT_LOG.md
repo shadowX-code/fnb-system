@@ -1,5 +1,10 @@
 # FeedX Development Log
 
+## 2026-10-27 — Normal multi-Brand publishing formats
+
+Normal Publishing now derives FB Video/Reel and IG mixed-Carousel eligibility from current connection authority rather than individual routine grants. Editor/readiness/confirmation and provider submission share one format decision; existing mode, account/generation, approval, lease, checkpoint and uncertain-outcome safeguards remain. Temporary QA and historical grants remain intact, and Stories stays disabled. Verification uses five-Brand rollback-only scheduling/revocation fixtures and mocked provider execution; Production deployment/activation remains separate. Canonical owner: docs/domains/marketing.md.
+
+
 ## 2026-10-26 — Ads operational authorization readiness
 
 Completed same-account Management OAuth confirmation through the existing Ads connection authority, including connected-account visibility, pinned generation and same-authorizer/task checks. Added read-only exact-revision execution availability to the existing paused-create boundary, current reviewer/approver checks, duplicate-command protection and explicit uncertain-outcome feedback. Reporting provenance, Publishing credentials and quarantined partial execution remain intact; Meta configuration, identity verification, real paused creation and Production delivery are independently gated. Canonical owner: docs/domains/marketing.md.

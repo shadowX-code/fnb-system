@@ -142,3 +142,10 @@ it('requires reconfirmation after the server rejects a stale revision',async()=>
  render(<PublishAuthorization content={directDraft} intent={{mode:'now'}} onComplete={vi.fn()}/>);await screen.findByText('QA Test Page');fireEvent.click(screen.getByRole('checkbox'));fireEvent.click(screen.getByRole('button',{name:'Confirm Publish'}));
  await screen.findByText(/The saved post changed/);expect(screen.getByRole('checkbox').checked).toBe(false);expect(screen.getByRole('button',{name:'Confirm Publish'}).disabled).toBe(true);expect(marketingService.content).toHaveBeenCalledOnce();
 });
+
+it.each([['facebook','video','facebook_video'],['facebook','reel','facebook_reel'],['instagram','carousel','instagram_mixed_carousel']])('normal %s/%s scheduling needs no legacy grant but still needs exact confirmation',async(channel,format,key)=>{
+ const media=[{id:'pic',mime_type:'image/jpeg'},{id:'vid',mime_type:'video/mp4'}];marketingService.metaConfiguration.mockResolvedValue({production_execution_enabled:true,normal_format_execution_enabled:true});
+ marketingService.integrations.mockResolvedValue({connections:[{...connection,channel,format_authorizations:{normal_formats:[key]},capabilities:{publishing:true,execution_enabled:true,formats:[format]}}]});
+ render(<PublishAuthorization content={{id:'normal',organization_id:'org',brand_id:'brand',revision:1,status:'draft',payload:{variants:[{channel,format,caption:'Exact saved revision',asset_ids:format==='carousel'?['pic','vid']:['vid']}]},channels:[{channel,assets:media}]}} intent={{mode:'schedule',scheduled_at:'2099-01-01T00:00:00Z'}} onComplete={()=>{}}/>);
+ await screen.findByText(/QA Test Page/);const button=screen.getByRole('button',{name:'Confirm Schedule'});expect(button.disabled).toBe(true);fireEvent.click(screen.getByRole('checkbox'));expect(button.disabled).toBe(false);expect(screen.queryByText(/separate format authorization/i)).toBeNull();expect(marketingService.content).not.toHaveBeenCalled();
+});

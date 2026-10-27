@@ -11,8 +11,9 @@ import MarketingMediaPicker from './MarketingMediaPicker.jsx';
 import MarketingMediaPreview from './MarketingMediaPreview.jsx';
 import {adsService} from './adsService.js';
 import AdsPrerequisites from './AdsPrerequisites.jsx';
+import AdAccountDeclarations from './AdAccountDeclarations.jsx';
 import {adsManagementReason} from './adsReadiness.js';
-import {createAdConfiguration,newAdForm,reopenAdForm} from './adsCreateModel.js';
+import {createAdConfiguration,newAdForm,reopenAdForm,changeAdAccountForm} from './adsCreateModel.js';
 const sections=['Setup','Audience','Creative','Review'];
 export default function CreateAdWorkspace({org,brand,brands,accounts,data,previous,onClose,onSave,managementLoginReady=false,canConnect=false}) {
  const [brandId,setBrand]=useState(previous?.brand_id||brand||brands[0]?.id||''),[connection,setConnection]=useState(previous?.connection_id||accounts[0]?.id||'');
@@ -22,7 +23,7 @@ export default function CreateAdWorkspace({org,brand,brands,accounts,data,previo
  const pages=(data.pages||[]).filter(p=>p.brand_id===brandId),assets=[...(data.assets||[]),...cache].filter(a=>a.brand_id===brandId),posts=(data.source_posts||[]).filter(p=>p.brand_id===brandId&&p.page_id===form.page_id),source=posts.find(p=>p.job_id===form.source_job_id),activeBrand=brands.find(b=>b.id===brandId),selectedAsset=assets.find(a=>a.id===form.asset_id);
  const edit=(key,value)=>{if(saving.current)return;request.current=null;setError('');setForm(f=>({...f,[key]:value}));};
  function changeBrand(value){setBrand(value);setForm(newAdForm());request.current=null;setCache([]);setCities([]);setCityQuery('');setCityError('');setCityBusy(false);searchSequence.current++;}
- function changeAccount(value){setConnection(value);request.current=null;setCities([]);setCityError('');setCityBusy(false);searchSequence.current++;setForm(f=>({...f,city_key:'',city_name:'',start_local:'',end_local:''}));}
+ function changeAccount(value){setConnection(value);request.current=null;setCities([]);setCityError('');setCityBusy(false);searchSequence.current++;setForm(changeAdAccountForm);}
  async function searchCity(){const sequence=++searchSequence.current;setCityBusy(true);setCityError('');try{const result=await adsService.locations({organizationId:org,brandId,connectionId:connection,query:cityQuery});if(sequence===searchSequence.current){setCities(result.locations||[]);if(!result.locations?.length)setCityError('No verified Malaysian cities returned. Try another city or use a coordinate radius.');}}catch(e){if(sequence===searchSequence.current)setCityError(e.message);}finally{if(sequence===searchSequence.current)setCityBusy(false);}}
  async function save(draft){if(saving.current)return;setError('');try{if(!brandId||!connection)throw new Error('Choose a Brand and Ad Account.');const configuration=createAdConfiguration(form,pages,{draft});saving.current=true;setBusy(true);request.current ||= crypto.randomUUID();await onSave({requestId:request.current,organizationId:org,brandId,connectionId:connection,operation:'create',configuration,previousId:previous?.id||null});}catch(e){setError(e.message);}finally{saving.current=false;setBusy(false);}}
  const input=(key,label,props={})=><AdminFormField label={label}><input className="control" value={form[key]} onChange={e=>edit(key,e.target.value)} disabled={busy} {...props}/></AdminFormField>;
@@ -57,7 +58,7 @@ export default function CreateAdWorkspace({org,brand,brands,accounts,data,previo
     {section==='Review'?<>
      <AdsPrerequisites org={org} brand={brandId} connection={connection} page={form.page_id} source={form.creative_source==='facebook_post'?form.source_job_id:null} accountId={account?.account_id} managementLoginReady={managementLoginReady} canConnect={canConnect}/>
      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm"><dt className="text-text-secondary">Brand</dt><dd>{activeBrand?.name||'Not selected'}</dd><dt className="text-text-secondary">Account</dt><dd>{account?.name||'Not selected'}</dd><dt className="text-text-secondary">Creative</dt><dd>{form.creative_source==='facebook_post'?'Promote original Facebook post':'New image ad'}</dd><dt className="text-text-secondary">Budget</dt><dd>{form.budget?`MYR ${form.budget} lifetime`:'Missing'}</dd><dt className="text-text-secondary">Schedule</dt><dd>{form.start_local.replace('T',' ')||'Missing'} → {form.end_local.replace('T',' ')||'Missing'} · {zone||'Timezone unavailable'}</dd><dt className="text-text-secondary">Creation state</dt><dd>Paused — activation requires a separate reviewed action</dd></dl>
-     <div className="border-t border-border pt-4 space-y-3"><h3 className="font-semibold text-sm">Advertiser declarations</h3><p className="text-xs text-text-secondary">Use verified Meta advertiser and payer identity IDs from Ads Manager. These are not Page IDs.</p><div className="grid gap-4 sm:grid-cols-2">{input('universal_beneficiary','Advertiser (beneficiary) identity ID',{inputMode:'numeric'})}{input('universal_payer','Payer identity ID',{inputMode:'numeric'})}</div></div>
+     <AdAccountDeclarations accountId={account?.account_id} form={form} onChange={edit} disabled={busy} revealReferences={!!error}/>
      <div className="rounded-lg bg-surface-secondary p-3 space-y-2 text-sm"><p><CheckCircle2 size={15} className="inline mr-1"/>Saving never creates an ad or spends budget.</p><p>{account?.health?.manage_verified?'Ads management verified.':'Ads management is not verified; execution remains unavailable.'}</p><p>Review and approval pin this revision. Meta creation and delivery acceptance remain separate.</p></div>
     </>:null}
    </div>
