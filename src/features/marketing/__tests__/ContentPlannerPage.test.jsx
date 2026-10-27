@@ -366,3 +366,24 @@ it('feedback Popover stays separate from Task Detail and Board dragging',async()
   fireEvent.keyDown(panel,{key:'Escape'});expect(screen.queryByRole('tooltip')).toBeNull();expect(screen.getByRole('button',{name:/Move Real task/})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'View Real task'}));expect(screen.getByRole('dialog',{name:'Creative task'})).toBeTruthy();
  }finally{height.mockRestore();visible.mockRestore()}
 });
+
+it('uses one carried task set for Board/List/counts and keeps original-month week choices',async()=>{
+ localStorage.setItem('marketing.planner.planner-user',JSON.stringify({month:'2026-11-01'}));
+ const carry={...task,id:'carry',title:'October carry',planning_month:'2026-10-01',carried_forward:true,due_date:'2026-11-15'}, current={...task,id:'current',title:'November task',planning_month:'2026-11-01'};
+ planner.read.mockResolvedValue({...read,tasks:[carry,current]});render(<ContentPlannerPage/>);await screen.findAllByText('October carry');
+ expect(screen.getByText('Carried Forward 1')).toBeTruthy();expect(screen.getByText('Carried Forward',{exact:true})).toBeTruthy();
+ fireEvent.click(screen.getByRole('tab',{name:'List',exact:true}));const table=screen.getByRole('table');expect(within(table).getByText('October carry')).toBeTruthy();expect(within(table).getByText('November task')).toBeTruthy();expect(within(table).getByText('Carried Forward',{exact:true})).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'October carry',exact:true}));expect(screen.getByRole('combobox',{name:'Planned Week'}).value).toBe('2026-10-12');
+ fireEvent.change(screen.getByRole('combobox',{name:'Priority'}),{target:{value:'high'}});
+ await vi.waitFor(()=>expect(planner.command).toHaveBeenCalledWith(expect.objectContaining({id:'carry',action:'save',payload:{month:'2026-11-01',priority:'high'}})));
+});
+it('removes completed carried tasks immediately without waiting for background refresh',async()=>{
+ localStorage.setItem('marketing.planner.planner-user',JSON.stringify({month:'2026-11-01'}));
+ const carry={...task,planning_month:'2026-10-01',carried_forward:true,status:'in_review'};planner.read.mockResolvedValue({...read,tasks:[carry]});render(<ContentPlannerPage/>);await screen.findAllByText('Real task');
+ fireEvent.click(screen.getByRole('button',{name:'View Real task',exact:true}));planner.command.mockResolvedValueOnce({...carry,status:'completed',revision:2,updated_at:'2026-11-01T01:00:00Z'});planner.read.mockImplementation(()=>new Promise(()=>{}));
+ fireEvent.click(screen.getByRole('button',{name:'Approve',exact:true}));
+ await vi.waitFor(()=>expect(screen.queryByRole('dialog',{name:'Creative task'})).toBeNull());expect(screen.queryByText('Real task')).toBeNull();expect(screen.getByText('Carried Forward 0')).toBeTruthy();
+});
+it('does not add carry-forward to Planning Insights production month projections',async()=>{
+ const carry={...task,id:'carry',title:'Old carry',planning_month:'2026-09-01',carried_forward:true};planner.read.mockResolvedValue({...read,tasks:[task,carry]});render(<ContentPlannerPage surface="insights"/>);await screen.findAllByText('Real task');expect(screen.queryByText('Old carry')).toBeNull();expect(screen.queryByText(/Carried Forward/)).toBeNull();
+});
