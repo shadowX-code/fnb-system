@@ -14,6 +14,6 @@
 .media-selection-sortable .media-selection-remove{position:static;flex:none}
 .media-selection-sortable .admin-sortable-handle{flex:none}
 @media(pointer:coarse){.media-selection-sortable .admin-sortable-handle,.media-selection-sortable .icon-btn{min-width:44px;min-height:44px}}
-@media(max-width:480px){.media-selection-sortable .media-selection-item{gap:4px;flex-wrap:wrap}.media-selection-sortable .media-selection-name{flex-basis:calc(100% - 110px)}.media-selection-sortable .media-order-controls{margin-left:auto}}
+@media(max-width:480px){.media-selection-sortable .admin-sortable-handle,.media-selection-sortable .icon-btn{min-width:44px;min-height:44px}.media-selection-sortable .media-selection-item{gap:4px;flex-wrap:wrap}.media-selection-sortable .media-selection-name{flex-basis:calc(100% - 110px)}.media-selection-sortable .media-order-controls{margin-left:auto}}
 
 .media-selection-sortable .marketing-preview-trigger{width:54px;height:54px}

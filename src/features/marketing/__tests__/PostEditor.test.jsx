@@ -80,4 +80,5 @@ it('confirms before replacing Instagram media, supports cancellation and refuses
 it('reports incompatible Facebook selections without dropping items, replacing media or changing Instagram format',async()=>{
  const initial={...mediaSeed,variants:mediaSeed.variants.map(v=>v.channel==='instagram'?{...v,format:'image',asset_ids:[]}:v)},onPayload=vi.fn();
  render(<CopyHarness initial={initial} onPayload={onPayload}/>);await screen.findByText(/No currently eligible account/);fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Copy media from Facebook'}));expect(screen.getByRole('alert').textContent).toContain('Choose one');expect(onPayload).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:'Instagram format'}).textContent).toContain('Image');
+ fireEvent.click(screen.getByRole('button',{name:'Instagram format'}));fireEvent.click(screen.getByRole('option',{name:'Carousel',exact:true}));await waitFor(()=>expect(screen.queryByRole('alert')).toBeNull());
 });
