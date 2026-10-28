@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-28 — Instagram URL extraction reliability
+
+Add/Edit Social Profile now normalizes Instagram URLs/usernames and debounces the existing delegated Business Discovery pipeline. The server retains supported public metadata and bounded provider failure categories, while manual and background requests fence overlapping reads by current delegation/generation. Preview races and removed unsaved rows cannot replace another identity; URL-only saves remain available when enrichment is unavailable. Documentation: docs/domains/marketing.md. Staging authority/receipt verification remains separate from separately approved bounded provider acceptance; no Production activation is part of this change.
+
 ## 2026-10-28 — Workspace Creator enrichment delegation
 
 Added explicit, default-dormant Workspace delegation of one current Instagram connection/generation for public Creator reads. Manual refresh and the existing follower queue share server-side request/result authority, revocable epochs and atomic persistence; browser observations cannot bypass it. Prior cached evidence survives failures and replacement. Canonical owner: docs/domains/marketing.md. Verification covers grant/revoke/regrant, generation rotation, late results, one-use proof, unauthorized writes, shared-directory isolation and history using rollback-only fixtures and controlled provider responses; real Meta activation and Production release remain separately gated.

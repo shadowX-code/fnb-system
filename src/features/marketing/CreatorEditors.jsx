@@ -53,7 +53,7 @@ function SocialProfileFields({value:v,onChange,org,disabled=false,onEnriched}){
   if(!org)return;setChecking(true);
   try{
    const result=await creatorService.profile(org,null,parsed.profile_url,{accountId:bound?previous.id:null});
-   if(ticket!==version.current)return;setDiagnostics(result.provider_evidence||null);
+   if(ticket!==version.current||creatorProfileLink(current.current)!==parsed.profile_url)return;setDiagnostics(result.provider_evidence||null);
    if(result.profile_url&&result.profile_url!==parsed.profile_url)throw new Error('Provider returned a different profile. Saved details are retained.');
    if(result.metadata_status==='public_extracted'){
     const account=result.account;
