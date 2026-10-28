@@ -158,6 +158,27 @@ do $$declare o uuid:=(select id from marketing_qa_ids where key='org');r jsonb;r
 end;$$;
 reset role;
 do $$begin assert (select previous_observation->>'followers' from marketing_private.creator_enrichment_requests where id=(select id from marketing_qa_ids where key='good_request'))='31','Legacy follower observation retained before replacement';assert (select previous_observation->'public_observation'->>'avatar_url' from marketing_private.creator_enrichment_requests where id=(select id from marketing_qa_ids where key='good_request'))='https://scontent.cdninstagram.com/old.jpg','Legacy avatar retained before replacement';end;$$;
+
+-- A preview rejected by Meta remains a one-use, current-authority diagnostic, not verified profile metadata.
+select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from marketing_qa_ids where key='user'),'role','authenticated')::text,true);
+set local role authenticated;
+do $$declare r jsonb;begin r:=marketing_creator_enrichment_begin((select id from marketing_qa_ids where key='org'),'qa_unavailable',null);insert into marketing_qa_ids values('unavailable_preview',(r->>'request_id')::uuid);perform marketing_creator_inspection_access((select id from marketing_qa_ids where key='org'),null,false,(r->>'request_id')::uuid);end;$$;
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+do $$declare r jsonb;begin r:=marketing_creator_enrichment_finish((select id from marketing_qa_ids where key='unavailable_preview'),(select id from marketing_qa_ids where key='user'),null,'profile_not_available_with_current_meta_access');assert r->>'enrichment_receipt'=(select id::text from marketing_qa_ids where key='unavailable_preview');end;$$;
+reset role;
+select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from marketing_qa_ids where key='user'),'role','authenticated')::text,true);
+set local role authenticated;
+do $$declare r jsonb;payload jsonb;denied boolean:=false;begin
+ payload:=jsonb_build_object('creator_id',(select id from marketing_qa_ids where key='creator'),'platform','instagram','handle','qa_unavailable','profile_url','https://www.instagram.com/qa_unavailable/','profile_enrichment_receipt',(select id from marketing_qa_ids where key='unavailable_preview'));
+ r:=marketing_creator_command(gen_random_uuid(),(select id from marketing_qa_ids where key='org'),null,'save_account',null,0,payload);
+ assert r->>'followers' is null and r->>'public_observation' is null,'Unavailable receipts never invent facts';
+ assert r->>'followers_sync_status'='unavailable' and r->>'followers_sync_reason'='profile_not_available_with_current_meta_access','Unavailable reason survives Save and reopen';
+ assert (r->>'followers_due_at')::timestamptz>clock_timestamp()+interval '23 hours','No immediate duplicate provider request after Save';
+ begin perform marketing_creator_command(gen_random_uuid(),(select id from marketing_qa_ids where key='org'),null,'save_account',null,0,payload);exception when insufficient_privilege then denied:=true;end;assert denied,'Unavailable receipt is one-use';
+end;$$;
+reset role;
 -- An older ready preview cannot be saved after revocation; the queue uses the same authority.
 select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from marketing_qa_ids where key='user'),'role','authenticated')::text,true);
 set local role authenticated;

@@ -90,3 +90,8 @@ it('persists available public name and metadata with the same identity-bound rec
  graph.request.mockResolvedValue({business_discovery:{id:'98765',username:'target',name:'Public name',biography:'Food creator',website:'https://example.com',media_count:42,followers_count:7}});
  await executeCreatorEnrichment(service,graph,[],request,'user');expect(service.rpc).toHaveBeenCalledWith('marketing_creator_enrichment_finish',expect.objectContaining({p_observation:{id:'98765',username:'target',name:'Public name',biography:'Food creator',website:'https://example.com',media_count:42,followers:7}}));
 });
+
+it('acknowledges only a canonically persisted unavailable receipt without facts or another provider call',async()=>{
+ const rpc=service.rpc;service.rpc=vi.fn(async(name,args)=>name==='marketing_creator_enrichment_finish'?{data:{state:'failed',enrichment_receipt:request}}:rpc(name,args));graph.request.mockRejectedValue(Object.assign(new Error('not exposed'),{code:'meta_error_100',graphCode:100}));
+ expect(await readCreatorProfile(caller,service,'user',graph,[],{org,handle:'target'})).toMatchObject({metadata_status:'unavailable',enrichment_receipt:request,reason:'profile_not_available_with_current_meta_access'});expect(graph.request).toHaveBeenCalledTimes(1);
+});
