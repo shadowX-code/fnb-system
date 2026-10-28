@@ -56,3 +56,28 @@ it('reports configuration failures as unavailable readiness rather than an accou
  service.metaConfiguration.mockRejectedValue(new Error('Unavailable'));render(<Harness/>);expect(await screen.findByText(/Publishing readiness could not be checked/)).toBeTruthy();expect(screen.getByRole('button',{name:'Retry publishing check'})).toBeTruthy();expect(screen.getByLabelText(/Facebook caption/).disabled).toBe(false);
  service.metaConfiguration.mockResolvedValue({normal_format_execution_enabled:true});fireEvent.click(screen.getByRole('button',{name:'Retry publishing check'}));await waitFor(()=>expect(screen.queryByText(/Publishing readiness could not be checked/)).toBeNull());
 });
+
+function CopyHarness({initial,records=assets,onPayload=()=>{}}){const [payload,setPayload]=useState(initial),[saved,setSaved]=useState(null);return <><PostEditor payload={payload} onChange={next=>{setPayload(next);onPayload(next)}} brand={brand} assets={records} onPlannedChange={()=>{}} can={()=>true}/><button onClick={()=>setSaved(structuredClone(payload))}>Save test revision</button><button onClick={()=>setPayload(structuredClone(saved))}>Reopen test revision</button><button onClick={()=>setPayload(p=>({...p,title:p.title+' changed',variants:p.variants.map(v=>v.channel==='facebook'?{...v,asset_ids:[...v.asset_ids].reverse()}:v)}))}>Concurrent source edit</button></>}
+const mediaSeed={...seed,variants:[{channel:'facebook',format:'carousel',caption:'Keep FB',asset_ids:['b','a']},{channel:'instagram',format:'carousel',caption:'Keep IG',asset_ids:[]}]};
+it('copies exact media order, immediately previews it and keeps channel edits independent through save/reopen',async()=>{
+ const onPayload=vi.fn();render(<CopyHarness initial={mediaSeed} onPayload={onPayload}/>);await screen.findByText(/No currently eligible account/);
+ fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Copy media from Facebook'}));
+ expect(onPayload.mock.lastCall[0].variants[1]).toEqual({...mediaSeed.variants[1],asset_ids:['b','a']});
+ const preview=within(screen.getByRole('article',{name:'Instagram post preview'}));await waitFor(()=>expect(preview.getByRole('img').getAttribute('src')).toContain('Second.jpg'));
+ fireEvent.click(screen.getByRole('button',{name:'Move Second.jpg later'}));await waitFor(()=>expect(onPayload.mock.lastCall[0].variants[1].asset_ids).toEqual(['a','b']));
+ await waitFor(()=>expect(preview.getByRole('img').getAttribute('src')).toContain('Real.jpg'));
+ fireEvent.click(screen.getByRole('button',{name:'Save test revision'}));fireEvent.click(screen.getByRole('tab',{name:'Facebook',exact:true}));
+ expect(onPayload.mock.lastCall[0].variants[0].asset_ids).toEqual(['b','a']);fireEvent.click(screen.getByRole('button',{name:'Reopen test revision'}));fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));expect(screen.getByLabelText(/Instagram caption/).value).toBe('Keep IG');
+ expect(screen.getByRole('button',{name:'Instagram format'}).textContent).toContain('Carousel');await waitFor(()=>expect(preview.getByRole('img').getAttribute('src')).toContain('Real.jpg'));
+});
+it('confirms before replacing Instagram media, supports cancellation and refuses a changed source confirmation',async()=>{
+ const onPayload=vi.fn(),initial={...mediaSeed,variants:mediaSeed.variants.map(v=>v.channel==='instagram'?{...v,asset_ids:['a','b']}:v)};
+ render(<CopyHarness initial={initial} onPayload={onPayload}/>);await screen.findByText(/No currently eligible account/);fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Copy media from Facebook'}));expect(onPayload).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Cancel',exact:true}));expect(onPayload).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Copy media from Facebook'}));fireEvent.click(screen.getByRole('button',{name:'Concurrent source edit'}));fireEvent.click(screen.getByRole('button',{name:'Replace media',exact:true}));expect(onPayload).not.toHaveBeenCalled();expect(screen.getByRole('alert').textContent).toContain('changed');
+ fireEvent.click(screen.getByRole('button',{name:'Copy media from Facebook'}));fireEvent.click(screen.getByRole('button',{name:'Replace media',exact:true}));expect(onPayload.mock.lastCall[0].variants[1].asset_ids).toEqual(['a','b']);
+});
+it('reports incompatible Facebook selections without dropping items, replacing media or changing Instagram format',async()=>{
+ const initial={...mediaSeed,variants:mediaSeed.variants.map(v=>v.channel==='instagram'?{...v,format:'image',asset_ids:[]}:v)},onPayload=vi.fn();
+ render(<CopyHarness initial={initial} onPayload={onPayload}/>);await screen.findByText(/No currently eligible account/);fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Copy media from Facebook'}));expect(screen.getByRole('alert').textContent).toContain('Choose one');expect(onPayload).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:'Instagram format'}).textContent).toContain('Image');
+});

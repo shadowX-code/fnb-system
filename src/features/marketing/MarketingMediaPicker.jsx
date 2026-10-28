@@ -1,5 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import {Upload,Plus,X,ChevronLeft,ChevronRight} from 'lucide-react';
+import AdminSortableList from '../../components/ui/AdminSortableList.jsx';
 import Modal from '../../components/feedback/Modal.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
@@ -13,7 +14,7 @@ const EMPTY_ASSETS=[];
 const fileKey=file=>file.selection_id||file.id;
 const attachmentTypes=['image/jpeg','image/png','image/webp','video/mp4','application/pdf'];
 const eligible=(asset,format,channel,attachments=false)=>attachments?asset.state==='ready'&&attachmentTypes.includes(asset.mime_type)&&asset.size_bytes<=104857600:publishingMediaEligible(asset,format,channel);
-export default function MarketingMediaPicker({brand,format,channel,values=[],assets=EMPTY_ASSETS,onChange,onAssetsResolved,disabled=false,thumbnailPreviews=false,initialOpen=false,attachments=false}){
+export default function MarketingMediaPicker({brand,format,channel,values=[],assets=EMPTY_ASSETS,onChange,onAssetsResolved,disabled=false,thumbnailPreviews=false,initialOpen=false,attachments=false,renderActions}){
  const mediaChannel=attachments?undefined:channel;
  const scope=JSON.stringify([brand.organization_id,brand.id,format,mediaChannel,attachments]);const activeScope=useRef(scope);activeScope.current=scope;
  const saving=useRef(false),prepared=useRef(new Map());
@@ -78,7 +79,21 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
   }catch(e){if(activeScope.current===expectedScope)setError(e.message||'Media could not be saved. Try again.');}
   finally{if(activeScope.current===expectedScope){saving.current=false;setBusy(false)}}
  }
- return <div className="space-y-3"><div className="media-selection">{values.map((id,index)=>{const asset=known.find(a=>a.id===id);return <div className="media-selection-item" key={id}>{asset?<MarketingMediaPreview compact={thumbnailPreviews} cover={thumbnailPreviews} asset={asset} assets={values.map(id=>known.find(a=>a.id===id)).filter(Boolean)}/>:<p className="text-sm">Saved media · preview unavailable</p>}{!attachments&&format==='carousel'?<div className="media-order-controls"><span>{index+1}</span>{[-1,1].map(direction=><button key={direction} type="button" className="icon-btn" disabled={disabled||busy||index+direction<0||index+direction>=values.length} aria-label={`Move ${asset?.filename||'media'} ${direction<0?'earlier':'later'}`} onClick={()=>{const next=[...values];[next[index],next[index+direction]]=[next[index+direction],next[index]];confirm(next.map(id=>({id})),false)}}>{direction<0?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}</button>)}</div>:null}<button type="button" className="icon-btn" aria-label={`Remove ${asset?.filename||'media'}`} disabled={disabled||busy} onClick={()=>confirm(values.filter(value=>value!==id).map(id=>({id})),false)}><X size={15}/></button></div>})}</div><button type="button" className="btn-secondary" disabled={disabled||busy} onClick={()=>{setPending(values.map(id=>({id})));setOpen(true);setError('')}}><Plus size={15}/>{values.length&&!attachments&&format!=='carousel'?'Replace media':'Add media'}</button>
+ const sortable=!attachments&&format==='carousel';
+ function move(source,target,position){
+  if(disabled||busy||saving.current||source===target||!values.includes(source)||!values.includes(target))return;
+  const next=values.filter(id=>id!==source);next.splice(next.indexOf(target)+(position==='after'?1:0),0,source);
+  if(next.some((id,index)=>id!==values[index]))confirm(next.map(id=>({id})),false);
+ }
+ function selectedMedia(id,index,handle){const asset=known.find(a=>a.id===id);return <div className={`media-selection-item${sortable?' is-sortable':''}`} key={id}>
+  {handle}{asset?<MarketingMediaPreview compact={thumbnailPreviews||sortable} cover={thumbnailPreviews||sortable} asset={asset} assets={values.map(id=>known.find(a=>a.id===id)).filter(Boolean)}/>:<span className="text-sm">Preview unavailable</span>}
+  {sortable?<><span className="media-selection-name" title={asset?.filename}>{asset?.filename||'Saved media'}</span><div className="media-order-controls"><span aria-label={`Position ${index+1} of ${values.length}`}>{index+1}</span>{[-1,1].map(direction=><button key={direction} type="button" className="icon-btn" disabled={disabled||busy||index+direction<0||index+direction>=values.length} aria-label={`Move ${asset?.filename||'media'} ${direction<0?'earlier':'later'}`} onClick={()=>move(id,values[index+direction],direction<0?'before':'after')}>{direction<0?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}</button>)}</div></>:null}
+  <button type="button" className="icon-btn media-selection-remove" aria-label={`Remove ${asset?.filename||'media'}`} disabled={disabled||busy} onClick={()=>confirm(values.filter(value=>value!==id).map(id=>({id})),false)}><X size={15}/></button>
+ </div>}
+ return <div className="space-y-3">
+ {sortable?<><p className="text-sm text-text-secondary">Drag to reorder · selection order is publication order.</p><AdminSortableList key={scope} items={values} getId={id=>id} getLabel={id=>`Reorder ${known.find(a=>a.id===id)?.filename||'media'}`} disabled={disabled||busy} className="media-selection-sortable" onMove={move}>{({item,index,handle})=>selectedMedia(item,index,handle)}</AdminSortableList></>:<div className="media-selection">{values.map((id,index)=>selectedMedia(id,index))}</div>}
+ <div className="media-selection-actions"><button type="button" className="btn-secondary" disabled={disabled||busy} onClick={()=>{setPending(values.map(id=>({id})));setOpen(true);setError('')}}><Plus size={15}/>{values.length&&!attachments&&format!=='carousel'?'Replace media':'Add media'}</button>{renderActions?.({disabled:disabled||busy})}</div>
+
  {!open&&error?<div><p role="alert" className="text-sm text-danger">{error}</p><button type="button" className="btn-secondary" disabled={disabled||busy} onClick={()=>confirm(pending,false)}>Retry media save</button></div>:null}
  {open?<Modal title={format==='reel_cover'?'Select Reel cover':'Select media'} size="xl" onClose={()=>{if(!busy)setOpen(false)}} footer={<><span className="mr-auto text-sm text-text-secondary">{busy?'Saving media…':`${pending.length} selected`}</span><button className="btn-primary" type="button" disabled={busy||disabled} onClick={()=>confirm()}>{busy?'Saving…':'Done'}</button></>}>
  {attachments?<p className="text-sm text-text-secondary mb-3">Working files and references for any task type · up to 10 files. Publishing formats are checked separately.</p>:null}

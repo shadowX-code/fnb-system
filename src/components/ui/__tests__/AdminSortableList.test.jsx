@@ -44,3 +44,11 @@ describe("AdminSortableList", () => {
 });
 
 afterEach(cleanup);
+
+it('disables handles and cancels an in-flight move when the order or enabled state changes',()=>{
+ const onMove=vi.fn(),items=[{id:'one'},{id:'two'}];
+ const props={items,onMove};const view=render(<AdminSortableList {...props}>{({item,handle})=><div>{handle}{item.id}</div>}</AdminSortableList>);
+ const handle=screen.getByRole('button',{name:/Reorder item 1/});fireEvent.pointerDown(handle,{pointerId:9,button:0,clientY:10});fireEvent.pointerMove(window,{pointerId:9,clientY:100});
+ view.rerender(<AdminSortableList {...props} disabled>{({item,handle})=><div>{handle}{item.id}</div>}</AdminSortableList>);fireEvent.pointerUp(window,{pointerId:9,clientY:100});
+ expect(onMove).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:/Reorder item 1/}).disabled).toBe(true);expect(document.body.classList.contains('admin-sortable-is-dragging')).toBe(false);
+});

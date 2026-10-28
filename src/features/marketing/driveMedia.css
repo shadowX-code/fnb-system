@@ -4,3 +4,16 @@
 @media(max-width:640px){.drive-list-table thead{display:none}.drive-list-table,.drive-list-table tbody{display:block;width:100%}.drive-list-table tbody{display:grid;gap:8px}.drive-list-table .admin-table-row{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid var(--theme-border);border-radius:10px;overflow:hidden}.drive-list-table .admin-table-cell{padding:8px 10px;min-width:0;border:0}.drive-list-table .drive-name-cell{grid-column:1/3;grid-row:1;width:auto;max-width:none}.drive-list-table .drive-actions-cell{grid-column:3;grid-row:1;width:auto!important;align-self:center}.drive-list-table .drive-type-cell,.drive-list-table .drive-modified-cell,.drive-list-table .drive-size-cell{grid-row:2;font-size:12px;color:var(--theme-text-secondary)}.drive-mobile-label{display:block;font-size:10px;font-weight:600;margin-bottom:3px}.drive-list-name{gap:8px}.drive-toolbar>div{flex-wrap:wrap}}
 
 .drive-tile{position:relative}.drive-tile-preview-action{position:absolute;top:8px;right:8px;background:var(--theme-surface-raised)}
+
+.media-selection-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.media-selection-sortable .media-selection-item{display:flex;align-items:center;gap:8px;padding:6px;min-width:0;background:var(--theme-surface-raised)}
+.media-selection-sortable .marketing-preview-cover{width:54px;height:54px;flex:none;margin:0}
+.media-selection-sortable .marketing-preview-cover img,.media-selection-sortable .marketing-preview-cover video{height:54px;width:54px;object-fit:cover}
+.media-selection-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.media-selection-sortable .media-order-controls{background:none;padding:0;flex:none}
+.media-selection-sortable .media-selection-remove{position:static;flex:none}
+.media-selection-sortable .admin-sortable-handle{flex:none}
+@media(pointer:coarse){.media-selection-sortable .admin-sortable-handle,.media-selection-sortable .icon-btn{min-width:44px;min-height:44px}}
+@media(max-width:480px){.media-selection-sortable .media-selection-item{gap:4px;flex-wrap:wrap}.media-selection-sortable .media-selection-name{flex-basis:calc(100% - 110px)}.media-selection-sortable .media-order-controls{margin-left:auto}}
+
+.media-selection-sortable .marketing-preview-trigger{width:54px;height:54px}
