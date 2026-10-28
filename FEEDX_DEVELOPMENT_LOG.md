@@ -831,3 +831,8 @@ The existing connection execution policy now supports a finite, generation-bound
 - Added a shared canonical visibility predicate for selected-month tasks plus earlier active work; read-derived carry metadata and compact Board/List/count presentation retain original identities and schedules.
 - Manual order retains revision/Brand authority across visible months. Existing save context can no longer silently rewrite planning month; historical Completed and Planning Insights attribution remain intact.
 - Focused frontend regressions and rollback-only Staging authority tests cover month boundaries, four active states, completion/history, stale/retry guards, Brand isolation and recurrence deduplication. No Production execution authorized.
+
+### Creator Instagram refresh acknowledgement
+- Fixed post-commit cleanup using a Supabase RPC builder as a native Promise, which replaced a committed profile refresh with a generic error.
+- Preserve canonical persistence acknowledgement through the inspector, distinguish rejection/uncertain response, and prevent implicit Instagram follower fallback retries.
+- No SQL, delegation activation or real Meta request required; focused SDK-shaped, API and editor regressions cover cached evidence, immediate avatar/follower updates and one-use receipts.

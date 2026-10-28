@@ -35,3 +35,15 @@ it('does not scrape Instagram when no explicitly authorized shared-profile conne
 it('never retries restricted public access during official-only image renewal',async()=>{
  stage();vi.stubGlobal('fetch',vi.fn(async url=>new Response(JSON.stringify(url.endsWith('/creator-profile')?{applicable:false}:{accounts:[]}))));const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/happinesskopitiam/',officialOnly:true};const response=res();await handler(request,response);expect(response.json).toHaveBeenCalledWith(expect.objectContaining({reason:'organization_profile_authorization_required'}));expect(inspectProfile).not.toHaveBeenCalled();
 });
+
+it('returns the canonical committed profile acknowledgement without a fallible post-commit directory reread',async()=>{
+ stage();let reads=0;const account={id:'account',followers:32,public_observation:{avatar_url:'https://scontent.cdninstagram.com/new.jpg'}},receipt='committed-receipt';
+ const fetch=vi.fn(async url=>{if(url.endsWith('/creator-profile'))return new Response(JSON.stringify({applicable:true,metadata_status:'public_extracted',enrichment_receipt:receipt,account}));if(++reads>1)throw new Error('unrelated projection unavailable');return new Response(JSON.stringify({accounts:[]}))});vi.stubGlobal('fetch',fetch);
+ const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/target/',account_id:'account'};const response=res();await handler(request,response);
+ expect(response.code).toBe(200);expect(response.json).toHaveBeenCalledExactlyOnceWith({metadata_status:'public_extracted',enrichment_receipt:receipt,account});expect(reads).toBe(1);expect(fetch).toHaveBeenCalledTimes(2);
+});
+it.each(['transport','invalid-json','http-error'])('reports an uncertain official %s response without another read, scrape or refresh',async failure=>{
+ stage();const fetch=vi.fn(async url=>{if(!url.endsWith('/creator-profile'))return new Response('{"accounts":[]}');if(failure==='transport')throw new TypeError('lost response');return failure==='invalid-json'?new Response('broken json'):new Response('{}',{status:500})});vi.stubGlobal('fetch',fetch);
+ const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/target/'};const response=res();await handler(request,response);
+ expect(response.code).toBe(502);expect(response.json).toHaveBeenCalledWith(expect.objectContaining({reason:'profile_refresh_uncertain'}));expect(fetch).toHaveBeenCalledTimes(2);expect(inspectProfile).not.toHaveBeenCalled();
+});
