@@ -39,7 +39,7 @@ export default function PostEditor({payload,onChange,brand,assets=[],plannedLoca
  const intent=publishingIntent(payload),savedStatus=publishingStatus(content);
  const dateError=planned&&!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(planned)?'Choose both a date and time, or clear the date to leave this post unplanned.':'';
  const copySignature=JSON.stringify([brand.organization_id,brand.id,payload.variants,content?.revision]);
- useEffect(()=>{setMediaCopy(null);setMediaCopyError('');setMediaCopied('')},[channel,brand.id,brand.organization_id]);
+ useEffect(()=>{setMediaCopy(null);setMediaCopyError('');setMediaCopied('')},[channel,brand.id,brand.organization_id,variant?.format]);
  function copyMedia(confirmed=false){
   if(busy||channel!=='instagram'||other?.channel!=='facebook')return;
   setMediaCopyError('');setMediaCopied('');
