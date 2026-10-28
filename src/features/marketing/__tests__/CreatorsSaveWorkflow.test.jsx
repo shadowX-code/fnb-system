@@ -61,3 +61,11 @@ it('preserves canonical Post deep links while Directory and commercial scopes ar
  window.history.replaceState({},'','/?post_id=post&marketing_brand=b');service.read.mockResolvedValue({...data,posts:[{id:'post',brand_id:'b',creator_id:'creator',platform:'instagram',caption:'Linked Post',canonical_url:'https://www.instagram.com/p/Fixture/',latest_metrics:{},revision:1}]});
  render(<CreatorsPage ui={{notify}}/>);await screen.findByRole('dialog');expect(screen.getByRole('tab',{name:'Posts'}).getAttribute('aria-selected')).toBe('true');expect(service.read).toHaveBeenCalledWith('org','b');expect(screen.getByRole('dialog').textContent).toContain('Linked Post');
 });
+
+it('keeps Add Creator primary without a standalone Post URL action across Creator sections',async()=>{
+ render(<CreatorsPage ui={{notify}}/>);const add=await screen.findByRole('button',{name:'Add Creator',exact:true});expect(add.className).toContain('btn-primary');
+ for(const tab of ['Directory','Collaborations','Posts','Insights']){
+  fireEvent.click(screen.getByRole('tab',{name:tab,exact:true}));expect(screen.queryByRole('button',{name:'Add Post from URL',exact:true})).toBeNull();expect(screen.getByRole('button',{name:'Add Creator',exact:true})).toBeTruthy();
+ }
+ expect(service.command).not.toHaveBeenCalled();
+});
