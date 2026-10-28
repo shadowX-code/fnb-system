@@ -21,8 +21,12 @@ export const creatorService={
  read:(org,brand)=>rpc('marketing_creator_workspace',{p_org:org,p_brand:brand||null}),
  profile:async(org,brand,url,{officialOnly=false,accountId=null}={})=>{
  const {data:{session}}=await supabase.auth.getSession();
- const response=await fetch('/api/marketing-creator-inspect',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session?.access_token||'')},body:JSON.stringify({org,brand,url,kind:'profile',account_id:accountId,...(officialOnly?{officialOnly:true}:{})})});
- const data=await response.json();if(!response.ok)throw new Error(data.error||'Profile details unavailable.');return data;
+ let response,data;
+ try{
+  response=await fetch('/api/marketing-creator-inspect',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session?.access_token||'')},body:JSON.stringify({org,brand,url,kind:'profile',account_id:accountId,...(officialOnly?{officialOnly:true}:{})})});
+  data=await response.json();
+ }catch{throw new Error('Refresh confirmation unavailable. It may already be saved. Check saved profile before refreshing again.')}
+ if(!response.ok)throw new Error(data.error||'Profile details unavailable.');return data;
  },
  preview:async(org,brand,url)=>{
  const {data:{session}}=await supabase.auth.getSession();

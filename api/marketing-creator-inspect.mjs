@@ -11,7 +11,7 @@ export default async function handler(req,res){
  if(!/^Bearer [\w.-]+$/.test(req.headers.authorization||''))return res.status(401).json({error:'Sign in to inspect a post.'});
  let body;try{body=typeof req.body==='string'?JSON.parse(req.body):req.body}catch{return res.status(400).json({error:'Invalid request.'})}
  if(!body||JSON.stringify(body).length>5000||!/^[-\da-f]{36}$/i.test(body.org||'')||(body.kind!=='profile'&&!/^[-\da-f]{36}$/i.test(body.brand||'')))return res.status(400).json({error:'Choose an authorized Brand and post URL.'});
- let lease;
+ let lease,officialRequested=false;
  async function rpc(name,args){const r=await fetch(STAGING+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:process.env.VITE_SUPABASE_ANON_KEY||'',Authorization:req.headers.authorization,'Content-Type':'application/json'},body:JSON.stringify(args),signal:AbortSignal.timeout(10000)});if(!r.ok)throw new Error(r.status===401?'signed_out':'access_or_limit');return r.json()}
  const scope={p_org:body.org,p_brand:body.kind==='profile'?null:body.brand};
  try{
@@ -20,10 +20,11 @@ export default async function handler(req,res){
   if(profileMode){
    await rpc('marketing_creator_directory',scope);
    if(input.platform==='instagram'){
+    officialRequested=true;
     const official=await fetch(STAGING+'/functions/v1/marketing-meta/creator-profile',{method:'POST',headers:{apikey:process.env.VITE_SUPABASE_ANON_KEY||'',Authorization:req.headers.authorization,'Content-Type':'application/json'},body:JSON.stringify({org:body.org,handle:input.handle,account_id:body.account_id||null}),signal:AbortSignal.timeout(30000)});
     if(!official.ok)throw new Error('official_profile_unavailable');
     const result=await official.json();
-    if(result.applicable===true){await rpc('marketing_creator_directory',scope);const {applicable,...profile}=result;return res.status(200).json(profile);}
+    if(result.applicable===true){const {applicable,...profile}=result;return res.status(200).json(profile);}
     return res.status(200).json({metadata_status:'unavailable',reason:'organization_profile_authorization_required',unavailable:{profile:'Ask a workspace administrator to delegate an eligible Instagram connection for public Creator reads. Saved details and initials remain available.'}});
    }
    lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
@@ -49,6 +50,8 @@ export default async function handler(req,res){
   const matches=result.author_external_id?(data.accounts||[]).filter(a=>!a.archived&&a.platform===result.platform&&a.external_id===result.author_external_id):[];
   const verified=matches.filter(a=>a.identity_verified);
   return res.status(200).json({platform:canonical.platform,post_key:canonical.post_key,canonical_url:canonical.canonical_url,...result,duplicate:canonical.duplicate,matched_creator_id:verified.length===1?verified[0].creator_id:null,matched_account_id:verified.length===1?verified[0].id:null,identity_verified:verified.length===1,author_identity_observed:Boolean(result.author_external_id),source:result.source||'Public post · review and confirm before saving',message:result.unavailable?.post||result.message});
- }catch(error){return res.status(error.message==='signed_out'?401:400).json({error:error.message==='access_or_limit'?'Access changed or the inspection limit was reached. Try later.':'Post inspection is unavailable. Check the URL and use manual details if necessary.'})}
+ }catch(error){
+  if(officialRequested)return res.status(502).json({reason:'profile_refresh_uncertain',error:'Refresh confirmation unavailable. It may already be saved. Check saved profile before refreshing again.'});
+  return res.status(error.message==='signed_out'?401:400).json({error:error.message==='access_or_limit'?'Access changed or the inspection limit was reached. Try later.':'Post inspection is unavailable. Check the URL and use manual details if necessary.'})}
  finally{if(lease)await rpc('marketing_creator_inspection_access',{...scope,p_begin:false,p_lease:lease}).catch(()=>{})}
 }

@@ -47,3 +47,31 @@ it('routes the existing worker lease through the same purpose authority and comm
  expect(await runCreatorFollowers(service,graph,[])).toBe(true);expect(service.rpc).toHaveBeenCalledWith('marketing_creator_enrichment_material',{p_request:request,p_auth_user:null});
  expect(service.rpc).not.toHaveBeenCalledWith('marketing_meta_connection_material',expect.anything());
 });
+
+// PostgREST builders are lazy PromiseLike values, not native Promises: they have no .catch().
+function sdkRpc(implementation:any){return vi.fn((...args:any[])=>({then:(resolve:any,reject:any)=>Promise.resolve().then(()=>implementation(...args)).then(resolve,reject)}))}
+it('acknowledges a committed refresh with actual SDK-shaped cleanup and a failing lease release',async()=>{
+ const oldCaller=caller.rpc;caller.rpc=sdkRpc(async(name:any,args:any)=>{if(name==='marketing_creator_inspection_access')throw new Error('cleanup unavailable');return oldCaller(name,args)});
+ const oldService=service.rpc;service.rpc=sdkRpc(oldService);
+ await expect(readCreatorProfile(caller,service,'user',graph,[],{org,handle:'target',account_id:account})).resolves.toMatchObject({metadata_status:'public_extracted',enrichment_receipt:request,account:{id:account}});
+ expect(graph.request).toHaveBeenCalledTimes(1);expect(service.rpc.mock.calls.filter(([name,args]:any)=>name==='marketing_creator_enrichment_finish'&&args.p_observation)).toHaveLength(1);
+});
+it('records provider failure with a lazy SDK builder without throwing from best-effort failure evidence',async()=>{
+ graph.request.mockRejectedValue(Object.assign(new Error('provider rejected'),{code:'meta_permission_or_token_invalid'}));
+ const oldService=service.rpc;service.rpc=sdkRpc((name:any,args:any)=>name==='marketing_creator_enrichment_finish'?{error:{code:'42501'}}:oldService(name,args));
+ await expect(readCreatorProfile(caller,service,'user',graph,[],{org,handle:'target',account_id:account})).resolves.toMatchObject({metadata_status:'unavailable',reason:'meta_permission_or_token_invalid',failure_stage:'provider'});
+ expect(graph.request).toHaveBeenCalledTimes(1);expect(service.rpc.mock.calls.filter(([name]:any)=>name==='marketing_creator_enrichment_finish')).toHaveLength(1);
+});
+it.each(['42501','40001','P0001'])('reports an explicit commit rejection %s without another finish or provider request',async code=>{
+ service.rpc.mockImplementation(async(name:any)=>name==='marketing_creator_enrichment_material'?{data:material}:{error:{code}});
+ const result=await readCreatorProfile(caller,service,'user',graph,[],{org,handle:'target',account_id:account});
+ expect(result).toMatchObject({metadata_status:'unavailable',failure_stage:'persistence'});expect(result).not.toHaveProperty('account');
+ expect(graph.request).toHaveBeenCalledTimes(1);expect(service.rpc.mock.calls.filter(([name]:any)=>name==='marketing_creator_enrichment_finish')).toHaveLength(1);
+});
+it.each(['thrown','resolved'])('treats a %s lost persistence acknowledgement as uncertain without retry or failure overwrite',async kind=>{
+ service.rpc.mockImplementation(async(name:any)=>{if(name==='marketing_creator_enrichment_material')return {data:material};if(kind==='thrown')throw new TypeError('transport lost');return {error:{code:'',message:'transport lost'}}});
+ const result=await readCreatorProfile(caller,service,'user',graph,[],{org,handle:'target',account_id:account});
+ expect(result).toMatchObject({metadata_status:'uncertain',reason:'persistence_acknowledgement_unavailable',failure_stage:'persistence'});
+ expect(result.unavailable.profile).toMatch(/may already be saved/);expect(result).not.toHaveProperty('account');
+ expect(graph.request).toHaveBeenCalledTimes(1);expect(service.rpc.mock.calls.filter(([name]:any)=>name==='marketing_creator_enrichment_finish')).toHaveLength(1);
+});

@@ -22,3 +22,8 @@ it('does not let a late old status read overwrite a newer server-persisted follo
  const {rerender}=render(<CreatorFollowers org="org" account={old}/>);rerender(<CreatorFollowers org="org" account={{...old,followers:0,followers_captured_at:'2026-10-28T00:00:00Z'}}/>);
  resolve(old);await screen.findByText('0');expect(screen.queryByText('31')).toBeNull();
 });
+it.each(['provider_read_failed','persistence_acknowledgement_unavailable','persistence_rejected'])('does not automatically queue another Instagram read after %s',async reason=>{
+ creatorService.refreshFollowers.mockClear();const onRefreshProfile=vi.fn().mockResolvedValue({metadata_status:reason.includes('acknowledgement')?'uncertain':'unavailable',reason});
+ render(<CreatorFollowers org="org" account={{id:'a',platform:'instagram',followers:32,followers_source:'meta_instagram_business_discovery',followers_sync_status:'ready'}} canRefresh onRefreshProfile={onRefreshProfile}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Refresh Profile'}));await screen.findByRole('button',{name:'Refresh Profile'});expect(onRefreshProfile).toHaveBeenCalledTimes(1);expect(creatorService.refreshFollowers).not.toHaveBeenCalled();expect(screen.getByText('32')).toBeTruthy();
+});

@@ -1,7 +1,7 @@
 import {connectionBinding,unseal} from './metaSecurity.ts';
 // Credentials stay server-side and are usable here only through a request-bound public-read delegation.
 async function enrichmentRpc(db:any,name:string,args:any){
- const {data,error}=await db.rpc(name,args);if(error)throw new Error('creator_enrichment_authority_changed');return data;
+ const {data,error}=await db.rpc(name,args);if(error)throw Object.assign(new Error('creator_enrichment_authority_changed'),{code:error.code});return data;
 }
 function publicObservation(profile:any,handle:string){
  if(String(profile?.username||'').toLowerCase()!==handle||!/^\d{1,40}$/.test(String(profile?.id||'')))throw new Error('provider_identity_mismatch');
@@ -19,6 +19,7 @@ function publicObservation(profile:any,handle:string){
  return observation;
 }
 export async function executeCreatorEnrichment(service:any,graph:any,keys:string[],request:string,userId:string|null){
+ let phase='authority';
  try{
   const args={p_request:request,p_auth_user:userId};
   const material=await enrichmentRpc(service,'marketing_creator_enrichment_material',args);
@@ -29,17 +30,24 @@ export async function executeCreatorEnrichment(service:any,graph:any,keys:string
   if(current?.purpose!==material.purpose||current.request_id!==request||current.id!==material.id||current.credential_generation!==material.credential_generation||connectionBinding(current)!==connectionBinding(material))throw new Error('creator_enrichment_authority_changed');
   const direct=String(material.account_name||'').replace(/^@/,'').toLowerCase()===material.handle;
   const fields=direct?'id,username,profile_picture_url,followers_count':`business_discovery.username(${material.handle}){id,username,profile_picture_url,followers_count}`;
+  phase='provider';
   const response=await graph.request(material.provider_account_id,credential.token,{fields});
   const observation=publicObservation(direct?response:response.business_discovery,material.handle);
   // This authority locks delegation + generation and atomically rejects late/stale responses.
+  phase='persistence';
   return await enrichmentRpc(service,'marketing_creator_enrichment_finish',{...args,p_observation:observation,p_error:null});
  }catch(error){
   const code=error&&typeof error==='object'&&'code' in error?String(error.code):'';
   const message=error instanceof Error?error.message:'';
+  // Once a commit was attempted, never issue another finish/provider request to guess its outcome.
+  if(phase==='persistence'){
+   const denied=['42501','40001','P0001','22023','23505','23514'].includes(code);
+   return {state:denied?'failed':'uncertain',reason:denied?(code==='42501'?'organization_profile_authorization_required':'persistence_rejected'):'persistence_acknowledgement_unavailable',failure_stage:'persistence'};
+  }
   const reason=message==='creator_enrichment_authority_changed'?'organization_profile_authorization_required':code==='meta_permission_or_token_invalid'?code:['provider_identity_mismatch','provider_profile_unavailable'].includes(message)?message:'provider_read_failed';
   // Failure evidence is best effort. A revoked or rotated delegation must reject even this commit.
-  await service.rpc('marketing_creator_enrichment_finish',{p_request:request,p_auth_user:userId,p_observation:null,p_error:reason}).catch(()=>{});
-  return {state:'failed',reason};
+  try{await service.rpc('marketing_creator_enrichment_finish',{p_request:request,p_auth_user:userId,p_observation:null,p_error:reason})}catch{}
+  return {state:'failed',reason,failure_stage:phase};
  }
 }
 export async function readCreatorProfile(caller:any,service:any,userId:string,graph:any,keys:string[],body:any){
@@ -50,9 +58,16 @@ export async function readCreatorProfile(caller:any,service:any,userId:string,gr
  if(begin?.eligible!==true||!/^[a-f\d-]{36}$/i.test(begin.request_id||''))throw new Error('creator_profile_scope_unavailable');
  try{
   const result=await executeCreatorEnrichment(service,graph,keys,begin.request_id,userId);
-  if(result?.state!=='ready')return {applicable:true,metadata_status:'unavailable',reason:result?.reason||'provider_read_failed',unavailable:{profile:result?.reason==='organization_profile_authorization_required'?'Workspace profile authorization changed. Saved details are retained.':'The authorized provider could not refresh this profile. Saved details are retained.'}};
+  if(result?.state!=='ready'){
+   const uncertain=result?.state==='uncertain';
+   const message=uncertain?'Refresh confirmation unavailable. It may already be saved. Check saved profile before refreshing again.':result?.failure_stage==='persistence'?'Profile was not saved because its identity or authorization changed. Saved details are retained.':result?.reason==='organization_profile_authorization_required'?'Workspace profile authorization changed. Saved details are retained.':'The authorized provider could not refresh this profile. Saved details are retained.';
+   return {applicable:true,metadata_status:uncertain?'uncertain':'unavailable',reason:result?.reason||'provider_read_failed',failure_stage:result?.failure_stage,unavailable:{profile:message}};
+  }
   return {applicable:true,platform:'instagram',handle,identity_verified:false,metadata_status:'public_extracted',...result.observation,enrichment_receipt:result.enrichment_receipt,account:result.account};
- }finally{await caller.rpc('marketing_creator_inspection_access',{p_org:org,p_brand:null,p_begin:false,p_lease:begin.request_id}).catch(()=>{})}
+ }finally{
+  // Supabase RPC builders are PromiseLike, with no .catch(); cleanup cannot replace a committed acknowledgement.
+  try{await caller.rpc('marketing_creator_inspection_access',{p_org:org,p_brand:null,p_begin:false,p_lease:begin.request_id})}catch{}
+ }
 }
 
 // Follower evidence is API-only: no HTML, browser, staff or paid fallback.
