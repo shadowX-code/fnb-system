@@ -53,7 +53,7 @@ afterEach(() => { cleanup(); vi.useRealTimers(); });
 describe("Factory MeSTI Cleaning of Area", () => {
   it("shows compact Location overflow and reads canonical history without overwriting an unsaved draft", async () => {
     const current = data.mestiCleaningRequirements[0];
-    factoryService.listMestiCleaningRequirementVersions.mockResolvedValue([current, { ...current, id: "req-floor-v4", version_no: 4, effective_until: "2026-09-01", superseded_by: current.id, location_names: ["Cooking"], created_at: "2026-08-01T04:00:00Z", created_by_name: "Isaac" }]);
+    factoryService.listMestiCleaningRequirementVersions.mockResolvedValue([{ ...current, created_at: "2026-10-28T16:54:16.280554Z", created_by_name: "Isaac" }, { ...current, id: "req-floor-v4", version_no: 4, effective_until: "2026-09-01", superseded_by: current.id, location_names: ["Cooking"], created_at: "2026-08-01T04:00:00Z", created_by_name: "Isaac" }]);
     renderPage({ permissions: ["factory_mesti_cleaning.view", "factory_mesti_cleaning.edit"] });
     fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
     fireEvent.click(screen.getByRole("button", { name: "Show 1 more Locations" }));
@@ -66,7 +66,7 @@ describe("Factory MeSTI Cleaning of Area", () => {
     expect(factoryService.listMestiCleaningRequirementVersions).toHaveBeenCalledWith("logical-floor");
     expect(screen.getByText("Current")).toBeTruthy();
     expect(screen.getByText("Version 4 · Floor")).toBeTruthy();
-    expect(screen.getByText(/Created .*Isaac/)).toBeTruthy();
+    expect(screen.getByText(/Created 29 Oct 2026.*00:54.*Isaac/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Save Requirement" })).toBeNull();
     expect(screen.queryByText("No date")).toBeNull();
     expect(factoryService.saveMestiCleaningRequirement).not.toHaveBeenCalled();

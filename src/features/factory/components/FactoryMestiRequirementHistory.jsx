@@ -5,7 +5,7 @@ import TagList from "../../../components/ui/TagList.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import FactoryStatusBadge from "./FactoryStatusBadge.jsx";
 import useFactoryLatestRequest from "../hooks/useFactoryLatestRequest.js";
-import { formatFactoryDate, formatFactoryDateTime } from "../utils/factoryDates.js";
+import { formatFactoryDate, formatFactoryAuditDateTime } from "../utils/factoryDates.js";
 
 export default function FactoryMestiRequirementHistory({ logicalRequirementId, loadVersions, formatSchedule }) {
   const [versions, setVersions] = useState([]);
@@ -27,8 +27,8 @@ export default function FactoryMestiRequirementHistory({ logicalRequirementId, l
     metadata: <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2"><span>{formatSchedule(version)}</span><FactoryStatusBadge tone={version.status === "active" ? "success" : "neutral"}>{version.status === "active" ? "Active" : "Inactive"}</FactoryStatusBadge></div>
       <TagList tags={version.location_names || []} />
-      {version.created_at ? <p>Created {formatFactoryDateTime(version.created_at)}{version.created_by_name ? ` · ${version.created_by_name}` : ""}</p> : null}
-      {version.updated_at && version.updated_at !== version.created_at ? <p>Updated {formatFactoryDateTime(version.updated_at)}</p> : null}
+      {version.created_at ? <p>Created {formatFactoryAuditDateTime(version.created_at)}{version.created_by_name ? ` · ${version.created_by_name}` : ""}</p> : null}
+      {version.updated_at && version.updated_at !== version.created_at ? <p>Updated {formatFactoryAuditDateTime(version.updated_at)}</p> : null}
     </div>,
   }))} /></section>;
 }
