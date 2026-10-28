@@ -16,7 +16,7 @@ it('uses the delegated request before and after decrypt, one public-only GET, an
  expect(result).toMatchObject({metadata_status:'public_extracted',account:{id:account}});
  expect(caller.rpc).toHaveBeenCalledWith('marketing_creator_enrichment_begin',{p_org:org,p_handle:'target',p_account:account});
  expect(service.rpc.mock.calls.filter(([n])=>n==='marketing_creator_enrichment_material')).toHaveLength(2);
- expect(graph.request).toHaveBeenCalledExactlyOnceWith('12345','synthetic-test-only',{fields:'business_discovery.username(target){id,username,profile_picture_url,followers_count}'});
+ expect(graph.request).toHaveBeenCalledExactlyOnceWith('12345','synthetic-test-only',{fields:'business_discovery.username(target){id,username,name,biography,website,media_count,profile_picture_url,followers_count}'},'GET',expect.any(Function));
  expect(service.rpc).toHaveBeenCalledWith('marketing_creator_enrichment_finish',expect.objectContaining({p_request:request,p_auth_user:'user',p_observation:{id:'98765',username:'target',avatar_url:'https://scontent.cdninstagram.com/picture.jpg',followers:0}}));
  expect(JSON.stringify(result)).not.toMatch(/synthetic-test-only|sealed_token|private-brand/);
 });
@@ -74,4 +74,19 @@ it.each(['thrown','resolved'])('treats a %s lost persistence acknowledgement as 
  expect(result).toMatchObject({metadata_status:'uncertain',reason:'persistence_acknowledgement_unavailable',failure_stage:'persistence'});
  expect(result.unavailable.profile).toMatch(/may already be saved/);expect(result).not.toHaveProperty('account');
  expect(graph.request).toHaveBeenCalledTimes(1);expect(service.rpc.mock.calls.filter(([name]:any)=>name==='marketing_creator_enrichment_finish')).toHaveLength(1);
+});
+
+it.each([[100,'profile_not_available_with_current_meta_access'],[190,'meta_token_invalid'],[10,'meta_permission_required'],[4,'provider_rate_limited']])('retains Meta failure %s consistently for automatic/manual/worker persistence',async(code,reason)=>{
+ graph.request.mockImplementation(async(_path:any,_token:any,_params:any,_method:any,inspect:any)=>{inspect(400,code,{graph_error_subcode:33});throw Object.assign(new Error('not exposed'),{code:`meta_error_${code}`,graphCode:code})});
+ const result=await readCreatorProfile(caller,service,'user',graph,[],{org,handle:'target'});
+ expect(result).toMatchObject({metadata_status:'unavailable',reason,provider_evidence:{http_status:400,graph_error_code:code,graph_error_subcode:33}});
+ expect(service.rpc).toHaveBeenCalledWith('marketing_creator_enrichment_finish',expect.objectContaining({p_error:reason,p_observation:null}));expect(graph.request).toHaveBeenCalledTimes(1);
+});
+it('does not invoke Meta when another request owns the same profile',async()=>{
+ caller.rpc.mockResolvedValue({data:{eligible:false,reason:'profile_refresh_in_progress'}});
+ expect(await readCreatorProfile(caller,service,'user',graph,[],{org,handle:'target'})).toMatchObject({reason:'profile_refresh_in_progress'});expect(graph.request).not.toHaveBeenCalled();
+});
+it('persists available public name and metadata with the same identity-bound receipt',async()=>{
+ graph.request.mockResolvedValue({business_discovery:{id:'98765',username:'target',name:'Public name',biography:'Food creator',website:'https://example.com',media_count:42,followers_count:7}});
+ await executeCreatorEnrichment(service,graph,[],request,'user');expect(service.rpc).toHaveBeenCalledWith('marketing_creator_enrichment_finish',expect.objectContaining({p_observation:{id:'98765',username:'target',name:'Public name',biography:'Food creator',website:'https://example.com',media_count:42,followers:7}}));
 });
