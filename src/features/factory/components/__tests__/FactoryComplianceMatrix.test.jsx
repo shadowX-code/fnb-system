@@ -24,6 +24,19 @@ function ExpandableMatrix() {
 }
 
 describe("FactoryComplianceMatrix", () => {
+  it("retains an occurrence popover across refreshes but never retargets a replaced occurrence", () => {
+    const props = { rows: [{ id: "r" }], days: ["2026-09-01"], rowKey: row => row.id, renderEntity: () => "Location", cellLabel: cell => cell.status, cellTitle: cell => `Act ${cell.status}`, renderCellDetail: cell => <section aria-label="Occurrence actions">{cell.status}</section> };
+    const view = render(<FactoryComplianceMatrix {...props} getCell={() => ({ id: "o1", status: "pending" })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Act pending" }));
+    const region = screen.getByRole("region", { name: "Occurrence actions" });
+    view.rerender(<FactoryComplianceMatrix {...props} getCell={() => ({ id: "o1", status: "completed" })} />);
+    expect(screen.getByRole("region", { name: "Occurrence actions" })).toBe(region);
+    expect(region.textContent).toBe("completed");
+    view.rerender(<FactoryComplianceMatrix {...props} getCell={() => ({ id: "o2", status: "pending" })} />);
+    expect(screen.queryByRole("region", { name: "Occurrence actions" })).toBeNull();
+    view.unmount();
+  });
+
   it("supports canonical entity, frequency, and row identity semantics outside Cleaning of Area", () => {
     const onCellClick = vi.fn();
     render(<FactoryComplianceMatrix
