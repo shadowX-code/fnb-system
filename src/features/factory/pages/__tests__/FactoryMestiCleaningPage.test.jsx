@@ -28,6 +28,10 @@ const data = {
   ],
 };
 
+function monthWith(occurrence) {
+  return [{ ...monthlyRows[0], days: [{ ...monthlyRows[0].days[0], status: occurrence.status === "verified" ? "verified" : "mixed", verified_count: occurrence.status === "verified" ? 2 : 1, completed_count: occurrence.status === "completed" ? 1 : 0, pending_count: 0, occurrences: [floorCooking, occurrence] }] }];
+}
+
 function renderPage({ permissions = ["factory_mesti_cleaning.view", "factory_mesti_cleaning.complete", "factory_mesti_cleaning.review"] } = {}) {
   const can = (permission) => permissions.includes(permission);
   return render(<FactoryPermissionsProvider permissionSet={permissions} can={can}><FactoryMasterDataProvider data={data}><FactoryMestiCleaningPage auth={{ profile: { id: "employee-1" } }} onNotify={vi.fn()} /></FactoryMasterDataProvider></FactoryPermissionsProvider>);
@@ -36,7 +40,7 @@ function renderPage({ permissions = ["factory_mesti_cleaning.view", "factory_mes
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-09-02T04:00:00Z"));
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   factoryService.listMestiCleaningDay.mockResolvedValue([floorOccurrence, drainOccurrence]);
   factoryService.listMestiCleaningMonth.mockResolvedValue(monthlyRows);
   factoryService.completeMestiCleaningOccurrence.mockResolvedValue({});
@@ -150,6 +154,8 @@ describe("Factory MeSTI Cleaning of Area", () => {
     expect(screen.getByTitle(/1 of 2 verified/).tagName).toBe("SPAN");
     expect(screen.getByText("Preparation")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Floor · Cooking.*Verified/ }));
+    expect(await screen.findByRole("region", { name: "Cleaning occurrence actions" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(await screen.findByRole("dialog", { name: "Floor · Cooking" })).toBeTruthy();
     expect(screen.getByText("Isaac")).toBeTruthy();
     expect(screen.queryByLabelText("Location occurrence evidence")).toBeNull();
@@ -161,28 +167,89 @@ describe("Factory MeSTI Cleaning of Area", () => {
     expect(screen.queryByRole("button", { name: /Floor.*03\/09\/2026/ })).toBeNull();
   });
 
-  it("opens Complete and Verify directly from Location cells using the Daily authorities", async () => {
+  it("keeps one cell popover open across distinct Complete and Verify transactions", async () => {
+    const completed = { ...floorOccurrence, status: "completed", completed_by: "employee-1" };
+    const verified = { ...completed, status: "verified", verified_by_name: "Current User" };
+    factoryService.listMestiCleaningMonth.mockResolvedValueOnce(monthlyRows).mockResolvedValueOnce(monthWith(completed)).mockResolvedValue(monthWith(verified));
+    let complete;
+    factoryService.completeMestiCleaningOccurrence.mockImplementation(() => new Promise(resolve => { complete = resolve; }));
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
     fireEvent.click(await screen.findByRole("button", { name: /Floor · Preparation.*Pending/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Complete", exact: true }));
-    await waitFor(() => expect(factoryService.completeMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep"));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    cleanup();
-    const completed = { ...floorOccurrence, status: "completed", completed_by: "employee-1" };
-    factoryService.listMestiCleaningMonth.mockResolvedValue([{ ...monthlyRows[0], days: [{ ...monthlyRows[0].days[0], status: "completed", completed_count: 1, pending_count: 0, occurrences: [completed] }] }]);
+    const region = screen.getByRole("region", { name: "Cleaning occurrence actions" });
+    fireEvent.click(within(region).getByRole("button", { name: "Complete" }));
+    fireEvent.click(within(region).getByRole("button", { name: "Saving..." }));
+    expect(factoryService.completeMestiCleaningOccurrence).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    complete({});
+    fireEvent.click(await within(region).findByRole("button", { name: "Verify", exact: true }));
+    await waitFor(() => expect(factoryService.verifyMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep", "verified"));
+    await waitFor(() => expect(within(region).getByText("Verified")).toBeTruthy());
+    expect(screen.getByRole("region", { name: "Cleaning occurrence actions" })).toBe(region);
+    expect(within(region).queryByRole("button", { name: "Complete" })).toBeNull();
+    expect(within(region).queryByRole("button", { name: "Verify" })).toBeNull();
+    fireEvent.click(within(region).getByRole("button", { name: "View details" }));
+    expect(await screen.findByRole("dialog", { name: "Floor · Preparation" })).toBeTruthy();
+  });
+
+  it("refreshes after a concurrent transition rejection rather than leaving a stale Complete action", async () => {
+    factoryService.completeMestiCleaningOccurrence.mockRejectedValue(new Error("Cleaning occurrence cannot be completed from its current state."));
+    factoryService.listMestiCleaningMonth.mockResolvedValueOnce(monthlyRows).mockResolvedValue(monthWith({ ...floorOccurrence, status: "completed" }));
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
-    fireEvent.click(await screen.findByRole("button", { name: /Floor · Preparation.*Awaiting Verification/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Verify", exact: true }));
-    await waitFor(() => expect(factoryService.verifyMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep", "verified"));
+    fireEvent.click(await screen.findByRole("button", { name: /Floor · Preparation.*Pending/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("current state");
+    expect(await screen.findByRole("button", { name: "Verify", exact: true })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
+  });
+
+  it("blocks stale actions if refresh fails and recovers through a read-only retry", async () => {
+    factoryService.listMestiCleaningMonth.mockResolvedValueOnce(monthlyRows).mockRejectedValueOnce(new Error("Refresh unavailable")).mockResolvedValue(monthWith({ ...floorOccurrence, status: "completed" }));
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Floor · Preparation.*Pending/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Retry refresh" }));
+    expect(await screen.findByRole("button", { name: "Verify", exact: true })).toBeTruthy();
+    expect(factoryService.completeMestiCleaningOccurrence).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a pending mutation refresh to the current Daily owner after leaving Monthly", async () => {
+    let complete;
+    factoryService.completeMestiCleaningOccurrence.mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Floor · Preparation.*Pending/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Daily", exact: true }));
+    complete({});
+    await waitFor(() => expect(factoryService.listMestiCleaningDay.mock.calls.length).toBeGreaterThanOrEqual(3));
+    expect(factoryService.listMestiCleaningMonth).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("region", { name: "Cleaning occurrence actions" })).toBeNull();
+  });
+
+  it("keeps an invalid selected backdate visible with actionable server validation", async () => {
+    const message = "Effective From must be on or after 03/09/2026 to preserve existing versions and issued occurrences. The selected date was not saved.";
+    factoryService.saveMestiCleaningRequirement.mockRejectedValue(new Error(message));
+    renderPage({ permissions: ["factory_mesti_cleaning.edit"] });
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Select date" }));
+    fireEvent.click(screen.getByRole("button", { name: "Prev", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "20", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Requirement" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(message);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByText("20/08/2026")).toBeTruthy();
+    expect(factoryService.saveMestiCleaningRequirement).toHaveBeenCalledWith(expect.objectContaining({ effective_from: "2026-08-20" }));
   });
 
   it("keeps Monthly details readable without exposing unauthorized mutations", async () => {
     renderPage({ permissions: ["factory_mesti_cleaning.view"] });
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
     fireEvent.click(await screen.findByRole("button", { name: /Floor · Preparation.*Pending/ }));
-    expect(screen.getByRole("dialog", { name: "Floor · Preparation" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Cleaning occurrence actions" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Verify" })).toBeNull();
   });
@@ -190,7 +257,7 @@ describe("Factory MeSTI Cleaning of Area", () => {
   it("uses segmented frequency, non-search Status and reversible bulk Location selection", async () => {
     renderPage({ permissions: ["factory_mesti_cleaning.manage"] });
     fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
-    expect(screen.getAllByText("3")).toHaveLength(1);
+    expect(screen.getByText("Preparation, Cooking, Dry Store")).toBeTruthy();
     expect(screen.queryByText("Version 5")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create Requirement" }));
     fireEvent.click(screen.getByRole("tab", { name: "Weekly" }));

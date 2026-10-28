@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Check, ClipboardCheck, Plus, ShieldCheck, XCircle } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
+import TruncatedTextPopover from "../../../components/ui/TruncatedTextPopover.jsx";
+import { FactoryMestiMonthlyActionRow } from "../components/FactoryMestiMonthlyExpansion.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import { factoryService } from "../../../services/factoryService.js";
 import FactoryComplianceMatrix, { FactoryComplianceLegend } from "../components/FactoryComplianceMatrix.jsx";
@@ -77,9 +79,9 @@ function monthlyCellTitle(cell, row) {
   return `${row.task_name} · ${formatFactoryDate(cell.due_date)} · ${summary}`;
 }
 
-function OccurrenceDetail({ occurrence, onClose, actions }) {
+function OccurrenceDetail({ occurrence, onClose }) {
   if (!occurrence) return null;
-  return <Modal title={`${occurrence.task_name} · ${occurrence.location_name}`} description={formatFactoryDate(occurrence.due_date)} onClose={onClose} footer={actions}>
+  return <Modal title={`${occurrence.task_name} · ${occurrence.location_name}`} description={formatFactoryDate(occurrence.due_date)} onClose={onClose}>
     <div className="grid gap-x-6 md:grid-cols-2">
       <div className="border-b border-border py-2.5"><div className="text-xs font-semibold text-text-muted">Status</div><div className="mt-1"><StatusBadge status={occurrence.status} /></div></div>
       <div className="border-b border-border py-2.5"><div className="text-xs font-semibold text-text-muted">Schedule</div><div className="mt-1 text-sm font-semibold text-text-primary">{recurrenceLabel(occurrence)}</div></div>
@@ -89,14 +91,15 @@ function OccurrenceDetail({ occurrence, onClose, actions }) {
   </Modal>;
 }
 
-function RequirementModal({ open, draft, locations, onClose, onSave, onChange }) {
+function RequirementModal({ open, draft, locations, onClose, onSave, onChange, error, saving }) {
   if (!open) return null;
-  return <Modal open={open} onClose={onClose} title={draft.id ? "Edit Cleaning Requirement" : "Create Cleaning Requirement"} description="Requirements remain versioned and only meaningful edits create a new version." footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" form="area-cleaning-requirement" type="submit">Save Requirement</button></>}>
+  return <Modal open={open} onClose={onClose} title={draft.id ? "Edit Cleaning Requirement" : "Create Cleaning Requirement"} description="Requirements remain versioned and only meaningful edits create a new version." footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" form="area-cleaning-requirement" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Requirement"}</button></>}>
     <form id="area-cleaning-requirement" className="grid gap-4 md:grid-cols-2" onSubmit={onSave}>
       <Field label="Task Name"><input className={inputClass()} value={draft.task_name} onChange={event => onChange("task_name", event.target.value)} placeholder="Floor, Ceiling, Drain" required /></Field>
-      <Field label="Effective From"><FeedXDatePicker value={draft.effective_from} onChange={value => onChange("effective_from", value)} /></Field>
+      <Field label="Effective From"><FeedXDatePicker required value={draft.effective_from} onChange={value => onChange("effective_from", value)} /></Field>
       <FactoryMestiScheduleFields frequency={draft.recurrence_type} weekdays={draft.recurrence_weekdays || []} status={draft.status} onFrequencyChange={value => onChange("recurrence_type", value)} onWeekdaysChange={value => onChange("recurrence_weekdays", value)} onStatusChange={value => onChange("status", value)} />
       <FactoryMestiLocationSelection locations={locations} value={draft.location_ids || []} onChange={value => onChange("location_ids", value)} />
+      {error ? <p role="alert" className="md:col-span-2 text-sm text-danger">{error}</p> : null}
     </form>
   </Modal>;
 }
@@ -116,6 +119,15 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   const [occurrenceDetail, setOccurrenceDetail] = useState(null);
   const [showRequirementForm, setShowRequirementForm] = useState(false);
   const [requirementDraft, setRequirementDraft] = useState(emptyRequirementDraft());
+  const [requirementError, setRequirementError] = useState("");
+  const [savingRequirement, setSavingRequirement] = useState(false);
+  const [workingId, setWorkingId] = useState("");
+  const [actionFailure, setActionFailure] = useState(null);
+  const mutationOwner = useRef(false);
+  const saveOwner = useRef(false);
+  const refreshOwner = useRef(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const runLatestRequest = useFactoryLatestRequest();
   const activeLocations = (masterData.storageLocations || []).filter((location) => location.status === "active");
   const canManage = can("factory_mesti_cleaning.manage");
@@ -135,26 +147,41 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
 
   const canCompleteOccurrence = row => (can("factory_mesti_cleaning.complete") || canManage) && ["pending", "missed", "unsatisfactory"].includes(row.status);
   const canVerifyOccurrence = row => (can("factory_mesti_cleaning.review") || canManage) && row.status === "completed";
+  refreshOwner.current = activeTab === "monthly" ? loadMonthly : loadDaily;
   async function act(action, occurrence, result) {
     if (action === "view") { setOccurrenceDetail(occurrence); return; }
+    if (mutationOwner.current) return;
+    mutationOwner.current = true; setWorkingId(occurrence.id); setActionFailure(null);
     try {
       if (action === "complete") await factoryService.completeMestiCleaningOccurrence(occurrence.id);
       else await factoryService.verifyMestiCleaningOccurrence(occurrence.id, result);
-      setOccurrenceDetail(null);
       onNotify?.({ title: "Cleaning updated", message: "Cleaning occurrence status was updated.", tone: "success" });
-      await loadDaily();
-      if (activeTab === "monthly") await loadMonthly();
-    } catch (actionError) { onNotify?.({ title: "Cleaning update failed", message: actionError.message || "Unable to update Cleaning occurrence.", tone: "error" }); }
+    } catch (actionError) {
+      const message = actionError.message || "Unable to update Cleaning occurrence. Refresh and retry.";
+      setActionFailure({ id: occurrence.id, message });
+      onNotify?.({ title: "Cleaning update failed", message, tone: "error" });
+    } finally {
+      // Re-read even after a rejected transition; another operator may have acted.
+      if (mounted.current) await refreshOwner.current();
+      mutationOwner.current = false;
+      if (mounted.current) setWorkingId("");
+    }
   }
-  function changeDraft(key, value) { setRequirementDraft((current) => ({ ...current, [key]: value })); }
-  function closeRequirementForm() { setRequirementDraft(emptyRequirementDraft()); setShowRequirementForm(false); }
+  function changeDraft(key, value) { setRequirementError(""); setRequirementDraft(current => ({ ...current, [key]: value })); }
+  function closeRequirementForm() { setRequirementError(""); setRequirementDraft(emptyRequirementDraft()); setShowRequirementForm(false); }
   async function saveRequirement(event) {
     event.preventDefault();
+    if (saveOwner.current) return;
+    saveOwner.current = true; setSavingRequirement(true); setRequirementError("");
     try {
       const saved = await factoryService.saveMestiCleaningRequirement(requirementDraft);
-      setRequirements((current) => [saved, ...current.filter((requirement) => requirement.logical_requirement_id !== saved.logical_requirement_id && requirement.id !== requirementDraft.id && requirement.id !== saved.id)]);
-      closeRequirementForm(); await loadDaily(); if (activeTab === "monthly") await loadMonthly();
-    } catch (saveError) { onNotify?.({ title: "Requirement save failed", message: saveError.message || "Unable to save Cleaning Requirement.", tone: "error" }); }
+      setRequirements(current => [saved, ...current.filter(requirement => requirement.logical_requirement_id !== saved.logical_requirement_id && requirement.id !== requirementDraft.id && requirement.id !== saved.id)]);
+      closeRequirementForm();
+    } catch (saveError) {
+      const message = saveError.message || "Unable to save Cleaning Requirement.";
+      setRequirementError(message);
+      onNotify?.({ title: "Requirement save failed", message, tone: "error" });
+    } finally { saveOwner.current = false; setSavingRequirement(false); }
   }
 
   const summary = useMemo(() => ({ pending: dailyRows.filter((row) => row.status === "pending" || row.status === "missed").length, completed: dailyRows.filter((row) => row.status === "completed").length, verified: dailyRows.filter((row) => row.status === "verified").length, unsatisfactory: dailyRows.filter((row) => row.status === "unsatisfactory").length }), [dailyRows]);
@@ -181,21 +208,28 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
             row.verified_at ? { key: "verified", label: `Verified ${row.verified_by_name || "—"} · ${formatFactoryDateTime(row.verified_at)}` } : null,
             note ? { key: "note", label: `Note: ${note}`, title: note } : null,
           ]} />;
-          return <FactoryOperationalRow key={row.id} primary={row.task_name} secondary={recurrenceLabel(row)} evidence={evidence} status={<StatusBadge status={row.status} variant="emphasized" />} actions={<FactoryRowActions primaryAction={canComplete ? { label: "Complete", icon: Check, onClick: () => act("complete", row) } : canVerify ? { label: "Verify", onClick: () => act("verify", row, "verified") } : null} secondaryActions={canVerify ? [{ label: "Mark unsatisfactory", icon: XCircle, destructive: true, onClick: () => act("verify", row, "unsatisfactory") }] : []} />} />;
+          return <FactoryOperationalRow key={row.id} primary={row.task_name} secondary={recurrenceLabel(row)} evidence={evidence} status={<StatusBadge status={row.status} variant="emphasized" />} actions={<FactoryRowActions primaryAction={canComplete ? { label: "Complete", icon: Check, disabled: Boolean(workingId), onClick: () => act("complete", row) } : canVerify ? { label: "Verify", disabled: Boolean(workingId), onClick: () => act("verify", row, "verified") } : null} secondaryActions={canVerify ? [{ label: "Mark unsatisfactory", icon: XCircle, destructive: true, onClick: () => act("verify", row, "unsatisfactory") }] : []} />} />;
         })}</FactoryOperationalGroup>)}</div>}
     </div> : null}
 
     {activeTab === "monthly" ? <div className="space-y-5">
       <div className="flex flex-wrap items-end gap-3 border-b border-border pb-4"><div className="w-full sm:w-60"><Field label="Month"><FactoryMonthPicker value={month} onChange={setMonth} /></Field></div></div>
       <FactoryComplianceLegend />
-      <FactoryDataSurface>{monthLoading ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading monthly matrix...</div> : <FactoryComplianceMatrix
-        rows={matrixRows} days={days} rowKey={row => row.matrix_key} getChildren={row => row.children}
+      <FactoryDataSurface>{monthLoading && !monthlyRows.length ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading monthly matrix...</div> : <FactoryComplianceMatrix
+        key={month} rows={matrixRows} days={days} rowKey={row => row.matrix_key} getChildren={row => row.children}
         getCell={(row, day) => row.calendarCells.get(day)}
         entityLabel="Task / Location" renderEntity={row => row.location_name || row.task_name}
         renderSecondary={row => !row.location_name ? <span title={`Requirement version ${row.version_no || 1}`}>{row.children.length} Location{row.children.length === 1 ? "" : "s"}</span> : null}
         renderFrequency={row => row.location_name ? null : recurrenceLabel(row)}
         isCellInteractive={row => Boolean(row.location_name)}
-        onCellClick={occurrence => setOccurrenceDetail(occurrence)}
+        renderCellDetail={occurrence => <section aria-label="Cleaning occurrence actions">
+          <FactoryMestiMonthlyActionRow primary={occurrence.task_name} secondary={`${occurrence.location_name} · ${formatFactoryDate(occurrence.due_date)}`}
+            status={<span aria-live="polite"><StatusBadge status={occurrence.status} /></span>}
+            actions={<FactoryMestiOccurrenceActions status={occurrence.status} canComplete={!error && canCompleteOccurrence(occurrence)} canVerify={!error && canVerifyOccurrence(occurrence)} working={Boolean(workingId) || monthLoading} onComplete={() => act("complete", occurrence)} onVerify={() => act("verify", occurrence, "verified")} onMarkUnsatisfactory={() => act("verify", occurrence, "unsatisfactory")} onView={() => act("view", occurrence)} />}
+          />
+          {actionFailure?.id === occurrence.id ? <p role="alert" className="px-3 pb-2 text-sm text-danger">{actionFailure.message}</p> : null}
+          {error ? <div className="px-3 pb-2"><p role="alert" className="text-sm text-danger">{error}</p><button type="button" className="btn-secondary mt-2" onClick={loadMonthly}>Retry refresh</button></div> : null}
+        </section>}
         cellLabel={monthlyCellLabel}
         cellTitle={(cell, row) => monthlyCellTitle(cell, { task_name: row.location_name ? `${row.task_name} · ${row.location_name}` : row.task_name })}
         empty={<EmptyState title="No monthly occurrences" description="No Cleaning Requirements are scheduled in this month." />}
@@ -206,14 +240,14 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
       <div className="flex items-center justify-end">{canSaveSetup ? <button className="btn-primary h-10 px-3 text-sm" type="button" onClick={() => { setRequirementDraft(emptyRequirementDraft()); setShowRequirementForm(true); }}><Plus size={15} /> Create Requirement</button> : null}</div>
       <FactoryDataSurface><FactoryTable rows={currentRequirements} columns={[
         { key: "task", label: "Task", render: (row) => <span className="font-semibold text-text-primary">{row.task_name}</span> },
-        { key: "locations", label: "Locations", render: (row) => <span className="text-sm text-text-secondary" title={(row.location_names || []).join(", ")}>{(row.location_ids || row.location_names || []).length}</span> },
+        { key: "locations", label: "Locations", render: (row) => <TruncatedTextPopover text={(row.location_names || []).join(", ") || "—"} label="Read all Locations" className="max-w-72 text-sm text-text-secondary" textClassName="line-clamp-2 break-words" /> },
         { key: "frequency", label: "Frequency", render: recurrenceLabel },
         { key: "effective", label: "Effective From", render: (row) => formatFactoryDate(row.effective_from) },
         { key: "status", label: "Status", render: (row) => <FactoryStatusBadge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Active" : "Inactive"}</FactoryStatusBadge> },
         { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions directSingleSecondary secondaryActions={canSaveSetup ? [{ label: "Edit", onClick: () => { setRequirementDraft({ ...row, location_ids: row.location_ids || [], recurrence_weekdays: row.recurrence_weekdays || [] }); setShowRequirementForm(true); } }] : []} /> },
       ]} /></FactoryDataSurface>
-      <RequirementModal open={showRequirementForm} draft={requirementDraft} locations={activeLocations} onClose={closeRequirementForm} onSave={saveRequirement} onChange={changeDraft} />
+      <RequirementModal open={showRequirementForm} draft={requirementDraft} locations={activeLocations} onClose={closeRequirementForm} onSave={saveRequirement} onChange={changeDraft} error={requirementError} saving={savingRequirement} />
     </div> : null}
-    <OccurrenceDetail occurrence={occurrenceDetail} onClose={() => setOccurrenceDetail(null)} actions={occurrenceDetail && (canCompleteOccurrence(occurrenceDetail) || canVerifyOccurrence(occurrenceDetail)) ? <FactoryMestiOccurrenceActions status={occurrenceDetail.status} canComplete={canCompleteOccurrence(occurrenceDetail)} canVerify={canVerifyOccurrence(occurrenceDetail)} onComplete={() => act("complete", occurrenceDetail)} onVerify={() => act("verify", occurrenceDetail, "verified")} onMarkUnsatisfactory={() => act("verify", occurrenceDetail, "unsatisfactory")} /> : null} />
+    <OccurrenceDetail occurrence={occurrenceDetail} onClose={() => setOccurrenceDetail(null)} />
   </div>;
 }

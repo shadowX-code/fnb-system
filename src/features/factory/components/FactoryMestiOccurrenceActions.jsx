@@ -21,7 +21,7 @@ export default function FactoryMestiOccurrenceActions({
       ? { label: working ? "Verifying..." : "Verify", icon: Check, onClick: onVerify, disabled: working }
       : null;
   const secondaryActions = canVerify && verifyStatuses.has(status) && onMarkUnsatisfactory
-    ? [{ label: "Mark unsatisfactory", icon: XCircle, destructive: true, onClick: onMarkUnsatisfactory }]
+    ? [{ label: "Mark unsatisfactory", icon: XCircle, destructive: true, disabled: working, onClick: onMarkUnsatisfactory }]
     : [];
 
   return <FactoryRowActions
