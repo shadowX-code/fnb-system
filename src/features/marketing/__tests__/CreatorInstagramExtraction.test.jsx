@@ -1,6 +1,6 @@
 import {it,expect,vi,afterEach} from 'vitest';
 import {render,screen,fireEvent,waitFor,cleanup} from '@testing-library/react';
-import {AccountEditor} from '../CreatorEditors.jsx';
+import CreatorEditor,{AccountEditor} from '../CreatorEditors.jsx';
 import {creatorService} from '../creatorService.js';
 vi.mock('../creatorService.js',()=>({creatorService:{profile:vi.fn(),directory:vi.fn().mockResolvedValue({accounts:[],creators:[]})}}));
 const props={org:'workspace',creator:{id:'c',name:'Creator'},onClose:vi.fn(),onSave:vi.fn()};
@@ -25,4 +25,13 @@ it('keeps an unsupported profile saveable with its exact explanation and no stal
 });
 it('does not extract on reopening a saved identity and retains manual Refresh Profile',async()=>{
  render(<AccountEditor {...props} record={{id:'a',platform:'instagram',handle:'saved',profile_url:'https://www.instagram.com/saved/'}}/>);await new Promise(r=>setTimeout(r,500));expect(creatorService.profile).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:'Refresh Profile'})).toBeTruthy();
+});
+
+it('does not apply an old row response after that row is removed and another unsaved profile takes its place',async()=>{
+ let oldResolve;creatorService.directory.mockResolvedValue({creators:[],accounts:[],options:[]});
+ creatorService.profile.mockImplementation((_org,_brand,url)=>url.includes('/oldrow/')?new Promise(r=>{oldResolve=r}):Promise.resolve(result('nextrow',8)));
+ render(<CreatorEditor {...props} data={{accounts:[],creators:[],options:[]}} seed={{profiles:[{platform:'instagram',profile_url:'',handle:''},{platform:'instagram',profile_url:'',handle:''}]}}/>);
+ fireEvent.change(screen.getAllByLabelText('Profile URL')[0],{target:{value:'@oldrow'}});await waitFor(()=>expect(oldResolve).toBeTypeOf('function'));
+ fireEvent.change(screen.getAllByLabelText('Profile URL')[1],{target:{value:'@nextrow'}});await screen.findByText('8');fireEvent.click(screen.getAllByRole('button',{name:'Remove',exact:true})[0]);
+ oldResolve(result('oldrow',999));await Promise.resolve();await waitFor(()=>expect(screen.queryByText('999')).toBeNull());expect(screen.getByLabelText('Profile URL').value).toContain('nextrow');
 });
