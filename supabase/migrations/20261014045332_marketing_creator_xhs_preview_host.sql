@@ -1,4 +1,3 @@
--- Actual provider cover CDN, admitted only through the existing Creator observation authority.
 do $$
 declare body text;needle text:='xhscdn'||chr(92)||'.com|';replacement text:=needle||'sns-i11'||chr(92)||'.rednotecdn'||chr(92)||'.com|';pattern text;
 begin
