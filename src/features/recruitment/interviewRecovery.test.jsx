@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const qa=vi.hoisted(()=>({begin:vi.fn(),interruption:vi.fn(),captures:[],transports:[],state:vi.fn(),activation:vi.fn(),recordStart:vi.fn(),flush:vi.fn(),connect:vi.fn(),heartbeat:vi.fn(),claim:vi.fn(),finish:vi.fn(),entry:vi.fn(),evidence:vi.fn()}));
+const qa=vi.hoisted(()=>({begin:vi.fn(),interruption:vi.fn(),captures:[],transports:[],state:vi.fn(),activation:vi.fn(),recordStart:vi.fn(),flush:vi.fn(),connect:vi.fn(),heartbeat:vi.fn(),claim:vi.fn(),finish:vi.fn(),entry:vi.fn(),evidence:vi.fn(),roomThrows:false}));
 vi.mock("./interviewClient.js",()=>({acquireInterviewClient:qa.claim}));
 vi.mock("./recruitmentService.js",()=>({recruitmentService:{
   begin:qa.begin, recoverBegin:qa.begin,recoveryState:qa.state,recoverPause:qa.interruption,observeRecovery:vi.fn().mockResolvedValue(),interruption:qa.interruption, heartbeat:qa.heartbeat,finish:qa.finish,publicEntry:qa.entry,evidence:qa.evidence,
@@ -21,9 +21,13 @@ vi.mock("./RecruitmentRealtimeSession.js",()=>({RecruitmentRealtimeSession:class
   async connect({signal}={}) {signal?.addEventListener("abort",()=>this.close(),{once:true});await qa.connect(); if(!this.closed)this.props.onStatus?.("connected");}
   close() {this.closed=true;}
 }}));
+vi.mock("./RecruitmentInterviewRoom.jsx",async importOriginal=>{
+ const actual=await importOriginal();const Room=actual.default;
+ return {...actual,default:props=>{if(qa.roomThrows)throw Error("Synthetic Room failure");return <Room {...props}/>;}};
+});
 import RecruitmentInterviewSession from "./RecruitmentInterviewSession.jsx";
 beforeEach(()=>{
-  vi.clearAllMocks();qa.captures.length=0;qa.transports.length=0;qa.claim.mockResolvedValue({clientId:"stable-client",release:vi.fn()});
+  sessionStorage.clear();qa.roomThrows=false;vi.clearAllMocks();qa.captures.length=0;qa.transports.length=0;qa.claim.mockResolvedValue({clientId:"stable-client",release:vi.fn()});
   qa.heartbeat.mockResolvedValue({status:"interviewing"});
   qa.state.mockResolvedValue({state:"RECOVERY_REQUIRED",recovery_id:null});
   qa.activation.mockReturnValue({context:{close:vi.fn().mockResolvedValue(),state:"running"},ready:Promise.resolve()});
@@ -181,7 +185,7 @@ it("repeated Resume shares one pending tab identity without a competing own-tab 
  const button=screen.getByRole("button",{name:"Continue interview"});fireEvent.click(button);fireEvent.click(button);
  await waitFor(()=>expect(resolveClaim).toBeTypeOf("function"));
  await act(async()=>resolveClaim({clientId:"stable-client",release:vi.fn()}));
- await screen.findByRole("button",{name:"Finish interview"});expect(qa.claim).toHaveBeenCalledTimes(1);expect(devices.start).toHaveBeenCalledTimes(1);
+ await screen.findByRole("button",{name:"Finish interview"});expect(qa.claim).toHaveBeenCalledTimes(1);expect(devices.start).toHaveBeenCalledTimes(2);
  expect(qa.begin).toHaveBeenCalledTimes(1);
 });
 
@@ -358,4 +362,80 @@ it('automatic flow keeps manual confirmation optional and delegates interruption
  fireEvent.click(screen.getByRole('button',{name:'Discard recognized words'}));expect(t.conversation.clearAnswer).toHaveBeenCalledOnce();
  act(()=>t.props.onTurnState({listening:false,text:'',canSend:false,canInterrupt:true}));fireEvent.click(screen.getByRole('button',{name:'I’d like to speak'}));expect(t.conversation.interrupt).toHaveBeenCalledOnce();
  expect(qa.connect).toHaveBeenCalledOnce();expect(screen.queryByRole('button',{name:'Reconnect AI'})).toBeNull();
+});
+
+it('first Continue commits a stable pending surface before entering native capture, outside the Room',async()=>{
+ const devices=mount();devices.start.mockImplementationOnce(()=>{
+  expect(screen.getByTestId('interview-recovery-surface')).toBeTruthy();
+  expect(screen.getByRole('button',{name:'Retry continuing'})).toBeTruthy();
+  expect(screen.queryByLabelText('Your interview camera')).toBeNull();
+  return Promise.resolve({getTracks:()=>['audio','video'].map(kind=>({kind,readyState:'live',muted:false,addEventListener:vi.fn(),removeEventListener:vi.fn(),stop:vi.fn()}))});
+ });
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ expect(screen.queryByTestId('interview-recovery-surface')).toBeNull();
+});
+it('foreground reconstruction never mounts old media; a thrown Room recovers without recreating the route owner',async()=>{
+ vi.spyOn(console,'error').mockImplementation(()=>{});const devices=mount();qa.roomThrows=true;
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Continue interview'});
+ expect(screen.getByTestId('interview-recovery-surface')).toBeTruthy();expect(qa.interruption.mock.calls.some(args=>args[3]==='room_render_failed')).toBe(true);
+ const prior=qa.captures.at(-1);qa.roomThrows=false;
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ expect(devices.start).toHaveBeenCalledTimes(2);expect(qa.claim).toHaveBeenCalledOnce();expect(qa.captures.at(-1)).not.toBe(prior);
+});
+it('native cleanup failure cannot leave a failed reconstruction busy or prevent its retry action',async()=>{
+ vi.useFakeTimers();const devices=mount();devices.stop.mockImplementation(()=>{throw Error('obsolete native renderer');});qa.connect.mockImplementationOnce(()=>new Promise(()=>{}));
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+ await act(async()=>{await vi.advanceTimersByTimeAsync(26000);});
+ expect(screen.getByRole('button',{name:'Continue interview'})).toBeTruthy();expect(screen.getByTestId('interview-recovery-surface')).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+ expect(screen.getByRole('button',{name:'Finish interview'})).toBeTruthy();
+});
+it('refresh retains the last pending dependency and replays diagnostics without resuming old native state',async()=>{
+ const devices=mount();qa.connect.mockImplementationOnce(()=>new Promise(()=>{}));
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await waitFor(()=>expect(qa.connect).toHaveBeenCalledOnce());
+ const saved=Object.keys(sessionStorage).find(key=>key.startsWith('feedx-interview-recovery:'));expect(saved).toBeTruthy();
+ expect(JSON.parse(sessionStorage.getItem(saved)).some(e=>e.record.stage==='fresh AI session'&&e.record.code==='dependency_started')).toBe(true);
+ const beforeAbruptRefresh=sessionStorage.getItem(saved);cleanup();sessionStorage.setItem(saved,beforeAbruptRefresh);mount();expect(screen.getByRole('button',{name:'Continue interview'})).toBeTruthy();
+ expect(qa.connect).toHaveBeenCalledOnce();expect(devices.start).toHaveBeenCalledOnce();
+ expect(JSON.parse(sessionStorage.getItem(saved)).some(e=>e.record.code==='previous_page_interrupted')).toBe(true);
+});
+it('a hidden page or inactive audio after connection cannot mount a falsely resumed Room',async()=>{
+ mount();qa.connect.mockImplementationOnce(async()=>{vi.spyOn(document,'hidden','get').mockReturnValue(true);});
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));
+ await screen.findByRole('button',{name:'Continue interview'});expect(screen.queryByLabelText('Your interview camera')).toBeNull();
+ vi.spyOn(document,'hidden','get').mockReturnValue(false);qa.activation.mockReturnValueOnce({context:{close:vi.fn().mockResolvedValue(),state:'interrupted'},ready:Promise.resolve()});
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Continue interview'});
+ expect(screen.queryByRole('button',{name:'Finish interview'})).toBeNull();expect(screen.getByRole('alert').textContent).toContain('audio');
+});
+it('replays the physical failed-media then stalled-provider sequence into explicit retry states on the same attempt',async()=>{
+ const fixture=(await import('../../../qa/recruitment/sessionRecoveryPhysical.fixture.json')).default;
+ expect(fixture.events.some(e=>e.record.stage==='getUserMedia.error'&&e.record.code==='recovery_timeout')).toBe(true);
+ const last=fixture.events.at(-1).record;expect(last).toMatchObject({stage:'fresh AI session',code:'dependency_started'});
+ vi.useFakeTimers();const devices=mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+ vi.spyOn(document,'hidden','get').mockReturnValue(true);fireEvent(document,new Event('visibilitychange'));
+ vi.spyOn(document,'hidden','get').mockReturnValue(false);fireEvent(document,new Event('visibilitychange'));
+ devices.start.mockImplementationOnce(()=>new Promise(()=>{}));fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));
+ await act(async()=>{await vi.advanceTimersByTimeAsync(16000);});expect(screen.getByRole('button',{name:'Continue interview'})).toBeTruthy();
+ qa.connect.mockImplementationOnce(()=>new Promise(()=>{}));fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));
+ await act(async()=>{await vi.advanceTimersByTimeAsync(26000);});expect(screen.getByRole('button',{name:'Continue interview'})).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+ expect(screen.getByRole('button',{name:'Finish interview'})).toBeTruthy();expect(qa.begin).toHaveBeenCalledTimes(3);
+ expect(qa.begin.mock.calls.every(args=>args[0]==='a'.repeat(64)&&args[1]==='stable-client')).toBe(true);
+});
+
+it('a delayed old pause rejection cannot replace a newer native failure or its recovery reference',async()=>{
+ mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));
+ await screen.findByRole('button',{name:'Finish interview'});
+ let rejectPause;qa.interruption.mockImplementationOnce(()=>new Promise((_,reject)=>{rejectPause=reject;}));
+ vi.spyOn(document,'hidden','get').mockReturnValue(true);fireEvent(document,new Event('visibilitychange'));
+ vi.spyOn(document,'hidden','get').mockReturnValue(false);fireEvent(document,new Event('visibilitychange'));
+ qa.activation.mockImplementationOnce(()=>{throw Error('Native activation failed');});
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));
+ expect(screen.getByText('Native audio could not start. Tap Continue interview to try again.')).toBeTruthy();
+ const read=()=>JSON.parse(sessionStorage.getItem(Object.keys(sessionStorage).find(k=>k.startsWith('feedx-interview-recovery:'))));
+ const newest=read().filter(e=>e.record.stage==='continue.tap').at(-1).record.request_id;
+ await act(async()=>rejectPause(Error('Old pause failed')));
+ expect(screen.getByText('Native audio could not start. Tap Continue interview to try again.')).toBeTruthy();
+ expect(screen.getByText(newest)).toBeTruthy();
+ expect(read().some(e=>e.record.request_id===newest&&e.record.state==='RECOVERY_REQUIRED')).toBe(true);
 });

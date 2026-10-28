@@ -103,3 +103,17 @@ it('the live session automatically accepts evidence before one response, while r
  expect(q.s.providerMicrophone.enabled).toBe(false);expect(q.original.enabled).toBe(true);expect(q.original.stop).not.toHaveBeenCalled();
  expect(q.s.channel.send.mock.calls.filter(([raw])=>JSON.parse(raw).type==='response.create')).toHaveLength(2);
 });
+it('startup stage diagnostics are independent of evidence flushing and old closed transports cannot append them',async()=>{
+ const q=setup();const diagnostic=vi.fn();q.s.onDiagnostic=diagnostic;await q.s.connect();
+ expect(diagnostic).toHaveBeenCalledWith({stage:'provider.authorization',code:'dependency_started'});
+ expect(diagnostic).toHaveBeenCalledWith({stage:'webrtc.exchange',code:'dependency_completed'});
+ expect(diagnostic).toHaveBeenCalledWith({stage:'remote.playback',code:'dependency_completed'});
+ expect(diagnostic).toHaveBeenLastCalledWith({stage:'server.connected',code:'dependency_completed'});
+ q.s.close();diagnostic.mockClear();q.s.checkpoint('stale');expect(diagnostic).not.toHaveBeenCalled();
+});
+it('native remote attachment rejection is observed and cannot leave connection setup waiting silently',async()=>{
+ const q=setup();const diagnostic=vi.fn();q.s.onDiagnostic=diagnostic;
+ Object.defineProperty(q.audio,'srcObject',{set(){throw new DOMException('obsolete output','InvalidStateError');},configurable:true});
+ await expect(q.s.connect()).rejects.toMatchObject({name:'InvalidStateError'});
+ expect(qa.connected).not.toHaveBeenCalled();expect(diagnostic).toHaveBeenCalledWith({stage:'remote.attach',code:11});
+});

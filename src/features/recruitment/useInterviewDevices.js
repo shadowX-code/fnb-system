@@ -27,7 +27,7 @@ export function useInterviewDevices() {
     cancelAnimationFrame(frameRef.current);
     const previous=streamRef.current;streamRef.current=null;
     stopTracks(previous);
-    if (previewRef.current) previewRef.current.srcObject = null;
+    try {if (previewRef.current) previewRef.current.srcObject = null;} catch { /* Detached WebKit preview cannot retain ownership. */ }
     const previousAudio=audioRef.current;audioRef.current=null;
     try {previousAudio?.close?.().catch(() => {});} catch { /* Abandoned native meter. */ }
     setState((current) => ({ ...current, status: "idle", level: 0 }));
@@ -42,6 +42,7 @@ export function useInterviewDevices() {
     try {
       // Native request is the first hardware operation in the Resume gesture.
       // Recovery avoids optional device/processing constraints on WebKit reacquisition.
+      onNative({stage:"getUserMedia.call"});
       const request = navigator.mediaDevices.getUserMedia(meter ? { video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: microphoneId ? { deviceId: { exact: microphoneId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true } } : {video: {facingMode:"user"}, audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
       if (meter && (window.AudioContext || window.webkitAudioContext)) {
         meterContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -49,11 +50,11 @@ export function useInterviewDevices() {
         meterActivation.catch(() => {});
       }
       onNative({stage:"getUserMedia.requested"});
+      stream = await bounded(request, "Camera and microphone", {signal,timeoutMs:15000,onLate:value=>stopTracks(value)});
       if (!meter && navigator.permissions?.query) for (const name of ["camera", "microphone"]) {
         bounded(navigator.permissions.query({name}), "Permission observation", {signal, timeoutMs:2000})
           .then(value => onNative({stage:"permissions",code:`${name}_${value.state}`})).catch(() => onNative({stage:"permissions",code:`${name}_unknown`}));
       }
-      stream = await bounded(request, "Camera and microphone", {signal,timeoutMs:15000,onLate:value=>stopTracks(value)});
       onNative({stage:"getUserMedia.resolved",tracks:stream.getTracks().map(t=>({kind:t.kind,state:t.readyState,muted:t.muted}))});
       if (generation !== generationRef.current) { stopTracks(stream); meterContext?.close().catch(() => {}); return; }
       const previous=streamRef.current;streamRef.current=null;

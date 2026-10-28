@@ -20,7 +20,9 @@ export class RecruitmentRealtimeSession {
     onTool,
     onCompletion,
     onTurnState = () => {},
+    onDiagnostic = () => {},
   }) {
+    this.onDiagnostic=onDiagnostic;
     this.token = token;
     this.recoveryId = recoveryId;
     this.clientId = clientId;
@@ -49,6 +51,7 @@ export class RecruitmentRealtimeSession {
     this.eventSequence = 0;
   }
 
+  checkpoint(stage,code="dependency_started") {if(!this.closed)this.onDiagnostic({stage,code});}
   async connect({ signal } = {}) {
     if (this.connectionStarted) throw Error("Continue interview to start a fresh connection.");
     this.connectionStarted = true;
@@ -56,15 +59,18 @@ export class RecruitmentRealtimeSession {
     signal?.addEventListener("abort", () => this.close(), {once:true});
     if (this.closed) throw new Error("Interview session is closed.");
     if (!this.attemptKey) {
+      this.checkpoint("transcript.partition");
       const digest = await crypto.subtle.digest(
         "SHA-256",
         new TextEncoder().encode(this.token),
       );
+      this.checkpoint("transcript.partition","dependency_completed");
       this.attemptKey = [...new Uint8Array(digest)]
         .map((part) => part.toString(16).padStart(2, "0"))
         .join("");
     }
     this.disconnectionSent = false;
+    this.checkpoint("provider.authorization");
     const secret = await recruitmentService.realtimeSecret(
       this.token,
       this.clientId,
@@ -72,6 +78,7 @@ export class RecruitmentRealtimeSession {
       signal,
     );
     if (this.closed) throw new Error("Interview session was replaced.");
+    this.checkpoint("provider.authorization","dependency_completed");
     this.generation = secret.generation;
     if (secret.conversation_protocol !== "continuity-v2") throw Error("The interviewer needs the current interview version. Please reload this page.");
     if (secret.turn_policy !== "controlled-auto-v1") throw Error("The interviewer needs the current turn policy. Please reload this page.");
@@ -84,7 +91,9 @@ export class RecruitmentRealtimeSession {
     this.conversation.introductionPending = secret.introduction_pending === true;
     this.evidence.itemOrder.clear();
     this.evidence.pendingFinal.clear();
+    this.checkpoint("webrtc.create");
     const peer = new RTCPeerConnection();
+    this.checkpoint("webrtc.create","dependency_completed");
     this.peer = peer;
     this.playbackListeners = ["playing", "pause", "waiting", "stalled", "ended", "error"].map(type => {
       const listener = () => {
@@ -106,6 +115,7 @@ export class RecruitmentRealtimeSession {
     this.rejectConnection = connectionFailed;
     peer.ontrack = (event) => {
       if (this.closed || this.peer !== peer || !this.ownsPlayback()) return;
+      this.checkpoint("remote.track","dependency_completed");
       const track = event.track;
       if (track?.kind !== "audio" || track.readyState !== "live" || !event.streams[0]) {
         playbackFailed(Error("Interviewer audio is unavailable. Tap Continue interview to try again."));
@@ -121,19 +131,29 @@ export class RecruitmentRealtimeSession {
       track.addEventListener("ended", ended);
       this.remoteTrackCleanup?.();
       this.remoteTrackCleanup = () => track.removeEventListener("ended", ended);
-      this.onRemote(event.streams[0]);
-      this.audioElement.srcObject = event.streams[0];
+      this.checkpoint("remote.attach");
+      try {
+        this.onRemote(event.streams[0]);
+        this.audioElement.srcObject = event.streams[0];
+        this.checkpoint("remote.attach","dependency_completed");
+      } catch(error) {
+        this.checkpoint("remote.attach",error.code||error.name||"attachment_failed");
+        playbackFailed(error);this.onStatus("audio-blocked");return;
+      }
       let nativePlayback;
+      this.checkpoint("remote.playback");
       try { nativePlayback = this.audioElement.play(); }
       catch (error) { nativePlayback = Promise.reject(error); }
       bounded(nativePlayback, "Interviewer playback", {signal,timeoutMs:8000}).then(() => {
         if (!this.closed && this.peer === peer && this.ownsPlayback()) {
           if (track.readyState !== "live" || this.audioElement.paused || this.audioElement.muted || this.audioElement.volume === 0)
             throw Error("Interviewer audio could not start. Tap Continue interview to try again.");
+          this.checkpoint("remote.playback","dependency_completed");
           playbackReady();
         }
       }).catch((error) => {
         if (this.closed || this.peer !== peer || !this.ownsPlayback()) return;
+        this.checkpoint("remote.playback",error.code||error.name||"playback_failed");
         playbackFailed(error);
         this.trace({type:"playback.blocked",phase:"browser"});
         this.onStatus("audio-blocked");
@@ -141,6 +161,7 @@ export class RecruitmentRealtimeSession {
     };
     peer.onconnectionstatechange = () => {
       if (this.closed || this.peer !== peer || !this.ownsPlayback()) return;
+      this.checkpoint("webrtc.connection",peer.connectionState);
       if (peer.connectionState === "connected") connectionReady();
       if (["disconnected", "failed", "closed"].includes(peer.connectionState)) {
         connectionFailed(Error("The interviewer connection stopped. Tap Continue interview to try again."));
@@ -164,8 +185,13 @@ export class RecruitmentRealtimeSession {
       if (!this.closed && this.channel === channel) this.disconnected();
     };
     try {
+      this.checkpoint("webrtc.offer");
       const offer = await peer.createOffer();
+      this.checkpoint("webrtc.offer","dependency_completed");
+      this.checkpoint("webrtc.local_description");
       await peer.setLocalDescription(offer);
+      this.checkpoint("webrtc.local_description","dependency_completed");
+      this.checkpoint("webrtc.exchange");
       const answer = await fetch("https://api.openai.com/v1/realtime/calls", {
         method: "POST",
         headers: {
@@ -175,12 +201,16 @@ export class RecruitmentRealtimeSession {
         body: offer.sdp,
         signal,
       });
+      this.checkpoint("webrtc.exchange","dependency_completed");
       if (!answer.ok) throw new Error("AI interviewer could not connect.");
       if (this.closed || this.peer !== peer) throw new Error("Interview session was replaced.");
+      this.checkpoint("webrtc.remote_description");
       await peer.setRemoteDescription({
         type: "answer",
         sdp: await answer.text(),
       });
+      this.checkpoint("webrtc.remote_description","dependency_completed");
+      this.checkpoint("webrtc.channel");
       await new Promise((resolve, reject) => {
         if (channel.readyState === "open") return resolve();
         const timeout = setTimeout(
@@ -204,12 +234,14 @@ export class RecruitmentRealtimeSession {
           { once: true },
         );
       });
+      this.checkpoint("webrtc.channel","dependency_completed");
       if (this.closed || this.peer !== peer) throw new Error("Interview session was replaced.");
       if (peer.connectionState === "connected") connectionReady();
       await bounded(Promise.all([remotePlayback, connection]), "Interviewer audio connection", {signal,timeoutMs:8000});
       if (this.remoteTrack?.readyState !== "live" || peer.connectionState !== "connected" || this.audioElement.paused)
         throw Error("Interviewer audio is unavailable. Tap Continue interview to try again.");
       if (this.closed || this.peer !== peer) throw Error("Interview session was replaced.");
+      this.checkpoint("server.connected");
       await recruitmentService.providerConnected(
         this.token,
         this.clientId,
@@ -222,12 +254,14 @@ export class RecruitmentRealtimeSession {
         throw Error("Interviewer audio stopped. Tap Continue interview to try again.");
       const settings = microphone.getSettings?.() || {};
       this.trace({type:"transport.connected",phase:secret.orientation_required ? "orientation_pending" : "continuity-v2",status:`aec:${settings.echoCancellation ?? "unknown"};noise:${settings.noiseSuppression ?? "unknown"};peer:${peer.connectionState};remote:${this.remoteTrack.readyState}`});
+      this.checkpoint("server.connected","dependency_completed");
       this.onStatus("connected");
       this.flush().catch(() => this.onStatus("transcript-pending"));
       if (this.closed) throw Error("Interview session was replaced.");
       this.conversation.begin(`session:${this.generation}`, secret.first_response_instructions);
       return secret;
     } catch (error) {
+      this.checkpoint("webrtc.startup",error.code||error.name||"connection_failed");
       channel.close();
       peer.close();
       if (this.peer === peer) this.peer = null;
@@ -302,23 +336,16 @@ export class RecruitmentRealtimeSession {
 
   close() {
     if (this.closed) return;
-    this.conversation.close();
+    this.closed = true; // Fence callbacks before touching any abandoned native object.
     this.trace({ type: "transport.closed" });
-    this.evidence.close();
-    this.closed = true;
-    this.rejectPlayback?.(Error("Interview session was replaced."));
-    this.rejectPlayback = null;
-    this.rejectConnection?.(Error("Interview session was replaced."));
-    this.rejectConnection = null;
-    this.remoteTrackCleanup?.();
-    this.remoteTrackCleanup = null;
-    for (const cleanup of [()=>this.channel?.close(),()=>this.peer?.close(),()=>this.providerMicrophone?.stop()]) {
-      try {cleanup();} catch {this.trace({type:"transport.closed",status:"native_cleanup_failed"});}
-    }
-    if (this.playbackOwner) this.playbackOwner.dispose();
-    else if (!interviewPlaybackOwner(this.audioElement)) { this.audioElement.pause?.(); this.audioElement.srcObject = null; }
-    for (const {type,listener} of this.playbackListeners || []) this.audioElement.removeEventListener?.(type,listener);
-    this.peer = null;
-    this.channel = null;
+    this.rejectPlayback?.(Error("Interview session was replaced."));this.rejectPlayback=null;
+    this.rejectConnection?.(Error("Interview session was replaced."));this.rejectConnection=null;
+    const cleanup=[()=>this.conversation.close(),()=>this.evidence.close(),()=>this.remoteTrackCleanup?.(),
+      ()=>this.channel?.close(),()=>this.peer?.close(),()=>this.providerMicrophone?.stop(),
+      ()=>{if(this.playbackOwner)this.playbackOwner.dispose();else if(!interviewPlaybackOwner(this.audioElement)){this.audioElement.pause?.();this.audioElement.srcObject=null;}},
+      ...(this.playbackListeners||[]).map(({type,listener})=>()=>this.audioElement.removeEventListener?.(type,listener))];
+    this.remoteTrackCleanup=null;
+    for(const dispose of cleanup)try{dispose();}catch{this.trace({type:"transport.closed",status:"native_cleanup_failed"});}
+    this.peer=null;this.channel=null;
   }
 }

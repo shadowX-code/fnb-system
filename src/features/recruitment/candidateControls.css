@@ -85,3 +85,7 @@
 .candidate-answer { display: grid; gap: 10px; width: 100%; min-width: 0; }
 .recruitment-public .candidate-answer p { margin: 0; }
 .candidate-answer-preview { max-height: 160px; overflow: auto; }
+/* Stable recovery shell: no live media, animation or composited Room surface. */
+.candidate-recovery { padding: 24px; color: var(--theme-text); background: var(--theme-surface); min-height: 300px; }
+.candidate-recovery-actions { display: grid; gap: 14px; margin-top: 20px; }
+.candidate-recovery-actions p { margin: 0; }

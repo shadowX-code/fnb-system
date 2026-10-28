@@ -28,6 +28,7 @@ export class InterviewTransportGeneration extends InterviewRecovery {
       this.assessment=pending;return pending;
     };
     const transport = new RecruitmentRealtimeSession({token,clientId,recoveryId,mediaStream,startedAt,audioElement,
+      onDiagnostic:details=>{if(current())this.onDiagnostic?.({...details,request_id:recoveryId});},
       onTurnState:view=>{if(current())onTurnState(view);},
       onRemote:stream=>{if(current())onRemote(stream);},
       onStatus:state=>{

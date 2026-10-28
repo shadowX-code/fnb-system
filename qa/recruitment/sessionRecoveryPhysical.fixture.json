@@ -1,0 +1,690 @@
+{
+  "attempt": "d5110bc5-4dee-4c89-b428-40937883e828",
+  "date": "2026-10-28",
+  "source": "physical-browser-relayed diagnostics; no transcript or audio",
+  "events": [
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123713973,
+        "type": "recovery.visibility",
+        "stage": "background",
+        "hidden": true,
+        "request_id": "1fc73335-f03c-499c-8d00-cea13380aac7"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123713974,
+        "type": "recovery.transition",
+        "stage": "",
+        "state": "RECOVERY_REQUIRED",
+        "hidden": true,
+        "request_id": "1fc73335-f03c-499c-8d00-cea13380aac7"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123768099,
+        "type": "recovery.command",
+        "stage": "continue.pointer",
+        "state": "RECOVERY_REQUIRED",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123768165,
+        "type": "recovery.media",
+        "stage": "getUserMedia.requested",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123768165,
+        "type": "recovery.transition",
+        "stage": "preparing",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123768165,
+        "type": "recovery.command",
+        "stage": "continue.tap",
+        "state": "RECOVERY_REQUIRED",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123796545,
+        "type": "recovery.command",
+        "stage": "resume",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123796545,
+        "type": "recovery.transition",
+        "stage": "tab ownership",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123796545,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "tab ownership",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123796545,
+        "type": "recovery.media",
+        "stage": "audio.activation",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a",
+        "audio_state": "suspended"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123796548,
+        "code": "microphone_prompt",
+        "type": "recovery.media",
+        "stage": "permissions",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123796548,
+        "code": "camera_prompt",
+        "type": "recovery.media",
+        "stage": "permissions",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123796837,
+        "type": "recovery.media",
+        "stage": "audio.activated",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a",
+        "audio_state": "running"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123796838,
+        "code": "recovery_timeout",
+        "type": "recovery.media",
+        "stage": "getUserMedia.error",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123797392,
+        "type": "recovery.bootstrap",
+        "stage": "tab.identity",
+        "hidden": false
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123797393,
+        "type": "recovery.transition",
+        "stage": "",
+        "state": "RECOVERY_REQUIRED",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123797393,
+        "type": "recovery.transition",
+        "stage": "camera and microphone",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123797393,
+        "code": "recovery_timeout",
+        "type": "recovery.command",
+        "stage": "camera and microphone",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123797393,
+        "code": "recovery_timeout",
+        "type": "recovery.error",
+        "stage": "camera and microphone",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123797393,
+        "code": "dependency_completed",
+        "type": "recovery.command",
+        "stage": "tab ownership",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123797393,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "camera and microphone",
+        "hidden": false,
+        "request_id": "ad129680-8f4d-42b3-b485-f37195c8d78a"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123803723,
+        "type": "recovery.command",
+        "stage": "continue.pointer",
+        "state": "RECOVERY_REQUIRED",
+        "hidden": false,
+        "request_id": "3d8346b3-ad19-4e9c-a4ea-de2be5a088f5"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123805397,
+        "type": "recovery.command",
+        "stage": "continue.pointer",
+        "state": "RECOVERY_REQUIRED",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123805464,
+        "type": "recovery.command",
+        "stage": "continue.tap",
+        "state": "RECOVERY_REQUIRED",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123805464,
+        "type": "recovery.transition",
+        "stage": "preparing",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123805465,
+        "type": "recovery.media",
+        "stage": "getUserMedia.requested",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123805991,
+        "type": "recovery.command",
+        "stage": "resume",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123805991,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "tab ownership",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123805991,
+        "type": "recovery.media",
+        "stage": "audio.activation",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd",
+        "audio_state": "suspended"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123805991,
+        "type": "recovery.transition",
+        "stage": "tab ownership",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123805993,
+        "code": "dependency_completed",
+        "type": "recovery.command",
+        "stage": "tab ownership",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123805993,
+        "type": "recovery.transition",
+        "stage": "camera and microphone",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123805993,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "camera and microphone",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123806415,
+        "code": "camera_prompt",
+        "type": "recovery.media",
+        "stage": "permissions",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123806415,
+        "code": "microphone_prompt",
+        "type": "recovery.media",
+        "stage": "permissions",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123806415,
+        "type": "recovery.media",
+        "stage": "audio.activated",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd",
+        "audio_state": "running"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123806911,
+        "type": "recovery.media",
+        "stage": "getUserMedia.resolved",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807344,
+        "code": "dependency_completed",
+        "type": "recovery.command",
+        "stage": "camera and microphone",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807344,
+        "type": "recovery.media",
+        "stage": "tracks.validated",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd",
+        "audio_state": "running"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807344,
+        "code": "dependency_completed",
+        "type": "recovery.command",
+        "stage": "device readiness",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807344,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "device readiness",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807344,
+        "type": "recovery.transition",
+        "stage": "device readiness",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807344,
+        "type": "recovery.transition",
+        "stage": "server state",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807344,
+        "type": "recovery.bootstrap",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807344,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "server state",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807466,
+        "type": "recovery.transition",
+        "stage": "server resume",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807466,
+        "code": "dependency_completed",
+        "type": "recovery.command",
+        "stage": "server state",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807466,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "server resume",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807525,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "transcript partition",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807525,
+        "type": "recovery.transition",
+        "stage": "transcript partition",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807525,
+        "code": "dependency_completed",
+        "type": "recovery.command",
+        "stage": "server resume",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807526,
+        "code": "dependency_completed",
+        "type": "recovery.command",
+        "stage": "transcript partition",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807526,
+        "type": "recovery.transition",
+        "stage": "recent transcript",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807526,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "recent transcript",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807586,
+        "code": "dependency_completed",
+        "type": "recovery.command",
+        "stage": "recent transcript",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807587,
+        "type": "recovery.transition",
+        "stage": "fresh recording",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807587,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "fresh recording",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807861,
+        "type": "recovery.transition",
+        "stage": "interviewer playback",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807861,
+        "code": "dependency_completed",
+        "type": "recovery.command",
+        "stage": "fresh recording",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807861,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "interviewer playback",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807861,
+        "code": "dependency_completed",
+        "type": "recovery.command",
+        "stage": "interviewer playback",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807862,
+        "type": "recovery.transition",
+        "stage": "fresh AI session",
+        "state": "RECOVERING",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    },
+    {
+      "generation": 1,
+      "record": {
+        "at": 1793123807862,
+        "code": "dependency_started",
+        "type": "recovery.command",
+        "stage": "fresh AI session",
+        "hidden": false,
+        "request_id": "becc03aa-5bb8-42ae-914c-81b1d5486ecd"
+      }
+    }
+  ]
+}
