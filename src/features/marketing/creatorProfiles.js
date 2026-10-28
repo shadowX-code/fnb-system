@@ -4,7 +4,7 @@ export function recognizeCreatorProfile(value) {
  const url=new URL(value.trim());
  if(url.protocol!=='https:'||url.username||url.password||url.port)throw new Error('Use a public HTTPS profile URL.');
  const host=url.hostname.toLowerCase(),path=url.pathname.replace(/\/$/,'');let platform,handle='',external_id='',canonical;
- if(['instagram.com','www.instagram.com'].includes(host)&&/^\/[a-z0-9._]+$/i.test(path)&&!['p','reel','reels','stories','explore','accounts','direct'].includes(path.slice(1).toLowerCase())){platform='instagram';handle=path.slice(1).toLowerCase();canonical=`https://www.instagram.com/${handle}/`;}
+ if(['instagram.com','www.instagram.com'].includes(host)&&/^\/[a-z0-9._]{1,30}$/i.test(path)&&!['p','reel','reels','stories','explore','accounts','direct'].includes(path.slice(1).toLowerCase())){platform='instagram';handle=path.slice(1).toLowerCase();canonical=`https://www.instagram.com/${handle}/`;}
  else if(['tiktok.com','www.tiktok.com'].includes(host)&&/^\/@[a-z0-9._-]+$/i.test(path)){platform='tiktok';handle=path.slice(2).toLowerCase();canonical=`https://www.tiktok.com/@${handle}`;}
  else if(['xiaohongshu.com','www.xiaohongshu.com'].includes(host)&&/^\/user\/profile\/[a-f0-9]+$/i.test(path)){platform='xhs';external_id=path.split('/').pop().toLowerCase();canonical=`https://www.xiaohongshu.com/user/profile/${external_id}`;}
  else if(['facebook.com','www.facebook.com','m.facebook.com'].includes(host)){
@@ -27,7 +27,7 @@ export function creatorProfileLink(account){
 }
 
 // Browser edits never submit server-owned follower evidence, including legacy values.
-export function creatorProfilePayload(p){const {_inspectedUrl,followers,followers_captured_at,followers_source,followers_sync_status,followers_sync_reason,followers_attempted_at,followers_due_at,followers_lease,followers_lease_until,...result}=p;if(result.platform==='instagram'){if(result.public_observation?.enrichment_receipt)result.profile_enrichment_receipt=result.public_observation.enrichment_receipt;delete result.public_observation;}else if(!result.public_observation||result.public_observation.source==='public_profile_staff_confirmed')delete result.public_observation;return result}
+export function creatorProfilePayload(p){if(p.platform==='instagram')try{p={...p,...instagramProfileInput(p.profile_url),external_id:p.external_id||''}}catch{}const {_inspectedUrl,followers,followers_captured_at,followers_source,followers_sync_status,followers_sync_reason,followers_attempted_at,followers_due_at,followers_lease,followers_lease_until,...result}=p;if(result.platform==='instagram'){delete result.profile_enrichment_receipt;if(result.public_observation?.enrichment_receipt)result.profile_enrichment_receipt=result.public_observation.enrichment_receipt;delete result.public_observation;}else if(!result.public_observation||result.public_observation.source==='public_profile_staff_confirmed')delete result.public_observation;return result}
 
 // Only the canonical command resolves association conflicts; provider failures stay independent.
 export function creatorAccountConflict(error){
@@ -41,4 +41,11 @@ export function creatorProfileObservation(previous,result){
  const fresh={source:result.source,captured_at:result.captured_at,avatar_url:result.avatar_url||null,avatar_kind:result.avatar_kind||null,profile_url:result.profile_url,...(result.enrichment_receipt?{enrichment_receipt:result.enrichment_receipt}:{})};
  const usable=/^https:\/\/([a-z0-9-]+\.)*(cdninstagram\.com|fbcdn\.net|xhscdn\.com|sns-i11\.rednotecdn\.com|tiktokcdn\.com|tiktokcdn-us\.com|tiktokv\.com|ibytedtos\.com)\//i.test(fresh.avatar_url||'');
  return usable?fresh:previous||{...fresh,avatar_url:null};
+}
+
+// Instagram accepts a username as an entry aid; stored and provider inputs remain canonical HTTPS URLs.
+export function instagramProfileInput(value){
+ const input=String(value||'').trim();
+ const url=/^@?[a-z0-9._]{1,30}$/i.test(input)?`https://www.instagram.com/${input.replace(/^@/,'')}/`:/^(www\.)?instagram\.com\//i.test(input)?'https://'+input:input;
+ const profile=recognizeCreatorProfile(url);if(profile.platform!=='instagram')throw new Error('Enter an Instagram profile URL or username.');return profile;
 }

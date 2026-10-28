@@ -6,6 +6,7 @@ async function rpc(name,args){
  const controller=new AbortController();let timer;
  try{const {data,error}=await Promise.race([supabase.rpc(name,args).abortSignal(controller.signal),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('The request took too long. Your edits are kept. Retry to check the same save safely.'))},30000)})]);const conflict=creatorAccountConflict(error);if(conflict){const problem=new Error(error.message);problem.identityConflict=conflict;throw problem;}throwSupabaseError(`marketing.${name}`,error?{code:error.code,message:redactUrlQueries(error.message),details:redactUrlQueries(error.details),hint:redactUrlQueries(error.hint)}:null);return data;}finally{clearTimeout(timer)}
 }
+const profileRequests=new Map();
 // Public extraction retains field evidence; authorized Meta fallback stays read-only.
 export const creatorPostAdapters={
  facebook:{mode:'public_inspection',fallback:'authorized_meta_cache'},instagram:{mode:'public_inspection',fallback:'authorized_meta_cache'},xhs:{mode:'public_inspection',fallback:'manual'},tiktok:{mode:'public_inspection',fallback:'manual'},
@@ -19,7 +20,10 @@ export const creatorService={
  directory:(org)=>rpc('marketing_creator_directory',{p_org:org,p_brand:null}),
  history:(org,post,after=null)=>rpc('marketing_creator_metric_history',{p_org:org,p_post:post,p_after:after,p_size:25}),
  read:(org,brand)=>rpc('marketing_creator_workspace',{p_org:org,p_brand:brand||null}),
- profile:async(org,brand,url,{officialOnly=false,accountId=null}={})=>{
+ profile:(org,brand,url,{officialOnly=false,accountId=null}={})=>{
+ const key=JSON.stringify([org,brand,url,accountId,officialOnly]);
+ if(profileRequests.has(key))return profileRequests.get(key);
+ const request=(async()=>{
  const {data:{session}}=await supabase.auth.getSession();
  let response,data;
  try{
@@ -27,6 +31,7 @@ export const creatorService={
   data=await response.json();
  }catch{throw new Error('Refresh confirmation unavailable. It may already be saved. Check saved profile before refreshing again.')}
  if(!response.ok)throw new Error(data.error||'Profile details unavailable.');return data;
+ })();profileRequests.set(key,request);request.then(()=>profileRequests.delete(key),()=>profileRequests.delete(key));return request;
  },
  preview:async(org,brand,url)=>{
  const {data:{session}}=await supabase.auth.getSession();

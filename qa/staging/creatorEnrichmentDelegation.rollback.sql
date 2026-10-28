@@ -70,14 +70,15 @@ select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from 
 set local role authenticated;
 do $$declare o uuid:=(select id from marketing_qa_ids where key='org');r jsonb;begin
  perform marketing_creator_enrichment_delegate(gen_random_uuid(),o,2,(select id from marketing_qa_ids where key='connection'),1,true);
- r:=marketing_creator_enrichment_begin(o,'qa_delegate_one',(select id from marketing_qa_ids where key='account'));insert into marketing_qa_ids values('good_request',(r->>'request_id')::uuid);perform marketing_creator_inspection_access(o,null,false,(r->>'request_id')::uuid);
+ r:=marketing_creator_enrichment_begin(o,'qa_delegate_one',(select id from marketing_qa_ids where key='account'));insert into marketing_qa_ids values('good_request',(r->>'request_id')::uuid);assert marketing_creator_enrichment_begin(o,'qa_delegate_one',(select id from marketing_qa_ids where key='account'))->>'reason'='profile_refresh_in_progress','Overlapping profile reads are denied';perform marketing_creator_inspection_access(o,null,false,(r->>'request_id')::uuid);
 end;$$;
 reset role;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 do $$declare r jsonb;denied boolean:=false;begin
  begin perform marketing_creator_enrichment_material((select id from marketing_qa_ids where key='revoked_request'),(select id from marketing_qa_ids where key='user'));exception when insufficient_privilege then denied:=true;end;assert denied,'Regrant cannot revive old request epoch';
- r:=marketing_creator_enrichment_finish((select id from marketing_qa_ids where key='good_request'),(select id from marketing_qa_ids where key='user'),'{"id":"88888","username":"qa_delegate_one","avatar_url":"https://scontent.cdninstagram.com/good.jpg","followers":0}',null);
+ r:=marketing_creator_enrichment_finish((select id from marketing_qa_ids where key='good_request'),(select id from marketing_qa_ids where key='user'),'{"id":"88888","username":"qa_delegate_one","name":"Public fixture name","biography":"Fixture biography","media_count":12,"avatar_url":"https://scontent.cdninstagram.com/good.jpg","followers":0}',null);
+ assert r->'observation'->>'name'='Public fixture name' and r->'observation'->>'biography'='Fixture biography','Public metadata belongs to canonical observation';
  assert r->>'state'='ready' and r->'account'->>'followers'='0','Zero is valid provider evidence';
  assert r->'account'->'public_observation'->>'source'='meta_instagram_business_discovery','Automatic provider evidence is not mislabeled as staff confirmation';
  assert r->'account'->'public_observation'->>'request_id'=(select id::text from marketing_qa_ids where key='good_request');
@@ -95,6 +96,9 @@ do $$declare o uuid:=(select id from marketing_qa_ids where key='org');r jsonb;d
  denied:=false;begin perform marketing_creator_enrichment_delegate(gen_random_uuid(),o,3,(select id from marketing_qa_ids where key='connection'),1,true);exception when insufficient_privilege then denied:=true;end;assert denied,'Admin without source Brand authority cannot delegate';
 end;$$;
 reset role;
+-- A second actor cannot overlap the same delegated read; expire only this synthetic pending fixture.
+do $$begin assert (select count(*) from marketing_private.creator_enrichment_requests where id=(select id from marketing_qa_ids where key='shared_request') and state='pending')=1;end;$$;
+update marketing_private.creator_enrichment_requests set expires_at=clock_timestamp()-interval '1 second' where id=(select id from marketing_qa_ids where key='shared_request');
 select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from marketing_qa_ids where key='user'),'role','authenticated')::text,true);
 set local role authenticated;
 do $$declare o uuid:=(select id from marketing_qa_ids where key='org');r jsonb;begin
@@ -121,7 +125,7 @@ reset role;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 do $$declare r jsonb;begin
- r:=marketing_creator_enrichment_finish((select id from marketing_qa_ids where key='failed_request'),(select id from marketing_qa_ids where key='user'),null,'provider_read_failed');assert r->>'state'='failed';
+ r:=marketing_creator_enrichment_finish((select id from marketing_qa_ids where key='failed_request'),(select id from marketing_qa_ids where key='user'),null,'profile_not_available_with_current_meta_access');assert r->>'state'='failed' and r->>'reason'='profile_not_available_with_current_meta_access';
 end;$$;
 reset role;
 do $$declare a public.marketing_creator_accounts;begin
