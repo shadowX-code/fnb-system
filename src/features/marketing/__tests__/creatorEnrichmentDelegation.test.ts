@@ -76,10 +76,10 @@ it.each(['thrown','resolved'])('treats a %s lost persistence acknowledgement as 
  expect(graph.request).toHaveBeenCalledTimes(1);expect(service.rpc.mock.calls.filter(([name]:any)=>name==='marketing_creator_enrichment_finish')).toHaveLength(1);
 });
 
-it.each([[100,'profile_not_available_with_current_meta_access'],[190,'meta_token_invalid'],[10,'meta_permission_required'],[4,'provider_rate_limited']])('retains Meta failure %s consistently for automatic/manual/worker persistence',async(code,reason)=>{
- graph.request.mockImplementation(async(_path:any,_token:any,_params:any,_method:any,inspect:any)=>{inspect(400,code,{graph_error_subcode:33});throw Object.assign(new Error('not exposed'),{code:`meta_error_${code}`,graphCode:code})});
+it.each([[100,'profile_not_available_with_current_meta_access'],[110,'profile_not_available_with_current_meta_access'],[190,'meta_token_invalid'],[10,'meta_permission_required'],[4,'provider_rate_limited']])('retains Meta failure %s consistently for automatic/manual/worker persistence',async(code,reason)=>{
+ graph.request.mockImplementation(async(_path:any,_token:any,_params:any,_method:any,inspect:any)=>{inspect(400,code,{graph_error_subcode:code===110?2207013:33});throw Object.assign(new Error('not exposed'),{code:`meta_error_${code}`,graphCode:code})});
  const result=await readCreatorProfile(caller,service,'user',graph,[],{org,handle:'target'});
- expect(result).toMatchObject({metadata_status:'unavailable',reason,provider_evidence:{http_status:400,graph_error_code:code,graph_error_subcode:33}});
+ expect(result).toMatchObject({metadata_status:'unavailable',reason,provider_evidence:{http_status:400,graph_error_code:code,graph_error_subcode:code===110?2207013:33}});
  expect(service.rpc).toHaveBeenCalledWith('marketing_creator_enrichment_finish',expect.objectContaining({p_error:reason,p_observation:null}));expect(graph.request).toHaveBeenCalledTimes(1);
 });
 it('does not invoke Meta when another request owns the same profile',async()=>{
