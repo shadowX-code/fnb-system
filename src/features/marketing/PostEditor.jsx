@@ -5,6 +5,7 @@ import AdminFormField from '../../components/forms/AdminFormField.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
 import DateTimePickerField from '../../components/forms/DateTimePickerField.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
+import ConfirmDialog from '../../components/feedback/ConfirmDialog.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import ReelCoverEditor from './ReelCoverEditor.jsx';
 import MarketingMediaPicker from './MarketingMediaPicker.jsx';
@@ -14,7 +15,7 @@ import {PostMedia} from './PostDetail.jsx';
 import {marketingService} from './marketingService.js';
 import {localInput} from './marketingCalendar.js';
 import {CONTENT_TIMEZONE,contentStatusLabel} from './contentManagement.js';
-import {POST_FORMATS,variantIssues,publishingAccount,mediaMetadataIssues} from './postEditor.js';
+import {POST_FORMATS,variantIssues,publishingAccount,mediaMetadataIssues,mediaCopyIssues} from './postEditor.js';
 import {isVideoFormat,publishingMediaEligible,extendedInstagramVariant} from './publishingMedia.js';
 import {publishingIntent,publishingStatus} from './publishingPlan.js';
 import './postEditor.css';
@@ -22,6 +23,7 @@ const label=contentStatusLabel;
 export default function PostEditor({payload,onChange,brand,assets=[],plannedLocal,onPlannedChange,busy=false,can=()=>false,content}) {
  const [selected,setSelected]=useState(payload.variants[0]?.channel||'facebook'),[view,setView]=useState('editor'),[cache,setCache]=useState([]),[accounts,setAccounts]=useState(null),[accountError,setAccountError]=useState(''),[retry,setRetry]=useState(0),[copied,setCopied]=useState(''),[configuration,setConfiguration]=useState(null),[configurationError,setConfigurationError]=useState(''),[observations,setObservations]=useState({});
  useEffect(()=>{let live=true;setConfiguration(null);setConfigurationError('');marketingService.metaConfiguration().then(value=>{if(live)setConfiguration(value)}).catch(()=>{if(live)setConfigurationError('Publishing readiness could not be checked. Retry before confirming publication.');});return()=>{live=false}},[retry]);
+ const [mediaCopy,setMediaCopy]=useState(null),[mediaCopyError,setMediaCopyError]=useState(''),[mediaCopied,setMediaCopied]=useState('');
  const captionInput=useRef(null),positions=useRef({}),pendingCursor=useRef(null),removedVariants=useRef({});
  const allAssets=[...new Map([...assets,...cache].map(a=>[a.id,a])).values()];
  const variant=payload.variants.find(v=>v.channel===selected)||payload.variants[0];
@@ -36,6 +38,19 @@ export default function PostEditor({payload,onChange,brand,assets=[],plannedLoca
  const planned=plannedLocal??(payload.planned_at?localInput(new Date(payload.planned_at),CONTENT_TIMEZONE):'');
  const intent=publishingIntent(payload),savedStatus=publishingStatus(content);
  const dateError=planned&&!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(planned)?'Choose both a date and time, or clear the date to leave this post unplanned.':'';
+ const copySignature=JSON.stringify([brand.organization_id,brand.id,payload.variants,content?.revision]);
+ useEffect(()=>{setMediaCopy(null);setMediaCopyError('');setMediaCopied('')},[channel,brand.id,brand.organization_id]);
+ function copyMedia(confirmed=false){
+  if(busy||channel!=='instagram'||other?.channel!=='facebook')return;
+  setMediaCopyError('');setMediaCopied('');
+  if(confirmed&&mediaCopy?.signature!==copySignature){setMediaCopy(null);setMediaCopyError('The media or post changed. Review both channels and copy again.');return;}
+  const errors=mediaCopyIssues(other,variant,allAssets,brand,observations);
+  if(errors.length){setMediaCopy(null);setMediaCopyError(errors.join(' '));return;}
+  if(variant.asset_ids.length&&!confirmed){setMediaCopy({signature:copySignature});return;}
+  // Only media references are copied; a channel's caption, format and cover stay independent.
+  onChange({...payload,variants:payload.variants.map(v=>v.channel==='instagram'?{...v,asset_ids:[...other.asset_ids]}:v)});
+  setMediaCopy(null);setMediaCopied('Media copied from Facebook. Review Instagram before saving.');
+ }
  function toggleChannel(name,checked){setCopied('');if(!checked)removedVariants.current[name]=payload.variants.find(v=>v.channel===name);onChange({...payload,variants:checked?[...payload.variants,removedVariants.current[name]||{channel:name,format:name==='facebook'?'text':'image',caption:'',asset_ids:[]}]:payload.variants.filter(v=>v.channel!==name)});if(checked)setSelected(name);}
  function insertSaved(text,kind){const result=insertCaptionText(variant.caption,text,channel==='instagram'?2200:63206,positions.current[channel]??variant.caption.length,kind);pendingCursor.current={channel,cursor:result.cursor};patchVariant({caption:result.value});}
  return <div className="post-editor-workspace" data-mobile-view={view}>
@@ -58,8 +73,11 @@ export default function PostEditor({payload,onChange,brand,assets=[],plannedLoca
  <AdminFormField label={variant.format==='story'?'Story description (internal only)':`${label(channel)} caption`} helper={`${variant.caption?.length||0} / ${channel==='instagram'?'2,200':'63,206'} characters`}><textarea key={channel} ref={captionInput} onSelect={e=>{positions.current[channel]=e.currentTarget.selectionStart}} className="control post-caption-input" rows={5} value={variant.caption} maxLength={channel==='instagram'?2200:63206} onChange={e=>patchVariant({caption:e.target.value})}/></AdminFormField>
  <CaptionLibrary key={`saved-text:${channel}`} brand={brand} can={can} disabled={busy} onInsert={insertSaved}/>
  {other?<div className="post-caption-copy"><button type="button" className="btn-secondary" disabled={busy||!other.caption||other.caption.length>(channel==='instagram'?2200:63206)} onClick={()=>{patchVariant({caption:other.caption});setCopied(`Caption copied from ${label(other.channel)}.`)}}><Copy size={14}/>Copy caption from {label(other.channel)}</button>{copied?<span role="status">{copied}</span>:null}</div>:null}
- {other&&isVideoFormat(variant.format)&&isVideoFormat(other.format)&&other.asset_ids.length===1&&allAssets.some(a=>a.id===other.asset_ids[0]&&a.brand_id===brand.id&&a.organization_id===brand.organization_id&&publishingMediaEligible(a,variant.format,channel))?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>patchVariant({asset_ids:[...other.asset_ids]})}><Copy size={14}/>Use {label(other.channel)} video</button>:null}
- {variant.format!=='text'?<MarketingMediaPicker key={`media:${channel}`} thumbnailPreviews disabled={busy} channel={channel} brand={brand} format={variant.format} values={variant.asset_ids} assets={allAssets} onAssetsResolved={records=>setCache(current=>[...new Map([...current,...records].map(a=>[a.id,a])).values()])} onChange={asset_ids=>patchVariant({asset_ids})}/>:null}
+ {other&&channel!=='instagram'&&isVideoFormat(variant.format)&&isVideoFormat(other.format)&&other.asset_ids.length===1&&allAssets.some(a=>a.id===other.asset_ids[0]&&a.brand_id===brand.id&&a.organization_id===brand.organization_id&&publishingMediaEligible(a,variant.format,channel))?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>patchVariant({asset_ids:[...other.asset_ids]})}><Copy size={14}/>Use {label(other.channel)} video</button>:null}
+ {variant.format!=='text'?<MarketingMediaPicker key={`media:${channel}`} thumbnailPreviews disabled={busy} channel={channel} brand={brand} format={variant.format} values={variant.asset_ids} assets={allAssets} renderActions={channel==='instagram'&&other?.channel==='facebook'?({disabled})=><button type="button" className="btn-secondary" disabled={disabled||!other.asset_ids.length} title={!other.asset_ids.length?'Select media in Facebook first.':undefined} onClick={()=>copyMedia()}><Copy size={14}/>Copy media from Facebook</button>:undefined} onAssetsResolved={records=>setCache(current=>[...new Map([...current,...records].map(a=>[a.id,a])).values()])} onChange={asset_ids=>patchVariant({asset_ids})}/>:null}
+ {mediaCopyError?<p className="text-sm text-danger" role="alert">{mediaCopyError}</p>:null}
+ {mediaCopied?<p className="text-sm text-text-secondary" role="status">{mediaCopied}</p>:null}
+ <ConfirmDialog request={mediaCopy?{title:'Replace Instagram media?',message:`Replace Instagram’s current media with the Facebook selection, in the same order? Instagram caption, format and cover settings stay unchanged.`,confirmLabel:'Replace media'}:null} onCancel={()=>setMediaCopy(null)} onConfirm={()=>copyMedia(true)}/>
  {variant.format==='reel'?<ReelCoverEditor key={`cover:${channel}:${variant.asset_ids[0]||''}`} variant={variant} brand={brand} assets={allAssets} disabled={busy} onChange={reel_cover=>patchVariant({reel_cover})} onAssetsResolved={records=>setCache(current=>[...new Map([...current,...records].map(a=>[a.id,a])).values()])} onMetadata={(id,metadata)=>setObservations(current=>({...current,[id]:metadata}))}/>:null}
  <p className="post-editor-help">{variant.format==='story'?'One 9:16 JPEG or H.264 MP4 (3–60 seconds), up to 8 MB / 50 MB. Description is internal; API stickers, music and links are unavailable.':variant.format==='carousel'?channel==='instagram'?'2–10 JPEG/MP4 items · 3–60 second H.264 clips · all items use the first item’s crop.':'2–10 images · selection order is publication order.':isVideoFormat(variant.format)?'One MP4 video, up to 50 MB. Facebook Reels use the verified 9:16, 4–60 second subset; server checks apply.':variant.format==='image'?`One ${channel==='instagram'?'JPEG':'image'}, up to 8 MB.`:'Facebook text post · no media required.'}</p>
  </fieldset></>:<p>Select Facebook or Instagram to prepare a channel variant.</p>}

@@ -116,3 +116,22 @@ it('reorders carousel media through the existing association callback without re
  const asset=readyAsset,brand={id:'brand',organization_id:'org'};const onChange=vi.fn().mockResolvedValue(undefined);render(<MarketingMediaPicker brand={brand} format="carousel" channel="instagram" values={['snapshot','second']} assets={[asset,{...asset,id:'second',filename:'Second.jpg'}]} onChange={onChange}/>);
  fireEvent.click(screen.getByRole('button',{name:`Move ${asset.filename} later`}));await waitFor(()=>expect(onChange).toHaveBeenCalledWith(['second','snapshot']));expect(importFile).not.toHaveBeenCalled();
 });
+
+it.each(['facebook','instagram'])('drags %s carousel references and keeps arrow/keyboard fallback without importing',async channel=>{
+ const onChange=vi.fn(),assets=[readyAsset,{...readyAsset,id:'second',filename:'Second.jpg'},{...readyAsset,id:'third',filename:'Third.jpg'}];
+ const view=render(<MarketingMediaPicker brand={{id:'brand',organization_id:'org'}} format="carousel" channel={channel} values={assets.map(a=>a.id)} assets={assets} onChange={onChange}/>);
+ assets.forEach((a,i)=>vi.spyOn(view.container.querySelector(`[data-sortable-item-id="${a.id}"]`),'getBoundingClientRect').mockReturnValue({top:i*80,height:70}));
+ const handle=screen.getByRole('button',{name:/Reorder Drive.jpg/});
+ fireEvent.pointerDown(handle,{pointerId:7,pointerType:'touch',button:0,clientY:30});fireEvent.pointerMove(window,{pointerId:7,clientY:210});
+ expect(view.container.querySelector('[data-drop-position="after"]')).toBeTruthy();
+ fireEvent.pointerUp(window,{pointerId:7,clientY:210});await waitFor(()=>expect(onChange).toHaveBeenCalledWith(['second','third','snapshot']));
+ expect(importFile).not.toHaveBeenCalled();expect(uploadFile).not.toHaveBeenCalled();
+ fireEvent.keyDown(screen.getByRole('button',{name:/Reorder Second.jpg/}),{key:'ArrowUp'});await waitFor(()=>expect(onChange).toHaveBeenCalledWith(['second','snapshot','third']));
+});
+it('cancels a carousel drag when disabled, and preserves failed order for an explicit retry',async()=>{
+ const onChange=vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true),brand={id:'brand',organization_id:'org'},assets=[readyAsset,{...readyAsset,id:'second',filename:'Second.jpg'}];
+ const props={brand,format:'carousel',channel:'instagram',values:['snapshot','second'],assets,onChange};const view=render(<MarketingMediaPicker {...props}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Move Drive.jpg later'}));await screen.findByRole('alert');expect(screen.getByText(/selection is kept/)).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Retry media save'}));await waitFor(()=>expect(onChange).toHaveBeenCalledTimes(2));expect(onChange.mock.calls[1][0]).toEqual(['second','snapshot']);
+ view.rerender(<MarketingMediaPicker {...props} disabled/>);expect(screen.getByRole('button',{name:/Reorder Drive.jpg/}).disabled).toBe(true);
+});

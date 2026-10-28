@@ -6,7 +6,7 @@ import AdminSortableHandle from "./AdminSortableHandle.jsx";
  * this owner supplies pointer drag state, insertion feedback, and keyboard
  * movement through the same handle.
  */
-export default function AdminSortableList({ items, getId = (item) => item.id, getLabel = (_item, index) => `Reorder item ${index + 1}`, onMove, className = "", children }) {
+export default function AdminSortableList({ items, getId = (item) => item.id, getLabel = (_item, index) => `Reorder item ${index + 1}`, onMove, disabled = false, className = "", children }) {
   const [drop, setDrop] = useState(null);
   const [pointerDrag, setPointerDrag] = useState(null);
   const listRef = useRef(null);
@@ -17,6 +17,7 @@ export default function AdminSortableList({ items, getId = (item) => item.id, ge
   onMoveRef.current = onMove;
 
   const activeDragId = pointerDrag?.itemId || "";
+  const orderKey = JSON.stringify(items.map(getId));
 
   function pointerPlacement(clientY, itemId) {
     const rows = [...(listRef.current?.querySelectorAll("[data-sortable-item-id]") || [])]
@@ -50,7 +51,7 @@ export default function AdminSortableList({ items, getId = (item) => item.id, ge
   }
 
   function startPointerDrag(itemId, event) {
-    if (pointerDragRef.current) return;
+    if (disabled || pointerDragRef.current) return;
     if (event.button !== undefined && event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.focus();
@@ -118,6 +119,13 @@ export default function AdminSortableList({ items, getId = (item) => item.id, ge
     return () => removePointerListenersRef.current();
   }, []);
 
+  useEffect(() => {
+    removePointerListenersRef.current();
+    pointerDragRef.current = null;
+    setDrop(null);
+    setPointerDrag(null);
+  }, [disabled, orderKey]);
+
   return (
     <div ref={listRef} className={`admin-sortable-list ${className}`.trim()} data-sortable-active={activeDragId ? "true" : undefined}>
       {items.map((item, index) => {
@@ -137,7 +145,7 @@ export default function AdminSortableList({ items, getId = (item) => item.id, ge
               item,
               index,
               dragging,
-              handle: <AdminSortableHandle label={getLabel(item, index)} index={index} count={items.length} dragging={dragging} onMove={(direction) => onMove(itemId, getId(items[index + direction]), direction < 0 ? "before" : "after")} onPointerDragStart={(event) => startPointerDrag(itemId, event)} onMouseDragStart={(event) => startPointerDrag(itemId, event)} />,
+              handle: <AdminSortableHandle disabled={disabled} label={getLabel(item, index)} index={index} count={items.length} dragging={dragging} onMove={(direction) => onMove(itemId, getId(items[index + direction]), direction < 0 ? "before" : "after")} onPointerDragStart={(event) => startPointerDrag(itemId, event)} onMouseDragStart={(event) => startPointerDrag(itemId, event)} />,
             })}
           </div>
         );
