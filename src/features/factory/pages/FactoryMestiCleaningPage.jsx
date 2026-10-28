@@ -99,7 +99,7 @@ function RequirementModal({ open, draft, locations, onClose, onSave, onChange, e
       <Field label="Effective From"><FeedXDatePicker required value={draft.effective_from} onChange={value => onChange("effective_from", value)} /></Field>
       <FactoryMestiScheduleFields frequency={draft.recurrence_type} weekdays={draft.recurrence_weekdays || []} status={draft.status} onFrequencyChange={value => onChange("recurrence_type", value)} onWeekdaysChange={value => onChange("recurrence_weekdays", value)} onStatusChange={value => onChange("status", value)} />
       <FactoryMestiLocationSelection locations={locations} value={draft.location_ids || []} onChange={value => onChange("location_ids", value)} />
-      {error ? <p role="alert" className="md:col-span-2 text-sm text-danger">{error}</p> : null}
+      {error ? <p role="alert" className="md:col-span-2 text-sm text-[var(--factory-danger-text)]">{error}</p> : null}
     </form>
   </Modal>;
 }
@@ -227,8 +227,8 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
             status={<span aria-live="polite"><StatusBadge status={occurrence.status} /></span>}
             actions={<FactoryMestiOccurrenceActions status={occurrence.status} canComplete={!error && canCompleteOccurrence(occurrence)} canVerify={!error && canVerifyOccurrence(occurrence)} working={Boolean(workingId) || monthLoading} onComplete={() => act("complete", occurrence)} onVerify={() => act("verify", occurrence, "verified")} onMarkUnsatisfactory={() => act("verify", occurrence, "unsatisfactory")} onView={() => act("view", occurrence)} />}
           />
-          {actionFailure?.id === occurrence.id ? <p role="alert" className="px-3 pb-2 text-sm text-danger">{actionFailure.message}</p> : null}
-          {error ? <div className="px-3 pb-2"><p role="alert" className="text-sm text-danger">{error}</p><button type="button" className="btn-secondary mt-2" onClick={loadMonthly}>Retry refresh</button></div> : null}
+          {actionFailure?.id === occurrence.id ? <p role="alert" className="px-3 pb-2 text-sm text-[var(--factory-danger-text)]">{actionFailure.message}</p> : null}
+          {error ? <div className="px-3 pb-2"><p role="alert" className="text-sm text-[var(--factory-danger-text)]">{error}</p><button type="button" className="btn-secondary mt-2" onClick={loadMonthly}>Retry refresh</button></div> : null}
         </section>}
         cellLabel={monthlyCellLabel}
         cellTitle={(cell, row) => monthlyCellTitle(cell, { task_name: row.location_name ? `${row.task_name} · ${row.location_name}` : row.task_name })}
