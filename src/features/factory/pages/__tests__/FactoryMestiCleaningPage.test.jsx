@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FactoryMasterDataProvider } from "../../context/FactoryMasterDataContext.jsx";
 import { FactoryPermissionsProvider } from "../../context/FactoryPermissionsContext.jsx";
@@ -34,6 +34,8 @@ function renderPage({ permissions = ["factory_mesti_cleaning.view", "factory_mes
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-02T04:00:00Z"));
   vi.clearAllMocks();
   factoryService.listMestiCleaningDay.mockResolvedValue([floorOccurrence, drainOccurrence]);
   factoryService.listMestiCleaningMonth.mockResolvedValue(monthlyRows);
@@ -42,16 +44,16 @@ beforeEach(() => {
   factoryService.saveMestiCleaningRequirement.mockImplementation(async (value) => ({ id: "req-new", logical_requirement_id: "logical-new", ...value, location_names: ["Preparation", "Dry Store"], version_no: 1 }));
 });
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("Factory MeSTI Cleaning of Area", () => {
   it("keeps view-specific content behind canonical tabs and loads the selected month without a manual Load action", async () => {
     renderPage();
-    expect(await screen.findByText("Due")).not.toBeNull();
+    expect((await screen.findAllByText("Due")).length).toBeGreaterThan(0);
     expect(screen.getByRole("tablist", { name: "View" })).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
     await waitFor(() => expect(factoryService.listMestiCleaningMonth).toHaveBeenCalled());
-    expect(screen.queryByText("Due")).toBeNull();
+    expect(screen.queryByText("Due", { selector: "div" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Load" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
@@ -139,41 +141,75 @@ describe("Factory MeSTI Cleaning of Area", () => {
     })));
   });
 
-  it("renders Monthly rows by requirement version, preserves distinct same-name requirements, and drills into Location evidence", async () => {
+  it("keeps version-pinned Task/Location rows expanded with read-only task aggregates", async () => {
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
-    expect(await screen.findByText("Legend")).not.toBeNull();
-    await waitFor(() => expect(factoryService.listMestiCleaningMonth).toHaveBeenCalled());
-    expect(screen.getByText("Task")).not.toBeNull();
-    expect(screen.queryByText("Task / Location")).toBeNull();
+    expect(await screen.findByText("Task / Location")).toBeTruthy();
     expect(screen.getAllByText("Floor")).toHaveLength(2);
-    expect(screen.getByText("Version 4 · Location-based requirement")).not.toBeNull();
-    expect(screen.getByTitle(/1 of 2 verified/)).not.toBeNull();
-    expect(screen.getByTitle(/Unsatisfactory/)).not.toBeNull();
-    expect(screen.getByTitle(/Awaiting Verification/)).not.toBeNull();
-    fireEvent.click(screen.getByTitle(/1 of 2 verified/));
-    expect(await screen.findByLabelText("Location occurrence evidence")).not.toBeNull();
-    expect(screen.getByText("Preparation")).not.toBeNull();
-    expect(screen.getByText("Cooking")).not.toBeNull();
-    expect(screen.getByText("Isaac")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "View Cooking cleaning details" }));
-    expect(await screen.findByRole("dialog", { name: "Floor · Cooking" })).not.toBeNull();
+    expect(screen.getByTitle("Requirement version 4")).toBeTruthy();
+    expect(screen.getByTitle(/1 of 2 verified/).tagName).toBe("SPAN");
+    expect(screen.getByText("Preparation")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Floor · Cooking.*Verified/ }));
+    expect(await screen.findByRole("dialog", { name: "Floor · Cooking" })).toBeTruthy();
+    expect(screen.getByText("Isaac")).toBeTruthy();
+    expect(screen.queryByLabelText("Location occurrence evidence")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Collapse Floor locations" })[0]);
+    expect(screen.queryByText("Preparation")).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Expand Floor locations" })[0]);
+    expect(screen.getByText("Preparation")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Floor.*03\/09\/2026/ })).toBeNull();
   });
 
-  it("uses the canonical complete and verify lifecycle from Monthly", async () => {
+  it("opens Complete and Verify directly from Location cells using the Daily authorities", async () => {
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
-    fireEvent.click(await screen.findByTitle(/1 of 2 verified/));
-    fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Floor · Preparation.*Pending/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete", exact: true }));
     await waitFor(() => expect(factoryService.completeMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep"));
-
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     cleanup();
-    const completed = { ...floorOccurrence, status: "completed" };
+    const completed = { ...floorOccurrence, status: "completed", completed_by: "employee-1" };
     factoryService.listMestiCleaningMonth.mockResolvedValue([{ ...monthlyRows[0], days: [{ ...monthlyRows[0].days[0], status: "completed", completed_count: 1, pending_count: 0, occurrences: [completed] }] }]);
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
-    fireEvent.click(await screen.findByTitle(/Awaiting Verification/));
-    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Floor · Preparation.*Awaiting Verification/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify", exact: true }));
     await waitFor(() => expect(factoryService.verifyMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep", "verified"));
+  });
+
+  it("keeps Monthly details readable without exposing unauthorized mutations", async () => {
+    renderPage({ permissions: ["factory_mesti_cleaning.view"] });
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Floor · Preparation.*Pending/ }));
+    expect(screen.getByRole("dialog", { name: "Floor · Preparation" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Verify" })).toBeNull();
+  });
+
+  it("uses segmented frequency, non-search Status and reversible bulk Location selection", async () => {
+    renderPage({ permissions: ["factory_mesti_cleaning.manage"] });
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    expect(screen.getAllByText("3")).toHaveLength(1);
+    expect(screen.queryByText("Version 5")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Create Requirement" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Weekly" }));
+    expect(screen.getByRole("checkbox", { name: "Mon" }).checked).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Wed" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("tab", { name: "Daily" }));
+    expect(screen.queryByRole("checkbox", { name: "Wed" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Weekly" }));
+    expect(screen.getByRole("checkbox", { name: "Wed" }).checked).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Select All" }));
+    expect(screen.getByRole("checkbox", { name: "Cooking" }).checked).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(screen.getByRole("checkbox", { name: "Cooking" }).checked).toBe(false);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Preparation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Status", exact: true }));
+    expect(screen.queryByRole("textbox", { name: /Search Status/ })).toBeNull();
+    fireEvent.click(screen.getByRole("option", { name: "Inactive" }));
+    fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Ceiling" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Requirement" }));
+    await waitFor(() => expect(factoryService.saveMestiCleaningRequirement).toHaveBeenCalledWith(expect.objectContaining({ status: "inactive", recurrence_type: "weekly", recurrence_weekdays: [1, 3], location_ids: ["loc-prep"] })));
   });
 });
