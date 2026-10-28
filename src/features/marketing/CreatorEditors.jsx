@@ -61,7 +61,7 @@ function SocialProfileFields({value:v,onChange,org,disabled=false,onEnriched}){
      ...(account?{followers:account.followers,followers_source:account.followers_source,followers_captured_at:account.followers_captured_at,followers_sync_status:account.followers_sync_status,followers_sync_reason:account.followers_sync_reason}:{followers:result.followers??'',followers_source:result.followers!=null?'meta_instagram_business_discovery':null,followers_captured_at:result.followers!=null?result.captured_at:null,followers_sync_status:'ready'}),
      public_observation:account?.public_observation||creatorProfileObservation(same?previous.public_observation:undefined,result)});
     if(account)onEnriched?.(account);
-   }else setUrlError(result.unavailable?.profile||'Public details unavailable. You can still save this profile URL.');
+   }else{if(result.enrichment_receipt)change({...current.current,profile_enrichment_receipt:result.enrichment_receipt});setUrlError(result.unavailable?.profile||'Public details unavailable. You can still save this profile URL.');}
    return result;
   }catch(e){if(ticket===version.current)setUrlError(e.message);return null}
   finally{if(ticket===version.current)setChecking(false)}

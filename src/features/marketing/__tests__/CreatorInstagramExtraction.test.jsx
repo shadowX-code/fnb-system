@@ -35,3 +35,10 @@ it('does not apply an old row response after that row is removed and another uns
  fireEvent.change(screen.getAllByLabelText('Profile URL')[1],{target:{value:'@nextrow'}});await screen.findByText('8');fireEvent.click(screen.getAllByRole('button',{name:'Remove',exact:true})[0]);
  oldResolve(result('oldrow',999));await Promise.resolve();await waitFor(()=>expect(screen.queryByText('999')).toBeNull());expect(screen.getByLabelText('Profile URL').value).toContain('nextrow');
 });
+
+it('saves one authorized unavailable-result receipt so reopen does not immediately queue a duplicate lookup',async()=>{
+ creatorService.profile.mockResolvedValue({metadata_status:'unavailable',enrichment_receipt:'failed-proof',unavailable:{profile:'Meta cannot expose this profile.'}});render(<AccountEditor {...props}/>);
+ fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'@unavailable'}});await screen.findByText('Meta cannot expose this profile.');fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));
+ expect(props.onSave).toHaveBeenCalledWith(expect.objectContaining({handle:'unavailable',profile_enrichment_receipt:'failed-proof'}));expect(props.onSave.mock.calls[0][0]).not.toHaveProperty('public_observation');expect(props.onSave.mock.calls[0][0]).not.toHaveProperty('followers');
+ fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'@different'}});fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));expect(props.onSave.mock.lastCall[0]).not.toHaveProperty('profile_enrichment_receipt');
+});

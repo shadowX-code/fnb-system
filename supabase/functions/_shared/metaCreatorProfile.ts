@@ -50,8 +50,8 @@ export async function executeCreatorEnrichment(service:any,graph:any,keys:string
   const graphCode=providerEvidence?.graph_error_code??(error as any)?.graphCode;
   const reason=message==='creator_enrichment_authority_changed'?'organization_profile_authorization_required':(graphCode===100||(graphCode===110&&providerEvidence?.graph_error_subcode===2207013))?'profile_not_available_with_current_meta_access':graphCode===190?'meta_token_invalid':[10,200].includes(graphCode)?'meta_permission_required':[4,17,32,613].includes(graphCode)||providerEvidence?.http_status===429?'provider_rate_limited':code==='meta_permission_or_token_invalid'?code:['meta_response_uncertain','meta_response_unreadable'].includes(code)?'provider_temporarily_unavailable':['provider_identity_mismatch','provider_profile_unavailable'].includes(message)?message:'provider_read_failed';
   // Failure evidence is best effort. A revoked or rotated delegation must reject even this commit.
-  try{await service.rpc('marketing_creator_enrichment_finish',{p_request:request,p_auth_user:userId,p_observation:null,p_error:reason})}catch{}
-  return {state:'failed',reason,failure_stage:phase,provider_evidence:providerEvidence};
+  let diagnostic:any;try{diagnostic=await enrichmentRpc(service,'marketing_creator_enrichment_finish',{p_request:request,p_auth_user:userId,p_observation:null,p_error:reason})}catch{}
+  return {state:'failed',reason,failure_stage:phase,provider_evidence:providerEvidence,...(diagnostic?.state==='failed'&&diagnostic.enrichment_receipt?{enrichment_receipt:diagnostic.enrichment_receipt}:{})};
  }
 }
 export async function readCreatorProfile(caller:any,service:any,userId:string,graph:any,keys:string[],body:any){
@@ -66,7 +66,7 @@ export async function readCreatorProfile(caller:any,service:any,userId:string,gr
   if(result?.state!=='ready'){
    const uncertain=result?.state==='uncertain';
    const message=uncertain?'Refresh confirmation unavailable. It may already be saved. Check saved profile before refreshing again.':result?.failure_stage==='persistence'?'Profile was not saved because its identity or authorization changed. Saved details are retained.':result?.reason==='organization_profile_authorization_required'?'Workspace profile authorization changed. Saved details are retained.':profileFailureMessage(result?.reason);
-   return {applicable:true,metadata_status:uncertain?'uncertain':'unavailable',reason:result?.reason||'provider_read_failed',failure_stage:result?.failure_stage,provider_evidence:result?.provider_evidence,unavailable:{profile:message}};
+   return {applicable:true,metadata_status:uncertain?'uncertain':'unavailable',reason:result?.reason||'provider_read_failed',failure_stage:result?.failure_stage,provider_evidence:result?.provider_evidence,...(result?.enrichment_receipt?{enrichment_receipt:result.enrichment_receipt}:{}),unavailable:{profile:message}};
   }
   return {applicable:true,platform:'instagram',handle,identity_verified:false,metadata_status:'public_extracted',...result.observation,display_name:result.observation?.name||'',enrichment_receipt:result.enrichment_receipt,account:result.account};
  }finally{
