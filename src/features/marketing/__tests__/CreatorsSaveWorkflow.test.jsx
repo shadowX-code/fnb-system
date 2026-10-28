@@ -21,7 +21,7 @@ it('retains failed edits, retries the exact request identity, and prevents concu
 });
 it('child Post save updates its exact parent plan immediately without waiting for enrichment',async()=>{
  const refresh=deferred();service.read.mockResolvedValueOnce(data).mockResolvedValueOnce(data).mockReturnValueOnce(refresh.promise);service.preview.mockResolvedValue({platform:'instagram',canonical_url:'https://instagram.com/p/real/',metadata_status:'unavailable',message:'Manual details'});service.command.mockImplementation(async intent=>({id:'post',revision:1,brand_id:'b',creator_id:'creator',platform:'instagram',canonical_url:intent.payload.url,collaboration_id:'collab',deliverable_id:intent.payload.deliverable_id,publication_confirmed_at:'2026-10-14T00:00:00Z'}));
- let drawer=await open();fireEvent.click(drawer.getAllByRole('button',{name:'Add Post URL'})[0]);drawer=within(screen.getByRole('dialog'));fireEvent.change(drawer.getByLabelText('Post URL *'),{target:{value:'https://instagram.com/p/real/'}});fireEvent.click(drawer.getByRole('button',{name:'Inspect URL'}));await drawer.findByRole('heading',{name:'Post Preview'});fireEvent.click(drawer.getByRole('button',{name:'Save Post'}));await waitFor(()=>expect(within(screen.getByRole('dialog')).getByText('1/2 Published')).toBeTruthy());expect(within(screen.getByRole('dialog')).getByLabelText('Collaboration Title *').value).toBe('Mixed collaboration');expect(service.command.mock.calls[0][0].payload).toMatchObject({creator_id:'creator',deliverable_id:'d1',confirm_link:true,confirm_published:true});
+ let drawer=await open();fireEvent.click(drawer.getAllByRole('button',{name:'Add Post URL'})[0]);drawer=within(screen.getByRole('dialog'));fireEvent.change(drawer.getByLabelText('Post URL *'),{target:{value:'https://instagram.com/p/real/'}});fireEvent.click(drawer.getByRole('button',{name:'Inspect URL'}));await drawer.findByRole('heading',{name:'Post Preview'});fireEvent.click(drawer.getByRole('button',{name:'Save Post'}));await waitFor(()=>expect(within(screen.getByRole('dialog')).getByText('1/2 Published')).toBeTruthy());expect(within(screen.getByRole('dialog')).getByLabelText('Collaboration Title *').value).toBe('Mixed collaboration');expect(service.command.mock.calls[0][0]).toMatchObject({brand:'b',payload:{creator_id:'creator',collaboration_id:'collab',deliverable_id:'d1',confirm_link:true,confirm_published:true}});
 });
 
 it('keeps Grid account links independent from accessible card opening',async()=>{
@@ -67,4 +67,19 @@ it('projects confirmed account removal/restoration without rewriting linked Post
  const account={id:'ig',creator_id:'creator',platform:'instagram',revision:1},before={...data,accounts:[account],posts:[{id:'p',account_id:'ig',collaboration_id:'collab',public_observation:{source:'original'}}]};
  const removed=applyCreatorMutation(before,'archive_account',{...account,revision:2,archived:true});expect(removed.posts).toBe(before.posts);expect(removed.collaborations).toBe(before.collaborations);expect(removed.accounts).toHaveLength(1);expect(removed.accounts[0].archived).toBe(true);
  const restored=applyCreatorMutation(removed,'save_account',{...account,revision:3,archived:false});expect(restored.accounts).toHaveLength(1);expect(restored.accounts[0].id).toBe('ig');expect(restored.posts).toBe(before.posts);
+});
+
+
+it('keeps Add Creator primary without a standalone Post URL action across Creator sections',async()=>{
+ render(<CreatorsPage ui={{notify}}/>);const add=await screen.findByRole('button',{name:'Add Creator',exact:true});expect(add.className).toContain('btn-primary');
+ for(const tab of ['Directory','Collaborations','Posts','Insights']){fireEvent.click(screen.getByRole('tab',{name:tab,exact:true}));expect(screen.queryByRole('button',{name:'Add Post from URL',exact:true})).toBeNull();expect(screen.getByRole('button',{name:'Add Creator',exact:true})).toBeTruthy();}
+ expect(service.command).not.toHaveBeenCalled();
+});
+it('removes standalone Creator-drawer creation while retaining the exact historical Post and Collaboration',async()=>{
+ const post={id:'legacy',revision:1,brand_id:'b',creator_id:'creator',platform:'instagram',canonical_url:'https://www.instagram.com/p/legacy/',caption:'Historical standalone evidence',collaboration_id:null};service.read.mockResolvedValue({...data,posts:[post]});
+ render(<CreatorsPage ui={{notify}}/>);fireEvent.click(await screen.findByRole('button',{name:'View Creator',exact:true}));const drawer=within(screen.getByRole('dialog'));expect(drawer.queryByRole('button',{name:'Add Post',exact:true})).toBeNull();expect(drawer.getByRole('button',{name:'Plan Visit',exact:true})).toBeTruthy();expect(drawer.getByRole('button',{name:/Mixed collaboration/})).toBeTruthy();
+ fireEvent.click(drawer.getByRole('button',{name:/Historical standalone evidence/}));expect(screen.getByRole('heading',{name:'Creator Post',exact:true})).toBeTruthy();expect(screen.getByRole('button',{name:'Save Changes',exact:true})).toBeTruthy();expect(service.command).not.toHaveBeenCalled();expect(post.collaboration_id).toBeNull();
+});
+it('requires a saved Creator before opening a Collaboration post creation editor',async()=>{
+ service.read.mockResolvedValue({...data,collaborations:[{...c,creator_id:null}]});const drawer=await open();fireEvent.click(drawer.getAllByRole('button',{name:'Add Post URL',exact:true})[0]);await screen.findAllByText('Choose and save a Creator for this Collaboration before adding a Post.');expect(screen.queryByRole('heading',{name:'Add Published Post',exact:true})).toBeNull();expect(service.preview).not.toHaveBeenCalled();expect(service.command).not.toHaveBeenCalled();
 });
