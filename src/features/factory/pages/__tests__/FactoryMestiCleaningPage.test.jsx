@@ -6,7 +6,7 @@ import FactoryMestiCleaningPage from "../FactoryMestiCleaningPage.jsx";
 import { factoryService } from "../../../../services/factoryService.js";
 
 vi.mock("../../../../services/factoryService.js", () => ({ factoryService: {
-  listMestiCleaningDay: vi.fn(), listMestiCleaningMonth: vi.fn(), saveMestiCleaningRequirement: vi.fn(), completeMestiCleaningOccurrence: vi.fn(), verifyMestiCleaningOccurrence: vi.fn(),
+  listMestiCleaningDay: vi.fn(), listMestiCleaningMonth: vi.fn(), listMestiCleaningRequirementVersions: vi.fn(), saveMestiCleaningRequirement: vi.fn(), completeMestiCleaningOccurrence: vi.fn(), verifyMestiCleaningOccurrence: vi.fn(),
 } }));
 
 const locationPreparation = { id: "loc-prep", location_name: "Preparation", status: "active", is_storage_location: false };
@@ -51,6 +51,40 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("Factory MeSTI Cleaning of Area", () => {
+  it("shows compact Location overflow and reads canonical history without overwriting an unsaved draft", async () => {
+    const current = data.mestiCleaningRequirements[0];
+    factoryService.listMestiCleaningRequirementVersions.mockResolvedValue([current, { ...current, id: "req-floor-v4", version_no: 4, effective_until: "2026-09-01", superseded_by: current.id, location_names: ["Cooking"], created_at: "2026-08-01T04:00:00Z", created_by_name: "Isaac" }]);
+    renderPage({ permissions: ["factory_mesti_cleaning.view", "factory_mesti_cleaning.edit"] });
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show 1 more Locations" }));
+    expect(screen.getByRole("dialog", { name: "More Locations" }).textContent).toContain("Dry Store");
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+    fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Unsaved name" } });
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
+    expect(await screen.findByText("Version 5 · Floor")).toBeTruthy();
+    expect(factoryService.listMestiCleaningRequirementVersions).toHaveBeenCalledWith("logical-floor");
+    expect(screen.getByText("Current")).toBeTruthy();
+    expect(screen.getByText("Version 4 · Floor")).toBeTruthy();
+    expect(screen.getByText(/Created .*Isaac/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Save Requirement" })).toBeNull();
+    expect(screen.queryByText("No date")).toBeNull();
+    expect(factoryService.saveMestiCleaningRequirement).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("tab", { name: "Edit" }));
+    expect(screen.getByLabelText("Task Name").value).toBe("Unsaved name");
+  });
+
+  it("allows retry after a history read failure without saving or changing a requirement", async () => {
+    factoryService.listMestiCleaningRequirementVersions.mockRejectedValueOnce(new Error("History unavailable")).mockResolvedValue([data.mestiCleaningRequirements[0]]);
+    renderPage({ permissions: ["factory_mesti_cleaning.view", "factory_mesti_cleaning.edit"] });
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Version 5 · Floor")).toBeTruthy();
+    expect(factoryService.saveMestiCleaningRequirement).not.toHaveBeenCalled();
+  });
   it("keeps view-specific content behind canonical tabs and loads the selected month without a manual Load action", async () => {
     renderPage();
     expect((await screen.findAllByText("Due")).length).toBeGreaterThan(0);
@@ -257,7 +291,9 @@ describe("Factory MeSTI Cleaning of Area", () => {
   it("uses segmented frequency, non-search Status and reversible bulk Location selection", async () => {
     renderPage({ permissions: ["factory_mesti_cleaning.manage"] });
     fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
-    expect(screen.getByText("Preparation, Cooking, Dry Store")).toBeTruthy();
+    expect(screen.getByText("Preparation")).toBeTruthy();
+    expect(screen.getAllByText("Cooking")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Show 1 more Locations" })).toBeTruthy();
     expect(screen.queryByText("Version 5")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create Requirement" }));
     fireEvent.click(screen.getByRole("tab", { name: "Weekly" }));

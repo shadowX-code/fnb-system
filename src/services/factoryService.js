@@ -3258,6 +3258,16 @@ const factoryServiceDefinition = {
     return (Array.isArray(data) ? data : []).map(mapMestiCleaningMonthlyRequirement);
   },
 
+  async listMestiCleaningRequirementVersions(logicalRequirementId) {
+    if (!logicalRequirementId) throw new Error("Select a Cleaning Requirement to view its history.");
+    const { data, error } = await supabase.from("factory_mesti_cleaning_requirements")
+      .select(`${mestiCleaningRequirementSelect},creator:employees!factory_mesti_cleaning_requirements_created_by_fkey(nickname,full_name)`)
+      .eq("logical_requirement_id", logicalRequirementId)
+      .order("version_no", { ascending: false });
+    throwSupabaseError("factory.mesti_cleaning.requirement.history", error);
+    return (data || []).map(row => ({ ...mapMestiCleaningRequirement(row), created_by_name: row.creator?.nickname || row.creator?.full_name || "" }));
+  },
+
   async saveMestiCleaningRequirement(requirement) {
     const { data, error } = await supabase.rpc("factory_save_mesti_cleaning_requirement", { p_requirement: requirement });
     throwSupabaseError("factory.mesti_cleaning.requirement.save", error);

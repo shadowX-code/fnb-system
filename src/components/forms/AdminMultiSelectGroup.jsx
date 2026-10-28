@@ -1,4 +1,4 @@
-import { Check, ListChecks, X } from "lucide-react";
+import { ListChecks, X } from "lucide-react";
 import "./AdminMultiSelectGroup.css";
 
 export function AdminSelectionActions({ onSelectAll, onClear, allSelected, empty }) {
@@ -22,7 +22,6 @@ export default function AdminMultiSelectGroup({ label, options, value, onChange,
         return <label key={option.value} className="admin-multi-select-option" data-disabled={disabled || option.disabled || undefined}>
           <input type="checkbox" className="sr-only" aria-label={option.accessibleLabel || option.label} value={option.value} checked={selected} disabled={option.disabled} onChange={event => toggle(option, event.target.checked)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); toggle(option, !selected); } }} />
           <span className="admin-multi-select-surface">
-            <Check aria-hidden="true" size={16} className={`admin-multi-select-check ${selected ? "" : "invisible"}`} />
             <span className="min-w-0 break-words"><span className="block">{option.label}</span>{option.description ? <span className="mt-0.5 block text-xs font-normal text-text-secondary">{option.description}</span> : null}</span>
           </span>
         </label>;

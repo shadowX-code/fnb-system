@@ -43,7 +43,7 @@ export function sortTimelineEvents(events = []) {
   });
 }
 
-export default function Timeline({ events = [], variant = "compact", newestFirst = true, empty = "No activity yet.", className = "", groupByDate = false, timeZone, showDate = true }) {
+export default function Timeline({ events = [], variant = "compact", newestFirst = true, empty = "No activity yet.", className = "", groupByDate = false, timeZone, showDate = true, showTimestamp = true }) {
   const sortedEvents = newestFirst ? sortTimelineEvents(events) : events;
   const isCard = variant === "card" || variant === "detailed";
 
@@ -54,7 +54,7 @@ export default function Timeline({ events = [], variant = "compact", newestFirst
   if (groupByDate) {
     const groups=[];
     for(const event of sortedEvents){const label=formatDate(eventTimestamp(event),timeZone);if(groups.at(-1)?.label===label)groups.at(-1).events.push(event);else groups.push({label,events:[event]});}
-    return <div className={`timeline-date-groups ${className}`}>{groups.map((group,index)=><section key={`${group.label}-${index}`} aria-label={group.label}><h4 className="timeline-date-heading">{group.label}</h4><Timeline events={group.events} variant={variant} newestFirst={false} timeZone={timeZone} showDate={false}/></section>)}</div>;
+    return <div className={`timeline-date-groups ${className}`}>{groups.map((group,index)=><section key={`${group.label}-${index}`} aria-label={group.label}><h4 className="timeline-date-heading">{group.label}</h4><Timeline events={group.events} variant={variant} newestFirst={false} timeZone={timeZone} showDate={false} showTimestamp={showTimestamp}/></section>)}</div>;
   }
 
   return (
@@ -77,11 +77,11 @@ export default function Timeline({ events = [], variant = "compact", newestFirst
                 </div>
                 {event.status ? <Badge tone={event.statusTone || "neutral"}>{event.status}</Badge> : null}
               </div>
-              <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 type-caption text-text-secondary">
-                <time dateTime={toDate(timestamp)?.toISOString()}>{showDate?formatDate(timestamp,timeZone):null}{formatTime(timestamp,timeZone)?`${showDate?" · ":""}${formatTime(timestamp,timeZone)}`:showDate?"":"No time"}</time>
+              {showTimestamp || event.actor || event.outlet ? <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 type-caption text-text-secondary">
+                {showTimestamp ? <time dateTime={toDate(timestamp)?.toISOString()}>{showDate?formatDate(timestamp,timeZone):null}{formatTime(timestamp,timeZone)?`${showDate?" · ":""}${formatTime(timestamp,timeZone)}`:showDate?"":"No time"}</time> : null}
                 {event.actor ? <span>{event.actor}</span> : null}
                 {event.outlet ? <span>{event.outlet}</span> : null}
-              </div>
+              </div> : null}
               {event.metadata ? <div className="mt-1 type-caption text-text-secondary">{event.metadata}</div> : null}
               {event.feedback ? <blockquote className="timeline-event-feedback">{event.feedback}</blockquote> : null}
               {event.actions ? <div className="mt-2 flex flex-wrap gap-2">{event.actions}</div> : null}

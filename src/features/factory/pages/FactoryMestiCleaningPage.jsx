@@ -3,7 +3,8 @@ import { CalendarDays, Check, ClipboardCheck, Plus, ShieldCheck, XCircle } from 
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
-import TruncatedTextPopover from "../../../components/ui/TruncatedTextPopover.jsx";
+import TagList from "../../../components/ui/TagList.jsx";
+import FactoryMestiRequirementHistory from "../components/FactoryMestiRequirementHistory.jsx";
 import { FactoryMestiMonthlyActionRow } from "../components/FactoryMestiMonthlyExpansion.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import { factoryService } from "../../../services/factoryService.js";
@@ -92,15 +93,18 @@ function OccurrenceDetail({ occurrence, onClose }) {
 }
 
 function RequirementModal({ open, draft, locations, onClose, onSave, onChange, error, saving }) {
+  const [view, setView] = useState("edit");
+  useEffect(() => { setView("edit"); }, [open, draft.id]);
   if (!open) return null;
-  return <Modal open={open} onClose={onClose} title={draft.id ? "Edit Cleaning Requirement" : "Create Cleaning Requirement"} description="Requirements remain versioned and only meaningful edits create a new version." footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" form="area-cleaning-requirement" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Requirement"}</button></>}>
-    <form id="area-cleaning-requirement" className="grid gap-4 md:grid-cols-2" onSubmit={onSave}>
+  return <Modal open={open} onClose={onClose} title={draft.id ? "Edit Cleaning Requirement" : "Create Cleaning Requirement"} description="Requirements remain versioned and only meaningful edits create a new version." footer={<><button className="btn-secondary" type="button" onClick={onClose}>{view === "history" ? "Close" : "Cancel"}</button>{view === "edit" ? <button className="btn-primary" form="area-cleaning-requirement" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Requirement"}</button> : null}</>}>
+    {draft.id ? <div className="mb-4"><FactoryViewTabs ariaLabel="Requirement" value={view} onChange={setView} tabs={[{ value: "edit", label: "Edit" }, { value: "history", label: "History" }]} /></div> : null}
+    {view === "history" ? <FactoryMestiRequirementHistory logicalRequirementId={draft.logical_requirement_id || draft.id} loadVersions={factoryService.listMestiCleaningRequirementVersions} formatSchedule={recurrenceLabel} /> : <form id="area-cleaning-requirement" className="grid gap-4 md:grid-cols-2" onSubmit={onSave}>
       <Field label="Task Name"><input className={inputClass()} value={draft.task_name} onChange={event => onChange("task_name", event.target.value)} placeholder="Floor, Ceiling, Drain" required /></Field>
       <Field label="Effective From"><FeedXDatePicker required value={draft.effective_from} onChange={value => onChange("effective_from", value)} /></Field>
       <FactoryMestiScheduleFields frequency={draft.recurrence_type} weekdays={draft.recurrence_weekdays || []} status={draft.status} onFrequencyChange={value => onChange("recurrence_type", value)} onWeekdaysChange={value => onChange("recurrence_weekdays", value)} onStatusChange={value => onChange("status", value)} />
       <FactoryMestiLocationSelection locations={locations} value={draft.location_ids || []} onChange={value => onChange("location_ids", value)} />
       {error ? <p role="alert" className="md:col-span-2 text-sm text-[var(--factory-danger-text)]">{error}</p> : null}
-    </form>
+    </form>}
   </Modal>;
 }
 
@@ -240,7 +244,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
       <div className="flex items-center justify-end">{canSaveSetup ? <button className="btn-primary h-10 px-3 text-sm" type="button" onClick={() => { setRequirementDraft(emptyRequirementDraft()); setShowRequirementForm(true); }}><Plus size={15} /> Create Requirement</button> : null}</div>
       <FactoryDataSurface><FactoryTable rows={currentRequirements} columns={[
         { key: "task", label: "Task", render: (row) => <span className="font-semibold text-text-primary">{row.task_name}</span> },
-        { key: "locations", label: "Locations", render: (row) => <TruncatedTextPopover text={(row.location_names || []).join(", ") || "—"} label="Read all Locations" className="max-w-72 text-sm text-text-secondary" textClassName="line-clamp-2 break-words" /> },
+        { key: "locations", label: "Locations", render: (row) => <TagList tags={row.location_names || []} maxVisible={2} label="Locations" /> },
         { key: "frequency", label: "Frequency", render: recurrenceLabel },
         { key: "effective", label: "Effective From", render: (row) => formatFactoryDate(row.effective_from) },
         { key: "status", label: "Status", render: (row) => <FactoryStatusBadge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Active" : "Inactive"}</FactoryStatusBadge> },

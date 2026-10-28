@@ -18,6 +18,7 @@ it("selects entire tiles without changing ID types or hidden linked values", () 
   fireEvent.click(screen.getByText("Cooking Room"));
   expect(change).toHaveBeenLastCalledWith(["retained-inactive", "cooking"]);
   expect(screen.getByRole("checkbox", { name: "Cooking Room" }).checked).toBe(true);
+  expect(document.querySelector(".admin-multi-select-option svg")).toBeNull();
   expect(screen.getByText("2 selected")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Select All" }));
   expect(change).toHaveBeenLastCalledWith(["retained-inactive", "cooking", "prep"]);
@@ -81,6 +82,7 @@ it("owns theme-aware chip/tile/focus styling in the reusable selector, not MeSTI
   expect(css).toContain("input:checked + .admin-multi-select-surface");
   expect(css).toContain("var(--theme-primary-soft)");
   expect(css).toContain("var(--factory-success-border)");
+  expect(css).toContain("color:var(--factory-success-text); font-weight:600");
   expect(css).toContain("input:focus-visible + .admin-multi-select-surface");
   expect(css).not.toMatch(/#[a-f0-9]{3,8}\b/i);
 });
