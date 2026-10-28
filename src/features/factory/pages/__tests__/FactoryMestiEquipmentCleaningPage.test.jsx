@@ -108,12 +108,17 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     expect(screen.queryByText("Responsible Role")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /create requirement/i }));
     fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Deep Cleaning" } });
+    fireEvent.change(screen.getByLabelText("Frequency"), { target: { value: "weekly" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Wed" }));
     fireEvent.change(screen.getByPlaceholderText("Search equipment, category, or location"), { target: { value: "Filler" } });
     expect(screen.getByText("Filler 02")).not.toBeNull();
     expect(screen.getByText("Preparation Room · FL-02")).not.toBeNull();
     fireEvent.click(screen.getByLabelText("Filler 02 FL-02"));
     expect(screen.getByText("1 equipment selected")).not.toBeNull();
+    fireEvent.change(screen.getByPlaceholderText("Search equipment, category, or location"), { target: { value: "Mixer" } });
+    fireEvent.click(screen.getByText("Mixer 01"));
+    expect(screen.getByText("2 equipment selected")).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Create Requirement" }).at(-1));
-    await waitFor(() => expect(factoryService.saveMestiEquipmentCleaningRequirement).toHaveBeenCalledWith(expect.objectContaining({ task_name: "Deep Cleaning", equipment_ids: ["equipment-2"] })));
+    await waitFor(() => expect(factoryService.saveMestiEquipmentCleaningRequirement).toHaveBeenCalledWith(expect.objectContaining({ task_name: "Deep Cleaning", equipment_ids: ["equipment-2", "equipment-1"], recurrence_type: "weekly", recurrence_weekdays: [1, 3] })));
   });
 });
