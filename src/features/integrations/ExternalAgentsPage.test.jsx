@@ -82,3 +82,9 @@ it("clears an issued key when the signed-in administrator changes even with the 
  view.rerender(<ExternalAgentsPage auth={{...auth(),user:{id:"next-admin"}}} />);
  await waitFor(()=>expect(screen.queryByDisplayValue("TEST_ONE_TIME_SECRET")).toBeNull());
 });
+
+it("keeps legacy read activity understandable after review tools leave the permission catalog",async()=>{
+ externalAgentService.details.mockResolvedValue({...detail,access_events:[{id:1,occurred_at:"2026-10-29T01:00:00Z",method:"tools/call",tool:"get_mesti_daily_status",source:"external",outcome:"success"}]});
+ render(<ExternalAgentsPage auth={auth()} />);await open();tab("Activity");
+ expect(screen.getByText("Daily MeSTI review")).toBeTruthy();expect(screen.queryByText("Unsupported request")).toBeNull();
+});
