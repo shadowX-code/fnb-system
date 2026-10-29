@@ -84,3 +84,18 @@ Connect agent selects implemented capabilities through Workspace → Module, cre
 `qa/staging/externalAgentCapabilities.rollback.sql` checks registration/replay, selected-grant discovery, real redacted data, immediate revoke/restore enforcement, disable/enable with the same key, stale-state guards, unavailable and unknown actions, shared-role denial, anonymous/unprivileged denial and canonical audit. The entire fixture is rolled back and fingerprints QA Executive’s identity, grants and credentials before/after. Run the existing credential lifecycle rollback script only when that lifecycle changes; avoid duplicating completed QA. Never disable, rotate, revoke or change the working QA Executive during browser QA. Use its existing key only for read-only connectivity checks.
 
 Gateway administration activity requires the server-controlled audit provenance flag. The audit guard rollback contract checks forged event/provenance denial and genuine grant, identity and key events. Pre-guard administrator history is not reconstructed; authoritative key history and external request telemetry remain separate.
+
+
+### Resource-based MeSTI access
+
+The HTTPS endpoint and Bearer setup stay unchanged. QA Executive’s existing five legacy grants/key remain unchanged and do **not** discover or authorize resource queries. An administrator must explicitly grant the required Resource → List/Read/Search/Filter operations under Factory → MeSTI; provider tool discovery must then be refreshed. A resource-only agent discovers `query_mesti_resources`, not the five legacy review tools unless separately granted.
+
+Example arguments (each operation requires its own grant):
+
+```json
+{"queries":[{"resource":"requirements","action":"list","date_range":{"from":"2026-10-28","to":"2026-10-28"},"limit":25},{"resource":"evidence","action":"filter","date_range":{"from":"2026-10-28","to":"2026-10-28"},"module":"cleaning_of_area","filters":{"record_status":"completed"},"limit":25}]}
+```
+
+Resources are `requirements`, `occurrences`, `statuses`, `schedules`, `evidence`. Use `read` with a returned `id`, `search` with literal `search` text, or `filter` with supported equality fields. Collection pages use `next_cursor` with the identical request. Limits: five queries/request, 31 dates/query, 1–100 items/page, 5,000 matched candidates/query, 512 KiB/response. Multi-resource batches fail without returning data if any operation is denied. No joins/expansions or hidden health/personnel filters are supported. Every result states field policy, date scope, live-pagination consistency and coverage limitations; analysis belongs to the agent.
+
+`qa/staging/mestiResources.rollback.sql` registers disposable limited/all-resource roles and keys, checks all 20 operations, cross-resource/action denial, revoke enforcement, field redaction, argument/cursor bounds, real canonical lifecycle/count/date data, recurrence/version/Production End semantics, safe telemetry/audit and unchanged QA Executive/legacy projection. It changes no business records and rolls back every role/key fixture. The legacy MCP smoke plus a denied resource call verifies the existing credential continues to discover exactly five tools without silently gaining resource access. Browser QA inspects resource grants and cancels all QA Executive grant/key/disable confirmations.

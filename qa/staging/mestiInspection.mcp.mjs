@@ -19,6 +19,10 @@ result = await rpc("tools/list", {});
 assert.equal(result.body.result.tools.length, 5);
 const toolNames = result.body.result.tools.map((item) => item.name);
 assert(toolNames.every((name) => /^(get_mesti_daily_status|list_mesti_exceptions|list_pending_verifications|get_mesti_evidence_details|get_mesti_requirement_schedule)$/.test(name)));
+// The additive resource surface must not broaden this existing identity's grants.
+const resourceDate = malaysiaYesterday();
+const deniedResource = await rpc("tools/call", { name: "query_mesti_resources", arguments: { queries: [{ resource: "requirements", action: "list", date_range: { from: resourceDate, to: resourceDate } }] } });
+assert.equal(deniedResource.body.error?.code, -32003, "Legacy credentials must not gain resource access");
 assert((await rpc("tools/list", {}, { authorization: "Bearer invalid" })).status === 401);
 assert((await rpc("tools/list", {}, { origin: "https://untrusted.example" })).status === 403);
 assert.equal((await rpc("tools/call", { name: "complete_mesti", arguments: {} })).body.error.code, -32602);
@@ -55,7 +59,7 @@ for (const finding of daily.findings) {
     assert.equal(finding.status, "unavailable");
   }
 }
-const summary = { endpoint: expected, business_date: date, connectivity: "PASS", tools: toolNames, findings_by_module_status: {}, high_exceptions: exceptions.findings.length, pending_verifications: pending.findings.length, coverage: daily.coverage, data_quality_limitations: daily.data_quality_limitations };
+const summary = { endpoint: expected, business_date: date, connectivity: "PASS", resource_access_without_new_grant: "DENIED", tools: toolNames, findings_by_module_status: {}, high_exceptions: exceptions.findings.length, pending_verifications: pending.findings.length, coverage: daily.coverage, data_quality_limitations: daily.data_quality_limitations };
 for (const finding of daily.findings) { const key = `${finding.module}/${finding.status}`; summary.findings_by_module_status[key] = (summary.findings_by_module_status[key] || 0) + 1; }
 mkdirSync("qa-artifacts/mesti-machine", { recursive: true, mode: 0o700 });
 writeFileSync("qa-artifacts/mesti-machine/smoke-summary.json", JSON.stringify(summary, null, 2) + "\n", { mode: 0o600 });

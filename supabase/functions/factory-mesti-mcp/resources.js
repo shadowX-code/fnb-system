@@ -1,0 +1,44 @@
+const date = { type: "string", format: "date", description: "Malaysia business date, YYYY-MM-DD." };
+export const resourceNames = ["requirements", "occurrences", "statuses", "schedules", "evidence"];
+export const resourceActions = ["list", "read", "search", "filter"];
+export const mestiModules = ["cleaning_of_area", "cleaning_of_equipment", "calibration", "operator_hygiene", "waste_disposal", "health_declaration", "food_processing_control", "finished_product_storage_control"];
+const filterFields = {
+ requirements: ["record_status", "requirement_id", "logical_requirement_id", "subject_id"],
+ occurrences: ["record_status", "requirement_id", "logical_requirement_id", "subject_id", "source_type", "verification_state"],
+ statuses: ["record_status", "verification_state"],
+ schedules: ["requirement_id", "logical_requirement_id", "subject_id", "source_type"],
+ evidence: ["record_status", "requirement_id", "logical_requirement_id", "subject_id", "source_type", "verification_state", "parent_id"],
+};
+export const resourceTool = {
+ name: "query_mesti_resources",
+ description: "Query separately authorized MeSTI resources with explicit List, Read, Search or Filter operations. Supply 1–5 queries; every operation must be granted or the entire request is denied. Each query requires a Malaysia date range of at most 31 days, optional module and page size 1–100. Read uses an exact returned id; Search matches safe labels literally; Filter accepts only documented fields. IDs are resource-scoped; no implicit joins or expanded related data. Follow next_cursor unchanged with the same query. Returns canonical saved states, recurrence/effective-date semantics and coverage limitations, without compliance verdicts or recommendations. Health data is daily aggregate only. No writes or arbitrary SQL.",
+ inputSchema: { type: "object", properties: { queries: { type: "array", minItems: 1, maxItems: 5, items: { type: "object", properties: {
+  resource: { type: "string", enum: resourceNames }, action: { type: "string", enum: resourceActions },
+  date_range: { type: "object", properties: { from: date, to: date }, required: ["from", "to"], additionalProperties: false },
+  module: { type: "string", enum: mestiModules }, id: { type: "string", maxLength: 240 }, search: { type: "string", minLength: 1, maxLength: 100 },
+  filters: { type: "object", description: "String equality only. Requirements: record_status, requirement_id, logical_requirement_id, subject_id. Occurrences: those plus source_type, verification_state. Statuses: record_status, verification_state. Schedules: requirement_id, logical_requirement_id, subject_id, source_type. Evidence: occurrence fields plus parent_id. No employee, health or hidden-field filters.", additionalProperties: { type: "string", maxLength: 240 } },
+  limit: { type: "integer", minimum: 1, maximum: 100 }, cursor: { type: "string", maxLength: 2048 },
+ }, required: ["resource", "action", "date_range"], additionalProperties: false } } }, required: ["queries"], additionalProperties: false },
+ annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+};
+const object = (value) => value && typeof value === "object" && !Array.isArray(value);
+function validDate(value) { return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value; }
+export function resourceArguments(args) {
+ if (!object(args) || Object.keys(args).some((key) => key !== "queries") || !Array.isArray(args.queries) || args.queries.length < 1 || args.queries.length > 5 || JSON.stringify(args.queries).length > 14000) throw new Error("Use 1 to 5 bounded resource queries.");
+ for (const q of args.queries) {
+  if (!object(q) || Object.keys(q).some((key) => !Object.hasOwn(resourceTool.inputSchema.properties.queries.items.properties, key)) || !resourceNames.includes(q.resource) || !resourceActions.includes(q.action)) throw new Error("Unsupported resource or operation.");
+  const range = q.date_range;
+  if (!object(range) || Object.keys(range).some((key) => !["from", "to"].includes(key)) || !validDate(range.from) || !validDate(range.to) || range.to < range.from || Date.parse(range.to) - Date.parse(range.from) > 30 * 86400000) throw new Error("Use at most 31 valid Malaysia business dates.");
+  if (q.module !== undefined && !mestiModules.includes(q.module)) throw new Error("Unsupported MeSTI module.");
+  if (q.limit !== undefined && (!Number.isInteger(q.limit) || q.limit < 1 || q.limit > 100)) throw new Error("Use a page size from 1 to 100.");
+  if (q.cursor !== undefined && (typeof q.cursor !== "string" || q.cursor.length > 2048 || !/^[A-Za-z0-9+/]+={0,2}$/.test(q.cursor))) throw new Error("Invalid page cursor.");
+  if (q.action === "read") { if (typeof q.id !== "string" || q.id.length < 1 || q.id.length > 240 || ["search", "filters", "cursor", "limit"].some((key) => Object.hasOwn(q, key))) throw new Error("Read requires one ID and no collection operations."); }
+  else if (Object.hasOwn(q, "id")) throw new Error("Use Read for a resource ID.");
+  if (q.action === "search") { if (typeof q.search !== "string" || !q.search.trim() || q.search.length > 100) throw new Error("Search requires 1 to 100 characters."); }
+  else if (Object.hasOwn(q, "search")) throw new Error("Use Search for text queries.");
+  if (q.action === "filter") { if (!object(q.filters) || !Object.keys(q.filters).length || Object.entries(q.filters).some(([key, value]) => !filterFields[q.resource].includes(key) || typeof value !== "string" || !value.length || value.length > 240)) throw new Error("Unsupported filter field or value."); }
+  else if (Object.hasOwn(q, "filters")) throw new Error("Use Filter for structured filters.");
+ }
+ return { p_queries: args.queries };
+}
+export function safeResourceActions(queries) { return Array.isArray(queries) ? queries.slice(0, 5).filter((q) => resourceNames.includes(q?.resource) && resourceActions.includes(q?.action)).map((q) => ({ resource: q.resource, action: q.action })) : []; }

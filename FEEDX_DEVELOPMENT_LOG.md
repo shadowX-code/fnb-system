@@ -1128,3 +1128,8 @@ The existing connection execution policy now supports a finite, generation-bound
 ## 2026-10-29 — Agent Access Management on Staging
 
 Refined External Agents into a compact business-facing list with Overview, Access & Permissions and Activity. Added canonical capability labels and per-tool Role Settings Read grants, preserved existing MeSTI access, and enforced granted discovery plus database tool checks. Added dedicated-role agent registration, one-time key issuance and enable/disable management; grant and state changes use canonical authority and audit. Unsupported modules/actions remain unavailable. No new Factory tool, approval workflow, business mutation or tenancy was introduced.
+
+
+## 2026-10-29 — MeSTI resource access on Staging
+
+Added Workspace/Domain/Resource/Action registry metadata and independent canonical List/Read/Search/Filter grants. Added bounded, redacted MeSTI requirement/occurrence/status/schedule/evidence queries with atomic cross-resource authorization, field allowlists and cursor pagination. Resource actions are managed separately from unchanged legacy review tools; existing agent grants and credentials receive no resource access automatically. Canonical business data remains read-only. Future Factory domains remain unavailable.

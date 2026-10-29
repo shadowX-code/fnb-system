@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHandler, malaysiaYesterday, toolArguments, tools } from "../factory-mesti-mcp/protocol.js";
+import { createHandler, malaysiaYesterday, toolArguments, tools, legacyTools } from "../factory-mesti-mcp/protocol.js";
 
 const token = `fxm_${"a".repeat(43)}`;
 const request = (message, options = {}) => new Request("https://example.test/mcp", {
@@ -14,7 +14,7 @@ describe("MeSTI Streamable HTTP", () => {
     expect(malaysiaYesterday(new Date("2026-02-28T16:01:00Z"))).toBe("2026-02-28");
   });
   it("publishes exactly five read-only tools and negotiates MCP", async () => {
-    const read = vi.fn().mockResolvedValue({ authorized: true, tools: tools.map((tool) => tool.name) });
+    const read = vi.fn().mockResolvedValue({ authorized: true, tools: legacyTools.map((tool) => tool.name) });
     const handler = createHandler(read);
     const initialized = await (await handler(request({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } }))).json();
     expect(initialized.result.protocolVersion).toBe("2025-06-18");
@@ -41,14 +41,14 @@ describe("MeSTI Streamable HTTP", () => {
     expect(toolArguments("get_mesti_evidence_details", { reference_id: "health_declaration:2026-10-28:coverage" })).toMatchObject({ p_from: "2026-10-28", p_to: "2026-10-28" });
   });
   it("returns unavailable on backend failure without leaking internal details", async () => {
-    const read = vi.fn().mockResolvedValueOnce({ authorized: true, tools: tools.map((tool) => tool.name) }).mockRejectedValueOnce(new Error("sensitive database error"));
+    const read = vi.fn().mockResolvedValueOnce({ authorized: true, tools: legacyTools.map((tool) => tool.name) }).mockRejectedValueOnce(new Error("sensitive database error"));
     const response = await (await createHandler(read)(request(call("get_mesti_daily_status", { date: "2026-10-28" })))).json();
     expect(response.result.isError).toBe(true);
     expect(JSON.stringify(response)).not.toContain("sensitive");
     expect(read).toHaveBeenLastCalledWith(token, "get_mesti_daily_status", { p_from: "2026-10-28", p_to: "2026-10-28", p_severity: "all" });
   });
   it("rejects invalid JSON-RPC and unsupported versions", async () => {
-    const handler = createHandler(vi.fn().mockResolvedValue({ authorized: true, tools: tools.map((tool) => tool.name) }));
+    const handler = createHandler(vi.fn().mockResolvedValue({ authorized: true, tools: legacyTools.map((tool) => tool.name) }));
     expect((await handler(request([]))).status).toBe(400);
     expect((await handler(request(call("get_mesti_daily_status"), { headers: { "mcp-protocol-version": "bogus" } }))).status).toBe(400);
     const result = await (await handler(request({ jsonrpc: "2.0", id: 1, method: "resources/read" }))).json();
@@ -56,7 +56,7 @@ describe("MeSTI Streamable HTTP", () => {
   });
   it("records only bounded transport metadata and fails closed if access recording fails", async () => {
     const observe = vi.fn().mockResolvedValue(undefined);
-    const handler = createHandler(vi.fn().mockResolvedValue({ findings: [], tools: tools.map((tool) => tool.name) }), { observe });
+    const handler = createHandler(vi.fn().mockResolvedValue({ findings: [], tools: legacyTools.map((tool) => tool.name) }), { observe });
     const response = await handler(request(call("get_mesti_daily_status", { date: "2026-10-28" })));
     expect(response.status).toBe(200);
     expect(observe).toHaveBeenCalledWith(token, { method: "tools/call", tool: "get_mesti_daily_status", outcome: "success", reason: null }, expect.any(Request));

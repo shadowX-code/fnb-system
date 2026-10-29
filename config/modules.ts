@@ -1,4 +1,8 @@
 export type ModuleAction =
+  | "list"
+  | "read"
+  | "search"
+  | "filter"
   | "view"
   | "setup"
   | "statutory"
@@ -67,6 +71,7 @@ export type AppModule = {
 };
 
 export const permissionActionOrder: ModuleAction[] = [
+  "list", "read", "search", "filter",
   "view",
   "sync",
   "publish_reply",
@@ -121,6 +126,7 @@ export const permissionActionOrder: ModuleAction[] = [
 ];
 
 export const permissionActionLabels: Record<ModuleAction, string> = {
+  list: "List", read: "Read", search: "Search", filter: "Filter",
   view: "View",
   sync: "Sync Reviews",
   publish_reply: "Publish Reply",
@@ -920,6 +926,11 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, manage: true },
   },
   { id: "factory_mesti_inspection", section: "MeSTI", label: "External MeSTI Inspection", route: "/factory/mesti/inspection", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
+  { id: "factory_mesti_resource_requirements", section: "MeSTI", label: "Agent MeSTI Requirements", route: "/factory/mesti/resources/requirements", sidebar: false, routable: false, workspace: "factory", permissions: { list: true, read: true, search: true, filter: true } },
+  { id: "factory_mesti_resource_occurrences", section: "MeSTI", label: "Agent MeSTI Occurrences", route: "/factory/mesti/resources/occurrences", sidebar: false, routable: false, workspace: "factory", permissions: { list: true, read: true, search: true, filter: true } },
+  { id: "factory_mesti_resource_statuses", section: "MeSTI", label: "Agent MeSTI Statuses", route: "/factory/mesti/resources/statuses", sidebar: false, routable: false, workspace: "factory", permissions: { list: true, read: true, search: true, filter: true } },
+  { id: "factory_mesti_resource_schedules", section: "MeSTI", label: "Agent MeSTI Schedules", route: "/factory/mesti/resources/schedules", sidebar: false, routable: false, workspace: "factory", permissions: { list: true, read: true, search: true, filter: true } },
+  { id: "factory_mesti_resource_evidence", section: "MeSTI", label: "Agent MeSTI Redacted Evidence", route: "/factory/mesti/resources/evidence", sidebar: false, routable: false, workspace: "factory", permissions: { list: true, read: true, search: true, filter: true } },
   { id: "factory_mesti_inspection_status", section: "MeSTI", label: "Agent MeSTI Daily Review", route: "/factory/mesti/inspection/status", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
   { id: "factory_mesti_inspection_exceptions", section: "MeSTI", label: "Agent MeSTI Exceptions", route: "/factory/mesti/inspection/exceptions", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
   { id: "factory_mesti_inspection_verifications", section: "MeSTI", label: "Agent MeSTI Verification Review", route: "/factory/mesti/inspection/verifications", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
