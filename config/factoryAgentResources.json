@@ -894,7 +894,8 @@
     "date": null,
     "label_field": "name",
     "refs": {},
-    "dependencies": []
+    "dependencies": [],
+    "reader": "factory_mesti_raw_material_control_standards"
   },
   {
     "slug": "raw_control_receipts",
@@ -911,10 +912,11 @@
       "acceptance_procedure_snapshot",
       "control_methods_snapshot"
     ],
-    "date": "received_date",
+    "date": "completed_receiving_document_date",
     "label_field": "receipt_no",
     "refs": {},
-    "dependencies": []
+    "dependencies": [],
+    "reader": "factory_mesti_raw_material_control_receiving_report"
   },
   {
     "slug": "production_pipeline",
@@ -951,7 +953,8 @@
     "refs": {
       "finished_good_id": "finished_goods"
     },
-    "dependencies": []
+    "dependencies": [],
+    "reader": "factory_get_production_operational_pipeline_snapshot"
   },
   {
     "slug": "planning_open_orders",
@@ -975,7 +978,8 @@
     "refs": {
       "packaging_sku_id": "finished_goods"
     },
-    "dependencies": []
+    "dependencies": [],
+    "reader": "factory_get_open_job_order_qty_by_sku"
   },
   {
     "slug": "product_stock_adjustments",

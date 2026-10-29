@@ -512,19 +512,19 @@
     "route": "/factory/mesti/cleaning-area",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Area-cleaning requirements, schedules, saved states and redacted proof only. Grant Locations separately to identify linked areas.",
+    "explanation": "Area-cleaning requirement versions, recurrence, saved states and redacted proof with recorded Cleaning Method reference procedures. Issued records use their saved method snapshot; legacy unspecified methods remain unavailable. Locations require separate access.",
     "bindings": [
       {
         "resource": "requirements",
         "row_scope": {"module": "cleaning_of_area"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "cleaning_method", "cleaning_method_reference", "method_availability", "method_basis"],
         "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "subject_id": "factory_storage_locations", "subject_ids": "factory_storage_locations", "sop_version": "factory_production_sop"},
         "requires_modules": []
       },
       {
         "resource": "occurrences",
         "row_scope": {"module": "cleaning_of_area"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "cleaning_method", "cleaning_method_reference", "method_availability", "method_basis"],
         "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "subject_id": "factory_storage_locations", "subject_ids": "factory_storage_locations", "sop_version": "factory_production_sop"},
         "requires_modules": []
       },
@@ -545,7 +545,7 @@
       {
         "resource": "evidence",
         "row_scope": {"module": "cleaning_of_area"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "cleaning_method", "cleaning_method_reference", "method_availability", "method_basis"],
         "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "subject_id": "factory_storage_locations", "subject_ids": "factory_storage_locations", "sop_version": "factory_production_sop"},
         "requires_modules": []
       }
@@ -558,19 +558,19 @@
     "route": "/factory/mesti/cleaning-equipment",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Equipment-cleaning requirements, schedules, saved states and redacted proof only. Equipment and Production links require their own modules.",
+    "explanation": "Equipment-cleaning requirement versions, recurrence, saved states and redacted proof with recorded Cleaning Method reference procedures. Issued records use their saved method snapshot; legacy unspecified methods remain unavailable. Equipment and Production identities require separate access.",
     "bindings": [
       {
         "resource": "requirements",
         "row_scope": {"module": "cleaning_of_equipment"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "cleaning_method", "cleaning_method_reference", "method_availability", "method_basis"],
         "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "subject_id": "factory_equipment", "subject_ids": "factory_equipment", "sop_version": "factory_production_sop"},
         "requires_modules": []
       },
       {
         "resource": "occurrences",
         "row_scope": {"module": "cleaning_of_equipment"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "cleaning_method", "cleaning_method_reference", "method_availability", "method_basis"],
         "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "subject_id": "factory_equipment", "subject_ids": "factory_equipment", "sop_version": "factory_production_sop"},
         "requires_modules": []
       },
@@ -591,7 +591,7 @@
       {
         "resource": "evidence",
         "row_scope": {"module": "cleaning_of_equipment"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "cleaning_method", "cleaning_method_reference", "method_availability", "method_basis"],
         "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "subject_id": "factory_equipment", "subject_ids": "factory_equipment", "sop_version": "factory_production_sop"},
         "requires_modules": []
       }
@@ -799,20 +799,20 @@
     "route": "/factory/mesti/raw-material-control",
     "sidebar": true,
     "coverage": "available",
-    "explanation": "Raw material acceptance/control standards and their saved receiving evidence. No inventory quantities or commercial details.",
+    "explanation": "Canonical active acceptance/control standards and completed Receiving evidence, including saved verification state and frozen guidance. Material, Receiving, Supplier and Location identities require their own modules. No stock balances, costs, contacts or actors.",
     "bindings": [
       {
         "resource": "raw_control_standards",
         "row_scope": {},
         "fields": ["id", "label", "module", "business_date", "material_code", "name", "acceptance_procedure", "control_methods", "status"],
-        "relationships": {},
+        "relationships": {"name": "factory_raw_inventory", "material_code": "factory_raw_inventory"},
         "requires_modules": []
       },
       {
         "resource": "raw_control_receipts",
         "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "receipt_no", "received_date", "expiry_date", "expiry_source", "expiry_confirmed", "acceptance_procedure_snapshot", "control_methods_snapshot"],
-        "relationships": {},
+        "fields": ["id", "label", "module", "business_date", "receipt_no", "received_date", "expiry_date", "expiry_source", "expiry_confirmed", "acceptance_procedure_snapshot", "control_methods_snapshot", "receiving_no", "batch_id", "raw_material_id", "supplier_id", "storage_location_id", "received_qty", "uom", "status", "verification_status", "verified_at"],
+        "relationships": {"receipt_no": "factory_raw_receiving", "receiving_no": "factory_raw_receiving", "batch_id": "factory_raw_receiving", "raw_material_id": "factory_raw_inventory", "supplier_id": "factory_suppliers", "storage_location_id": "factory_storage_locations"},
         "requires_modules": []
       }
     ]

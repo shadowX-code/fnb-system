@@ -1148,3 +1148,4 @@ Aligned Factory agent permissions with all 34 routes and exact sidebar sections.
 - Reused canonical read cores without calling Job Order release or other business mutations; preserved human read contracts and machine credentials/grants.
 - Production Reports moves from Unavailable to Partial source-record access. Privacy, source-grant, historical and missing-data limits remain explicit. Discovery now describes executable operations, missing source grants and safe fields.
 - Retained the minimal five-tool MeSTI compatibility adapter pending an authenticated resource invocation from the actual Grok QA Executive Bot; API/probe success is not provider confirmation.
+- Aligned MeSTI Raw Material Control with active standards/completed Receiving only and exposed immutable Cleaning Method provenance without materializing or backfilling records.

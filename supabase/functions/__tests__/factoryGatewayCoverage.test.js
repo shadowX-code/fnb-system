@@ -28,3 +28,10 @@ it('reuses the live canonical projections and discloses unresolved evidence inst
  expect(migration).toContain("original:=regexp_replace");expect(migration).toContain("Pinned SOP version cannot be resolved");expect(migration).toContain("batch projection is missing or ambiguous");
  expect(migration).toContain("'missing_required_modules'");expect(migration).toContain("'query_available'");
 });
+
+it('aligns MeSTI with completed-only canonical receiving and frozen Cleaning Method references',()=>{
+ const alignment=readFileSync(new URL('../../migrations/20261029140834_factory_agent_mesti_evidence_alignment.sql',import.meta.url),'utf8');
+ expect(alignment).toContain('factory_mesti_raw_material_control_receiving_report');expect(alignment).toContain('factory_mesti_raw_material_control_standards');
+ expect(alignment).toContain("'issued_snapshot'");expect(alignment).toContain("'method_availability'");expect(alignment).not.toMatch(/perform public.factory_mesti_materialize|insert into public.factory_/);
+ for(const module of modules.filter(m=>['factory_mesti_cleaning','factory_mesti_equipment_cleaning'].includes(m.id)))expect(module.bindings.find(b=>b.resource==='evidence').fields).toContain('cleaning_method_reference');
+});
