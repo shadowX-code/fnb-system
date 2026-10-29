@@ -918,6 +918,7 @@ export const moduleRegistry: AppModule[] = [
     workspace: "factory",
     permissions: { view: true, create: true, manage: true },
   },
+  { id: "factory_mesti_inspection", section: "MeSTI", label: "External MeSTI Inspection", route: "/factory/mesti/inspection", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
   { id: "factory_mesti_operator_hygiene", section: "MeSTI", label: "Operator Hygiene Inspection", route: "/factory/mesti/operator-hygiene-inspection", icon: "factory-mesti-operator-hygiene", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, submit: true, verify: true } },
   { id: "factory_mesti_waste_disposal", section: "MeSTI", label: "Waste Disposal Record", route: "/factory/mesti/waste-disposal-record", icon: "factory-mesti-waste-disposal", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, record: true, submit: true, verify: true } },
   { id: "factory_mesti_raw_material_control", section: "MeSTI", label: "Raw Material Control", route: "/factory/mesti/raw-material-control", icon: "factory-mesti-raw-material-control", sidebar: true, workspace: "factory", permissions: {} },

@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-10-29 — External MeSTI inspection on Staging
+
+Added a reusable private machine identity/hashed-credential boundary tied to canonical Role Settings, with one dedicated QA Executive role and the narrow `factory_mesti_inspection.view` permission. The Staging-only HTTPS MCP adapter exposes five bounded read tools over canonical MeSTI requirements/evidence, without employee impersonation, inferred company tenancy, service-role credentials or business writes. The read projection preserves recurrence/version snapshots, Production End attribution, verification state and explicit personnel/legacy evidence limitations; Health Declaration is count-only. Authenticated Staging tools and an independent official MCP client pass, including expiry/revocation and permission/isolation checks. Connection of the existing Grok Bot account remains unverified and is not implied by xAI API or protocol tests. Canonical owners: docs/domains/factory-master-data.md and docs/architecture/trusted-authorities.md; connection/QA guide: docs/testing/factory-mesti-mcp-staging.md. No Production activation.
+
 ## 2026-10-28 — Instagram URL extraction reliability
 
 Add/Edit Social Profile now normalizes Instagram URLs/usernames and debounces the existing delegated Business Discovery pipeline. The server retains supported public metadata and bounded provider failure categories, while manual and background requests fence overlapping reads by current delegation/generation. Preview races and removed unsaved rows cannot replace another identity; URL-only saves remain available when enrichment is unavailable. Documentation: docs/domains/marketing.md. Staging authority/receipt verification remains separate from separately approved bounded provider acceptance; no Production activation is part of this change.

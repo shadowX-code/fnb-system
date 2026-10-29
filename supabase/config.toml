@@ -1,5 +1,9 @@
 project_id = "feedx"
 
+[functions.factory-mesti-mcp]
+# Staging-only; opaque machine credential and Role Settings grant are validated in the database.
+verify_jwt = false
+
 [functions.payroll-payslips]
 # Admin Auth and opaque Crew tokens are validated in the existing function body.
 verify_jwt = false

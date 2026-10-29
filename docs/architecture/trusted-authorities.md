@@ -95,6 +95,12 @@ Routine reads and cosmetic UI activity are not business audit events.
 
 ## Change Rules
 
+### External machine credentials
+
+`feedx_integrations.machine_identities` and `machine_credentials` are private, RLS-enabled server-only authorities for external agents. A machine references an ordinary canonical Role Settings role, never an Employee or a fabricated Auth user. The database validates an opaque 256-bit credential's SHA-256 hash, activation time, expiry, revocation, enabled identity, active non-protected role and explicit permission grant on every request. Protected Owner/Admin bypass is intentionally unavailable to machines. Plaintext credentials are never persisted in the database, repository, logs or audit metadata. The current provisioning procedure is a privileged Staging operator action; no machine can create identities, issue credentials or edit roles.
+
+An adapter must enforce its own fixed capability allowlist and redacted read projection after `feedx_integrations.authorize`. Machine role grants do not create a Supabase JWT, table grants or access to other RPCs. The first adapter is `factory_mesti_inspection.view`, limited to five read-only MeSTI tools. The Edge Function uses its internal anonymous key to invoke that one token-gated RPC, not a service-role key; no Supabase credential is sent to an external agent. Role permission removal, role/identity disabling and credential revocation deny subsequent reads. Credentials expire after at most 90 days; the initial Staging QA credential has a 30-day lifetime. Renewal is explicit and may revoke the previous credential without changing identity or role. No organization/company tenancy is inferred by this foundation.
+
 Update this document when FeedX-wide authority, RLS, grant, token, audit, versioning, snapshot, or immutability principles change.
 Document domain-specific permissions and lifecycle details in the owning domain document.
 
