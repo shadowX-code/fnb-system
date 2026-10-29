@@ -7,6 +7,9 @@ declare
   eq public.factory_mesti_equipment_cleaning_requirements;
   loc public.factory_storage_locations;
   snapshot jsonb;
+  legacy_id uuid;
+  table_name text;
+  inserted integer;
 begin
   if jsonb_array_length(public.factory_mesti_cleaning_methods()) <> 3 then raise exception 'FAIL catalog count'; end if;
   if public.factory_mesti_cleaning_method_reference('invalid') is not null then raise exception 'FAIL unknown method'; end if;
@@ -44,5 +47,14 @@ begin
     perform public.factory_save_mesti_cleaning_requirement('{}'::jsonb);
     raise exception 'FAIL unauthenticated save accepted';
   exception when sqlstate '42501' then null; end;
+  foreach table_name in array array['factory_mesti_cleaning_requirements','factory_mesti_equipment_cleaning_requirements'] loop
+    execute format('select logical_requirement_id from public.%I group by logical_requirement_id having bool_and(cleaning_method is null) limit 1',table_name) into legacy_id;
+    if legacy_id is null then raise exception 'Fixture needs an unspecified legacy lineage in %',table_name; end if;
+    -- Mirror the canonical boundary closure only inside this rolled-back transaction.
+    execute format('update public.%I set effective_until=current_date+10000 where logical_requirement_id=$1 and effective_until is null',table_name) using legacy_id;
+    execute format('insert into public.%I(logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no) select logical_requirement_id,''QA ONLY legacy rollback'',recurrence_type,recurrence_weekdays,''inactive'',current_date+10000,current_date+10001,version_no+10000 from public.%I where logical_requirement_id=$1 order by version_no desc limit 1',table_name,table_name) using legacy_id;
+    get diagnostics inserted=row_count;
+    if inserted <> 1 then raise exception 'FAIL legacy version compatibility'; end if;
+  end loop;
 end $test$;
 rollback;
