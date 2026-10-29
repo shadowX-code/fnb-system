@@ -1485,6 +1485,7 @@ function factoryLoadError(label, stage, error) {
   safeError.code = error?.code;
   safeError.status = error?.status || error?.statusCode;
   safeError.cause = error;
+  safeError.retrySnapshot = stage.includes("reconciliation");
   return safeError;
 }
 
@@ -1566,9 +1567,9 @@ async function loadFactoryMasterWithRetry(loader, label) {
     try {
       return await loader();
     } catch (error) {
-      if (error?.name === "AbortError") throw error;
+      if (error?.name === "AbortError" || !error?.retrySnapshot) throw error;
       firstError ||= error;
-      if (attempt === 1) console.warn(`[Factory] Retrying complete ${label} load after snapshot mismatch or query failure.`);
+      if (attempt === 1) console.warn(`[Factory] Retrying complete ${label} load after snapshot mismatch.`);
     }
   }
   throw firstError;
@@ -1782,13 +1783,14 @@ function factorySupportDataPlan(scope, hasPermission) {
 // Operational lists own their read models. Full master trees belong to the action that consumes them.
 const productionActionDependencies = {
   job: ["finishedGoods", "rawMaterials", "recipes"],
+  "job-filters": ["finishedGoods", "productFamilies"],
   "start-production": ["sops"],
   production: ["rawMaterials", "receivings", "recipes", "sops", "finishedGoods", "storageLocations", "equipment"],
   "production-process": ["rawMaterials", "receivings", "recipes", "sops", "finishedGoods", "storageLocations"],
   "completed-job-result": ["recipes"],
 };
 export function factoryDataPlan(scope, hasPermission, action = "") {
-  const plan = factorySupportDataPlan(action === "job" ? "job-orders" : action ? "production" : scope, hasPermission);
+  const plan = factorySupportDataPlan(["job", "job-filters"].includes(action) ? "job-orders" : action ? "production" : scope, hasPermission);
   const keys = productionActionDependencies[action];
   if (action && !keys) throw new Error("Unknown Factory action data scope.");
   if (keys || ["production-overview", "job-orders"].includes(scope)) {

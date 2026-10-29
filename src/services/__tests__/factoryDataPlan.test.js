@@ -10,6 +10,8 @@ describe("Factory Job Orders scoped data plan", () => {
   it("retains full action-specific support behind the production action boundary", () => {
     const job = factoryDataPlan("production-overview", can, "job");
     expect(Object.keys(job).filter((key) => job[key])).toEqual(["rawMaterials", "finishedGoods", "recipes"]);
+    const filters = factoryDataPlan("job-orders", can, "job-filters");
+    expect(Object.keys(filters).filter((key) => filters[key])).toEqual(["finishedGoods", "productFamilies"]);
     const completion = factoryDataPlan("production-overview", can, "production");
     for (const key of ["rawMaterials", "recipes", "sops", "storageLocations", "equipment", "finishedGoods"]) expect(completion[key]).toBe(true);
     expect(completion.jobOrders).toBe(false);

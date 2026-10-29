@@ -12,6 +12,25 @@ describe("Factory bootstrap dataset ownership", () => {
     expect(transport.rpc).not.toHaveBeenCalled();
     expect(transport.from).not.toHaveBeenCalled();
   });
+  it("does not multiply SDK transport retries by restarting the entire snapshot load", async () => {
+    transport.rpc.mockImplementation(() => ({ then(resolve) { return Promise.resolve({ data: null, error: { message: "Network unavailable" } }).then(resolve); } }));
+    const result = await factoryService.listFactoryData({ scope: "production-overview", action: "completed-job-result", hasPermission: () => true });
+    expect(transport.rpc).toHaveBeenCalledTimes(1);
+    expect(result.accessIssues).toMatchObject([{ key: "recipes", kind: "load" }]);
+    expect(result.recipes).toEqual([]);
+  });
+  it("still retries a changing snapshot and never accepts an incomplete master tree", async () => {
+    transport.rpc.mockImplementation((name) => ({ then(resolve) { return Promise.resolve({ data: name === "factory_get_master_id_snapshot" ? ["recipe"] : [], error: null }).then(resolve); } }));
+    let detailCalls = 0;
+    transport.from.mockImplementation(() => ({ select() { return this; }, in() { return this; }, then(resolve) {
+      detailCalls += 1;
+      return Promise.resolve({ data: detailCalls === 1 ? [] : [{ id: "recipe", status: "active", yield_quantity: 1, uom: "kg" }], error: null }).then(resolve);
+    } }));
+    const result = await factoryService.listFactoryData({ scope: "production-overview", action: "completed-job-result", hasPermission: () => true });
+    expect(detailCalls).toBe(2);
+    expect(result.accessIssues).toEqual([]);
+    expect(result.recipes).toHaveLength(1);
+  });
   it("loads every Recipe item across bounded snapshot batches and reports safe dependency timing", async () => {
     const ids = Array.from({ length: 350 }, (_, index) => `item-${index}`);
     const item = (id) => ({ id, recipe_id: "recipe", raw_material_id: "material", quantity_used: 1, uom: "kg", raw_material: { id: "material", name: "Material", uom: "kg" } });
