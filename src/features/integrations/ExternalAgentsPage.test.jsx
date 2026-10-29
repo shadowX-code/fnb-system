@@ -21,7 +21,7 @@ beforeEach(() => {
  externalAgentService.setCapability.mockResolvedValue({granted:false});
  externalAgentService.confirmAccess.mockResolvedValue({updated:true});
  externalAgentService.registerReviewed.mockResolvedValue({one_time_credential:"TEST_REGISTRATION_SECRET",expires_at:credential.expires_at});
- externalAgentService.review.mockImplementation(async(id,desired)=>({changes:capabilities.filter(c=>id? !desired.includes(c.name):desired.includes(c.name)).map(c=>({...c,granted:!id})),remaining_access:capabilities.filter(c=>desired.includes(c.name)),dependencies:[],review_hash:"review",note:"Dependencies remain explicit"}));
+ externalAgentService.review.mockImplementation(async(id,desired)=>({changes:capabilities.filter(c=>id? !desired.includes(c.name):desired.includes(c.name)).map(c=>({...c,granted:!id})),remaining_access:capabilities.filter(c=>desired.includes(c.name)),effective_diff:{before:[],after:[],material_changes:[],blockers:[],remaining_shared_access:[]},dependencies:[],review_hash:"review",note:"Dependencies remain explicit"}));
 });
 afterEach(cleanup);
 async function open() { fireEvent.click(await screen.findByRole("button", { name: "Manage QA Executive" })); await screen.findByRole("heading", { name: "Agent overview" }); }
