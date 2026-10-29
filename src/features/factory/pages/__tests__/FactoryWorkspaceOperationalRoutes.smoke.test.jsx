@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { factoryService } from "../../../../services/factoryService.js";
 import { malaysiaBusinessDateInput } from "../../utils/factoryDates.js";
@@ -117,9 +117,28 @@ function setup(response = data) {
   vi.spyOn(factoryService, "getProductionByJobOrder").mockResolvedValue(completedProduction);
 }
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe("FactoryWorkspacePage operational route smoke", () => {
+  it("shows an actionable error for failed initialization and retries the same canonical owner", async () => {
+    setup();
+    factoryService.listFactoryData.mockRejectedValueOnce(new Error("Network unavailable"));
+    render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Retry", exact: true }));
+    expect((await screen.findAllByRole("heading", { name: "Production Overview" })).length).toBeGreaterThan(0);
+    expect(factoryService.listFactoryData).toHaveBeenCalledTimes(2);
+  });
+  it("exits infinite loading when a bootstrap promise never settles", async () => {
+    setup();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    factoryService.listFactoryData.mockImplementation(() => new Promise(() => {}));
+    render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    expect(screen.getByRole("alert").textContent).toContain("took too long");
+    expect(factoryService.listFactoryData.mock.calls[0][0].signal.aborted).toBe(true);
+    expect(screen.queryByText("Loading Factory workspace...")).toBeNull();
+  });
   it.each([
     ["production-overview", "Production Overview", "JO260809-03"],
     ["raw-receiving", "Raw Material Receiving", "R260809-01"],

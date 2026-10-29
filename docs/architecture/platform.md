@@ -93,6 +93,8 @@ Growth/Performance, Reward, Learn, Cash Checkout, and Leave components use route
 
 ## Canonical Routing
 
+Factory workspace master-data initialization has a 30-second client deadline. A stalled load cancels its owned requests and exits loading into the shared error/Retry surface; initial query failures do not expose an incomplete workspace. Retry uses a fresh request owner, and obsolete completions cannot replace current state. This changes neither query contracts nor authorization and is not a server/database timeout.
+
 ### Admin/Factory Route Contract
 
 `src/app/routeOwnership.js` is the single executable FeedX route contract. It derives routable Admin modules from `config/modules.ts`, defines the canonical pathname and retained hash aliases for Restaurant, Factory, People, System, Crew Admin, and Crew Mobile destinations, declares route parameters, and limits query state to product-owned values that must survive migration. Its canonical taxonomy is organized by real ownership rather than sidebar presentation: Restaurant uses `/restaurant/...`; Factory uses `/factory/warehouse`, `/factory/raw-materials`, `/factory/mesti`, and `/factory/master-data` where applicable; People uses `/people/...`; System uses `/system/...`; and Crew separates Admin workforce/operations from the Crew Mobile self-service experience.

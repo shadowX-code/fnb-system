@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
+import { factoryBootstrap } from "../utils/factoryBootstrap.js";
 import { Activity, AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse, X } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -1108,6 +1110,7 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
 export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, auth }) {
   const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], storageLocations: [], equipment: [], equipmentCategories: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [], mestiCleaningRequirements: [], mestiEquipmentCleaningRequirements: [], mestiCalibrationRequirements: [], auditLogs: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
+  const [bootstrapError, setBootstrapError] = useState("");
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
   const [editingReceiving, setEditingReceiving] = useState(null);
@@ -1252,15 +1255,18 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
     const requestId = factoryDataRequestRef.current + 1;
     factoryDataRequestRef.current = requestId;
     setLoading(true);
+    setBootstrapError("");
     const operationalLoad = Promise.resolve();
     let refreshSucceeded = true;
     try {
-      const nextData = await factoryService.listFactoryData({
+      const nextData = await factoryBootstrap(() => factoryService.listFactoryData({
         scope: initialTab,
         hasPermission: (code) => auth?.hasPermission?.(code),
         signal: controller.signal,
-      });
+      }), controller);
       if (factoryDataRequestRef.current !== requestId || controller.signal.aborted) return;
+      const failedLoads = nextData.accessIssues.filter((issue) => issue.kind === "load");
+      if (failedLoads.length && !silent) throw Object.assign(new Error(`Unable to load ${failedLoads.map(issue => issue.label).join(", ")}. Retry to load the complete workspace.`), { name: "FactoryBootstrapLoadError" });
       const permissionIssues = nextData.accessIssues.filter((issue) => issue.kind === "permission");
       if (nextData.accessIssues.some((issue) => issue.kind === "load")) refreshSucceeded = false;
       setData((current) => {
@@ -1284,7 +1290,8 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
       }
     } catch (error) {
       refreshSucceeded = false;
-      if (factoryDataRequestRef.current !== requestId || controller.signal.aborted) return;
+      if (factoryDataRequestRef.current !== requestId || (controller.signal.aborted && error.name !== "TimeoutError")) return;
+      setBootstrapError(["TimeoutError", "FactoryBootstrapLoadError"].includes(error.name) ? error.message : "Unable to initialize Factory. Check your connection and retry.");
       console.error("[Factory] Unable to refresh Factory workspace data.", error);
       if (!silent) ui?.notify?.({ title: "Failed to load Factory data", message: error.message, tone: "error" });
     } finally {
@@ -3508,6 +3515,10 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
         </Card>
       </div>
     );
+  }
+
+  if (bootstrapError) {
+    return <AsyncDataSurface error={bootstrapError} errorTitle="Unable to load Factory workspace" onRetry={() => loadData()} />;
   }
 
   if (loading) {
