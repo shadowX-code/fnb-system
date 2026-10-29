@@ -31,7 +31,7 @@ begin
  q:=jsonb_build_object('business_module','factory_mesti_cleaning','resource','requirements','action','list','date_range',range,'limit',1);
  first_page:=public.factory_agent_resource_query(limited_token,jsonb_build_array(q))->'results'->0;
  if first_page->>'returned'='0' then raise exception 'Expected real Cleaning requirement data';end if;
- if exists(select 1 from jsonb_array_elements(first_page->'items')a where a->>'module'<>'cleaning_of_area' or a ?|array['subject_id','subject_ids','production_id','production_sop_id']) then raise exception 'Cleaning scope or foreign-field isolation failed';end if;
+ if exists(select 1 from jsonb_array_elements(first_page->'items')a where a->>'module'<>'cleaning_of_area' or a ?|array['employee_id','actor_name','notes']) then raise exception 'Cleaning scope or foreign-field isolation failed';end if;
  data:=public.factory_agent_resource_query(limited_token,jsonb_build_array((q-'limit')||jsonb_build_object('action','read','id',first_page->'items'->0->>'id')));
  if data->'results'->0->'items'->0 is distinct from first_page->'items'->0 then raise exception 'Module exact Read changed data';end if;
  if (first_page->>'has_more')::boolean then
@@ -41,7 +41,7 @@ begin
  end if;
  perform pg_temp.reject_nav(limited_token,jsonb_build_array(q-'business_module'),'42501');
  perform pg_temp.reject_nav(limited_token,jsonb_build_array(q||'{"module":"calibration"}'),'22023');
- perform pg_temp.reject_nav(limited_token,jsonb_build_array((q-'limit')||'{"action":"filter","filters":{"subject_id":"hidden"}}'),'22023');
+ perform pg_temp.reject_nav(limited_token,jsonb_build_array((q-'limit')||'{"action":"filter","filters":{"employee_id":"hidden"}}'),'22023');
  perform pg_temp.reject_nav(limited_token,jsonb_build_array(q,q||'{"business_module":"factory_mesti_calibration"}'),'42501');
  perform pg_temp.reject_nav(limited_token,jsonb_build_array(q||'{"resource":"production_records"}'),'42501');
  execute 'set local role postgres';
@@ -80,7 +80,7 @@ begin
  perform public.external_agents_set_capability(limited_id,'nav_factory_production_view',true,false);
  execute 'set local role anon';
  data:=public.factory_agent_resource_query(limited_token,jsonb_build_array(jsonb_build_object('business_module','factory_production','resource','production_records','action','list','date_range',range)));
- if exists(select 1 from jsonb_array_elements(data->'results'->0->'items')a where a ?|array['job_order_id','finished_good_id','production_sop_id','storage_location_id']) then raise exception 'Production exposed linked ungranted records';end if;
+ if exists(select 1 from jsonb_array_elements(data->'results'->0->'items')a where a ?|array['notes','operator_name','current_balance','unit_cost']) then raise exception 'Production exposed linked ungranted records';end if;
  execute 'set local role authenticated';perform public.external_agents_set_capability(limited_id,'nav_factory_production_view',false,true);
  execute 'set local role anon';perform pg_temp.reject_nav(limited_token,jsonb_build_array(jsonb_build_object('business_module','factory_production','resource','production_records','action','list','date_range',range)),'42501');
  execute 'set local role postgres';

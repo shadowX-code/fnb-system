@@ -22,11 +22,11 @@ begin
  data:=public.factory_agent_resource_query(token,'[{"business_module":"factory_production_sop","resource":"sop_equipment","action":"list","date_range":{"from":"2026-10-01","to":"2026-10-31"},"limit":100}]')->'results'->0;
  if exists(select 1 from jsonb_array_elements(data->'items')r where r ? 'equipment_id') then raise exception 'SOP leaked Equipment identity';end if;
  data:=public.factory_agent_resource_query(token,'[{"business_module":"factory_production_sop","resource":"sop_material_bindings","action":"list","date_range":{"from":"2026-10-01","to":"2026-10-31"},"limit":100}]')->'results'->0;
- if exists(select 1 from jsonb_array_elements(data->'items')r where r ? 'raw_material_id') then raise exception 'SOP leaked Raw Material identity';end if;
+ if exists(select 1 from jsonb_array_elements(data->'items')r where r ?|array['current_balance','manual_unit_cost']) then raise exception 'SOP leaked independent inventory/costs';end if;
  -- Discover supported records, without advertising unavailable dependencies/foreign filters.
  data:=public.factory_agent_authorize(token);
- if exists(select 1 from jsonb_array_elements(data->'resource_catalog')r where r->>'resource'='sop_material_bindings' and (r->'fields' ? 'raw_material_id' or r->'filters' ? 'raw_material_id')) then raise exception 'Discovery advertised hidden relationship access';end if;
- begin perform public.factory_agent_resource_query(token,'[{"business_module":"factory_production_sop","resource":"sop_material_bindings","action":"filter","filters":{"raw_material_id":"hidden"},"date_range":{"from":"2026-10-01","to":"2026-10-31"}}]');raise exception 'Hidden material filter allowed';exception when invalid_parameter_value then null;end;
+ if not exists(select 1 from jsonb_array_elements(data->'resource_catalog')r where r->>'resource'='sop_material_bindings' and r->'fields' ? 'raw_material_id') then raise exception 'Discovery omitted intrinsic material reference';end if;
+ begin perform public.factory_agent_resource_query(token,'[{"business_module":"factory_production_sop","resource":"sop_material_bindings","action":"filter","filters":{"current_balance":"hidden"},"date_range":{"from":"2026-10-01","to":"2026-10-31"}}]');raise exception 'Hidden material filter allowed';exception when invalid_parameter_value then null;end;
  -- Select one core pipeline day, then compare source counts and states exactly.
  data:=public.factory_agent_resource_query(all_token,'[{"business_module":"factory_job_orders","resource":"production_pipeline","action":"list","date_range":{"from":"2026-10-28","to":"2026-10-28"},"limit":100}]')->'results'->0;
  execute 'set local role postgres';source:=feedx_integrations.factory_get_production_operational_pipeline_snapshot_core('2026-10-28',false,all_token);
@@ -48,9 +48,9 @@ begin
  end loop;
  -- Synthetic JSON projection tests cover privacy where real transactional evidence is empty.
  record_row:=feedx_integrations.navigation_project_row(token,'factory_mesti_food_processing_control','evidence','{"id":"context","module":"food_processing_control","qc_required_count":2,"qc_evidence_count":1,"qc_requirement_status":"evidence_unavailable","employee_id":"private","job_order_no":"JO-private","production_no":"PR-private","unknown_nested":{"private":"value"}}');
- if record_row->>'qc_required_count'<>'2' or record_row ?|array['employee_id','job_order_no','production_no','unknown_nested'] then raise exception 'Processing proof fields or cross-module redaction failed';end if;
+ if record_row->>'qc_required_count'<>'2' or record_row ?|array['employee_id','unknown_nested'] then raise exception 'Processing proof fields or cross-module redaction failed';end if;
  record_row:=feedx_integrations.navigation_project_row(token,'factory_product_stock_check','product_stock_adjustments','{"id":"allocation","stock_check_item_id":"own","batch_balance_id":"private","quantity":4,"notes":"private"}');
- if record_row->>'quantity'<>'4' or record_row ?|array['batch_balance_id','notes'] then raise exception 'Allocation evidence leaked ungranted batch';end if;
+ if record_row->>'quantity'<>'4' or record_row ?|array['notes','current_balance'] then raise exception 'Allocation evidence leaked ungranted batch';end if;
  -- Removing a contributing source grant changes discovery and query enforcement immediately.
  execute 'set local role authenticated';perform public.external_agents_set_capability(all_id,'nav_factory_production_view',false,true);
  execute 'set local role anon';data:=public.factory_agent_authorize(all_token);

@@ -25,3 +25,11 @@ it('starts registration empty even if supplied catalog rows contain saved grant 
  expect(screen.getByRole('checkbox',{name:'View Records: Cleaning'}).checked).toBe(false);
  expect(screen.getByRole('button',{name:'Review Changes'}).disabled).toBe(true);
 });
+
+it('keeps selection rows compact and scope details optional without rendering raw JSON',()=>{
+ render(<BusinessCapabilitySelector capabilities={[cap,{...cap,name:'other',label:'Other',granted:false}]} canManage/>);
+ expect(screen.queryByText('Not currently allowed')).toBeNull();
+ expect(screen.queryByText('Currently allowed')).toBeNull();
+ expect(document.querySelector('pre')).toBeNull();
+ expect(screen.getAllByText('Access Details').length).toBe(2);
+});

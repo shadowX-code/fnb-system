@@ -26,3 +26,8 @@
 .module-access-details { margin-top: 5px; font-size: 12px; color: var(--text-secondary); }
 .module-access-group .module-access-details summary { display: list-item; padding: 2px 0; font-size: 12px; font-weight: 400; background: transparent; }
 .module-access-details p { margin-top: 5px; line-height: 1.5; overflow-wrap: anywhere; }
+
+.module-access-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
+.module-access-view { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; min-height: 32px; cursor: pointer; font-size: 12px; }
+.module-access-view input { width: 16px; height: 16px; accent-color: var(--text-primary); }
+.module-access-view input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }

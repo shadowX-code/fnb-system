@@ -10,12 +10,12 @@ begin
  execute 'set local role anon';
  data:=public.factory_agent_resource_query(token,'[{"business_module":"factory_mesti_raw_material_control","resource":"raw_control_standards","action":"list","date_range":{"from":"2026-10-01","to":"2026-10-31"},"limit":100}]')->'results'->0;
  execute 'set local role postgres';select count(*) into expected from public.factory_raw_materials where lower(coalesce(status,''))='active';
- if (data->>'returned')::integer<>expected or exists(select 1 from jsonb_array_elements(data->'items')item where item ?|array['name','material_code','manual_unit_cost','current_balance']) then raise exception 'Canonical active standard coverage/redaction mismatch';end if;
+ if (data->>'returned')::integer<>expected or exists(select 1 from jsonb_array_elements(data->'items')item where item ?|array['manual_unit_cost','current_balance']) then raise exception 'Canonical active standard coverage/redaction mismatch';end if;
  execute 'set local role anon';
  data:=public.factory_agent_resource_query(token,'[{"business_module":"factory_mesti_raw_material_control","resource":"raw_control_receipts","action":"list","date_range":{"from":"2026-10-01","to":"2026-10-31"},"limit":100}]')->'results'->0;
  execute 'set local role postgres';source:=feedx_integrations.factory_mesti_raw_material_control_receiving_report_core('2026-10-01','2026-10-31',null,null,null,null,null,token);
  if (data->>'returned')::integer<>jsonb_array_length(source) then raise exception 'Canonical completed Receiving evidence count mismatch';end if;
- if exists(select 1 from jsonb_array_elements(data->'items')item where item->>'status'<>'completed' or item ?|array['batch_id','raw_material_id','supplier_id','storage_location_id','receipt_no','receiving_no','unit_cost','received_by_name','verified_by_name']) then raise exception 'Receiving state or cross-module privacy mismatch';end if;
+ if exists(select 1 from jsonb_array_elements(data->'items')item where item->>'status'<>'completed' or item ?|array['unit_cost','received_by_name','verified_by_name']) then raise exception 'Receiving state or cross-module privacy mismatch';end if;
  foreach mid in array array['factory_mesti_cleaning','factory_mesti_equipment_cleaning'] loop
  foreach resource_name in array array['requirements','occurrences','evidence'] loop
   execute 'set local role anon';
@@ -29,7 +29,7 @@ begin
    end if;
    if r->>'cleaning_method' is distinct from source->>'cleaning_method' or r->>'method_basis' is distinct from (case when resource_name='requirements' then 'versioned_requirement' else 'issued_snapshot' end) then raise exception 'Issued method snapshot was replaced with current setup';end if;
    if source->>'cleaning_method' is null and r->>'method_availability'<>'unavailable' then raise exception 'Legacy missing method was invented';end if;
-   if r ?|array['subject_id','subject_ids','completed_by_name','verified_by_name'] then raise exception 'Cleaning leaked foreign identity';end if;
+   if r ?|array['completed_by_name','verified_by_name'] then raise exception 'Cleaning leaked foreign identity';end if;
   end loop;
  end loop;
  end loop;

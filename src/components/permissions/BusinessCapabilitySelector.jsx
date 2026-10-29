@@ -1,19 +1,66 @@
 import {useEffect,useState} from 'react';
-import './moduleAccessSelector.css';
-export const actionLabels = {view:'View Records',list:'View Records',read:'View Records',search:'View Records',filter:'View Records',draft:'Draft',execute:'Execute',approve:'Approve'};
 import Modal from '../feedback/Modal.jsx';
 import {externalAgentService} from '../../services/externalAgentService.js';
+import './moduleAccessSelector.css';
+
+export const actionLabels = {view:'View Records',list:'View Records',read:'View Records',search:'View Records',filter:'View Records',draft:'Draft',execute:'Execute',approve:'Approve'};
+const scopeLabel = c => (c.scope || []).map(s => s.label).join(', ');
+function AccessDetails({capability:c}) {
+ return <details className="module-access-details"><summary>Access Details</summary>
+  <p>{c.description}</p><p>{scopeLabel(c)}</p>
+  {c.capability_limitation && <p>{c.capability_limitation}</p>}
+  {[...new Set((c.scope||[]).map(s=>s.scope_note).filter(Boolean))].map(note=><p key={note}>{note}</p>)}
+  <details><summary>Technical identifiers (read-only)</summary><p>{c.name} · {c.permission}</p>
+   {(c.scope||[]).map((s,i)=><p key={`${s.resource}:${i}`}>{s.resource}{s.fields?.length?` · Fields: ${s.fields.join(', ')}`:''}</p>)}
+  </details>
+ </details>;
+}
 export default function BusinessCapabilitySelector({capabilities=[],identityId=null,canManage=false,busy=false,onConfirmed,onConfirmRegistration,registration=false}) {
  const baseline=c=>!registration && !!c.granted;
- const initial=capabilities.filter(baseline).map(c=>c.name);
- const [selected,setSelected]=useState(initial),[plan,setPlan]=useState(null),[working,setWorking]=useState(false),[error,setError]=useState('');
+ const [selected,setSelected]=useState(()=>capabilities.filter(baseline).map(c=>c.name));
+ const [plan,setPlan]=useState(null),[working,setWorking]=useState(false),[error,setError]=useState('');
  useEffect(()=>{setSelected(capabilities.filter(c=>!registration && c.granted).map(c=>c.name));setPlan(null);},[capabilities,registration]);
- const groups=new Map();for(const c of capabilities){const group=`${c.workspace||'Factory'} / ${c.domain||c.section||'MeSTI'}`;if(!groups.has(group))groups.set(group,[]);groups.get(group).push(c);}
+ const groups=new Map();
+ for(const c of capabilities){const group=`${c.workspace||'Factory'} / ${c.domain||c.section||'MeSTI'}`;if(!groups.has(group))groups.set(group,[]);groups.get(group).push(c);}
  const chosen=c=>selected.includes(c.name);
  const changed=capabilities.some(c=>baseline(c)!==chosen(c));
  async function review(){setWorking(true);setError('');try{setPlan(await externalAgentService.review(identityId,selected));}catch(e){setError(e.message);}finally{setWorking(false);}}
- async function confirm(){setWorking(true);setError('');try{if(registration)await onConfirmRegistration(selected,plan.review_hash);else {await externalAgentService.confirmAccess(identityId,selected,plan.review_hash);await onConfirmed?.();}setPlan(null);}catch(e){setError(e.message);setPlan(null);}finally{setWorking(false);}}
+ async function confirm(){
+  setWorking(true);setError('');
+  try{if(registration)await onConfirmRegistration(selected,plan.review_hash);else {await externalAgentService.confirmAccess(identityId,selected,plan.review_hash);await onConfirmed?.();}setPlan(null);}
+  catch(e){setError(e.message);setPlan(null);}finally{setWorking(false);}
+ }
  const afterNames=new Set((plan?.remaining_access||[]).map(c=>c.name));
- return <div className="space-y-3"><p className="text-xs text-text-secondary">Select capabilities, review their complete scope, then confirm. Dependencies are never selected automatically. A capability controls its full scope; shared resources retain their separate access paths.</p>{error&&<p role="alert" className="external-agent-notice">{error}</p>}{[...groups].map(([group,rows])=><details className="module-access-group" key={group}><summary>{group}<span className="module-access-count">{rows.filter(chosen).length} of {rows.length} selected</span></summary><ul>{rows.map(c=><li key={c.name}><label className="module-access-option"><input type="checkbox" aria-label={`View Records: ${c.label}`} checked={chosen(c)} disabled={busy||working||!canManage||!c.can_assign||(!c.implemented&&!c.granted)} onChange={e=>{setSelected(e.target.checked?[...selected,c.name]:selected.filter(n=>n!==c.name));setPlan(null);}}/><span><strong>{c.label}</strong><span className="module-access-description">View Records{c.retained_only?' · Existing bounded scope':''}</span>{c.capability_limitation&&<span className="module-access-description">Limited capability coverage</span>}<details className="module-access-details"><summary>Effective data scope</summary><p>{(c.scope||[]).map(s=>s.scope_note?`${s.label}: ${s.scope_note}`:s.label).join(', ')}</p><p>{c.description}</p></details></span></label><span className="text-xs text-text-secondary">{baseline(c)?'Currently allowed':'Not currently allowed'}</span></li>)}</ul></details>)}<details><summary>Advanced Details (read-only)</summary><pre className="external-agent-code whitespace-pre-wrap text-xs max-h-80 overflow-auto">{JSON.stringify(capabilities.map(c=>({name:c.name,permission:c.permission,scope:c.scope})),null,2)}</pre></details><button type="button" className="btn-primary" disabled={busy||working||!canManage||(!registration&&!changed)||(registration&&!selected.length)} onClick={review}>{working?'Preparing review…':'Review Changes'}</button>{changed&&!plan&&<p className="text-xs text-text-secondary">Selections are staged. Effective access is unchanged until confirmation.</p>}
- {plan&&<Modal title="Review Changes" onClose={()=>setPlan(null)} panelClassName="external-agent-panel" footer={<><button className="btn-secondary" type="button" disabled={working} onClick={()=>setPlan(null)}>Back to selection</button><button className="btn-primary" type="button" disabled={working} onClick={confirm}>{registration?'Confirm and connect':'Confirm changes'}</button></>}><div className="space-y-4"><section><h3 className="external-agent-heading">Added / removed grants</h3>{plan.changes.map(c=><div key={c.name} className="py-2"><strong>{c.granted?'Add':'Remove'}: {c.label} · View Records</strong><p className="text-xs text-text-secondary">Complete scope: {c.scope.map(s=>s.scope_note?`${s.label}: ${s.scope_note}`:s.label).join(', ')}</p></div>)}</section><section><h3 className="external-agent-heading">Required and optional dependencies</h3>{plan.dependencies.filter(r=>plan.changes.some(c=>c.name===r.grant_name||r.required.some(d=>d.name===c.name)||r.optional.some(d=>d.name===c.name))&&afterNames.has(r.grant_name)).map(r=><div key={`${r.module_id}:${r.resource}`} className="py-2 text-xs"><strong>{r.owner}: {r.label}</strong><p>Required: {r.required.filter(c=>!afterNames.has(c.name)).map(c=>c.label).join(', ')||'Satisfied by reviewed selection'}</p><p>Optional related data not selected: {r.optional.filter(c=>!afterNames.has(c.name)).map(c=>c.label).join(', ')||'None'}</p><p>Unsupported actions: {r.unsupported.join(', ')}</p></div>)}</section><section><h3 className="external-agent-heading">Shared-resource impact</h3>{plan.changes.filter(c=>!c.granted).map(c=><p key={c.name} className="text-xs py-2">Removing {c.label}: {plan.remaining_access.filter(other=>other.scope.some(s=>c.scope.some(removed=>removed.resource===s.resource))).map(other=>other.label).join(', ')||'No remaining grant uses the same resource identifiers; composite or differently scoped access is listed below'}. Each remaining path retains its own row scope and field restrictions.</p>)}</section><section><h3 className="external-agent-heading">Access remaining after confirmation</h3><p className="text-xs">Revoking one capability does not revoke other access paths to shared records. The following complete scopes remain:</p>{plan.remaining_access.map(c=><p key={c.name} className="text-sm py-2"><strong>{c.label}</strong>: {c.scope.map(s=>s.scope_note?`${s.label}: ${s.scope_note}`:s.label).join(', ')}</p>)}{!plan.remaining_access.length&&<p>No business capabilities remain.</p>}</section><details><summary>Advanced Details (read-only)</summary><pre className="external-agent-code whitespace-pre-wrap text-xs">{JSON.stringify({changes:plan.changes.map(c=>({permission:c.permission,scope:c.scope})),remaining:plan.remaining_access.map(c=>({permission:c.permission,scope:c.scope}))},null,2)}</pre></details><p className="text-xs text-text-secondary">{plan.note}</p></div></Modal>}</div>;
+ const dependencies=(plan?.dependencies||[]).filter(r=>plan.changes.some(c=>c.name===r.grant_name||r.required.some(d=>d.name===c.name)||r.optional.some(d=>d.name===c.name))&&afterNames.has(r.grant_name));
+ return <div className="space-y-3">
+  <p className="text-xs text-text-secondary">Select access, review changes, then confirm. Related full records and optional reporting sources are never granted automatically.</p>
+  {error&&<p role="alert" className="external-agent-notice">{error}</p>}
+  {[...groups].map(([group,rows])=><details className="module-access-group" key={group}>
+   <summary>{group}<span className="module-access-count">{rows.filter(chosen).length} of {rows.length} selected</span></summary>
+   <ul>{rows.map(c=><li key={c.name}><div className="module-access-main">
+    <div className="module-access-row"><strong>{c.label}{c.capability_limitation&&<span className="module-access-related"> · Limited</span>}</strong>
+     <label className="module-access-view"><input type="checkbox" aria-label={`View Records: ${c.label}`} checked={chosen(c)} disabled={busy||working||!canManage||!c.can_assign||(!c.implemented&&!c.granted)} onChange={e=>{setSelected(previous=>e.target.checked?[...previous,c.name]:previous.filter(n=>n!==c.name));setPlan(null);}}/>View</label>
+    </div><AccessDetails capability={c}/>
+   </div></li>)}</ul>
+  </details>)}
+  <button type="button" className="btn-primary" disabled={busy||working||!canManage||(!registration&&!changed)||(registration&&!selected.length)} onClick={review}>{working?'Preparing review…':'Review Changes'}</button>
+  {changed&&!plan&&<p className="text-xs text-text-secondary">Selections are staged. Effective access is unchanged until confirmation.</p>}
+  {plan&&<Modal title="Review Changes" onClose={()=>setPlan(null)} panelClassName="external-agent-panel" footer={<>
+   <button className="btn-secondary" type="button" disabled={working} onClick={()=>setPlan(null)}>Back to selection</button>
+   <button className="btn-primary" type="button" disabled={working} onClick={confirm}>{registration?'Confirm and connect':'Confirm changes'}</button>
+  </>}><div className="space-y-4">
+   <section><h3 className="external-agent-heading">Added / removed grants</h3>{plan.changes.map(c=><div key={c.name} className="py-2"><strong>{c.granted?'Add':'Remove'}: {c.label} · View Records</strong><p className="text-xs text-text-secondary">{scopeLabel(c)}</p><AccessDetails capability={c}/></div>)}</section>
+   <section><h3 className="external-agent-heading">Required and optional dependencies</h3>
+    {dependencies.length?dependencies.map(r=><div key={`${r.module_id}:${r.resource}`} className="py-2 text-xs"><strong>{r.owner}: {r.label}</strong>
+     <p>Required: {r.required.filter(c=>!afterNames.has(c.name)).map(c=>c.label).join(', ')||'Satisfied by reviewed selection'}</p>
+     <p>Optional related data not selected: {r.optional.filter(c=>!afterNames.has(c.name)).map(c=>c.label).join(', ')||'None'}</p>
+    </div>):<p className="text-xs">No additional source capabilities are required for these changes.</p>}
+   </section>
+   <section><h3 className="external-agent-heading">Shared-resource impact</h3>{plan.changes.filter(c=>!c.granted).map(c=><p key={c.name} className="text-xs py-2">Removing {c.label}: {plan.remaining_access.filter(other=>other.scope.some(s=>c.scope.some(removed=>removed.resource===s.resource))).map(other=>other.label).join(', ')||'No remaining grant uses the same resource identifiers; composite or differently scoped access is listed below'}. Each remaining path retains its own row scope and field restrictions.</p>)}</section>
+   <section><h3 className="external-agent-heading">Access remaining after confirmation</h3><p className="text-xs">Revoking one capability does not revoke other access paths to shared records.</p>
+    {plan.remaining_access.map(c=><div key={c.name} className="text-sm py-2"><strong>{c.label}</strong>: {scopeLabel(c)}<AccessDetails capability={c}/></div>)}
+    {!plan.remaining_access.length&&<p>No business capabilities remain.</p>}
+   </section><p className="text-xs text-text-secondary">{plan.note}</p>
+  </div></Modal>}
+ </div>;
 }
