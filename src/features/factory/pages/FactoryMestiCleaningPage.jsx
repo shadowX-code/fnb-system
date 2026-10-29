@@ -5,6 +5,7 @@ import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import TagList from "../../../components/ui/TagList.jsx";
 import FactoryMestiRequirementHistory from "../components/FactoryMestiRequirementHistory.jsx";
+import { FactoryMestiCleaningMethodField, FactoryMestiCleaningMethodReference, cleaningMethodLabel } from "../components/FactoryMestiCleaningMethod.jsx";
 import { FactoryMestiMonthlyActionRow } from "../components/FactoryMestiMonthlyExpansion.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import { factoryService } from "../../../services/factoryService.js";
@@ -83,6 +84,7 @@ function monthlyCellTitle(cell, row) {
 function OccurrenceDetail({ occurrence, onClose }) {
   if (!occurrence) return null;
   return <Modal title={`${occurrence.task_name} · ${occurrence.location_name}`} description={formatFactoryDate(occurrence.due_date)} onClose={onClose}>
+    <FactoryMestiCleaningMethodReference reference={occurrence.cleaning_method_reference} />
     <div className="grid gap-x-6 md:grid-cols-2">
       <div className="border-b border-border py-2.5"><div className="text-xs font-semibold text-text-muted">Status</div><div className="mt-1"><StatusBadge status={occurrence.status} /></div></div>
       <div className="border-b border-border py-2.5"><div className="text-xs font-semibold text-text-muted">Schedule</div><div className="mt-1 text-sm font-semibold text-text-primary">{recurrenceLabel(occurrence)}</div></div>
@@ -92,7 +94,7 @@ function OccurrenceDetail({ occurrence, onClose }) {
   </Modal>;
 }
 
-function RequirementModal({ open, draft, locations, onClose, onSave, onChange, error, saving }) {
+function RequirementModal({ open, draft, locations, methods, onClose, onSave, onChange, error, saving }) {
   const [view, setView] = useState("edit");
   useEffect(() => { setView("edit"); }, [open, draft.id]);
   if (!open) return null;
@@ -101,6 +103,7 @@ function RequirementModal({ open, draft, locations, onClose, onSave, onChange, e
     {view === "history" ? <FactoryMestiRequirementHistory logicalRequirementId={draft.logical_requirement_id || draft.id} loadVersions={factoryService.listMestiCleaningRequirementVersions} formatSchedule={recurrenceLabel} /> : <form id="area-cleaning-requirement" className="grid gap-4 md:grid-cols-2" onSubmit={onSave}>
       <Field label="Task Name"><input className={inputClass()} value={draft.task_name} onChange={event => onChange("task_name", event.target.value)} placeholder="Floor, Ceiling, Drain" required /></Field>
       <Field label="Effective From"><FeedXDatePicker required value={draft.effective_from} onChange={value => onChange("effective_from", value)} /></Field>
+      <FactoryMestiCleaningMethodField draft={draft} methods={methods} onChange={value => onChange("cleaning_method", value)} />
       <FactoryMestiScheduleFields frequency={draft.recurrence_type} weekdays={draft.recurrence_weekdays || []} status={draft.status} onFrequencyChange={value => onChange("recurrence_type", value)} onWeekdaysChange={value => onChange("recurrence_weekdays", value)} onStatusChange={value => onChange("status", value)} />
       <FactoryMestiLocationSelection locations={locations} value={draft.location_ids || []} onChange={value => onChange("location_ids", value)} />
       {error ? <p role="alert" className="md:col-span-2 text-sm text-[var(--factory-danger-text)]">{error}</p> : null}
@@ -212,7 +215,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
             row.verified_at ? { key: "verified", label: `Verified ${row.verified_by_name || "—"} · ${formatFactoryDateTime(row.verified_at)}` } : null,
             note ? { key: "note", label: `Note: ${note}`, title: note } : null,
           ]} />;
-          return <FactoryOperationalRow key={row.id} primary={row.task_name} secondary={recurrenceLabel(row)} evidence={evidence} status={<StatusBadge status={row.status} variant="emphasized" />} actions={<FactoryRowActions primaryAction={canComplete ? { label: "Complete", icon: Check, disabled: Boolean(workingId), onClick: () => act("complete", row) } : canVerify ? { label: "Verify", disabled: Boolean(workingId), onClick: () => act("verify", row, "verified") } : null} secondaryActions={canVerify ? [{ label: "Mark unsatisfactory", icon: XCircle, destructive: true, onClick: () => act("verify", row, "unsatisfactory") }] : []} />} />;
+          return <FactoryOperationalRow key={row.id} primary={row.task_name} secondary={recurrenceLabel(row)} evidence={<>{evidence}<FactoryMestiCleaningMethodReference reference={row.cleaning_method_reference} compact /></>} status={<StatusBadge status={row.status} variant="emphasized" />} actions={<FactoryRowActions primaryAction={canComplete ? { label: "Complete", icon: Check, disabled: Boolean(workingId), onClick: () => act("complete", row) } : canVerify ? { label: "Verify", disabled: Boolean(workingId), onClick: () => act("verify", row, "verified") } : null} secondaryActions={canVerify ? [{ label: "Mark unsatisfactory", icon: XCircle, destructive: true, onClick: () => act("verify", row, "unsatisfactory") }] : []} />} />;
         })}</FactoryOperationalGroup>)}</div>}
     </div> : null}
 
@@ -231,6 +234,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
             status={<span aria-live="polite"><StatusBadge status={occurrence.status} /></span>}
             actions={<FactoryMestiOccurrenceActions status={occurrence.status} canComplete={!error && canCompleteOccurrence(occurrence)} canVerify={!error && canVerifyOccurrence(occurrence)} working={Boolean(workingId) || monthLoading} onComplete={() => act("complete", occurrence)} onVerify={() => act("verify", occurrence, "verified")} onMarkUnsatisfactory={() => act("verify", occurrence, "unsatisfactory")} onView={() => act("view", occurrence)} />}
           />
+          <div className="px-3 pb-2"><FactoryMestiCleaningMethodReference reference={occurrence.cleaning_method_reference} compact /></div>
           {actionFailure?.id === occurrence.id ? <p role="alert" className="px-3 pb-2 text-sm text-[var(--factory-danger-text)]">{actionFailure.message}</p> : null}
           {error ? <div className="px-3 pb-2"><p role="alert" className="text-sm text-[var(--factory-danger-text)]">{error}</p><button type="button" className="btn-secondary mt-2" onClick={loadMonthly}>Retry refresh</button></div> : null}
         </section>}
@@ -244,13 +248,14 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
       <div className="flex items-center justify-end">{canSaveSetup ? <button className="btn-primary h-10 px-3 text-sm" type="button" onClick={() => { setRequirementDraft(emptyRequirementDraft()); setShowRequirementForm(true); }}><Plus size={15} /> Create Requirement</button> : null}</div>
       <FactoryDataSurface><FactoryTable rows={currentRequirements} columns={[
         { key: "task", label: "Task", render: (row) => <span className="font-semibold text-text-primary">{row.task_name}</span> },
+        { key: "method", label: "Method", render: row => cleaningMethodLabel(row.cleaning_method_reference) },
         { key: "locations", label: "Locations", render: (row) => <TagList tags={row.location_names || []} maxVisible={2} label="Locations" /> },
         { key: "frequency", label: "Frequency", render: recurrenceLabel },
         { key: "effective", label: "Effective From", render: (row) => formatFactoryDate(row.effective_from) },
         { key: "status", label: "Status", render: (row) => <FactoryStatusBadge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Active" : "Inactive"}</FactoryStatusBadge> },
         { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions directSingleSecondary secondaryActions={canSaveSetup ? [{ label: "Edit", onClick: () => { setRequirementDraft({ ...row, location_ids: row.location_ids || [], recurrence_weekdays: row.recurrence_weekdays || [] }); setShowRequirementForm(true); } }] : []} /> },
       ]} /></FactoryDataSurface>
-      <RequirementModal open={showRequirementForm} draft={requirementDraft} locations={activeLocations} onClose={closeRequirementForm} onSave={saveRequirement} onChange={changeDraft} error={requirementError} saving={savingRequirement} />
+      <RequirementModal open={showRequirementForm} draft={requirementDraft} locations={activeLocations} methods={masterData.mestiCleaningMethods} onClose={closeRequirementForm} onSave={saveRequirement} onChange={changeDraft} error={requirementError} saving={savingRequirement} />
     </div> : null}
     <OccurrenceDetail occurrence={occurrenceDetail} onClose={() => setOccurrenceDetail(null)} />
   </div>;

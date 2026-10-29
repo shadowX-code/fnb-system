@@ -1307,6 +1307,7 @@ function emptyFactoryData() {
     sops: [],
     qcChecklistTemplates: [],
     mestiCleaningRequirements: [],
+    mestiCleaningMethods: [],
     mestiEquipmentCleaningRequirements: [],
     mestiCalibrationRequirements: [],
     auditLogs: [],
@@ -1321,8 +1322,8 @@ const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,pro
 const storageLocationSelect = "id,location_name,location_code,location_type,is_storage_location,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at,material_links:factory_supplier_raw_material_links(raw_material_id)";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
-const mestiCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,locations:factory_mesti_cleaning_requirement_locations(location_id,location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location))";
-const mestiEquipmentCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,equipment_links:factory_mesti_equipment_cleaning_requirement_equipment(equipment_id,equipment:factory_equipment(id,equipment_code,name,status,current_location_id,location:factory_storage_locations(location_name)))";
+const mestiCleaningRequirementSelect = "id,logical_requirement_id,task_name,cleaning_method,cleaning_method_reference,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,locations:factory_mesti_cleaning_requirement_locations(location_id,location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location))";
+const mestiEquipmentCleaningRequirementSelect = "id,logical_requirement_id,task_name,cleaning_method,cleaning_method_reference,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,equipment_links:factory_mesti_equipment_cleaning_requirement_equipment(equipment_id,equipment:factory_equipment(id,equipment_code,name,status,current_location_id,location:factory_storage_locations(location_name)))";
 const mestiCalibrationRequirementSelect = "id,logical_requirement_id,equipment_id,calibration_type,interval_months,effective_from,effective_until,status,version_no,superseded_by,created_at,updated_at,equipment:factory_equipment(id,equipment_code,name,category:factory_equipment_categories(name),location:factory_storage_locations(location_name))";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,conversion_package_quantity,conversion_base_uom,acceptance_procedure,control_methods,current_balance,min_stock_level,par_level,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,conversion_package_quantity,conversion_base_uom,acceptance_procedure,control_methods,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
@@ -1351,6 +1352,8 @@ function mapMestiCleaningRequirement(row) {
     id: row.id,
     logical_requirement_id: row.logical_requirement_id || row.id,
     task_name: row.task_name || "",
+    cleaning_method: row.cleaning_method || null,
+    cleaning_method_reference: row.cleaning_method_reference || null,
     recurrence_type: row.recurrence_type || "daily",
     recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
     status: row.status || "active",
@@ -1371,6 +1374,8 @@ function mapMestiEquipmentCleaningRequirement(row) {
     id: row.id,
     logical_requirement_id: row.logical_requirement_id || row.id,
     task_name: row.task_name || "",
+    cleaning_method: row.cleaning_method || null,
+    cleaning_method_reference: row.cleaning_method_reference || null,
     recurrence_type: row.recurrence_type || "",
     recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
     status: row.status || "active",
@@ -1431,6 +1436,8 @@ function mapMestiCleaningOccurrence(row) {
     requirement_id: row.requirement_id || "",
     logical_requirement_id: row.logical_requirement_id || row.requirement_id || "",
     task_name: row.task_name || "",
+    cleaning_method: row.cleaning_method || null,
+    cleaning_method_reference: row.cleaning_method_reference || null,
     location_id: row.location_id || "",
     location_name: row.location_name || "",
     recurrence_type: row.recurrence_type || "daily",
@@ -2096,6 +2103,7 @@ const factoryServiceDefinition = {
       .from("factory_qc_checklist_templates")
       .select("id,name,category,description,result_mode,is_active,created_at,updated_at")
       .in("id", ids), (rows) => rows);
+    addTask(plan.mestiCleaningRequirements || plan.mestiEquipmentCleaningRequirements, "mestiCleaningMethods", "Cleaning Methods", () => supabase.rpc("factory_mesti_cleaning_methods"), rows => Array.isArray(rows) ? rows : []);
     addTask(plan.mestiCleaningRequirements, "mestiCleaningRequirements", "MeSTI Cleaning Requirements", () => supabase
       .from("factory_mesti_cleaning_requirements")
       .select(mestiCleaningRequirementSelect)

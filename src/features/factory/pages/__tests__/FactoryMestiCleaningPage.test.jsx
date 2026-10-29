@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FactoryMasterDataProvider } from "../../context/FactoryMasterDataContext.jsx";
 import { FactoryPermissionsProvider } from "../../context/FactoryPermissionsContext.jsx";
 import FactoryMestiCleaningPage from "../FactoryMestiCleaningPage.jsx";
+import { cleaningMethodsFixture } from "../../components/__tests__/cleaningMethodsFixture.js";
 import { factoryService } from "../../../../services/factoryService.js";
 
 vi.mock("../../../../services/factoryService.js", () => ({ factoryService: {
@@ -21,6 +22,7 @@ const monthlyRows = [
   { requirement_id: "req-drain", logical_requirement_id: "logical-drain", version_no: 1, task_name: "Drain", recurrence_type: "daily", recurrence_weekdays: [], days: [{ due_date: "2026-09-02", status: "completed", total_count: 1, verified_count: 0, completed_count: 1, unsatisfactory_count: 0, missed_count: 0, pending_count: 0, occurrences: [drainOccurrence] }] },
 ];
 const data = {
+  mestiCleaningMethods: cleaningMethodsFixture,
   storageLocations: [locationPreparation, locationCooking, locationDryStore],
   mestiCleaningRequirements: [
     { id: "req-floor-v5", logical_requirement_id: "logical-floor", task_name: "Floor", location_ids: ["loc-prep", "loc-cook", "loc-store"], location_names: ["Preparation", "Cooking", "Dry Store"], recurrence_type: "weekly", recurrence_weekdays: [3], status: "active", effective_from: "2026-09-01", version_no: 5 },
@@ -142,6 +144,8 @@ describe("Factory MeSTI Cleaning of Area", () => {
     expect(screen.queryByLabelText("Responsible Role")).toBeNull();
     expect(screen.queryByLabelText("Verifier Role")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create Requirement" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cleaning Method" }));
+    fireEvent.click(screen.getByRole("option", { name: "Cleaning", exact: true }));
     expect(await screen.findByRole("dialog", { name: "Create Cleaning Requirement" })).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Ceiling" } });
     fireEvent.click(screen.getByLabelText("Preparation"));
@@ -296,6 +300,8 @@ describe("Factory MeSTI Cleaning of Area", () => {
     expect(screen.getByRole("button", { name: "Show 1 more Locations" })).toBeTruthy();
     expect(screen.queryByText("Version 5")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create Requirement" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cleaning Method" }));
+    fireEvent.click(screen.getByRole("option", { name: "Cleaning", exact: true }));
     fireEvent.click(screen.getByRole("tab", { name: "Weekly" }));
     expect(screen.getByRole("checkbox", { name: "Mon" }).checked).toBe(true);
     fireEvent.click(screen.getByRole("checkbox", { name: "Wed" }));
