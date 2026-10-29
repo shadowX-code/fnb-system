@@ -1,14 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { signProbe } from "../_shared/externalAgentProbe.js";
-const endpoint = "https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/factory-mesti-mcp";
-const origins = new Set(["https://fnb-system-staging.vercel.app", "http://localhost:5173"]);
+import { externalAgentEnvironment, gatewayEndpointPath } from "../_shared/externalAgentEnvironment.js";
+const environment = externalAgentEnvironment(Deno.env.get("SUPABASE_URL") || "");
+const endpoint = environment?.endpoint || "";
+const origins = new Set(environment?.origins || []);
 Deno.serve(async (request) => {
   const origin = request.headers.get("origin") || "";
-  const headers = { "Access-Control-Allow-Origin": origins.has(origin) ? origin : "https://fnb-system-staging.vercel.app", "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS", "Content-Type": "application/json", "Cache-Control": "no-store", Vary: "Origin" };
+  const headers = { "Access-Control-Allow-Origin": origins.has(origin) ? origin : environment?.origins[0] || "null", "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS", "Content-Type": "application/json", "Cache-Control": "no-store", Vary: "Origin" };
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers });
   if (origin && !origins.has(origin)) return json({ error: "Origin denied." }, 403);
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
-  if (Deno.env.get("SUPABASE_URL") !== "https://ujkzdaaadnvcfayuldmh.supabase.co") return json({ error: "Staging only." }, 503);
+  if (!environment) return json({ error: "Gateway environment unavailable." }, 503);
   if (request.method !== "POST") return json({ error: "Use POST." }, 405);
   const client = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: request.headers.get("authorization") || "" } }, auth: { persistSession: false, autoRefreshToken: false } });
   const { data: user, error: authError } = await client.auth.getUser();
@@ -20,7 +22,7 @@ Deno.serve(async (request) => {
   if (!body || Object.keys(body).some((key) => !["identity_id", "credential"].includes(key)) || typeof body.identity_id !== "string") return json({ error: "Invalid request." }, 400);
   const { data: configuration, error } = await client.rpc("external_agents_authorize_management", { p_identity_id: body.identity_id });
   if (error) return json({ error: "Role Settings edit authority for this agent is required." }, 403);
-  if (configuration?.endpoint !== endpoint) return json({ error: "Connection adapter is unavailable." }, 400);
+  if (configuration?.endpoint !== gatewayEndpointPath) return json({ error: "Connection adapter is unavailable." }, 400);
   const credential = body.credential || "";
   if (typeof credential !== "string" || (credential && !/^fxm_[A-Za-z0-9_-]{43}$/.test(credential))) return json({ error: "Credential format is invalid." }, 400);
   try {

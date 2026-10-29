@@ -1,11 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { createHandler } from "./protocol.js";
 import { isAdminProbe, tokenHash } from "../_shared/externalAgentProbe.js";
+import { externalAgentEnvironment } from "../_shared/externalAgentEnvironment.js";
 
 // Business reads use the anonymous client; the database validates the machine credential.
 const url = Deno.env.get("SUPABASE_URL") || "";
 const client = createClient(url, Deno.env.get("SUPABASE_ANON_KEY") || "", { auth: { persistSession: false, autoRefreshToken: false } });
-const staging = "https://ujkzdaaadnvcfayuldmh.supabase.co";
+const environment = externalAgentEnvironment(url);
 // Service authority is used only for safe access telemetry; business reads stay token-gated.
 const telemetrySecret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const telemetry = createClient(url, telemetrySecret, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -22,6 +23,6 @@ const handler = createHandler(async (token: string, tool: string, args: Record<s
     : await telemetry.rpc("external_agents_record_access", { p_token_hash: await tokenHash(token), p_method: event.method, p_tool: event.tool, p_outcome: event.outcome, p_reason: event.reason, p_source: source });
   if (error) throw new Error("Access telemetry unavailable.");
 } });
-Deno.serve((request: Request) => url !== staging
-  ? new Response("Staging connector only.", { status: 503 })
+Deno.serve((request: Request) => !environment
+  ? new Response("Gateway environment unavailable.", { status: 503 })
   : handler(request));

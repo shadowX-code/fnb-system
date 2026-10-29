@@ -1,8 +1,14 @@
 import { beforeEach, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), functions: { invoke: vi.fn() } }));
+const mocks = vi.hoisted(() => ({ supabaseUrl: "https://oyfobxdoyfuzsodogpgs.supabase.co", rpc: vi.fn(), functions: { invoke: vi.fn() } }));
 vi.mock("../../lib/supabase.ts", () => ({ supabase: mocks }));
 import { externalAgentService } from "../externalAgentService.js";
 beforeEach(() => vi.clearAllMocks());
+it("resolves adapter metadata only to the current deployment and never advertises a foreign project", async () => {
+  mocks.rpc.mockResolvedValue({data:{connections:[{id:"same",endpoint:"/functions/v1/factory-mesti-mcp"},{id:"foreign",endpoint:"https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/factory-mesti-mcp"}]},error:null});
+  const result = await externalAgentService.list();
+  expect(result.connections[0].endpoint).toBe("https://oyfobxdoyfuzsodogpgs.supabase.co/functions/v1/factory-mesti-mcp");
+  expect(result.connections[1].endpoint).toBe("");
+});
 it("separates ordinary management reads from explicit one-time issuance", async () => {
   mocks.rpc.mockResolvedValue({ data: { connections: [] }, error: null });
   await externalAgentService.list();
