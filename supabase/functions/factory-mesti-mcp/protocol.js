@@ -71,7 +71,7 @@ export function createHandler(read, { allowedOrigins = [], now, observe } = {}) 
       let args;
       try { args = toolArguments(message.params?.name, message.params?.arguments, now); } catch (error) { return fail(-32602, error.message); }
       if (!authorizedTools.some((tool) => tool.name === message.params.name)) return fail(-32003, "This capability is not granted. Ask a FeedX administrator to review agent access.");
-      if ([resourceTool.name, factoryResourceTool.name].includes(message.params.name) && args.p_queries.some((q) => !resourceAccess.some((grant) => grant.resource === q.resource && grant.action === q.action))) return fail(-32003, "One or more resource operations are not granted. No resource data was returned.");
+      if ([resourceTool.name, factoryResourceTool.name].includes(message.params.name) && args.p_queries.some((q) => !resourceAccess.some((grant) => grant.resource === q.resource && grant.action === q.action && (grant.business_module ?? null) === (q.business_module ?? null)))) return fail(-32003, "One or more resource operations are not granted. No resource data was returned.");
       try {
         const data = await read(token, message.params.name, args);
         result = { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data, isError: false };

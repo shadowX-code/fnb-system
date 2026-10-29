@@ -35,44 +35,33 @@ Suggested on-demand prompt for the existing Bot after connection:
 
 ## Agent Access Management
 
-Admin → Settings → Integrations → External Agents (`/system/settings/integrations/external-agents`) uses canonical Role Settings View for visibility; registration requires Create + Edit, and management requires Edit plus target-role delegation authority. Connect Agent and Access & Permissions share collapsible Workspace/Module resource groups, exact counts, module Select All/Clear and one View Records control per resource. Related source grants remain explicit. Unsupported actions are unavailable; technical identifiers stay in Advanced Details.
+Admin → Settings → Integrations → External Agents (`/system/settings/integrations/external-agents`) uses canonical Role Settings View for visibility, Create + Edit for registration and Edit plus role-delegation authority for management. Connect and Manage Access share the Admin `ModuleAccessSelector`. Permissions use the actual Factory sidebar's **Factory, Warehouse, Raw Material, MeSTI, Master Data and System** sections, business module names and one View Records control. Two non-sidebar routes are labelled Related route. Counts and section Select All/Clear exclude unavailable modules and never implicitly add related grants.
 
-Connection seen is a historical successful external request, separate from enabled access and Active/Expired/Revoked key state. Endpoint checks and signed Administrator probes do not establish provider connectivity. Credentials can be replaced/revoked only through confirmed canonical management operations. One-time issuance is masked, never recoverable from ordinary APIs, and cleared on close, authority loss, tab hiding or after two minutes. The existing QA Executive key must never be rotated/revoked/disabled for QA.
+Available means the documented bounded read contract is implemented. Partial names its exact coverage/isolation limitations. Unavailable has no configurable grant. [Per-module coverage](factory-agent-module-coverage.md) lists all 34 routes and reasons. Source policy is `config/factoryAgentModules.json`; the same 50 existing resource readers remain behind it. No new domain read models, writes or tenancy are introduced.
 
-## Unified Factory resources
+QA Executive keeps its original identity, credential and restricted Compliance Review Records grant. That narrower scope is **not** equivalent to full MeSTI module access, so no new module grants are inferred. Its eight affected modules show Preserved restricted access separately from the View Records checkbox. The banner explains that clearing module selections leaves preserved access in place. Advanced Details shows exact technical scope and offers a separately confirmed removal; never confirm that operation on the working QA Executive during QA.
 
-The endpoint and Bearer setup are unchanged. `query_factory_resources` exposes only implemented/granted resources. Discover resource IDs, allowed query operations, filter fields, dependencies and date semantics in tool metadata (`feedx/resources`, `feedx/authorized-resource-actions`). View Records authorizes List, exact Read, literal Search and Filter. New resources are registered through the existing canonical permission/adapter authority, never UI-only toggles.
+Active/Expired/Revoked describe key validity separately from enabled identity and recorded external connectivity. Keys can only be issued/replaced once through confirmed existing management authority; ordinary APIs, history and URLs contain no stored secrets. Endpoint checks and signed administrator probes do not prove Grok Bot connectivity.
+
+## Module-scoped MCP queries
+
+Endpoint, Bearer authentication and Streamable HTTP remain unchanged. New module grants require `business_module`; discover the allowed module/resource pairs, forced scopes, coverage and required source modules in tool metadata. Refresh provider discovery after changing access. Technical resource identifiers are MCP arguments, not normal administrator permission labels.
 
 ```json
-{"queries":[{"resource":"mesti_review","action":"list","date_range":{"from":"2026-10-28","to":"2026-10-28"},"limit":100}]}
+{"queries":[{"business_module":"factory_mesti_cleaning","resource":"evidence","action":"list","date_range":{"from":"2026-10-28","to":"2026-10-28"},"limit":25}]}
 ```
 
-QA Executive migrates from the union of its five legacy review grants to Compliance Review Records (`mesti_review`), with the same redacted rows and unchanged key. It still discovers the five compatibility names plus the unified query tool. It receives **no** raw requirements/evidence or other Factory data. Refresh provider discovery before querying the new tool. Its prior on-demand prompt remains compatible; a resource-based prompt can list yesterday's `mesti_review`, follow pagination and resolve an exact returned record ID, then classify/follow up using its own reasoning.
+List, exact Read, literal Search and supported equality Filter share View Records. Every requested module/resource and summary dependency is authorized before data is read. A Cleaning of Area grant cannot read calibration/health evidence, even through the same `evidence` resource or a conflicting module filter. Missing `business_module` is denied for a module-only identity. Foreign references, linked versions and hidden fields cannot be used as filter/search side channels. Shared MeSTI record and parent references are module scoped; no implicit joins or expansion occur.
 
-Factory coverage inventory:
+Dashboard, Production Overview and Batch Traceability remain partial and require their listed contributing modules. Audit is redacted and restricted to recognized, separately granted modules; personal health/hygiene and unclassified events are omitted. Production Reports is unavailable. Staff/clinical details, contacts, receipt files and private feedback responses are outside the contract.
 
-| Module | Implemented records |
-| --- | --- |
-| Dashboard | Existing monthly operational snapshot, with explicit contributing grants. |
-| Production Planning | Existing job-order planning records. |
-| Production Overview / Reports | Existing monthly performance and daily drill-down projection. |
-| Job Orders / Production | Orders, runs, execution steps, QC results, material usage. |
-| Batch Traceability | Canonical finished-batch reconciliation; persisted raw allocation lineage. |
-| Warehouse | Finished goods/batches, dispatches/items/allocations, movements, stock checks/counts, internal transfers/items. |
-| Raw Materials | Material master/batches, receiving documents/items, movements, stock checks/counts. |
-| MeSTI | Requirements, occurrences, lifecycle states, schedules, redacted evidence; unchanged review projection; Raw Material Control standards/receipt evidence. Covers all nine current MeSTI pages. |
-| Master Data | Recipes/ingredients, product families, production procedures/steps, equipment, locations, suppliers, customers. |
-| Product Feedback | Campaigns, tasting variants and anonymous daily response counts. |
-| Petty Cash | Ledger and categories, excluding receipts, parties and free text. |
-| Audit Trail | Event classification, outcome and timestamp, excluding actor/before/after details. |
+Preserved legacy grants retain their old request shapes. QA Executive can still call the five review tools and unscoped `mesti_review`; those calls never acquire raw module access. The restricted `query_mesti_resources` alias accepts no navigation-module argument. No new raw resource/tool grants can be issued through registration, Gateway management or canonical Role Settings for an existing machine role.
 
-The exact route-to-resource contract is `config/factoryAgentNavigation.json`; reviewed field projections are `config/factoryAgentResources.json`. No business lifecycle writes or new tenancy are added. Resource descriptions disclose required source grants. Foreign fields disappear without their target grants; no implicit relationship expansion is supported.
-
-Bounds: five queries/request, 31 dates/query, 1–100 items/page, 5,000 source rows/window and 512 KiB/response. An overlarge source window fails rather than silently truncating. Send the identical query with `next_cursor` for a continuation; every page reauthorizes. Master data is current state. Monthly analytics preserve their existing full-month, trend and current-stock semantics rather than pretending to be a daily snapshot. Ordinary production dates use Production End; unresolved/undated evidence is disclosed, never invented. Source strings are inert data.
+Bounds remain five queries/request, 31 dates/query, 1–100 items/page, 5,000 authorized source rows/window and 512 KiB/response. Continue with the identical query and `next_cursor`; changing module invalidates it and every page reauthorizes. Master data is current, monthly reporting retains canonical month/trend/live-stock windows, and completed Production uses Production End. Empty/undated/unavailable evidence must not be labelled compliant or complete.
 
 ## Canonical Staging verification
 
-Use `qa/staging/factoryGateway.rollback.sql` for all registered resource reads, privacy, mixed-query denial, relationship masking, exact reads/pagination, cursor scope, revocation/expiry and MeSTI recurrence/date/count checks. Security fixtures exist only inside its rolled-back transaction; Factory business records are never changed. `externalAgentCapabilities.rollback.sql` checks registration/replay, stale management, enable/disable, unsupported action/registry denial, shared-role denial and audit. `externalAgentsManagement.rollback.sql` remains the disposable key lifecycle test; `externalAgentAudit.rollback.sql` verifies trusted provenance. Run only relevant contracts, not repeated historical QA suites.
+Use `qa/staging/factoryGateway.rollback.sql` for all module/resource bindings, 1,089 cross-module denials, forced MeSTI scopes, hidden references, source dependencies, exact reads/pagination, cursor isolation, grant/revoke, Role Settings bypass denial, nested proof policy and unchanged QA identity/key/grants. Security fixtures exist only inside its rolled-back transaction; Factory business records are never changed. `externalAgentCapabilities.rollback.sql` checks registration/replay, stale management, enable/disable, unsupported action/registry denial, shared-role denial and audit. `externalAgentsManagement.rollback.sql` remains the disposable key lifecycle test; `externalAgentAudit.rollback.sql` verifies trusted provenance. Run only relevant contracts, not repeated historical QA suites.
 
 `node qa/staging/mestiInspection.mcp.mjs <owner-only credential file>` checks the working key, authenticated MCP initialize/discovery, all five compatibility responses, exact migrated review equivalence, ungranted-resource denial and redaction against real Staging data. It never prints the key. Desktop/mobile browser QA checks the shared selector and cancels real QA Executive access/key changes.
 

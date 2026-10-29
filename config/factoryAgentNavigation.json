@@ -17,12 +17,19 @@
     "execution_steps",
     "material_usage"
   ],
-  "factory_production_reports": [
-    "production_performance"
-  ],
+  "factory_production_reports": [],
   "factory_batch_traceability": [
     "traceability",
     "material_allocations"
+  ],
+  "factory_product_feedback": [
+    "feedback_campaigns",
+    "feedback_variants",
+    "feedback_counts"
+  ],
+  "factory_petty_cash": [
+    "petty_cash",
+    "petty_cash_categories"
   ],
   "factory_finished_goods": [
     "finished_goods",
@@ -80,17 +87,25 @@
     "schedules",
     "evidence"
   ],
+  "factory_mesti_finished_product_storage_control": [
+    "occurrences",
+    "statuses",
+    "evidence"
+  ],
   "factory_mesti_health_declaration": [
     "occurrences",
+    "statuses",
     "evidence"
   ],
   "factory_mesti_operator_hygiene": [
     "occurrences",
+    "statuses",
     "evidence"
   ],
   "factory_mesti_waste_disposal": [
     "requirements",
     "occurrences",
+    "statuses",
     "evidence",
     "schedules"
   ],
@@ -102,20 +117,6 @@
     "occurrences",
     "statuses",
     "evidence"
-  ],
-  "factory_mesti_finished_product_storage_control": [
-    "occurrences",
-    "statuses",
-    "evidence"
-  ],
-  "factory_product_feedback": [
-    "feedback_campaigns",
-    "feedback_variants",
-    "feedback_counts"
-  ],
-  "factory_petty_cash": [
-    "petty_cash",
-    "petty_cash_categories"
   ],
   "factory_product_recipes": [
     "recipes",
@@ -129,6 +130,9 @@
   "factory_equipment": [
     "equipment"
   ],
+  "factory_audit_logs": [
+    "audit_trail"
+  ],
   "factory_storage_locations": [
     "locations"
   ],
@@ -137,8 +141,5 @@
   ],
   "factory_customers": [
     "customers"
-  ],
-  "factory_audit_logs": [
-    "audit_trail"
   ]
 }

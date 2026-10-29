@@ -1137,3 +1137,7 @@ Added Workspace/Domain/Resource/Action registry metadata and independent canonic
 ## 2026-10-29 — Factory External Agent Gateway resource reads
 
 Unified implemented Factory records behind canonical View Records resource grants, shared Admin permission selection, bounded/redacted queries and dependency-aware isolation. Reporting and traceability reuse shared canonical read cores. QA Executive migrates to its equivalent redacted review resource with credential integrity preserved; legacy tool names remain adapters pending actual Grok Bot confirmation. No business mutations or tenancy changes.
+
+## 2026-10-29 — Navigation-aligned External Agent access
+
+Aligned Factory agent permissions with all 34 routes and exact sidebar sections. Reused the existing 50 reads through forced module scopes, field/reference policies and explicit summary dependencies. Added canonical Role Settings legacy-grant protection, honest Available/Partial/Unavailable coverage and one shared Connect/Manage selector. Existing QA Executive identity, credentials and narrower review scope remain unchanged rather than being promoted to broader module grants.

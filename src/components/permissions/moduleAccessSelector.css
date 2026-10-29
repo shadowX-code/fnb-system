@@ -1,0 +1,22 @@
+.module-access-selector { display: grid; gap: 12px; }
+.module-access-group { border: 1px solid var(--theme-border); border-radius: 10px; overflow: hidden; }
+.module-access-group summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; cursor: pointer; font-size: 14px; font-weight: 600; background: var(--theme-surface); }
+.module-access-chevron { flex-shrink: 0; transform: rotate(-90deg); }
+.module-access-group[open] .module-access-chevron { transform: rotate(0); }
+.module-access-group summary > span:first-of-type { flex: 1; }
+.module-access-count { font-size: 12px; font-weight: 400; color: var(--text-secondary); white-space: nowrap; }
+.module-access-toolbar { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--theme-surface-nested); border-top: 1px solid var(--theme-border); }
+.module-access-toolbar button { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.module-access-toolbar button:disabled { color: var(--text-secondary); cursor: default; }
+.module-access-group li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--theme-border); }
+.module-access-option { display: flex; gap: 10px; min-width: 0; flex: 1; font-size: 13px; }
+.module-access-option input { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; accent-color: var(--text-primary); }
+.module-access-description { display: block; font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin-top: 3px; overflow-wrap: anywhere; }
+.module-access-group button:focus-visible, .module-access-group summary:focus-visible, .module-access-option input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+@media(max-width: 480px) { .module-access-group summary { flex-wrap: wrap; } .module-access-group li { flex-wrap: wrap; } .module-access-state { margin-left: 26px; } }
+
+.module-access-title { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.module-access-related { font-size: 11px; color: var(--text-secondary); }
+.module-access-state { display: flex; align-items: flex-end; flex-direction: column; gap: 5px; flex-shrink: 0; }
+
+.module-access-preserved { font-size: 11px; font-weight: 400; color: var(--text-secondary); }
