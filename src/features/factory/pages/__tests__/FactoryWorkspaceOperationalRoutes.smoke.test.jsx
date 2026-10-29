@@ -123,22 +123,39 @@ describe("FactoryWorkspacePage operational route smoke", () => {
   it("shows an actionable error for failed initialization and retries the same canonical owner", async () => {
     setup();
     factoryService.listFactoryData.mockRejectedValueOnce(new Error("Network unavailable"));
-    render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
+    render(<FactoryWorkspacePage initialTab="raw-stock-check" auth={auth} ui={ui} />);
     expect(await screen.findByRole("alert")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Retry", exact: true }));
-    expect((await screen.findAllByRole("heading", { name: "Production Overview" })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole("heading", { name: "Raw Material Stock Check" })).length).toBeGreaterThan(0);
     expect(factoryService.listFactoryData).toHaveBeenCalledTimes(2);
   });
   it("exits infinite loading when a bootstrap promise never settles", async () => {
     setup();
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     factoryService.listFactoryData.mockImplementation(() => new Promise(() => {}));
-    render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
+    render(<FactoryWorkspacePage initialTab="raw-stock-check" auth={auth} ui={ui} />);
     await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
     expect(screen.getByRole("alert").textContent).toContain("took too long");
     expect(factoryService.listFactoryData.mock.calls[0][0].signal.aborted).toBe(true);
     expect(screen.queryByText("Loading Factory workspace...")).toBeNull();
   });
+  it("renders independent routes despite a stalled master dependency and cancels a closed action", async () => {
+    setup();
+    factoryService.listFactoryData.mockImplementation(() => new Promise(() => {}));
+    const view = render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
+    expect(await screen.findByRole("heading", { name: "Production Overview" })).toBeTruthy();
+    expect(factoryService.listFactoryData).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", { name: "Start Production" }));
+    await waitFor(() => expect(factoryService.listFactoryData).toHaveBeenCalledTimes(1));
+    const pendingSignal = factoryService.listFactoryData.mock.calls[0][0].signal;
+    expect(screen.queryByRole("heading", { name: "Start Production" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+    expect(pendingSignal.aborted).toBe(true);
+    view.rerender(<FactoryWorkspacePage initialTab="job-orders" auth={auth} ui={ui} />);
+    expect(await screen.findByRole("heading", { name: "Job Order" })).toBeTruthy();
+    expect(factoryService.listFactoryData).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ["production-overview", "Production Overview", "JO260809-03"],
     ["raw-receiving", "Raw Material Receiving", "R260809-01"],
@@ -160,7 +177,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Start Production" }));
-    expect(screen.getByRole("heading", { name: "Start Production" })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "Start Production" })).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Start Production" }).at(-1));
 
     await waitFor(() => expect(start).toHaveBeenCalledWith(job, expect.objectContaining({ production_date: expect.any(String) }), auth.profile));
@@ -174,6 +191,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     await waitFor(() => expect(factoryService.listOperationalJobOrders).toHaveBeenCalledWith({
       date: malaysiaBusinessDateInput(),
       includeProductions: true,
+      signal: expect.any(AbortSignal),
     }));
   });
 
@@ -192,6 +210,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     await waitFor(() => expect(factoryService.listOperationalJobOrders).toHaveBeenCalledWith({
       date: malaysiaBusinessDateInput(),
       includeProductions: false,
+      signal: expect.any(AbortSignal),
     }));
   });
 
@@ -217,7 +236,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Start Production" }));
-    expect(screen.getByRole("heading", { name: "Start Production" })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "Start Production" })).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Close modal" }).at(-1));
 
     fireEvent.click(screen.getByRole("button", { name: "Complete Production" }));

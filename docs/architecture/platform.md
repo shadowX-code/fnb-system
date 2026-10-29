@@ -120,7 +120,9 @@ Growth/Performance, Reward, Learn, Cash Checkout, and Leave components use route
 
 ## Canonical Routing
 
-Factory workspace master-data initialization has a 30-second client deadline. A stalled load cancels its owned requests and exits loading into the shared error/Retry surface; initial query failures do not expose an incomplete workspace. Retry uses a fresh request owner, and obsolete completions cannot replace current state. This changes neither query contracts nor authorization and is not a server/database timeout.
+Factory workspace initialization uses the canonical route data plan. Production Overview and Job Order lists own their operational/paged reads and do not block on shared Recipe, SOP, Raw Material, SKU or Location trees. Other routes load only their declared master-data dependencies; self-owned pages with no shared dependencies skip the master bootstrap entirely. Job details, Start, Complete, process and completed-result actions acquire their required master snapshots through `FactoryProductionActionBoundary`, with the same permission checks, complete snapshot reconciliation and canonical service mappings. The action form cannot mount while required data is pending, failed or permission-limited; action failure leaves the underlying route available. Closing an action or changing routes cancels its request owner, and obsolete completions cannot replace current state.
+
+Required route and action loads retain a 30-second client deadline and shared error/Retry surface. Timeout diagnostics contain only pending dependency labels/keys and elapsed time, never query parameters, payloads or authentication material. Dependency progress callbacks and Staging tracing expose per-dataset completion timing. The operational pipeline read also has a bounded, cancellable latest owner; equivalent permission callback identities do not restart it. Retry creates a fresh owner. This changes neither query contracts nor authorization and is not a server/database timeout.
 
 ### Admin/Factory Route Contract
 

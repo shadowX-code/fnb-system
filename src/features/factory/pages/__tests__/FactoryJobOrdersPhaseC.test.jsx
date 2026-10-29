@@ -25,7 +25,7 @@ function mount(notify = vi.fn()) {
 async function openStart() {
   await screen.findByText("JO-RELEASED");
   fireEvent.click(within(screen.getByText("JO-RELEASED").closest("tr")).getByRole("button", { name: "Start Production" }));
-  expect(screen.getByRole("heading", { name: "Start Production" })).not.toBeNull();
+  expect(await screen.findByRole("heading", { name: "Start Production" })).not.toBeNull();
 }
 function submitStart() { return screen.getAllByRole("button", { name: "Start Production" }).find((button) => button.getAttribute("form") === "factory-start-production-form"); }
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -50,7 +50,7 @@ describe("Factory Job Orders Phase C Start Production", () => {
     fireEvent.click(submitStart());
     await waitFor(() => expect(factoryService.startJobOrder).toHaveBeenCalledTimes(1));
     expect(listing).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("heading", { name: "Start Production" })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "Start Production" })).not.toBeNull();
     expect(submitStart().disabled).toBe(false);
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Failed to start production", tone: "error" }));
   });
@@ -61,7 +61,7 @@ describe("Factory Job Orders Phase C Start Production", () => {
     fireEvent.click(within(screen.getByText("JO-COMPLETED").closest("tr")).getByRole("button", { name: "View result" }));
     await waitFor(() => expect(detail).toHaveBeenCalledWith("completed"));
     expect(detail).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("heading", { name: "Completed Job Order Result" })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "Completed Job Order Result" })).not.toBeNull();
     expect(screen.getByText("PB-001")).not.toBeNull(); expect(screen.getByText("QC passed")).not.toBeNull();
   });
 

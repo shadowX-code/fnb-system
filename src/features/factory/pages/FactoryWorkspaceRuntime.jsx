@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import FactoryProductionActionBoundary from "../components/FactoryProductionActionBoundary.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import { factoryBootstrap } from "../utils/factoryBootstrap.js";
 import { Activity, AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse, X } from "lucide-react";
@@ -42,7 +43,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
-import { factoryService, productionQcStatus, strictDateValue, strictTimeValueMinutes } from "../../../services/factoryService.js";
+import { factoryService, factoryDataPlan, emptyFactoryData, productionQcStatus, strictDateValue, strictTimeValueMinutes } from "../../../services/factoryService.js";
 import { IMAGE_UPLOAD_ACCEPT } from "../../../utils/imageUpload.js";
 import useFactoryNumberPreview from "../hooks/useFactoryNumberPreview.js";
 import { addDaysToFactoryDate, factoryMonthLabel, formatDateDisplay, formatFactoryAuditDateTime, formatFactoryDate, formatFactoryDateTime, formatFactoryReadableDate, isoDate, malaysiaBusinessDateInput, monthStart, productionDurationLabel, timeInput, todayInput } from "../utils/factoryDates.js";
@@ -1108,7 +1109,7 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
 // Production SOP builder, document, and QC preset presentation live in modals/sop.
 
 export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], storageLocations: [], equipment: [], equipmentCategories: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [], mestiCleaningRequirements: [], mestiEquipmentCleaningRequirements: [], mestiCalibrationRequirements: [], auditLogs: [], accessIssues: [] });
+  const [data, setData] = useState(emptyFactoryData);
   const [loading, setLoading] = useState(true);
   const [bootstrapError, setBootstrapError] = useState("");
   const [modal, setModal] = useState(null);
@@ -1256,14 +1257,21 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
     factoryDataRequestRef.current = requestId;
     setLoading(true);
     setBootstrapError("");
+    if (!Object.values(factoryDataPlan(initialTab, can)).some(Boolean)) {
+      setData(emptyFactoryData());
+      setLoading(false);
+      return true;
+    }
     const operationalLoad = Promise.resolve();
     let refreshSucceeded = true;
     try {
+      const dependencies = new Map();
       const nextData = await factoryBootstrap(() => factoryService.listFactoryData({
         scope: initialTab,
         hasPermission: (code) => auth?.hasPermission?.(code),
         signal: controller.signal,
-      }), controller);
+        onDependency: (item) => dependencies.set(item.key, item),
+      }), controller, undefined, dependencies);
       if (factoryDataRequestRef.current !== requestId || controller.signal.aborted) return;
       const failedLoads = nextData.accessIssues.filter((issue) => issue.kind === "load");
       if (failedLoads.length && !silent) throw Object.assign(new Error(`Unable to load ${failedLoads.map(issue => issue.label).join(", ")}. Retry to load the complete workspace.`), { name: "FactoryBootstrapLoadError" });
@@ -1300,6 +1308,8 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
     await Promise.all([operationalLoad]);
     return refreshSucceeded;
   }
+
+  useEffect(() => { setModal(null); }, [initialTab]);
 
   useEffect(() => {
     beginFactoryRouteTrace(initialTab);
@@ -3625,6 +3635,10 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
           }}
         />
       </>}</FactoryOperationalJobsProvider>
+
+      {['job', 'completed-job-result', 'production', 'production-process', 'start-production'].includes(modal?.type) ? (
+        <FactoryProductionActionBoundary key={initialTab} intent={modal} scope={initialTab} auth={auth} permissionSignature={factoryPermissionSignature} onClose={() => setModal(null)}>
+          {(data) => <>
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -3636,7 +3650,6 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
           onSave={saveJobOrder}
         />
       ) : null}
-      {modal?.type === "audit-batch-traceability-detail" ? <FinishedGoodBatchTraceabilityModal batch={modal.value} loading={modal.loading} error={modal.error} onClose={() => setModal(null)} /> : null}
       {modal?.type === "completed-job-result" ? (
         <CompletedJobOrderResultModal
           job={modal.job}
@@ -3647,6 +3660,54 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
           onClose={() => setModal(null)}
         />
       ) : null}
+      {modal?.type === "production" ? (
+        <ProductionExecutionModal
+          job={modal.job}
+          rawMaterials={data.rawMaterials}
+          receivings={data.receivings}
+          recipes={data.recipes}
+          sops={data.sops}
+          finishedGoods={data.finishedGoods}
+          storageLocations={data.storageLocations}
+          equipment={data.equipment}
+          auth={auth}
+          notify={ui?.notify}
+          onClose={() => setModal(null)}
+          onViewProcess={() => setModal({ type: "production-process", job: modal.job, readOnly: false })}
+          onSave={completeProduction}
+        />
+      ) : null}
+      {modal?.type === "production-process" ? (
+        <ProductionExecutionModal
+          job={modal.job}
+          rawMaterials={data.rawMaterials}
+          receivings={data.receivings}
+          recipes={data.recipes}
+          sops={data.sops}
+          finishedGoods={data.finishedGoods}
+          storageLocations={data.storageLocations}
+          auth={auth}
+          notify={ui?.notify}
+          processOnly
+          readOnly={Boolean(modal.readOnly)}
+          onClose={() => setModal(null)}
+          onSave={completeProduction}
+        />
+      ) : null}
+      {modal?.type === "start-production" ? (
+        <StartProductionModal
+          job={modal.job}
+          sops={data.sops}
+          auth={auth}
+          onClose={() => setModal(null)}
+          onSave={(form) => startJobOrder(modal.job, form)}
+        />
+      ) : null}
+          </>}
+        </FactoryProductionActionBoundary>
+      ) : null}
+      {modal?.type === "audit-batch-traceability-detail" ? <FinishedGoodBatchTraceabilityModal batch={modal.value} loading={modal.loading} error={modal.error} onClose={() => setModal(null)} /> : null}
+
       {modal?.type === "finished-good-dispatch" ? (
         <FinishedGoodDispatchModal
           initialValue={modal.value}
@@ -3745,49 +3806,9 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
           onSave={saveFactoryCustomer}
         />
       ) : null}
-      {modal?.type === "production" ? (
-        <ProductionExecutionModal
-          job={modal.job}
-          rawMaterials={data.rawMaterials}
-          receivings={data.receivings}
-          recipes={data.recipes}
-          sops={data.sops}
-          finishedGoods={data.finishedGoods}
-          storageLocations={data.storageLocations}
-          equipment={data.equipment}
-          auth={auth}
-          notify={ui?.notify}
-          onClose={() => setModal(null)}
-          onViewProcess={() => setModal({ type: "production-process", job: modal.job, readOnly: false })}
-          onSave={completeProduction}
-        />
-      ) : null}
-      {modal?.type === "production-process" ? (
-        <ProductionExecutionModal
-          job={modal.job}
-          rawMaterials={data.rawMaterials}
-          receivings={data.receivings}
-          recipes={data.recipes}
-          sops={data.sops}
-          finishedGoods={data.finishedGoods}
-          storageLocations={data.storageLocations}
-          auth={auth}
-          notify={ui?.notify}
-          processOnly
-          readOnly={Boolean(modal.readOnly)}
-          onClose={() => setModal(null)}
-          onSave={completeProduction}
-        />
-      ) : null}
-      {modal?.type === "start-production" ? (
-        <StartProductionModal
-          job={modal.job}
-          sops={data.sops}
-          auth={auth}
-          onClose={() => setModal(null)}
-          onSave={(form) => startJobOrder(modal.job, form)}
-        />
-      ) : null}
+
+
+
       {modal?.type === "stock-check" ? (
         <StockCheckModal
           stockType={modal.stockType}
