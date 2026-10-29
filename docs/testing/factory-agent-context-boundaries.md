@@ -16,3 +16,9 @@ Nine mappings deliberately remain source-gated:
 Audit Trail is additionally owner-filtered: its grant alone does not expose other modules' security/business activity. These are explicit composite-resource boundaries, not missing scalar reference context. No automatic dependencies, alternate authorization authority or business writes are introduced.
 
 Verification: `qa/staging/factoryStandaloneContext.rollback.sql` creates one disposable security identity per implemented capability, queries every mapping with only that grant, compares context against saved canonical projections and asserts all nine source denials, cross-module rejection and strict nested-context fields. All fixtures and audit events roll back. Existing navigation, read-coverage, dependency, staged review and resource MCP regression tests remain applicable with scalar-reference expectations updated.
+
+## Review / MCP all-source parity
+
+`qa/staging/effectiveAccessAllSources.rollback.sql` verifies the Planning → Finished Goods scenario against the actual MCP query RPC after explicit fixture confirmation. Planning plus Finished Goods remains unreadable for Open Planned Quantities without Job Order; the review reports exactly Job Order as missing. Adding the final required grant permits the query. The actual QA Executive baseline already contains Job Order, so adding Finished Goods correctly completes its source requirements. The investigation does not change that agent's grants.
+
+The same regression omits each source for all nine source-gated mappings (28 omissions) and restores every complete source set (28 successful reads), checking the review snapshot, exact missing permission and post-confirmation MCP authorization. All security fixtures and audit events roll back; no business records change. This is regression coverage of existing all-source enforcement, not a new authorization rule.
