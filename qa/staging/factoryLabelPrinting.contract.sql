@@ -19,6 +19,8 @@ begin
   v_denied:=false;begin perform public.factory_label_save_config(v_production.finished_good_id,v_config||'{"net_weight":"changed"}',v_version,v_config_request);exception when others then v_denied:=true;end;assert v_denied,'changed config request accepted';v_count:=v_count+1;
   v_denied:=false;begin perform public.factory_label_save_config(v_production.finished_good_id,v_config,v_version,gen_random_uuid());exception when others then v_denied:=true;end;assert v_denied,'stale config accepted';v_count:=v_count+1;
   v_snapshot:=public.factory_label_candidate(v_production.id);
+  assert v_snapshot->>'production_product_name'=v_production.product_name,'Production title provenance lost';v_count:=v_count+1;
+  assert v_snapshot->>'product_name'=coalesce((select fa.name_en from public.factory_finished_goods f join public.factory_product_families fa on fa.id=f.product_family_id where f.id=v_production.finished_good_id),v_production.product_name),'label ignored canonical product family';v_count:=v_count+1;
   assert (v_snapshot->>'packaged_units')::numeric=v_production.actual_pack_qty,'estimated packs used';
   assert (v_snapshot->>'manufacturing_date')::date=v_production.manufacturing_date,'wrong manufacturing date';
   assert (v_snapshot->>'expiry_date')::date=v_production.expiry_date,'recorded expiry recalculated';v_count:=v_count+3;

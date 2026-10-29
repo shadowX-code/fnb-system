@@ -1,0 +1,19 @@
+name: Factory Windows Print Bridge
+on:
+  push:
+    branches: [dev, codex/factory-label-printing]
+    paths:
+      - tools/windows-print-bridge/**
+      - .github/workflows/factory-label-bridge.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-software:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Windows PowerShell 5.1, DPAPI, transport and recovery
+        shell: powershell
+        run: ./tools/windows-print-bridge/Test-Bridge.ps1

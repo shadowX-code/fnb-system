@@ -48,3 +48,20 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
  if($script:calls.Contains('journal:submitting')){throw 'Completed claim submitted again'}
 }
 Write-Output 'PASS: PowerShell parser, C# compilation, TSPL bytes/polarity/copies, raster validation, crash recovery, durable ordering, receipt retry, offline and completed-claim guards.'
+if($env:OS -eq 'Windows_NT') {
+ $path=Join-Path ([IO.Path]::GetTempPath()) ("feedx-bridge-qa-"+[guid]::NewGuid()+'.xml')
+ try {
+  Save-BridgeState $path @{stage='submitting';value='dummy-qa-value'}
+  if((Get-Content $path -Raw).Contains('dummy-qa-value')){throw 'Windows state is not encrypted'}
+  if((Read-BridgeState $path).stage -ne 'submitting'){throw 'DPAPI round trip failed'}
+  Save-BridgeState $path @{stage='reporting';value='second-dummy-qa-value'}
+  if((Read-BridgeState $path).stage -ne 'reporting'){throw 'Atomic journal replace failed'}
+ } finally {Remove-Item -LiteralPath $path -ErrorAction SilentlyContinue}
+ $null=Get-BridgePrinters
+ $invalidPrinter='FeedX QA unavailable '+[guid]::NewGuid()
+ $denied=$false;try{[FeedXTransport]::Raw($invalidPrinter,[byte[]]@(0),'QA')}catch{$denied=$true};if(!$denied){throw 'Native RAW opened invalid printer'}
+ $denied=$false;try{[FeedXTransport]::Spool($invalidPrinter,[byte[]]::new(80*719),639,719,80,90,1,'QA')}catch{$denied=$true};if(!$denied){throw 'GDI accepted invalid printer'}
+ $null=New-ScheduledTaskAction -Execute powershell.exe -Argument '-NoProfile -File Start-Bridge.ps1'
+ $null=New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+ Write-Output 'PASS: Windows DPAPI, atomic journal replacement, printer discovery, native RAW/GDI unavailable-printer guards and scheduled-task settings.'
+}

@@ -50,9 +50,14 @@ export default function LabelConfigModal({ sku, onClose }) {
         .then(() =>
           renderLabel({
             ...form,
-            product_name: sku.product_name_en || sku.product_name,
-            product_name_cn: sku.product_name_cn || "",
-            product_name_bm: sku.product_name_bm || "",
+            product_name:
+              sku.product_family_name ||
+              sku.product_name_en ||
+              sku.product_name,
+            product_name_cn:
+              sku.product_family_name_cn || sku.product_name_cn || "",
+            product_name_bm:
+              sku.product_family_name_bm || sku.product_name_bm || "",
             product_code: sku.product_code || "",
             manufacturing_date: "—",
             expiry_date: "—",
