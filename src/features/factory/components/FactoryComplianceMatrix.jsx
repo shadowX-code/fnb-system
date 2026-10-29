@@ -12,7 +12,7 @@ const cellTone = {
 };
 
 export function FactoryComplianceLegend() {
-  return <div aria-label="Calendar legend" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-secondary"><span className="font-semibold text-text-primary">Legend</span>{[["Verified", "bg-emerald-500"], ["Pending", "bg-amber-500"], ["Missed", "bg-rose-500"], ["N/A", "bg-slate-400"]].map(([label, tone]) => <span key={label} className="inline-flex items-center gap-1.5"><i aria-hidden="true" className={`size-2 rounded-full ${tone}`} />{label}</span>)}</div>;
+  return <div aria-label="Calendar legend" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-secondary"><span className="font-semibold text-text-primary">Legend</span>{[["Verified", "bg-emerald-500"], ["Review", "bg-amber-500"], ["Pending", "bg-amber-500"], ["Missed", "bg-rose-500"], ["N/A", "bg-slate-400"]].map(([label, tone]) => <span key={label} title={label === "Review" ? "Awaiting Verification" : undefined} className="inline-flex items-center gap-1.5"><i aria-hidden="true" className={`size-2 rounded-full ${tone}`} />{label}</span>)}</div>;
 }
 
 export function FactoryMatrixCell({ cell, label, onClick, title, expanded }) {
