@@ -43,7 +43,7 @@ set revoked_at=now()
 where id='8f093f12-2674-45df-99cb-915627d9c73d';
 ```
 
-Disabling identity `a8fe4694-93e2-4f27-b87d-e49d30ca245a`, disabling its dedicated **QA Executive MeSTI Inspection** role, or removing `factory_mesti_inspection.view` through Role Settings also denies reads. No employee-account relationship or organization assignment exists. Do not grant other permissions to this role to fix a connector error; they cannot enable additional tools and would violate its intended least-privilege configuration.
+Disabling identity `a8fe4694-93e2-4f27-b87d-e49d30ca245a`, disabling its dedicated **QA Executive MeSTI Inspection** role, or removing `factory_mesti_inspection.view` through Role Settings also denies reads. Identity and credential administration automatically records safe audit metadata; tokens and hashes are excluded and ordinary MCP reads write nothing. No employee-account relationship or organization assignment exists. Do not grant other permissions to this role to fix a connector error; they cannot enable additional tools and would violate its intended least-privilege configuration.
 
 ## Verification
 
@@ -59,7 +59,7 @@ Production deployment, Production identity activation and main integration are o
 ## Verified results — 29 October 2026
 
 - Compliance Accuracy PASS within the explicit coverage limits: isolated PostgreSQL scenarios cover Daily/Weekly recurrence, exclusive effective-date/version boundaries, frozen snapshots, Missing versus Overdue, re-completion, waste count/extras, month-end Calibration and Fail non-renewal, Production End attribution, pinned QC, absent batch evidence and personnel/health redaction.
-- Authorization PASS: live rollback-only checks cover expiry, revocation, disabled machine/role, removed Role Settings permission, all five tools, rejected mutation/arbitrary tools, bounded dates, cross-date references, private tables/internal projection and business-mutation denial.
+- Authorization PASS: live rollback-only checks cover expiry, revocation and secret-free security audits, disabled machine/role, removed Role Settings permission, all five tools, rejected mutation/arbitrary tools, bounded dates, cross-date references, private tables/internal projection and business-mutation denial.
 - MCP connectivity PASS: authenticated real Staging responses from all five tools and official MCP SDK 1.32.2 initialization/discovery/default-yesterday call. The 28 October response has four Area Cleaning and one Equipment Cleaning Overdue findings, two Waste Missing findings, Calibration not due, and explicit unavailable Health/Hygiene coverage. No Production End obligations resolved for Food Processing/Finished Product Storage that date.
 - Grok Compatibility FAIL / unverified for the existing QA Executive account: the actual account's custom-server authentication configuration and a call from that Bot have not been exercised. Streamable HTTP/Bearer interoperability passing independently is insufficient to declare this PASS.
 - Focused contracts/protocol checks and production build pass. The broader MeSTI run reports 109 passing and 11 failing tests; the same 11 page-test failures reproduce on the unchanged base snapshot. No business records were modified for QA.
