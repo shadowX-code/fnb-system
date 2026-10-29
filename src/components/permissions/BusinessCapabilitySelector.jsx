@@ -1,20 +1,10 @@
 import {useEffect,useState} from 'react';
 import Modal from '../feedback/Modal.jsx';
+import AccessScopeSummary from './AccessScopeSummary.jsx';
 import {externalAgentService} from '../../services/externalAgentService.js';
 import './moduleAccessSelector.css';
 
 export const actionLabels = {view:'View Records',list:'View Records',read:'View Records',search:'View Records',filter:'View Records',draft:'Draft',execute:'Execute',approve:'Approve'};
-const scopeLabel = c => (c.scope || []).map(s => s.label).join(', ');
-function AccessDetails({capability:c}) {
- return <details className="module-access-details"><summary>Access Details</summary>
-  <p>{c.description}</p><p>{scopeLabel(c)}</p>
-  {c.capability_limitation && <p>{c.capability_limitation}</p>}
-  {[...new Set((c.scope||[]).map(s=>s.scope_note).filter(Boolean))].map(note=><p key={note}>{note}</p>)}
-  <details><summary>Technical identifiers (read-only)</summary><p>{c.name} · {c.permission}</p>
-   {(c.scope||[]).map((s,i)=><p key={`${s.resource}:${i}`}>{s.resource}{s.fields?.length?` · Fields: ${s.fields.join(', ')}`:''}</p>)}
-  </details>
- </details>;
-}
 export default function BusinessCapabilitySelector({capabilities=[],identityId=null,canManage=false,busy=false,onConfirmed,onConfirmRegistration,registration=false}) {
  const baseline=c=>!registration && !!c.granted;
  const [selected,setSelected]=useState(()=>capabilities.filter(baseline).map(c=>c.name));
@@ -40,7 +30,7 @@ export default function BusinessCapabilitySelector({capabilities=[],identityId=n
    <ul>{rows.map(c=><li key={c.name}><div className="module-access-main">
     <div className="module-access-row"><strong>{c.label}{c.capability_limitation&&<span className="module-access-related"> · Limited</span>}</strong>
      <label className="module-access-view"><input type="checkbox" aria-label={`View Records: ${c.label}`} checked={chosen(c)} disabled={busy||working||!canManage||!c.can_assign||(!c.implemented&&!c.granted)} onChange={e=>{setSelected(previous=>e.target.checked?[...previous,c.name]:previous.filter(n=>n!==c.name));setPlan(null);}}/>View</label>
-    </div><AccessDetails capability={c}/>
+    </div><AccessScopeSummary capability={c} catalog={capabilities}/>
    </div></li>)}</ul>
   </details>)}
   <button type="button" className="btn-primary" disabled={busy||working||!canManage||(!registration&&!changed)||(registration&&!selected.length)} onClick={review}>{working?'Preparing review…':'Review Changes'}</button>
@@ -49,7 +39,7 @@ export default function BusinessCapabilitySelector({capabilities=[],identityId=n
    <button className="btn-secondary" type="button" disabled={working} onClick={()=>setPlan(null)}>Back to selection</button>
    <button className="btn-primary" type="button" disabled={working} onClick={confirm}>{registration?'Confirm and connect':'Confirm changes'}</button>
   </>}><div className="space-y-4">
-   <section><h3 className="external-agent-heading">Added / removed grants</h3>{plan.changes.map(c=><div key={c.name} className="py-2"><strong>{c.granted?'Add':'Remove'}: {c.label} · View Records</strong><p className="text-xs text-text-secondary">{scopeLabel(c)}</p><AccessDetails capability={c}/></div>)}</section>
+   <section><h3 className="external-agent-heading">Added / removed grants</h3>{plan.changes.map(c=><div key={c.name} className="py-2"><strong>{c.granted?'Add':'Remove'}: {c.label} · View Records</strong><AccessScopeSummary capability={c} catalog={capabilities}/></div>)}</section>
    <section><h3 className="external-agent-heading">Required and optional dependencies</h3>
     {dependencies.length?dependencies.map(r=><div key={`${r.module_id}:${r.resource}`} className="py-2 text-xs"><strong>{r.owner}: {r.label}</strong>
      <p>Required: {r.required.filter(c=>!afterNames.has(c.name)).map(c=>c.label).join(', ')||'Satisfied by reviewed selection'}</p>
@@ -58,7 +48,7 @@ export default function BusinessCapabilitySelector({capabilities=[],identityId=n
    </section>
    <section><h3 className="external-agent-heading">Shared-resource impact</h3>{plan.changes.filter(c=>!c.granted).map(c=><p key={c.name} className="text-xs py-2">Removing {c.label}: {plan.remaining_access.filter(other=>other.scope.some(s=>c.scope.some(removed=>removed.resource===s.resource))).map(other=>other.label).join(', ')||'No remaining grant uses the same resource identifiers; composite or differently scoped access is listed below'}. Each remaining path retains its own row scope and field restrictions.</p>)}</section>
    <section><h3 className="external-agent-heading">Access remaining after confirmation</h3><p className="text-xs">Revoking one capability does not revoke other access paths to shared records.</p>
-    {plan.remaining_access.map(c=><div key={c.name} className="text-sm py-2"><strong>{c.label}</strong>: {scopeLabel(c)}<AccessDetails capability={c}/></div>)}
+    {plan.remaining_access.map(c=><div key={c.name} className="text-sm py-2"><strong>{c.label}</strong><AccessScopeSummary capability={c} catalog={capabilities}/></div>)}
     {!plan.remaining_access.length&&<p>No business capabilities remain.</p>}
    </section><p className="text-xs text-text-secondary">{plan.note}</p>
   </div></Modal>}

@@ -31,3 +31,21 @@
 .module-access-view { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; min-height: 32px; cursor: pointer; font-size: 12px; }
 .module-access-view input { width: 16px; height: 16px; accent-color: var(--text-primary); }
 .module-access-view input:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+
+.access-scope-summary { margin-left: 0; }
+.access-scope-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; margin: 12px 0; padding: 12px 0; }
+.access-scope-section { min-width: 0; }
+.access-scope-section h4 { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+.access-scope-section h4 svg { flex-shrink: 0; }
+.module-access-group .access-scope-section li, .access-scope-section li { display: list-item; border: 0; padding: 0; margin: 5px 0 5px 15px; list-style: disc; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.access-scope-section small { display: block; font-size: 11px; line-height: 1.5; margin-top: 2px; }
+.access-scope-notes { grid-column: 1 / -1; }
+.access-scope-diagnostics { border-top: 1px solid var(--theme-border); padding-top: 9px; }
+.module-access-group .access-scope-diagnostics > summary, .access-scope-diagnostics > summary { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+.access-scope-diagnostics dl { display: grid; gap: 8px; margin: 12px 0; }
+.access-scope-diagnostics dl > div { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 10px; }
+.access-scope-diagnostics dt { font-weight: 600; }
+.access-scope-diagnostics dd, .access-scope-diagnostics code { overflow-wrap: anywhere; }
+.access-scope-diagnostics code { font-size: 11px; }
+.access-scope-diagnostics details { margin: 8px 0; }
+@media(max-width: 640px) { .access-scope-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
