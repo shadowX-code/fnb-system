@@ -19,3 +19,9 @@ it('uses the same review path for registration and prevents unavailable independ
  fireEvent.click(screen.getByRole('checkbox',{name:'View Records: Cleaning'}));expect(confirm).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Review Changes'}));await screen.findByRole('heading',{name:'Review Changes'});fireEvent.click(screen.getByRole('button',{name:'Confirm and connect'}));await waitFor(()=>expect(confirm).toHaveBeenCalledWith(['clean'],'registration'));
  expect(screen.queryByRole('tab',{name:'By Module'})).toBeNull();
 });
+
+it('starts registration empty even if supplied catalog rows contain saved grant flags',()=>{
+ render(<BusinessCapabilitySelector capabilities={[cap]} canManage registration onConfirmRegistration={vi.fn()}/>);
+ expect(screen.getByRole('checkbox',{name:'View Records: Cleaning'}).checked).toBe(false);
+ expect(screen.getByRole('button',{name:'Review Changes'}).disabled).toBe(true);
+});
