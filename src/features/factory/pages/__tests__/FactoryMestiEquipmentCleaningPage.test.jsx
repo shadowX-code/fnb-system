@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FactoryMasterDataProvider } from "../../context/FactoryMasterDataContext.jsx";
 import { FactoryPermissionsProvider } from "../../context/FactoryPermissionsContext.jsx";
 import FactoryMestiEquipmentCleaningPage from "../FactoryMestiEquipmentCleaningPage.jsx";
+import { cleaningMethodsFixture } from "../../components/__tests__/cleaningMethodsFixture.js";
 import { factoryService } from "../../../../services/factoryService.js";
 
 vi.mock("../../../../services/factoryService.js", () => ({ factoryService: {
@@ -14,7 +15,7 @@ const secondEquipment = { id: "equipment-2", equipment_code: "FL-02", name: "Fil
 const occurrence = { id: "occ-1", due_date: "2026-09-03", status: "pending", task_name: "Daily Cleaning", equipment_id: "equipment-1", equipment_code: "MX-01", equipment_name: "Mixer 01", location_name: "Cooking Room", source_type: "scheduled", recurrence_type: "daily" };
 const afterProduction = { ...occurrence, id: "occ-production", task_name: "After Production Cleaning", status: "completed", source_type: "after_production", production_id: "production-1", production_snapshot: { product_name: "Chicken Curry Paste", batch_no: "B260903-018", production_no: "PRD-01", sop_version: "v1", completed_at: "2026-09-03T08:00:00Z" } };
 const verifiedOccurrence = { ...occurrence, id: "occ-verified", status: "verified", equipment_id: "equipment-2", equipment_code: "FL-02", equipment_name: "Filler 02", location_name: "Preparation Room" };
-const data = { equipment: [equipment, secondEquipment], mestiEquipmentCleaningRequirements: [{ id: "req-1", logical_requirement_id: "logical-1", task_name: "Daily Cleaning", equipment_ids: ["equipment-1"], equipment_names: ["MX-01 · Mixer 01"], recurrence_type: "daily", recurrence_weekdays: [], status: "active", effective_from: "2026-09-03", version_no: 1 }] };
+const data = { mestiCleaningMethods: cleaningMethodsFixture, equipment: [equipment, secondEquipment], mestiEquipmentCleaningRequirements: [{ id: "req-1", logical_requirement_id: "logical-1", task_name: "Daily Cleaning", equipment_ids: ["equipment-1"], equipment_names: ["MX-01 · Mixer 01"], recurrence_type: "daily", recurrence_weekdays: [], status: "active", effective_from: "2026-09-03", version_no: 1 }] };
 const monthlyRows = [{ equipment_id: "equipment-1", equipment_code: "MX-01", equipment_name: "Mixer 01", location_name: "Cooking Room", summary: { total_count: 2, verified_count: 0, completed_count: 1, pending_count: 1, unsatisfactory_count: 0, missed_count: 0 }, days: [{ due_date: "2026-09-03", status: "completed", total_count: 2, verified_count: 0, completed_count: 1, pending_count: 1, unsatisfactory_count: 0, missed_count: 0, occurrences: [occurrence, afterProduction] }] }, { equipment_id: "equipment-2", equipment_code: "FL-02", equipment_name: "Filler 02", location_name: "Preparation Room", summary: { total_count: 1, verified_count: 1, completed_count: 0, pending_count: 0, unsatisfactory_count: 0, missed_count: 0 }, days: [{ due_date: "2026-09-03", status: "verified", total_count: 1, verified_count: 1, completed_count: 0, pending_count: 0, unsatisfactory_count: 0, missed_count: 0, occurrences: [verifiedOccurrence] }] }];
 
 function renderPage({ permissions = ["factory_mesti_equipment_cleaning.view", "factory_mesti_equipment_cleaning.complete", "factory_mesti_equipment_cleaning.review", "factory_mesti_equipment_cleaning.manage"] } = {}) {
@@ -107,6 +108,8 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
     expect(screen.queryByText("Responsible Role")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /create requirement/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Cleaning Method" }));
+    fireEvent.click(screen.getByRole("option", { name: "Cleaning", exact: true }));
     fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Deep Cleaning" } });
     fireEvent.change(screen.getByLabelText("Frequency"), { target: { value: "weekly" } });
     fireEvent.click(screen.getByRole("checkbox", { name: "Wed" }));

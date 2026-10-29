@@ -25,6 +25,7 @@ export function FactoryMasterDataProvider({ data, children }) {
       rawMaterialMovements: data?.rawMaterialMovements || [],
       rawStockChecks: data?.rawStockChecks || [],
       mestiCleaningRequirements: data?.mestiCleaningRequirements || [],
+      mestiCleaningMethods: data?.mestiCleaningMethods || [],
       mestiEquipmentCleaningRequirements: data?.mestiEquipmentCleaningRequirements || [],
       mestiCalibrationRequirements: data?.mestiCalibrationRequirements || [],
     }),
