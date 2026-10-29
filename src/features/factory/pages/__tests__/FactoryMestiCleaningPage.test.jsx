@@ -188,7 +188,7 @@ describe("Factory MeSTI Cleaning of Area", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
     expect(await screen.findByText("Task / Location")).toBeTruthy();
     expect(screen.getAllByText("Floor")).toHaveLength(2);
-    expect(screen.getByTitle("Requirement version 4")).toBeTruthy();
+    expect(screen.queryByText(/^\d+ Locations?$/)).toBeNull();
     expect(screen.getByTitle(/1 of 2 verified/).tagName).toBe("SPAN");
     expect(screen.getByText("Preparation")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Floor · Cooking.*Verified/ }));
@@ -203,6 +203,26 @@ describe("Factory MeSTI Cleaning of Area", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Expand Floor locations" })[0]);
     expect(screen.getByText("Preparation")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Floor.*03\/09\/2026/ })).toBeNull();
+  });
+
+  it("labels awaiting-verification cells Review while preserving canonical detail and authority", async () => {
+    const completed = { ...drainOccurrence, status: "completed" };
+    factoryService.listMestiCleaningMonth.mockResolvedValue([{ ...monthlyRows[2], days: [{ ...monthlyRows[2].days[0], completed_count: 1, occurrences: [completed] }] }]);
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    const cell = await screen.findByRole("button", { name: /Drain · Cooking.*Awaiting Verification/ });
+    expect(cell.textContent).toBe("Review");
+    expect(cell.title).toContain("Awaiting Verification");
+    expect(within(screen.getByLabelText("Calendar legend")).getByText("Review").title).toBe("Awaiting Verification");
+    expect(screen.queryByText("Await", { exact: true })).toBeNull();
+    fireEvent.click(cell);
+    const actions = screen.getByRole("region", { name: "Cleaning occurrence actions" });
+    expect(within(actions).getByText("Awaiting Verification")).toBeTruthy();
+    expect(within(actions).getByRole("button", { name: "Verify", exact: true })).toBeTruthy();
+    fireEvent.click(within(actions).getByRole("button", { name: "View details" }));
+    expect(within(await screen.findByRole("dialog", { name: "Drain · Cooking" })).getByText("Awaiting Verification")).toBeTruthy();
+    expect(factoryService.completeMestiCleaningOccurrence).not.toHaveBeenCalled();
+    expect(factoryService.verifyMestiCleaningOccurrence).not.toHaveBeenCalled();
   });
 
   it("keeps one cell popover open across distinct Complete and Verify transactions", async () => {

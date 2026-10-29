@@ -71,7 +71,7 @@ function emptyRequirementDraft() {
 function monthlyCellLabel(cell) {
   if (cell.status === "mixed") return `${cell.verified_count}/${cell.total_count}`;
   if (cell.status === "verified") return "OK";
-  if (cell.status === "completed") return "Await";
+  if (cell.status === "completed") return "Review";
   if (cell.status === "unsatisfactory") return "Fail";
   if (cell.status === "missed") return "Missed";
   return "Due";
@@ -226,7 +226,6 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
         key={month} rows={matrixRows} days={days} rowKey={row => row.matrix_key} getChildren={row => row.children}
         getCell={(row, day) => row.calendarCells.get(day)}
         entityLabel="Task / Location" renderEntity={row => row.location_name || row.task_name}
-        renderSecondary={row => !row.location_name ? <span title={`Requirement version ${row.version_no || 1}`}>{row.children.length} Location{row.children.length === 1 ? "" : "s"}</span> : null}
         renderFrequency={row => row.location_name ? null : recurrenceLabel(row)}
         isCellInteractive={row => Boolean(row.location_name)}
         renderCellDetail={occurrence => <section aria-label="Cleaning occurrence actions">
