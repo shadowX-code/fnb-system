@@ -4,7 +4,7 @@ import ExternalAgentsPage from "./ExternalAgentsPage.jsx";
 import { externalAgentService } from "../../services/externalAgentService.js";
 vi.mock("../../services/externalAgentService.js", () => ({ externalAgentService: { list: vi.fn(), details: vi.fn(), revoke: vi.fn(), rotate: vi.fn(), test: vi.fn(), setEnabled: vi.fn(), setCapability: vi.fn(), setCapabilities: vi.fn(), register: vi.fn() } }));
 const credential = { id: "existing-credential", status: "active", created_at: "2026-10-29T01:00:00Z", expires_at: "2026-11-28T01:00:00Z" };
-const capabilities = ["Review daily compliance", "Review compliance exceptions", "Review pending verifications", "View compliance evidence", "View requirement schedule"].map((label, i) => ({ name: `read_tool_${i}`, label, description: "Read evidence safely", module_id: `factory_module_${i}`, section: "MeSTI", coverage: "partial", sidebar: true, capability: "view", workspace: "Factory", domain: "mesti", domain_label: "MeSTI", implemented: true, granted: true, can_assign: true, permission: `internal_${i}.view` }));
+const capabilities = ["Review daily compliance", "Review compliance exceptions", "Review pending verifications", "View compliance evidence", "View requirement schedule"].map((label, i) => ({ name: `read_tool_${i}`, label, description: "Read evidence safely", module_id: `factory_module_${i}`, section: "MeSTI", coverage: "available", sidebar: true, capability: "view", workspace: "Factory", domain: "mesti", domain_label: "MeSTI", implemented: true, granted: true, can_assign: true, permission: `internal_${i}.view` }));
 const agent = { id: "qa", name: "QA Executive", provider: "xAI", enabled: true, role_active: true, role_name: "QA inspection", permission: "factory_mesti_inspection.view", permission_granted: true, workspace: "Factory", can_manage: true, can_manage_capabilities: true, credential, connection_status: "not_observed", tools: capabilities, endpoint: "https://example.test/mcp" };
 const detail = { connections: [agent], credentials: [credential], access_events: [{ id: 1, occurred_at: "2026-10-29T01:00:00Z", method: "initialize", source: "admin_probe", outcome: "success" }], management_events: [], history_note: "Earlier history is unavailable.", unavailable_domains: ["Production", "Warehouse", "Assets"] };
 const catalog = [{ key: "factory_mesti", workspace: "Factory", capabilities }];
@@ -96,7 +96,7 @@ it("keeps preserved scope separate from module selections and exposes technical 
  render(<ExternalAgentsPage auth={auth()} />);await open();
  expect(screen.getAllByText("Preserved MeSTI compliance review")).toHaveLength(2);expect(screen.queryByText("No resources allowed")).toBeNull();
  tab("Access & Permissions");
- expect(screen.getByText(/Existing restricted access is preserved/)).toBeTruthy();expect(screen.getAllByText("Preserved restricted access").length).toBeGreaterThan(1);expect(screen.queryByText("factory_agent_mesti_review.view")).toBeNull();
+ expect(screen.getByText(/Existing restricted access is preserved/)).toBeTruthy();expect(screen.getAllByText(/Preserved restricted access remains separate/).length).toBeGreaterThan(1);expect(screen.queryByText("factory_agent_mesti_review.view")).toBeNull();
  expect(screen.getByRole("checkbox",{name:"View Records: Review daily compliance"}).checked).toBe(false);
  tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Advanced Details"}));expect(screen.getByText(/factory_agent_mesti_review.view/)).toBeTruthy();expect(screen.getAllByText(/evidence \(cleaning_of_area\)/).length).toBeGreaterThan(0);
 });
