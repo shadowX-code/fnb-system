@@ -142,3 +142,9 @@ Raw Material Control likewise shares the existing active-standard and completed-
 ### Capability coverage and agent access
 
 Navigation metadata separates capability coverage (`available`, `limited`, `unavailable`) from the canonical saved grant. Limited means an existing supported module read feature is missing from the Gateway; it never means insufficient Staging data, privacy redaction, historical missingness or a required source grant. `capability_limitation` records genuine missing features; `data_limitations` carries contextual scope/history notes. Both Connect Agent and Manage Access use the same compact selector with expandable Access details. Coverage changes do not change mappings, authorization, saved grants or credentials. See `../testing/factory-agent-module-coverage.md` for the 34-module assessment.
+
+### Agent management and credential policy
+
+Admin responses derive Effective Access from canonical module and resource grants. Access & Permissions exposes both module controls and all additional grants with existing authority-checked removal; no grant is inferred from a label. Activity filters do not group by timestamps or expose request payloads. Connection validity and granted scope remain distinct.
+
+Adapter policy allows only 30/90/180-day newly issued credentials, default 90. The credential table has a bounded 180-day maximum; new duration-aware registration/rotation calls validate the adapter policy under the existing management locks and permissions. Old RPC signatures retain 30-day behavior through the same issuance authority. Existing credentials and expiry dates are untouched. Audit, expiry/revocation and one-time reveal remain enforced; there is no refresh flow or non-expiring credential.

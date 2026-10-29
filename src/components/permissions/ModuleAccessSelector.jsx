@@ -24,11 +24,11 @@ export default function ModuleAccessSelector({ capabilities = [], canManage = fa
       <div className="module-access-toolbar"><span className="text-xs text-text-secondary">{available.length} selectable modules{available.length < group.rows.length ? ` · ${group.rows.length - available.length} unavailable` : ""}{preserved > 0 ? ` · ${preserved} with preserved access` : ""}</span>{(selection || canManage) && <div className="flex gap-3"><button type="button" disabled={busy || !available.some((row) => row.can_assign && !selected(row))} onClick={() => changeGroup(group.rows, true)}>Select all</button><button type="button" disabled={busy || !available.some((row) => row.can_assign && selected(row))} onClick={() => changeGroup(group.rows, false)}>Clear</button></div>}</div>
       <ul>{group.rows.map((row) => <li key={row.name}>
         <div className="module-access-main"><label className="module-access-option"><input type="checkbox" checked={!!selected(row)} disabled={busy || !row.implemented || !row.can_assign || (!selection && !canManage)} aria-label={`View Records: ${row.label}`} aria-describedby={`${id}-${row.name}`} onChange={(event) => selection ? onSelect(row.name, event.target.checked) : onChange(row)} /><span className="module-access-title"><span className="font-semibold">{row.label}</span>{row.sidebar === false && <span className="module-access-related">Related route</span>}</span></label>
-        {row.capability_limitation && <p className="module-access-description module-access-indent">{row.capability_limitation}</p>}
-        <details className="module-access-details"><summary>Access details<span className="sr-only"> for {row.label}</span></summary><div id={`${id}-${row.name}`}>
+
+        <details className="module-access-details"><summary>Access Details<span className="sr-only"> for {row.label}</span></summary><div id={`${id}-${row.name}`}>
           <p>Capability Coverage: {(row.capability_coverage || row.coverage || "unavailable").replace(/^./, (c) => c.toUpperCase())}</p>
           <p>Agent Access: {selected(row) ? "Allowed" : "Not Allowed"} — View Records</p>
-          <p>{row.data_limitations || row.description}</p>
+          {row.capability_limitation && <p>{row.capability_limitation}</p>}<p>{row.data_limitations || row.description}</p>
           {row.limited_access && <p>Preserved restricted access remains separate from this module selection.</p>}
           {row.required_modules?.length > 0 && <p>Some records also require: {row.required_modules.map((module) => module.label).join(", ")}.</p>}
         </div></details></div>
