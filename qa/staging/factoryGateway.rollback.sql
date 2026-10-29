@@ -22,7 +22,7 @@ begin
  -- Catalog metadata is exact and ordinary responses never contain stored credential material.
  execute 'set local role authenticated';
  data:=public.external_agents_admin_data(limited_id);
- if jsonb_array_length(data->'connections'->0->'tools')<>34 or jsonb_array_length(data->'catalog'->0->'capabilities')<>34 or jsonb_array_length(data->'connections'->0->'preserved_access')<>0 then raise exception 'Navigation catalog incomplete';end if;
+ if jsonb_array_length(data->'connections'->0->'tools')<>33 or jsonb_array_length(data->'catalog'->0->'capabilities')<>33 or jsonb_array_length(data->'connections'->0->'preserved_access')<>0 then raise exception 'Navigation catalog incomplete';end if;
  if data::text like '%'||limited_token||'%' or data::text like '%token_hash%' then raise exception 'Credential leaked';end if;
  execute 'set local role anon';
  data:=public.factory_agent_authorize(limited_token);

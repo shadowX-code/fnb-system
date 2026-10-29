@@ -8,7 +8,11 @@
   ],
   "factory_job_orders": [
     "production_performance",
-    "production_pipeline"
+    "production_pipeline",
+    "production_records",
+    "material_usage",
+    "product_movements",
+    "receiving_costs"
   ],
   "factory_job_order_records": [
     "job_orders"
@@ -19,12 +23,6 @@
     "execution_steps",
     "material_usage",
     "production_qc_checkpoints"
-  ],
-  "factory_production_reports": [
-    "production_records",
-    "material_usage",
-    "product_movements",
-    "receiving_costs"
   ],
   "factory_batch_traceability": [
     "traceability",

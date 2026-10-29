@@ -50,23 +50,188 @@
     "label": "Production Overview",
     "route": "/factory/production/overview",
     "sidebar": true,
-    "coverage": "available",
-    "capability_limitation": "",
-    "explanation": "Monthly performance plus the canonical daily pipeline, saved lifecycle states and output totals. Pipeline requires Job Order and Production Records access; monthly performance requires its contributing modules. Requests never release or change Job Orders.",
+    "coverage": "limited",
+    "capability_limitation": "Calculated costing, yield and cost-trend report summaries are not exposed; saved source records are supported.",
+    "explanation": "Monthly performance plus the canonical daily pipeline, saved lifecycle states and output totals. Pipeline requires Job Order and Production Records access; monthly performance requires its contributing modules. Requests never release or change Job Orders. Saved reporting inputs also require their source modules; calculated report totals are not exposed.",
     "bindings": [
       {
         "resource": "production_performance",
         "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "month", "snapshot"],
+        "fields": [
+          "id",
+          "label",
+          "module",
+          "business_date",
+          "month",
+          "snapshot"
+        ],
         "relationships": {},
-        "requires_modules": ["factory_finished_goods", "factory_job_order_records", "factory_product_recipes", "factory_production"]
+        "requires_modules": [
+          "factory_finished_goods",
+          "factory_job_order_records",
+          "factory_product_recipes",
+          "factory_production"
+        ]
       },
       {
         "resource": "production_pipeline",
         "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "job_order_no", "pipeline_bucket", "operational_date", "planned_date", "due_date", "production_date", "start_time", "operational_completion_at", "status", "target_pack_qty", "target_production_qty", "target_quantity", "produced_quantity", "uom", "finished_good_id", "scheduled", "released", "in_progress", "completed_today", "planned_today", "completion_rate", "output_by_uom"],
-        "relationships": {"finished_good_id": "factory_finished_goods"},
-        "requires_modules": ["factory_job_order_records", "factory_production"]
+        "fields": [
+          "id",
+          "label",
+          "module",
+          "business_date",
+          "job_order_no",
+          "pipeline_bucket",
+          "operational_date",
+          "planned_date",
+          "due_date",
+          "production_date",
+          "start_time",
+          "operational_completion_at",
+          "status",
+          "target_pack_qty",
+          "target_production_qty",
+          "target_quantity",
+          "produced_quantity",
+          "uom",
+          "finished_good_id",
+          "scheduled",
+          "released",
+          "in_progress",
+          "completed_today",
+          "planned_today",
+          "completion_rate",
+          "output_by_uom"
+        ],
+        "relationships": {
+          "finished_good_id": "factory_finished_goods"
+        },
+        "requires_modules": [
+          "factory_job_order_records",
+          "factory_production"
+        ]
+      },
+      {
+        "resource": "production_records",
+        "row_scope": {},
+        "fields": [
+          "id",
+          "label",
+          "module",
+          "business_date",
+          "production_no",
+          "batch_no",
+          "job_order_id",
+          "finished_good_id",
+          "actual_pack_qty",
+          "actual_output_qty",
+          "produced_quantity",
+          "actual_produced_qty",
+          "good_output_qty",
+          "wastage_qty",
+          "uom",
+          "production_date",
+          "manufacturing_date",
+          "end_date",
+          "expiry_date",
+          "start_time",
+          "end_time",
+          "qc_status",
+          "production_sop_id",
+          "sop_version",
+          "status",
+          "completed_at",
+          "verification_status",
+          "verified_at",
+          "storage_location_id"
+        ],
+        "relationships": {
+          "job_order_id": "factory_job_order_records",
+          "finished_good_id": "factory_finished_goods",
+          "production_sop_id": "factory_production_sop",
+          "storage_location_id": "factory_storage_locations",
+          "sop_version": "factory_production_sop"
+        },
+        "requires_modules": [
+          "factory_production"
+        ]
+      },
+      {
+        "resource": "material_usage",
+        "row_scope": {},
+        "fields": [
+          "id",
+          "label",
+          "module",
+          "business_date",
+          "production_id",
+          "raw_material_id",
+          "quantity_used",
+          "standard_usage",
+          "actual_usage",
+          "variance_qty",
+          "variance_percent",
+          "uom",
+          "wastage_quantity"
+        ],
+        "relationships": {
+          "raw_material_id": "factory_raw_inventory",
+          "production_id": "factory_production"
+        },
+        "requires_modules": [
+          "factory_production"
+        ]
+      },
+      {
+        "resource": "product_movements",
+        "row_scope": {},
+        "fields": [
+          "id",
+          "label",
+          "module",
+          "business_date",
+          "finished_good_id",
+          "movement_type",
+          "quantity",
+          "uom",
+          "movement_date",
+          "finished_good_batch_balance_id",
+          "internal_transfer_id"
+        ],
+        "relationships": {
+          "finished_good_id": "factory_finished_goods",
+          "finished_good_batch_balance_id": "factory_finished_goods",
+          "internal_transfer_id": "factory_internal_transfer"
+        },
+        "requires_modules": [
+          "factory_product_movements"
+        ]
+      },
+      {
+        "resource": "receiving_costs",
+        "row_scope": {},
+        "fields": [
+          "id",
+          "label",
+          "module",
+          "business_date",
+          "receipt_no",
+          "batch_id",
+          "raw_material_id",
+          "received_qty",
+          "uom",
+          "unit_cost",
+          "total_cost",
+          "received_date"
+        ],
+        "relationships": {
+          "batch_id": "factory_raw_receiving",
+          "raw_material_id": "factory_raw_inventory"
+        },
+        "requires_modules": [
+          "factory_raw_receiving"
+        ]
       }
     ]
   },
@@ -133,46 +298,6 @@
         "fields": ["id", "label", "module", "business_date", "production_id", "production_sop_id", "sop_step_id", "step_no", "process_name", "control_point", "qc_status"],
         "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "sop_step_id": "factory_production_sop"},
         "requires_modules": []
-      }
-    ]
-  },
-  {
-    "id": "factory_production_reports",
-    "section": "Factory",
-    "label": "Production Reports",
-    "route": "/factory/production/reports",
-    "sidebar": false,
-    "coverage": "limited",
-    "capability_limitation": "Calculated costing, yield and cost-trend report summaries are not exposed; saved source records are supported.",
-    "explanation": "Saved production, material usage, product movements and receiving cost basis. Each dataset requires its owning module. UI-calculated costing, yield ratios and cost trends are not returned as authoritative report totals; missing costs and historical usage remain unresolved.",
-    "bindings": [
-      {
-        "resource": "production_records",
-        "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "production_no", "batch_no", "job_order_id", "finished_good_id", "actual_pack_qty", "actual_output_qty", "produced_quantity", "actual_produced_qty", "good_output_qty", "wastage_qty", "uom", "production_date", "manufacturing_date", "end_date", "expiry_date", "start_time", "end_time", "qc_status", "production_sop_id", "sop_version", "status", "completed_at", "verification_status", "verified_at", "storage_location_id"],
-        "relationships": {"job_order_id": "factory_job_order_records", "finished_good_id": "factory_finished_goods", "production_sop_id": "factory_production_sop", "storage_location_id": "factory_storage_locations", "sop_version": "factory_production_sop"},
-        "requires_modules": ["factory_production"]
-      },
-      {
-        "resource": "material_usage",
-        "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "production_id", "raw_material_id", "quantity_used", "standard_usage", "actual_usage", "variance_qty", "variance_percent", "uom", "wastage_quantity"],
-        "relationships": {"raw_material_id": "factory_raw_inventory", "production_id": "factory_production"},
-        "requires_modules": ["factory_production"]
-      },
-      {
-        "resource": "product_movements",
-        "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "finished_good_id", "movement_type", "quantity", "uom", "movement_date", "finished_good_batch_balance_id", "internal_transfer_id"],
-        "relationships": {"finished_good_id": "factory_finished_goods", "finished_good_batch_balance_id": "factory_finished_goods", "internal_transfer_id": "factory_internal_transfer"},
-        "requires_modules": ["factory_product_movements"]
-      },
-      {
-        "resource": "receiving_costs",
-        "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "receipt_no", "batch_id", "raw_material_id", "received_qty", "uom", "unit_cost", "total_cost", "received_date"],
-        "relationships": {"batch_id": "factory_raw_receiving", "raw_material_id": "factory_raw_inventory"},
-        "requires_modules": ["factory_raw_receiving"]
       }
     ]
   },

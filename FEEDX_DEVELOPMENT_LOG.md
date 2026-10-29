@@ -1161,3 +1161,7 @@ Confirmed Grok replacement workflow clears the retirement gate. Removed the five
 ### 2026-10-29 — Agent capability coverage semantics
 
 Reassessed 34 Factory modules: 31 Available, 3 Limited, none Unavailable. Separated missing capabilities from agent access and data/authority notes; compact shared selector puts contextual notes under Access details. Read mappings, grants, keys, audit and resource behavior are unchanged.
+
+### 2026-10-30 — Production Reports Gateway ownership audit
+
+Confirmed active hidden human reporting route and consumers; preserved their permissions and calculations. Removed the duplicate Gateway reporting module and moved its four source-gated resource mappings to Production Overview, with transactional effective-access equality checks. Gateway catalog now has 33 entries; human routes remain 34.

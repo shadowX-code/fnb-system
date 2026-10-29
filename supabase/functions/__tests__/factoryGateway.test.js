@@ -8,9 +8,9 @@ import navigation from "../../../config/factoryAgentNavigation.json";
 import projections from "../../../config/factoryAgentResources.json";
 import {factoryResourceNames,factoryBusinessModules,factoryResourceTool,resourceArguments,safeResourceActions} from "../factory-mesti-mcp/resources.js";
 import {createHandler} from "../factory-mesti-mcp/protocol.js";
-it("matches all 34 actual Factory routes and exact sidebar sections, labels and ordering",()=>{
- const business=moduleRegistry.filter((m)=>m.workspace==="factory" && m.routable!==false);
- expect(business).toHaveLength(34);expect(modules).toHaveLength(34);
+it("matches all sidebar modules and active related route owners and exact sidebar sections, labels and ordering",()=>{
+ const business=moduleRegistry.filter((m)=>m.workspace==="factory" && m.routable!==false && !m.agentNavigationOwner);
+ expect(business).toHaveLength(33);expect(modules).toHaveLength(33);
  for(const module of business){const entry=modules.find((row)=>row.id===module.id);expect(entry).toMatchObject({label:module.label,section:module.section,sidebar:module.sidebar});expect(entry.explanation.length).toBeGreaterThan(20);for(const slug of navigation[module.id])expect(factoryResourceNames).toContain(slug);}
  const sections=getSidebarSections("factory");expect([...new Set(modules.map((m)=>m.section))]).toEqual(sections.map((s)=>s.label));
  for(const section of sections)expect(modules.filter((m)=>m.section===section.label&&m.sidebar).map((m)=>({id:m.id,label:m.label}))).toEqual(section.items);
@@ -22,7 +22,7 @@ it("matches all 34 actual Factory routes and exact sidebar sections, labels and 
 });
 it("pins shared MeSTI rows to one business module and declares all report dependencies",()=>{
  for(const module of modules.filter((m)=>m.id.startsWith("factory_mesti_")&&m.id!=="factory_mesti_raw_material_control"))for(const binding of module.bindings){expect(binding.row_scope.module).toBeTruthy();expect(binding.fields).not.toContain("employee_id");expect(binding.fields).toContain("completion_result");}
- const reports=modules.find((m)=>m.id==="factory_production_reports");expect(reports.coverage).toBe("limited");expect(reports.bindings).toHaveLength(4);expect(reports.bindings.every((b)=>b.requires_modules.length>0)).toBe(true);
+ const reports=modules.find((m)=>m.id==="factory_job_orders");expect(reports.coverage).toBe("limited");expect(reports.bindings).toHaveLength(6);expect(reports.bindings.every((b)=>b.requires_modules.length>0)).toBe(true);
  for(const slug of ["dashboard","production_performance","traceability"]){const binding=modules.flatMap((m)=>m.bindings).find((b)=>b.resource===slug);expect(binding.requires_modules.length).toBeGreaterThan(2);for(const id of binding.requires_modules)expect(modules.some((m)=>m.id===id)).toBe(true);}
 });
 it("registers explicit safe projections without sensitive master or employee payloads",()=>{
@@ -63,4 +63,10 @@ it("passes the exact authorized business module through the unified read-only MC
  const read=vi.fn().mockResolvedValueOnce({tools:[factoryResourceTool.name],resource_actions:[{...q,date_range:undefined}]}).mockResolvedValueOnce({results:[]});
  const request=new Request("https://example.test/mcp",{method:"POST",headers:{authorization:`Bearer fxm_${"a".repeat(43)}`,"content-type":"application/json",accept:"application/json, text/event-stream"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/call",params:{name:factoryResourceTool.name,arguments:{queries:[q]}}})});
  const response=await(await createHandler(read)(request)).json();expect(response.result.isError).toBe(false);expect(read.mock.calls[1][2]).toEqual({p_queries:[q]});
+});
+
+it('keeps the active human reporting route without a duplicate agent permission',()=>{
+ const report=moduleRegistry.find(m=>m.id==='factory_production_reports');expect(report.agentNavigationOwner).toBe('factory_job_orders');expect(report.permissions.view).toBe(true);
+ expect(modules.some(m=>m.id===report.id)).toBe(false);expect(moduleRegistry.some(m=>m.id==='factory_agent_nav_factory_production_reports')).toBe(false);
+ for(const resource of ['production_records','material_usage','product_movements','receiving_costs'])expect(modules.find(m=>m.id==='factory_job_orders').bindings.find(b=>b.resource===resource).requires_modules.length).toBeGreaterThan(0);
 });

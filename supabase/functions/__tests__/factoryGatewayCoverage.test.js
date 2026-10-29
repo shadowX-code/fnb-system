@@ -11,11 +11,11 @@ it('registers read coverage without issuing grants, keys, writes or new MCP muta
  expect(factoryResourceTool.annotations).toMatchObject({readOnlyHint:true,destructiveHint:false});
 });
 it('separates genuine capability gaps from privacy/history notes and attaches every report input to its source module',()=>{
- expect(modules.filter(m=>m.coverage==='available')).toHaveLength(31);
+ expect(modules.filter(m=>m.coverage==='available')).toHaveLength(30);
  expect(modules.filter(m=>m.coverage==='limited')).toHaveLength(3);
  expect(modules.filter(m=>m.coverage==='limited').every(m=>m.capability_limitation)).toBe(true);
  expect(modules.filter(m=>m.coverage==='available').every(m=>!m.capability_limitation)).toBe(true);
- for(const b of modules.find(m=>m.id==='factory_production_reports').bindings)expect(b.requires_modules).toHaveLength(1);
+ for(const b of modules.find(m=>m.id==='factory_job_orders').bindings.filter(b=>['production_records','material_usage','product_movements','receiving_costs'].includes(b.resource)))expect(b.requires_modules).toHaveLength(1);
  const source=modules.find(m=>m.id==='factory_production_sop').bindings.find(b=>b.resource==='sop_material_bindings');expect(source.relationships.raw_material_id).toBe('factory_raw_inventory');
  for(const name of ['factory_mesti_food_processing_control','factory_mesti_finished_product_storage_control'])expect(modules.find(m=>m.id===name).bindings.some(b=>b.resource==='schedules')).toBe(true);
 });

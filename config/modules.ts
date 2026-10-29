@@ -63,6 +63,7 @@ export type AppModule = {
   route: string;
   icon?: string;
   sidebar: boolean;
+  agentNavigationOwner?: string;
   // Internal modules may supply data or modal workflows without being valid hash-route destinations.
   routable?: boolean;
   permissionEditorHidden?: boolean;
@@ -775,6 +776,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/factory/reports",
     icon: "factory-reports",
     sidebar: false,
+    agentNavigationOwner: "factory_job_orders",
     workspace: "factory",
     permissions: { view: true, export: true },
   },
