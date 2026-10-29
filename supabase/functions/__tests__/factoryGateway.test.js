@@ -25,3 +25,11 @@ it("uses bounded operations under the shared resource tool and never logs arbitr
  const request=new Request("https://example.test/mcp",{method:"POST",headers:{authorization:`Bearer fxm_${"a".repeat(43)}`,"content-type":"application/json",accept:"application/json, text/event-stream"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/call",params:{name:factoryResourceTool.name,arguments:{queries:[query,{...query,resource:"production_records"}]}}})});
  expect((await(await createHandler(read)(request)).json()).error.code).toBe(-32003);expect(read).toHaveBeenCalledTimes(1);
 });
+it("parses both deployed Edge entrypoints before delivery",async()=>{
+ const {readFileSync}=await import('node:fs');
+ const {transformWithEsbuild}=await import('vite');
+ for(const path of ['../factory-mesti-mcp/index.ts','../external-agent-management/index.ts']){
+  const source=readFileSync(new URL(path,import.meta.url),'utf8');
+  expect((await transformWithEsbuild(source,path,{loader:'ts'})).code.length).toBeGreaterThan(0);
+ }
+});

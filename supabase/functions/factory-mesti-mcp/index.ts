@@ -17,7 +17,7 @@ const handler = createHandler(async (token: string, tool: string, args: Record<s
   return data;
 }, { observe: async (token: string, event: Record<string, unknown>, request: Request) => {
   const source = await isAdminProbe(telemetrySecret, token, request.headers.get("x-feedx-probe") || "") ? "admin_probe" : "external";
-  const { error } = event.["query_mesti_resources", "query_factory_resources"].includes(tool)
+  const { error } = ["query_mesti_resources", "query_factory_resources"].includes(String(event.tool))
     ? await telemetry.rpc("external_agents_record_resource_access", { p_token_hash: await tokenHash(token), p_outcome: event.outcome, p_reason: event.reason, p_source: source, p_resource_actions: event.resource_actions || [] })
     : await telemetry.rpc("external_agents_record_access", { p_token_hash: await tokenHash(token), p_method: event.method, p_tool: event.tool, p_outcome: event.outcome, p_reason: event.reason, p_source: source });
   if (error) throw new Error("Access telemetry unavailable.");
