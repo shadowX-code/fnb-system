@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const credential=JSON.parse(readFileSync(process.argv[2],'utf8'));
+const endpoint='https://ujkzdaaadnvcfayuldmh.supabase.co/functions/v1/factory-mesti-mcp';
+assert.equal(credential.endpoint,endpoint);
+let sequence=1;
+async function rpc(method,params){const r=await fetch(endpoint,{method:'POST',headers:{authorization:credential.authorization,'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:sequence++,method,params}),signal:AbortSignal.timeout(30000)});assert.equal(r.status,200);return r.json();}
+async function tool(name,args){const r=await rpc('tools/call',{name,arguments:args});assert(!r.error,JSON.stringify(r.error));assert(!r.result.isError);return r.result.structuredContent;}
+const range={from:'2026-10-23',to:'2026-10-29'};
+const sort=rows=>rows.toSorted((a,b)=>a.evidence_reference.localeCompare(b.evidence_reference));
+async function query(q){return (await tool('query_factory_resources',{queries:[{resource:'mesti_review',date_range:range,...q}]})).results[0];}
+let items=[],cursor,page;
+do{page=await query({action:'list',limit:7,...(cursor?{cursor}:{})});items.push(...page.items.map(({id,label,...r})=>r));cursor=page.next_cursor;}while(page.has_more);
+assert(items.length>0);
+assert.equal(page.review_coverage.length,56);
+assert.equal(new Set(page.review_coverage.map(r=>r.module)).size,8);
+assert(page.data_quality_limitations.length>0);
+assert(Number.isInteger(page.undated_completed_production_count));
+const discovery=await rpc('tools/list',{});
+assert.deepEqual(discovery.result.tools.map(t=>t.name),['query_factory_resources']);
+for(const name of ['get_mesti_daily_status','list_mesti_exceptions','list_pending_verifications','get_mesti_evidence_details','get_mesti_requirement_schedule','query_mesti_resources']){
+ const result=await rpc('tools/call',{name,arguments:{}});assert.equal(result.error.code,-32602);
+}
+for(let day=23;day<=29;day++){
+ const date=`2026-10-${day}`;
+ const daily={findings:items.filter(r=>r.date===date)};
+ const filtered=await query({action:'filter',filters:{business_date:date},limit:100});
+ assert.deepEqual(sort(filtered.items.map(({id,label,...r})=>r)),sort(daily.findings));
+ assert.deepEqual(filtered.review_coverage,page.review_coverage,'Filter must not hide coverage gaps');
+}
+for(const status of new Set(items.map(r=>r.evidence.record_status).filter(Boolean))){const filtered=await query({action:'filter',filters:{record_status:status},limit:100});assert.deepEqual(sort(filtered.items.map(({id,label,...r})=>r)),sort(items.filter(r=>r.evidence.record_status===status)));}
+const filtered=await query({action:'filter',filters:{pending_verification:'true'},limit:100});assert.deepEqual(sort(items.filter(r=>r.pending_verification)),sort(filtered.items.map(({id,label,...r})=>r)));
+for(const row of items){const read=await query({action:'read',id:row.evidence_reference});assert.deepEqual([row],read.items.map(({id,label,...r})=>r));}
+const scoped=await tool('query_factory_resources',{queries:[{business_module:'factory_mesti_cleaning',resource:'occurrences',action:'list',date_range:range,limit:100}]});assert(!('undated_completed_production_count' in scoped.results[0]));assert(!('review_coverage' in scoped.results[0]));assert(scoped.results[0].items.every(r=>r.module==='cleaning_of_area'&&!('employee_id'in r)&&!('completed_by_name'in r)));
+const denial=await rpc('tools/call',{name:'query_factory_resources',arguments:{queries:[{business_module:'factory_production',resource:'production_records',action:'list',date_range:range}]}});assert.equal(denial.error.code,-32003);
+console.log(JSON.stringify({filter_accuracy:'PASS',coverage_metadata:'PASS',review_equivalence:'PASS',module_isolation:'PASS',findings:items.length,evidence_reads:items.length,coverage_entries:page.review_coverage.length,undated_completed_productions:page.undated_completed_production_count}));

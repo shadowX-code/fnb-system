@@ -15,6 +15,7 @@ import { isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue } from 
 import { canAccessOutlet, hasPermission } from "../utils/accessControl.js";
 
 const iconMap = {
+  external_agents: Link2,
   marketing_inbox: MessageSquareText, marketing_overview: Gauge, marketing_content: FileText, marketing_calendar: CalendarDays, marketing_analytics: BarChart3, marketing_settings: Settings,
   dashboard: BarChart3,
   "sales-input": ClipboardList,

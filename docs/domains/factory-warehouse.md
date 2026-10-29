@@ -64,3 +64,7 @@ Finished Goods Print / Export consumes the complete current filtered dataset bef
 Finished Goods, Dispatch, Raw Material, movement, inventory, and stock-check pages remain grouped under Factory Warehouse.
 Do not merge restaurant and factory stock authorities because of similar labels.
 Carrier integrations, barcode automation, and third-party WMS synchronization are deferred unless current contracts introduce them.
+
+## External Agent read evidence
+
+Gateway View Records grants expose saved stock-check counts and their canonical batch-adjustment allocations, using the parent stock-check business date. Positive-adjustment confirmation and saved receiving unit/total costs are readable without contacts, invoice files, personal actors or variance remarks. Batch, material, supplier and Location references require their owning navigation-module grant. Costs remain saved source values; missing costs and historical stock valuation are not invented. Gateway policy is owned by `../architecture/trusted-authorities.md`.

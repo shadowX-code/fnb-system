@@ -1,4 +1,10 @@
+import factoryAgentModules from "./factoryAgentModules.json";
+import factoryAgentCoverage from "./factoryAgentCoverage.json";
 export type ModuleAction =
+  | "list"
+  | "read"
+  | "search"
+  | "filter"
   | "view"
   | "setup"
   | "statutory"
@@ -57,8 +63,10 @@ export type AppModule = {
   route: string;
   icon?: string;
   sidebar: boolean;
+  agentNavigationOwner?: string;
   // Internal modules may supply data or modal workflows without being valid hash-route destinations.
   routable?: boolean;
+  permissionEditorHidden?: boolean;
   // Consumer routes may reuse an existing permission without introducing a second grant.
   readPermission?: string;
   requiresRestaurantOutletScope?: boolean;
@@ -67,6 +75,7 @@ export type AppModule = {
 };
 
 export const permissionActionOrder: ModuleAction[] = [
+  "list", "read", "search", "filter",
   "view",
   "sync",
   "publish_reply",
@@ -121,6 +130,7 @@ export const permissionActionOrder: ModuleAction[] = [
 ];
 
 export const permissionActionLabels: Record<ModuleAction, string> = {
+  list: "List", read: "Read", search: "Search", filter: "Filter",
   view: "View",
   sync: "Sync Reviews",
   publish_reply: "Publish Reply",
@@ -568,6 +578,7 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     permissions: { view: true, manage: true },
   },
+  { id: "external_agents", section: "Settings", label: "Integrations", route: "/system/settings/integrations/external-agents", icon: "settings", sidebar: true, workspace: "restaurant", readPermission: "roles.view OR roles_permissions.view", permissions: {} },
 {
     id: "outlets",
     section: "System",
@@ -670,6 +681,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/factory/reports",
     icon: "factory-reports",
     sidebar: false,
+    agentNavigationOwner: "factory_job_orders",
     workspace: "factory",
     permissions: { view: true, export: true },
   },
@@ -823,6 +835,9 @@ export const moduleRegistry: AppModule[] = [
     workspace: "factory",
     permissions: { view: true, create: true, manage: true },
   },
+  ...factoryAgentCoverage.map((resource) => ({ id: `factory_agent_${resource.slug}`, section: "External Agent Access", label: `Agent ${resource.label}`, route: `/factory/agent-resources/${resource.slug}`, permissionEditorHidden: true, sidebar: false, routable: false, workspace: "factory" as const, permissions: { view: true } })),
+  ...factoryAgentModules.map((module) => ({ id: `factory_agent_nav_${module.id}`, section: module.section, label: `External Agent · ${module.label}`, route: `/factory/agent-modules/${module.id}`, sidebar: false, routable: false, workspace: "factory" as const, permissions: module.coverage === "unavailable" ? {} : { view: true } })),
+  { id: "factory_mesti_inspection", section: "MeSTI", label: "External MeSTI Inspection", route: "/factory/mesti/inspection", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
 { id: "factory_mesti_operator_hygiene", section: "MeSTI", label: "Operator Hygiene Inspection", route: "/factory/mesti/operator-hygiene-inspection", icon: "factory-mesti-operator-hygiene", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, submit: true, verify: true } },
 { id: "factory_mesti_waste_disposal", section: "MeSTI", label: "Waste Disposal Record", route: "/factory/mesti/waste-disposal-record", icon: "factory-mesti-waste-disposal", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, record: true, submit: true, verify: true } },
 { id: "factory_mesti_raw_material_control", section: "MeSTI", label: "Raw Material Control", route: "/factory/mesti/raw-material-control", icon: "factory-mesti-raw-material-control", sidebar: true, workspace: "factory", permissions: {} },
@@ -1227,6 +1242,7 @@ export const permissionPresentationOverrides: Record<string, { label: string; de
 };
 
 export function getPermissionLabel(moduleId: string, action: ModuleAction) {
+  if (moduleId.startsWith("factory_agent_nav_") && action === "view") return "View Records";
   return permissionPresentationOverrides[permissionCode(moduleId, action)]?.label
     ?? `${permissionActionLabels[action]} ${getModuleLabel(moduleId)}`;
 }
@@ -1245,7 +1261,7 @@ export function getPermissionDefinitions() {
 }
 
 export function getPermissionGroups() {
-  const groups = moduleRegistry.filter((module) => enabledActions(module).length).reduce((groups, module) => {
+  const groups = moduleRegistry.filter((module) => !module.permissionEditorHidden && enabledActions(module).length).reduce((groups, module) => {
     const actions = Object.fromEntries(
       enabledActions(module).map((action) => [
         action,

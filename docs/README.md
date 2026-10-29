@@ -35,7 +35,7 @@ Choose by durable ownership: architecture docs own cross-domain foundations; dom
 
 - [`domains/factory-production.md`](domains/factory-production.md): production planning, overview, job orders, execution, batches, and traceability.
 - [`domains/factory-warehouse.md`](domains/factory-warehouse.md): finished goods, dispatch, product movements, stock checks, raw receiving, and raw inventory.
-- [`domains/factory-master-data.md`](domains/factory-master-data.md): recipes/BOM, production SOP, storage/master data, suppliers, and customers owned by Factory.
+- [`domains/factory-master-data.md`](domains/factory-master-data.md): recipes/BOM, production SOP, storage/master data, MeSTI requirements/evidence and redacted external inspection, suppliers, and customers owned by Factory. External MCP setup and QA: [`testing/factory-mesti-mcp-staging.md`](testing/factory-mesti-mcp-staging.md).
 - [`domains/factory-product-feedback.md`](domains/factory-product-feedback.md): Factory tasting/R&D campaigns, anonymous token-bound response evidence, and analytics.
 
 ### Bounded Prototype

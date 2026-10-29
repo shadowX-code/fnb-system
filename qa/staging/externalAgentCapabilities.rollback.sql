@@ -1,0 +1,78 @@
+-- Disposable, rolled-back machine, role, grants and keys. Never change QA Executive.
+begin;
+create temporary table gateway_capability_qa(owner_id uuid,machine_id uuid,role_id uuid,token text,working_baseline text) on commit drop;
+grant select,insert on gateway_capability_qa to authenticated;
+do $qa$
+declare v_owner uuid;v_request uuid:=gen_random_uuid();v_result jsonb;v_identity uuid;v_role uuid;v_token text;v_before text;v_data jsonb;v_date date:=(now() at time zone 'Asia/Kuala_Lumpur')::date-1;
+begin
+ select e.auth_user_id into strict v_owner from public.employees e join public.roles r on r.id=e.role_id where lower(r.name)='owner' and e.auth_user_id is not null and e.enable_system_login and e.access_state='active' limit 1;
+ select md5(jsonb_build_object('identity',to_jsonb(m),'keys',(select jsonb_agg(to_jsonb(c) order by c.id) from feedx_integrations.machine_credentials c where c.identity_id=m.id),'grants',(select jsonb_agg(permission_id order by permission_id) from public.role_permissions where role_id=m.role_id))::text) into v_before from feedx_integrations.machine_identities m where name='QA Executive MeSTI Staging';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',v_owner,'role','authenticated')::text,true);
+ execute 'set local role authenticated';
+ v_result:=public.external_agents_register(v_request,'Disposable Gateway '||v_request,'QA fixture','factory_mesti',array['nav_factory_mesti_cleaning_view','nav_factory_mesti_calibration_view']);
+ v_identity:=(v_result->>'identity_id')::uuid;v_token:=v_result->>'one_time_credential';
+ if v_token !~ '^fxm_[A-Za-z0-9_-]{43}$' then raise exception 'Registration did not issue a secure one-time key.';end if;
+ begin perform public.external_agents_register(v_request,'Disposable Gateway '||v_request,'QA fixture','factory_mesti',array['nav_factory_mesti_cleaning_view','nav_factory_mesti_calibration_view']);raise exception 'Registration replay exposed another key.';exception when object_not_in_prerequisite_state then null;end;
+ begin perform public.external_agents_register(gen_random_uuid(),'Unavailable agent','QA','factory_mesti',array['complete_production']);raise exception 'Unimplemented registration accepted.';exception when invalid_parameter_value then null;end;
+ v_data:=public.external_agents_admin_data(v_identity);
+ if jsonb_array_length(v_data->'connections'->0->'tools')<>34 or not (v_data->'connections'->0->>'can_manage_capabilities')::boolean then raise exception 'Canonical capability visibility incorrect.';end if;
+ if v_data::text like '%'||v_token||'%' or v_data::text like '%token_hash%' then raise exception 'Ordinary responses exposed a secret.';end if;
+ execute 'set local role postgres';
+ select role_id into v_role from feedx_integrations.machine_identities where id=v_identity;
+ -- Management API sends this script in one statement timestamp; align only the disposable key.
+ update feedx_integrations.machine_credentials set created_at=statement_timestamp() where identity_id=v_identity;
+ insert into pg_temp.gateway_capability_qa values(v_owner,v_identity,v_role,v_token,v_before);
+ execute 'set local role anon';
+ v_data:=public.factory_agent_authorize(v_token);
+ if jsonb_array_length(v_data->'tools')<>1 then raise exception 'Discovery did not match selected grants.';end if;
+ v_data:=public.factory_agent_resource_query(v_token,jsonb_build_array(jsonb_build_object('business_module','factory_mesti_cleaning','resource','evidence','action','list','date_range',jsonb_build_object('from',v_date,'to',v_date))));
+ if not (v_data->>'read_only')::boolean then raise exception 'Registered Read capability failed.';end if;
+ begin perform public.factory_agent_resource_query(v_token,jsonb_build_array(jsonb_build_object('resource','evidence','action','list','date_range',jsonb_build_object('from',v_date,'to',v_date))));raise exception 'Ungrantable resource exposed data.';exception when insufficient_privilege then null;end;
+ execute 'set local role authenticated';
+ perform public.external_agents_set_capability(v_identity,'nav_factory_mesti_cleaning_view',false,true);
+ execute 'set local role anon';
+ begin perform public.factory_agent_resource_query(v_token,jsonb_build_array(jsonb_build_object('business_module','factory_mesti_cleaning','resource','evidence','action','list','date_range',jsonb_build_object('from',v_date,'to',v_date))));raise exception 'Removed grant remained usable.';exception when insufficient_privilege then null;end;
+ if jsonb_array_length(public.factory_agent_authorize(v_token)->'tools')<>1 then raise exception 'Removed grant remained discoverable.';end if;
+ execute 'set local role authenticated';
+ perform public.external_agents_set_capability(v_identity,'nav_factory_mesti_cleaning_view',true,false);
+ begin perform public.external_agents_set_capability(v_identity,'nav_factory_mesti_cleaning_view',false,false);raise exception 'Stale capability change accepted.';exception when serialization_failure then null;end;
+ begin perform public.external_agents_set_capability(v_identity,'complete_production',true,false);raise exception 'Unknown action granted.';exception when invalid_parameter_value then null;end;
+ perform public.external_agents_set_enabled(v_identity,false,true);
+ -- Replacing a disabled fixture key must not enable its identity.
+ v_result:=public.external_agents_rotate_credential(v_identity,(v_result->>'credential_id')::uuid,gen_random_uuid());
+ v_token:=v_result->>'one_time_credential';
+ execute 'set local role postgres';
+ update feedx_integrations.machine_credentials set created_at=statement_timestamp() where id=(v_result->>'credential_id')::uuid;
+ if (select enabled from feedx_integrations.machine_identities where id=v_identity) then raise exception 'Key replacement enabled a disabled identity.';end if;
+ execute 'set local role anon';
+ begin perform public.factory_agent_authorize(v_token);raise exception 'Disabled agent authenticated.';exception when insufficient_privilege then null;end;
+ execute 'set local role authenticated';
+ perform public.external_agents_set_enabled(v_identity,true,false);
+ begin perform public.external_agents_set_enabled(v_identity,false,false);raise exception 'Stale enable state accepted.';exception when serialization_failure then null;end;
+ execute 'set local role anon';
+ if jsonb_array_length(public.factory_agent_authorize(v_token)->'tools')<>1 then raise exception 'Enable did not preserve key and grants.';end if;
+ begin perform public.external_agents_set_enabled(v_identity,false,true);raise exception 'Anonymous management accepted.';exception when insufficient_privilege then null;end;
+ execute 'set local role postgres';
+ insert into feedx_integrations.capabilities(tool_id,adapter_key,label,description,workspace,domain,domain_label,action_type,permission_code,requires_human_approval,implemented,mcp_tool)
+  values('qa_unavailable_action','factory_mesti','Unavailable QA action','No executor exists.','Factory','qa','QA','execute','factory_mesti_inspection.view',true,false,'unsupported_qa_action');
+ execute 'set local role authenticated';
+ begin perform public.external_agents_set_capability(v_identity,'qa_unavailable_action',true,false);raise exception 'Unavailable Execute action granted.';exception when invalid_parameter_value then null;end;
+ begin update feedx_integrations.capabilities set implemented=true where tool_id='qa_unavailable_action';raise exception 'Client edited registry.';exception when insufficient_privilege then null;end;
+ execute 'set local role postgres';
+ delete from feedx_integrations.capabilities where tool_id='qa_unavailable_action';
+ insert into feedx_integrations.machine_identities(name,role_id,enabled,adapter_key) values('Shared QA fixture '||v_request,v_role,false,'factory_mesti');
+ execute 'set local role authenticated';
+ begin perform public.external_agents_set_capability(v_identity,'nav_factory_mesti_cleaning_view',false,true);raise exception 'Shared role changed through agent UI.';exception when insufficient_privilege then null;end;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',gen_random_uuid(),'role','authenticated')::text,true);
+ begin perform public.external_agents_register(gen_random_uuid(),'Denied agent','QA','factory_mesti',array['nav_factory_mesti_cleaning_view']);raise exception 'Unauthorized registration accepted.';exception when insufficient_privilege then null;end;
+ begin perform public.external_agents_set_capability(v_identity,'nav_factory_mesti_cleaning_view',false,true);raise exception 'Unauthorized grant accepted.';exception when insufficient_privilege then null;end;
+ begin perform public.external_agents_set_enabled(v_identity,false,true);raise exception 'Unauthorized disable accepted.';exception when insufficient_privilege then null;end;
+ execute 'set local role postgres';
+ if not exists(select 1 from public.audit_logs where action='external_agent_capability_revoked' and user_id=v_owner and metadata->>'identity_id'=v_identity::text and metadata->>'before'='true' and metadata->>'after'='false') then raise exception 'Revoke audit missing canonical actor and before/after.';end if;
+ if not exists(select 1 from public.audit_logs where action='external_agent_capability_granted' and user_id=v_owner and metadata->>'identity_id'=v_identity::text) then raise exception 'Grant audit missing.';end if;
+ if not exists(select 1 from public.audit_logs where action='external_machine_machine_identities_update' and user_id=v_owner and metadata->'after'->>'id'=v_identity::text and metadata->'after'->>'enabled'='false') then raise exception 'Disable audit missing.';end if;
+ if exists(select 1 from public.audit_logs where (metadata::text like '%'||v_token||'%' or metadata::text like '%'||encode(extensions.digest(v_token,'sha256'),'hex')||'%')) then raise exception 'Audit exposed key material.';end if;
+ if v_before is distinct from (select md5(jsonb_build_object('identity',to_jsonb(m),'keys',(select jsonb_agg(to_jsonb(c) order by c.id) from feedx_integrations.machine_credentials c where c.identity_id=m.id),'grants',(select jsonb_agg(permission_id order by permission_id) from public.role_permissions where role_id=m.role_id))::text) from feedx_integrations.machine_identities m where name='QA Executive MeSTI Staging') then raise exception 'Working QA Executive changed.';end if;
+end $qa$;
+rollback;
+select 'PASS: Connect/Disable Agent, Workspace/Module capability grants, action-specific authorization, unsupported-action denial, key integrity, audit and existing QA preservation' as result;

@@ -51,6 +51,7 @@ import { getSidebarSections, moduleRegistry, viewPermission } from "../../config
 const FactoryWorkspacePage = lazy(() => import("../features/factory/pages/FactoryWorkspacePage.jsx"));
 const InventoryControlPage = lazy(() => import("../features/sales-purchase/pages/InventoryControlPage.jsx"));
 const AssetTrackingPage = lazy(() => import("../features/sales-purchase/pages/AssetTrackingPage.jsx"));
+const ExternalAgentsPage = lazy(() => import("../features/integrations/ExternalAgentsPage.jsx"));
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
   const isFactoryModule = String(moduleId).startsWith("factory_");
@@ -68,6 +69,7 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 }
 
 export const routeDetails = {
+  external_agents: { component: ExternalAgentsPage, permission: "roles.view OR roles_permissions.view", description: "External Agent Gateway connections, credentials and safe access history." },
   marketing_creators: { component: CreatorsPage, permission: "marketing_workspace.access AND marketing_creators.view", description: "Creator relationships, collaborations, post records and performance evidence." },
   marketing_ads: { component: MarketingAdsPage, permission: "marketing_workspace.access AND marketing_ads.view", description: "Brand Ad Accounts and verified Meta advertising performance." },
   marketing_crm_legacy: { component: MarketingOutreachPage, props: { section: "legacy" }, permission: "marketing_workspace.access AND marketing_campaigns.view OR marketing_workspace.access AND marketing_audience.view", description: "Compatibility entry for existing CRM bookmarks." },

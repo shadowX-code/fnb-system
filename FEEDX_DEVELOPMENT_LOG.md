@@ -1,5 +1,13 @@
 # FeedX Development Log
 
+## 2026-10-29 — External Agent Gateway connection management
+
+Added Admin Settings → Integrations → External Agents over the existing machine identity, credential, Role Settings and audit authorities. The provider-neutral registry classifies tools by domain, permission, capability and approval requirement; this phase registers only the five MeSTI Read tools. Administrators can inspect credential state separately from observed MCP access, explicitly rotate/revoke credentials and test endpoint reachability or a supplied credential. Issuance is one-time and hash-only at rest, with concurrency/replay guards and no secret-bearing ordinary reads or logs. Safe endpoint telemetry distinguishes external access from signed Admin probes; Factory business reads and redaction remain unchanged. Staging QA uses disposable identities and preserves the working QA Executive credential. Canonical owners: docs/architecture/trusted-authorities.md and docs/architecture/platform.md.
+
+## 2026-10-29 — External MeSTI inspection on Staging
+
+Added a reusable private machine identity/hashed-credential boundary tied to canonical Role Settings, with one dedicated QA Executive role and the narrow `factory_mesti_inspection.view` permission. The Staging-only HTTPS MCP adapter exposes five bounded read tools over canonical MeSTI requirements/evidence, without employee impersonation, inferred company tenancy, service-role credentials or business writes. The read projection preserves recurrence/version snapshots, Production End attribution, verification state and explicit personnel/legacy evidence limitations; Health Declaration is count-only. Authenticated Staging tools and an independent official MCP client pass, including expiry/revocation and permission/isolation checks. Connection of the existing Grok Bot account remains unverified and is not implied by xAI API or protocol tests. Canonical owners: docs/domains/factory-master-data.md and docs/architecture/trusted-authorities.md; connection/QA guide: docs/testing/factory-mesti-mcp-staging.md. No Production activation.
+
 ## 2026-10-28 — Instagram URL extraction reliability
 
 Add/Edit Social Profile now normalizes Instagram URLs/usernames and debounces the existing delegated Business Discovery pipeline. The server retains supported public metadata and bounded provider failure categories, while manual and background requests fence overlapping reads by current delegation/generation. Preview races and removed unsaved rows cannot replace another identity; URL-only saves remain available when enrichment is unavailable. Documentation: docs/domains/marketing.md. Staging authority/receipt verification remains separate from separately approved bounded provider acceptance; no Production activation is part of this change.
@@ -840,3 +848,61 @@ The existing connection execution policy now supports a finite, generation-bound
 - Fixed post-commit cleanup using a Supabase RPC builder as a native Promise, which replaced a committed profile refresh with a generic error.
 - Preserve canonical persistence acknowledgement through the inspector, distinguish rejection/uncertain response, and prevent implicit Instagram follower fallback retries.
 - No SQL, delegation activation or real Meta request required; focused SDK-shaped, API and editor regressions cover cached evidence, immediate avatar/follower updates and one-use receipts.
+
+
+## 2026-10-29 — Agent Access Management on Staging
+
+Refined External Agents into a compact business-facing list with Overview, Access & Permissions and Activity. Added canonical capability labels and per-tool Role Settings Read grants, preserved existing MeSTI access, and enforced granted discovery plus database tool checks. Added dedicated-role agent registration, one-time key issuance and enable/disable management; grant and state changes use canonical authority and audit. Unsupported modules/actions remain unavailable. No new Factory tool, approval workflow, business mutation or tenancy was introduced.
+
+
+## 2026-10-29 — MeSTI resource access on Staging
+
+Added Workspace/Domain/Resource/Action registry metadata and independent canonical List/Read/Search/Filter grants. Added bounded, redacted MeSTI requirement/occurrence/status/schedule/evidence queries with atomic cross-resource authorization, field allowlists and cursor pagination. Resource actions are managed separately from unchanged legacy review tools; existing agent grants and credentials receive no resource access automatically. Canonical business data remains read-only. Future Factory domains remain unavailable.
+
+## 2026-10-29 — Factory External Agent Gateway resource reads
+
+Unified implemented Factory records behind canonical View Records resource grants, shared Admin permission selection, bounded/redacted queries and dependency-aware isolation. Reporting and traceability reuse shared canonical read cores. QA Executive migrates to its equivalent redacted review resource with credential integrity preserved; legacy tool names remain adapters pending actual Grok Bot confirmation. No business mutations or tenancy changes.
+
+## 2026-10-29 — Navigation-aligned External Agent access
+
+Aligned Factory agent permissions with all 34 routes and exact sidebar sections. Reused the existing 50 reads through forced module scopes, field/reference policies and explicit summary dependencies. Added canonical Role Settings legacy-grant protection, honest Available/Partial/Unavailable coverage and one shared Connect/Manage selector. Existing QA Executive identity, credentials and narrower review scope remain unchanged rather than being promoted to broader module grants.
+
+## 2026-10-29 — Factory Gateway read-coverage completion
+
+- Reviewed all 34 navigation modules and expanded saved read evidence to 65 resources/97 module bindings, prioritizing MeSTI production projections, Production pipeline/QC and Warehouse stock-check/receiving evidence.
+- Reused canonical read cores without calling Job Order release or other business mutations; preserved human read contracts and machine credentials/grants.
+- Production Reports moves from Unavailable to Partial source-record access. Privacy, source-grant, historical and missing-data limits remain explicit. Discovery now describes executable operations, missing source grants and safe fields.
+- Retained the minimal five-tool MeSTI compatibility adapter pending an authenticated resource invocation from the actual Grok QA Executive Bot; API/probe success is not provider confirmation.
+- Aligned MeSTI Raw Material Control with active standards/completed Receiving only and exposed immutable Cleaning Method provenance without materializing or backfilling records.
+
+### 2026-10-29 — MeSTI resource review compatibility
+
+Corrected preserved review date/lifecycle filters and shared canonical coverage metadata between legacy and resource responses, including undated completed Production exclusions. No credential, grant or business-record changes. Legacy adapters remain pending full existing-Grok review workflow confirmation.
+
+### 2026-10-29 — Legacy MeSTI transport retirement
+
+Confirmed Grok replacement workflow clears the retirement gate. Removed the five review tools and raw MeSTI transport alias, unused tool permissions and public SQL compatibility adapters. Resource-only discovery/authorization retains QA Executive identity, key, resource scope, canonical read projections and audit history.
+
+### 2026-10-29 — Agent capability coverage semantics
+
+Reassessed 34 Factory modules: 31 Available, 3 Limited, none Unavailable. Separated missing capabilities from agent access and data/authority notes; compact shared selector puts contextual notes under Access details. Read mappings, grants, keys, audit and resource behavior are unchanged.
+
+### 2026-10-30 — Production Reports Gateway ownership audit
+
+Confirmed active hidden human reporting route and consumers; preserved their permissions and calculations. Removed the duplicate Gateway reporting module and moved its four source-gated resource mappings to Production Overview, with transactional effective-access equality checks. Gateway catalog now has 33 entries; human routes remain 34.
+
+### 2026-10-30 — Effective access and credential lifecycle UX
+
+Unified server-derived effective access, visible/revocable additional grants, compact connection controls and outcome/admin activity filters. Adapter-controlled new credentials support 30/90/180 days with default 90; old signatures retain 30 days. Existing identities, keys, expiry and grants are untouched. Disposable Staging policy/rotation/revocation audit QA passed.
+
+### 2026-10-30 — Resource-first access and dependency resolver
+
+Primary Business Data Scope → Resource → View Records management derives from the existing 97 policies and canonical grants. By Module remains a secondary projection. Server-side resolver distinguishes required source permissions, optional relationship permissions and unsupported actions. Explicit review identifies grant-bundle impact and uses existing atomic management/audit authority; no dependency is implicitly granted. Existing resource/review grants, credentials and MCP contracts remain unchanged. Exhaustive dependency mapping and authorization checks pass on Staging.
+
+### 2026-10-30 — Single staged business-capability selector
+
+Consolidated parallel access editors and migrated-grant removal into one grant-backed selector. Registration and management share Select → server Review Changes → Confirm, with full bundle/overlap/dependency/remaining-access disclosure and stale-policy rejection. Existing authority, identities, credentials, grants and MCP contracts are preserved.
+
+- External Agent Gateway: audited all 97 mappings; separated 84 essential-reference policies from nine independently authorized composite/source projections. Minimal related identifiers, business labels and current statuses are now self-contained in module reads, with provenance and strict privacy fields. Existing grants/keys remain unchanged. Simplified the canonical staged selector to compact View rows and optional Access Details without raw JSON. L3 rollback verification covers all mappings and cross-domain denials.
+
+- External Agent Gateway: review now leads with server-derived grant and effective-exposure changes. It distinguishes newly blocked reads from affected pre-existing limitations, discloses cross-module reporting/audit effects and retained redacted review access, and keeps unchanged diagnostics out of confirmation. Existing review-token, stale-state, grant, credential and audit authorities remain intact.

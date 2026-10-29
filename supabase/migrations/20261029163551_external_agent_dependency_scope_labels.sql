@@ -1,0 +1,4 @@
+do $$declare d text;begin
+ select pg_get_functiondef('feedx_integrations.resource_access_projection(uuid)'::regprocedure) into d;
+ execute replace(d,'''scope'',n.section',$scope$'scope',case lower(replace(r.domain,' ','_')) when 'mesti' then 'MeSTI' when 'warehouse' then 'Warehouse' when 'raw_materials' then 'Raw Materials' when 'raw_material' then 'Raw Materials' when 'master_data' then 'Master Data' when 'production' then 'Production' when 'production_overview' then 'Production' when 'production_planning' then 'Production' when 'job_orders' then 'Production' when 'batch_traceability' then 'Production' when 'product_feedback' then 'Product Feedback' when 'petty_cash' then 'Petty Cash' when 'audit_trail' then 'System' when 'dashboard' then 'Factory Insights' else case when n.section='Factory' then 'Production' else n.section end end$scope$);
+end $$;
