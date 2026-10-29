@@ -11,7 +11,7 @@ const emptyFactoryData = {
   productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [],
   equipment: [], equipmentCategories: [], mestiCleaningRequirements: [], mestiEquipmentCleaningRequirements: [], mestiCalibrationRequirements: [], auditLogs: [], accessIssues: [],
 };
-const factoryModules = moduleRegistry.filter((module) => module.workspace === "factory");
+const factoryModules = moduleRegistry.filter((module) => module.workspace === "factory" && module.routable !== false);
 const factoryRoutes = salesPurchaseRoutes.filter((route) => route.id.startsWith("factory_"));
 const auth = { permissions: [], hasPermission: () => true, profile: { id: "employee-1", nickname: "Isaac" } };
 const ui = { notify: vi.fn(), confirm: vi.fn().mockResolvedValue(true) };
