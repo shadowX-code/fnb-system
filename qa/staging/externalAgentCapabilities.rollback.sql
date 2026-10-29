@@ -23,16 +23,16 @@ begin
  update feedx_integrations.machine_credentials set created_at=statement_timestamp() where identity_id=v_identity;
  insert into pg_temp.gateway_capability_qa values(v_owner,v_identity,v_role,v_token,v_before);
  execute 'set local role anon';
- v_data:=public.factory_mesti_inspection(v_token,'authorize');
+ v_data:=public.factory_agent_authorize(v_token);
  if jsonb_array_length(v_data->'tools')<>1 then raise exception 'Discovery did not match selected grants.';end if;
  v_data:=public.factory_agent_resource_query(v_token,jsonb_build_array(jsonb_build_object('business_module','factory_mesti_cleaning','resource','evidence','action','list','date_range',jsonb_build_object('from',v_date,'to',v_date))));
  if not (v_data->>'read_only')::boolean then raise exception 'Registered Read capability failed.';end if;
- begin perform public.factory_mesti_resource_query(v_token,jsonb_build_array(jsonb_build_object('resource','evidence','action','list','date_range',jsonb_build_object('from',v_date,'to',v_date))));raise exception 'Ungrantable resource exposed data.';exception when insufficient_privilege then null;end;
+ begin perform public.factory_agent_resource_query(v_token,jsonb_build_array(jsonb_build_object('resource','evidence','action','list','date_range',jsonb_build_object('from',v_date,'to',v_date))));raise exception 'Ungrantable resource exposed data.';exception when insufficient_privilege then null;end;
  execute 'set local role authenticated';
  perform public.external_agents_set_capability(v_identity,'nav_factory_mesti_cleaning_view',false,true);
  execute 'set local role anon';
  begin perform public.factory_agent_resource_query(v_token,jsonb_build_array(jsonb_build_object('business_module','factory_mesti_cleaning','resource','evidence','action','list','date_range',jsonb_build_object('from',v_date,'to',v_date))));raise exception 'Removed grant remained usable.';exception when insufficient_privilege then null;end;
- if jsonb_array_length(public.factory_mesti_inspection(v_token,'authorize')->'tools')<>1 then raise exception 'Removed grant remained discoverable.';end if;
+ if jsonb_array_length(public.factory_agent_authorize(v_token)->'tools')<>1 then raise exception 'Removed grant remained discoverable.';end if;
  execute 'set local role authenticated';
  perform public.external_agents_set_capability(v_identity,'nav_factory_mesti_cleaning_view',true,false);
  begin perform public.external_agents_set_capability(v_identity,'nav_factory_mesti_cleaning_view',false,false);raise exception 'Stale capability change accepted.';exception when serialization_failure then null;end;
@@ -45,12 +45,12 @@ begin
  update feedx_integrations.machine_credentials set created_at=statement_timestamp() where id=(v_result->>'credential_id')::uuid;
  if (select enabled from feedx_integrations.machine_identities where id=v_identity) then raise exception 'Key replacement enabled a disabled identity.';end if;
  execute 'set local role anon';
- begin perform public.factory_mesti_inspection(v_token,'authorize');raise exception 'Disabled agent authenticated.';exception when insufficient_privilege then null;end;
+ begin perform public.factory_agent_authorize(v_token);raise exception 'Disabled agent authenticated.';exception when insufficient_privilege then null;end;
  execute 'set local role authenticated';
  perform public.external_agents_set_enabled(v_identity,true,false);
  begin perform public.external_agents_set_enabled(v_identity,false,false);raise exception 'Stale enable state accepted.';exception when serialization_failure then null;end;
  execute 'set local role anon';
- if jsonb_array_length(public.factory_mesti_inspection(v_token,'authorize')->'tools')<>1 then raise exception 'Enable did not preserve key and grants.';end if;
+ if jsonb_array_length(public.factory_agent_authorize(v_token)->'tools')<>1 then raise exception 'Enable did not preserve key and grants.';end if;
  begin perform public.external_agents_set_enabled(v_identity,false,true);raise exception 'Anonymous management accepted.';exception when insufficient_privilege then null;end;
  execute 'set local role postgres';
  insert into feedx_integrations.capabilities(tool_id,adapter_key,label,description,workspace,domain,domain_label,action_type,permission_code,requires_human_approval,implemented,mcp_tool)

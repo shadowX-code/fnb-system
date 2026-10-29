@@ -10,14 +10,14 @@ const staging = "https://ujkzdaaadnvcfayuldmh.supabase.co";
 const telemetrySecret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const telemetry = createClient(url, telemetrySecret, { auth: { persistSession: false, autoRefreshToken: false } });
 const handler = createHandler(async (token: string, tool: string, args: Record<string, unknown>) => {
-  const { data, error } = ["query_mesti_resources", "query_factory_resources"].includes(tool)
-    ? await client.rpc(tool === "query_mesti_resources" ? "factory_mesti_resource_query" : "factory_agent_resource_query", { p_token: token, ...args })
-    : await client.rpc("factory_mesti_inspection", { p_token: token, p_tool: tool, ...args });
+  const { data, error } = tool === "authorize"
+    ? await client.rpc("factory_agent_authorize", { p_token: token })
+    : await client.rpc("factory_agent_resource_query", { p_token: token, ...args });
   if (error) throw Object.assign(new Error("Inspection denied or unavailable."), { code: error.code });
   return data;
 }, { observe: async (token: string, event: Record<string, unknown>, request: Request) => {
   const source = await isAdminProbe(telemetrySecret, token, request.headers.get("x-feedx-probe") || "") ? "admin_probe" : "external";
-  const { error } = ["query_mesti_resources", "query_factory_resources"].includes(String(event.tool))
+  const { error } = event.tool === "query_factory_resources"
     ? await telemetry.rpc("external_agents_record_resource_access", { p_token_hash: await tokenHash(token), p_outcome: event.outcome, p_reason: event.reason, p_source: source, p_resource_actions: event.resource_actions || [] })
     : await telemetry.rpc("external_agents_record_access", { p_token_hash: await tokenHash(token), p_method: event.method, p_tool: event.tool, p_outcome: event.outcome, p_reason: event.reason, p_source: source });
   if (error) throw new Error("Access telemetry unavailable.");

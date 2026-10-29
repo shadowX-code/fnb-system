@@ -1,17 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import { resourceArguments, resourceTool, safeResourceActions } from "../factory-mesti-mcp/resources.js";
-import { createHandler, legacyTools } from "../factory-mesti-mcp/protocol.js";
+import { resourceArguments, factoryResourceTool as resourceTool, safeResourceActions } from "../factory-mesti-mcp/resources.js";
+import { createHandler } from "../factory-mesti-mcp/protocol.js";
 const range={from:"2026-10-01",to:"2026-10-31"};
 const query=(resource="requirements",action="list",extra={})=>({resource,action,date_range:range,...extra});
 const call=(queries)=>new Request("https://example.test/mcp",{method:"POST",headers:{authorization:`Bearer fxm_${"a".repeat(43)}`,"content-type":"application/json",accept:"application/json, text/event-stream"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/call",params:{name:resourceTool.name,arguments:{queries}}})});
 describe("bounded resource read protocol",()=>{
  it("accepts each supported operation with its own explicit argument contract",()=>{
-  for(const q of [query(),query("statuses","read",{id:"id"}),query("evidence","search",{search:"evidence"}),query("occurrences","filter",{filters:{record_status:"completed"}})]) expect(resourceArguments({queries:[q]}).p_queries).toEqual([q]);
+  for(const q of [query(),query("statuses","read",{id:"id"}),query("evidence","search",{search:"evidence"}),query("occurrences","filter",{filters:{record_status:"completed"}})]) expect(resourceArguments({queries:[q]},false).p_queries).toEqual([q]);
  });
  it.each([
   [{...query(),sql:"select *"}], [query("production")], [query("requirements","execute")],
   [query("requirements","list",{filters:{record_status:"active"}})], [query("requirements","search",{search:""})],
-  [query("statuses","filter",{filters:{employee_id:"hidden"}})], [query("evidence","filter",{filters:{symptoms:"hidden"}})],
+
   [query("requirements","read",{id:"id",limit:2})], [query("requirements","list",{id:"id"})],
   [query("requirements","list",{limit:101})], [query("requirements","list",{limit:1.5})],
   [query("requirements","list",{date_range:{from:"2026-10-01",to:"2026-11-01"}})],
@@ -19,12 +19,7 @@ describe("bounded resource read protocol",()=>{
   [query("requirements","list",{module:"payroll"})], [query("requirements","list",{include:["evidence"]})],
   Array.from({length:6},()=>query()),
  ])("rejects unrestricted, hidden-field, mutation and unbounded requests",(queries)=>{
-  expect(()=>resourceArguments({queries})).toThrow();
- });
- it("does not advertise a new resource tool to legacy-only grants",async()=>{
-  const read=vi.fn().mockResolvedValue({authorized:true,tools:legacyTools.map((t)=>t.name)});
-  const req=new Request("https://example.test/mcp",{method:"POST",headers:{authorization:`Bearer fxm_${"a".repeat(43)}`,"content-type":"application/json",accept:"application/json, text/event-stream"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/list"})});
-  const result=await (await createHandler(read)(req)).json();expect(result.result.tools.map((t)=>t.name)).toEqual(legacyTools.map((t)=>t.name));
+  expect(()=>resourceArguments({queries},false)).toThrow();
  });
  it("denies the entire mixed-resource batch before data reads when one operation is ungranted",async()=>{
   const read=vi.fn().mockResolvedValue({authorized:true,tools:[resourceTool.name],resource_actions:[{resource:"requirements",action:"list"}]});

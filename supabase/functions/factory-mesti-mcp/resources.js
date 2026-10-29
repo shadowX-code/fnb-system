@@ -4,15 +4,8 @@ const date = { type: "string", format: "date", description: "Malaysia business d
 export const resourceNames = ["requirements", "occurrences", "statuses", "schedules", "evidence"];
 export const resourceActions = ["list", "read", "search", "filter"];
 export const mestiModules = ["cleaning_of_area", "cleaning_of_equipment", "calibration", "operator_hygiene", "waste_disposal", "health_declaration", "food_processing_control", "finished_product_storage_control"];
-const filterFields = {
- requirements: ["record_status", "requirement_id", "logical_requirement_id", "subject_id"],
- occurrences: ["record_status", "requirement_id", "logical_requirement_id", "subject_id", "source_type", "verification_state"],
- statuses: ["record_status", "verification_state"],
- schedules: ["requirement_id", "logical_requirement_id", "subject_id", "source_type"],
- evidence: ["record_status", "requirement_id", "logical_requirement_id", "subject_id", "source_type", "verification_state", "parent_id"],
-};
-export const resourceTool = {
- name: "query_mesti_resources",
+const querySchema = {
+ name: "query_factory_resources",
  description: "Compatibility adapter for authorized MeSTI View Records queries. Query operations are List, Read, Search or Filter. Supply 1–5 queries; every operation must be granted or the entire request is denied. Each query requires a Malaysia date range of at most 31 days, optional module and page size 1–100. Read uses an exact returned id; Search matches safe labels literally; Filter accepts only documented fields. IDs are resource-scoped; no implicit joins or expanded related data. Follow next_cursor unchanged with the same query. Returns canonical saved states, recurrence/effective-date semantics and coverage limitations, without compliance verdicts or recommendations. Health data is daily aggregate only. No writes or arbitrary SQL.",
  inputSchema: { type: "object", properties: { queries: { type: "array", minItems: 1, maxItems: 5, items: { type: "object", properties: {
   resource: { type: "string", enum: resourceNames }, action: { type: "string", enum: resourceActions },
@@ -25,11 +18,11 @@ export const resourceTool = {
 };
 const object = (value) => value && typeof value === "object" && !Array.isArray(value);
 function validDate(value) { return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value; }
-export function resourceArguments(args, factory = false) {
+export function resourceArguments(args) {
  if (!object(args) || Object.keys(args).some((key) => key !== "queries") || !Array.isArray(args.queries) || args.queries.length < 1 || args.queries.length > 5 || JSON.stringify(args.queries).length > 14000) throw new Error("Use 1 to 5 bounded resource queries.");
  for (const q of args.queries) {
-  if (!object(q) || Object.keys(q).some((key) => !Object.hasOwn((factory ? factoryResourceTool : resourceTool).inputSchema.properties.queries.items.properties, key)) || !(factory ? factoryResourceNames.includes(q.resource) : resourceNames.includes(q.resource)) || !resourceActions.includes(q.action)) throw new Error("Unsupported resource or operation.");
-  if (q.business_module !== undefined && (!factory || !factoryBusinessModules.includes(q.business_module))) throw new Error("Unsupported business module.");
+  if (!object(q) || Object.keys(q).some((key) => !Object.hasOwn(factoryResourceTool.inputSchema.properties.queries.items.properties, key)) || !factoryResourceNames.includes(q.resource) || !resourceActions.includes(q.action)) throw new Error("Unsupported resource or operation.");
+  if (q.business_module !== undefined && (!factoryBusinessModules.includes(q.business_module))) throw new Error("Unsupported business module.");
   const range = q.date_range;
   if (!object(range) || Object.keys(range).some((key) => !["from", "to"].includes(key)) || !validDate(range.from) || !validDate(range.to) || range.to < range.from || Date.parse(range.to) - Date.parse(range.from) > 30 * 86400000) throw new Error("Use at most 31 valid Malaysia business dates.");
   if (q.module !== undefined && !mestiModules.includes(q.module)) throw new Error("Unsupported MeSTI module.");
@@ -39,7 +32,7 @@ export function resourceArguments(args, factory = false) {
   else if (Object.hasOwn(q, "id")) throw new Error("Use Read for a resource ID.");
   if (q.action === "search") { if (typeof q.search !== "string" || !q.search.trim() || q.search.length > 100) throw new Error("Search requires 1 to 100 characters."); }
   else if (Object.hasOwn(q, "search")) throw new Error("Use Search for text queries.");
-  if (q.action === "filter") { if (!object(q.filters) || !Object.keys(q.filters).length || Object.entries(q.filters).some(([key, value]) => !(factory ? /^[a-z][a-z_]{0,79}$/.test(key) : filterFields[q.resource].includes(key)) || typeof value !== "string" || !value.length || value.length > 240)) throw new Error("Unsupported filter field or value."); }
+  if (q.action === "filter") { if (!object(q.filters) || !Object.keys(q.filters).length || Object.entries(q.filters).some(([key, value]) => !/^[a-z][a-z_]{0,79}$/.test(key) || typeof value !== "string" || !value.length || value.length > 240)) throw new Error("Unsupported filter field or value."); }
   else if (Object.hasOwn(q, "filters")) throw new Error("Use Filter for structured filters.");
  }
  return { p_queries: args.queries };
@@ -47,7 +40,7 @@ export function resourceArguments(args, factory = false) {
 export function safeResourceActions(queries) { return Array.isArray(queries) ? queries.slice(0, 5).filter((q) => factoryResourceNames.includes(q?.resource) && resourceActions.includes(q?.action) && (q.business_module === undefined || factoryBusinessModules.includes(q.business_module))).map((q) => ({ resource: q.resource, action: q.action, ...(q.business_module ? {business_module:q.business_module} : {}) })) : []; }
 
 export const factoryResourceTool = {
- ...resourceTool, name: "query_factory_resources",
+ ...querySchema, name: "query_factory_resources",
  description: "Query records within a granted Factory business_module. A module grant never permits an unscoped resource query or another module. Shared MeSTI resources are filtered to that module by the server. Partial coverage and contributing module requirements are explicit in discovery. View Records permits bounded List, Read, Search and Filter. Consult authorized-resource-actions metadata for actual resource IDs. Every query and summary dependency is authorized before any data is returned. Supply 1–5 queries, 31 Malaysia business dates maximum, pages of 1–100, exact equality filters on returned safe fields only. No implicit joins; related resources require their own grants and hidden relationship fields are omitted. Master data is the current snapshot; Dashboard and Production Performance retain full calendar-month reporting, trends and live stock context. MeSTI preserves canonical recurrence and Production End attribution. Compliance review records reuse the established redacted inspection projection. Empty data never certifies completeness or compliance. No SQL, writes, clinical/employee identities, contacts, response tokens or receipt files.",
- inputSchema: {...resourceTool.inputSchema, properties: {queries: {...resourceTool.inputSchema.properties.queries, items: {...resourceTool.inputSchema.properties.queries.items, properties: {...resourceTool.inputSchema.properties.queries.items.properties, business_module: {type:"string",enum:factoryBusinessModules,description:"Required for navigation-module grants. Use an authorized module ID from discovery metadata. Omit only for explicitly preserved legacy resource access."}, resource: {type: "string", pattern: "^[a-z][a-z_]{0,79}$", description: "A granted resource ID from discovery metadata."}, filters: {type: "object", description: "Exact string equality on registered safe fields. Hidden relationships, unknown fields and free-text/clinical fields are rejected.", additionalProperties: {type: "string", maxLength: 240}}}}}}},
+ inputSchema: {...querySchema.inputSchema, properties: {queries: {...querySchema.inputSchema.properties.queries, items: {...querySchema.inputSchema.properties.queries.items, properties: {...querySchema.inputSchema.properties.queries.items.properties, business_module: {type:"string",enum:factoryBusinessModules,description:"Required for navigation-module grants. Use an authorized module ID from discovery metadata. Omit only for explicitly preserved legacy resource access."}, resource: {type: "string", pattern: "^[a-z][a-z_]{0,79}$", description: "A granted resource ID from discovery metadata."}, filters: {type: "object", description: "Exact string equality on registered safe fields. Hidden relationships, unknown fields and free-text/clinical fields are rejected.", additionalProperties: {type: "string", maxLength: 240}}}}}}},
 };

@@ -1153,3 +1153,7 @@ Aligned Factory agent permissions with all 34 routes and exact sidebar sections.
 ### 2026-10-29 — MeSTI resource review compatibility
 
 Corrected preserved review date/lifecycle filters and shared canonical coverage metadata between legacy and resource responses, including undated completed Production exclusions. No credential, grant or business-record changes. Legacy adapters remain pending full existing-Grok review workflow confirmation.
+
+### 2026-10-29 — Legacy MeSTI transport retirement
+
+Confirmed Grok replacement workflow clears the retirement gate. Removed the five review tools and raw MeSTI transport alias, unused tool permissions and public SQL compatibility adapters. Resource-only discovery/authorization retains QA Executive identity, key, resource scope, canonical read projections and audit history.

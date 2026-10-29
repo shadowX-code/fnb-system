@@ -24,7 +24,7 @@ begin
  data:=public.factory_agent_resource_query(token,'[{"business_module":"factory_production_sop","resource":"sop_material_bindings","action":"list","date_range":{"from":"2026-10-01","to":"2026-10-31"},"limit":100}]')->'results'->0;
  if exists(select 1 from jsonb_array_elements(data->'items')r where r ? 'raw_material_id') then raise exception 'SOP leaked Raw Material identity';end if;
  -- Discover supported records, without advertising unavailable dependencies/foreign filters.
- data:=public.factory_mesti_inspection(token,'authorize');
+ data:=public.factory_agent_authorize(token);
  if exists(select 1 from jsonb_array_elements(data->'resource_catalog')r where r->>'resource'='sop_material_bindings' and (r->'fields' ? 'raw_material_id' or r->'filters' ? 'raw_material_id')) then raise exception 'Discovery advertised hidden relationship access';end if;
  begin perform public.factory_agent_resource_query(token,'[{"business_module":"factory_production_sop","resource":"sop_material_bindings","action":"filter","filters":{"raw_material_id":"hidden"},"date_range":{"from":"2026-10-01","to":"2026-10-31"}}]');raise exception 'Hidden material filter allowed';exception when invalid_parameter_value then null;end;
  -- Select one core pipeline day, then compare source counts and states exactly.
@@ -53,7 +53,7 @@ begin
  if record_row->>'quantity'<>'4' or record_row ?|array['batch_balance_id','notes'] then raise exception 'Allocation evidence leaked ungranted batch';end if;
  -- Removing a contributing source grant changes discovery and query enforcement immediately.
  execute 'set local role authenticated';perform public.external_agents_set_capability(all_id,'nav_factory_production_view',false,true);
- execute 'set local role anon';data:=public.factory_mesti_inspection(all_token,'authorize');
+ execute 'set local role anon';data:=public.factory_agent_authorize(all_token);
  if exists(select 1 from jsonb_array_elements(data->'resource_actions')r where r->>'resource'='production_pipeline') then raise exception 'Discovery advertised pipeline without source grant';end if;
  if not exists(select 1 from jsonb_array_elements(data->'resource_catalog')r where r->>'resource'='production_pipeline' and r->>'query_available'='false' and r->'missing_required_modules' @> '[{"id":"factory_production"}]') then raise exception 'Missing dependency was not explained';end if;
  begin perform public.factory_agent_resource_query(all_token,q);raise exception 'Cached pipeline grant bypassed source revoke';exception when insufficient_privilege then null;end;

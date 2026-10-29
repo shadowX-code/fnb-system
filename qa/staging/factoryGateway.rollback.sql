@@ -25,7 +25,7 @@ begin
  if jsonb_array_length(data->'connections'->0->'tools')<>34 or jsonb_array_length(data->'catalog'->0->'capabilities')<>34 or jsonb_array_length(data->'connections'->0->'preserved_access')<>0 then raise exception 'Navigation catalog incomplete';end if;
  if data::text like '%'||limited_token||'%' or data::text like '%token_hash%' then raise exception 'Credential leaked';end if;
  execute 'set local role anon';
- data:=public.factory_mesti_inspection(limited_token,'authorize');
+ data:=public.factory_agent_authorize(limited_token);
  if data->'tools'<>'["query_factory_resources"]'::jsonb then raise exception 'Module grants gained legacy tools';end if;
  if exists(select 1 from jsonb_array_elements(data->'resource_actions')a where a->>'business_module' is distinct from 'factory_mesti_cleaning') then raise exception 'Discovery scope broadened';end if;
  q:=jsonb_build_object('business_module','factory_mesti_cleaning','resource','requirements','action','list','date_range',range,'limit',1);
@@ -44,8 +44,6 @@ begin
  perform pg_temp.reject_nav(limited_token,jsonb_build_array((q-'limit')||'{"action":"filter","filters":{"subject_id":"hidden"}}'),'22023');
  perform pg_temp.reject_nav(limited_token,jsonb_build_array(q,q||'{"business_module":"factory_mesti_calibration"}'),'42501');
  perform pg_temp.reject_nav(limited_token,jsonb_build_array(q||'{"resource":"production_records"}'),'42501');
- begin perform public.factory_mesti_inspection(limited_token,'get_mesti_daily_status','2026-10-28','2026-10-28');raise exception 'Legacy tool bypassed module scope';exception when insufficient_privilege then null;end;
- begin perform public.factory_mesti_resource_query(limited_token,jsonb_build_array(q));raise exception 'Legacy resource adapter bypassed module scope';exception when insufficient_privilege then null;end;
  execute 'set local role postgres';
  -- Every binding reads the existing source authority; empty results remain explicit.
  for rec in select n.id,r.slug,b.row_scope from feedx_integrations.navigation_modules n join feedx_integrations.navigation_resources b on b.module_id=n.id join feedx_integrations.resources r on r.key=b.resource_key order by n.sort_order,r.slug loop
