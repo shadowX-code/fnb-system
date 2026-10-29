@@ -1,9 +1,14 @@
 import { supabase } from "../lib/supabase.ts";
+import { externalAgentEnvironment, gatewayEndpointPath } from "../../supabase/functions/_shared/externalAgentEnvironment.js";
 
 // Do not use the generic error logger on credential-bearing operations.
 async function rpc(name, args) {
   const { data, error } = await supabase.rpc(name, args);
   if (error) throw new Error(error.code === "42501" ? "You do not have Role Settings authority for this action." : error.code === "40001" ? "Access changed. Refresh the agent and try again." : error.code === "55000" ? "This request was already completed. Refresh the agent; access keys can only be shown once." : "The request could not be completed. Refresh the connection before trying again.");
+  if (name === "external_agents_admin_data" && data?.connections) {
+    const environment = externalAgentEnvironment(supabase.supabaseUrl);
+    return { ...data, connections: data.connections.map((row) => ({ ...row, endpoint: row.endpoint === gatewayEndpointPath || row.endpoint === environment?.endpoint ? environment?.endpoint || "" : "" })) };
+  }
   return data;
 }
 export const externalAgentService = {
