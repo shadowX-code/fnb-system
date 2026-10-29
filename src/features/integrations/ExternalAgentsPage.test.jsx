@@ -96,7 +96,7 @@ it("keeps preserved scope separate from module selections and exposes technical 
  render(<ExternalAgentsPage auth={auth()} />);await open();
  expect(screen.getAllByText("Preserved MeSTI compliance review")).toHaveLength(1);expect(screen.queryByText("No resources allowed")).toBeNull();
  tab("Access & Permissions");
- expect(screen.getByRole("heading",{name:"Additional effective grants"})).toBeTruthy();expect(screen.getAllByText(/Preserved restricted access remains separate/).length).toBeGreaterThan(1);expect(screen.queryByText("factory_agent_mesti_review.view")).toBeNull();
+ expect(screen.getByRole("heading",{name:"Additional effective grants"})).toBeTruthy();expect(screen.getAllByText(/Additional grants allow some records independently/).length).toBeGreaterThan(1);expect(screen.queryByText("factory_agent_mesti_review.view")).toBeNull();
  expect(screen.getByRole("checkbox",{name:"View Records: Review daily compliance"}).checked).toBe(false);
  tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Advanced Details"}));expect(screen.getAllByText(/evidence \(cleaning_of_area\)/).length).toBeGreaterThan(0);
 });
