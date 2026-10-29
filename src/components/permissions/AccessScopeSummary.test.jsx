@@ -8,7 +8,7 @@ it('summarizes MeSTI scope without turning contextual references into full relat
  const c={module_id:'cleaning',label:'Cleaning',name:'nav_cleaning_view',permission:'technical.view',scope:[{resource:'requirements',label:'Requirements',fields:['subject_id'],context_fields:{subject_id:'locations',unused_id:'production'}}]};
  const scope=accessScopeSummary(c,catalog);
  expect(scope.included).toEqual(['Requirements','Basic related references: Locations']);
- expect(scope.separate).toEqual([{label:'Full related records: Locations',sources:[]}]);
+ expect(scope.separate).toEqual([{label:'Full related records',sources:['Locations']}]);
  render(<AccessScopeSummary capability={c} catalog={catalog}/>);
  const disclosure=screen.getByText('Access Details').closest('details');expect(disclosure.open).toBe(false);
  fireEvent.click(screen.getByText('Access Details'));

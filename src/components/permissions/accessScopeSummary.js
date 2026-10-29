@@ -26,7 +26,9 @@ export function accessScopeSummary(capability, catalog = []) {
   if (fields.has('unit_cost') || fields.has('total_cost')) included.push('Saved receiving costs');
   const contextLabels = [...standaloneOwners].map(id => labels.get(id)).filter(Boolean);
   if (contextLabels.length) included.push(`Basic related references: ${contextLabels.join(', ')}`);
-  for (const owner of contextualOwners) separate.push({label: `Full related records: ${labels.get(owner) || 'related capability'}`, sources: []});
+  const sourceOwners = new Set(scopes.flatMap(externalSources));
+  const otherOwners = [...contextualOwners].filter(id => !sourceOwners.has(id));
+  if (otherOwners.length) separate.push({label:'Full related records',sources:[...new Set(otherOwners.map(id => labels.get(id) || 'Related capability')))]});
   if (capability.retained_only) separate.push({label:'Broader module access and other record collections',sources:[]});
   const notes = [];
   if (capability.capability_limitation) notes.push(capability.capability_limitation);
