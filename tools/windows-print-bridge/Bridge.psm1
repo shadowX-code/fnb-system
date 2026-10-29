@@ -7,7 +7,13 @@ function Save-BridgeState($Path, $Value) {
     $temp = "$Path.tmp"
     $secure = ConvertTo-SecureString ($Value | ConvertTo-Json -Depth 20 -Compress) -AsPlainText -Force
     $secure | Export-Clixml -LiteralPath $temp
-    if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($temp, $Path, $null) }
+    $stream = [IO.File]::Open($temp, [IO.FileMode]::Open, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try { $stream.Flush($true) } finally { $stream.Dispose() }
+    # Windows PowerShell 5.1 converts a null string argument to an empty path; use an explicit backup.
+    if (Test-Path -LiteralPath $Path) {
+        [IO.File]::Replace($temp, $Path, "$Path.previous")
+        Remove-Item -LiteralPath "$Path.previous" -ErrorAction SilentlyContinue
+    }
     else { [IO.File]::Move($temp, $Path) }
 }
 function Read-BridgeState($Path) {
