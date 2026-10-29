@@ -915,5 +915,300 @@
     "label_field": "receipt_no",
     "refs": {},
     "dependencies": []
+  },
+  {
+    "slug": "production_pipeline",
+    "module": "Factory",
+    "label": "Production pipeline",
+    "table": null,
+    "fields": [
+      "id",
+      "job_order_no",
+      "pipeline_bucket",
+      "operational_date",
+      "planned_date",
+      "due_date",
+      "production_date",
+      "start_time",
+      "operational_completion_at",
+      "status",
+      "target_pack_qty",
+      "target_production_qty",
+      "target_quantity",
+      "produced_quantity",
+      "uom",
+      "finished_good_id",
+      "scheduled",
+      "released",
+      "in_progress",
+      "completed_today",
+      "planned_today",
+      "completion_rate",
+      "output_by_uom"
+    ],
+    "date": null,
+    "label_field": "job_order_no",
+    "refs": {
+      "finished_good_id": "finished_goods"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "planning_open_orders",
+    "module": "Factory",
+    "label": "Open planned quantities",
+    "table": null,
+    "fields": [
+      "id",
+      "packaging_sku_id",
+      "open_job_order_qty",
+      "open_job_order_count",
+      "counted_job_order_count",
+      "invalid_job_order_count",
+      "qualifying_job_order_count",
+      "missing_packaging_sku_count",
+      "invalid_quantity_count",
+      "source"
+    ],
+    "date": null,
+    "label_field": "packaging_sku_id",
+    "refs": {
+      "packaging_sku_id": "finished_goods"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "product_stock_adjustments",
+    "module": "Warehouse",
+    "label": "Product stock adjustment allocations",
+    "table": "factory_product_stock_check_batch_adjustments",
+    "fields": [
+      "id",
+      "stock_check_item_id",
+      "batch_balance_id",
+      "quantity",
+      "created_at"
+    ],
+    "date": "parent_check_date",
+    "label_field": "stock_check_item_id",
+    "refs": {
+      "stock_check_item_id": "factory_product_stock_check",
+      "batch_balance_id": "finished_goods"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "raw_stock_allocations",
+    "module": "Raw Material",
+    "label": "Raw stock adjustment allocations",
+    "table": "factory_raw_material_stock_check_batch_allocations",
+    "fields": [
+      "id",
+      "stock_check_item_id",
+      "raw_material_batch_balance_id",
+      "allocated_qty",
+      "created_at"
+    ],
+    "date": "parent_check_date",
+    "label_field": "stock_check_item_id",
+    "refs": {
+      "stock_check_item_id": "factory_raw_stock_check",
+      "raw_material_batch_balance_id": "raw_materials"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "receiving_costs",
+    "module": "Raw Material",
+    "label": "Saved receiving cost basis",
+    "table": "factory_raw_material_receivings",
+    "fields": [
+      "id",
+      "receipt_no",
+      "batch_id",
+      "raw_material_id",
+      "received_qty",
+      "uom",
+      "unit_cost",
+      "total_cost",
+      "received_date"
+    ],
+    "date": "received_date",
+    "label_field": "receipt_no",
+    "refs": {
+      "batch_id": "factory_raw_receiving",
+      "raw_material_id": "raw_materials"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "sop_substeps",
+    "module": "Master Data",
+    "label": "Procedure substeps",
+    "table": "factory_production_sop_sub_steps",
+    "fields": [
+      "id",
+      "sop_step_id",
+      "sequence_no",
+      "instruction",
+      "estimated_minutes"
+    ],
+    "date": null,
+    "label_field": "sop_step_id",
+    "refs": {
+      "sop_step_id": "sop_steps"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "sop_qc_checks",
+    "module": "Master Data",
+    "label": "Procedure QC definitions",
+    "table": "factory_production_sop_step_qc_checks",
+    "fields": [
+      "id",
+      "sop_step_id",
+      "sequence_no",
+      "qc_type",
+      "qc_name",
+      "instructions",
+      "is_required"
+    ],
+    "date": null,
+    "label_field": "sop_step_id",
+    "refs": {
+      "sop_step_id": "sop_steps"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "sop_equipment",
+    "module": "Master Data",
+    "label": "Procedure equipment bindings",
+    "table": "factory_production_sop_equipment",
+    "fields": [
+      "sop_id",
+      "equipment_id"
+    ],
+    "date": null,
+    "label_field": "equipment_id",
+    "refs": {
+      "sop_id": "sop_steps",
+      "equipment_id": "factory_equipment"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "raw_material_categories",
+    "module": "Raw Material",
+    "label": "Raw material categories",
+    "table": "factory_raw_material_categories",
+    "fields": [
+      "id",
+      "name",
+      "status"
+    ],
+    "date": null,
+    "label_field": "name",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "product_tags",
+    "module": "Master Data",
+    "label": "Product family tags",
+    "table": "factory_product_family_tags",
+    "fields": [
+      "product_family_id",
+      "tag_id",
+      "name",
+      "status"
+    ],
+    "date": null,
+    "label_field": "tag_id",
+    "refs": {
+      "product_family_id": "factory_product_recipes"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "sop_material_bindings",
+    "module": "Master Data",
+    "label": "Procedure material bindings",
+    "table": "factory_production_sop_step_materials",
+    "fields": [
+      "sop_step_id",
+      "raw_material_id"
+    ],
+    "date": null,
+    "label_field": "id",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "equipment_categories",
+    "module": "Master Data",
+    "label": "Equipment categories",
+    "table": "factory_equipment_categories",
+    "fields": [
+      "id",
+      "name",
+      "category_code",
+      "status",
+      "sort_order"
+    ],
+    "date": null,
+    "label_field": "name",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "finished_good_categories",
+    "module": "Warehouse",
+    "label": "Finished Goods categories",
+    "table": "factory_finished_good_categories",
+    "fields": [
+      "id",
+      "name",
+      "status"
+    ],
+    "date": null,
+    "label_field": "name",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "production_qc_checkpoints",
+    "module": "Factory",
+    "label": "Saved production QC checkpoints",
+    "table": "factory_production_qc_checkpoints",
+    "fields": [
+      "id",
+      "production_id",
+      "production_sop_id",
+      "sop_step_id",
+      "step_no",
+      "process_name",
+      "control_point",
+      "qc_status"
+    ],
+    "date": "production_end",
+    "label_field": "id",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "supplier_material_links",
+    "module": "System",
+    "label": "Supplier material eligibility links",
+    "table": "factory_supplier_raw_material_links",
+    "fields": [
+      "supplier_id",
+      "raw_material_id"
+    ],
+    "date": null,
+    "label_field": "id",
+    "refs": {},
+    "dependencies": []
   }
 ]

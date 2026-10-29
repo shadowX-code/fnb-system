@@ -369,5 +369,95 @@
     "module": "MeSTI",
     "label": "Redacted evidence",
     "dependencies": []
+  },
+  {
+    "slug": "production_pipeline",
+    "module": "Factory",
+    "label": "Production pipeline",
+    "dependencies": []
+  },
+  {
+    "slug": "planning_open_orders",
+    "module": "Factory",
+    "label": "Open planned quantities",
+    "dependencies": []
+  },
+  {
+    "slug": "product_stock_adjustments",
+    "module": "Warehouse",
+    "label": "Product stock adjustment allocations",
+    "dependencies": []
+  },
+  {
+    "slug": "raw_stock_allocations",
+    "module": "Raw Material",
+    "label": "Raw stock adjustment allocations",
+    "dependencies": []
+  },
+  {
+    "slug": "receiving_costs",
+    "module": "Raw Material",
+    "label": "Saved receiving cost basis",
+    "dependencies": []
+  },
+  {
+    "slug": "sop_substeps",
+    "module": "Master Data",
+    "label": "Procedure substeps",
+    "dependencies": []
+  },
+  {
+    "slug": "sop_qc_checks",
+    "module": "Master Data",
+    "label": "Procedure QC definitions",
+    "dependencies": []
+  },
+  {
+    "slug": "sop_equipment",
+    "module": "Master Data",
+    "label": "Procedure equipment bindings",
+    "dependencies": []
+  },
+  {
+    "slug": "raw_material_categories",
+    "module": "Raw Material",
+    "label": "Raw material categories",
+    "dependencies": []
+  },
+  {
+    "slug": "product_tags",
+    "module": "Master Data",
+    "label": "Product family tags",
+    "dependencies": []
+  },
+  {
+    "slug": "sop_material_bindings",
+    "module": "Master Data",
+    "label": "Procedure material bindings",
+    "dependencies": []
+  },
+  {
+    "slug": "equipment_categories",
+    "module": "Master Data",
+    "label": "Equipment categories",
+    "dependencies": []
+  },
+  {
+    "slug": "finished_good_categories",
+    "module": "Warehouse",
+    "label": "Finished Goods categories",
+    "dependencies": []
+  },
+  {
+    "slug": "production_qc_checkpoints",
+    "module": "Factory",
+    "label": "Saved production QC checkpoints",
+    "dependencies": []
+  },
+  {
+    "slug": "supplier_material_links",
+    "module": "System",
+    "label": "Supplier material eligibility links",
+    "dependencies": []
   }
 ]

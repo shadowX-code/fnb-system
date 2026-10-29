@@ -19,10 +19,17 @@ result = await rpc("tools/list", {});
 assert.equal(result.body.result.tools.length, 6);
 const toolNames = result.body.result.tools.map((item) => item.name);
 assert(toolNames.every((name) => /^(get_mesti_daily_status|list_mesti_exceptions|list_pending_verifications|get_mesti_evidence_details|get_mesti_requirement_schedule|query_factory_resources)$/.test(name)));
+const unifiedTool = result.body.result.tools.find((item) => item.name === "query_factory_resources");
+assert(unifiedTool._meta["feedx/authorized-resource-actions"].every((operation) => operation.resource === "mesti_review" && !operation.business_module), "QA discovery must retain its exact existing review scope");
+assert(unifiedTool._meta["feedx/resources"].every((resource) => resource.resource === "mesti_review"), "QA discovery must not advertise broader navigation resources");
 // Equivalent review migration must not grant broader raw resources.
 const resourceDate = malaysiaYesterday();
 const deniedResource = await rpc("tools/call", { name: "query_factory_resources", arguments: { queries: [{ resource: "requirements", action: "list", date_range: { from: resourceDate, to: resourceDate } }] } });
 assert.equal(deniedResource.body.error?.code, -32003, "Legacy credentials must not gain resource access");
+const scopedDenied = await rpc("tools/call", { name: "query_factory_resources", arguments: { queries: [{ business_module: "factory_job_orders", resource: "production_pipeline", action: "list", date_range: { from: resourceDate, to: resourceDate } }] } });
+assert.equal(scopedDenied.body.error?.code, -32003, "New resource-query transport must parse the implemented resource, then deny ungranted module access");
+const mixedDenied = await rpc("tools/call", { name: "query_factory_resources", arguments: { queries: [{resource:"mesti_review",action:"list",date_range:{from:resourceDate,to:resourceDate}}, {business_module:"factory_production_reports",resource:"receiving_costs",action:"list",date_range:{from:resourceDate,to:resourceDate}}] } });
+assert.equal(mixedDenied.body.error?.code, -32003, "A mixed resource request cannot bypass ungranted module access");
 assert((await rpc("tools/list", {}, { authorization: "Bearer invalid" })).status === 401);
 assert((await rpc("tools/list", {}, { origin: "https://untrusted.example" })).status === 403);
 assert.equal((await rpc("tools/call", { name: "complete_mesti", arguments: {} })).body.error.code, -32602);
@@ -63,7 +70,7 @@ const review = await tool("query_factory_resources", { queries: [{resource:"mest
 const comparable = review.results[0].items.map(({id,label,...row})=>row);
 assert.deepEqual(comparable.sort((a,b)=>a.evidence_reference.localeCompare(b.evidence_reference)),daily.findings.sort((a,b)=>a.evidence_reference.localeCompare(b.evidence_reference)),"Migrated resource must match legacy data exactly");
 assert.equal(review.results[0].has_more,false,"Narrow date or paginate equivalence check");
-const summary = { endpoint: expected, business_date: date, connectivity: "PASS", ungranted_raw_resource_access: "DENIED", migrated_review_equivalence: "PASS", tools: toolNames, findings_by_module_status: {}, high_exceptions: exceptions.findings.length, pending_verifications: pending.findings.length, coverage: daily.coverage, data_quality_limitations: daily.data_quality_limitations };
+const summary = { endpoint: expected, business_date: date, connectivity: "PASS", ungranted_raw_resource_access: "DENIED", new_module_and_mixed_query_access: "DENIED", authorized_resource_discovery: "PASS", migrated_review_equivalence: "PASS", tools: toolNames, findings_by_module_status: {}, high_exceptions: exceptions.findings.length, pending_verifications: pending.findings.length, coverage: daily.coverage, data_quality_limitations: daily.data_quality_limitations };
 for (const finding of daily.findings) { const key = `${finding.module}/${finding.status}`; summary.findings_by_module_status[key] = (summary.findings_by_module_status[key] || 0) + 1; }
 mkdirSync("qa-artifacts/mesti-machine", { recursive: true, mode: 0o700 });
 writeFileSync("qa-artifacts/mesti-machine/smoke-summary.json", JSON.stringify(summary, null, 2) + "\n", { mode: 0o600 });

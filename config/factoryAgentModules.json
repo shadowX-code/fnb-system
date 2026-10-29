@@ -6,7 +6,7 @@
     "route": "/factory/dashboard",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Monthly analytics only. Requires the contributing Production, Warehouse, Raw Material and master-data modules; no recent-activity feed.",
+    "explanation": "Canonical monthly analytics with explicit source-module requirements. Action recommendations and administrative filter options are excluded; analysis remains with the agent. No recent-activity feed is inferred.",
     "bindings": [
       {
         "resource": "dashboard",
@@ -24,7 +24,7 @@
     "route": "/factory/production/planning",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Planning dates, status and target quantities only. Stock readiness, par-level calculations and execution details are not included.",
+    "explanation": "Planning records and canonical current open-order quantities with invalid/missing-data diagnostics. Open quantities require Job Order and Finished Goods access. Stock-readiness recommendations and par-level calculations remain in the Planning UI.",
     "bindings": [
       {
         "resource": "planning",
@@ -32,6 +32,13 @@
         "fields": ["id", "label", "module", "business_date", "job_order_no", "target_pack_qty", "target_production_qty", "target_quantity", "uom", "planned_date", "due_date", "priority", "status", "finished_good_id"],
         "relationships": {"job_order_no": "factory_job_order_records", "finished_good_id": "factory_finished_goods", "production_sop_id": "factory_production_sop"},
         "requires_modules": []
+      },
+      {
+        "resource": "planning_open_orders",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "packaging_sku_id", "open_job_order_qty", "open_job_order_count", "counted_job_order_count", "invalid_job_order_count", "qualifying_job_order_count", "missing_packaging_sku_count", "invalid_quantity_count", "source"],
+        "relationships": {"packaging_sku_id": "factory_finished_goods"},
+        "requires_modules": ["factory_job_order_records", "factory_finished_goods"]
       }
     ]
   },
@@ -42,7 +49,7 @@
     "route": "/factory/production/overview",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Monthly production performance only. Requires its contributing modules; operational pipeline panels are not included.",
+    "explanation": "Monthly performance plus the canonical daily pipeline, saved lifecycle states and output totals. Pipeline requires Job Order and Production Records access; monthly performance requires its contributing modules. Requests never release or change Job Orders.",
     "bindings": [
       {
         "resource": "production_performance",
@@ -50,6 +57,13 @@
         "fields": ["id", "label", "module", "business_date", "month", "snapshot"],
         "relationships": {},
         "requires_modules": ["factory_finished_goods", "factory_job_order_records", "factory_product_recipes", "factory_production"]
+      },
+      {
+        "resource": "production_pipeline",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "job_order_no", "pipeline_bucket", "operational_date", "planned_date", "due_date", "production_date", "start_time", "operational_completion_at", "status", "target_pack_qty", "target_production_qty", "target_quantity", "produced_quantity", "uom", "finished_good_id", "scheduled", "released", "in_progress", "completed_today", "planned_today", "completion_rate", "output_by_uom"],
+        "relationships": {"finished_good_id": "factory_finished_goods"},
+        "requires_modules": ["factory_job_order_records", "factory_production"]
       }
     ]
   },
@@ -78,7 +92,7 @@
     "route": "/factory/production/records",
     "sidebar": false,
     "coverage": "partial",
-    "explanation": "Saved runs, execution steps, checklist QC and material quantities. Personnel, free-text QC, and detailed linked documents are excluded.",
+    "explanation": "Saved runs, execution steps, QC checklist results and remarks-presence flags, legacy QC checkpoints and material quantities. Personnel, remarks text and detailed linked documents are excluded.",
     "bindings": [
       {
         "resource": "production_records",
@@ -90,7 +104,7 @@
       {
         "resource": "qc_results",
         "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "job_order_id", "production_id", "production_step_execution_id", "sequence_no", "qc_type", "qc_name", "is_required", "checklist_result", "checked_at"],
+        "fields": ["id", "label", "module", "business_date", "job_order_id", "production_id", "production_step_execution_id", "sequence_no", "qc_type", "qc_name", "is_required", "checklist_result", "checked_at", "remarks_present"],
         "relationships": {"job_order_id": "factory_job_order_records", "production_id": "factory_production", "production_step_execution_id": "factory_production"},
         "requires_modules": []
       },
@@ -107,6 +121,13 @@
         "fields": ["id", "label", "module", "business_date", "production_id", "raw_material_id", "quantity_used", "standard_usage", "actual_usage", "variance_qty", "variance_percent", "uom", "wastage_quantity"],
         "relationships": {"raw_material_id": "factory_raw_inventory", "production_id": "factory_production"},
         "requires_modules": []
+      },
+      {
+        "resource": "production_qc_checkpoints",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "production_id", "production_sop_id", "sop_step_id", "step_no", "process_name", "control_point", "qc_status"],
+        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "sop_step_id": "factory_production_sop"},
+        "requires_modules": []
       }
     ]
   },
@@ -116,9 +137,37 @@
     "label": "Production Reports",
     "route": "/factory/production/reports",
     "sidebar": false,
-    "coverage": "unavailable",
-    "explanation": "The existing read resources do not cover this route’s costing, yield and material-usage reports. Production Overview performance is not an equivalent substitute.",
+    "coverage": "partial",
+    "explanation": "Saved production, material usage, product movements and receiving cost basis. Each dataset requires its owning module. UI-calculated costing, yield ratios and cost trends are not returned as authoritative report totals; missing costs and historical usage remain unresolved.",
     "bindings": [
+      {
+        "resource": "production_records",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "production_no", "batch_no", "job_order_id", "finished_good_id", "actual_pack_qty", "actual_output_qty", "produced_quantity", "actual_produced_qty", "good_output_qty", "wastage_qty", "uom", "production_date", "manufacturing_date", "end_date", "expiry_date", "start_time", "end_time", "qc_status", "production_sop_id", "sop_version", "status", "completed_at", "verification_status", "verified_at", "storage_location_id"],
+        "relationships": {"job_order_id": "factory_job_order_records", "finished_good_id": "factory_finished_goods", "production_sop_id": "factory_production_sop", "storage_location_id": "factory_storage_locations", "sop_version": "factory_production_sop"},
+        "requires_modules": ["factory_production"]
+      },
+      {
+        "resource": "material_usage",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "production_id", "raw_material_id", "quantity_used", "standard_usage", "actual_usage", "variance_qty", "variance_percent", "uom", "wastage_quantity"],
+        "relationships": {"raw_material_id": "factory_raw_inventory", "production_id": "factory_production"},
+        "requires_modules": ["factory_production"]
+      },
+      {
+        "resource": "product_movements",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "finished_good_id", "movement_type", "quantity", "uom", "movement_date", "finished_good_batch_balance_id", "internal_transfer_id"],
+        "relationships": {"finished_good_id": "factory_finished_goods", "finished_good_batch_balance_id": "factory_finished_goods", "internal_transfer_id": "factory_internal_transfer"},
+        "requires_modules": ["factory_product_movements"]
+      },
+      {
+        "resource": "receiving_costs",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "receipt_no", "batch_id", "raw_material_id", "received_qty", "uom", "unit_cost", "total_cost", "received_date"],
+        "relationships": {"batch_id": "factory_raw_receiving", "raw_material_id": "factory_raw_inventory"},
+        "requires_modules": ["factory_raw_receiving"]
+      }
     ]
   },
   {
@@ -210,12 +259,12 @@
     "route": "/factory/warehouse/finished-goods",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "SKU and batch balances. Production history, movements and other operational documents require their own modules.",
+    "explanation": "Saved SKU, packaging, price, category and batch balance records. Production history, movement documents and Location details require their owning modules; no reconstructed historical stock valuation.",
     "bindings": [
       {
         "resource": "finished_goods",
         "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "product_code", "product_name", "product_name_en", "product_family_id", "variant_name", "uom", "current_balance", "min_stock_level", "status", "pack_size_qty", "pack_size_uom", "base_qty", "base_uom", "packaging_type", "shelf_life_days", "storage_location_id"],
+        "fields": ["id", "label", "module", "business_date", "product_code", "product_name", "product_name_en", "product_family_id", "variant_name", "uom", "current_balance", "min_stock_level", "status", "pack_size_qty", "pack_size_uom", "base_qty", "base_uom", "packaging_type", "shelf_life_days", "storage_location_id", "category_id", "b2b_price"],
         "relationships": {"product_family_id": "factory_product_recipes", "storage_location_id": "factory_storage_locations"},
         "requires_modules": []
       },
@@ -224,6 +273,13 @@
         "row_scope": {},
         "fields": ["id", "label", "module", "business_date", "finished_good_id", "production_id", "source_type", "batch_no", "manufacturing_date", "expiry_date", "storage_location_id", "opening_qty", "current_balance", "origin_batch_balance_id"],
         "relationships": {"finished_good_id": "factory_finished_goods", "production_id": "factory_production", "storage_location_id": "factory_storage_locations", "origin_batch_balance_id": "factory_finished_goods"},
+        "requires_modules": []
+      },
+      {
+        "resource": "finished_good_categories",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "name", "status"],
+        "relationships": {},
         "requires_modules": []
       }
     ]
@@ -285,7 +341,7 @@
     "route": "/factory/warehouse/stock-check",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Stock-check documents and counts. Adjustment allocation evidence and free-text variance explanations are not included.",
+    "explanation": "Stock-check documents, counts, positive-adjustment confirmation and saved batch adjustment allocations. Batch and Location details require their own modules. Personal actors and free-text variance explanations are excluded.",
     "bindings": [
       {
         "resource": "product_stock_checks",
@@ -297,8 +353,15 @@
       {
         "resource": "product_stock_counts",
         "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "stock_check_id", "finished_good_id", "system_qty", "physical_qty", "variance_qty", "variance_percent", "count_status", "variance_status", "uom"],
-        "relationships": {"finished_good_id": "factory_finished_goods", "stock_check_id": "factory_product_stock_check"},
+        "fields": ["id", "label", "module", "business_date", "stock_check_id", "finished_good_id", "system_qty", "physical_qty", "variance_qty", "variance_percent", "count_status", "variance_status", "uom", "positive_adjustment_confirmed", "adjustment_storage_location_id", "positive_adjustment_batch_balance_id"],
+        "relationships": {"finished_good_id": "factory_finished_goods", "stock_check_id": "factory_product_stock_check", "adjustment_storage_location_id": "factory_storage_locations", "positive_adjustment_batch_balance_id": "factory_finished_goods"},
+        "requires_modules": []
+      },
+      {
+        "resource": "product_stock_adjustments",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "stock_check_item_id", "batch_balance_id", "quantity", "created_at"],
+        "relationships": {"stock_check_item_id": "factory_product_stock_check", "batch_balance_id": "factory_finished_goods"},
         "requires_modules": []
       }
     ]
@@ -335,7 +398,7 @@
     "route": "/factory/raw-materials/receiving",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Receiving documents, items, quantities and dates. Costs, invoice details and control-method evidence are not part of this read scope.",
+    "explanation": "Receiving documents, items, quantities, lifecycle states and saved unit/total cost basis. Related records and MeSTI acceptance/control evidence require their own modules. Invoice files, personal contacts and free text are excluded.",
     "bindings": [
       {
         "resource": "receipts",
@@ -350,6 +413,13 @@
         "fields": ["id", "label", "module", "business_date", "batch_id", "receipt_no", "raw_material_id", "supplier_id", "received_qty", "uom", "received_date", "manufacturing_date", "expiry_date", "expiry_source", "expiry_confirmed", "storage_location_id", "supplier_lot_no", "internal_batch_no"],
         "relationships": {"raw_material_id": "factory_raw_inventory", "supplier_id": "factory_suppliers", "storage_location_id": "factory_storage_locations", "batch_id": "factory_raw_receiving"},
         "requires_modules": []
+      },
+      {
+        "resource": "receiving_costs",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "receipt_no", "batch_id", "raw_material_id", "received_qty", "uom", "unit_cost", "total_cost", "received_date"],
+        "relationships": {"batch_id": "factory_raw_receiving", "raw_material_id": "factory_raw_inventory"},
+        "requires_modules": []
       }
     ]
   },
@@ -360,12 +430,12 @@
     "route": "/factory/raw-materials/inventory",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Material and batch records. Cost valuation, full conversion and category setup are not included.",
+    "explanation": "Material and batch records, categories, declared UOM conversion and saved manual cost basis. Related receiving and Location records require separate access. No reconstructed historical valuation or invented conversions.",
     "bindings": [
       {
         "resource": "raw_materials",
         "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "material_code", "name", "name_en", "uom", "current_balance", "min_stock_level", "status", "expiry_tracking_mode", "shelf_life_days", "par_level", "storage_location_id", "conversion_package_quantity", "conversion_base_uom"],
+        "fields": ["id", "label", "module", "business_date", "material_code", "name", "name_en", "uom", "current_balance", "min_stock_level", "status", "expiry_tracking_mode", "shelf_life_days", "par_level", "storage_location_id", "conversion_package_quantity", "conversion_base_uom", "category_id", "manual_unit_cost", "manual_cost_uom"],
         "relationships": {"storage_location_id": "factory_storage_locations"},
         "requires_modules": []
       },
@@ -374,6 +444,13 @@
         "row_scope": {},
         "fields": ["id", "label", "module", "business_date", "receiving_item_id", "raw_material_id", "source_type", "internal_batch_no", "supplier_lot_no", "received_date", "manufacturing_date", "expiry_date", "storage_location_id", "uom", "opening_qty", "current_balance", "status", "origin_batch_balance_id"],
         "relationships": {"receiving_item_id": "factory_raw_receiving", "raw_material_id": "factory_raw_inventory", "storage_location_id": "factory_storage_locations", "origin_batch_balance_id": "factory_raw_inventory"},
+        "requires_modules": []
+      },
+      {
+        "resource": "raw_material_categories",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "name", "status"],
+        "relationships": {},
         "requires_modules": []
       }
     ]
@@ -403,7 +480,7 @@
     "route": "/factory/raw-materials/stock-check",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Stock-check documents and counts. Batch adjustment allocation evidence and free-text reasons are not included.",
+    "explanation": "Stock-check documents, counts and saved batch adjustment allocations. Batch details require Raw Material Inventory access. Personal actors and free-text reasons are excluded.",
     "bindings": [
       {
         "resource": "raw_stock_checks",
@@ -417,6 +494,13 @@
         "row_scope": {},
         "fields": ["id", "label", "module", "business_date", "stock_check_id", "raw_material_id", "system_qty", "physical_qty", "variance_qty", "variance_percent", "count_status", "variance_status", "uom"],
         "relationships": {"raw_material_id": "factory_raw_inventory", "stock_check_id": "factory_raw_stock_check"},
+        "requires_modules": []
+      },
+      {
+        "resource": "raw_stock_allocations",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "stock_check_item_id", "raw_material_batch_balance_id", "allocated_qty", "created_at"],
+        "relationships": {"stock_check_item_id": "factory_raw_stock_check", "raw_material_batch_balance_id": "factory_raw_inventory"},
         "requires_modules": []
       }
     ]
@@ -566,27 +650,34 @@
     "route": "/factory/mesti/finished-product-storage-control",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Completed-production storage provenance and dates only. No temperature or storage-condition telemetry; Production and Locations links require separate access.",
+    "explanation": "Canonical completed-production storage quantities, packaging UOM, completion date/time, batch provenance and expiry. Production, product and Location identities require their own modules. No temperature telemetry or reconstructed historical storage conditions.",
     "bindings": [
       {
         "resource": "occurrences",
         "row_scope": {"module": "finished_product_storage_control"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
-        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "subject_id": "factory_storage_locations", "subject_ids": "factory_storage_locations", "sop_version": "factory_production_sop"},
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "completion_date", "completion_time", "start_date", "start_time", "operational_completion_at", "completed_qty", "completed_uom", "actual_output_qty", "good_output_qty", "uom", "qc_status", "qc_required_count", "qc_evidence_count", "qc_requirement_status", "qc_summary", "verification_status", "job_order_id", "job_order_no", "production_no", "finished_good_id", "packaging_sku_id", "packaging_sku_code", "packaging_sku_name", "storage_location_id", "storage_location_name"],
+        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "subject_id": "factory_storage_locations", "subject_ids": "factory_storage_locations", "sop_version": "factory_production_sop", "job_order_id": "factory_job_order_records", "job_order_no": "factory_job_order_records", "production_no": "factory_production", "finished_good_id": "factory_product_recipes", "packaging_sku_id": "factory_finished_goods", "packaging_sku_code": "factory_finished_goods", "packaging_sku_name": "factory_finished_goods", "storage_location_id": "factory_storage_locations", "storage_location_name": "factory_storage_locations"},
         "requires_modules": []
       },
       {
         "resource": "statuses",
         "row_scope": {"module": "finished_product_storage_control"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
-        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "subject_id": "factory_storage_locations", "subject_ids": "factory_storage_locations", "sop_version": "factory_production_sop"},
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "completion_date", "completion_time", "start_date", "start_time", "operational_completion_at", "completed_qty", "completed_uom", "actual_output_qty", "good_output_qty", "uom", "qc_status", "qc_required_count", "qc_evidence_count", "qc_requirement_status", "qc_summary", "verification_status", "job_order_id", "job_order_no", "production_no", "finished_good_id", "packaging_sku_id", "packaging_sku_code", "packaging_sku_name", "storage_location_id", "storage_location_name"],
+        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "subject_id": "factory_storage_locations", "subject_ids": "factory_storage_locations", "sop_version": "factory_production_sop", "job_order_id": "factory_job_order_records", "job_order_no": "factory_job_order_records", "production_no": "factory_production", "finished_good_id": "factory_product_recipes", "packaging_sku_id": "factory_finished_goods", "packaging_sku_code": "factory_finished_goods", "packaging_sku_name": "factory_finished_goods", "storage_location_id": "factory_storage_locations", "storage_location_name": "factory_storage_locations"},
         "requires_modules": []
       },
       {
         "resource": "evidence",
         "row_scope": {"module": "finished_product_storage_control"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
-        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "subject_id": "factory_storage_locations", "subject_ids": "factory_storage_locations", "sop_version": "factory_production_sop"},
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "completion_date", "completion_time", "start_date", "start_time", "operational_completion_at", "completed_qty", "completed_uom", "actual_output_qty", "good_output_qty", "uom", "qc_status", "qc_required_count", "qc_evidence_count", "qc_requirement_status", "qc_summary", "verification_status", "job_order_id", "job_order_no", "production_no", "finished_good_id", "packaging_sku_id", "packaging_sku_code", "packaging_sku_name", "storage_location_id", "storage_location_name"],
+        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_finished_goods", "subject_id": "factory_storage_locations", "subject_ids": "factory_storage_locations", "sop_version": "factory_production_sop", "job_order_id": "factory_job_order_records", "job_order_no": "factory_job_order_records", "production_no": "factory_production", "finished_good_id": "factory_product_recipes", "packaging_sku_id": "factory_finished_goods", "packaging_sku_code": "factory_finished_goods", "packaging_sku_name": "factory_finished_goods", "storage_location_id": "factory_storage_locations", "storage_location_name": "factory_storage_locations"},
+        "requires_modules": []
+      },
+      {
+        "resource": "schedules",
+        "row_scope": {"module": "finished_product_storage_control"},
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "completion_date", "completion_time", "start_date", "start_time", "operational_completion_at", "completed_qty", "completed_uom", "actual_output_qty", "good_output_qty", "uom", "qc_status", "qc_required_count", "qc_evidence_count", "qc_requirement_status", "qc_summary", "verification_status", "job_order_id", "job_order_no", "production_no", "finished_good_id", "packaging_sku_id", "packaging_sku_code", "packaging_sku_name", "storage_location_id", "storage_location_name"],
+        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "subject_id": "factory_storage_locations", "subject_ids": "factory_storage_locations", "sop_version": "factory_production_sop", "job_order_id": "factory_job_order_records", "job_order_no": "factory_job_order_records", "production_no": "factory_production", "finished_good_id": "factory_product_recipes", "packaging_sku_id": "factory_finished_goods", "packaging_sku_code": "factory_finished_goods", "packaging_sku_name": "factory_finished_goods", "storage_location_id": "factory_storage_locations", "storage_location_name": "factory_storage_locations"},
         "requires_modules": []
       }
     ]
@@ -733,27 +824,34 @@
     "route": "/factory/mesti/food-processing-control",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Completed-production lifecycle and redacted QC proof only. Staff, free-text results, procedure setup and detailed Production records are excluded.",
+    "explanation": "Canonical completed-production lifecycle, output quantities, QC requirement/evidence counts, No QC Required versus Evidence unavailable, and redacted saved QC proof. Staff and free-text results are excluded; historical SOP edits are not reconstructed.",
     "bindings": [
       {
         "resource": "occurrences",
         "row_scope": {"module": "food_processing_control"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
-        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "requirement_id": "factory_production_sop", "sop_version": "factory_production_sop"},
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "completion_date", "completion_time", "start_date", "start_time", "operational_completion_at", "completed_qty", "completed_uom", "actual_output_qty", "good_output_qty", "uom", "qc_status", "qc_required_count", "qc_evidence_count", "qc_requirement_status", "qc_summary", "verification_status", "job_order_id", "job_order_no", "production_no", "finished_good_id", "packaging_sku_id", "packaging_sku_code", "packaging_sku_name", "storage_location_id", "storage_location_name"],
+        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "requirement_id": "factory_production_sop", "sop_version": "factory_production_sop", "job_order_id": "factory_job_order_records", "job_order_no": "factory_job_order_records", "production_no": "factory_production", "finished_good_id": "factory_product_recipes", "packaging_sku_id": "factory_finished_goods", "packaging_sku_code": "factory_finished_goods", "packaging_sku_name": "factory_finished_goods", "storage_location_id": "factory_storage_locations", "storage_location_name": "factory_storage_locations"},
         "requires_modules": []
       },
       {
         "resource": "statuses",
         "row_scope": {"module": "food_processing_control"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
-        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "requirement_id": "factory_production_sop", "sop_version": "factory_production_sop"},
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "completion_date", "completion_time", "start_date", "start_time", "operational_completion_at", "completed_qty", "completed_uom", "actual_output_qty", "good_output_qty", "uom", "qc_status", "qc_required_count", "qc_evidence_count", "qc_requirement_status", "qc_summary", "verification_status", "job_order_id", "job_order_no", "production_no", "finished_good_id", "packaging_sku_id", "packaging_sku_code", "packaging_sku_name", "storage_location_id", "storage_location_name"],
+        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "requirement_id": "factory_production_sop", "sop_version": "factory_production_sop", "job_order_id": "factory_job_order_records", "job_order_no": "factory_job_order_records", "production_no": "factory_production", "finished_good_id": "factory_product_recipes", "packaging_sku_id": "factory_finished_goods", "packaging_sku_code": "factory_finished_goods", "packaging_sku_name": "factory_finished_goods", "storage_location_id": "factory_storage_locations", "storage_location_name": "factory_storage_locations"},
         "requires_modules": []
       },
       {
         "resource": "evidence",
         "row_scope": {"module": "food_processing_control"},
-        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count"],
-        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "requirement_id": "factory_production_sop", "sop_version": "factory_production_sop"},
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "completion_date", "completion_time", "start_date", "start_time", "operational_completion_at", "completed_qty", "completed_uom", "actual_output_qty", "good_output_qty", "uom", "qc_status", "qc_required_count", "qc_evidence_count", "qc_requirement_status", "qc_summary", "verification_status", "job_order_id", "job_order_no", "production_no", "finished_good_id", "packaging_sku_id", "packaging_sku_code", "packaging_sku_name", "storage_location_id", "storage_location_name"],
+        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "requirement_id": "factory_production_sop", "sop_version": "factory_production_sop", "job_order_id": "factory_job_order_records", "job_order_no": "factory_job_order_records", "production_no": "factory_production", "finished_good_id": "factory_product_recipes", "packaging_sku_id": "factory_finished_goods", "packaging_sku_code": "factory_finished_goods", "packaging_sku_name": "factory_finished_goods", "storage_location_id": "factory_storage_locations", "storage_location_name": "factory_storage_locations"},
+        "requires_modules": []
+      },
+      {
+        "resource": "schedules",
+        "row_scope": {"module": "food_processing_control"},
+        "fields": ["id", "label", "module", "business_date", "record_id", "record_status", "state_source", "verified_at", "requirement_id", "logical_requirement_id", "subject_id", "subject_ids", "completed_at", "verification_state", "source_type", "scheduled_due_date", "submitted_at", "record_count", "version", "effective_from", "effective_until", "recurrence", "weekdays", "interval_months", "required_count", "result", "recorded_at", "clothing_satisfactory", "hygiene_satisfactory", "satisfactory_count", "unsatisfactory_count", "entry_count", "inspected_count", "disposed_at", "parent_id", "qc_type", "is_required", "checklist_result", "remarks_present", "checked_at", "batch_no", "manufacturing_date", "expiry_date", "due_on", "schedule_basis", "production_id", "production_sop_id", "sop_version", "sop_resolved", "entry_kind", "data_availability", "limitation", "completion_result", "non_compliant_count", "completed_count", "completion_date", "completion_time", "start_date", "start_time", "operational_completion_at", "completed_qty", "completed_uom", "actual_output_qty", "good_output_qty", "uom", "qc_status", "qc_required_count", "qc_evidence_count", "qc_requirement_status", "qc_summary", "verification_status", "job_order_id", "job_order_no", "production_no", "finished_good_id", "packaging_sku_id", "packaging_sku_code", "packaging_sku_name", "storage_location_id", "storage_location_name"],
+        "relationships": {"production_id": "factory_production", "production_sop_id": "factory_production_sop", "record_id": "factory_production", "requirement_id": "factory_production_sop", "sop_version": "factory_production_sop", "job_order_id": "factory_job_order_records", "job_order_no": "factory_job_order_records", "production_no": "factory_production", "finished_good_id": "factory_product_recipes", "packaging_sku_id": "factory_finished_goods", "packaging_sku_code": "factory_finished_goods", "packaging_sku_name": "factory_finished_goods", "storage_location_id": "factory_storage_locations", "storage_location_name": "factory_storage_locations"},
         "requires_modules": []
       }
     ]
@@ -765,7 +863,7 @@
     "route": "/factory/master-data/product-recipes",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Recipe versions, ingredient quantities and product families only. Material details require Raw Material Inventory; tags and categories are not included.",
+    "explanation": "Recipe versions, ingredient quantities, product families and family tags. Material details and costs require Raw Material Inventory access. Personal actors, free-text remarks and historical edits are excluded.",
     "bindings": [
       {
         "resource": "recipes",
@@ -787,6 +885,13 @@
         "fields": ["id", "label", "module", "business_date", "name_en", "status", "is_halal"],
         "relationships": {},
         "requires_modules": []
+      },
+      {
+        "resource": "product_tags",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "product_family_id", "tag_id", "name", "status"],
+        "relationships": {"product_family_id": "factory_product_recipes"},
+        "requires_modules": []
       }
     ]
   },
@@ -797,7 +902,7 @@
     "route": "/factory/master-data/production-sops",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Procedure versions and main steps only. Substeps, equipment bindings and full QC setup are not covered by the existing resources.",
+    "explanation": "Procedure versions, main steps, substeps, QC definitions and equipment bindings. Equipment and Recipe details require their own modules. Free-text remarks and unpublished historical edits are excluded.",
     "bindings": [
       {
         "resource": "production_sops",
@@ -812,6 +917,34 @@
         "fields": ["id", "label", "module", "business_date", "sop_id", "step_no", "instruction", "expected_duration_minutes", "process_name", "description", "control_point", "estimated_time_minutes", "is_qc_checkpoint", "qc_label", "qc_measurement_type", "qc_target_value", "qc_minimum", "qc_maximum", "qc_uom", "qc_required_before_completion"],
         "relationships": {"sop_id": "factory_production_sop"},
         "requires_modules": []
+      },
+      {
+        "resource": "sop_substeps",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "sop_step_id", "sequence_no", "instruction", "estimated_minutes"],
+        "relationships": {"sop_step_id": "factory_production_sop"},
+        "requires_modules": []
+      },
+      {
+        "resource": "sop_qc_checks",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "sop_step_id", "sequence_no", "qc_type", "qc_name", "instructions", "is_required", "checklist_template_id", "qc_template_name", "qc_result_mode"],
+        "relationships": {"sop_step_id": "factory_production_sop"},
+        "requires_modules": []
+      },
+      {
+        "resource": "sop_equipment",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "sop_id", "equipment_id"],
+        "relationships": {"sop_id": "factory_production_sop", "equipment_id": "factory_equipment"},
+        "requires_modules": []
+      },
+      {
+        "resource": "sop_material_bindings",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "sop_step_id", "raw_material_id"],
+        "relationships": {"sop_step_id": "factory_production_sop", "raw_material_id": "factory_raw_inventory"},
+        "requires_modules": []
       }
     ]
   },
@@ -822,13 +955,20 @@
     "route": "/factory/master-data/equipment",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Equipment master records only. Usage history, categories and bindings are not included; Locations require separate access.",
+    "explanation": "Equipment masters, categories and saved state. Locations and SOP bindings require their owning modules. No equipment-usage ledger or historical assignment reconstruction is invented.",
     "bindings": [
       {
         "resource": "equipment",
         "row_scope": {},
-        "fields": ["id", "label", "module", "business_date", "equipment_code", "name", "current_location_id", "status"],
+        "fields": ["id", "label", "module", "business_date", "equipment_code", "name", "current_location_id", "status", "category_id"],
         "relationships": {"current_location_id": "factory_storage_locations"},
+        "requires_modules": []
+      },
+      {
+        "resource": "equipment_categories",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "name", "category_code", "status", "sort_order"],
+        "relationships": {},
         "requires_modules": []
       }
     ]
@@ -876,13 +1016,20 @@
     "route": "/factory/master-data/suppliers",
     "sidebar": true,
     "coverage": "partial",
-    "explanation": "Supplier identifiers, names and state only. Contacts and supplier-material eligibility links are not included.",
+    "explanation": "Supplier identifiers, names, state and saved material-eligibility links. Material details require Raw Material Inventory access. Personal contacts, free text and historical eligibility reconstruction are excluded.",
     "bindings": [
       {
         "resource": "suppliers",
         "row_scope": {},
         "fields": ["id", "label", "module", "business_date", "supplier_code", "supplier_name", "status"],
         "relationships": {},
+        "requires_modules": []
+      },
+      {
+        "resource": "supplier_material_links",
+        "row_scope": {},
+        "fields": ["id", "label", "module", "business_date", "supplier_id", "raw_material_id"],
+        "relationships": {"supplier_id": "factory_suppliers", "raw_material_id": "factory_raw_inventory"},
         "requires_modules": []
       }
     ]

@@ -3,10 +3,12 @@
     "dashboard"
   ],
   "factory_production_planning": [
-    "planning"
+    "planning",
+    "planning_open_orders"
   ],
   "factory_job_orders": [
-    "production_performance"
+    "production_performance",
+    "production_pipeline"
   ],
   "factory_job_order_records": [
     "job_orders"
@@ -15,9 +17,15 @@
     "production_records",
     "qc_results",
     "execution_steps",
-    "material_usage"
+    "material_usage",
+    "production_qc_checkpoints"
   ],
-  "factory_production_reports": [],
+  "factory_production_reports": [
+    "production_records",
+    "material_usage",
+    "product_movements",
+    "receiving_costs"
+  ],
   "factory_batch_traceability": [
     "traceability",
     "material_allocations"
@@ -33,7 +41,8 @@
   ],
   "factory_finished_goods": [
     "finished_goods",
-    "finished_batches"
+    "finished_batches",
+    "finished_good_categories"
   ],
   "factory_finished_goods_dispatch": [
     "dispatches",
@@ -45,7 +54,8 @@
   ],
   "factory_product_stock_check": [
     "product_stock_checks",
-    "product_stock_counts"
+    "product_stock_counts",
+    "product_stock_adjustments"
   ],
   "factory_internal_transfer": [
     "internal_transfers",
@@ -53,18 +63,21 @@
   ],
   "factory_raw_receiving": [
     "receipts",
-    "receiving_items"
+    "receiving_items",
+    "receiving_costs"
   ],
   "factory_raw_inventory": [
     "raw_materials",
-    "raw_batches"
+    "raw_batches",
+    "raw_material_categories"
   ],
   "factory_raw_movements": [
     "raw_movements"
   ],
   "factory_raw_stock_check": [
     "raw_stock_checks",
-    "raw_stock_counts"
+    "raw_stock_counts",
+    "raw_stock_allocations"
   ],
   "factory_mesti_cleaning": [
     "requirements",
@@ -90,7 +103,8 @@
   "factory_mesti_finished_product_storage_control": [
     "occurrences",
     "statuses",
-    "evidence"
+    "evidence",
+    "schedules"
   ],
   "factory_mesti_health_declaration": [
     "occurrences",
@@ -116,19 +130,26 @@
   "factory_mesti_food_processing_control": [
     "occurrences",
     "statuses",
-    "evidence"
+    "evidence",
+    "schedules"
   ],
   "factory_product_recipes": [
     "recipes",
     "recipe_ingredients",
-    "product_families"
+    "product_families",
+    "product_tags"
   ],
   "factory_production_sop": [
     "production_sops",
-    "sop_steps"
+    "sop_steps",
+    "sop_substeps",
+    "sop_qc_checks",
+    "sop_equipment",
+    "sop_material_bindings"
   ],
   "factory_equipment": [
-    "equipment"
+    "equipment",
+    "equipment_categories"
   ],
   "factory_audit_logs": [
     "audit_trail"
@@ -137,7 +158,8 @@
     "locations"
   ],
   "factory_suppliers": [
-    "suppliers"
+    "suppliers",
+    "supplier_material_links"
   ],
   "factory_customers": [
     "customers"

@@ -15,7 +15,6 @@ begin
  execute 'set local role authenticated';
  res:=public.external_agents_register(gen_random_uuid(),'All navigation QA '||gen_random_uuid(),'Rollback QA','factory_mesti',all_caps);all_id:=(res->>'identity_id')::uuid;all_token:=res->>'one_time_credential';
  res:=public.external_agents_register(gen_random_uuid(),'Isolated navigation QA '||gen_random_uuid(),'Rollback QA','factory_mesti',array['nav_factory_mesti_cleaning_view']);limited_id:=(res->>'identity_id')::uuid;limited_token:=res->>'one_time_credential';previous_cap:='nav_factory_mesti_cleaning_view';
- begin perform public.external_agents_register(gen_random_uuid(),'Unavailable QA','Rollback QA','factory_mesti',array['nav_factory_production_reports_view']);raise exception 'Unavailable route accepted';exception when invalid_parameter_value then null;end;
  begin perform public.external_agents_register(gen_random_uuid(),'Raw grant QA','Rollback QA','factory_mesti',array['factory_mesti_review_view']);raise exception 'New raw grant accepted';exception when invalid_parameter_value then null;end;
  execute 'set local role postgres';
  update feedx_integrations.machine_credentials set created_at=statement_timestamp() where identity_id in (all_id,limited_id);
@@ -69,7 +68,7 @@ begin
    perform pg_temp.reject_nav(limited_token,jsonb_build_array(jsonb_build_object('business_module',other.id,'resource',coalesce(other.resource,'production_performance'),'action','list','date_range',range)),'42501');
    execute 'set local role postgres';counter:=counter+1;
   end loop;
-  if rec.id in ('factory_dashboard','factory_job_orders','factory_batch_traceability') then
+  if rec.id in ('factory_dashboard','factory_job_orders','factory_batch_traceability','factory_production_reports') then
    execute 'set local role anon';perform pg_temp.reject_nav(limited_token,jsonb_build_array(jsonb_build_object('business_module',rec.id,'resource',case when rec.id='factory_batch_traceability' then 'traceability' else rec.resource end,'action','list','date_range',range)),'42501');execute 'set local role postgres';
   elsif rec.id='factory_audit_logs' then
    execute 'set local role anon';data:=public.factory_agent_resource_query(limited_token,jsonb_build_array(jsonb_build_object('business_module',rec.id,'resource',rec.resource,'action','list','date_range',range)));execute 'set local role postgres';
@@ -90,7 +89,6 @@ begin
  select to_jsonb(ro) into v_role from public.roles ro where ro.id=v_role_id;
  execute 'set local role authenticated';
  begin perform public.save_role_configuration(gen_random_uuid(),v_role,array['factory_mesti_inspection.view','factory_agent_mesti_review.view'],'{}');raise exception 'Role Settings bypassed navigation grants';exception when insufficient_privilege then null;end;
- begin perform public.save_role_configuration(gen_random_uuid(),v_role,array['factory_mesti_inspection.view','factory_agent_nav_factory_production_reports.view'],'{}');raise exception 'Role Settings granted unavailable route';exception when insufficient_privilege then null;end;
  begin perform public.external_agents_set_capability(limited_id,'factory_mesti_review_view',true,false);raise exception 'Gateway granted raw resource';exception when invalid_parameter_value then null;end;
  execute 'set local role authenticated';
  res:=public.save_role_configuration(gen_random_uuid(),v_role,array['factory_mesti_inspection.view','factory_agent_nav_factory_mesti_cleaning.view'],'{}');

@@ -1141,3 +1141,10 @@ Unified implemented Factory records behind canonical View Records resource grant
 ## 2026-10-29 — Navigation-aligned External Agent access
 
 Aligned Factory agent permissions with all 34 routes and exact sidebar sections. Reused the existing 50 reads through forced module scopes, field/reference policies and explicit summary dependencies. Added canonical Role Settings legacy-grant protection, honest Available/Partial/Unavailable coverage and one shared Connect/Manage selector. Existing QA Executive identity, credentials and narrower review scope remain unchanged rather than being promoted to broader module grants.
+
+## 2026-10-29 — Factory Gateway read-coverage completion
+
+- Reviewed all 34 navigation modules and expanded saved read evidence to 65 resources/97 module bindings, prioritizing MeSTI production projections, Production pipeline/QC and Warehouse stock-check/receiving evidence.
+- Reused canonical read cores without calling Job Order release or other business mutations; preserved human read contracts and machine credentials/grants.
+- Production Reports moves from Unavailable to Partial source-record access. Privacy, source-grant, historical and missing-data limits remain explicit. Discovery now describes executable operations, missing source grants and safe fields.
+- Retained the minimal five-tool MeSTI compatibility adapter pending an authenticated resource invocation from the actual Grok QA Executive Bot; API/probe success is not provider confirmation.
