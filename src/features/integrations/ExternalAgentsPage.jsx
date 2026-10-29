@@ -36,9 +36,10 @@ export default function ExternalAgentsPage({ auth }) {
   const [testCredential, setTestCredential] = useState(""), [testResult, setTestResult] = useState(null);
   const selectedRef = useRef(null), generation = useRef(0), alive = useRef(true);
   const canView = hasPermission(auth, "roles.view"), canEdit = hasPermission(auth, "roles.edit"), canCreate = hasPermission(auth, "roles.create");
+  const adminId = auth?.user?.id || auth?.profile?.id || null;
   const authority = useRef(null);
-  authority.current = canEdit && canView ? auth?.user?.id || auth?.profile?.id || "current-admin" : null;
-  useEffect(() => { if (!canView || !canEdit) { clearIssued(); setTestCredential(""); setConfirmation(null); setConnection(null); } }, [canView, canEdit]);
+  authority.current = canEdit && canView ? adminId || "current-admin" : null;
+  useEffect(() => { clearIssued(); setTestCredential(""); setConfirmation(null); setConnection(null); }, [canView, canEdit, adminId]);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   async function load() {
     setLoading(true); setError("");

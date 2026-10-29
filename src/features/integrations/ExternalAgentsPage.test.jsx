@@ -74,3 +74,11 @@ it("registers a selected implemented capability and shows the new key once",asyn
  fireEvent.click(screen.getByRole("checkbox",{name:"Allow Review daily compliance"}));fireEvent.submit(document.getElementById("connect-agent"));
  await screen.findByRole("heading",{name:"Save the access key"});expect(externalAgentService.register).toHaveBeenCalledWith(expect.any(String),"New QA Agent","Provider","factory_mesti",["read_tool_0"]);expect(screen.getByLabelText("New access key").type).toBe("password");
 });
+
+it("clears an issued key when the signed-in administrator changes even with the same permissions",async()=>{
+ const view=render(<ExternalAgentsPage auth={{...auth(),user:{id:"first-admin"}}} />);await open();
+ fireEvent.click(screen.getByRole("button",{name:"Replace access key"}));fireEvent.click(within(screen.getByRole("dialog",{name:"Replace access key?"})).getByRole("button",{name:"Replace access key"}));
+ await screen.findByRole("heading",{name:"Save the access key"});
+ view.rerender(<ExternalAgentsPage auth={{...auth(),user:{id:"next-admin"}}} />);
+ await waitFor(()=>expect(screen.queryByDisplayValue("TEST_ONE_TIME_SECRET")).toBeNull());
+});
