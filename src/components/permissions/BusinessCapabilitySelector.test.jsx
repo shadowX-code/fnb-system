@@ -1,0 +1,21 @@
+import {afterEach,it,expect,vi} from 'vitest';
+import {render,screen,fireEvent,cleanup,waitFor} from '@testing-library/react';
+import BusinessCapabilitySelector from './BusinessCapabilitySelector.jsx';
+import {externalAgentService} from '../../services/externalAgentService.js';
+vi.mock('../../services/externalAgentService.js',()=>({externalAgentService:{review:vi.fn(),confirmAccess:vi.fn()}}));
+afterEach(()=>{cleanup();vi.resetAllMocks();});
+const cap={name:'clean',label:'Cleaning',workspace:'Factory',domain:'MeSTI',granted:true,implemented:true,can_assign:true,scope:[{label:'Requirements',resource:'requirements'}]};
+it('stages changes and requires a server review and explicit confirmation',async()=>{
+ externalAgentService.review.mockResolvedValue({changes:[{...cap,granted:false}],remaining_access:[{...cap,name:'review',label:'MeSTI Review'}],dependencies:[],review_hash:'hash',note:'No automatic grants'});
+ externalAgentService.confirmAccess.mockResolvedValue({updated:true});
+ render(<BusinessCapabilitySelector capabilities={[cap]} identityId="qa" canManage/>);
+ fireEvent.click(screen.getByRole('checkbox',{name:'View Records: Cleaning'}));expect(externalAgentService.confirmAccess).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Review Changes'}));await screen.findByRole('heading',{name:'Review Changes'});expect(externalAgentService.review).toHaveBeenCalledWith('qa',[]);expect(screen.getByText(/Removing Cleaning: MeSTI Review/)).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Confirm changes'}));await waitFor(()=>expect(externalAgentService.confirmAccess).toHaveBeenCalledWith('qa',[],'hash'));
+});
+it('uses the same review path for registration and prevents unavailable independent scopes',async()=>{
+ const confirm=vi.fn();externalAgentService.review.mockResolvedValue({changes:[{...cap,granted:true}],remaining_access:[cap],dependencies:[],review_hash:'registration',note:''});
+ render(<BusinessCapabilitySelector capabilities={[{...cap,granted:false}]} canManage registration onConfirmRegistration={confirm}/>);
+ fireEvent.click(screen.getByRole('checkbox',{name:'View Records: Cleaning'}));expect(confirm).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Review Changes'}));await screen.findByRole('heading',{name:'Review Changes'});fireEvent.click(screen.getByRole('button',{name:'Confirm and connect'}));await waitFor(()=>expect(confirm).toHaveBeenCalledWith(['clean'],'registration'));
+ expect(screen.queryByRole('tab',{name:'By Module'})).toBeNull();
+});

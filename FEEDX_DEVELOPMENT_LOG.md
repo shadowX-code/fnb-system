@@ -1173,3 +1173,7 @@ Unified server-derived effective access, visible/revocable additional grants, co
 ### 2026-10-30 — Resource-first access and dependency resolver
 
 Primary Business Data Scope → Resource → View Records management derives from the existing 97 policies and canonical grants. By Module remains a secondary projection. Server-side resolver distinguishes required source permissions, optional relationship permissions and unsupported actions. Explicit review identifies grant-bundle impact and uses existing atomic management/audit authority; no dependency is implicitly granted. Existing resource/review grants, credentials and MCP contracts remain unchanged. Exhaustive dependency mapping and authorization checks pass on Staging.
+
+### 2026-10-30 — Single staged business-capability selector
+
+Consolidated parallel access editors and migrated-grant removal into one grant-backed selector. Registration and management share Select → server Review Changes → Confirm, with full bundle/overlap/dependency/remaining-access disclosure and stale-policy rejection. Existing authority, identities, credentials, grants and MCP contracts are preserved.

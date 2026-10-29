@@ -7,6 +7,9 @@ async function rpc(name, args) {
   return data;
 }
 export const externalAgentService = {
+  review: (id, desired) => rpc("external_agents_review_access",{p_identity_id:id,p_desired:desired}),
+  confirmAccess: (id, desired, hash) => rpc("external_agents_confirm_access",{p_identity_id:id,p_desired:desired,p_review_hash:hash}),
+  registerReviewed: (request,name,provider,adapter,tools,validity,hash) => rpc("external_agents_register_reviewed",{p_request_id:request,p_name:name,p_provider:provider,p_adapter_key:adapter,p_tool_ids:tools,p_validity_days:validity,p_review_hash:hash}),
   resolve: (id, moduleId, resource, action = "view") => rpc("external_agents_resolve_access", {p_identity_id:id,p_module_id:moduleId,p_resource:resource,p_action:action}),
   list: () => rpc("external_agents_admin_data", { p_identity_id: null }),
   details: (id) => rpc("external_agents_admin_data", { p_identity_id: id }),
