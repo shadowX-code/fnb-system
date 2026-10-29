@@ -51,6 +51,8 @@ Cleaning Occurrences are generated/materialized by trusted database authorities 
 
 Area and Equipment Cleaning share one fixed server-owned Cleaning Method catalog: Cleaning, Sanitization and Clean-in-Place. New requirements select exactly one method. Trusted saves derive the supplied materials, ordered reference steps and Visual Inspection reference from that catalog, never from client-authored procedure text. Method changes follow the existing requirement version/effective-date authority; an effective or evidenced method cannot be changed directly in place. Each requirement version and newly issued occurrence freezes its method reference. Daily/Monthly evidence reads that original snapshot, never the latest requirement. Existing requirements and snapshots are not backfilled: absent methods remain Not Specified, including After Production evidence without an explicit method source. An unchanged legacy save remains a no-op; an explicitly selected method cannot be cleared. These are reference procedures, not validated chemical-use parameters: no concentrations, contact times or temperatures are inferred, and no completion checklist or mandatory verification field is added.
 
+Legacy logical requirements whose entire lineage has no method may continue versioning as Not Specified until an explicit method is selected. This compatibility does not permit a new logical requirement without a method or clearing a previously specified method.
+
 Units, quantities, product/material relationships, storage eligibility, recurrence configuration, and duplicate constraints are server-validated where protected.
 
 ## Permissions, Versions, And Audit
