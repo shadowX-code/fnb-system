@@ -100,3 +100,18 @@ it("keeps preserved scope separate from module selections and exposes technical 
  expect(screen.getByRole("checkbox",{name:"View Records: Review daily compliance"}).checked).toBe(false);
  tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Advanced Details"}));expect(screen.getAllByText(/evidence \(cleaning_of_area\)/).length).toBeGreaterThan(0);
 });
+
+it('filters same-time activity by outcome/admin provenance without merging events',async()=>{
+ const time='2026-10-29T14:00:00Z';
+ externalAgentService.details.mockResolvedValue({...detail,access_events:[{id:1,occurred_at:time,method:'ping',outcome:'success',source:'external'},{id:2,occurred_at:time,method:'tools/call',tool:'query_factory_resources',outcome:'denied',failure_reason:'capability_denied',source:'external',resource_actions:[{resource:'mesti_review',action:'list'}]}],management_events:[{id:3,occurred_at:time,label:'Access removed'}]});
+ render(<ExternalAgentsPage auth={auth()} />);await open();tab('Activity');
+ expect(screen.getByText('Connection checked')).toBeTruthy();expect(screen.getByText('Records requested')).toBeTruthy();expect(screen.getByText('Access removed')).toBeTruthy();
+ const filters=within(screen.getByRole('tablist',{name:'Activity filter'}));
+ fireEvent.click(filters.getByRole('tab',{name:'Denied'}));expect(screen.getByText('Records requested')).toBeTruthy();expect(screen.queryByText('Access removed')).toBeNull();expect(screen.getByText('This capability is not allowed.')).toBeTruthy();
+ fireEvent.click(filters.getByRole('tab',{name:'Admin Changes'}));expect(screen.getByText('Access removed')).toBeTruthy();expect(screen.queryByText('Records requested')).toBeNull();
+ fireEvent.click(filters.getByRole('tab',{name:'Successful'}));expect(screen.getByText('Connection checked')).toBeTruthy();expect(screen.queryByText('Access removed')).toBeNull();
+});
+it('uses the server effective-access summary in the main list',async()=>{
+ externalAgentService.list.mockResolvedValue({connections:[{...agent,effective_access:{summary:'Server-authorized MeSTI scope'}}],catalog,can_register:true});
+ render(<ExternalAgentsPage auth={auth()} />);expect(await screen.findByText('Server-authorized MeSTI scope')).toBeTruthy();expect(screen.queryByText('Restricted access also preserved')).toBeNull();
+});
