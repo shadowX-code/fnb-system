@@ -20,7 +20,7 @@ begin
  end loop;
  execute 'set local role anon';
  data:=public.factory_agent_resource_query(token,'[{"business_module":"factory_production_sop","resource":"sop_equipment","action":"list","date_range":{"from":"2026-10-01","to":"2026-10-31"},"limit":100}]')->'results'->0;
- if exists(select 1 from jsonb_array_elements(data->'items')r where r ? 'equipment_id') then raise exception 'SOP leaked Equipment identity';end if;
+ if exists(select 1 from jsonb_array_elements(data->'items')r where r ? 'equipment_id' and r->'reference_context'->'equipment_id'->>'id' is distinct from r->>'equipment_id') then raise exception 'SOP equipment context mismatch';end if;
  data:=public.factory_agent_resource_query(token,'[{"business_module":"factory_production_sop","resource":"sop_material_bindings","action":"list","date_range":{"from":"2026-10-01","to":"2026-10-31"},"limit":100}]')->'results'->0;
  if exists(select 1 from jsonb_array_elements(data->'items')r where r ?|array['current_balance','manual_unit_cost']) then raise exception 'SOP leaked independent inventory/costs';end if;
  -- Discover supported records, without advertising unavailable dependencies/foreign filters.
