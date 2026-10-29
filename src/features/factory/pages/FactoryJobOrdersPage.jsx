@@ -1,7 +1,7 @@
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import useFactoryActionData from "../hooks/useFactoryActionData.js";
 import { useEffect, useState } from "react";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Printer } from "lucide-react";
 import Card from "../../../components/ui/Card.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
@@ -18,12 +18,16 @@ import { jobStatusLabel, statusTone } from "../utils/factoryStatus.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
 import { factoryService } from "../../../services/factoryService.js";
 
+import LabelPrintModal from "../labels/LabelPrintModal.jsx";
+import { factoryLabelsEnabled } from "../../../services/factoryLabelService.js";
+
 export default function FactoryJobOrdersPage({
   data, auth, can, onCreate, onView, onEdit, onRelease, onDelete, onCancel, onStart,
   onViewProcess, onComplete, onViewResult,
   jobOrdersListingBridge, onPermissionDenied, onNotify, jobFinishedGoodName,
   productionQcTone, productionQcDisplayLabel,
 }) {
+  const [labelJob, setLabelJob] = useState(null);
   const [jobOrderFilters, setJobOrderFilters] = useState({ search: "", status: "", scheduledDateFrom: "", scheduledDateTo: "", manufacturingDateFrom: "", manufacturingDateTo: "", finishedGood: "" });
   const scheduledDateRangeError = jobOrderFilters.scheduledDateFrom && jobOrderFilters.scheduledDateTo && jobOrderFilters.scheduledDateFrom > jobOrderFilters.scheduledDateTo
     ? "From date cannot be later than To date."
@@ -75,6 +79,7 @@ export default function FactoryJobOrdersPage({
         onView={() => row.status === "in_progress" ? onViewProcess(row, !can("factory_production.complete")) : row.status === "completed" ? onViewResult(row) : onView(row)}
         viewLabel={row.status === "in_progress" ? "View process" : row.status === "completed" ? "View result" : "View details"}
         primaryAction={row.status === "released" && can("factory_production.complete") ? { label: "Start Production", onClick: () => onStart(row) } : row.status === "in_progress" && can("factory_production.complete") ? { label: "Complete", onClick: () => onComplete(row) } : ["draft", "planned"].includes(row.status) && can("factory_job_orders.edit") ? { label: "Release", onClick: () => onRelease(row) } : null}
+        directActions={factoryLabelsEnabled && row.status === "completed" && can("factory_production.view") ? [{ label: "Print Labels", icon: Printer, variant: "button", onClick: () => setLabelJob(row) }] : []}
         secondaryActions={[
           ["draft", "planned"].includes(row.status) && can("factory_job_orders.edit") ? { label: "Edit", onClick: () => onEdit(row) } : null,
           ["planned", "released"].includes(row.status) && can("factory_job_orders.cancel") ? { label: "Cancel", destructive: true, onClick: () => onCancel(row) } : null,
@@ -187,5 +192,5 @@ export default function FactoryJobOrdersPage({
     );
   }
 
-  return renderJobOrders();
+  return <>{renderJobOrders()}{labelJob ? <LabelPrintModal job={labelJob} actorId={auth?.profile?.id} can={can} onClose={() => setLabelJob(null)} /> : null}</>;
 }
