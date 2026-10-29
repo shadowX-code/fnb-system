@@ -37,9 +37,9 @@ export function toolArguments(name, args = {}, now) {
   return { p_from: from, p_to: to, p_severity: args.severity ?? "all" };
 }
 
-export function createHandler(read, { allowedOrigins = [], now } = {}) {
+export function createHandler(read, { allowedOrigins = [], now, observe } = {}) {
   const json = (body, status = 200, extra = {}) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...extra } });
-  return async (request) => {
+  const handle = async (request) => {
     const origin = request.headers.get("origin");
     if (origin && !allowedOrigins.includes(origin)) return json({ error: "Origin forbidden." }, 403);
     const authorization = request.headers.get("authorization") || "";
@@ -72,5 +72,21 @@ export function createHandler(read, { allowedOrigins = [], now } = {}) {
       } catch { result = { content: [{ type: "text", text: "MeSTI evidence unavailable. Do not infer compliance. Retry or ask an authorized FeedX reviewer." }], isError: true }; }
     } else return fail(-32601, "Method not supported.");
     return json({ jsonrpc: "2.0", id: message.id, result });
+  };
+  return async (request) => {
+    const observationRequest = observe ? request.clone() : null;
+    const response = await handle(request);
+    const authorization = request.headers.get("authorization") || "";
+    if (!observe || !/^Bearer fxm_[A-Za-z0-9_-]{43}$/.test(authorization) || response.status === 202) return response;
+    const body = await response.clone().json().catch(() => ({}));
+    const message = request.method === "POST" && ![401, 403, 413].includes(response.status) ? await observationRequest.json().catch(() => ({})) : {};
+    const method = ["initialize", "tools/list", "tools/call", "ping"].includes(message.method) ? message.method : "unsupported";
+    const tool = tools.some((item) => item.name === message.params?.name) ? message.params.name : message.params?.name ? "unsupported" : null;
+    const denied = response.status === 401 || response.status === 403;
+    const failed = !response.ok || body.error || body.result?.isError;
+    const reason = response.status === 401 ? "credential_denied" : response.status === 403 ? "origin_denied" : body.error?.code === -32602 ? "tool_denied" : body.result?.isError ? "evidence_unavailable" : failed ? "invalid_request" : null;
+    try { await observe(authorization.slice(7), { method, tool, outcome: denied ? "denied" : failed ? "failed" : "success", reason }, request); }
+    catch { return json({ jsonrpc: "2.0", id: message.id ?? null, error: { code: -32603, message: "Access recording unavailable. Retry this read-only request." } }, 503); }
+    return response;
   };
 }

@@ -663,6 +663,7 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, manage: true },
   },
   { id: "brands", section: "System", label: "Brands", route: "/system/brands", icon: "outlets", sidebar: true, workspace: "restaurant", readPermission: "platform_organizations.manage", permissions: {} },
+  { id: "external_agents", section: "Settings", label: "Integrations", route: "/system/settings/integrations/external-agents", icon: "settings", sidebar: true, workspace: "restaurant", readPermission: "roles.view OR roles_permissions.view", permissions: {} },
   {
     id: "outlets",
     section: "System",

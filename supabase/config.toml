@@ -1,5 +1,9 @@
 project_id = "feedx"
 
+[functions.external-agent-management]
+# Canonical Admin Auth and Role Settings authority are validated in the function and RPCs.
+verify_jwt = false
+
 [functions.factory-mesti-mcp]
 # Staging-only; opaque machine credential and Role Settings grant are validated in the database.
 verify_jwt = false

@@ -54,4 +54,16 @@ describe("MeSTI Streamable HTTP", () => {
     const result = await (await handler(request({ jsonrpc: "2.0", id: 1, method: "resources/read" }))).json();
     expect(result.error.code).toBe(-32601);
   });
+  it("records only bounded transport metadata and fails closed if access recording fails", async () => {
+    const observe = vi.fn().mockResolvedValue(undefined);
+    const handler = createHandler(vi.fn().mockResolvedValue({ findings: [] }), { observe });
+    const response = await handler(request(call("get_mesti_daily_status", { date: "2026-10-28" })));
+    expect(response.status).toBe(200);
+    expect(observe).toHaveBeenCalledWith(token, { method: "tools/call", tool: "get_mesti_daily_status", outcome: "success", reason: null }, expect.any(Request));
+    await handler(request(call("SECRET_UNAPPROVED_TOOL")));
+    expect(observe.mock.calls.at(-1)[1]).toMatchObject({ tool: "unsupported", outcome: "failed", reason: "tool_denied" });
+    expect(JSON.stringify(observe.mock.calls.map((call) => call[1]))).not.toContain("SECRET_UNAPPROVED_TOOL");
+    observe.mockRejectedValue(new Error("private detail"));
+    expect((await handler(request({ jsonrpc: "2.0", id: 1, method: "tools/list" }))).status).toBe(503);
+  });
 });

@@ -43,7 +43,15 @@ set revoked_at=now()
 where id='8f093f12-2674-45df-99cb-915627d9c73d';
 ```
 
-Disabling identity `a8fe4694-93e2-4f27-b87d-e49d30ca245a`, disabling its dedicated **QA Executive MeSTI Inspection** role, or removing `factory_mesti_inspection.view` through Role Settings also denies reads. Identity and credential administration automatically records safe audit metadata; tokens and hashes are excluded and ordinary MCP reads write nothing. No employee-account relationship or organization assignment exists. Do not grant other permissions to this role to fix a connector error; they cannot enable additional tools and would violate its intended least-privilege configuration.
+Disabling identity `a8fe4694-93e2-4f27-b87d-e49d30ca245a`, disabling its dedicated **QA Executive MeSTI Inspection** role, or removing `factory_mesti_inspection.view` through Role Settings also denies reads. Identity and credential administration automatically records safe audit metadata; tokens and hashes are excluded. Ordinary MCP reads preserve business data and append only safe Gateway access telemetry. No employee-account relationship or organization assignment exists. Do not grant other permissions to this role to fix a connector error; they cannot enable additional tools and would violate its intended least-privilege configuration.
+
+### External Agent Gateway management
+
+Open Admin → Settings → Integrations → External Agents, at `/system/settings/integrations/external-agents`. Existing Role Settings View permits connection/history visibility; Edit plus canonical target-role delegation authority permits credential actions. Agent/provider, scope, permission, Active/Expired/Revoked credential state, expiry and observed MCP access are separate fields. Connection details show the five registered Read tools, endpoint/authentication instructions, current credential history and the latest 50 bounded access events. Earlier history was not recorded and is not backfilled from assumptions.
+
+Revoke and Rotate require explicit confirmation. Rotation immediately revokes prior credentials, returns a new 30-day credential only once, and cannot recover a lost issuance response. Store the credential securely before closing the masked reveal; it clears on close, tab hiding, authority loss or after two minutes. Ordinary APIs, URLs, access logs and lifecycle audits contain no credential secrets or hashes. Use the management authority instead of hand-written credential updates during normal administration.
+
+Test Endpoint checks public reachability and the authentication challenge without reading any stored secret. An optional explicitly supplied credential tests authentication/tool discovery against the fixed registered endpoint. Signed FeedX tests appear as Admin probes and do not establish external-provider connectivity. QA Executive's current working credential must not be revoked or rotated for QA; use `qa/staging/externalAgentsManagement.rollback.sql` for disposable lifecycle/security tests. The script verifies isolation, one-time issuance/replay/stale-state handling, safe access visibility, external-versus-Admin observations and actor audits, and fingerprints the working credential before/after. Frontend regression tests cover explicit confirmations, one-time reveal clearing, view-only/denied states and test-credential handling.
 
 ## Verification
 
