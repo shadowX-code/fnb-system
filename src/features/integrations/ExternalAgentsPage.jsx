@@ -24,7 +24,8 @@ function accessSummary(row) {
   if (!row.enabled) return "Disabled";
   if (!row.role_active || !row.permission_granted) return "Access blocked";
   const grants = allowed(row);
-  return grants.length ? `${[...new Set(grants.map((tool) => tool.domain_label))].join(", ")} · ${[...new Set(grants.map((tool) => actionLabels[tool.capability]))].join(", ")}` : "No resources allowed";
+  if (grants.length) return `${grants.length} business ${grants.length === 1 ? "module" : "modules"} · View Records`;
+  return row.preserved_access?.length ? row.preserved_access.map((grant) => grant.label).join(", ") : "No modules allowed";
 }
 const failureLabels = { credential_denied: "Access key or connection permission was not accepted.", capability_denied: "This capability is not allowed.", tool_denied: "The requested capability is unavailable.", evidence_unavailable: "Information could not be returned. Check access and try again.", origin_denied: "The request came from an unsupported application.", invalid_request: "The request could not be processed.", unsupported_version: "The connection version is unsupported.", method_denied: "This connection request is unsupported." };
 
@@ -110,7 +111,7 @@ export default function ExternalAgentsPage({ auth }) {
   const columns = [
     { key: "name", header: "Agent", render: (row) => <button className="external-agent-name" type="button" onClick={() => open(row)}>{row.name}<span>{row.provider}</span></button> },
     { key: "workspace", header: "Workspace", render: (row) => row.workspace || "Not configured" },
-    { key: "access", header: "Access", render: (row) => <div>{accessSummary(row)}<div className="mt-1 text-xs text-text-secondary">{row.preserved_access?.length ? "Existing restricted access also preserved" : "Module grants only"}</div></div> },
+    { key: "access", header: "Access", render: (row) => <div>{accessSummary(row)}<div className="mt-1 text-xs text-text-secondary">{row.preserved_access?.length ? allowed(row).length ? "Restricted access also preserved" : "No additional module grants" : "Module grants only"}</div></div> },
     { key: "connection", header: "Connection", render: (row) => <State value={row.connection_status} /> },
     { key: "last_active", header: "Last Active", render: (row) => stamp(row.last_mcp_success) },
     { key: "action", header: "Actions", render: (row) => <button className="btn-secondary" type="button" aria-label={`Manage ${row.name}`} onClick={() => open(row)}>Manage</button> },

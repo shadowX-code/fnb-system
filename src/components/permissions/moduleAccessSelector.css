@@ -6,7 +6,7 @@
 .module-access-group summary > span:first-of-type { flex: 1; }
 .module-access-count { font-size: 12px; font-weight: 400; color: var(--text-secondary); white-space: nowrap; }
 .module-access-toolbar { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--theme-surface-nested); border-top: 1px solid var(--theme-border); }
-.module-access-toolbar button { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.module-access-toolbar button { white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--text-primary); }
 .module-access-toolbar button:disabled { color: var(--text-secondary); cursor: default; }
 .module-access-group li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--theme-border); }
 .module-access-option { display: flex; gap: 10px; min-width: 0; flex: 1; font-size: 13px; }

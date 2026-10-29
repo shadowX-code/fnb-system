@@ -93,7 +93,9 @@ it("keeps preserved scope separate from module selections and exposes technical 
  const retained={name:"factory_mesti_review_view",label:"Preserved MeSTI compliance review",technical_label:"Compliance review records",permission:"factory_agent_mesti_review.view",resource_key:"factory.mesti_review",mcp_tool:"query_factory_resources",capability:"view",granted:true,can_assign:true};
  const scopedAgent={...agent,preserved_access:[retained],tools:capabilities.map((c)=>({...c,granted:false,limited_access:true,technical_resources:[{resource:"evidence",row_scope:{module:"cleaning_of_area"}}]}))};
  externalAgentService.list.mockResolvedValue({connections:[scopedAgent],catalog,can_register:true});externalAgentService.details.mockResolvedValue({...detail,connections:[scopedAgent]});
- render(<ExternalAgentsPage auth={auth()} />);await open();tab("Access & Permissions");
+ render(<ExternalAgentsPage auth={auth()} />);await open();
+ expect(screen.getAllByText("Preserved MeSTI compliance review")).toHaveLength(2);expect(screen.queryByText("No resources allowed")).toBeNull();
+ tab("Access & Permissions");
  expect(screen.getByText(/Existing restricted access is preserved/)).toBeTruthy();expect(screen.getAllByText("Preserved restricted access").length).toBeGreaterThan(1);expect(screen.queryByText("factory_agent_mesti_review.view")).toBeNull();
  expect(screen.getByRole("checkbox",{name:"View Records: Review daily compliance"}).checked).toBe(false);
  tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Advanced Details"}));expect(screen.getByText(/factory_agent_mesti_review.view/)).toBeTruthy();expect(screen.getAllByText(/evidence \(cleaning_of_area\)/).length).toBeGreaterThan(0);
