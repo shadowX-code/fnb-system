@@ -1165,3 +1165,7 @@ Reassessed 34 Factory modules: 31 Available, 3 Limited, none Unavailable. Separa
 ### 2026-10-30 — Production Reports Gateway ownership audit
 
 Confirmed active hidden human reporting route and consumers; preserved their permissions and calculations. Removed the duplicate Gateway reporting module and moved its four source-gated resource mappings to Production Overview, with transactional effective-access equality checks. Gateway catalog now has 33 entries; human routes remain 34.
+
+### 2026-10-30 — Effective access and credential lifecycle UX
+
+Unified server-derived effective access, visible/revocable additional grants, compact connection controls and outcome/admin activity filters. Adapter-controlled new credentials support 30/90/180 days with default 90; old signatures retain 30 days. Existing identities, keys, expiry and grants are untouched. Disposable Staging policy/rotation/revocation audit QA passed.

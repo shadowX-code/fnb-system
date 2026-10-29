@@ -26,7 +26,7 @@ function tab(name) { fireEvent.click(screen.getByRole("tab", {name,exact:true}))
 it("uses the six business columns, three tabs and hides technical identifiers until Advanced Details", async () => {
  render(<ExternalAgentsPage auth={auth()} />);
  await screen.findByRole("button",{name:"Manage QA Executive"});
- expect(screen.getAllByRole("columnheader").map((element)=>element.textContent)).toEqual(["Agent","Workspace","Access","Connection","Last Active","Actions"]);
+ expect(screen.getAllByRole("columnheader").map((element)=>element.textContent)).toEqual(["Agent","Workspace","Effective Access","Connection","Last Active","Actions"]);
  await open();expect(screen.queryByText("factory_mesti_inspection.view")).toBeNull();
  tab("Access & Permissions");expect(screen.getByText("Review daily compliance")).toBeTruthy();expect(screen.queryByText("read_tool_0")).toBeNull();
  expect(screen.getByText(/Draft, Execute and Approve are unavailable/)).toBeTruthy();
@@ -40,7 +40,7 @@ it("confirms key replacement and clears one-time secrets on close", async () => 
  fireEvent.click(screen.getByRole("button",{name:"Cancel",exact:true}));expect(externalAgentService.rotate).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole("button",{name:"Replace access key"}));fireEvent.click(within(screen.getByRole("dialog",{name:"Replace access key?"})).getByRole("button",{name:"Replace access key"}));
  await screen.findByRole("heading",{name:"Save the access key"});expect(screen.getByLabelText("New access key").type).toBe("password");
- expect(externalAgentService.rotate).toHaveBeenCalledWith("qa","existing-credential",expect.any(String));
+ expect(externalAgentService.rotate).toHaveBeenCalledWith("qa","existing-credential",expect.any(String),90);
  fireEvent.click(screen.getByRole("button",{name:"I have saved the key"}));expect(screen.queryByDisplayValue("TEST_ONE_TIME_SECRET")).toBeNull();
 });
 it("keeps revocation explicit and bound to the exact key",async()=>{
@@ -72,7 +72,7 @@ it("registers a selected implemented capability and shows the new key once",asyn
  expect(screen.getByRole("button",{name:"Connect and issue key"}).disabled).toBe(true);
  fireEvent.change(screen.getByLabelText("Agent name"),{target:{value:"New QA Agent"}});fireEvent.change(screen.getByLabelText("Provider",{selector:"input"}),{target:{value:"Provider"}});
  fireEvent.click(screen.getByRole("checkbox",{name:"View Records: Review daily compliance"}));fireEvent.submit(document.getElementById("connect-agent"));
- await screen.findByRole("heading",{name:"Save the access key"});expect(externalAgentService.register).toHaveBeenCalledWith(expect.any(String),"New QA Agent","Provider","factory_mesti",["read_tool_0"]);expect(screen.getByLabelText("New access key").type).toBe("password");
+ await screen.findByRole("heading",{name:"Save the access key"});expect(externalAgentService.register).toHaveBeenCalledWith(expect.any(String),"New QA Agent","Provider","factory_mesti",["read_tool_0"],90);expect(screen.getByLabelText("New access key").type).toBe("password");
 });
 
 it("clears an issued key when the signed-in administrator changes even with the same permissions",async()=>{
@@ -94,9 +94,9 @@ it("keeps preserved scope separate from module selections and exposes technical 
  const scopedAgent={...agent,preserved_access:[retained],tools:capabilities.map((c)=>({...c,granted:false,limited_access:true,technical_resources:[{resource:"evidence",row_scope:{module:"cleaning_of_area"}}]}))};
  externalAgentService.list.mockResolvedValue({connections:[scopedAgent],catalog,can_register:true});externalAgentService.details.mockResolvedValue({...detail,connections:[scopedAgent]});
  render(<ExternalAgentsPage auth={auth()} />);await open();
- expect(screen.getAllByText("Preserved MeSTI compliance review")).toHaveLength(2);expect(screen.queryByText("No resources allowed")).toBeNull();
+ expect(screen.getAllByText("Preserved MeSTI compliance review")).toHaveLength(1);expect(screen.queryByText("No resources allowed")).toBeNull();
  tab("Access & Permissions");
- expect(screen.getByText(/Existing restricted access is preserved/)).toBeTruthy();expect(screen.getAllByText(/Preserved restricted access remains separate/).length).toBeGreaterThan(1);expect(screen.queryByText("factory_agent_mesti_review.view")).toBeNull();
+ expect(screen.getByRole("heading",{name:"Additional effective grants"})).toBeTruthy();expect(screen.getAllByText(/Preserved restricted access remains separate/).length).toBeGreaterThan(1);expect(screen.queryByText("factory_agent_mesti_review.view")).toBeNull();
  expect(screen.getByRole("checkbox",{name:"View Records: Review daily compliance"}).checked).toBe(false);
- tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Advanced Details"}));expect(screen.getByText(/factory_agent_mesti_review.view/)).toBeTruthy();expect(screen.getAllByText(/evidence \(cleaning_of_area\)/).length).toBeGreaterThan(0);
+ tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Advanced Details"}));expect(screen.getAllByText(/evidence \(cleaning_of_area\)/).length).toBeGreaterThan(0);
 });
