@@ -1169,3 +1169,7 @@ Confirmed active hidden human reporting route and consumers; preserved their per
 ### 2026-10-30 — Effective access and credential lifecycle UX
 
 Unified server-derived effective access, visible/revocable additional grants, compact connection controls and outcome/admin activity filters. Adapter-controlled new credentials support 30/90/180 days with default 90; old signatures retain 30 days. Existing identities, keys, expiry and grants are untouched. Disposable Staging policy/rotation/revocation audit QA passed.
+
+### 2026-10-30 — Resource-first access and dependency resolver
+
+Primary Business Data Scope → Resource → View Records management derives from the existing 97 policies and canonical grants. By Module remains a secondary projection. Server-side resolver distinguishes required source permissions, optional relationship permissions and unsupported actions. Explicit review identifies grant-bundle impact and uses existing atomic management/audit authority; no dependency is implicitly granted. Existing resource/review grants, credentials and MCP contracts remain unchanged. Exhaustive dependency mapping and authorization checks pass on Staging.

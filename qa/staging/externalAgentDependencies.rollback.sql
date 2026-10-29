@@ -1,0 +1,28 @@
+begin;
+do $$declare row record;projection jsonb;expected jsonb;actual jsonb;owner_id uuid;result jsonb;begin
+ projection:=feedx_integrations.resource_access_projection('a8fe4694-93e2-4f27-b87d-e49d30ca245a');
+ if jsonb_array_length(projection)<>97 then raise exception 'Mapping count changed';end if;
+ for row in select b.*,r.slug from feedx_integrations.navigation_resources b join feedx_integrations.resources r on r.key=b.resource_key loop
+  select v into result from jsonb_array_elements(projection)v where v->>'module_id'=row.module_id and v->>'resource'=row.slug;
+  select jsonb_agg(id order by id) into expected from (select row.module_id id union select jsonb_array_elements_text(row.required_modules))s;
+  select jsonb_agg(v->>'module_id' order by v->>'module_id') into actual from jsonb_array_elements(result->'required')v;
+  if actual is distinct from expected then raise exception 'Required dependency mismatch: %/%',row.module_id,row.slug;end if;
+  select coalesce(jsonb_agg(id order by id),'[]') into expected from (select distinct value id from jsonb_each_text(row.relationship_modules) where value<>row.module_id and not row.required_modules ? value)s;
+  select coalesce(jsonb_agg(v->>'module_id' order by v->>'module_id'),'[]') into actual from jsonb_array_elements(result->'optional')v;
+  if actual is distinct from expected then raise exception 'Optional dependency mismatch';end if;
+ end loop;
+ select e.auth_user_id into owner_id from public.employees e join public.roles r on r.id=e.role_id where lower(r.name)='owner' and e.auth_user_id is not null limit 1;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',owner_id,'role','authenticated')::text,true);
+ execute 'set local role authenticated';
+ result:=public.external_agents_resolve_access('a8fe4694-93e2-4f27-b87d-e49d30ca245a','factory_job_orders','production_pipeline','view');
+ if not (result->>'supported')::boolean then raise exception 'Implemented resource rejected';end if;
+ result:=public.external_agents_resolve_access('a8fe4694-93e2-4f27-b87d-e49d30ca245a','factory_job_orders','production_pipeline','execute');
+ if (result->>'supported')::boolean then raise exception 'Unsupported mutation advertised';end if;
+ execute 'set local role postgres';
+ perform set_config('request.jwt.claims','{}',true);
+ execute 'set local role anon';
+ begin perform public.external_agents_resolve_access(null,'factory_job_orders','production_pipeline');raise exception 'Anonymous resolver access';exception when insufficient_privilege then null;end;
+ execute 'set local role postgres';
+end $$;
+rollback;
+select 'PASS: all 97 required/optional dependency mappings, supported read, unsupported mutation and resolver authorization' result;

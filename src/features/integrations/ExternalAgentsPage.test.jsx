@@ -69,7 +69,7 @@ it("changes capability grants only through the server, with confirmation and sta
 });
 it("registers a selected implemented capability and shows the new key once",async()=>{
  render(<ExternalAgentsPage auth={auth()} />);fireEvent.click(await screen.findByRole("button",{name:"Connect agent"}));
- expect(screen.getByRole("button",{name:"Connect and issue key"}).disabled).toBe(true);
+ expect(screen.getByRole("button",{name:"Connect and issue key"}).disabled).toBe(true);fireEvent.click(screen.getByRole("tab",{name:"By Module"}));
  fireEvent.change(screen.getByLabelText("Agent name"),{target:{value:"New QA Agent"}});fireEvent.change(screen.getByLabelText("Provider",{selector:"input"}),{target:{value:"Provider"}});
  fireEvent.click(screen.getByRole("checkbox",{name:"View Records: Review daily compliance"}));fireEvent.submit(document.getElementById("connect-agent"));
  await screen.findByRole("heading",{name:"Save the access key"});expect(externalAgentService.register).toHaveBeenCalledWith(expect.any(String),"New QA Agent","Provider","factory_mesti",["read_tool_0"],90);expect(screen.getByLabelText("New access key").type).toBe("password");
