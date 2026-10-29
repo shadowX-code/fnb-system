@@ -26,7 +26,7 @@ Deno.serve(async (request) => {
   try {
     if (!credential) {
       const probe = await fetch(endpoint, { method: "POST", redirect: "error", signal: AbortSignal.timeout(10000), headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "FeedX endpoint check", version: "1" } } }) });
-      return json({ outcome: probe.status === 401 ? "reachable" : "failed", authenticated: false, message: probe.status === 401 ? "Endpoint reachable. An agent credential is still required; this does not confirm the external agent is connected." : "Endpoint did not return the expected authentication challenge." });
+      return json({ outcome: probe.status === 401 ? "reachable" : "failed", authenticated: false, message: probe.status === 401 ? "FeedX is reachable. Add an access key to check the agent’s granted capabilities." : "Endpoint did not return the expected authentication challenge." });
     }
     const validation = await client.rpc("external_agents_validate_probe", { p_identity_id: body.identity_id, p_token: credential });
     if (validation.error) return json({ error: "Credential is not valid for this agent." }, 403);
@@ -36,6 +36,6 @@ Deno.serve(async (request) => {
       const result = await response.json();
       if (!response.ok || result.error || (method === "tools/list" && (result.result?.tools?.length !== configuration.tools.length || result.result.tools.some((tool: { name: string }) => !configuration.tools.some((expected: { name: string }) => expected.name === tool.name))))) throw new Error("Probe failed.");
     }
-    return json({ outcome: "verified", authenticated: true, message: "Credential authenticated and all five read-only MCP tools were discovered. This FeedX test does not verify the external provider's own connection." });
+    return json({ outcome: "verified", authenticated: true, message: "Access key accepted. Granted capabilities are available. This checks FeedX access; confirm the provider connection in the provider’s application." });
   } catch { return json({ error: "Connection test failed. Check the endpoint and try again." }, 502); }
 });

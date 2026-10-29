@@ -11,7 +11,7 @@ const telemetrySecret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const telemetry = createClient(url, telemetrySecret, { auth: { persistSession: false, autoRefreshToken: false } });
 const handler = createHandler(async (token: string, tool: string, args: Record<string, unknown>) => {
   const { data, error } = await client.rpc("factory_mesti_inspection", { p_token: token, p_tool: tool, ...args });
-  if (error) throw new Error("Inspection denied or unavailable.");
+  if (error) throw Object.assign(new Error("Inspection denied or unavailable."), { code: error.code });
   return data;
 }, { observe: async (token: string, event: Record<string, string | null>, request: Request) => {
   const source = await isAdminProbe(telemetrySecret, token, request.headers.get("x-feedx-probe") || "") ? "admin_probe" : "external";

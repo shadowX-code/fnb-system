@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, Eye, EyeOff, KeyRound, Link2, RefreshCw, ShieldCheck } from "lucide-react";
+import { Copy, Eye, EyeOff, KeyRound, Link2, Plus, RefreshCw } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader.jsx";
 import AdminFilterToolbar from "../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../components/forms/AdminSearchField.jsx";
+import SelectField from "../../components/forms/SelectField.jsx";
+import AdminUnderlineTabs from "../../components/navigation/AdminUnderlineTabs.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
 import Badge from "../../components/ui/Badge.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
@@ -10,24 +12,33 @@ import ConfirmDialog from "../../components/feedback/ConfirmDialog.jsx";
 import { formatOperationalMoment } from "../../lib/dateTime.js";
 import { externalAgentService } from "../../services/externalAgentService.js";
 import { hasPermission } from "../../utils/accessControl.js";
+import AgentCapabilities, { actionLabels } from "./AgentCapabilities.jsx";
 import "./externalAgents.css";
 
-const labels = { active: "Active", expired: "Expired", revoked: "Revoked", mcp_observed: "MCP observed", not_observed: "Not observed", disabled: "Disabled", success: "Success", failed: "Failed", denied: "Denied" };
-const tone = (state) => state === "active" || state === "mcp_observed" || state === "success" ? "success" : state === "revoked" || state === "denied" || state === "failed" ? "danger" : state === "expired" ? "warning" : "neutral";
+const labels = { active: "Active", expired: "Expired", revoked: "Revoked", mcp_observed: "Connection seen", not_observed: "Not confirmed", disabled: "Disabled", success: "Completed", failed: "Failed", denied: "Access denied" };
+const tone = (state) => ["active", "mcp_observed", "success"].includes(state) ? "success" : ["revoked", "denied", "failed"].includes(state) ? "danger" : state === "expired" ? "warning" : "neutral";
 const stamp = (value) => value ? formatOperationalMoment(value) : "Not recorded";
-function State({ value }) { return <Badge tone={tone(value)}>{labels[value] || value || "Not issued"}</Badge>; }
+function State({ value }) { return <Badge tone={tone(value)}>{labels[value] || "Not issued"}</Badge>; }
+const allowed = (row) => (row.tools || []).filter((tool) => tool.granted && tool.implemented);
+function accessSummary(row) {
+  if (!row.enabled) return "Disabled";
+  if (!row.role_active || !row.permission_granted) return "Access blocked";
+  const grants = allowed(row);
+  return grants.length ? `${[...new Set(grants.map((tool) => tool.domain_label))].join(", ")} · ${[...new Set(grants.map((tool) => actionLabels[tool.capability]))].join(", ")}` : "No capabilities allowed";
+}
+const failureLabels = { credential_denied: "Access key or connection permission was not accepted.", capability_denied: "This capability is not allowed.", tool_denied: "The requested capability is unavailable.", evidence_unavailable: "Information could not be returned. Check access and try again.", origin_denied: "The request came from an unsupported application.", invalid_request: "The request could not be processed.", unsupported_version: "The connection version is unsupported.", method_denied: "This connection request is unsupported." };
 
 export default function ExternalAgentsPage({ auth }) {
   const [data, setData] = useState(null), [selected, setSelected] = useState(null), [detail, setDetail] = useState(null);
   const [search, setSearch] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("overview"), [advanced, setAdvanced] = useState(false), [connection, setConnection] = useState(null);
   const [confirmation, setConfirmation] = useState(null), [issued, setIssued] = useState(null), [revealed, setRevealed] = useState(false), [copied, setCopied] = useState(false);
   const [testCredential, setTestCredential] = useState(""), [testResult, setTestResult] = useState(null);
   const selectedRef = useRef(null), generation = useRef(0), alive = useRef(true);
-  const canView = hasPermission(auth, "roles.view");
-  const canEdit = hasPermission(auth, "roles.edit");
+  const canView = hasPermission(auth, "roles.view"), canEdit = hasPermission(auth, "roles.edit"), canCreate = hasPermission(auth, "roles.create");
   const authority = useRef(null);
   authority.current = canEdit && canView ? auth?.user?.id || auth?.profile?.id || "current-admin" : null;
-  useEffect(() => { if (!canView || !canEdit) { clearIssued(); setTestCredential(""); setConfirmation(null); } }, [canView, canEdit]);
+  useEffect(() => { if (!canView || !canEdit) { clearIssued(); setTestCredential(""); setConfirmation(null); setConnection(null); } }, [canView, canEdit]);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   async function load() {
     setLoading(true); setError("");
@@ -38,7 +49,7 @@ export default function ExternalAgentsPage({ auth }) {
   useEffect(() => { if (canView) load(); else setLoading(false); }, [canView]);
   async function open(row) {
     const version = ++generation.current;
-    selectedRef.current = row.id; setSelected(row.id); setDetail(null); setTestCredential(""); setTestResult(null); setError("");
+    selectedRef.current = row.id; setSelected(row.id); setDetail(null); setTab("overview"); setAdvanced(false); setTestCredential(""); setTestResult(null); setError("");
     try { const response = await externalAgentService.details(row.id); if (alive.current && generation.current === version) setDetail(response); }
     catch (cause) { if (alive.current && generation.current === version) setError(cause.message); }
   }
@@ -48,7 +59,7 @@ export default function ExternalAgentsPage({ auth }) {
     if (alive.current && id === selectedRef.current && version === generation.current) setDetail(response);
     await load();
   }
-  function close() { if (busy) return; ++generation.current; selectedRef.current = null; setSelected(null); setDetail(null); setIssued(null); setRevealed(false); setCopied(false); setTestCredential(""); setTestResult(null); setError(""); }
+  function close() { if (busy) return; ++generation.current; selectedRef.current = null; setSelected(null); setDetail(null); clearIssued(); setTestCredential(""); setTestResult(null); setError(""); }
   function clearIssued() { setIssued(null); setRevealed(false); setCopied(false); }
   useEffect(() => {
     if (!issued) return undefined;
@@ -58,14 +69,27 @@ export default function ExternalAgentsPage({ auth }) {
     return () => { clearTimeout(timer); document.removeEventListener("visibilitychange", clear); };
   }, [issued]);
   async function manage() {
-    const requestedBy = authority.current;
-    const action = confirmation; setConfirmation(null); setBusy(true); setError(""); clearIssued();
+    const requestedBy = authority.current, action = confirmation;
+    setConfirmation(null); setBusy(true); setError(""); clearIssued();
     try {
       if (action.type === "rotate") {
         const result = await externalAgentService.rotate(selected, action.credentialId, crypto.randomUUID());
-        if (alive.current && requestedBy && requestedBy === authority.current) { setIssued(result); setRevealed(false); }
-      } else await externalAgentService.revoke(selected, action.credentialId);
+        if (alive.current && requestedBy && requestedBy === authority.current) setIssued(result);
+      } else if (action.type === "enabled") await externalAgentService.setEnabled(selected, !agent.enabled, agent.enabled);
+      else if (action.type === "capability") await externalAgentService.setCapability(selected, action.capability.name, !action.capability.granted, action.capability.granted);
+      else await externalAgentService.revoke(selected, action.credentialId);
       await refreshDetail();
+    } catch (cause) { if (alive.current) setError(cause.message); }
+    finally { if (alive.current) setBusy(false); }
+  }
+  async function register(event) {
+    event.preventDefault();
+    const requestedBy = authority.current;
+    setBusy(true); setError(""); clearIssued();
+    try {
+      const result = await externalAgentService.register(connection.requestId, connection.name.trim(), connection.provider.trim(), connection.adapter, connection.tools);
+      if (alive.current && requestedBy && requestedBy === authority.current) { setIssued(result); setConnection(null); }
+      await load();
     } catch (cause) { if (alive.current) setError(cause.message); }
     finally { if (alive.current) setBusy(false); }
   }
@@ -76,50 +100,52 @@ export default function ExternalAgentsPage({ auth }) {
     catch (cause) { if (alive.current) setError(cause.message); }
     finally { if (alive.current) setBusy(false); }
   }
-  const agent = detail?.connections?.[0];
-  const permitted = canEdit && agent?.can_manage;
+  const agent = detail?.connections?.[0], permitted = canEdit && agent?.can_manage;
   const rows = (data?.connections || []).filter((row) => `${row.name} ${row.provider} ${row.workspace || ""}`.toLowerCase().includes(search.toLowerCase()));
+  const catalog = data?.catalog || [], chosenAdapter = catalog.find((item) => item.key === connection?.adapter);
   const columns = [
     { key: "name", header: "Agent", render: (row) => <button className="external-agent-name" type="button" onClick={() => open(row)}>{row.name}<span>{row.provider}</span></button> },
-    { key: "scope", header: "Workspace / scope", render: (row) => <div><div className="font-semibold">{row.workspace || "Not configured"}</div><div className="text-xs text-text-secondary">{row.scope || "No adapter registered"}</div></div> },
-    { key: "permission", header: "Permission", render: (row) => <div><span className="external-agent-code">{row.permission || "Not assigned"}</span>{!row.permission_granted && <div className="text-xs text-text-secondary">Permission not granted</div>}</div> },
-    { key: "credential", header: "Credential", render: (row) => <div><State value={row.credential?.status} /><div className="mt-1 text-xs text-text-secondary">{row.credential ? `Expires ${stamp(row.credential.expires_at)}` : "No credential issued"}</div></div> },
-    { key: "connection", header: "MCP connection", render: (row) => <div><State value={row.connection_status} /><div className="mt-1 text-xs text-text-secondary">Last access: {stamp(row.last_access)}</div></div> },
-    { key: "action", header: "", render: (row) => <button className="icon-btn" type="button" aria-label={`View ${row.name}`} onClick={() => open(row)}><Eye size={16} /></button> },
+    { key: "workspace", header: "Workspace", render: (row) => row.workspace || "Not configured" },
+    { key: "access", header: "Access", render: (row) => <div>{accessSummary(row)}<div className="mt-1 text-xs text-text-secondary">{allowed(row).length} capabilities allowed</div></div> },
+    { key: "connection", header: "Connection", render: (row) => <State value={row.connection_status} /> },
+    { key: "last_active", header: "Last Active", render: (row) => stamp(row.last_mcp_success) },
+    { key: "action", header: "Actions", render: (row) => <button className="btn-secondary" type="button" aria-label={`Manage ${row.name}`} onClick={() => open(row)}>Manage</button> },
+  ];
+  const activity = [...(detail?.access_events || []).map((event) => ({ ...event, activity: agent?.tools.find((tool) => tool.name === event.tool)?.label || ({ initialize: "Connection established", "tools/list": "Available capabilities checked", ping: "Connection checked" }[event.method]) || "Unsupported request", sourceLabel: event.source === "admin_probe" ? "FeedX connection check" : "Agent request" })), ...(detail?.management_events || []).map((event) => ({ ...event, activity: event.label, sourceLabel: "Administrator change", outcome: "success" }))].sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at)).slice(0, 50);
+  const activityColumns = [
+    { key: "time", header: "When", render: (row) => stamp(row.occurred_at) },
+    { key: "activity", header: "Activity", render: (row) => <div>{row.activity}<p className="mt-1 text-xs text-text-secondary">{row.sourceLabel}</p>{row.failure_reason && <p className="mt-1 text-xs text-text-secondary">{failureLabels[row.failure_reason] || "Request unsuccessful. Review agent access and try again."}</p>}</div> },
+    { key: "outcome", header: "Result", render: (row) => <State value={row.outcome} /> },
   ];
   if (!canView) return <div className="card p-5" role="alert">Role Settings view permission is required to view external agents.</div>;
   return <div className="external-agents space-y-4">
-    <PageHeader title="External Agents" breadcrumbs={[{ label: "Settings" }, { label: "Integrations" }, { label: "External Agents" }]} description="Manage registered agent connections, credentials and observed access through the FeedX External Agent Gateway." actions={<button className="btn-secondary" type="button" disabled={loading || busy} onClick={load}><RefreshCw size={15} /> Refresh</button>} />
-    <div className="border-b border-border pb-2 text-sm font-semibold text-text-primary">External Agents</div>
-    {!selected && error && <div role="alert" className="external-agent-notice">{error} <button type="button" className="btn-secondary" onClick={load}>Retry</button></div>}
+    <PageHeader title="External Agents" breadcrumbs={[{ label: "Settings" }, { label: "Integrations" }, { label: "External Agents" }]} description="Control what external agents can access and review their activity." actions={<><button className="btn-secondary" type="button" disabled={loading || busy} onClick={load}><RefreshCw size={15} /> Refresh</button>{canCreate && canEdit && data?.can_register && <button className="btn-primary" type="button" disabled={busy || loading || !catalog.length} onClick={() => { setError(""); setConnection({ name: "", provider: "", adapter: catalog[0].key, tools: [], requestId: crypto.randomUUID() }); }}><Plus size={15} /> Connect agent</button>}</>} />
+    {!selected && !connection && error && <div role="alert" className="external-agent-notice">{error} <button type="button" className="btn-secondary" onClick={load}>Retry</button></div>}
     <AdminFilterToolbar><AdminSearchField label="Search agents" placeholder="Name, provider or workspace" value={search} onChange={setSearch} /></AdminFilterToolbar>
-    <p className="text-xs text-text-secondary">An Active credential is within its validity period; the agent and its role must also permit access. MCP observed means a successful external MCP request was recorded, not a continuously live session or verified provider setup.</p>
-    <div className="external-agent-surface">
-      {loading ? <p role="status" className="p-5 text-sm text-text-secondary">Loading connections…</p> : rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} density="compact" minWidth={1000} mobileLayout="stack" /> : <p className="p-5 text-sm text-text-secondary">{error && !data ? "Connections unavailable. Retry to load registered agents." : search ? "No agents match your search." : "No external agents have been registered."}</p>}
-    </div>
-    <p className="text-xs text-text-secondary">{data?.history_note}</p>
-    {selected && <Modal title={agent?.name || "Agent connection"} description="External Agent Gateway" placement="right" onClose={close} panelClassName="external-agent-panel" footer={<button className="btn-secondary" type="button" onClick={close} disabled={busy}>Close</button>}>
+    <div className="external-agent-surface">{loading ? <p role="status" className="p-5 text-sm text-text-secondary">Loading agents…</p> : rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} density="compact" minWidth={900} mobileLayout="stack" /> : <p className="p-5 text-sm text-text-secondary">{error && !data ? "Agents could not be loaded. Refresh to try again." : search ? "No agents match your search." : "No external agents are connected yet."}</p>}</div>
+    <p className="text-xs text-text-secondary">Connection and Last Active reflect recorded successful agent requests, not a continuously live session.</p>
+    {selected && <Modal title={agent?.name || "Agent details"} placement="right" onClose={close} panelClassName="external-agent-panel" footer={<button className="btn-secondary" type="button" onClick={close} disabled={busy}>Close</button>}>
       {error && <div role="alert" className="external-agent-notice mb-4">{error}</div>}
-      {!agent ? <p role="status">Loading connection details…</p> : <div className="space-y-6">
-        <section aria-label="Connection overview"><h3 className="external-agent-heading">Connection</h3><dl className="external-agent-facts">
-          <div><dt>Provider</dt><dd>{agent.provider}</dd></div><div><dt>Workspace</dt><dd>{agent.workspace || "Not configured"}</dd></div>
-          <div><dt>Credential</dt><dd><State value={agent.credential?.status} /></dd></div><div><dt>MCP connection</dt><dd><State value={agent.connection_status} /></dd></div>
-          <div><dt>Last access</dt><dd>{stamp(agent.last_access)}</dd></div><div><dt>Last successful external MCP</dt><dd>{stamp(agent.last_mcp_success)}</dd></div>
-          <div className="external-agent-wide"><dt>Scope</dt><dd>{agent.scope || "No scope configured"}</dd></div><div className="external-agent-wide"><dt>Role / permission</dt><dd>{agent.role_name}<br /><span className="external-agent-code">{agent.permission || "Not assigned"}</span></dd></div>
-        </dl>{!agent.permission_granted && <p className="external-agent-notice">The adapter permission is not granted. Update the agent’s role through Role Settings.</p>}</section>
-        <section><h3 className="external-agent-heading">Authorized tools <span className="text-text-secondary">({agent.tools.length})</span></h3><ul className="divide-y divide-border">{agent.tools.map((tool) => <li key={tool.name} className="py-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="external-agent-code">{tool.name}</span><Badge tone="neutral">{tool.capability === "read" ? "Read only" : tool.capability || "Not specified"}</Badge></div><p className="mt-1 text-xs text-text-secondary">{tool.description}</p><p className="mt-1 text-xs text-text-muted">{agent.workspace} · {tool.domain === "mesti" ? "MeSTI" : tool.domain} · {tool.requires_human_approval ? "Human approval required" : "No human approval required for this read"}</p></li>)}</ul></section>
-        <section><h3 className="external-agent-heading">Connect with MCP</h3><p className="text-sm text-text-secondary">Use Streamable HTTP and an Authorization header: Bearer followed by the issued credential. Keep credentials out of URLs and ordinary chat.</p><div className="external-agent-endpoint mt-3"><Link2 size={15} aria-hidden="true" /><code>{agent.endpoint || "Endpoint unavailable"}</code></div><p className="mt-2 text-xs text-text-secondary">FeedX manages access only. Configure the provider’s prompts, knowledge and routines in that provider.</p></section>
-        <section><h3 className="external-agent-heading">Test connection</h3><p className="mb-3 text-xs text-text-secondary">Leave the credential blank to check public reachability. Supply a credential to test authentication and tool discovery. FeedX tests are labelled separately from external access.</p><label className="block text-sm font-semibold">Agent credential <span className="font-normal text-text-secondary">(optional)</span><input className="control mt-1 w-full" type="password" autoComplete="off" spellCheck={false} value={testCredential} disabled={!permitted || busy} onChange={(event) => setTestCredential(event.target.value)} /></label><button className="btn-secondary mt-3" type="button" disabled={!permitted || busy || !agent.endpoint} onClick={test}>{busy ? "Working…" : testCredential ? "Test supplied credential" : "Test endpoint"}</button>{testResult && <p role="status" className="external-agent-notice mt-3">{testResult.message}</p>}</section>
-        <section><h3 className="external-agent-heading">Credentials</h3><p className="mb-3 text-xs text-text-secondary">Rotation immediately revokes previous credentials and issues a new 30-day credential. Stored credentials cannot be revealed.</p>{permitted && <button className="btn-secondary mb-3" type="button" disabled={busy || !agent.enabled || !agent.role_active || !agent.permission_granted || !!issued} onClick={() => setConfirmation({ type: "rotate", credentialId: agent.credential?.id || null, title: "Rotate agent credential?", message: `This immediately revokes all previous credentials for ${agent.name}. The external agent will stop authenticating until you configure the new credential. It will be available only in the next secure reveal.`, confirmLabel: "Rotate credential", danger: true })}><KeyRound size={15} /> Rotate credential</button>}
-          {!permitted && <p className="text-xs text-text-secondary">Credential actions require Role Settings edit authority for this agent.</p>}
-          <ul className="divide-y divide-border">{(detail.credentials || []).map((credential) => <li key={credential.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><State value={credential.status} /><div className="mt-1 text-xs text-text-secondary">Issued {stamp(credential.created_at)}<br />Expires {stamp(credential.expires_at)}</div></div>{permitted && credential.status !== "revoked" && <button className="btn-secondary" type="button" disabled={busy || !!issued} onClick={() => setConfirmation({ type: "revoke", credentialId: credential.id, title: "Revoke agent credential?", message: `This credential will immediately stop authenticating ${agent.name}. Revocation cannot be undone.`, confirmLabel: "Revoke credential", danger: true })}>Revoke</button>}</li>)}</ul>
-        </section>
-        <section><h3 className="external-agent-heading">Recent access</h3><p className="mb-2 text-xs text-text-secondary">Malaysia time · latest 50 events. {detail.history_note}</p>{!detail.access_events?.length ? <p className="text-sm text-text-secondary">No access events recorded yet.</p> : <ul className="divide-y divide-border">{detail.access_events.map((event) => <li key={event.id} className="py-3"><div className="flex flex-wrap justify-between gap-2 text-xs"><span>{stamp(event.occurred_at)}</span><State value={event.outcome} /></div><div className="external-agent-code mt-1">{event.tool || event.method}</div><p className="mt-1 text-xs text-text-secondary">{event.source === "admin_probe" ? "FeedX connection test" : "External MCP request"}{event.failure_reason ? ` · ${event.failure_reason.replaceAll("_", " ")}` : ""}</p></li>)}</ul>}</section>
-      </div>}
+      {!agent ? <p role="status">Loading agent details…</p> : <><AdminUnderlineTabs value={tab} onChange={(value) => { setTab(value); setTestCredential(""); }} tabs={[{ value: "overview", label: "Overview" }, { value: "access", label: "Access & Permissions" }, { value: "activity", label: "Activity" }]} ariaLabel="Agent details" />
+      <div className="pt-5" role="tabpanel" aria-label={{ overview: "Overview", access: "Access & Permissions", activity: "Activity" }[tab]}>
+      {tab === "overview" && <div className="space-y-6"><section><h3 className="external-agent-heading">Agent overview</h3><dl className="external-agent-facts">
+        <div><dt>Provider</dt><dd>{agent.provider}</dd></div><div><dt>Workspace</dt><dd>{agent.workspace || "Not configured"}</dd></div>
+        <div><dt>Agent access</dt><dd>{agent.enabled ? "Enabled" : "Disabled"}</dd></div><div><dt>Connection</dt><dd><State value={agent.connection_status} /></dd></div>
+        <div><dt>Last Active</dt><dd>{stamp(agent.last_mcp_success)}</dd></div><div><dt>Allowed access</dt><dd>{accessSummary(agent)}</dd></div>
+      </dl><p className="mt-3 text-xs text-text-secondary">A recorded connection confirms a past successful request. FeedX does not monitor whether the provider is currently connected.</p>
+      {permitted && <button className="btn-secondary mt-4" type="button" disabled={busy} onClick={() => setConfirmation({ type: "enabled", title: `${agent.enabled ? "Disable" : "Enable"} agent?`, message: agent.enabled ? `Stop all requests from ${agent.name} immediately. The access key and capability grants are kept so you can enable the agent again.` : `Allow ${agent.name} to use its granted capabilities with a valid access key.`, confirmLabel: agent.enabled ? "Disable agent" : "Enable agent", danger: agent.enabled })}>{agent.enabled ? "Disable agent" : "Enable agent"}</button>}</section>
+      <section><h3 className="external-agent-heading">Access key</h3><div className="flex flex-wrap items-center gap-3"><State value={agent.credential?.status} /><span className="text-sm text-text-secondary">{agent.credential ? `Expires ${stamp(agent.credential.expires_at)}` : "No access key issued"}</span></div><p className="mt-3 text-xs text-text-secondary">An active key also requires enabled agent access and granted capabilities. Existing keys cannot be shown again.</p>
+      {permitted && <button className="btn-secondary mt-3" type="button" disabled={busy || !agent.role_active || !agent.permission_granted || !!issued} onClick={() => setConfirmation({ type: "rotate", credentialId: agent.credential?.id || null, title: "Replace access key?", message: `Previous keys for ${agent.name} will stop working immediately. Save the new key when it is shown and update the provider to reconnect. The replacement expires after 30 days.`, confirmLabel: "Replace access key", danger: true })}><KeyRound size={15} /> Replace access key</button>}</section>
+      <section><h3 className="external-agent-heading">Check connection</h3><p className="mb-3 text-xs text-text-secondary">Check FeedX availability, or add an access key to confirm authentication and granted capabilities. This does not confirm the provider’s own connection.</p><label className="block text-sm font-semibold">Access key <span className="font-normal text-text-secondary">(optional)</span><input className="control mt-1 w-full" type="password" autoComplete="off" spellCheck={false} value={testCredential} disabled={!permitted || busy} onChange={(event) => setTestCredential(event.target.value)} /></label><button className="btn-secondary mt-3" type="button" disabled={!permitted || busy || !agent.endpoint} onClick={test}>{busy ? "Checking…" : testCredential ? "Check access key" : "Check FeedX availability"}</button>{testResult && <p role="status" className="external-agent-notice mt-3">{testResult.message}</p>}</section>
+      <section><button type="button" className="btn-secondary" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}>Advanced Details</button>{advanced && <div className="mt-4 space-y-5"><dl className="external-agent-facts"><div className="external-agent-wide"><dt>Role</dt><dd>{agent.role_name}</dd></div><div className="external-agent-wide"><dt>Connection permission</dt><dd className="external-agent-code">{agent.permission}</dd></div><div><dt>Last request attempt</dt><dd>{stamp(agent.last_access)}</dd></div></dl><section><h4 className="external-agent-heading">MCP connection setup</h4><p className="text-xs text-text-secondary">Streamable HTTP. Set the Authorization header to Bearer followed by the issued access key. Keep keys out of URLs and ordinary chat.</p><div className="external-agent-endpoint mt-3"><Link2 size={15} aria-hidden="true" /><code>{agent.endpoint}</code></div></section><ul className="divide-y divide-border">{agent.tools.map((tool) => <li className="py-2" key={tool.name}><p className="text-sm">{tool.label}</p><p className="external-agent-code text-text-secondary">{tool.name}<br />{tool.permission}</p></li>)}</ul><section><h4 className="external-agent-heading">Access key history</h4><ul className="divide-y divide-border">{(detail.credentials || []).map((credential) => <li key={credential.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><State value={credential.status} /><p className="mt-1 text-xs text-text-secondary">Issued {stamp(credential.created_at)}<br />Expires {stamp(credential.expires_at)}</p></div>{permitted && credential.status !== "revoked" && <button className="btn-secondary" type="button" disabled={busy || !!issued} onClick={() => setConfirmation({ type: "revoke", credentialId: credential.id, title: "Revoke access key?", message: `This key will immediately stop working for ${agent.name}. It cannot be restored. Replace the key to reconnect.`, confirmLabel: "Revoke access key", danger: true })}>Revoke key</button>}</li>)}</ul></section></div>}</section></div>}
+      {tab === "access" && <div className="space-y-4"><p className="text-sm text-text-secondary">Allow only the capabilities this agent needs. Changes apply to the agent’s role immediately.</p>{(!agent.permission_granted || !agent.role_active) && <p className="external-agent-notice">Connection access is blocked by the assigned role. Review the role in Role Settings.</p>}{!agent.can_manage_capabilities && <p className="external-agent-notice">Capability changes require Role Settings edit authority and a dedicated agent role. Manage shared roles in Role Settings.</p>}<AgentCapabilities capabilities={agent.tools} canManage={canEdit && agent.can_manage_capabilities} busy={busy} unavailableDomains={detail.unavailable_domains || []} onChange={(capability) => setConfirmation({ type: "capability", capability, title: `${capability.granted ? "Remove" : "Grant"} capability?`, message: `${capability.granted ? "Remove" : "Allow"} ${actionLabels[capability.capability]} access to “${capability.label}” for ${agent.name}. This takes effect immediately.`, confirmLabel: capability.granted ? "Remove access" : "Grant access", danger: capability.granted })} /></div>}
+      {tab === "activity" && <div className="space-y-4"><p className="text-xs text-text-secondary">Latest 50 recorded events · Malaysia time. Agent requests, FeedX checks and administrator changes are shown separately.</p>{activity.length ? <DataTable columns={activityColumns} rows={activity} getRowKey={(row) => `${row.sourceLabel}:${row.id}`} density="compact" minWidth={580} mobileLayout="stack" /> : <p className="text-sm text-text-secondary">No activity has been recorded yet.</p>}<p className="text-xs text-text-secondary">{detail.history_note}</p></div>}
+      </div></>}
     </Modal>}
-    {issued && <Modal title="Save the new credential" description="Available only in this issuance window. It is cleared when this window closes, the tab is hidden, or after two minutes." onClose={clearIssued} footer={<button className="btn-primary" type="button" onClick={clearIssued}>I have saved the credential</button>}>
-      <div className="space-y-3"><p className="text-sm text-text-secondary">Expires {stamp(issued.expires_at)}. FeedX stores only its verification hash and cannot retrieve this credential again.</p><label className="block text-sm font-semibold">New agent credential<input className="control mt-1 w-full" type={revealed ? "text" : "password"} readOnly autoComplete="off" value={issued.one_time_credential} /></label><div className="flex flex-wrap gap-2"><button className="btn-secondary" type="button" onClick={() => setRevealed((value) => !value)}>{revealed ? <EyeOff size={15} /> : <Eye size={15} />}{revealed ? "Hide" : "Reveal credential"}</button><button className="btn-secondary" type="button" onClick={async () => { try { await navigator.clipboard.writeText(issued.one_time_credential); setCopied(true); } catch { setCopied(false); } }}><Copy size={15} />{copied ? "Copied" : "Copy credential"}</button></div><p className="text-xs text-text-secondary">If this issuance response is lost, refresh the connection and explicitly rotate again. No secret is saved in browser storage.</p></div>
+    {connection && <Modal title="Connect agent" onClose={() => { if (!busy) { setConnection(null); setError(""); } }} panelClassName="external-agent-panel" footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setConnection(null)}>Cancel</button><button className="btn-primary" type="submit" form="connect-agent" disabled={busy || !connection.tools.length}>Connect and issue key</button></>}>
+      <form id="connect-agent" onSubmit={register} className="space-y-4">{error && <p className="external-agent-notice" role="alert">{error}</p>}<p className="text-sm text-text-secondary">Create a dedicated agent role and a 30-day access key. You will see the key once; configure it in the provider’s application.</p><label className="block text-sm font-semibold">Agent name<input className="control mt-1 w-full" required maxLength={120} value={connection.name} disabled={busy} onChange={(event) => setConnection({ ...connection, name: event.target.value })} /></label><label className="block text-sm font-semibold">Provider<input className="control mt-1 w-full" required maxLength={80} placeholder="For example, xAI" value={connection.provider} disabled={busy} onChange={(event) => setConnection({ ...connection, provider: event.target.value })} /></label><SelectField label="Workspace" value={chosenAdapter?.workspace} disabled={busy} options={[...new Set(catalog.map((item) => item.workspace))].map((workspace) => ({ value: workspace, label: workspace }))} onChange={(workspace) => setConnection({ ...connection, adapter: catalog.find((item) => item.workspace === workspace).key, tools: [] })} /><SelectField label="Module" value={connection.adapter} disabled={busy} options={[...catalog.filter((item) => item.workspace === chosenAdapter?.workspace).map((item) => ({ value: item.key, label: [...new Set(item.capabilities.map((capability) => capability.domain_label))].join(", ") })), ...(data.unavailable_domains || []).map((label) => ({ value: `unavailable-${label}`, label: `${label} · Unavailable`, disabled: true }))]} onChange={(adapter) => setConnection({ ...connection, adapter, tools: [] })} /><AgentCapabilities capabilities={chosenAdapter?.capabilities || []} selection={connection.tools} busy={busy} onSelect={(name, checked) => setConnection({ ...connection, tools: checked ? [...connection.tools, name] : connection.tools.filter((tool) => tool !== name) })} /><p className="text-xs text-text-secondary">Select at least one implemented capability. The agent can use only the access granted here.</p></form>
     </Modal>}
+    {issued && <Modal title="Save the access key" description="Shown once. This window clears on close, when the tab is hidden, or after two minutes." onClose={clearIssued} footer={<button className="btn-primary" type="button" onClick={clearIssued}>I have saved the key</button>}><div className="space-y-3"><p className="text-sm text-text-secondary">Expires {stamp(issued.expires_at)}. FeedX cannot retrieve this key again.</p><label className="block text-sm font-semibold">New access key<input className="control mt-1 w-full" type={revealed ? "text" : "password"} readOnly autoComplete="off" value={issued.one_time_credential} /></label><div className="flex flex-wrap gap-2"><button className="btn-secondary" type="button" onClick={() => setRevealed((value) => !value)}>{revealed ? <EyeOff size={15} /> : <Eye size={15} />}{revealed ? "Hide" : "Reveal key"}</button><button className="btn-secondary" type="button" onClick={async () => { try { await navigator.clipboard.writeText(issued.one_time_credential); setCopied(true); } catch { setCopied(false); } }}><Copy size={15} />{copied ? "Copied" : "Copy key"}</button></div><p className="text-xs text-text-secondary">Save this key securely and configure it in the provider. If it is lost, use Replace access key to issue another.</p></div></Modal>}
     <ConfirmDialog request={confirmation} onCancel={() => setConfirmation(null)} onConfirm={manage} />
   </div>;
 }

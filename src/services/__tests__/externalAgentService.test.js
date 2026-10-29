@@ -16,3 +16,13 @@ it("never logs raw credential-operation errors", async () => {
   await expect(externalAgentService.rotate("agent", "prior", "request")).rejects.not.toThrow("SENSITIVE_CREDENTIAL");
   expect(spy).not.toHaveBeenCalled(); spy.mockRestore();
 });
+
+it("uses bounded server operations for registration, enable state and individual grants", async () => {
+ mocks.rpc.mockResolvedValue({data:{},error:null});
+ await externalAgentService.register("request","Agent","Provider","factory_mesti",["read_tool"]);
+ expect(mocks.rpc).toHaveBeenLastCalledWith("external_agents_register",{p_request_id:"request",p_name:"Agent",p_provider:"Provider",p_adapter_key:"factory_mesti",p_tool_ids:["read_tool"]});
+ await externalAgentService.setEnabled("agent",false,true);
+ expect(mocks.rpc).toHaveBeenLastCalledWith("external_agents_set_enabled",{p_identity_id:"agent",p_enabled:false,p_expected_enabled:true});
+ await externalAgentService.setCapability("agent","read_tool",false,true);
+ expect(mocks.rpc).toHaveBeenLastCalledWith("external_agents_set_capability",{p_identity_id:"agent",p_tool_id:"read_tool",p_granted:false,p_expected_granted:true});
+});
