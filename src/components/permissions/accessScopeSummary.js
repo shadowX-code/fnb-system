@@ -28,7 +28,7 @@ export function accessScopeSummary(capability, catalog = []) {
   if (contextLabels.length) included.push(`Basic related references: ${contextLabels.join(', ')}`);
   const sourceOwners = new Set(scopes.flatMap(externalSources));
   const otherOwners = [...contextualOwners].filter(id => !sourceOwners.has(id));
-  if (otherOwners.length) separate.push({label:'Full related records',sources:[...new Set(otherOwners.map(id => labels.get(id) || 'Related capability')))]});
+  if (otherOwners.length) separate.push({label:'Full related records',sources:[...new Set(otherOwners.map(id => labels.get(id) || 'Related capability'))]});
   if (capability.retained_only) separate.push({label:'Broader module access and other record collections',sources:[]});
   const notes = [];
   if (capability.capability_limitation) notes.push(capability.capability_limitation);
