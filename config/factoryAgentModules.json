@@ -5,7 +5,8 @@
     "label": "Dashboard",
     "route": "/factory/dashboard",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Canonical monthly analytics with explicit source-module requirements. Action recommendations and administrative filter options are excluded; analysis remains with the agent. No recent-activity feed is inferred.",
     "bindings": [
       {
@@ -23,7 +24,8 @@
     "label": "Production Planning",
     "route": "/factory/production/planning",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "limited",
+    "capability_limitation": "Stock readiness and par-level calculations are not exposed; planning records and open-order quantities are supported.",
     "explanation": "Planning records and canonical current open-order quantities with invalid/missing-data diagnostics. Open quantities require Job Order and Finished Goods access. Stock-readiness recommendations and par-level calculations remain in the Planning UI.",
     "bindings": [
       {
@@ -48,7 +50,8 @@
     "label": "Production Overview",
     "route": "/factory/production/overview",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Monthly performance plus the canonical daily pipeline, saved lifecycle states and output totals. Pipeline requires Job Order and Production Records access; monthly performance requires its contributing modules. Requests never release or change Job Orders.",
     "bindings": [
       {
@@ -73,7 +76,8 @@
     "label": "Job Order",
     "route": "/factory/job-orders",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Saved order planning and lifecycle fields. Detailed product, procedure and execution data require their own modules.",
     "bindings": [
       {
@@ -91,7 +95,8 @@
     "label": "Production Records",
     "route": "/factory/production/records",
     "sidebar": false,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Saved runs, execution steps, QC checklist results and remarks-presence flags, legacy QC checkpoints and material quantities. Personnel, remarks text and detailed linked documents are excluded.",
     "bindings": [
       {
@@ -137,7 +142,8 @@
     "label": "Production Reports",
     "route": "/factory/production/reports",
     "sidebar": false,
-    "coverage": "partial",
+    "coverage": "limited",
+    "capability_limitation": "Calculated costing, yield and cost-trend report summaries are not exposed; saved source records are supported.",
     "explanation": "Saved production, material usage, product movements and receiving cost basis. Each dataset requires its owning module. UI-calculated costing, yield ratios and cost trends are not returned as authoritative report totals; missing costs and historical usage remain unresolved.",
     "bindings": [
       {
@@ -176,7 +182,8 @@
     "label": "Batch Traceability",
     "route": "/factory/production/batch-traceability",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Canonical batch reconciliation and saved raw allocations. Summaries require all contributing modules; linked records are not expanded automatically.",
     "bindings": [
       {
@@ -201,7 +208,8 @@
     "label": "Product Feedback",
     "route": "/factory/product-feedback",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "limited",
+    "capability_limitation": "Aggregate question insights are not exposed; campaigns, variants and response counts are supported.",
     "explanation": "Campaigns, tasting variants and anonymous daily response counts only. Answers, contacts and detailed insight analytics are excluded.",
     "bindings": [
       {
@@ -233,7 +241,8 @@
     "label": "Petty Cash",
     "route": "/factory/petty-cash",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Transaction amounts, types, dates, states and categories only. Receipt files, parties and free text are excluded.",
     "bindings": [
       {
@@ -258,7 +267,8 @@
     "label": "Finished Goods",
     "route": "/factory/warehouse/finished-goods",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Saved SKU, packaging, price, category and batch balance records. Production history, movement documents and Location details require their owning modules; no reconstructed historical stock valuation.",
     "bindings": [
       {
@@ -291,6 +301,7 @@
     "route": "/factory/warehouse/dispatch",
     "sidebar": true,
     "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Saved dispatch documents, items and batch allocations. Related customer, product and production links require their own modules.",
     "bindings": [
       {
@@ -323,6 +334,7 @@
     "route": "/factory/warehouse/product-movements",
     "sidebar": true,
     "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Saved product movement quantities, types and dates. Related records require their own modules.",
     "bindings": [
       {
@@ -340,7 +352,8 @@
     "label": "Product Stock Check",
     "route": "/factory/warehouse/stock-check",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Stock-check documents, counts, positive-adjustment confirmation and saved batch adjustment allocations. Batch and Location details require their own modules. Personal actors and free-text variance explanations are excluded.",
     "bindings": [
       {
@@ -373,6 +386,7 @@
     "route": "/factory/warehouse/internal-transfers",
     "sidebar": true,
     "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Saved transfers and item quantities. Batch, material and location links require their own modules.",
     "bindings": [
       {
@@ -397,7 +411,8 @@
     "label": "Raw Material Receiving",
     "route": "/factory/raw-materials/receiving",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Receiving documents, items, quantities, lifecycle states and saved unit/total cost basis. Related records and MeSTI acceptance/control evidence require their own modules. Invoice files, personal contacts and free text are excluded.",
     "bindings": [
       {
@@ -429,7 +444,8 @@
     "label": "Raw Material Inventory",
     "route": "/factory/raw-materials/inventory",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Material and batch records, categories, declared UOM conversion and saved manual cost basis. Related receiving and Location records require separate access. No reconstructed historical valuation or invented conversions.",
     "bindings": [
       {
@@ -462,6 +478,7 @@
     "route": "/factory/raw-materials/movements",
     "sidebar": true,
     "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Saved raw material movement quantities, types and dates. Related records require their own modules.",
     "bindings": [
       {
@@ -479,7 +496,8 @@
     "label": "Raw Material Stock Check",
     "route": "/factory/raw-materials/stock-check",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Stock-check documents, counts and saved batch adjustment allocations. Batch details require Raw Material Inventory access. Personal actors and free-text reasons are excluded.",
     "bindings": [
       {
@@ -511,7 +529,8 @@
     "label": "Cleaning of Area",
     "route": "/factory/mesti/cleaning-area",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Area-cleaning requirement versions, recurrence, saved states and redacted proof with recorded Cleaning Method reference procedures. Issued records use their saved method snapshot; legacy unspecified methods remain unavailable. Locations require separate access.",
     "bindings": [
       {
@@ -557,7 +576,8 @@
     "label": "Cleaning of Equipment",
     "route": "/factory/mesti/cleaning-equipment",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Equipment-cleaning requirement versions, recurrence, saved states and redacted proof with recorded Cleaning Method reference procedures. Issued records use their saved method snapshot; legacy unspecified methods remain unavailable. Equipment and Production identities require separate access.",
     "bindings": [
       {
@@ -603,7 +623,8 @@
     "label": "Calibration Schedule & Record",
     "route": "/factory/mesti/calibration",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Calibration requirements, due dates, saved results and verification states only. Equipment details require Equipment access.",
     "bindings": [
       {
@@ -649,7 +670,8 @@
     "label": "Finished Product Storage Control",
     "route": "/factory/mesti/finished-product-storage-control",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Canonical completed-production storage quantities, packaging UOM, completion date/time, batch provenance and expiry. Production, product and Location identities require their own modules. No temperature telemetry or reconstructed historical storage conditions.",
     "bindings": [
       {
@@ -688,7 +710,8 @@
     "label": "Health Declaration",
     "route": "/factory/mesti/health-declaration",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Daily non-voided declaration counts only. Individual health records and required-personnel coverage are unavailable to agents.",
     "bindings": [
       {
@@ -720,7 +743,8 @@
     "label": "Operator Hygiene Inspection",
     "route": "/factory/mesti/operator-hygiene-inspection",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Saved sessions and aggregate proof only. Individual results and required-personnel coverage are unavailable to agents.",
     "bindings": [
       {
@@ -752,7 +776,8 @@
     "label": "Waste Disposal Record",
     "route": "/factory/mesti/waste-disposal-record",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Waste requirements, schedules, sessions and events only. Grant Locations separately to identify linked areas.",
     "bindings": [
       {
@@ -799,6 +824,7 @@
     "route": "/factory/mesti/raw-material-control",
     "sidebar": true,
     "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Canonical active acceptance/control standards and completed Receiving evidence, including saved verification state and frozen guidance. Material, Receiving, Supplier and Location identities require their own modules. No stock balances, costs, contacts or actors.",
     "bindings": [
       {
@@ -823,7 +849,8 @@
     "label": "Food Processing Control",
     "route": "/factory/mesti/food-processing-control",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Canonical completed-production lifecycle, output quantities, QC requirement/evidence counts, No QC Required versus Evidence unavailable, and redacted saved QC proof. Staff and free-text results are excluded; historical SOP edits are not reconstructed.",
     "bindings": [
       {
@@ -862,7 +889,8 @@
     "label": "Product Recipes",
     "route": "/factory/master-data/product-recipes",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Recipe versions, ingredient quantities, product families and family tags. Material details and costs require Raw Material Inventory access. Personal actors, free-text remarks and historical edits are excluded.",
     "bindings": [
       {
@@ -901,7 +929,8 @@
     "label": "Production SOP",
     "route": "/factory/master-data/production-sops",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Procedure versions, main steps, substeps, QC definitions and equipment bindings. Equipment and Recipe details require their own modules. Free-text remarks and unpublished historical edits are excluded.",
     "bindings": [
       {
@@ -954,7 +983,8 @@
     "label": "Equipment",
     "route": "/factory/master-data/equipment",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Equipment masters, categories and saved state. Locations and SOP bindings require their owning modules. No equipment-usage ledger or historical assignment reconstruction is invented.",
     "bindings": [
       {
@@ -979,7 +1009,8 @@
     "label": "Audit Trail",
     "route": "/factory/audit-trail",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Event classifications, outcomes and times only, for other granted business modules. Actors, before/after details and unclassified events are omitted.",
     "bindings": [
       {
@@ -998,6 +1029,7 @@
     "route": "/factory/master-data/storage-locations",
     "sidebar": true,
     "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Location master records only. Inventory contents and operational documents require their own modules.",
     "bindings": [
       {
@@ -1015,7 +1047,8 @@
     "label": "Suppliers",
     "route": "/factory/master-data/suppliers",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Supplier identifiers, names, state and saved material-eligibility links. Material details require Raw Material Inventory access. Personal contacts, free text and historical eligibility reconstruction are excluded.",
     "bindings": [
       {
@@ -1040,7 +1073,8 @@
     "label": "Customers",
     "route": "/factory/master-data/customers",
     "sidebar": true,
-    "coverage": "partial",
+    "coverage": "available",
+    "capability_limitation": "",
     "explanation": "Customer identifiers, names, type and state only. Contacts, addresses and linked dispatch details are not included.",
     "bindings": [
       {

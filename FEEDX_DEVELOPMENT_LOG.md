@@ -1157,3 +1157,7 @@ Corrected preserved review date/lifecycle filters and shared canonical coverage 
 ### 2026-10-29 — Legacy MeSTI transport retirement
 
 Confirmed Grok replacement workflow clears the retirement gate. Removed the five review tools and raw MeSTI transport alias, unused tool permissions and public SQL compatibility adapters. Resource-only discovery/authorization retains QA Executive identity, key, resource scope, canonical read projections and audit history.
+
+### 2026-10-29 — Agent capability coverage semantics
+
+Reassessed 34 Factory modules: 31 Available, 3 Limited, none Unavailable. Separated missing capabilities from agent access and data/authority notes; compact shared selector puts contextual notes under Access details. Read mappings, grants, keys, audit and resource behavior are unchanged.

@@ -22,7 +22,7 @@ it("matches all 34 actual Factory routes and exact sidebar sections, labels and 
 });
 it("pins shared MeSTI rows to one business module and declares all report dependencies",()=>{
  for(const module of modules.filter((m)=>m.id.startsWith("factory_mesti_")&&m.id!=="factory_mesti_raw_material_control"))for(const binding of module.bindings){expect(binding.row_scope.module).toBeTruthy();expect(binding.fields).not.toContain("employee_id");expect(binding.fields).toContain("completion_result");}
- const reports=modules.find((m)=>m.id==="factory_production_reports");expect(reports.coverage).toBe("partial");expect(reports.bindings).toHaveLength(4);expect(reports.bindings.every((b)=>b.requires_modules.length>0)).toBe(true);
+ const reports=modules.find((m)=>m.id==="factory_production_reports");expect(reports.coverage).toBe("limited");expect(reports.bindings).toHaveLength(4);expect(reports.bindings.every((b)=>b.requires_modules.length>0)).toBe(true);
  for(const slug of ["dashboard","production_performance","traceability"]){const binding=modules.flatMap((m)=>m.bindings).find((b)=>b.resource===slug);expect(binding.requires_modules.length).toBeGreaterThan(2);for(const id of binding.requires_modules)expect(modules.some((m)=>m.id===id)).toBe(true);}
 });
 it("registers explicit safe projections without sensitive master or employee payloads",()=>{
