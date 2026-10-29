@@ -1,3 +1,4 @@
+export const factoryResourceNames = ["job_orders", "production_records", "execution_steps", "qc_results", "material_usage", "material_allocations", "finished_goods", "finished_batches", "dispatches", "dispatch_items", "dispatch_allocations", "product_movements", "product_stock_checks", "product_stock_counts", "internal_transfers", "transfer_items", "raw_materials", "raw_batches", "receipts", "receiving_items", "raw_movements", "raw_stock_checks", "raw_stock_counts", "recipes", "recipe_ingredients", "production_sops", "sop_steps", "equipment", "locations", "suppliers", "customers", "product_families", "feedback_campaigns", "feedback_variants", "petty_cash", "petty_cash_categories", "raw_control_standards", "raw_control_receipts", "planning", "dashboard", "production_performance", "traceability", "feedback_counts", "audit_trail", "mesti_review", "requirements", "occurrences", "statuses", "schedules", "evidence"];
 const date = { type: "string", format: "date", description: "Malaysia business date, YYYY-MM-DD." };
 export const resourceNames = ["requirements", "occurrences", "statuses", "schedules", "evidence"];
 export const resourceActions = ["list", "read", "search", "filter"];
@@ -11,7 +12,7 @@ const filterFields = {
 };
 export const resourceTool = {
  name: "query_mesti_resources",
- description: "Query separately authorized MeSTI resources with explicit List, Read, Search or Filter operations. Supply 1–5 queries; every operation must be granted or the entire request is denied. Each query requires a Malaysia date range of at most 31 days, optional module and page size 1–100. Read uses an exact returned id; Search matches safe labels literally; Filter accepts only documented fields. IDs are resource-scoped; no implicit joins or expanded related data. Follow next_cursor unchanged with the same query. Returns canonical saved states, recurrence/effective-date semantics and coverage limitations, without compliance verdicts or recommendations. Health data is daily aggregate only. No writes or arbitrary SQL.",
+ description: "Compatibility adapter for authorized MeSTI View Records queries. Query operations are List, Read, Search or Filter. Supply 1–5 queries; every operation must be granted or the entire request is denied. Each query requires a Malaysia date range of at most 31 days, optional module and page size 1–100. Read uses an exact returned id; Search matches safe labels literally; Filter accepts only documented fields. IDs are resource-scoped; no implicit joins or expanded related data. Follow next_cursor unchanged with the same query. Returns canonical saved states, recurrence/effective-date semantics and coverage limitations, without compliance verdicts or recommendations. Health data is daily aggregate only. No writes or arbitrary SQL.",
  inputSchema: { type: "object", properties: { queries: { type: "array", minItems: 1, maxItems: 5, items: { type: "object", properties: {
   resource: { type: "string", enum: resourceNames }, action: { type: "string", enum: resourceActions },
   date_range: { type: "object", properties: { from: date, to: date }, required: ["from", "to"], additionalProperties: false },
@@ -23,10 +24,10 @@ export const resourceTool = {
 };
 const object = (value) => value && typeof value === "object" && !Array.isArray(value);
 function validDate(value) { return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value; }
-export function resourceArguments(args) {
+export function resourceArguments(args, factory = false) {
  if (!object(args) || Object.keys(args).some((key) => key !== "queries") || !Array.isArray(args.queries) || args.queries.length < 1 || args.queries.length > 5 || JSON.stringify(args.queries).length > 14000) throw new Error("Use 1 to 5 bounded resource queries.");
  for (const q of args.queries) {
-  if (!object(q) || Object.keys(q).some((key) => !Object.hasOwn(resourceTool.inputSchema.properties.queries.items.properties, key)) || !resourceNames.includes(q.resource) || !resourceActions.includes(q.action)) throw new Error("Unsupported resource or operation.");
+  if (!object(q) || Object.keys(q).some((key) => !Object.hasOwn(resourceTool.inputSchema.properties.queries.items.properties, key)) || !(factory ? factoryResourceNames.includes(q.resource) : resourceNames.includes(q.resource)) || !resourceActions.includes(q.action)) throw new Error("Unsupported resource or operation.");
   const range = q.date_range;
   if (!object(range) || Object.keys(range).some((key) => !["from", "to"].includes(key)) || !validDate(range.from) || !validDate(range.to) || range.to < range.from || Date.parse(range.to) - Date.parse(range.from) > 30 * 86400000) throw new Error("Use at most 31 valid Malaysia business dates.");
   if (q.module !== undefined && !mestiModules.includes(q.module)) throw new Error("Unsupported MeSTI module.");
@@ -36,9 +37,15 @@ export function resourceArguments(args) {
   else if (Object.hasOwn(q, "id")) throw new Error("Use Read for a resource ID.");
   if (q.action === "search") { if (typeof q.search !== "string" || !q.search.trim() || q.search.length > 100) throw new Error("Search requires 1 to 100 characters."); }
   else if (Object.hasOwn(q, "search")) throw new Error("Use Search for text queries.");
-  if (q.action === "filter") { if (!object(q.filters) || !Object.keys(q.filters).length || Object.entries(q.filters).some(([key, value]) => !filterFields[q.resource].includes(key) || typeof value !== "string" || !value.length || value.length > 240)) throw new Error("Unsupported filter field or value."); }
+  if (q.action === "filter") { if (!object(q.filters) || !Object.keys(q.filters).length || Object.entries(q.filters).some(([key, value]) => !(factory ? /^[a-z][a-z_]{0,79}$/.test(key) : filterFields[q.resource].includes(key)) || typeof value !== "string" || !value.length || value.length > 240)) throw new Error("Unsupported filter field or value."); }
   else if (Object.hasOwn(q, "filters")) throw new Error("Use Filter for structured filters.");
  }
  return { p_queries: args.queries };
 }
-export function safeResourceActions(queries) { return Array.isArray(queries) ? queries.slice(0, 5).filter((q) => resourceNames.includes(q?.resource) && resourceActions.includes(q?.action)).map((q) => ({ resource: q.resource, action: q.action })) : []; }
+export function safeResourceActions(queries) { return Array.isArray(queries) ? queries.slice(0, 5).filter((q) => factoryResourceNames.includes(q?.resource) && resourceActions.includes(q?.action)).map((q) => ({ resource: q.resource, action: q.action })) : []; }
+
+export const factoryResourceTool = {
+ ...resourceTool, name: "query_factory_resources",
+ description: "Query granted Factory resources. View Records permits bounded List, Read, Search and Filter. Consult authorized-resource-actions metadata for actual resource IDs. Every query and summary dependency is authorized before any data is returned. Supply 1–5 queries, 31 Malaysia business dates maximum, pages of 1–100, exact equality filters on returned safe fields only. No implicit joins; related resources require their own grants and hidden relationship fields are omitted. Master data is the current snapshot; Dashboard and Production Performance retain full calendar-month reporting, trends and live stock context. MeSTI preserves canonical recurrence and Production End attribution. Compliance review records reuse the established redacted inspection projection. Empty data never certifies completeness or compliance. No SQL, writes, clinical/employee identities, contacts, response tokens or receipt files.",
+ inputSchema: {...resourceTool.inputSchema, properties: {queries: {...resourceTool.inputSchema.properties.queries, items: {...resourceTool.inputSchema.properties.queries.items, properties: {...resourceTool.inputSchema.properties.queries.items.properties, resource: {type: "string", pattern: "^[a-z][a-z_]{0,79}$", description: "A granted resource ID from discovery metadata."}, filters: {type: "object", description: "Exact string equality on registered safe fields. Hidden relationships, unknown fields and free-text/clinical fields are rejected.", additionalProperties: {type: "string", maxLength: 240}}}}}}},
+};

@@ -1,0 +1,919 @@
+[
+  {
+    "slug": "job_orders",
+    "module": "Job Orders",
+    "label": "Job orders",
+    "table": "factory_job_orders",
+    "fields": [
+      "id",
+      "job_order_no",
+      "target_pack_qty",
+      "target_production_qty",
+      "target_quantity",
+      "produced_quantity",
+      "uom",
+      "planned_date",
+      "due_date",
+      "priority",
+      "status",
+      "released_at",
+      "started_at",
+      "production_date",
+      "start_time",
+      "completed_at",
+      "finished_good_id",
+      "production_sop_id",
+      "sop_version"
+    ],
+    "date": "planned_date",
+    "label_field": "job_order_no",
+    "refs": {
+      "finished_good_id": "finished_goods",
+      "production_sop_id": "production_sops"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "production_records",
+    "module": "Production",
+    "label": "Production records",
+    "table": "factory_productions",
+    "fields": [
+      "id",
+      "production_no",
+      "batch_no",
+      "job_order_id",
+      "finished_good_id",
+      "actual_pack_qty",
+      "actual_output_qty",
+      "produced_quantity",
+      "actual_produced_qty",
+      "good_output_qty",
+      "wastage_qty",
+      "uom",
+      "production_date",
+      "manufacturing_date",
+      "end_date",
+      "expiry_date",
+      "start_time",
+      "end_time",
+      "qc_status",
+      "production_sop_id",
+      "sop_version",
+      "status",
+      "completed_at",
+      "verification_status",
+      "verified_at",
+      "storage_location_id"
+    ],
+    "date": "case when r.status='completed' then r.end_date else r.production_date end",
+    "label_field": "production_no",
+    "refs": {
+      "job_order_id": "job_orders",
+      "finished_good_id": "finished_goods",
+      "production_sop_id": "production_sops",
+      "storage_location_id": "locations"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "execution_steps",
+    "module": "Production",
+    "label": "Execution steps",
+    "table": "factory_production_step_executions",
+    "fields": [
+      "id",
+      "job_order_id",
+      "production_id",
+      "step_no",
+      "step_name",
+      "status",
+      "completed_at"
+    ],
+    "date": "created_at",
+    "label_field": "step_name",
+    "refs": {},
+    "dependencies": [
+      "production_records",
+      "job_orders"
+    ]
+  },
+  {
+    "slug": "qc_results",
+    "module": "Production",
+    "label": "Quality results",
+    "table": "factory_production_qc_results",
+    "fields": [
+      "id",
+      "job_order_id",
+      "production_id",
+      "production_step_execution_id",
+      "sequence_no",
+      "qc_type",
+      "qc_name",
+      "is_required",
+      "checklist_result",
+      "checked_at"
+    ],
+    "date": "created_at",
+    "label_field": "qc_name",
+    "refs": {},
+    "dependencies": [
+      "production_records",
+      "job_orders",
+      "execution_steps"
+    ]
+  },
+  {
+    "slug": "material_usage",
+    "module": "Production",
+    "label": "Material usage",
+    "table": "factory_production_material_usage",
+    "fields": [
+      "id",
+      "production_id",
+      "raw_material_id",
+      "quantity_used",
+      "standard_usage",
+      "actual_usage",
+      "variance_qty",
+      "variance_percent",
+      "uom",
+      "wastage_quantity"
+    ],
+    "date": "created_at",
+    "label_field": null,
+    "refs": {
+      "raw_material_id": "raw_materials"
+    },
+    "dependencies": [
+      "production_records"
+    ]
+  },
+  {
+    "slug": "material_allocations",
+    "module": "Batch Traceability",
+    "label": "Raw material lineage",
+    "table": "factory_production_material_usage_batch_allocations",
+    "fields": [
+      "id",
+      "production_material_usage_id",
+      "raw_material_batch_balance_id",
+      "allocated_qty"
+    ],
+    "date": "created_at",
+    "label_field": null,
+    "refs": {},
+    "dependencies": [
+      "material_usage",
+      "raw_batches"
+    ]
+  },
+  {
+    "slug": "finished_goods",
+    "module": "Warehouse",
+    "label": "Finished goods",
+    "table": "factory_finished_goods",
+    "fields": [
+      "id",
+      "product_code",
+      "product_name",
+      "product_name_en",
+      "category_id",
+      "product_family_id",
+      "variant_name",
+      "uom",
+      "current_balance",
+      "min_stock_level",
+      "status",
+      "pack_size_qty",
+      "pack_size_uom",
+      "base_qty",
+      "base_uom",
+      "packaging_type",
+      "shelf_life_days",
+      "storage_location_id"
+    ],
+    "date": null,
+    "label_field": "product_name",
+    "refs": {
+      "product_family_id": "product_families",
+      "storage_location_id": "locations"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "finished_batches",
+    "module": "Warehouse",
+    "label": "Finished goods batches",
+    "table": "factory_finished_good_batch_balances",
+    "fields": [
+      "id",
+      "finished_good_id",
+      "production_id",
+      "source_type",
+      "batch_no",
+      "manufacturing_date",
+      "expiry_date",
+      "storage_location_id",
+      "opening_qty",
+      "current_balance",
+      "origin_batch_balance_id"
+    ],
+    "date": "manufacturing_date",
+    "label_field": "batch_no",
+    "refs": {
+      "finished_good_id": "finished_goods",
+      "production_id": "production_records",
+      "storage_location_id": "locations"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "dispatches",
+    "module": "Warehouse",
+    "label": "Dispatches",
+    "table": "factory_finished_good_dispatches",
+    "fields": [
+      "id",
+      "dispatch_no",
+      "dispatch_date",
+      "status",
+      "completed_at",
+      "cancelled_at",
+      "reversed_at",
+      "customer_id"
+    ],
+    "date": "dispatch_date",
+    "label_field": "dispatch_no",
+    "refs": {
+      "customer_id": "customers"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "dispatch_items",
+    "module": "Warehouse",
+    "label": "Dispatch items",
+    "table": "factory_finished_good_dispatch_items",
+    "fields": [
+      "id",
+      "dispatch_id",
+      "finished_good_id",
+      "quantity",
+      "batch_no"
+    ],
+    "date": "created_at",
+    "label_field": "batch_no",
+    "refs": {
+      "finished_good_id": "finished_goods"
+    },
+    "dependencies": [
+      "dispatches"
+    ]
+  },
+  {
+    "slug": "dispatch_allocations",
+    "module": "Warehouse",
+    "label": "Dispatch batch allocations",
+    "table": "factory_finished_good_dispatch_batch_allocations",
+    "fields": [
+      "id",
+      "dispatch_item_id",
+      "production_id",
+      "quantity",
+      "batch_no",
+      "manufacturing_date",
+      "expiry_date",
+      "storage_location_id",
+      "batch_balance_id"
+    ],
+    "date": "created_at",
+    "label_field": "batch_no",
+    "refs": {
+      "production_id": "production_records",
+      "storage_location_id": "locations"
+    },
+    "dependencies": [
+      "dispatch_items",
+      "finished_batches"
+    ]
+  },
+  {
+    "slug": "product_movements",
+    "module": "Warehouse",
+    "label": "Product movements",
+    "table": "factory_product_stock_movements",
+    "fields": [
+      "id",
+      "finished_good_id",
+      "movement_type",
+      "quantity",
+      "uom",
+      "movement_date",
+      "finished_good_batch_balance_id",
+      "internal_transfer_id"
+    ],
+    "date": "movement_date",
+    "label_field": "movement_type",
+    "refs": {
+      "finished_good_id": "finished_goods",
+      "finished_good_batch_balance_id": "finished_batches",
+      "internal_transfer_id": "internal_transfers"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "product_stock_checks",
+    "module": "Warehouse",
+    "label": "Product stock checks",
+    "table": "factory_product_stock_checks",
+    "fields": [
+      "id",
+      "check_no",
+      "check_date",
+      "status",
+      "submitted_at",
+      "approved_at"
+    ],
+    "date": "check_date",
+    "label_field": "check_no",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "product_stock_counts",
+    "module": "Warehouse",
+    "label": "Product stock counts",
+    "table": "factory_product_stock_check_items",
+    "fields": [
+      "id",
+      "stock_check_id",
+      "finished_good_id",
+      "system_qty",
+      "physical_qty",
+      "variance_qty",
+      "variance_percent",
+      "count_status",
+      "variance_status",
+      "uom"
+    ],
+    "date": "created_at",
+    "label_field": null,
+    "refs": {
+      "finished_good_id": "finished_goods"
+    },
+    "dependencies": [
+      "product_stock_checks"
+    ]
+  },
+  {
+    "slug": "internal_transfers",
+    "module": "Warehouse",
+    "label": "Internal transfers",
+    "table": "factory_internal_transfers",
+    "fields": [
+      "id",
+      "transfer_no",
+      "inventory_type",
+      "from_location_id",
+      "to_location_id",
+      "transfer_date",
+      "status",
+      "completed_at"
+    ],
+    "date": "transfer_date",
+    "label_field": "transfer_no",
+    "refs": {
+      "from_location_id": "locations",
+      "to_location_id": "locations"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "transfer_items",
+    "module": "Warehouse",
+    "label": "Transfer items",
+    "table": "factory_internal_transfer_items",
+    "fields": [
+      "id",
+      "transfer_id",
+      "raw_material_id",
+      "finished_good_id",
+      "quantity",
+      "uom",
+      "source_raw_material_batch_balance_id",
+      "destination_raw_material_batch_balance_id",
+      "source_finished_good_batch_balance_id",
+      "destination_finished_good_batch_balance_id"
+    ],
+    "date": "created_at",
+    "label_field": null,
+    "refs": {
+      "raw_material_id": "raw_materials",
+      "finished_good_id": "finished_goods",
+      "source_raw_material_batch_balance_id": "raw_batches",
+      "destination_raw_material_batch_balance_id": "raw_batches",
+      "source_finished_good_batch_balance_id": "finished_batches",
+      "destination_finished_good_batch_balance_id": "finished_batches"
+    },
+    "dependencies": [
+      "internal_transfers"
+    ]
+  },
+  {
+    "slug": "raw_materials",
+    "module": "Raw Materials",
+    "label": "Raw materials",
+    "table": "factory_raw_materials",
+    "fields": [
+      "id",
+      "material_code",
+      "name",
+      "name_en",
+      "category_id",
+      "uom",
+      "current_balance",
+      "min_stock_level",
+      "status",
+      "expiry_tracking_mode",
+      "shelf_life_days",
+      "par_level",
+      "storage_location_id",
+      "conversion_package_quantity",
+      "conversion_base_uom"
+    ],
+    "date": null,
+    "label_field": "name",
+    "refs": {
+      "storage_location_id": "locations"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "raw_batches",
+    "module": "Raw Materials",
+    "label": "Raw material batches",
+    "table": "factory_raw_material_batch_balances",
+    "fields": [
+      "id",
+      "receiving_item_id",
+      "raw_material_id",
+      "source_type",
+      "internal_batch_no",
+      "supplier_lot_no",
+      "received_date",
+      "manufacturing_date",
+      "expiry_date",
+      "storage_location_id",
+      "uom",
+      "opening_qty",
+      "current_balance",
+      "status",
+      "origin_batch_balance_id"
+    ],
+    "date": "received_date",
+    "label_field": "internal_batch_no",
+    "refs": {
+      "receiving_item_id": "receiving_items",
+      "raw_material_id": "raw_materials",
+      "storage_location_id": "locations"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "receipts",
+    "module": "Raw Materials",
+    "label": "Receiving documents",
+    "table": "factory_raw_material_receiving_batches",
+    "fields": [
+      "id",
+      "batch_no",
+      "received_date",
+      "status",
+      "verification_status",
+      "completed_at",
+      "cancelled_at",
+      "verified_at",
+      "supplier_id"
+    ],
+    "date": "received_date",
+    "label_field": "batch_no",
+    "refs": {
+      "supplier_id": "suppliers"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "receiving_items",
+    "module": "Raw Materials",
+    "label": "Receiving items",
+    "table": "factory_raw_material_receivings",
+    "fields": [
+      "id",
+      "batch_id",
+      "receipt_no",
+      "raw_material_id",
+      "supplier_id",
+      "received_qty",
+      "uom",
+      "received_date",
+      "manufacturing_date",
+      "expiry_date",
+      "expiry_source",
+      "expiry_confirmed",
+      "storage_location_id",
+      "supplier_lot_no",
+      "internal_batch_no"
+    ],
+    "date": "received_date",
+    "label_field": "receipt_no",
+    "refs": {
+      "raw_material_id": "raw_materials",
+      "supplier_id": "suppliers",
+      "storage_location_id": "locations"
+    },
+    "dependencies": [
+      "receipts"
+    ]
+  },
+  {
+    "slug": "raw_movements",
+    "module": "Raw Materials",
+    "label": "Raw material movements",
+    "table": "factory_raw_material_movements",
+    "fields": [
+      "id",
+      "raw_material_id",
+      "movement_type",
+      "quantity",
+      "uom",
+      "movement_date",
+      "production_material_usage_id",
+      "raw_material_batch_balance_id",
+      "internal_transfer_id"
+    ],
+    "date": "movement_date",
+    "label_field": "movement_type",
+    "refs": {
+      "raw_material_id": "raw_materials",
+      "production_material_usage_id": "material_usage",
+      "raw_material_batch_balance_id": "raw_batches",
+      "internal_transfer_id": "internal_transfers"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "raw_stock_checks",
+    "module": "Raw Materials",
+    "label": "Raw material stock checks",
+    "table": "factory_raw_material_stock_checks",
+    "fields": [
+      "id",
+      "check_no",
+      "check_date",
+      "status",
+      "submitted_at",
+      "approved_at"
+    ],
+    "date": "check_date",
+    "label_field": "check_no",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "raw_stock_counts",
+    "module": "Raw Materials",
+    "label": "Raw material stock counts",
+    "table": "factory_raw_material_stock_check_items",
+    "fields": [
+      "id",
+      "stock_check_id",
+      "raw_material_id",
+      "system_qty",
+      "physical_qty",
+      "variance_qty",
+      "variance_percent",
+      "count_status",
+      "variance_status",
+      "uom"
+    ],
+    "date": "created_at",
+    "label_field": null,
+    "refs": {
+      "raw_material_id": "raw_materials"
+    },
+    "dependencies": [
+      "raw_stock_checks"
+    ]
+  },
+  {
+    "slug": "recipes",
+    "module": "Master Data",
+    "label": "Recipes",
+    "table": "factory_product_recipes",
+    "fields": [
+      "id",
+      "recipe_code",
+      "recipe_name",
+      "version",
+      "yield_quantity",
+      "uom",
+      "status",
+      "estimated_production_time_minutes",
+      "product_family_id"
+    ],
+    "date": null,
+    "label_field": "recipe_name",
+    "refs": {
+      "product_family_id": "product_families"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "recipe_ingredients",
+    "module": "Master Data",
+    "label": "Recipe ingredients",
+    "table": "factory_product_recipe_items",
+    "fields": [
+      "id",
+      "recipe_id",
+      "raw_material_id",
+      "quantity_used",
+      "uom",
+      "wastage_percent",
+      "sort_order",
+      "recipe_usage_uom"
+    ],
+    "date": null,
+    "label_field": null,
+    "refs": {
+      "raw_material_id": "raw_materials"
+    },
+    "dependencies": [
+      "recipes"
+    ]
+  },
+  {
+    "slug": "production_sops",
+    "module": "Master Data",
+    "label": "Production procedures",
+    "table": "factory_production_sops",
+    "fields": [
+      "id",
+      "sop_code",
+      "title",
+      "status",
+      "version",
+      "effective_date",
+      "estimated_minutes",
+      "recipe_id",
+      "recipe_version"
+    ],
+    "date": null,
+    "label_field": "title",
+    "refs": {
+      "recipe_id": "recipes"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "sop_steps",
+    "module": "Master Data",
+    "label": "Procedure steps",
+    "table": "factory_production_sop_steps",
+    "fields": [
+      "id",
+      "sop_id",
+      "step_no",
+      "instruction",
+      "expected_duration_minutes",
+      "process_name",
+      "description",
+      "control_point",
+      "estimated_time_minutes",
+      "is_qc_checkpoint",
+      "qc_label",
+      "qc_measurement_type",
+      "qc_target_value",
+      "qc_minimum",
+      "qc_maximum",
+      "qc_uom",
+      "qc_required_before_completion"
+    ],
+    "date": null,
+    "label_field": "process_name",
+    "refs": {},
+    "dependencies": [
+      "production_sops"
+    ]
+  },
+  {
+    "slug": "equipment",
+    "module": "Master Data",
+    "label": "Equipment",
+    "table": "factory_equipment",
+    "fields": [
+      "id",
+      "equipment_code",
+      "name",
+      "category_id",
+      "current_location_id",
+      "status"
+    ],
+    "date": null,
+    "label_field": "name",
+    "refs": {
+      "current_location_id": "locations"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "locations",
+    "module": "Master Data",
+    "label": "Locations",
+    "table": "factory_storage_locations",
+    "fields": [
+      "id",
+      "location_code",
+      "location_name",
+      "location_type",
+      "status",
+      "is_storage_location"
+    ],
+    "date": null,
+    "label_field": "location_name",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "suppliers",
+    "module": "Master Data",
+    "label": "Suppliers",
+    "table": "factory_suppliers",
+    "fields": [
+      "id",
+      "supplier_code",
+      "supplier_name",
+      "status"
+    ],
+    "date": null,
+    "label_field": "supplier_name",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "customers",
+    "module": "Master Data",
+    "label": "Customers",
+    "table": "factory_customers",
+    "fields": [
+      "id",
+      "customer_code",
+      "customer_name",
+      "customer_type",
+      "status"
+    ],
+    "date": null,
+    "label_field": "customer_name",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "product_families",
+    "module": "Master Data",
+    "label": "Product families",
+    "table": "factory_product_families",
+    "fields": [
+      "id",
+      "name_en",
+      "category_id",
+      "status",
+      "is_halal"
+    ],
+    "date": null,
+    "label_field": "name_en",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "feedback_campaigns",
+    "module": "Product Feedback",
+    "label": "Feedback campaigns",
+    "table": "factory_product_feedback_campaigns",
+    "fields": [
+      "id",
+      "name",
+      "event_label",
+      "starts_on",
+      "ends_on",
+      "status",
+      "form_version",
+      "finished_good_id"
+    ],
+    "date": "starts_on",
+    "label_field": "name",
+    "refs": {
+      "finished_good_id": "finished_goods"
+    },
+    "dependencies": []
+  },
+  {
+    "slug": "feedback_variants",
+    "module": "Product Feedback",
+    "label": "Tasting variants",
+    "table": "factory_product_feedback_variants",
+    "fields": [
+      "id",
+      "campaign_id",
+      "name",
+      "finished_good_id",
+      "is_active"
+    ],
+    "date": "created_at",
+    "label_field": "name",
+    "refs": {
+      "finished_good_id": "finished_goods"
+    },
+    "dependencies": [
+      "feedback_campaigns"
+    ]
+  },
+  {
+    "slug": "petty_cash",
+    "module": "Petty Cash",
+    "label": "Petty cash ledger",
+    "table": "factory_petty_cash_transactions",
+    "fields": [
+      "id",
+      "reference_no",
+      "transaction_type",
+      "adjustment_direction",
+      "amount",
+      "category_id",
+      "transaction_date",
+      "status",
+      "reversal_of_id",
+      "posted_at"
+    ],
+    "date": "transaction_date",
+    "label_field": "reference_no",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "petty_cash_categories",
+    "module": "Petty Cash",
+    "label": "Petty cash categories",
+    "table": "factory_petty_cash_categories",
+    "fields": [
+      "id",
+      "code",
+      "name",
+      "status",
+      "sort_order"
+    ],
+    "date": null,
+    "label_field": "name",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "raw_control_standards",
+    "module": "MeSTI",
+    "label": "Raw material control standards",
+    "table": "factory_raw_materials",
+    "fields": [
+      "id",
+      "material_code",
+      "name",
+      "acceptance_procedure",
+      "control_methods",
+      "status"
+    ],
+    "date": null,
+    "label_field": "name",
+    "refs": {},
+    "dependencies": []
+  },
+  {
+    "slug": "raw_control_receipts",
+    "module": "MeSTI",
+    "label": "Raw material control evidence",
+    "table": "factory_raw_material_receivings",
+    "fields": [
+      "id",
+      "receipt_no",
+      "received_date",
+      "expiry_date",
+      "expiry_source",
+      "expiry_confirmed",
+      "acceptance_procedure_snapshot",
+      "control_methods_snapshot"
+    ],
+    "date": "received_date",
+    "label_field": "receipt_no",
+    "refs": {},
+    "dependencies": []
+  }
+]

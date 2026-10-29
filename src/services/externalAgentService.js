@@ -11,6 +11,7 @@ export const externalAgentService = {
   details: (id) => rpc("external_agents_admin_data", { p_identity_id: id }),
   register: (requestId, name, provider, adapterKey, tools) => rpc("external_agents_register", { p_request_id: requestId, p_name: name, p_provider: provider, p_adapter_key: adapterKey, p_tool_ids: tools }),
   setEnabled: (id, enabled, expected) => rpc("external_agents_set_enabled", { p_identity_id: id, p_enabled: enabled, p_expected_enabled: expected }),
+  setCapabilities: (id, changes) => rpc("external_agents_set_capabilities", { p_identity_id: id, p_changes: changes }),
   setCapability: (id, toolId, granted, expected) => rpc("external_agents_set_capability", { p_identity_id: id, p_tool_id: toolId, p_granted: granted, p_expected_granted: expected }),
   revoke: (id, credentialId) => rpc("external_agents_revoke_credential", { p_identity_id: id, p_credential_id: credentialId }),
   // Only this explicit issuance response may contain a newly generated credential.

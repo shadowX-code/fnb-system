@@ -1,17 +1,17 @@
-import { afterEach, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import AgentCapabilities from "./AgentCapabilities.jsx";
 afterEach(cleanup);
-it("makes unsupported actions unavailable and renders explicit action and approval metadata",()=>{
- render(<AgentCapabilities canManage capabilities={[{name:"unavailable",label:"Unavailable action",workspace:"Factory",domain:"qa",domain_label:"QA",description:"No implementation",capability:"execute",implemented:false,can_assign:true,requires_human_approval:true}]} />);
- expect(screen.getByText("Unavailable")).toBeTruthy();expect(screen.queryByRole("button",{name:/Grant/})).toBeNull();expect(screen.getByText("Human approval required for this action.")).toBeTruthy();
- expect(screen.getByText(/Draft, Execute, Approve actions are unavailable/)).toBeTruthy();
+const rows = ["Requirements", "Evidence"].map((label,i)=>({name:`resource_${i}`,label,resource_key:`factory.${i}`,resource_label:label,workspace:"Factory",domain:"mesti",domain_label:"MeSTI",capability:"view",implemented:true,can_assign:true,granted:i===0}));
+it("uses one View Records control per resource and reports exact selection counts",()=>{
+ const change=vi.fn(),many=vi.fn();render(<AgentCapabilities canManage capabilities={rows} onChange={change} onChangeMany={many} />);
+ expect(screen.queryByRole("columnheader")).toBeNull();expect(screen.getByText("1 of 2 selected")).toBeTruthy();
+ fireEvent.click(screen.getByRole("checkbox",{name:"View Records: Evidence"}));expect(change).toHaveBeenCalledWith(rows[1]);
+ fireEvent.click(screen.getByRole("button",{name:"Select all"}));expect(many).toHaveBeenCalledWith([rows[1]],true);
+ fireEvent.click(screen.getByRole("button",{name:"Clear"}));expect(many).toHaveBeenLastCalledWith([rows[0]],false);
 });
-
-it("groups resource actions separately from legacy grants and never assumes inherited resource access",()=>{
- const capabilities=["list","read","search","filter"].map((action)=>({name:`requirements_${action}`,label:`Requirements · ${action}`,resource_key:"factory.mesti.requirements",resource_label:"Requirements",resource_description:"Versioned requirements",workspace:"Factory",domain:"mesti",domain_label:"MeSTI",capability:action,implemented:true,granted:false,can_assign:true}));
- render(<AgentCapabilities canManage capabilities={capabilities} />);
- expect(screen.getAllByRole("columnheader").map((node)=>node.textContent)).toEqual(["Resource","List","Read","Search","Filter"]);
- expect(screen.getAllByText("Not allowed")).toHaveLength(4);expect(screen.getByRole("button",{name:"Grant Read access to Requirements"})).toBeTruthy();
- expect(screen.getByText(/Existing review-tool access does not grant resource access/)).toBeTruthy();
+it("shares selection behavior for registration without granting unassignable resources",()=>{
+ const many=vi.fn();render(<AgentCapabilities selection={[]} capabilities={[...rows,{...rows[0],name:"denied",can_assign:false}]} onSelectMany={many} />);
+ fireEvent.click(screen.getByRole("button",{name:"Select all"}));expect(many).toHaveBeenCalledWith(["resource_0","resource_1"],true);
+ expect(screen.getByText(/Draft, Execute and Approve are unavailable/)).toBeTruthy();
 });

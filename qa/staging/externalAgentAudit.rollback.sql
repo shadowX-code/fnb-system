@@ -8,8 +8,8 @@ begin
  begin insert into public.audit_logs(action,module,user_id,description,metadata) values('external_agent_capability_granted','access-control',v_owner,'Forged gateway event','{}');raise exception 'Forged gateway event accepted.';exception when insufficient_privilege then null;end;
  begin insert into public.audit_logs(action,module,user_id,description,metadata,trusted_external_agent) values('ordinary_qa_event','system',v_owner,'Forged provenance','{}',true);raise exception 'Forged provenance accepted.';exception when insufficient_privilege then null;end;
  -- These real RPC writes ensure the guard preserves the complete supported workflow.
- v_result:=public.external_agents_register(v_request,'Audit fixture '||v_request,'QA','factory_mesti',array['get_mesti_daily_status']);v_machine:=(v_result->>'identity_id')::uuid;
- perform public.external_agents_set_capability(v_machine,'get_mesti_daily_status',false,true);
+ v_result:=public.external_agents_register(v_request,'Audit fixture '||v_request,'QA','factory_mesti',array['factory_mesti_review_view']);v_machine:=(v_result->>'identity_id')::uuid;
+ perform public.external_agents_set_capability(v_machine,'factory_mesti_review_view',false,true);
  perform public.external_agents_set_enabled(v_machine,false,true);
  v_data:=public.external_agents_admin_data(v_machine);
  if jsonb_array_length(v_data->'management_events')<4 then raise exception 'Trusted workflow history missing.';end if;

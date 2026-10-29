@@ -18,7 +18,7 @@ begin
   perform set_config('request.jwt.claims',jsonb_build_object('sub',v_owner,'role','authenticated')::text,true);
   execute 'set local role authenticated';
   v_data:=public.external_agents_admin_data(v_machine);
-  if v_data->'connections'->0->>'connection_status'<>'not_observed' or jsonb_array_length(v_data->'connections'->0->'tools')<>5 then raise exception 'Connection registry incorrect.';end if;
+  if v_data->'connections'->0->>'connection_status'<>'not_observed' or jsonb_array_length(v_data->'connections'->0->'tools')<>50 then raise exception 'Connection registry incorrect.';end if;
   if v_data::text like '%token_hash%' or v_data::text like '%one_time_credential%' then raise exception 'Ordinary management data exposed credentials.';end if;
   v_result:=public.external_agents_rotate_credential(v_machine,v_old,v_request);
   v_token:=v_result->>'one_time_credential';v_new:=(v_result->>'credential_id')::uuid;

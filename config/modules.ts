@@ -1,3 +1,4 @@
+import factoryAgentCoverage from "./factoryAgentCoverage.json";
 export type ModuleAction =
   | "list"
   | "read"
@@ -925,17 +926,8 @@ export const moduleRegistry: AppModule[] = [
     workspace: "factory",
     permissions: { view: true, create: true, manage: true },
   },
+  ...factoryAgentCoverage.map((resource) => ({ id: `factory_agent_${resource.slug}`, section: "External Agent Access", label: `Agent ${resource.label}`, route: `/factory/agent-resources/${resource.slug}`, sidebar: false, routable: false, workspace: "factory" as const, permissions: { view: true } })),
   { id: "factory_mesti_inspection", section: "MeSTI", label: "External MeSTI Inspection", route: "/factory/mesti/inspection", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
-  { id: "factory_mesti_resource_requirements", section: "MeSTI", label: "Agent MeSTI Requirements", route: "/factory/mesti/resources/requirements", sidebar: false, routable: false, workspace: "factory", permissions: { list: true, read: true, search: true, filter: true } },
-  { id: "factory_mesti_resource_occurrences", section: "MeSTI", label: "Agent MeSTI Occurrences", route: "/factory/mesti/resources/occurrences", sidebar: false, routable: false, workspace: "factory", permissions: { list: true, read: true, search: true, filter: true } },
-  { id: "factory_mesti_resource_statuses", section: "MeSTI", label: "Agent MeSTI Statuses", route: "/factory/mesti/resources/statuses", sidebar: false, routable: false, workspace: "factory", permissions: { list: true, read: true, search: true, filter: true } },
-  { id: "factory_mesti_resource_schedules", section: "MeSTI", label: "Agent MeSTI Schedules", route: "/factory/mesti/resources/schedules", sidebar: false, routable: false, workspace: "factory", permissions: { list: true, read: true, search: true, filter: true } },
-  { id: "factory_mesti_resource_evidence", section: "MeSTI", label: "Agent MeSTI Redacted Evidence", route: "/factory/mesti/resources/evidence", sidebar: false, routable: false, workspace: "factory", permissions: { list: true, read: true, search: true, filter: true } },
-  { id: "factory_mesti_inspection_status", section: "MeSTI", label: "Agent MeSTI Daily Review", route: "/factory/mesti/inspection/status", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
-  { id: "factory_mesti_inspection_exceptions", section: "MeSTI", label: "Agent MeSTI Exceptions", route: "/factory/mesti/inspection/exceptions", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
-  { id: "factory_mesti_inspection_verifications", section: "MeSTI", label: "Agent MeSTI Verification Review", route: "/factory/mesti/inspection/verifications", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
-  { id: "factory_mesti_inspection_evidence", section: "MeSTI", label: "Agent MeSTI Evidence", route: "/factory/mesti/inspection/evidence", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
-  { id: "factory_mesti_inspection_schedule", section: "MeSTI", label: "Agent MeSTI Schedule", route: "/factory/mesti/inspection/schedule", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
   { id: "factory_mesti_operator_hygiene", section: "MeSTI", label: "Operator Hygiene Inspection", route: "/factory/mesti/operator-hygiene-inspection", icon: "factory-mesti-operator-hygiene", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, submit: true, verify: true } },
   { id: "factory_mesti_waste_disposal", section: "MeSTI", label: "Waste Disposal Record", route: "/factory/mesti/waste-disposal-record", icon: "factory-mesti-waste-disposal", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, record: true, submit: true, verify: true } },
   { id: "factory_mesti_raw_material_control", section: "MeSTI", label: "Raw Material Control", route: "/factory/mesti/raw-material-control", icon: "factory-mesti-raw-material-control", sidebar: true, workspace: "factory", permissions: {} },

@@ -1133,3 +1133,7 @@ Refined External Agents into a compact business-facing list with Overview, Acces
 ## 2026-10-29 — MeSTI resource access on Staging
 
 Added Workspace/Domain/Resource/Action registry metadata and independent canonical List/Read/Search/Filter grants. Added bounded, redacted MeSTI requirement/occurrence/status/schedule/evidence queries with atomic cross-resource authorization, field allowlists and cursor pagination. Resource actions are managed separately from unchanged legacy review tools; existing agent grants and credentials receive no resource access automatically. Canonical business data remains read-only. Future Factory domains remain unavailable.
+
+## 2026-10-29 — Factory External Agent Gateway resource reads
+
+Unified implemented Factory records behind canonical View Records resource grants, shared Admin permission selection, bounded/redacted queries and dependency-aware isolation. Reporting and traceability reuse shared canonical read cores. QA Executive migrates to its equivalent redacted review resource with credential integrity preserved; legacy tool names remain adapters pending actual Grok Bot confirmation. No business mutations or tenancy changes.
