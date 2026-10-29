@@ -32,7 +32,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 describe("Factory Job Orders Phase B", () => {
   async function fillCreate() {
     fireEvent.click(screen.getByRole("button", { name: "Create Job Order" }));
-    fireEvent.click(screen.getByRole("button", { name: "Finished Good *" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Finished Good *" }));
     fireEvent.click(screen.getAllByText("Sambal").at(-1));
     fireEvent.click(screen.getByRole("button", { name: "Packaging SKU *" }));
     fireEvent.click(screen.getByRole("button", { name: /SKU-1/ }));
@@ -61,7 +61,7 @@ describe("Factory Job Orders Phase B", () => {
     const listing = setup(); mount(); await screen.findByText("JO-DRAFT");
     await openMore("JO-DRAFT", "Edit");
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-    expect(screen.getByRole("heading", { name: "Edit Job Order" })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "Edit Job Order" })).not.toBeNull();
     expect(screen.getByRole("spinbutton").value).toBe("10");
     fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "12" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));

@@ -33,11 +33,11 @@ export function productionOverviewPermissionDeniedState() {
   };
 }
 
-export function productionOverviewFailureState(current) {
+export function productionOverviewFailureState(current, error) {
   return {
     ...current,
     loading: false,
-    error: "Unable to load the latest operational Job Orders.",
+    error: error?.name === "TimeoutError" ? error.message : "Unable to load the latest operational Job Orders.",
     errorKind: "load",
   };
 }
@@ -57,7 +57,7 @@ export async function loadProductionOverview({ getOperationalJobs, isCurrent, se
       onPermissionDenied?.();
       return { kind: "permission", error };
     }
-    setState((current) => productionOverviewFailureState(current));
+    setState((current) => productionOverviewFailureState(current, error));
     return { kind: "error", error };
   }
 }

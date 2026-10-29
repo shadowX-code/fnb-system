@@ -32,7 +32,7 @@ describe("Factory Production Execution lifecycle", () => {
     factoryService.listFactoryData.mockResolvedValue({ ...data, storageLocations: [{ id: "fg-1", location_name: "Finish Good-Cold", location_type: "Freezer", is_storage_location: true, status: "active" }] });
     mount(); await openComplete();
     expect(screen.getByText("Finish Good-Cold")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Complete Production" }).disabled).toBe(false);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Complete Production" }).disabled).toBe(false));
   });
 
   it("blocks completion when the Packaging SKU storage location is not storage-enabled", async () => {
@@ -63,12 +63,12 @@ describe("Factory Production Execution lifecycle", () => {
     const actualUsage = screen.getByDisplayValue("37.8462");
     expect(actualUsage.getAttribute("step")).toBe("0.0001");
     expect(screen.getByText("37.8462 pack")).not.toBeNull();
-    expect(screen.getByText("Allocated 37.8462 pack of 37.8462 pack")).not.toBeNull();
+    expect(await screen.findByText("Allocated 37.8462 pack of 37.8462 pack")).not.toBeNull();
   });
 
   it("renders the stored execution snapshot and QC instead of substituting the newer active SOP", async () => {
     setup(); mount(); await openProcess();
-    expect(screen.getByText(/Production SOP · v7/)).not.toBeNull();
+    expect(await screen.findByText(/Production SOP · v7/)).not.toBeNull();
     expect(screen.getByText("Cook")).not.toBeNull(); expect(screen.getByText("Heat gently")).not.toBeNull(); expect(screen.getByText("Seal check")).not.toBeNull();
     expect(screen.queryByText("New SOP")).toBeNull();
     expect(factoryService.getProductionExecution).toHaveBeenCalledWith(job.id);
@@ -76,7 +76,7 @@ describe("Factory Production Execution lifecycle", () => {
 
   it("persists changed QC through its one RPC-backed service call with the snapped execution", async () => {
     setup(); const save = vi.spyOn(factoryService, "saveProductionQcProgress").mockResolvedValue({ ...execution, steps: [{ ...execution.steps[0], qc_results: [{ ...execution.steps[0].qc_results[0], checklist_result: "pass" }, execution.steps[0].qc_results[1]] }] });
-    mount(); await openProcess(); fireEvent.click(screen.getByRole("button", { name: "Pass" })); fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+    mount(); await openProcess(); fireEvent.click(await screen.findByRole("button", { name: "Pass" })); fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(save).toHaveBeenCalledWith(job.id, expect.objectContaining({ snapshotCreatedAt: execution.snapshotCreatedAt, sopId: "sop-snapshot", sopVersion: "v7", steps: expect.any(Array) }), "employee-1", "Isaac");
   });

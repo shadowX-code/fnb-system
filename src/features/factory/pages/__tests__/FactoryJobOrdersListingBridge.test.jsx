@@ -117,7 +117,7 @@ describe("Factory Job Orders listing bridge", () => {
     await screen.findByText("JO-DRAFT");
     fireEvent.click(within(draftRow()).getByRole("button", { name: "More row actions" }));
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
-    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "12" } });
+    fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "12" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
 
     await waitFor(() => expect(factoryService.saveJobOrder).toHaveBeenCalledWith(expect.objectContaining({ id: "draft", target_production_qty: 12, target_pack_qty: 24 })));

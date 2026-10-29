@@ -30,7 +30,7 @@ describe("FactoryWorkspacePage Job Order route smoke", () => {
     expect(screen.getByText("JO260809-01")).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /Create Job Order/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Finished Good *" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Finished Good *" }));
     fireEvent.click(screen.getByText("Sambal"));
     fireEvent.click(screen.getByRole("button", { name: "Packaging SKU *" }));
     fireEvent.click(screen.getByRole("button", { name: /SKU-500/ }));
@@ -39,7 +39,7 @@ describe("FactoryWorkspacePage Job Order route smoke", () => {
     expect(screen.getByText("v2")).not.toBeNull();
     expect(screen.getAllByText("kg").length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: "Finished Good *" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Finished Good *" }));
     fireEvent.click(screen.getByText("Curry"));
     fireEvent.click(screen.getByRole("button", { name: "Packaging SKU *" }));
     fireEvent.click(screen.getByRole("button", { name: /SKU-1KG/ }));

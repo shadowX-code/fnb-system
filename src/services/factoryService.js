@@ -1282,7 +1282,7 @@ async function logFactoryAction({ action, target, description, after, before }) 
   }).catch(() => {});
 }
 
-function emptyFactoryData() {
+export function emptyFactoryData() {
   return {
     jobOrders: [],
     rawMaterials: [],
@@ -1717,7 +1717,7 @@ async function loadProductionSopRows({ signal }) {
   }, label);
 }
 
-export function factoryDataPlan(scope, hasPermission) {
+function factorySupportDataPlan(scope, hasPermission) {
   const can = (code) => !hasPermission || hasPermission(code);
   const isDashboard = scope === "dashboard";
   const isProductionOverview = scope === "production-overview";
@@ -1776,6 +1776,25 @@ export function factoryDataPlan(scope, hasPermission) {
     mestiCalibrationRequirements: isMestiCalibration && can("factory_mesti_calibration.view"),
     auditLogs: false,
   };
+}
+
+
+// Operational lists own their read models. Full master trees belong to the action that consumes them.
+const productionActionDependencies = {
+  job: ["finishedGoods", "rawMaterials", "recipes"],
+  "start-production": ["sops"],
+  production: ["rawMaterials", "receivings", "recipes", "sops", "finishedGoods", "storageLocations", "equipment"],
+  "production-process": ["rawMaterials", "receivings", "recipes", "sops", "finishedGoods", "storageLocations"],
+  "completed-job-result": ["recipes"],
+};
+export function factoryDataPlan(scope, hasPermission, action = "") {
+  const plan = factorySupportDataPlan(action === "job" ? "job-orders" : action ? "production" : scope, hasPermission);
+  const keys = productionActionDependencies[action];
+  if (action && !keys) throw new Error("Unknown Factory action data scope.");
+  if (keys || ["production-overview", "job-orders"].includes(scope)) {
+    return Object.fromEntries(Object.entries(plan).map(([key, enabled]) => [key, Boolean(keys?.includes(key) && enabled)]));
+  }
+  return plan;
 }
 
 const factoryServiceDefinition = {
@@ -2001,9 +2020,9 @@ const factoryServiceDefinition = {
     });
   },
 
-  async listFactoryData({ scope = "dashboard", hasPermission, signal } = {}) {
+  async listFactoryData({ scope = "dashboard", hasPermission, signal, action = "", onDependency } = {}) {
     const data = emptyFactoryData();
-    const plan = factoryDataPlan(scope, hasPermission);
+    const plan = factoryDataPlan(scope, hasPermission, action);
     const tasks = [];
     const addTask = (enabled, key, label, query, mapper, complete = false, loader = null) => {
       if (!enabled) return;
@@ -2147,9 +2166,17 @@ const factoryServiceDefinition = {
     };
 
     const results = await Promise.allSettled(tasks.map(async (task) => {
-      if (task.loader) return { data: await task.loader(), error: null };
-      const query = task.query();
-      return signal ? query.abortSignal(signal) : query;
+      const startedAt = Date.now();
+      const report = (status) => onDependency?.({ key: task.key, label: task.label, status, elapsedMs: Date.now() - startedAt });
+      report("pending");
+      try {
+        const result = task.loader ? { data: await task.loader(), error: null } : await (signal ? task.query().abortSignal(signal) : task.query());
+        report(result.error ? "failed" : "ready");
+        return result;
+      } catch (error) {
+        report(signal?.aborted ? "cancelled" : "failed");
+        throw error;
+      }
     }));
     if (signal?.aborted) {
       const abortError = new Error("Factory data load cancelled.");
@@ -2280,15 +2307,18 @@ const factoryServiceDefinition = {
     return data;
   },
 
-  async listOperationalJobOrders({ date, includeProductions = true } = {}) {
+  async listOperationalJobOrders({ date, includeProductions = true, signal } = {}) {
     if (strictDateValue(date) === null) throw new Error("Enter a valid operational date.");
-    const dueReleaseResult = await supabase.rpc("factory_release_due_job_orders");
+    const request = (query) => signal ? query.abortSignal(signal) : query;
+    if (signal?.aborted) throw factoryAbortError();
+    const dueReleaseResult = await request(supabase.rpc("factory_release_due_job_orders"));
     throwSupabaseError("factory.operational_job_orders.release_due", dueReleaseResult.error);
 
-    const { data, error } = await supabase.rpc("factory_get_production_operational_pipeline_snapshot", {
+    if (signal?.aborted) throw factoryAbortError();
+    const { data, error } = await request(supabase.rpc("factory_get_production_operational_pipeline_snapshot", {
       p_operational_date: String(date),
       p_include_productions: Boolean(includeProductions),
-    });
+    }));
     throwSupabaseError("factory.operational_job_orders.snapshot", error);
 
     const snapshot = data && typeof data === "object" ? data : {};

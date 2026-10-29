@@ -4,29 +4,17 @@ import { factoryDataPlan } from "../factoryService.js";
 const can = () => true;
 
 describe("Factory Job Orders scoped data plan", () => {
-  it("keeps Job Orders listing and audit data out of the Workspace scope while retaining modal support data", () => {
-    const plan = factoryDataPlan("job-orders", can);
-
-    expect(plan.jobOrders).toBe(false);
-    expect(plan.auditLogs).toBe(false);
-    expect(plan.finishedGoods).toBe(true);
-    expect(plan.productFamilies).toBe(true);
-    expect(plan.rawMaterials).toBe(true);
-    expect(plan.recipes).toBe(true);
-    expect(plan.sops).toBe(true);
-    expect(plan.storageLocations).toBe(true);
+  it.each(["job-orders", "production-overview", "product-feedback", "petty-cash", "audit-logs"])("does not block %s on unrelated workspace datasets", (scope) => {
+    expect(Object.values(factoryDataPlan(scope, can)).some(Boolean)).toBe(false);
   });
-
-  it("preserves Production Overview scoped support and Job Order data planning", () => {
-    const plan = factoryDataPlan("production-overview", can);
-
-    expect(plan.jobOrders).toBe(true);
-    expect(plan.finishedGoods).toBe(true);
-    expect(plan.productFamilies).toBe(true);
-    expect(plan.rawMaterials).toBe(true);
-    expect(plan.recipes).toBe(true);
-    expect(plan.sops).toBe(true);
-    expect(plan.storageLocations).toBe(true);
+  it("retains full action-specific support behind the production action boundary", () => {
+    const job = factoryDataPlan("production-overview", can, "job");
+    expect(Object.keys(job).filter((key) => job[key])).toEqual(["rawMaterials", "finishedGoods", "recipes"]);
+    const completion = factoryDataPlan("production-overview", can, "production");
+    for (const key of ["rawMaterials", "recipes", "sops", "storageLocations", "equipment", "finishedGoods"]) expect(completion[key]).toBe(true);
+    expect(completion.jobOrders).toBe(false);
+    expect(completion.productions).toBe(false);
+    expect(Object.values(factoryDataPlan("production-overview", () => false, "production")).some(Boolean)).toBe(false);
   });
 
   it("loads MeSTI Cleaning setup support without production or stock datasets", () => {

@@ -24,3 +24,14 @@ it("preserves failures and handles late rejection after cancellation", async () 
   const error = new Error("Request failed");
   await expect(factoryBootstrap(() => Promise.reject(error), new AbortController())).rejects.toBe(error);
 });
+it("reports only pending safe dependency labels and the elapsed deadline", async () => {
+  vi.useFakeTimers();
+  const dependencies = new Map([
+    ["recipes", { key: "recipes", label: "Product Recipes", status: "pending" }],
+    ["sops", { key: "sops", label: "Production SOP", status: "ready" }],
+  ]);
+  const promise = factoryBootstrap(() => new Promise(() => {}), new AbortController(), 30000, dependencies);
+  const failure = expect(promise).rejects.toThrow("Waiting for Product Recipes (30s)");
+  await vi.advanceTimersByTimeAsync(30000);
+  await failure;
+});
