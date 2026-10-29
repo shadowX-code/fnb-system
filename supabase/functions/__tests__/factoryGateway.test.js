@@ -1,3 +1,4 @@
+// @vitest-environment node
 import {expect,it,vi} from "vitest";
 import {moduleRegistry} from "../../../config/modules.ts";
 import coverage from "../../../config/factoryAgentCoverage.json";

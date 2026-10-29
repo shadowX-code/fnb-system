@@ -70,4 +70,4 @@ begin
   if exists(select 1 from public.audit_logs where action like 'external_machine_%' and (metadata::text like '%'||v_token||'%' or metadata::text like '%'||encode(extensions.digest(v_token,'sha256'),'hex')||'%')) then raise exception 'Audit leaked secret.';end if;
 end $verify$;
 rollback;
-select 'PASS: registered connection, five Read tools, one-time rotation/replay/concurrency guards, exact identity isolation, credential probe/revocation, Role Settings/anonymous denial, safe access visibility, external-vs-admin connectivity, actor audit; working QA credential unchanged' as result;
+select 'PASS: registered connection and resource catalog, one-time rotation/replay/concurrency guards, exact identity isolation, credential probe/revocation, Role Settings/anonymous denial, safe access visibility, external-vs-admin connectivity, actor audit; working QA credential unchanged' as result;

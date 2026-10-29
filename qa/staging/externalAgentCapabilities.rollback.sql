@@ -53,8 +53,8 @@ begin
  if jsonb_array_length(public.factory_mesti_inspection(v_token,'authorize')->'tools')<>7 then raise exception 'Enable did not preserve key and grants.';end if;
  begin perform public.external_agents_set_enabled(v_identity,false,true);raise exception 'Anonymous management accepted.';exception when insufficient_privilege then null;end;
  execute 'set local role postgres';
- insert into feedx_integrations.capabilities(tool_id,adapter_key,label,description,workspace,domain,domain_label,action_type,permission_code,requires_human_approval,implemented)
-  values('qa_unavailable_action','factory_mesti','Unavailable QA action','No executor exists.','Factory','qa','QA','execute','factory_mesti_inspection.view',true,false);
+ insert into feedx_integrations.capabilities(tool_id,adapter_key,label,description,workspace,domain,domain_label,action_type,permission_code,requires_human_approval,implemented,mcp_tool)
+  values('qa_unavailable_action','factory_mesti','Unavailable QA action','No executor exists.','Factory','qa','QA','execute','factory_mesti_inspection.view',true,false,'unsupported_qa_action');
  execute 'set local role authenticated';
  begin perform public.external_agents_set_capability(v_identity,'qa_unavailable_action',true,false);raise exception 'Unavailable Execute action granted.';exception when invalid_parameter_value then null;end;
  begin update feedx_integrations.capabilities set implemented=true where tool_id='qa_unavailable_action';raise exception 'Client edited registry.';exception when insufficient_privilege then null;end;
