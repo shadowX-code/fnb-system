@@ -28,7 +28,7 @@ it("uses the six business columns, three tabs and hides technical identifiers un
  await screen.findByRole("button",{name:"Manage QA Executive"});
  expect(screen.getAllByRole("columnheader").map((element)=>element.textContent)).toEqual(["Agent","Workspace","Effective Access","Connection","Last Active","Actions"]);
  await open();expect(screen.queryByText("factory_mesti_inspection.view")).toBeNull();
- tab("Access & Permissions");expect(screen.getByText("Review daily compliance")).toBeTruthy();expect(screen.queryByText("read_tool_0")).toBeNull();
+ tab("Access & Permissions");fireEvent.click(screen.getByRole("tab",{name:"By Module"}));expect(screen.getByText("Review daily compliance")).toBeTruthy();expect(screen.queryByText("read_tool_0")).toBeNull();
  expect(screen.getByText(/Draft, Execute and Approve are unavailable/)).toBeTruthy();
 
  tab("Activity");expect(screen.getByText("FeedX connection check")).toBeTruthy();expect(screen.queryByText("initialize")).toBeNull();
@@ -51,7 +51,7 @@ it("keeps revocation explicit and bound to the exact key",async()=>{
 it("supports view-only Role Settings aliases and denies visibility without view authority",async()=>{
  const view=render(<ExternalAgentsPage auth={auth(["roles_permissions.view"])} />);await open();
  expect(screen.queryByRole("button",{name:"Connect agent"})).toBeNull();expect(screen.queryByRole("button",{name:"Disable agent"})).toBeNull();
- tab("Access & Permissions");expect(screen.queryByRole("button",{name:/Remove Read access/})).toBeNull();
+ tab("Access & Permissions");fireEvent.click(screen.getByRole("tab",{name:"By Module"}));expect(screen.queryByRole("button",{name:/Remove Read access/})).toBeNull();
  view.unmount();externalAgentService.list.mockClear();render(<ExternalAgentsPage auth={auth([])} />);expect(screen.getByRole("alert").textContent).toContain("Role Settings view");expect(externalAgentService.list).not.toHaveBeenCalled();
 });
 it("clears a supplied key before testing and never puts it in the result",async()=>{
@@ -63,7 +63,7 @@ it("confirms Disable Agent without rotating or revoking credentials",async()=>{
  fireEvent.click(within(screen.getByRole("dialog",{name:"Disable agent?"})).getByRole("button",{name:"Disable agent"}));await waitFor(()=>expect(externalAgentService.setEnabled).toHaveBeenCalledWith("qa",false,true));expect(externalAgentService.rotate).not.toHaveBeenCalled();expect(externalAgentService.revoke).not.toHaveBeenCalled();
 });
 it("changes capability grants only through the server, with confirmation and stale-state expectation",async()=>{
- render(<ExternalAgentsPage auth={auth()} />);await open();tab("Access & Permissions");
+ render(<ExternalAgentsPage auth={auth()} />);await open();tab("Access & Permissions");fireEvent.click(screen.getByRole("tab",{name:"By Module"}));
  fireEvent.click(screen.getByRole("checkbox",{name:"View Records: Review daily compliance"}));expect(externalAgentService.setCapability).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole("button",{name:"Remove access",exact:true}));await waitFor(()=>expect(externalAgentService.setCapability).toHaveBeenCalledWith("qa","read_tool_0",false,true));
 });
@@ -95,7 +95,7 @@ it("keeps preserved scope separate from module selections and exposes technical 
  externalAgentService.list.mockResolvedValue({connections:[scopedAgent],catalog,can_register:true});externalAgentService.details.mockResolvedValue({...detail,connections:[scopedAgent]});
  render(<ExternalAgentsPage auth={auth()} />);await open();
  expect(screen.getAllByText("Preserved MeSTI compliance review")).toHaveLength(1);expect(screen.queryByText("No resources allowed")).toBeNull();
- tab("Access & Permissions");
+ tab("Access & Permissions");fireEvent.click(screen.getByRole("tab",{name:"By Module"}));
  expect(screen.getByRole("heading",{name:"Additional effective grants"})).toBeTruthy();expect(screen.getAllByText(/Additional grants allow some records independently/).length).toBeGreaterThan(1);expect(screen.queryByText("factory_agent_mesti_review.view")).toBeNull();
  expect(screen.getByRole("checkbox",{name:"View Records: Review daily compliance"}).checked).toBe(false);
  tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Advanced Details"}));expect(screen.getAllByText(/evidence \(cleaning_of_area\)/).length).toBeGreaterThan(0);

@@ -7,6 +7,7 @@ async function rpc(name, args) {
   return data;
 }
 export const externalAgentService = {
+  resolve: (id, moduleId, resource, action = "view") => rpc("external_agents_resolve_access", {p_identity_id:id,p_module_id:moduleId,p_resource:resource,p_action:action}),
   list: () => rpc("external_agents_admin_data", { p_identity_id: null }),
   details: (id) => rpc("external_agents_admin_data", { p_identity_id: id }),
   register: (requestId, name, provider, adapterKey, tools, validity = 90) => rpc("external_agents_register", { p_request_id: requestId, p_name: name, p_provider: provider, p_adapter_key: adapterKey, p_tool_ids: tools, p_validity_days: validity }),
