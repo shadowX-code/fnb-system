@@ -1149,3 +1149,7 @@ Aligned Factory agent permissions with all 34 routes and exact sidebar sections.
 - Production Reports moves from Unavailable to Partial source-record access. Privacy, source-grant, historical and missing-data limits remain explicit. Discovery now describes executable operations, missing source grants and safe fields.
 - Retained the minimal five-tool MeSTI compatibility adapter pending an authenticated resource invocation from the actual Grok QA Executive Bot; API/probe success is not provider confirmation.
 - Aligned MeSTI Raw Material Control with active standards/completed Receiving only and exposed immutable Cleaning Method provenance without materializing or backfilling records.
+
+### 2026-10-29 — MeSTI resource review compatibility
+
+Corrected preserved review date/lifecycle filters and shared canonical coverage metadata between legacy and resource responses, including undated completed Production exclusions. No credential, grant or business-record changes. Legacy adapters remain pending full existing-Grok review workflow confirmation.
