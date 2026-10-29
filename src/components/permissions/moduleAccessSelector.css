@@ -41,7 +41,7 @@
 .access-scope-section small { display: block; font-size: 11px; line-height: 1.5; margin-top: 2px; }
 .access-scope-notes { grid-column: 1 / -1; }
 .access-scope-diagnostics { border-top: 1px solid var(--theme-border); padding-top: 9px; }
-.module-access-group .access-scope-diagnostics > summary, .access-scope-diagnostics > summary { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+.module-access-group .access-scope-diagnostics > summary, .access-scope-diagnostics > summary { display: list-item; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
 .access-scope-diagnostics dl { display: grid; gap: 8px; margin: 12px 0; }
 .access-scope-diagnostics dl > div { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 10px; }
 .access-scope-diagnostics dt { font-weight: 600; }
@@ -49,3 +49,5 @@
 .access-scope-diagnostics code { font-size: 11px; }
 .access-scope-diagnostics details { margin: 8px 0; }
 @media(max-width: 640px) { .access-scope-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
+
+.access-scope-diagnostics > summary svg { display: inline; vertical-align: -2px; margin-right: 7px; }
