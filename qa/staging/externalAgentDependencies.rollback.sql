@@ -1,5 +1,5 @@
 begin;
-do $$declare row record;projection jsonb;expected jsonb;actual jsonb;owner_id uuid;result jsonb;begin
+do $$declare row record;projection jsonb;expected jsonb;actual jsonb;owner_id uuid;result jsonb;fixture jsonb;fixture_id uuid;begin
  projection:=feedx_integrations.resource_access_projection('a8fe4694-93e2-4f27-b87d-e49d30ca245a');
  if jsonb_array_length(projection)<>97 then raise exception 'Mapping count changed';end if;
  for row in select b.*,r.slug from feedx_integrations.navigation_resources b join feedx_integrations.resources r on r.key=b.resource_key loop
@@ -18,6 +18,15 @@ do $$declare row record;projection jsonb;expected jsonb;actual jsonb;owner_id uu
  if not (result->>'supported')::boolean then raise exception 'Implemented resource rejected';end if;
  result:=public.external_agents_resolve_access('a8fe4694-93e2-4f27-b87d-e49d30ca245a','factory_job_orders','production_pipeline','execute');
  if (result->>'supported')::boolean then raise exception 'Unsupported mutation advertised';end if;
+ fixture:=public.external_agents_register(gen_random_uuid(),'Dependency rollback QA','QA','factory_mesti',array['nav_factory_job_orders_view'],90);fixture_id:=(fixture->>'identity_id')::uuid;
+ result:=public.external_agents_resolve_access(fixture_id,'factory_job_orders','production_records','view');
+ if jsonb_array_length(result->'missing_required')<>1 then raise exception 'Expected Production source missing';end if;
+ perform public.external_agents_set_capabilities(fixture_id,'[{"name":"nav_factory_production_view","granted":true,"expected":false}]');
+ result:=public.external_agents_resolve_access(fixture_id,'factory_job_orders','production_records','view');
+ if result->'missing_required'<>'[]'::jsonb then raise exception 'Grant did not resolve dependency';end if;
+ perform public.external_agents_set_capabilities(fixture_id,'[{"name":"nav_factory_production_view","granted":false,"expected":true}]');
+ result:=public.external_agents_resolve_access(fixture_id,'factory_job_orders','production_records','view');
+ if jsonb_array_length(result->'missing_required')<>1 then raise exception 'Revoke did not restore denial';end if;
  execute 'set local role postgres';
  perform set_config('request.jwt.claims','{}',true);
  execute 'set local role anon';
