@@ -153,7 +153,17 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     expect(pendingSignal.aborted).toBe(true);
     view.rerender(<FactoryWorkspacePage initialTab="job-orders" auth={auth} ui={ui} />);
     expect(await screen.findByRole("heading", { name: "Job Order" })).toBeTruthy();
-    expect(factoryService.listFactoryData).toHaveBeenCalledTimes(1);
+    expect(factoryService.listFactoryData.mock.calls.map(([args]) => args.action)).toEqual(["start-production", "job-filters"]);
+  });
+
+  it("does not restart Monthly analytics while the operational pipeline is still pending", async () => {
+    setup();
+    factoryService.listOperationalJobOrders.mockImplementation(() => new Promise(() => {}));
+    const monthly = vi.spyOn(factoryService, "getProductionMonthlyPerformance").mockImplementation(async (month) => ({ month, today: malaysiaBusinessDateInput(), days: [] }));
+    const view = render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
+    await waitFor(() => expect(monthly).toHaveBeenCalledTimes(1));
+    view.rerender(<FactoryWorkspacePage initialTab="production-overview" auth={{ ...auth }} ui={ui} />);
+    expect(monthly).toHaveBeenCalledTimes(1);
   });
 
   it.each([

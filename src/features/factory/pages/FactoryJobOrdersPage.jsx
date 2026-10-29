@@ -1,3 +1,5 @@
+import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
+import useFactoryActionData from "../hooks/useFactoryActionData.js";
 import { useEffect, useState } from "react";
 import { ClipboardList } from "lucide-react";
 import Card from "../../../components/ui/Card.jsx";
@@ -31,6 +33,8 @@ export default function FactoryJobOrdersPage({
     : "";
   const jobOrderDateRangeInvalid = Boolean(scheduledDateRangeError || manufacturingDateRangeError);
   const permissionSignature = JSON.stringify([...(auth?.permissions || [])].sort());
+  const filterSupport = useFactoryActionData({ scope: "job-orders", action: "job-filters", permissionSignature, hasPermission: can });
+  const filterData = filterSupport.data || data;
   const querySignature = JSON.stringify({ listing: "job-orders", filters: jobOrderFilters, permissions: permissionSignature });
   const [factoryListingPage, factoryListingActions] = useFactoryPagedQuery({
     storageKey: "job-orders",
@@ -84,12 +88,12 @@ export default function FactoryJobOrdersPage({
     const rows = factoryListingPage.hasLoaded ? factoryListingPage.rows : [];
     const hasFilters = Object.values(jobOrderFilters).some(Boolean);
     const finishedGoodOptions = [
-      ...data.productFamilies.map((product) => ({
+      ...filterData.productFamilies.map((product) => ({
         value: `family:${product.id}`,
         label: product.name_en || product.product_name || "Finished Good",
         helper: "Finished Good",
       })),
-      ...data.finishedGoods.map((sku) => ({
+      ...filterData.finishedGoods.map((sku) => ({
       value: `sku:${sku.id}`,
       label: [sku.product_code, sku.variant_name || packSizeText(sku)].filter(Boolean).join(" · ") || jobFinishedGoodName(sku),
       helper: `${sku.product_family_name || sku.product_name || "Finished Good"} · Packaging SKU`,
@@ -107,10 +111,12 @@ export default function FactoryJobOrdersPage({
         <FactoryFilterBar
           moreFilters={<>
             <Field label="Finished Good / Packaging SKU">
+              {filterSupport.error ? <AsyncDataSurface error={filterSupport.error} errorTitle="Filter options unavailable" onRetry={filterSupport.retry} /> : null}
               <SearchableSelect
                 value={jobOrderFilters.finishedGood}
                 options={finishedGoodOptions}
-                placeholder="All"
+                placeholder={filterSupport.loading ? "Loading options…" : "All"}
+                disabled={filterSupport.loading || Boolean(filterSupport.error)}
                 searchPlaceholder="Search Finished Good or SKU"
                 onChange={(value) => setJobOrderFilters((current) => ({ ...current, finishedGood: value }))}
               />

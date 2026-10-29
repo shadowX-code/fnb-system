@@ -5,7 +5,7 @@ import { malaysiaBusinessDateInput } from "../utils/factoryDates.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
 import { emptyProductionOverviewState, loadProductionOverview, operationalJobOrdersRequest, shouldLoadProductionOverview } from "../utils/productionOverviewQuery.js";
 
-export default function useFactoryProductionOverviewQuery({ route, can, refreshKey, onPermissionDenied, onError }) {
+export default function useFactoryProductionOverviewQuery({ route, can, permissionSignature, refreshKey, onPermissionDenied, onError }) {
   const [state, setState] = useState(emptyProductionOverviewState);
   const requestRef = useRef(0);
   const controllerRef = useRef(null);
@@ -29,7 +29,7 @@ export default function useFactoryProductionOverviewQuery({ route, can, refreshK
       onPermissionDenied,
       onError,
     });
-  }, [productionAccess, enabled, onError, onPermissionDenied]);
+  }, [productionAccess, permissionSignature, enabled, onError, onPermissionDenied]);
 
   useEffect(() => {
     load();

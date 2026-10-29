@@ -14,6 +14,8 @@ import { formatFactoryDate } from "../utils/factoryDates.js";
 import { percent, quantity } from "../utils/factoryFormatters.js";
 import { jobPriorityTone, jobStatusLabel, statusTone } from "../utils/factoryStatus.js";
 
+const EMPTY_OPERATIONAL_ROWS = [];
+
 function finishedGoodName(job) { return job?.product_family_name || job?.product_name_en || job?.product_name || "Finished Good"; }
 function packagingSkuLabel(job) { return [job?.variant_name || "Packaging SKU", job?.product_code || "No SKU"].filter(Boolean).join(" · "); }
 function progress(job) { return Number(job?.progress_percent || (job?.status === "completed" ? 100 : job?.status === "in_progress" ? 50 : 0)); }
@@ -47,8 +49,8 @@ function activityFinishedGood(job, production) { return job?.product_family_name
 export default function FactoryProductionOverviewPage({ route = "production-overview", auth, openJob, startJob, completeProduction, viewCompletedResult, releaseJob, cancelJob }) {
   const can = auth?.hasPermission || (() => false);
   const overview = useFactoryOperationalJobs();
-  const jobs = overview.hasLoaded ? overview.jobs : [];
-  const productions = overview.hasLoaded ? overview.productions : [];
+  const jobs = overview.hasLoaded ? overview.jobs : EMPTY_OPERATIONAL_ROWS;
+  const productions = overview.hasLoaded ? overview.productions : EMPTY_OPERATIONAL_ROWS;
   const productionByJobId = useMemo(() => new Map(productions.map((production) => [production.job_order_id, production])), [productions]);
   const columns = [
     { key: "scheduled", title: "Schedule", helper: "Scheduled for future production", badge: "neutral", rail: "bg-slate-400 dark:bg-slate-500", headerTint: "bg-slate-500/5 dark:bg-slate-400/5" },

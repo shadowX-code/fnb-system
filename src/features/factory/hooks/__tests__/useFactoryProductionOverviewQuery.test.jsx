@@ -3,8 +3,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import useFactoryProductionOverviewQuery from "../useFactoryProductionOverviewQuery.js";
 import { factoryService } from "../../../../services/factoryService.js";
 const error = vi.fn(), denied = vi.fn();
-function Harness({ route = "production-overview", can = () => true }) {
-  const query = useFactoryProductionOverviewQuery({ route, can, onError: error, onPermissionDenied: denied });
+function Harness({ route = "production-overview", can = () => true, signature = "same-permissions" }) {
+  const query = useFactoryProductionOverviewQuery({ route, can, permissionSignature: signature, onError: error, onPermissionDenied: denied });
   return <><span>{query.loading ? "Pending" : query.error || query.jobs[0]?.id || "Ready"}</span><button onClick={query.retry}>Retry query</button></>;
 }
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
@@ -35,4 +35,14 @@ it("bounds a stalled pipeline and recovers on fresh Retry", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Retry query" }));
   await act(async () => {});
   expect(screen.getByText("recovered")).toBeTruthy();
+});
+
+it("refreshes canonical authority when the permission set changes without changing production visibility", async () => {
+  const request = vi.spyOn(factoryService, "listOperationalJobOrders").mockResolvedValueOnce({ jobs: [{ id: "visible" }] }).mockRejectedValueOnce({ code: "42501" });
+  const view = render(<Harness signature="job-view" />);
+  expect(await screen.findByText("visible")).toBeTruthy();
+  view.rerender(<Harness signature="job-view-revoked" />);
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+  expect(await screen.findByText("Some Production Overview data is hidden by your current role.")).toBeTruthy();
+  expect(screen.queryByText("visible")).toBeNull();
 });

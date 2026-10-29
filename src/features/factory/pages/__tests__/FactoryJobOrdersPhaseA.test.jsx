@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { factoryService } from "../../../../services/factoryService.js";
 import FactoryWorkspacePage from "../FactoryWorkspacePage.jsx";
@@ -38,6 +38,23 @@ describe("Factory Job Orders Phase A", () => {
     fireEvent.change(screen.getByPlaceholderText("JO no., product, SKU or batch"), { target: { value: "JO-planned" } });
     await waitFor(() => expect(listing).toHaveBeenCalledTimes(2));
     expect(listing).toHaveBeenLastCalledWith(expect.objectContaining({ listing: "job-orders", page: 1, pageSize: 20, filters: expect.objectContaining({ search: "JO-planned" }) }));
+  });
+
+  it("keeps the list usable while optional Product/SKU filters load, then preserves filter values", async () => {
+    const listing = setup();
+    let finish;
+    factoryService.listFactoryData.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    render(<FactoryWorkspacePage initialTab="job-orders" auth={auth()} ui={{ notify: vi.fn() }} />);
+    await screen.findByText("JO-draft");
+    fireEvent.click(screen.getByRole("button", { name: "More filters" }));
+    const filter = () => within(screen.getByText("Finished Good / Packaging SKU").closest("label")).getByRole("button");
+    expect(filter().disabled).toBe(true);
+    expect(factoryService.listFactoryData).toHaveBeenCalledWith(expect.objectContaining({ action: "job-filters" }));
+    finish({ ...data, productFamilies: [{ id: "family", name_en: "Filtered Product" }], finishedGoods: [] });
+    await waitFor(() => expect(filter().disabled).toBe(false));
+    fireEvent.click(filter());
+    fireEvent.click(await screen.findByText("Filtered Product"));
+    await waitFor(() => expect(listing).toHaveBeenLastCalledWith(expect.objectContaining({ filters: expect.objectContaining({ finishedGood: "family:family" }) })));
   });
 
   it("renders the exact current permission and status action matrix", async () => {

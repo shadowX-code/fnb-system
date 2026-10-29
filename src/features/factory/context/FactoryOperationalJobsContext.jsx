@@ -7,6 +7,7 @@ export function FactoryOperationalJobsProvider({ route, auth, refreshKey, onPerm
   const onError = useCallback((error) => console.error("[Factory] Unable to load operational Job Orders.", error), []);
   const model = useFactoryProductionOverviewQuery({
     route,
+    permissionSignature: JSON.stringify([[...(auth?.permissions || [])].sort(), Boolean(auth?.isProtectedRole), auth?.profile?.role_id || ""]),
     can: auth?.hasPermission || (() => false),
     refreshKey,
     onPermissionDenied,
