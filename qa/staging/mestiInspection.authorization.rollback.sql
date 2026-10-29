@@ -9,8 +9,8 @@ begin
     values('MeSTI isolated authorization QA '||gen_random_uuid(),true,false,'none') returning id into v_role;
   select id into strict v_permission from public.permissions where code='factory_mesti_inspection.view';
   insert into public.role_permissions(role_id,permission_id) values(v_role,v_permission);
-  insert into feedx_integrations.machine_identities(name,role_id,enabled)
-    values('MeSTI isolated machine QA '||gen_random_uuid(),v_role,true) returning id into v_machine;
+  insert into feedx_integrations.machine_identities(name,role_id,enabled,adapter_key)
+    values('MeSTI isolated machine QA '||gen_random_uuid(),v_role,true,'factory_mesti') returning id into v_machine;
   insert into feedx_integrations.machine_credentials(identity_id,token_hash,expires_at)
     values(v_machine,encode(extensions.digest(v_token,'sha256'),'hex'),now()+interval '1 day') returning id into v_credential;
   select count(*) into v_audit_count from public.audit_logs where metadata->'after'->>'id' in (v_machine::text,v_credential::text);
