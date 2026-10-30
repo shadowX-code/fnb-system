@@ -56,7 +56,7 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
         search,
       );
       if (current === generation.current) {
-        setData(next);
+        setData({ ...next, section: location.section });
         setError("");
       }
     } catch (e) {
@@ -326,7 +326,7 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
       <FactoryDataSurface>
         <FactoryTable
           columns={columns}
-          rows={data.rows}
+          rows={data.section === location.section ? data.rows : []}
           emptyTitle={
             loading
               ? "Loading…"
@@ -343,7 +343,7 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
         <FactoryPagination
           page={page}
           pageSize={20}
-          total={data.total}
+          total={data.section === location.section ? data.total : 0}
           loading={loading}
           onPageChange={setPage}
           onPageSizeChange={() => {}}
