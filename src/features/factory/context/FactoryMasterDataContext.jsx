@@ -20,6 +20,7 @@ export function FactoryMasterDataProvider({ data, children }) {
       sopDetailsDeferred: data?.sopDetailsDeferred === true,
       qcChecklistTemplates: data?.qcChecklistTemplates || [],
       receivings: data?.receivings || [],
+      finishedGoodsHistoryDeferred: data?.finishedGoodsHistoryDeferred === true,
       productions: data?.productions || [],
       productMovements: data?.productMovements || [],
       productionCosts: data?.productionCosts || [],
