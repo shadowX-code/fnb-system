@@ -45,3 +45,17 @@ describe("Factory runtime performance tracing", () => {
    expect(entries.at(-1)).toMatchObject({ requestId: "request-1", payloadBytes: 28 });
    expect(JSON.stringify(entries)).not.toMatch(/never logged|secret|hidden|Authorization/);
  });
+
+ it("pinpoints a response-body failure after successful headers and preserves rejection", async () => {
+   window.__FEEDX_FACTORY_RUNTIME_TRACE__ = true;
+   let fail;
+   const response = new Response(new ReadableStream({ start(controller) { fail = () => controller.error(new Error("body failed")); } }));
+   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+   const received = await factoryDiagnosticFetch("https://example.supabase.co/rest/v1/factory_production_sops");
+   const pending = received.text();
+   expect(window.__feedxFactoryRuntime.snapshot().at(-1).stage).toBe("body-start");
+   const rejected = expect(pending).rejects.toThrow("body failed");
+   fail();
+   await rejected;
+   expect(window.__feedxFactoryRuntime.snapshot().at(-1).stage).toBe("body-failed");
+ });

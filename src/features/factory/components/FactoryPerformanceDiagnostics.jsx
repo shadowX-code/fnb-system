@@ -20,7 +20,7 @@ export default function FactoryPerformanceDiagnostics({ route }) {
     let frame;
     let armed = false;
     const check = () => {
-      if (!armed || done || ![...document.querySelectorAll("main table tbody tr")].some(row => row.innerText.trim() && !/loading/i.test(row.innerText))) return;
+      if (!armed || done || ![...document.querySelectorAll(`main [data-factory-route="${route}"] table tbody tr, main [data-factory-route="${route}"] [data-factory-operational-row]`)].some(row => row.innerText.trim() && !/loading/i.test(row.innerText))) return;
       done = true;
       recordFactoryPerformance({ type: "first-data-row", route, durationMs: Math.round(performance.now() - started), documentMs: Math.round(performance.now()), at: Date.now() });
       frame = requestAnimationFrame(() => requestAnimationFrame(() => recordFactoryPerformance({ type: "interactive-proxy", route, durationMs: Math.round(performance.now() - started), at: Date.now() })));

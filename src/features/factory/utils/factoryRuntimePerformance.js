@@ -102,7 +102,7 @@ export function traceFactoryCommit(id, phase, actualDuration) {
 }
 
 let transportSequence = 0;
-const pendingTransports = new Set();
+const pendingTransports = new Map();
 export async function factoryDiagnosticFetch(input, init) {
   const execute = () => fetch(input, init);
   if (!isFactoryTraceEnabled()) return execute();
@@ -119,12 +119,22 @@ export async function factoryDiagnosticFetch(input, init) {
   const add = (stage, extra = {}) => recordFactoryPerformance({ type: "transport", id, clientRequestId, route, endpoint, stage, elapsedMs: Math.round(timestamp() - started), at: Date.now(), ...extra });
   const fingerprint = `${init?.method || "GET"}:${url.href}:${init?.body || ""}`;
   const duplicateInFlight = pendingTransports.has(fingerprint);
-  pendingTransports.add(fingerprint);
+  pendingTransports.set(fingerprint, (pendingTransports.get(fingerprint) || 0) + 1);
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    const remaining = (pendingTransports.get(fingerprint) || 1) - 1;
+    if (remaining) pendingTransports.set(fingerprint, remaining); else pendingTransports.delete(fingerprint);
+    init?.signal?.removeEventListener("abort", release);
+  };
+  init?.signal?.addEventListener("abort", release, { once: true });
   add("fetch", { duplicateInFlight });
   try {
     const response = await execute();
     const requestId = response.headers.get("sb-request-id") || response.headers.get("x-request-id");
     add("headers", { status: response.status, requestId });
+    if (!response.body) release();
     // PostgREST consumes text then parses JSON internally. Never clone/parse a second copy.
     const text = response.text.bind(response);
     response.text = async () => {
@@ -132,12 +142,12 @@ export async function factoryDiagnosticFetch(input, init) {
         add("body-start");
         const body = await text();
         add("body-ready", { payloadBytes: new Blob([body]).size, requestId });
-        pendingTransports.delete(fingerprint);
+        release();
         return body;
-      } catch (error) { pendingTransports.delete(fingerprint); add("body-failed", { cancelled: init?.signal?.aborted || false }); throw error; }
+      } catch (error) { release(); add("body-failed", { cancelled: init?.signal?.aborted || false }); throw error; }
     };
     return response;
-  } catch (error) { pendingTransports.delete(fingerprint); add("fetch-failed", { cancelled: init?.signal?.aborted || false }); throw error; }
+  } catch (error) { release(); add("fetch-failed", { cancelled: init?.signal?.aborted || false }); throw error; }
 }
 
 export function observeFactoryResources() {

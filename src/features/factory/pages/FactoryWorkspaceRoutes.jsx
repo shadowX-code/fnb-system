@@ -31,7 +31,7 @@ const FactoryInternalTransferPage = lazy(() => import("./FactoryInternalTransfer
 
 function FactoryRouteReady({ route, onReady, children }) {
   useEffect(() => { onReady?.(route); }, [onReady, route]);
-  return children;
+  return <div className="contents" data-factory-route={route}>{children}</div>;
 }
 
 function LazyFactoryRoute({ route, Page, onReady, children }) {
@@ -67,17 +67,17 @@ export default function FactoryWorkspaceRoutes({
   if (initialTab === "production-overview") return <LazyFactoryRoute route={initialTab} Page={FactoryProductionOverviewPage} onReady={onReady}><FactoryProductionOverviewPage route={initialTab} auth={auth} openJob={legacy.openJob} startJob={legacy.startJob} completeProduction={legacy.completeProduction} viewCompletedResult={legacy.viewCompletedResult} releaseJob={legacy.releaseJob} cancelJob={legacy.cancelJob} /></LazyFactoryRoute>;
   if (initialTab === "job-orders") return <LazyFactoryRoute route={initialTab} Page={FactoryJobOrdersPage} onReady={onReady}><FactoryJobOrdersPage data={data} auth={auth} can={legacy.can} onCreate={legacy.createJob} onView={legacy.viewJob} onEdit={legacy.editJob} onRelease={legacy.releaseJob} onDelete={legacy.deleteJob} onCancel={legacy.cancelJob} onStart={legacy.startJob} onViewProcess={legacy.viewProcess} onComplete={legacy.completeJob} onViewResult={legacy.viewCompletedResult} jobOrdersListingBridge={legacy.jobOrdersListingBridge} onPermissionDenied={legacy.clearJobOrdersListingPermission} onNotify={notify} jobFinishedGoodName={legacy.jobFinishedGoodName} productionQcTone={legacy.productionQcTone} productionQcDisplayLabel={legacy.productionQcDisplayLabel} /></LazyFactoryRoute>;
   if (initialTab === "raw-inventory") return <LazyFactoryRoute route={initialTab} Page={FactoryRawMaterialInventoryPage} onReady={onReady} />;
-  if (initialTab === "raw-receiving") return legacy.renderRawReceiving();
+  if (initialTab === "raw-receiving") return <div className="contents" data-factory-route={initialTab}>{legacy.renderRawReceiving()}</div>;
   if (initialTab === "raw-movements") return <LazyFactoryRoute route={initialTab} Page={FactoryRawMaterialMovementsPage} onReady={onReady}><FactoryRawMaterialMovementsPage onNotify={notify} onOpenDetail={legacy.openRawMaterialMovementDetail} onCloseDetail={legacy.closeRawMaterialMovementDetail} /></LazyFactoryRoute>;
-  if (initialTab === "raw-stock-check") return legacy.renderRawStockCheck();
-  if (initialTab === "production") return legacy.renderProduction(operationalJobs);
-  if (initialTab === "reports") return legacy.renderReports();
+  if (initialTab === "raw-stock-check") return <div className="contents" data-factory-route={initialTab}>{legacy.renderRawStockCheck()}</div>;
+  if (initialTab === "production") return <div className="contents" data-factory-route={initialTab}>{legacy.renderProduction(operationalJobs)}</div>;
+  if (initialTab === "reports") return <div className="contents" data-factory-route={initialTab}>{legacy.renderReports()}</div>;
   if (initialTab === "batch-traceability") return <LazyFactoryRoute route={initialTab} Page={FactoryBatchTraceabilityPage} onReady={onReady}><FactoryBatchTraceabilityPage onNotify={notify} /></LazyFactoryRoute>;
   if (initialTab === "finished-goods") return <LazyFactoryRoute route={initialTab} Page={FactoryFinishedGoodsPage} onReady={onReady} />;
   if (initialTab === "production-planning") return <LazyFactoryRoute route={initialTab} Page={FactoryProductionPlanningPage} onReady={onReady}><FactoryProductionPlanningPage onNotify={notify} onPermissionDenied={legacy.clearPlanningPermission} /></LazyFactoryRoute>;
-  if (initialTab === "finished-goods-dispatch") return legacy.renderFinishedGoodsDispatch();
+  if (initialTab === "finished-goods-dispatch") return <div className="contents" data-factory-route={initialTab}>{legacy.renderFinishedGoodsDispatch()}</div>;
   if (initialTab === "product-movements") return <LazyFactoryRoute route={initialTab} Page={FactoryProductMovementsPage} onReady={onReady}><FactoryProductMovementsPage onNotify={notify} /></LazyFactoryRoute>;
-  if (initialTab === "product-stock-check") return legacy.renderProductStockCheck();
+  if (initialTab === "product-stock-check") return <div className="contents" data-factory-route={initialTab}>{legacy.renderProductStockCheck()}</div>;
   if (initialTab === "mesti-cleaning") return <LazyFactoryRoute route={initialTab} Page={FactoryMestiCleaningPage} onReady={onReady}><FactoryMestiCleaningPage auth={auth} onNotify={notify} /></LazyFactoryRoute>;
   if (initialTab === "product-recipes") return <LazyFactoryRoute route={initialTab} Page={FactoryProductRecipesPage} onReady={onReady} />;
   if (initialTab === "production-sop") return <LazyFactoryRoute route={initialTab} Page={FactoryProductionSopPage} onReady={onReady}><FactoryProductionSopPage auth={auth} /></LazyFactoryRoute>;
