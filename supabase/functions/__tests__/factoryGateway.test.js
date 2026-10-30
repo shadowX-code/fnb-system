@@ -1,6 +1,6 @@
 // @vitest-environment node
 import {expect,it,vi} from "vitest";
-import {moduleRegistry} from "../../../config/modules.ts";
+import {moduleRegistry,getPermissionDefinitions} from "../../../config/modules.ts";
 import coverage from "../../../config/factoryAgentCoverage.json";
 import modules from "../../../config/factoryAgentModules.json";
 import {getSidebarSections,getPermissionGroups} from "../../../config/modules.ts";
@@ -18,7 +18,8 @@ it("matches all sidebar modules and active related route owners and exact sideba
  expect(factoryResourceNames.toSorted()).toEqual(coverage.map((r)=>r.slug).toSorted());
  const visible=getPermissionGroups().flatMap((g)=>g.modules);
  for(const resource of coverage)expect(visible.some((m)=>m.key===`factory_agent_${resource.slug}`)).toBe(false);
- for(const module of modules){const entry=moduleRegistry.find((m)=>m.id===`factory_agent_nav_${module.id}`);expect(entry.permissions).toEqual(module.coverage==="unavailable"?{}:{view:true});}
+ for(const module of modules){const entry=moduleRegistry.find((m)=>m.id===`factory_agent_nav_${module.id}`);expect(entry.permissions).toEqual(module.coverage==="unavailable"?{}:{view:true});expect(entry.permissionEditorHidden).toBe(true);expect(visible.some(m=>m.key===entry.id)).toBe(false);if(module.coverage!=="unavailable")expect(getPermissionDefinitions().some(p=>p.code===`${entry.id}.view`)).toBe(true);}
+ expect(visible.some(m=>m.key==="factory_mesti_inspection")).toBe(false);expect(getPermissionDefinitions().some(p=>p.code==="factory_mesti_inspection.view")).toBe(true);
 });
 it("pins shared MeSTI rows to one business module and declares all report dependencies",()=>{
  for(const module of modules.filter((m)=>m.id.startsWith("factory_mesti_")&&m.id!=="factory_mesti_raw_material_control"))for(const binding of module.bindings){expect(binding.row_scope.module).toBeTruthy();expect(binding.fields).not.toContain("employee_id");expect(binding.fields).toContain("completion_result");}

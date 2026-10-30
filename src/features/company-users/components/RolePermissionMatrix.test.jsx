@@ -51,3 +51,14 @@ it('uses canonical Feedback codes and exposes supported MeSTI record/verify',()=
  expect(screen.getByRole('button',{name:'Waste Disposal Record: Record Waste Disposal Record'})).toBeTruthy();
  expect(screen.getByRole('button',{name:'Operator Hygiene Inspection: Verify Operator Hygiene Inspection'})).toBeTruthy();
 });
+
+it.each([true,false])('keeps agent-only capabilities out of the Human Role Matrix (readOnly=%s)',readOnly=>{
+ window.history.replaceState({},'','/?permission_workspace=factory');
+ const grants=new Set(['factory_dashboard.view','factory_agent_nav_factory_dashboard.view','factory_mesti_inspection.view']);
+ render(<RolePermissionMatrix permissions={grants} readOnly={readOnly} onToggle={vi.fn()}/>);
+ const factory=within(screen.getByRole('region',{name:'Factory permissions'}));
+ expect(factory.queryByText(/External Agent/)).toBeNull();expect(factory.queryByText('External MeSTI Inspection')).toBeNull();
+ expect(factory.getByText('Production Records')).toBeTruthy();expect(factory.getByText('Raw Material Receiving')).toBeTruthy();
+ expect(factory.getByText('Verify Production Records')).toBeTruthy();expect(factory.getByText('Verify Raw Material Receiving')).toBeTruthy();
+ expect(grants.size).toBe(3);
+});

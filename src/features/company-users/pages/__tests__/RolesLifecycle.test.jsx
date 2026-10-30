@@ -354,3 +354,19 @@ it('preserves existing Ads connection grants in an unrelated role edit',async()=
  fireEvent.change(screen.getByLabelText('Description'),{target:{value:'Metadata only'}});fireEvent.click(screen.getByRole('button',{name:'Save Changes'}));
  await waitFor(()=>expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({permissions:['marketing_workspace.access','marketing_ads.view','marketing_ads.connect']})));
 });
+
+it.each([false,true])('preserves hidden agent grants and emits only intended human changes (revoke=%s)',async revoke=>{
+ const hidden=['factory_agent_nav_factory_mesti_cleaning.view','factory_agent_mesti_review.view','factory_mesti_inspection.view'];
+ const permissions=['factory_dashboard.view',...hidden];
+ mocks.list.mockResolvedValueOnce([{...existing,permissions}]);
+ render(<RolesPage ui={ui} auth={auth} store={{outlets:[]}}/>);
+ await screen.findByText('operations');fireEvent.click(screen.getByText('operations'));fireEvent.click(screen.getByRole('button',{name:'Edit Role'}));
+ selectWorkspace('Factory');expect(screen.queryByText(/External Agent/)).toBeNull();expect(screen.queryByText('External MeSTI Inspection')).toBeNull();
+ fireEvent.change(screen.getByLabelText('Description'),{target:{value:'Metadata only'}});
+ if(revoke)fireEvent.click(screen.getByRole('button',{name:'Dashboard: View Dashboard'}));
+ fireEvent.click(screen.getByRole('button',{name:'Save Changes'}));
+ await waitFor(()=>expect(mocks.save).toHaveBeenCalledTimes(1));
+ const saved=mocks.save.mock.calls[0][0];
+ expect(saved.permissions).toEqual(revoke?hidden:permissions);
+ expect(saved.permissionChanges).toEqual(revoke?[{code:'factory_dashboard.view',before:true,enabled:false}]:[]);
+});

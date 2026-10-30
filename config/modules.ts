@@ -70,6 +70,7 @@ export type AppModule = {
   agentNavigationOwner?: string;
   // Internal modules may supply data or modal workflows without being valid hash-route destinations.
   routable?: boolean;
+  // Hide from Human Role Matrix only; retain catalog and agent capability registration.
   permissionEditorHidden?: boolean;
   permissionPrefix?: string;
   // Consumer routes may reuse an existing permission without introducing a second grant.
@@ -964,8 +965,8 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, manage: true },
   },
   ...factoryAgentCoverage.map((resource) => ({ id: `factory_agent_${resource.slug}`, section: "External Agent Access", label: `Agent ${resource.label}`, route: `/factory/agent-resources/${resource.slug}`, permissionEditorHidden: true, sidebar: false, routable: false, workspace: "factory" as const, permissions: { view: true } })),
-  ...factoryAgentModules.map((module) => ({ id: `factory_agent_nav_${module.id}`, section: module.section, label: `External Agent · ${module.label}`, route: `/factory/agent-modules/${module.id}`, sidebar: false, routable: false, workspace: "factory" as const, permissions: module.coverage === "unavailable" ? {} : { view: true } })),
-  { id: "factory_mesti_inspection", section: "MeSTI", label: "External MeSTI Inspection", route: "/factory/mesti/inspection", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
+  ...factoryAgentModules.map((module) => ({ id: `factory_agent_nav_${module.id}`, section: module.section, label: `External Agent · ${module.label}`, route: `/factory/agent-modules/${module.id}`, permissionEditorHidden: true, sidebar: false, routable: false, workspace: "factory" as const, permissions: module.coverage === "unavailable" ? {} : { view: true } })),
+  { id: "factory_mesti_inspection", section: "MeSTI", label: "External MeSTI Inspection", route: "/factory/mesti/inspection", permissionEditorHidden: true, sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
   { id: "factory_mesti_operator_hygiene", section: "MeSTI", label: "Operator Hygiene Inspection", route: "/factory/mesti/operator-hygiene-inspection", icon: "factory-mesti-operator-hygiene", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, submit: true, verify: true } },
   { id: "factory_mesti_waste_disposal", section: "MeSTI", label: "Waste Disposal Record", route: "/factory/mesti/waste-disposal-record", icon: "factory-mesti-waste-disposal", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, record: true, submit: true, verify: true } },
   { id: "factory_mesti_raw_material_control", section: "MeSTI", label: "Raw Material Control", route: "/factory/mesti/raw-material-control", icon: "factory-mesti-raw-material-control", sidebar: true, workspace: "factory", permissions: {} },
