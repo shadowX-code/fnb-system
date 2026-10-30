@@ -49,7 +49,9 @@ describe('HR workspace composition',()=>{
   expect(salesPurchaseRoutes.some(route=>route.id==='system_settings')).toBe(false);
   expect(resolveCanonicalPath('/system/settings').routeId).toBe('roles');
   expect(canonicalAdminUrlForLegacyLocation({pathname:'/system/settings/',search:'?qa=retained'})).toBe('/people/roles?qa=retained');
-  expect(resolveLegacyHash('#system_settings').routeId).toBe('roles');
+  expect(resolveLegacyHash('#system_settings')).toMatchObject({routeId:'roles',definitionId:'roles'});
+  expect(canonicalAdminUrlForLegacyLocation({hash:'#system_settings'})).toBe('/people/roles');
+  expect(resolveLegacyHash('#system_settings/role-1/edit')).toMatchObject({definitionId:'roles-edit',params:{roleId:'role-1'}});
   expect(resolveCanonicalPath('/system/roles').routeId).toBe('roles');
   expect(canonicalPathForRoute('system_settings')).toBe('/people/roles');
   expect(resolveCanonicalPath('/people/roles/role-1/edit').routeId).toBe('roles');

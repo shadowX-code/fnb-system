@@ -142,7 +142,7 @@ function queryStateFor(moduleId) {
 function legacyHashAliasesFor(routeId, pattern) {
   const aliases = Object.entries(legacyRouteRedirects)
     .filter(([, targetRouteId]) => targetRouteId === routeId)
-    .map(([alias]) => `#${alias}`);
+    .map(([alias]) => `#${alias}${pattern.slice(routeId.length)}`);
   return Object.freeze([`#${pattern}`, ...aliases]);
 }
 
