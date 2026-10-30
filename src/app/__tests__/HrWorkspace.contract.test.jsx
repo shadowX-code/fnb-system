@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {getSidebarSections,moduleRegistry,getPermissionDefinitions,workspaceSwitcherOptions} from '../../../config/modules.ts';
-import {resolveCanonicalPath,getAdminRouteDefinition,canonicalPathForRoute,resolveLegacyHash} from '../routeOwnership.js';
+import {resolveCanonicalPath,getAdminRouteDefinition,canonicalPathForRoute,resolveLegacyHash,canonicalAdminUrlForLegacyLocation} from '../routeOwnership.js';
 import {salesPurchaseRoutes} from '../routes.jsx';
 
 describe('HR workspace composition',()=>{
@@ -48,6 +48,7 @@ describe('HR workspace composition',()=>{
   expect(moduleRegistry.some(module=>module.id==='system_settings')).toBe(false);
   expect(salesPurchaseRoutes.some(route=>route.id==='system_settings')).toBe(false);
   expect(resolveCanonicalPath('/system/settings').routeId).toBe('roles');
+  expect(canonicalAdminUrlForLegacyLocation({pathname:'/system/settings/',search:'?qa=retained'})).toBe('/people/roles?qa=retained');
   expect(resolveLegacyHash('#system_settings').routeId).toBe('roles');
   expect(resolveCanonicalPath('/system/roles').routeId).toBe('roles');
   expect(canonicalPathForRoute('system_settings')).toBe('/people/roles');

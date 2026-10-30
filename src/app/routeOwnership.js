@@ -413,6 +413,9 @@ export function canonicalAdminUrlForRoute(id, params = {}, query = {}, search = 
 }
 
 export function canonicalAdminUrlForLegacyLocation({ pathname = "/", search = "", hash = "" } = {}) {
+  if (!hash && normalizePath(pathname) === "/system/settings") {
+    return canonicalAdminUrlForRoute("roles", {}, {}, search);
+  }
   const route = resolveLegacyHash(hash, search);
   if (route?.definition.ownership.surface !== "admin") return null;
   return canonicalAdminUrlForRoute(route.definitionId, route.params, route.query, search);
