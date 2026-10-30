@@ -1,4 +1,4 @@
-const MAX_ENTRIES = 240;
+const MAX_ENTRIES = 600;
 const SLOW_ROUTE_MS = 2000;
 const SLOW_REQUEST_MS = 1200;
 
@@ -61,11 +61,11 @@ export async function traceFactoryRequest(name, execute, { kind = "service" } = 
   const startedAt = timestamp();
   const route = activeRoute || "unknown";
   const prior = [...(store()?.entries || [])].reverse().find((entry) => entry.type === "request" && entry.route === route && entry.name === name && entry.kind === kind);
-  if (kind === "supabase") recordFactoryPerformance({ type: "request-start", route, name, kind, at: Date.now() });
+  if (["supabase", "startup"].includes(kind)) recordFactoryPerformance({ type: "request-start", route, name, kind, at: Date.now() });
   try {
     const result = await execute();
     const durationMs = Math.round(timestamp() - startedAt);
-    const payloadBytes = estimatePayloadBytes(result);
+    const payloadBytes = kind === "startup" ? null : estimatePayloadBytes(result);
     recordFactoryPerformance({
       type: "request",
       route,
@@ -97,8 +97,9 @@ export const factoryRuntimeThresholds = { slowRouteMs: SLOW_ROUTE_MS, slowReques
 // Opt-in diagnostic display reads only metadata; no response contents or query parameters.
 export function factoryPerformanceSnapshot() { return store()?.snapshot() || []; }
 
-export function traceFactoryCommit(id, phase, actualDuration) {
-  if (isFactoryTraceEnabled()) recordFactoryPerformance({ type: "react-commit", route: activeRoute, phase, durationMs: Math.round(actualDuration * 100) / 100, at: Date.now() });
+export function traceFactoryCommit(id, phase, actualDuration, baseDuration, startTime, commitTime) {
+  if (id === "application" && activeRoute) return;
+  if (isFactoryTraceEnabled()) recordFactoryPerformance({ type: "react-commit", id, route: activeRoute, phase, startMs: startTime, commitMs: commitTime, durationMs: Math.round(actualDuration * 100) / 100, at: Date.now() });
 }
 
 let transportSequence = 0;
@@ -107,7 +108,7 @@ export async function factoryDiagnosticFetch(input, init) {
   const execute = () => fetch(input, init);
   if (!isFactoryTraceEnabled()) return execute();
   const url = new URL(typeof input === "string" ? input : input.url);
-  const endpoint = url.pathname.match(/^\/rest\/v1\/(?:rpc\/)?(factory_[a-z0-9_]+)$/)?.[1];
+  const endpoint = url.pathname.match(/^\/rest\/v1\/(?:rpc\/)?([a-z0-9_]+)$/)?.[1] || (url.pathname.startsWith("/auth/v1/") ? "auth" : null);
   if (!endpoint) return execute();
   const id = ++transportSequence;
   const clientRequestId = `ft-${crypto.randomUUID()}`;
@@ -155,11 +156,11 @@ export function observeFactoryResources() {
   const resources = new PerformanceObserver(list => {
     for (const entry of list.getEntries()) {
       const path = new URL(entry.name).pathname;
-      const endpoint = path.match(/^\/rest\/v1\/(?:rpc\/)?(factory_[a-z0-9_]+)$/)?.[1]
+      const endpoint = path.match(/^\/rest\/v1\/(?:rpc\/)?([a-z0-9_]+)$/)?.[1]
         || (path.startsWith("/auth/v1/") ? "auth" : path.startsWith("/assets/") ? "app-asset" : null);
       if (!endpoint) continue;
       const exposed = entry.responseStart > 0;
-      recordFactoryPerformance({ type: "resource", route: activeRoute, endpoint, startMs: Math.round(entry.startTime), durationMs: Math.round(entry.duration), waitMs: exposed ? Math.round(entry.responseStart - entry.requestStart) : null, downloadMs: exposed ? Math.round(entry.responseEnd - entry.responseStart) : null, transferBytes: exposed ? entry.transferSize : null, decodedBytes: exposed ? entry.decodedBodySize : null, timingExposed: exposed, at: Date.now() });
+      recordFactoryPerformance({ type: "resource", route: activeRoute, endpoint, asset: endpoint === "app-asset" ? path.split("/").at(-1) : undefined, startMs: Math.round(entry.startTime), durationMs: Math.round(entry.duration), waitMs: exposed ? Math.round(entry.responseStart - entry.requestStart) : null, downloadMs: exposed ? Math.round(entry.responseEnd - entry.responseStart) : null, transferBytes: exposed ? entry.transferSize : null, decodedBytes: exposed ? entry.decodedBodySize : null, timingExposed: exposed, at: Date.now() });
     }
   });
   resources.observe({ type: "resource", buffered: true });

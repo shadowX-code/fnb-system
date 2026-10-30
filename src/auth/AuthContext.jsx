@@ -1,3 +1,4 @@
+import { traceFactoryRequest } from "../features/factory/utils/factoryRuntimePerformance.js";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { authService } from "./authService.js";
 import { isProtectedRoleProfile } from "./rbac.js";
@@ -60,7 +61,7 @@ export function AuthProvider({ children }) {
 
     setContextLoading(true);
     try {
-      const context = await authService.getUserContext(nextSession.user);
+      const context = await traceFactoryRequest("startup.access-context", () => authService.getUserContext(nextSession.user), { kind: "startup" });
       setProfile(context.profile);
       setPermissions(context.permissions);
       setSource(context.source);
@@ -106,7 +107,7 @@ export function AuthProvider({ children }) {
           setLoading(false);
           setContextLoading(false);
         })
-      : authService.getSession().then((initialSession) => {
+      : traceFactoryRequest("startup.session", () => authService.getSession(), { kind: "startup" }).then((initialSession) => {
           if (!ignore) loadContext(initialSession);
         });
 

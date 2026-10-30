@@ -59,3 +59,10 @@ describe("Factory runtime performance tracing", () => {
    await rejected;
    expect(window.__feedxFactoryRuntime.snapshot().at(-1).stage).toBe("body-failed");
  });
+
+ it("records only safe startup timing metadata, without serializing session contents", async () => {
+   window.__FEEDX_FACTORY_RUNTIME_TRACE__ = true;
+   const session = { toJSON() { throw new Error("session must not be serialized"); } };
+   expect(await traceFactoryRequest("startup.session", async () => session, { kind: "startup" })).toBe(session);
+   expect(window.__feedxFactoryRuntime.snapshot().at(-1)).toMatchObject({ name: "startup.session", payloadBytes: null });
+ });

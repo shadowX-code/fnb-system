@@ -1,4 +1,5 @@
 import React from "react";
+import { traceFactoryCommit } from "./features/factory/utils/factoryRuntimePerformance.js";
 import { createRoot } from "react-dom/client";
 import App from "./app/App.jsx";
 import { isCrewWebAppHostname } from "./app/hostnameRouting.js";
@@ -20,6 +21,6 @@ try {
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <React.Profiler id="application" onRender={traceFactoryCommit}><App /></React.Profiler>
   </React.StrictMode>,
 );

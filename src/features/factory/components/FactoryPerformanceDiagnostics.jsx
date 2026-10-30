@@ -31,5 +31,5 @@ export default function FactoryPerformanceDiagnostics({ route }) {
     return () => { observer.disconnect(); cancelAnimationFrame(frame); };
   }, [route, enabled]);
   if (!enabled) return null;
-  return <details className="border-t border-border p-3 text-xs"><summary>Factory performance diagnostics</summary><p>Local metadata only. First data row and two-frame interactivity proxy exclude earlier authentication. React timings require a profiling build. Body → service completion includes SDK/JSON processing, not a separate pure parse measurement.</p><pre aria-label="Factory performance metadata" className="max-h-80 overflow-auto">{JSON.stringify(entries, null, 2)}</pre></details>;
+  return <details className="border-t border-border p-3 text-xs"><summary>Factory performance diagnostics</summary><p>Local metadata only. First data row and two-frame interactivity proxy exclude earlier authentication. React commit durations are available in the explicitly gated Staging profiling build. Body → service completion includes SDK/JSON processing, not a separate pure parse measurement.</p><pre aria-label="Factory performance metadata" className="max-h-80 overflow-auto">{JSON.stringify(entries, null, 2)}</pre></details>;
 }
