@@ -253,7 +253,6 @@ export const moduleSectionOrder = [
 
 export const moduleRegistry: AppModule[] = [
   { id: "hr_dashboard", section: "Overview", label: "Dashboard", route: "/hr/dashboard", icon: "dashboard", sidebar: true, workspace: "hr", readPermission: hrReadPermission, permissions: {} },
-  { id: "hr_settings", section: "Settings", label: "Workspace Settings", route: "/hr/settings", icon: "settings", sidebar: true, workspace: "hr", readPermission: hrReadPermission, permissions: {} },
   { id: "system_settings", section: "System", label: "System Settings", route: "/system/settings", icon: "settings", sidebar: true, readPermission: "roles.view OR roles_permissions.view", permissions: {} },
   { id: "marketing_workspace", section: "Marketing", label: "Marketing Workspace", route: "/marketing", sidebar: false, routable: false, workspace: "marketing", permissions: { access: true } },
   { id: "platform_organizations", section: "System", label: "Team & Brand Access", route: "/system/organizations", sidebar: false, routable: false, workspace: "marketing", permissions: { manage: true } },
@@ -1406,8 +1405,6 @@ export function getSidebarSections(workspace: WorkspaceKey = "restaurant") {
   if (workspace === "hr") {
     const organization = sections.find(section => section.label === "Organization");
     organization?.items.sort((a,b) => ["legal-entities", "departments", "job-positions"].indexOf(a.id) - ["legal-entities", "departments", "job-positions"].indexOf(b.id));
-    const settings = sections.find(section => section.label === "Settings");
-    settings?.items.sort((a,b) => Number(a.id === "hr_settings") - Number(b.id === "hr_settings"));
   }
   return sections.sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
 }

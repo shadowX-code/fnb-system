@@ -59,7 +59,6 @@ const MarketingSettingsPage = lazy(() => import("../features/marketing/Marketing
 const MarketingWorkspacePage = lazy(() => import("../features/marketing/MarketingWorkspacePage.jsx"));
 const RecruitmentPage = lazy(() => import("../features/recruitment/RecruitmentPage.jsx"));
 const HrDashboardPage = lazy(() => import("../features/hr/HrDashboardPage.jsx"));
-const HrSettingsPage = lazy(() => import("../features/hr/HrSettingsPage.jsx"));
 const SystemSettingsPage = lazy(() => import("../features/integrations/SystemSettingsPage.jsx"));
 const ExternalAgentsPage = lazy(() => import("../features/integrations/ExternalAgentsPage.jsx"));
 
@@ -80,7 +79,6 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 
 export const routeDetails = {
   hr_dashboard: { component: HrDashboardPage, description: "Scoped People, recruitment and Payroll preparation overview." },
-  hr_settings: { component: HrSettingsPage, description: "Existing HR configuration and organization masters." },
   system_settings: { component: SystemSettingsPage, description: "Shared role and AI integration settings." },
   external_agents: { component: ExternalAgentsPage, permission: "roles.view OR roles_permissions.view", description: "External Agent Gateway connections, credentials and safe access history." },
   marketing_creators: { component: CreatorsPage, permission: "marketing_workspace.access AND marketing_creators.view", description: "Creator relationships, collaborations, post records and performance evidence." },

@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {getSidebarSections,moduleRegistry,getPermissionDefinitions,workspaceSwitcherOptions} from '../../../config/modules.ts';
-import {resolveCanonicalPath,getAdminRouteDefinition,canonicalPathForRoute} from '../routeOwnership.js';
+import {resolveCanonicalPath,getAdminRouteDefinition,canonicalPathForRoute,resolveLegacyHash} from '../routeOwnership.js';
 import {salesPurchaseRoutes} from '../routes.jsx';
 
 describe('HR workspace composition',()=>{
@@ -8,7 +8,7 @@ describe('HR workspace composition',()=>{
   expect(getSidebarSections('hr').map(s=>[s.label,s.items.map(i=>i.label)])).toEqual([
    ['Overview',['Dashboard']],['People',['Employees','Recruitment','Payroll']],
    ['Organization',['Legal Entities','Departments','Job Positions']],['Compliance',['Food Handling Compliance']],
-   ['Settings',['AI Integrations','Workspace Settings']],
+   ['Settings',['AI Integrations']],
   ]);
   for(const id of ['employees','recruitment','payroll','legal-entities','departments','job-positions','employee_compliance']){
    expect(moduleRegistry.filter(m=>m.id===id)).toHaveLength(1);
@@ -27,6 +27,13 @@ describe('HR workspace composition',()=>{
   expect(resolveCanonicalPath('/system/settings/integrations/external-agents').routeId).toBe('external_agents');
   expect(canonicalPathForRoute('external_agents')).toBe('/system/settings/ai-integrations');
   expect(getAdminRouteDefinition(resolveCanonicalPath('/people/roles').routeId).ownership.domain).toBe('system');
+ });
+ it('retires Settings without a second page while preserving saved links',()=>{
+  expect(moduleRegistry.some(module=>module.id==='hr_settings')).toBe(false);
+  expect(salesPurchaseRoutes.some(route=>route.id==='hr_settings')).toBe(false);
+  expect(resolveCanonicalPath('/hr/settings').routeId).toBe('hr_dashboard');
+  expect(resolveLegacyHash('#hr_settings').routeId).toBe('hr_dashboard');
+  expect(canonicalPathForRoute('hr_dashboard')).toBe('/hr/dashboard');
  });
  it('reuses existing view permissions without broadening agent or business authority',()=>{
   const hr=workspaceSwitcherOptions.find(w=>w.id==='hr');
