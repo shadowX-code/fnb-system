@@ -21,7 +21,21 @@
       "dest": "/index.html"
     },
     {
+      "src": "/assets/[^/]+-[A-Za-z0-9_-]{8}\\.(js|css)$",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
       "handle": "filesystem"
+    },
+    {
+      "src": "/assets/.*",
+      "status": 404,
+      "headers": {
+        "Cache-Control": "no-store"
+      }
     },
     {
       "src": "/(.*)",
