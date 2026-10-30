@@ -64,6 +64,7 @@ export default function AdminFilterToolbar({
   primaryActions,
   sortChildren = false,
   compact = false,
+  presentation = "surface",
   denseFields = false,
   periodAfterFilters = false,
   searchAfterFilters = false,
@@ -85,9 +86,9 @@ export default function AdminFilterToolbar({
   ].filter(Boolean);
 
   return (
-    <section className={`admin-filter-toolbar w-full min-w-0 rounded-lg border border-border bg-surface/80 shadow-sm ${compact ? "admin-filter-toolbar-compact" : ""} ${className}`.trim()} aria-label={ariaLabel} data-admin-filter-toolbar data-admin-filter-density={denseFields ? "dense" : "normal"}>
+    <section className={`admin-filter-toolbar w-full min-w-0 ${presentation === "inline" ? "" : "rounded-lg border border-border bg-surface/80 shadow-sm"} ${compact ? "admin-filter-toolbar-compact" : ""} ${className}`.trim()} aria-label={ariaLabel} data-admin-filter-toolbar data-admin-filter-presentation={presentation} data-admin-filter-density={denseFields ? "dense" : "normal"}>
       <div className="admin-filter-toolbar-row flex flex-wrap items-end">
-        <div className="flex min-w-0 flex-[1_1_360px] flex-wrap items-end" data-admin-filter-fields>
+        <div className={`flex min-w-0 ${presentation === "inline" ? "flex-auto" : "flex-[1_1_360px]"} flex-wrap items-end`} data-admin-filter-fields>
           {fields.map(({ field, slot, role, width }, index) => <div className={`${denseFields ? role === "outlet" ? "w-full sm:w-[200px]" : role === "search" ? "w-full min-w-0 sm:flex-[1_1_240px]" : role === "period" || role === "date-range" || role === "date-range-navigation" ? width : "w-full sm:w-[150px]" : width} ${role === "search" ? "min-w-0" : "min-w-0 shrink-0"} admin-filter-field`.trim()} data-admin-filter-slot={slot} data-admin-filter-role={role} key={field?.key || index}>{filterSelection(field)}</div>)}
         </div>
         {moreFilters || activeFilters.length || secondaryActions || primaryActions ? <div className="flex w-full flex-wrap items-end sm:w-auto sm:justify-end" data-admin-filter-actions>

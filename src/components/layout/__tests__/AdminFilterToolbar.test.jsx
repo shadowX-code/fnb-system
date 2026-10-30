@@ -22,6 +22,15 @@ function OutletHarness() {
 afterEach(cleanup);
 
 describe("AdminFilterToolbar", () => {
+  it("supports inline header placement without duplicating the surface or changing field controls", () => {
+    const view=render(<AdminFilterToolbar presentation="inline" outlet={<Field label="Company"/>}/>);
+    const toolbar=screen.getByRole('region',{name:'Filters'});
+    expect(toolbar.dataset.adminFilterPresentation).toBe('inline');
+    expect(toolbar.className).not.toContain('border-border');
+    expect(screen.getByLabelText('Company').closest('[data-admin-filter-slot]').className).toContain('sm:w-[230px]');
+    view.rerender(<AdminFilterToolbar outlet={<Field label="Company"/>}/>);
+    expect(toolbar.className).toContain('border-border');
+  });
   it("keeps compact and standard toolbars full width while selects stay bounded", () => {
     const view = render(<AdminFilterToolbar compact><AdminSearchField label="Search" value="" onChange={vi.fn()} /><Field label="Status" /></AdminFilterToolbar>);
     expect(screen.getByRole("region", { name: "Filters" }).className).toContain("w-full min-w-0");

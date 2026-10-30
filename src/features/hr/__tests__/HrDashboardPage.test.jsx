@@ -57,4 +57,29 @@ describe('Workforce Overview',()=>{
   expect(await screen.findByRole('alert')).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Retry overview'}));
   await waitFor(()=>expect(screen.queryByRole('alert')).toBeNull());
  });
+ it('previews six company groups but retains full totals, sorting and View All access',async()=>{
+  mocks.employees.mockResolvedValue(Array.from({length:9},(_,i)=>({id:`e${i}`,legal_entity_id:`c${i}`,employment_type:i%2?'part_time':'probation',employment_status:'active'})));
+  mocks.companies.mockResolvedValue(Array.from({length:9},(_,i)=>({id:`c${i}`,display_name:`Company ${i}`})));
+  render(<HrDashboardPage auth={auth(permissions)}/>);
+  const section=await screen.findByRole('region',{name:'Employees by Company'});
+  await within(section).findByRole('button',{name:'View All'});
+  expect(within(section).getAllByRole('button',{name:/^View Company .* employees$/})).toHaveLength(6);
+  expect(within(section).getAllByText('9')).toHaveLength(2);
+  fireEvent.click(within(section).getByRole('button',{name:'View All'}));
+  expect(within(section).getAllByRole('button',{name:/^View Company .* employees$/})).toHaveLength(9);
+  fireEvent.click(within(section).getByRole('button',{name:'Sort by Legal Entity, ascending'}));
+  expect(within(section).getAllByRole('button',{name:/^View Company .* employees$/})[0].getAttribute('aria-label')).toBe('View Company 0 employees');
+  fireEvent.click(within(section).getByRole('button',{name:'Show fewer'}));
+  expect(within(section).getAllByRole('button',{name:/^View Company .* employees$/})).toHaveLength(6);
+ });
+ it('keeps older open Payroll periods collapsed without losing direct navigation',async()=>{
+  vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date('2026-10-30T00:00:00Z'));
+  mocks.payroll.mockResolvedValue({legal_entities:[{id:'c1',name:'Company One'}],periods:['2026-10-01','2026-09-01'].map((date,i)=>({id:`p${i}`,legal_entity_id:'c1',period_start:date,runs:[{id:`r${i}`,status:'draft',revision:1}]}))});
+  render(<HrDashboardPage auth={auth(permissions)}/>);
+  await screen.findByText('Other open periods (1)');
+  expect(screen.getByText('September 2026').closest('details').open).toBe(false);
+  expect(screen.getByText('October 2026').closest('details')).toBeNull();
+  vi.useRealTimers();
+ });
+
 });
