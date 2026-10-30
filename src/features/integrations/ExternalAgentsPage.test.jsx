@@ -97,7 +97,7 @@ it("keeps preserved scope separate from module selections and exposes technical 
  const scopedAgent={...agent,preserved_access:[retained],tools:capabilities.map((c)=>({...c,granted:false,limited_access:true,technical_resources:[{resource:"evidence",row_scope:{module:"cleaning_of_area"}}]}))};
  externalAgentService.list.mockResolvedValue({connections:[scopedAgent],catalog,can_register:true});externalAgentService.details.mockResolvedValue({...detail,connections:[scopedAgent]});
  render(<ExternalAgentsPage auth={auth()} />);await open();
- expect(screen.getAllByText("Preserved MeSTI compliance review")).toHaveLength(1);expect(screen.queryByText("No resources allowed")).toBeNull();
+ expect(screen.getByText("1 capability · View only")).toBeTruthy();expect(screen.queryByText("No resources allowed")).toBeNull();
  tab("Access & Permissions");
  expect(screen.getByRole("checkbox",{name:"View Records: Preserved MeSTI compliance review"}).checked).toBe(true);expect(screen.queryByRole("button",{name:"Remove access"})).toBeNull();
  expect(screen.getByRole("checkbox",{name:"View Records: Review daily compliance"}).checked).toBe(false);
@@ -114,9 +114,10 @@ it('filters same-time activity by outcome/admin provenance without merging event
  fireEvent.click(filters.getByRole('tab',{name:'Admin Changes'}));expect(screen.getByText('Access removed')).toBeTruthy();expect(screen.queryByText('Records requested')).toBeNull();
  fireEvent.click(filters.getByRole('tab',{name:'Successful'}));expect(screen.getByText('Connection checked')).toBeTruthy();expect(screen.queryByText('Access removed')).toBeNull();
 });
-it('uses the server effective-access summary in the main list',async()=>{
+it('keeps the complete server summary in Manage instead of the compact table',async()=>{
  externalAgentService.list.mockResolvedValue({connections:[{...agent,effective_access:{summary:'Server-authorized MeSTI scope'}}],catalog,can_register:true});
- render(<ExternalAgentsPage auth={auth()} />);expect(await screen.findByText('Server-authorized MeSTI scope')).toBeTruthy();expect(screen.queryByText('Restricted access also preserved')).toBeNull();
+ externalAgentService.details.mockResolvedValue({...detail,connections:[{...agent,effective_access:{summary:'Server-authorized MeSTI scope'}}]});
+ render(<ExternalAgentsPage auth={auth()} />);expect(await screen.findByText('5 capabilities · View only')).toBeTruthy();expect(screen.queryByText('Server-authorized MeSTI scope')).toBeNull();await open();tab('Access & Permissions');expect(screen.getByText('Server-authorized MeSTI scope')).toBeTruthy();
 });
 
 it('separates the persisted 180-day issuance from the 90-day replacement default without changing a key', async()=>{
@@ -154,4 +155,18 @@ it('keeps legacy expiry readable when issuance metadata is absent',async()=>{
  render(<ExternalAgentsPage auth={auth()} />);await open();
  const current=within(screen.getByRole('group',{name:'Current Access Key'}));
  expect(current.getByText(/28 Nov 2026/)).toBeTruthy();expect(current.getAllByText('Not recorded')).toHaveLength(2);
+});
+
+it('counts server capabilities including retained access once per grant, never per shared resource',async()=>{
+ const granted=[...capabilities.slice(0,2).map(c=>({...c,domain:'Production',scope:[{resource:'shared'},{resource:'another'}]})),{...capabilities[2],domain:'MeSTI',retained_only:true}];
+ externalAgentService.list.mockResolvedValue({connections:[{...agent,business_capabilities:[...granted,{...granted[0],name:'duplicate_projection'}, {...capabilities[3],granted:false},{...capabilities[4],implemented:false}]}],catalog});
+ render(<ExternalAgentsPage auth={auth()} />);
+ expect(await screen.findByText('3 capabilities · View only')).toBeTruthy();expect(screen.getByText('Production',{exact:true})).toBeTruthy();expect(screen.getByText('MeSTI',{exact:true})).toBeTruthy();
+ expect(screen.queryByText('Review daily compliance',{exact:true})).toBeNull();
+});
+it('shows three distinct server domain labels with accessible overflow without expanding the row',async()=>{
+ const granted=capabilities.map((c,i)=>({...c,domain:['Production','MeSTI','Warehouse','System','Production'][i]}));
+ externalAgentService.list.mockResolvedValue({connections:[{...agent,business_capabilities:granted}],catalog});render(<ExternalAgentsPage auth={auth()} />);
+ expect(await screen.findByText('5 capabilities · View only')).toBeTruthy();expect(screen.queryByText('System',{exact:true})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Show 1 more business domains'}));expect(await screen.findByRole('dialog',{name:'More business domains'})).toBeTruthy();expect(screen.getByText('System',{exact:true})).toBeTruthy();
 });
