@@ -16,5 +16,5 @@
 @media(max-width: 480px) { .external-agent-facts { grid-template-columns: minmax(0,1fr); } }
 
 .external-agent-toolbar { max-width: 360px; }
-.external-agent-access-summary { max-width: 340px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.external-agent-access-summary { max-width: 340px; }
 .external-agent-panel summary { cursor: pointer; font-size: 13px; font-weight: 600; }

@@ -6,6 +6,7 @@ import SelectField from "../../components/forms/SelectField.jsx";
 import AdminUnderlineTabs from "../../components/navigation/AdminUnderlineTabs.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
 import Badge from "../../components/ui/Badge.jsx";
+import TagList from "../../components/ui/TagList.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
 import ConfirmDialog from "../../components/feedback/ConfirmDialog.jsx";
 import { formatOperationalMoment } from "../../lib/dateTime.js";
@@ -39,6 +40,19 @@ function accessSummary(row) {
   const grants = allowed(row);
   if (grants.length) return `${grants.length} business ${grants.length === 1 ? "module" : "modules"} · View Records`;
   return row.preserved_access?.length ? row.preserved_access.map((grant) => grant.label).join(", ") : "No modules allowed";
+}
+// Format the server's grant units, never count their overlapping resource projections.
+function EffectiveAccessSummary({ agent }) {
+  if (!agent.enabled) return <span>Disabled</span>;
+  if (agent.role_active === false || agent.permission_granted === false) return <span>Access blocked</span>;
+  const catalog = agent.business_capabilities || [...(agent.tools || []), ...(agent.preserved_access || [])];
+  const capabilities = [...new Map(catalog.filter(c => c.granted && c.implemented !== false && (c.permission || c.name)).map(c => [c.permission || c.name, c])).values()];
+  const domains = [...new Set(capabilities.map(c => c.domain || c.domain_label || c.section).filter(Boolean))];
+  const actions = [...new Set(capabilities.map(c => actionLabels[c.capability]).filter(Boolean))].map(label => label === "View Records" ? "View" : label);
+  return <div className="external-agent-access-summary space-y-1.5">
+    <p className="text-sm font-medium">{capabilities.length} {capabilities.length === 1 ? "capability" : "capabilities"} · {actions.length ? `${actions.join(" / ")} only` : "No access granted"}</p>
+    {domains.length ? <TagList tags={domains} maxVisible={3} label="business domains" /> : <p className="text-xs text-text-secondary">Details in Manage</p>}
+  </div>;
 }
 const failureLabels = { credential_denied: "Access key or connection permission was not accepted.", capability_denied: "This capability is not allowed.", tool_denied: "The requested capability is unavailable.", evidence_unavailable: "Information could not be returned. Check access and try again.", origin_denied: "The request came from an unsupported application.", invalid_request: "The request could not be processed.", unsupported_version: "The connection version is unsupported.", method_denied: "This connection request is unsupported." };
 
@@ -122,7 +136,7 @@ export default function ExternalAgentsPage({ auth }) {
   const columns = [
     { key: "name", header: "Agent", render: (row) => <button className="external-agent-name" type="button" onClick={() => open(row)}>{row.name}<span>{row.provider}</span></button> },
     { key: "workspace", header: "Workspace", render: (row) => row.workspace || "Not configured" },
-    { key: "access", header: "Effective Access", render: (row) => <div className="external-agent-access-summary">{accessSummary(row)}</div> },
+    { key: "access", header: "Effective Access", render: (row) => <EffectiveAccessSummary agent={row} /> },
     { key: "connection", header: "Connection", render: (row) => <ConnectionState agent={row} /> },
     { key: "last_active", header: "Last successful access", render: (row) => stamp(row.last_mcp_success) },
     { key: "action", header: "Actions", render: (row) => <button className="btn-secondary" type="button" aria-label={`Manage ${row.name}`} onClick={() => open(row)}>Manage</button> },
