@@ -167,6 +167,9 @@ it('counts server capabilities including retained access once per grant, never p
 it('shows three distinct server domain labels with accessible overflow without expanding the row',async()=>{
  const granted=capabilities.map((c,i)=>({...c,domain:['Production','MeSTI','Warehouse','System','Production'][i]}));
  externalAgentService.list.mockResolvedValue({connections:[{...agent,business_capabilities:granted}],catalog});render(<ExternalAgentsPage auth={auth()} />);
- expect(await screen.findByText('5 capabilities · View only')).toBeTruthy();expect(screen.queryByText('System',{exact:true})).toBeNull();
- fireEvent.click(screen.getByRole('button',{name:'Show 1 more business domains'}));expect(await screen.findByRole('dialog',{name:'More business domains'})).toBeTruthy();expect(screen.getByText('System',{exact:true})).toBeTruthy();
+ const summary=await screen.findByText('5 capabilities · View only');
+ expect(within(summary.closest('tr')).queryByText('System',{exact:true})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Show 1 more business domains'}));
+ const overflow=await screen.findByRole('dialog',{name:'More business domains'});
+ expect(within(overflow).getByText('System',{exact:true})).toBeTruthy();
 });

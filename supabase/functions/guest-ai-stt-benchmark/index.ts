@@ -1,3 +1,4 @@
+import { hasGuestAiPermission } from "../_shared/guestAiAuthorization.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { MAX_PCM_BYTES, metadataFromHeaders, pcmS16LeToWav, SttRequestError, validatePcmRequest } from "../guest-ai-stt/contract.ts";
 import { DeepgramSttProvider, OpenAiBenchmarkSttProvider, type BenchmarkTranscript } from "./providers.ts";
@@ -35,10 +36,11 @@ function config() {
 
 async function authenticate(request: Request, supabaseUrl: string, anonKey: string) {
   const authorization = request.headers.get("authorization") || "";
-  if (!authorization.startsWith("Bearer ")) return false;
+  if (!authorization.startsWith("Bearer ")) return 401;
   const client = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
   const { data, error } = await client.auth.getUser();
-  return !error && Boolean(data.user);
+  if (error || !data.user) return 401;
+  return await hasGuestAiPermission(client, true) ? 200 : 403;
 }
 
 function serialiseResult(result: PromiseSettledResult<BenchmarkTranscript>) {
@@ -70,7 +72,8 @@ Deno.serve(async (request) => {
   const runtime = config();
   if (!runtime.supabaseUrl || !runtime.anonKey) return errorResponse(request, metadata.turnId || null, "service_not_configured", "Voice runtime authentication is not configured.", 503);
   if (!runtime.openAiApiKey || !runtime.deepgramApiKey) return errorResponse(request, metadata.turnId || null, "benchmark_provider_not_configured", "The OpenAI and Deepgram Staging providers must both be configured before a benchmark capture is accepted.", 503);
-  if (!(await authenticate(request, runtime.supabaseUrl, runtime.anonKey))) return errorResponse(request, metadata.turnId || null, "authentication_required", "Sign in is required.", 401);
+  const access = await authenticate(request, runtime.supabaseUrl, runtime.anonKey);
+  if (access !== 200) return errorResponse(request, metadata.turnId || null, access === 403 ? "permission_denied" : "authentication_required", access === 403 ? "Guest AI developer access is required." : "Sign in is required.", access);
 
   const declaredLength = Number(request.headers.get("content-length") || "0");
   if (declaredLength > MAX_PCM_BYTES) return errorResponse(request, metadata.turnId || null, "audio_size_invalid", "Audio exceeds the six-second capture limit.", 413);

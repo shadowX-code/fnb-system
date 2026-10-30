@@ -31,7 +31,7 @@ The module must not read or mutate established FeedX business-domain data withou
 ## Permissions, Audit, And Privacy
 
 Workspace access uses the current Guest AI module permissions and route contracts.
-Server functions validate input, constrain provider use, and avoid exposing credentials or raw internal diagnostics.
+The STT, reply and TTS Edge Functions require `guest_ai.access` through the authenticated caller's canonical permission RPC before provider execution. STT benchmark additionally requires `guest_ai.developer`; authentication alone is insufficient. Permission lookup failures deny access. Server functions validate input, constrain provider use, and avoid exposing credentials or raw internal diagnostics.
 Retain only the telemetry and artifacts needed for prototype validation, debugging, safety, and cost control under current contracts.
 Do not infer broad guest identity, loyalty, ordering, or employee access authority.
 

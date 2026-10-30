@@ -42,6 +42,8 @@ export type ModuleAction =
   | "perform"
   | "record"
   | "verify"
+  | "correct_attribution"
+  | "trust_review"
   | "record_collection"
   | "cancel"
   | "enable_login"
@@ -69,6 +71,7 @@ export type AppModule = {
   // Internal modules may supply data or modal workflows without being valid hash-route destinations.
   routable?: boolean;
   permissionEditorHidden?: boolean;
+  permissionPrefix?: string;
   // Consumer routes may reuse an existing permission without introducing a second grant.
   readPermission?: string;
   requiresRestaurantOutletScope?: boolean;
@@ -122,6 +125,8 @@ export const permissionActionOrder: ModuleAction[] = [
   "perform",
   "record",
   "verify",
+  "correct_attribution",
+  "trust_review",
   "record_collection",
   "cancel",
   "manage",
@@ -180,6 +185,8 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   perform: "Perform",
   record: "Record",
   verify: "Verify",
+  correct_attribution: "Correct Attribution",
+  trust_review: "Review Trust",
   record_collection: "Record Collection",
   cancel: "Cancel",
   manage: "Manage",
@@ -258,6 +265,12 @@ export const moduleSectionOrder = [
 ];
 
 export const moduleRegistry: AppModule[] = [
+  // Embedded business authorities share existing pages; these are not routes.
+  { id: "employee_disciplinary", section: "People", label: "Letters & Notices", route: "/people/employees", sidebar: false, routable: false, workspace: "hr", permissions: { view: true, manage: true } },
+  { id: "employee_employment_documents", section: "People", label: "Employment Contracts", route: "/people/employees", sidebar: false, routable: false, workspace: "hr", permissions: { view: true, manage: true } },
+  { id: "employment_contract_templates", section: "Organization", label: "Employment Contract Templates", route: "/people/legal-entities", sidebar: false, routable: false, workspace: "hr", permissions: { view: true, manage: true } },
+  { id: "crew_feedback_follow_up", permissionPrefix: "crew_feedback.follow_up", section: "Performance", label: "Feedback Follow-up", route: "/crew/performance/feedback", sidebar: false, routable: false, workspace: "crew", permissions: { view: true, manage: true } },
+
   { id: "hr_dashboard", section: "Overview", label: "Dashboard", route: "/hr/dashboard", icon: "dashboard", sidebar: true, workspace: "hr", readPermission: hrReadPermission, permissions: {} },
   { id: "marketing_workspace", section: "Marketing", label: "Marketing Workspace", route: "/marketing", sidebar: false, routable: false, workspace: "marketing", permissions: { access: true } },
   { id: "platform_organizations", section: "System", label: "Team & Brand Access", route: "/system/organizations", sidebar: false, routable: false, workspace: "marketing", permissions: { manage: true } },
@@ -787,7 +800,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-production",
     sidebar: false,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, complete: true, export: true },
+    permissions: { verify: true, view: true, create: true, edit: true, complete: true, export: true },
   },
   {
     id: "factory_production_reports",
@@ -868,7 +881,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-raw-receiving",
     sidebar: true,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, delete: true, export: true },
+    permissions: { verify: true, view: true, create: true, edit: true, delete: true, export: true },
   },
   {
     id: "factory_raw_inventory",
@@ -1240,13 +1253,14 @@ export const moduleRegistry: AppModule[] = [
   },
   {
     id: "crew_customer_feedback",
+    permissionPrefix: "crew_feedback",
     section: "Performance",
     label: "Customer Feedback",
     route: "/crew/performance/feedback",
     icon: "crew-feedback",
     sidebar: true,
     workspace: "crew",
-    permissions: { view: true, moderate: true },
+    permissions: { view: true, moderate: true, correct_attribution: true, trust_review: true },
   },
   {
     id: "crew_google_reviews",
@@ -1296,7 +1310,7 @@ export function moduleWorkspace(module: AppModule): WorkspaceKey {
 }
 
 export function permissionPrefix(moduleId: string) {
-  return moduleId === "crew_customer_feedback" ? "crew_feedback" : moduleId.replace(/-/g, "_");
+  return moduleRegistry.find(module=>module.id===moduleId)?.permissionPrefix ?? moduleId.replace(/-/g, "_");
 }
 
 export function permissionCode(moduleId: string, action: ModuleAction) {

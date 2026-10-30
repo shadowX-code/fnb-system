@@ -1,3 +1,4 @@
+import { hasGuestAiPermission } from "../_shared/guestAiAuthorization.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { CHANNELS, fitsPlaybackBudget, MAX_PLAYBACK_PCM_BYTES, PCM_S16LE, pcmDurationMs, SAMPLE_RATE_HZ, TtsRequestError, validateTtsRequest } from "./contract.ts";
 import { OpenAiReplyCompressor } from "./compressor.ts";
@@ -36,6 +37,7 @@ Deno.serve(async (request) => {
   const auth = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
   const { data, error } = await auth.auth.getUser();
   if (error || !data.user) return fail(request, turnId, "authentication_required", "Your session is not valid.", 401);
+  if (!(await hasGuestAiPermission(auth))) return fail(request, turnId, "permission_denied", "Guest AI access is required.", 403);
   try {
     const valid = validateTtsRequest(raw);
     const startedAt = performance.now(); const timeoutMs = bounded(Deno.env.get("VOICE_TTS_TIMEOUT_MS"), 20_000, 1_000, 60_000);

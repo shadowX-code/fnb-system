@@ -1,3 +1,4 @@
+import { hasGuestAiPermission } from "../_shared/guestAiAuthorization.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { ConversationRequestError, estimateCostUsd, validateConversationRequest } from "./contract.ts";
 import { OpenAiConversationProvider } from "./provider.ts";
@@ -55,6 +56,7 @@ Deno.serve(async (request) => {
   const authClient = createClient(config.supabaseUrl, config.anonKey, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
   const { data: authData, error: authError } = await authClient.auth.getUser();
   if (authError || !authData.user) return errorResponse(request, turnId, "authentication_required", "Your session is not valid.", 401);
+  if (!(await hasGuestAiPermission(authClient))) return errorResponse(request, turnId, "permission_denied", "Guest AI access is required.", 403);
 
   try {
     const valid = validateConversationRequest(raw);

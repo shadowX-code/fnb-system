@@ -1,3 +1,4 @@
+import { hasGuestAiPermission } from "../_shared/guestAiAuthorization.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { MAX_PCM_BYTES, metadataFromHeaders, pcmS16LeToWav, SttRequestError, validatePcmRequest } from "./contract.ts";
 import { OpenAiSttProvider } from "./provider.ts";
@@ -48,6 +49,7 @@ Deno.serve(async (request) => {
   const authClient = createClient(config.supabaseUrl, config.anonKey, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
   const { data: authData, error: authError } = await authClient.auth.getUser();
   if (authError || !authData.user) return errorResponse(request, metadata.turnId || null, "authentication_required", "Your session is not valid.", 401);
+  if (!(await hasGuestAiPermission(authClient))) return errorResponse(request, metadata.turnId || null, "permission_denied", "Guest AI access is required.", 403);
 
   const declaredLength = Number(request.headers.get("content-length") || "0");
   if (declaredLength > MAX_PCM_BYTES) return errorResponse(request, metadata.turnId || null, "audio_size_invalid", "Audio exceeds the six-second capture limit.", 413);
