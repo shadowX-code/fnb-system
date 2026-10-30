@@ -34,6 +34,8 @@ describe('HR workspace composition',()=>{
   expect(resolveCanonicalPath('/hr/settings').routeId).toBe('hr_dashboard');
   expect(resolveLegacyHash('#hr_settings').routeId).toBe('hr_dashboard');
   expect(canonicalPathForRoute('hr_dashboard')).toBe('/hr/dashboard');
+  expect(canonicalPathForRoute('employees',{}, {company:'entity-1'})).toBe('/people/employees?company=entity-1');
+  expect(resolveCanonicalPath('/people/payroll','?company=entity-1&period=2026-09&run=run-1').query).toEqual({company:'entity-1',period:'2026-09',run:'run-1'});
  });
  it('reuses existing view permissions without broadening agent or business authority',()=>{
   const hr=workspaceSwitcherOptions.find(w=>w.id==='hr');

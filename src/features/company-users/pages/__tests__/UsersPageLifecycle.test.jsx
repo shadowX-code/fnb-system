@@ -78,8 +78,8 @@ describe("Users page employee/auth lifecycle guards", () => {
     await screen.findByText("Aisha");
     fireEvent.click(screen.getByRole("button", { name: "Add Employee" }));
     fireEvent.click(screen.getByText("Select workplace"));
-    expect(await screen.findByRole("button", { name: "Factory", exact: true })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Management", exact: true })).toBeTruthy();
+    expect(await screen.findByRole("option", { name: "Factory", exact: true })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Management", exact: true })).toBeTruthy();
   });
 
   it("keeps a view-only employee directory from exposing create, edit, enable, or disable mutations", async () => {
@@ -215,7 +215,7 @@ describe("Users page employee/auth lifecycle guards", () => {
     fireEvent.click(screen.getByText("Edit"));
 
     fireEvent.click(screen.getAllByText("Supervisor").at(-1));
-    fireEvent.click(await screen.findByRole("button", { name: "Manager", exact: true }));
+    fireEvent.click(await screen.findByRole("option", { name: "Manager", exact: true }));
 
     expect(screen.getByText("PJ Sentral")).toBeTruthy();
     expect(screen.getAllByText(employee.email).length).toBeGreaterThan(0);
@@ -228,7 +228,7 @@ describe("Users page employee/auth lifecycle guards", () => {
       role_id: "role-2",
       email: activeEmployee.email,
       auth_user_id: activeEmployee.auth_user_id,
-    }));
+    }), undefined);
     expect(mocks.onboarding.sendLoginSetupEmail).not.toHaveBeenCalled();
   });
 
@@ -251,8 +251,16 @@ describe("Users page employee/auth lifecycle guards", () => {
     fireEvent.click(screen.getByRole("button", { name: "User actions" }));
     fireEvent.click(screen.getByText("Edit"));
     fireEvent.click(screen.getAllByText("Supervisor").at(-1));
-    fireEvent.click(await screen.findByRole("button", { name: "Manager", exact: true }));
+    fireEvent.click(await screen.findByRole("option", { name: "Manager", exact: true }));
 
     expect(screen.getByText("PJ Sentral")).toBeTruthy();
   });
+});
+
+it("filters canonical Employee rows by the company deep link", async () => {
+  window.history.replaceState(null,"","/people/employees?company=company-2");
+  mocks.employees.listEmployees.mockResolvedValue([{...employee,legal_entity_id:"company-1"},{...employee,id:"employee-2",full_name:"Company Two Employee",nickname:"Company Two Employee",legal_entity_id:"company-2"}]);
+  mount(["employees.view"]);
+  await screen.findByText("Company Two Employee");
+  expect(screen.queryByText("Aisha Rahman")).toBeNull();
 });

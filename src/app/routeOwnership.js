@@ -25,6 +25,9 @@ export function canonicalRouteId(routeId = "") {
 }
 
 const productQueryStateByRouteId = Object.freeze({
+  hr_dashboard: [{ key: "company" }],
+  employees: [{ key: "company" }],
+  payroll: [{ key: "company" }, { key: "period" }, { key: "run" }],
   outlets: [{ key: "outletId" }, { key: "section" }],
   crew_google_reviews: [{ key: "google_result" }],
   roles: [{ key: "permission_workspace" }],

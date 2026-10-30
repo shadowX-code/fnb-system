@@ -29,6 +29,8 @@ employees only, enforcing the same Employee RLS and audit path while excluding
 unrelated personal, employment and access fields. Audit retains original bank values;
 incomplete bank details remain informational to Payroll.
 
+The Employee service’s Workforce read exposes only current identity/Legal Employer/classification fields under existing Employee RLS. It preserves null classifications and paginates completely; existing form-normalized Employee reads are unchanged. HR and the canonical Employees directory share the `company` URL filter; company selection does not grant access or alter employment history.
+
 ## Core Entities
 
 - Employee master records and employment state
