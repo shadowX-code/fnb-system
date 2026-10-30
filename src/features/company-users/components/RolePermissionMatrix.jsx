@@ -4,16 +4,25 @@ import AdminFilterToolbar from '../../../components/layout/AdminFilterToolbar.js
 import AdminSearchField from '../../../components/forms/AdminSearchField.jsx';
 import SelectField from '../../../components/forms/SelectField.jsx';
 import DataTable from '../../../components/tables/DataTable.jsx';
-import {getPermissionGroups,moduleRegistry,moduleWorkspace,workspaceLabels,permissionActionOrder,permissionActionLabels} from '../../../../config/modules.ts';
+import {getPermissionGroups,getSidebarSections,moduleRegistry,moduleWorkspace,workspaceLabels,permissionActionOrder,permissionActionLabels} from '../../../../config/modules.ts';
 import './rolePermissionMatrix.css';
 
 const registered=new Map(moduleRegistry.map(m=>[m.id,m]));
 const modules=getPermissionGroups().flatMap(g=>g.modules.map(m=>({...m,section:g.label,workspace:moduleWorkspace(registered.get(m.key)),consumers:moduleRegistry.filter(r=>r.id!==m.key&&r.readPermission?.includes(`${m.key}.view`)).map(r=>r.label)})));
-const workspaces=Object.keys(workspaceLabels).filter(w=>modules.some(m=>m.workspace===w));
+const workspaces=Object.keys(workspaceLabels);
+// Present shared authorities in the consuming workspace without adding grants.
+function sharedModules(workspace){
+ const sidebarIds=new Set(getSidebarSections(workspace).flatMap(section=>section.items.map(item=>item.id)));
+ const singlePermissions=new Set(moduleRegistry.filter(module=>moduleWorkspace(module)===workspace && /^[a-z0-9_]+\.[a-z0-9_]+$/.test(module.readPermission||'')).map(module=>module.readPermission));
+ return modules.filter(module=>module.workspace!==workspace).flatMap(module=>{
+  const actions=sidebarIds.has(module.key)?module.actions:Object.fromEntries(Object.entries(module.actions).filter(([,action])=>action.codes.length===1&&singlePermissions.has(action.codes[0])));
+  return Object.keys(actions).length?[{...module,workspace,actions,sharedOwner:module.workspace}]:[];
+ });
+}
 export default function RolePermissionMatrix({permissions,onToggle,cellLocked=()=>false,readOnly=false,notice}){
  const [workspace,setWorkspace]=useState(()=>{const requested=new URLSearchParams(window.location.search).get('permission_workspace');return workspaces.includes(requested)?requested:''});
  const [moduleId,setModuleId]=useState(''),[search,setSearch]=useState('');
- const available=modules.filter(m=>!workspace||m.workspace===workspace),query=search.trim().toLowerCase();
+ const available=workspace?[...modules.filter(m=>m.workspace===workspace),...sharedModules(workspace)]:modules,query=search.trim().toLowerCase();
  const visible=available.filter(m=>(!moduleId||m.key===moduleId)&&(!query||[m.label,m.key,m.section,...m.consumers,...Object.values(m.actions).map(a=>a.label)].join(' ').toLowerCase().includes(query)));
  const enabled=cell=>cell.codes.every(code=>permissions.has(code));
  return <section className="role-permission-matrix rounded-card border border-border bg-surface overflow-hidden" aria-label="Permission Matrix">
@@ -22,7 +31,7 @@ export default function RolePermissionMatrix({permissions,onToggle,cellLocked=()
  {notice?<div className="mt-3 text-sm text-text-secondary">{notice}</div>:null}</header>
  {workspaces.filter(w=>visible.some(m=>m.workspace===w)).map(w=>{
   const rows=visible.filter(m=>m.workspace===w),actions=permissionActionOrder.filter(a=>rows.some(m=>m.actions[a]));
-  const columns=[{key:'module',header:'Module',width:230,sticky:true,render:m=><div className="permission-module"><small>{m.section}</small><strong>{m.label}</strong><span>{Object.values(m.actions).filter(enabled).length} active actions</span>{m.consumers.length?<small>Used by {m.consumers.join(' · ')}</small>:null}</div>},...actions.map(a=>({key:a,header:permissionActionLabels[a],render:m=>{
+  const columns=[{key:'module',header:'Module',width:230,sticky:true,render:m=><div className="permission-module"><small>{m.section}</small><strong>{m.label}</strong>{m.sharedOwner?<small>Shared with {workspaceLabels[m.sharedOwner]} · changes apply everywhere</small>:null}<span>{Object.values(m.actions).filter(enabled).length} active actions</span>{m.consumers.length?<small>Used by {m.consumers.join(' · ')}</small>:null}</div>},...actions.map(a=>({key:a,header:permissionActionLabels[a],render:m=>{
    const cell=m.actions[a];if(!cell)return <span className="permission-unavailable" aria-label="Not applicable">—</span>;
    const active=enabled(cell),locked=cellLocked(cell),label=`${m.label}: ${cell.label}`;
    return <div className="permission-cell">{readOnly?<span className={`permission-state ${active?'enabled':''}`} title={cell.label} aria-label={`${label} ${active?'Enabled':'Off'}`}>{active?'Enabled':'Off'}</span>:<button type="button" className={`permission-state ${active?'enabled':''}`} aria-label={label} aria-pressed={active} disabled={locked} title={locked?'You cannot modify permissions outside your own access.':cell.label} onClick={()=>onToggle?.(m,a,cell)}>{locked?<Lock size={12}/>:null}{active?'Enabled':'Off'}</button>}<small>{cell.label}</small></div>;

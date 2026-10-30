@@ -30,6 +30,7 @@ import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
 import { canCreate, canEdit, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { crewAccessState, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
+import useAdminLocation from "../../../app/useAdminLocation.js";
 import { navigateAdminRoute } from "../../../app/routeOwnership.js";
 import { employmentStatusOptions } from "../employmentStatus.js";
 
@@ -1418,6 +1419,7 @@ function UserFormModal({
 }
 
 export default function UsersPage({ ui, store, auth }) {
+  const companyFilter = useAdminLocation()?.query.company || "all";
   const [users, setUsers] = useState([]);
   const [jobPositions, setJobPositions] = useState([]);
   const [roleRecords, setRoleRecords] = useState([]);
@@ -1511,9 +1513,9 @@ export default function UsersPage({ ui, store, auth }) {
       const matchesEmploymentType = !employmentTypeFilter.length || employmentTypeFilter.includes(user.employment_type);
       const matchesEmploymentStatus = !employmentStatusFilter.length || employmentStatusFilter.includes(user.employment_status);
       const matchesAccount = !accountFilter || getAccessState(user) === accountFilter;
-      return matchesSearch && matchesRole && matchesWorkplace && matchesEmploymentType && matchesEmploymentStatus && matchesAccount;
+      return (companyFilter === "all" || (user.legal_entity_id || "unassigned") === companyFilter) && matchesSearch && matchesRole && matchesWorkplace && matchesEmploymentType && matchesEmploymentStatus && matchesAccount;
     });
-  }, [accountFilter, employmentStatusFilter, employmentTypeFilter, query, roleFilter, users, workplaceFilter]);
+  }, [accountFilter, companyFilter, employmentStatusFilter, employmentTypeFilter, query, roleFilter, users, workplaceFilter]);
 
   const stats = {
     active: users.filter((user) => getAccessState(user) === EMPLOYEE_ACCESS_STATE.ACTIVE).length,
@@ -1935,6 +1937,11 @@ export default function UsersPage({ ui, store, auth }) {
       <UpcomingCelebrationsCard celebrations={celebrations} outlets={store?.outlets ?? []} />
 
       <AdminFilterToolbar compact>
+        <SelectField label="Company" value={companyFilter} onChange={value=>navigateAdminRoute('employees',{},value==='all'?{}:{company:value},{replace:true})} options={[
+          {value:'all',label:'All'},
+          ...[...new Set(users.map(user=>user.legal_entity_id||'unassigned'))].map(id=>({value:id,label:id==='unassigned'?'Unassigned':legalEntities.find(entity=>entity.id===id)?.display_name||legalEntities.find(entity=>entity.id===id)?.legal_company_name||'Company name unavailable'})),
+          ...(companyFilter!=='all'&&!users.some(user=>(user.legal_entity_id||'unassigned')===companyFilter)?[{value:companyFilter,label:loading?'Loading company…':'Selected company · no accessible records'}]:[]),
+        ]}/>
         <AdminSearchField label="Search" value={query} onChange={setQuery} placeholder="Search name, email, IC, contact..." />
         <FieldLabel label="Role">
           <FilterPopover

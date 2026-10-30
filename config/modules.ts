@@ -40,6 +40,10 @@ export type ModuleAction =
   | "receive"
   | "complete"
   | "perform"
+  | "record"
+  | "verify"
+  | "correct_attribution"
+  | "trust_review"
   | "record_collection"
   | "cancel"
   | "enable_login"
@@ -66,11 +70,14 @@ export type AppModule = {
   agentNavigationOwner?: string;
   // Internal modules may supply data or modal workflows without being valid hash-route destinations.
   routable?: boolean;
+  // Hide from Human Role Matrix only; retain catalog and agent capability registration.
   permissionEditorHidden?: boolean;
+  permissionPrefix?: string;
   // Consumer routes may reuse an existing permission without introducing a second grant.
   readPermission?: string;
   requiresRestaurantOutletScope?: boolean;
-  workspace?: "restaurant" | "factory" | "crew" | "marketing";
+  workspace?: "restaurant" | "factory" | "crew" | "marketing" | "hr";
+
   permissions: Partial<Record<ModuleAction, boolean>>;
 };
 
@@ -118,6 +125,10 @@ export const permissionActionOrder: ModuleAction[] = [
   "receive",
   "complete",
   "perform",
+  "record",
+  "verify",
+  "correct_attribution",
+  "trust_review",
   "record_collection",
   "cancel",
   "manage",
@@ -174,6 +185,10 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   receive: "Receive",
   complete: "Complete",
   perform: "Perform",
+  record: "Record",
+  verify: "Verify",
+  correct_attribution: "Correct Attribution",
+  trust_review: "Review Trust",
   record_collection: "Record Collection",
   cancel: "Cancel",
   manage: "Manage",
@@ -185,10 +200,12 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   export: "Export",
 };
 
-export type WorkspaceKey = "restaurant" | "factory" | "crew" | "marketing";
+export type WorkspaceKey = "restaurant" | "factory" | "crew" | "marketing" | "hr";
 
 export const workspaceLabels: Record<WorkspaceKey, string> = {
   restaurant: "Restaurant",
+  hr: "HR",
+
   marketing: "Marketing",
   factory: "Factory",
   crew: "Crew",
@@ -198,6 +215,8 @@ export const workspaceLabels: Record<WorkspaceKey, string> = {
 // permission is only required where a domain explicitly defines one; existing
 // Restaurant, Factory, and Crew visibility continues to be driven by their
 // route-level permissions.
+export const hrReadPermission = "employees.view OR payroll.view OR legal_entities.view OR departments.view OR job_positions.view OR employee_compliance.view";
+
 export const workspaceSwitcherOptions: Array<{
   id: WorkspaceKey;
   label: string;
@@ -205,6 +224,8 @@ export const workspaceSwitcherOptions: Array<{
   permission?: string;
 }> = [
   { id: "restaurant", label: "Restaurant", detail: "Store Operations" },
+  { id: "hr", label: "HR", detail: "People & payroll", permission: hrReadPermission },
+
   { id: "marketing", label: "Marketing", detail: "Brands, content & engagement", permission: "marketing_workspace.access" },
   { id: "factory", label: "Factory", detail: "Production Operations" },
   { id: "crew", label: "Crew", detail: "People, learning & workforce" },
@@ -228,6 +249,8 @@ export const moduleSectionOrder = [
   "MeSTI",
   "Master Data",
   "People",
+  "Organization",
+  "Compliance",
   "Workforce",
   "System",
   "Learning",
@@ -239,11 +262,19 @@ export const moduleSectionOrder = [
 ];
 
 export const moduleRegistry: AppModule[] = [
+  // Embedded business authorities share existing pages; these are not routes.
+  { id: "employee_disciplinary", section: "People", label: "Letters & Notices", route: "/people/employees", sidebar: false, routable: false, workspace: "hr", permissions: { view: true, manage: true } },
+  { id: "employee_employment_documents", section: "People", label: "Employment Contracts", route: "/people/employees", sidebar: false, routable: false, workspace: "hr", permissions: { view: true, manage: true } },
+  { id: "employment_contract_templates", section: "Organization", label: "Employment Contract Templates", route: "/people/legal-entities", sidebar: false, routable: false, workspace: "hr", permissions: { view: true, manage: true } },
+  { id: "crew_feedback_follow_up", permissionPrefix: "crew_feedback.follow_up", section: "Performance", label: "Feedback Follow-up", route: "/crew/performance/feedback", sidebar: false, routable: false, workspace: "crew", permissions: { view: true, manage: true } },
+
+  { id: "hr_dashboard", section: "Overview", label: "Dashboard", route: "/hr/dashboard", icon: "dashboard", sidebar: true, workspace: "hr", readPermission: hrReadPermission, permissions: {} },
 { id: "marketing_workspace", section: "Marketing", label: "Marketing Workspace", route: "/marketing", sidebar: false, routable: false, workspace: "marketing", permissions: { access: true } },
 { id: "platform_organizations", section: "System", label: "Team & Brand Access", route: "/system/organizations", sidebar: false, routable: false, workspace: "marketing", permissions: { manage: true } },
 { id: "marketing_overview", section: "Overview", label: "Overview", route: "/marketing/overview", icon: "marketing_overview", sidebar: true, workspace: "marketing", permissions: { view: true } },
 { id: "marketing_content", section: "Content Studio", label: "Content permissions", route: "/marketing/content", icon: "marketing_content", sidebar: false, workspace: "marketing", permissions: { view: true, create: true, edit: true, review: true, approve: true, publish: true, execute: true, cancel: true, upload: true } },
 { id: "marketing_planner", section: "Content Studio", label: "Content Planner", route: "/marketing/planner", icon: "marketing_calendar", sidebar: true, workspace: "marketing", permissions: { view: true, create: true, edit: true, approve: true, delete: true, configure: true, manage: true } },
+
   { id: "marketing_planning_insights", section: "Content Studio", label: "Planning Insights", route: "/marketing/planning-insights", readPermission: "marketing_workspace.access AND marketing_planner.view", icon: "marketing_analytics", sidebar: true, workspace: "marketing", permissions: {} },
 { id: "marketing_calendar", section: "Content Studio", label: "Content Management", route: "/marketing/calendar", readPermission: "marketing_workspace.access AND marketing_calendar.view OR marketing_workspace.access AND marketing_content.view", icon: "marketing_calendar", sidebar: true, workspace: "marketing", permissions: { view: true } },
 { id: "marketing_media", section: "Content Studio", label: "Media Library", route: "/marketing/media", icon: "marketing_content", readPermission: "marketing_workspace.access AND marketing_content.view", sidebar: true, workspace: "marketing", permissions: {} },
@@ -385,15 +416,18 @@ export const moduleRegistry: AppModule[] = [
     route: "/people/employees",
     icon: "users",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, create: true, edit: true, deactivate: true, enable_login: true, reset_password: true },
   },
 {
+
     id: "legal-entities",
-    section: "People",
+    section: "Organization",
     label: "Legal Entities",
     route: "/people/legal-entities",
     icon: "briefcase-business",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, manage: true },
   },
 {
@@ -403,42 +437,46 @@ export const moduleRegistry: AppModule[] = [
     route: "/people/payroll",
     icon: "wallet",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, setup: true, statutory: true, prepare: true, review_time: true, treat_ph: true, adjust: true, configure: true, configure_holidays: true, publish_holidays: true, record_payment: true, finalize: true },
   },
 {
     id: "employee_compliance",
-    section: "People",
+    section: "Compliance",
     label: "Food Handling Compliance",
     route: "/people/compliance",
     icon: "employee-compliance",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, review: true },
   },
 {
     id: "job-positions",
-    section: "People",
+    section: "Organization",
     label: "Job Positions",
     route: "/people/job-positions",
     icon: "job-positions",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, create: true, edit: true, delete: true },
   },
 {
     id: "departments",
-    section: "People",
+    section: "Organization",
     label: "Departments",
     route: "/people/departments",
     icon: "departments",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, create: true, edit: true, delete: true },
   },
 {
     id: "roles",
-    section: "People",
+    section: "System",
     label: "Roles & Permissions",
     route: "/system/roles",
     icon: "roles",
-    sidebar: true,
+    sidebar: false,
     permissions: { view: true, create: true, edit: true, delete: true },
   },
 {
@@ -578,8 +616,9 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     permissions: { view: true, manage: true },
   },
-  { id: "external_agents", section: "Settings", label: "Integrations", route: "/system/settings/integrations/external-agents", icon: "settings", sidebar: true, workspace: "restaurant", readPermission: "roles.view OR roles_permissions.view", permissions: {} },
+  { id: "external_agents", section: "Settings", label: "AI Integrations", route: "/system/settings/ai-integrations", icon: "settings", sidebar: false, workspace: "restaurant", readPermission: "roles.view OR roles_permissions.view", permissions: {} },
 {
+
     id: "outlets",
     section: "System",
     label: "Outlets",
@@ -672,7 +711,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-production",
     sidebar: false,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, complete: true, export: true },
+    permissions: { verify: true, view: true, create: true, edit: true, complete: true, export: true },
   },
 {
     id: "factory_production_reports",
@@ -753,7 +792,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-raw-receiving",
     sidebar: true,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, delete: true, export: true },
+    permissions: { verify: true, view: true, create: true, edit: true, delete: true, export: true },
   },
 {
     id: "factory_raw_inventory",
@@ -793,7 +832,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-mesti-cleaning",
     sidebar: true,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true },
+    permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true },
   },
 {
     id: "factory_mesti_equipment_cleaning",
@@ -803,7 +842,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-mesti-cleaning",
     sidebar: true,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true },
+    permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true },
   },
 {
     id: "factory_mesti_calibration",
@@ -836,14 +875,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, manage: true },
   },
   ...factoryAgentCoverage.map((resource) => ({ id: `factory_agent_${resource.slug}`, section: "External Agent Access", label: `Agent ${resource.label}`, route: `/factory/agent-resources/${resource.slug}`, permissionEditorHidden: true, sidebar: false, routable: false, workspace: "factory" as const, permissions: { view: true } })),
-  ...factoryAgentModules.map((module) => ({ id: `factory_agent_nav_${module.id}`, section: module.section, label: `External Agent · ${module.label}`, route: `/factory/agent-modules/${module.id}`, sidebar: false, routable: false, workspace: "factory" as const, permissions: module.coverage === "unavailable" ? {} : { view: true } })),
-  { id: "factory_mesti_inspection", section: "MeSTI", label: "External MeSTI Inspection", route: "/factory/mesti/inspection", sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
+  ...factoryAgentModules.map((module) => ({ id: `factory_agent_nav_${module.id}`, section: module.section, label: `External Agent · ${module.label}`, route: `/factory/agent-modules/${module.id}`, permissionEditorHidden: true, sidebar: false, routable: false, workspace: "factory" as const, permissions: module.coverage === "unavailable" ? {} : { view: true } })),
+  { id: "factory_mesti_inspection", section: "MeSTI", label: "External MeSTI Inspection", route: "/factory/mesti/inspection", permissionEditorHidden: true, sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
 { id: "factory_mesti_operator_hygiene", section: "MeSTI", label: "Operator Hygiene Inspection", route: "/factory/mesti/operator-hygiene-inspection", icon: "factory-mesti-operator-hygiene", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, submit: true, verify: true } },
 { id: "factory_mesti_waste_disposal", section: "MeSTI", label: "Waste Disposal Record", route: "/factory/mesti/waste-disposal-record", icon: "factory-mesti-waste-disposal", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, record: true, submit: true, verify: true } },
 { id: "factory_mesti_raw_material_control", section: "MeSTI", label: "Raw Material Control", route: "/factory/mesti/raw-material-control", icon: "factory-mesti-raw-material-control", sidebar: true, workspace: "factory", permissions: {} },
 { id: "factory_mesti_food_processing_control", section: "MeSTI", label: "Food Processing Control", route: "/factory/mesti/food-processing-control", icon: "factory-mesti-food-processing-control", sidebar: true, workspace: "factory", permissions: {} },
 { id: "factory_product_feedback", section: "Factory", label: "Product Feedback", route: "/factory/product-feedback", icon: "factory-product-feedback", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, manage: true } },
 {
+
     id: "factory_petty_cash",
     section: "Factory",
     label: "Petty Cash",
@@ -901,7 +941,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-storage-locations",
     sidebar: true,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
+    permissions: { view: true, create: true, edit: true, delete: true, manage: true },
   },
 {
     id: "factory_suppliers",
@@ -1125,13 +1165,14 @@ export const moduleRegistry: AppModule[] = [
   },
 {
     id: "crew_customer_feedback",
+    permissionPrefix: "crew_feedback",
     section: "Performance",
     label: "Customer Feedback",
     route: "/crew/performance/feedback",
     icon: "crew-feedback",
     sidebar: true,
     workspace: "crew",
-    permissions: { view: true, moderate: true },
+    permissions: { view: true, moderate: true, correct_attribution: true, trust_review: true },
   },
 {
     id: "crew_google_reviews",
@@ -1182,7 +1223,7 @@ export function moduleWorkspace(module: AppModule): WorkspaceKey {
 }
 
 export function permissionPrefix(moduleId: string) {
-  return moduleId.replace(/-/g, "_");
+  return moduleRegistry.find(module=>module.id===moduleId)?.permissionPrefix ?? moduleId.replace(/-/g, "_");
 }
 
 export function permissionCode(moduleId: string, action: ModuleAction) {
@@ -1283,16 +1324,22 @@ export function getPermissionGroups() {
 
 export function getSidebarSections(workspace: WorkspaceKey = "restaurant") {
   const sections = moduleRegistry
-    .filter((module) => module.sidebar && moduleWorkspace(module) === workspace)
+    .filter((module) => (module.sidebar && moduleWorkspace(module) === workspace) || (workspace === "hr" && ["roles", "external_agents"].includes(module.id)))
     .reduce((sections, module) => {
-      const section = sections.find((item) => item.label === module.section);
+      const sectionLabel = workspace === "hr" && ["roles", "external_agents"].includes(module.id) ? "Settings" : module.section;
+      const section = sections.find((item) => item.label === sectionLabel);
       const item = { id: module.id, label: module.label };
       if (section) section.items.push(item);
-      else sections.push({ label: module.section, items: [item] });
+      else sections.push({ label: sectionLabel, items: [item] });
       return sections;
     }, [] as Array<{ label: string; items: Array<{ id: string; label: string }> }>);
 
-  return sections.sort((a, b) => moduleSectionOrder.indexOf(a.label) - moduleSectionOrder.indexOf(b.label));
+  const order = workspace === "hr" ? ["Overview", "People", "Organization", "Compliance", "Settings"] : moduleSectionOrder;
+  if (workspace === "hr") {
+    const organization = sections.find(section => section.label === "Organization");
+    organization?.items.sort((a,b) => ["legal-entities", "departments", "job-positions"].indexOf(a.id) - ["legal-entities", "departments", "job-positions"].indexOf(b.id));
+  }
+  return sections.sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
 }
 
 export function getAuditScopes() {

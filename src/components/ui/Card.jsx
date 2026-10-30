@@ -1,6 +1,6 @@
-export default function Card({ title, description, action, children, className = "" }) {
+export default function Card({ title, description, action, children, ariaLabel, className = "" }) {
   return (
-    <section className={`card overflow-hidden ${className}`}>
+    <section aria-label={ariaLabel} className={`card overflow-hidden ${className}`}>
       {(title || description || action) && (
         <div className="flex items-start justify-between gap-3 border-b border-border px-3.5 py-2.5">
           <div>

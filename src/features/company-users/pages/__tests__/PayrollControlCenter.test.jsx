@@ -34,6 +34,7 @@ const fixture = {
 };
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/people/payroll");
   vi.useFakeTimers({toFake:["Date"]}); vi.setSystemTime(new Date("2026-09-30T12:00:00Z"));
   mocks.read.mockReset().mockResolvedValue(fixture);
   mocks.time.mockReset().mockResolvedValue({ ready: false, unresolved: 1, unreconciled: 0, stale: 0 });
@@ -55,6 +56,13 @@ beforeEach(() => {
 afterEach(()=>{cleanup();vi.useRealTimers();});
 
 describe("Payroll Control Center", () => {
+  it("opens the requested authorized company, period and Run from HR", async () => {
+    window.history.replaceState(null,"","/people/payroll?company=entity-1&period=2026-09&run=run-1");
+    render(<PayrollPage auth={{}} />);
+    await screen.findByRole("button",{name:/^Prepare ·/});
+    await waitFor(()=>expect(mocks.readPreparation).toHaveBeenCalledWith("run-1"));
+    expect(screen.getByRole("button",{name:"Pay Period"}).textContent).toContain("September 2026");
+  });
   it("keeps one gated Finalize action in the command header and summarizes its confirmation", async () => {
     mocks.read.mockResolvedValue({...fixture,periods:[{...fixture.periods[0],runs:[{id:"run-1",status:"ready",revision:1}]}]});
     mocks.time.mockResolvedValue({ready:true}); mocks.calculation.mockResolvedValue({ready:true}); mocks.statutory.mockResolvedValue({ready:true});

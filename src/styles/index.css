@@ -3051,3 +3051,6 @@
 :root[data-resolved-theme="dark"] .badge-fuchsia{background:color-mix(in srgb,var(--color-fuchsia-500) 15%,transparent);border-color:var(--color-fuchsia-800);color:var(--color-fuchsia-200)}
 :root[data-resolved-theme="dark"] .badge-cyan{background:color-mix(in srgb,var(--color-cyan-500) 15%,transparent);border-color:var(--color-cyan-800);color:var(--color-cyan-200)}
 :root[data-resolved-theme="dark"] .badge-orange{background:color-mix(in srgb,var(--color-orange-500) 15%,transparent);border-color:var(--color-orange-800);color:var(--color-orange-200)}
+
+/* Inline header filters retain the canonical field anatomy without a second surface. */
+.admin-filter-toolbar[data-admin-filter-presentation="inline"] { padding: 0; }

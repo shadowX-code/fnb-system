@@ -49,6 +49,23 @@ function mapEmployee(row) {
 }
 
 export const employeeService = {
+  // Raw classifications and one row per employee; form defaults are not workforce evidence.
+  async readWorkforce() {
+    const rows = [];
+    let total;
+    do {
+      const { data, count, error } = await supabase.from("employees")
+        .select("id,legal_entity_id,employment_type,employment_status", { count: "exact" })
+        .order("id").range(rows.length, rows.length + 499);
+      throwSupabaseError("employees.workforce", error);
+      if (!Number.isInteger(count) || (!data?.length && rows.length < count)) {
+        throw new Error("Complete workforce records are unavailable. Retry the employee summary.");
+      }
+      rows.push(...(data || []));
+      total = count;
+    } while (rows.length < total);
+    return rows;
+  },
   async readBankInfo(employeeIds) {
     const ids = [...new Set(employeeIds)].filter(isSupabaseUuid);
     if (!ids.length) return [];

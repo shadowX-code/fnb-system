@@ -5,6 +5,12 @@
 This domain owns the employee master record, Admin authentication linkage, role assignment, permissions, outlet scope, and the security relationships consumed by every FeedX workspace.
 It does not own Crew passcode/session lifecycle, which belongs to Crew Workforce.
 
+## HR Workspace Composition
+
+HR owns navigation for the existing Employee, Recruitment, Payroll, organization-master and Food Handling Compliance pages. Legal Entities remains one shared master. Contracts and Letters & Notices remain inside their existing employee/document owners. Roles & Permissions remains platform-wide, with a direct entry under HR Settings and the shared profile menu; no HR-specific RBAC authority is introduced. Existing permissions, outlet/entity scope, employee Auth links, RLS and business commands do not change; workspace switching is not an authorization grant. See [platform navigation](../architecture/platform.md#hr-navigation-and-shared-administration).
+
+The Permission Matrix derives its workspace filter and shared permission entries from the module registry. Finance consumes the existing `reports.view` authority; HR Settings exposes the existing platform Roles authority. A shared entry edits the same grant in every workspace and does not create a new permission. Embedded business authorities also belong in this registry: Letters & Notices, Employment Contracts and Contract Templates reuse their existing view/manage grants without registering additional routes; Crew Feedback attribution, trust review and follow-up retain their canonical `crew_feedback` namespaces. Factory Production and Raw Receiving expose their existing Verify authority separately from editing/completing records. Internal resource capabilities and retained aliases are not automatically promoted to human-manageable actions.
+
 ## Canonical Ownership
 
 Current employee, role, permission, Auth-link, role-configuration, RLS, and audit contracts are authoritative.
@@ -17,6 +23,8 @@ form. The existing Employee save service accepts a bank-field scope for existing
 employees only, enforcing the same Employee RLS and audit path while excluding
 unrelated personal, employment and access fields. Audit retains original bank values;
 incomplete bank details remain informational to Payroll.
+
+The Employee service’s Workforce read exposes only current identity/Legal Employer/classification fields under existing Employee RLS. It preserves null classifications and paginates completely; existing form-normalized Employee reads are unchanged. HR and the canonical Employees directory share the `company` URL filter; company selection does not grant access or alter employment history.
 
 ## Core Entities
 
@@ -152,4 +160,10 @@ Payroll uses independent workflow grants in the shared catalog and Role Matrix; 
 
 Google Reviews is an explicitly outlet-scoped integration under Crew Performance navigation. Its six registered action grants reuse Role Outlet scope; the shared registry marks that scope requirement so a Google-only role retains All/Selected Outlet configuration consistently with the permission catalog. Connection and mapping administration each additionally require all-outlet authority. Equivalent legacy Google grants are migrated with audit evidence; unrelated role grants, assignments and outlet scope are unchanged.
 
-External Agent management reuses the same role and permission authority. Its navigation-module grants are independent of human Factory module grants and never create an employee/Auth identity. The canonical role-save guard permits a machine role to retain/remove an existing legacy resource scope, but rejects a newly added legacy scope or unavailable agent module. Hidden legacy permission definitions remain recognizable for saved roles; they are excluded from ordinary permission editing. See [Gateway authorization](../architecture/trusted-authorities.md#factory-navigation-authorization).
+External Agent management reuses the same role and permission authority. Its navigation-module grants are independent of human Factory module grants and never create an employee/Auth identity. The canonical role-save guard permits a machine role to retain/remove an existing legacy resource scope, but rejects a newly added legacy scope or unavailable agent module. Agent navigation grants, the adapter connection prerequisite and legacy resource definitions remain recognizable for saved roles, but are excluded from ordinary Human Role Matrix reading/editing through registry `permissionEditorHidden` metadata. Full permission definitions remain registered for grant recognition and server delegation. AI Integrations uses its server capability catalog and shared BusinessCapabilitySelector; hiding human controls never removes or migrates grants. Explicit-delta role saves preserve these hidden grants during metadata and unrelated human-permission changes. See [Gateway authorization](../architecture/trusted-authorities.md#factory-navigation-authorization).
+
+## Explicit Role Grant Changes
+
+Role edits submit only explicit permission changes (code, observed prior value, intended value). The trusted save locks the role, compares each touched grant with its observed value, and applies changes to the current server grant set. Hidden, compatibility and outside-registry grants remain intact. Non-overlapping edits merge; conflicting touched grants fail with a reload requirement. Request intent is stored in the existing request ledger for retry-safe read-back. Scope is preserved unless explicitly changed. Legacy snapshot edit requests fail closed; creation still submits its complete initial set. The internal snapshot implementation is not executable by API roles. Audit retains actual before/after grants.
+
+Permission presentation uses `crew_feedback` for Customer Feedback and includes the existing Factory MeSTI Record/Verify actions. HR exposes shared platform Roles without new grants or authority ownership changes. This isolated Production candidate does not introduce Recruitment, Finance or Guest AI modules.

@@ -30,3 +30,28 @@ it('finds consumer pages through their existing owning permissions',()=>{
  render(<RolePermissionMatrix permissions={new Set()} readOnly/>);fireEvent.change(screen.getByRole('combobox',{name:'Workspace'}),{target:{value:'marketing'}});fireEvent.change(screen.getByPlaceholderText('Search modules or actions…'),{target:{value:'Media Library'}});
  const results=within(screen.getByRole('region',{name:'Marketing permissions'}));expect(results.getByText('Content permissions')).toBeTruthy();expect(results.queryByText('Marketing Workspace')).toBeNull();
 });
+
+it('shows shared Roles in HR without duplicating the grant in All',()=>{
+ render(<RolePermissionMatrix permissions={new Set(['roles.view'])} readOnly/>);
+ expect(screen.getAllByText('Roles & Permissions')).toHaveLength(1);
+ fireEvent.change(screen.getByRole('combobox',{name:'Workspace'}),{target:{value:'hr'}});
+ expect(within(screen.getByRole('region',{name:'HR permissions'})).getByText('Roles & Permissions')).toBeTruthy();
+});
+
+it('uses canonical Feedback codes and exposes supported MeSTI record/verify',()=>{
+ const toggle=vi.fn();render(<RolePermissionMatrix permissions={new Set()} onToggle={toggle}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Customer Feedback: View Customer Feedback'}));expect(toggle.mock.calls.at(-1)[2].codes).toEqual(['crew_feedback.view']);
+ expect(screen.getByRole('button',{name:'Waste Disposal Record: Record Waste Disposal Record'})).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Operator Hygiene Inspection: Verify Operator Hygiene Inspection'})).toBeTruthy();
+});
+
+it.each([true,false])('keeps agent-only capabilities out of the Human Role Matrix (readOnly=%s)',readOnly=>{
+ window.history.replaceState({},'','/?permission_workspace=factory');
+ const grants=new Set(['factory_dashboard.view','factory_agent_nav_factory_dashboard.view','factory_mesti_inspection.view']);
+ render(<RolePermissionMatrix permissions={grants} readOnly={readOnly} onToggle={vi.fn()}/>);
+ const factory=within(screen.getByRole('region',{name:'Factory permissions'}));
+ expect(factory.queryByText(/External Agent/)).toBeNull();expect(factory.queryByText('External MeSTI Inspection')).toBeNull();
+ expect(factory.getByText('Production Records')).toBeTruthy();expect(factory.getByText('Raw Material Receiving')).toBeTruthy();
+ expect(factory.getByText('Verify Production Records')).toBeTruthy();expect(factory.getByText('Verify Raw Material Receiving')).toBeTruthy();
+ expect(grants.size).toBe(3);
+});

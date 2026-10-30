@@ -1,6 +1,7 @@
+import useAdminLocation from "../../../app/useAdminLocation.js";
 import { payrollCapabilities } from "./payrollCapabilities.js";
 import RecordViewAction from "../../../components/ui/RecordViewAction.jsx";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Plus, Check, Minus, TriangleAlert, Clock } from "lucide-react";
 import InfoTooltip from "../../../components/ui/InfoTooltip.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
@@ -585,11 +586,13 @@ function SettingsTab({ data, permissions = {}, reload, entityId, onEntityChanged
 }
 
 export default function PayrollPage({ auth }) {
-  const [tab, setTab] = useState("overview");
-  const [entityId, setEntityId] = useState("");
-  const [month, setMonth] = useState(currentMonth());
+  const target = useAdminLocation()?.query || {};
+  const appliedTarget = useRef(null);
+  const [tab, setTab] = useState(target.run ? "runs" : "overview");
+  const [entityId, setEntityId] = useState(target.company || "");
+  const [month, setMonth] = useState(/^\d{4}-(0[1-9]|1[0-2])$/.test(target.period || "") ? target.period : currentMonth());
   const [runStep, setRunStep] = useState(0);
-  const [openRunId, setOpenRunId] = useState("");
+  const [openRunId, setOpenRunId] = useState(target.run || "");
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -604,6 +607,18 @@ export default function PayrollPage({ auth }) {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { if (canView) reload(); else setLoading(false); }, [canView, reload]);
+  useEffect(() => {
+    if (!target.company) { appliedTarget.current = null; return; }
+    if (!data) return;
+    const targetKey = JSON.stringify([target.company, target.period, target.run]);
+    if (appliedTarget.current === targetKey) return;
+    if (!data.legal_entities?.some(entity=>entity.id===target.company)) return;
+    appliedTarget.current = targetKey;
+    setEntityId(target.company);
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(target.period || "")) setMonth(target.period);
+    const targetPeriod = data.periods?.find(period=>period.legal_entity_id===target.company && period.period_start?.slice(0,7)===target.period);
+    if (targetPeriod?.runs?.some(run=>run.id===target.run)) { setOpenRunId(target.run); setTab("runs"); setRunStep(0); }
+  }, [data, target.company, target.period, target.run]);
   const period = useMemo(() => (data?.periods || []).find((item) => item.legal_entity_id === entityId && item.period_start?.slice(0, 7) === month), [data, entityId, month]);
   const activeRun = useMemo(() => (period?.runs || []).find((item) => item.id === openRunId)
     || (period?.runs || []).find((item) => ["draft", "review_required", "ready"].includes(item.status))

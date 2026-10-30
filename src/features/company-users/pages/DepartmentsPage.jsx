@@ -291,7 +291,7 @@ export default function DepartmentsPage({ ui, auth }) {
   return (
     <div className="space-y-4">
       <PageHeader
-        section="People"
+        section="Organization"
         title="Departments"
         description="Manage company departments used for employee profiles and job positions."
         actions={

@@ -3,6 +3,9 @@ import { moduleRegistry, moduleWorkspace, viewPermission } from "../../config/mo
 // Existing hash aliases remain the runtime compatibility owner. The route
 // contract defines the future pathname taxonomy but does not change URL writes.
 export const legacyRouteRedirects = Object.freeze({
+  hr_settings: "hr_dashboard",
+  system_settings: "roles",
+
   marketing_content: "marketing_calendar",
   "duty-roster": "crew_roster",
   outlet_duty_roster: "crew_roster",
@@ -23,6 +26,10 @@ export function canonicalRouteId(routeId = "") {
 }
 
 const productQueryStateByRouteId = Object.freeze({
+  roles: [{ key: "permission_workspace" }],
+  hr_dashboard: [{ key: "company" }],
+  employees: [{ key: "company" }],
+  payroll: [{ key: "company" }, { key: "period" }, { key: "run" }],
   outlets: [{ key: "outletId" }, { key: "section" }],
   crew_google_reviews: [{ key: "google_result" }],
   "purchase-comparison": [{ key: "supplier" }],
@@ -92,6 +99,8 @@ const canonicalPathByModuleId = Object.freeze({
 });
 
 function routeDomain(module) {
+  if (["roles", "external_agents"].includes(module.id)) return "system";
+  if (moduleWorkspace(module) === "hr") return "people";
   if (moduleWorkspace(module) === "marketing") return "marketing";
   if (moduleWorkspace(module) === "crew") return "crew";
   const path = canonicalPathByModuleId[module.id] ?? module.route;
@@ -132,7 +141,7 @@ function queryStateFor(moduleId) {
 function legacyHashAliasesFor(routeId, pattern) {
   const aliases = Object.entries(legacyRouteRedirects)
     .filter(([, targetRouteId]) => targetRouteId === routeId)
-    .map(([alias]) => `#${alias}`);
+    .map(([alias]) => `#${alias}${pattern.slice(routeId.length)}`);
   return Object.freeze([`#${pattern}`, ...aliases]);
 }
 
@@ -143,7 +152,7 @@ function moduleRouteDefinition(module) {
     routeId,
     canonicalPath: canonicalPathForModule(module),
     pathPattern: canonicalPathForModule(module),
-    pathAliases: Object.freeze(module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : module.id === "marketing_audience" ? ["/marketing/audience"] : module.id === "marketing_calendar" ? ["/marketing/content"] : []),
+    pathAliases: Object.freeze(module.id === "roles" ? ["/system/roles", "/system/settings"] : module.id === "hr_dashboard" ? ["/hr/settings"] : module.id === "external_agents" ? ["/system/settings/integrations/external-agents"] : module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : module.id === "marketing_audience" ? ["/marketing/audience"] : module.id === "marketing_calendar" ? ["/marketing/content"] : []),
     legacyHashPattern: routeId,
     legacyHashAliases: legacyHashAliasesFor(routeId, routeId),
     params: Object.freeze([]),
@@ -197,7 +206,8 @@ function crewMobileRouteDefinition({ id, screen, path, legacyPath, growthInitial
 const contractModules = moduleRegistry.filter((module) => {
   const workspace = moduleWorkspace(module);
   return module.routable !== false
-    && (workspace === "restaurant" || workspace === "factory" || workspace === "crew" || workspace === "marketing")
+    && (workspace === "restaurant" || workspace === "factory" || workspace === "crew" || workspace === "marketing" || workspace === "hr")
+
     && !legacyRouteRedirects[module.id];
 });
 
@@ -403,6 +413,9 @@ export function canonicalAdminUrlForRoute(id, params = {}, query = {}, search = 
 }
 
 export function canonicalAdminUrlForLegacyLocation({ pathname = "/", search = "", hash = "" } = {}) {
+  if (!hash && normalizePath(pathname) === "/system/settings") {
+    return canonicalAdminUrlForRoute("roles", {}, {}, search);
+  }
   const route = resolveLegacyHash(hash, search);
   if (route?.definition.ownership.surface !== "admin") return null;
   return canonicalAdminUrlForRoute(route.definitionId, route.params, route.query, search);

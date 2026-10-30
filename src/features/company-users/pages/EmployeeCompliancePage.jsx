@@ -115,7 +115,7 @@ export default function EmployeeCompliancePage({ store, auth }) {
   ].filter(Boolean);
 
   return <div className="space-y-5">
-    <PageHeader section="People" title="Food Handling Compliance" description="Review Food Handler Certificate and Typhoid Injection records, verification and expiry status across accessible outlets." />
+    <PageHeader section="Compliance" title="Food Handling Compliance" description="Review Food Handler Certificate and Typhoid Injection records, verification and expiry status across accessible outlets." />
     <AdminFilterToolbar outlet={<SelectField label="Outlet" ariaLabel="Outlet" value={outletId} options={outletOptions} onChange={setOutletId} />} search={<AdminSearchField label="Search Crew" value={query} onChange={setQuery} placeholder="Name or employee code" />} filters={<><SelectField label="Requirement" ariaLabel="Requirement" value={requirement} options={requirementOptions} onChange={setRequirement} /><SelectField label="Status" ariaLabel="Status" value={status} options={statusOptions} onChange={setStatus} /></>} activeFilters={activeFilters} onClear={() => { setOutletId("all"); setQuery(""); setRequirement("all"); setStatus("all"); }} />
     <AdminSummaryGrid variant="standard" ariaLabel="Food handling compliance summary" items={[
       { key: "compliant", label: "Compliant", value: summary.compliant ?? 0, helper: "All requirements compliant", tone: "success", icon: CheckCircle2 },
