@@ -4,6 +4,7 @@ import { moduleRegistry, moduleWorkspace, viewPermission } from "../../config/mo
 // contract defines the future pathname taxonomy but does not change URL writes.
 export const legacyRouteRedirects = Object.freeze({
   hr_settings: "hr_dashboard",
+  system_settings: "roles",
   guest_ai_device_console: "guest_ai_developer",
   marketing_content: "marketing_calendar",
   "duty-roster": "crew_roster",
@@ -98,7 +99,7 @@ const canonicalPathByModuleId = Object.freeze({
 });
 
 function routeDomain(module) {
-  if (["roles", "external_agents", "system_settings"].includes(module.id)) return "system";
+  if (["roles", "external_agents"].includes(module.id)) return "system";
   if (moduleWorkspace(module) === "hr") return "people";
   if (moduleWorkspace(module) === "marketing") return "marketing";
   if (moduleWorkspace(module) === "finance") return "finance";
@@ -152,7 +153,7 @@ function moduleRouteDefinition(module) {
     routeId,
     canonicalPath: canonicalPathForModule(module),
     pathPattern: canonicalPathForModule(module),
-    pathAliases: Object.freeze(module.id === "hr_dashboard" ? ["/hr/settings"] : module.id === "external_agents" ? ["/system/settings/integrations/external-agents"] : module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : module.id === "marketing_audience" ? ["/marketing/audience"] : module.id === "marketing_calendar" ? ["/marketing/content"] : []),
+    pathAliases: Object.freeze(module.id === "roles" ? ["/system/roles", "/system/settings"] : module.id === "hr_dashboard" ? ["/hr/settings"] : module.id === "external_agents" ? ["/system/settings/integrations/external-agents"] : module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : module.id === "marketing_audience" ? ["/marketing/audience"] : module.id === "marketing_calendar" ? ["/marketing/content"] : []),
     legacyHashPattern: routeId,
     legacyHashAliases: legacyHashAliasesFor(routeId, routeId),
     params: Object.freeze([]),

@@ -8,7 +8,7 @@ describe('HR workspace composition',()=>{
   expect(getSidebarSections('hr').map(s=>[s.label,s.items.map(i=>i.label)])).toEqual([
    ['Overview',['Dashboard']],['People',['Employees','Recruitment','Payroll']],
    ['Organization',['Legal Entities','Departments','Job Positions']],['Compliance',['Food Handling Compliance']],
-   ['Settings',['AI Integrations']],
+   ['Settings',['Roles & Permissions','AI Integrations']],
   ]);
   for(const id of ['employees','recruitment','payroll','legal-entities','departments','job-positions','employee_compliance']){
    expect(moduleRegistry.filter(m=>m.id===id)).toHaveLength(1);
@@ -44,4 +44,16 @@ describe('HR workspace composition',()=>{
   expect(salesPurchaseRoutes.find(r=>r.id==='payroll').permission).toBe('payroll.view');
   expect(moduleRegistry.find(m=>m.id==='roles').sidebar).toBe(false);
  });
+ it('retires the System directory while preserving platform-wide roles and integration routes',()=>{
+  expect(moduleRegistry.some(module=>module.id==='system_settings')).toBe(false);
+  expect(salesPurchaseRoutes.some(route=>route.id==='system_settings')).toBe(false);
+  expect(resolveCanonicalPath('/system/settings').routeId).toBe('roles');
+  expect(resolveLegacyHash('#system_settings').routeId).toBe('roles');
+  expect(resolveCanonicalPath('/system/roles').routeId).toBe('roles');
+  expect(canonicalPathForRoute('system_settings')).toBe('/people/roles');
+  expect(resolveCanonicalPath('/people/roles/role-1/edit').routeId).toBe('roles');
+  expect(resolveLegacyHash('#roles/role-1/edit').params.roleId).toBe('role-1');
+  expect(getAdminRouteDefinition('roles').ownership).toMatchObject({domain:'system',permission:'roles.view',workspace:'restaurant'});
+ });
+
 });

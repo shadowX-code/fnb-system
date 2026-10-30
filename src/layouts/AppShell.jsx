@@ -15,7 +15,7 @@ import { isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue } from 
 import { canAccessOutlet, hasPermission } from "../utils/accessControl.js";
 
 const iconMap = {
-  hr_dashboard: Gauge, system_settings: Settings, external_agents: Link2,
+  hr_dashboard: Gauge, external_agents: Link2,
   marketing_inbox: MessageSquareText, marketing_overview: Gauge, marketing_content: FileText, marketing_calendar: CalendarDays, marketing_analytics: BarChart3, marketing_settings: Settings,
   finance_data_sources: Link2, finance_overview: Gauge, finance_analysis: BarChart3, finance_costs: Wallet, finance_cash: Wallet, finance_planning: CalendarDays, finance_statements: FileText,
   "guest-ai-device-console": Bot,
@@ -578,7 +578,7 @@ function getSystemTheme() {
   return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
 }
 
-function ThemeMenu({ onSettings, themeChoice, resolvedTheme, onThemeChange, onLogout }) {
+function ThemeMenu({ onRoles, themeChoice, resolvedTheme, onThemeChange, onLogout }) {
   return (
     <div>
       <div className="px-2 py-2">
@@ -608,7 +608,7 @@ function ThemeMenu({ onSettings, themeChoice, resolvedTheme, onThemeChange, onLo
         })}
       </div>
       <div className="mt-2 border-t border-border pt-2">
-        {onSettings ? <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary hover:bg-slate-50" onClick={onSettings}><Settings size={15} />System Settings</button> : null}
+        {onRoles ? <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary hover:bg-slate-50" onClick={onRoles}><Shield size={15} />Roles & Permissions</button> : null}
         <button
           className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary"
           type="button"
@@ -1547,7 +1547,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
                 className="p-2"
               >
                 <ThemeMenu
-                  onSettings={auth?.hasPermission?.("roles.view") || auth?.hasPermission?.("roles_permissions.view") ? () => { setProfileMenuOpen(false); handleNavigate("system_settings"); } : undefined}
+                  onRoles={auth?.hasPermission?.("roles.view") || auth?.hasPermission?.("roles_permissions.view") ? () => { setProfileMenuOpen(false); handleNavigate("roles"); } : undefined}
                   themeChoice={themeChoice}
                   resolvedTheme={resolvedTheme}
                   onThemeChange={(nextTheme) => {

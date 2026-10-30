@@ -253,7 +253,6 @@ export const moduleSectionOrder = [
 
 export const moduleRegistry: AppModule[] = [
   { id: "hr_dashboard", section: "Overview", label: "Dashboard", route: "/hr/dashboard", icon: "dashboard", sidebar: true, workspace: "hr", readPermission: hrReadPermission, permissions: {} },
-  { id: "system_settings", section: "System", label: "System Settings", route: "/system/settings", icon: "settings", sidebar: true, readPermission: "roles.view OR roles_permissions.view", permissions: {} },
   { id: "marketing_workspace", section: "Marketing", label: "Marketing Workspace", route: "/marketing", sidebar: false, routable: false, workspace: "marketing", permissions: { access: true } },
   { id: "platform_organizations", section: "System", label: "Team & Brand Access", route: "/system/organizations", sidebar: false, routable: false, workspace: "marketing", permissions: { manage: true } },
   { id: "marketing_overview", section: "Overview", label: "Overview", route: "/marketing/overview", icon: "marketing_overview", sidebar: true, workspace: "marketing", permissions: { view: true } },
@@ -1392,12 +1391,13 @@ export function getPermissionGroups() {
 
 export function getSidebarSections(workspace: WorkspaceKey = "restaurant") {
   const sections = moduleRegistry
-    .filter((module) => (module.sidebar && moduleWorkspace(module) === workspace) || (workspace === "hr" && module.id === "external_agents"))
+    .filter((module) => (module.sidebar && moduleWorkspace(module) === workspace) || (workspace === "hr" && ["roles", "external_agents"].includes(module.id)))
     .reduce((sections, module) => {
-      const section = sections.find((item) => item.label === module.section);
+      const sectionLabel = workspace === "hr" && ["roles", "external_agents"].includes(module.id) ? "Settings" : module.section;
+      const section = sections.find((item) => item.label === sectionLabel);
       const item = { id: module.id, label: module.label };
       if (section) section.items.push(item);
-      else sections.push({ label: module.section, items: [item] });
+      else sections.push({ label: sectionLabel, items: [item] });
       return sections;
     }, [] as Array<{ label: string; items: Array<{ id: string; label: string }> }>);
 

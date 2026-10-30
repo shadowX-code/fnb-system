@@ -7,7 +7,7 @@ It does not own Crew passcode/session lifecycle, which belongs to Crew Workforce
 
 ## HR Workspace Composition
 
-HR owns navigation for the existing Employee, Recruitment, Payroll, organization-master and Food Handling Compliance pages. Legal Entities remains one shared master. Contracts and Letters & Notices remain inside their existing employee/document owners. Roles & Permissions remains global System Settings. Existing permissions, outlet/entity scope, employee Auth links, RLS and business commands do not change; workspace switching is not an authorization grant. See [platform navigation](../architecture/platform.md#hr-navigation-and-shared-administration).
+HR owns navigation for the existing Employee, Recruitment, Payroll, organization-master and Food Handling Compliance pages. Legal Entities remains one shared master. Contracts and Letters & Notices remain inside their existing employee/document owners. Roles & Permissions remains platform-wide, with a direct entry under HR Settings and the shared profile menu; no HR-specific RBAC authority is introduced. Existing permissions, outlet/entity scope, employee Auth links, RLS and business commands do not change; workspace switching is not an authorization grant. See [platform navigation](../architecture/platform.md#hr-navigation-and-shared-administration).
 
 ## Canonical Ownership
 
