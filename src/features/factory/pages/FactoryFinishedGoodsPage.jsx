@@ -31,7 +31,7 @@ import { quantity } from "../utils/factoryFormatters.js";
 import { productionBatchReference, productionJobOrderReference } from "../utils/factoryReferences.js";
 import { jobStatusLabel } from "../utils/factoryStatus.js";
 
-import LabelConfigModal from "../labels/LabelConfigModal.jsx";
+import { openLabelManagement } from "../labels/labelManagementNavigation.js";
 import { factoryLabelsEnabled } from "../../../services/factoryLabelService.js";
 
 const packSizeText = (sku) => Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "";
@@ -69,7 +69,6 @@ export default function FactoryFinishedGoodsPage() {
   const [filters, setFilters] = useState({ product: "", category: "", status: "", tag: "" });
   const [view, setView] = useState("grouped");
   const [expandedGroups, setExpandedGroups] = useState({});
-  const [labelSku, setLabelSku] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const tagCatalog = useFactoryFinishedGoodTags(can("factory_finished_goods.view"));
   const [tagModal,setTagModal] = useState(null), [exportOpen,setExportOpen] = useState(false), [selectedIds,setSelectedIds] = useState([]);
@@ -91,7 +90,7 @@ export default function FactoryFinishedGoodsPage() {
   const setAllGroupsExpanded = (expanded) => setExpandedGroups(Object.fromEntries(query.groups.map((group) => [group.groupKey, expanded])));
   const toggleGroup = (groupKey) => setExpandedGroups((current) => ({ ...current, [groupKey]: !current[groupKey] }));
   const renderSkuActions = (sku, group = null) => <FactoryRowActions onView={() => setSelectedProduct(sku)} directActions={can("factory_finished_goods.edit") ? [
-    ...(factoryLabelsEnabled ? [{ label: "Label Configuration", icon: Printer, onClick: () => setLabelSku(sku) }] : []),
+    ...(factoryLabelsEnabled ? [{ label: "Label Configuration", icon: Printer, onClick: () => openLabelManagement({section:"products",sku:sku.id}) }] : []),
     { label: "Edit Packaging SKU", icon: Pencil, onClick: () => navigation.openFinishedGoodPackagingSku(group, sku) },
     ...(sku.status !== "archived" ? [{ label: "Archive Packaging SKU", icon: Archive, desktopOnly: true, onClick: () => navigation.archiveFinishedGoodPackagingSku(sku) }] : []),
   ] : []} secondaryActions={can("factory_finished_goods.edit") && sku.status !== "archived" ? [{ label: "Archive", destructive: true, mobileOnly: true, onClick: () => navigation.archiveFinishedGoodPackagingSku(sku) }] : []} />;
@@ -123,7 +122,6 @@ export default function FactoryFinishedGoodsPage() {
     {view === "table" ? <FactoryDataSurface>{!commercialRows.length ? <EmptyState title="No Packaging SKUs" description="No Packaging SKUs match the selected filters." /> : <FactoryFinishedGoodCommercialTable rows={commercialRows} selectedIds={selectedIds} onSelect={toggleSelected} renderActions={renderSkuActions} formatPackSize={packSizeText} formatStorage={(sku) => sku.recommended_storage ? jobStatusLabel(sku.recommended_storage) : "—"} />}<FactoryPagination page={pager.page} pageSize={pager.pageSize} total={query.rows.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} /></FactoryDataSurface> : <FactoryDataSurface>{!groups.length ? <EmptyState title="No Finished Goods" description="Create a Finished Good and Packaging SKU to start managing inventory." /> : <><FactoryTable columns={groupColumns} rows={groups} rowHover="mint" renderAfterRow={(group) => (expandedGroups[group.groupKey] ?? false) ? <div className="border-t border-border bg-[var(--theme-subtle)] px-4 py-3 md:px-8"><FactoryTable columns={skuColumns(group)} rows={group.skus} emptyTitle="No Packaging SKU configured" emptyDescription="Add a Packaging SKU before production stock-in." rowHover="mint" /></div> : null} /><FactoryPagination page={pager.page} pageSize={pager.pageSize} total={query.groups.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} /></>}</FactoryDataSurface>}
     {exportOpen && can("factory_finished_goods.export") ? <A4TableExportModal title="Finished Goods" rows={allCommercialRows} columns={exportColumns} sortOptions={finishedGoodsExportSorts} selectedIds={selectedIds} selectionKey={finishedGoodSelectionKey} subtitle={`All current matching records · ${[filters.product,filters.category && finishedGoodCategories.find(c=>c.id===filters.category)?.name,filters.tag && tagCatalog.tags.find(t=>t.id===filters.tag)?.name,filters.status].filter(Boolean).join(" · ") || "No filters"}`} filename="finished-goods.pdf" onClose={()=>setExportOpen(false)} /> : null}
     {tagModal ? <FactoryFinishedGoodTagsModal catalog={tagCatalog} family={tagModal === "manager" ? null : tagModal} canCreate={canManage} canEdit={can("factory_finished_goods.edit")} onClose={()=>setTagModal(null)} /> : null}
-    {labelSku ? <LabelConfigModal sku={labelSku} onClose={() => setLabelSku(null)} /> : null}
     {selectedProduct ? <FinishedGoodDetail recipes={recipes} receivings={receivings} product={{...selectedProduct,tags:query.rows.find(row=>row.id===selectedProduct.id)?.tags || selectedProduct.tags}} productions={productions} movements={productMovements} productionCosts={productionCosts} onClose={() => setSelectedProduct(null)} formatBalance={skuBalanceLabel} formatDate={formatFactoryDate} formatQuantity={quantity} productionBatchReference={productionBatchReference} productionJobOrderReference={productionJobOrderReference} /> : null}
   </div>;
 }

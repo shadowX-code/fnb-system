@@ -1799,6 +1799,7 @@ const productionActionDependencies = {
   "sop-editor": ["sops", "recipes", "productFamilies", "equipment", "qcChecklistTemplates"],
 };
 export function factoryDataPlan(scope, hasPermission, action = "") {
+  if (scope === "label-management") return {};
   const plan = factorySupportDataPlan(action === "finished-good-history" ? "finished-goods" : action.startsWith("sop-") ? "production-sop" : ["job", "job-filters"].includes(action) ? "job-orders" : action ? "production" : scope, hasPermission);
   if (!action && scope === "production-sop") { plan.recipes = false; plan.productFamilies = false; plan.qcChecklistTemplates = false; }
   if (!action && scope === "finished-goods") { plan.productions = false; plan.productMovements = false; }

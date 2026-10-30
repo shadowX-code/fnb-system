@@ -73,8 +73,8 @@ describe("Factory route completeness contract", () => {
   });
 
   it("resolves every registered Factory route to its own labeled page instead of the generic Dashboard fallback", async () => {
-    expect(factoryModules).toHaveLength(34);
-    expect(factoryRoutes).toHaveLength(34);
+    expect(factoryModules).toHaveLength(35);
+    expect(factoryRoutes).toHaveLength(35);
 
     for (const module of factoryModules) {
       const route = factoryRoutes.find((candidate) => candidate.id === module.id);

@@ -290,3 +290,7 @@ Shared `AdminFilterToolbar` bounds desktop search widths (360px normal, 320px de
 `DataTable` provides opt-in server-controlled sorting through column `onSort`/`sortDirection`, semantic `aria-sort` and native keyboard buttons; it never reorders supplied rows. Shared `ColumnSettings` uses the canonical `FloatingLayer` for viewport-aware placement, scrolling, keyboard dismissal/focus return, required columns, selected counts and reset. Consumers own user preference storage and data queries.
 
 Shared `FloatingLayer` keeps popovers inside their modal accessibility tree and observes content-size changes so search, inline editing and validation remain anchored and viewport-bounded. Modal Escape handling leaves nested floating controls to dismiss first.
+
+### Factory label settings routing
+
+`factory_label_management` owns Factory Settings → Label Management at `/factory/settings/labels`. The route registry declares `section`, `sku` and `template` query state for the three management sections and dedicated SKU/template editor views. Finished Goods links to that same editor through the canonical Admin pathname writer. The module reuses Finished Goods view/edit permissions, performs its own scoped label read through the established service boundary and requests no broad Factory bootstrap data. Job Order → Print Labels remains the operational printing entry point.

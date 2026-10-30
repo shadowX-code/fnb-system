@@ -26,6 +26,7 @@ export function canonicalRouteId(routeId = "") {
 }
 
 const productQueryStateByRouteId = Object.freeze({
+  factory_label_management: [{ key: "section" }, { key: "sku" }, { key: "template" }],
   hr_dashboard: [{ key: "company" }],
   employees: [{ key: "company" }],
   payroll: [{ key: "company" }, { key: "period" }, { key: "run" }],

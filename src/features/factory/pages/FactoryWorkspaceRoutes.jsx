@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
 
+const FactoryLabelManagementPage = lazy(() => import("./FactoryLabelManagementPage.jsx"));
 const FactoryAuditTrailPage = lazy(() => import("./FactoryAuditTrailPage.jsx"));
 const FactorySuppliersPage = lazy(() => import("./FactorySuppliersPage.jsx"));
 const FactoryCustomersPage = lazy(() => import("./FactoryCustomersPage.jsx"));
@@ -52,6 +53,7 @@ export default function FactoryWorkspaceRoutes({
   useEffect(() => {
     if (usesWorkspaceLegacyRoute) onReady?.(initialTab);
   }, [initialTab, onReady, usesWorkspaceLegacyRoute]);
+  if (initialTab === "label-management") return <LazyFactoryRoute route={initialTab} Page={FactoryLabelManagementPage} onReady={onReady}><FactoryLabelManagementPage onConfirm={ui?.confirm} /></LazyFactoryRoute>;
   if (initialTab === "product-feedback") return <LazyFactoryRoute route={initialTab} Page={FactoryProductFeedbackPage} onReady={onReady}><FactoryProductFeedbackPage auth={auth} onNotify={notify} /></LazyFactoryRoute>;
   if (initialTab === "petty-cash") return <LazyFactoryRoute route={initialTab} Page={FactoryPettyCashPage} onReady={onReady}><FactoryPettyCashPage auth={auth} onNotify={notify} onConfirm={ui?.confirm} /></LazyFactoryRoute>;
   if (initialTab === "internal-transfer") return <LazyFactoryRoute route={initialTab} Page={FactoryInternalTransferPage} onReady={onReady}><FactoryInternalTransferPage onNotify={notify} /></LazyFactoryRoute>;

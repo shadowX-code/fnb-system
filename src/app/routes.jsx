@@ -321,6 +321,7 @@ export const routeDetails = {
     description: "Review authentication, access, employee and operational audit events.",
     component: AuditLogsPage,
   },
+  factory_label_management: { component: FactoryWorkspacePage, permission: "factory_finished_goods.view", props: { initialTab: "label-management" }, description: "Factory label content, templates and print bridges." },
   factory_dashboard: {
     description: "Factory operations dashboard for production, warehouse and raw material readiness.",
     component: FactoryWorkspacePage,

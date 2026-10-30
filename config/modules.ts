@@ -1012,6 +1012,7 @@ export const moduleRegistry: AppModule[] = [
     workspace: "factory",
     permissions: { view: true, create: true, edit: true, manage: true },
   },
+  { id: "factory_label_management", section: "Settings", label: "Label Management", route: "/factory/settings/labels", icon: "settings", sidebar: true, workspace: "factory", readPermission: "factory_finished_goods.view", permissions: {} },
   {
     id: "factory_audit_logs",
     section: "System",
@@ -1422,7 +1423,7 @@ export function getSidebarSections(workspace: WorkspaceKey = "restaurant") {
       return sections;
     }, [] as Array<{ label: string; items: Array<{ id: string; label: string }> }>);
 
-  const order = workspace === "hr" ? ["Overview", "People", "Organization", "Compliance", "Settings"] : moduleSectionOrder;
+  const order = workspace === "hr" ? ["Overview", "People", "Organization", "Compliance", "Settings"] : workspace === "factory" ? ["Factory", "Warehouse", "Raw Material", "MeSTI", "Master Data", "Settings", "System"] : moduleSectionOrder;
   if (workspace === "hr") {
     const organization = sections.find(section => section.label === "Organization");
     organization?.items.sort((a,b) => ["legal-entities", "departments", "job-positions"].indexOf(a.id) - ["legal-entities", "departments", "job-positions"].indexOf(b.id));

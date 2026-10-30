@@ -282,8 +282,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             )}
             {candidate?.missing?.includes("label_configuration") ? (
               <p role="alert">
-                Configure this Packaging SKU’s label under Finished Goods before
-                printing.
+                Configure this Packaging SKU’s approved label in Factory Settings → Label Management before printing.
               </p>
             ) : null}
             {candidate?.missing?.some(

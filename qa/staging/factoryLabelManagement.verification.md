@@ -1,0 +1,13 @@
+# Factory Label Management — Staging verification
+
+QA level: L3 Canonical. Target: `ujkzdaaadnvcfayuldmh` / `fnb-system-staging` only.
+
+- `factoryLabelManagement.contract.sql`: 33 live Staging checks. Covers draft save/replay/optimistic revisions, no effect on approved versions, explicit approval, changed-publication retry rejection, read-only dynamic fields, static-override restrictions, SKU content projection, reusable template versions, pinned historical assignments in drafts and approved labels, unchanged historical snapshots, immutable approved config, bridge enable/disable and active-Printing protection, all-SKU listing, audit and permission/grant denials. Label fixtures roll back. Production and product-master checksums remain identical.
+- Existing `factoryLabelPrinting.contract.sql`: all 32 checks still pass, covering packaged-unit authority, snapshot/raster freezing, original/reprint quantities, duplicate requests, exclusive claims, Sent versus Confirmed, lease expiry/Unknown recovery, audit and security.
+- Focused label/editor, layout, renderer, route ownership and Factory route-completeness checks: 37 passing. Includes content/layout separation, draft-only save, explicit review/publish, duplicate-save protection, read-only inspection, source switching, keyboard positioning and physical bounds.
+- Full Factory regression versus clean current `origin/dev`: identical 16 pre-existing failures across 8 files; no new failures. Baseline 462 passing, changed suite 468 passing at the full-suite run. The later focused pass includes the additional layout-source and keyboard tests. Existing failures are unrelated MeSTI/Job Order/Recipe/Petty Cash fixtures.
+- Representative Finished Goods, Factory dependency-plan and permission-registry consumers: 14 passing.
+- Application build and diff whitespace checks pass. Mechanical UI detector reports no findings. Local desktop/mobile browser review used isolated sample data, confirmed dedicated editor composition and template movement/save behavior; the canonical renderer supplies all previews. Actual Staging reads/route checks use the existing authenticated user session.
+- Security advisors reviewed: draft/audit RLS without direct policies/grants is intentional RPC-only access. Exposed SECURITY DEFINER functions enforce the existing active-employee and Finished Goods permissions; helper execution remains revoked. No role or permission assignments were changed.
+
+Existing Print Bridge transport and print-job state transitions are unchanged. The downloadable package only updates its setup instructions for the centralized settings/editor path. Physical D520 acceptance remains pending as previously documented; this refactor does not claim new hardware capability or regulatory approval.

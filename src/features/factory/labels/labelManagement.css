@@ -1,0 +1,103 @@
+.label-layout-grid {
+  display: grid;
+  grid-template-columns: 170px minmax(240px, 1fr) 240px;
+  gap: 24px;
+  align-items: start;
+}
+.label-canvas {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  margin-inline: auto;
+  background: white;
+  border: 1px solid var(--theme-border);
+  overflow: hidden;
+}
+.label-canvas > img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+.label-element {
+  position: absolute;
+  border: 1px solid transparent;
+  background: transparent;
+  touch-action: none;
+  cursor: move;
+}
+.label-element:hover,
+.label-element:focus-visible {
+  border-color: var(--color-primary);
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+.label-element-selected {
+  border-color: var(--color-primary, #16866c);
+  box-shadow: 0 0 0 1px var(--color-primary, #16866c);
+}
+.label-resize {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  background: var(--color-primary, #16866c);
+  border: 2px solid white;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.label-layer {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 12px;
+  border: 1px solid transparent;
+  overflow-wrap: anywhere;
+  color: var(--theme-text);
+}
+.label-layer:hover {
+  background: var(--theme-hover);
+}
+.label-layer-selected {
+  background: var(--theme-hover);
+  border-color: var(--theme-border);
+}
+.label-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 400px);
+  gap: 32px;
+  align-items: start;
+}
+.label-preview-panel {
+  position: sticky;
+  top: 20px;
+}
+@media (max-width: 1100px) {
+  .label-layout-grid {
+    grid-template-columns: 150px minmax(220px, 1fr);
+  }
+  .label-layout-grid > div:last-child {
+    grid-column: 1/-1;
+  }
+  .label-editor-grid {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+}
+@media (max-width: 760px) {
+  .label-layout-grid,
+  .label-editor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .label-layout-grid > div:last-child {
+    grid-column: auto;
+  }
+  .label-preview-panel {
+    position: static;
+  }
+  .label-layout-grid > div:first-child > div[role="list"] {
+    max-height: 180px;
+    overflow-y: auto;
+  }
+}

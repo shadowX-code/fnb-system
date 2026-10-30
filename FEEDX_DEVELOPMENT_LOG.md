@@ -1185,3 +1185,7 @@ Consolidated parallel access editors and migrated-grant removal into one grant-b
 ## 2026-10-30 — Factory label printing on Staging
 
 Added approved per-Packaging-SKU label configuration and reusable S08-reference templates; completed Job Orders now derive previews/quantities from authoritative Production and preserve immutable label snapshots/pixels. Added retry-safe queued jobs, exclusive outbound bridge claims, audited physical confirmation/reprints and conservative Unknown recovery. Packaged a Windows per-user background bridge with DPAPI custody, driver spooler and replaceable RAW/TSPL transport. No Production records/calculations or inventory workflows were changed. Delivery is Staging only. Hardware/Windows driver acceptance and approved certification artwork remain pending; see the bridge setup guide and Factory domain contracts.
+
+## 2026-10-30 — Centralized Factory Label Management on Staging
+
+Moved SKU label setup from the long Finished Goods modal to Factory Settings → Label Management, with Product Labels, reusable versioned Templates and existing Printers sections. Dedicated SKU-content and visual-layout editors share the canonical 203 DPI renderer and introduce revision-checked drafts, explicit review/approval and immutable publication through existing label config/template authorities. Production-owned dynamic fields, old approved versions, historical snapshots, bridge transport and print/reprint lifecycle remain protected.

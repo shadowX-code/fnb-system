@@ -1,8 +1,21 @@
 import QRCode from "qrcode";
 
+export function legacyLabelContentField(elements, index) {
+  if (elements[index]?.type !== "text" || elements[index]?.field) return null;
+  const previous = elements[index - 1]?.text?.trim();
+  if (previous === "Ingredients:") return "ingredients";
+  if (previous === "Manufactured by:") return "manufacturer_name";
+  if (elements[index - 2]?.text?.trim() === "Manufactured by:")
+    return "manufacturer_address";
+  return null;
+}
 export const LABEL_DPI = 203;
 export const mmToDots = (mm) => Math.round((Number(mm) * LABEL_DPI) / 25.4);
 const fields = new Set([
+  "ingredients",
+  "manufacturer_name",
+  "manufacturer_address",
+  "packaged_units",
   "product_name",
   "product_name_cn",
   "product_name_bm",
@@ -146,7 +159,7 @@ export function packMonochrome(rgba, width, height) {
         rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114 < 160 &&
         rgba[i + 3] > 127
       )
-        bytes[y * stride + (x >> 3)] |= 128 >> x % 8;
+        bytes[y * stride + (x >> 3)] |= 128 >> (x % 8);
     }
   return bytes;
 }
@@ -173,8 +186,13 @@ export async function renderLabel(snapshot) {
   ctx.scale(scale, scale);
   ctx.fillStyle = "#000";
   ctx.imageSmoothingEnabled = false;
-  for (const e of snapshot.definition.elements) {
-    const value = e.field ? snapshot[e.field] : e.text;
+  for (const [index, e] of snapshot.definition.elements.entries()) {
+    const bound = legacyLabelContentField(snapshot.definition.elements, index);
+    const value = e.field
+      ? snapshot[e.field]
+      : (snapshot.content?.text_overrides?.[String(index)] ??
+        (bound ? snapshot.content?.[bound] : undefined) ??
+        e.text);
     const formatted =
       e.date_format === "dd/MM/yyyy" && /^\d{4}-\d{2}-\d{2}$/.test(value || "")
         ? value.split("-").reverse().join("/")
@@ -278,7 +296,7 @@ export async function renderLabel(snapshot) {
   for (let y = 0; y < canvas.height; y++)
     for (let x = 0; x < canvas.width; x++) {
       const i = (y * canvas.width + x) * 4,
-        color = bytes[y * stride + (x >> 3)] & (128 >> x % 8) ? 0 : 255;
+        color = bytes[y * stride + (x >> 3)] & (128 >> (x % 8)) ? 0 : 255;
       pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = color;
       pixels.data[i + 3] = 255;
     }
@@ -312,7 +330,7 @@ export function previewFrozenRaster(raster) {
   for (let y = 0; y < height; y++)
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4,
-        color = bytes[y * stride + (x >> 3)] & (128 >> x % 8) ? 0 : 255;
+        color = bytes[y * stride + (x >> 3)] & (128 >> (x % 8)) ? 0 : 255;
       image.data[i] = image.data[i + 1] = image.data[i + 2] = color;
       image.data[i + 3] = 255;
     }

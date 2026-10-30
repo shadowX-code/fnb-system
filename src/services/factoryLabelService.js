@@ -30,3 +30,32 @@ export const factoryLabelService = {
   resolve: (job, state, reason) =>
     rpc("resolve", { p_job: job, p_state: state, p_reason: reason }),
 };
+
+Object.assign(factoryLabelService, {
+  management: (section = "products", page = 1, search = "") =>
+    rpc("management", { p_section: section, p_page: page, p_search: search }),
+  editor: (kind, key) => rpc("editor", { p_kind: kind, p_key: key }),
+  saveDraft: (kind, key, payload, revision, baseVersion, requestId) =>
+    rpc("save_draft", {
+      p_kind: kind,
+      p_key: key,
+      p_payload: payload,
+      p_revision: revision,
+      p_base_version: baseVersion,
+      p_request_id: requestId,
+    }),
+  publish: (draft, revision, requestId, note, approved) =>
+    rpc("publish", {
+      p_draft: draft,
+      p_revision: revision,
+      p_request_id: requestId,
+      p_approval_note: note,
+      p_content_approved: approved,
+    }),
+  setDeviceEnabled: (device, enabled, reason) =>
+    rpc("set_device_enabled", {
+      p_device: device,
+      p_enabled: enabled,
+      p_reason: reason,
+    }),
+});
