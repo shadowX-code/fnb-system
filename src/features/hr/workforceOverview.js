@@ -22,7 +22,7 @@ export function workforceOverview(records, company = 'all') {
   return {total:employees.length,active:employees.filter(row=>row.employment_status==='active').length,
     companyCount:[...groups.keys()].filter(id=>id!=='unassigned').length,
     types:distribution('employment_type'),statuses:distribution('employment_status'),
-    companies:[...groups.values()].map(group=>({...group,types:[...group.types].map(([key,count])=>({label:classificationLabel(key),count}))}))};
+    companies:[...groups.values()].map(group=>({...group,types:[...group.types].map(([key,count])=>({key,label:classificationLabel(key),count}))}))};
 }
 
 export function payrollOverview(periods, company, month) {

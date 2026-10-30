@@ -1,6 +1,7 @@
 import AdminSparkline from './AdminSparkline.jsx';
 export default function MetricCard({
   label,
+  wrapLabel = false,
   title,
   value,
   helper,
@@ -84,7 +85,7 @@ export default function MetricCard({
               <Icon size={compactVariant ? 12 : isSummary ? 14 : 12} />
             </span>
           ) : null}
-          <div className={`${compactVariant || isSummary ? "text-[11px]" : "text-xs"} truncate font-medium ${isSummary ? "tracking-normal" : "uppercase tracking-[0.06em]"} text-text-secondary`}>{label || title}</div>
+          <div className={`${compactVariant || isSummary ? "text-[11px]" : "text-xs"} ${wrapLabel ? "whitespace-normal" : "truncate"} font-medium ${isSummary ? "tracking-normal" : "uppercase tracking-[0.06em]"} text-text-secondary`}>{label || title}</div>
         </div>
         {sparklinePlacement === "inline" ? sparkline : null}
         {status ? <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 type-micro font-semibold text-text-secondary">{status}</span> : null}

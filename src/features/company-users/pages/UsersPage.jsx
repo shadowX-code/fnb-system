@@ -1940,7 +1940,7 @@ export default function UsersPage({ ui, store, auth }) {
         <SelectField label="Company" value={companyFilter} onChange={value=>navigateAdminRoute('employees',{},value==='all'?{}:{company:value},{replace:true})} options={[
           {value:'all',label:'All'},
           ...[...new Set(users.map(user=>user.legal_entity_id||'unassigned'))].map(id=>({value:id,label:id==='unassigned'?'Unassigned':legalEntities.find(entity=>entity.id===id)?.display_name||legalEntities.find(entity=>entity.id===id)?.legal_company_name||'Company name unavailable'})),
-          ...(companyFilter!=='all'&&!users.some(user=>(user.legal_entity_id||'unassigned')===companyFilter)?[{value:companyFilter,label:'Selected company · no accessible records'}]:[]),
+          ...(companyFilter!=='all'&&!users.some(user=>(user.legal_entity_id||'unassigned')===companyFilter)?[{value:companyFilter,label:loading?'Loading company…':'Selected company · no accessible records'}]:[]),
         ]}/>
         <AdminSearchField label="Search" value={query} onChange={setQuery} placeholder="Search name, email, IC, contact..." />
         <FieldLabel label="Role">
