@@ -367,3 +367,14 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     expect(screen.getByText("Save Draft")).not.toBeNull();
   });
 });
+
+it("mounts Overview only after its own bootstrap scope is ready on warm navigation", async () => {
+  setup();
+  const view = render(<FactoryWorkspacePage initialTab="raw-receiving" auth={auth} ui={ui} />);
+  await screen.findByRole("heading", { name: "Raw Material Receiving" });
+  factoryService.listOperationalJobOrders.mockClear();
+  view.rerender(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
+  await screen.findByRole("heading", { name: "Production Overview" });
+  await waitFor(() => expect(factoryService.listOperationalJobOrders).toHaveBeenCalledTimes(1));
+  expect(factoryService.listOperationalJobOrders.mock.calls[0][0].signal.aborted).toBe(false);
+});

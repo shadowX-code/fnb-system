@@ -1111,6 +1111,7 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
 export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, auth }) {
   const [data, setData] = useState(emptyFactoryData);
   const [loading, setLoading] = useState(true);
+  const [dataScope, setDataScope] = useState("");
   const [bootstrapError, setBootstrapError] = useState("");
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
@@ -1259,6 +1260,7 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
     setBootstrapError("");
     if (!Object.values(factoryDataPlan(initialTab, can)).some(Boolean)) {
       setData(emptyFactoryData());
+      setDataScope(initialTab);
       setLoading(false);
       return true;
     }
@@ -1293,12 +1295,14 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
         }
         return merged;
       });
+      setDataScope(initialTab);
       if (permissionIssues.length) {
         setModal(null);
       }
     } catch (error) {
       refreshSucceeded = false;
       if (factoryDataRequestRef.current !== requestId || (controller.signal.aborted && error.name !== "TimeoutError")) return;
+      setDataScope(initialTab);
       setBootstrapError(["TimeoutError", "FactoryBootstrapLoadError"].includes(error.name) ? error.message : "Unable to initialize Factory. Check your connection and retry.");
       console.error("[Factory] Unable to refresh Factory workspace data.", error);
       if (!silent) ui?.notify?.({ title: "Failed to load Factory data", message: error.message, tone: "error" });
@@ -3527,12 +3531,13 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
     );
   }
 
-  if (bootstrapError) {
-    return <AsyncDataSurface error={bootstrapError} errorTitle="Unable to load Factory workspace" onRetry={() => loadData()} />;
+  // Never mount a new route against the previous route's master-data owner.
+  if (loading || dataScope !== initialTab) {
+    return <div className="card p-6 text-sm font-semibold text-text-secondary">Loading Factory workspace...</div>;
   }
 
-  if (loading) {
-    return <div className="card p-6 text-sm font-semibold text-text-secondary">Loading Factory workspace...</div>;
+  if (bootstrapError) {
+    return <AsyncDataSurface error={bootstrapError} errorTitle="Unable to load Factory workspace" onRetry={() => loadData()} />;
   }
 
   return (
