@@ -1794,12 +1794,14 @@ const productionActionDependencies = {
   production: ["rawMaterials", "receivings", "recipes", "sops", "finishedGoods", "storageLocations", "equipment"],
   "production-process": ["rawMaterials", "receivings", "recipes", "sops", "finishedGoods", "storageLocations"],
   "completed-job-result": ["recipes"],
+  "finished-good-history": ["productions", "productMovements"],
   "sop-details": ["sops", "recipes"],
   "sop-editor": ["sops", "recipes", "productFamilies", "equipment", "qcChecklistTemplates"],
 };
 export function factoryDataPlan(scope, hasPermission, action = "") {
-  const plan = factorySupportDataPlan(action.startsWith("sop-") ? "production-sop" : ["job", "job-filters"].includes(action) ? "job-orders" : action ? "production" : scope, hasPermission);
+  const plan = factorySupportDataPlan(action === "finished-good-history" ? "finished-goods" : action.startsWith("sop-") ? "production-sop" : ["job", "job-filters"].includes(action) ? "job-orders" : action ? "production" : scope, hasPermission);
   if (!action && scope === "production-sop") { plan.recipes = false; plan.productFamilies = false; plan.qcChecklistTemplates = false; }
+  if (!action && scope === "finished-goods") { plan.productions = false; plan.productMovements = false; }
   if (!action && scope === "raw-inventory") plan.recipes = false;
   const keys = productionActionDependencies[action];
   if (action && !keys) throw new Error("Unknown Factory action data scope.");

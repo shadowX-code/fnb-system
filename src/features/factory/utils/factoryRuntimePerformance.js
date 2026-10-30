@@ -118,7 +118,7 @@ export async function factoryDiagnosticFetch(input, init) {
   const started = timestamp();
   const route = activeRoute;
   const add = (stage, extra = {}) => recordFactoryPerformance({ type: "transport", id, clientRequestId, route, endpoint, stage, elapsedMs: Math.round(timestamp() - started), at: Date.now(), ...extra });
-  const fingerprint = `${init?.method || "GET"}:${url.href}:${init?.body || ""}`;
+  const fingerprint = endpoint === "auth" ? `auth:${id}` : `${init?.method || "GET"}:${url.href}:${init?.body || ""}`;
   const duplicateInFlight = pendingTransports.has(fingerprint);
   pendingTransports.set(fingerprint, (pendingTransports.get(fingerprint) || 0) + 1);
   let released = false;
@@ -135,6 +135,7 @@ export async function factoryDiagnosticFetch(input, init) {
     const response = await execute();
     const requestId = response.headers.get("sb-request-id") || response.headers.get("x-request-id");
     add("headers", { status: response.status, requestId });
+    if (endpoint === "auth") { release(); return response; }
     if (!response.body) release();
     // PostgREST consumes text then parses JSON internally. Never clone/parse a second copy.
     const text = response.text.bind(response);

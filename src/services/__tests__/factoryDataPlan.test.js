@@ -31,3 +31,16 @@ describe("Factory Job Orders scoped data plan", () => {
     expect(plan.finishedGoods).toBe(false);
   });
 });
+
+it("keeps Finished Good catalog complete without reading history until detail opens", () => {
+  const list = factoryDataPlan("finished-goods", can);
+  expect(list.finishedGoods).toBe(true);
+  expect(list.productFamilies).toBe(true);
+  expect(list.recipes).toBe(true);
+  expect(list.storageLocations).toBe(true);
+  expect(list.productions).toBe(false);
+  expect(list.productMovements).toBe(false);
+  const history = factoryDataPlan("finished-goods", can, "finished-good-history");
+  expect(Object.keys(history).filter(key => history[key])).toEqual(["productions", "productMovements"]);
+  expect(Object.values(factoryDataPlan("finished-goods", () => false, "finished-good-history")).some(Boolean)).toBe(false);
+});

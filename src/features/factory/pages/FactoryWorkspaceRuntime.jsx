@@ -52,7 +52,7 @@ import { operatorFinishedGoodBatchNo, productionBatchReference, productionJobOrd
 import { uniqueReceivingBatchPreview } from "../utils/factoryNumbers.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
 import { jobPriorityTone, jobStatusLabel, rawMovementTypeMeta, statusTone } from "../utils/factoryStatus.js";
-import { costDisplay, costVarianceInfo, latestReceivingCostInfo, productionCost, productionCostInfo, recipeCostInfo, usageUnitCost, usageUnitCostInfo } from "../utils/factoryCosting.js";
+import { productionCostRowsFor, costDisplay, costVarianceInfo, latestReceivingCostInfo, productionCost, productionCostInfo, recipeCostInfo, usageUnitCost, usageUnitCostInfo } from "../utils/factoryCosting.js";
 import { factoryTimeAmPmLabel, jobFinishedGoodName, productionQcDisplayLabel, productionQcTone } from "../components/productionExecution/productionExecutionHelpers.js";
 import ProductionExecutionModal from "../components/productionExecution/ProductionExecutionModal.jsx";
 import { focusVisibleFactoryRowField } from "../utils/factoryDom.js";
@@ -1367,24 +1367,7 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
       const cost = recipeCostInfo(recipe, data.receivings);
       return { ...recipe, ...cost };
     });
-    const recipeByFinishedGood = new Map(recipeCostRows.filter((recipe) => recipe.finished_good_id).map((recipe) => [recipe.finished_good_id, recipe]));
-    const recipeByProductFamily = new Map(recipeCostRows.filter((recipe) => recipe.product_family_id).map((recipe) => [recipe.product_family_id, recipe]));
-    const recipeByProduct = new Map(recipeCostRows.map((recipe) => [String(recipe.product_name || "").toLowerCase(), recipe]));
-    const productionCostRows = completedProductions.map((production) => {
-      const recipe = recipeByProductFamily.get(production.product_family_id) || recipeByFinishedGood.get(production.finished_good_id) || recipeByProduct.get(String(production.product_name || "").toLowerCase());
-      const actualCost = productionCostInfo(production, data.receivings);
-      const standardCost = recipe ? Number(recipe.costPerUnit || 0) * Number(production.good_output_qty || production.actual_produced_qty || production.produced_quantity || 0) : 0;
-      const variance = costVarianceInfo(standardCost, actualCost.cost);
-      return {
-        ...production,
-        standard_cost: standardCost,
-        actual_cost: actualCost.cost,
-        variance_rm: variance.variance,
-        variance_percent: variance.variancePercent,
-        missing_cost_rows: actualCost.missingCostRows + (recipe?.missingCostRows || 0),
-        unsupported_cost_rows: recipe?.unsupportedCostRows || 0,
-      };
-    });
+    const productionCostRows = productionCostRowsFor(completedProductions, recipeCostRows, data.receivings);
     const totalStandardCost = productionCostRows.reduce((sum, row) => sum + Number(row.standard_cost || 0), 0);
     const totalActualCost = productionCostRows.reduce((sum, row) => sum + Number(row.actual_cost || 0), 0);
     const totalMissingCostRows = productionCostRows.reduce((sum, row) => sum + Number(row.missing_cost_rows || 0), 0);
@@ -3542,7 +3525,7 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
 
   return (
     <FactoryPermissionsProvider permissionSet={auth?.permissions || []} can={can}>
-      <FactoryMasterDataProvider data={{ ...data, productionCosts: metrics.productionCostRows }}>
+      <FactoryMasterDataProvider data={{ ...data, finishedGoodsHistoryDeferred: initialTab === "finished-goods", productionCosts: metrics.productionCostRows }}>
         <FactoryNavigationProvider
           auditReferenceLoading={auditReferenceLoading}
           openAuditReference={openFactoryAuditReference}

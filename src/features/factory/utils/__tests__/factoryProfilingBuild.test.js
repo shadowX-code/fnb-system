@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it } from "vitest";
 import { factoryProfilingEnabled } from "../../../../../vite.config.js";
 it("enables React profiling only for the exact Staging database and dev build", () => {

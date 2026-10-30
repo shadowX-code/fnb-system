@@ -22,6 +22,7 @@ import useFactoryFinishedGoodsQuery from "../hooks/useFactoryFinishedGoodsQuery.
 import useFactoryMasterData from "../hooks/useFactoryMasterData.js";
 import useFactoryNavigation from "../hooks/useFactoryNavigation.js";
 import useFactoryPermissions from "../hooks/useFactoryPermissions.js";
+import FactoryFinishedGoodHistoryDetail from "../modals/FactoryFinishedGoodHistoryDetail.jsx";
 import FactoryFinishedGoodDetailModal from "../modals/FactoryFinishedGoodDetailModal.jsx";
 import { finishedGoodCommercialCost } from "../utils/finishedGoodsCommercial.js";
 import { activeRecipeForSku } from "../utils/productionPlanning.js";
@@ -61,6 +62,7 @@ export default function FactoryFinishedGoodsPage() {
   const receivings = Array.isArray(masterData.receivings) ? masterData.receivings : [];
   const productions = Array.isArray(masterData.productions) ? masterData.productions : [];
   const productMovements = Array.isArray(masterData.productMovements) ? masterData.productMovements : [];
+  const FinishedGoodDetail = masterData.finishedGoodsHistoryDeferred ? FactoryFinishedGoodHistoryDetail : FactoryFinishedGoodDetailModal;
   const productionCosts = Array.isArray(masterData.productionCosts) ? masterData.productionCosts : [];
   const { can } = useFactoryPermissions();
   const navigation = useFactoryNavigation();
@@ -122,6 +124,6 @@ export default function FactoryFinishedGoodsPage() {
     {exportOpen && can("factory_finished_goods.export") ? <A4TableExportModal title="Finished Goods" rows={allCommercialRows} columns={exportColumns} sortOptions={finishedGoodsExportSorts} selectedIds={selectedIds} selectionKey={finishedGoodSelectionKey} subtitle={`All current matching records · ${[filters.product,filters.category && finishedGoodCategories.find(c=>c.id===filters.category)?.name,filters.tag && tagCatalog.tags.find(t=>t.id===filters.tag)?.name,filters.status].filter(Boolean).join(" · ") || "No filters"}`} filename="finished-goods.pdf" onClose={()=>setExportOpen(false)} /> : null}
     {tagModal ? <FactoryFinishedGoodTagsModal catalog={tagCatalog} family={tagModal === "manager" ? null : tagModal} canCreate={canManage} canEdit={can("factory_finished_goods.edit")} onClose={()=>setTagModal(null)} /> : null}
     {labelSku ? <LabelConfigModal sku={labelSku} onClose={() => setLabelSku(null)} /> : null}
-    {selectedProduct ? <FactoryFinishedGoodDetailModal product={{...selectedProduct,tags:query.rows.find(row=>row.id===selectedProduct.id)?.tags || selectedProduct.tags}} productions={productions} movements={productMovements} productionCosts={productionCosts} onClose={() => setSelectedProduct(null)} formatBalance={skuBalanceLabel} formatDate={formatFactoryDate} formatQuantity={quantity} productionBatchReference={productionBatchReference} productionJobOrderReference={productionJobOrderReference} /> : null}
+    {selectedProduct ? <FinishedGoodDetail recipes={recipes} receivings={receivings} product={{...selectedProduct,tags:query.rows.find(row=>row.id===selectedProduct.id)?.tags || selectedProduct.tags}} productions={productions} movements={productMovements} productionCosts={productionCosts} onClose={() => setSelectedProduct(null)} formatBalance={skuBalanceLabel} formatDate={formatFactoryDate} formatQuantity={quantity} productionBatchReference={productionBatchReference} productionJobOrderReference={productionJobOrderReference} /> : null}
   </div>;
 }
