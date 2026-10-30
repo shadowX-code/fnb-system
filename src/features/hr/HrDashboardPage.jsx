@@ -46,18 +46,15 @@ export default function HrDashboardPage({auth,ui}) {
     if(open?.length)actions.push({id:'payroll',name:'Payroll preparation',detail:'Open periods · check each Run’s readiness',count:open.length});
   }
   return <WorkspacePage title="HR Dashboard" description="People, recruitment and Payroll in your access." density="compact">
-    {metrics.length>0 && <AdminSummaryGrid variant="compact" ariaLabel="HR summary" items={metrics}/>}
+    {metrics.length>0 && <AdminSummaryGrid mobileColumns={2} variant="compact" ariaLabel="HR summary" items={metrics}/>}
     {read.key===key && read.errors.length>0 && <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-text-secondary"><span>Some summaries are unavailable: {read.errors.join(', ')}. No totals have been assumed.</span><button type="button" className="btn-secondary" onClick={()=>setAttempt(value=>value+1)}>Retry summaries</button></div>}
     <section aria-labelledby="hr-pending-heading">
       <h2 id="hr-pending-heading" className="mb-3 text-base font-semibold text-text-primary">Needs attention</h2>
-      {actions.length ? <DataTable minWidth={480} density="compact" columns={[
+      {actions.length ? <DataTable mobileLayout="stack" minWidth={480} density="compact" columns={[
         {key:'name',header:'Work queue'},{key:'detail',header:'Next step'},{key:'count',header:'Items',align:'right'},
         {key:'action',header:'',align:'right',render:row=><button type="button" className="btn-secondary" onClick={()=>ui.navigate(row.id)}>Continue</button>},
       ]} rows={actions} getRowKey={row=>row.id}/> : <p className="text-sm text-text-secondary">{loading?'Loading work queues…':read.errors.length?'Open the owning module to check unavailable work queues.':'No pending items reported by the available summaries.'}</p>}
     </section>
-    <div className="flex flex-wrap gap-2" aria-label="HR modules">
-      {['employees','recruitment','payroll','employee_compliance'].filter(id=>hasPermission(auth,`${id}.view`)).map(id=><button type="button" key={id} className="btn-secondary" onClick={()=>ui.navigate(id)}>{({employees:'Employees',recruitment:'Recruitment',payroll:'Payroll',employee_compliance:'Food Handling Compliance'})[id]}</button>)}
-      {!metrics.length && <p className="text-sm text-text-secondary">Use the HR sidebar to open your authorized organization and compliance modules.</p>}
-    </div>
+    {!metrics.length && <p className="text-sm text-text-secondary">Use the HR sidebar to open your authorized organization and compliance modules.</p>}
   </WorkspacePage>;
 }

@@ -595,7 +595,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
   return (
     <div className="space-y-4">
       <PageHeader
-        section="People"
+        section="Organization"
         title="Job Positions"
         description="Manage HR job titles used in employee profiles. Position is separate from Role permissions."
         actions={
