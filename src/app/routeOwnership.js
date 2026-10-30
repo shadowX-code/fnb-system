@@ -94,6 +94,8 @@ const canonicalPathByModuleId = Object.freeze({
 });
 
 function routeDomain(module) {
+  if (["roles", "external_agents", "system_settings"].includes(module.id)) return "system";
+  if (moduleWorkspace(module) === "hr") return "people";
   if (moduleWorkspace(module) === "marketing") return "marketing";
   if (moduleWorkspace(module) === "finance") return "finance";
   if (moduleWorkspace(module) === "crew") return "crew";
@@ -146,7 +148,7 @@ function moduleRouteDefinition(module) {
     routeId,
     canonicalPath: canonicalPathForModule(module),
     pathPattern: canonicalPathForModule(module),
-    pathAliases: Object.freeze(module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : module.id === "marketing_audience" ? ["/marketing/audience"] : module.id === "marketing_calendar" ? ["/marketing/content"] : []),
+    pathAliases: Object.freeze(module.id === "external_agents" ? ["/system/settings/integrations/external-agents"] : module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : module.id === "marketing_audience" ? ["/marketing/audience"] : module.id === "marketing_calendar" ? ["/marketing/content"] : []),
     legacyHashPattern: routeId,
     legacyHashAliases: legacyHashAliasesFor(routeId, routeId),
     params: Object.freeze([]),
@@ -200,7 +202,7 @@ function crewMobileRouteDefinition({ id, screen, path, legacyPath, growthInitial
 const contractModules = moduleRegistry.filter((module) => {
   const workspace = moduleWorkspace(module);
   return module.routable !== false
-    && (workspace === "restaurant" || workspace === "factory" || workspace === "crew" || workspace === "finance" || workspace === "marketing")
+    && (workspace === "restaurant" || workspace === "factory" || workspace === "crew" || workspace === "finance" || workspace === "marketing" || workspace === "hr")
     && !legacyRouteRedirects[module.id];
 });
 

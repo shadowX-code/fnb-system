@@ -299,7 +299,7 @@ function AdminApp() {
     if (routeWorkspace !== "restaurant") return routeWorkspace;
     try {
       const saved = localStorage.getItem("feedx.workspace");
-      return ["restaurant", "factory", "crew", "guest_ai", "finance", "marketing"].includes(saved) ? saved : "restaurant";
+      return ["restaurant", "factory", "crew", "guest_ai", "finance", "marketing", "hr"].includes(saved) ? saved : "restaurant";
     } catch {
       return "restaurant";
     }
@@ -324,7 +324,7 @@ function AdminApp() {
   const [confirmRequest, setConfirmRequest] = useState(null);
   const accessibleRoutes = useMemo(() => filterRoutesByPermission(salesPurchaseRoutes, auth), [auth.permissions]);
   const availableWorkspaceOptions = useMemo(
-    () => workspaceSwitcherOptions.filter((option) => !option.permission || auth.hasPermission(option.permission)),
+    () => workspaceSwitcherOptions.filter((option) => routePermissionAllowed(auth, option.permission)),
     [auth.permissions],
   );
   const availableWorkspaceIds = useMemo(
@@ -550,6 +550,7 @@ function AdminApp() {
   }, [accessibleRoutes, activeRouteId, auth.contextLoading, auth.loading, auth.session]);
 
   useEffect(() => {
+    if (getAdminRouteDefinition(activeRouteId)?.ownership.domain === "system") return;
     const nextWorkspace = workspaceForRoute(activeRouteId);
     if (nextWorkspace !== workspace) setWorkspace(nextWorkspace);
   }, [activeRouteId, workspace]);

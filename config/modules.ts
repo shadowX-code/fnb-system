@@ -70,7 +70,7 @@ export type AppModule = {
   // Consumer routes may reuse an existing permission without introducing a second grant.
   readPermission?: string;
   requiresRestaurantOutletScope?: boolean;
-  workspace?: "restaurant" | "factory" | "crew" | "guest_ai" | "finance" | "marketing";
+  workspace?: "restaurant" | "factory" | "crew" | "guest_ai" | "finance" | "marketing" | "hr";
   permissions: Partial<Record<ModuleAction, boolean>>;
 };
 
@@ -185,10 +185,11 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   export: "Export",
 };
 
-export type WorkspaceKey = "restaurant" | "factory" | "crew" | "guest_ai" | "finance" | "marketing";
+export type WorkspaceKey = "restaurant" | "factory" | "crew" | "guest_ai" | "finance" | "marketing" | "hr";
 
 export const workspaceLabels: Record<WorkspaceKey, string> = {
   restaurant: "Restaurant",
+  hr: "HR",
   finance: "Finance",
   marketing: "Marketing",
   factory: "Factory",
@@ -200,6 +201,8 @@ export const workspaceLabels: Record<WorkspaceKey, string> = {
 // permission is only required where a domain explicitly defines one; existing
 // Restaurant, Factory, and Crew visibility continues to be driven by their
 // route-level permissions.
+export const hrReadPermission = "employees.view OR recruitment.view OR payroll.view OR legal_entities.view OR departments.view OR job_positions.view OR employee_compliance.view";
+
 export const workspaceSwitcherOptions: Array<{
   id: WorkspaceKey;
   label: string;
@@ -207,6 +210,7 @@ export const workspaceSwitcherOptions: Array<{
   permission?: string;
 }> = [
   { id: "restaurant", label: "Restaurant", detail: "Store Operations" },
+  { id: "hr", label: "HR", detail: "People, recruitment & payroll", permission: hrReadPermission },
   { id: "finance", label: "Finance", detail: "Financial state & statements", permission: "reports.view" },
   { id: "marketing", label: "Marketing", detail: "Brands, content & engagement", permission: "marketing_workspace.access" },
   { id: "factory", label: "Factory", detail: "Production Operations" },
@@ -234,6 +238,8 @@ export const moduleSectionOrder = [
   "MeSTI",
   "Master Data",
   "People",
+  "Organization",
+  "Compliance",
   "Workforce",
   "System",
   "Learning",
@@ -246,6 +252,9 @@ export const moduleSectionOrder = [
 ];
 
 export const moduleRegistry: AppModule[] = [
+  { id: "hr_dashboard", section: "Overview", label: "Dashboard", route: "/hr/dashboard", icon: "dashboard", sidebar: true, workspace: "hr", readPermission: hrReadPermission, permissions: {} },
+  { id: "hr_settings", section: "Settings", label: "Workspace Settings", route: "/hr/settings", icon: "settings", sidebar: true, workspace: "hr", readPermission: hrReadPermission, permissions: {} },
+  { id: "system_settings", section: "System", label: "System Settings", route: "/system/settings", icon: "settings", sidebar: true, readPermission: "roles.view OR roles_permissions.view", permissions: {} },
   { id: "marketing_workspace", section: "Marketing", label: "Marketing Workspace", route: "/marketing", sidebar: false, routable: false, workspace: "marketing", permissions: { access: true } },
   { id: "platform_organizations", section: "System", label: "Team & Brand Access", route: "/system/organizations", sidebar: false, routable: false, workspace: "marketing", permissions: { manage: true } },
   { id: "marketing_overview", section: "Overview", label: "Overview", route: "/marketing/overview", icon: "marketing_overview", sidebar: true, workspace: "marketing", permissions: { view: true } },
@@ -470,6 +479,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/people/employees",
     icon: "users",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, create: true, edit: true, deactivate: true, enable_login: true, reset_password: true },
   },
   {
@@ -479,15 +489,17 @@ export const moduleRegistry: AppModule[] = [
     route: "/people/recruitment",
     icon: "users",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, manage: true },
   },
   {
     id: "legal-entities",
-    section: "People",
+    section: "Organization",
     label: "Legal Entities",
     route: "/people/legal-entities",
     icon: "briefcase-business",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, manage: true },
   },
   {
@@ -497,42 +509,46 @@ export const moduleRegistry: AppModule[] = [
     route: "/people/payroll",
     icon: "wallet",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, setup: true, statutory: true, prepare: true, review_time: true, treat_ph: true, adjust: true, configure: true, configure_holidays: true, publish_holidays: true, record_payment: true, finalize: true },
   },
   {
     id: "employee_compliance",
-    section: "People",
+    section: "Compliance",
     label: "Food Handling Compliance",
     route: "/people/compliance",
     icon: "employee-compliance",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, review: true },
   },
   {
     id: "job-positions",
-    section: "People",
+    section: "Organization",
     label: "Job Positions",
     route: "/people/job-positions",
     icon: "job-positions",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, create: true, edit: true, delete: true },
   },
   {
     id: "departments",
-    section: "People",
+    section: "Organization",
     label: "Departments",
     route: "/people/departments",
     icon: "departments",
     sidebar: true,
+    workspace: "hr",
     permissions: { view: true, create: true, edit: true, delete: true },
   },
   {
     id: "roles",
-    section: "People",
+    section: "System",
     label: "Roles & Permissions",
     route: "/system/roles",
     icon: "roles",
-    sidebar: true,
+    sidebar: false,
     permissions: { view: true, create: true, edit: true, delete: true },
   },
   {
@@ -673,7 +689,7 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, manage: true },
   },
   { id: "brands", section: "System", label: "Brands", route: "/system/brands", icon: "outlets", sidebar: true, workspace: "restaurant", readPermission: "platform_organizations.manage", permissions: {} },
-  { id: "external_agents", section: "Settings", label: "Integrations", route: "/system/settings/integrations/external-agents", icon: "settings", sidebar: true, workspace: "restaurant", readPermission: "roles.view OR roles_permissions.view", permissions: {} },
+  { id: "external_agents", section: "Settings", label: "AI Integrations", route: "/system/settings/ai-integrations", icon: "settings", sidebar: false, workspace: "restaurant", readPermission: "roles.view OR roles_permissions.view", permissions: {} },
   {
     id: "outlets",
     section: "System",
@@ -1377,7 +1393,7 @@ export function getPermissionGroups() {
 
 export function getSidebarSections(workspace: WorkspaceKey = "restaurant") {
   const sections = moduleRegistry
-    .filter((module) => module.sidebar && moduleWorkspace(module) === workspace)
+    .filter((module) => (module.sidebar && moduleWorkspace(module) === workspace) || (workspace === "hr" && module.id === "external_agents"))
     .reduce((sections, module) => {
       const section = sections.find((item) => item.label === module.section);
       const item = { id: module.id, label: module.label };
@@ -1386,7 +1402,14 @@ export function getSidebarSections(workspace: WorkspaceKey = "restaurant") {
       return sections;
     }, [] as Array<{ label: string; items: Array<{ id: string; label: string }> }>);
 
-  return sections.sort((a, b) => moduleSectionOrder.indexOf(a.label) - moduleSectionOrder.indexOf(b.label));
+  const order = workspace === "hr" ? ["Overview", "People", "Organization", "Compliance", "Settings"] : moduleSectionOrder;
+  if (workspace === "hr") {
+    const organization = sections.find(section => section.label === "Organization");
+    organization?.items.sort((a,b) => ["legal-entities", "departments", "job-positions"].indexOf(a.id) - ["legal-entities", "departments", "job-positions"].indexOf(b.id));
+    const settings = sections.find(section => section.label === "Settings");
+    settings?.items.sort((a,b) => Number(a.id === "hr_settings") - Number(b.id === "hr_settings"));
+  }
+  return sections.sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
 }
 
 export function getAuditScopes() {

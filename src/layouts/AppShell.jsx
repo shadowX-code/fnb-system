@@ -15,7 +15,7 @@ import { isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue } from 
 import { canAccessOutlet, hasPermission } from "../utils/accessControl.js";
 
 const iconMap = {
-  external_agents: Link2,
+  hr_dashboard: Gauge, hr_settings: Settings, system_settings: Settings, external_agents: Link2,
   marketing_inbox: MessageSquareText, marketing_overview: Gauge, marketing_content: FileText, marketing_calendar: CalendarDays, marketing_analytics: BarChart3, marketing_settings: Settings,
   finance_data_sources: Link2, finance_overview: Gauge, finance_analysis: BarChart3, finance_costs: Wallet, finance_cash: Wallet, finance_planning: CalendarDays, finance_statements: FileText,
   "guest-ai-device-console": Bot,
@@ -578,7 +578,7 @@ function getSystemTheme() {
   return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
 }
 
-function ThemeMenu({ themeChoice, resolvedTheme, onThemeChange, onLogout }) {
+function ThemeMenu({ onSettings, themeChoice, resolvedTheme, onThemeChange, onLogout }) {
   return (
     <div>
       <div className="px-2 py-2">
@@ -608,6 +608,7 @@ function ThemeMenu({ themeChoice, resolvedTheme, onThemeChange, onLogout }) {
         })}
       </div>
       <div className="mt-2 border-t border-border pt-2">
+        {onSettings ? <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary hover:bg-slate-50" onClick={onSettings}><Settings size={15} />System Settings</button> : null}
         <button
           className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary"
           type="button"
@@ -1329,7 +1330,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
         <button className="flex w-full items-center justify-between rounded-xl border border-border bg-slate-50 px-3 py-2.5 text-left transition hover:border-primary/30 hover:bg-white" type="button" aria-expanded={workspaceMenuOpen} onClick={() => setWorkspaceMenuOpen((value) => !value)}>
           <span><span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Workspace</span><span className="mt-0.5 block text-sm font-bold text-text-primary">{workspaceOptions.find((option) => option.id === workspace)?.label ?? "Restaurant"}</span></span><ChevronDown size={16} className={`text-text-muted transition-transform ${workspaceMenuOpen ? "rotate-180" : ""}`} />
         </button>
-        {workspaceMenuOpen ? <div className="absolute inset-x-3 top-[76px] z-20 rounded-xl border border-border bg-surface p-1.5 shadow-lg">{workspaceOptions.map((option) => { const Icon = option.id === "marketing" ? Sparkles : option.id === "finance" ? Wallet : option.id === "guest_ai" ? Sparkles : option.id === "crew" ? Users : option.id === "factory" ? Factory : Building2; const active = workspace === option.id; return <button key={option.id} className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition ${active ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`} type="button" onClick={() => { setWorkspaceMenuOpen(false); onWorkspaceChange?.(option.id); }}><Icon size={16} /><span><span className="block text-sm font-bold">{option.label}</span><span className="block text-xs font-medium opacity-75">{option.detail}</span></span>{active ? <Check className="ml-auto" size={15} /> : null}</button>; })}</div> : null}
+        {workspaceMenuOpen ? <div className="absolute inset-x-3 top-[76px] z-20 rounded-xl border border-border bg-surface p-1.5 shadow-lg">{workspaceOptions.map((option) => { const Icon = option.id === "marketing" ? Sparkles : option.id === "finance" ? Wallet : option.id === "guest_ai" ? Sparkles : ["crew", "hr"].includes(option.id) ? Users : option.id === "factory" ? Factory : Building2; const active = workspace === option.id; return <button key={option.id} className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition ${active ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`} type="button" onClick={() => { setWorkspaceMenuOpen(false); onWorkspaceChange?.(option.id); }}><Icon size={16} /><span><span className="block text-sm font-bold">{option.label}</span><span className="block text-xs font-medium opacity-75">{option.detail}</span></span>{active ? <Check className="ml-auto" size={15} /> : null}</button>; })}</div> : null}
       </div>
 
       <nav aria-label="Workspace navigation" className="admin-shell-navigation flex-1 space-y-2 overflow-y-auto px-3 py-2.5">
@@ -1546,6 +1547,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
                 className="p-2"
               >
                 <ThemeMenu
+                  onSettings={auth?.hasPermission?.("roles.view") || auth?.hasPermission?.("roles_permissions.view") ? () => { setProfileMenuOpen(false); handleNavigate("system_settings"); } : undefined}
                   themeChoice={themeChoice}
                   resolvedTheme={resolvedTheme}
                   onThemeChange={(nextTheme) => {

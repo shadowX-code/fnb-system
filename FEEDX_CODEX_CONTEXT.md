@@ -8,7 +8,8 @@ This is the stable operating context for every FeedX Codex task. Read it before 
 
 FeedX is an F&B operations platform built around dependable operational state, controlled lifecycles, traceability, and auditability.
 
-- Restaurant owns operational financial input, purchasing, inventory, assets, people administration, and existing related reporting.
+- Restaurant owns operational financial input, purchasing, inventory, assets and existing related reporting.
+- HR composes the existing People, Recruitment, Payroll, organization and employee-compliance modules; business authorities and shared Legal Entities remain canonical.
 - Finance owns financial statements, financial analysis, intelligence and future planning; its foundation consumes existing operational Reporting without replacing accounting authority.
 - Marketing owns Brand knowledge, creative content and customer engagement within one Brand-scoped workspace. Platform owns shared Brands and internal security tenancy; Restaurant owns Outlets. Business workflows do not expose Organization setup.
 - Crew owns employee-facing workforce, daily operations, learning, performance, reward, and localization workflows.

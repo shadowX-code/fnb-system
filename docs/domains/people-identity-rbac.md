@@ -5,6 +5,10 @@
 This domain owns the employee master record, Admin authentication linkage, role assignment, permissions, outlet scope, and the security relationships consumed by every FeedX workspace.
 It does not own Crew passcode/session lifecycle, which belongs to Crew Workforce.
 
+## HR Workspace Composition
+
+HR owns navigation for the existing Employee, Recruitment, Payroll, organization-master and Food Handling Compliance pages. Legal Entities remains one shared master. Contracts and Letters & Notices remain inside their existing employee/document owners. Roles & Permissions remains global System Settings. Existing permissions, outlet/entity scope, employee Auth links, RLS and business commands do not change; workspace switching is not an authorization grant. See [platform navigation](../architecture/platform.md#hr-navigation-and-shared-administration).
+
 ## Canonical Ownership
 
 Current employee, role, permission, Auth-link, role-configuration, RLS, and audit contracts are authoritative.

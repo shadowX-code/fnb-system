@@ -13,7 +13,7 @@ The shared `notificationSound` client owns optional audible attention, per-user/
 
 ## Delivery And Worktree Procedures
 
-Admin Settings → Integrations → External Agents is the Platform-owned management surface for the shared External Agent Gateway. Its canonical route is `/system/settings/integrations/external-agents` (`external_agents`); it reuses Role Settings View/Edit authority without adding a parallel permission system. The existing Admin shell, compact management table, status badges, right-side detail panel and explicit credential confirmations own navigation and interaction. Provider prompts, knowledge and routines remain outside FeedX. Gateway identity, credential, registry, telemetry and audit contracts are owned by `trusted-authorities.md`; MeSTI business evidence remains Factory-owned.
+Global System Settings → AI Integrations is the Platform-owned management surface for the shared External Agent Gateway. Its canonical route is `/system/settings/ai-integrations`; `/system/settings/integrations/external-agents` remains a compatibility alias (`external_agents`); it reuses Role Settings View/Edit authority without adding a parallel permission system. The existing Admin shell, compact management table, status badges, right-side detail panel and explicit credential confirmations own navigation and interaction. Provider prompts, knowledge and routines remain outside FeedX. Gateway identity, credential, registry, telemetry and audit contracts are owned by `trusted-authorities.md`; MeSTI business evidence remains Factory-owned.
 
 Agent Overview separates Agent Information, recorded Connection status and Security. Connected denotes a recorded successful MCP request with its last-success timestamp, never real-time online presence; disabled and expired states remain distinct. Current Access Key issuance/expiry is independent of the future replacement validity selector. Role, permission and resource identifiers are collapsed in structured Developer Diagnostics.
 
@@ -48,9 +48,10 @@ Do not force-push `main` or `dev` during routine integration or cleanup. Reconci
 
 ## Workspace Ownership
 
-FeedX currently exposes six workspaces:
+FeedX currently exposes seven workspaces:
 
-- Restaurant: operational financial input, purchasing, inventory, assets, people administration, and existing reporting.
+- Restaurant: operational financial input, purchasing, inventory, assets and existing reporting.
+- HR: Dashboard; Employees, Recruitment and Payroll; Legal Entities, Departments and Job Positions; Food Handling Compliance; AI Integrations and Workspace Settings. Existing module permissions determine access without new workspace grants.
 - Finance: Overview, Analysis, Costs, Cash, Planning and Statements under Finance; Data Sources under secondary Manage owns read-only source administration at `/finance/data-sources`. Phase 1 reuses `reports.view` and existing Reporting outlet scope.
 - Marketing: one Brand-scoped workspace under `/marketing/*`, with its own navigation and `marketing_workspace.access` plus granular module permissions. It reuses Admin Auth and shell; brands are data scope rather than separate workspaces.
 - Crew: workforce, operations, learning, performance/reward, and localized Crew experiences.
@@ -60,6 +61,14 @@ FeedX currently exposes six workspaces:
 `config/modules.ts` is the canonical module and navigation registry.
 Current route composition and ownership are defined by the application route configuration and route contract tests.
 Documentation groupings must not create a second module or routing registry.
+
+### HR Navigation And Shared Administration
+
+HR composes existing business modules in the shared Admin shell. `/hr/dashboard` and `/hr/settings` reuse existing view permissions; all `/people/*` paths, nested document routes, legacy hashes and public Recruitment invitation URLs retain their existing owners. Moving navigation grants no additional employee, outlet, employer, Payroll or candidate access. Restaurant/Factory operational consumers still use the same authorized People/compliance services and routes.
+
+The Dashboard reads scoped Employee records, the Recruitment workspace summary and Payroll foundation periods/Run statuses only when the caller has that module’s view permission. It counts stored current employment states and open periods without calculating Payroll or creating/recalculating Runs. Failed reads remain unavailable, never zero. Work queues navigate to the owning module. Workspace Settings links to existing organization masters, Recruitment and Payroll configuration; it stores no separate settings.
+
+Global `/system/settings` owns the entry to Roles & Permissions and AI Integrations, also reachable from the shared profile menu. Roles retain `/people/roles` compatibility. HR links to the same AI Integrations route/module; visiting global settings preserves the selected workspace. Agent connections, role grants, capability/resource policies, explicit workspace scopes and activity history are unchanged. Navigation ownership never grants an agent access to another workspace.
 
 ### Shared Brand Ownership And Internal Tenancy
 
