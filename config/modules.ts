@@ -40,6 +40,8 @@ export type ModuleAction =
   | "receive"
   | "complete"
   | "perform"
+  | "record"
+  | "verify"
   | "record_collection"
   | "cancel"
   | "enable_login"
@@ -118,6 +120,8 @@ export const permissionActionOrder: ModuleAction[] = [
   "receive",
   "complete",
   "perform",
+  "record",
+  "verify",
   "record_collection",
   "cancel",
   "manage",
@@ -174,6 +178,8 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   receive: "Receive",
   complete: "Complete",
   perform: "Perform",
+  record: "Record",
+  verify: "Verify",
   record_collection: "Record Collection",
   cancel: "Cancel",
   manage: "Manage",
@@ -902,7 +908,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-mesti-cleaning",
     sidebar: true,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true },
+    permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true },
   },
   {
     id: "factory_mesti_equipment_cleaning",
@@ -912,7 +918,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-mesti-cleaning",
     sidebar: true,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true },
+    permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true },
   },
   {
     id: "factory_mesti_calibration",
@@ -1010,7 +1016,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-storage-locations",
     sidebar: true,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
+    permissions: { view: true, create: true, edit: true, delete: true, manage: true },
   },
   {
     id: "factory_suppliers",
@@ -1290,7 +1296,7 @@ export function moduleWorkspace(module: AppModule): WorkspaceKey {
 }
 
 export function permissionPrefix(moduleId: string) {
-  return moduleId.replace(/-/g, "_");
+  return moduleId === "crew_customer_feedback" ? "crew_feedback" : moduleId.replace(/-/g, "_");
 }
 
 export function permissionCode(moduleId: string, action: ModuleAction) {

@@ -182,14 +182,13 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
       const next = new Set(current.selectedPermissions);
       const currentlyEnabled = cell.codes.every((code) => next.has(code));
       const viewCodes = module.actions.view?.codes ?? [];
-      const editableModuleCodes = new Set(getRoleEditorModuleCodes(module).filter((code) => !outOfScopePermissionCodes.has(code)));
       const editableViewCodes = viewCodes.filter((code) => !outOfScopePermissionCodes.has(code));
       const editableCellCodes = cell.codes.filter((code) => !outOfScopePermissionCodes.has(code));
 
       if (actionKey === "view" && currentlyEnabled) {
-        editableModuleCodes.forEach((code) => next.delete(code));
+        editableViewCodes.forEach((code) => next.delete(code));
       } else if (currentlyEnabled) {
-        editableCellCodes.forEach((code) => next.delete(code));
+        editableCellCodes.filter(code=>!editableViewCodes.includes(code)).forEach((code) => next.delete(code));
       } else {
         if (actionKey !== "view") editableViewCodes.forEach((code) => next.add(code));
         editableCellCodes.forEach((code) => next.add(code));
@@ -214,7 +213,7 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
       setErrors({ outletAccess: "Select at least one outlet." });
       return;
     }
-    if (values.selectedPermissions.size === 0) {
+    if (values.selectedPermissions.size === 0 && !(role?.permissions ?? []).some(code=>!roleEditorPermissionCodeSet.has(code))) {
       const confirmed = await ui.confirm({
         title: "Save role with no access?",
         message: "This role has no access. Continue?",
@@ -242,6 +241,8 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
       updatedAt: new Date().toISOString().slice(0, 10),
       updatedBy: "Development Owner",
       requestId,
+      permissionChanges: [...new Set([...(role?.permissions ?? []).filter(code=>roleEditorPermissionCodeSet.has(code)),...values.selectedPermissions])].filter(code=>values.selectedPermissions.has(code)!==(role?.permissions ?? []).includes(code)).map(code=>({code,before:(role?.permissions ?? []).includes(code),enabled:values.selectedPermissions.has(code)})),
+      preserveOutletScope: isEdit && values.outletAccess===getRoleOutletAccessMode(role) && JSON.stringify([...values.selectedOutletIds].sort())===JSON.stringify([...(role?.selectedOutletIds??[])].sort()),
       permissions: nextPermissions,
       modules,
       });

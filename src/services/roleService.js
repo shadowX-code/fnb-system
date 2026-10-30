@@ -132,7 +132,7 @@ export const roleService = {
 
   async saveRole(role) {
     const requestedCodes = role.permissions ?? [];
-    if (requestedCodes.some((code) => !registryPermissionCodeSet.has(code) && !/^crew_journeys\.(view|create|edit|manage)$/.test(code))) {
+    if (!role.id && requestedCodes.some((code) => !registryPermissionCodeSet.has(code) && !/^crew_journeys\.(view|create|edit|manage)$/.test(code))) {
       throw new Error("Role includes an unavailable permission. Reload the role before trying again.");
     }
     const permissionCodes = [...new Set(requestedCodes)];
@@ -140,7 +140,7 @@ export const roleService = {
     const outletAccess = outletScopeApplicable ? (role.outletAccess === "selected" ? "selected" : "all") : "none";
     const selectedOutletIds = outletScopeApplicable && outletAccess === "selected" ? (role.selectedOutletIds ?? []) : [];
     const payload = {
-      ...(isSupabaseUuid(role.id) ? { id: role.id } : {}),
+      ...(isSupabaseUuid(role.id) ? { id: role.id, permission_changes: role.permissionChanges ?? [], preserve_outlet_scope: role.preserveOutletScope !== false } : {}),
       name: role.name.trim().toLowerCase().replace(/\s+/g, "_"),
       description: role.description ?? "",
       is_active: role.is_active !== false,
@@ -154,8 +154,8 @@ export const roleService = {
     throwSupabaseError("roles.save_configuration", error);
     const persistedPermissions = data?.permissions;
     if (!Array.isArray(persistedPermissions)
-      || persistedPermissions.length !== permissionCodes.length
-      || persistedPermissions.some((code) => !permissionCodes.includes(code))) {
+      || (!role.id && (persistedPermissions.length !== permissionCodes.length || persistedPermissions.some(code=>!permissionCodes.includes(code))))
+      || (role.permissionChanges ?? []).some(change=>persistedPermissions.includes(change.code)!==change.enabled)) {
       throw new Error("Role permissions were not saved completely. Reload the role before trying again.");
     }
     const savedRole = data?.role ?? data;

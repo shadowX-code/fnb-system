@@ -9,6 +9,8 @@ It does not own Crew passcode/session lifecycle, which belongs to Crew Workforce
 
 HR owns navigation for the existing Employee, Recruitment, Payroll, organization-master and Food Handling Compliance pages. Legal Entities remains one shared master. Contracts and Letters & Notices remain inside their existing employee/document owners. Roles & Permissions remains platform-wide, with a direct entry under HR Settings and the shared profile menu; no HR-specific RBAC authority is introduced. Existing permissions, outlet/entity scope, employee Auth links, RLS and business commands do not change; workspace switching is not an authorization grant. See [platform navigation](../architecture/platform.md#hr-navigation-and-shared-administration).
 
+The Permission Matrix derives its workspace filter and shared permission entries from the module registry. Finance consumes the existing `reports.view` authority; HR Settings exposes the existing platform Roles authority. A shared entry edits the same grant in every workspace and does not create a new permission.
+
 ## Canonical Ownership
 
 Current employee, role, permission, Auth-link, role-configuration, RLS, and audit contracts are authoritative.
@@ -184,3 +186,9 @@ Google Reviews is an explicitly outlet-scoped integration under Crew Performance
 The authorized Team & Brand Access projection displays the canonical Employee nickname when nonblank, falling back to full name. This presentation choice does not change Employee identity keys, Role authority, Brand scope, assignment permissions or member visibility.
 
 External Agent management reuses the same role and permission authority. Its navigation-module grants are independent of human Factory module grants and never create an employee/Auth identity. The canonical role-save guard permits a machine role to retain/remove an existing legacy resource scope, but rejects a newly added legacy scope or unavailable agent module. Hidden legacy permission definitions remain recognizable for saved roles; they are excluded from ordinary permission editing. See [Gateway authorization](../architecture/trusted-authorities.md#factory-navigation-authorization).
+
+## Explicit Role Grant Changes
+
+Role edits submit only explicit permission changes (code, observed prior value, intended value). The trusted save locks the role, compares each touched grant with its observed value, and applies changes to the current server grant set. Hidden, compatibility and outside-registry grants remain intact. Non-overlapping edits merge; conflicting touched grants fail with a reload requirement. Request intent is stored in the existing request ledger for retry-safe read-back. Scope is preserved unless explicitly changed. Legacy snapshot edit requests fail closed; creation still submits its complete initial set. The internal snapshot implementation is not executable by API roles. Audit retains actual before/after grants.
+
+Permission presentation uses `crew_feedback` for Customer Feedback and includes the existing Factory MeSTI Record/Verify actions. Finance shares Reports View and HR exposes shared platform Roles, without new grants or authority ownership changes.

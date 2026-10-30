@@ -30,3 +30,24 @@ it('finds consumer pages through their existing owning permissions',()=>{
  render(<RolePermissionMatrix permissions={new Set()} readOnly/>);fireEvent.change(screen.getByRole('combobox',{name:'Workspace'}),{target:{value:'marketing'}});fireEvent.change(screen.getByPlaceholderText('Search modules or actions…'),{target:{value:'Media Library'}});
  const results=within(screen.getByRole('region',{name:'Marketing permissions'}));expect(results.getByText('Content permissions')).toBeTruthy();expect(results.queryByText('Marketing Workspace')).toBeNull();
 });
+
+it('shows Finance shared Reports authority without creating a finance grant',()=>{
+ const toggle=vi.fn();window.history.replaceState({},'','/?permission_workspace=finance');render(<RolePermissionMatrix permissions={new Set(['reports.view'])} onToggle={toggle}/>);
+ const finance=screen.getByRole('region',{name:'Finance permissions'});
+ expect(within(finance).getByText('Reports')).toBeTruthy();expect(within(finance).getByText(/Shared with Restaurant/)).toBeTruthy();
+ fireEvent.click(within(finance).getByRole('button',{name:'Reports: View Reports'}));expect(toggle.mock.calls[0][2].codes).toEqual(['reports.view']);
+ expect(within(finance).queryByRole('columnheader',{name:'Export'})).toBeNull();
+});
+it('shows shared Roles in HR without duplicating the grant in All',()=>{
+ render(<RolePermissionMatrix permissions={new Set(['roles.view'])} readOnly/>);
+ expect(screen.getAllByText('Roles & Permissions')).toHaveLength(1);
+ fireEvent.change(screen.getByRole('combobox',{name:'Workspace'}),{target:{value:'hr'}});
+ expect(within(screen.getByRole('region',{name:'HR permissions'})).getByText('Roles & Permissions')).toBeTruthy();
+});
+
+it('uses canonical Feedback codes and exposes supported MeSTI record/verify',()=>{
+ const toggle=vi.fn();render(<RolePermissionMatrix permissions={new Set()} onToggle={toggle}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Customer Feedback: View Customer Feedback'}));expect(toggle.mock.calls.at(-1)[2].codes).toEqual(['crew_feedback.view']);
+ expect(screen.getByRole('button',{name:'Waste Disposal Record: Record Waste Disposal Record'})).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Operator Hygiene Inspection: Verify Operator Hygiene Inspection'})).toBeTruthy();
+});

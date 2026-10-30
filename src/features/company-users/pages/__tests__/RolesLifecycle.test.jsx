@@ -183,7 +183,7 @@ describe("Roles current mounted lifecycle", () => {
     fireEvent.click(matrixButtons(false)[0]);
     selectWorkspace("Restaurant");
     expect(screen.getByText("Sales Input")).not.toBeNull();
-    selectWorkspace("Restaurant");
+    selectWorkspace("HR");
     expect(screen.getAllByText("Employees")).toHaveLength(1);
     selectWorkspace("Crew");
     expect(screen.getByText("Onboarding Progress")).not.toBeNull();
