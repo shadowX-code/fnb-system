@@ -31,15 +31,6 @@ export const labelFieldOptions = [
 export function productLabelDraft(data) {
   const config = data.published,
     sku = data.sku || {};
-  const template = data.templates.find(
-    (t) => t.id === (config?.template_id || data.templates[0]?.id),
-  );
-  const staticContent = Object.fromEntries(
-    (template?.definition.elements || []).flatMap((e, i) => {
-      const key = legacyLabelContentField(template.definition.elements, i);
-      return key ? [[key, e.text]] : [];
-    }),
-  );
   return data.draft?.state === "draft"
     ? data.draft.payload
     : {
@@ -58,20 +49,22 @@ export function productLabelDraft(data) {
           ...Object.fromEntries(
             labelContentFields.map(([key]) => [key, sku[key] || ""]),
           ),
-          ...staticContent,
           ...config?.content,
         },
       };
 }
 export function templateLabelDraft(data) {
   return data.draft?.state === "draft"
-    ? data.draft.payload
+    ? {
+        ...data.draft.payload,
+        definition: editableLabelDefinition(data.draft.payload.definition),
+      }
     : {
         name: data.published?.name || "New label template",
         width_mm: data.published?.definition?.width_mm || 80,
         height_mm: data.published?.definition?.height_mm || 90,
         definition: data.published?.definition
-          ? data.published.definition
+          ? editableLabelDefinition(data.published.definition)
           : {
               elements: [
                 {
@@ -139,4 +132,64 @@ export function moveLabelElement(
         x: round(Math.max(0, Math.min(width - element.w, element.x + dx))),
         y: round(Math.max(0, Math.min(height - element.h, element.y + dy))),
       };
+}
+
+export function editableLabelDefinition(definition) {
+  return {
+    ...definition,
+    elements: definition.elements.map((element, index) => {
+      const field = legacyLabelContentField(definition, index);
+      if (!field) return element;
+      const { text, ...layout } = element;
+      return { ...layout, field };
+    }),
+  };
+}
+export function labelElementName(element, index = 0, elements = []) {
+  const field = element.field;
+  if (field)
+    return (
+      labelFieldOptions
+        .find((option) => option.value === field)
+        ?.label.replace(" — from Production", "") || field
+    );
+  return (
+    element.text?.trim().replace(/\n/g, " ").slice(0, 45) ||
+    {
+      rect: "Border",
+      line: "Divider line",
+      image: "Image",
+      qr: "QR code",
+      barcode: "Barcode",
+      text: "Static text",
+    }[element.type]
+  );
+}
+export function labelElementSource(element) {
+  return !element.field
+    ? "static"
+    : productionLabelFields.includes(element.field)
+      ? "production"
+      : "sku";
+}
+export function reorderLabelElement(definition, index, destination) {
+  const elements = [...definition.elements];
+  if (destination < 0 || destination >= elements.length) return definition;
+  const [element] = elements.splice(index, 1);
+  elements.splice(destination, 0, element);
+  return { ...definition, elements };
+}
+export function labelContentWarnings(payload, definition) {
+  const fields = new Set(
+    definition.elements.map(
+      (element, index) =>
+        element.field || legacyLabelContentField(definition, index),
+    ),
+  );
+  return labelContentFields
+    .filter(([key]) => fields.has(key) && !payload.content?.[key]?.trim())
+    .map(
+      ([, label]) =>
+        `${label} is empty for this SKU. Template sample content is not used.`,
+    );
 }

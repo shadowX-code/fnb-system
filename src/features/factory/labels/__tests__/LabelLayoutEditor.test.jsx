@@ -2,6 +2,10 @@ import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import LabelLayoutEditor from "../LabelLayoutEditor.jsx";
+global.ResizeObserver = class {
+  observe() {}
+  disconnect() {}
+};
 afterEach(cleanup);
 it("can replace a dynamic field with shared static text without retaining its binding", () => {
   let value;
@@ -25,7 +29,7 @@ it("can replace a dynamic field with shared static text without retaining its bi
   fireEvent.click(
     screen.getByText("Content source").closest("label").querySelector("button"),
   );
-  fireEvent.click(screen.getByRole("option", { name: "Shared static text" }));
+  fireEvent.click(screen.getByRole("option", { name: "Static Text" }));
   expect(screen.getByLabelText("Shared template text").value).toBe("New text");
   expect(value.elements[0]).not.toHaveProperty("field");
 });
@@ -47,6 +51,57 @@ it("moves elements by keyboard and supports adding and removing text", () => {
     key: "ArrowRight",
   });
   expect(change.mock.calls[0][0].elements[0].x).toBe(5.5);
-  fireEvent.click(screen.getByRole("button", { name: "Text", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: /Add Element/ }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Text", exact: true }));
   expect(change.mock.calls[1][0].elements).toHaveLength(2);
+});
+
+it("orders layers without mutating the published definition", () => {
+  const definition = {
+    elements: [
+      { type: "rect", x: 1, y: 1, w: 20, h: 20 },
+      { type: "text", field: "ingredients", x: 2, y: 2, w: 16, h: 10, size: 3 },
+    ],
+  };
+  const change = vi.fn();
+  render(
+    <LabelLayoutEditor
+      definition={definition}
+      width={80}
+      height={90}
+      onChange={change}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Layer 2: Ingredients" }));
+  fireEvent.click(screen.getByRole("button", { name: "Send backward" }));
+  expect(change.mock.calls[0][0].elements[0].field).toBe("ingredients");
+  expect(definition.elements[0].type).toBe("rect");
+});
+it("shows source-specific fields and retains zoom as view state only", () => {
+  const change = vi.fn();
+  render(
+    <LabelLayoutEditor
+      definition={{
+        elements: [
+          {
+            type: "text",
+            field: "batch_no",
+            x: 5,
+            y: 5,
+            w: 30,
+            h: 10,
+            size: 3,
+          },
+        ],
+      }}
+      width={80}
+      height={90}
+      onChange={change}
+    />,
+  );
+  expect(screen.getByText("Production field")).toBeTruthy();
+  expect(screen.queryByLabelText("Shared template text")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+  expect(change).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("Canvas zoom").textContent).toBe("85%");
 });

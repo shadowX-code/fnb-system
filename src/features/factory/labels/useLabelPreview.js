@@ -5,20 +5,38 @@ export default function useLabelPreview(snapshot) {
     image: null,
     error: "",
     loading: true,
+    issues: [],
   });
   const key = JSON.stringify(snapshot);
   useEffect(() => {
     let active = true;
-    setResult({ image: null, error: "", loading: true });
+    setResult((previous) => ({
+      ...previous,
+      error: "",
+      loading: true,
+      issues: [],
+    }));
     const timer = setTimeout(() => {
-      renderLabel(snapshot)
+      renderLabel(snapshot, { diagnostics: true })
         .then((rendered) => {
           if (active)
-            setResult({ image: rendered.preview, error: "", loading: false });
+            setResult({
+              image: rendered.preview,
+              issues: rendered.issues,
+              error:
+                rendered.issues.find((issue) => issue.severity === "error")
+                  ?.message || "",
+              loading: false,
+            });
         })
         .catch((error) => {
           if (active)
-            setResult({ image: null, error: error.message, loading: false });
+            setResult({
+              image: null,
+              error: error.message,
+              loading: false,
+              issues: [],
+            });
         });
     }, 150);
     return () => {

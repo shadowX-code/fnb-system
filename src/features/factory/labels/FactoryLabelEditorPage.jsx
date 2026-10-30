@@ -2,20 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Save, CheckCircle2 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
-import SearchableSelect from "../components/SearchableSelect.jsx";
 import { factoryLabelService } from "../../../services/factoryLabelService.js";
 import {
-  labelContentFields,
   labelPreviewSnapshot,
   productLabelDraft,
   templateLabelDraft,
-  productionLabelFields,
 } from "./labelManagementModel.js";
 import LabelLayoutEditor from "./LabelLayoutEditor.jsx";
 import useLabelPreview from "./useLabelPreview.js";
 import { openLabelManagement } from "./labelManagementNavigation.js";
 import { formatFactoryDate } from "../utils/factoryDates.js";
-import { legacyLabelContentField } from "./labelRenderer.js";
+import ProductLabelContent from "./ProductLabelContent.jsx";
+import LabelStudioCanvas from "./LabelStudioCanvas.jsx";
+import FactorySegmentedControl from "../components/FactorySegmentedControl.jsx";
+import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
+import { LockKeyhole, History } from "lucide-react";
 import "./labelManagement.css";
 
 export default function FactoryLabelEditorPage({
@@ -33,8 +34,10 @@ export default function FactoryLabelEditorPage({
     [review, setReview] = useState(false),
     [approval, setApproval] = useState(false),
     [note, setNote] = useState(""),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [tab, setTab] = useState("content");
   const saved = useRef(""),
+    reviewHeading = useRef(null),
     lock = useRef(false),
     request = useRef(null),
     publication = useRef(null);
@@ -79,6 +82,15 @@ export default function FactoryLabelEditorPage({
   }, [kind, entityKey]);
   const dirty = payload && JSON.stringify(payload) !== saved.current;
   useEffect(() => {
+    if (review) {
+      reviewHeading.current?.scrollIntoView?.({
+        block: "start",
+        behavior: "smooth",
+      });
+      reviewHeading.current?.focus();
+    }
+  }, [review]);
+  useEffect(() => {
     const guard = (e) => {
       if (dirty) {
         e.preventDefault();
@@ -96,7 +108,23 @@ export default function FactoryLabelEditorPage({
     kind === "product" ? template?.definition : payload?.definition;
   const preview = useLabelPreview(
     payload && definition
-      ? labelPreviewSnapshot(payload, definition, data?.sku)
+      ? labelPreviewSnapshot(
+          kind === "template"
+            ? {
+                ...payload,
+                content: {
+                  product_name: "Product name",
+                  product_name_cn: "中文名称",
+                  product_name_bm: "Nama produk",
+                  ingredients: "Ingredients from SKU",
+                  manufacturer_name: "Manufacturer from SKU",
+                  manufacturer_address: "Address from SKU",
+                },
+              }
+            : payload,
+          definition,
+          data?.sku,
+        )
       : { width_mm: 80, height_mm: 90, definition: { elements: [] } },
   );
   const update = (key, value) => {
@@ -186,8 +214,7 @@ export default function FactoryLabelEditorPage({
     }
   }
   const disabled = busy || !canEdit || review;
-  const heading =
-    kind === "product" ? "Product Label Editor" : "Template Editor";
+  const heading = "Label Studio";
   if (!payload)
     return (
       <div className="space-y-4">
@@ -214,13 +241,37 @@ export default function FactoryLabelEditorPage({
       </div>
     );
   return (
-    <div className="space-y-5">
+    <div className="label-studio">
       <PageHeader
         title={heading}
+        wrapTitle
+        metadata={
+          <>
+            <FactoryStatusBadge
+              status={
+                draft?.state === "draft" || dirty
+                  ? "Draft"
+                  : data.published
+                    ? "Published"
+                    : "Not configured"
+              }
+            />
+            <span>Published v{data.published?.version || "—"}</span>
+            <span aria-live="polite">
+              {busy
+                ? "Saving…"
+                : dirty
+                  ? "Unsaved changes"
+                  : draft?.state === "draft"
+                    ? `Draft saved · revision ${draft.revision}`
+                    : "No unsaved edits"}
+            </span>
+          </>
+        }
         description={
           kind === "product"
             ? `${data.sku.product_code || ""} · ${data.sku.product_name}`
-            : payload.name
+            : `Template · ${payload.name}`
         }
         actions={
           <div className="flex flex-wrap gap-2">
@@ -257,20 +308,6 @@ export default function FactoryLabelEditorPage({
           </div>
         }
       />
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <strong>
-          {draft?.state === "draft" || dirty
-            ? "Draft"
-            : data.published
-              ? "Approved"
-              : "Not configured"}
-        </strong>
-        <span className="text-text-secondary">
-          Approved version: {data.published?.version || "None"}
-          {draft?.revision ? ` · Draft revision ${draft.revision}` : ""}
-          {dirty ? " · Unsaved changes" : ""}
-        </span>
-      </div>
       {error && (
         <p role="alert" className="text-sm text-text-primary">
           {error}
@@ -282,264 +319,165 @@ export default function FactoryLabelEditorPage({
         </p>
       )}
       {kind === "product" ? (
-        <div className="label-editor-grid">
-          <div className="space-y-5">
-            <div className="space-y-3">
-              <h2 className="font-semibold text-text-primary">
-                SKU label content
-              </h2>
-              <p className="text-sm text-text-secondary">
-                These approved label values apply only to this Packaging SKU.
-                The product master remains the source of its identity.
-              </p>
-              <Field label="Approved template version">
-                <SearchableSelect
-                  value={payload.template_id}
-                  disabled={disabled}
-                  options={data.templates.map((t) => ({
-                    value: t.id,
-                    label: `${t.name} · v${t.version}`,
-                  }))}
-                  onChange={(id) => {
-                    const next = data.templates.find((t) => t.id === id);
-                    setPayload((p) => ({
-                      ...p,
-                      template_id: id,
-                      width_mm: next?.definition.width_mm || p.width_mm,
-                      height_mm: next?.definition.height_mm || p.height_mm,
-                      content: { ...p.content, text_overrides: {} },
-                    }));
-                    setApproval(false);
-                    request.current = null;
-                  }}
-                />
-              </Field>
-              <p className="text-sm text-text-secondary">
-                Template assignments are pinned. Publishing a shared template
-                does not upgrade this product automatically.
-              </p>
-              {template && (
-                <button
-                  className="btn-secondary"
-                  type="button"
-                  disabled={busy || dirty}
-                  onClick={() =>
-                    openLabelManagement({
-                      section: "templates",
-                      template: template.template_key,
-                    })
-                  }
-                >
-                  Open Shared Template
-                </button>
-              )}
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {labelContentFields.map(([key, label]) => (
-                <Field key={key} label={label}>
-                  <textarea
-                    aria-label={label}
-                    className={inputClass()}
-                    disabled={disabled}
-                    required={key === "product_name"}
-                    value={payload.content?.[key] || ""}
-                    onChange={(e) => updateContent(key, e.target.value)}
-                    maxLength={3900}
-                  />
-                </Field>
-              ))}
-              <Field label="Net weight">
-                <input
-                  aria-label="Net weight"
-                  className={inputClass()}
-                  disabled={disabled}
-                  value={payload.net_weight}
-                  onChange={(e) => update("net_weight", e.target.value)}
-                />
-              </Field>
-              <Field label="Storage instructions">
-                <textarea
-                  aria-label="Storage instructions"
-                  className={inputClass()}
-                  disabled={disabled}
-                  value={payload.storage_instructions}
-                  onChange={(e) =>
-                    update("storage_instructions", e.target.value)
-                  }
-                />
-              </Field>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {[
-                ["width_mm", "Width (mm)"],
-                ["height_mm", "Height (mm)"],
-                ["shelf_life_days", "Approved shelf life (days)"],
-              ].map(([key, label]) => (
-                <Field key={key} label={label}>
-                  <input
-                    aria-label={label}
-                    type="number"
-                    min="1"
-                    step={key === "shelf_life_days" ? "1" : "0.1"}
-                    className={inputClass()}
-                    disabled={disabled}
-                    value={payload[key] ?? ""}
-                    onChange={(e) =>
-                      update(
-                        key,
-                        e.target.value === "" ? "" : Number(e.target.value),
-                      )
-                    }
-                  />
-                </Field>
-              ))}
-              <Field label="When recorded expiry is missing">
-                <SearchableSelect
-                  value={payload.expiry_rule}
-                  disabled={disabled}
-                  options={[
-                    {
-                      value: "production",
-                      label: "Require confirmed Production expiry",
-                    },
-                    {
-                      value: "days_after",
-                      label: "Manufacturing date + shelf life",
-                    },
-                    {
-                      value: "inclusive_days",
-                      label: "Manufacturing date + shelf life − 1 day",
-                    },
-                  ]}
-                  onChange={(value) => update("expiry_rule", value)}
-                />
-              </Field>
-            </div>
-            {definition?.elements.some(
-              (e) => e.type === "text" && !e.field,
-            ) && (
-              <details className="space-y-3" open>
-                <summary className="cursor-pointer font-semibold">
-                  Additional static text — this SKU only
-                </summary>
-                <p className="text-sm text-text-secondary">
-                  Overrides are tied to this exact template version. Assigning
-                  another template resets them.
-                </p>
-                {definition.elements.map((e, i) =>
-                  e.type === "text" &&
-                  !e.field &&
-                  !legacyLabelContentField(definition.elements, i) ? (
-                    <Field
-                      key={i}
-                      label={`Text ${i + 1}: ${(e.text || "").slice(0, 55)}`}
-                    >
-                      <textarea
-                        aria-label={`SKU static text ${i + 1}`}
-                        className={inputClass()}
-                        disabled={disabled}
-                        value={
-                          payload.content?.text_overrides?.[i] ?? e.text ?? ""
-                        }
-                        onChange={(event) =>
-                          updateContent("text_overrides", {
-                            ...payload.content?.text_overrides,
-                            [i]: event.target.value,
-                          })
-                        }
-                      />
-                    </Field>
-                  ) : null,
-                )}
-              </details>
-            )}
-          </div>
-          <div className="label-preview-panel space-y-4">
-            <h2 className="font-semibold">Live label preview</h2>
-            {preview.image && (
-              <img
-                className="mx-auto h-auto w-full max-w-80 border border-border bg-white"
-                src={preview.image}
-                alt="Product label live preview"
+        <div className="label-studio-product-grid">
+          <div className="label-studio-product-content">
+            <FactorySegmentedControl
+              label="Product label sections"
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: "content", label: "Product Content" },
+                { value: "production", label: "Production Fields" },
+                { value: "history", label: "Version History" },
+              ]}
+            />
+            {tab === "content" && (
+              <ProductLabelContent
+                payload={payload}
+                data={data}
+                template={template}
+                definition={definition}
+                disabled={disabled}
+                dirty={dirty}
+                update={update}
+                updateContent={updateContent}
+                onAssign={(id) => {
+                  const next = data.templates.find((t) => t.id === id);
+                  update("template_id", id);
+                  setPayload((p) => ({
+                    ...p,
+                    template_id: id,
+                    width_mm: next?.definition.width_mm || p.width_mm,
+                    height_mm: next?.definition.height_mm || p.height_mm,
+                    content: { ...p.content, text_overrides: {} },
+                  }));
+                }}
               />
             )}
-            {preview.loading && <p role="status">Rendering preview…</p>}
-            {preview.error && <p role="alert">{preview.error}</p>}
-            <p className="text-sm text-text-secondary">
-              {payload.width_mm} × {payload.height_mm} mm · 203 DPI. MFG, EXP,
-              Batch No. and actual packaged units are read-only Production
-              fields. Preview placeholders are replaced only by the operational
-              print workflow.
-            </p>
-            <div className="space-y-1 text-sm">
-              {productionLabelFields.map((field) => (
-                <div key={field} className="flex justify-between gap-2">
+            {tab === "production" && (
+              <section className="label-studio-form-section">
+                <div className="label-studio-section-heading">
+                  <h2>Production fields</h2>
                   <span>
-                    {
-                      {
-                        manufacturing_date: "MFG",
-                        expiry_date: "EXP",
-                        batch_no: "Batch No.",
-                        packaged_units: "Actual packaged units",
-                      }[field]
-                    }
+                    <LockKeyhole size={14} /> Read-only
                   </span>
-                  <strong>From Production</strong>
                 </div>
-              ))}
-            </div>
+                <p className="label-studio-hint">
+                  Resolved from the completed Production batch in Job Order →
+                  Print Labels. No dates, batch references or quantities can be
+                  entered here.
+                </p>
+                <dl className="label-studio-production-fields">
+                  {[
+                    ["MFG", "Manufacturing date"],
+                    ["EXP", "Expiry date"],
+                    ["Batch No.", "Production batch reference"],
+                    ["Actual packaged units", "Confirmed packaged quantity"],
+                  ].map(([name, description]) => (
+                    <div key={name}>
+                      <dt>
+                        <strong>{name}</strong>
+                        <span>{description}</span>
+                      </dt>
+                      <dd>
+                        <LockKeyhole size={13} /> From Production
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className="label-studio-hint">
+                  Recorded Production expiry takes priority over approved
+                  fallback rules. Printing uses confirmed units, never estimated
+                  output.
+                </p>
+              </section>
+            )}
+            {tab === "history" && versionHistory(data)}
+          </div>
+          <div className="label-studio-product-preview">
+            <LabelStudioCanvas
+              width={Number(payload.width_mm)}
+              height={Number(payload.height_mm)}
+              image={preview.image}
+              loading={preview.loading}
+              error={preview.error}
+              issues={preview.issues}
+              elements={definition?.elements}
+              title="Live label preview"
+            />
+            <p className="label-studio-hint">
+              <LockKeyhole size={13} /> MFG, EXP, batch and quantities come from
+              Production at print time.
+            </p>
           </div>
         </div>
       ) : (
-        <div className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Template name">
-              <input
-                aria-label="Template name"
-                className={inputClass()}
-                disabled={disabled}
-                value={payload.name}
-                onChange={(e) => update("name", e.target.value)}
-              />
-            </Field>
-            {[
-              ["width_mm", "Width (mm)"],
-              ["height_mm", "Height (mm)"],
-            ].map(([key, label]) => (
-              <Field key={key} label={label}>
-                <input
-                  aria-label={label}
-                  type="number"
-                  min="20"
-                  step="0.1"
-                  className={inputClass()}
-                  disabled={disabled}
-                  value={payload[key]}
-                  onChange={(e) => update(key, Number(e.target.value))}
-                />
-              </Field>
-            ))}
-          </div>
-          <p className="text-sm text-text-secondary">
-            Shared layouts define positions, typography, borders and images.
-            Bind product text to SKU content fields; Production fields accept no
-            entered values. Publishing creates a new template version and
-            preserves existing product assignments.
-          </p>
+        <>
           <LabelLayoutEditor
             definition={payload.definition}
             width={Number(payload.width_mm)}
             height={Number(payload.height_mm)}
             image={preview.image}
             error={preview.error}
+            issues={preview.issues}
+            loading={preview.loading}
             onChange={(value) => update("definition", value)}
             disabled={disabled}
+            configuration={
+              <details className="label-studio-template-settings">
+                <summary>
+                  Template settings{" "}
+                  <span>
+                    {payload.width_mm} × {payload.height_mm} mm
+                  </span>
+                </summary>
+                <Field label="Template name">
+                  <input
+                    aria-label="Template name"
+                    className={inputClass()}
+                    disabled={disabled}
+                    value={payload.name}
+                    onChange={(e) => update("name", e.target.value)}
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    ["width_mm", "Label width (mm)"],
+                    ["height_mm", "Label height (mm)"],
+                  ].map(([key, label]) => (
+                    <Field key={key} label={label}>
+                      <input
+                        aria-label={label}
+                        type="number"
+                        min="20"
+                        step="0.1"
+                        className={inputClass()}
+                        disabled={disabled}
+                        value={payload[key]}
+                        onChange={(e) => update(key, Number(e.target.value))}
+                      />
+                    </Field>
+                  ))}
+                </div>
+                <p className="label-studio-hint">
+                  Editing the next version. Published layouts and product
+                  assignments stay pinned.
+                </p>
+              </details>
+            }
           />
-        </div>
+          <details className="label-studio-history">
+            <summary>
+              <History size={14} /> Version History{" "}
+              <span>{data.history.length} versions</span>
+            </summary>
+            {versionHistory(data)}
+          </details>
+        </>
       )}
       {review && (
         <div className="space-y-4 rounded-xl border border-border p-5">
-          <h2 className="font-semibold">
+          <h2 ref={reviewHeading} tabIndex={-1} className="font-semibold">
             Approve and publish version {(data.published?.version || 0) + 1}
           </h2>
           <p className="text-sm text-text-secondary">
@@ -601,26 +539,31 @@ export default function FactoryLabelEditorPage({
           </div>
         </div>
       )}
-      <details className="border-t border-border pt-4">
-        <summary className="cursor-pointer font-semibold">
-          Approved version history
-        </summary>
-        <p className="mt-2 text-sm text-text-secondary">
-          Latest 20 immutable versions
-        </p>
-        {data.history.map((h) => (
-          <div key={h.id} className="border-b border-border py-3 text-sm">
-            <strong>Version {h.version}</strong> ·{" "}
-            {formatFactoryDate(h.created_at)}
-            {h.approval_note ? <p>{h.approval_note}</p> : null}
-          </div>
-        ))}
-        {!data.history.length && (
-          <p className="py-3 text-sm text-text-secondary">
-            No approved versions yet.
-          </p>
-        )}
-      </details>
     </div>
+  );
+}
+
+function versionHistory(data) {
+  return (
+    <section className="label-studio-form-section">
+      <div className="label-studio-section-heading">
+        <h2>Published versions</h2>
+        <span>Latest 20 · immutable</span>
+      </div>
+      <p className="label-studio-hint">
+        Historical batches keep their approved content, template version and
+        saved print pixels.
+      </p>
+      {data.history.map((h) => (
+        <div key={h.id} className="label-studio-history-row">
+          <strong>Version {h.version}</strong>
+          <span>{formatFactoryDate(h.created_at)}</span>
+          {h.approval_note && <p>{h.approval_note}</p>}
+        </div>
+      ))}
+      {!data.history.length && (
+        <p className="label-studio-hint">No published versions yet.</p>
+      )}
+    </section>
   );
 }

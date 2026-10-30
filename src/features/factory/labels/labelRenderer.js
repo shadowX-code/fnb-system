@@ -1,6 +1,17 @@
 import QRCode from "qrcode";
 
-export function legacyLabelContentField(elements, index) {
+export function legacyLabelContentField(definition, index) {
+  if (!definition.reference_note?.includes("Labelife S08 screenshot"))
+    return null;
+  const elements = definition.elements;
+  if (
+    elements.some((e) =>
+      ["ingredients", "manufacturer_name", "manufacturer_address"].includes(
+        e.field,
+      ),
+    )
+  )
+    return null;
   if (elements[index]?.type !== "text" || elements[index]?.field) return null;
   const previous = elements[index - 1]?.text?.trim();
   if (previous === "Ingredients:") return "ingredients";
@@ -172,7 +183,45 @@ const loadImage = (src) =>
   });
 
 // A single frozen bitmap drives preview and both Windows transports; no printer fonts are assumed.
-export async function renderLabel(snapshot) {
+export function labelText(snapshot, index) {
+  const e = snapshot.definition.elements[index];
+  const bound = legacyLabelContentField(snapshot.definition, index);
+  const value = e.field
+    ? snapshot[e.field]
+    : (snapshot.content?.text_overrides?.[String(index)] ??
+      (bound ? snapshot.content?.[bound] : undefined) ??
+      e.text);
+  const formatted =
+    e.date_format === "dd/MM/yyyy" && /^\d{4}-\d{2}-\d{2}$/.test(value || "")
+      ? value.split("-").reverse().join("/")
+      : value;
+  return `${e.prefix || ""}${formatted ?? ""}${e.suffix || ""}`;
+}
+export function layoutLabelText(ctx, text, element) {
+  const lines = [];
+  let line = "",
+    tooWide = false;
+  for (const char of text) {
+    if (char === "\n") {
+      lines.push(line);
+      line = "";
+      continue;
+    }
+    if (ctx.measureText(char).width > element.w) tooWide = true;
+    if (ctx.measureText(line + char).width > element.w) {
+      if (line) lines.push(line);
+      line = char;
+    } else line += char;
+  }
+  if (line) lines.push(line);
+  const lineHeight = element.size * 1.25;
+  return {
+    lines,
+    lineHeight,
+    overflow: tooWide || lines.length * lineHeight > element.h,
+  };
+}
+export async function renderLabel(snapshot, { diagnostics = false } = {}) {
   const { width_mm: wm, height_mm: hm } = snapshot;
   validateDefinition(snapshot.definition, Number(wm), Number(hm));
   await document.fonts.ready;
@@ -186,18 +235,18 @@ export async function renderLabel(snapshot) {
   ctx.scale(scale, scale);
   ctx.fillStyle = "#000";
   ctx.imageSmoothingEnabled = false;
+  const issues = [];
   for (const [index, e] of snapshot.definition.elements.entries()) {
-    const bound = legacyLabelContentField(snapshot.definition.elements, index);
-    const value = e.field
-      ? snapshot[e.field]
-      : (snapshot.content?.text_overrides?.[String(index)] ??
-        (bound ? snapshot.content?.[bound] : undefined) ??
-        e.text);
-    const formatted =
-      e.date_format === "dd/MM/yyyy" && /^\d{4}-\d{2}-\d{2}$/.test(value || "")
-        ? value.split("-").reverse().join("/")
-        : value;
-    const text = `${e.prefix || ""}${formatted ?? ""}${e.suffix || ""}`;
+    const text = labelText(snapshot, index);
+    if (
+      diagnostics &&
+      (e.x < 2 || e.y < 2 || e.x + e.w > wm - 2 || e.y + e.h > hm - 2)
+    )
+      issues.push({
+        index,
+        severity: "warning",
+        message: "Within 2 mm of the label edge. Verify printer calibration.",
+      });
     if (e.type === "rect" || e.type === "line") {
       ctx.lineWidth = e.stroke || 0.25;
       ctx.strokeStyle = "#000";
@@ -213,26 +262,20 @@ export async function renderLabel(snapshot) {
       ctx.font = `${e.bold ? "700" : "400"} ${e.size}px Arial, "Microsoft YaHei", "PingFang SC", sans-serif`;
       ctx.textBaseline = "top";
       ctx.textAlign = e.align || "left";
-      const lines = [];
-      let line = "";
-      for (const char of text) {
-        if (char === "\n") {
-          lines.push(line);
-          line = "";
-          continue;
-        }
-        if (ctx.measureText(line + char).width > e.w) {
-          if (!line) throw new Error("Text is too large for its label field.");
-          lines.push(line);
-          line = char;
-        } else line += char;
+      const { lines, lineHeight: lh, overflow } = layoutLabelText(ctx, text, e);
+      if (overflow) {
+        const message =
+          "Text exceeds its field. Shorten the content or resize the field; font size is unchanged.";
+        if (!diagnostics)
+          throw new Error(
+            `Label text does not fit: ${e.field || "custom text"}. Adjust the template before printing.`,
+          );
+        issues.push({ index, severity: "error", message });
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(e.x, e.y, e.w, e.h);
+        ctx.clip();
       }
-      if (line) lines.push(line);
-      const lh = e.size * 1.25;
-      if (lines.length * lh > e.h)
-        throw new Error(
-          `Label text does not fit: ${e.field || "custom text"}. Adjust the template before printing.`,
-        );
       lines.forEach((l, i) =>
         ctx.fillText(
           l,
@@ -241,6 +284,7 @@ export async function renderLabel(snapshot) {
           e.y + i * lh,
         ),
       );
+      if (overflow) ctx.restore();
     } else if (e.type === "image") {
       const image = await loadImage(e.src);
       const ratio = Math.min(e.w / image.width, e.h / image.height);
@@ -306,13 +350,16 @@ export async function renderLabel(snapshot) {
     binary += String.fromCharCode(byte);
   });
   return {
+    issues,
     preview: canvas.toDataURL("image/png"),
-    raster: {
-      format: "mono1",
-      width: canvas.width,
-      height: canvas.height,
-      data: btoa(binary),
-    },
+    raster: issues.some((issue) => issue.severity === "error")
+      ? null
+      : {
+          format: "mono1",
+          width: canvas.width,
+          height: canvas.height,
+          data: btoa(binary),
+        },
   };
 }
 

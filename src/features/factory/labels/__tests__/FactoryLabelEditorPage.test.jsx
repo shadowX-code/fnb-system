@@ -6,6 +6,10 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+global.ResizeObserver = class {
+  observe() {}
+  disconnect() {}
+};
 import FactoryLabelEditorPage from "../FactoryLabelEditorPage.jsx";
 import { factoryLabelService } from "../../../../services/factoryLabelService.js";
 vi.mock("../../../../services/factoryLabelService.js", () => ({
@@ -72,7 +76,7 @@ describe("dedicated Factory Label Editor", () => {
         onBack={() => {}}
       />,
     );
-    await screen.findByRole("heading", { name: "Product Label Editor" });
+    await screen.findByRole("heading", { name: "Label Studio" });
     fireEvent.change(screen.getByLabelText("English name"), {
       target: { value: "Approved label name" },
     });
@@ -130,7 +134,7 @@ describe("dedicated Factory Label Editor", () => {
     expect(factoryLabelService.saveDraft).toHaveBeenCalledTimes(1);
     expect(factoryLabelService.publish).not.toHaveBeenCalled();
     finish({ id: "draft", revision: 1, state: "draft" });
-    await screen.findByText(/Draft saved/);
+    await screen.findByRole("status");
   });
   it("exposes an inspectable read-only editor without mutation actions", async () => {
     render(
@@ -145,4 +149,24 @@ describe("dedicated Factory Label Editor", () => {
     expect(screen.getByLabelText("English name").disabled).toBe(true);
     expect(screen.queryByRole("button", { name: "Save Draft" })).toBeNull();
   });
+});
+
+it("separates Production and history from editable SKU content while keeping the preview mounted", async () => {
+  render(
+    <FactoryLabelEditorPage
+      kind="product"
+      entityKey="sku"
+      canEdit
+      onBack={() => {}}
+    />,
+  );
+  await screen.findByLabelText("English name");
+  fireEvent.click(screen.getByRole("tab", { name: "Production Fields" }));
+  expect(screen.queryByLabelText("English name")).toBeNull();
+  expect(screen.getAllByText("From Production")).toHaveLength(4);
+  expect(
+    screen.getByRole("img", { name: "Product label live preview" }),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Version History" }));
+  expect(screen.getByText("No published versions yet.")).toBeTruthy();
 });
