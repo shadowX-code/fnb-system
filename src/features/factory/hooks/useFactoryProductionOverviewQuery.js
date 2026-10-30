@@ -36,5 +36,5 @@ export default function useFactoryProductionOverviewQuery({ route, can, permissi
     return () => { requestRef.current += 1; controllerRef.current?.abort(); };
   }, [load, refreshKey]);
 
-  return { ...state, retry: load };
+  return { ...state, retry: load, refreshKey };
 }

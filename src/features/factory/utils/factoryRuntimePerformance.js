@@ -61,6 +61,7 @@ export async function traceFactoryRequest(name, execute, { kind = "service" } = 
   const startedAt = timestamp();
   const route = activeRoute || "unknown";
   const prior = [...(store()?.entries || [])].reverse().find((entry) => entry.type === "request" && entry.route === route && entry.name === name && entry.kind === kind);
+  if (kind === "supabase") recordFactoryPerformance({ type: "request-start", route, name, kind, at: Date.now() });
   try {
     const result = await execute();
     const durationMs = Math.round(timestamp() - startedAt);
@@ -109,9 +110,13 @@ export async function factoryDiagnosticFetch(input, init) {
   const endpoint = url.pathname.match(/^\/rest\/v1\/(?:rpc\/)?(factory_[a-z0-9_]+)$/)?.[1];
   if (!endpoint) return execute();
   const id = ++transportSequence;
+  const clientRequestId = `ft-${crypto.randomUUID()}`;
+  const headers = new Headers(init?.headers);
+  headers.set("x-client-info", `${headers.get("x-client-info") || "supabase-js"} ${clientRequestId}`);
+  init = { ...init, headers };
   const started = timestamp();
   const route = activeRoute;
-  const add = (stage, extra = {}) => recordFactoryPerformance({ type: "transport", id, route, endpoint, stage, elapsedMs: Math.round(timestamp() - started), at: Date.now(), ...extra });
+  const add = (stage, extra = {}) => recordFactoryPerformance({ type: "transport", id, clientRequestId, route, endpoint, stage, elapsedMs: Math.round(timestamp() - started), at: Date.now(), ...extra });
   const fingerprint = `${init?.method || "GET"}:${url.href}:${init?.body || ""}`;
   const duplicateInFlight = pendingTransports.has(fingerprint);
   pendingTransports.add(fingerprint);
@@ -133,4 +138,20 @@ export async function factoryDiagnosticFetch(input, init) {
     };
     return response;
   } catch (error) { pendingTransports.delete(fingerprint); add("fetch-failed", { cancelled: init?.signal?.aborted || false }); throw error; }
+}
+
+export function observeFactoryResources() {
+  if (!isFactoryTraceEnabled() || typeof PerformanceObserver === "undefined") return () => {};
+  const resources = new PerformanceObserver(list => {
+    for (const entry of list.getEntries()) {
+      const path = new URL(entry.name).pathname;
+      const endpoint = path.match(/^\/rest\/v1\/(?:rpc\/)?(factory_[a-z0-9_]+)$/)?.[1]
+        || (path.startsWith("/auth/v1/") ? "auth" : path.startsWith("/assets/") ? "app-asset" : null);
+      if (!endpoint) continue;
+      const exposed = entry.responseStart > 0;
+      recordFactoryPerformance({ type: "resource", route: activeRoute, endpoint, startMs: Math.round(entry.startTime), durationMs: Math.round(entry.duration), waitMs: exposed ? Math.round(entry.responseStart - entry.requestStart) : null, downloadMs: exposed ? Math.round(entry.responseEnd - entry.responseStart) : null, transferBytes: exposed ? entry.transferSize : null, decodedBytes: exposed ? entry.decodedBodySize : null, timingExposed: exposed, at: Date.now() });
+    }
+  });
+  resources.observe({ type: "resource", buffered: true });
+  return () => resources.disconnect();
 }

@@ -21,6 +21,7 @@ export function groupedProductionSops(sops) {
 }
 
 export function productionSopStructure(sop) {
+  if (sop?.detail_complete === false && sop.list_summary) return sop.list_summary;
   const steps = Array.isArray(sop?.steps) ? sop.steps : [];
   return {
     stepCount: steps.length,

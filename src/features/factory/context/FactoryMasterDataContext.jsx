@@ -17,6 +17,7 @@ export function FactoryMasterDataProvider({ data, children }) {
       productFamilies: data?.productFamilies || [],
       recipes: data?.recipes || [],
       sops: data?.sops || [],
+      sopDetailsDeferred: data?.sopDetailsDeferred === true,
       qcChecklistTemplates: data?.qcChecklistTemplates || [],
       receivings: data?.receivings || [],
       productions: data?.productions || [],

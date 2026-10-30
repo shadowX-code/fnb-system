@@ -125,6 +125,7 @@ export function sopStepEstimatedMinutes(step) {
 }
 
 export function sopTotalEstimatedMinutes(sop) {
+  if (sop?.detail_complete === false && sop.list_summary) return sop.list_summary.estimatedMinutes;
   const steps = Array.isArray(sop?.steps) ? sop.steps : [];
   if (steps.length) return steps.reduce((sum, step) => sum + sopStepEstimatedMinutes(step), 0);
   const minutes = Number(sop?.estimated_minutes || 0);

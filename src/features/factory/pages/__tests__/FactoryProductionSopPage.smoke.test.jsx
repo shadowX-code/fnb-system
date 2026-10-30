@@ -1,9 +1,12 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import FactoryProductionSopPage from "../FactoryProductionSopPage.jsx";
 import { FactoryMasterDataProvider } from "../../context/FactoryMasterDataContext.jsx";
 import { FactoryNavigationProvider } from "../../context/FactoryNavigationContext.jsx";
 import { FactoryPermissionsProvider } from "../../context/FactoryPermissionsContext.jsx";
+
+const service = vi.hoisted(() => ({ listFactoryData: vi.fn() }));
+vi.mock("../../../../services/factoryService.js", () => ({ factoryService: service }));
 
 const family = { id: "family-1", name_en: "Sambal", status: "active" };
 const eligibleFamily = { id: "family-eligible", name_en: "New Sauce", status: "active" };
@@ -14,8 +17,8 @@ const legacy = { id: "sop-legacy", product_name: "Legacy Sambal", version: "v1",
 const activeEquipment = { id: "equipment-1", equipment_code: "MX-01", name: "Mixer", status: "active" };
 const actions = { saveProductionSop: vi.fn(), activateProductionSop: vi.fn(), archiveProductionSop: vi.fn(), restoreProductionSop: vi.fn(), createProductionSopNewVersion: vi.fn(), deleteProductionSop: vi.fn(), createQcChecklistTemplate: vi.fn(), updateQcChecklistTemplate: vi.fn(), archiveQcChecklistTemplate: vi.fn(), restoreQcChecklistTemplate: vi.fn(), deleteQcChecklistTemplate: vi.fn() };
 
-function renderPage(permissions, { productFamilies = [family, eligibleFamily], sops = [draft, active, legacy], equipment = [] } = {}) {
-  return render(<FactoryPermissionsProvider permissionSet={permissions} can={(permission) => permissions.includes(permission)}><FactoryMasterDataProvider data={{ productFamilies, recipes: [recipe], sops, equipment, qcChecklistTemplates: [{ id: "template-1", name: "Temperature", result_mode: "checklist", is_active: true }] }}><FactoryNavigationProvider {...actions}><FactoryProductionSopPage /></FactoryNavigationProvider></FactoryMasterDataProvider></FactoryPermissionsProvider>);
+function renderPage(permissions, { productFamilies = [family, eligibleFamily], sops = [draft, active, legacy], equipment = [], sopDetailsDeferred = false } = {}) {
+  return render(<FactoryPermissionsProvider permissionSet={permissions} can={(permission) => permissions.includes(permission)}><FactoryMasterDataProvider data={{ productFamilies, recipes: [recipe], sops, equipment, sopDetailsDeferred, qcChecklistTemplates: [{ id: "template-1", name: "Temperature", result_mode: "checklist", is_active: true }] }}><FactoryNavigationProvider {...actions}><FactoryProductionSopPage /></FactoryNavigationProvider></FactoryMasterDataProvider></FactoryPermissionsProvider>);
 }
 
 afterEach(() => cleanup());
@@ -93,3 +96,24 @@ describe("FactoryProductionSopPage smoke", () => {
     expect(screen.getAllByText("All Finished Goods already have an SOP. Create a new version from an existing SOP instead.")).toHaveLength(2);
   });
 });
+
+ it("loads complete canonical SOP/Recipe data before opening a summary's editor", async () => {
+   let resolve;
+   service.listFactoryData.mockReturnValue(new Promise(done => { resolve = done; }));
+   renderPage(["factory_production_sop.view", "factory_production_sop.edit"], { sops: [{ ...draft, steps: [], detail_complete: false, list_summary: { stepCount: 1, subStepCount: 0, qcCount: 1, estimatedMinutes: 10 } }], sopDetailsDeferred: true });
+   fireEvent.click(screen.getByRole("button", { name: "Edit SOP" }));
+   expect(screen.queryByText("Edit Production SOP")).toBeNull();
+   await waitFor(() => expect(service.listFactoryData).toHaveBeenCalledWith(expect.objectContaining({ scope: "production-sop", action: "sop-editor", sopId: draft.id, signal: expect.any(AbortSignal) })));
+   resolve({ sops: [draft], recipes: [recipe], productFamilies: [family], equipment: [], qcChecklistTemplates: [], accessIssues: [] });
+   expect(await screen.findByText("Edit Production SOP")).not.toBeNull();
+   expect(screen.getByText("Cook")).not.toBeNull();
+ });
+
+ it("retains action-local error/retry and never renders a partially ready editor", async () => {
+   service.listFactoryData.mockResolvedValue({ sops: [], accessIssues: [{ key: "sops", kind: "load" }] });
+   renderPage(["factory_production_sop.view", "factory_production_sop.create"], { sops: [], sopDetailsDeferred: true });
+   fireEvent.click(screen.getByRole("button", { name: "Create SOP" }));
+   expect(await screen.findByText("Unable to load required details. Check your access and connection, then retry.")).not.toBeNull();
+   expect(screen.queryByText("Create Production SOP")).toBeNull();
+   expect(screen.getByRole("button", { name: "Retry" })).not.toBeNull();
+ });

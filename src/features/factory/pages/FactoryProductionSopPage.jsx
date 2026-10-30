@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { CheckCircle2, ClipboardCheck, Factory, FileText, TriangleAlert } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import FactoryProductionActionBoundary from "../components/FactoryProductionActionBoundary.jsx";
 import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import { FactoryDataSurface, FactoryTable } from "../components/FactoryDataDisplay.jsx";
@@ -31,9 +32,20 @@ const structureLabel = (row) => [
   row.structure.subStepCount ? `${row.structure.subStepCount} ${row.structure.subStepCount === 1 ? "sub-step" : "sub-steps"}` : null,
 ].filter(Boolean).join(" · ");
 
-export default function FactoryProductionSopPage() {
-  const { productFamilies, recipes, sops = [], qcChecklistTemplates, equipment } = useFactoryMasterData();
-  const { can } = useFactoryPermissions();
+function SopReadBoundary({ value, mode, auth, permissionSignature, onClose, children }) {
+  const intent = useMemo(() => ({ type: mode }), [mode]);
+  return <FactoryProductionActionBoundary intent={intent} scope="production-sop" auth={auth} permissionSignature={permissionSignature} sopId={value?.id || null} onClose={onClose}>{children}</FactoryProductionActionBoundary>;
+}
+
+export default function FactoryProductionSopPage({ auth }) {
+  const { productFamilies, recipes, sops = [], qcChecklistTemplates, equipment, sopDetailsDeferred } = useFactoryMasterData();
+  const { can, permissionSet } = useFactoryPermissions();
+  const summaryOnly = sopDetailsDeferred || sops.some(sop => sop.detail_complete === false);
+  const permissionSignature = JSON.stringify(permissionSet || []);
+  const readAuth = auth || { hasPermission: can };
+  const withDetails = (value, mode, onClose, render) => summaryOnly
+    ? <SopReadBoundary value={value} mode={mode} auth={readAuth} permissionSignature={permissionSignature} onClose={onClose}>{render}</SopReadBoundary>
+    : render({ productFamilies, recipes, sops, equipment, qcChecklistTemplates });
   const actions = useFactoryNavigation();
   const [filters, setFilters] = useState({ search: "", status: "", setup: "" });
   const [builder, setBuilder] = useState(null);
@@ -101,8 +113,8 @@ export default function FactoryProductionSopPage() {
       {visibleRows.length ? <FactoryTable columns={columns} rows={visibleRows} rowHover="mint" onRowClick={setDetail} renderAfterRow={(row) => expandedProducts[row.id] ? <div className="border-t border-border bg-[var(--theme-subtle)] px-4 py-3 md:px-8"><div className="mb-2 text-xs font-semibold uppercase tracking-[0.06em] text-text-muted">Version history</div><FactoryTable columns={versionHistoryColumns} rows={row.versions} rowHover="mint" onRowClick={setDetail} /></div> : null} /> : <EmptyState title="No Production SOPs" description="No SOPs match the selected filters." />}
       <FactoryPagination page={pager.page} pageSize={pager.pageSize} total={filteredRows.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} />
     </FactoryDataSurface>
-    {builder ? <ProductionSopBuilderModal initialValue={builder} productFamilies={productFamilies} recipes={recipes} sops={sops} equipment={equipment} qcChecklistTemplates={qcChecklistTemplates} onClose={() => setBuilder(null)} onSave={async (form) => { await actions.saveProductionSop(form); setBuilder(null); }} onUpdateRecipe={actions.updateDraftProductionSopRecipe} /> : null}
-    {detail ? <ProductionSopDocumentModal sop={detail} recipes={recipes} onClose={() => setDetail(null)} /> : null}
-    {presetsOpen ? <QcChecklistPresetManagerModal templates={qcChecklistTemplates} sops={sops} onClose={() => setPresetsOpen(false)} onCreate={actions.createQcChecklistTemplate} onUpdate={actions.updateQcChecklistTemplate} onArchive={actions.archiveQcChecklistTemplate} onRestore={actions.restoreQcChecklistTemplate} onDelete={actions.deleteQcChecklistTemplate} /> : null}
+    {builder ? withDetails(builder, "sop-editor", () => setBuilder(null), (loaded) => <ProductionSopBuilderModal initialValue={builder.id ? loaded.sops.find(sop => sop.id === builder.id) : builder} productFamilies={loaded.productFamilies} recipes={loaded.recipes} sops={[...sops.filter(sop => !loaded.sops.some(full => full.id === sop.id)), ...loaded.sops]} equipment={loaded.equipment} qcChecklistTemplates={loaded.qcChecklistTemplates} onClose={() => setBuilder(null)} onSave={async (form) => { await actions.saveProductionSop(form); setBuilder(null); }} onUpdateRecipe={actions.updateDraftProductionSopRecipe} />) : null}
+    {detail ? withDetails(detail, "sop-details", () => setDetail(null), (loaded) => <ProductionSopDocumentModal sop={loaded.sops.find(sop => sop.id === detail.id)} recipes={loaded.recipes} onClose={() => setDetail(null)} />) : null}
+    {presetsOpen ? withDetails(null, "sop-editor", () => setPresetsOpen(false), (loaded) => <QcChecklistPresetManagerModal templates={loaded.qcChecklistTemplates} sops={loaded.sops} onClose={() => setPresetsOpen(false)} onCreate={actions.createQcChecklistTemplate} onUpdate={actions.updateQcChecklistTemplate} onArchive={actions.archiveQcChecklistTemplate} onRestore={actions.restoreQcChecklistTemplate} onDelete={actions.deleteQcChecklistTemplate} />) : null}
   </div>;
 }
