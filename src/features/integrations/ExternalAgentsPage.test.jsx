@@ -24,18 +24,18 @@ beforeEach(() => {
  externalAgentService.review.mockImplementation(async(id,desired)=>({changes:capabilities.filter(c=>id? !desired.includes(c.name):desired.includes(c.name)).map(c=>({...c,granted:!id})),remaining_access:capabilities.filter(c=>desired.includes(c.name)),effective_diff:{before:[],after:[],material_changes:[],blockers:[],remaining_shared_access:[]},dependencies:[],review_hash:"review",note:"Dependencies remain explicit"}));
 });
 afterEach(cleanup);
-async function open() { fireEvent.click(await screen.findByRole("button", { name: "Manage QA Executive" })); await screen.findByRole("heading", { name: "Agent overview" }); }
+async function open() { fireEvent.click(await screen.findByRole("button", { name: "Manage QA Executive" })); await screen.findByRole("heading", { name: "Agent Information" }); }
 function tab(name) { fireEvent.click(screen.getByRole("tab", {name,exact:true})); }
-it("uses the six business columns, three tabs and hides technical identifiers until Advanced Details", async () => {
+it("uses the six business columns, three tabs and hides technical identifiers until Developer Diagnostics", async () => {
  render(<ExternalAgentsPage auth={auth()} />);
  await screen.findByRole("button",{name:"Manage QA Executive"});
- expect(screen.getAllByRole("columnheader").map((element)=>element.textContent)).toEqual(["Agent","Workspace","Effective Access","Connection","Last Active","Actions"]);
+ expect(screen.getAllByRole("columnheader").map((element)=>element.textContent)).toEqual(["Agent","Workspace","Effective Access","Connection","Last successful access","Actions"]);
  await open();expect(screen.queryByText("factory_mesti_inspection.view")).toBeNull();
  tab("Access & Permissions");expect(screen.getByText("Review daily compliance")).toBeTruthy();
  expect(screen.queryByRole("tab",{name:"By Module"})).toBeNull();
 
  tab("Activity");expect(screen.getByText("FeedX connection check")).toBeTruthy();expect(screen.queryByText("initialize")).toBeNull();
- tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Advanced Details"}));expect(screen.getByText("factory_mesti_inspection.view")).toBeTruthy();expect(screen.getByText(/read_tool_0/)).toBeTruthy();
+ tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Developer Diagnostics"}));expect(screen.getByText("factory_mesti_inspection.view")).toBeTruthy();expect(screen.getAllByText(/read_tool_0/).length).toBeGreaterThan(0);
 });
 it("confirms key replacement and clears one-time secrets on close", async () => {
  render(<ExternalAgentsPage auth={auth()} />);await open();
@@ -47,7 +47,7 @@ it("confirms key replacement and clears one-time secrets on close", async () => 
  fireEvent.click(screen.getByRole("button",{name:"I have saved the key"}));expect(screen.queryByDisplayValue("TEST_ONE_TIME_SECRET")).toBeNull();
 });
 it("keeps revocation explicit and bound to the exact key",async()=>{
- render(<ExternalAgentsPage auth={auth()} />);await open();fireEvent.click(screen.getByRole("button",{name:"Advanced Details"}));
+ render(<ExternalAgentsPage auth={auth()} />);await open();fireEvent.click(screen.getByText("Access key history",{exact:true}));
  fireEvent.click(screen.getByRole("button",{name:"Revoke key"}));expect(externalAgentService.revoke).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole("button",{name:"Revoke access key",exact:true}));await waitFor(()=>expect(externalAgentService.revoke).toHaveBeenCalledWith("qa","existing-credential"));
 });
@@ -92,7 +92,7 @@ it("keeps legacy read activity understandable after review tools leave the permi
  expect(screen.getByText("Daily MeSTI review")).toBeTruthy();expect(screen.queryByText("Unsupported request")).toBeNull();
 });
 
-it("keeps preserved scope separate from module selections and exposes technical resources only in Advanced Details",async()=>{
+it("keeps preserved scope separate from module selections and exposes technical resources only in Developer Diagnostics",async()=>{
  const retained={name:"factory_mesti_review_view",label:"Preserved MeSTI compliance review",technical_label:"Compliance review records",permission:"factory_agent_mesti_review.view",resource_key:"factory.mesti_review",mcp_tool:"query_factory_resources",capability:"view",granted:true,can_assign:true};
  const scopedAgent={...agent,preserved_access:[retained],tools:capabilities.map((c)=>({...c,granted:false,limited_access:true,technical_resources:[{resource:"evidence",row_scope:{module:"cleaning_of_area"}}]}))};
  externalAgentService.list.mockResolvedValue({connections:[scopedAgent],catalog,can_register:true});externalAgentService.details.mockResolvedValue({...detail,connections:[scopedAgent]});
@@ -101,7 +101,7 @@ it("keeps preserved scope separate from module selections and exposes technical 
  tab("Access & Permissions");
  expect(screen.getByRole("checkbox",{name:"View Records: Preserved MeSTI compliance review"}).checked).toBe(true);expect(screen.queryByRole("button",{name:"Remove access"})).toBeNull();
  expect(screen.getByRole("checkbox",{name:"View Records: Review daily compliance"}).checked).toBe(false);
- tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Advanced Details"}));expect(screen.getAllByText(/evidence \(cleaning_of_area\)/).length).toBeGreaterThan(0);
+ tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Developer Diagnostics"}));expect(screen.getAllByText(/evidence \(cleaning_of_area\)/).length).toBeGreaterThan(0);
 });
 
 it('filters same-time activity by outcome/admin provenance without merging events',async()=>{
@@ -117,4 +117,41 @@ it('filters same-time activity by outcome/admin provenance without merging event
 it('uses the server effective-access summary in the main list',async()=>{
  externalAgentService.list.mockResolvedValue({connections:[{...agent,effective_access:{summary:'Server-authorized MeSTI scope'}}],catalog,can_register:true});
  render(<ExternalAgentsPage auth={auth()} />);expect(await screen.findByText('Server-authorized MeSTI scope')).toBeTruthy();expect(screen.queryByText('Restricted access also preserved')).toBeNull();
+});
+
+it('separates the persisted 180-day issuance from the 90-day replacement default without changing a key', async()=>{
+ const existing={...credential,created_at:'2026-10-30T02:17:29.923174Z',expires_at:'2027-04-28T02:17:29.922224Z'};
+ externalAgentService.details.mockResolvedValue({...detail,connections:[{...agent,credential:existing,credential_policy:{days:[30,90,180],default_days:90}}]});
+ render(<ExternalAgentsPage auth={auth()} />);await open();
+ const current=within(screen.getByRole('group',{name:'Current Access Key',exact:true}));
+ expect(current.getByText('180 days')).toBeTruthy();
+ expect(current.getByText(/28 Apr 2027/).textContent).toContain('10:17 AM');
+ const replacement=within(screen.getByRole('group',{name:'Replace Access Key',exact:true}));
+ expect(replacement.getByRole('button',{name:'Replacement key validity'}).textContent).toContain('90 days');
+ fireEvent.click(replacement.getByRole('button',{name:'Replacement key validity'}));
+ fireEvent.click(screen.getByRole('option',{name:'180 days'}));
+ expect(current.getByText('180 days')).toBeTruthy();
+ expect(externalAgentService.rotate).not.toHaveBeenCalled();expect(externalAgentService.revoke).not.toHaveBeenCalled();
+});
+it.each([
+ [{connection_status:'mcp_observed',last_mcp_success:'2026-10-30T02:30:00Z'},'Connected'],
+ [{connection_status:'not_observed'},'Not Connected'],
+ [{connection_status:'mcp_observed',enabled:false},'Disabled'],
+ [{connection_status:'mcp_observed',credential:{...credential,status:'expired'}},'Expired'],
+ [{connection_status:'mcp_observed',credential:{...credential,status:'revoked'}},'Not Connected'],
+])('presents recorded connection and credential states consistently: %j',async(patch,label)=>{
+ const current={...agent,...patch};externalAgentService.list.mockResolvedValue({connections:[current],catalog});
+ externalAgentService.details.mockResolvedValue({...detail,connections:[current]});
+ render(<ExternalAgentsPage auth={auth()} />);
+ const manage = await screen.findByRole('button',{name:'Manage QA Executive'});
+ expect(within(within(manage.closest('tr')).getAllByRole('cell')[3]).getByText(label)).toBeTruthy();
+ await open();expect(within(screen.getByRole('region',{name:'Connection',exact:true})).getByText(label)).toBeTruthy();
+ expect(screen.getByText(/not a real-time online presence/)).toBeTruthy();
+ if(label==='Connected')expect(screen.getAllByTitle(/Recorded successful MCP access/).length).toBe(2);
+});
+it('keeps legacy expiry readable when issuance metadata is absent',async()=>{
+ externalAgentService.details.mockResolvedValue({...detail,connections:[{...agent,credential:{...credential,created_at:null}}]});
+ render(<ExternalAgentsPage auth={auth()} />);await open();
+ const current=within(screen.getByRole('group',{name:'Current Access Key'}));
+ expect(current.getByText(/28 Nov 2026/)).toBeTruthy();expect(current.getAllByText('Not recorded')).toHaveLength(2);
 });

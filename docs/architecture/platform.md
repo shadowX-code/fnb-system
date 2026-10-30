@@ -16,6 +16,8 @@ The shared `notificationSound` client owns optional audible attention, per-user/
 
 Admin Settings → Integrations → External Agents is the Platform-owned management surface for the shared External Agent Gateway. Its canonical route is `/system/settings/integrations/external-agents` (`external_agents`); it reuses Role Settings View/Edit authority without adding a parallel permission system. The existing Admin shell, compact management table, status badges, right-side detail panel and explicit credential confirmations own navigation and interaction. Provider prompts, knowledge and routines remain outside FeedX. Gateway identity, credential, registry, telemetry and audit contracts are owned by `trusted-authorities.md`; MeSTI business evidence remains Factory-owned.
 
+Agent Overview separates Agent Information, recorded Connection status and Security. Connected denotes a recorded successful MCP request with its last-success timestamp, never real-time online presence; disabled and expired states remain distinct. Current Access Key issuance/expiry is independent of the future replacement validity selector. Role, permission and resource identifiers are collapsed in structured Developer Diagnostics.
+
 `main` is the long-lived Production branch and `dev` is the long-lived Staging/integration branch. Short-lived `codex/*`, `hotfix/*`, or approved feature branches and worktrees isolate task work; they do not become alternate integration authorities.
 
 For canonical Staging delivery required by the selected QA level:

@@ -5,7 +5,7 @@
 .external-agent-code { overflow-wrap: anywhere; font-size: 12px; }
 .external-agent-panel { max-width: 760px; }
 .external-agent-heading { font-size: 14px; font-weight: 650; margin-bottom: 12px; color: var(--text-primary); }
-.external-agent-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; font-size: 13px; }
+.external-agent-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; font-size: 13px; }
 .external-agent-facts dt { color: var(--text-secondary); font-size: 12px; margin-bottom: 5px; }
 .external-agent-facts dd { margin: 0; overflow-wrap: anywhere; }
 .external-agent-wide { grid-column: 1 / -1; }
