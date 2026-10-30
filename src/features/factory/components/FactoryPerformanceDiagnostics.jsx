@@ -1,0 +1,33 @@
+import { useEffect, useState } from "react";
+import { factoryPerformanceSnapshot, isFactoryTraceEnabled, recordFactoryPerformance } from "../utils/factoryRuntimePerformance.js";
+
+export default function FactoryPerformanceDiagnostics({ route }) {
+  const enabled = isFactoryTraceEnabled() && new URLSearchParams(window.location.search).get("qa") === "factory-performance";
+  const [entries, setEntries] = useState([]);
+  useEffect(() => {
+    if (!enabled) return;
+    let timer;
+    const update = () => { clearTimeout(timer); timer = setTimeout(() => setEntries(factoryPerformanceSnapshot()), 100); };
+    window.addEventListener("feedx:factory-runtime", update);
+    update();
+    return () => { clearTimeout(timer); window.removeEventListener("feedx:factory-runtime", update); };
+  }, [enabled]);
+  useEffect(() => {
+    if (!enabled) return;
+    const started = performance.now();
+    let done = false;
+    let frame;
+    const check = () => {
+      if (done || ![...document.querySelectorAll("main table tbody tr")].some(row => row.innerText.trim() && !/loading/i.test(row.innerText))) return;
+      done = true;
+      recordFactoryPerformance({ type: "first-data-row", route, durationMs: Math.round(performance.now() - started), documentMs: Math.round(performance.now()), at: Date.now() });
+      frame = requestAnimationFrame(() => requestAnimationFrame(() => recordFactoryPerformance({ type: "interactive-proxy", route, durationMs: Math.round(performance.now() - started), at: Date.now() })));
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(document.querySelector("main") || document.body, { childList: true, subtree: true });
+    check();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+  }, [route, enabled]);
+  if (!enabled) return null;
+  return <details className="border-t border-border p-3 text-xs"><summary>Factory performance diagnostics</summary><p>Local metadata only. First data row and two-frame interactivity proxy exclude earlier authentication. React timings require a profiling build. Body → service completion includes SDK/JSON processing, not a separate pure parse measurement.</p><pre aria-label="Factory performance metadata" className="max-h-80 overflow-auto">{JSON.stringify(entries, null, 2)}</pre></details>;
+}
