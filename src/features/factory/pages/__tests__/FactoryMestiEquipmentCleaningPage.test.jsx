@@ -10,6 +10,8 @@ vi.mock("../../../../services/factoryService.js", () => ({ factoryService: {
   listMestiEquipmentCleaningDay: vi.fn(), listMestiEquipmentCleaningMonth: vi.fn(), saveMestiEquipmentCleaningRequirement: vi.fn(), completeMestiEquipmentCleaningOccurrence: vi.fn(), verifyMestiEquipmentCleaningOccurrence: vi.fn(),
 } }));
 
+vi.mock("../../utils/factoryDates.js", async importOriginal => ({ ...await importOriginal(), malaysiaBusinessDateInput: () => "2026-09-03" }));
+
 const equipment = { id: "equipment-1", equipment_code: "MX-01", name: "Mixer 01", status: "active", category: { name: "Mixing" }, location: { location_name: "Cooking Room" } };
 const secondEquipment = { id: "equipment-2", equipment_code: "FL-02", name: "Filler 02", status: "active", category: { name: "Filling" }, location: { location_name: "Preparation Room" } };
 const occurrence = { id: "occ-1", due_date: "2026-09-03", status: "pending", task_name: "Daily Cleaning", equipment_id: "equipment-1", equipment_code: "MX-01", equipment_name: "Mixer 01", location_name: "Cooking Room", source_type: "scheduled", recurrence_type: "daily" };
@@ -68,7 +70,9 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     expect(await screen.findByText("Mixer 01")).not.toBeNull();
     expect(screen.getByText("Filler 02")).not.toBeNull();
     expect(screen.getByText("Cooking Room · MX-01")).not.toBeNull();
-    expect(screen.getAllByText("2 cleanings · 0 verified · 1 pending")).toHaveLength(1);
+    expect(screen.queryByRole("columnheader", { name: "Summary" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Mixer 01 on .*2 obligations/i }).textContent).toContain("2");
+    expect(screen.getByRole("button", { name: "Today" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Mixer 01 on .*2 obligations/i }));
     expect(await screen.findByLabelText("Equipment cleaning monthly actions")).not.toBeNull();
     expect(screen.queryByRole("dialog", { name: /Mixer 01/ })).toBeNull();
