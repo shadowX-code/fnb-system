@@ -106,6 +106,9 @@
   border-top: 1px solid var(--theme-border);
 }
 .label-studio-layer-order .btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   justify-content: flex-start;
   font-size: 11px;
 }
@@ -200,6 +203,11 @@
   height: 30px;
 }
 .label-studio-zoom .btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  white-space: nowrap;
   min-height: 30px;
   padding: 4px 7px;
   font-size: 12px;

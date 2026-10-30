@@ -7,6 +7,7 @@ import {
   labelPreviewSnapshot,
   productLabelDraft,
   templateLabelDraft,
+  editableLabelDefinition,
 } from "./labelManagementModel.js";
 import LabelLayoutEditor from "./LabelLayoutEditor.jsx";
 import useLabelPreview from "./useLabelPreview.js";
@@ -402,7 +403,9 @@ export default function FactoryLabelEditorPage({
               loading={preview.loading}
               error={preview.error}
               issues={preview.issues}
-              elements={definition?.elements}
+              elements={
+                definition ? editableLabelDefinition(definition).elements : []
+              }
               title="Live label preview"
             />
             <p className="label-studio-hint">
