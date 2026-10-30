@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Check, ClipboardCheck, Plus, ShieldCheck, XCircle } from "lucide-react";
+import { cleaningOccurrenceStatus } from "../utils/cleaningCalendarPresentation.js";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -67,14 +68,6 @@ function groupByLocation(rows) {
 }
 function emptyRequirementDraft() {
   return { task_name: "", location_ids: [], recurrence_type: "daily", recurrence_weekdays: [1], status: "active", effective_from: malaysiaBusinessDateInput() };
-}
-function monthlyCellLabel(cell) {
-  if (cell.status === "mixed") return `${cell.verified_count}/${cell.total_count}`;
-  if (cell.status === "verified") return "OK";
-  if (cell.status === "completed") return "Review";
-  if (cell.status === "unsatisfactory") return "Fail";
-  if (cell.status === "missed") return "Missed";
-  return "Due";
 }
 function monthlyCellTitle(cell, row) {
   const summary = cell.status === "mixed" ? `${cell.verified_count} of ${cell.total_count} verified` : statusMeta[cell.status]?.label || "Pending";
@@ -223,21 +216,20 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
       <div className="flex flex-wrap items-end gap-3 border-b border-border pb-4"><div className="w-full sm:w-60"><Field label="Month"><FactoryMonthPicker value={month} onChange={setMonth} /></Field></div></div>
       <FactoryComplianceLegend />
       <FactoryDataSurface>{monthLoading && !monthlyRows.length ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading monthly matrix...</div> : <FactoryComplianceMatrix
-        key={month} rows={matrixRows} days={days} rowKey={row => row.matrix_key} getChildren={row => row.children}
+        key={month} cleaningStatuses today={malaysiaBusinessDateInput()} onToday={() => setMonth(malaysiaBusinessDateInput().slice(0,7))} rows={matrixRows} days={days} rowKey={row => row.matrix_key} getChildren={row => row.children}
         getCell={(row, day) => row.calendarCells.get(day)}
         entityLabel="Task / Location" renderEntity={row => row.location_name || row.task_name}
         renderFrequency={row => row.location_name ? null : recurrenceLabel(row)}
         isCellInteractive={row => Boolean(row.location_name)}
         renderCellDetail={occurrence => <section aria-label="Cleaning occurrence actions">
           <FactoryMestiMonthlyActionRow primary={occurrence.task_name} secondary={`${occurrence.location_name} · ${formatFactoryDate(occurrence.due_date)}`}
-            status={<span aria-live="polite"><StatusBadge status={occurrence.status} /></span>}
+            status={<span aria-live="polite"><StatusBadge status={cleaningOccurrenceStatus(occurrence)} /></span>}
             actions={<FactoryMestiOccurrenceActions status={occurrence.status} canComplete={!error && canCompleteOccurrence(occurrence)} canVerify={!error && canVerifyOccurrence(occurrence)} working={Boolean(workingId) || monthLoading} onComplete={() => act("complete", occurrence)} onVerify={() => act("verify", occurrence, "verified")} onMarkUnsatisfactory={() => act("verify", occurrence, "unsatisfactory")} onView={() => act("view", occurrence)} />}
           />
           <div className="px-3 pb-2"><FactoryMestiCleaningMethodReference reference={occurrence.cleaning_method_reference} compact /></div>
           {actionFailure?.id === occurrence.id ? <p role="alert" className="px-3 pb-2 text-sm text-[var(--factory-danger-text)]">{actionFailure.message}</p> : null}
           {error ? <div className="px-3 pb-2"><p role="alert" className="text-sm text-[var(--factory-danger-text)]">{error}</p><button type="button" className="btn-secondary mt-2" onClick={loadMonthly}>Retry refresh</button></div> : null}
         </section>}
-        cellLabel={monthlyCellLabel}
         cellTitle={(cell, row) => monthlyCellTitle(cell, { task_name: row.location_name ? `${row.task_name} · ${row.location_name}` : row.task_name })}
         empty={<EmptyState title="No monthly occurrences" description="No Cleaning Requirements are scheduled in this month." />}
       />}</FactoryDataSurface>

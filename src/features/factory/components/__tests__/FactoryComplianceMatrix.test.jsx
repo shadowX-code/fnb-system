@@ -75,3 +75,13 @@ describe("FactoryComplianceMatrix", () => {
     expect(view.getByRole("button", { name: `Complete ${day}` })).not.toBeNull();
   });
 });
+
+it("omits optional summary cells and keeps Today and expansion column alignment", () => {
+  const onToday = vi.fn();
+  const { container } = render(<FactoryComplianceMatrix rows={[{id:"e"}]} days={["2026-09-03"]} rowKey={row=>row.id} renderEntity={()=>"Mixer"} showFrequency={false} today="2026-09-03" onToday={onToday} getCell={()=>({status:"pending"})} cellLabel={()=>"2"} cellTitle={()=>"Two cleanings"} onCellClick={()=>{}} expandedCellKey="e:2026-09-03" renderExpanded={()=><span>Scheduled and After Production</span>}/>);
+  const view = within(container);
+  expect(view.getAllByRole("columnheader")).toHaveLength(2);
+  expect(view.getByTestId("factory-compliance-matrix-expansion").closest("td").colSpan).toBe(2);
+  fireEvent.click(view.getByRole("button",{name:"Today"}));
+  expect(onToday).toHaveBeenCalledTimes(1);
+});

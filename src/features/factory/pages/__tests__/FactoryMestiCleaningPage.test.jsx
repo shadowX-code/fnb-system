@@ -211,9 +211,9 @@ describe("Factory MeSTI Cleaning of Area", () => {
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
     const cell = await screen.findByRole("button", { name: /Drain · Cooking.*Awaiting Verification/ });
-    expect(cell.textContent).toBe("Review");
+    expect(cell.textContent).toBe("Completed");
     expect(cell.title).toContain("Awaiting Verification");
-    expect(within(screen.getByLabelText("Calendar legend")).getByText("Review").title).toBe("Awaiting Verification");
+    expect(within(screen.getByLabelText("Calendar legend")).getByText("Completed")).not.toBeNull();
     expect(screen.queryByText("Await", { exact: true })).toBeNull();
     fireEvent.click(cell);
     const actions = screen.getByRole("region", { name: "Cleaning occurrence actions" });

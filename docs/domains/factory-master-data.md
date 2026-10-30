@@ -123,3 +123,9 @@ The preserved `mesti_review` resource uses canonical `date` for its advertised `
 ### Legacy transport retirement
 
 After confirmed full existing Grok workflow compatibility, Staging exposes only `query_factory_resources`. The five review tool names and `query_mesti_resources` are retired, along with their public SQL adapters and five unassigned tool permissions. `factory_agent_authorize` validates the unchanged machine credential and connection prerequisite before canonical discovery. `mesti_review` and navigation resource grants, canonical MeSTI projections, metadata, redaction and audit history are preserved; no module grant is inferred from retirement. The endpoint URL is unchanged.
+
+## Monthly cleaning calendar presentation
+
+Equipment parent rows expand by default to Cleaning Task child rows. Scheduled requirement/task lineages span dates; After Production records retain production identity, and same-date duplicates occupy separate child lanes so every occurrence has its own task/date cell. Only Equipment groups collapse. Parent date aggregates are read-only; child cells open the shared occurrence action popover directly, preserving Production/batch/SOP provenance, cleaning method and permitted actions. There is no date-level inline record expansion.
+
+Area remains Task → Location. Both calendars share readable statuses, count suffixes, Today navigation, sticky identity columns, aligned title/subtitle text and wrapped child rows. Monthly presentation treats pending records due before the Malaysia business date as Missed; persisted statuses, filters and lifecycle action inputs remain unchanged. Daily, Setup, obligations and permissions retain their existing authority.
