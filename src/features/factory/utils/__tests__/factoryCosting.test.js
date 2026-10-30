@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { convertCostQuantity, costVarianceInfo, recipeCostLineInfo } from "../factoryCosting.js";
+import { productionCostRowsFor, convertCostQuantity, costVarianceInfo, recipeCostLineInfo } from "../factoryCosting.js";
 
 describe("Factory cost variance presentation contract", () => {
   it("keeps standard-to-actual variance and zero-standard handling stable", () => {
@@ -44,4 +44,11 @@ describe("Factory Recipe/BOM costing conversions", () => {
     expect(cost).toEqual(expect.objectContaining({ convertedQty: 0.24, lineCost: 2.4, unsupportedCost: false, source: "RCV-002" }));
     expect(recipeCostLineInfo({ raw_material_id: "material-1", quantity_used: 1, recipe_usage_uom: "pack" }, [{ raw_material_id: "material-1", unit_cost: 10, uom: "kg" }], { uom: "pack" })).toEqual(expect.objectContaining({ unsupportedCost: true, conversionReason: "Missing UOM conversion" }));
   });
+});
+
+it("retains family-first costing and missing-cost signals for delayed Finished Good history", () => {
+ const productions=[{id:"p",product_family_id:"family",finished_good_id:"sku",product_name:"Sauce",good_output_qty:10,material_usage:[{actual_usage:4,unit_cost:5}]}];
+ const recipes=[{product_family_id:"family",costPerUnit:3,missingCostRows:1,unsupportedCostRows:2},{finished_good_id:"sku",costPerUnit:99}];
+ expect(productionCostRowsFor(productions,recipes,[])[0]).toMatchObject({id:"p",standard_cost:30,actual_cost:20,variance_rm:-10,missing_cost_rows:1,unsupported_cost_rows:2});
+ expect(productions[0]).not.toHaveProperty("actual_cost");
 });

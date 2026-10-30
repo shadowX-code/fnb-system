@@ -3,19 +3,19 @@ import { factoryService } from "../../../services/factoryService.js";
 import { factoryBootstrap } from "../utils/factoryBootstrap.js";
 
 // Optional support never owns route readiness; mutation forms require the complete result.
-export default function useFactoryActionData({ scope, action, owner, permissionSignature, hasPermission }) {
+export default function useFactoryActionData({ scope, action, owner, permissionSignature, hasPermission, sopId = null }) {
   const [state, setState] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const permissionRef = useRef(hasPermission);
   permissionRef.current = hasPermission;
-  const key = JSON.stringify([scope, action, permissionSignature, attempt]);
+  const key = JSON.stringify([scope, action, permissionSignature, sopId, attempt]);
   useEffect(() => {
     const controller = new AbortController();
     const dependencies = new Map();
     let current = true;
     setState(null);
     factoryBootstrap(() => factoryService.listFactoryData({
-      scope, action,
+      scope, action, sopId,
       hasPermission: (code) => permissionRef.current?.(code),
       signal: controller.signal,
       onDependency: (item) => dependencies.set(item.key, item),

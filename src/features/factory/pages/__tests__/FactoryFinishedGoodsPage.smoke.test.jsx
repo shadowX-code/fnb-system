@@ -1,9 +1,13 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FactoryMasterDataProvider } from "../../context/FactoryMasterDataContext.jsx";
 import { FactoryNavigationProvider } from "../../context/FactoryNavigationContext.jsx";
 import { FactoryPermissionsProvider } from "../../context/FactoryPermissionsContext.jsx";
 import FactoryFinishedGoodsPage from "../FactoryFinishedGoodsPage.jsx";
+
+vi.mock("../../hooks/useFactoryActionData.js", () => ({ default: () => ({ loading: true }) }));
+
+afterEach(cleanup);
 
 const sku = { id: "sku-1", product_family_id: "family-1", product_family_name: "Sambal", product_family_name_cn: "叁巴酱", product_name: "Sambal", product_name_en: "Sambal", product_name_cn: "叁巴酱", product_code: "SAM-500", pack_size_qty: 500, pack_size_uom: "g", current_balance: 4, status: "active", is_halal: true, recommended_storage: "freezer", b2b_price: 10, shelf_life_days: 180 };
 const data = { finishedGoods: [sku], finishedGoodCategories: [{ id: "cat-1", name: "Sambal" }], productFamilies: [{ id: "family-1", name_en: "Sambal", name_cn: "叁巴酱", status: "active" }], recipes: [{ id: "recipe-1", product_family_id: "family-1", status: "active", yield_quantity: 10, uom: "kg", items: [{ raw_material_id: "rm-1", quantity_used: 10, uom: "kg" }] }], receivings: [{ raw_material_id: "rm-1", unit_cost: 5, uom: "kg", received_date: "2026-08-01" }], productions: [{ id: "production-1", product_name: "Sambal", batch_no: "PB260801-01", production_date: "2026-08-01", good_output_qty: 4, uom: "Packs", qc_status: "Pass" }], productMovements: [{ id: "movement-1", finished_good_id: "sku-1", movement_type: "Production In", quantity: 4, uom: "Packs", movement_date: "2026-08-01" }], productionCosts: [] };
@@ -48,4 +52,12 @@ describe("FactoryFinishedGoodsPage smoke", () => {
     expect(screen.getAllByText("Finished Goods").length).toBeGreaterThan(0);
     expect(screen.getByText("No Finished Goods")).not.toBeNull();
   });
+});
+
+it("preserves deferred-history ownership through the real master provider", () => {
+  renderPage({ ...data, finishedGoodsHistoryDeferred: true, productions: [], productMovements: [] });
+  fireEvent.click(screen.getByRole("tab", { name: "Table View" }));
+  fireEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
+  expect(screen.getByRole("status", { name: "Loading data" })).toBeTruthy();
+  expect(screen.queryByText("No production history")).toBeNull();
 });

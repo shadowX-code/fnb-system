@@ -3,6 +3,8 @@ import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 import { uploadOptimizedImage } from "../utils/imageUpload.js";
 import { preparePrivateDocument } from "../utils/privateDocumentUpload.js";
+import { productionSopStructure } from "../features/factory/utils/productionSop.js";
+import { sopTotalEstimatedMinutes } from "../features/factory/utils/factoryFormatters.js";
 import { instrumentFactoryService, traceFactoryRequest } from "../features/factory/utils/factoryRuntimePerformance.js";
 
 function normalizeNumber(value, fallback = 0) {
@@ -1114,6 +1116,8 @@ function mapProductionSop(row) {
   const linkedRecipe = row.linked_recipe ? mapRecipe(row.linked_recipe) : null;
   return {
     id: row.id,
+    detail_complete: row.detail_complete !== false,
+    list_summary: row.list_summary || null,
     sop_code: row.sop_code || "",
     title: row.title || "",
     sop_name: row.title || "",
@@ -1332,6 +1336,7 @@ const recipeRootSelect = `id,recipe_code,finished_good_id,product_family_id,reci
 const recipeSelect = `${recipeRootSelect},items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,recipe_usage_uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
 const recipeSummarySelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const recipeItemSelect = `id,recipe_id,raw_material_id,quantity_used,uom,recipe_usage_uom,wastage_percent,sort_order,notes,remarks,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect})`;
+const sopListSelect = "id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,estimated_minutes,status,created_at,updated_at,equipment_links:factory_production_sop_equipment(equipment_id),finished_good:factory_product_families(id,name_en,name_cn,name_bm,status)";
 const sopRootSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,equipment_links:factory_production_sop_equipment(equipment_id,equipment:factory_equipment(id,equipment_code,name,status,current_location_id,location:factory_storage_locations(location_name))),finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),linked_recipe:factory_product_recipes(id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect}))`;
 const sopSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,equipment_links:factory_production_sop_equipment(equipment_id,equipment:factory_equipment(id,equipment_code,name,status,current_location_id,location:factory_storage_locations(location_name))),finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),linked_recipe:factory_product_recipes(id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,recipe_usage_uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at,sub_steps:factory_production_sop_sub_steps(id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at),ingredient_refs:factory_production_sop_step_materials(raw_material_id,raw_material:factory_raw_materials(name,name_en,material_code,uom)),qc_checks:factory_production_sop_step_qc_checks(id,sop_step_id,sequence_no,qc_type,checklist_template_id,qc_name,instructions,is_required,checklist_template:factory_qc_checklist_templates(name,result_mode)))`;
 const sopStepSelect = "id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at";
@@ -1526,16 +1531,25 @@ async function fetchFactoryMasterIds(entity, { label, signal } = {}) {
   return validateSnapshotIds(data, label);
 }
 
+async function mapFactoryBatches(batches, execute) {
+  const results = [];
+  // At most three reads per dataset; retain snapshot order and fail the entire read on error.
+  for (let offset = 0; offset < batches.length; offset += 3) {
+    results.push(...await Promise.all(batches.slice(offset, offset + 3).map(execute)));
+  }
+  return results;
+}
+
 async function fetchFactoryChildSnapshot(entity, parentIds, { label, signal } = {}) {
-  const rows = [];
-  for (const parentChunk of chunkFactoryIds(parentIds)) {
+  const batches = await mapFactoryBatches(chunkFactoryIds(parentIds), async (parentChunk) => {
     const data = await runFactoryQuery(
       supabase.rpc("factory_get_master_child_snapshot", { p_entity: entity, p_parent_ids: parentChunk }),
       { label, stage: `${entity} snapshot`, signal },
     );
     if (!Array.isArray(data)) throw factoryLoadError(label, `${entity} snapshot`, new Error("Invalid child snapshot response."));
-    rows.push(...data);
-  }
+    return data;
+  });
+  const rows = batches.flat();
   return rows;
 }
 
@@ -1543,8 +1557,8 @@ async function fetchFactoryRowsBySnapshot(ids, buildQuery, { label, signal } = {
   if (!ids.length) return [];
   const expectedIds = new Set(ids);
   const rowsById = new Map();
-  for (const idChunk of chunkFactoryIds(ids)) {
-    const data = await runFactoryQuery(buildQuery(idChunk), { label, stage: "detail batch", signal });
+  const batches = await mapFactoryBatches(chunkFactoryIds(ids), (idChunk) => runFactoryQuery(buildQuery(idChunk), { label, stage: "detail batch", signal }));
+  for (const data of batches) {
     if (!Array.isArray(data)) throw factoryLoadError(label, "detail batch", new Error("Invalid detail response."));
     for (const row of data) {
       const id = String(row?.id || "");
@@ -1596,17 +1610,12 @@ async function loadRecipeRows({ summaryOnly = false, signal }) {
   const label = summaryOnly ? "Active Production Standard Summary" : "Product Recipes";
   return loadFactoryMasterWithRetry(async () => {
     const recipeIds = await fetchFactoryMasterIds(summaryOnly ? "active_product_recipes" : "product_recipes", { label, signal });
-    const recipes = await fetchFactoryRowsBySnapshot(recipeIds, (ids) => supabase
-      .from("factory_product_recipes")
-      .select(summaryOnly ? recipeSummarySelect : recipeRootSelect)
-      .in("id", ids), { label, signal });
+    const [recipes, itemSnapshotRows] = await Promise.all([
+      fetchFactoryRowsBySnapshot(recipeIds, (ids) => supabase.from("factory_product_recipes").select(summaryOnly ? recipeSummarySelect : recipeRootSelect).in("id", ids), { label, signal }),
+      summaryOnly ? Promise.resolve([]) : fetchFactoryChildSnapshot("recipe_items", recipeIds, { label, signal }),
+    ]);
     if (summaryOnly || !recipeIds.length) return recipes;
-
-    const itemSnapshot = validateChildSnapshotRows(
-      await fetchFactoryChildSnapshot("recipe_items", recipeIds, { label, signal }),
-      label,
-      (row) => row?.id,
-    );
+    const itemSnapshot = validateChildSnapshotRows(itemSnapshotRows, label, (row) => row?.id);
     const itemIds = itemSnapshot.map((row) => String(row.id));
     const items = await fetchFactoryRowsBySnapshot(itemIds, (ids) => supabase
       .from("factory_product_recipe_items")
@@ -1626,37 +1635,32 @@ async function loadRecipeRows({ summaryOnly = false, signal }) {
   }, label);
 }
 
-async function loadProductionSopRows({ signal }) {
+async function loadProductionSopRows({ signal, summaryOnly = false, sopId = null }) {
   const label = "Production SOP";
   return loadFactoryMasterWithRetry(async () => {
-    const sopIds = await fetchFactoryMasterIds("production_sops", { label, signal });
-    const sops = await fetchFactoryRowsBySnapshot(sopIds, (ids) => supabase
-      .from("factory_production_sops")
-      .select(sopRootSelect)
-      .in("id", ids), { label, signal });
+    const allIds = await fetchFactoryMasterIds("production_sops", { label, signal });
+    if (sopId && !allIds.includes(sopId)) throw factoryLoadError(label, "detail reconciliation", new Error("The selected SOP is no longer available."));
+    const sopIds = sopId ? [sopId] : allIds;
+    const [sops, stepSnapshotRows] = await Promise.all([
+      fetchFactoryRowsBySnapshot(sopIds, (ids) => supabase.from("factory_production_sops").select(summaryOnly ? sopListSelect : sopRootSelect).in("id", ids), { label, signal }),
+      fetchFactoryChildSnapshot("sop_steps", sopIds, { label, signal }),
+    ]);
     if (!sopIds.length) return sops;
-
-    const stepSnapshot = validateChildSnapshotRows(
-      await fetchFactoryChildSnapshot("sop_steps", sopIds, { label, signal }),
-      label,
-      (row) => row?.id,
-    );
+    const stepSnapshot = validateChildSnapshotRows(stepSnapshotRows, label, (row) => row?.id);
     const stepIds = stepSnapshot.map((row) => String(row.id));
-    const steps = await fetchFactoryRowsBySnapshot(stepIds, (ids) => supabase
-      .from("factory_production_sop_steps")
-      .select(sopStepSelect)
-      .in("id", ids), { label, signal });
+    const [steps, subStepSnapshotRows, qcSnapshotRows, materialSnapshotRows] = await Promise.all([
+      fetchFactoryRowsBySnapshot(stepIds, (ids) => supabase.from("factory_production_sop_steps")
+        .select(summaryOnly ? "id,sop_id,step_no,estimated_time_minutes,expected_duration_minutes,is_qc_checkpoint" : sopStepSelect).in("id", ids), { label, signal }),
+      fetchFactoryChildSnapshot("sop_sub_steps", stepIds, { label, signal }),
+      fetchFactoryChildSnapshot("sop_qc_checks", stepIds, { label, signal }),
+      summaryOnly ? Promise.resolve([]) : fetchFactoryChildSnapshot("sop_step_materials", stepIds, { label, signal }),
+    ]);
     stepSnapshot.forEach((snapshot, index) => {
       if (String(steps[index].sop_id) !== String(snapshot.parent_id)) {
         throw factoryLoadError(label, "SOP Step ownership reconciliation", new Error("An SOP Step changed parents during loading."));
       }
     });
 
-    const [subStepSnapshotRows, qcSnapshotRows, materialSnapshotRows] = await Promise.all([
-      fetchFactoryChildSnapshot("sop_sub_steps", stepIds, { label, signal }),
-      fetchFactoryChildSnapshot("sop_qc_checks", stepIds, { label, signal }),
-      fetchFactoryChildSnapshot("sop_step_materials", stepIds, { label, signal }),
-    ]);
     const subStepSnapshot = validateChildSnapshotRows(subStepSnapshotRows, label, (row) => row?.id);
     const qcSnapshot = validateChildSnapshotRows(qcSnapshotRows, label, (row) => row?.id);
     const materialSnapshot = validateChildSnapshotRows(
@@ -1665,15 +1669,17 @@ async function loadProductionSopRows({ signal }) {
       (row) => row?.sop_step_id && row?.raw_material_id ? `${row.sop_step_id}:${row.raw_material_id}` : "",
     );
 
-    const [subSteps, qcChecks] = await Promise.all([
+    const rawMaterialIds = [...new Set(materialSnapshot.map((row) => String(row.raw_material_id)))];
+    const [subSteps, qcChecks, rawMaterials] = await Promise.all([
       fetchFactoryRowsBySnapshot(subStepSnapshot.map((row) => String(row.id)), (ids) => supabase
         .from("factory_production_sop_sub_steps")
-        .select(sopSubStepSelect)
+        .select(summaryOnly ? "id,sop_step_id,sequence_no,estimated_minutes" : sopSubStepSelect)
         .in("id", ids), { label, signal }),
-      fetchFactoryRowsBySnapshot(qcSnapshot.map((row) => String(row.id)), (ids) => supabase
+      summaryOnly ? Promise.resolve(qcSnapshot.map(row => ({ id: row.id, sop_step_id: row.parent_id }))) : fetchFactoryRowsBySnapshot(qcSnapshot.map((row) => String(row.id)), (ids) => supabase
         .from("factory_production_sop_step_qc_checks")
         .select(sopQcCheckSelect)
         .in("id", ids), { label, signal }),
+      fetchFactoryRowsBySnapshot(rawMaterialIds, (ids) => supabase.from("factory_raw_materials").select("id,name,name_en,material_code,uom").in("id", ids), { label, signal }),
     ]);
     subStepSnapshot.forEach((snapshot, index) => {
       if (String(subSteps[index].sop_step_id) !== String(snapshot.parent_id)) {
@@ -1686,11 +1692,6 @@ async function loadProductionSopRows({ signal }) {
       }
     });
 
-    const rawMaterialIds = [...new Set(materialSnapshot.map((row) => String(row.raw_material_id)))];
-    const rawMaterials = await fetchFactoryRowsBySnapshot(rawMaterialIds, (ids) => supabase
-      .from("factory_raw_materials")
-      .select("id,name,name_en,material_code,uom")
-      .in("id", ids), { label, signal });
     const rawMaterialsById = new Map(rawMaterials.map((row) => [row.id, row]));
     const subStepsByStep = new Map();
     subSteps.forEach((row) => subStepsByStep.set(row.sop_step_id, [...(subStepsByStep.get(row.sop_step_id) || []), row]));
@@ -1714,7 +1715,12 @@ async function loadProductionSopRows({ signal }) {
       };
       stepsBySop.set(step.sop_id, [...(stepsBySop.get(step.sop_id) || []), assembled]);
     });
-    return sops.map((sop) => ({ ...sop, steps: stepsBySop.get(sop.id) || [] }));
+    return sops.map((sop) => {
+      const full = { ...sop, steps: stepsBySop.get(sop.id) || [] };
+      if (!summaryOnly) return full;
+      const mapped = mapProductionSop(full);
+      return { ...sop, steps: [], detail_complete: false, list_summary: { ...productionSopStructure(mapped), estimatedMinutes: sopTotalEstimatedMinutes(mapped) } };
+    });
   }, label);
 }
 
@@ -1788,9 +1794,15 @@ const productionActionDependencies = {
   production: ["rawMaterials", "receivings", "recipes", "sops", "finishedGoods", "storageLocations", "equipment"],
   "production-process": ["rawMaterials", "receivings", "recipes", "sops", "finishedGoods", "storageLocations"],
   "completed-job-result": ["recipes"],
+  "finished-good-history": ["productions", "productMovements"],
+  "sop-details": ["sops", "recipes"],
+  "sop-editor": ["sops", "recipes", "productFamilies", "equipment", "qcChecklistTemplates"],
 };
 export function factoryDataPlan(scope, hasPermission, action = "") {
-  const plan = factorySupportDataPlan(["job", "job-filters"].includes(action) ? "job-orders" : action ? "production" : scope, hasPermission);
+  const plan = factorySupportDataPlan(action === "finished-good-history" ? "finished-goods" : action.startsWith("sop-") ? "production-sop" : ["job", "job-filters"].includes(action) ? "job-orders" : action ? "production" : scope, hasPermission);
+  if (!action && scope === "production-sop") { plan.recipes = false; plan.productFamilies = false; plan.qcChecklistTemplates = false; }
+  if (!action && scope === "finished-goods") { plan.productions = false; plan.productMovements = false; }
+  if (!action && scope === "raw-inventory") plan.recipes = false;
   const keys = productionActionDependencies[action];
   if (action && !keys) throw new Error("Unknown Factory action data scope.");
   if (keys || ["production-overview", "job-orders"].includes(scope)) {
@@ -2022,9 +2034,10 @@ const factoryServiceDefinition = {
     });
   },
 
-  async listFactoryData({ scope = "dashboard", hasPermission, signal, action = "", onDependency } = {}) {
+  async listFactoryData({ scope = "dashboard", hasPermission, signal, action = "", onDependency, sopId = null } = {}) {
     const data = emptyFactoryData();
     const plan = factoryDataPlan(scope, hasPermission, action);
+    if (scope === "production-sop" && !action) data.sopDetailsDeferred = true;
     const tasks = [];
     const addTask = (enabled, key, label, query, mapper, complete = false, loader = null) => {
       if (!enabled) return;
@@ -2119,7 +2132,7 @@ const factoryServiceDefinition = {
       .limit(150), (rows) => rows.map(mapProductMovement));
     addCompleteLoaderTask(plan.recipes, "recipes", "Product Recipes", () => loadRecipeRows({ signal }), (rows) => rows.map(mapRecipe));
     addCompleteLoaderTask(!plan.recipes && plan.recipeSummaries, "recipes", "Active Production Standard Summary", () => loadRecipeRows({ summaryOnly: true, signal }), (rows) => rows.map(mapRecipe));
-    addCompleteLoaderTask(plan.sops, "sops", "Production SOP", () => loadProductionSopRows({ signal }), (rows) => rows.map(mapProductionSop));
+    addCompleteLoaderTask(plan.sops, "sops", "Production SOP", () => loadProductionSopRows({ signal, summaryOnly: scope === "production-sop" && !action, sopId }), (rows) => rows.map(mapProductionSop));
     addMasterTask(plan.qcChecklistTemplates, "qcChecklistTemplates", "QC Checklist Presets", "qc_checklist_templates", (ids) => supabase
       .from("factory_qc_checklist_templates")
       .select("id,name,category,description,result_mode,is_active,created_at,updated_at")
@@ -4561,6 +4574,7 @@ const factoryServiceDefinition = {
   },
 
   async saveProductionSop(sop, employeeId) {
+    if (sop.detail_complete === false) throw new Error("Load complete SOP details before saving.");
     const isUpdate = Boolean(sop.id);
     const steps = (sop.steps ?? []).map((step, index) => {
       const subSteps = (step.sub_steps ?? []).map((subStep, subIndex) => ({

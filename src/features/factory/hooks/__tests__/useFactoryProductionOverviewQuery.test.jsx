@@ -46,3 +46,20 @@ it("refreshes canonical authority when the permission set changes without changi
   expect(await screen.findByText("Some Production Overview data is hidden by your current role.")).toBeTruthy();
   expect(screen.queryByText("visible")).toBeNull();
 });
+
+it("does not reload monthly analytics when pipeline readiness changes, but refreshes after a workspace revision", async () => {
+  const { FactoryOperationalJobsProvider } = await import("../../context/FactoryOperationalJobsContext.jsx");
+  const { default: Overview } = await import("../../pages/FactoryProductionOverviewPage.jsx");
+  let finishPipeline;
+  vi.spyOn(factoryService, "listOperationalJobOrders").mockImplementation(() => new Promise(resolve => { finishPipeline = resolve; }));
+  const monthly = vi.spyOn(factoryService, "getProductionMonthlyPerformance").mockImplementation(async month => ({ month, today: `${month}-01`, days: [] }));
+  const auth = { hasPermission: () => true, permissions: ["factory_production.view"] };
+  const before = {};
+  const tree = revision => <FactoryOperationalJobsProvider route="production-overview" auth={auth} refreshKey={revision} onPermissionDenied={denied}><Overview auth={auth} /></FactoryOperationalJobsProvider>;
+  const view = render(tree(before));
+  await waitFor(() => expect(monthly).toHaveBeenCalledTimes(1));
+  await act(async () => { finishPipeline({ jobs: [], productions: [] }); });
+  expect(monthly).toHaveBeenCalledTimes(1);
+  view.rerender(tree({}));
+  await waitFor(() => expect(monthly).toHaveBeenCalledTimes(2));
+});

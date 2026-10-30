@@ -1,4 +1,5 @@
 import MarketingAccessBoundary from "../features/marketing/MarketingAccessBoundary.jsx";
+import { readAdminMasters } from "./adminMasterReads.js";
 import { useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "../components/feedback/ConfirmDialog.jsx";
 import ToastViewport from "../components/feedback/ToastViewport.jsx";
@@ -337,6 +338,7 @@ function AdminApp() {
     [accessibleRoutes, activeRouteId],
   );
   const ActivePage = activeRoute.component;
+  const factoryBootstrapOnly = workspaceForRoute(activeRouteId) === "factory";
   const effectiveStore = useMemo(() => {
     const allOutlets = store.allOutlets?.length ? store.allOutlets : store.outlets;
     const accessibleOutlets = getAccessibleOutlets(auth, allOutlets);
@@ -379,7 +381,7 @@ function AdminApp() {
     async function loadMasterData() {
       setMasterDataStatus({ loading: true, errors: [], loads: BOOTSTRAP_LOADS.map((load) => ({ ...load, status: "pending" })) });
       const errors = [];
-      const loads = BOOTSTRAP_LOADS.map((load) => ({ ...load, status: "pending" }));
+      const loads = BOOTSTRAP_LOADS.map((load) => ({ ...load, status: factoryBootstrapOnly && load.key !== "outlets" ? "deferred" : "pending" }));
       const markLoad = (key, result, message) => {
         const index = loads.findIndex((load) => load.key === key);
         if (index === -1) return;
@@ -402,21 +404,21 @@ function AdminApp() {
       let purchaseRecords = [];
       let operatingExpenses = [];
 
-      const [outletResult, supplierResult, categoryResult, salesChannelResult, taxConfigResult, salesRecordResult, purchaseRecordResult, operatingExpenseResult] = await Promise.allSettled([
-        outletService.listActiveOutlets(),
-        supplierService.listSuppliers(),
-        purchaseCategoryService.listPurchaseCategories(),
-        salesChannelService.listSalesChannels(),
-        outletTaxConfigService.listOutletTaxConfigs(),
-        salesRecordService.listSalesRecords(),
-        purchaseRecordService.listPurchaseRecords(),
-        operatingExpenseService.listOperatingExpenses(),
-      ]);
+      const { outlets: outletResult, suppliers: supplierResult, purchaseCategories: categoryResult, salesChannels: salesChannelResult, outletTaxConfigs: taxConfigResult, salesRecords: salesRecordResult, purchaseRecords: purchaseRecordResult, operatingExpenses: operatingExpenseResult } = await readAdminMasters({
+        outlets: () => outletService.listActiveOutlets(),
+        suppliers: () => supplierService.listSuppliers(),
+        purchaseCategories: () => purchaseCategoryService.listPurchaseCategories(),
+        salesChannels: () => salesChannelService.listSalesChannels(),
+        outletTaxConfigs: () => outletTaxConfigService.listOutletTaxConfigs(),
+        salesRecords: () => salesRecordService.listSalesRecords(),
+        purchaseRecords: () => purchaseRecordService.listPurchaseRecords(),
+        operatingExpenses: () => operatingExpenseService.listOperatingExpenses(),
+      }, { factoryOnly: factoryBootstrapOnly });
       if (outletResult.status === "fulfilled") {
         outlets = outletResult.value;
         markLoad("outlets", "loaded");
       }
-      else {
+      else if (outletResult.status === "rejected") {
         console.error("Unable to load outlets", outletResult.reason);
         markLoad("outlets", "error", outletResult.reason?.message || "Unable to load outlets.");
         errors.push("Unable to load outlets. Please refresh.");
@@ -425,7 +427,7 @@ function AdminApp() {
         suppliers = supplierResult.value;
         markLoad("suppliers", "loaded");
       }
-      else {
+      else if (supplierResult.status === "rejected") {
         console.error("Unable to load suppliers", supplierResult.reason);
         markLoad("suppliers", "error", supplierResult.reason?.message || "Unable to load suppliers.");
         errors.push("Unable to load suppliers.");
@@ -434,7 +436,7 @@ function AdminApp() {
         purchaseCategories = categoryResult.value;
         markLoad("purchaseCategories", "loaded");
       }
-      else {
+      else if (categoryResult.status === "rejected") {
         console.error("Unable to load categories", categoryResult.reason);
         markLoad("purchaseCategories", "error", categoryResult.reason?.message || "Unable to load categories.");
         errors.push("Unable to load categories.");
@@ -443,7 +445,7 @@ function AdminApp() {
         salesChannels = normalizeSalesChannels(salesChannelResult.value);
         markLoad("salesChannels", "loaded");
       }
-      else {
+      else if (salesChannelResult.status === "rejected") {
         console.error("Unable to load sales channels", salesChannelResult.reason);
         markLoad("salesChannels", "error", salesChannelResult.reason?.message || "Unable to load sales channels.");
         errors.push("Unable to load sales channels.");
@@ -452,7 +454,7 @@ function AdminApp() {
         outletTaxConfigs = taxConfigResult.value;
         markLoad("outletTaxConfigs", "loaded");
       }
-      else {
+      else if (taxConfigResult.status === "rejected") {
         console.error("Unable to load tax settings", taxConfigResult.reason);
         markLoad("outletTaxConfigs", "error", taxConfigResult.reason?.message || "Unable to load tax settings.");
         errors.push("Unable to load tax settings.");
@@ -461,7 +463,7 @@ function AdminApp() {
         salesRecords = salesRecordResult.value;
         markLoad("salesRecords", "loaded");
       }
-      else {
+      else if (salesRecordResult.status === "rejected") {
         console.error("Unable to load sales records", salesRecordResult.reason);
         markLoad("salesRecords", "error", salesRecordResult.reason?.message || "Unable to load sales records.");
         errors.push("Unable to load sales records.");
@@ -470,7 +472,7 @@ function AdminApp() {
         purchaseRecords = purchaseRecordResult.value;
         markLoad("purchaseRecords", "loaded");
       }
-      else {
+      else if (purchaseRecordResult.status === "rejected") {
         console.error("Unable to load purchase records", purchaseRecordResult.reason);
         markLoad("purchaseRecords", "error", purchaseRecordResult.reason?.message || "Unable to load purchase records.");
         errors.push("Unable to load purchase records.");
@@ -479,7 +481,7 @@ function AdminApp() {
         operatingExpenses = operatingExpenseResult.value;
         markLoad("operatingExpenses", "loaded");
       }
-      else {
+      else if (operatingExpenseResult.status === "rejected") {
         console.error("Unable to load operating expenses", operatingExpenseResult.reason);
         markLoad("operatingExpenses", "error", operatingExpenseResult.reason?.message || "Unable to load operating expenses.");
         errors.push("Unable to load operating expenses.");
@@ -518,6 +520,7 @@ function AdminApp() {
     auth.profile?.role_name,
     auth.user?.id,
     authOutletScopeKey,
+    factoryBootstrapOnly,
   ]);
 
   useEffect(() => {

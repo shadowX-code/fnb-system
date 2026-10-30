@@ -86,3 +86,25 @@ export function costDisplay(value, missingCostRows = 0, unsupportedCostRows = 0)
   if (unsupportedCostRows) return "Incomplete Cost";
   return money(value);
 }
+
+// Shared history projection: route metrics and on-demand Finished Good detail use identical costing.
+export function productionCostRowsFor(completedProductions, recipeCostRows, receivings) {
+    const recipeByFinishedGood = new Map(recipeCostRows.filter((recipe) => recipe.finished_good_id).map((recipe) => [recipe.finished_good_id, recipe]));
+    const recipeByProductFamily = new Map(recipeCostRows.filter((recipe) => recipe.product_family_id).map((recipe) => [recipe.product_family_id, recipe]));
+    const recipeByProduct = new Map(recipeCostRows.map((recipe) => [String(recipe.product_name || "").toLowerCase(), recipe]));
+    return completedProductions.map((production) => {
+      const recipe = recipeByProductFamily.get(production.product_family_id) || recipeByFinishedGood.get(production.finished_good_id) || recipeByProduct.get(String(production.product_name || "").toLowerCase());
+      const actualCost = productionCostInfo(production, receivings);
+      const standardCost = recipe ? Number(recipe.costPerUnit || 0) * Number(production.good_output_qty || production.actual_produced_qty || production.produced_quantity || 0) : 0;
+      const variance = costVarianceInfo(standardCost, actualCost.cost);
+      return {
+        ...production,
+        standard_cost: standardCost,
+        actual_cost: actualCost.cost,
+        variance_rm: variance.variance,
+        variance_percent: variance.variancePercent,
+        missing_cost_rows: actualCost.missingCostRows + (recipe?.missingCostRows || 0),
+        unsupported_cost_rows: recipe?.unsupportedCostRows || 0,
+      };
+    });
+}

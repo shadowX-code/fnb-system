@@ -32,6 +32,8 @@ export function AuthProvider({ children }) {
   const passwordRecoveryRef = useRef(false);
   const currentUserRef = useRef(null);
   const currentProfileRef = useRef(null);
+  const contextRequestRef = useRef(0);
+  const pendingContextRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(false);
   const [error, setError] = useState("");
@@ -44,7 +46,19 @@ export function AuthProvider({ children }) {
     currentProfileRef.current = profile;
   }, [profile]);
 
-  async function loadContext(nextSession) {
+  function loadContext(nextSession, { force = false } = {}) {
+    const pending = pendingContextRef.current;
+    if (!force && nextSession?.user && pending?.session?.user?.id === nextSession.user.id
+      && pending.session.access_token === nextSession.access_token) return pending.promise;
+    const requestId = ++contextRequestRef.current;
+    const promise = applyContext(nextSession, requestId).finally(() => {
+      if (pendingContextRef.current?.requestId === requestId) pendingContextRef.current = null;
+    });
+    pendingContextRef.current = { session: nextSession, requestId, promise };
+    return promise;
+  }
+
+  async function applyContext(nextSession, requestId) {
     setSession(nextSession);
     setUser(nextSession?.user ?? null);
     setError("");
@@ -61,10 +75,12 @@ export function AuthProvider({ children }) {
     setContextLoading(true);
     try {
       const context = await authService.getUserContext(nextSession.user);
+      if (contextRequestRef.current !== requestId) return;
       setProfile(context.profile);
       setPermissions(context.permissions);
       setSource(context.source);
     } catch (loadError) {
+      if (contextRequestRef.current !== requestId) return;
       if (authService.isPasswordSetupRequiredError(loadError)) {
         passwordRecoveryRef.current = true;
         setPasswordRecovery(true);
@@ -83,13 +99,13 @@ export function AuthProvider({ children }) {
       setPermissions([]);
       setSource("error");
     } finally {
-      setLoading(false);
-      setContextLoading(false);
+      if (contextRequestRef.current === requestId) { setLoading(false); setContextLoading(false); }
     }
   }
 
   useEffect(() => {
     let ignore = false;
+    let sawAuthEvent = false;
     const recoveryCallback = readRecoveryCallback();
     if (recoveryCallback) passwordRecoveryRef.current = true;
     const initialLoad = recoveryCallback
@@ -107,13 +123,13 @@ export function AuthProvider({ children }) {
           setContextLoading(false);
         })
       : authService.getSession().then((initialSession) => {
-          if (!ignore) loadContext(initialSession);
+          if (!ignore && !sawAuthEvent) loadContext(initialSession);
         });
 
     initialLoad
       .catch((sessionError) => {
         console.error("Unable to load auth session", sessionError);
-        if (!ignore) {
+        if (!ignore && !sawAuthEvent) {
           setError("Unable to load login session.");
           setLoading(false);
         }
@@ -121,6 +137,7 @@ export function AuthProvider({ children }) {
 
     const { data } = authService.onAuthStateChange((event, nextSession) => {
       if (ignore) return;
+      sawAuthEvent = true;
       const currentUser = currentUserRef.current;
       const currentProfile = currentProfileRef.current;
       if (import.meta.env.DEV) {
@@ -132,6 +149,8 @@ export function AuthProvider({ children }) {
         });
       }
       if (event === "PASSWORD_RECOVERY") {
+        contextRequestRef.current += 1;
+        pendingContextRef.current = null;
         setSession(nextSession);
         setUser(nextSession?.user ?? null);
         passwordRecoveryRef.current = true;
@@ -154,11 +173,13 @@ export function AuthProvider({ children }) {
         setUser(nextSession.user);
         return;
       }
-      if (!passwordRecoveryRef.current) loadContext(nextSession);
+      if (!passwordRecoveryRef.current) loadContext(nextSession, { force: event === "USER_UPDATED" });
     });
 
     return () => {
       ignore = true;
+      contextRequestRef.current += 1;
+      pendingContextRef.current = null;
       data.subscription.unsubscribe();
     };
   }, []);
@@ -221,7 +242,7 @@ export function AuthProvider({ children }) {
 
   async function refreshContext() {
     const nextSession = await authService.getSession();
-    await loadContext(nextSession);
+    await loadContext(nextSession, { force: true });
   }
 
   async function changePassword({ currentPassword, newPassword }) {

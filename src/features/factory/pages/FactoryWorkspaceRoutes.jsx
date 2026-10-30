@@ -80,7 +80,7 @@ export default function FactoryWorkspaceRoutes({
   if (initialTab === "product-stock-check") return legacy.renderProductStockCheck();
   if (initialTab === "mesti-cleaning") return <LazyFactoryRoute route={initialTab} Page={FactoryMestiCleaningPage} onReady={onReady}><FactoryMestiCleaningPage auth={auth} onNotify={notify} /></LazyFactoryRoute>;
   if (initialTab === "product-recipes") return <LazyFactoryRoute route={initialTab} Page={FactoryProductRecipesPage} onReady={onReady} />;
-  if (initialTab === "production-sop") return <LazyFactoryRoute route={initialTab} Page={FactoryProductionSopPage} onReady={onReady} />;
+  if (initialTab === "production-sop") return <LazyFactoryRoute route={initialTab} Page={FactoryProductionSopPage} onReady={onReady}><FactoryProductionSopPage auth={auth} /></LazyFactoryRoute>;
   if (initialTab === "audit-logs") return <LazyFactoryRoute route={initialTab} Page={FactoryAuditTrailPage} onReady={onReady}><FactoryAuditTrailPage onNotify={notify} /></LazyFactoryRoute>;
   if (initialTab === "storage-locations") return <LazyFactoryRoute route={initialTab} Page={FactoryStorageLocationsPage} onReady={onReady} />;
   if (initialTab === "suppliers") return <LazyFactoryRoute route={initialTab} Page={FactorySuppliersPage} onReady={onReady} />;
