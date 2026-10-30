@@ -225,7 +225,7 @@ export const authService = {
 
     const { data: rows, error: permissionsError } = await supabase
       .from("role_permissions")
-      .select("permission:permissions(code,module,description)")
+      .select("permission:permissions(code)")
       .eq("role_id", profile.role_id);
 
     if (permissionsError) {

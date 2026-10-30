@@ -72,3 +72,13 @@ describe("Auth employee identity compatibility contracts", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("complete_employee_password_setup");
   });
 });
+
+it("loads the same permission codes and selected outlet scope without unused permission descriptions", async () => {
+ const profile={id:"employee-1",role_id:"role-1",auth_user_id:user.id,email:user.email,enable_system_login:true,access_state:"active",is_active:true,role:{name:"Staff",outlet_access_type:"selected"}};
+ mocks.responses.push({data:profile,error:null},{data:profile,error:null},{data:[{permission:{code:"factory_finished_goods.view"}},{permission:null}],error:null},{data:[{outlet_id:"outlet-1"}],error:null});
+ const context=await authService.getUserContext(user);
+ expect(context.permissions).toEqual(["factory_finished_goods.view"]);
+ expect(context.profile.role_outlet_ids).toEqual(["outlet-1"]);
+ expect(context.profile.role_outlet_access_type).toBe("selected");
+ expect(mocks.operations.find(row=>row.table==="role_permissions")).toMatchObject({fields:"permission:permissions(code)",filters:[["eq","role_id","role-1"]]});
+});
