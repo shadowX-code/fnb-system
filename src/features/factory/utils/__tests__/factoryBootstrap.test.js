@@ -35,3 +35,15 @@ it("reports only pending safe dependency labels and the elapsed deadline", async
   await vi.advanceTimersByTimeAsync(30000);
   await failure;
 });
+
+it("records the stalled query stage without request URLs or business payloads", async () => {
+  vi.useFakeTimers();
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const dependencies = new Map([["recipes", { key: "recipes", label: "Product Recipes", status: "pending", requests: [{ stage: "Recipe items", startedAt: Date.now() }] }]]);
+  const promise = factoryBootstrap(() => new Promise(() => {}), new AbortController(), 30000, dependencies);
+  const failure = expect(promise).rejects.toMatchObject({ name: "TimeoutError" });
+  await vi.advanceTimersByTimeAsync(30000);
+  await failure;
+  expect(JSON.parse(warn.mock.calls.at(-1)[1])).toEqual({ elapsedMs: 30000, pending: [{ key: "recipes", label: "Product Recipes", requests: [{ stage: "Recipe items", elapsedMs: 30000 }] }] });
+  warn.mockRestore();
+});

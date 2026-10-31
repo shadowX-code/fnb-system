@@ -36,7 +36,7 @@ it("keeps Finished Good catalog complete without reading history until detail op
   const list = factoryDataPlan("finished-goods", can);
   expect(list.finishedGoods).toBe(true);
   expect(list.productFamilies).toBe(true);
-  expect(list.recipes).toBe(true);
+  expect(list.recipes).toBe(false);
   expect(list.storageLocations).toBe(true);
   expect(list.productions).toBe(false);
   expect(list.productMovements).toBe(false);
@@ -52,4 +52,9 @@ it("removes unused Raw Inventory Recipes while keeping complete production-actio
   const production = factoryDataPlan("production-overview", can, "production");
   expect(production.recipes).toBe(true);
   expect(production.sops).toBe(true);
+});
+
+it("loads Finished Goods Recipe support separately and retains permission gates", () => {
+  expect(Object.keys(factoryDataPlan("finished-goods", can, "finished-good-recipes")).filter(key => factoryDataPlan("finished-goods", can, "finished-good-recipes")[key])).toEqual(["recipes"]);
+  expect(Object.values(factoryDataPlan("finished-goods", () => false, "finished-good-recipes")).some(Boolean)).toBe(false);
 });

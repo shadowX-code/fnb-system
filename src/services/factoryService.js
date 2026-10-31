@@ -1506,9 +1506,15 @@ function chunkFactoryIds(values, size = FACTORY_MASTER_ID_BATCH_SIZE) {
   return chunks;
 }
 
-async function runFactoryQuery(query, { label, stage, signal } = {}) {
+async function runFactoryQuery(query, { label, stage, signal, onRequest } = {}) {
   if (signal?.aborted) throw factoryAbortError();
-  const result = await traceFactoryRequest(`${label || "Factory"}: ${stage || "query"}`, () => signal ? query.abortSignal(signal) : query, { kind: "supabase" });
+  const finishRequest = onRequest?.(stage);
+  let result;
+  try {
+    result = await traceFactoryRequest(`${label || "Factory"}: ${stage || "query"}`, () => signal ? query.abortSignal(signal) : query, { kind: "supabase" });
+  } finally {
+    finishRequest?.();
+  }
   if (signal?.aborted) throw factoryAbortError();
   if (result.error) throw factoryLoadError(label, stage, result.error);
   return result.data;
@@ -1523,10 +1529,10 @@ function validateSnapshotIds(values, label) {
   return ids;
 }
 
-async function fetchFactoryMasterIds(entity, { label, signal } = {}) {
+async function fetchFactoryMasterIds(entity, { label, signal, onRequest } = {}) {
   const data = await runFactoryQuery(
     supabase.rpc("factory_get_master_id_snapshot", { p_entity: entity }),
-    { label, stage: "ID snapshot", signal },
+    { label, stage: "ID snapshot", signal, onRequest },
   );
   return validateSnapshotIds(data, label);
 }
@@ -1540,11 +1546,11 @@ async function mapFactoryBatches(batches, execute) {
   return results;
 }
 
-async function fetchFactoryChildSnapshot(entity, parentIds, { label, signal } = {}) {
+async function fetchFactoryChildSnapshot(entity, parentIds, { label, signal, onRequest } = {}) {
   const batches = await mapFactoryBatches(chunkFactoryIds(parentIds), async (parentChunk) => {
     const data = await runFactoryQuery(
       supabase.rpc("factory_get_master_child_snapshot", { p_entity: entity, p_parent_ids: parentChunk }),
-      { label, stage: `${entity} snapshot`, signal },
+      { label, stage: `${entity} snapshot`, signal, onRequest },
     );
     if (!Array.isArray(data)) throw factoryLoadError(label, `${entity} snapshot`, new Error("Invalid child snapshot response."));
     return data;
@@ -1553,11 +1559,11 @@ async function fetchFactoryChildSnapshot(entity, parentIds, { label, signal } = 
   return rows;
 }
 
-async function fetchFactoryRowsBySnapshot(ids, buildQuery, { label, signal } = {}) {
+async function fetchFactoryRowsBySnapshot(ids, buildQuery, { label, signal, onRequest } = {}) {
   if (!ids.length) return [];
   const expectedIds = new Set(ids);
   const rowsById = new Map();
-  const batches = await mapFactoryBatches(chunkFactoryIds(ids), (idChunk) => runFactoryQuery(buildQuery(idChunk), { label, stage: "detail batch", signal }));
+  const batches = await mapFactoryBatches(chunkFactoryIds(ids), (idChunk) => runFactoryQuery(buildQuery(idChunk), { label, stage: "detail batch", signal, onRequest }));
   for (const data of batches) {
     if (!Array.isArray(data)) throw factoryLoadError(label, "detail batch", new Error("Invalid detail response."));
     for (const row of data) {
@@ -1606,13 +1612,20 @@ function validateChildSnapshotRows(rows, label, keyForRow) {
   return rows;
 }
 
-async function loadRecipeRows({ summaryOnly = false, signal }) {
+async function loadRecipeRows({ summaryOnly = false, signal, onProgress }) {
   const label = summaryOnly ? "Active Production Standard Summary" : "Product Recipes";
+  const pending = new Set();
+  const onRequest = (stage) => {
+    const request = { stage, startedAt: Date.now() };
+    pending.add(request);
+    onProgress?.([...pending]);
+    return () => { pending.delete(request); onProgress?.([...pending]); };
+  };
   return loadFactoryMasterWithRetry(async () => {
-    const recipeIds = await fetchFactoryMasterIds(summaryOnly ? "active_product_recipes" : "product_recipes", { label, signal });
+    const recipeIds = await fetchFactoryMasterIds(summaryOnly ? "active_product_recipes" : "product_recipes", { label, signal, onRequest });
     const [recipes, itemSnapshotRows] = await Promise.all([
-      fetchFactoryRowsBySnapshot(recipeIds, (ids) => supabase.from("factory_product_recipes").select(summaryOnly ? recipeSummarySelect : recipeRootSelect).in("id", ids), { label, signal }),
-      summaryOnly ? Promise.resolve([]) : fetchFactoryChildSnapshot("recipe_items", recipeIds, { label, signal }),
+      fetchFactoryRowsBySnapshot(recipeIds, (ids) => supabase.from("factory_product_recipes").select(summaryOnly ? recipeSummarySelect : recipeRootSelect).in("id", ids), { label, signal, onRequest: () => onRequest("Recipe headers") }),
+      summaryOnly ? Promise.resolve([]) : fetchFactoryChildSnapshot("recipe_items", recipeIds, { label, signal, onRequest }),
     ]);
     if (summaryOnly || !recipeIds.length) return recipes;
     const itemSnapshot = validateChildSnapshotRows(itemSnapshotRows, label, (row) => row?.id);
@@ -1620,7 +1633,7 @@ async function loadRecipeRows({ summaryOnly = false, signal }) {
     const items = await fetchFactoryRowsBySnapshot(itemIds, (ids) => supabase
       .from("factory_product_recipe_items")
       .select(recipeItemSelect)
-      .in("id", ids), { label, signal });
+      .in("id", ids), { label, signal, onRequest: () => onRequest("Recipe items") });
     const itemsByRecipe = new Map();
     itemSnapshot.forEach((snapshot, index) => {
       const item = items[index];
@@ -1795,13 +1808,14 @@ const productionActionDependencies = {
   "production-process": ["rawMaterials", "receivings", "recipes", "sops", "finishedGoods", "storageLocations"],
   "completed-job-result": ["recipes"],
   "finished-good-history": ["productions", "productMovements"],
+  "finished-good-recipes": ["recipes"],
   "sop-details": ["sops", "recipes"],
   "sop-editor": ["sops", "recipes", "productFamilies", "equipment", "qcChecklistTemplates"],
 };
 export function factoryDataPlan(scope, hasPermission, action = "") {
-  const plan = factorySupportDataPlan(action === "finished-good-history" ? "finished-goods" : action.startsWith("sop-") ? "production-sop" : ["job", "job-filters"].includes(action) ? "job-orders" : action ? "production" : scope, hasPermission);
+  const plan = factorySupportDataPlan(action.startsWith("finished-good-") ? "finished-goods" : action.startsWith("sop-") ? "production-sop" : ["job", "job-filters"].includes(action) ? "job-orders" : action ? "production" : scope, hasPermission);
   if (!action && scope === "production-sop") { plan.recipes = false; plan.productFamilies = false; plan.qcChecklistTemplates = false; }
-  if (!action && scope === "finished-goods") { plan.productions = false; plan.productMovements = false; }
+  if (!action && scope === "finished-goods") { plan.productions = false; plan.productMovements = false; plan.recipes = false; }
   if (!action && scope === "raw-inventory") plan.recipes = false;
   const keys = productionActionDependencies[action];
   if (action && !keys) throw new Error("Unknown Factory action data scope.");
@@ -2130,7 +2144,7 @@ const factoryServiceDefinition = {
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(150), (rows) => rows.map(mapProductMovement));
-    addCompleteLoaderTask(plan.recipes, "recipes", "Product Recipes", () => loadRecipeRows({ signal }), (rows) => rows.map(mapRecipe));
+    addCompleteLoaderTask(plan.recipes, "recipes", "Product Recipes", (onProgress) => loadRecipeRows({ signal, onProgress }), (rows) => rows.map(mapRecipe));
     addCompleteLoaderTask(!plan.recipes && plan.recipeSummaries, "recipes", "Active Production Standard Summary", () => loadRecipeRows({ summaryOnly: true, signal }), (rows) => rows.map(mapRecipe));
     addCompleteLoaderTask(plan.sops, "sops", "Production SOP", () => loadProductionSopRows({ signal, summaryOnly: scope === "production-sop" && !action, sopId }), (rows) => rows.map(mapProductionSop));
     addMasterTask(plan.qcChecklistTemplates, "qcChecklistTemplates", "QC Checklist Presets", "qc_checklist_templates", (ids) => supabase
@@ -2185,7 +2199,7 @@ const factoryServiceDefinition = {
       const report = (status) => onDependency?.({ key: task.key, label: task.label, status, elapsedMs: Date.now() - startedAt });
       report("pending");
       try {
-        const result = task.loader ? { data: await task.loader(), error: null } : await (signal ? task.query().abortSignal(signal) : task.query());
+        const result = task.loader ? { data: await task.loader((requests) => onDependency?.({ key: task.key, label: task.label, status: "pending", requests })), error: null } : await (signal ? task.query().abortSignal(signal) : task.query());
         report(result.error ? "failed" : "ready");
         return result;
       } catch (error) {
