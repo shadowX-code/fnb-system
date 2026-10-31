@@ -64,7 +64,7 @@ export default function FactoryFinishedGoodsPage() {
   const FinishedGoodDetail = masterData.finishedGoodsHistoryDeferred ? FactoryFinishedGoodHistoryDetail : FactoryFinishedGoodDetailModal;
   const productionCosts = Array.isArray(masterData.productionCosts) ? masterData.productionCosts : [];
   const { can, permissionSet } = useFactoryPermissions();
-  const recipeQuery = useFactoryActionData({ scope: "finished-goods", action: "finished-good-recipes", owner: masterData, permissionSignature: JSON.stringify(permissionSet), hasPermission: can, enabled: masterData.finishedGoodsRecipesDeferred });
+  const recipeQuery = useFactoryActionData({ scope: "finished-goods", action: "finished-good-recipes", owner: masterData.finishedGoods, permissionSignature: JSON.stringify(permissionSet), hasPermission: can, enabled: masterData.finishedGoodsRecipesDeferred });
   const recipesReady = !masterData.finishedGoodsRecipesDeferred || Boolean(recipeQuery.data);
   const recipes = masterData.finishedGoodsRecipesDeferred ? recipeQuery.data?.recipes || [] : masterData.recipes;
   const recipeStatus = recipeQuery.error ? "Unavailable" : "Loading…";
