@@ -428,3 +428,15 @@ it("recovers a required Product Recipes failure and leaves navigation usable whi
   view.rerender(<FactoryWorkspacePage initialTab="job-orders" auth={recipeAuth} ui={ui} />);
   expect(await screen.findByRole("heading", { name: "Job Order" })).toBeTruthy();
 });
+
+it("does not restart optional Recipe reads on a parent presentation rerender", async () => {
+  setup();
+  vi.spyOn(factoryService, "getFinishedGoodTags").mockResolvedValue({ tags: [], assignments: [] });
+  factoryService.listFactoryData.mockImplementation(({ action }) => action === "finished-good-recipes" ? new Promise(() => {}) : Promise.resolve(data));
+  const view = render(<FactoryWorkspacePage initialTab="finished-goods" auth={auth} ui={ui} />);
+  expect(await screen.findByRole("heading", { name: "Finished Goods" })).toBeTruthy();
+  await waitFor(() => expect(factoryService.listFactoryData.mock.calls.filter(([args]) => args.action === "finished-good-recipes")).toHaveLength(1));
+  view.rerender(<FactoryWorkspacePage initialTab="finished-goods" auth={auth} ui={{ ...ui }} />);
+  await act(async () => {});
+  expect(factoryService.listFactoryData.mock.calls.filter(([args]) => args.action === "finished-good-recipes")).toHaveLength(1);
+});
