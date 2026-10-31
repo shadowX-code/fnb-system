@@ -50,7 +50,9 @@ describe("Factory bootstrap dataset ownership", () => {
     expect(result.recipes[0].items).toHaveLength(350);
     expect(batches.map((batch) => batch.length)).toEqual([300, 50]);
     expect(batches.flat()).toEqual(ids);
-    expect(onDependency.mock.calls.map(([event]) => event.status)).toEqual(["pending", "ready"]);
-    expect(Object.keys(onDependency.mock.calls[1][0]).sort()).toEqual(["elapsedMs", "key", "label", "status"]);
+    expect(onDependency.mock.calls[0][0].status).toBe("pending");
+    expect(onDependency.mock.calls.at(-1)[0].status).toBe("ready");
+    expect(onDependency.mock.calls.some(([event]) => event.requests?.some(request => request.stage === "Recipe items"))).toBe(true);
+    expect(Object.keys(onDependency.mock.calls.at(-1)[0]).sort()).toEqual(["elapsedMs", "key", "label", "status"]);
   });
 });

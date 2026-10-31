@@ -378,3 +378,53 @@ it("mounts Overview only after its own bootstrap scope is ready on warm navigati
   await waitFor(() => expect(factoryService.listOperationalJobOrders).toHaveBeenCalledTimes(1));
   expect(factoryService.listOperationalJobOrders.mock.calls[0][0].signal.aborted).toBe(false);
 });
+
+it("keeps Finished Goods catalog and unrelated routes available through a stalled Recipe read and recovery", async () => {
+  setup();
+  vi.spyOn(factoryService, "getFinishedGoodTags").mockResolvedValue({ tags: [], assignments: [] });
+  const fullPermissions = [...permissions, "factory_finished_goods.create", "factory_finished_goods.export", "factory_finished_goods.view", "factory_product_recipes.view", "factory_storage_locations.view"];
+  const fullAuth = { ...auth, permissions: fullPermissions, hasPermission: code => fullPermissions.includes(code) };
+  let recipeSignal;
+  factoryService.listFactoryData.mockImplementation(({ action, signal }) => {
+    if (action === "finished-good-recipes") { recipeSignal = signal; return new Promise(() => {}); }
+    return Promise.resolve(data);
+  });
+  const view = render(<FactoryWorkspacePage initialTab="finished-goods" auth={fullAuth} ui={ui} />);
+  expect(await screen.findByRole("heading", { name: "Finished Goods" })).toBeTruthy();
+  await waitFor(() => expect(recipeSignal).toBeTruthy());
+  expect(screen.getByText(/Loading Recipe costs and versions/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /expand sambal/i }));
+  expect(screen.getAllByText("Loading…").length).toBeGreaterThan(0);
+  expect(screen.queryByText("No Recipe")).toBeNull();
+  expect(screen.getByRole("button", { name: "Create Finished Good" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Print / Export" }).disabled).toBe(true);
+  view.rerender(<FactoryWorkspacePage initialTab="job-orders" auth={fullAuth} ui={ui} />);
+  expect(await screen.findByRole("heading", { name: "Job Order" })).toBeTruthy();
+  expect(recipeSignal.aborted).toBe(true);
+  view.rerender(<FactoryWorkspacePage initialTab="storage-locations" auth={fullAuth} ui={ui} />);
+  expect(await screen.findByRole("heading", { name: "Locations" })).toBeTruthy();
+  factoryService.listFactoryData.mockImplementation(({ action }) => action === "finished-good-recipes"
+    ? Promise.resolve({ ...data, accessIssues: [{ key: "recipes", kind: "load" }] }) : Promise.resolve(data));
+  view.rerender(<FactoryWorkspacePage initialTab="finished-goods" auth={fullAuth} ui={ui} />);
+  expect(await screen.findByText("Recipe costs and versions unavailable")).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Finished Goods" })).toBeTruthy();
+  factoryService.listFactoryData.mockResolvedValue(data);
+  fireEvent.click(screen.getByRole("button", { name: "Retry", exact: true }));
+  await waitFor(() => expect(screen.queryByText("Recipe costs and versions unavailable")).toBeNull());
+  expect(screen.queryByText(/Loading Recipe costs and versions/)).toBeNull();
+});
+
+it("recovers a required Product Recipes failure and leaves navigation usable while pending", async () => {
+  setup();
+  const recipeAuth = { ...auth, permissions: [...permissions, "factory_product_recipes.view"], hasPermission: () => true };
+  factoryService.listFactoryData.mockRejectedValueOnce(new Error("Recipe request failed"));
+  const view = render(<FactoryWorkspacePage initialTab="product-recipes" auth={recipeAuth} ui={ui} />);
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(screen.queryByText("No Product Recipes")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Retry", exact: true }));
+  expect(await screen.findByRole("heading", { name: "Product Recipes / BOM" })).toBeTruthy();
+  factoryService.listFactoryData.mockImplementation(() => new Promise(() => {}));
+  view.rerender(<FactoryWorkspacePage initialTab="finished-goods" auth={recipeAuth} ui={ui} />);
+  view.rerender(<FactoryWorkspacePage initialTab="job-orders" auth={recipeAuth} ui={ui} />);
+  expect(await screen.findByRole("heading", { name: "Job Order" })).toBeTruthy();
+});

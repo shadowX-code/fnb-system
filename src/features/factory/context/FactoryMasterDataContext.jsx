@@ -21,6 +21,7 @@ export function FactoryMasterDataProvider({ data, children }) {
       qcChecklistTemplates: data?.qcChecklistTemplates || [],
       receivings: data?.receivings || [],
       finishedGoodsHistoryDeferred: data?.finishedGoodsHistoryDeferred === true,
+      finishedGoodsRecipesDeferred: data?.finishedGoodsRecipesDeferred === true,
       productions: data?.productions || [],
       productMovements: data?.productMovements || [],
       productionCosts: data?.productionCosts || [],

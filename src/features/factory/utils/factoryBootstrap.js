@@ -11,7 +11,7 @@ export async function factoryBootstrap(load, controller, timeoutMs = FACTORY_BOO
       const pending = [...dependencies.values()].filter((item) => item.status === "pending");
       const waiting = pending.length ? ` Waiting for ${pending.map((item) => item.label).join(", ")} (${Math.round(timeoutMs / 1000)}s).` : "";
       // Labels/timings only: never log query URLs, parameters, payloads or auth material.
-      console.warn("[Factory initialization deadline]", { elapsedMs: timeoutMs, pending: pending.map(({ key, label }) => ({ key, label })) });
+      console.warn("[Factory initialization deadline]", JSON.stringify({ elapsedMs: timeoutMs, pending: pending.map(({ key, label, requests }) => ({ key, label, requests: requests?.map(({ stage, startedAt }) => ({ stage, elapsedMs: Date.now() - startedAt })) })) }));
       reject(Object.assign(new Error(`Factory initialization took too long.${waiting} Check your connection and retry.`), { name: "TimeoutError" }));
       controller.abort();
     }, timeoutMs);

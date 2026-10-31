@@ -3525,7 +3525,7 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
 
   return (
     <FactoryPermissionsProvider permissionSet={auth?.permissions || []} can={can}>
-      <FactoryMasterDataProvider data={{ ...data, finishedGoodsHistoryDeferred: initialTab === "finished-goods", productionCosts: metrics.productionCostRows }}>
+      <FactoryMasterDataProvider data={{ ...data, finishedGoodsHistoryDeferred: initialTab === "finished-goods", finishedGoodsRecipesDeferred: initialTab === "finished-goods", productionCosts: metrics.productionCostRows }}>
         <FactoryNavigationProvider
           auditReferenceLoading={auditReferenceLoading}
           openAuditReference={openFactoryAuditReference}
