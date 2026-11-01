@@ -14,6 +14,7 @@ import { externalAgentService } from "../../services/externalAgentService.js";
 import { hasPermission } from "../../utils/accessControl.js";
 import BusinessCapabilitySelector, { actionLabels } from "../../components/permissions/BusinessCapabilitySelector.jsx";
 import FactoryAgentActions from './FactoryAgentActions.jsx';
+import AgentActivityTimeline from './AgentActivityTimeline.jsx';
 import {capabilityDomain,actionTypeCounts} from '../../components/permissions/capabilityActions.js';
 import "./externalAgents.css";
 
@@ -58,16 +59,12 @@ function EffectiveAccessSummary({ agent }) {
     {domains.length ? <TagList tags={domains} maxVisible={3} label="business domains" /> : <p className="text-xs text-text-secondary">Details in Manage</p>}
   </div>;
 }
-const failureLabels = { credential_denied: "Access key or connection permission was not accepted.", capability_denied: "This capability is not allowed.", tool_denied: "The requested capability is unavailable.", evidence_unavailable: "Information could not be returned. Check access and try again.", origin_denied: "The request came from an unsupported application.", invalid_request: "The request could not be processed.", unsupported_version: "The connection version is unsupported.", method_denied: "This connection request is unsupported." };
-
-const compatibilityActivityLabels = { factory_action_context: "Action eligibility checked", execute_factory_action: "Action request processed", get_mesti_daily_status: "Daily MeSTI review", list_mesti_exceptions: "MeSTI exceptions reviewed", list_pending_verifications: "Pending verifications reviewed", get_mesti_evidence_details: "MeSTI evidence viewed", get_mesti_requirement_schedule: "MeSTI schedule reviewed" };
-
 export default function ExternalAgentsPage({ auth }) {
   const [data, setData] = useState(null), [selected, setSelected] = useState(null), [detail, setDetail] = useState(null);
   const [search, setSearch] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("overview"), [advanced, setAdvanced] = useState(false), [connection, setConnection] = useState(null);
   const [confirmation, setConfirmation] = useState(null), [issued, setIssued] = useState(null), [revealed, setRevealed] = useState(false), [copied, setCopied] = useState(false);
-  const [validity, setValidity] = useState(90), [activityFilter, setActivityFilter] = useState("all"), [requestHistoryOpen, setRequestHistoryOpen] = useState(false);
+  const [validity, setValidity] = useState(90);
   const [testCredential, setTestCredential] = useState(""), [testResult, setTestResult] = useState(null);
   const selectedRef = useRef(null), generation = useRef(0), alive = useRef(true);
   const canView = hasPermission(auth, "roles.view"), canEdit = hasPermission(auth, "roles.edit"), canCreate = hasPermission(auth, "roles.create");
@@ -85,7 +82,7 @@ export default function ExternalAgentsPage({ auth }) {
   useEffect(() => { if (canView) load(); else setLoading(false); }, [canView]);
   async function open(row) {
     const version = ++generation.current;
-    selectedRef.current = row.id; setSelected(row.id); setDetail(null); setTab("overview"); setActivityFilter("all"); setRequestHistoryOpen(false); setValidity(row.credential_policy?.default_days || 90); setAdvanced(false); setTestCredential(""); setTestResult(null); setError("");
+    selectedRef.current = row.id; setSelected(row.id); setDetail(null); setTab("overview"); setValidity(row.credential_policy?.default_days || 90); setAdvanced(false); setTestCredential(""); setTestResult(null); setError("");
     try { const response = await externalAgentService.details(row.id); if (alive.current && generation.current === version) setDetail(response); }
     catch (cause) { if (alive.current && generation.current === version) setError(cause.message); }
   }
@@ -145,13 +142,6 @@ export default function ExternalAgentsPage({ auth }) {
     { key: "last_active", header: "Last successful access", render: (row) => stamp(row.last_mcp_success) },
     { key: "action", header: "Actions", render: (row) => <button className="btn-secondary" type="button" aria-label={`Manage ${row.name}`} onClick={() => open(row)}>Manage</button> },
   ];
-  const activity = [...(detail?.access_events || []).map((event) => ({ ...event, activity: (["query_mesti_resources", "query_factory_resources"].includes(event.tool) ? "Records requested" : compatibilityActivityLabels[event.tool] || agent?.tools.find((tool) => tool.name === event.tool)?.label) || ({ initialize: "Connection established", "tools/list": "Available capabilities checked", ping: "Connection checked" }[event.method]) || "Unsupported request", sourceLabel: event.source === "admin_probe" ? "FeedX connection check" : "Agent request" })), ...(detail?.management_events || []).map((event) => ({ ...event, activity: event.label, sourceLabel: "Administrator change", outcome: "success", adminChange: true }))].sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at)).slice(0, 50);
-  const filteredActivity = activity.filter((event) => activityFilter === "all" || (activityFilter === "admin" ? event.adminChange : !event.adminChange && event.outcome === activityFilter));
-  const activityColumns = [
-    { key: "time", header: "When", render: (row) => stamp(row.occurred_at) },
-    { key: "activity", header: "Activity", render: (row) => <div>{row.activity}<p className="mt-1 text-xs text-text-secondary">{row.sourceLabel}</p>{row.resource_actions?.length > 0 && <p className="mt-1 text-xs text-text-secondary">{row.resource_actions.map((operation) => `${agent?.tools.find((tool) => tool.module_id === operation.business_module)?.label || "MeSTI review"} / ${operation.resource.replace(/_/g, " ")} · ${actionLabels[operation.action]}`).join(", ")}</p>}{row.failure_reason && <p className="mt-1 text-xs text-text-secondary">{failureLabels[row.failure_reason] || "Request unsuccessful. Review agent access and try again."}</p>}</div> },
-    { key: "outcome", header: "Result", render: (row) => row.tool === "execute_factory_action" && row.outcome === "success" ? <Badge tone="neutral">Request processed</Badge> : row.tool === "factory_action_context" && row.outcome === "success" ? <Badge tone="neutral">Checked</Badge> : <State value={row.outcome} /> },
-  ];
   if (!canView) return <div className="card p-5" role="alert">Role Settings view permission is required to view external agents.</div>;
   return <div className="external-agents space-y-4">
     <PageHeader title="AI Integrations" breadcrumbs={[{ label: "System" }, { label: "AI Integrations" }]} description="Control what external agents can access and review their activity." actions={<><button className="btn-secondary" type="button" disabled={loading || busy} onClick={load}><RefreshCw size={15} /> Refresh</button>{canCreate && canEdit && data?.can_register && <button className="btn-primary" type="button" disabled={busy || loading || !catalog.length} onClick={() => { setError(""); setConnection({ name: "", provider: "", adapter: catalog[0].key, tools: [], requestId: crypto.randomUUID(), validity: catalog[0].credential_policy?.default_days || 90 }); }}><Plus size={15} /> Connect agent</button>}</>} />
@@ -196,7 +186,7 @@ export default function ExternalAgentsPage({ auth }) {
       </div>}
       {tab === "access" && <div className="space-y-4"><p className="text-sm text-text-secondary">Workspace → Business Domain → Business Capability. Stage selections, review effective access, then confirm.</p>{(!agent.permission_granted || !agent.role_active) && <p className="external-agent-notice">Connection access is blocked by the assigned role. Review the role in Role Settings.</p>}{!agent.can_manage_capabilities && <p className="external-agent-notice">Capability changes require Role Settings edit authority and a dedicated agent role. Manage shared roles in Role Settings.</p>}<section aria-label="Effective Access"><h3 className="external-agent-heading">Effective Access</h3><p className="text-sm">{accessSummary(agent)}</p><details><summary className="text-sm">Granted capability details</summary><ul className="text-sm space-y-1">{(agent.business_capabilities || agent.tools || []).filter(c=>c.granted).map(c=><li key={c.name}>{c.label} · {actionLabels[c.capability] || c.capability}</li>)}</ul></details><p className="text-xs text-text-secondary">All active grants are selectable below, including migrated scopes. A valid key and enabled agent are also required.</p></section><BusinessCapabilitySelector key={agent.id} capabilities={agent.business_capabilities || [...agent.tools,...(agent.preserved_access||[])]} identityId={agent.id} canManage={canEdit && agent.can_manage_capabilities} busy={busy} onConfirmed={refreshDetail} /></div>}
       {tab === "actions" && <FactoryAgentActions identityId={agent.id} canManage={!!permitted} onViewActivity={()=>setTab("activity")}/> }
-      {tab === "activity" && <div className="space-y-4"><AdminUnderlineTabs value={activityFilter} onChange={setActivityFilter} ariaLabel="Activity filter" tabs={[{value:"all",label:"All"},{value:"success",label:"Successful"},{value:"denied",label:"Denied"},{value:"admin",label:"Admin Changes"}]} /><p className="text-xs text-text-secondary">Events are shown individually; no timestamp-based grouping. Latest 50 recorded events · Malaysia time. Agent requests, FeedX checks and administrator changes are shown separately. Request processed means the API accepted the request, not that Factory work completed. Completed receipts and legacy/expired requests are available in Request history below; denied attempts remain in this log.</p>{filteredActivity.length ? <DataTable columns={activityColumns} rows={filteredActivity} getRowKey={(row) => `${row.sourceLabel}:${row.id}`} density="compact" minWidth={580} mobileLayout="stack" /> : <p className="text-sm text-text-secondary">No activity has been recorded yet.</p>}<details open={requestHistoryOpen} onToggle={event=>setRequestHistoryOpen(event.currentTarget.open)}><summary>Request history</summary>{requestHistoryOpen&&<div className="pt-3"><FactoryAgentActions identityId={selected} history /></div>}</details><p className="text-xs text-text-secondary">{detail.history_note}</p><p className="text-xs text-text-secondary">{detail.management_history_note}</p></div>}
+      {tab === "activity" && <AgentActivityTimeline key={`${agent.id}:${adminId}`} agent={agent} detail={detail} canReadOperations={!!permitted} onRefresh={refreshDetail}/>}
       </div></>}
     </Modal>}
     {connection && <Modal title="Connect agent" onClose={() => { if (!busy) { setConnection(null); setError(""); } }} panelClassName="external-agent-panel" footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setConnection(null)}>Cancel</button></>}>

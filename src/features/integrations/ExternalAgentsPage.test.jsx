@@ -35,7 +35,7 @@ it("uses the six business columns, three tabs and hides technical identifiers un
  tab("Access & Permissions");expect(screen.getAllByText("Review daily compliance").length).toBeGreaterThan(0);
  expect(screen.queryByRole("tab",{name:"By Module"})).toBeNull();
 
- tab("Activity");expect(screen.getByText("FeedX connection check")).toBeTruthy();expect(screen.queryByText("initialize")).toBeNull();
+ tab("Activity");fireEvent.click(screen.getByText(/Technical diagnostics & uncorrelated history/));expect(await screen.findByText("FeedX connection check")).toBeTruthy();expect(screen.queryByText("initialize")).toBeNull();
  tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Developer Diagnostics"}));expect(screen.getByText("factory_mesti_inspection.view")).toBeTruthy();expect(screen.getAllByText(/read_tool_0/).length).toBeGreaterThan(0);
 });
 it("confirms key replacement and clears one-time secrets on close", async () => {
@@ -90,7 +90,7 @@ it("clears an issued key when the signed-in administrator changes even with the 
 it("keeps legacy read activity understandable after review tools leave the permission catalog",async()=>{
  externalAgentService.details.mockResolvedValue({...detail,access_events:[{id:1,occurred_at:"2026-10-29T01:00:00Z",method:"tools/call",tool:"get_mesti_daily_status",source:"external",outcome:"success"}]});
  render(<ExternalAgentsPage auth={auth()} />);await open();tab("Activity");
- expect(screen.getByText("Daily MeSTI review")).toBeTruthy();expect(screen.queryByText("Unsupported request")).toBeNull();
+ expect(screen.getByText("Read daily MeSTI status")).toBeTruthy();expect(screen.queryByText("Unsupported request")).toBeNull();
 });
 
 it("keeps preserved scope separate from module selections and exposes technical resources only in Developer Diagnostics",async()=>{
@@ -105,15 +105,15 @@ it("keeps preserved scope separate from module selections and exposes technical 
  tab("Overview");fireEvent.click(screen.getByRole("button",{name:"Developer Diagnostics"}));expect(screen.getAllByText(/evidence \(cleaning_of_area\)/).length).toBeGreaterThan(0);
 });
 
-it('filters same-time activity by outcome/admin provenance without merging events',async()=>{
+it('filters independent same-time reads, denials and configuration without time-based grouping',async()=>{
  const time='2026-10-29T14:00:00Z';
- externalAgentService.details.mockResolvedValue({...detail,access_events:[{id:1,occurred_at:time,method:'ping',outcome:'success',source:'external'},{id:2,occurred_at:time,method:'tools/call',tool:'query_factory_resources',outcome:'denied',failure_reason:'capability_denied',source:'external',resource_actions:[{resource:'mesti_review',action:'list'}]}],management_events:[{id:3,occurred_at:time,label:'Access removed'}]});
+ externalAgentService.details.mockResolvedValue({...detail,access_events:[{id:1,occurred_at:time,tool:'query_factory_resources',outcome:'success',source:'external'},{id:2,occurred_at:time,tool:'query_factory_resources',outcome:'denied',failure_reason:'capability_denied',source:'external'}],management_events:[{id:3,occurred_at:time,label:'Access removed'}]});
  render(<ExternalAgentsPage auth={auth()} />);await open();tab('Activity');
- expect(screen.getByText('Connection checked')).toBeTruthy();expect(screen.getByText('Records requested')).toBeTruthy();expect(screen.getByText('Access removed')).toBeTruthy();
+ expect(screen.getAllByText('Read Factory records')).toHaveLength(2);expect(screen.getByText('Access removed')).toBeTruthy();
  const filters=within(screen.getByRole('tablist',{name:'Activity filter'}));
- fireEvent.click(filters.getByRole('tab',{name:'Denied'}));expect(screen.getByText('Records requested')).toBeTruthy();expect(screen.queryByText('Access removed')).toBeNull();expect(screen.getByText('This capability is not allowed.')).toBeTruthy();
- fireEvent.click(filters.getByRole('tab',{name:'Admin Changes'}));expect(screen.getByText('Access removed')).toBeTruthy();expect(screen.queryByText('Records requested')).toBeNull();
- fireEvent.click(filters.getByRole('tab',{name:'Successful'}));expect(screen.getByText('Connection checked')).toBeTruthy();expect(screen.queryByText('Access removed')).toBeNull();
+ fireEvent.click(filters.getByRole('tab',{name:'Failed'}));expect(screen.getByText('This capability is not allowed.')).toBeTruthy();expect(screen.queryByText('Access removed')).toBeNull();
+ fireEvent.click(filters.getByRole('tab',{name:'Changes'}));expect(screen.getByText('Access removed')).toBeTruthy();expect(screen.queryByText('Read Factory records')).toBeNull();
+ fireEvent.click(filters.getByRole('tab',{name:'Read'}));expect(screen.getAllByText('Read Factory records')).toHaveLength(1);
 });
 it('keeps the complete server summary in Manage instead of the compact table',async()=>{
  externalAgentService.list.mockResolvedValue({connections:[{...agent,effective_access:{summary:'Server-authorized MeSTI scope'}}],catalog,can_register:true});
@@ -175,23 +175,19 @@ it('shows three distinct server domain labels with accessible overflow without e
  expect(within(overflow).getByText('System',{exact:true})).toBeTruthy();
 });
 
-it('distinguishes successful action RPC processing from completed Factory work',async()=>{
+it('keeps API processing and eligibility in diagnostics, never as completed business work',async()=>{
  externalAgentService.details.mockResolvedValue({...detail,access_events:[{id:10,occurred_at:'2026-11-01T05:00:00Z',tool:'execute_factory_action',outcome:'success'},{id:11,occurred_at:'2026-11-01T05:00:01Z',tool:'factory_action_context',outcome:'success'}]});
  render(<ExternalAgentsPage auth={auth()}/>);await open();tab('Activity');
- expect(screen.getByText('Action request processed')).toBeTruthy();expect(screen.getByText('Request processed')).toBeTruthy();
- expect(screen.getByText('Action eligibility checked')).toBeTruthy();expect(screen.getByText('Checked')).toBeTruthy();
- expect(screen.queryByText('Unsupported request')).toBeNull();expect(screen.queryByText('Completed')).toBeNull();
+ expect(screen.queryByText('API accepted request')).toBeNull();expect(screen.queryByText('Completed')).toBeNull();
+ fireEvent.click(screen.getByText(/Technical diagnostics & uncorrelated history/));
+ expect(await screen.findByText('API accepted request')).toBeTruthy();expect(screen.getByText('Action eligibility checked')).toBeTruthy();
+ expect(screen.queryByText('Completed')).toBeNull();
 });
 
-it('links the exception queue to Activity and loads preserved request history only on demand',async()=>{
- externalAgentService.actionRequests.mockResolvedValue([]);
+it('links the exception queue to the business timeline using only existing authorized request history',async()=>{
  render(<ExternalAgentsPage auth={auth()}/>);await open();tab('Action Requests');
- await screen.findByText(/No action required/);
- fireEvent.click(screen.getByRole('button',{name:'View Activity'}));
+ await screen.findByText(/No action required/);fireEvent.click(screen.getByRole('button',{name:'View Activity'}));
  expect(screen.getByRole('tab',{name:'Activity'}).getAttribute('aria-selected')).toBe('true');
- expect(externalAgentService.actionRequests).toHaveBeenCalledTimes(1);
- const history=screen.getByText('Request history').closest('details');
- history.open=true;fireEvent(history,new Event('toggle'));
- await screen.findByText(/No historical requests/);
- expect(externalAgentService.actionRequests).toHaveBeenCalledTimes(2);
+ await waitFor(()=>expect(externalAgentService.actionRequests).toHaveBeenCalledTimes(2));
+ expect(screen.getByRole('heading',{name:'Agent Activity Timeline'})).toBeTruthy();
 });
