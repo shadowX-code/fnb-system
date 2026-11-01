@@ -86,3 +86,12 @@ it('cannot stage Restaurant access from an unavailable scope projection',async()
  render(<BusinessCapabilitySelector capabilities={[{...cap,workspace:'Restaurant'}]} identityId="qa" canManage/>);
  await screen.findByRole('alert');expect(screen.getByRole('button',{name:'Review Changes'}).disabled).toBe(true);
 });
+
+it('separates inspection and asset action rows while preserving the shared View dependency',()=>{
+ const view={...cap,name:'restaurant.view.asset_tracking',workspace:'Restaurant',module_id:'asset_tracking',label:'Asset Tracking'};
+ externalAgentService.outletScope.mockResolvedValue({scope:{type:'selected',outlet_ids:['A']},outlets:[{value:'A',label:'QA A'}]});
+ const asset={...view,name:'restaurant_asset.create',label:'Asset',workflow_id:'asset_tracking',capability:'create',read_only:false};
+ const inspection={...asset,name:'restaurant_inspection.create',label:'Asset Inspection',workflow_id:'asset_tracking_inspections'};
+ render(<BusinessCapabilitySelector capabilities={[view,asset,inspection]} canManage/>);
+ expect(screen.getByText('Asset Inspection')).toBeTruthy();expect(screen.getByRole('checkbox',{name:'Create: Asset'})).toBeTruthy();expect(screen.getByRole('checkbox',{name:'Create: Asset Inspection'})).toBeTruthy();
+});

@@ -4,7 +4,7 @@ This extends the existing Gateway; Factory credentials/tool names remain compati
 
 ## Delivery contract
 
-Apply the seven `20261101124000`–`20261101124600` Restaurant migrations in order, then deploy the matching `factory-mesti-mcp` Edge bundle and deliver dev through canonical Staging Git integration. Preimage guards stop migration on changed business-function definitions. Never bypass a missing/expired Supabase confirmation. Capture grant, scope, identity, credential and existing-record fingerprints before shared changes and compare afterward, excluding only explicitly approved disposable fixtures.
+Apply the seven `20261101124000`–`20261101124600` Restaurant migrations in order, followed by `20261101155611_restaurant_agent_workflow_presentation.sql`, then deploy the matching `factory-mesti-mcp` Edge bundle and deliver dev through canonical Staging Git integration. Preimage guards stop migration on changed business-function definitions. Never bypass a missing/expired Supabase confirmation. Capture grant, scope, identity, credential and existing-record fingerprints before shared changes and compare afterward, excluding only explicitly approved disposable fixtures.
 
 ## Focused automated verification
 
@@ -24,4 +24,4 @@ Master Inventory/Par Levels writes, Audit-mode Stock Check commands, transfers a
 
 ## Resumption checkpoint
 
-Migration 1 is already applied in shared Staging as `20261101153204`; never rerun it. The original Registry migration rolled back on the existing unique workflow/action index. The corrected unapplied migration assigns distinct Inspection and Maintenance workflow identities while retaining their separate grants and the Asset Tracking View owner. Rehearse remaining migrations with live indexes/constraints before resuming shared delivery. Delivery and authenticated acceptance results belong in the scoped execution record.
+Migration 1 is already applied in shared Staging as `20261101153204`; never rerun it. The original Registry migration rolled back on the existing unique workflow/action index. The corrected unapplied migration assigns distinct Inspection and Maintenance workflow identities while retaining their separate grants and the Asset Tracking View owner. Rehearse remaining migrations with live indexes/constraints before resuming shared delivery. The forward workflow-presentation migration adds only catalog identity metadata so the selector renders separate Asset/Inspection/Maintenance rows; its regression contract preserves every pre-existing catalog field and grant. Delivery and authenticated acceptance results belong in the scoped execution record.

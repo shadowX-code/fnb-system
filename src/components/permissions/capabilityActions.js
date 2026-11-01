@@ -22,3 +22,11 @@ export function actionTypeCounts(capabilities) {
 }
 
 export const executionPolicyLabels = {autonomous:'Autonomous',conditional:'Conditional',human_approval:'Human approval required'};
+
+// Workspace labels describe the canonical capability catalog, not the retained adapter name.
+export function capabilityWorkspaceLabel(capabilities = []) {
+  return [...new Set(capabilities.map(row => row.workspace).filter(Boolean))].sort().join(' · ');
+}
+export function agentWorkspaceLabel(agent) {
+  return capabilityWorkspaceLabel((agent.business_capabilities || agent.tools || []).filter(row => row.granted)) || agent.workspace || 'Not configured';
+}
