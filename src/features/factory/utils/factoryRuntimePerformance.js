@@ -1,3 +1,5 @@
+import { noteRecipePerformanceStage } from "../../../services/factoryRecipeDiagnostics.js";
+
 const MAX_ENTRIES = 600;
 const SLOW_ROUTE_MS = 2000;
 const SLOW_REQUEST_MS = 1200;
@@ -117,7 +119,10 @@ export async function factoryDiagnosticFetch(input, init) {
   init = { ...init, headers };
   const started = timestamp();
   const route = activeRoute;
-  const add = (stage, extra = {}) => recordFactoryPerformance({ type: "transport", id, clientRequestId, route, endpoint, stage, elapsedMs: Math.round(timestamp() - started), at: Date.now(), ...extra });
+  const add = (stage, extra = {}) => {
+    noteRecipePerformanceStage(input, init, stage, clientRequestId, extra.payloadBytes);
+    recordFactoryPerformance({ type: "transport", id, clientRequestId, route, endpoint, stage, elapsedMs: Math.round(timestamp() - started), at: Date.now(), ...extra });
+  };
   const fingerprint = endpoint === "auth" ? `auth:${id}` : `${init?.method || "GET"}:${url.href}:${init?.body || ""}`;
   const duplicateInFlight = pendingTransports.has(fingerprint);
   pendingTransports.set(fingerprint, (pendingTransports.get(fingerprint) || 0) + 1);

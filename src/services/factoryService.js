@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { beginRecipeDiagnostic, recipeQueryKey } from "./factoryRecipeDiagnostics.js";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 import { uploadOptimizedImage } from "../utils/imageUpload.js";
@@ -1506,14 +1507,14 @@ function chunkFactoryIds(values, size = FACTORY_MASTER_ID_BATCH_SIZE) {
   return chunks;
 }
 
-async function runFactoryQuery(query, { label, stage, signal, onRequest } = {}) {
+async function runFactoryQuery(query, { label, stage, signal, onRequest, expectedCount = null, matchKey } = {}) {
   if (signal?.aborted) throw factoryAbortError();
-  const finishRequest = onRequest?.(stage);
+  const finishRequest = onRequest?.(stage, { expectedCount, matchKey });
   let result;
   try {
     result = await traceFactoryRequest(`${label || "Factory"}: ${stage || "query"}`, () => signal ? query.abortSignal(signal) : query, { kind: "supabase" });
   } finally {
-    finishRequest?.();
+    finishRequest?.(result);
   }
   if (signal?.aborted) throw factoryAbortError();
   if (result.error) throw factoryLoadError(label, stage, result.error);
@@ -1532,7 +1533,7 @@ function validateSnapshotIds(values, label) {
 async function fetchFactoryMasterIds(entity, { label, signal, onRequest } = {}) {
   const data = await runFactoryQuery(
     supabase.rpc("factory_get_master_id_snapshot", { p_entity: entity }),
-    { label, stage: "ID snapshot", signal, onRequest },
+    { label, stage: "ID snapshot", signal, onRequest, matchKey: entity },
   );
   return validateSnapshotIds(data, label);
 }
@@ -1550,7 +1551,7 @@ async function fetchFactoryChildSnapshot(entity, parentIds, { label, signal, onR
   const batches = await mapFactoryBatches(chunkFactoryIds(parentIds), async (parentChunk) => {
     const data = await runFactoryQuery(
       supabase.rpc("factory_get_master_child_snapshot", { p_entity: entity, p_parent_ids: parentChunk }),
-      { label, stage: `${entity} snapshot`, signal, onRequest },
+      { label, stage: `${entity} snapshot`, signal, onRequest, matchKey: onRequest ? recipeQueryKey(parentChunk) : undefined },
     );
     if (!Array.isArray(data)) throw factoryLoadError(label, `${entity} snapshot`, new Error("Invalid child snapshot response."));
     return data;
@@ -1563,7 +1564,7 @@ async function fetchFactoryRowsBySnapshot(ids, buildQuery, { label, signal, onRe
   if (!ids.length) return [];
   const expectedIds = new Set(ids);
   const rowsById = new Map();
-  const batches = await mapFactoryBatches(chunkFactoryIds(ids), (idChunk) => runFactoryQuery(buildQuery(idChunk), { label, stage: "detail batch", signal, onRequest }));
+  const batches = await mapFactoryBatches(chunkFactoryIds(ids), (idChunk) => runFactoryQuery(buildQuery(idChunk), { label, stage: "detail batch", signal, onRequest, expectedCount: idChunk.length, matchKey: onRequest ? recipeQueryKey(idChunk) : undefined }));
   for (const data of batches) {
     if (!Array.isArray(data)) throw factoryLoadError(label, "detail batch", new Error("Invalid detail response."));
     for (const row of data) {
@@ -1614,38 +1615,50 @@ function validateChildSnapshotRows(rows, label, keyForRow) {
 
 async function loadRecipeRows({ summaryOnly = false, signal, onProgress }) {
   const label = summaryOnly ? "Active Production Standard Summary" : "Product Recipes";
+  const diagnostic = beginRecipeDiagnostic(signal);
   const pending = new Set();
-  const onRequest = (stage) => {
+  const onRequest = (stage, meta) => {
+    const finishDiagnostic = diagnostic?.begin(stage, meta);
     const request = { stage, startedAt: Date.now() };
     pending.add(request);
     onProgress?.([...pending]);
-    return () => { pending.delete(request); onProgress?.([...pending]); };
+    return (result) => { finishDiagnostic?.(result); pending.delete(request); onProgress?.([...pending]); };
   };
-  return loadFactoryMasterWithRetry(async () => {
-    const recipeIds = await fetchFactoryMasterIds(summaryOnly ? "active_product_recipes" : "product_recipes", { label, signal, onRequest });
-    const [recipes, itemSnapshotRows] = await Promise.all([
-      fetchFactoryRowsBySnapshot(recipeIds, (ids) => supabase.from("factory_product_recipes").select(summaryOnly ? recipeSummarySelect : recipeRootSelect).in("id", ids), { label, signal, onRequest: () => onRequest("Recipe headers") }),
-      summaryOnly ? Promise.resolve([]) : fetchFactoryChildSnapshot("recipe_items", recipeIds, { label, signal, onRequest }),
-    ]);
-    if (summaryOnly || !recipeIds.length) return recipes;
-    const itemSnapshot = validateChildSnapshotRows(itemSnapshotRows, label, (row) => row?.id);
-    const itemIds = itemSnapshot.map((row) => String(row.id));
-    const items = await fetchFactoryRowsBySnapshot(itemIds, (ids) => supabase
-      .from("factory_product_recipe_items")
-      .select(recipeItemSelect)
-      .in("id", ids), { label, signal, onRequest: () => onRequest("Recipe items") });
-    const itemsByRecipe = new Map();
-    itemSnapshot.forEach((snapshot, index) => {
-      const item = items[index];
-      if (String(item.recipe_id) !== String(snapshot.parent_id)) {
-        throw factoryLoadError(label, "Recipe item ownership reconciliation", new Error("A Recipe item changed parents during loading."));
-      }
-      const group = itemsByRecipe.get(item.recipe_id) || [];
-      group.push(item);
-      itemsByRecipe.set(item.recipe_id, group);
-    });
-    return recipes.map((recipe) => ({ ...recipe, items: itemsByRecipe.get(recipe.id) || [] }));
-  }, label);
+  try {
+    return await loadFactoryMasterWithRetry(async () => {
+      diagnostic?.nextAttempt();
+      const recipeIds = await fetchFactoryMasterIds(summaryOnly ? "active_product_recipes" : "product_recipes", { label, signal, onRequest });
+      diagnostic?.expect("expectedRecipes", recipeIds.length);
+      const [recipes, itemSnapshotRows] = await Promise.all([
+        fetchFactoryRowsBySnapshot(recipeIds, (ids) => supabase.from("factory_product_recipes").select(summaryOnly ? recipeSummarySelect : recipeRootSelect).in("id", ids), { label, signal, onRequest: (stage, meta) => onRequest("Recipe headers", meta) }),
+        summaryOnly ? Promise.resolve([]) : fetchFactoryChildSnapshot("recipe_items", recipeIds, { label, signal, onRequest }),
+      ]);
+      if (summaryOnly || !recipeIds.length) return recipes;
+      const itemSnapshot = validateChildSnapshotRows(itemSnapshotRows, label, (row) => row?.id);
+      const itemIds = itemSnapshot.map((row) => String(row.id));
+      diagnostic?.expect("expectedItems", itemIds.length);
+      const items = await fetchFactoryRowsBySnapshot(itemIds, (ids) => supabase
+        .from("factory_product_recipe_items")
+        .select(recipeItemSelect)
+        .in("id", ids), { label, signal, onRequest: (stage, meta) => onRequest("Recipe items", meta) });
+      const itemsByRecipe = new Map();
+      itemSnapshot.forEach((snapshot, index) => {
+        const item = items[index];
+        if (String(item.recipe_id) !== String(snapshot.parent_id)) {
+          throw factoryLoadError(label, "Recipe item ownership reconciliation", new Error("A Recipe item changed parents during loading."));
+        }
+        const group = itemsByRecipe.get(item.recipe_id) || [];
+        group.push(item);
+        itemsByRecipe.set(item.recipe_id, group);
+      });
+      return recipes.map((recipe) => ({ ...recipe, items: itemsByRecipe.get(recipe.id) || [] }));
+    }, label);
+  } catch (error) {
+    if (!signal?.aborted && error?.name !== "AbortError") diagnostic?.fail("read_failure");
+    throw error;
+  } finally {
+    diagnostic?.end();
+  }
 }
 
 async function loadProductionSopRows({ signal, summaryOnly = false, sopId = null }) {
