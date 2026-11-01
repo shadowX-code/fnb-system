@@ -8,3 +8,15 @@ export function capabilityDomain(capability,catalog) {
   const owner=capability.module_id&&catalog.find(row=>row.module_id===capability.module_id&&row.capability==='view');
   return owner?.domain||owner?.section||capability.domain||capability.domain_label||capability.section||'Factory';
 }
+
+export function actionLabel(action) {
+  return actionLabels[String(action || '').toLowerCase()] || action;
+}
+export function actionTypeCounts(capabilities) {
+  const counts = new Map();
+  for (const c of capabilities) {
+    const label = actionLabel(c.capability) || 'Other';
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  return [...counts].map(([label, count]) => `${label === 'View Records' ? 'View' : label} ${count}`).join(' · ');
+}

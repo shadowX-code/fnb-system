@@ -37,7 +37,7 @@ export default function BusinessCapabilitySelector({capabilities=[],identityId=n
     <div className="module-access-row flex-wrap"><strong>{owner.label}{owner.capability_limitation&&<span className="module-access-related"> · Limited</span>}</strong>
      <div className="flex flex-wrap gap-x-4 gap-y-2">{entries.map(c=><div key={c.name}>
       <label className="module-access-view"><input type="checkbox" aria-label={`${actionLabels[c.capability]||c.capability}: ${c.label}`} checked={chosen(c)} disabled={busy||working||!canManage||!c.can_assign||(!c.implemented&&!c.granted)} onChange={e=>{setSelected(previous=>e.target.checked?[...previous,c.name]:previous.filter(n=>n!==c.name));setPlan(null);}}/>{actionLabels[c.capability]||c.capability}</label>
-      {c.read_only===false&&<p className="text-xs text-text-secondary">{baseline(c)?c.view_granted===false?'Granted · View required':'Granted':'Restricted'}{baseline(c)!==chosen(c)?' · Staged':''}<br/>{c.requires_human_approval?'Human confirmation':'Autonomous'}</p>}
+      {c.read_only===false&&<p className="text-xs text-text-secondary"><span className="block">Effective grant: {baseline(c)?'Granted':'Restricted'}</span>{baseline(c)!==chosen(c)&&<span className="block font-medium">Pending: {chosen(c)?'Grant access':'Remove access'}</span>}<span className="block">{c.requires_human_approval?'Human confirmation required':'Autonomous execution'}</span>{baseline(c)&&c.view_granted===false&&<span className="block">Business-module View required</span>}</p>}
      </div>)}</div>
     </div>{entries.map(c=><AccessScopeSummary key={c.name} capability={c} catalog={capabilities}/>)}
    </div></li>;})}</ul>

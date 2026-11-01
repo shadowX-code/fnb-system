@@ -52,3 +52,12 @@ it('groups distinct action grants under their canonical View owner without grant
  expect(screen.getByText(/Human confirmation/)).toBeTruthy();
  expect(externalAgentService.confirmAccess).not.toHaveBeenCalled();
 });
+
+it('separates effective grant, pending change and execution requirement',()=>{
+ const action={...cap,name:'complete',capability:'complete',read_only:false,granted:false,requires_human_approval:true};
+ render(<BusinessCapabilitySelector capabilities={[action]} canManage/>);
+ fireEvent.click(screen.getByRole('checkbox',{name:'Complete: Cleaning'}));
+ expect(screen.getByText('Effective grant: Restricted')).toBeTruthy();
+ expect(screen.getByText('Pending: Grant access')).toBeTruthy();
+ expect(screen.getByText('Human confirmation required')).toBeTruthy();
+});

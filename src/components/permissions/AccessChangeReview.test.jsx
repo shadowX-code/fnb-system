@@ -38,3 +38,12 @@ it('does not claim Open planned quantities are available when Job Order is still
  expect(screen.getByText(/still requires Job Order/)).toBeTruthy();
  expect(screen.getByText('Pre-existing limitation').closest('details').open).toBe(false);
 });
+
+it('shows action names once with explicit staged counts',()=>{
+ const action={name:'complete',label:'Area Cleaning',capability:'complete',granted:true};
+ render(<AccessChangeReview plan={{changes:[action],remaining_access:[],effective_diff:{...base,after:[{key:'complete',grant_name:'complete',label:'complete',actions:['complete']}]}}}/>);
+ expect(screen.getByText('1 added · 0 removed')).toBeTruthy();
+ expect(screen.getByText('Complete')).toBeTruthy();
+ expect(screen.queryByText('complete')).toBeNull();
+ expect(screen.getByText(/effective grants remain unchanged/)).toBeTruthy();
+});
