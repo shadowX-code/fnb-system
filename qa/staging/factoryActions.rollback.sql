@@ -32,6 +32,7 @@ do $$
 declare op uuid;reviewer uuid; location uuid; supplier uuid; category uuid; material uuid; sku uuid;
  receiving uuid; receiving_cancel uuid; product_check uuid; raw_check uuid; equipment uuid; eq_req uuid; eq_occ uuid; cal_req uuid; cal_record uuid;
  family uuid; recipe uuid; sop uuid; job uuid; step_id uuid; qc_id uuid; raw_batch uuid; production uuid; human_actor uuid;
+ area_req uuid; area_occ uuid; legacy_location uuid; legacy_occ uuid;
  token_value text; second_token text; role_value uuid; permission_value uuid; version_value text; saved_request record; count_before integer;
  suffix text:=replace(gen_random_uuid()::text,'-',''); item jsonb; input_value jsonb; rows_value jsonb; result_value jsonb; before_hash text; after_hash text;
 begin
@@ -141,6 +142,22 @@ begin
  assert not exists(select 1 from jsonb_array_elements(result_value)v where v->>'grant_name'='receiving.update' and v->>'resource'<>'action:receiving.update'),'Action falsely projected View authority';
  assert feedx_integrations.review_effective_paths(array['receiving.update'])='[]'::jsonb,'Missing View still projected executable action';
  insert into factory_action_qa_results values('action_view_access_projection','PASS');
+ insert into public.factory_mesti_cleaning_requirements(task_name,recurrence_type,status,effective_from,logical_requirement_id,cleaning_method)
+ values('QA Factory Actions Area '||suffix,'daily','inactive',current_date,gen_random_uuid(),public.factory_mesti_cleaning_methods()->0->>'code') returning id into area_req;
+ insert into public.factory_mesti_cleaning_occurrences(requirement_id,logical_requirement_id,location_id,due_date,status,requirement_snapshot)
+ select id,logical_requirement_id,location,current_date,'pending',jsonb_build_object('qa_fixture',suffix) from public.factory_mesti_cleaning_requirements where id=area_req returning id into area_occ;
+ perform pg_temp.factory_action_qa(op,'area_cleaning.complete',area_occ,jsonb_build_object('note','Disposable QA simulation'));
+ result_value:=public.factory_mesti_cleaning_task_action(area_req,current_date,'preview');
+ assert result_value->>'verify_count'='1','Human task review did not recognize trusted Machine completion';
+ select jsonb_build_object(id::text,md5(to_jsonb(o)::text)) into input_value from public.factory_mesti_cleaning_occurrences o where id=area_occ;
+ result_value:=public.factory_mesti_cleaning_task_action(area_req,current_date,'verify',input_value);
+ assert result_value->>'affected_count'='1','Human task verification of Machine evidence failed';
+ insert into public.factory_storage_locations(location_name,status,is_storage_location) values('QA legacy unknown Actor '||suffix,'inactive',false) returning id into legacy_location;
+ insert into public.factory_mesti_cleaning_occurrences(requirement_id,logical_requirement_id,location_id,due_date,status,completed_at,requirement_snapshot)
+ select id,logical_requirement_id,legacy_location,current_date,'completed',now(),jsonb_build_object('qa_fixture',suffix) from public.factory_mesti_cleaning_requirements where id=area_req returning id into legacy_occ;
+ assert not feedx_integrations.factory_cleaning_independent_verifier(legacy_occ,human_actor),'Unknown legacy Actor was treated as a Machine';
+ assert not has_function_privilege('anon','public.factory_mesti_cleaning_task_action(uuid,date,text,jsonb)','execute'),'Machine acquired the human task action';
+ insert into factory_action_qa_results values('human_cleaning_batch_machine_compatibility_legacy_denial','PASS');
 end $$;
 select * from factory_action_qa_results order by test;
 rollback;
