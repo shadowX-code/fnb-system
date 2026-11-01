@@ -338,14 +338,14 @@
     "action": "complete",
     "human_permission": "factory_mesti_cleaning.complete",
     "table": "factory_mesti_cleaning_occurrences",
-    "requires_human_confirmation": true,
+    "requires_human_confirmation": false,
     "input_fields": [
       "result",
       "note"
     ],
     "target_required": true,
     "description": "Complete Area Cleaning.",
-    "execution_policy": "human_approval"
+    "execution_policy": "autonomous"
   },
   {
     "key": "area_cleaning.verify",
@@ -354,14 +354,14 @@
     "action": "verify",
     "human_permission": "factory_mesti_cleaning.review",
     "table": "factory_mesti_cleaning_occurrences",
-    "requires_human_confirmation": true,
+    "requires_human_confirmation": false,
     "input_fields": [
       "result",
       "note"
     ],
     "target_required": true,
     "description": "Verify Area Cleaning.",
-    "execution_policy": "human_approval"
+    "execution_policy": "autonomous"
   },
   {
     "key": "equipment_cleaning.complete",
@@ -370,14 +370,14 @@
     "action": "complete",
     "human_permission": "factory_mesti_equipment_cleaning.complete",
     "table": "factory_mesti_equipment_cleaning_occurrences",
-    "requires_human_confirmation": true,
+    "requires_human_confirmation": false,
     "input_fields": [
       "result",
       "note"
     ],
     "target_required": true,
     "description": "Complete Equipment Cleaning.",
-    "execution_policy": "human_approval"
+    "execution_policy": "autonomous"
   },
   {
     "key": "equipment_cleaning.verify",
@@ -386,14 +386,14 @@
     "action": "verify",
     "human_permission": "factory_mesti_equipment_cleaning.review",
     "table": "factory_mesti_equipment_cleaning_occurrences",
-    "requires_human_confirmation": true,
+    "requires_human_confirmation": false,
     "input_fields": [
       "result",
       "note"
     ],
     "target_required": true,
     "description": "Verify Equipment Cleaning.",
-    "execution_policy": "human_approval"
+    "execution_policy": "autonomous"
   },
   {
     "key": "calibration.create",

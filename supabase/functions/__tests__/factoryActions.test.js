@@ -7,6 +7,15 @@ import {factoryActions,actionArguments} from '../factory-mesti-mcp/actions.js';
 import {createHandler,safeFactoryRpcError} from '../factory-mesti-mcp/protocol.js';
 const request=(method,params)=>new Request('https://example.test',{method:'POST',headers:{authorization:`Bearer fxm_${'a'.repeat(43)}`,'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
 const args={request_id:'00000000-0000-4000-8000-000000000001',action:'job_order.cancel',target_id:'00000000-0000-4000-8000-000000000002',expected_version:'version',input:{}};
+it('makes only Area/Equipment Cleaning direct without changing other physical workflows',()=>{
+ for(const action of manifest.filter(a=>/^(area|equipment)_cleaning\./.test(a.key))) {
+  expect(action.requires_human_confirmation).toBe(false);
+  expect(action.execution_policy).toBe('autonomous');
+ }
+ for(const key of ['calibration.create','calibration.verify','production.complete','product_stock_check.submit']) {
+  expect(manifest.find(a=>a.key===key).requires_human_confirmation).toBe(true);
+ }
+});
 it('has one action manifest and keeps machine permissions outside Human Role editing',()=>{
  expect(factoryActions).toEqual(manifest.map(a=>a.key));
  const codes=getPermissionDefinitions().map(p=>p.code),visible=getPermissionGroups().flatMap(g=>g.modules);

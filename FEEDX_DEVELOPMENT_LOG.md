@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-01 — Permission-authorized Factory Cleaning actions
+
+Area/Equipment Cleaning Complete and Verify now use existing action grants directly, including same-actor Complete → Verify and Human Monthly bulk verification. Canonical transitions, genuine operational evidence, source/version locks, typed actors, audited receipts and retry protection remain intact. Historical Agent intents remain evidence and require an explicit eligible retry; no automatic approval or execution occurs. Calibration, Production, Receiving and Stock Check policies remain unchanged. Canonical owners: docs/domains/factory-master-data.md and docs/architecture/trusted-authorities.md. Staging-only delivery.
+
 ## 2026-10-29 — External Agent Gateway connection management
 
 Added Admin Settings → Integrations → External Agents over the existing machine identity, credential, Role Settings and audit authorities. The provider-neutral registry classifies tools by domain, permission, capability and approval requirement; this phase registers only the five MeSTI Read tools. Administrators can inspect credential state separately from observed MCP access, explicitly rotate/revoke credentials and test endpoint reachability or a supplied credential. Issuance is one-time and hash-only at rest, with concurrency/replay guards and no secret-bearing ordinary reads or logs. Safe endpoint telemetry distinguishes external access from signed Admin probes; Factory business reads and redaction remain unchanged. Staging QA uses disposable identities and preserves the working QA Executive credential. Canonical owners: docs/architecture/trusted-authorities.md and docs/architecture/platform.md.

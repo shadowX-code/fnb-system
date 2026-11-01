@@ -4,7 +4,7 @@ import FactoryAgentActions from './FactoryAgentActions.jsx';
 import {externalAgentService} from '../../services/externalAgentService.js';
 vi.mock('../../services/externalAgentService.js',()=>({externalAgentService:{actionRequests:vi.fn(),confirmAction:vi.fn()}}));
 afterEach(()=>{cleanup();vi.resetAllMocks();vi.useRealTimers();});
-const row={request_id:'qa-request',action:'area_cleaning.complete',label:'Area Cleaning',status:'awaiting_confirmation',requested_at:'2026-11-01T00:00:00Z',input:{note:'QA simulation'},can_confirm:true};
+const row={request_id:'qa-request',action:'calibration.create',label:'Calibration',status:'awaiting_confirmation',requested_at:'2026-11-01T00:00:00Z',input:{note:'QA simulation'},can_confirm:true,requires_confirmation:true};
 it('requires evidence and explicit confirmation without executing the Agent command',async()=>{
  externalAgentService.actionRequests.mockResolvedValue([row]);externalAgentService.confirmAction.mockResolvedValue({status:'confirmed'});
  render(<FactoryAgentActions identityId="qa-agent" canManage/>);
@@ -84,4 +84,19 @@ it('shows a historical lifecycle blocker without offering confirmable approval',
  render(<FactoryAgentActions identityId="qa-agent" canManage/>);
  expect(await screen.findByText(/Only completed Cleaning occurrences can be verified/)).toBeTruthy();
  expect(screen.getByRole('button',{name:'Review evidence confirmation'}).disabled).toBe(true);
+});
+it('retains old Cleaning intents as explicit Agent retries, without a redundant confirmation',async()=>{
+ externalAgentService.actionRequests.mockResolvedValue([{...row,action:'area_cleaning.complete',requires_confirmation:false,expected_version:'source',execution_policy:'autonomous'}]);
+ render(<FactoryAgentActions identityId="qa-agent" canManage/>);
+ expect(await screen.findByText('Awaiting Agent Execution')).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'Review evidence confirmation'})).toBeNull();
+ expect(screen.getByRole('button',{name:'Copy Agent retry command'})).toBeTruthy();
+ expect(externalAgentService.confirmAction).not.toHaveBeenCalled();
+});
+it('does not offer a retry for a historical Cleaning request whose lifecycle is incomplete',async()=>{
+ externalAgentService.actionRequests.mockResolvedValue([{...row,action:'area_cleaning.verify',status:'confirmed',requires_confirmation:false,lifecycle_requirement:'Only completed Cleaning occurrences can be verified.',expected_version:'source'}]);
+ render(<FactoryAgentActions identityId="qa-agent" canManage/>);
+ expect(await screen.findByText('Needs resolution')).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'Copy Agent retry command'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Review evidence confirmation'})).toBeNull();
 });

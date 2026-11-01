@@ -173,9 +173,10 @@ begin
  insert into public.factory_storage_locations(location_name,status,is_storage_location) values('QA legacy unknown Actor '||suffix,'inactive',false) returning id into legacy_location;
  insert into public.factory_mesti_cleaning_occurrences(requirement_id,logical_requirement_id,location_id,due_date,status,completed_at,requirement_snapshot)
  select id,logical_requirement_id,legacy_location,current_date,'completed',now(),jsonb_build_object('qa_fixture',suffix) from public.factory_mesti_cleaning_requirements where id=area_req returning id into legacy_occ;
- assert not feedx_integrations.factory_cleaning_independent_verifier(legacy_occ,human_actor),'Unknown legacy Actor was treated as a Machine';
+ result_value:=public.factory_mesti_cleaning_task_action(area_req,current_date,'preview');
+ assert result_value->>'verify_count'='1','Permission-based verification excluded a completed legacy record';
  assert not has_function_privilege('anon','public.factory_mesti_cleaning_task_action(uuid,date,text,jsonb)','execute'),'Machine acquired the human task action';
- insert into factory_action_qa_results values('human_cleaning_batch_machine_compatibility_legacy_denial','PASS');
+ insert into factory_action_qa_results values('human_cleaning_batch_permission_compatibility','PASS');
 end $$;
 select * from factory_action_qa_results order by test;
 rollback;

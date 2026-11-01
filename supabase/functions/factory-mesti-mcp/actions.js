@@ -12,7 +12,7 @@ export const factoryActions = Object.freeze([
 
 export const factoryActionTool = Object.freeze({
   name: 'execute_factory_action',
-  description: 'Execute an explicitly granted Factory lifecycle action using canonical business authority. Obtain the current version from action context. Physical evidence and any required human confirmation must already exist. Never infer physical work, measurements or approval. Reuse request_id for an identical retry.',
+  description: 'Execute an explicitly granted Factory lifecycle action using canonical business authority. Obtain the current version from action context. Area/Equipment Cleaning Complete and Verify execute directly with their respective grants; the same actor may perform both, in that order. Genuine work/inspection evidence and all required record data must exist. Other actions retain their required human confirmation. Never infer physical work, measurements or approval. Reuse request_id for an identical retry.',
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   inputSchema: {
     type: 'object', additionalProperties: false,

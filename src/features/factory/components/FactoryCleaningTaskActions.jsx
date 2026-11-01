@@ -27,9 +27,9 @@ export default function FactoryCleaningTaskActions({ row, cell, disabled, canCom
   return <section aria-label="Cleaning task actions" className="space-y-3 p-3 text-sm">
     <div><h3 className="font-semibold text-text-primary">{row.task_name}</h3><p className="text-xs text-text-secondary">{formatFactoryDate(cell.due_date)} · Across Locations</p></div>
     {error ? <div role="alert"><p>{error}</p><button type="button" className="btn-secondary mt-2" onClick={() => setReload(value => value + 1)}>Retry eligibility</button></div> : !preview ? <p role="status">Checking eligible records…</p> : <>
-      <ul className="divide-y divide-border">{preview.records.map(record => <li key={record.id} className="flex items-start justify-between gap-3 py-1.5"><span>{record.location_name || "Location"}{record.status === "completed" && record.self_completed ? <span className="block text-xs text-text-secondary">Another verifier required</span> : null}</span><FactoryStatusBadge className="capitalize" status={cleaningOccurrenceStatus({ ...record, due_date: cell.due_date })} /></li>)}</ul>
+      <ul className="divide-y divide-border">{preview.records.map(record => <li key={record.id} className="flex items-start justify-between gap-3 py-1.5"><span>{record.location_name || "Location"}</span><FactoryStatusBadge className="capitalize" status={cleaningOccurrenceStatus({ ...record, due_date: cell.due_date })} /></li>)}</ul>
       <div className="flex flex-wrap gap-2">{canComplete ? <button type="button" className="btn-secondary" disabled={disabled || !preview.complete_count} onClick={() => request("complete")}>Complete eligible ({preview.complete_count})</button> : null}{canVerify ? <button type="button" className="btn-secondary" disabled={disabled || !preview.verify_count} onClick={() => request("verify")}>Verify eligible ({preview.verify_count})</button> : null}</div>
-      <p className="text-xs text-text-secondary">Complete: Pending/Missed only. Verify: Completed by another operator only.</p>
+      <p className="text-xs text-text-secondary">Complete: Pending/Missed only. Verify: Completed only.</p>
     </>}
     {disabled ? <button type="button" className="btn-secondary" onClick={onRefresh}>Refresh calendar</button> : null}
   </section>;
