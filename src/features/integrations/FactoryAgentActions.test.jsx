@@ -20,7 +20,7 @@ it('requires evidence and explicit confirmation without executing the Agent comm
 it('keeps restricted request payloads unavailable and does not offer confirmation',async()=>{
  externalAgentService.actionRequests.mockResolvedValue([{...row,input:undefined,can_confirm:false}]);
  render(<FactoryAgentActions identityId="qa-agent" canManage/>);
- expect(await screen.findByText('Corresponding Factory authority is required to inspect this request.')).toBeTruthy();
+ expect(await screen.findByText('Corresponding business authority and outlet access are required to inspect this request.')).toBeTruthy();
  expect(screen.queryByRole('button',{name:'Review evidence approval'})).toBeNull();
  expect(screen.queryByText('QA simulation')).toBeNull();
 });

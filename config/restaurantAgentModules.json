@@ -1,0 +1,56 @@
+[
+  {
+    "id": "outlet-pnl",
+    "label": "Outlet P&L",
+    "section": "Financial Insights",
+    "human_permission": "outlet_pnl.view"
+  },
+  {
+    "id": "asset_tracking",
+    "label": "Asset Tracking",
+    "section": "Assets",
+    "human_permission": "asset_tracking.view"
+  },
+  {
+    "id": "inventory_master",
+    "label": "Master Inventory",
+    "section": "Inventory Control",
+    "human_permission": "inventory_master.view"
+  },
+  {
+    "id": "inventory_par_levels",
+    "label": "Par Levels",
+    "section": "Inventory Control",
+    "human_permission": "inventory_par_levels.view"
+  },
+  {
+    "id": "inventory_stock_check",
+    "label": "Stock Check",
+    "section": "Inventory Control",
+    "human_permission": "inventory_stock_check.view"
+  },
+  {
+    "id": "inventory_orders",
+    "label": "Purchase Orders",
+    "section": "Inventory Control",
+    "human_permission": "inventory_orders.view"
+  },
+  {
+    "id": "inventory_movements",
+    "label": "Inventory Movements",
+    "section": "Inventory Control",
+    "human_permission": "inventory_movements.view"
+  },
+  {
+    "id": "inventory_waste",
+    "label": "Wastage",
+    "section": "Inventory Control",
+    "human_permission": "inventory_waste.view"
+  },
+  {
+    "id": "inventory_recipes",
+    "label": "Recipes & Usage",
+    "section": "Inventory Control",
+    "human_permission": "inventory_recipes.view"
+  }
+]

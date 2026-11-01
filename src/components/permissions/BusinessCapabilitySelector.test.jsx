@@ -2,7 +2,7 @@ import {afterEach,it,expect,vi} from 'vitest';
 import {render,screen,fireEvent,cleanup,waitFor} from '@testing-library/react';
 import BusinessCapabilitySelector from './BusinessCapabilitySelector.jsx';
 import {externalAgentService} from '../../services/externalAgentService.js';
-vi.mock('../../services/externalAgentService.js',()=>({externalAgentService:{review:vi.fn(),confirmAccess:vi.fn()}}));
+vi.mock('../../services/externalAgentService.js',()=>({externalAgentService:{review:vi.fn(),confirmAccess:vi.fn(),outletScope:vi.fn(),reviewScoped:vi.fn(),confirmScoped:vi.fn()}}));
 afterEach(()=>{cleanup();vi.resetAllMocks();});
 const cap={name:'clean',label:'Cleaning',capability:'view',workspace:'Factory',domain:'MeSTI',granted:true,implemented:true,can_assign:true,scope:[{label:'Requirements',resource:'requirements'}]};
 it('stages changes and requires a server review and explicit confirmation',async()=>{
@@ -67,4 +67,22 @@ it('shows server-owned conditional policy instead of conflating it with a human 
  render(<BusinessCapabilitySelector capabilities={[action]} canManage/>);
  expect(screen.getByText('Conditional')).toBeTruthy();
  expect(screen.getByText('Attested zero variance count required')).toBeTruthy();
+});
+
+it('stages Restaurant outlet scope independently and confirms it through the server review',async()=>{
+ const restaurant={...cap,name:'restaurant.assets',label:'Assets',workspace:'Restaurant'};
+ externalAgentService.outletScope.mockResolvedValue({scope:{type:'selected',outlet_ids:['A']},outlets:[{value:'A',label:'QA A'},{value:'B',label:'QA B'}],can_assign_all:false});
+ externalAgentService.reviewScoped.mockResolvedValue({review_hash:'scoped',changes:[],remaining_access:[restaurant],effective_diff:{before:[],after:[],material_changes:[],blockers:[],remaining_shared_access:[]},dependencies:[]});
+ externalAgentService.confirmScoped.mockResolvedValue({updated:true});
+ render(<BusinessCapabilitySelector capabilities={[restaurant]} identityId="qa" canManage/>);
+ await screen.findByRole('checkbox',{name:'QA B'});fireEvent.click(screen.getByRole('checkbox',{name:'QA B'}));
+ expect(externalAgentService.confirmScoped).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Review Changes'}));await screen.findByRole('heading',{name:'Review Changes'});
+ expect(externalAgentService.reviewScoped).toHaveBeenCalledWith('qa',['restaurant.assets'],{type:'selected',outlet_ids:['A','B']});
+ fireEvent.click(screen.getByRole('button',{name:'Confirm changes'}));await waitFor(()=>expect(externalAgentService.confirmScoped).toHaveBeenCalledWith('qa',['restaurant.assets'],{type:'selected',outlet_ids:['A','B']},'scoped'));
+});
+it('cannot stage Restaurant access from an unavailable scope projection',async()=>{
+ externalAgentService.outletScope.mockRejectedValue(new Error('unavailable'));
+ render(<BusinessCapabilitySelector capabilities={[{...cap,workspace:'Restaurant'}]} identityId="qa" canManage/>);
+ await screen.findByRole('alert');expect(screen.getByRole('button',{name:'Review Changes'}).disabled).toBe(true);
 });

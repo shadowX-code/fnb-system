@@ -114,11 +114,11 @@ export default function ExternalAgentsPage({ auth }) {
     } catch (cause) { if (alive.current) setError(cause.message); }
     finally { if (alive.current) setBusy(false); }
   }
-  async function register(reviewedNames, reviewHash) {
+  async function register(reviewedNames, reviewHash, scope) {
     const requestedBy = authority.current;
     setBusy(true); setError(""); clearIssued();
     try {
-      const result = await externalAgentService.registerReviewed(connection.requestId, connection.name.trim(), connection.provider.trim(), connection.adapter, reviewedNames, connection.validity, reviewHash);
+      const result = await externalAgentService.registerReviewed(connection.requestId, connection.name.trim(), connection.provider.trim(), connection.adapter, reviewedNames, connection.validity, reviewHash, ...(scope?[scope]:[]));
       if (alive.current && requestedBy && requestedBy === authority.current) { setIssued(result); setConnection(null); }
       await load();
     } catch (cause) { if (alive.current) setError(cause.message); }

@@ -4,7 +4,9 @@ import ConfirmDialog from '../../components/feedback/ConfirmDialog.jsx';
 import {formatOperationalMoment} from '../../lib/dateTime.js';
 import {externalAgentService} from '../../services/externalAgentService.js';
 import {actionLabels,executionPolicyLabels} from '../../components/permissions/capabilityActions.js';
-import actionManifest from '../../../config/factoryAgentActions.json';
+import factoryManifest from '../../../config/factoryAgentActions.json';
+import restaurantManifest from '../../../config/restaurantAgentActions.json';
+const actionManifest=[...factoryManifest,...restaurantManifest];
 import {getModuleById} from '../../../config/modules.ts';
 
 const activeStates = new Set(['pending_approval','awaiting_execution','needs_resolution']);
@@ -45,14 +47,14 @@ export default function FactoryAgentActions({identityId,canManage,history=false,
     <p className="text-xs text-text-secondary">{executionPolicyLabels[row.execution_policy]} · Requested {formatOperationalMoment(row.requested_at)}{row.confirmed_at&&<> · Approved {formatOperationalMoment(row.confirmed_at)}</>}{row.receipt?.completed_at&&<> · Completed {formatOperationalMoment(row.receipt.completed_at)}</>}</p>
     {row.resolution_reason&&<p className="text-sm">{row.resolution_reason}</p>}
     {row.next_action&&<p className="text-sm text-text-secondary">{row.next_action}</p>}
-    {state==='needs_resolution'&&row.input!==undefined&&route&&<a className="text-sm underline" href={route}>Review Factory record</a>}
-    {row.input===undefined?<p className="text-xs text-text-secondary">Corresponding Factory authority is required to inspect this request.</p>:<details><summary>Review exact request</summary><dl className="external-agent-facts"><div><dt>Target</dt><dd>{row.target_id||'New record'}</dd></div><div><dt>Request</dt><dd>{row.request_id}</dd></div></dl><pre className="overflow-auto text-xs whitespace-pre-wrap break-words">{JSON.stringify(row.input,null,2)}</pre>{row.evidence_reference&&<p className="text-sm">Evidence: {row.evidence_reference}</p>}{route&&<a className="text-sm underline" href={route}>Open canonical Factory records</a>}
+    {state==='needs_resolution'&&row.input!==undefined&&route&&<a className="text-sm underline" href={route}>Review business record</a>}
+    {row.input===undefined?<p className="text-xs text-text-secondary">Corresponding business authority and outlet access are required to inspect this request.</p>:<details><summary>Review exact request</summary><dl className="external-agent-facts"><div><dt>Target</dt><dd>{row.target_id||'New record'}</dd></div><div><dt>Request</dt><dd>{row.request_id}</dd></div></dl><pre className="overflow-auto text-xs whitespace-pre-wrap break-words">{JSON.stringify(row.input,null,2)}</pre>{row.evidence_reference&&<p className="text-sm">Evidence: {row.evidence_reference}</p>}{route&&<a className="text-sm underline" href={route}>Open canonical business records</a>}
      {!history&&state==='awaiting_execution'&&row.can_continue&&row.expected_version!==undefined&&<button className="btn-secondary mt-2" type="button" onClick={()=>copyRetry(row)}>{copied===row.request_id?'Continuation copied':'Copy Agent continuation'}</button>}
     </details>}
     {!history&&state==='pending_approval'&&canManage&&row.can_confirm&&<button className="btn-secondary" type="button" disabled={busy} onClick={()=>{setSelected(row);setReference('');}}>Review evidence approval</button>}
     {!history&&selected?.request_id===row.request_id&&<div className="space-y-2"><label className="block text-sm font-semibold">Existing evidence reference<input className="control mt-1 w-full" maxLength={1000} value={reference} disabled={busy} onChange={event=>setReference(event.target.value)}/></label><p className="text-xs text-text-secondary">Approve only genuine work or measurements you have verified. Approval authorizes an Agent retry; it does not execute the action.</p><button className="btn-primary" type="button" disabled={busy||!reference.trim()} onClick={()=>setConfirm(true)}>Approve evidence</button></div>}
    </li>;
   })}</ul>}
-  <ConfirmDialog request={confirm&&selected?{title:'Approve this exact Factory action?',message:'You are authorizing the listed request against existing physical or approved business evidence. The Agent must execute it while its source version and approval remain valid.',confirmLabel:'Approve evidence'}:null} onCancel={()=>setConfirm(false)} onConfirm={save}/>
+  <ConfirmDialog request={confirm&&selected?{title:'Approve this exact business action?',message:'You are authorizing the listed request against existing physical or approved business evidence. The Agent must execute it while its source version and approval remain valid.',confirmLabel:'Approve evidence'}:null} onCancel={()=>setConfirm(false)} onConfirm={save}/>
  </section>;
 }

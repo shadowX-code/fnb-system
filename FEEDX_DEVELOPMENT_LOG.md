@@ -1201,3 +1201,8 @@ Added fixed action-specific Gateway grants and executors for Job Orders, Product
 ## 2026-11-01 — Risk-based Factory Agent execution on Staging
 
 Separated administrative autonomous actions, source/evidence-conditional independent record reviews and human-attested physical work. Conditional reviews reuse the canonical dispatcher, grants, locks, independent identity, source fingerprints and immutable receipts. Physical work/inspection, count submission and variance approval retain human evidence review. Pending requests expose policy/reason and an exact credential-free retry handoff; completed/autonomous work remains in Activity/audit. Existing credential-bound execution deliberately remains explicit after human confirmation. No Production delivery.
+
+
+## Restaurant Agent Capability Extension (implementation)
+
+Added fixed Restaurant P&L/asset/inventory read and business-action mappings to the existing Gateway, with canonical role outlet scope, shared business bodies, typed machine lifecycle attribution and existing request/Activity authority. New grants remain opt-in. Delivery requires all seven Restaurant migrations, the matching Gateway and authenticated Staging acceptance; implementation alone is not runtime completion.

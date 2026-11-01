@@ -1,0 +1,404 @@
+[
+  {
+    "key": "restaurant_outlet_pnl",
+    "module": "outlet-pnl",
+    "table": null,
+    "fields": [
+      "outlet",
+      "period",
+      "financials",
+      "financial_completeness"
+    ],
+    "mode": {
+      "kind": "pnl"
+    }
+  },
+  {
+    "key": "restaurant_pnl_periods",
+    "module": "outlet-pnl",
+    "table": null,
+    "fields": [
+      "year",
+      "month"
+    ],
+    "mode": {
+      "kind": "periods"
+    }
+  },
+  {
+    "key": "restaurant_assets",
+    "module": "asset_tracking",
+    "table": "asset_items",
+    "fields": [
+      "id",
+      "outlet_id",
+      "category_id",
+      "name",
+      "description",
+      "asset_code",
+      "location",
+      "purchase_date",
+      "warranty_expiry",
+      "condition",
+      "unit",
+      "current_quantity",
+      "minimum_quantity",
+      "status",
+      "maintenance_override",
+      "last_inspection_at",
+      "created_at",
+      "updated_at"
+    ],
+    "mode": {}
+  },
+  {
+    "key": "restaurant_asset_categories",
+    "module": "asset_tracking",
+    "table": "asset_categories",
+    "fields": [
+      "id",
+      "name",
+      "is_active",
+      "maintenance_enabled"
+    ],
+    "mode": {
+      "kind": "master"
+    }
+  },
+  {
+    "key": "restaurant_asset_conditions",
+    "module": "asset_tracking",
+    "table": "asset_condition_templates",
+    "fields": [
+      "id",
+      "category_id",
+      "name",
+      "severity",
+      "requires_photo",
+      "requires_remark",
+      "active"
+    ],
+    "mode": {
+      "kind": "master"
+    }
+  },
+  {
+    "key": "restaurant_asset_inspections",
+    "module": "asset_tracking",
+    "table": "asset_inspections",
+    "fields": [
+      "id",
+      "outlet_id",
+      "inspection_date",
+      "category_scope",
+      "status",
+      "summary",
+      "current_step",
+      "completion_percentage",
+      "created_at",
+      "updated_at"
+    ],
+    "mode": {}
+  },
+  {
+    "key": "restaurant_asset_inspection_items",
+    "module": "asset_tracking",
+    "table": "asset_inspection_items",
+    "fields": [
+      "id",
+      "inspection_id",
+      "asset_id",
+      "expected_quantity",
+      "counted_quantity",
+      "difference",
+      "condition",
+      "condition_template_id",
+      "evidence_required",
+      "evidence_status"
+    ],
+    "mode": {
+      "kind": "child",
+      "parent": "asset_inspections",
+      "fk": "inspection_id"
+    }
+  },
+  {
+    "key": "restaurant_asset_maintenance",
+    "module": "asset_tracking",
+    "table": "asset_maintenance_records",
+    "fields": [
+      "id",
+      "asset_id",
+      "outlet_id",
+      "date",
+      "maintenance_type",
+      "priority",
+      "issue",
+      "action_taken",
+      "cost",
+      "status",
+      "scheduled_date",
+      "completed_date",
+      "next_service_date",
+      "created_at",
+      "updated_at"
+    ],
+    "mode": {}
+  },
+  {
+    "key": "restaurant_asset_movements",
+    "module": "asset_tracking",
+    "table": "asset_movement_logs",
+    "fields": [
+      "id",
+      "asset_id",
+      "outlet_id",
+      "movement_type",
+      "quantity_change",
+      "quantity_before",
+      "quantity_after",
+      "reason",
+      "movement_date",
+      "created_at"
+    ],
+    "mode": {}
+  },
+  {
+    "key": "restaurant_master_inventory",
+    "module": "inventory_master",
+    "table": "inventory_items",
+    "fields": [
+      "id",
+      "item_name",
+      "sku_code",
+      "category_id",
+      "unit",
+      "description",
+      "inventory_type",
+      "status",
+      "cost",
+      "cost_updated_at",
+      "created_at",
+      "updated_at"
+    ],
+    "mode": {
+      "kind": "item_links"
+    }
+  },
+  {
+    "key": "restaurant_inventory_categories",
+    "module": "inventory_master",
+    "table": "inventory_categories",
+    "fields": [
+      "id",
+      "name",
+      "status"
+    ],
+    "mode": {
+      "kind": "master"
+    }
+  },
+  {
+    "key": "restaurant_par_levels",
+    "module": "inventory_par_levels",
+    "table": "inventory_item_outlets",
+    "fields": [
+      "id",
+      "inventory_item_id",
+      "outlet_id",
+      "par_level",
+      "storage_location",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "mode": {}
+  },
+  {
+    "key": "restaurant_stock_checks",
+    "module": "inventory_stock_check",
+    "table": "inventory_stock_checks",
+    "fields": [
+      "id",
+      "outlet_id",
+      "group_id",
+      "stock_check_type",
+      "audit_type",
+      "audit_name",
+      "audit_category_ids",
+      "check_name",
+      "check_date",
+      "status",
+      "submitted_at",
+      "reviewed_at",
+      "created_at",
+      "updated_at"
+    ],
+    "mode": {}
+  },
+  {
+    "key": "restaurant_stock_check_items",
+    "module": "inventory_stock_check",
+    "table": "inventory_stock_check_items",
+    "fields": [
+      "id",
+      "stock_check_id",
+      "item_id",
+      "category_id",
+      "par_level_quantity",
+      "actual_count_quantity",
+      "variance",
+      "unit",
+      "status",
+      "skipped",
+      "skip_reason"
+    ],
+    "mode": {
+      "kind": "child",
+      "parent": "inventory_stock_checks",
+      "fk": "stock_check_id"
+    }
+  },
+  {
+    "key": "restaurant_purchase_orders",
+    "module": "inventory_orders",
+    "table": "inventory_purchase_orders",
+    "fields": [
+      "id",
+      "outlet_id",
+      "supplier_id",
+      "business_po_no",
+      "po_no",
+      "status",
+      "source_type",
+      "source_stock_check_id",
+      "submitted_at",
+      "confirmed_at",
+      "completed_at",
+      "cancelled_at",
+      "completion_type",
+      "unfulfilled_qty",
+      "created_at",
+      "updated_at"
+    ],
+    "mode": {}
+  },
+  {
+    "key": "restaurant_purchase_order_items",
+    "module": "inventory_orders",
+    "table": "inventory_purchase_order_items",
+    "fields": [
+      "id",
+      "purchase_order_id",
+      "item_id",
+      "requested_qty",
+      "received_qty",
+      "unit"
+    ],
+    "mode": {
+      "kind": "child",
+      "parent": "inventory_purchase_orders",
+      "fk": "purchase_order_id"
+    }
+  },
+  {
+    "key": "restaurant_purchase_receipts",
+    "module": "inventory_orders",
+    "table": "inventory_purchase_receipts",
+    "fields": [
+      "id",
+      "purchase_order_id",
+      "outlet_id",
+      "supplier_id",
+      "received_at",
+      "created_at"
+    ],
+    "mode": {}
+  },
+  {
+    "key": "restaurant_purchase_suppliers",
+    "module": "inventory_orders",
+    "table": "suppliers",
+    "fields": [
+      "id",
+      "name",
+      "status"
+    ],
+    "mode": {
+      "kind": "supplier_links"
+    }
+  },
+  {
+    "key": "restaurant_inventory_movements",
+    "module": "inventory_movements",
+    "table": "inventory_movements",
+    "fields": [
+      "id",
+      "outlet_id",
+      "inventory_item_id",
+      "movement_type",
+      "quantity",
+      "unit",
+      "reference_type",
+      "reference_id",
+      "reference_no",
+      "created_at"
+    ],
+    "mode": {}
+  },
+  {
+    "key": "restaurant_inventory_waste",
+    "module": "inventory_waste",
+    "table": "inventory_waste_records",
+    "fields": [
+      "id",
+      "outlet_id",
+      "inventory_item_id",
+      "waste_type",
+      "quantity",
+      "unit",
+      "waste_date",
+      "created_at",
+      "updated_at"
+    ],
+    "mode": {}
+  },
+  {
+    "key": "restaurant_inventory_recipes",
+    "module": "inventory_recipes",
+    "table": "inventory_recipes",
+    "fields": [
+      "id",
+      "outlet_id",
+      "recipe_code",
+      "recipe_name",
+      "recipe_name_en",
+      "recipe_name_cn",
+      "menu_category",
+      "selling_price",
+      "serving_size",
+      "status",
+      "created_at",
+      "updated_at"
+    ],
+    "mode": {}
+  },
+  {
+    "key": "restaurant_recipe_ingredients",
+    "module": "inventory_recipes",
+    "table": "inventory_recipe_items",
+    "fields": [
+      "id",
+      "recipe_id",
+      "inventory_item_id",
+      "quantity_used",
+      "unit",
+      "wastage_percent"
+    ],
+    "mode": {
+      "kind": "child",
+      "parent": "inventory_recipes",
+      "fk": "recipe_id"
+    }
+  }
+]

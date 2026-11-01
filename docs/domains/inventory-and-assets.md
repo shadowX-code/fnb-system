@@ -121,3 +121,11 @@ Full Inventory reads page each canonical collection with exact counts and stable
 Inventory Control and Asset Tracking pages are surfaces within this domain, not separate documentation domains.
 Do not merge Factory warehouse state into restaurant inventory solely because both represent stock.
 Advanced costing, predictive ordering, or external warehouse integration remains deferred unless introduced by current contracts.
+
+## Restaurant Agent Operations
+
+The shared Gateway adds explicit, outlet-scoped capabilities without granting existing Agents access. Asset reads include canonical categories, condition templates, inspection/maintenance headers and item evidence. Supported actions are Asset Create/Update, Inspection Create/Update/Complete and Maintenance Create/Update/Complete. Inspection completion requires an explicit observation date, observed count/condition and applicable template photo/remark evidence. Maintenance completion requires actual action taken and completion date. These are genuine evidence inputs, not attestations inferred from an instruction.
+
+Inventory capabilities cover Master Inventory, Par Levels, Stock Check, Purchase Orders, Movements, Wastage and Recipes & Usage. Supported commands are scheduled Stock Check draft Create/Update/Submit; PO Create/Update/Submit, supplier Confirm, Return to Draft, Cancel, Complete and Receive; manual Adjustment creation; Waste creation; Recipe Create/Update. Receiving and Waste post only their existing canonical movements. Manual Adjustment cannot forge Purchase/Waste references. Item/ingredient references must belong to the selected outlet. Submitted counts and received PO evidence retain existing immutability.
+
+Master Inventory/Par writes, Audit-mode Stock Check commands, transfers and media upload are not exposed by this adapter. Recipe/usage reads expose saved recipes and ingredient mappings, not a parallel forecast or live-stock calculation. These limitations do not remove Human/Crew operations. Gateway permissions, scope, retries and audits follow `../architecture/trusted-authorities.md`.
