@@ -173,3 +173,11 @@ it('shows three distinct server domain labels with accessible overflow without e
  const overflow=await screen.findByRole('dialog',{name:'More business domains'});
  expect(within(overflow).getByText('System',{exact:true})).toBeTruthy();
 });
+
+it('distinguishes successful action RPC processing from completed Factory work',async()=>{
+ externalAgentService.details.mockResolvedValue({...detail,access_events:[{id:10,occurred_at:'2026-11-01T05:00:00Z',tool:'execute_factory_action',outcome:'success'},{id:11,occurred_at:'2026-11-01T05:00:01Z',tool:'factory_action_context',outcome:'success'}]});
+ render(<ExternalAgentsPage auth={auth()}/>);await open();tab('Activity');
+ expect(screen.getByText('Action request processed')).toBeTruthy();expect(screen.getByText('Request processed')).toBeTruthy();
+ expect(screen.getByText('Action eligibility checked')).toBeTruthy();expect(screen.getByText('Checked')).toBeTruthy();
+ expect(screen.queryByText('Unsupported request')).toBeNull();expect(screen.queryByText('Completed')).toBeNull();
+});
