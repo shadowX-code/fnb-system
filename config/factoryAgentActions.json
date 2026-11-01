@@ -1,0 +1,426 @@
+[
+  {
+    "key": "job_order.create",
+    "module": "factory_job_order_records",
+    "label": "Job Orders",
+    "action": "create",
+    "human_permission": "factory_job_orders.create",
+    "table": "factory_job_orders",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "finished_good_id",
+      "target_quantity",
+      "uom",
+      "planned_date",
+      "due_date",
+      "priority",
+      "assigned_team",
+      "remarks",
+      "target_pack_qty",
+      "target_production_qty"
+    ],
+    "target_required": false,
+    "description": "Create Job Orders.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "job_order.update",
+    "module": "factory_job_order_records",
+    "label": "Job Orders",
+    "action": "update",
+    "human_permission": "factory_job_orders.edit",
+    "table": "factory_job_orders",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "finished_good_id",
+      "target_quantity",
+      "uom",
+      "planned_date",
+      "due_date",
+      "priority",
+      "assigned_team",
+      "remarks",
+      "target_pack_qty",
+      "target_production_qty"
+    ],
+    "target_required": true,
+    "description": "Update Job Orders.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "job_order.submit",
+    "module": "factory_job_order_records",
+    "label": "Job Orders",
+    "action": "submit",
+    "human_permission": "factory_job_orders.edit",
+    "table": "factory_job_orders",
+    "requires_human_confirmation": false,
+    "input_fields": [],
+    "target_required": true,
+    "description": "Release planned Job Order into production queue.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "job_order.cancel",
+    "module": "factory_job_order_records",
+    "label": "Job Orders",
+    "action": "cancel",
+    "human_permission": "factory_job_orders.cancel",
+    "table": "factory_job_orders",
+    "requires_human_confirmation": false,
+    "input_fields": [],
+    "target_required": true,
+    "description": "Cancel Job Orders.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "production.update",
+    "module": "factory_production",
+    "label": "Production",
+    "action": "update",
+    "human_permission": "factory_production.complete",
+    "table": "factory_job_orders",
+    "requires_human_confirmation": true,
+    "input_fields": [
+      "step_rows",
+      "qc_rows"
+    ],
+    "target_required": true,
+    "description": "Update Production.",
+    "execution_policy": "human_approval"
+  },
+  {
+    "key": "production.complete",
+    "module": "factory_production",
+    "label": "Production",
+    "action": "complete",
+    "human_permission": "factory_production.complete",
+    "table": "factory_job_orders",
+    "requires_human_confirmation": true,
+    "input_fields": [
+      "payload"
+    ],
+    "target_required": true,
+    "description": "Complete Production.",
+    "execution_policy": "human_approval"
+  },
+  {
+    "key": "production.verify",
+    "module": "factory_production",
+    "label": "Production",
+    "action": "verify",
+    "human_permission": "factory_production.verify",
+    "table": "factory_productions",
+    "requires_human_confirmation": true,
+    "input_fields": [],
+    "target_required": true,
+    "description": "Verify Production.",
+    "execution_policy": "conditional"
+  },
+  {
+    "key": "receiving.create",
+    "module": "factory_raw_receiving",
+    "label": "Raw Material Receiving",
+    "action": "create",
+    "human_permission": "factory_raw_receiving.create",
+    "table": "factory_raw_material_receiving_batches",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "supplier_id",
+      "reference_no",
+      "received_date",
+      "remarks",
+      "items"
+    ],
+    "target_required": false,
+    "description": "Create Raw Material Receiving.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "receiving.update",
+    "module": "factory_raw_receiving",
+    "label": "Raw Material Receiving",
+    "action": "update",
+    "human_permission": "factory_raw_receiving.edit",
+    "table": "factory_raw_material_receiving_batches",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "supplier_id",
+      "reference_no",
+      "received_date",
+      "remarks",
+      "items"
+    ],
+    "target_required": true,
+    "description": "Update Raw Material Receiving.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "receiving.complete",
+    "module": "factory_raw_receiving",
+    "label": "Raw Material Receiving",
+    "action": "complete",
+    "human_permission": "factory_raw_receiving.edit",
+    "table": "factory_raw_material_receiving_batches",
+    "requires_human_confirmation": true,
+    "input_fields": [
+      "supplier_id",
+      "reference_no",
+      "received_date",
+      "remarks",
+      "items"
+    ],
+    "target_required": true,
+    "description": "Complete Raw Material Receiving.",
+    "execution_policy": "human_approval"
+  },
+  {
+    "key": "receiving.verify",
+    "module": "factory_raw_receiving",
+    "label": "Raw Material Receiving",
+    "action": "verify",
+    "human_permission": "factory_raw_receiving.verify",
+    "table": "factory_raw_material_receiving_batches",
+    "requires_human_confirmation": true,
+    "input_fields": [],
+    "target_required": true,
+    "description": "Verify Raw Material Receiving.",
+    "execution_policy": "conditional"
+  },
+  {
+    "key": "receiving.cancel",
+    "module": "factory_raw_receiving",
+    "label": "Raw Material Receiving",
+    "action": "cancel",
+    "human_permission": "factory_raw_receiving.delete",
+    "table": "factory_raw_material_receiving_batches",
+    "requires_human_confirmation": false,
+    "input_fields": [],
+    "target_required": true,
+    "description": "Cancel Raw Material Receiving.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "product_stock_check.create",
+    "module": "factory_product_stock_check",
+    "label": "Product Stock Check",
+    "action": "create",
+    "human_permission": "factory_product_stock_check.create",
+    "table": "factory_product_stock_checks",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "check_date",
+      "notes",
+      "rows"
+    ],
+    "target_required": false,
+    "description": "Create Product Stock Check.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "product_stock_check.update",
+    "module": "factory_product_stock_check",
+    "label": "Product Stock Check",
+    "action": "update",
+    "human_permission": "factory_product_stock_check.edit",
+    "table": "factory_product_stock_checks",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "check_date",
+      "notes",
+      "rows"
+    ],
+    "target_required": true,
+    "description": "Update Product Stock Check.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "product_stock_check.submit",
+    "module": "factory_product_stock_check",
+    "label": "Product Stock Check",
+    "action": "submit",
+    "human_permission": "factory_product_stock_check.submit",
+    "table": "factory_product_stock_checks",
+    "requires_human_confirmation": true,
+    "input_fields": [
+      "check_date",
+      "notes",
+      "rows"
+    ],
+    "target_required": true,
+    "description": "Submit Product Stock Check.",
+    "execution_policy": "human_approval"
+  },
+  {
+    "key": "product_stock_check.approve",
+    "module": "factory_product_stock_check",
+    "label": "Product Stock Check",
+    "action": "approve",
+    "human_permission": "factory_product_stock_check.approve",
+    "table": "factory_product_stock_checks",
+    "requires_human_confirmation": true,
+    "input_fields": [],
+    "target_required": true,
+    "description": "Approve Product Stock Check.",
+    "execution_policy": "conditional"
+  },
+  {
+    "key": "raw_stock_check.create",
+    "module": "factory_raw_stock_check",
+    "label": "Raw Material Stock Check",
+    "action": "create",
+    "human_permission": "factory_raw_stock_check.create",
+    "table": "factory_raw_material_stock_checks",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "category_id",
+      "check_date",
+      "notes",
+      "rows"
+    ],
+    "target_required": false,
+    "description": "Create Raw Material Stock Check.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "raw_stock_check.update",
+    "module": "factory_raw_stock_check",
+    "label": "Raw Material Stock Check",
+    "action": "update",
+    "human_permission": "factory_raw_stock_check.edit",
+    "table": "factory_raw_material_stock_checks",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "category_id",
+      "check_date",
+      "notes",
+      "rows"
+    ],
+    "target_required": true,
+    "description": "Update Raw Material Stock Check.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "raw_stock_check.submit",
+    "module": "factory_raw_stock_check",
+    "label": "Raw Material Stock Check",
+    "action": "submit",
+    "human_permission": "factory_raw_stock_check.submit",
+    "table": "factory_raw_material_stock_checks",
+    "requires_human_confirmation": true,
+    "input_fields": [
+      "category_id",
+      "check_date",
+      "notes",
+      "rows"
+    ],
+    "target_required": true,
+    "description": "Submit Raw Material Stock Check.",
+    "execution_policy": "human_approval"
+  },
+  {
+    "key": "raw_stock_check.approve",
+    "module": "factory_raw_stock_check",
+    "label": "Raw Material Stock Check",
+    "action": "approve",
+    "human_permission": "factory_raw_stock_check.approve",
+    "table": "factory_raw_material_stock_checks",
+    "requires_human_confirmation": true,
+    "input_fields": [],
+    "target_required": true,
+    "description": "Approve Raw Material Stock Check.",
+    "execution_policy": "conditional"
+  },
+  {
+    "key": "area_cleaning.complete",
+    "module": "factory_mesti_cleaning",
+    "label": "Area Cleaning",
+    "action": "complete",
+    "human_permission": "factory_mesti_cleaning.complete",
+    "table": "factory_mesti_cleaning_occurrences",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "result",
+      "note"
+    ],
+    "target_required": true,
+    "description": "Complete Area Cleaning.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "area_cleaning.verify",
+    "module": "factory_mesti_cleaning",
+    "label": "Area Cleaning",
+    "action": "verify",
+    "human_permission": "factory_mesti_cleaning.review",
+    "table": "factory_mesti_cleaning_occurrences",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "result",
+      "note"
+    ],
+    "target_required": true,
+    "description": "Verify Area Cleaning.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "equipment_cleaning.complete",
+    "module": "factory_mesti_equipment_cleaning",
+    "label": "Equipment Cleaning",
+    "action": "complete",
+    "human_permission": "factory_mesti_equipment_cleaning.complete",
+    "table": "factory_mesti_equipment_cleaning_occurrences",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "result",
+      "note"
+    ],
+    "target_required": true,
+    "description": "Complete Equipment Cleaning.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "equipment_cleaning.verify",
+    "module": "factory_mesti_equipment_cleaning",
+    "label": "Equipment Cleaning",
+    "action": "verify",
+    "human_permission": "factory_mesti_equipment_cleaning.review",
+    "table": "factory_mesti_equipment_cleaning_occurrences",
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "result",
+      "note"
+    ],
+    "target_required": true,
+    "description": "Verify Equipment Cleaning.",
+    "execution_policy": "autonomous"
+  },
+  {
+    "key": "calibration.create",
+    "module": "factory_mesti_calibration",
+    "label": "Calibration",
+    "action": "create",
+    "human_permission": "factory_mesti_calibration.complete",
+    "table": "factory_mesti_calibration_requirements",
+    "requires_human_confirmation": true,
+    "input_fields": [
+      "record"
+    ],
+    "target_required": true,
+    "description": "Create Calibration.",
+    "execution_policy": "human_approval"
+  },
+  {
+    "key": "calibration.verify",
+    "module": "factory_mesti_calibration",
+    "label": "Calibration",
+    "action": "verify",
+    "human_permission": "factory_mesti_calibration.review",
+    "table": "factory_mesti_calibration_records",
+    "requires_human_confirmation": true,
+    "input_fields": [],
+    "target_required": true,
+    "description": "Verify Calibration.",
+    "execution_policy": "human_approval"
+  }
+]

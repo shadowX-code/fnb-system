@@ -18,6 +18,14 @@ export function formatDateTime(value) {
 
 const OPERATIONAL_TIME_ZONE = "Asia/Kuala_Lumpur";
 
+/** Sortable date-only key for operational filters; never use the browser's local date. */
+export function operationalDateKey(value) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: OPERATIONAL_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+  return ["year", "month", "day"].map(type => parts.find(part => part.type === type).value).join("-");
+}
+
 function operationalDate(value) {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: OPERATIONAL_TIME_ZONE,

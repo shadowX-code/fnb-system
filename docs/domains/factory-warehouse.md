@@ -68,3 +68,7 @@ Carrier integrations, barcode automation, and third-party WMS synchronization ar
 ## External Agent read evidence
 
 Gateway View Records grants expose saved stock-check counts and their canonical batch-adjustment allocations, using the parent stock-check business date. Positive-adjustment confirmation and saved receiving unit/total costs are readable without contacts, invoice files, personal actors or variance remarks. Batch, material, supplier and Location references require their owning navigation-module grant. Costs remain saved source values; missing costs and historical stock valuation are not invented. Gateway policy is owned by `../architecture/trusted-authorities.md`.
+
+### External Agent lifecycle actions
+
+Receiving Create/Update, Complete, Verify and draft-only Cancel, and Product/Raw Stock Check Create/Update/Submit/Approve reuse their canonical trusted transactions. Machine action grants and module View are separate from human permissions. Physical receipt/count completion and submission require exact human confirmation. Eligible independent verification/zero-variance approval uses the server-owned conditional policy; otherwise exact human confirmation remains required. Existing supplier/material links, expiry/location evidence, stock locks, variance/allocation requirements, immutable posted evidence and independent review still apply. Retry receipts prevent repeated stock posting; no generic inventory writer is exposed. See Trusted Authorities → Factory operational actions.

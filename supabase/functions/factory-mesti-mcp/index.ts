@@ -1,20 +1,20 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
-import { createHandler } from "./protocol.js";
+import { createHandler, safeFactoryRpcError } from "./protocol.js";
 import { isAdminProbe, tokenHash } from "../_shared/externalAgentProbe.js";
 import { externalAgentEnvironment } from "../_shared/externalAgentEnvironment.js";
 
-// Business reads use the anonymous client; the database validates the machine credential.
+// Business operations use the anonymous client; the database validates the machine credential.
 const url = Deno.env.get("SUPABASE_URL") || "";
 const client = createClient(url, Deno.env.get("SUPABASE_ANON_KEY") || "", { auth: { persistSession: false, autoRefreshToken: false } });
 const environment = externalAgentEnvironment(url);
-// Service authority is used only for safe access telemetry; business reads stay token-gated.
+// Service authority is used only for safe access telemetry; business operations stay token-gated.
 const telemetrySecret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const telemetry = createClient(url, telemetrySecret, { auth: { persistSession: false, autoRefreshToken: false } });
 const handler = createHandler(async (token: string, tool: string, args: Record<string, unknown>) => {
   const { data, error } = tool === "authorize"
     ? await client.rpc("factory_agent_authorize", { p_token: token })
-    : await client.rpc("factory_agent_resource_query", { p_token: token, ...args });
-  if (error) throw Object.assign(new Error("Inspection denied or unavailable."), { code: error.code });
+    : await client.rpc(tool === "execute_factory_action" ? "factory_agent_execute_action" : tool === "factory_action_context" ? "factory_agent_action_context" : "factory_agent_resource_query", { p_token: token, ...args });
+  if (error) throw safeFactoryRpcError(error);
   return data;
 }, { observe: async (token: string, event: Record<string, unknown>, request: Request) => {
   const source = await isAdminProbe(telemetrySecret, token, request.headers.get("x-feedx-probe") || "") ? "admin_probe" : "external";

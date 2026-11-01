@@ -1,5 +1,6 @@
 import factoryAgentModules from "./factoryAgentModules.json";
 import factoryAgentCoverage from "./factoryAgentCoverage.json";
+import factoryAgentActions from "./factoryAgentActions.json";
 export type ModuleAction =
   | "list"
   | "read"
@@ -17,6 +18,7 @@ export type ModuleAction =
   | "record_payment"
   | "create"
   | "edit"
+  | "update"
   | "delete"
   | "deactivate"
   | "approve"
@@ -101,6 +103,7 @@ export const permissionActionOrder: ModuleAction[] = [
 
   "create",
   "edit",
+  "update",
   "delete",
   "deactivate",
   "enable_login",
@@ -141,6 +144,7 @@ export const permissionActionOrder: ModuleAction[] = [
 ];
 
 export const permissionActionLabels: Record<ModuleAction, string> = {
+  update: "Update",
   list: "List", read: "Read", search: "Search", filter: "Filter",
   view: "View",
   sync: "Sync Reviews",
@@ -874,6 +878,7 @@ export const moduleRegistry: AppModule[] = [
     workspace: "factory",
     permissions: { view: true, create: true, manage: true },
   },
+  ...[...new Set(factoryAgentActions.map(action => action.key.split('.')[0]))].map(domain => ({id: `factory_agent_action_${domain}`, section: "External Agent Access", label: `Agent ${domain}`, route: `/factory/agent-actions/${domain}`, permissionEditorHidden: true, sidebar: false, routable: false, workspace: "factory" as const, permissions: Object.fromEntries(factoryAgentActions.filter(action => action.key.startsWith(`${domain}.`)).map(action => [action.action, true])) as Partial<Record<ModuleAction, boolean>>})),
   ...factoryAgentCoverage.map((resource) => ({ id: `factory_agent_${resource.slug}`, section: "External Agent Access", label: `Agent ${resource.label}`, route: `/factory/agent-resources/${resource.slug}`, permissionEditorHidden: true, sidebar: false, routable: false, workspace: "factory" as const, permissions: { view: true } })),
   ...factoryAgentModules.map((module) => ({ id: `factory_agent_nav_${module.id}`, section: module.section, label: `External Agent · ${module.label}`, route: `/factory/agent-modules/${module.id}`, permissionEditorHidden: true, sidebar: false, routable: false, workspace: "factory" as const, permissions: module.coverage === "unavailable" ? {} : { view: true } })),
   { id: "factory_mesti_inspection", section: "MeSTI", label: "External MeSTI Inspection", route: "/factory/mesti/inspection", permissionEditorHidden: true, sidebar: false, routable: false, workspace: "factory", permissions: { view: true } },
