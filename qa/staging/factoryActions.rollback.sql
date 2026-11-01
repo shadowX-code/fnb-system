@@ -10,22 +10,37 @@ select set_config('request.jwt.claims',jsonb_build_object('sub',(select e.auth_u
 
 create function pg_temp.factory_action_qa(p_identity uuid,p_action text,p_target uuid,p_input jsonb) returns jsonb language plpgsql as $$
 declare token_value text; version_value text; request_value uuid:=gen_random_uuid(); r jsonb; replay jsonb;
+ owner_claims text:=current_setting('request.jwt.claims',true);
 begin
  select token into strict token_value from factory_action_qa_keys where identity_id=p_identity;
+ perform set_config('request.jwt.claims','{}',true);
+ set local role anon;
  version_value:=public.factory_agent_action_context(token_value,p_action,p_target)->>'expected_version';
  r:=public.factory_agent_execute_action(token_value,request_value,p_action,p_target,version_value,p_input);
  if r->>'status'='awaiting_confirmation' then
   assert public.factory_agent_action_context(token_value,p_action,p_target)->>'expected_version' is not distinct from version_value,'Unconfirmed intent changed business evidence';
+  reset role;
+  perform set_config('request.jwt.claims',owner_claims,true);
+  set local role authenticated;
   begin perform public.external_agents_confirm_factory_action(p_identity,request_value,'');raise exception 'Missing physical evidence reference accepted';exception when invalid_parameter_value then null;end;
   perform public.external_agents_confirm_factory_action(p_identity,request_value,'Disposable rollback QA simulation only; no real physical work claimed.');
   replay:=public.external_agents_confirm_factory_action(p_identity,request_value,'Disposable rollback QA simulation only; no real physical work claimed.');
   assert (replay->>'replayed')::boolean,'Confirmation retry did not return its existing receipt';
+  reset role;
+  perform set_config('request.jwt.claims','{}',true);
+  set local role anon;
   r:=public.factory_agent_execute_action(token_value,request_value,p_action,p_target,version_value,p_input);
  end if;
  assert r->>'status'='completed','Canonical action did not complete';
  replay:=public.factory_agent_execute_action(token_value,request_value,p_action,p_target,version_value,p_input);
  assert (replay->>'replayed')::boolean and replay->>'completed_at'=r->>'completed_at','Replay changed the result';
+ reset role;
+ perform set_config('request.jwt.claims',owner_claims,true);
  insert into factory_action_qa_results values(p_action,'PASS');return r;
+exception when others then
+ reset role;
+ perform set_config('request.jwt.claims',owner_claims,true);
+ raise;
 end $$;
 
 do $$
