@@ -3363,6 +3363,18 @@ const factoryServiceDefinition = {
     return mapMestiCleaningRequirement(data || requirement);
   },
 
+  async mestiCleaningTaskAction(requirementId, dueDate, action = "preview", expected = null) {
+    const { data, error } = await supabase.rpc("factory_mesti_cleaning_task_action", {
+      p_requirement_id: requirementId, p_due_date: dueDate, p_action: action, p_expected: expected,
+    });
+    throwSupabaseError("factory.mesti_cleaning.task_action", error);
+    if (!data || !Array.isArray(data.records) || data.records.length !== data.total_count || !["total_count", "affected_count", "skipped_count", "failed_count", "complete_count", "verify_count"].every(key => Number.isSafeInteger(data[key]) && data[key] >= 0)
+      || (action !== "preview" && data.affected_count + data.skipped_count + data.failed_count !== data.total_count)) {
+      throw new Error("Cleaning action outcome could not be confirmed. Refresh before retrying.");
+    }
+    return data;
+  },
+
   async completeMestiCleaningOccurrence(occurrenceId, note = "") {
     const { data, error } = await supabase.rpc("factory_mesti_complete_cleaning_occurrence", { p_occurrence_id: occurrenceId, p_note: note || null });
     throwSupabaseError("factory.mesti_cleaning.complete", error);
