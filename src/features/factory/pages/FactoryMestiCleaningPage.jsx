@@ -4,6 +4,8 @@ import { cleaningOccurrenceStatus } from "../utils/cleaningCalendarPresentation.
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
+import ConfirmDialog from "../../../components/feedback/ConfirmDialog.jsx";
+import FactoryCleaningTaskActions from "../components/FactoryCleaningTaskActions.jsx";
 import TagList from "../../../components/ui/TagList.jsx";
 import FactoryMestiRequirementHistory from "../components/FactoryMestiRequirementHistory.jsx";
 import { FactoryMestiCleaningMethodField, FactoryMestiCleaningMethodReference, cleaningMethodLabel } from "../components/FactoryMestiCleaningMethod.jsx";
@@ -123,6 +125,8 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   const [savingRequirement, setSavingRequirement] = useState(false);
   const [workingId, setWorkingId] = useState("");
   const [actionFailure, setActionFailure] = useState(null);
+  const [bulkRequest, setBulkRequest] = useState(null);
+  const [bulkResult, setBulkResult] = useState(null);
   const mutationOwner = useRef(false);
   const saveOwner = useRef(false);
   const refreshOwner = useRef(null);
@@ -144,10 +148,30 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   ), [month, runLatestRequest]);
   useEffect(() => { if (activeTab === "daily") loadDaily(); }, [activeTab, loadDaily]);
   useEffect(() => { if (activeTab === "monthly") loadMonthly(); }, [activeTab, loadMonthly]);
+  useEffect(() => { setBulkRequest(null); setBulkResult(null); }, [activeTab, month]);
 
   const canCompleteOccurrence = row => (can("factory_mesti_cleaning.complete") || canManage) && ["pending", "missed", "unsatisfactory"].includes(row.status);
   const canVerifyOccurrence = row => (can("factory_mesti_cleaning.review") || canManage) && row.status === "completed";
   refreshOwner.current = activeTab === "monthly" ? loadMonthly : loadDaily;
+  async function actBulk() {
+    if (!bulkRequest || mutationOwner.current || error || monthLoading) return;
+    const request = bulkRequest;
+    mutationOwner.current = true; setWorkingId("bulk"); setBulkRequest(null); setBulkResult(null);
+    try {
+      const result = await factoryService.mestiCleaningTaskAction(request.requirementId, request.dueDate, request.action, request.expected);
+      const message = `${result.affected_count} ${request.action === "complete" ? "completed" : "verified"}, ${result.skipped_count} skipped, ${result.failed_count} failed.`;
+      if (mounted.current) setBulkResult({ scopeLabel: `${request.title} · ${formatFactoryDate(request.dueDate)}`, message, records: result.records, partial: Boolean(result.skipped_count || result.failed_count) });
+      onNotify?.({ title: "Cleaning task action results", message, tone: result.skipped_count || result.failed_count ? "warning" : "success" });
+    } catch (cause) {
+      const message = `Outcome not confirmed. Refresh before retrying. ${cause.message || "Cleaning action could not be confirmed."}`;
+      if (mounted.current) setBulkResult({ scopeLabel: `${request.title} · ${formatFactoryDate(request.dueDate)}`, message, partial: true });
+      onNotify?.({ title: "Cleaning task action not confirmed", message, tone: "error" });
+    } finally {
+      if (mounted.current) await refreshOwner.current();
+      mutationOwner.current = false;
+      if (mounted.current) setWorkingId("");
+    }
+  }
   async function act(action, occurrence, result) {
     if (action === "view") { setOccurrenceDetail(occurrence); return; }
     if (mutationOwner.current) return;
@@ -215,13 +239,14 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
     {activeTab === "monthly" ? <div className="space-y-5">
       <div className="flex flex-wrap items-end gap-3 border-b border-border pb-4"><div className="w-full sm:w-60"><Field label="Month"><FactoryMonthPicker value={month} onChange={setMonth} /></Field></div></div>
       <FactoryComplianceLegend />
+      {bulkResult ? <div role="status" className="rounded-lg border border-border bg-surface-muted p-3 text-sm"><p className="text-xs text-text-secondary">{bulkResult.scopeLabel}</p><p className="font-semibold">{bulkResult.message}</p>{bulkResult.partial ? <p className="mt-1 text-xs text-text-secondary">Review the refreshed records before another action.</p> : null}{bulkResult.records?.filter(record => record.reason).map(record => <p key={record.id} className="mt-1 text-xs text-text-secondary">{record.location_name || "Location record"}: {record.reason}</p>)}</div> : null}
       <FactoryDataSurface>{monthLoading && !monthlyRows.length ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading monthly matrix...</div> : <FactoryComplianceMatrix
         key={month} cleaningStatuses today={malaysiaBusinessDateInput()} onToday={() => setMonth(malaysiaBusinessDateInput().slice(0,7))} rows={matrixRows} days={days} rowKey={row => row.matrix_key} getChildren={row => row.children}
         getCell={(row, day) => row.calendarCells.get(day)}
         entityLabel="Task / Location" renderEntity={row => row.location_name || row.task_name}
         renderFrequency={row => row.location_name ? null : recurrenceLabel(row)}
-        isCellInteractive={row => Boolean(row.location_name)}
-        renderCellDetail={occurrence => <section aria-label="Cleaning occurrence actions">
+        isCellInteractive={(row, cell) => Boolean(row.location_name) || cell.due_date <= malaysiaBusinessDateInput()}
+        renderCellDetail={(occurrence, row) => !row.location_name ? <FactoryCleaningTaskActions row={row} cell={occurrence} disabled={Boolean(workingId) || monthLoading || Boolean(error)} canComplete={can("factory_mesti_cleaning.complete") || canManage} canVerify={can("factory_mesti_cleaning.review") || canManage} onRequest={setBulkRequest} onRefresh={loadMonthly} /> : <section aria-label="Cleaning occurrence actions">
           <FactoryMestiMonthlyActionRow primary={occurrence.task_name} secondary={`${occurrence.location_name} · ${formatFactoryDate(occurrence.due_date)}`}
             status={<span aria-live="polite"><StatusBadge status={cleaningOccurrenceStatus(occurrence)} /></span>}
             actions={<FactoryMestiOccurrenceActions status={occurrence.status} canComplete={!error && canCompleteOccurrence(occurrence)} canVerify={!error && canVerifyOccurrence(occurrence)} working={Boolean(workingId) || monthLoading} onComplete={() => act("complete", occurrence)} onVerify={() => act("verify", occurrence, "verified")} onMarkUnsatisfactory={() => act("verify", occurrence, "unsatisfactory")} onView={() => act("view", occurrence)} />}
@@ -249,5 +274,6 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
       <RequirementModal open={showRequirementForm} draft={requirementDraft} locations={activeLocations} methods={masterData.mestiCleaningMethods} onClose={closeRequirementForm} onSave={saveRequirement} onChange={changeDraft} error={requirementError} saving={savingRequirement} />
     </div> : null}
     <OccurrenceDetail occurrence={occurrenceDetail} onClose={() => setOccurrenceDetail(null)} />
+    <ConfirmDialog request={bulkRequest} onCancel={() => setBulkRequest(null)} onConfirm={actBulk} />
   </div>;
 }

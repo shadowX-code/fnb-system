@@ -6,6 +6,9 @@ export function cleaningOccurrenceStatus(record, today = malaysiaBusinessDateInp
 }
 export function cleaningCalendarPresentation(cell, today = malaysiaBusinessDateInput()) {
   const records = cell.occurrences?.length ? cell.occurrences : [cell];
+  if (cell.due_date > today && records.every(record => ["pending", "missed"].includes(record.status))) {
+    return { status: "scheduled", label: "—", description: "Future scheduled cleaning" };
+  }
   const counts = {};
   for (const record of records) {
     const status = cleaningOccurrenceStatus({ ...record, due_date: record.due_date || cell.due_date }, today);

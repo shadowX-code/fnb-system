@@ -7,7 +7,7 @@ import { cleaningMethodsFixture } from "../../components/__tests__/cleaningMetho
 import { factoryService } from "../../../../services/factoryService.js";
 
 vi.mock("../../../../services/factoryService.js", () => ({ factoryService: {
-  listMestiCleaningDay: vi.fn(), listMestiCleaningMonth: vi.fn(), listMestiCleaningRequirementVersions: vi.fn(), saveMestiCleaningRequirement: vi.fn(), completeMestiCleaningOccurrence: vi.fn(), verifyMestiCleaningOccurrence: vi.fn(),
+  listMestiCleaningDay: vi.fn(), listMestiCleaningMonth: vi.fn(), listMestiCleaningRequirementVersions: vi.fn(), saveMestiCleaningRequirement: vi.fn(), completeMestiCleaningOccurrence: vi.fn(), verifyMestiCleaningOccurrence: vi.fn(), mestiCleaningTaskAction: vi.fn(),
 } }));
 
 const locationPreparation = { id: "loc-prep", location_name: "Preparation", status: "active", is_storage_location: false };
@@ -47,6 +47,10 @@ beforeEach(() => {
   factoryService.listMestiCleaningMonth.mockResolvedValue(monthlyRows);
   factoryService.completeMestiCleaningOccurrence.mockResolvedValue({});
   factoryService.verifyMestiCleaningOccurrence.mockResolvedValue({});
+  factoryService.mestiCleaningTaskAction.mockResolvedValue({
+    total_count: 2, complete_count: 1, verify_count: 0, affected_count: 0, skipped_count: 0, failed_count: 0,
+    records: [{ ...floorOccurrence, token: "pending-token", can_complete: true }, { ...floorCooking, token: "verified-token", can_complete: false }],
+  });
   factoryService.saveMestiCleaningRequirement.mockImplementation(async (value) => ({ id: "req-new", logical_requirement_id: "logical-new", ...value, location_names: ["Preparation", "Dry Store"], version_no: 1 }));
 });
 
@@ -183,13 +187,13 @@ describe("Factory MeSTI Cleaning of Area", () => {
     })));
   });
 
-  it("keeps version-pinned Task/Location rows expanded with read-only task aggregates", async () => {
+  it("keeps version-pinned Task/Location rows expanded with actionable task aggregates", async () => {
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
     expect(await screen.findByText("Task / Location")).toBeTruthy();
     expect(screen.getAllByText("Floor")).toHaveLength(2);
     expect(screen.queryByText(/^\d+ Locations?$/)).toBeNull();
-    expect(screen.getByTitle(/1 of 2 verified/).tagName).toBe("SPAN");
+    expect(screen.getByTitle(/1 of 2 verified/).tagName).toBe("BUTTON");
     expect(screen.getByText("Preparation")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Floor · Cooking.*Verified/ }));
     expect(await screen.findByRole("region", { name: "Cleaning occurrence actions" })).toBeTruthy();
@@ -203,6 +207,60 @@ describe("Factory MeSTI Cleaning of Area", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Expand Floor locations" })[0]);
     expect(screen.getByText("Preparation")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Floor.*03\/09\/2026/ })).toBeNull();
+  });
+
+  it("previews task/date eligibility and confirms exact affected/skipped counts before a bulk action", async () => {
+    factoryService.mestiCleaningTaskAction.mockResolvedValueOnce({ total_count: 2, complete_count: 1, verify_count: 0, records: [{ ...floorOccurrence, token: "pending-token" }, { ...floorCooking, token: "verified-token" }] })
+      .mockResolvedValue({ affected_count: 0, skipped_count: 1, failed_count: 1, total_count: 2, records: [{ ...floorOccurrence, reason: "Changed since confirmation" }] });
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    fireEvent.click(await screen.findByTitle(/1 of 2 verified/));
+    expect(await screen.findByRole("button", { name: "Complete eligible (1)" })).toBeTruthy();
+    expect(factoryService.mestiCleaningTaskAction).toHaveBeenCalledWith("req-floor-v4", "2026-09-02");
+    expect(factoryService.completeMestiCleaningOccurrence).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Complete eligible (1)" }));
+    const confirmation = screen.getByRole("dialog", { name: "Complete Floor?" });
+    expect(confirmation.textContent).toContain("1 Location record will be affected; 1 skipped");
+    expect(factoryService.mestiCleaningTaskAction).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(confirmation).getByRole("button", { name: "Complete 1 record" }));
+    await waitFor(() => expect(factoryService.mestiCleaningTaskAction).toHaveBeenCalledWith("req-floor-v4", "2026-09-02", "complete", { "occ-floor-prep": "pending-token", "occ-floor-cook": "verified-token" }));
+    expect(await screen.findByText("0 completed, 1 skipped, 1 failed.")).toBeTruthy();
+    expect(screen.getByText("Review the refreshed records before another action.")).toBeTruthy();
+    expect(factoryService.completeMestiCleaningOccurrence).not.toHaveBeenCalled();
+  });
+
+  it("keeps view-only parents readable without granting bulk transitions", async () => {
+    renderPage({ permissions: ["factory_mesti_cleaning.view"] });
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    fireEvent.click(await screen.findByTitle(/1 of 2 verified/));
+    const actions = await screen.findByRole("region", { name: "Cleaning task actions" });
+    await waitFor(() => expect(within(actions).getByText("Preparation")).toBeTruthy());
+    expect(within(actions).queryByRole("button", { name: /eligible/ })).toBeNull();
+  });
+
+  it("uses a dash for future scheduled obligations and disables only parent bulk entry", async () => {
+    const future = { ...floorOccurrence, due_date: "2026-09-03" };
+    factoryService.listMestiCleaningMonth.mockResolvedValue([{ ...monthlyRows[0], days: [{ due_date: future.due_date, status: "pending", occurrences: [future] }] }]);
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    await screen.findByText("Task / Location");
+    const parent = screen.getByRole("button", { name: "Collapse Floor locations" }).closest("tr");
+    expect(within(parent).queryByRole("button", { name: /Scheduled for/ })).toBeNull();
+    expect(within(parent).getByTitle(/Future scheduled cleaning/).textContent).toBe("—");
+    expect(screen.getByRole("button", { name: /Scheduled for 2026-09-03/ }).textContent).toBe("—");
+    expect(factoryService.mestiCleaningTaskAction).not.toHaveBeenCalled();
+  });
+
+  it("does not repeat a bulk command after an uncertain transport failure", async () => {
+    factoryService.mestiCleaningTaskAction.mockResolvedValueOnce({ total_count: 2, complete_count: 1, verify_count: 0, records: [{ ...floorOccurrence, token: "pending-token" }, { ...floorCooking, token: "verified-token" }] }).mockRejectedValueOnce(new Error("Connection lost"));
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    fireEvent.click(await screen.findByTitle(/1 of 2 verified/));
+    fireEvent.click(await screen.findByRole("button", { name: "Complete eligible (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete 1 record" }));
+    expect(await screen.findByText(/Outcome not confirmed.*Connection lost/)).toBeTruthy();
+    await waitFor(() => expect(factoryService.listMestiCleaningMonth).toHaveBeenCalledTimes(2));
+    expect(factoryService.mestiCleaningTaskAction.mock.calls.filter(call => call[2] === "complete")).toHaveLength(1);
   });
 
   it("labels awaiting-verification cells Review while preserving canonical detail and authority", async () => {
