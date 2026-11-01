@@ -4,7 +4,7 @@ import BusinessCapabilitySelector from './BusinessCapabilitySelector.jsx';
 import {externalAgentService} from '../../services/externalAgentService.js';
 vi.mock('../../services/externalAgentService.js',()=>({externalAgentService:{review:vi.fn(),confirmAccess:vi.fn()}}));
 afterEach(()=>{cleanup();vi.resetAllMocks();});
-const cap={name:'clean',label:'Cleaning',workspace:'Factory',domain:'MeSTI',granted:true,implemented:true,can_assign:true,scope:[{label:'Requirements',resource:'requirements'}]};
+const cap={name:'clean',label:'Cleaning',capability:'view',workspace:'Factory',domain:'MeSTI',granted:true,implemented:true,can_assign:true,scope:[{label:'Requirements',resource:'requirements'}]};
 it('stages changes and requires a server review and explicit confirmation',async()=>{
  externalAgentService.review.mockResolvedValue({changes:[{...cap,granted:false}],remaining_access:[{...cap,name:'review',label:'MeSTI Review'}],effective_diff:{before:[],after:[],material_changes:[],blockers:[],remaining_shared_access:[{removed:'Cleaning',via:'MeSTI Review',note:'Redacted findings remain.'}]},dependencies:[],review_hash:'hash',note:'No automatic grants'});
  externalAgentService.confirmAccess.mockResolvedValue({updated:true});

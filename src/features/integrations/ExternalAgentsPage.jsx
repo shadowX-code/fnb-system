@@ -13,6 +13,7 @@ import { formatOperationalMoment } from "../../lib/dateTime.js";
 import { externalAgentService } from "../../services/externalAgentService.js";
 import { hasPermission } from "../../utils/accessControl.js";
 import BusinessCapabilitySelector, { actionLabels } from "../../components/permissions/BusinessCapabilitySelector.jsx";
+import FactoryAgentActions from './FactoryAgentActions.jsx';
 import "./externalAgents.css";
 
 const labels = { active: "Active", expired: "Expired", revoked: "Revoked", mcp_observed: "Connected", not_observed: "Not Connected", disabled: "Disabled", success: "Completed", failed: "Failed", denied: "Access denied" };
@@ -34,6 +35,8 @@ function issuedValidity(credential) {
 }
 const allowed = (row) => (row.tools || []).filter((tool) => tool.granted && tool.implemented);
 function accessSummary(row) {
+  const actions = (row.business_capabilities || []).filter(capability => capability.granted && capability.read_only === false);
+  if (row.enabled && row.role_active && row.permission_granted && actions.length) return `${actions.length} action grants · ${[...new Set(actions.map(capability => actionLabels[capability.capability]))].join(' / ')}. Business-module View and evidence requirements still apply.`;
   if (row.effective_access?.summary) return row.effective_access.summary;
   if (!row.enabled) return "Disabled";
   if (!row.role_active || !row.permission_granted) return "Access blocked";
@@ -157,7 +160,7 @@ export default function ExternalAgentsPage({ auth }) {
     <p className="text-xs text-text-secondary">Connected means a successful MCP request was recorded. Last successful access is historical, not a real-time online status.</p>
     {selected && <Modal title={agent?.name || "Agent details"} placement="right" onClose={close} panelClassName="external-agent-panel" footer={<button className="btn-secondary" type="button" onClick={close} disabled={busy}>Close</button>}>
       {error && <div role="alert" className="external-agent-notice mb-4">{error}</div>}
-      {!agent ? <p role="status">Loading agent details…</p> : <><AdminUnderlineTabs value={tab} onChange={(value) => { setTab(value); setTestCredential(""); }} tabs={[{ value: "overview", label: "Overview" }, { value: "access", label: "Access & Permissions" }, { value: "activity", label: "Activity" }]} ariaLabel="Agent details" />
+      {!agent ? <p role="status">Loading agent details…</p> : <><AdminUnderlineTabs value={tab} onChange={(value) => { setTab(value); setTestCredential(""); }} tabs={[{ value: "overview", label: "Overview" }, { value: "access", label: "Access & Permissions" }, { value: "actions", label: "Factory Actions" }, { value: "activity", label: "Activity" }]} ariaLabel="Agent details" />
       <div className="pt-5" role="tabpanel" aria-label={{ overview: "Overview", access: "Access & Permissions", activity: "Activity" }[tab]}>
       {tab === "overview" && <div className="space-y-5">
         <section aria-label="Agent Information">
@@ -191,6 +194,7 @@ export default function ExternalAgentsPage({ auth }) {
         </div>}</section>
       </div>}
       {tab === "access" && <div className="space-y-4"><p className="text-sm text-text-secondary">Workspace → Business Domain → Business Capability. Stage selections, review effective access, then confirm.</p>{(!agent.permission_granted || !agent.role_active) && <p className="external-agent-notice">Connection access is blocked by the assigned role. Review the role in Role Settings.</p>}{!agent.can_manage_capabilities && <p className="external-agent-notice">Capability changes require Role Settings edit authority and a dedicated agent role. Manage shared roles in Role Settings.</p>}<section aria-label="Effective Access"><h3 className="external-agent-heading">Effective Access</h3><p className="text-sm">{accessSummary(agent)}</p><p className="text-xs text-text-secondary">All active grants are selectable below, including migrated scopes. A valid key and enabled agent are also required.</p></section><BusinessCapabilitySelector key={agent.id} capabilities={agent.business_capabilities || [...agent.tools,...(agent.preserved_access||[])]} identityId={agent.id} canManage={canEdit && agent.can_manage_capabilities} busy={busy} onConfirmed={refreshDetail} /></div>}
+      {tab === "actions" && <FactoryAgentActions identityId={agent.id} canManage={!!permitted}/> }
       {tab === "activity" && <div className="space-y-4"><AdminUnderlineTabs value={activityFilter} onChange={setActivityFilter} ariaLabel="Activity filter" tabs={[{value:"all",label:"All"},{value:"success",label:"Successful"},{value:"denied",label:"Denied"},{value:"admin",label:"Admin Changes"}]} /><p className="text-xs text-text-secondary">Events are shown individually; no timestamp-based grouping. Latest 50 recorded events · Malaysia time. Agent requests, FeedX checks and administrator changes are shown separately.</p>{filteredActivity.length ? <DataTable columns={activityColumns} rows={filteredActivity} getRowKey={(row) => `${row.sourceLabel}:${row.id}`} density="compact" minWidth={580} mobileLayout="stack" /> : <p className="text-sm text-text-secondary">No activity has been recorded yet.</p>}<p className="text-xs text-text-secondary">{detail.history_note}</p><p className="text-xs text-text-secondary">{detail.management_history_note}</p></div>}
       </div></>}
     </Modal>}

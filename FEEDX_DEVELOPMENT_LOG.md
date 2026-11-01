@@ -1189,3 +1189,7 @@ Added approved per-Packaging-SKU label configuration and reusable S08-reference 
 ## 2026-10-30 — Centralized Factory Label Management on Staging
 
 Moved SKU label setup from the long Finished Goods modal to Factory Settings → Label Management, with Product Labels, reusable versioned Templates and existing Printers sections. Dedicated SKU-content and visual-layout editors share the canonical 203 DPI renderer and introduce revision-checked drafts, explicit review/approval and immutable publication through existing label config/template authorities. Production-owned dynamic fields, old approved versions, historical snapshots, bridge transport and print/reprint lifecycle remain protected.
+
+## 2026-11-01 — Factory operational Agent actions on Staging
+
+Added fixed action-specific Gateway grants and executors for Job Orders, Production, Receiving, Product/Raw Stock Checks, Area/Equipment Cleaning and Calibration. Human RPCs and machine execution share private canonical business bodies with explicit principal isolation; no Employee/Auth identity is fabricated. Physical actions require source-bound human evidence confirmation, while planning/draft actions retain explicit autonomous grants. Identity-bound receipts, source versions, role/row locks and trusted audit preserve retry safety, independent review and stock/lifecycle authority. Shared AI Integrations stages/reviews action grants and confirms pending physical intents. Existing read grants, credentials and Human Matrix separation remain unchanged. No Production delivery.

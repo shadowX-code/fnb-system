@@ -4,8 +4,9 @@ import AccessScopeSummary from './AccessScopeSummary.jsx';
 import AccessChangeReview from './AccessChangeReview.jsx';
 import {externalAgentService} from '../../services/externalAgentService.js';
 import './moduleAccessSelector.css';
+import {actionLabels} from './capabilityActions.js';
 
-export const actionLabels = {view:'View Records',list:'View Records',read:'View Records',search:'View Records',filter:'View Records',draft:'Draft',execute:'Execute',approve:'Approve'};
+export {actionLabels} from './capabilityActions.js';
 export default function BusinessCapabilitySelector({capabilities=[],identityId=null,canManage=false,busy=false,onConfirmed,onConfirmRegistration,registration=false}) {
  const baseline=c=>!registration && !!c.granted;
  const [selected,setSelected]=useState(()=>capabilities.filter(baseline).map(c=>c.name));
@@ -28,8 +29,8 @@ export default function BusinessCapabilitySelector({capabilities=[],identityId=n
    <summary>{group}<span className="module-access-count">{rows.filter(chosen).length} of {rows.length} selected</span></summary>
    <ul>{rows.map(c=><li key={c.name}><div className="module-access-main">
     <div className="module-access-row"><strong>{c.label}{c.capability_limitation&&<span className="module-access-related"> · Limited</span>}</strong>
-     <label className="module-access-view"><input type="checkbox" aria-label={`View Records: ${c.label}`} checked={chosen(c)} disabled={busy||working||!canManage||!c.can_assign||(!c.implemented&&!c.granted)} onChange={e=>{setSelected(previous=>e.target.checked?[...previous,c.name]:previous.filter(n=>n!==c.name));setPlan(null);}}/>View</label>
-    </div><AccessScopeSummary capability={c} catalog={capabilities}/>
+     <label className="module-access-view"><input type="checkbox" aria-label={`${actionLabels[c.capability]||c.capability}: ${c.label}`} checked={chosen(c)} disabled={busy||working||!canManage||!c.can_assign||(!c.implemented&&!c.granted)} onChange={e=>{setSelected(previous=>e.target.checked?[...previous,c.name]:previous.filter(n=>n!==c.name));setPlan(null);}}/>{actionLabels[c.capability]||c.capability}</label>
+    </div>{c.read_only===false&&<p className="text-xs text-text-secondary">{baseline(c)?'Granted':'Restricted'}{baseline(c)!==chosen(c)?' · Change staged':''} · {c.execution_requirement}</p>}<AccessScopeSummary capability={c} catalog={capabilities}/>
    </div></li>)}</ul>
   </details>)}
   <button type="button" className="btn-primary" disabled={busy||working||!canManage||(!registration&&!changed)||(registration&&!selected.length)} onClick={review}>{working?'Preparing review…':'Review Changes'}</button>

@@ -13,7 +13,7 @@ const telemetry = createClient(url, telemetrySecret, { auth: { persistSession: f
 const handler = createHandler(async (token: string, tool: string, args: Record<string, unknown>) => {
   const { data, error } = tool === "authorize"
     ? await client.rpc("factory_agent_authorize", { p_token: token })
-    : await client.rpc("factory_agent_resource_query", { p_token: token, ...args });
+    : await client.rpc(tool === "execute_factory_action" ? "factory_agent_execute_action" : tool === "factory_action_context" ? "factory_agent_action_context" : "factory_agent_resource_query", { p_token: token, ...args });
   if (error) throw Object.assign(new Error("Inspection denied or unavailable."), { code: error.code });
   return data;
 }, { observe: async (token: string, event: Record<string, unknown>, request: Request) => {
