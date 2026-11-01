@@ -1,5 +1,5 @@
 export const actionLabels = {
-  view: 'View Records', list: 'View Records', read: 'View Records', search: 'View Records', filter: 'View Records',
+  confirm:'Confirm Supplier',receive:'Receive',return_to_draft:'Return to Draft',view: 'View Records', list: 'View Records', read: 'View Records', search: 'View Records', filter: 'View Records',
   draft: 'Draft', execute: 'Execute', create: 'Create', update: 'Update', submit: 'Submit',
   complete: 'Complete', verify: 'Verify', approve: 'Approve', cancel: 'Cancel',
 };
@@ -22,3 +22,11 @@ export function actionTypeCounts(capabilities) {
 }
 
 export const executionPolicyLabels = {autonomous:'Autonomous',conditional:'Conditional',human_approval:'Human approval required'};
+
+// Workspace labels describe the canonical capability catalog, not the retained adapter name.
+export function capabilityWorkspaceLabel(capabilities = []) {
+  return [...new Set(capabilities.map(row => row.workspace).filter(Boolean))].sort().join(' · ');
+}
+export function agentWorkspaceLabel(agent) {
+  return capabilityWorkspaceLabel((agent.business_capabilities || agent.tools || []).filter(row => row.granted)) || agent.workspace || 'Not configured';
+}

@@ -1,0 +1,261 @@
+{
+  "status": "GO_FOR_EXPLICIT_EXECUTION_APPROVAL_ONLY",
+  "production_base_sha": "c6dc4ef64054cc58addf6a647f01d685897f06c3",
+  "verified_staging_sha": "92bcd8b851235a4eacb84f60c8358ef569cd50cc",
+  "production_ledger_baseline": 942,
+  "expected_ledger_after_only_these_migrations": 950,
+  "production_mutated": false,
+  "existing_authority_baseline": {
+    "grants": {
+      "hash": "096260bcb8dadfd4b16ee44674f60915",
+      "count": 1249
+    },
+    "scopes": {
+      "hash": "187ac4cd820f50a1cabb52e937b548b9",
+      "count": 3
+    },
+    "identities": {
+      "hash": "52275e92fd53ccdc912572df99b3e5be",
+      "count": 1
+    },
+    "credentials": {
+      "hash": "916cf2b9625e27c46b0a55b1fa0c150c",
+      "count": 1
+    }
+  },
+  "named_role_grants": {
+    "owner": 355,
+    "admin": 355,
+    "manager": 251,
+    "existing_agent_role": 30
+  },
+  "scope": {
+    "business_groups": 9,
+    "read_resources": 22,
+    "distinct_actions": 23,
+    "runtime_path": "existing factory-mesti-mcp endpoint; no second identity/grant/audit authority"
+  },
+  "scope_paths": [
+    "FEEDX_DEVELOPMENT_LOG.md",
+    "config/modules.ts",
+    "config/restaurantAgentActions.json",
+    "config/restaurantAgentModules.json",
+    "config/restaurantAgentResources.json",
+    "docs/architecture/trusted-authorities.md",
+    "docs/domains/inventory-and-assets.md",
+    "docs/domains/restaurant-finance-and-purchasing.md",
+    "docs/testing/restaurant-agent-staging.md",
+    "src/components/permissions/BusinessCapabilitySelector.jsx",
+    "src/components/permissions/BusinessCapabilitySelector.test.jsx",
+    "src/components/permissions/capabilityActions.js",
+    "src/components/permissions/capabilityActions.test.js",
+    "src/features/integrations/AgentActivityTimeline.jsx",
+    "src/features/integrations/ExternalAgentsPage.jsx",
+    "src/features/integrations/FactoryAgentActions.jsx",
+    "src/features/integrations/FactoryAgentActions.test.jsx",
+    "src/features/integrations/agentActivity.js",
+    "src/features/integrations/agentActivity.test.js",
+    "src/services/externalAgentService.js",
+    "supabase/functions/__tests__/factoryMestiMcp.test.js",
+    "supabase/functions/__tests__/restaurantAgentMcp.test.js",
+    "supabase/functions/factory-mesti-mcp/index.ts",
+    "supabase/functions/factory-mesti-mcp/protocol.js",
+    "supabase/functions/factory-mesti-mcp/restaurant.js",
+    "supabase/migrations/20261101124000_restaurant_agent_shared_principals.sql",
+    "supabase/migrations/20261101124100_restaurant_agent_capability_registry.sql",
+    "supabase/migrations/20261101124200_restaurant_agent_scoped_reads.sql",
+    "supabase/migrations/20261101124300_restaurant_agent_canonical_actions.sql",
+    "supabase/migrations/20261101124400_restaurant_agent_shared_gateway_contract.sql",
+    "supabase/migrations/20261101124500_restaurant_agent_outlet_scope_review.sql",
+    "supabase/migrations/20261101124600_restaurant_agent_resource_telemetry.sql",
+    "supabase/migrations/20261101155611_restaurant_agent_workflow_presentation.sql"
+  ],
+  "exact_verified_runtime_sources": [
+    "config/restaurantAgentActions.json",
+    "config/restaurantAgentModules.json",
+    "config/restaurantAgentResources.json",
+    "src/components/permissions/BusinessCapabilitySelector.jsx",
+    "src/components/permissions/BusinessCapabilitySelector.test.jsx",
+    "src/components/permissions/capabilityActions.js",
+    "src/components/permissions/capabilityActions.test.js",
+    "src/features/integrations/AgentActivityTimeline.jsx",
+    "src/features/integrations/ExternalAgentsPage.jsx",
+    "src/features/integrations/FactoryAgentActions.jsx",
+    "src/features/integrations/FactoryAgentActions.test.jsx",
+    "src/features/integrations/agentActivity.js",
+    "src/features/integrations/agentActivity.test.js",
+    "src/services/externalAgentService.js",
+    "supabase/functions/__tests__/factoryMestiMcp.test.js",
+    "supabase/functions/__tests__/restaurantAgentMcp.test.js",
+    "supabase/functions/factory-mesti-mcp/index.ts",
+    "supabase/functions/factory-mesti-mcp/protocol.js",
+    "supabase/functions/factory-mesti-mcp/restaurant.js",
+    "supabase/migrations/20261101124000_restaurant_agent_shared_principals.sql",
+    "supabase/migrations/20261101124100_restaurant_agent_capability_registry.sql",
+    "supabase/migrations/20261101124200_restaurant_agent_scoped_reads.sql",
+    "supabase/migrations/20261101124300_restaurant_agent_canonical_actions.sql",
+    "supabase/migrations/20261101124400_restaurant_agent_shared_gateway_contract.sql",
+    "supabase/migrations/20261101124500_restaurant_agent_outlet_scope_review.sql",
+    "supabase/migrations/20261101124600_restaurant_agent_resource_telemetry.sql",
+    "supabase/migrations/20261101155611_restaurant_agent_workflow_presentation.sql"
+  ],
+  "protected_baseline_paths_unchanged": [
+    "src/app",
+    "src/features/factory",
+    "src/services/factoryService.js",
+    "src/features/company-users",
+    "src/features/recruitment",
+    "src/features/guest-ai",
+    "src/features/finance",
+    "config/factoryAgentActions.json",
+    "config/factoryAgentModules.json",
+    "config/factoryAgentCoverage.json",
+    "config/factoryAgentResources.json",
+    "config/factoryAgentNavigation.json",
+    "package.json",
+    "package-lock.json",
+    "supabase/functions/external-agent-management",
+    "supabase/functions/_shared"
+  ],
+  "migrations": [
+    {
+      "order": 1,
+      "path": "supabase/migrations/20261101124000_restaurant_agent_shared_principals.sql",
+      "name": "restaurant_agent_shared_principals",
+      "sha256": "ce573f84b7a53b0386746e9b802a57728299072fc059971f54c33232f68f9523"
+    },
+    {
+      "order": 2,
+      "path": "supabase/migrations/20261101124100_restaurant_agent_capability_registry.sql",
+      "name": "restaurant_agent_capability_registry",
+      "sha256": "22f83cd0bc8ae344515296885d360a05211b4b62a4ffba511cb7ec3eeacc76c2"
+    },
+    {
+      "order": 3,
+      "path": "supabase/migrations/20261101124200_restaurant_agent_scoped_reads.sql",
+      "name": "restaurant_agent_scoped_reads",
+      "sha256": "1a118c1cf243335938171470f9cd6e252ff42bbcd45684801a83a92214711c11"
+    },
+    {
+      "order": 4,
+      "path": "supabase/migrations/20261101124300_restaurant_agent_canonical_actions.sql",
+      "name": "restaurant_agent_canonical_actions",
+      "sha256": "895116f9ceaf6ea608fb495692af281feba0eebd572cf532ac021257618cc365"
+    },
+    {
+      "order": 5,
+      "path": "supabase/migrations/20261101124400_restaurant_agent_shared_gateway_contract.sql",
+      "name": "restaurant_agent_shared_gateway_contract",
+      "sha256": "bc35adec53ffbbe535d513b7f9b14700f8b87dc80d905aa34b7bbc77081f4208"
+    },
+    {
+      "order": 6,
+      "path": "supabase/migrations/20261101124500_restaurant_agent_outlet_scope_review.sql",
+      "name": "restaurant_agent_outlet_scope_review",
+      "sha256": "6df13e2838c28c3b26bcac4e1eeff23aa5795b0125ab90adbd0e81ae815e5333"
+    },
+    {
+      "order": 7,
+      "path": "supabase/migrations/20261101124600_restaurant_agent_resource_telemetry.sql",
+      "name": "restaurant_agent_resource_telemetry",
+      "sha256": "bc4d4fb4487e50313b6b18bbda773225fdffc7b2e0e95cfb928fc5faf1d9c2df"
+    },
+    {
+      "order": 8,
+      "path": "supabase/migrations/20261101155611_restaurant_agent_workflow_presentation.sql",
+      "name": "restaurant_agent_workflow_presentation",
+      "sha256": "c86512cd722144ebd351df3ffbeec94ff264de870f41116e2fff1f321829b6c6"
+    }
+  ],
+  "gateway": {
+    "function": "factory-mesti-mcp",
+    "existing_production_version": 2,
+    "verify_jwt": false,
+    "deployment_required": true,
+    "files": [
+      {
+        "path": "supabase/functions/factory-mesti-mcp/index.ts",
+        "sha256": "bd134ed14b7da3db3cbbfadf198460bea56fa92a1634d9b71fb0eacc01947cd3",
+        "equals_verified_staging": true,
+        "equals_live_production": false
+      },
+      {
+        "path": "supabase/functions/factory-mesti-mcp/protocol.js",
+        "sha256": "d427833389611d58a20a9f3e75ea22867edf7defffde1cf80165a7a3a15a3efa",
+        "equals_verified_staging": true,
+        "equals_live_production": false
+      },
+      {
+        "path": "supabase/functions/factory-mesti-mcp/actions.js",
+        "sha256": "0766ad85d6cb1c3f7d85da90dea0d6f531c9437f54b7b3353eb453d1ae30d025",
+        "equals_verified_staging": true,
+        "equals_live_production": true
+      },
+      {
+        "path": "supabase/functions/factory-mesti-mcp/resources.js",
+        "sha256": "9bb16a52cbe162ce14ed3a9286693e066a675190d2a023762956b34cf4e1d254",
+        "equals_verified_staging": true,
+        "equals_live_production": true
+      },
+      {
+        "path": "supabase/functions/factory-mesti-mcp/restaurant.js",
+        "sha256": "ecb5e4cf8ae9de12c405aeaf2228962cb005b208a1b7409de6b1f19f92665fa2",
+        "equals_verified_staging": true,
+        "equals_live_production": false
+      },
+      {
+        "path": "supabase/functions/_shared/externalAgentProbe.js",
+        "sha256": "1b2b3fc77dabbd03a4483634f8cd61fc093f1abeea601d6ebf1c15f979eb2f96",
+        "equals_verified_staging": true,
+        "equals_live_production": true
+      },
+      {
+        "path": "supabase/functions/_shared/externalAgentEnvironment.js",
+        "sha256": "a58e91f42d8cab1fe227a697d20e2e1e63f19c01369c1b932a7fcad99698df19",
+        "equals_verified_staging": true,
+        "equals_live_production": true
+      }
+    ],
+    "management_function": "external-agent-management",
+    "management_function_deployment_required": false,
+    "management_function_unchanged": true,
+    "environment_or_credential_changes_required": false
+  },
+  "rehearsal": {
+    "production_metadata_tables": 135,
+    "standalone_unique_indexes": 63,
+    "validated_foreign_keys": 345,
+    "all_pk_unique_check_constraints": true,
+    "unchanged_factory_gist_exclusions_executed": false,
+    "exact_existing_grants_and_scopes_preserved": true,
+    "credentials": "synthetic local evidence only; no Production credential values copied",
+    "existing_factory_discovery_unchanged_except_additive_workflow_metadata": true,
+    "existing_agents_receive_restaurant_access_automatically": false,
+    "factory_planning_lifecycle": "Create/Update/Release/Cancel and replay PASS",
+    "restaurant_contracts": "canonical writes, independent Action grants, scope denial, idempotency/concurrency and receipts PASS"
+  },
+  "verification": {
+    "locked_dependency_install": "PASS",
+    "production_build": "PASS",
+    "focused_tests_passed": 140,
+    "focused_tests_existing_baseline_failure": 1,
+    "known_baseline_test": "RestaurantRoleRelease.contract.test.js pins 119 modules/373 permission codes; baseline already has 234/516; direct baseline comparison proves 104 Human modules unchanged and all 516 existing definitions preserved",
+    "human_matrix_unchanged": true,
+    "staging_l3_reused": "42 actual MCP observations, nine committed operations/nine audit receipts, zero pending requests; isolated QA cleanup and preservation PASS"
+  },
+  "unsupported_operations": [
+    "Master Inventory/Par writes",
+    "Audit-mode Stock Check commands",
+    "transfers",
+    "media uploads",
+    "client-derived usage forecasts"
+  ],
+  "future_execution_order": [
+    "fresh live SHA/main/ledger/preservation and function-preimage check",
+    "apply exactly eight migrations in manifest order with fresh provider confirmation",
+    "deploy matching seven-file factory-mesti-mcp bundle only",
+    "push exact explicitly approved candidate to main once; canonical Git deployment",
+    "verify READY and exact SHA then proportional read-only Production smoke and fingerprints"
+  ],
+  "failure_policy": "Stop/report exact live state; no automatic rollback, legacy snapshot-save restoration or unrelated fixes"
+}

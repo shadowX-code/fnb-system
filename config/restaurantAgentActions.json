@@ -1,0 +1,391 @@
+[
+  {
+    "key": "restaurant_asset.create",
+    "module": "asset_tracking",
+    "label": "Asset",
+    "table": "asset_items",
+    "action": "create",
+    "human_permission": "asset_tracking.create",
+    "target_required": false,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record"
+    ],
+    "description": "Asset create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking"
+  },
+  {
+    "key": "restaurant_asset.update",
+    "module": "asset_tracking",
+    "label": "Asset",
+    "table": "asset_items",
+    "action": "update",
+    "human_permission": "asset_tracking.edit",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record"
+    ],
+    "description": "Asset update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking"
+  },
+  {
+    "key": "restaurant_inspection.create",
+    "module": "asset_tracking",
+    "label": "Asset Inspection",
+    "table": "asset_inspections",
+    "action": "create",
+    "human_permission": "asset_tracking.manage",
+    "target_required": false,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record"
+    ],
+    "description": "Asset Inspection create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_inspections"
+  },
+  {
+    "key": "restaurant_inspection.update",
+    "module": "asset_tracking",
+    "label": "Asset Inspection",
+    "table": "asset_inspections",
+    "action": "update",
+    "human_permission": "asset_tracking.manage",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record"
+    ],
+    "description": "Asset Inspection update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_inspections"
+  },
+  {
+    "key": "restaurant_inspection.complete",
+    "module": "asset_tracking",
+    "label": "Asset Inspection",
+    "table": "asset_inspections",
+    "action": "complete",
+    "human_permission": "asset_tracking.manage",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record"
+    ],
+    "description": "Asset Inspection complete. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_inspections"
+  },
+  {
+    "key": "restaurant_maintenance.create",
+    "module": "asset_tracking",
+    "label": "Asset Maintenance",
+    "table": "asset_maintenance_records",
+    "action": "create",
+    "human_permission": "asset_tracking.manage",
+    "target_required": false,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record"
+    ],
+    "description": "Asset Maintenance create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_maintenance"
+  },
+  {
+    "key": "restaurant_maintenance.update",
+    "module": "asset_tracking",
+    "label": "Asset Maintenance",
+    "table": "asset_maintenance_records",
+    "action": "update",
+    "human_permission": "asset_tracking.manage",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record"
+    ],
+    "description": "Asset Maintenance update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_maintenance"
+  },
+  {
+    "key": "restaurant_maintenance.complete",
+    "module": "asset_tracking",
+    "label": "Asset Maintenance",
+    "table": "asset_maintenance_records",
+    "action": "complete",
+    "human_permission": "asset_tracking.manage",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record"
+    ],
+    "description": "Asset Maintenance complete. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_maintenance"
+  },
+  {
+    "key": "restaurant_stock_check.create",
+    "module": "inventory_stock_check",
+    "label": "Stock Check",
+    "table": "inventory_stock_checks",
+    "action": "create",
+    "human_permission": "inventory_stock_check.create",
+    "target_required": false,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items"
+    ],
+    "description": "Stock Check create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_stock_check"
+  },
+  {
+    "key": "restaurant_stock_check.update",
+    "module": "inventory_stock_check",
+    "label": "Stock Check",
+    "table": "inventory_stock_checks",
+    "action": "update",
+    "human_permission": "inventory_stock_check.edit",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items"
+    ],
+    "description": "Stock Check update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_stock_check"
+  },
+  {
+    "key": "restaurant_stock_check.submit",
+    "module": "inventory_stock_check",
+    "label": "Stock Check",
+    "table": "inventory_stock_checks",
+    "action": "submit",
+    "human_permission": "inventory_stock_check.create",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items"
+    ],
+    "description": "Stock Check submit. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_stock_check"
+  },
+  {
+    "key": "restaurant_purchase_order.create",
+    "module": "inventory_orders",
+    "label": "Purchase Order",
+    "table": "inventory_purchase_orders",
+    "action": "create",
+    "human_permission": "inventory_orders.create",
+    "target_required": false,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items",
+      "reason"
+    ],
+    "description": "Purchase Order create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
+  },
+  {
+    "key": "restaurant_purchase_order.update",
+    "module": "inventory_orders",
+    "label": "Purchase Order",
+    "table": "inventory_purchase_orders",
+    "action": "update",
+    "human_permission": "inventory_orders.edit",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items",
+      "reason"
+    ],
+    "description": "Purchase Order update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
+  },
+  {
+    "key": "restaurant_purchase_order.submit",
+    "module": "inventory_orders",
+    "label": "Purchase Order",
+    "table": "inventory_purchase_orders",
+    "action": "submit",
+    "human_permission": "inventory_orders.submit",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items",
+      "reason"
+    ],
+    "description": "Purchase Order submit. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
+  },
+  {
+    "key": "restaurant_purchase_order.confirm",
+    "module": "inventory_orders",
+    "label": "Purchase Order",
+    "table": "inventory_purchase_orders",
+    "action": "confirm",
+    "human_permission": "inventory_orders.submit",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items",
+      "reason"
+    ],
+    "description": "Purchase Order confirm. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
+  },
+  {
+    "key": "restaurant_purchase_order.return_to_draft",
+    "module": "inventory_orders",
+    "label": "Purchase Order",
+    "table": "inventory_purchase_orders",
+    "action": "return_to_draft",
+    "human_permission": "inventory_orders.edit",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items",
+      "reason"
+    ],
+    "description": "Purchase Order return to draft. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
+  },
+  {
+    "key": "restaurant_purchase_order.cancel",
+    "module": "inventory_orders",
+    "label": "Purchase Order",
+    "table": "inventory_purchase_orders",
+    "action": "cancel",
+    "human_permission": "inventory_orders.cancel",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items",
+      "reason"
+    ],
+    "description": "Purchase Order cancel. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
+  },
+  {
+    "key": "restaurant_purchase_order.complete",
+    "module": "inventory_orders",
+    "label": "Purchase Order",
+    "table": "inventory_purchase_orders",
+    "action": "complete",
+    "human_permission": "inventory_orders.complete",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items",
+      "reason"
+    ],
+    "description": "Purchase Order complete. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
+  },
+  {
+    "key": "restaurant_purchase_order.receive",
+    "module": "inventory_orders",
+    "label": "Purchase Order",
+    "table": "inventory_purchase_orders",
+    "action": "receive",
+    "human_permission": "inventory_orders.receive",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items",
+      "reason"
+    ],
+    "description": "Purchase Order receive. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
+  },
+  {
+    "key": "restaurant_movement.create",
+    "module": "inventory_movements",
+    "label": "Inventory Adjustment",
+    "table": "inventory_movements",
+    "action": "create",
+    "human_permission": "inventory_movements.create",
+    "target_required": false,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record"
+    ],
+    "description": "Inventory Adjustment create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_movements"
+  },
+  {
+    "key": "restaurant_waste.create",
+    "module": "inventory_waste",
+    "label": "Wastage",
+    "table": "inventory_waste_records",
+    "action": "create",
+    "human_permission": "inventory_waste.create",
+    "target_required": false,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record"
+    ],
+    "description": "Wastage create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_waste"
+  },
+  {
+    "key": "restaurant_recipe.create",
+    "module": "inventory_recipes",
+    "label": "Recipe",
+    "table": "inventory_recipes",
+    "action": "create",
+    "human_permission": "inventory_recipes.manage",
+    "target_required": false,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items"
+    ],
+    "description": "Recipe create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_recipes"
+  },
+  {
+    "key": "restaurant_recipe.update",
+    "module": "inventory_recipes",
+    "label": "Recipe",
+    "table": "inventory_recipes",
+    "action": "update",
+    "human_permission": "inventory_recipes.manage",
+    "target_required": true,
+    "requires_human_confirmation": false,
+    "input_fields": [
+      "outlet_id",
+      "record",
+      "items"
+    ],
+    "description": "Recipe update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_recipes"
+  }
+]

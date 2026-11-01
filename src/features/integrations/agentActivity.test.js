@@ -36,3 +36,11 @@ it('filters dates by Malaysia business dates across UTC midnight boundaries',()=
  expect(operationalDateKey('2026-11-01T15:59:00Z')).toBe('2026-11-01');
  expect(operationalDateKey('invalid')).toBe('');
 });
+
+it('recognizes Restaurant receipts, reads and technical checks without inventing completion',()=>{
+ const operation={...completed,action:'restaurant_purchase_order.receive',receipt:{...completed.receipt,action:'restaurant_purchase_order.receive'}};
+ const result=agentActivity({access_events:[{id:10,tool:'execute_restaurant_action',outcome:'success',occurred_at:stamp},{id:11,tool:'restaurant_action_context',outcome:'success',occurred_at:stamp},{id:12,tool:'query_restaurant_resources',outcome:'success',occurred_at:stamp,resource_actions:[{business_module:'inventory_orders',action:'read'}]}]},[operation],'agent');
+ expect(result.events.find(row=>row.state==='committed')).toMatchObject({title:'Purchase Order received',moduleIds:['inventory_orders'],impact:'Canonical receiving and stock movement recorded'});
+ expect(result.events.find(row=>row.state==='read').title).toBe('Read Restaurant records');
+ expect(result.diagnostics.map(row=>row.state)).toEqual(['accepted','checked']);
+});

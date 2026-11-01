@@ -906,3 +906,7 @@ Consolidated parallel access editors and migrated-grant removal into one grant-b
 - External Agent Gateway: audited all 97 mappings; separated 84 essential-reference policies from nine independently authorized composite/source projections. Minimal related identifiers, business labels and current statuses are now self-contained in module reads, with provenance and strict privacy fields. Existing grants/keys remain unchanged. Simplified the canonical staged selector to compact View rows and optional Access Details without raw JSON. L3 rollback verification covers all mappings and cross-domain denials.
 
 - External Agent Gateway: review now leads with server-derived grant and effective-exposure changes. It distinguishes newly blocked reads from affected pre-existing limitations, discloses cross-module reporting/audit effects and retained redacted review access, and keeps unchanged diagnostics out of confirmation. Existing review-token, stale-state, grant, credential and audit authorities remain intact.
+
+## Restaurant Agent Capability Extension (implementation)
+
+Added fixed Restaurant P&L/asset/inventory read and business-action mappings to the existing Gateway, with canonical role outlet scope, shared business bodies, typed machine lifecycle attribution and existing request/Activity authority. New grants remain opt-in. Delivery requires all seven Restaurant migrations, the matching Gateway and authenticated Staging acceptance; implementation alone is not runtime completion.
