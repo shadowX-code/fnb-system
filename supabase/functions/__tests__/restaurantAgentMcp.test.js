@@ -26,3 +26,9 @@ it('retains committed receipts if telemetry fails and gives lost responses a sta
  const unknown=await (await handler(request({name:'execute_restaurant_action',arguments:args}))).json();expect(unknown.result.structuredContent).toMatchObject({status:'outcome_unknown',request_id:id,retry_same_request_id:true});
 });
 it('only returns allowlisted canonical business errors',()=>{expect(safeRestaurantRpcError({code:'P0001',message:'Purchase order is not open for receiving.'}).safeBusinessMessage).toBe(true);expect(safeRestaurantRpcError({code:'XX000',message:'sensitive arbitrary database detail'}).message).not.toContain('sensitive');});
+
+it('retains unique workflow/action identities and independent Asset/Inspection grants',()=>{
+ const identities=actions.map(a=>`${a.capability_module}/${a.action}`);expect(new Set(identities).size).toBe(actions.length);
+ const asset=actions.find(a=>a.key==='restaurant_asset.create'),inspection=actions.find(a=>a.key==='restaurant_inspection.create');
+ expect(asset.module).toBe('asset_tracking');expect(inspection.module).toBe('asset_tracking');expect(asset.capability_module).not.toBe(inspection.capability_module);expect(asset.key).not.toBe(inspection.key);
+});

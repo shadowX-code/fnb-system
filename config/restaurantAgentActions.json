@@ -12,7 +12,8 @@
       "outlet_id",
       "record"
     ],
-    "description": "Asset create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Asset create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking"
   },
   {
     "key": "restaurant_asset.update",
@@ -27,7 +28,8 @@
       "outlet_id",
       "record"
     ],
-    "description": "Asset update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Asset update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking"
   },
   {
     "key": "restaurant_inspection.create",
@@ -42,7 +44,8 @@
       "outlet_id",
       "record"
     ],
-    "description": "Asset Inspection create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Asset Inspection create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_inspections"
   },
   {
     "key": "restaurant_inspection.update",
@@ -57,7 +60,8 @@
       "outlet_id",
       "record"
     ],
-    "description": "Asset Inspection update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Asset Inspection update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_inspections"
   },
   {
     "key": "restaurant_inspection.complete",
@@ -72,7 +76,8 @@
       "outlet_id",
       "record"
     ],
-    "description": "Asset Inspection complete. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Asset Inspection complete. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_inspections"
   },
   {
     "key": "restaurant_maintenance.create",
@@ -87,7 +92,8 @@
       "outlet_id",
       "record"
     ],
-    "description": "Asset Maintenance create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Asset Maintenance create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_maintenance"
   },
   {
     "key": "restaurant_maintenance.update",
@@ -102,7 +108,8 @@
       "outlet_id",
       "record"
     ],
-    "description": "Asset Maintenance update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Asset Maintenance update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_maintenance"
   },
   {
     "key": "restaurant_maintenance.complete",
@@ -117,7 +124,8 @@
       "outlet_id",
       "record"
     ],
-    "description": "Asset Maintenance complete. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Asset Maintenance complete. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "asset_tracking_maintenance"
   },
   {
     "key": "restaurant_stock_check.create",
@@ -133,7 +141,8 @@
       "record",
       "items"
     ],
-    "description": "Stock Check create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Stock Check create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_stock_check"
   },
   {
     "key": "restaurant_stock_check.update",
@@ -149,7 +158,8 @@
       "record",
       "items"
     ],
-    "description": "Stock Check update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Stock Check update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_stock_check"
   },
   {
     "key": "restaurant_stock_check.submit",
@@ -165,7 +175,8 @@
       "record",
       "items"
     ],
-    "description": "Stock Check submit. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Stock Check submit. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_stock_check"
   },
   {
     "key": "restaurant_purchase_order.create",
@@ -182,7 +193,8 @@
       "items",
       "reason"
     ],
-    "description": "Purchase Order create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Purchase Order create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
   },
   {
     "key": "restaurant_purchase_order.update",
@@ -199,7 +211,8 @@
       "items",
       "reason"
     ],
-    "description": "Purchase Order update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Purchase Order update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
   },
   {
     "key": "restaurant_purchase_order.submit",
@@ -216,7 +229,8 @@
       "items",
       "reason"
     ],
-    "description": "Purchase Order submit. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Purchase Order submit. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
   },
   {
     "key": "restaurant_purchase_order.confirm",
@@ -233,7 +247,8 @@
       "items",
       "reason"
     ],
-    "description": "Purchase Order confirm. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Purchase Order confirm. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
   },
   {
     "key": "restaurant_purchase_order.return_to_draft",
@@ -250,7 +265,8 @@
       "items",
       "reason"
     ],
-    "description": "Purchase Order return to draft. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Purchase Order return to draft. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
   },
   {
     "key": "restaurant_purchase_order.cancel",
@@ -267,7 +283,8 @@
       "items",
       "reason"
     ],
-    "description": "Purchase Order cancel. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Purchase Order cancel. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
   },
   {
     "key": "restaurant_purchase_order.complete",
@@ -284,7 +301,8 @@
       "items",
       "reason"
     ],
-    "description": "Purchase Order complete. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Purchase Order complete. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
   },
   {
     "key": "restaurant_purchase_order.receive",
@@ -301,7 +319,8 @@
       "items",
       "reason"
     ],
-    "description": "Purchase Order receive. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Purchase Order receive. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_orders"
   },
   {
     "key": "restaurant_movement.create",
@@ -316,7 +335,8 @@
       "outlet_id",
       "record"
     ],
-    "description": "Inventory Adjustment create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Inventory Adjustment create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_movements"
   },
   {
     "key": "restaurant_waste.create",
@@ -331,7 +351,8 @@
       "outlet_id",
       "record"
     ],
-    "description": "Wastage create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Wastage create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_waste"
   },
   {
     "key": "restaurant_recipe.create",
@@ -347,7 +368,8 @@
       "record",
       "items"
     ],
-    "description": "Recipe create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Recipe create. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_recipes"
   },
   {
     "key": "restaurant_recipe.update",
@@ -363,6 +385,7 @@
       "record",
       "items"
     ],
-    "description": "Recipe update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work."
+    "description": "Recipe update. Explicit outlet access and canonical lifecycle/evidence are required; never fabricate physical work.",
+    "capability_module": "inventory_recipes"
   }
 ]
