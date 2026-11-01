@@ -41,7 +41,7 @@ it('distinguishes supported request states and never offers an expired confirmat
 it('refreshes on focus without overlapping requests and stops after unmount',async()=>{
  externalAgentService.actionRequests.mockResolvedValue([]);
  const view=render(<FactoryAgentActions identityId="qa-agent" canManage/>);
- expect(await screen.findByText(/No action requests yet/)).toBeTruthy();
+ expect(await screen.findByText(/No pending action requests/)).toBeTruthy();
  let resolve;externalAgentService.actionRequests.mockImplementationOnce(()=>new Promise(r=>{resolve=r;}));
  fireEvent(window,new Event('focus'));fireEvent(window,new Event('focus'));
  expect(externalAgentService.actionRequests).toHaveBeenCalledTimes(2);
@@ -65,5 +65,16 @@ it('recovers from unavailable requests without showing an endless initial loader
  expect(await screen.findByRole('alert')).toBeTruthy();
  expect(screen.queryByText('Loading action requests…')).toBeNull();
  fireEvent.click(screen.getByRole('button',{name:'Check requests'}));
- expect(await screen.findByText(/No action requests yet/)).toBeTruthy();
+ expect(await screen.findByText(/No pending action requests/)).toBeTruthy();
+});
+
+it('offers an exact credential-free retry handoff after human approval',async()=>{
+ externalAgentService.actionRequests.mockResolvedValue([{...row,status:'confirmed',confirmed_at:new Date().toISOString(),expected_version:'source',target_id:'qa-target',execution_policy:'human_approval',execution_reason:'Physical inspection required'}]);
+ Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:vi.fn().mockResolvedValue()}});
+ render(<FactoryAgentActions identityId="qa-agent" canManage/>);
+ fireEvent.click(await screen.findByRole('button',{name:'Copy Agent retry command'}));
+ await screen.findByRole('button',{name:'Retry command copied'});
+ const payload=JSON.parse(navigator.clipboard.writeText.mock.calls[0][0]);
+ expect(payload).toEqual({request_id:row.request_id,action:row.action,target_id:'qa-target',expected_version:'source',input:row.input});
+ expect(screen.getByText(/Physical inspection required/)).toBeTruthy();
 });

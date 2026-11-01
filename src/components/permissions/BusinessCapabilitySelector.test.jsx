@@ -61,3 +61,10 @@ it('separates effective grant, pending change and execution requirement',()=>{
  expect(screen.getByText('Pending: Grant access')).toBeTruthy();
  expect(screen.getByText('Human confirmation required')).toBeTruthy();
 });
+
+it('shows server-owned conditional policy instead of conflating it with a human grant',()=>{
+ const action={...cap,name:'approve',capability:'approve',read_only:false,execution_policy:'conditional',execution_reason:'Attested zero variance count required',requires_human_approval:true};
+ render(<BusinessCapabilitySelector capabilities={[action]} canManage/>);
+ expect(screen.getByText('Conditional')).toBeTruthy();
+ expect(screen.getByText('Attested zero variance count required')).toBeTruthy();
+});

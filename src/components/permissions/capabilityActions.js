@@ -20,3 +20,5 @@ export function actionTypeCounts(capabilities) {
   }
   return [...counts].map(([label, count]) => `${label === 'View Records' ? 'View' : label} ${count}`).join(' · ');
 }
+
+export const executionPolicyLabels = {autonomous:'Autonomous',conditional:'Conditional',human_approval:'Human approval required'};

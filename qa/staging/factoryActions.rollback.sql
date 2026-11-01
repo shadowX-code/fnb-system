@@ -9,14 +9,17 @@ select identity_id,encode(extensions.digest(token,'sha256'),'hex'),clock_timesta
 select set_config('request.jwt.claims',jsonb_build_object('sub',(select e.auth_user_id from public.employees e join public.roles r on r.id=e.role_id where lower(r.name)='owner' and e.auth_user_id is not null and e.enable_system_login and e.access_state='active' limit 1),'role','authenticated')::text,true);
 
 create function pg_temp.factory_action_qa(p_identity uuid,p_action text,p_target uuid,p_input jsonb) returns jsonb language plpgsql as $$
-declare token_value text; version_value text; request_value uuid:=gen_random_uuid(); r jsonb; replay jsonb;
+declare token_value text; version_value text; request_value uuid:=gen_random_uuid(); r jsonb; replay jsonb; execution jsonb;
  owner_claims text:=current_setting('request.jwt.claims',true);
 begin
  select token into strict token_value from factory_action_qa_keys where identity_id=p_identity;
  perform set_config('request.jwt.claims','{}',true);
  set local role anon;
- version_value:=public.factory_agent_action_context(token_value,p_action,p_target)->>'expected_version';
+ execution:=public.factory_agent_action_context(token_value,p_action,p_target);
+ version_value:=execution->>'expected_version';
  r:=public.factory_agent_execute_action(token_value,request_value,p_action,p_target,version_value,p_input);
+ if execution->'execution'->>'execution_policy'='conditional' and (execution->'execution'->>'eligible_without_confirmation')::boolean then
+ assert r->>'status'='completed','Eligible conditional review incorrectly demanded human confirmation';end if;
  if r->>'status'='awaiting_confirmation' then
   assert public.factory_agent_action_context(token_value,p_action,p_target)->>'expected_version' is not distinct from version_value,'Unconfirmed intent changed business evidence';
   reset role;

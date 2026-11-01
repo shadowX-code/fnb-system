@@ -20,7 +20,8 @@
       "target_production_qty"
     ],
     "target_required": false,
-    "description": "Create Job Orders."
+    "description": "Create Job Orders.",
+    "execution_policy": "autonomous"
   },
   {
     "key": "job_order.update",
@@ -43,7 +44,8 @@
       "target_production_qty"
     ],
     "target_required": true,
-    "description": "Update Job Orders."
+    "description": "Update Job Orders.",
+    "execution_policy": "autonomous"
   },
   {
     "key": "job_order.submit",
@@ -55,7 +57,8 @@
     "requires_human_confirmation": false,
     "input_fields": [],
     "target_required": true,
-    "description": "Release planned Job Order into production queue."
+    "description": "Release planned Job Order into production queue.",
+    "execution_policy": "autonomous"
   },
   {
     "key": "job_order.cancel",
@@ -67,7 +70,8 @@
     "requires_human_confirmation": false,
     "input_fields": [],
     "target_required": true,
-    "description": "Cancel Job Orders."
+    "description": "Cancel Job Orders.",
+    "execution_policy": "autonomous"
   },
   {
     "key": "production.update",
@@ -82,7 +86,8 @@
       "qc_rows"
     ],
     "target_required": true,
-    "description": "Update Production."
+    "description": "Update Production.",
+    "execution_policy": "human_approval"
   },
   {
     "key": "production.complete",
@@ -96,7 +101,8 @@
       "payload"
     ],
     "target_required": true,
-    "description": "Complete Production."
+    "description": "Complete Production.",
+    "execution_policy": "human_approval"
   },
   {
     "key": "production.verify",
@@ -108,7 +114,8 @@
     "requires_human_confirmation": true,
     "input_fields": [],
     "target_required": true,
-    "description": "Verify Production."
+    "description": "Verify Production.",
+    "execution_policy": "conditional"
   },
   {
     "key": "receiving.create",
@@ -126,7 +133,8 @@
       "items"
     ],
     "target_required": false,
-    "description": "Create Raw Material Receiving."
+    "description": "Create Raw Material Receiving.",
+    "execution_policy": "autonomous"
   },
   {
     "key": "receiving.update",
@@ -144,7 +152,8 @@
       "items"
     ],
     "target_required": true,
-    "description": "Update Raw Material Receiving."
+    "description": "Update Raw Material Receiving.",
+    "execution_policy": "autonomous"
   },
   {
     "key": "receiving.complete",
@@ -162,7 +171,8 @@
       "items"
     ],
     "target_required": true,
-    "description": "Complete Raw Material Receiving."
+    "description": "Complete Raw Material Receiving.",
+    "execution_policy": "human_approval"
   },
   {
     "key": "receiving.verify",
@@ -174,7 +184,8 @@
     "requires_human_confirmation": true,
     "input_fields": [],
     "target_required": true,
-    "description": "Verify Raw Material Receiving."
+    "description": "Verify Raw Material Receiving.",
+    "execution_policy": "conditional"
   },
   {
     "key": "receiving.cancel",
@@ -186,7 +197,8 @@
     "requires_human_confirmation": false,
     "input_fields": [],
     "target_required": true,
-    "description": "Cancel Raw Material Receiving."
+    "description": "Cancel Raw Material Receiving.",
+    "execution_policy": "autonomous"
   },
   {
     "key": "product_stock_check.create",
@@ -202,7 +214,8 @@
       "rows"
     ],
     "target_required": false,
-    "description": "Create Product Stock Check."
+    "description": "Create Product Stock Check.",
+    "execution_policy": "autonomous"
   },
   {
     "key": "product_stock_check.update",
@@ -218,7 +231,8 @@
       "rows"
     ],
     "target_required": true,
-    "description": "Update Product Stock Check."
+    "description": "Update Product Stock Check.",
+    "execution_policy": "autonomous"
   },
   {
     "key": "product_stock_check.submit",
@@ -234,7 +248,8 @@
       "rows"
     ],
     "target_required": true,
-    "description": "Submit Product Stock Check."
+    "description": "Submit Product Stock Check.",
+    "execution_policy": "human_approval"
   },
   {
     "key": "product_stock_check.approve",
@@ -246,7 +261,8 @@
     "requires_human_confirmation": true,
     "input_fields": [],
     "target_required": true,
-    "description": "Approve Product Stock Check."
+    "description": "Approve Product Stock Check.",
+    "execution_policy": "conditional"
   },
   {
     "key": "raw_stock_check.create",
@@ -263,7 +279,8 @@
       "rows"
     ],
     "target_required": false,
-    "description": "Create Raw Material Stock Check."
+    "description": "Create Raw Material Stock Check.",
+    "execution_policy": "autonomous"
   },
   {
     "key": "raw_stock_check.update",
@@ -280,7 +297,8 @@
       "rows"
     ],
     "target_required": true,
-    "description": "Update Raw Material Stock Check."
+    "description": "Update Raw Material Stock Check.",
+    "execution_policy": "autonomous"
   },
   {
     "key": "raw_stock_check.submit",
@@ -297,7 +315,8 @@
       "rows"
     ],
     "target_required": true,
-    "description": "Submit Raw Material Stock Check."
+    "description": "Submit Raw Material Stock Check.",
+    "execution_policy": "human_approval"
   },
   {
     "key": "raw_stock_check.approve",
@@ -309,7 +328,8 @@
     "requires_human_confirmation": true,
     "input_fields": [],
     "target_required": true,
-    "description": "Approve Raw Material Stock Check."
+    "description": "Approve Raw Material Stock Check.",
+    "execution_policy": "conditional"
   },
   {
     "key": "area_cleaning.complete",
@@ -324,7 +344,8 @@
       "note"
     ],
     "target_required": true,
-    "description": "Complete Area Cleaning."
+    "description": "Complete Area Cleaning.",
+    "execution_policy": "human_approval"
   },
   {
     "key": "area_cleaning.verify",
@@ -339,7 +360,8 @@
       "note"
     ],
     "target_required": true,
-    "description": "Verify Area Cleaning."
+    "description": "Verify Area Cleaning.",
+    "execution_policy": "human_approval"
   },
   {
     "key": "equipment_cleaning.complete",
@@ -354,7 +376,8 @@
       "note"
     ],
     "target_required": true,
-    "description": "Complete Equipment Cleaning."
+    "description": "Complete Equipment Cleaning.",
+    "execution_policy": "human_approval"
   },
   {
     "key": "equipment_cleaning.verify",
@@ -369,7 +392,8 @@
       "note"
     ],
     "target_required": true,
-    "description": "Verify Equipment Cleaning."
+    "description": "Verify Equipment Cleaning.",
+    "execution_policy": "human_approval"
   },
   {
     "key": "calibration.create",
@@ -383,7 +407,8 @@
       "record"
     ],
     "target_required": true,
-    "description": "Create Calibration."
+    "description": "Create Calibration.",
+    "execution_policy": "human_approval"
   },
   {
     "key": "calibration.verify",
@@ -395,6 +420,7 @@
     "requires_human_confirmation": true,
     "input_fields": [],
     "target_required": true,
-    "description": "Verify Calibration."
+    "description": "Verify Calibration.",
+    "execution_policy": "human_approval"
   }
 ]
