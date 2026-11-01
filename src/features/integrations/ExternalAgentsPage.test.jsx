@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import ExternalAgentsPage from "./ExternalAgentsPage.jsx";
 import { externalAgentService } from "../../services/externalAgentService.js";
-vi.mock("../../services/externalAgentService.js", () => ({ externalAgentService: { list: vi.fn(), details: vi.fn(), revoke: vi.fn(), rotate: vi.fn(), test: vi.fn(), setEnabled: vi.fn(), setCapability: vi.fn(), setCapabilities: vi.fn(), register: vi.fn(), review: vi.fn(), confirmAccess: vi.fn(), registerReviewed: vi.fn() } }));
+vi.mock("../../services/externalAgentService.js", () => ({ externalAgentService: { list: vi.fn(), details: vi.fn(), revoke: vi.fn(), rotate: vi.fn(), test: vi.fn(), setEnabled: vi.fn(), setCapability: vi.fn(), setCapabilities: vi.fn(), register: vi.fn(), review: vi.fn(), confirmAccess: vi.fn(), registerReviewed: vi.fn(), actionRequests:vi.fn(),confirmAction:vi.fn() } }));
 const credential = { id: "existing-credential", status: "active", created_at: "2026-10-29T01:00:00Z", expires_at: "2026-11-28T01:00:00Z" };
 const capabilities = ["Review daily compliance", "Review compliance exceptions", "Review pending verifications", "View compliance evidence", "View requirement schedule"].map((label, i) => ({ name: `read_tool_${i}`, label, description: "Read evidence safely", module_id: `factory_module_${i}`, section: "MeSTI", coverage: "available", sidebar: true, capability: "view", workspace: "Factory", domain: "mesti", domain_label: "MeSTI", implemented: true, granted: true, can_assign: true, scope:[{label:"Safe records",resource:"safe"}],permission: `internal_${i}.view` }));
 const agent = { id: "qa", name: "QA Executive", provider: "xAI", enabled: true, role_active: true, role_name: "QA inspection", permission: "factory_mesti_inspection.view", permission_granted: true, workspace: "Factory", can_manage: true, can_manage_capabilities: true, credential, connection_status: "not_observed", tools: capabilities, endpoint: "https://example.test/mcp" };
@@ -11,6 +11,7 @@ const catalog = [{ key: "factory_mesti", workspace: "Factory", capabilities }];
 const auth = (codes = ["roles.view", "roles.edit", "roles.create"]) => ({ hasPermission: (code) => codes.includes(code) });
 beforeEach(() => {
  vi.resetAllMocks();
+ externalAgentService.actionRequests.mockResolvedValue([]);
  externalAgentService.list.mockResolvedValue({ connections: [agent], catalog, can_register: true, unavailable_domains: detail.unavailable_domains });
  externalAgentService.details.mockResolvedValue(detail);
  externalAgentService.revoke.mockResolvedValue({ revoked: true });
@@ -180,4 +181,17 @@ it('distinguishes successful action RPC processing from completed Factory work',
  expect(screen.getByText('Action request processed')).toBeTruthy();expect(screen.getByText('Request processed')).toBeTruthy();
  expect(screen.getByText('Action eligibility checked')).toBeTruthy();expect(screen.getByText('Checked')).toBeTruthy();
  expect(screen.queryByText('Unsupported request')).toBeNull();expect(screen.queryByText('Completed')).toBeNull();
+});
+
+it('links the exception queue to Activity and loads preserved request history only on demand',async()=>{
+ externalAgentService.actionRequests.mockResolvedValue([]);
+ render(<ExternalAgentsPage auth={auth()}/>);await open();tab('Action Requests');
+ await screen.findByText(/No action required/);
+ fireEvent.click(screen.getByRole('button',{name:'View Activity'}));
+ expect(screen.getByRole('tab',{name:'Activity'}).getAttribute('aria-selected')).toBe('true');
+ expect(externalAgentService.actionRequests).toHaveBeenCalledTimes(1);
+ const history=screen.getByText('Request history').closest('details');
+ history.open=true;fireEvent(history,new Event('toggle'));
+ await screen.findByText(/No historical requests/);
+ expect(externalAgentService.actionRequests).toHaveBeenCalledTimes(2);
 });
