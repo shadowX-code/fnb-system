@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import manifest from '../../../config/factoryAgentActions.json';
 import {getPermissionDefinitions,getPermissionGroups} from '../../../config/modules.ts';
 import {factoryActions,actionArguments} from '../factory-mesti-mcp/actions.js';
-import {createHandler} from '../factory-mesti-mcp/protocol.js';
+import {createHandler,safeFactoryRpcError} from '../factory-mesti-mcp/protocol.js';
 const request=(method,params)=>new Request('https://example.test',{method:'POST',headers:{authorization:`Bearer fxm_${'a'.repeat(43)}`,'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
 const args={request_id:'00000000-0000-4000-8000-000000000001',action:'job_order.cancel',target_id:'00000000-0000-4000-8000-000000000002',expected_version:'version',input:{}};
 it('has one action manifest and keeps machine permissions outside Human Role editing',()=>{
@@ -38,8 +38,13 @@ it('marks a lost response unknown and requires retry of the same intent, without
 });
 
 it('explains incomplete Cleaning without leaking arbitrary database errors',async()=>{
- const backend=vi.fn().mockImplementation(async(token,tool)=>{if(tool==='authorize')return {tools:['execute_factory_action'],factory_actions:[{name:'area_cleaning.verify'}]};throw {code:'55000',message:'Only completed Cleaning occurrences can be verified.'};});
+ const backend=vi.fn().mockImplementation(async(token,tool)=>{if(tool==='authorize')return {tools:['execute_factory_action'],factory_actions:[{name:'area_cleaning.verify'}]};throw safeFactoryRpcError({code:'55000',message:'Only completed Cleaning occurrences can be verified.'});});
  const response=await(await createHandler(backend)(request('tools/call',{name:'execute_factory_action',arguments:{...args,action:'area_cleaning.verify'}}))).json();
  expect(response.result.structuredContent).toMatchObject({status:'rejected',code:'55000',retry_same_request_id:false});
  expect(response.result.structuredContent.message).toContain('Cleaning is not completed');
+});
+
+it('strips arbitrary SQL messages at the actual RPC adapter boundary',()=>{
+ expect(safeFactoryRpcError({code:'55000',message:'private record detail'}).message).toBe('Inspection denied or unavailable.');
+ expect(safeFactoryRpcError({code:'42501',message:'Only completed Cleaning occurrences can be verified.'}).message).toBe('Inspection denied or unavailable.');
 });

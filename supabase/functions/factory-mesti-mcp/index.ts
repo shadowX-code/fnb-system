@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
-import { createHandler } from "./protocol.js";
+import { createHandler, safeFactoryRpcError } from "./protocol.js";
 import { isAdminProbe, tokenHash } from "../_shared/externalAgentProbe.js";
 import { externalAgentEnvironment } from "../_shared/externalAgentEnvironment.js";
 
@@ -14,7 +14,7 @@ const handler = createHandler(async (token: string, tool: string, args: Record<s
   const { data, error } = tool === "authorize"
     ? await client.rpc("factory_agent_authorize", { p_token: token })
     : await client.rpc(tool === "execute_factory_action" ? "factory_agent_execute_action" : tool === "factory_action_context" ? "factory_agent_action_context" : "factory_agent_resource_query", { p_token: token, ...args });
-  if (error) throw Object.assign(new Error("Inspection denied or unavailable."), { code: error.code });
+  if (error) throw safeFactoryRpcError(error);
   return data;
 }, { observe: async (token: string, event: Record<string, unknown>, request: Request) => {
   const source = await isAdminProbe(telemetrySecret, token, request.headers.get("x-feedx-probe") || "") ? "admin_probe" : "external";

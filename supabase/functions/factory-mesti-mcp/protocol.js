@@ -1,3 +1,9 @@
+// Keep arbitrary SQL messages private; only fixed lifecycle wording may reach the formatter.
+export function safeFactoryRpcError(error) {
+  const safe = error.code === '55000' && /^Only completed (Equipment Cleaning|Cleaning) occurrences can be verified\.$/.test(error.message || '');
+  return Object.assign(new Error(safe ? error.message : 'Inspection denied or unavailable.'), {code:error.code});
+}
+
 import { resourceArguments, factoryResourceTool, safeResourceActions } from "./resources.js";
 import { actionArguments, actionContextArguments, factoryActionTool, factoryActionContextTool } from './actions.js';
 export const tools = [factoryResourceTool, factoryActionContextTool, factoryActionTool];
