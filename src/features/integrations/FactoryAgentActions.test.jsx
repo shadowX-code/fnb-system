@@ -78,3 +78,10 @@ it('offers an exact credential-free retry handoff after human approval',async()=
  expect(payload).toEqual({request_id:row.request_id,action:row.action,target_id:'qa-target',expected_version:'source',input:row.input});
  expect(screen.getByText(/Physical inspection required/)).toBeTruthy();
 });
+
+it('shows a historical lifecycle blocker without offering confirmable approval',async()=>{
+ externalAgentService.actionRequests.mockResolvedValue([{...row,action:'area_cleaning.verify',can_confirm:false,lifecycle_requirement:'Only completed Cleaning occurrences can be verified.',execution_reason:'Human approval required'}]);
+ render(<FactoryAgentActions identityId="qa-agent" canManage/>);
+ expect(await screen.findByText(/Only completed Cleaning occurrences can be verified/)).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Review evidence confirmation'}).disabled).toBe(true);
+});

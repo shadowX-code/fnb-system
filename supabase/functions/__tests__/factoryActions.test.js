@@ -36,3 +36,10 @@ it('marks a lost response unknown and requires retry of the same intent, without
  expect(response.result.structuredContent).toMatchObject({status:'outcome_unknown',request_id:args.request_id,retry_same_request_id:true});
  expect(response.result.isError).toBe(true);
 });
+
+it('explains incomplete Cleaning without leaking arbitrary database errors',async()=>{
+ const backend=vi.fn().mockImplementation(async(token,tool)=>{if(tool==='authorize')return {tools:['execute_factory_action'],factory_actions:[{name:'area_cleaning.verify'}]};throw {code:'55000',message:'Only completed Cleaning occurrences can be verified.'};});
+ const response=await(await createHandler(backend)(request('tools/call',{name:'execute_factory_action',arguments:{...args,action:'area_cleaning.verify'}}))).json();
+ expect(response.result.structuredContent).toMatchObject({status:'rejected',code:'55000',retry_same_request_id:false});
+ expect(response.result.structuredContent.message).toContain('Cleaning is not completed');
+});
