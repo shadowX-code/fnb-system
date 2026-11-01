@@ -1,6 +1,7 @@
 import {CheckCircle2, LockKeyhole, Info, Code2} from 'lucide-react';
 import DataTable from '../tables/DataTable.jsx';
 import {accessScopeSummary} from './accessScopeSummary.js';
+import {actionLabels} from './capabilityActions.js';
 
 function ScopeSection({title,icon:Icon,children,className=''}) {
  return <section className={`access-scope-section ${className}`} aria-label={title}>
@@ -8,7 +9,7 @@ function ScopeSection({title,icon:Icon,children,className=''}) {
  </section>;
 }
 export default function AccessScopeSummary({capability,catalog=[]}) {
- if(capability.read_only===false) return <details className="module-access-details access-scope-summary"><summary>Action requirements</summary><div className="access-scope-grid"><ScopeSection title="Execution" icon={CheckCircle2}><p>{capability.description}</p><p>{capability.execution_requirement}</p></ScopeSection><ScopeSection title="Required access" icon={LockKeyhole}><p>Business-module View and this action must both be granted. Existing lifecycle, evidence and independent-review checks still apply.</p></ScopeSection></div></details>;
+ if(capability.read_only===false) return <details className="module-access-details access-scope-summary"><summary>{actionLabels[capability.capability]} requirements</summary><div className="access-scope-grid"><ScopeSection title="Execution" icon={CheckCircle2}><p>{capability.description}</p><p>{capability.execution_requirement}</p></ScopeSection><ScopeSection title="Required access" icon={LockKeyhole}><p>Business-module View and this action must both be granted. Existing lifecycle, evidence and independent-review checks still apply.</p></ScopeSection></div></details>;
  const {included,separate,notes}=accessScopeSummary(capability,catalog);
  const labelFor=id=>catalog.find(c=>c.module_id===id)?.label||capability.required_modules?.find(c=>c.id===id)?.label||id;
  return <details className="module-access-details access-scope-summary"><summary>Access Details</summary>

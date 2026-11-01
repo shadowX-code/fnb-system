@@ -14,6 +14,7 @@ import { externalAgentService } from "../../services/externalAgentService.js";
 import { hasPermission } from "../../utils/accessControl.js";
 import BusinessCapabilitySelector, { actionLabels } from "../../components/permissions/BusinessCapabilitySelector.jsx";
 import FactoryAgentActions from './FactoryAgentActions.jsx';
+import {capabilityDomain} from '../../components/permissions/capabilityActions.js';
 import "./externalAgents.css";
 
 const labels = { active: "Active", expired: "Expired", revoked: "Revoked", mcp_observed: "Connected", not_observed: "Not Connected", disabled: "Disabled", success: "Completed", failed: "Failed", denied: "Access denied" };
@@ -50,7 +51,7 @@ function EffectiveAccessSummary({ agent }) {
   if (agent.role_active === false || agent.permission_granted === false) return <span>Access blocked</span>;
   const catalog = agent.business_capabilities || [...(agent.tools || []), ...(agent.preserved_access || [])];
   const capabilities = [...new Map(catalog.filter(c => c.granted && c.implemented !== false && (c.permission || c.name)).map(c => [c.permission || c.name, c])).values()];
-  const domains = [...new Set(capabilities.map(c => c.domain || c.domain_label || c.section).filter(Boolean))];
+  const domains = [...new Set(capabilities.map(c => capabilityDomain(c,catalog)))];
   const actions = [...new Set(capabilities.map(c => actionLabels[c.capability]).filter(Boolean))].map(label => label === "View Records" ? "View" : label);
   return <div className="external-agent-access-summary space-y-1.5">
     <p className="text-sm font-medium">{capabilities.length} {capabilities.length === 1 ? "capability" : "capabilities"} · {actions.length ? `${actions.join(" / ")} only` : "No access granted"}</p>

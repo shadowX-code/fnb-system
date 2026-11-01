@@ -16,6 +16,8 @@ async function call(agent,name,args){
 }
 const mode=process.argv[3];
 if(mode==='prepare'){
+ const source=await call(0,'query_factory_resources',{queries:[{business_module:'factory_mesti_cleaning',resource:'occurrences',action:'list',date_range:{from:fixture.due_date,to:fixture.due_date},limit:100}]});
+ assert(source.results?.[0]?.items.some(row=>row.record_id===fixture.id),'Canonical target must be discoverable through scoped View.');
  const context=await call(0,'factory_action_context',{action:'area_cleaning.complete',target_id:fixture.id});
  assert(!context.error,JSON.stringify(context));
  const command={request_id:crypto.randomUUID(),action:'area_cleaning.complete',target_id:fixture.id,expected_version:context.expected_version,input:{note:'Labelled disposable Staging QA simulation; no real inspection or cleaning claim.'}};

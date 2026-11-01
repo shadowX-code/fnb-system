@@ -15,7 +15,11 @@ begin
  version_value:=public.factory_agent_action_context(token_value,p_action,p_target)->>'expected_version';
  r:=public.factory_agent_execute_action(token_value,request_value,p_action,p_target,version_value,p_input);
  if r->>'status'='awaiting_confirmation' then
+  assert public.factory_agent_action_context(token_value,p_action,p_target)->>'expected_version' is not distinct from version_value,'Unconfirmed intent changed business evidence';
+  begin perform public.external_agents_confirm_factory_action(p_identity,request_value,'');raise exception 'Missing physical evidence reference accepted';exception when invalid_parameter_value then null;end;
   perform public.external_agents_confirm_factory_action(p_identity,request_value,'Disposable rollback QA simulation only; no real physical work claimed.');
+  replay:=public.external_agents_confirm_factory_action(p_identity,request_value,'Disposable rollback QA simulation only; no real physical work claimed.');
+  assert (replay->>'replayed')::boolean,'Confirmation retry did not return its existing receipt';
   r:=public.factory_agent_execute_action(token_value,request_value,p_action,p_target,version_value,p_input);
  end if;
  assert r->>'status'='completed','Canonical action did not complete';
@@ -44,6 +48,7 @@ begin
  item:=jsonb_build_object('raw_material_id',material,'received_qty',1,'uom','kg','storage_location_id',location,'supplier_lot_no','QA-'||suffix,'expiry_source','not_applicable','expiry_confirmed',true);
  input_value:=jsonb_build_object('supplier_id',supplier,'reference_no','QA Factory Actions rollback','received_date',current_date,'remarks','Disposable QA simulation','items',jsonb_build_array(item));
  result_value:=pg_temp.factory_action_qa(op,'receiving.create',null,input_value);receiving:=(result_value->>'target_id')::uuid;
+ assert (select created_by is null from public.factory_raw_material_receiving_batches where id=receiving),'Machine Receiving borrowed the human JWT creator';
  perform pg_temp.factory_action_qa(op,'receiving.update',receiving,input_value);
  perform pg_temp.factory_action_qa(op,'receiving.complete',receiving,input_value);
  assert (select current_balance from public.factory_raw_materials where id=material)=1,'Receiving stock was not posted once';
@@ -131,6 +136,11 @@ begin
  begin perform public.factory_agent_execute_action(token_value,gen_random_uuid(),'receiving.cancel',receiving,version_value,'{}');raise exception using errcode='XX000',message='Completed Receiving cancelled';exception when raise_exception then null;end;
  assert (select count(*) from feedx_integrations.factory_action_requests where identity_id=op)=count_before,'Rejected transition left a request/receipt';
  insert into factory_action_qa_results values('payload_retry_stale_version_invalid_transition_atomicity','PASS');
+ result_value:=feedx_integrations.review_effective_paths(array['receiving.update','nav_factory_raw_receiving_view']);
+ assert exists(select 1 from jsonb_array_elements(result_value)v where v->>'resource'='action:receiving.update'),'Granted action path missing from review';
+ assert not exists(select 1 from jsonb_array_elements(result_value)v where v->>'grant_name'='receiving.update' and v->>'resource'<>'action:receiving.update'),'Action falsely projected View authority';
+ assert feedx_integrations.review_effective_paths(array['receiving.update'])='[]'::jsonb,'Missing View still projected executable action';
+ insert into factory_action_qa_results values('action_view_access_projection','PASS');
 end $$;
 select * from factory_action_qa_results order by test;
 rollback;

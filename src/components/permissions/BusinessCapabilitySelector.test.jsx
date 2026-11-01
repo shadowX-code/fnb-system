@@ -40,3 +40,15 @@ it('disables confirmation when the complete server-derived exposure review is un
  fireEvent.click(screen.getByRole('checkbox',{name:'View Records: Cleaning'}));fireEvent.click(screen.getByRole('button',{name:'Review Changes'}));
  await screen.findByRole('alert');expect(screen.getByRole('button',{name:'Confirm changes'}).disabled).toBe(true);
 });
+
+it('groups distinct action grants under their canonical View owner without granting View implicitly',()=>{
+ const view={...cap,module_id:'factory_mesti_cleaning',domain:'MeSTI'};
+ const complete={...view,name:'area_cleaning.complete',label:'Area Cleaning',domain:'Factory',capability:'complete',read_only:false,granted:false,requires_human_approval:true};
+ render(<BusinessCapabilitySelector capabilities={[view,complete]} identityId="qa" canManage/>);
+ expect(screen.getAllByText('Factory / MeSTI').length).toBe(1);
+ expect(screen.queryByText('Factory / Factory')).toBeNull();
+ fireEvent.click(screen.getByRole('checkbox',{name:'Complete: Area Cleaning'}));
+ expect(screen.getByRole('checkbox',{name:'View Records: Cleaning'}).checked).toBe(true);
+ expect(screen.getByText(/Human confirmation/)).toBeTruthy();
+ expect(externalAgentService.confirmAccess).not.toHaveBeenCalled();
+});

@@ -58,7 +58,7 @@ export function createHandler(read, { allowedOrigins = [], now, observe } = {}) 
       } catch (error) {
         if (error.code === "42501") return fail(-32003, "Capability or independent-review requirement denied. Ask an authorized FeedX reviewer.");
         if (message.params.name === factoryActionTool.name) {
-          const rejected = ['22023','40001','55000','P0001','P0002','23502','23503','23514'].includes(error.code);
+          const rejected = /^(22|23|40|42|53|54|55|57|58|XX|P0)/.test(error.code || '');
           const explanation = error.code === '40001' ? 'Source evidence changed. Read current action context and submit a reviewed new intent.'
             : rejected ? 'Business evidence or lifecycle validation rejected this execution. Resolve the owning Factory record before retrying.'
             : 'Execution outcome is unknown. Retry the identical intent with the same request_id; never create a replacement request to recover a lost response.';

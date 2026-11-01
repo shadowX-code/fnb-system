@@ -4,6 +4,7 @@ import { externalAgentEnvironment, gatewayEndpointPath } from "../../supabase/fu
 // Do not use the generic error logger on credential-bearing operations.
 async function rpc(name, args) {
   const { data, error } = await supabase.rpc(name, args);
+  if (error && name === 'external_agents_confirm_factory_action') throw new Error(error.code === '42501' ? 'Agent management and the corresponding Factory authority are required.' : error.code === '40001' ? 'The action or evidence changed. Check requests and review the current intent.' : error.code === '22023' ? 'Provide the reference to the existing physical or approved business evidence.' : 'Confirmation could not be completed. Check requests before retrying the same confirmation.');
   if (error) throw new Error(error.code === "42501" ? "You do not have Role Settings authority for this action." : error.code === "40001" ? "Access changed. Refresh the agent and try again." : error.code === "55000" ? "This request was already completed. Refresh the agent; access keys can only be shown once." : "The request could not be completed. Refresh the connection before trying again.");
   if (name === "external_agents_admin_data" && data?.connections) {
     const environment = externalAgentEnvironment(supabase.supabaseUrl);

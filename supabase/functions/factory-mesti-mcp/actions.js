@@ -20,7 +20,7 @@ export const factoryActionTool = Object.freeze({
     properties: {
       request_id: { type: 'string', format: 'uuid' },
       action: { type: 'string', enum: factoryActions },
-      target_id: { type: ['string', 'null'], format: 'uuid' },
+      target_id: { type: ['string', 'null'], format: 'uuid', description: 'Canonical UUID from scoped View: record_id for MeSTI occurrences, requirement_id for Calibration Create, id for ordinary Factory records. Do not use the opaque composite MeSTI id.' },
       expected_version: { type: ['string', 'null'], maxLength: 128 },
       input: { type: 'object' },
     },
@@ -32,7 +32,7 @@ export const factoryActionContextTool = Object.freeze({
   description: 'Read the current concurrency version and execution requirements for an explicitly granted Factory action. This does not approve or execute the action. Use query_factory_resources for authorized business evidence.',
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   inputSchema: { type: 'object', additionalProperties: false, required: ['action'], properties: {
-    action: { type: 'string', enum: factoryActions }, target_id: { type: ['string', 'null'], format: 'uuid' },
+    action: { type: 'string', enum: factoryActions }, target_id: { type: ['string', 'null'], format: 'uuid', description: 'Canonical scoped record UUID (MeSTI record_id, or requirement_id for Calibration Create). Required for existing targets.' },
   } },
 });
 
@@ -40,6 +40,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function actionContextArguments(args) {
   if (!args || Array.isArray(args) || typeof args !== 'object' || Object.keys(args).some(k => !['action', 'target_id'].includes(k)) || !factoryActions.includes(args.action)) throw new Error('Supported Factory action required.');
   if (args.target_id != null && !uuid.test(args.target_id)) throw new Error('Invalid target_id.');
+  if ((!args.action.endsWith('.create') || args.action === 'calibration.create') && !args.target_id) throw new Error('Existing canonical target UUID required. Use the scoped View record_id for MeSTI occurrences.');
   return { p_action: args.action, p_target_id: args.target_id ?? null };
 }
 export function actionArguments(args) {
