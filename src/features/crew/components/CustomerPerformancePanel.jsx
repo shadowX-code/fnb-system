@@ -12,7 +12,6 @@ const reasons = {
  period_not_started: 'This Performance month has not started.' ,
  evidence_expired: 'Evidence expired. Refresh the preview for a new read.',
  incomplete_evidence: 'Complete monthly review evidence is unavailable. Try again after synchronization.',
- google_retention_unresolved: 'Monthly settlement is pending Google-derived result retention clearance.',
 };
 const number = value => new Intl.NumberFormat('en-MY', { maximumFractionDigits: 2 }).format(value);
 const date = value => new Date(value).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', dateStyle: 'medium', timeStyle: 'short' });
@@ -114,7 +113,7 @@ export default function CustomerPerformancePanel({ outletId, period, auth, onPre
    </form> : null}
    {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
    {message ? <p role="status" className="text-sm text-text-secondary">{message}</p> : null}
-   <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-text-secondary"><span>{settled ? `Automatically settled ${date(result.settled_at)}` : "Automatic refresh · Monthly settlement pending retention clearance"}</span>{ready && !settled ? <span>Fresh read {date(result.fetchedAt)} · Expires {date(result.expiresAt)}</span> : null}</div>
+   <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-text-secondary"><span>{settled ? `Automatically settled ${date(result.settled_at)}` : "Automatic refresh · Settles after month-end when evidence is complete"}</span>{ready && !settled ? <span>Fresh read {date(result.fetchedAt)} · Expires {date(result.expiresAt)}</span> : null}</div>
   </div>
   {history ? <Modal title="Monthly Positive Review Target History" onClose={() => setHistory(null)} footer={<button className="btn-secondary" type="button" onClick={() => setHistory(null)}>Close</button>}>
    {history.length ? <ul className="space-y-3">{history.map(row => <li key={row.id}><strong>{row.old_target ?? 'Not set'} → {row.new_target}</strong><p className="text-sm text-text-secondary">{date(row.changed_at)}</p></li>)}</ul> : <p>No target changes for this month.</p>}

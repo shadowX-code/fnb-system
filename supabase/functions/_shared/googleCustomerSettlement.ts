@@ -2,7 +2,7 @@ import { customerPerformancePreview } from './googleCustomerPreview.ts';
 import type { GoogleReviewRecord } from './googleReviewsContract.ts';
 
 // Uses the existing complete GET snapshot, scorer and Performance authority.
-// The authority's retention gate is checked before deriving any durable result.
+// Frozen monthly outcomes return before any source classification or recalculation.
 export async function settleCustomerMonths(options: {
   snapshot: { reviews: GoogleReviewRecord[]; googleAggregate: any; fetchedAt: string };
   generation: number; revision: string; location: string;

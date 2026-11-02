@@ -14,17 +14,14 @@ begin
    where r.outlet_id=outlet and period_start='2026-10-01' and e.employee_code not like 'QA-%') then
    raise exception 'This fixture requires an existing QA-only October result cohort';
  end if;
- result:=public.crew_performance_settle_customer_month(outlet,'2026-10-01');
- if result->>'reason'<>'google_retention_unresolved' then raise exception 'Live retention guard is not closed'; end if;
+ if not google_business_private.customer_settlement_permitted() then raise exception 'Settlement activation is not enabled'; end if;
  if has_function_privilege('anon','public.crew_performance_settle_customer_month(uuid,date,jsonb,jsonb)','execute')
   or has_function_privilege('authenticated','public.crew_performance_settle_customer_month(uuid,date,jsonb,jsonb)','execute') then
   raise exception 'Settlement authority exposed to clients';
  end if;
 end $$;
 
--- Transaction-local test substitution only. It is never committed or exposed.
-create or replace function google_business_private.customer_settlement_permitted() returns boolean
-language sql stable set search_path=public,pg_temp as $$ select true $$;
+-- Exercise the actual activated authority; no predicate substitution.
 
 
 savepoint zero_review_month;
@@ -34,7 +31,8 @@ begin
  select r.outlet_id into outlet from public.crew_performance_results r join public.employees e on e.id=r.employee_id
    where e.employee_code='QA-CREW-CO-01' and period_start='2026-10-01';
  update public.crew_performance_results set attendance_score=25,service_score=24,knowledge_score=15,peer_score=4,
-   current_score=68,customer_score=null,total_score=null,status='review_required',finalized_at=null,finalized_by=null
+   current_score=68,customer_score=null,total_score=null,status='review_required',finalized_at=null,finalized_by=null,
+   components=jsonb_set(components,'{customer}','{"score":null,"status":"pending","max_score":20}')
    where outlet_id=outlet and period_start='2026-10-01';
  context:=public.crew_performance_settle_customer_month(outlet,'2026-10-01');
  basis:=(context->'basis')||jsonb_build_object('fetchedAt',now());
@@ -57,7 +55,8 @@ begin
  select r.outlet_id into outlet from public.crew_performance_results r join public.employees e on e.id=r.employee_id
    where e.employee_code='QA-CREW-CO-01' and period_start='2026-10-01';
  update public.crew_performance_results r set attendance_score=25,service_score=24,knowledge_score=15,peer_score=4,
-   current_score=68,customer_score=null,total_score=null,status='review_required',finalized_at=null,finalized_by=null
+   current_score=68,customer_score=null,total_score=null,status='review_required',finalized_at=null,finalized_by=null,
+   components=jsonb_set(components,'{customer}','{"score":null,"status":"pending","max_score":20}')
    where outlet_id=outlet and period_start='2026-10-01';
  -- One incomplete Service dimension must remain Pending, not gain zero.
  update public.crew_performance_results r set service_score=null where employee_id=(select id from public.employees where employee_code='QA-CREW-IP-01') and period_start='2026-10-01';
@@ -104,7 +103,7 @@ begin
  if exists(select 1 from public.crew_performance_results r join public.employees e on e.id=r.employee_id
    where e.employee_code='QA-CREW-IF-01' and r.period_start='2026-10-01' and customer_score is not null) then
    raise exception 'Unresolved People history received Customer score'; end if;
- result:=public.crew_performance_settle_customer_month(outlet,'2026-10-01',basis,'{"score":20,"positiveTarget":15,"quality":5}');
+ result:=public.crew_performance_settle_customer_month(outlet,'2026-10-01');
  if (result->>'changed')::int<>0 or result->'summary' is distinct from first_summary then raise exception 'Retry rewrote settled evidence'; end if;
  select md5(string_agg(jsonb_build_array(employee_id,attendance_score,service_score,knowledge_score,peer_score)::text,'' order by id))
    into after_hash from public.crew_performance_results where outlet_id=outlet and period_start='2026-10-01';

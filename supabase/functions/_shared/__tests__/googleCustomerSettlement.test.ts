@@ -33,10 +33,12 @@ describe('automatic monthly Customer settlement',()=>{
   expect(input.settle).toHaveBeenLastCalledWith('2026-10-01',{...basis,fetchedAt:new Date(now).toISOString()},
    {score:9.5,positiveTarget:4.5,quality:5});
  });
- it('preserves the hard retention guard without calculating or committing a Google score',async()=>{
-  const input=fixture();input.settle.mockResolvedValue({status:'pending',reason:'google_retention_unresolved'});
-  expect(await settleCustomerMonths(input)).toEqual({status:'pending',reason:'google_retention_unresolved'});
-  expect(input.settle).toHaveBeenCalledExactlyOnceWith(null);
+ it('uses a frozen monthly outcome without reading the Google snapshot or submitting another score',async()=>{
+  const input=fixture();input.settle.mockResolvedValueOnce({status:'ready',periods:['2026-10-01']})
+   .mockResolvedValueOnce({status:'settled',changed:0,summary:{score:9.5}});
+  Object.defineProperty(input,'snapshot',{get:()=>{throw new Error('Historical source must not be read');}});
+  expect(await settleCustomerMonths(input)).toMatchObject({results:[{status:'settled',changed:0,summary:{score:9.5}}]});
+  expect(input.settle).toHaveBeenCalledTimes(2);
  });
  it.each([
   {change:{snapshot:{...fixture().snapshot,googleAggregate:{totalReviewCount:5}}},reason:'incomplete_evidence'},
