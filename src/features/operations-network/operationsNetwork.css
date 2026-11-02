@@ -116,6 +116,7 @@
 .son-notice button { color: #ffdda3; margin-left: 12px; text-decoration: underline; }
 .son-scope-note { color: #c0d8e2; margin: 0 0 16px; font-size: 12px; line-height: 1.6; }
 .son-experience:fullscreen { width: 100%; height: 100%; overflow: auto; border-radius: 0; }
+.son-experience.son-fullscreen { position: fixed; inset: 0; z-index: 100; width: 100%; height: 100dvh; overflow: auto; border-radius: 0; }
 .admin-shell-main:has(.son-experience) { padding: 16px; }
 .admin-shell-page-frame:has(.son-experience) { max-width: none; }
 @media (min-width: 1800px) { .son-workbench { grid-template-columns: minmax(0, 1fr) 340px; } }

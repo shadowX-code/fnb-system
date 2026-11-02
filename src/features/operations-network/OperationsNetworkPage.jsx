@@ -7,6 +7,7 @@ import { formatOperationalDateTime } from '../../lib/dateTime.js';
 import { getAccessibleOutlets } from '../../utils/accessControl.js';
 import { accessibleNetworkModules, buildNetwork, filterEvents, layers, statusLabels } from './networkModel.js';
 import useNetworkEvidence from './useNetworkEvidence.js';
+import useNetworkFullscreen from './useNetworkFullscreen.js';
 import { edgeTypes, nodeTypes } from './NetworkGraph.jsx';
 import NetworkDetailPanel, { NetworkTimeline } from './NetworkDetailPanel.jsx';
 import '@xyflow/react/dist/style.css';
@@ -20,9 +21,9 @@ function NetworkExperience({ auth, ui, store }) {
   const [company, setCompany] = useState('all'), [outlet, setOutlet] = useState('all');
   const [status, setStatus] = useState('all'), [window, setWindow] = useState('live'), [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(new Set()), [selectedId, setSelectedId] = useState(null);
-  const [fullscreen, setFullscreen] = useState(false), [fullscreenError, setFullscreenError] = useState('');
   const [clock, setClock] = useState(Date.now());
   const rootRef = useRef(null), fitPending = useRef(true);
+  const { fullscreen, notice: fullscreenNotice, toggleFullscreen } = useNetworkFullscreen(rootRef);
   const flow = useReactFlow();
   const evidence = useNetworkEvidence(auth, modules, window === 'live');
   useEffect(() => {
@@ -43,16 +44,6 @@ function NetworkExperience({ auth, ui, store }) {
     const frame = requestAnimationFrame(() => { flow.fitView({ padding: 0.15, duration: 0, maxZoom: 1 }); fitPending.current = false; });
     return () => cancelAnimationFrame(frame);
   }, [layoutKey, flow]);
-  useEffect(() => {
-    const update = () => setFullscreen(document.fullscreenElement === rootRef.current);
-    document.addEventListener('fullscreenchange', update);
-    return () => document.removeEventListener('fullscreenchange', update);
-  }, []);
-  async function toggleFullscreen() {
-    setFullscreenError('');
-    try { if (fullscreen) await document.exitFullscreen(); else await rootRef.current.requestFullscreen(); }
-    catch { setFullscreenError('Fullscreen is unavailable in this browser. Zoom and fit-to-view remain available.'); }
-  }
   function selectNode(id, workspaceId) {
     if (workspaceId) setExpanded(current => new Set([...current, workspaceId]));
     else { const module = modules.find(module => module.id === id); if (module) setExpanded(current => new Set([...current, module.workspace])); }
@@ -69,7 +60,7 @@ function NetworkExperience({ auth, ui, store }) {
   const canObserve = modules.some(module => module.id === 'external_agents');
   const agentSourceAvailable = evidence.sources?.some(source => source.name === 'AI Integrations' && source.state === 'available');
   const changeFilter = setter => value => { setter(value); setSelectedId(null); fitPending.current = true; };
-  return <div ref={rootRef} className={`son-experience${evidence.active ? '' : ' son-inactive'}`}>
+  return <div ref={rootRef} className={`son-experience${evidence.active ? '' : ' son-inactive'}${fullscreen ? ' son-fullscreen' : ''}`}>
     <header className="son-page-header">
       <div><button type="button" className="son-return" onClick={ui.returnFromNetwork}><ArrowLeft size={15} />Return to workspace</button><h1>Smart Operations Network</h1><p>Explore how FeedX connects. Inspect the evidence behind each operation.</p></div>
       <div className="son-refresh-state"><span className="son-status" data-status={window === 'live' && evidence.active ? 'observed' : 'idle'}>{window === 'live' ? evidence.active ? 'Live · 30s polling' : 'Live paused' : 'History snapshot'}</span><span>{evidence.observedAt ? `Checked ${formatOperationalDateTime(evidence.observedAt)}` : 'Checking available sources…'}</span></div>
@@ -92,7 +83,7 @@ function NetworkExperience({ auth, ui, store }) {
         <div className="son-map-toolbar"><div role="group" aria-label="Activity time range">{timeOptions.map(option => <button type="button" key={option.value} aria-pressed={window === option.value} onClick={() => setWindow(option.value)}>{option.label}</button>)}</div>
           <div><button type="button" className="son-icon-button" aria-label="Refresh evidence" disabled={evidence.loading} onClick={evidence.refresh}><RefreshCw size={16} /></button><button type="button" className="son-icon-button" aria-label="Fit network to view" onClick={() => flow.fitView({ padding: 0.15, duration: 0, maxZoom: 1 })}><Focus size={17} /></button><button type="button" className="son-icon-button" aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button></div>
         </div>
-        {fullscreenError && <p className="son-notice" role="status">{fullscreenError}</p>}
+        {fullscreenNotice && <p className="son-scope-note" role="status">{fullscreenNotice}</p>}
         <div className="son-canvas">
           <ReactFlow nodes={nodes} edges={graph.edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="dark" fitView fitViewOptions={{ padding: 0.15, maxZoom: 1 }} minZoom={0.05} maxZoom={1.6} nodesDraggable={false} nodesConnectable={false} edgesFocusable={false} deleteKeyCode={null} onlyRenderVisibleElements onNodeClick={(_, node) => { if (node.data.kind === 'collapsed') toggleWorkspace(node.data.workspace); else setSelectedId(node.id); }} onPaneClick={() => setSelectedId(null)} aria-label="FeedX operations network">
             <svg><defs><marker id="son-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#609fba" /></marker></defs></svg>

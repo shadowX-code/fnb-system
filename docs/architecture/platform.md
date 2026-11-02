@@ -60,6 +60,8 @@ Live refresh polls every 30 seconds while visible, coalesces concurrent reads an
 
 Running flow requires explicit execution evidence; completed receipts get a short pulse only when newly completed. Pending/failed/idle/unknown states remain distinct. Connection observations establish historical successful requests, never current online presence. Reduced motion disables flow/pulse transitions and background tabs pause animation and polling. General uptime/health percentages, throughput, universal automation history and unrelated cross-domain timelines are unsupported; the surface states these gaps rather than fabricating activity or introducing a universal event store.
 
+Network fullscreen uses the browser API when available and a window-filling canvas when it is blocked. Window mode suspends background shell interaction and scrolling, restores both on exit/unmount, and supports Escape. It changes presentation only.
+
 FeedX currently exposes seven workspaces:
 
 - Restaurant: operational financial input, purchasing, inventory, assets and existing reporting.
