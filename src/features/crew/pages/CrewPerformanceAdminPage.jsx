@@ -14,6 +14,7 @@ import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import AdminDataSection from "../../../components/tables/AdminDataSection.jsx";
 import AdminPagination, { useAdminPagedQuery } from "../../../components/tables/AdminPagination.jsx";
+import { navigateAdminRoute } from "../../../app/routeOwnership.js";
 import { crewService } from "../../../services/crewService.js";
 import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
@@ -26,7 +27,7 @@ const performanceComponents = [["attendance", "Attendance"], ["service", "Servic
 const ratings = [{ value: "meets_standard", label: "Meets Standard" }, { value: "needs_improvement", label: "Needs Improvement" }, { value: "not_observed", label: "Not Observed" }];
 const periodValue = () => new Date().toISOString().slice(0, 7) + "-01";
 const score = (value, max) => max == null ? "—" : value == null ? `— / ${max}` : `${new Intl.NumberFormat("en-MY", { maximumFractionDigits: 2 }).format(Number(value))} / ${max}`;
-const statusLabel = (value) => ({ draft: "Draft", review_required: "Review", finalized: "Finalized" }[value] || value);
+const statusLabel = (value) => ({ draft: "Draft", review_required: "Review Required", finalized: "Finalized" }[value] || value);
 const formatDate = (value) => value ? new Date(value).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—";
 const formatDateTime = (value) => value ? new Date(value).toLocaleString("en-MY", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
 
@@ -34,6 +35,9 @@ export default function CrewPerformanceAdminPage({ auth, ui, store, initialTab =
   const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []); const [period, setPeriod] = useState(periodValue());
   const [data, setData] = useState({ summary: {}, crew: [], reviews: [], feedback: [] }); const [loading, setLoading] = useState(true);
   const [customerPreview, setCustomerPreview] = useState(null);
+  const [dataScope, setDataScope] = useState("");
+  const currentScope = `${outletId}:${period}`;
+  const scopedData = dataScope === currentScope ? data : {summary:{},crew:[],reviews:[],feedback:[]};
   const [error, setError] = useState(""); const requestSequence = useRef(0);
   const [filters, setFilters] = useState({ query: "", position: "all", status: "all" });
   const [feedbackFilters, setFeedbackFilters] = useState({ query: "", scope: "all", experience: "all", status: "all", trust: "all" });
@@ -41,27 +45,27 @@ export default function CrewPerformanceAdminPage({ auth, ui, store, initialTab =
   const feedbackQuerySignature = useMemo(() => JSON.stringify({ outletId, period, feedbackFilters }), [feedbackFilters, outletId, period]);
   const [feedbackListing, feedbackListingActions] = useAdminPagedQuery({ storageKey: "crew-customer-feedback", enabled: Boolean(isFeedback && outletId), querySignature: feedbackQuerySignature, loadPage: ({ page, pageSize }) => crewService.feedbackAdminPage({ outletId, period, filters: feedbackFilters, page, pageSize }) });
   const performanceQuerySignature = useMemo(() => JSON.stringify({ outletId, period, filters }), [filters, outletId, period]);
-  const [reviewListing, reviewListingActions] = useAdminPagedQuery({ storageKey: "crew-performance-review-queue", enabled: Boolean(!isFeedback && outletId), querySignature: performanceQuerySignature, loadPage: ({ page, pageSize }) => crewService.performanceAdminPage({ outletId, period, listing: "review_queue", filters, page, pageSize }) });
   const [teamListing, teamListingActions] = useAdminPagedQuery({ storageKey: "crew-performance-team", enabled: Boolean(!isFeedback && outletId), querySignature: performanceQuerySignature, loadPage: ({ page, pageSize }) => crewService.performanceAdminPage({ outletId, period, listing: "team", filters, page, pageSize }) });
   const [detail, setDetail] = useState(null); const [review, setReview] = useState(null); const [employmentReview, setEmploymentReview] = useState(null); const [scoringInfo, setScoringInfo] = useState(false); const [moderation, setModeration] = useState(null); const [feedbackDetail, setFeedbackDetail] = useState(null); const [attribution, setAttribution] = useState(null); const [feedbackQr, setFeedbackQr] = useState(null); const [trustReview, setTrustReview] = useState(null);
   const canReview = auth.hasPermission("crew_performance.review"); const canModerate = auth.hasPermission("crew_feedback.moderate"); const canCorrectAttribution = auth.hasPermission("crew_feedback.correct_attribution"); const canTrustReview = auth.hasPermission("crew_feedback.trust_review"); const canFollowUpManage = auth.hasPermission("crew_feedback.follow_up.manage");
-  async function refresh() { if (isFeedback) return feedbackListingActions.refreshNow(); reviewListingActions.refreshNow(); teamListingActions.refreshNow(); if (!outletId) return; const sequence = ++requestSequence.current; setLoading(true); setError(""); try { const next = await crewService.performanceAdminData(outletId, period); if (sequence === requestSequence.current) setData(next); } catch (cause) { if (sequence === requestSequence.current) { setError(cause.message || "Performance evidence could not be loaded."); ui.notify({ title: "Unable to load Performance", message: cause.message, tone: "error" }); } } finally { if (sequence === requestSequence.current) setLoading(false); } }
-  useEffect(() => { if (!isFeedback) refresh(); }, [isFeedback, outletId, period]);
+  async function refresh() { if (isFeedback) return feedbackListingActions.refreshNow(); teamListingActions.refreshNow(); if (!outletId) return; const sequence = ++requestSequence.current; setLoading(true); setError(""); try { const next = await crewService.performanceAdminData(outletId, period); if (sequence === requestSequence.current) { setData(next); setDataScope(`${outletId}:${period}`); } } catch (cause) { if (sequence === requestSequence.current) { setError(cause.message || "Performance evidence could not be loaded."); ui.notify({ title: "Unable to load Performance", message: cause.message, tone: "error" }); } } finally { if (sequence === requestSequence.current) setLoading(false); } }
+  useEffect(() => { setDetail(null); setReview(null); setEmploymentReview(null); if (!isFeedback) refresh(); }, [isFeedback, outletId, period]);
   async function submitReview(values) { await crewService.submitPerformanceReview(values); setReview(null); await refresh(); ui.notify({ title: "Review submitted", message: "The server recalculated this performance component." }); }
   async function recalculateEmployment(reason) { await crewService.recalculatePerformanceEmployment({ employeeId: employmentReview.employee.id, period, reason }); setEmploymentReview(null); setDetail(null); await refresh(); ui.notify({ title: "Performance recalculated", message: "The employment review and previous evidence were retained." }); }
   async function moderate(values) { await crewService.moderateFeedback(values.id, values.exclude, values.reason); setModeration(null); await refresh(); ui.notify({ title: values.exclude ? "Feedback excluded" : "Feedback restored", message: "The moderation history was retained." }); }
   async function correctAttribution(values) { await crewService.correctFeedbackAttribution(values.id, values.employeeId, values.reason); setAttribution(null); await refresh(); ui.notify({ title: "Crew attribution corrected", message: "The prior attribution and correction reason were retained." }); }
   async function confirmTrust(values) { await crewService.confirmFeedbackTrust(values.id, values.reason); setTrustReview(null); setFeedbackDetail(null); await refresh(); ui.notify({ title: "Feedback confirmed", message: "The trust decision was retained." }); }
   async function updateFollowUp(feedbackId, status) { await crewService.updateFeedbackFollowUp(feedbackId, status); await refresh(); setFeedbackDetail((current) => current ? { ...current, follow_up: { ...current.follow_up, status } } : current); ui.notify({ title: "Follow-up updated", message: "The status transition was retained." }); }
-  const positions = useMemo(() => [...new Set((data.crew || []).map((row) => row.employee.position).filter(Boolean))].sort(), [data.crew]);
+  const positions = useMemo(() => [...new Set((scopedData.crew || []).map((row) => row.employee.position).filter(Boolean))].sort(), [scopedData.crew]);
   const meta = isFeedback ? ["Customer Feedback", "Understand guest sentiment without deleting unfavorable feedback."] : ["Performance Overview", "Monthly Service Crew performance from Attendance, Service, Google Reviews, Learning and Team Review."];
-  return <div className="crew-performance-page"><PageHeader section="Crew · Performance" title={meta[0]} description={meta[1]} secondaryActions={isFeedback ? <button type="button" className="btn-secondary" disabled={!outletId} onClick={() => setFeedbackQr(outlets.find((outlet) => outlet.id === outletId) || null)}><QrCode size={15} /> Feedback QR</button> : null} />
+  return <div className="crew-performance-page"><PageHeader section="Crew · Performance" title={meta[0]} description={isFeedback ? meta[1] : undefined} secondaryActions={isFeedback ? <button type="button" className="btn-secondary" disabled={!outletId} onClick={() => setFeedbackQr(outlets.find((outlet) => outlet.id === outletId) || null)}><QrCode size={15} /> Feedback QR</button> : null} />
     <PerformanceToolbar outlets={outlets} outletId={outletId} setOutletId={setOutletId} period={period} setPeriod={setPeriod} filters={filters} setFilters={setFilters} feedbackFilters={feedbackFilters} setFeedbackFilters={setFeedbackFilters} positions={positions} feedbackOnly={isFeedback} />
-    {!isFeedback ? <CustomerPerformancePanel outletId={outletId} period={period} auth={auth} onPreview={setCustomerPreview} /> : null}
-    <AsyncDataSurface loading={isFeedback ? feedbackListing.loading : loading} error={isFeedback ? feedbackListing.error : error} errorTitle={`Unable to load ${meta[0]}`} hasData={isFeedback ? feedbackListing.rows.length > 0 : data.crew.length > 0} isEmpty={isFeedback ? feedbackListing.hasLoaded && feedbackListing.loadedTotal === 0 : data.crew.length === 0} emptyTitle={isFeedback ? "No Customer Feedback" : "No performance records yet"} emptyDescription={isFeedback ? "Guest submissions for this outlet and period will appear here." : "Performance records will appear after monthly evidence is available."} onRetry={isFeedback ? feedbackListingActions.retry : refresh}>
-      {isFeedback ? <FeedbackAdmin data={feedbackListing.rows} summary={feedbackListing.summary} filters={feedbackFilters} onModerate={setModeration} onDetail={setFeedbackDetail} onCorrectAttribution={setAttribution} canModerate={canModerate} canCorrectAttribution={canCorrectAttribution} pagination={<AdminPagination {...feedbackListing} onPageChange={feedbackListingActions.requestPage} onPageSizeChange={feedbackListingActions.requestPageSize} noun="feedback records" />} /> : <PerformanceOverview data={data} outletId={outletId} period={period} onChanged={refresh} filters={filters} onFiltersChange={setFilters} onOpen={setDetail} onReview={setReview} onScoringInfo={() => setScoringInfo(true)} canReview={canReview} reviewListing={reviewListing} reviewActions={reviewListingActions} teamListing={teamListing} teamActions={teamListingActions} />}
+    {!isFeedback ? <PerformanceSummary data={scopedData} loading={loading || dataScope !== currentScope} error={error} onFiltersChange={setFilters} /> : null}
+    {!isFeedback ? <CustomerPerformancePanel key={currentScope} outletId={outletId} period={period} auth={auth} onPreview={setCustomerPreview} /> : null}
+    <AsyncDataSurface loading={isFeedback ? feedbackListing.loading : loading} error={isFeedback ? feedbackListing.error : error} errorTitle={`Unable to load ${meta[0]}`} hasData={isFeedback ? feedbackListing.rows.length > 0 : scopedData.crew.length > 0} isEmpty={isFeedback ? feedbackListing.hasLoaded && feedbackListing.loadedTotal === 0 : scopedData.crew.length === 0} emptyTitle={isFeedback ? "No Customer Feedback" : "No performance records yet"} emptyDescription={isFeedback ? "Guest submissions for this outlet and period will appear here." : "Performance records will appear after monthly evidence is available."} onRetry={isFeedback ? feedbackListingActions.retry : refresh}>
+      {isFeedback ? <FeedbackAdmin data={feedbackListing.rows} summary={feedbackListing.summary} filters={feedbackFilters} onModerate={setModeration} onDetail={setFeedbackDetail} onCorrectAttribution={setAttribution} canModerate={canModerate} canCorrectAttribution={canCorrectAttribution} pagination={<AdminPagination {...feedbackListing} onPageChange={feedbackListingActions.requestPage} onPageSizeChange={feedbackListingActions.requestPageSize} noun="feedback records" />} /> : <PerformanceOverview data={scopedData} period={period} onOpen={setDetail} onReview={setReview} onScoringInfo={() => setScoringInfo(true)} canReview={canReview} teamListing={teamListing} teamActions={teamListingActions} />}
     </AsyncDataSurface>
-    {detail ? <PerformanceDetail item={detail} customerPreview={customerPreview?.outletId === outletId && customerPreview?.period === period ? customerPreview : null} onClose={() => setDetail(null)} onRecalculate={canReview ? () => setEmploymentReview(detail) : null} /> : null}
+    {detail ? <PerformanceDetail item={detail} customerPreview={customerPreview?.outletId === outletId && customerPreview?.period === period ? customerPreview : null} onClose={() => setDetail(null)} onReview={canReview ? () => { setDetail(null); setReview({ ...detail, component: "service" }); } : null} onTeamReview={canReview ? () => navigateAdminRoute("crew_team_review", {}, { period }) : null} onRecalculate={canReview ? () => setEmploymentReview(detail) : null} /> : null}
     {review ? <PerformanceReview item={review} period={period} onClose={() => setReview(null)} onSubmit={submitReview} /> : null}
     {employmentReview ? <EmploymentRecalculation item={employmentReview} onClose={() => setEmploymentReview(null)} onSubmit={recalculateEmployment} /> : null}
     {scoringInfo ? <PerformanceScoringDialog framework={data.scoring_framework} onClose={() => setScoringInfo(false)} /> : null}
@@ -125,36 +129,45 @@ function matchesPerformanceFilters(row, filters) {
   return true;
 }
 
-function PerformanceOverview({ data, outletId, period, onChanged, filters, onFiltersChange, onOpen, onReview, onScoringInfo, canReview, reviewListing, reviewActions, teamListing, teamActions }) {
-  const s = data.summary || {}; const rows = data.crew || [];
-  const reviewed = Number(s.reviewed ?? rows.filter((row) => rowReviewStatus(row) === "completed").length); const awaiting = Number(s.awaiting_review ?? rows.length - reviewed);
-  const filteredRows = teamListing.rows;
-  const reviewRows = reviewListing.rows;
-  const maxScore = 100;
-  return <div className="crew-performance-overview"><AdminSummaryGrid variant="standard" ariaLabel="Period summary" items={[{ label: "Final Average", value: s.average_score == null ? "—" : `${Math.round(s.average_score)} / ${maxScore}`, helper: `${rows.length} Service Crew this period`, icon: ChartNoAxesCombined }, { label: "Reviewed", value: `${reviewed} / ${rows.length}`, helper: "Service and Team Review complete where applicable", tone: "success", icon: CheckCircle2 }, { label: "Awaiting Review", value: awaiting, helper: "Service or Team Review pending", tone: awaiting ? "warning" : "neutral", icon: AlertTriangle, onClick: () => onFiltersChange((current) => ({ ...current, status: "awaiting" })), title: "Show Crew awaiting review" }]} />
-    <AdminDataSection title="Review Queue" description="Complete Service Standards in Performance; Team Review has its own workspace. Google Customer evidence is pending."><ReviewQueue rows={reviewRows} onReview={onReview} canReview={canReview} /> <AdminPagination {...reviewListing} onPageChange={reviewActions.requestPage} onPageSizeChange={reviewActions.requestPageSize} noun="Crew reviews" /></AdminDataSection>
-    <AdminDataSection title="Team Performance" description={`${teamListing.loadedTotal} Crew shown for this period.`} actions={<button type="button" className="btn-secondary inline-flex items-center gap-1.5 whitespace-nowrap" onClick={onScoringInfo}><CircleHelp size={15} /> How scoring works</button>}>{filteredRows.length ? <DataTable density="compact" rows={filteredRows} getRowKey={(row) => row.employee.id} onRowClick={onOpen} tableClassName="min-w-[960px]" columns={[
-      { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> },
-      { key: "performance", header: "Performance", align: "right", render: (row) => <div><strong className="tabular-nums text-text-primary">{displayedPerformanceScore(row.result) == null ? "—" : Math.round(displayedPerformanceScore(row.result))}</strong>{row.result.status !== "finalized" ? <small className="block text-xs text-text-secondary">Assessed points</small> : null}</div> },
-      ...performanceComponents.map(([key, label]) => ({ key, header: label, align: "right", render: (row) => <span className="tabular-nums text-text-secondary">{row.result.components?.[key] ? componentScore(row, key) : "—"}</span> })),
-      { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.result.status)}>{statusLabel(row.result.status)}</Badge> }, { key: "open", header: "", align: "right", render: () => <ChevronRight className="text-text-muted" size={15} /> },
-    ]} /> : <EmptyState title={rows.length ? "No Crew match these filters" : "No performance records yet"} description={rows.length ? "Clear or adjust the filters to review the full team." : "Performance records will appear after monthly evidence is available."} />}<AdminPagination {...teamListing} onPageChange={teamActions.requestPage} onPageSizeChange={teamActions.requestPageSize} noun="Crew members" /></AdminDataSection>
-  </div>;
-}
-
-function ReviewQueue({ rows, onReview, canReview }) {
-  if (!rows?.length) return <EmptyState title="No reviews match these filters" description="Clear or adjust the filters to see the manager review queue." />;
-  return <DataTable density="compact" rows={rows} getRowKey={(row) => row.employee.id} tableClassName="min-w-[850px]" columns={[
-    { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> },
-    { key: "service", header: "Service Standards", render: (row) => <ReviewCell row={row} component="service" onReview={onReview} canReview={canReview} /> },
-      { key: "peer", header: "Team Review", render: (row) => <Badge tone={reviewDone(row, "peer") ? "success" : "warning"}>{reviewDone(row, "peer") ? "Team Review ready" : "Team Review pending"}</Badge> },
-    { key: "status", header: "Overall", render: (row) => <Badge tone={semanticStatusTone(rowReviewStatus(row))}>{rowReviewStatus(row) === "completed" ? "Completed" : "Pending"}</Badge> },
+function PerformanceSummary({ data, loading, error, onFiltersChange }) {
+  const unavailable = loading || Boolean(error);
+  const s = data.summary || {}; const rows = data.crew || []; const total = Number(s.crew_total ?? rows.length);
+  const finalized = rows.filter(row => row.result.status === "finalized").length;
+  const reviewed = Number(s.reviewed ?? rows.filter(row => rowReviewStatus(row) === "completed").length);
+  const awaiting = Number(s.awaiting_review ?? total - reviewed);
+  return <AdminSummaryGrid ariaLabel="Period summary" items={[
+    { label: "Final Average", value: unavailable || !finalized || s.average_score == null ? "—" : `${Math.round(s.average_score)} / 100`, helper: unavailable ? error ? "Evidence unavailable" : "Loading period" : `${finalized} finalized · ${total} Crew`, icon: ChartNoAxesCombined },
+    { label: "Reviews Complete", value: unavailable ? "—" : `${reviewed} / ${total}`, helper: "Service and Team Review", tone: reviewed ? "success" : "neutral", icon: CheckCircle2 },
+    { label: "Awaiting Review", value: unavailable ? "—" : awaiting, helper: "Review or employment evidence pending", tone: awaiting ? "warning" : "neutral", icon: AlertTriangle, onClick: () => onFiltersChange(current => ({ ...current, status: "awaiting" })), title: "Show Crew awaiting review" },
   ]} />;
 }
 
-function ReviewCell({ row, component, onReview, canReview }) { const done = reviewDone(row, component); const employmentPending = row.result.employment_review_required; return <div className="flex flex-wrap items-center gap-2"><Badge tone={semanticStatusTone(done ? "completed" : "pending")}>{employmentPending ? "Employment review" : done ? "Completed" : "Pending"}</Badge><button type="button" className="btn-secondary h-8 px-2 text-xs" disabled={!canReview || employmentPending} onClick={() => onReview({ ...row, component })}>{done ? "View review" : "Review"}</button></div>; }
+function performanceBlockers(result) {
+  if (result.status === "finalized") return [];
+  if (result.employment_review_required) return ["Employment review"];
+  return performanceComponents.filter(([key]) => result.components?.[key]?.score == null).map(([, label]) => label);
+}
 
-function PerformanceScoringDialog({ framework, onClose }) { return <Modal title="How scoring works" description="Monthly Service Crew Performance" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><div className="crew-performance-scoring"><dl>{(framework || []).map((item) => <div key={item.key}><dt>{item.key === "peer" ? "Team Review" : item.label}</dt><dd>{item.max_score} pts</dd></div>)}</dl><p>Customer /20 awaits verified Google Review evidence. Assessed points are not a final score; finalization and Reward stay unavailable until all evidence is ready.</p></div></Modal>; }
+function ServiceReviewCell({ row, onReview, canReview }) {
+  const done = reviewDone(row, "service");
+  return <div className="space-y-1"><span className="tabular-nums">{componentScore(row, "service")}</span>{row.result.status !== "finalized" ? <button type="button" className="block text-xs font-semibold text-primary hover:underline disabled:text-text-muted" disabled={!canReview || row.result.employment_review_required} onClick={() => onReview({ ...row, component: "service" })}>{done ? "View review" : "Review"}</button> : null}</div>;
+}
+
+function PerformanceOverview({ data, period, onOpen, onReview, onScoringInfo, canReview, teamListing, teamActions }) {
+  const rows = data.crew || [];
+  return <AdminDataSection title="Team Performance" actions={<button type="button" className="btn-secondary" onClick={onScoringInfo}><CircleHelp size={15} /> How scoring works</button>}>
+    {teamListing.rows.length ? <DataTable density="compact" rows={teamListing.rows} getRowKey={row => row.employee.id} onRowClick={onOpen} minWidth={1040} columns={[
+      { key: "employee", header: "Employee", sticky: true, render: row => <button type="button" className="text-left" aria-label={`Open Performance for ${row.employee.full_name}`} onClick={() => onOpen(row)}><NameCell row={row.employee} /></button> },
+      { key: "performance", header: "Performance", align: "right", render: row => <div><strong className="tabular-nums">{displayedPerformanceScore(row.result) == null ? "—" : Math.round(displayedPerformanceScore(row.result))}</strong><small className="block text-xs text-text-secondary">{row.result.status === "finalized" ? "Final /100" : "Assessed points"}</small></div> },
+      ...performanceComponents.map(([key, label]) => ({ key, header: label, align: "right", render: row => key === "service" ? <ServiceReviewCell row={row} onReview={onReview} canReview={canReview} /> : key === "peer" ? <div className="space-y-1"><span className="tabular-nums">{componentScore(row, key)}</span>{canReview ? <button type="button" className="block ml-auto text-xs font-semibold text-primary hover:underline" aria-label={`Open Team Review for ${row.employee.full_name}`} onClick={() => navigateAdminRoute("crew_team_review", {}, { period })}>{reviewDone(row, key) ? "View" : "Review"}</button> : null}</div> : <span className="tabular-nums text-text-secondary">{row.result.components?.[key] ? componentScore(row, key) : "—"}</span> })),
+      { key: "status", header: "Status", render: row => <div className="max-w-48 space-y-1"><Badge tone={semanticStatusTone(row.result.status)}>{row.result.employment_review_required ? "Employment review" : statusLabel(row.result.status)}</Badge>{!row.result.employment_review_required && performanceBlockers(row.result).length ? <small className="block text-xs text-text-secondary">Pending: {performanceBlockers(row.result).join(", ")}</small> : null}</div> },
+      { key: "open", header: "", align: "right", render: () => <ChevronRight className="text-text-muted" size={15} /> },
+    ]} /> : <EmptyState title={rows.length ? "No Crew match these filters" : "No performance records yet"} description={rows.length ? "Clear or adjust the filters." : "Monthly evidence is not available."} />}
+    <AdminPagination {...teamListing} onPageChange={teamActions.requestPage} onPageSizeChange={teamActions.requestPageSize} noun="Crew members" />
+  </AdminDataSection>;
+}
+
+function PerformanceScoringDialog({ framework, onClose }) { return <Modal title="How scoring works" description="Monthly Service Crew Performance" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><div className="crew-performance-scoring"><dl>{(framework || []).map((item) => <div key={item.key}><dt>{item.key === "peer" ? "Team Review" : item.label}</dt><dd>{item.max_score} pts</dd></div>)}</dl><p>Customer preview does not contribute to final totals or Reward. Finalization requires complete, approved evidence.</p></div></Modal>; }
 
 function FeedbackAdmin({ data, summary, onModerate, onDetail, onCorrectAttribution, canModerate, canCorrectAttribution, pagination }) {
   const rows = data || [];
@@ -179,7 +192,7 @@ export function customerPreviewForResult(result, preview, now = Date.now()) {
     && preview?.status === "preview_only" && Date.parse(preview.expiresAt) > now ? preview : null;
 }
 
-function PerformanceDetail({ item, onClose, onRecalculate, customerPreview }) {
+function PerformanceDetail({ item, onClose, onRecalculate, customerPreview, onReview, onTeamReview }) {
   const r = item.result;
   const applicablePreview = customerPreviewForResult(r, customerPreview);
   const current = displayedPerformanceScore(r); const finalized = r.status === "finalized";
@@ -187,16 +200,17 @@ function PerformanceDetail({ item, onClose, onRecalculate, customerPreview }) {
   return <Modal title={`${item.employee.full_name} · Performance`} description={`${new Date(r.period_start).toLocaleDateString("en-MY", { month: "long", year: "numeric" })} · ${statusLabel(r.status)}`} size="xl" onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Close</button>{r.employment_can_recalculate && onRecalculate ? <button className="btn-primary" onClick={onRecalculate}>Review & Recalculate</button> : null}</>}>
     <div className="crew-performance-detail">
       {r.employment_review_required ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">{r.employment_reason || "Employment history for this period needs review."}</p> : null}
-      <section className="crew-performance-score"><span>{finalized ? "Final Score /100" : "Assessed points"}</span><strong>{current == null ? "—" : Math.round(current)}</strong><small>{finalized ? "Finalized evidence" : r.employment_review_required ? "Employment review required before scoring" : "Customer: Pending · Google Review authority not available"}</small>
-        {!finalized && <small>{5 - pending.length} of 5 components assessed · Pending: {pending.map(([, label]) => label).join(", ") || "None"}</small>}
+      <section className="crew-performance-score"><span>{finalized ? "Final Score /100" : "Assessed points"}</span><strong>{current == null ? "—" : Math.round(current)}</strong><small>{finalized ? "Finalized evidence" : r.employment_review_required ? "Employment review required before scoring" : applicablePreview ? "Customer: Preview only · Saved score Pending" : "Customer: Pending"}</small>
+        {!finalized && <small>{5 - pending.length} of 5 components assessed</small>}
       </section>
+      {!finalized && performanceBlockers(r).length ? <p className="text-sm text-text-secondary">Finalization pending: {performanceBlockers(r).join(", ")}. Customer preview cannot finalize Performance.</p> : null}
       <div className="crew-performance-breakdown">{performanceComponents.map(([key, label]) => {
         const value = r.components?.[key]; const max = value?.max_score;
         const explanation = key === "customer"
-          ? finalized ? "Finalized Google Customer evidence. Later review changes do not recalculate this score." : "Pending Google Review evidence. This month cannot be finalized."
+          ? finalized ? "Finalized Google Customer evidence. Later review changes do not recalculate this score." : "Saved Customer score is Pending. Preview is not included in final totals."
           : key === "peer" ? `${value?.completed || 0} valid teammate reviews${value?.status === "scored" ? " · Ready" : " · Pending"}`
             : value?.explanation || (value?.status === "review_required" ? "Manager review required." : "Evidence is being calculated.");
-        return <article key={key}><header><strong>{label}</strong><span>{score(value?.score, max)}</span></header><div className="crew-performance-bar"><i style={{ width: `${value?.score == null || !max ? 0 : Number(value.score) * 100 / max}%` }} /></div><p>{explanation}</p>{key === "customer" && !finalized && applicablePreview ? <p>Outlet Customer preview: {score(applicablePreview.score, 20)} · Not included in saved Performance.</p> : null}</article>;
+        return <article key={key}><header><strong>{label}</strong><span>{score(value?.score, max)}</span></header><div className="crew-performance-bar"><i style={{ width: `${value?.score == null || !max ? 0 : Number(value.score) * 100 / max}%` }} /></div><p>{explanation}</p>{key === "service" && !finalized && onReview ? <button type="button" className="btn-secondary mt-2" disabled={r.employment_review_required} onClick={onReview}>{value?.score == null ? "Service Review" : "View Service Review"}</button> : null}{key === "peer" && onTeamReview ? <button type="button" className="btn-secondary mt-2" onClick={onTeamReview}>Open Team Review</button> : null}{key === "customer" && !finalized && applicablePreview ? <p>Outlet Customer preview: {score(applicablePreview.score, 20)} · Not included in saved Performance.</p> : null}</article>;
       })}</div>
     </div>
   </Modal>;

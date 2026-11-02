@@ -32,6 +32,7 @@ const productQueryStateByRouteId = Object.freeze({
   payroll: [{ key: "company" }, { key: "period" }, { key: "run" }],
   outlets: [{ key: "outletId" }, { key: "section" }],
   crew_google_reviews: [{ key: "google_result" }],
+  crew_team_review: [{ key: "period" }],
   roles: [{ key: "permission_workspace" }],
   "purchase-comparison": [{ key: "supplier" }],
   inventory_groups: [{ key: "date", aliases: ["stockCheckDate"] }],
