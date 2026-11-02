@@ -1,3 +1,4 @@
+import { routeNetworkEdges } from './networkRouting.js';
 export const workspaceAccents = { restaurant: '#f5b86b', factory: '#51e5dc', hr: '#bda6ff', crew: '#8be1b3', finance: '#ead17c', marketing: '#f393bf', guest_ai: '#92beff' };
 const workspaceOrder = ['restaurant', 'factory', 'hr', 'crew', 'finance', 'marketing', 'guest_ai'];
 export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = {}) {
@@ -36,30 +37,19 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
     });
     if (members.length) cursor += Math.ceil(members.length / columns) * 98 + 18;
   }
-  const edges = inputEdges.map((edge, index) => {
-    const source = byId.get(edge.source), target = byId.get(edge.target);
-    let routing = edge.data.routing, sourceHandle = 'bottom', targetHandle = 'top';
-    const sameLayer = source.data.layer === target.data.layer;
-    const distant = Math.abs(target.position.y - source.position.y) > 260;
-    if (routing?.startsWith('outer') || distant || sameLayer) {
-      routing = 'outer';
-      sourceHandle = source.position.y > target.position.y ? 'top' : 'bottom';
-    }
-    // A staggered final workspace row aligns with the gutters above it.
-    if (!narrow && source.id === 'platform' && target.data.kind === 'workspace' && target.position.y > 160 && workspaces.length % columns === columns - 1) routing = 'workspace-column';
-    if (edge.data.routing === 'module') { routing = 'module'; targetHandle = 'left'; }
-    const leftLane = (source.position.x + source.width / 2 < gridWidth / 2) || edge.data.routing === 'outer-left';
-    return { ...edge, sourceHandle: `out-${sourceHandle}`, targetHandle: `in-${targetHandle}`, data: { ...edge.data, routing, departureY: sourceHandle === 'top' ? source.position.y - 22 : source.position.y + source.height + 22, startMode: sourceHandle, entryGap: 24, outerX: leftLane ? -28 - index % 3 * 9 : gridWidth + 28 + index % 3 * 9 } };
-  });
+  const edges = routeNetworkEdges(nodes, inputEdges);
   const primaryIds = ['platform', ...workspaces.map(node => node.id), ...nodes.filter(node => ['agent-group','data-group','agent','data','integration'].includes(node.data.kind)).map(node=>node.id)];
   return { nodes, edges, primaryIds: narrow && workspaces.length > 2 ? ['platform', ...workspaces.slice(0, 2).map(node => node.id)] : primaryIds };
 }
 
 // Synthetic motion is a rendering flag only. It never replaces evidence, outcomes or timestamps.
 export function presentNetworkEdges(edges, visualDemo, selectedId = null) {
-  let synthetic = 0;
-  return edges.map(edge => {
-    const demoMotion = visualDemo && edge.data.kind === 'dependency' && (edge.source === 'platform' || edge.source === 'automation-group') && synthetic++ < 5;
-    return { ...edge, data: { ...edge.data, demoMotion: !!demoMotion, dimmed: !!selectedId && edge.source !== selectedId && edge.target !== selectedId } };
-  });
+  const representatives = new Map();
+  const candidates = edges.filter(edge=>edge.data.kind !== 'execution');
+  for (const edge of [...candidates].sort((a,b)=>Number(b.source===selectedId||b.target===selectedId)-Number(a.source===selectedId||a.target===selectedId)||a.id.localeCompare(b.id))) {
+    const category=`${edge.data.sourceLayer}:${edge.data.targetLayer}:${edge.data.kind}`;
+    if(!representatives.has(category)) representatives.set(category,edge.id);
+  }
+  const demoIds=new Set([...representatives.values()].slice(0,10));
+  return edges.map(edge => ({ ...edge, data: { ...edge.data, demoMotion: !!visualDemo && demoIds.has(edge.id), focused: !!selectedId && (edge.source === selectedId || edge.target === selectedId), dimmed: !!selectedId && edge.source !== selectedId && edge.target !== selectedId } }));
 }

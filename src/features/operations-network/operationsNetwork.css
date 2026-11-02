@@ -281,3 +281,9 @@
 @media(prefers-reduced-motion: reduce) { .son-canvas .react-flow__node { transition: none; } }
 .son-node:is(.son-node-module,.son-node-agent,.son-node-data,.son-node-integration) :is(.son-node-layer,.son-node-subtitle) { display: none; }
 @media(max-width:767px) { .son-bay-title span { display: none; } }
+
+.son-edge[data-long] { opacity: .23; }
+.son-edge[data-long][data-focused],.son-edge[data-demo] { opacity: .85; }
+.son-edge[data-dimmed] { opacity: .07; }
+.son-edge[data-demo] .react-flow__edge-path { stroke-width: 1.25; }
+.son-edge-authorization .react-flow__edge-path { stroke-dasharray: 3 4; }

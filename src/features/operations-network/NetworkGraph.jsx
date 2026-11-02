@@ -1,6 +1,7 @@
-import { Fragment, memo, useId } from 'react';
+import { Fragment, memo, useId, useLayoutEffect, useRef } from 'react';
 import { BaseEdge, Handle, Position, getBezierPath } from '@xyflow/react';
 import { Bot, Building2, ChevronDown, ChevronUp, Database, Factory, Layers3, Link2, Megaphone, Network, ShieldCheck, Sparkles, Users, UtensilsCrossed, Wallet, Workflow } from 'lucide-react';
+import { roundedRoute } from './networkRouting.js';
 import { statusLabels } from './networkModel.js';
 
 const workspaceIcons = { restaurant: UtensilsCrossed, factory: Factory, hr: Users, crew: ShieldCheck, finance: Wallet, marketing: Megaphone, guest_ai: Sparkles };
@@ -26,31 +27,34 @@ export const NetworkNode = memo(function NetworkNode({ data, selected }) {
 
 export function networkEdgePath(props) {
   const { sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, data } = props;
-  if (data.routing === 'workspace-column') return `M ${sx} ${sy} C ${sx} ${sy + 20} ${tx} ${sy + 12} ${tx} ${sy + 30} L ${tx} ${ty}`;
-  if (data.routing === 'module') {
-    const laneX = tx - 14, lineY = sy + 18, r = 8;
-    return `M ${sx} ${sy} L ${sx} ${lineY} L ${laneX + r} ${lineY} Q ${laneX} ${lineY} ${laneX} ${lineY + r} L ${laneX} ${ty - r} Q ${laneX} ${ty} ${laneX + r} ${ty} L ${tx} ${ty}`;
-  }
-  if (data.routing?.startsWith('outer')) {
-    const x = data.outerX, entry = ty - data.entryGap;
-    const departure = ['top', 'bottom'].includes(data.startMode) ? data.departureY : sy;
-    const direction = entry >= departure ? 1 : -1, bend = Math.min(36, Math.abs(entry - departure) / 3);
-    const start = ['left', 'right'].includes(data.startMode)
-      ? `M ${sx} ${sy} C ${sx + (x < sx ? -45 : 45)} ${sy} ${x} ${sy} ${x} ${sy + direction * bend}`
-      : `M ${sx} ${sy} C ${sx} ${departure} ${x} ${departure} ${x} ${departure + direction * bend}`;
-    return `${start} L ${x} ${entry - direction * bend} C ${x} ${entry + direction * bend} ${tx} ${entry} ${tx} ${ty}`;
-  }
+  if (data.routePoints) return roundedRoute(data.routePoints);
   return getBezierPath({ ...props, curvature: 0.32 })[0];
 }
 
 export const NetworkEdge = memo(function NetworkEdge(props) {
+  const groupRef = useRef(null), previousDuration = useRef(null);
   const uid = useId().replace(/:/g, ''), path = networkEdgePath(props);
   const { kind, status, fresh, demoMotion, accent, dimmed } = props.data;
   const executing = kind === 'execution';
   const moving = demoMotion || (executing && status === 'running');
   const completion = executing && status === 'completed' && fresh;
+  useLayoutEffect(() => {
+    if (!moving && !completion) { previousDuration.current = null; return; }
+    const group=groupRef.current, length=group.querySelector('.son-edge-aura').getTotalLength();
+    const duration=Math.max(.1,length/95), phase=[...props.id].reduce((sum,c)=>sum+c.charCodeAt(0),0)%17/17;
+    group.querySelectorAll('.son-motion-particle').forEach((particle,index)=>{
+      const animation=particle.getAnimations()[0], oldDuration=previousDuration.current;
+      const oldDelay=oldDuration ? -phase*oldDuration+index*.06 : 0;
+      const progress=animation&&oldDuration ? (Number(animation.currentTime)/1000-oldDelay)/oldDuration : null;
+      particle.style.animationDuration=`${duration}s`;
+      const delay=-phase*duration+index*.06;
+      particle.style.animationDelay=`${delay}s`;
+      if(animation&&progress!==null) animation.currentTime=(progress*duration+delay)*1000;
+    });
+    previousDuration.current=duration;
+  },[path,moving,completion,props.id]);
   const color = executing ? ({ pending: '#f9c872', running: '#61fff0', completed: '#8df0be', failed: '#ff819c', unknown: '#8595aa', idle: '#527b91' }[status] || '#88bbc5') : accent || '#4de9dd';
-  return <g className={`son-edge son-edge-${kind}`} data-status={status} data-dimmed={dimmed || undefined} data-demo={demoMotion || undefined} style={{ '--son-edge-color': color }}>
+  return <g ref={groupRef} data-long={props.data.longStructural || undefined} data-focused={!dimmed && props.data.focused || undefined} className={`son-edge son-edge-${kind}`} data-status={status} data-dimmed={dimmed || undefined} data-demo={demoMotion || undefined} style={{ '--son-edge-color': color }}>
     <defs><linearGradient id={`${uid}-line`} gradientUnits="userSpaceOnUse" x1={props.sourceX} y1={props.sourceY} x2={props.targetX} y2={props.targetY}><stop stopColor={color} stopOpacity=".12" /><stop offset=".5" stopColor={color} stopOpacity=".55" /><stop offset="1" stopColor={color} stopOpacity=".8" /></linearGradient><marker id={`${uid}-arrow`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke={color} strokeWidth="1.5" /></marker></defs>
     <path id={`${uid}-track`} className="son-edge-aura" d={path} /><path className="son-edge-sheath" d={path} />
     <BaseEdge id={props.id} path={path} markerEnd={`url(#${uid}-arrow)`} interactionWidth={0} style={{ stroke: `url(#${uid}-line)` }} />

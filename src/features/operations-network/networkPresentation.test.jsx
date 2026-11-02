@@ -62,7 +62,7 @@ describe('evidence and synthetic motion separation', () => {
     expect(JSON.stringify(graph)).toBe(original);
     expect(demo.filter(edge=>edge.data.demoMotion).length).toBeLessThanOrEqual(5);
     expect(demo.some(edge=>edge.data.demoMotion)).toBe(true);
-    expect(demo.at(-1).data).toEqual({...real.data,demoMotion:false,dimmed:false});
+    expect(demo.at(-1).data).toEqual({...real.data,demoMotion:false,dimmed:false,focused:false});
     expect(presentNetworkEdges(graph.edges,false).every(edge=>!edge.data.demoMotion)).toBe(true);
   });
   it.each([
