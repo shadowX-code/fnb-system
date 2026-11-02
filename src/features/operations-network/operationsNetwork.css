@@ -210,7 +210,7 @@
 }
 
 /* Ordered architecture: compact hub, workspace bands, then independent support layers. */
-.son-canvas { height: clamp(600px,calc(100dvh - 260px),1000px); }
+.son-canvas { height: clamp(460px,calc(100dvh - 350px),1000px); }
 .son-edge { transition: opacity .2s ease-out; }
 .son-edge[data-dimmed] { opacity: .12; }
 .son-edge[data-demo] .son-edge-aura { opacity: .18; }

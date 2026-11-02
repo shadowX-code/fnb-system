@@ -15,9 +15,9 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
   const rows = Math.ceil(workspaces.length / columns);
   workspaces.forEach((node, index) => {
     const row = Math.floor(index / columns), count = Math.min(columns, workspaces.length - row * columns);
-    place(node, (gridWidth - (count * 254 - 24)) / 2 + index % columns * 254, 220 + row * 150, 230, 104);
+    place(node, (gridWidth - (count * 254 - 24)) / 2 + index % columns * 254, 190 + row * 130, 230, 104);
   });
-  let cursor = 220 + Math.max(1, rows) * 150 + 24;
+  let cursor = 190 + Math.max(1, rows) * 130 + 14;
   for (const section of nodes.filter(node => node.data.kind === 'operation-group')) {
     place(section, 0, cursor, gridWidth, 42);
     const children = nodes.filter(node => node.data.kind === 'module' && node.data.workspace === section.data.workspace);
@@ -27,7 +27,7 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
   // Each support layer owns its expanded members, so data never shares the agent row.
   for (const [groupId, kinds] of [['automation-group', ['agent']], ['data-group', ['data', 'integration']]]) {
     place(byId.get(groupId), (gridWidth - Math.min(gridWidth, 520)) / 2, cursor, Math.min(gridWidth, 520), 90);
-    cursor += 130;
+    cursor += 120;
     const members = nodes.filter(node => kinds.includes(node.data.kind));
     members.forEach((node, index) => place(node, index % columns * 254, cursor + Math.floor(index / columns) * 112, 230, 96));
     if (members.length) cursor += Math.ceil(members.length / columns) * 112 + 24;
