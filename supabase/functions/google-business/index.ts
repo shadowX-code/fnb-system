@@ -3,6 +3,8 @@ import { disconnectBusinessConnection } from '../_shared/googleBusinessDisconnec
 import { googleBusinessEnvironment } from '../_shared/googleBusinessEnvironment.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { hash, nonce, seal, unseal, base64url, tokenEncryptionReady } from '../_shared/metaSecurity.ts';
+import { assertCustomerPreviewBasis, customerPerformancePreview } from '../_shared/googleCustomerPreview.ts';
+import { settleCustomerMonths } from '../_shared/googleCustomerSettlement.ts';
 import type { GoogleReviewRecord } from '../_shared/googleReviewsContract.ts';
 import { googleGrant, DriveError } from '../_shared/googleDrive.ts';
 import { GoogleBusinessProfile, BUSINESS_SCOPE, BusinessProfileError, completePages, readReviewInbox, reviewInboxPayload, revokeBusinessGrant } from '../_shared/googleBusinessProfile.ts';
@@ -74,7 +76,13 @@ export async function handle(req: Request) {
    try {
     result=await runScheduledReviewSync(claimed.outlets,async(id:string)=>{
      const scoped=async(command:string,data:any={})=>{const result=await db.rpc('crew_google_business_server',{p_action:command,p_user:null,p_outlet:id,p_data:{...data,worker_run:run,worker_proof:proof}});if(result.error)throw new BusinessProfileError('sync_authority_changed',409);return result.data;};
-     return synchronizeBusinessReviews({call:scoped,key:secret(),keys:keys(),grant,deadline:Math.min(deadline,Date.now()+90000)});
+     return synchronizeBusinessReviews({call:scoped,key:secret(),keys:keys(),grant,deadline:Math.min(deadline,Date.now()+90000),
+      onSynchronized: (snapshot,material)=>settleCustomerMonths({snapshot,generation:material.generation,
+       revision:material.mapping.revision,location:material.mapping.location_resource_name,
+       settle:async(period,basis,customer)=>{
+        const settled=await db.rpc('crew_performance_settle_customer_month',{p_outlet:id,p_period:period,p_basis:basis ?? null,p_customer:customer ?? null});
+        if(settled.error)throw new Error('Customer settlement will retry after synchronization.');return settled.data;
+       }})});
     },{deadline});
     await worker('finish',{error:result.stopped || (result.failed ? 'location_sync_failed' : '')});
    }catch{await worker('finish',{error:'scheduled_sync_failed'}).catch(()=>{});throw new Error('Scheduled sync could not finish.');}
@@ -110,6 +118,30 @@ export async function handle(req: Request) {
   const body = await req.json(); outlet = body.outletId;
   if (typeof outlet !== 'string' || !/^[a-f0-9-]{36}$/i.test(outlet)) throw new Error('Select an outlet.');
   const context = await call('context');
+  if (action === 'customer-preview') {
+   const viewer = createClient(supabase, env('SUPABASE_ANON_KEY'), { global: { headers: { Authorization: auth } }, auth: { persistSession: false, autoRefreshToken: false } });
+   const target = async () => {
+    const params = { p_outlet_id: outlet, p_period: body.period };
+    const [result, history] = await Promise.all([viewer.rpc('crew_google_reviews_admin_context', params), viewer.rpc('crew_google_target_history', params)]);
+    if (result.error || history.error) throw new Error('Performance access is required for this outlet and month.');
+    const revision = history.data?.rows?.[0];
+    if (result.data.positive_target != null && (!revision || revision.new_target !== result.data.positive_target)) throw new Error('Monthly target history changed or is unavailable. Reload the target.');
+    return { ...result.data, target_revision: revision?.id ?? null };
+   };
+   const initial = await target();
+   return reply(await customerPerformancePreview({ period: body.period, context, target: initial.positive_target,
+    read: async () => {
+     const material = await call('material');
+     if (material.generation !== context.generation || material.mapping?.revision !== context.mapping?.revision || material.mapping?.location_resource_name !== context.mapping?.name) throw new Error('Outlet mapping changed. Refresh the preview.');
+     const resolved = await resolveBusinessToken({call,material,keys:keys(),key:secret(),grant});
+     const payload = await readReviewInbox(new GoogleBusinessProfile(resolved.token.access_token), material.mapping.location_resource_name);
+     await call('guard', { generation: material.generation, revision: material.mapping.revision });
+     const latest = await call('context');
+     assertCustomerPreviewBasis(context, latest, initial, await target());
+     return { ...payload, fetchedAt: new Date().toISOString() };
+    }
+   }));
+  }
   if (action === 'context') {
    const result = { ...context, configured: Boolean(configured()) && await tokenEncryptionReady(secret()), reviews: [], google_aggregate: null };
    if (context.connection_status === 'connected' && context.sync_status === 'complete') {

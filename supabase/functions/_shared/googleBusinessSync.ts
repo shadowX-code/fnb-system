@@ -25,7 +25,7 @@ export function syncFailure(error:any) {
  return {error_code:code,error_service:error.service || (error instanceof DriveError ? 'oauth2.googleapis.com' : 'mybusiness.googleapis.com'),error_request:error.request || (error instanceof DriveError ? 'POST /token' : 'GET reviews')};
 }
 // Manual and scheduled sync share this one complete-page/lease/refresh/save authority.
-export async function synchronizeBusinessReviews(options:{call:Call;key:string;keys:string[];grant:(data:any)=>Promise<any>;transport?:typeof fetch;deadline?:number}) {
+export async function synchronizeBusinessReviews(options:{call:Call;key:string;keys:string[];grant:(data:any)=>Promise<any>;transport?:typeof fetch;deadline?:number;onSynchronized?:(snapshot:any,material:any)=>Promise<any>}) {
  const {call,key,keys,grant}=options;let material=await call('material');
  if(!material.mapping?.outlet_id)throw new Error('Map this outlet to a Google location in Settings.');
  const basis={generation:material.generation,revision:material.mapping.revision};
@@ -35,7 +35,11 @@ export async function synchronizeBusinessReviews(options:{call:Call;key:string;k
   const provider=new GoogleBusinessProfile(resolved.token.access_token,options.transport,options.deadline);
   const snapshot=await readReviewInbox(provider,material.mapping.location_resource_name);
   await call('sync_finish',{...basis,lease:lease.lease,sealed_reviews:await seal(snapshot,key,businessInboxBinding(basis.generation,material.mapping))});
-  return {ok:true};
+  // Settlement failure must not mark a successful Review Inbox sync as failed.
+  const customer = options.onSynchronized
+    ? await options.onSynchronized({...snapshot,fetchedAt:new Date().toISOString()},material)
+      .catch(()=>({status:'pending',reason:'settlement_retry_required'})) : undefined;
+  return {ok:true,...(customer ? {customer} : {})};
  }catch(error){
   console.warn(JSON.stringify({integration:'google-business',action:'sync',...syncFailure(error)}));
   await call('sync_error',{...basis,lease:lease.lease,...syncFailure(error)}).catch(()=>{});

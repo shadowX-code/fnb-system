@@ -6,11 +6,12 @@ async function command(action, outletId, body = {}) {
   let message = 'Google Reviews request could not be completed.';
   let status;
   if (error.context instanceof Response) try { status=error.context.status; message = (await error.context.json()).error || message; } catch { /* Keep safe fallback. */ }
-  const cause=new Error(message); cause.uncertain=!status || status>=500; throw cause;
+  const cause=new Error(message); cause.status=status; cause.uncertain=!status || status>=500; throw cause;
  }
  return data;
 }
 export const googleBusinessService = {
+ customerPreview: (outlet, period) => command('customer-preview', outlet, { period }),
  detail: (outlet, review, basis) => command('review',outlet,{review,generation:basis.generation,revision:basis.mapping.revision}),
  reply: (outlet, intent) => command('reply',outlet,{...intent,confirmed:true}),
  replyStatus: (outlet,id) => command('reply_status',outlet,{id}),

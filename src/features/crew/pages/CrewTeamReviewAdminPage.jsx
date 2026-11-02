@@ -8,6 +8,7 @@ import AdminDataSection from "../../../components/tables/AdminDataSection.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
+import { navigateAdminRoute, resolveAdminLocation } from "../../../app/routeOwnership.js";
 import { crewService } from "../../../services/crewService.js";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import "./CrewTeamReviewAdminPage.css";
@@ -36,7 +37,7 @@ function RatingFields({ value, onChange }) {
 
 export default function CrewTeamReviewAdminPage({ auth, store, ui }) {
   const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []);
-  const [period, setPeriod] = useState(monthNow());
+  const [period, setPeriod] = useState(() => { const period = resolveAdminLocation(window.location)?.query.period; return /^\d{4}-(0[1-9]|1[0-2])-01$/.test(period || "") ? period : monthNow(); });
   const [response, setResponse] = useState(null);
   const scopeKey = `${outletId}:${period}`;
   const data = response?.scopeKey === scopeKey ? response.data : null;
@@ -108,7 +109,7 @@ export default function CrewTeamReviewAdminPage({ auth, store, ui }) {
 
   return <div className="crew-team-admin-page">
     <PageHeader section="Crew · Performance" title="Team Review" description="Monthly coworker evidence and audited Admin review." />
-    <AdminFilterToolbar compact denseFields ariaLabel="Team Review context" outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />} period={<MonthPickerField label="Month" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} />
+    <AdminFilterToolbar compact denseFields ariaLabel="Team Review context" outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />} period={<MonthPickerField label="Month" value={period.slice(0, 7)} onChange={(value) => { const period = `${value}-01`; setPeriod(period); navigateAdminRoute("crew_team_review", {}, { period }, { replace: true }); }} />} />
     {error ? <p role="alert" className="crew-team-admin-error">{error}</p> : null}
     {loading && !data ? <p className="text-text-secondary">Loading Team Review…</p> : null}
     {data ? <>

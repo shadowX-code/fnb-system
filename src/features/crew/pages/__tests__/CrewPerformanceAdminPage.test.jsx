@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({ data: vi.fn(), page: vi.fn(), feedbackPage: vi.fn(), review: vi.fn(), recalculate: vi.fn(), moderate: vi.fn(), correct: vi.fn() }));
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { performanceAdminData: mocks.data, performanceAdminPage: mocks.page, feedbackAdminPage: mocks.feedbackPage, submitPerformanceReview: mocks.review, recalculatePerformanceEmployment: mocks.recalculate, moderateFeedback: mocks.moderate, correctFeedbackAttribution: mocks.correct } }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { googleReviewsAdminContext: vi.fn().mockResolvedValue({ positive_target: null, target_locked: false }), performanceAdminData: mocks.data, performanceAdminPage: mocks.page, feedbackAdminPage: mocks.feedbackPage, submitPerformanceReview: mocks.review, recalculatePerformanceEmployment: mocks.recalculate, moderateFeedback: mocks.moderate, correctFeedbackAttribution: mocks.correct } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
-import CrewPerformanceAdminPage from "../CrewPerformanceAdminPage.jsx";
+import { crewService } from "../../../../services/crewService.js";
+import { googleBusinessService } from "../../services/googleBusinessService.js";
+import CrewPerformanceAdminPage, { customerPreviewForResult } from "../CrewPerformanceAdminPage.jsx";
 
 const outlet = { id: "outlet-1", name: "Friends Corner", is_active: true };
 const row = { employee: { id: "employee-1", full_name: "Alex Tan", employee_code: "QA-01", position: "Service Crew" }, result: { id: "result-1", period_start: "2026-08-01", status: "review_required", current_score: 66, total_score: null, attendance_score: 28, service_score: 25, customer_score: null, knowledge_score: 13, peer_score: null, calculation_version: "performance-v2", components: { attendance: { score: 28, max_score: 30 }, service: { status: "reviewed", score: 25, max_score: 30 }, customer: { score: null, max_score: 20, status: "pending" }, knowledge: { score: 13, max_score: 15 }, peer: { score: null, max_score: 5, status: "pending" } } } };
@@ -41,7 +43,7 @@ describe("Crew Performance Admin", () => {
     expect(screen.getByText("Performance read timed out")).not.toBeNull();
     mocks.data.mockResolvedValueOnce(fixture);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByRole("heading", { name: "Review Queue" })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "Team Performance" })).not.toBeNull();
   });
 
   it("renders the server-derived overview and detail evidence", async () => {
@@ -50,7 +52,7 @@ describe("Crew Performance Admin", () => {
     fireEvent.click(screen.getAllByText("Alex Tan").at(-1));
     expect(screen.getByRole("dialog", { name: /Alex Tan · Performance/ })).not.toBeNull();
     expect(screen.getAllByText("66").length).toBeGreaterThan(0);
-    expect(screen.getByText("Customer: Pending · Google Review authority not available")).not.toBeNull();
+    expect(screen.getByText("Customer: Pending")).not.toBeNull();
   });
 
   it("shows V2 assessed points and pending Customer without a finalize action", async () => {
@@ -64,8 +66,8 @@ describe("Crew Performance Admin", () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click((await screen.findAllByText("Alex Tan")).at(-1));
     expect(within(screen.getByRole("dialog", { name: /Alex Tan · Performance/ })).getByText("Assessed points")).not.toBeNull();
-    expect(screen.getByText("3 of 5 components assessed · Pending: Customer, Team Review")).not.toBeNull();
-    expect(screen.getByText("Customer: Pending · Google Review authority not available")).not.toBeNull();
+    expect(screen.getByText("3 of 5 components assessed")).not.toBeNull();
+    expect(screen.getByText("Customer: Pending")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Finalize Performance" })).toBeNull();
   });
 
@@ -96,9 +98,10 @@ describe("Crew Performance Admin", () => {
 
   it("filters real Crew rows and shows a compact server-backed scoring reference", async () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    expect(await screen.findByText("—")).not.toBeNull();
-    expect(document.querySelector('[data-admin-summary-grid="standard"]')).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Review Queue" })).not.toBeNull();
+    expect((await screen.findAllByText("—")).length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-admin-summary-grid="compact"]')).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "Review Queue" })).toBeNull();
+    expect(screen.getAllByRole("table")).toHaveLength(1);
     expect(screen.queryByRole("heading", { name: "Needs Attention" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "How scoring works" }));
     expect(screen.getByRole("dialog", { name: "How scoring works" })).not.toBeNull();
@@ -109,8 +112,7 @@ describe("Crew Performance Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: /Clear/ }));
     await waitFor(() => expect(screen.getAllByText("Alex Tan").length).toBeGreaterThan(0));
     fireEvent.change(screen.getByPlaceholderText("Name or employee code"), { target: { value: "Nobody matches" } });
-    expect(await screen.findByText("No reviews match these filters")).not.toBeNull();
-    expect(screen.getByText("No Crew match these filters")).not.toBeNull();
+    expect(await screen.findByText("No Crew match these filters")).not.toBeNull();
   });
 
   it("keeps unfavorable feedback and records an audited exclusion", async () => {
@@ -131,7 +133,7 @@ describe("Crew Performance Admin", () => {
     expect(screen.getByText("Total Feedback").closest("[data-admin-summary-card]").textContent).toContain("2");
     fireEvent.change(screen.getByPlaceholderText("Search Crew, comment or tag"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Feedback scoring" }));
-    fireEvent.click(screen.getByRole("button", { name: "Excluded" }));
+    fireEvent.click(screen.getByRole("option", { name: "Excluded" }));
     expect(await screen.findByText("Too slow")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
     fireEvent.change(screen.getByPlaceholderText("Explain why this feedback should be restored"), { target: { value: "Duplicate was rechecked" } });
@@ -185,4 +187,112 @@ describe("Crew Performance Admin", () => {
     expect(screen.getAllByText("31").length).toBeGreaterThan(0);
     expect(screen.getAllByText("— / 30").length).toBeGreaterThan(0);
   });
+});
+
+
+describe("Customer preview canonical employment scope", () => {
+  const now = Date.parse("2026-11-02T11:00:00Z");
+  const preview = { status: "preview_only", score: 9.5, outletId: "outlet-1", period: "2026-10-01", expiresAt: "2026-11-02T11:05:00Z" };
+  const result = { status: "review_required", period_start: "2026-10-01", components: { employment: { state: "eligible", outlet_id: "outlet-1" } } };
+  it("shares one preview between eligible employees using the actual result projection", () => {
+    expect(customerPreviewForResult({ ...result, id: "employee-result-1" }, preview, now)).toBe(preview);
+    expect(customerPreviewForResult({ ...result, id: "employee-result-2" }, preview, now)).toBe(preview);
+  });
+  it.each([
+    { ...result, status: "finalized" },
+    { ...result, employment_review_required: true },
+    { ...result, period_start: "2026-09-01" },
+    { ...result, components: { employment: { state: "ineligible", outlet_id: "outlet-1" } } },
+    { ...result, components: { employment: { state: "eligible", outlet_id: "outlet-2" } } },
+  ])("does not substitute an outlet preview into finalized, unresolved or unrelated evidence", value => {
+    expect(customerPreviewForResult(value, preview, now)).toBeNull();
+  });
+  it("clears at the exact five-minute expiry", () => {
+    expect(customerPreviewForResult(result, preview, now + 300000)).toBeNull();
+  });
+});
+
+
+it('requests only the canonical Team listing and navigates reviews with the selected period', async () => {
+ render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{outlets:[outlet]}} />);
+ await screen.findByRole('heading',{name:'Team Performance'});
+ expect(mocks.page.mock.calls.every(([query]) => query.listing === 'team')).toBe(true);
+ fireEvent.click(screen.getByRole('button',{name:'Open Performance for Alex Tan'}));
+ expect(screen.getByRole('dialog',{name:/Alex Tan · Performance/})).not.toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'View Service Review'}));
+ expect(screen.getByRole('dialog',{name:'Service Standards Review'})).not.toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Cancel',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'Open Team Review for Alex Tan'}));
+ expect(window.location.pathname).toBe('/crew/performance/team-review');
+ expect(new URLSearchParams(window.location.search).get('period')).toMatch(/^\d{4}-\d{2}-01$/);
+ window.history.replaceState(null,'','/');
+});
+
+
+it('keeps one canonical pagination control and period KPIs independent of the displayed page', async () => {
+ const crew = Array.from({length:21}, (_,i) => ({...row, employee:{...row.employee,id:`crew-${i}`,full_name:`Crew ${i+1}`}}));
+ mocks.data.mockResolvedValue({...fixture, crew, summary:{crew_total:21,reviewed:0,awaiting_review:21,average_score:null}});
+ mocks.page.mockImplementation(({page=1,pageSize=20}) => Promise.resolve({rows:crew.slice((page-1)*pageSize,page*pageSize),total_count:21,page,page_size:pageSize}));
+ render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{outlets:[outlet]}} />);
+ await screen.findByRole('button',{name:'Open Performance for Crew 1'});
+ expect(document.querySelectorAll('[data-pagination-density]')).toHaveLength(1);
+ fireEvent.click(screen.getAllByRole('button',{name:'Next',exact:true})[0]);
+ expect(await screen.findByRole('button',{name:'Open Performance for Crew 21'})).not.toBeNull();
+ expect(screen.queryByRole('button',{name:'Open Performance for Crew 1',exact:true})).toBeNull();
+ expect(screen.getByText('Reviews Complete').closest('[data-admin-summary-card]').textContent).toContain('0 / 21');
+ expect(document.querySelectorAll('[data-admin-summary-card]')).toHaveLength(3);
+ expect(mocks.page).toHaveBeenCalledWith(expect.objectContaining({listing:'team',page:2,pageSize:20}));
+});
+
+it('distinguishes finalized averages from completed reviews and blocks editing finalized evidence', async () => {
+ const finalized = {...row,result:{...row.result,status:'finalized',total_score:88}};
+ mocks.data.mockResolvedValue({...fixture,crew:[finalized],summary:{crew_total:1,reviewed:1,awaiting_review:0,average_score:88}});
+ mocks.page.mockResolvedValue({rows:[finalized],total_count:1,page:1,page_size:20});
+ render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{outlets:[outlet]}} />);
+ await screen.findByText('88 / 100');
+ fireEvent.click(screen.getByRole('button',{name:'Open Performance for Alex Tan'}));
+ expect(screen.queryByRole('button',{name:'View Service Review'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Service Review',exact:true})).toBeNull();
+ expect(screen.getByText('Final Score /100')).not.toBeNull();
+});
+
+
+it('masks the previous outlet KPIs and rows if a new outlet read fails', async () => {
+ const finalized = {...row,result:{...row.result,status:'finalized',total_score:88}};
+ mocks.data.mockImplementation(outletId => outletId === 'outlet-1' ? Promise.resolve({...fixture,crew:[finalized],summary:{average_score:88,reviewed:1,awaiting_review:0}}) : Promise.reject(new Error('Second outlet unavailable')));
+ render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{outlets:[outlet,{id:'outlet-2',name:'Other Outlet',is_active:true}]}} />);
+ await screen.findByText('88 / 100');
+ fireEvent.click(screen.getByRole('button',{name:'Outlet',exact:true}));
+ fireEvent.click(screen.getByRole('option',{name:'Other Outlet',exact:true}));
+ await screen.findByText('Second outlet unavailable');
+ expect(screen.queryByText('88 / 100')).toBeNull();
+ expect(screen.queryByRole('button',{name:'Open Performance for Alex Tan'})).toBeNull();
+ expect(screen.getByText('Evidence unavailable')).not.toBeNull();
+});
+
+
+it.each([0,6.5])('shows shared provisional %s in eligible rows/details without changing assessed totals or finalized scores', async (customerScore) => {
+ const period = new Date().toISOString().slice(0,7)+'-01';
+ const eligible = {...row,result:{...row.result,period_start:period,total_score:null,current_score:66,components:{...row.result.components,employment:{state:'eligible',outlet_id:'outlet-1'}}}};
+ const frozen = {...eligible,employee:{...eligible.employee,id:'frozen',full_name:'Frozen Crew'},result:{...eligible.result,status:'finalized',total_score:85,customer_score:20,components:{...eligible.result.components,customer:{score:20,max_score:20,status:'finalized'}}}};
+ mocks.data.mockResolvedValue({...fixture,crew:[eligible,frozen]});
+ mocks.page.mockResolvedValue({rows:[eligible,frozen],total_count:2,page:1,page_size:20});
+ vi.mocked(crewService.googleReviewsAdminContext).mockResolvedValueOnce({positive_target:10,target_locked:false});
+ const remote = vi.spyOn(googleBusinessService,'customerPreview').mockResolvedValue({status:'preview_only',periodState:'provisional',score:customerScore,positiveTarget:customerScore ? 1.5 : 0,quality:customerScore ? 5 : 0,positive:customerScore ? 1 : 0,total:customerScore ? 1 : 0,negative:0,negativeRate:customerScore ? 0 : null,target:10,fetchedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+300000).toISOString()});
+ try {
+  render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{outlets:[outlet]}} />);
+  await screen.findByRole('button',{name:'Open Performance for Alex Tan'});
+  await waitFor(() => expect(screen.getByRole('button',{name:'Refresh Preview'}).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button',{name:'Refresh Preview'}));
+  const activeRow = screen.getByRole('button',{name:'Open Performance for Alex Tan'}).closest('tr');
+  await within(activeRow).findByText(`${customerScore} / 20`);
+  expect(within(activeRow).getByText('Preview')).not.toBeNull();
+  expect(within(activeRow).getByText('66')).not.toBeNull();
+  const frozenRow = screen.getByRole('button',{name:'Open Performance for Frozen Crew'}).closest('tr');
+  expect(within(frozenRow).getByText('20 / 20')).not.toBeNull();
+  expect(within(frozenRow).getByText('85')).not.toBeNull();
+  expect(within(frozenRow).queryByText('Preview')).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Open Performance for Alex Tan'}));
+  expect(await screen.findByText(`Outlet Customer preview: ${customerScore} / 20 · Not included in saved Performance.`)).not.toBeNull();
+ } finally {remote.mockRestore();}
 });

@@ -87,3 +87,12 @@ describe("Team Review Admin workspace", () => {
     expect(screen.getAllByText("Awaiting reviews").every((item) => item.classList.contains("is-pending"))).toBe(true);
   });
 });
+
+
+it('opens the Performance-selected month through the canonical Team Review query', async () => {
+ window.history.replaceState(null,'','/crew/performance/team-review?period=2026-10-01');
+ try {
+  render(<CrewTeamReviewAdminPage auth={auth} store={store} />);
+  await waitFor(() => expect(mocks.read).toHaveBeenCalledWith('outlet-1','2026-10-01'));
+ } finally { window.history.replaceState(null,'','/'); }
+});

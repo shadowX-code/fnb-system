@@ -10,6 +10,25 @@ describe("dormant server Google review contract", () => {
     await expect(reconcileGoogleReviewMonth(p, location, "2026-09-01", GOOGLE_REVIEWS_CAPABILITY)).rejects.toThrow("not approved");
     expect(p.listReviews).not.toHaveBeenCalled();
   });
+  it.each([
+    { apiAvailable: true, policyApproved: false },
+    { apiAvailable: false, policyApproved: true },
+  ])("requires API and separate scoring-policy approval: %j", async (approval) => {
+    const p = provider([]);
+    await expect(reconcileGoogleReviewMonth(p, location, "2026-09-01", approval)).rejects.toThrow("not approved");
+    expect(p.listReviews).not.toHaveBeenCalled();
+  });
+  it("includes neutral reviews in the quality denominator without counting them positive", async () => {
+    const p = provider([{ reviews: ["ONE", "TWO", "THREE", "FOUR", "FIVE"].map((rating, i) => review(String(i), rating)) }]);
+    expect(await reconcileGoogleReviewMonth(p, location, "2026-09-01", gate)).toMatchObject({
+      total: 5, positive: 2, negative: 2, negativeRate: 0.4,
+      breakdown: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 },
+    });
+  });
+  it.each([0, -1, NaN, 1.5])("does not substitute a score for an unavailable valid target: %s", (target) => {
+    expect(previewGoogleCustomerScore({ evidence_status: "complete", total: 10, positive: 10, negative: 0 }, target))
+      .toEqual({ status: "pending", score: null });
+  });
   it("reconciles all pages, deduplicates external identity and uses creation month in Malaysia", async () => {
     const p = provider([{ reviews: [review("a"), review("old", "FIVE", "2026-07-01T00:00:00Z", "2026-09-01T00:00:00Z")], nextPageToken: "next" }, { reviews: [review("a"), review("b", "TWO", "2026-08-31T16:01:00Z")] }]);
     expect(await reconcileGoogleReviewMonth(p, location, "2026-09-01", gate)).toMatchObject({ total: 2, positive: 1, negative: 1, negativeRate: 0.5 });
@@ -39,9 +58,11 @@ describe("dormant server Google review contract", () => {
   it.each([[2,5],[3,4],[5,4],[6,3],[10,3],[11,2],[15,2],[16,1],[20,1],[21,0]])("preserves quality boundary at %s percent", (negative, quality) => {
     expect(previewGoogleCustomerScore({ evidence_status: "complete", total: 100, positive: 50, negative }, 50)).toMatchObject({ quality, score: 15 + quality });
   });
-  it("keeps missing/zero-denominator evidence pending and caps the approved positive target", () => {
+  it("keeps missing evidence pending, scores confirmed zero as zero and preserves the positive target calculation", () => {
     expect(previewGoogleCustomerScore({ evidence_status: "partial", total: 100, positive: 100, negative: 0 }, 50).score).toBeNull();
-    expect(previewGoogleCustomerScore({ evidence_status: "complete", total: 0, positive: 0, negative: 0 }, 50).score).toBeNull();
+    expect(previewGoogleCustomerScore({ evidence_status: "complete", total: 0, positive: 0, negative: 0 }, 50)).toMatchObject({score:0,positiveTarget:0,quality:0});
+    expect(previewGoogleCustomerScore({ evidence_status: "partial", total: 0, positive: 0, negative: 0 }, 50).score).toBeNull();
+    expect(previewGoogleCustomerScore({ evidence_status: "complete", total: 0, positive: 0, negative: 0 }, 0).score).toBeNull();
     expect(previewGoogleCustomerScore({ evidence_status: "complete", total: 10, positive: 5, negative: 0 }, 10)).toMatchObject({ positiveTarget: 7.5, score: 12.5 });
   });
 });

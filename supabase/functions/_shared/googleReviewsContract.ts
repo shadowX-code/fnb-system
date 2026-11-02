@@ -1,5 +1,5 @@
-// Server-only, dormant integration contract. No network, credentials or persistence.
-// Google content must not enter this boundary before policy approval.
+// Server-only contract. Persistent scoring/reconciliation stays policy-gated.
+// Request-local previews reuse the pure classifier/scorer, never stored content.
 export interface GoogleReviewRecord {
   name: string;
   createTime: string;
@@ -54,9 +54,14 @@ export async function reconcileGoogleReviewMonth(provider: GoogleReviewsProvider
     if (token && seenTokens.has(token)) throw new Error("Repeated Google page token.");
     if (token) seenTokens.add(token);
   } while (token);
+  return googleReviewMonthEvidence([...reviews.values()], period, pages);
+}
+
+// Transient classification shared by the dormant contract and live-request preview.
+export function googleReviewMonthEvidence(reviews: GoogleReviewRecord[], period: string, pages = 1) {
   const month = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit" });
   const breakdown: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-  for (const review of reviews.values()) {
+  for (const review of reviews) {
     const parts = month.formatToParts(new Date(review.createTime));
     const key = `${parts.find(p => p.type === "year")?.value}-${parts.find(p => p.type === "month")?.value}`;
     if (key === period.slice(0, 7)) ++breakdown[ratings[review.starRating]];
@@ -69,12 +74,12 @@ export async function reconcileGoogleReviewMonth(provider: GoogleReviewsProvider
     averageRating: total ? Object.entries(breakdown).reduce((sum, [rating, count]) => sum + Number(rating) * count, 0) / total : null };
 }
 
-// Approved weights, not wired to Performance. Zero eligible reviews has no
-// quality denominator; the approved rule keeps Customer pending, never 5 by default.
+// A verified complete empty month earns no Customer points. Missing evidence
+// still stays pending; absence must never be inferred from a failed/partial sync.
 export function previewGoogleCustomerScore(evidence: { evidence_status: string; total: number; positive: number; negative: number }, target: number) {
   if (evidence.evidence_status !== "complete" || !Number.isSafeInteger(target) || target <= 0) return { status: "pending", score: null };
   if (![evidence.total, evidence.positive, evidence.negative].every(n => Number.isSafeInteger(n) && n >= 0) || evidence.positive + evidence.negative > evidence.total) throw new Error("Invalid monthly Google evidence.");
-  if (!evidence.total) return { status: "pending", score: null, reason: "no_eligible_reviews" };
+  if (!evidence.total) return { status: "preview_only", score: 0, positiveTarget: 0, quality: 0 };
   const rate = evidence.negative / evidence.total;
   const quality = rate <= 0.02 ? 5 : rate <= 0.05 ? 4 : rate <= 0.10 ? 3 : rate <= 0.15 ? 2 : rate <= 0.20 ? 1 : 0;
   const positiveTarget = Math.min(evidence.positive / target, 1) * 15;

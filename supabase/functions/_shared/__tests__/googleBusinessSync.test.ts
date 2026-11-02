@@ -30,6 +30,23 @@ describe('shared review sync',()=>{
   const f=await fixture();f.call.mockImplementation(async(action:string)=>{if(action==='sync_finish')throw new BusinessProfileError('sync_authority_changed',409);return action==='material'?f.material:{lease:'lease-a'};});
   await expect(synchronizeBusinessReviews({...f,transport:async()=>Response.json({reviews:[]})})).rejects.toMatchObject({code:'sync_authority_changed'});expect(f.call.mock.calls.filter(c=>c[0]==='sync_finish')).toHaveLength(1);
  });
+ it('passes the same complete snapshot to settlement only after sync commits, with no additional Google request',async()=>{
+  const f=await fixture(),transport=vi.fn(async()=>Response.json({reviews:[review('a')],totalReviewCount:1,averageRating:5}));
+  const onSynchronized=vi.fn(async(snapshot,material)=>{
+   expect(f.call.mock.calls.some(c=>c[0]==='sync_finish')).toBe(true);
+   expect(snapshot.reviews).toHaveLength(1);expect(material.mapping.revision).toBe('rev-a');
+   return {status:'pending',reason:'google_retention_unresolved'};
+  });
+  expect(await synchronizeBusinessReviews({...f,transport,onSynchronized})).toMatchObject({ok:true,customer:{status:'pending'}});
+  expect(transport).toHaveBeenCalledTimes(1);expect(onSynchronized).toHaveBeenCalledTimes(1);
+ });
+ it('retains successful Inbox synchronization when settlement fails and can retry on the next run',async()=>{
+  const f=await fixture(),onSynchronized=vi.fn().mockRejectedValueOnce(new Error('temporary settlement failure')).mockResolvedValueOnce({status:'settled'});
+  const transport=vi.fn(async()=>Response.json({reviews:[],totalReviewCount:0}));
+  expect(await synchronizeBusinessReviews({...f,transport,onSynchronized})).toMatchObject({ok:true,customer:{status:'pending',reason:'settlement_retry_required'}});
+  expect(f.call.mock.calls.some(c=>c[0]==='sync_error')).toBe(false);
+  expect(await synchronizeBusinessReviews({...f,transport,onSynchronized})).toMatchObject({ok:true,customer:{status:'settled'}});
+ });
 });
 describe('scheduled sync pacing',()=>{
  it('syncs each mapped outlet sequentially with at most one transient retry',async()=>{
