@@ -4,7 +4,7 @@ import { googleBusinessEnvironment } from '../_shared/googleBusinessEnvironment.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { hash, nonce, seal, unseal, base64url, tokenEncryptionReady } from '../_shared/metaSecurity.ts';
 import { assertCustomerPreviewBasis, customerPerformancePreview } from '../_shared/googleCustomerPreview.ts';
-import { settleCustomerMonths } from '../_shared/googleCustomerSettlement.ts';
+import { resolveCustomerPerformance, settleCustomerMonths } from '../_shared/googleCustomerSettlement.ts';
 import type { GoogleReviewRecord } from '../_shared/googleReviewsContract.ts';
 import { googleGrant, DriveError } from '../_shared/googleDrive.ts';
 import { GoogleBusinessProfile, BUSINESS_SCOPE, BusinessProfileError, completePages, readReviewInbox, reviewInboxPayload, revokeBusinessGrant } from '../_shared/googleBusinessProfile.ts';
@@ -53,6 +53,13 @@ export async function handle(req: Request) {
    {reply:await unseal(record.sealed_remote,keys(),`google-business:reply-remote:${record.id}`),expiresAt:record.content_expires_at}])));
  };
  const grant = (params: Record<string, string>) => googleGrant(params, env('GOOGLE_BUSINESS_CLIENT_ID'), env('GOOGLE_BUSINESS_CLIENT_SECRET'), fetch, false);
+ const settleCustomer = async(id:string,period:string|null,basis:any=null,customer:any=null)=>{
+  const result=await db.rpc('crew_performance_settle_customer_month',{p_outlet:id,p_period:period,p_basis:basis,p_customer:customer});
+  if(result.error)throw new Error('Automatic Customer settlement will retry.');return result.data;
+ };
+ const settleSnapshot = (id:string,snapshot:any,material:any)=>settleCustomerMonths({snapshot,generation:material.generation,
+  revision:material.mapping.revision,location:material.mapping.location_resource_name,
+  settle:(period,basis,customer)=>settleCustomer(id,period,basis ?? null,customer ?? null)});
  const discovery = async (provider: GoogleBusinessProfile) => {
   const accounts = await completePages<any>(async t => { const p = await provider.listAccounts(t); return { rows: p.accounts, nextPageToken: p.nextPageToken }; });
   const locations = [];
@@ -77,12 +84,7 @@ export async function handle(req: Request) {
     result=await runScheduledReviewSync(claimed.outlets,async(id:string)=>{
      const scoped=async(command:string,data:any={})=>{const result=await db.rpc('crew_google_business_server',{p_action:command,p_user:null,p_outlet:id,p_data:{...data,worker_run:run,worker_proof:proof}});if(result.error)throw new BusinessProfileError('sync_authority_changed',409);return result.data;};
      return synchronizeBusinessReviews({call:scoped,key:secret(),keys:keys(),grant,deadline:Math.min(deadline,Date.now()+90000),
-      onSynchronized: (snapshot,material)=>settleCustomerMonths({snapshot,generation:material.generation,
-       revision:material.mapping.revision,location:material.mapping.location_resource_name,
-       settle:async(period,basis,customer)=>{
-        const settled=await db.rpc('crew_performance_settle_customer_month',{p_outlet:id,p_period:period,p_basis:basis ?? null,p_customer:customer ?? null});
-        if(settled.error)throw new Error('Customer settlement will retry after synchronization.');return settled.data;
-       }})});
+      onSynchronized: (snapshot,material)=>settleSnapshot(id,snapshot,material)});
     },{deadline});
     await worker('finish',{error:result.stopped || (result.failed ? 'location_sync_failed' : '')});
    }catch{await worker('finish',{error:'scheduled_sync_failed'}).catch(()=>{});throw new Error('Scheduled sync could not finish.');}
@@ -125,11 +127,13 @@ export async function handle(req: Request) {
     const [result, history] = await Promise.all([viewer.rpc('crew_google_reviews_admin_context', params), viewer.rpc('crew_google_target_history', params)]);
     if (result.error || history.error) throw new Error('Performance access is required for this outlet and month.');
     const revision = history.data?.rows?.[0];
-    if (result.data.positive_target != null && (!revision || revision.new_target !== result.data.positive_target)) throw new Error('Monthly target history changed or is unavailable. Reload the target.');
+    if (!result.data.customer_summary && result.data.positive_target != null && (!revision || revision.new_target !== result.data.positive_target)) throw new Error('Monthly target history changed or is unavailable. Reload the target.');
     return { ...result.data, target_revision: revision?.id ?? null };
    };
    const initial = await target();
-   return reply(await customerPerformancePreview({ period: body.period, context, target: initial.positive_target,
+   return reply(await resolveCustomerPerformance({period:body.period,initial,context,
+    settle:(period,basis,customer)=>settleCustomer(outlet!,period,basis,customer),
+    preview:()=>customerPerformancePreview({ period: body.period, context, target: initial.positive_target,
     read: async () => {
      const material = await call('material');
      if (material.generation !== context.generation || material.mapping?.revision !== context.mapping?.revision || material.mapping?.location_resource_name !== context.mapping?.name) throw new Error('Outlet mapping changed. Refresh the preview.');
@@ -140,7 +144,7 @@ export async function handle(req: Request) {
      assertCustomerPreviewBasis(context, latest, initial, await target());
      return { ...payload, fetchedAt: new Date().toISOString() };
     }
-   }));
+   })}));
   }
   if (action === 'context') {
    const result = { ...context, configured: Boolean(configured()) && await tokenEncryptionReady(secret()), reviews: [], google_aggregate: null };
@@ -180,7 +184,8 @@ export async function handle(req: Request) {
    if (['confirmed','rejected','conflict'].includes(state.status)) { const remoteReply=state.sealed_remote ? await unseal(state.sealed_remote,keys(),`google-business:reply-remote:${state.id}`) : null; return reply({id:state.id,status:state.status,code:state.code,remoteReply,expectedHash:remoteReply ? await replyFingerprint(remoteReply) : undefined}); }
   }
   if (!['sync','discover','review','reply','reply_status'].includes(action)) return reply({ error: 'Endpoint unavailable.' }, 404);
-  if(action==='sync')return reply(await synchronizeBusinessReviews({call,key:secret(),keys:keys(),grant}));
+  if(action==='sync')return reply(await synchronizeBusinessReviews({call,key:secret(),keys:keys(),grant,
+   onSynchronized:(snapshot,material)=>settleSnapshot(outlet!,snapshot,material)}));
   if(action==='discover' && !context.can_manage_connection)throw new Error('Manage Connection permission is required.');
   let material=await call('material'),token:any,tokenPromise:Promise<void>|undefined;
   const resolveToken=()=>tokenPromise ||= (async()=>{const resolved=await resolveBusinessToken({call,material,keys:keys(),key:secret(),grant,force:action==='discover'});material=resolved.material;token=resolved.token;})();

@@ -89,6 +89,17 @@ it('shows the immutable monthly summary without fetching or replacing it with a 
  expect(mocks.preview).not.toHaveBeenCalled();
 });
 
+it('reconciles an official closed-month response immediately without a reload or manual Finalize', async()=>{
+ vi.useFakeTimers(); const onPreview=vi.fn();
+ const summary={status:'settled',score:9.5,settled_at:new Date().toISOString()};
+ mocks.preview.mockResolvedValue({status:'settled',score:9.5,summary,persisted:true});
+ mount({onPreview});await act(async()=>{});await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+ expect(screen.getByText('Settled')).not.toBeNull();expect(screen.getByText('9.5 / 20')).not.toBeNull();
+ expect(screen.queryByText('Preview')).toBeNull();expect(screen.queryByRole('button',{name:'Refresh Preview'})).toBeNull();
+ expect(onPreview).toHaveBeenLastCalledWith(expect.objectContaining({status:'settled',outletId:'outlet-1',period:'2026-10-01'}));
+ expect(mocks.save).not.toHaveBeenCalled();
+});
+
 it('automatically displays a confirmed empty month as 0/20 rather than Pending or 5/20', async () => {
  vi.useFakeTimers();
  mocks.preview.mockResolvedValue({status:'preview_only',periodState:'provisional',score:0,positiveTarget:0,quality:0,

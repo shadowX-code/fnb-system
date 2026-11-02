@@ -1,6 +1,29 @@
 import { customerPerformancePreview } from './googleCustomerPreview.ts';
 import type { GoogleReviewRecord } from './googleReviewsContract.ts';
 
+// Performance reads and complete syncs converge on the same settlement RPC.
+export async function resolveCustomerPerformance(options: {
+  period: string; initial: any; context: any;
+  preview: () => Promise<any>;
+  settle: (period: string, basis: any, customer: any) => Promise<any>;
+}) {
+  const settled = (summary: any) => ({ status: 'settled', persisted: true,
+    period: options.period, score: summary.score, summary });
+  if (options.initial.customer_summary) return settled(options.initial.customer_summary);
+  const result = await options.preview();
+  if (result.status !== 'preview_only' || result.periodState !== 'closed_month') return result;
+  try {
+    const saved = await options.settle(options.period, {
+      generation: options.context.generation, revision: options.context.mapping.revision,
+      location: options.context.mapping.name, target_revision: options.initial.target_revision,
+      fetchedAt: result.fetchedAt,
+    }, { score: result.score, positiveTarget: result.positiveTarget, quality: result.quality });
+    return saved.status === 'settled' ? settled(saved.summary) : saved;
+  } catch {
+    return { status: 'pending', score: null, reason: 'settlement_retry_required', persisted: false };
+  }
+}
+
 // Uses the existing complete GET snapshot, scorer and Performance authority.
 // Frozen monthly outcomes return before any source classification or recalculation.
 export async function settleCustomerMonths(options: {
