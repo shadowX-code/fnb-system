@@ -85,7 +85,7 @@ export default function LocalizedContentEditor({ domain, versionId, sourceLangua
         setSuccess("No missing translations for this language");
         return;
       }
-      const translated = await crewService.translateLocalizedContent(domain, versionId, comparison ? missingIds : null, comparison ? [language] : null);
+      const translated = await crewService.translateLocalizedContent(domain, versionId, comparison ? missingIds : canonicalUnits.map((source) => saved.units[source.unit_key].id), comparison ? [language] : null);
       // The Edge Function response is read after the complete server-side apply.
       // Read again to prevent a previously-open editor from retaining stale units.
       const refreshed = await crewService.localizedContentAdmin(domain, versionId);

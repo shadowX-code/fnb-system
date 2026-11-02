@@ -103,7 +103,7 @@ const journey = {
   updated_at: "2026-08-12T00:00:00Z",
   modules,
 };
-const draftJourney = { ...structuredClone(journey), id: "journey-draft", version: 3, status: "draft" };
+const draftJourney = { ...structuredClone(journey), id: "journey-draft", version: 3, status: "draft", draft_revision: 0 };
 const categories = [{ id: "cat-service", name: "Service", sort_order: 10 }];
 const sops = [
   {
@@ -141,7 +141,7 @@ beforeEach(() => {
     },
   ]);
   mocks.listSops.mockReset().mockResolvedValue({ categories, sops });
-  mocks.saveOnboardingDraft.mockReset().mockImplementation(async (_original, next) => structuredClone(next));
+  mocks.saveOnboardingDraft.mockReset().mockImplementation(async (_original, next) => ({ ...structuredClone(next), draft_revision: Number(_original.draft_revision || 0) + 1 }));
   mocks.newJourneyVersion.mockReset().mockResolvedValue("journey-draft");
   mocks.createDefaultOnboarding.mockReset().mockResolvedValue("journey-draft");
   mocks.uploadLearningMedia.mockReset().mockResolvedValue({
@@ -169,12 +169,12 @@ describe("Crew Learning architecture reset UI", () => {
     await screen.findByRole("heading", { name: "New Crew Onboarding", level: 1 });
     expect(screen.getAllByText("New Crew Onboarding")).toHaveLength(1);
     expect(screen.getByLabelText("Outlet").textContent).toContain("Hola Hola Kopitiam Ipoh");
-    const onboardingSummary = screen.getByLabelText("Onboarding summary");
-    expect([...onboardingSummary.querySelectorAll("[data-admin-summary-card]")].find((card) => card.textContent.includes("Modules")).textContent).toContain("8");
-    expect(screen.getByText("Published · Unpublished changes")).not.toBeNull();
+    expect(screen.getByText(/8 modules · 8 lessons/)).not.toBeNull();
+    expect(screen.getByText("Published")).not.toBeNull();
+    expect(screen.getByText("Draft")).not.toBeNull();
     expect(screen.getByText("v2")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Edit Draft" })).not.toBeNull();
-    expect(screen.queryByText("Overview")).toBeNull();
+    expect(screen.getByRole("tab", { name: "Overview" })).not.toBeNull();
     expect(screen.queryByText("Journey Settings")).toBeNull();
     for (const module of modules) expect(screen.getByText(module.title)).not.toBeNull();
 
@@ -189,8 +189,8 @@ describe("Crew Learning architecture reset UI", () => {
 
   it("opens module information without navigating to another page", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
-    fireEvent.click(await screen.findByRole("button", { name: /01.*Welcome & Workplace/i }));
-    expect(screen.getByRole("dialog", { name: "Welcome & Workplace" })).not.toBeNull();
+    fireEvent.click((await screen.findByText("Welcome & Workplace", { selector: "summary strong" })).closest("summary"));
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByText("Welcome & Workplace essentials")).not.toBeNull();
   });
 
@@ -199,13 +199,13 @@ describe("Crew Learning architecture reset UI", () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Create Draft" }));
     await waitFor(() => expect(mocks.newJourneyVersion).toHaveBeenCalledWith("journey-2"));
-    expect(await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" })).not.toBeNull();
+    expect(await screen.findByRole("region", { name: "Onboarding Builder" })).not.toBeNull();
   });
 
   it("retains edits while switching modules and sends one whole-draft save", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
-    expect(await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" })).not.toBeNull();
+    expect(await screen.findByRole("region", { name: "Onboarding Builder" })).not.toBeNull();
     expect(screen.queryByText("Journey Settings")).toBeNull();
 
     const title = screen.getByLabelText("Module Title");
@@ -225,7 +225,7 @@ describe("Crew Learning architecture reset UI", () => {
   it("uses accessible drag handles for module and lesson ordering while reserving overflow for delete", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
-    await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
+    await screen.findByRole("region", { name: "Onboarding Builder" });
     expect(screen.getByRole("heading", { name: "Welcome & Workplace" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Lessons" })).not.toBeNull();
     const reorderModule = screen.getByRole("button", { name: /Reorder module 1/i });
@@ -238,10 +238,10 @@ describe("Crew Learning architecture reset UI", () => {
   it("edits lessons and content in the same editor and preserves unsaved state", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
-    await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
+    await screen.findByRole("region", { name: "Onboarding Builder" });
     fireEvent.click(screen.getByText("Welcome & Workplace essentials", { selector: ".crew-onboarding-lesson-entry strong" }).closest("button"));
     fireEvent.change(screen.getByLabelText("Lesson Title"), { target: { value: "Welcome to Friends Corner" } });
-    fireEvent.click(screen.getByRole("button", { name: "Welcome & Workplace" }));
+    fireEvent.click(screen.getByText("Welcome & Workplace", { selector: ".crew-onboarding-module-outline strong" }).closest("button"));
     fireEvent.click(screen.getByText("Welcome to Friends Corner", { selector: ".crew-onboarding-lesson-entry strong" }).closest("button"));
     expect(screen.getByLabelText("Lesson Title").value).toBe("Welcome to Friends Corner");
     expect(screen.getByText("Draft v3 · Unsaved changes")).not.toBeNull();
@@ -256,7 +256,7 @@ describe("Crew Learning architecture reset UI", () => {
   it("uploads learning images into draft state and persists only durable media metadata", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
-    await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
+    await screen.findByRole("region", { name: "Onboarding Builder" });
     fireEvent.click(screen.getByText("Welcome & Workplace essentials", { selector: ".crew-onboarding-lesson-entry strong" }).closest("button"));
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     await screen.findByRole("button", { name: "Add or replace lesson image" });
@@ -277,16 +277,50 @@ describe("Crew Learning architecture reset UI", () => {
   it("warns before discarding unsaved changes and saves before publish", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
-    await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
+    await screen.findByRole("region", { name: "Onboarding Builder" });
     fireEvent.change(screen.getByLabelText("Module Title"), { target: { value: "Changed Module" } });
     ui.confirm.mockResolvedValueOnce(false);
-    fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+    fireEvent.click(screen.getByRole("button", { name: "New Crew Onboarding" }));
     await waitFor(() => expect(ui.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "You have unsaved changes." })));
 
     ui.confirm.mockResolvedValueOnce(true);
     fireEvent.click(screen.getByRole("button", { name: "Publish v3" }));
     await waitFor(() => expect(mocks.saveOnboardingDraft).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(mocks.publishJourney).toHaveBeenCalledWith("journey-draft"));
+    await waitFor(() => expect(mocks.publishJourney).toHaveBeenCalledWith("journey-draft", expect.any(Number)));
+  });
+
+  it("confirms whole Knowledge Check deletion and persists the empty quiz set", async () => {
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
+    await screen.findByRole("region", { name: "Onboarding Builder" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByText("Customer Arrival & Greeting essentials", { selector: ".crew-onboarding-outline-lessons strong" }).closest("button"));
+    fireEvent.click(screen.getByRole("button", { name: "Knowledge Check actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await waitFor(() => expect(ui.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Delete Knowledge Check?" })));
+    await waitFor(() => expect(screen.queryByText("1 Questions · Pass 80%")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(mocks.saveOnboardingDraft).toHaveBeenCalled());
+    expect(mocks.saveOnboardingDraft.mock.calls[0][1].modules[1].lessons[0].quizzes).toEqual([]);
+  });
+
+  it("retains failed edits, blocks publish and retries without duplicate submissions", async () => {
+    mocks.saveOnboardingDraft.mockRejectedValueOnce(new Error("Connection interrupted"));
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
+    await screen.findByRole("region", { name: "Onboarding Builder" });
+    fireEvent.change(screen.getByLabelText("Module Title"), { target: { value: "Retained unsaved module" } });
+    fireEvent.click(screen.getByRole("button", { name: "Publish v3" }));
+    expect(await screen.findByRole("alert")).not.toBeNull();
+    expect(screen.getByLabelText("Module Title").value).toBe("Retained unsaved module");
+    expect(mocks.publishJourney).not.toHaveBeenCalled();
+    const request = mocks.saveOnboardingDraft.mock.calls[0][2].requestId;
+    const retryButton = screen.getByRole("button", { name: "Save Draft" });
+    fireEvent.click(retryButton);
+    fireEvent.click(retryButton);
+    await waitFor(() => expect(mocks.saveOnboardingDraft).toHaveBeenCalledTimes(2));
+    expect(mocks.saveOnboardingDraft.mock.calls[1][2].requestId).toBe(request);
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 
   it("switches outlet context and scopes every Admin query to the selected outlet", async () => {
@@ -296,7 +330,7 @@ describe("Crew Learning architecture reset UI", () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     await screen.findByText(/No onboarding setup for/);
     fireEvent.click(screen.getByLabelText("Outlet"));
-    fireEvent.click(screen.getByRole("button", { name: "JYMT Kopitiam" }));
+    fireEvent.click(screen.getByRole("option", { name: "JYMT Kopitiam" }));
     await waitFor(() => expect(mocks.listOnboarding).toHaveBeenCalledWith("outlet-2"));
     expect(mocks.progress).toHaveBeenCalledWith("outlet-2");
     expect(mocks.listSops).toHaveBeenCalledWith("outlet-2");
@@ -348,7 +382,7 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.getByText("Languages: EN · 中文")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Clone to Draft" }));
     await waitFor(() => expect(mocks.cloneOnboarding).toHaveBeenCalledWith("outlet-2", "outlet-1"));
-    expect(await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" })).not.toBeNull();
+    expect(await screen.findByRole("region", { name: "Onboarding Builder" })).not.toBeNull();
   });
 
   it("blocks clone without overwriting an existing destination draft", async () => {

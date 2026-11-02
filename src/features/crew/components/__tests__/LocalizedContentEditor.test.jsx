@@ -16,7 +16,7 @@ describe("Task language comparison", () => {
     expect(screen.queryByText("Deleted block")).toBeNull();
     expect(screen.queryByRole("tablist")).toBeNull();
     fireEvent.click(screen.getByLabelText("Translate to"));
-    fireEvent.click(await screen.findByRole("button", { name: "Bahasa Melayu" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Bahasa Melayu" }));
     expect(screen.getByDisplayValue("Tugas pembukaan")).toBeTruthy();
     expect(screen.getByText("Opening Duties")).toBeTruthy();
   });
@@ -48,7 +48,7 @@ describe("SOP language comparison", () => {
     expect(screen.getAllByText("Missing").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Outdated").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByLabelText("Translate to"));
-    fireEvent.click(await screen.findByRole("button", { name: "Bahasa Melayu" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Bahasa Melayu" }));
     expect(screen.getByDisplayValue("Buka kedai")).toBeTruthy();
     expect(screen.getByText("cash float").tagName).toBe("STRONG");
     expect(screen.getByText("Section 01 · Prepare the counter")).toBeTruthy();
@@ -121,4 +121,15 @@ describe("SOP language comparison", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Save Translation" }));
     await waitFor(() => expect(mocks.edit).toHaveBeenCalledWith("rich", "zh-CN", expect.stringContaining("<ol>")));
   });
+});
+
+it("keeps retired translation evidence without blocking an Onboarding source save", async () => {
+  const units = { "journey.title": { id: "live", source_language: "en", source_value: "Onboarding", translations: {} }, "deleted.quiz.title": { id: "retired", source_language: "en", source_value: "Removed Knowledge Check", translations: {} } };
+  mocks.read.mockResolvedValue({ units }); mocks.save.mockResolvedValue({ units }); mocks.translate.mockResolvedValue({ units });
+  render(<LocalizedContentEditor domain="onboarding" versionId="draft" sourceLanguage="en" sourceUnits={[{ unit_key: "journey.title", field_kind: "plain_text", label: "Title", source_value: "Onboarding" }]} />);
+  await screen.findByText("Onboarding");
+  fireEvent.click(screen.getByRole("button", { name: "Translate Missing" }));
+  await waitFor(() => expect(mocks.translate).toHaveBeenCalled());
+  expect(screen.queryByText("Removed Knowledge Check")).toBeNull();
+  expect(screen.queryByRole("alert")).toBeNull();
 });
