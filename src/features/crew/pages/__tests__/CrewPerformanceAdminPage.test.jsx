@@ -4,6 +4,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 const mocks = vi.hoisted(() => ({ data: vi.fn(), page: vi.fn(), feedbackPage: vi.fn(), review: vi.fn(), recalculate: vi.fn(), moderate: vi.fn(), correct: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: { googleReviewsAdminContext: vi.fn().mockResolvedValue({ positive_target: null, target_locked: false }), performanceAdminData: mocks.data, performanceAdminPage: mocks.page, feedbackAdminPage: mocks.feedbackPage, submitPerformanceReview: mocks.review, recalculatePerformanceEmployment: mocks.recalculate, moderateFeedback: mocks.moderate, correctFeedbackAttribution: mocks.correct } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
+import { crewService } from "../../../../services/crewService.js";
+import { googleBusinessService } from "../../services/googleBusinessService.js";
 import CrewPerformanceAdminPage, { customerPreviewForResult } from "../CrewPerformanceAdminPage.jsx";
 
 const outlet = { id: "outlet-1", name: "Friends Corner", is_active: true };
@@ -266,4 +268,29 @@ it('masks the previous outlet KPIs and rows if a new outlet read fails', async (
  expect(screen.queryByText('88 / 100')).toBeNull();
  expect(screen.queryByRole('button',{name:'Open Performance for Alex Tan'})).toBeNull();
  expect(screen.getByText('Evidence unavailable')).not.toBeNull();
+});
+
+
+it('shows the shared provisional score in an eligible row without changing assessed totals or finalized scores', async () => {
+ const period = new Date().toISOString().slice(0,7)+'-01';
+ const eligible = {...row,result:{...row.result,period_start:period,total_score:null,current_score:66,components:{...row.result.components,employment:{state:'eligible',outlet_id:'outlet-1'}}}};
+ const frozen = {...eligible,employee:{...eligible.employee,id:'frozen',full_name:'Frozen Crew'},result:{...eligible.result,status:'finalized',total_score:85,customer_score:20,components:{...eligible.result.components,customer:{score:20,max_score:20,status:'finalized'}}}};
+ mocks.data.mockResolvedValue({...fixture,crew:[eligible,frozen]});
+ mocks.page.mockResolvedValue({rows:[eligible,frozen],total_count:2,page:1,page_size:20});
+ vi.mocked(crewService.googleReviewsAdminContext).mockResolvedValueOnce({positive_target:10,target_locked:false});
+ const remote = vi.spyOn(googleBusinessService,'customerPreview').mockResolvedValue({status:'preview_only',periodState:'provisional',score:6.5,positiveTarget:1.5,quality:5,positive:1,total:1,negative:0,negativeRate:0,target:10,fetchedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+300000).toISOString()});
+ try {
+  render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{outlets:[outlet]}} />);
+  await screen.findByRole('button',{name:'Open Performance for Alex Tan'});
+  await waitFor(() => expect(screen.getByRole('button',{name:'Refresh Preview'}).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button',{name:'Refresh Preview'}));
+  const activeRow = screen.getByRole('button',{name:'Open Performance for Alex Tan'}).closest('tr');
+  await within(activeRow).findByText('6.5 / 20');
+  expect(within(activeRow).getByText('Preview')).not.toBeNull();
+  expect(within(activeRow).getByText('66')).not.toBeNull();
+  const frozenRow = screen.getByRole('button',{name:'Open Performance for Frozen Crew'}).closest('tr');
+  expect(within(frozenRow).getByText('20 / 20')).not.toBeNull();
+  expect(within(frozenRow).getByText('85')).not.toBeNull();
+  expect(within(frozenRow).queryByText('Preview')).toBeNull();
+ } finally {remote.mockRestore();}
 });

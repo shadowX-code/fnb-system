@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { customerPerformancePreview } from '../googleCustomerPreview.ts';
+import { assertCustomerPreviewBasis, customerPerformancePreview } from '../googleCustomerPreview.ts';
 
 const now = Date.parse('2026-11-02T00:00:00Z');
 const location = 'accounts/a/locations/l';
@@ -17,7 +17,7 @@ describe('non-persistent Customer preview', () => {
   { context: { ...context, connection_status: 'expired' }, reason: 'reconnect_required' },
   { context: { ...context, mapping: null }, reason: 'mapping_required' },
   { target: 0, reason: 'target_required' },
-  { period: '2026-11-01', reason: 'month_not_closed' },
+  { period: '2026-12-01', reason: 'period_not_started' },
  ])('does not fetch with insufficient prerequisites: $reason', async ({ reason, ...change }) => {
   const input = { ...options(), ...change };
   expect(await customerPerformancePreview(input)).toMatchObject({ status: 'pending', score: null, reason });
@@ -42,8 +42,34 @@ describe('non-persistent Customer preview', () => {
   input.read.mockRejectedValue(new Error('Google read failed'));
   await expect(customerPerformancePreview(input)).rejects.toThrow('Google read failed');
  });
- it('waits until the Malaysia month boundary, including short months', async () => {
-  const input = { ...options(), period: '2026-02-01', now: () => Date.parse('2026-02-28T15:59:59Z') };
-  expect(await customerPerformancePreview(input)).toMatchObject({ reason: 'month_not_closed' });
+ it('marks a complete current-month read provisional, and the same month closed after Malaysia midnight', async () => {
+  const input = {...options(),period:'2026-02-01'};
+  for (const [time,periodState] of [['2026-02-28T15:59:59Z','provisional'],['2026-02-28T16:00:00Z','closed_month']]) {
+   input.now = () => Date.parse(time);
+   input.read.mockResolvedValue({reviews:[],googleAggregate:{totalReviewCount:0},fetchedAt:time});
+   expect(await customerPerformancePreview(input)).toMatchObject({periodState,status:'pending',score:null});
+  }
+ });
+ it('calculates the current month with the unchanged scorer without adding points to a stored total', async () => {
+  const input = {...options(),period:'2026-11-01',target:10};
+  input.read.mockResolvedValue({reviews:[{...reviews[0],createTime:'2026-11-01T00:00:00Z',updateTime:'2026-11-01T00:00:00Z'}],googleAggregate:{totalReviewCount:1},fetchedAt:new Date(now).toISOString()});
+  expect(await customerPerformancePreview(input)).toMatchObject({periodState:'provisional',positiveTarget:1.5,quality:5,score:6.5,persisted:false});
+ });
+});
+
+describe('preview basis revalidation', () => {
+ const basis = {...context,generation:1}, target = {positive_target:10,target_revision:1};
+ it.each([
+  [{...basis,generation:2},target],
+  [{...basis,mapping:{...basis.mapping,revision:'changed'}},target],
+  [{...basis,mapping:{...basis.mapping,name:'accounts/a/locations/other'}},target],
+  [{...basis,can_sync:false},target],
+  [basis,{positive_target:20,target_revision:2}],
+  [basis,{positive_target:10,target_revision:3}],
+ ])('rejects mapping/access changes and target changes restored to their old value', (latest,latestTarget) => {
+  expect(() => assertCustomerPreviewBasis(basis,latest,target,latestTarget)).toThrow('changed');
+ });
+ it('accepts the unchanged outlet/month basis', () => {
+  expect(() => assertCustomerPreviewBasis(basis,basis,target,target)).not.toThrow();
  });
 });

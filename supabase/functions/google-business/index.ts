@@ -3,7 +3,7 @@ import { disconnectBusinessConnection } from '../_shared/googleBusinessDisconnec
 import { googleBusinessEnvironment } from '../_shared/googleBusinessEnvironment.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { hash, nonce, seal, unseal, base64url, tokenEncryptionReady } from '../_shared/metaSecurity.ts';
-import { customerPerformancePreview } from '../_shared/googleCustomerPreview.ts';
+import { assertCustomerPreviewBasis, customerPerformancePreview } from '../_shared/googleCustomerPreview.ts';
 import type { GoogleReviewRecord } from '../_shared/googleReviewsContract.ts';
 import { googleGrant, DriveError } from '../_shared/googleDrive.ts';
 import { GoogleBusinessProfile, BUSINESS_SCOPE, BusinessProfileError, completePages, readReviewInbox, reviewInboxPayload, revokeBusinessGrant } from '../_shared/googleBusinessProfile.ts';
@@ -114,19 +114,23 @@ export async function handle(req: Request) {
   if (action === 'customer-preview') {
    const viewer = createClient(supabase, env('SUPABASE_ANON_KEY'), { global: { headers: { Authorization: auth } }, auth: { persistSession: false, autoRefreshToken: false } });
    const target = async () => {
-    const result = await viewer.rpc('crew_google_reviews_admin_context', { p_outlet_id: outlet, p_period: body.period });
-    if (result.error) throw new Error('Performance access is required for this outlet and month.');
-    return result.data;
+    const params = { p_outlet_id: outlet, p_period: body.period };
+    const [result, history] = await Promise.all([viewer.rpc('crew_google_reviews_admin_context', params), viewer.rpc('crew_google_target_history', params)]);
+    if (result.error || history.error) throw new Error('Performance access is required for this outlet and month.');
+    const revision = history.data?.rows?.[0];
+    if (result.data.positive_target != null && (!revision || revision.new_target !== result.data.positive_target)) throw new Error('Monthly target history changed or is unavailable. Reload the target.');
+    return { ...result.data, target_revision: revision?.id ?? null };
    };
    const initial = await target();
    return reply(await customerPerformancePreview({ period: body.period, context, target: initial.positive_target,
     read: async () => {
      const material = await call('material');
+     if (material.generation !== context.generation || material.mapping?.revision !== context.mapping?.revision || material.mapping?.location_resource_name !== context.mapping?.name) throw new Error('Outlet mapping changed. Refresh the preview.');
      const resolved = await resolveBusinessToken({call,material,keys:keys(),key:secret(),grant});
      const payload = await readReviewInbox(new GoogleBusinessProfile(resolved.token.access_token), material.mapping.location_resource_name);
      await call('guard', { generation: material.generation, revision: material.mapping.revision });
      const latest = await call('context');
-     if (!latest.can_sync || (await target()).positive_target !== initial.positive_target) throw new Error('Access or monthly target changed. Reload the preview.');
+     assertCustomerPreviewBasis(context, latest, initial, await target());
      return { ...payload, fetchedAt: new Date().toISOString() };
     }
    }));
