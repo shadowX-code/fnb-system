@@ -48,8 +48,8 @@
 .son-canvas .react-flow { --xy-background-color: transparent; --xy-controls-button-background-color: #102c3c; --xy-controls-button-background-color-hover: #224655; --xy-controls-button-color: #ddf7ff; --xy-controls-button-border-color: #365768; --xy-edge-stroke: #609fba; }
 .son-canvas .react-flow__node { border-radius: 12px; }
 .son-canvas .react-flow__node:focus-visible { outline: 3px solid var(--son-accent); outline-offset: 6px; }
-.son-layer-key { position: absolute; left: 14px; top: 18px; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-.son-layer-key span { display: flex; align-items: center; gap: 8px; color: #b9d6e2; font-size: 10px; background: #071c2ce8; padding: 5px 8px; border-radius: 5px; }
+.son-layer-key { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 12px 16px 0; background: var(--son-panel); }
+.son-layer-key span { display: flex; align-items: center; gap: 6px; color: #b9d6e2; font-size: 10px; }
 .son-layer-key b { color: #68e6e1; font-variant-numeric: tabular-nums; }
 .son-node { width: 232px; min-height: 90px; padding: 14px; color: var(--son-text); background: linear-gradient(160deg, #123548, #0b1e2e); border: 1px solid #3d7184; border-radius: 12px; box-shadow: 0 8px 24px #0005; transition: border-color .16s ease-out, background .16s ease-out; }
 .son-node:hover, .son-node.son-selected { border-color: var(--son-accent); background: #143e4e; }
@@ -58,6 +58,7 @@
 .son-node-title { display: flex; gap: 10px; align-items: center; font-size: 14px; line-height: 1.25; }
 .son-node-title svg { color: #6be6e0; flex: 0 0 auto; }
 .son-node-title strong { overflow-wrap: anywhere; }
+.son-node-layer { margin-left: auto; align-self: flex-start; color: #91cbc9; font-size: 10px; font-weight: 600; flex: 0 0 auto; }
 .son-node p { margin: 7px 0 0; color: #b4ccda; font-size: 11px; line-height: 1.4; }
 .son-node-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 .son-node-footer button { color: var(--son-accent); background: #154451; border-radius: 5px; width: 28px; height: 24px; display: grid; place-items: center; }
@@ -67,12 +68,13 @@
 .son-node-collapsed, .son-node-gap { border-style: dashed; background: #0b2130; }
 .son-node-agent { border-color: #4c9c9c; }
 .son-node .react-flow__handle { width: 6px; height: 6px; background: #74c7ce; border: 1px solid #b5ffff; }
-.son-edge .react-flow__edge-path { stroke: #55859b; stroke-width: 1.2; }
-.son-edge-dependency .react-flow__edge-path { stroke-dasharray: 5 5; opacity: .65; }
+.son-edge .react-flow__edge-path { stroke: #71a7b9; stroke-width: 1.6; }
+.son-edge-dependency .react-flow__edge-path { stroke-dasharray: 5 5; opacity: .8; }
 .son-edge-execution .react-flow__edge-path { stroke: currentColor; stroke-width: 2; }
 .son-flow-particle { stroke: #abfff7; fill: none; stroke-width: 3; stroke-dasharray: 2 98; animation: son-flow 2s linear infinite; }
-.son-success-pulse { stroke: #8df0be; fill: none; stroke-width: 3; stroke-dasharray: 6 94; animation: son-flow 1.5s linear 2; }
+.son-success-pulse { stroke: #8df0be; fill: none; stroke-width: 3; stroke-dasharray: 6 94; animation: son-success 1.5s linear 2 forwards; }
 @keyframes son-flow { to { stroke-dashoffset: -100; } }
+@keyframes son-success { 0%, 80% { opacity: 1; } 100% { stroke-dashoffset: -100; opacity: 0; } }
 .son-inactive .son-flow-particle, .son-inactive .son-success-pulse { animation-play-state: paused; }
 .son-map-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 16px; background: var(--son-panel); font-size: 10px; color: #bed6e2; }
 .son-map-legend span { display: inline-flex; align-items: center; gap: 7px; }

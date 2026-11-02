@@ -3,15 +3,16 @@ import { BaseEdge, Handle, Position, getBezierPath } from '@xyflow/react';
 import { Bot, Building2, ChevronDown, ChevronUp, Database, Layers3, Link2, Network, Workflow } from 'lucide-react';
 import { statusLabels } from './networkModel.js';
 
-const icons = { platform: Network, workspace: Building2, module: Workflow, agent: Bot, data: Database, integration: Link2, collapsed: Layers3, gap: Bot };
+const icons = { platform: Network, workspace: Building2, module: Workflow, agent: Bot, data: Database, integration: Link2, 'integration-group': Link2, collapsed: Layers3, gap: Bot };
 export const NetworkNode = memo(function NetworkNode({ data, selected }) {
   const Icon = icons[data.kind] || Network;
   return <article className={`son-node son-node-${data.kind}${selected ? ' son-selected' : ''}`} data-status={data.status}>
     <Handle type="target" position={Position.Top} isConnectable={false} />
-    <div className="son-node-title"><Icon size={data.kind === 'platform' ? 30 : 20} aria-hidden="true" /><strong>{data.label}</strong></div>
+    <div className="son-node-title"><Icon size={data.kind === 'platform' ? 30 : 20} aria-hidden="true" /><strong>{data.label}</strong><span className="son-node-layer">L{data.layer + 1}</span></div>
     <p>{data.subtitle}</p>
-    <div className="son-node-footer"><span className="son-status" data-status={data.status}><i aria-hidden="true" />{data.kind === 'module' && data.status === 'unknown' ? 'No telemetry' : statusLabels[data.status]}</span>
+    <div className="son-node-footer"><span className="son-status" data-status={data.status}><i aria-hidden="true" />{data.kind === 'collapsed' ? 'Collapsed' : data.kind === 'data' ? 'Not measured' : data.kind === 'integration-group' ? 'Saved connections' : data.kind === 'module' && data.status === 'unknown' ? 'No telemetry' : statusLabels[data.status]}</span>
       {(data.kind === 'workspace' || data.kind === 'collapsed') && <button type="button" className="nodrag nopan" aria-label={`${data.open ? 'Collapse' : 'Expand'} ${data.label}`} aria-expanded={!!data.open} onClick={event => { event.stopPropagation(); data.onToggle(data.workspace); }}>{data.open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>}
+      {data.kind === 'integration-group' && <button type="button" className="nodrag nopan" aria-label="Expand saved connections" onClick={event => { event.stopPropagation(); data.onToggle('social-connections'); }}><ChevronDown size={16} /></button>}
     </div>
     <Handle type="source" position={Position.Bottom} isConnectable={false} />
   </article>;

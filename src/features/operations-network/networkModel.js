@@ -101,17 +101,23 @@ export function buildNetwork({ modules, agents = [], integrations = [], events =
   add('data-platform', 4, width / 2 - 116, agentY + 220, { label: 'Supabase', subtitle: 'Database · Auth · Storage', status: 'unknown', kind: 'data', description: 'Declared platform infrastructure. Service uptime, throughput and database health are not measured by this view.' });
   if (groups.length) connect('platform', 'data-platform');
   const visibleIntegrations = integrations.filter(item => (workspace === 'all' || item.workspace === workspace) && (status === 'all' || item.status === status) && (!query || `${item.label} ${item.subtitle}`.toLowerCase().includes(query)));
-  const endpoints = visibleAgents.length + visibleIntegrations.length;
+  const connectionsExpanded = expanded.has('social-connections') || !!query;
+  const endpoints = visibleAgents.length + (connectionsExpanded ? visibleIntegrations.length : visibleIntegrations.length ? 1 : 0);
   for (const [index, agent] of visibleAgents.entries()) {
     const id = `gateway:${agent.id}`;
     add(id, 4, (width - endpoints * 258) / 2 + index * 258, agentY + 350, { label: agent.provider || 'External provider', subtitle: 'External Agent Gateway', status: agent.status, kind: 'integration', agentId: agent.id, description: 'Recorded connection evidence. A successful request does not establish current online presence.', lastObserved: agent.lastObserved });
     connect(id, `agent:${agent.id}`);
   }
-  visibleIntegrations.forEach((item, index) => {
+  if (!connectionsExpanded && visibleIntegrations.length) {
+    add('social-connections', 4, (width - endpoints * 258) / 2 + visibleAgents.length * 258, agentY + 350, { label: 'Brand connections', subtitle: `${visibleIntegrations.length} saved social connections`, kind: 'integration-group', status: 'unknown', integrations: visibleIntegrations, description: 'Saved Brand-scoped social connections. Expand to inspect each connection and its last recorded sync.' });
+    const parent = nodes.find(node => node.id === 'marketing_connections') || nodes.find(node => node.id === 'workspace:marketing');
+    if (parent) connect('social-connections', parent.id);
+  }
+  if (connectionsExpanded) visibleIntegrations.forEach((item, index) => {
     add(item.id, 4, (width - endpoints * 258) / 2 + (visibleAgents.length + index) * 258, agentY + 350, { ...item, kind: 'integration' });
     const module = nodes.find(node => node.id === item.moduleId);
     const parent = groups.find(group => group.id === item.workspace);
     if (module || parent) connect(item.id, module?.id || `workspace:${parent.id}`);
   });
-  return { nodes, edges, groups, matching };
+  return { nodes, edges, groups, matching, visibleAgents };
 }

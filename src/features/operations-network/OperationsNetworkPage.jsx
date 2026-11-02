@@ -82,7 +82,7 @@ function NetworkExperience({ auth, ui, store }) {
       <AdminSearchField label="Search nodes" value={search} onChange={changeFilter(setSearch)} placeholder="Module, workspace or agent…" />
     </div>
     <div className="son-observation-strip">
-      <span><Network size={17} /><strong>{graph.groups.length}</strong> accessible workspaces</span><span><Activity size={17} /><strong>{graph.matching.length}</strong> matching modules</span><span><Bot size={17} /><strong>{agentSourceAvailable ? agents.length : '—'}</strong> registered agents</span>
+      <span><Network size={17} /><strong>{graph.groups.length}</strong> matching workspaces</span><span><Activity size={17} /><strong>{graph.matching.length}</strong> matching modules</span><span><Bot size={17} /><strong>{agentSourceAvailable ? graph.visibleAgents.length : '—'}</strong> matching agents</span>
       <span className="son-muted">System health & throughput: unavailable</span>
     </div>
     {(evidence.error || failures.length > 0) && <div className="son-notice" role="alert">{evidence.error || `Some evidence could not be checked: ${failures.map(source => source.name).join(', ')}.`}<button type="button" onClick={evidence.refresh}>Retry sources</button></div>}
@@ -98,10 +98,10 @@ function NetworkExperience({ auth, ui, store }) {
             <svg><defs><marker id="son-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#609fba" /></marker></defs></svg>
             <Background color="#183a4c" gap={28} size={1} /><Controls showInteractive={false} />
           </ReactFlow>
-          <div className="son-layer-key" aria-label="Network layers">{layers.map((layer, index) => <span key={layer}><b>L{index + 1}</b>{layer}</span>)}</div>
           {evidence.loading && <div className="son-canvas-state" role="status">Checking source evidence…</div>}
           {!graph.matching.length && <div className="son-canvas-state">No modules match this view. Change the filters or search.</div>}
         </div>
+        <div className="son-layer-key" aria-label="Network layers">{layers.map((layer, index) => <span key={layer}><b>L{index + 1}</b>{layer}</span>)}</div>
         <footer className="son-map-legend"><span><i className="son-dependency-line" />Declared dependency</span><span><i className="son-execution-line" />Recorded execution</span><span>Drag to pan · scroll to zoom · select a node to inspect</span></footer>
         <div className="son-source-note"><strong>Evidence coverage</strong><p>{canObserve ? 'AI Integrations: latest 50 access events, 50 configuration events and 50 completed receipts per agent, plus saved open requests. Live includes current open requests and the latest 24 hours. Time ranges filter returned activity; they are not complete historical totals.' : 'Agent telemetry requires existing AI Integrations view authority.'}</p><p>Connections always show the latest saved snapshot. Brand social connections include last sync where accessible. Current module availability reflects your permissions. Uptime, general automation runs and cross-module business timelines are not connected here. Open the owning module for its authoritative evidence.</p></div>
       </section>

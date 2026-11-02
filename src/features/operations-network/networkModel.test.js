@@ -50,4 +50,13 @@ describe('permission-derived operations network', () => {
     expect(filterEvents([old], { window: 'live' }, now)).toEqual([old]);
     expect(filterEvents([old], { window: '7d' }, now)).toEqual([]);
   });
+  it('collapses saved social connections without losing inspectable records or filtered agent counts', () => {
+    const integrations = Array.from({ length: 10 }, (_, i) => ({ id: `social:${i}`, label: `Page ${i}`, workspace: 'restaurant', moduleId: 'inventory_stock_check', status: 'observed' }));
+    const result = buildNetwork({ modules, agents: [agent], integrations, workspace: 'factory' });
+    expect(result.visibleAgents).toEqual([]);
+    const overview = buildNetwork({ modules, integrations });
+    expect(overview.nodes.find(node => node.id === 'social-connections').data.integrations).toHaveLength(10);
+    expect(overview.nodes.some(node => node.id === 'social:0')).toBe(false);
+    expect(buildNetwork({ modules, integrations, expanded: new Set(['social-connections']) }).nodes.filter(node => node.id.startsWith('social:'))).toHaveLength(10);
+  });
 });
