@@ -30,6 +30,15 @@ describe('readable network layout', () => {
     expect(Math.max(...graph.nodes.map(node=>node.position.x+node.width))-Math.min(...graph.nodes.map(node=>node.position.x))).toBeLessThanOrEqual(350);
     expect(buildNetwork({modules,narrow:true}).primaryIds).toHaveLength(3);
   });
+  it('routes expanded member and operation edges with finite SVG coordinates and explicit ports', () => {
+    const graph=buildNetwork({modules,agents:[{id:'a',name:'Agent',status:'observed',workspaces:['restaurant'],moduleIds:['restaurant-0']}],expanded:new Set(['restaurant','agents','data-integrations'])});
+    const anchor=(node,handle)=>{const side=handle.split('-')[1];return {x:node.position.x+(side==='left'?0:side==='right'?node.width:node.width/2),y:node.position.y+(side==='top'?0:side==='bottom'?node.height:node.height/2),side};};
+    for(const edge of graph.edges){
+      const source=anchor(graph.nodes.find(node=>node.id===edge.source),edge.sourceHandle),target=anchor(graph.nodes.find(node=>node.id===edge.target),edge.targetHandle);
+      const output=renderToStaticMarkup(<svg><NetworkEdge {...edge} sourceX={source.x} sourceY={source.y} targetX={target.x} targetY={target.y} sourcePosition={source.side} targetPosition={target.side}/></svg>);
+      expect(output,edge.id).not.toMatch(/NaN|Infinity|undefined/);
+    }
+  });
 });
 
 describe('evidence and synthetic motion separation', () => {

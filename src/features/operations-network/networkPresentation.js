@@ -5,7 +5,7 @@ const slots = {
   4: [[40, 140], [840, 140], [220, 410], [660, 410]],
   5: [[20, 100], [860, 100], [80, 330], [800, 330], [440, 460]],
   6: [[20, 90], [860, 90], [0, 280], [880, 280], [220, 460], [660, 460]],
-  7: [[20, 90], [860, 90], [0, 270], [880, 270], [200, 445], [440, 485], [680, 445]],
+  7: [[20, 20], [860, 20], [0, 180], [880, 180], [200, 335], [440, 375], [680, 335]],
 };
 
 export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = {}) {
@@ -14,12 +14,13 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
   const byId = new Map(nodes.map(node => [node.id, node]));
   const place = (node, x, y, width = 220, height = 118) => {
     node.position = { x, y }; node.width = width; node.height = height;
+    node.focusable = node.data.kind !== 'operation-group';
     node.style = { width, height, '--son-accent': workspaceAccents[node.data.workspace] || '#55e5db' };
   };
   const columns = narrow ? Math.min(2, Math.max(workspaces.length, 1)) : 4;
   const gridWidth = narrow ? columns * 242 - 22 : 1060;
   const hubX = narrow ? (gridWidth - 260) / 2 : 420;
-  place(byId.get('platform'), hubX, narrow || workspaces.length < 4 ? 0 : 160, 260, 186);
+  place(byId.get('platform'), hubX, narrow || workspaces.length < 4 ? 0 : workspaces.length === 7 ? 100 : 160, 260, 186);
   workspaces.forEach((node, index) => {
     const [x, y] = narrow ? [(index % columns) * 242, 240 + Math.floor(index / columns) * 168] : slots[workspaces.length][index];
     place(node, x, y);
@@ -47,15 +48,20 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
       if (target.position.y > source.position.y + source.height - 20) return ['bottom', 'top'];
       return targetCenter < center ? ['left', 'right'] : ['right', 'left'];
     }
-    if (routing === 'outer-left') return ['left', target.data.kind.endsWith('-group') ? 'top' : 'left'];
-    if (routing === 'outer') return ['right', target.data.kind.endsWith('-group') ? 'top' : 'right'];
+    if (routing.startsWith('outer')) {
+      let start = 'top';
+      if (source.data.kind === 'workspace') start = source.position.x < 200 ? 'left' : source.position.x >= 800 ? 'right' : 'bottom';
+      return [start, 'top'];
+    }
     if (routing === 'module') return ['bottom', 'left'];
     return ['right', 'left'];
   };
   const edges = inputEdges.map((edge, index) => {
     const source = byId.get(edge.source), target = byId.get(edge.target);
     const [sourceHandle, targetHandle] = handles(source, target, edge.data.routing);
-    return { ...edge, sourceHandle: `out-${sourceHandle}`, targetHandle: `in-${targetHandle}`, data: { ...edge.data, endAtTop: targetHandle === 'top', lane: index % 5, outerX: edge.data.routing === 'outer-left' ? -46 - index % 3 * 12 : (narrow ? gridWidth : 1100) + 38 + index % 5 * 12 } };
+    const leftLane = sourceHandle === 'left' || edge.data.routing === 'outer-left';
+    const departureY = source.id === 'platform' ? -20 : sourceHandle === 'bottom' ? Math.max(...workspaces.map(node => node.position.y + node.height)) + 20 : source.position.y - 24;
+    return { ...edge, sourceHandle: `out-${sourceHandle}`, targetHandle: `in-${targetHandle}`, data: { ...edge.data, departureY, startMode: sourceHandle, entryGap: ['module', 'agent', 'data', 'integration'].includes(target.data.kind) ? 10 : 26, outerX: leftLane ? -46 - index % 3 * 12 : (narrow ? gridWidth : 1100) + 38 + index % 5 * 12 } };
   });
   const primaryIds = ['platform', ...workspaces.map(node => node.id), 'automation-group', 'data-group'];
   return { nodes, edges, primaryIds: narrow && workspaces.length > 2 ? ['platform', ...workspaces.slice(0, 2).map(node => node.id)] : primaryIds };

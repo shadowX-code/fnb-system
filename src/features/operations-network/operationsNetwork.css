@@ -9,7 +9,7 @@
 .son-experience :is(button,input) { -webkit-tap-highlight-color: transparent; }
 .son-page-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 14px; }
 .son-page-header h1 { font-size: clamp(22px, 1.8vw, 28px); letter-spacing: -.025em; font-weight: 700; line-height: 1.2; margin: 8px 0 5px; }
-.son-page-header p { color: var(--son-muted); font-size: 12px; line-height: 1.5; }
+.son-page-header p { display: none; color: var(--son-muted); font-size: 12px; line-height: 1.5; }
 .son-return { display: inline-flex; align-items: center; gap: 6px; color: #8fd7d3; font-size: 11px; background: transparent; }
 .son-return:hover { color: #affff2; text-decoration: underline; text-underline-offset: 4px; }
 .son-refresh-state { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; color: var(--son-muted); font-size: 10px; white-space: nowrap; }
@@ -45,7 +45,7 @@
 .son-map-toolbar .son-activity-toggle { margin-left: 4px; border: 1px solid #315261; }
 .son-icon-button { display: inline-flex; align-items: center; justify-content: center; padding: 8px; border-radius: 6px; color: #b8cddb; background: transparent; }
 .son-icon-button:hover { color: #fff; background: #14394b; }
-.son-canvas { position: relative; height: clamp(620px,calc(100dvh - 250px),850px); overflow: hidden; background: radial-gradient(ellipse at 50% 35%, #0b3443 0, #081c30 35%, #040e1b 75%); isolation: isolate; }
+.son-canvas { position: relative; height: clamp(460px,calc(100dvh - 300px),850px); overflow: hidden; background: radial-gradient(ellipse at 50% 35%, #0b3443 0, #081c30 35%, #040e1b 75%); isolation: isolate; }
 .son-canvas-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .son-canvas-atmosphere::before { content: ''; position: absolute; width: 76%; height: 55%; top: 20%; left: 12%; border-radius: 50%; background: radial-gradient(ellipse,#18c6bd12,transparent 70%); }
 .son-canvas-atmosphere div { position: absolute; left: 13%; right: 13%; bottom: -30%; height: 62%; border: 1px solid #43d8df17; border-radius: 50%; box-shadow: 0 0 32px #20c9dc08; }
@@ -60,7 +60,7 @@
 .son-node:hover,.son-node.son-selected { border-color: var(--son-accent); background: linear-gradient(145deg,#1a384a,#0d2438); box-shadow: 0 12px 26px #0006,0 0 19px color-mix(in srgb,var(--son-accent) 14%,transparent); }
 .son-node-title { display: flex; align-items: center; gap: 11px; position: relative; z-index: 1; }
 .son-node-title > div { min-width: 0; flex: 1; }
-.son-node-title strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 17px; line-height: 1.2; font-weight: 650; letter-spacing: -.015em; }
+.son-node-title strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 18px; line-height: 1.2; font-weight: 650; letter-spacing: -.015em; }
 .son-node-layer { display: block; color: #a8c4d6; font-size: 9px; font-weight: 600; margin-bottom: 4px; letter-spacing: .035em; }
 .son-node-icon { display: grid; place-items: center; color: var(--son-accent); width: 38px; height: 38px; border-radius: 11px; flex: 0 0 auto; background: color-mix(in srgb,var(--son-accent) 10%,#0a1c2b); box-shadow: inset 0 0 12px color-mix(in srgb,var(--son-accent) 9%,transparent); }
 .son-workspace-bottom { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 15px; position: relative; z-index: 1; }

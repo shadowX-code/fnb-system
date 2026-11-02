@@ -48,11 +48,18 @@ function NetworkExperience({ auth, ui, store }) {
   const agents = scoped ? (evidence.agents || []).filter(agent => events.some(event => event.agentId === agent.id)) : evidence.agents || [];
   const integrations = scoped ? [] : evidence.integrations || [];
   const graph = useMemo(() => buildNetwork({ modules, agents, integrations, events, expanded, workspace, search, status, selectedId, now: clock, narrow }), [modules, agents, integrations, events, expanded, workspace, search, status, selectedId, clock, narrow]);
+  const selectNode = useCallback((id, workspaceId) => {
+    if (workspaceId) setExpanded(current => new Set([...current, workspaceId]));
+    else { const module = modules.find(module => module.id === id); if (module) setExpanded(current => new Set([...current, module.workspace])); }
+    if (id.startsWith('agent:')) setExpanded(current => new Set([...current, 'agents']));
+    if (id === 'data-platform' || id.startsWith('gateway:') || id.startsWith('social:')) setExpanded(current => new Set([...current, 'data-integrations']));
+    setSelectedId(id); setInspectorOpen(true);
+  }, [modules]);
   const toggleWorkspace = useCallback((id) => {
     fitPending.current = true; fitRequest.current = expanded.has(id) ? 'primary' : id;
     setExpanded(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }, [expanded]);
-  const nodes = useMemo(() => graph.nodes.map(node => ({ ...node, data: { ...node.data, onToggle: toggleWorkspace } })), [graph.nodes, toggleWorkspace]);
+  const nodes = useMemo(() => graph.nodes.map(node => ({ ...node, data: { ...node.data, onToggle: toggleWorkspace }, domAttributes: { onKeyDown: event => { if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key) && node.data.kind !== 'operation-group') { event.preventDefault(); selectNode(node.id); } } } })), [graph.nodes, toggleWorkspace, selectNode]);
   const edges = useMemo(() => presentNetworkEdges(graph.edges, visualDemo), [graph.edges, visualDemo]);
   const layoutKey = `${narrow}:${inspectorOpen}:${graph.nodes.map(node => node.id).join('|')}`;
   function fitPrimary() { flow.fitView({ nodes: graph.primaryIds.map(id => ({ id })), padding: 0.08, duration: 0, maxZoom: 1.15 }); }
@@ -67,13 +74,6 @@ function NetworkExperience({ auth, ui, store }) {
     const frame = requestAnimationFrame(() => { flow.fitView({ nodes: ids.map(id => ({ id })), padding: 0.12, duration: 0, maxZoom: 1.15 }); fitPending.current = false; });
     return () => cancelAnimationFrame(frame);
   }, [layoutKey, flow]);
-  function selectNode(id, workspaceId) {
-    if (workspaceId) setExpanded(current => new Set([...current, workspaceId]));
-    else { const module = modules.find(module => module.id === id); if (module) setExpanded(current => new Set([...current, module.workspace])); }
-    if (id.startsWith('agent:')) setExpanded(current => new Set([...current, 'agents']));
-    if (id === 'data-platform' || id.startsWith('gateway:') || id.startsWith('social:')) setExpanded(current => new Set([...current, 'data-integrations']));
-    setSelectedId(id); setInspectorOpen(true);
-  }
   useEffect(() => {
     if (!selectedId || !graph.nodes.some(node => node.id === selectedId)) return;
     const frame = requestAnimationFrame(() => flow.fitView({ nodes: [{ id: selectedId }], padding: 0.7, maxZoom: 1, duration: 0 }));

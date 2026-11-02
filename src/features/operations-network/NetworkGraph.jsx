@@ -1,4 +1,4 @@
-import { memo, useId } from 'react';
+import { Fragment, memo, useId } from 'react';
 import { BaseEdge, Handle, Position, getBezierPath } from '@xyflow/react';
 import { Bot, Building2, ChevronDown, ChevronUp, Database, Factory, Layers3, Link2, Megaphone, Network, ShieldCheck, Sparkles, Users, UtensilsCrossed, Wallet, Workflow } from 'lucide-react';
 import { statusLabels } from './networkModel.js';
@@ -13,7 +13,7 @@ export const NetworkNode = memo(function NetworkNode({ data, selected }) {
   const toggleKey = data.kind === 'workspace' ? data.workspace : data.expandKey;
   const caption = data.kind === 'platform' ? 'Platform architecture' : data.kind === 'data' ? 'Not measured' : data.kind === 'module' && data.status === 'unknown' ? 'No telemetry' : statusLabels[data.status];
   return <article className={`son-node son-node-${data.kind}${selected ? ' son-selected' : ''}`} data-status={data.status}>
-    {Object.entries(sides).map(([side, position]) => <span key={side}><Handle id={`in-${side}`} type="target" position={position} isConnectable={false} /><Handle id={`out-${side}`} type="source" position={position} isConnectable={false} /></span>)}
+    {Object.entries(sides).map(([side, position]) => <Fragment key={side}><Handle id={`in-${side}`} type="target" position={position} isConnectable={false} /><Handle id={`out-${side}`} type="source" position={position} isConnectable={false} /></Fragment>)}
     {data.kind === 'platform' ? <>
       <div className="son-hub-orbit son-hub-orbit-outer" aria-hidden="true" /><div className="son-hub-orbit" aria-hidden="true" />
       <div className="son-hub-body"><Network size={35} strokeWidth={1.6} aria-hidden="true" /><strong>FeedX OS</strong><p>{data.subtitle}</p><span>L1 · {caption}</span></div>
@@ -33,12 +33,13 @@ export function networkEdgePath(props) {
     return `M ${sx} ${sy} L ${sx} ${lineY} L ${laneX + r} ${lineY} Q ${laneX} ${lineY} ${laneX} ${lineY + r} L ${laneX} ${ty - r} Q ${laneX} ${ty} ${laneX + r} ${ty} L ${tx} ${ty}`;
   }
   if (data.routing?.startsWith('outer')) {
-    const x = data.outerX, direction = ty >= sy ? 1 : -1, reach = data.routing === 'outer-left' ? -55 : 55;
-    if (data.endAtTop) {
-      const turn = x < tx ? 16 : -16;
-      return `M ${sx} ${sy} C ${sx + reach} ${sy} ${x} ${sy} ${x} ${sy + 30} L ${x} ${ty - 42} Q ${x} ${ty - 26} ${x + turn} ${ty - 26} L ${tx - turn} ${ty - 26} Q ${tx} ${ty - 26} ${tx} ${ty - 10} L ${tx} ${ty}`;
-    }
-    return `M ${sx} ${sy} C ${sx + reach} ${sy} ${x} ${sy} ${x} ${sy + direction * 38} L ${x} ${ty - direction * 38} C ${x} ${ty} ${tx + reach} ${ty} ${tx} ${ty}`;
+    const x = data.outerX, turn = x < tx ? 16 : -16, entry = ty - data.entryGap;
+    const departure = ['top', 'bottom'].includes(data.startMode) ? data.departureY : sy;
+    const direction = entry >= departure ? 1 : -1, bend = Math.min(16, Math.abs(entry - departure) / 3);
+    const start = ['left', 'right'].includes(data.startMode)
+      ? `M ${sx} ${sy} C ${sx + (x < sx ? -45 : 45)} ${sy} ${x} ${sy} ${x} ${sy + direction * bend}`
+      : `M ${sx} ${sy} L ${sx} ${departure} L ${x + turn} ${departure} Q ${x} ${departure} ${x} ${departure + direction * bend}`;
+    return `${start} L ${x} ${entry - direction * bend} Q ${x} ${entry} ${x + turn} ${entry} L ${tx - turn} ${entry} Q ${tx} ${entry} ${tx} ${ty}`;
   }
   return getBezierPath({ ...props, curvature: 0.32 })[0];
 }

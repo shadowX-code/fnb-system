@@ -89,7 +89,7 @@ export function buildNetwork({ modules, agents = [], integrations = [], events =
   add('automation-group', 3, { label: 'Agents & Automation', subtitle: visibleAgents.length ? `${visibleAgents.length} registered agents in view` : 'No matching agent evidence', kind: 'agent-group', status: 'unknown', members: agentMembers, open: expanded.has('agents'), expandKey: 'agents', description: 'Registered identities and their existing evidence. Connection observations do not establish current online presence.' });
   if (expanded.has('agents')) for (const member of agentMembers) {
     add(member.nodeId, 3, member);
-    connect('automation-group', member.nodeId, 'dependency', null, 'module');
+    connect('automation-group', member.nodeId, 'dependency', null, 'outer');
   }
   for (const group of groups.filter(group => visibleAgents.some(agent => agent.workspaces.includes(group.id)))) connect(`workspace:${group.id}`, 'automation-group', 'dependency', null, 'outer');
   for (const agent of visibleAgents) for (const target of nodes.filter(node => node.data.kind === 'module' && agent.moduleIds.includes(node.id))) {
@@ -106,7 +106,7 @@ export function buildNetwork({ modules, agents = [], integrations = [], events =
   connect('platform', 'data-group', 'dependency', null, 'outer-left');
   if (visibleAgents.length) connect('automation-group', 'data-group');
   if (expanded.has('data-integrations') || expanded.has('social-connections')) for (const member of dataMembers) {
-    add(member.nodeId, 4, member); connect('data-group', member.nodeId, 'dependency', null, 'module');
+    add(member.nodeId, 4, member); connect('data-group', member.nodeId, 'dependency', null, 'outer');
   }
   if (visibleIntegrations.length && groups.some(group => group.id === 'marketing')) connect('workspace:marketing', 'data-group', 'dependency', null, 'outer');
   const laidOut = layoutNetworkNodes(nodes, edges, { narrow });
