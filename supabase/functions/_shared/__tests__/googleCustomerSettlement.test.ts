@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { settleCustomerMonths } from '../googleCustomerSettlement.ts';
+import { resolveCustomerPerformance, settleCustomerMonths } from '../googleCustomerSettlement.ts';
 
 const now = Date.parse('2026-11-01T00:00:00Z');
 const location = 'accounts/a/locations/l';
@@ -65,5 +65,39 @@ describe('automatic monthly Customer settlement',()=>{
   expect(result.results[2]).toMatchObject({periodState:'provisional'});
   expect(result.results[0]).toMatchObject({status:'settled',summary:{score:0,positiveTarget:0,quality:0}});
   expect(input.settle.mock.calls.filter(call=>call[2]).map(call=>call[0])).toEqual(['2026-09-01','2026-10-01']);
+ });
+});
+
+describe('closed-month reconciliation',()=>{
+ const summary={status:'settled',score:9.5,settled_at:'2026-11-02T00:00:00Z'};
+ const options=()=>({period:'2026-10-01',initial:{target_revision:3},context:{generation:3,mapping:{revision:'map',name:location}},
+  preview:vi.fn().mockResolvedValue({status:'preview_only',periodState:'closed_month',score:9.5,positiveTarget:4.5,quality:5,fetchedAt:'2026-11-02T00:00:00Z'}),
+  settle:vi.fn().mockResolvedValue({status:'settled',summary})});
+ it('hands complete closed-month evidence to the existing authority and returns its official summary',async()=>{
+  const input=options();
+  expect(await resolveCustomerPerformance(input)).toEqual({status:'settled',persisted:true,period:'2026-10-01',score:9.5,summary});
+  expect(input.settle).toHaveBeenCalledExactlyOnceWith('2026-10-01',
+   {generation:3,revision:'map',location,target_revision:3,fetchedAt:'2026-11-02T00:00:00Z'},
+   {score:9.5,positiveTarget:4.5,quality:5});
+ });
+ it('returns stored Customer evidence without source reads even if current authorization or mapping changed',async()=>{
+  const input={...options(),initial:{customer_summary:summary},context:{connection_status:'expired'}};
+  expect(await resolveCustomerPerformance(input)).toMatchObject({status:'settled',score:9.5});
+  expect(input.preview).not.toHaveBeenCalled();expect(input.settle).not.toHaveBeenCalled();
+ });
+ it('keeps current-month evidence provisional and missing evidence Pending without a write',async()=>{
+  for(const result of [{status:'preview_only',periodState:'provisional',score:6.5},{status:'pending',reason:'incomplete_evidence'}]){
+   const input=options();input.preview.mockResolvedValue(result);
+   expect(await resolveCustomerPerformance(input)).toEqual(result);expect(input.settle).not.toHaveBeenCalled();
+  }
+ });
+ it('surfaces settlement failure as Pending and retries through the same authority',async()=>{
+  const input=options();input.settle.mockRejectedValueOnce(new Error('temporary RPC failure'));
+  expect(await resolveCustomerPerformance(input)).toMatchObject({status:'pending',score:null,reason:'settlement_retry_required'});
+  expect(await resolveCustomerPerformance(input)).toMatchObject({status:'settled',score:9.5});
+ });
+ it('preserves a rejected target/mapping revision as Pending rather than displaying an official score',async()=>{
+  const input=options();input.settle.mockResolvedValue({status:'pending',reason:'evidence_changed_or_expired'});
+  expect(await resolveCustomerPerformance(input)).toEqual({status:'pending',reason:'evidence_changed_or_expired'});
  });
 });

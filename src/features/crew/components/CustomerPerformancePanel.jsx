@@ -11,6 +11,8 @@ const reasons = {
  target_required: 'Set a Monthly Positive Review Target for this outlet and month.',
  period_not_started: 'This Performance month has not started.' ,
  evidence_expired: 'Evidence expired. Refresh the preview for a new read.',
+ settlement_retry_required: 'Automatic settlement could not finish. It will retry automatically.',
+ evidence_changed_or_expired: 'The monthly evidence changed or expired. Automatic settlement will retry.',
  incomplete_evidence: 'Complete monthly review evidence is unavailable. Try again after synchronization.',
 };
 const number = value => new Intl.NumberFormat('en-MY', { maximumFractionDigits: 2 }).format(value);
@@ -70,9 +72,13 @@ export default function CustomerPerformancePanel({ outletId, period, auth, onPre
   try {
    const latest = await crewService.googleReviewsAdminContext(outletId, period);
    if (request !== sequence.current) return;
-   if (latest.customer_summary) { setContext(latest); return; }
+   if (latest.customer_summary) { setContext(latest); onPreview({status:'settled',summary:latest.customer_summary,outletId,period}); return; }
    const result = await googleBusinessService.customerPreview(outletId, period);
    if (request !== sequence.current) return;
+   if (result.status === 'settled') {
+    setContext(current=>({...current,customer_summary:result.summary,target_locked:true}));
+    onPreview({...result,outletId,period}); return;
+   }
    if (result.expiresAt && Date.parse(result.expiresAt) <= Date.now()) { setPreview({ status: 'pending', reason: 'evidence_expired' }); return; }
    setPreview(result); onPreview({ ...result, outletId, period });
   } catch (cause) {

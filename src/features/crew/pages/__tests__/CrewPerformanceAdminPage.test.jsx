@@ -200,6 +200,8 @@ describe("Customer preview canonical employment scope", () => {
   });
   it.each([
     { ...result, status: "finalized" },
+    { ...result, customer_score:9.5,components:{...result.components,customer:{status:'settled',score:9.5}} },
+    { ...result, customer_score:0,components:{...result.components,customer:{status:'settled',score:0}} },
     { ...result, employment_review_required: true },
     { ...result, period_start: "2026-09-01" },
     { ...result, components: { employment: { state: "ineligible", outlet_id: "outlet-1" } } },
@@ -295,4 +297,27 @@ it.each([0,6.5])('shows shared provisional %s in eligible rows/details without c
   fireEvent.click(screen.getByRole('button',{name:'Open Performance for Alex Tan'}));
   expect(await screen.findByText(`Outlet Customer preview: ${customerScore} / 20 · Not included in saved Performance.`)).not.toBeNull();
  } finally {remote.mockRestore();}
+});
+
+it('refreshes settled Customer rows and detail while Service and Team Review remain Pending',async()=>{
+ const period=new Date().toISOString().slice(0,7)+'-01';let saved=false;
+ const summary={status:'settled',score:9.5,max_score:20,settled_at:new Date().toISOString()};
+ const eligible={...row,result:{...row.result,period_start:period,status:'review_required',total_score:null,current_score:68,
+  customer_score:null,components:{...row.result.components,employment:{state:'eligible',outlet_id:'outlet-1'},customer:{score:null,max_score:20,status:'pending'}}}};
+ const stored={...eligible,result:{...eligible.result,customer_score:9.5,components:{...eligible.result.components,customer:summary}}};
+ mocks.data.mockImplementation(async()=>({...fixture,crew:[saved?stored:eligible]}));
+ mocks.page.mockImplementation(async()=>({rows:[saved?stored:eligible],total_count:1,page:1,page_size:20}));
+ vi.mocked(crewService.googleReviewsAdminContext).mockResolvedValue({positive_target:10,target_locked:false});
+ const remote=vi.spyOn(googleBusinessService,'customerPreview').mockImplementation(async()=>{saved=true;return {status:'settled',persisted:true,score:9.5,summary};});
+ try{
+  render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{outlets:[outlet]}} />);
+  const button=await screen.findByRole('button',{name:'Open Performance for Alex Tan'});
+  const activeRow=button.closest('tr');
+  await within(activeRow).findByText('Settled');
+  expect(within(activeRow).getByText('9.5 / 20')).not.toBeNull();
+  expect(within(activeRow).queryByText('Preview')).toBeNull();
+  fireEvent.click(button);
+  expect(await screen.findByText('Customer: Settled')).not.toBeNull();
+  expect(screen.queryByText(/Saved Customer score is Pending/)).toBeNull();
+ }finally{remote.mockRestore();}
 });
