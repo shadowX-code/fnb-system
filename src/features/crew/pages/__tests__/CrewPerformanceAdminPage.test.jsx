@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 const mocks = vi.hoisted(() => ({ data: vi.fn(), page: vi.fn(), feedbackPage: vi.fn(), review: vi.fn(), recalculate: vi.fn(), moderate: vi.fn(), correct: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: { googleReviewsAdminContext: vi.fn().mockResolvedValue({ positive_target: null, target_locked: false }), performanceAdminData: mocks.data, performanceAdminPage: mocks.page, feedbackAdminPage: mocks.feedbackPage, submitPerformanceReview: mocks.review, recalculatePerformanceEmployment: mocks.recalculate, moderateFeedback: mocks.moderate, correctFeedbackAttribution: mocks.correct } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
-import CrewPerformanceAdminPage from "../CrewPerformanceAdminPage.jsx";
+import CrewPerformanceAdminPage, { customerPreviewForResult } from "../CrewPerformanceAdminPage.jsx";
 
 const outlet = { id: "outlet-1", name: "Friends Corner", is_active: true };
 const row = { employee: { id: "employee-1", full_name: "Alex Tan", employee_code: "QA-01", position: "Service Crew" }, result: { id: "result-1", period_start: "2026-08-01", status: "review_required", current_score: 66, total_score: null, attendance_score: 28, service_score: 25, customer_score: null, knowledge_score: 13, peer_score: null, calculation_version: "performance-v2", components: { attendance: { score: 28, max_score: 30 }, service: { status: "reviewed", score: 25, max_score: 30 }, customer: { score: null, max_score: 20, status: "pending" }, knowledge: { score: 13, max_score: 15 }, peer: { score: null, max_score: 5, status: "pending" } } } };
@@ -184,5 +184,28 @@ describe("Crew Performance Admin", () => {
     expect((await screen.findAllByText("Mina Lee")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("31").length).toBeGreaterThan(0);
     expect(screen.getAllByText("— / 30").length).toBeGreaterThan(0);
+  });
+});
+
+
+describe("Customer preview canonical employment scope", () => {
+  const now = Date.parse("2026-11-02T11:00:00Z");
+  const preview = { status: "preview_only", score: 9.5, outletId: "outlet-1", period: "2026-10-01", expiresAt: "2026-11-02T11:05:00Z" };
+  const result = { status: "review_required", period_start: "2026-10-01", components: { employment: { state: "eligible", outlet_id: "outlet-1" } } };
+  it("shares one preview between eligible employees using the actual result projection", () => {
+    expect(customerPreviewForResult({ ...result, id: "employee-result-1" }, preview, now)).toBe(preview);
+    expect(customerPreviewForResult({ ...result, id: "employee-result-2" }, preview, now)).toBe(preview);
+  });
+  it.each([
+    { ...result, status: "finalized" },
+    { ...result, employment_review_required: true },
+    { ...result, period_start: "2026-09-01" },
+    { ...result, components: { employment: { state: "ineligible", outlet_id: "outlet-1" } } },
+    { ...result, components: { employment: { state: "eligible", outlet_id: "outlet-2" } } },
+  ])("does not substitute an outlet preview into finalized, unresolved or unrelated evidence", value => {
+    expect(customerPreviewForResult(value, preview, now)).toBeNull();
+  });
+  it("clears at the exact five-minute expiry", () => {
+    expect(customerPreviewForResult(result, preview, now + 300000)).toBeNull();
   });
 });

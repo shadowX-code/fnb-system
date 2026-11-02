@@ -172,9 +172,16 @@ function FeedbackTags({ row, compact = false }) {
   return <div className={compact ? "space-y-1 text-xs" : "space-y-2"}>{positive.length ? <div><small className="mr-1 text-text-secondary">Positive</small>{positive.map((tag) => <Badge key={tag} tone="success">{tag}</Badge>)}</div> : null}{improvement.length ? <div><small className="mr-1 text-text-secondary">Improve</small>{improvement.map((tag) => <Badge key={tag} tone="warning">{tag}</Badge>)}</div> : null}</div>;
 }
 
+export function customerPreviewForResult(result, preview, now = Date.now()) {
+  const employment = result.components?.employment;
+  return result.status !== "finalized" && !result.employment_review_required && employment?.state === "eligible"
+    && employment.outlet_id === preview?.outletId && result.period_start === preview?.period
+    && preview?.status === "preview_only" && Date.parse(preview.expiresAt) > now ? preview : null;
+}
+
 function PerformanceDetail({ item, onClose, onRecalculate, customerPreview }) {
   const r = item.result;
-  const applicablePreview = customerPreview?.status === "preview_only" && Date.parse(customerPreview.expiresAt) > Date.now() && r.components?.employment?.state === "eligible" && !r.employment_review_required && r.outlet_id === customerPreview.outletId && r.period_start === customerPreview.period ? customerPreview : null;
+  const applicablePreview = customerPreviewForResult(r, customerPreview);
   const current = displayedPerformanceScore(r); const finalized = r.status === "finalized";
   const pending = performanceComponents.filter(([key]) => r.components?.[key]?.score == null);
   return <Modal title={`${item.employee.full_name} · Performance`} description={`${new Date(r.period_start).toLocaleDateString("en-MY", { month: "long", year: "numeric" })} · ${statusLabel(r.status)}`} size="xl" onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Close</button>{r.employment_can_recalculate && onRecalculate ? <button className="btn-primary" onClick={onRecalculate}>Review & Recalculate</button> : null}</>}>
