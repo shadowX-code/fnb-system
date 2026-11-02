@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Award, ChevronDown, ChevronRight, ClipboardCheck, Eye, MoreVertical, Pencil, Plus, Search, ShieldCheck, Trash2, UsersRound, X } from "lucide-react";
+import InitialAvatar from "../components/CrewInitialAvatar.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
@@ -318,7 +319,6 @@ function growthStatus(summary) { return summary.attention ? "attention" : summar
 function latestCertification(skills = []) { return skills.map((row) => row.certification?.certified_at).filter(Boolean).sort().at(-1); }
 function firstActionableSkill(row) { const state = row.skills.find((item) => ["ready_for_review", "needs_renewal", "expired"].includes(item.status)) || row.skills[0]; return { employee_id: row.employee.id, employee_name: row.employee.full_name, position: row.employee.position, skill_id: state.skill_id, skill_name: state.skill?.name || "Skill", state }; }
 function StateBadge({ state }) { return <Badge tone={semanticStatusTone(state)}>{statusText(state)}</Badge>; }
-function InitialAvatar({ name, size = "sm" }) { const initials = String(name || "Crew").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase(); return <span className={`crew-growth-avatar is-${size}`} aria-hidden="true">{initials}</span>; }
 function NameCell({ title, detail }) { return <span className="crew-growth-name"><InitialAvatar name={title} /><span><strong>{title}</strong><small>{detail || "-"}</small></span></span>; }
 function ProfileMetric({ label, value }) { return <article className="crew-growth-metric"><span><small>{label}</small><strong>{value}</strong></span></article>; }
 function SectionHead({ title, detail, action = null }) { return <header className="crew-growth-section-head"><div><h2>{title}</h2><p>{detail}</p></div>{action}</header>; }

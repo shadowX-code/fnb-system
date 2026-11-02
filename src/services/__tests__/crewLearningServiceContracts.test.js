@@ -108,6 +108,22 @@ describe("Crew learning mobile service boundaries", () => {
       .rejects.toThrow("The source outlet has no published onboarding.");
   });
 
+  it("saves structure and language sources through one revision-checked RPC without row writes", async () => {
+    const original = { id: "draft", status: "draft", draft_revision: 4 };
+    const next = { ...original, name: "Onboarding", modules: [{ id: "module", title: "你好", lessons: [] }] };
+    mocks.rpc.mockResolvedValueOnce({ data: next, error: null });
+    await crewService.saveOnboardingDraft(original, next, { requestId: "retry-id", sourceLanguage: "zh-CN" });
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_save_onboarding_draft", expect.objectContaining({ p_journey_id: "draft", p_expected_revision: 4, p_request_id: "retry-id", p_payload: next, p_source_units: expect.arrayContaining([expect.objectContaining({ source_language: "zh-CN", source_value: "你好" })]) }));
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(next.modules[0].id).toBe("module");
+  });
+
+  it("publishes only the reviewed persisted Onboarding revision", async () => {
+    await crewService.publishJourney("draft", 5);
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_publish_onboarding_draft", { p_journey_id: "draft", p_expected_revision: 5 });
+  });
+
   it("uses dedicated authenticated authorities for non-draft transitions", async () => {
     await crewService.publishJourney("journey-1");
     await crewService.newJourneyVersion("journey-1");

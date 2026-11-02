@@ -910,3 +910,8 @@ Consolidated parallel access editors and migrated-grant removal into one grant-b
 ## Restaurant Agent Capability Extension (implementation)
 
 Added fixed Restaurant P&L/asset/inventory read and business-action mappings to the existing Gateway, with canonical role outlet scope, shared business bodies, typed machine lifecycle attribution and existing request/Activity authority. New grants remain opt-in. Delivery requires all seven Restaurant migrations, the matching Gateway and authenticated Staging acceptance; implementation alone is not runtime completion.
+
+
+## 2026-11-02 — Scoped New Crew Onboarding Production candidate
+
+Prepared the verified Onboarding Builder/Overview/Preview/Progress scope from Staging on current Production main, with atomic Draft migrations 20261102073413 and 20261102080643. Production catalog guards, transactional rehearsal, exact migration selection, focused integration checks and learning-evidence fingerprints govern cutover; unrelated dev changes remain excluded. See docs/releases/2026-11-02-new-crew-onboarding-production.md.
