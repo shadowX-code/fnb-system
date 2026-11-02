@@ -45,24 +45,24 @@
 .son-map-toolbar .son-activity-toggle { margin-left: 4px; border: 1px solid #315261; }
 .son-icon-button { display: inline-flex; align-items: center; justify-content: center; padding: 8px; border-radius: 6px; color: #b8cddb; background: transparent; }
 .son-icon-button:hover { color: #fff; background: #14394b; }
-.son-canvas { position: relative; height: clamp(460px,calc(100dvh - 300px),850px); overflow: hidden; background: radial-gradient(ellipse at 50% 35%, #0b3443 0, #081c30 35%, #040e1b 75%); isolation: isolate; }
+.son-canvas { position: relative; height: clamp(460px,calc(100dvh - 300px),850px); overflow: hidden; background: radial-gradient(ellipse at 50% 28%, #102d38 0, #0a1d2b 43%, #07131f 85%); isolation: isolate; }
 .son-canvas-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .son-canvas-atmosphere::before { content: ''; position: absolute; width: 76%; height: 55%; top: 20%; left: 12%; border-radius: 50%; background: radial-gradient(ellipse,#18c6bd12,transparent 70%); }
-.son-canvas-atmosphere div { position: absolute; left: 13%; right: 13%; bottom: -30%; height: 62%; border: 1px solid #43d8df17; border-radius: 50%; box-shadow: 0 0 32px #20c9dc08; }
+.son-canvas-atmosphere div { position: absolute; left: 13%; right: 13%; bottom: -30%; height: 62%; border: 1px solid #43d8df08; border-radius: 50%; box-shadow: 0 0 32px #20c9dc08; }
 .son-canvas-atmosphere div:nth-child(2) { left: 4%; right: 4%; bottom: -37%; height: 76%; }
 .son-canvas-atmosphere div:nth-child(3) { left: -8%; right: -8%; bottom: -45%; height: 94%; }
 .son-canvas .react-flow { --xy-background-color: transparent; --xy-controls-button-background-color: #112b3d; --xy-controls-button-background-color-hover: #1d4659; --xy-controls-button-color: #daf8ff; --xy-controls-button-border-color: #31596a; }
 .son-canvas .react-flow__node { border-radius: 14px; }
 .son-canvas .react-flow__node:focus-visible { outline: 2px solid #affff0; outline-offset: 6px; }
 .son-canvas .react-flow__attribution { font-size: 8px; background: #071a29b8; color: #9ab8ca; }
-.son-node { position: relative; width: 100%; height: 100%; padding: 15px 16px; color: var(--son-text); background: linear-gradient(145deg,#142a40ee,#0a1b2eec); border: 1px solid color-mix(in srgb,var(--son-accent) 34%,#152b42); border-radius: 14px; box-shadow: 0 10px 22px #0005, inset 0 1px 0 #e1ffff10; transition: background .18s ease-out,border-color .18s ease-out,box-shadow .18s ease-out; }
-.son-node::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; background: radial-gradient(ellipse at 15% 0,color-mix(in srgb,var(--son-accent) 10%,transparent),transparent 65%); }
+.son-node { position: relative; width: 100%; height: 100%; padding: 15px 16px; color: var(--son-text); background: linear-gradient(155deg,#102632f5,#0b1c29f5); border: 1px solid color-mix(in srgb,var(--son-accent) 17%,#172c38); border-radius: 14px; box-shadow: 0 14px 30px #020a1240, inset 0 1px 0 #d5fff908; transition: background .18s ease-out,border-color .18s ease-out,box-shadow .18s ease-out; }
+.son-node::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; background: radial-gradient(ellipse at 15% 0,color-mix(in srgb,var(--son-accent) 7%,transparent),transparent 70%); }
 .son-node:hover,.son-node.son-selected { border-color: var(--son-accent); background: linear-gradient(145deg,#1a384a,#0d2438); box-shadow: 0 12px 26px #0006,0 0 19px color-mix(in srgb,var(--son-accent) 14%,transparent); }
 .son-node-title { display: flex; align-items: center; gap: 11px; position: relative; z-index: 1; }
 .son-node-title > div { min-width: 0; flex: 1; }
-.son-node-title strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 18px; line-height: 1.2; font-weight: 650; letter-spacing: -.015em; }
+.son-node-title strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 20px; line-height: 1.2; font-weight: 650; letter-spacing: -.015em; }
 .son-node-layer { display: block; color: #a8c4d6; font-size: 9px; font-weight: 600; margin-bottom: 4px; letter-spacing: .035em; }
-.son-node-icon { display: grid; place-items: center; color: var(--son-accent); width: 38px; height: 38px; border-radius: 11px; flex: 0 0 auto; background: color-mix(in srgb,var(--son-accent) 10%,#0a1c2b); box-shadow: inset 0 0 12px color-mix(in srgb,var(--son-accent) 9%,transparent); }
+.son-node-icon { display: grid; place-items: center; color: var(--son-accent); width: 38px; height: 38px; border-radius: 11px; flex: 0 0 auto; background: transparent; filter: drop-shadow(0 0 7px color-mix(in srgb,var(--son-accent) 24%,transparent)); }
 .son-workspace-bottom { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 15px; position: relative; z-index: 1; }
 .son-workspace-bottom > span { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #b4cbd9; }
 .son-workspace-bottom b { color: #eefaff; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -80,7 +80,7 @@
 .son-node:is(.son-node-module,.son-node-agent,.son-node-data,.son-node-integration) .son-node-icon { width: 29px; height: 29px; }
 .son-node:is(.son-node-module,.son-node-agent,.son-node-data,.son-node-integration) .son-node-icon svg { width: 18px; }
 .son-node-module .son-node-subtitle { display: none; }
-.son-node:is(.son-node-agent-group,.son-node-data-group) { background: linear-gradient(120deg,#102e40,#0c1d33); border-color: #38758b; }
+.son-node:is(.son-node-agent-group,.son-node-data-group) { background: linear-gradient(120deg,#102a35,#0b1e2b); border-color: #294451; }
 .son-node-agent-group { --son-accent: #b4a3ff !important; }
 .son-node-data-group { --son-accent: #60d7ed !important; }
 .son-node-agent-group .son-node-icon { color: #c2b4ff; background: #322b522e; }
@@ -103,9 +103,9 @@
 .son-hub-orbit-outer { left: -43px; right: -43px; top: 51px; height: 145px; border-color: #28c2d329; box-shadow: 0 0 22px #17ded91a; }
 .son-node .react-flow__handle { width: 5px; height: 5px; opacity: 0; pointer-events: none; }
 .son-edge { pointer-events: none; }
-.son-edge .react-flow__edge-path { stroke-width: 1.7; fill: none; }
-.son-edge-aura { stroke: var(--son-edge-color); stroke-width: 10; opacity: .075; fill: none; filter: blur(2px); }
-.son-edge-sheath { stroke: var(--son-edge-color); stroke-width: 4; opacity: .12; fill: none; }
+.son-edge .react-flow__edge-path { stroke-width: 1.2; fill: none; }
+.son-edge-aura { stroke: var(--son-edge-color); stroke-width: 8; opacity: .045; fill: none; filter: blur(2px); }
+.son-edge-sheath { stroke: var(--son-edge-color); stroke-width: 2.6; opacity: .07; fill: none; }
 .son-edge-execution .react-flow__edge-path { stroke-width: 2.4; }
 .son-edge-execution .son-edge-aura { opacity: .15; }
 .son-edge-execution[data-status="unknown"] { opacity: .5; }
@@ -213,12 +213,12 @@
 .son-canvas { height: clamp(460px,calc(100dvh - 350px),1000px); }
 .son-edge { transition: opacity .2s ease-out; }
 .son-edge[data-dimmed] { opacity: .12; }
-.son-edge[data-demo] .son-edge-aura { opacity: .18; }
+.son-edge[data-demo] .son-edge-aura { opacity: .1; }
 .son-motion-particle { animation-duration: 2.4s; filter: drop-shadow(0 0 3px #e7fff9) drop-shadow(0 0 8px #38eddd); }
-.son-hub-body { inset: 5px 0 20px; border-radius: 18px; background: linear-gradient(140deg,#153c4b,#071a2b); }
-.son-hub-base { left: 20px; right: 20px; top: 110px; height: 24px; border-radius: 50%; opacity: .6; }
-.son-hub-orbit { left: -12px; right: -12px; top: 120px; height: 23px; }
-.son-hub-orbit-outer { left: -28px; right: -28px; top: 117px; height: 34px; }
+.son-hub-body { inset: 5px 0 0; border-radius: 16px; background: linear-gradient(140deg,#153843,#0b202c); border-color: #4b8f91; box-shadow: 0 16px 35px #0005,inset 0 1px 0 #c5fff91a; }
+.son-hub-base { left: 20px; right: 20px; top: 139px; height: 14px; border-radius: 50%; opacity: .6; }
+.son-hub-orbit { left: -12px; right: -12px; top: 141px; height: 18px; opacity: .3; }
+.son-hub-orbit-outer { left: -28px; right: -28px; top: 139px; height: 28px; }
 .son-node-workspace { padding: 12px 15px; }
 @media(max-width: 700px) { .son-canvas { height: 680px; } }
 @media(prefers-reduced-motion: reduce) { .son-edge { transition: none; } }

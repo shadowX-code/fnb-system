@@ -33,13 +33,13 @@ export function networkEdgePath(props) {
     return `M ${sx} ${sy} L ${sx} ${lineY} L ${laneX + r} ${lineY} Q ${laneX} ${lineY} ${laneX} ${lineY + r} L ${laneX} ${ty - r} Q ${laneX} ${ty} ${laneX + r} ${ty} L ${tx} ${ty}`;
   }
   if (data.routing?.startsWith('outer')) {
-    const x = data.outerX, turn = x < tx ? 16 : -16, entry = ty - data.entryGap;
+    const x = data.outerX, entry = ty - data.entryGap;
     const departure = ['top', 'bottom'].includes(data.startMode) ? data.departureY : sy;
-    const direction = entry >= departure ? 1 : -1, bend = Math.min(16, Math.abs(entry - departure) / 3);
+    const direction = entry >= departure ? 1 : -1, bend = Math.min(36, Math.abs(entry - departure) / 3);
     const start = ['left', 'right'].includes(data.startMode)
       ? `M ${sx} ${sy} C ${sx + (x < sx ? -45 : 45)} ${sy} ${x} ${sy} ${x} ${sy + direction * bend}`
-      : `M ${sx} ${sy} L ${sx} ${departure} L ${x + turn} ${departure} Q ${x} ${departure} ${x} ${departure + direction * bend}`;
-    return `${start} L ${x} ${entry - direction * bend} Q ${x} ${entry} ${x + turn} ${entry} L ${tx - turn} ${entry} Q ${tx} ${entry} ${tx} ${ty}`;
+      : `M ${sx} ${sy} C ${sx} ${departure} ${x} ${departure} ${x} ${departure + direction * bend}`;
+    return `${start} L ${x} ${entry - direction * bend} C ${x} ${entry + direction * bend} ${tx} ${entry} ${tx} ${ty}`;
   }
   return getBezierPath({ ...props, curvature: 0.32 })[0];
 }
@@ -52,7 +52,7 @@ export const NetworkEdge = memo(function NetworkEdge(props) {
   const completion = executing && status === 'completed' && fresh;
   const color = executing ? ({ pending: '#f9c872', running: '#61fff0', completed: '#8df0be', failed: '#ff819c', unknown: '#8595aa', idle: '#527b91' }[status] || '#88bbc5') : accent || '#4de9dd';
   return <g className={`son-edge son-edge-${kind}`} data-status={status} data-dimmed={dimmed || undefined} data-demo={demoMotion || undefined} style={{ '--son-edge-color': color }}>
-    <defs><linearGradient id={`${uid}-line`}><stop stopColor={color} stopOpacity=".35" /><stop offset=".5" stopColor={color} stopOpacity=".95" /><stop offset="1" stopColor={color} stopOpacity=".6" /></linearGradient><marker id={`${uid}-arrow`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke={color} strokeWidth="1.5" /></marker></defs>
+    <defs><linearGradient id={`${uid}-line`} gradientUnits="userSpaceOnUse" x1={props.sourceX} y1={props.sourceY} x2={props.targetX} y2={props.targetY}><stop stopColor={color} stopOpacity=".12" /><stop offset=".5" stopColor={color} stopOpacity=".55" /><stop offset="1" stopColor={color} stopOpacity=".8" /></linearGradient><marker id={`${uid}-arrow`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke={color} strokeWidth="1.5" /></marker></defs>
     <path id={`${uid}-track`} className="son-edge-aura" d={path} /><path className="son-edge-sheath" d={path} />
     <BaseEdge id={props.id} path={path} markerEnd={`url(#${uid}-arrow)`} interactionWidth={0} style={{ stroke: `url(#${uid}-line)` }} />
     {(demoMotion || executing) && <text className="son-edge-label" dy="-9"><textPath href={`#${uid}-track`} startOffset="50%" textAnchor="middle">{demoMotion ? 'Demo flow' : statusLabels[status]}</textPath></text>}
