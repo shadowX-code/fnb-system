@@ -49,6 +49,7 @@ function NetworkExperience({ auth, ui, store }) {
   const integrations = scoped ? [] : evidence.integrations || [];
   const graph = useMemo(() => buildNetwork({ modules, agents, integrations, events, expanded, workspace, search, status, selectedId, now: clock, narrow }), [modules, agents, integrations, events, expanded, workspace, search, status, selectedId, clock, narrow]);
   const selectNode = useCallback((id, workspaceId) => {
+    fitRequest.current = 'selection'; fitPending.current = false;
     if (workspaceId) setExpanded(current => new Set([...current, workspaceId]));
     else { const module = modules.find(module => module.id === id); if (module) setExpanded(current => new Set([...current, module.workspace])); }
     if (id.startsWith('agent:')) setExpanded(current => new Set([...current, 'agents']));
@@ -75,6 +76,7 @@ function NetworkExperience({ auth, ui, store }) {
     return () => cancelAnimationFrame(frame);
   }, [layoutKey, flow]);
   useEffect(() => {
+    if (!['primary', 'selection'].includes(fitRequest.current)) return;
     if (!selectedId || !graph.nodes.some(node => node.id === selectedId)) return;
     const frame = requestAnimationFrame(() => flow.fitView({ nodes: [{ id: selectedId }], padding: 0.7, maxZoom: 1, duration: 0 }));
     return () => cancelAnimationFrame(frame);
