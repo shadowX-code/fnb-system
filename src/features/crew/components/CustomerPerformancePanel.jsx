@@ -74,9 +74,9 @@ export default function CustomerPerformancePanel({ outletId, period, auth, onPre
   <div className="space-y-3 p-4">
    <div aria-live="polite" className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
     <div className="min-w-0"><p className="text-xl font-semibold tabular-nums">{ready ? `${number(preview.score)} / 20` : 'Pending'}</p>{!ready ? <p className="mt-1 text-sm text-text-secondary">{reasons[preview?.reason] || (context && !context.positive_target ? reasons.target_required : 'Refresh Preview to read monthly evidence.')}</p> : <p className="mt-1 text-sm text-text-secondary">Outlet-shared Customer preview</p>}</div>
-    <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-     <div><dt className="text-xs text-text-secondary">Positive Target /15</dt><dd className="mt-1 font-semibold tabular-nums">{ready ? `${number(preview.positiveTarget)} / 15` : '— / 15'}</dd>{ready ? <dd className="text-xs text-text-secondary">{preview.positive} / {preview.target} positive reviews</dd> : null}</div>
-     <div><dt className="text-xs text-text-secondary">Review Quality /5</dt><dd className="mt-1 font-semibold tabular-nums">{ready ? `${preview.quality} / 5` : '— / 5'}</dd>{ready ? <dd className="text-xs text-text-secondary">{number(preview.negativeRate * 100)}% negative</dd> : null}</div>
+    <dl className="grid grid-cols-3 gap-3">
+     <div><dt className="text-xs text-text-secondary">Positive Target</dt><dd className="mt-1 font-semibold tabular-nums">{ready ? `${number(preview.positiveTarget)} / 15` : '— / 15'}</dd>{ready ? <dd className="text-xs text-text-secondary">{preview.positive} / {preview.target} positive reviews</dd> : null}</div>
+     <div><dt className="text-xs text-text-secondary">Review Quality</dt><dd className="mt-1 font-semibold tabular-nums">{ready ? `${preview.quality} / 5` : '— / 5'}</dd>{ready ? <dd className="text-xs text-text-secondary">{number(preview.negativeRate * 100)}% negative</dd> : null}</div>
      <div><dt className="text-xs text-text-secondary">Monthly Reviews</dt><dd className="mt-1 font-semibold tabular-nums">{ready ? preview.total : '—'}</dd>{ready ? <dd className="text-xs text-text-secondary">{preview.positive} positive · {preview.total - preview.positive - preview.negative} neutral · {preview.negative} negative</dd> : null}</div>
     </dl>
    </div>

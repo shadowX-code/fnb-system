@@ -97,7 +97,7 @@ describe("Crew Performance Admin", () => {
   it("filters real Crew rows and shows a compact server-backed scoring reference", async () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect((await screen.findAllByText("—")).length).toBeGreaterThan(0);
-    expect(document.querySelector('[data-admin-summary-grid="standard"]')).not.toBeNull();
+    expect(document.querySelector('[data-admin-summary-grid="compact"]')).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "Review Queue" })).toBeNull();
     expect(screen.getAllByRole("table")).toHaveLength(1);
     expect(screen.queryByRole("heading", { name: "Needs Attention" })).toBeNull();
