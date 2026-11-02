@@ -11,13 +11,13 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
   };
   const columns = narrow ? Math.min(2, Math.max(workspaces.length, 1)) : Math.min(4, Math.max(workspaces.length, 1));
   const gridWidth = Math.max(310, columns * 254 - 24);
-  place(byId.get('platform'), (gridWidth - 300) / 2, 0, 300, 150);
+  place(byId.get('platform'), (gridWidth - 280) / 2, 0, 280, 112);
   const rows = Math.ceil(workspaces.length / columns);
   workspaces.forEach((node, index) => {
     const row = Math.floor(index / columns), count = Math.min(columns, workspaces.length - row * columns);
-    place(node, (gridWidth - (count * 254 - 24)) / 2 + index % columns * 254, 190 + row * 130, 230, 104);
+    place(node, (gridWidth - (count * 254 - 24)) / 2 + index % columns * 254, 160 + row * 108, 230, 84);
   });
-  let cursor = 190 + Math.max(1, rows) * 130 + 14;
+  let cursor = 160 + Math.max(1, rows) * 108 + 14;
   for (const section of nodes.filter(node => node.data.kind === 'operation-group')) {
     place(section, 0, cursor, gridWidth, 42);
     const children = nodes.filter(node => node.data.kind === 'module' && node.data.workspace === section.data.workspace);
@@ -26,11 +26,11 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
   }
   // Each support layer owns its expanded members, so data never shares the agent row.
   for (const [groupId, kinds] of [['automation-group', ['agent']], ['data-group', ['data', 'integration']]]) {
-    place(byId.get(groupId), (gridWidth - Math.min(gridWidth, 520)) / 2, cursor, Math.min(gridWidth, 520), 90);
-    cursor += 120;
+    place(byId.get(groupId), (gridWidth - gridWidth) / 2, cursor, gridWidth, 30);
+    cursor += 44;
     const members = nodes.filter(node => kinds.includes(node.data.kind));
-    members.forEach((node, index) => place(node, index % columns * 254, cursor + Math.floor(index / columns) * 112, 230, 96));
-    if (members.length) cursor += Math.ceil(members.length / columns) * 112 + 24;
+    members.forEach((node, index) => place(node, index % columns * 254, cursor + Math.floor(index / columns) * 98, 230, 80));
+    if (members.length) cursor += Math.ceil(members.length / columns) * 98 + 18;
   }
   const edges = inputEdges.map((edge, index) => {
     const source = byId.get(edge.source), target = byId.get(edge.target);
@@ -42,12 +42,12 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
       sourceHandle = source.position.y > target.position.y ? 'top' : 'bottom';
     }
     // A staggered final workspace row aligns with the gutters above it.
-    if (!narrow && source.id === 'platform' && target.data.kind === 'workspace' && target.position.y > 190 && workspaces.length % columns === columns - 1) routing = 'workspace-column';
+    if (!narrow && source.id === 'platform' && target.data.kind === 'workspace' && target.position.y > 160 && workspaces.length % columns === columns - 1) routing = 'workspace-column';
     if (edge.data.routing === 'module') { routing = 'module'; targetHandle = 'left'; }
     const leftLane = (source.position.x + source.width / 2 < gridWidth / 2) || edge.data.routing === 'outer-left';
     return { ...edge, sourceHandle: `out-${sourceHandle}`, targetHandle: `in-${targetHandle}`, data: { ...edge.data, routing, departureY: sourceHandle === 'top' ? source.position.y - 22 : source.position.y + source.height + 22, startMode: sourceHandle, entryGap: 24, outerX: leftLane ? -28 - index % 3 * 9 : gridWidth + 28 + index % 3 * 9 } };
   });
-  const primaryIds = ['platform', ...workspaces.map(node => node.id), 'automation-group', 'data-group'];
+  const primaryIds = ['platform', ...workspaces.map(node => node.id), ...nodes.filter(node => ['agent-group','data-group','agent','data','integration'].includes(node.data.kind)).map(node=>node.id)];
   return { nodes, edges, primaryIds: narrow && workspaces.length > 2 ? ['platform', ...workspaces.slice(0, 2).map(node => node.id)] : primaryIds };
 }
 

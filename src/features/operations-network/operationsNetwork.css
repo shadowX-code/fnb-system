@@ -46,11 +46,6 @@
 .son-icon-button { display: inline-flex; align-items: center; justify-content: center; padding: 8px; border-radius: 6px; color: #b8cddb; background: transparent; }
 .son-icon-button:hover { color: #fff; background: #14394b; }
 .son-canvas { position: relative; height: clamp(460px,calc(100dvh - 300px),850px); overflow: hidden; background: radial-gradient(ellipse at 50% 28%, #102d38 0, #0a1d2b 43%, #07131f 85%); isolation: isolate; }
-.son-canvas-atmosphere { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-.son-canvas-atmosphere::before { content: ''; position: absolute; width: 76%; height: 55%; top: 20%; left: 12%; border-radius: 50%; background: radial-gradient(ellipse,#18c6bd12,transparent 70%); }
-.son-canvas-atmosphere div { position: absolute; left: 13%; right: 13%; bottom: -30%; height: 62%; border: 1px solid #43d8df08; border-radius: 50%; box-shadow: 0 0 32px #20c9dc08; }
-.son-canvas-atmosphere div:nth-child(2) { left: 4%; right: 4%; bottom: -37%; height: 76%; }
-.son-canvas-atmosphere div:nth-child(3) { left: -8%; right: -8%; bottom: -45%; height: 94%; }
 .son-canvas .react-flow { --xy-background-color: transparent; --xy-controls-button-background-color: #112b3d; --xy-controls-button-background-color-hover: #1d4659; --xy-controls-button-color: #daf8ff; --xy-controls-button-border-color: #31596a; }
 .son-canvas .react-flow__node { border-radius: 14px; }
 .son-canvas .react-flow__node:focus-visible { outline: 2px solid #affff0; outline-offset: 6px; }
@@ -98,9 +93,6 @@
 .son-hub-body strong { color: #f1ffff; font-size: 32px; letter-spacing: -.035em; line-height: 1.15; font-weight: 750; margin-top: 5px; }
 .son-hub-body p { margin-top: 5px; color: #c5e2ea; font-size: 12px; }
 .son-hub-body > span { font-size: 9px; color: #8ebac9; margin-top: 9px; }
-.son-hub-base { position: absolute; z-index: 1; left: 13px; right: 13px; top: 66px; height: 114px; border-radius: 50%; background: linear-gradient(180deg,#0d5b75,#0bc8cc 75%,#0c263a 83%); border: 1px solid #91fff7; box-shadow: 0 8px 19px #05dfda3b,0 2px 0 #d5fff5; }
-.son-hub-orbit { position: absolute; z-index: 0; left: -19px; right: -19px; top: 56px; height: 132px; border: 1px solid #30bbc166; border-radius: 50%; box-shadow: 0 4px 0 #35dedc19; }
-.son-hub-orbit-outer { left: -43px; right: -43px; top: 51px; height: 145px; border-color: #28c2d329; box-shadow: 0 0 22px #17ded91a; }
 .son-node .react-flow__handle { width: 5px; height: 5px; opacity: 0; pointer-events: none; }
 .son-edge { pointer-events: none; }
 .son-edge .react-flow__edge-path { stroke-width: 1.2; fill: none; }
@@ -216,14 +208,10 @@
 .son-edge[data-demo] .son-edge-aura { opacity: .1; }
 .son-motion-particle { animation-duration: 2.4s; filter: drop-shadow(0 0 3px #e7fff9) drop-shadow(0 0 8px #38eddd); }
 .son-hub-body { inset: 5px 0 0; border-radius: 16px; background: linear-gradient(140deg,#153843,#0b202c); border-color: #4b8f91; box-shadow: 0 16px 35px #0005,inset 0 1px 0 #c5fff91a; }
-.son-hub-base { left: 20px; right: 20px; top: 139px; height: 14px; border-radius: 50%; opacity: .6; }
-.son-hub-orbit { left: -12px; right: -12px; top: 141px; height: 18px; opacity: .3; }
-.son-hub-orbit-outer { left: -28px; right: -28px; top: 139px; height: 28px; }
 .son-node-workspace { padding: 12px 15px; }
 @media(max-width: 700px) { .son-canvas { height: 680px; } }
 @media(prefers-reduced-motion: reduce) { .son-edge { transition: none; } }
 
-.son-edge-label { fill: #d7f8f3; font-size: 11px; paint-order: stroke; stroke: #071321; stroke-width: 5px; stroke-linejoin: round; font-weight: 600; }
 
 /* Keep operating controls compact so the network owns the first viewport. */
 .son-page-header { margin-bottom: 8px; }
@@ -236,10 +224,60 @@
 .son-filters[open] .son-filter-bar { padding: 7px 0 12px; }
 .son-observation-strip { padding: 8px 0; }
 .son-map-toolbar { padding: 5px 10px; }
-.son-node[data-status="running"] { animation: son-node-execution 2.4s ease-in-out infinite; }
-@keyframes son-node-execution { 50% { border-color: #61fff0; box-shadow: 0 12px 30px #0004,0 0 22px #61fff023; } }
 @media(max-width:700px) {
   .son-page-header > div:first-child { gap: 8px; }
   .son-filters > summary span { display: block; margin: 5px 0 0 14px; line-height: 1.5; }
   .son-canvas { height: 680px; }
 }
+
+/* Precision network: one surface, restrained states and thin directional paths. */
+.son-canvas { background: #061b24; }
+.son-node { padding: 10px 12px; border-radius: 12px; background: #0b2631; border-color: #23414c; box-shadow: none; }
+.son-node::after { display: none; }
+.son-node:hover,.son-node.son-selected { background: #10313c; border-color: #58c8c3; box-shadow: none; }
+.son-node-dimmed { opacity: .35; }
+.son-node-title { gap: 9px; }
+.son-node-title strong { font-size: 17px; font-weight: 600; }
+.son-node-icon { width: 28px; height: 28px; filter: none; }
+.son-node-layer { font-size: 9px; margin-bottom: 3px; }
+.son-node-icon svg { width: 23px; height: 23px; }
+.son-workspace-bottom { margin-top: 7px; gap: 3px; }
+.son-workspace-bottom > span { font-size: 9px; gap: 3px; }
+.son-workspace-bottom button { font-size: 10px; padding: 2px 0; }
+.son-node-agent { border-radius: 16px 5px; border-color: #4e4968; }
+.son-node:is(.son-node-module,.son-node-agent,.son-node-data,.son-node-integration) { padding: 9px 11px; }
+.son-node:is(.son-node-module,.son-node-agent,.son-node-data,.son-node-integration) .son-node-title strong { font-size: 14px; }
+.son-node:is(.son-node-module,.son-node-agent,.son-node-data,.son-node-integration) .son-node-icon { width: 24px; height: 24px; }
+.son-node-footer { margin-top: 6px; }
+.son-node:is(.son-node-agent-group,.son-node-data-group,.son-node-operation-group) { padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.son-bay-title { height: 100%; padding-bottom: 5px; border-color: #1b3944; }
+.son-bay-title strong { font-size: 13px; color: #c6e4e8; }
+.son-bay-title span { font-size: 10px; }
+.son-node-platform { background: transparent; border: 0; padding: 0; box-shadow: none; }
+.son-hub-body { inset: 0; border-radius: 14px; background: #0c303b; border: 1px solid #47b7b1; box-shadow: none; gap: 2px; }
+.son-hub-body svg { filter: none; }
+.son-hub-body strong { font-size: 27px; margin-top: 0; }
+.son-hub-body p { font-size: 11px; margin-top: 0; }
+.son-edge .react-flow__edge-path { stroke-width: .9; }
+.son-edge-aura { stroke-width: 4; opacity: .025; filter: none; }
+.son-edge-sheath { stroke-width: 1.8; opacity: .035; }
+.son-edge-execution .react-flow__edge-path { stroke-width: 1.4; }
+.son-edge-execution .son-edge-aura { opacity: .08; }
+.son-edge-authorization { opacity: .3; }
+.son-edge[data-dimmed] { opacity: .08; }
+.son-motion-particle { filter: drop-shadow(0 0 3px #38dece88); }
+.son-node[data-status="running"] { animation: none; border-color: #61ddd0; }
+.son-detail-tabs { display: flex; gap: 3px; border-bottom: 1px solid #284551; margin: 14px 0; }
+.son-detail-tabs button { padding: 9px 7px; background: transparent; font-size: 11px; color: #b1ccd5; border-bottom: 2px solid transparent; }
+.son-detail-tabs button[aria-pressed="true"] { color: #87f4df; border-color: #55cbbd; }
+.son-workbench { position: relative; }
+@media(min-width:900px) {
+  .son-workbench.son-inspector-open { display: block; }
+  .son-inspector { position: absolute; right: 0; top: 44px; bottom: 0; width: 330px; z-index: 6; background: #09232df5; box-shadow: -12px 0 28px #0003; border-left: 1px solid #294752; }
+}
+
+.son-canvas .react-flow__node { transition: transform .24s cubic-bezier(.2,.8,.2,1),opacity .18s ease-out; }
+.son-motion-paused .react-flow__node { transition: none; }
+@media(prefers-reduced-motion: reduce) { .son-canvas .react-flow__node { transition: none; } }
+.son-node:is(.son-node-module,.son-node-agent,.son-node-data,.son-node-integration) :is(.son-node-layer,.son-node-subtitle) { display: none; }
+@media(max-width:767px) { .son-bay-title span { display: none; } }

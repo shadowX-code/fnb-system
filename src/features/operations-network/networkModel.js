@@ -71,8 +71,9 @@ export function buildNetwork({ modules, agents = [], integrations = [], events =
       accent: workspaceAccents[nodes.find(node => node.id === target)?.data.workspace] || '#4de9dd' },
   });
   add('platform', 0, { label: 'FeedX OS', subtitle: 'F&B operations core', status: 'available', kind: 'platform', description: 'Platform architecture. Availability describes your access, not a system health check.' });
+  const openWorkspace = groups.find(group => expanded.has(group.id))?.id || ((query || status !== 'all') ? groups[0]?.id : null);
   for (const group of groups) {
-    const id = `workspace:${group.id}`, open = expanded.has(group.id) || !!query || status !== 'all';
+    const id = `workspace:${group.id}`, open = group.id === openWorkspace;
     add(id, 1, { label: group.label, subtitle: group.detail, status: 'available', kind: 'workspace', workspace: group.id, open, modules: group.modules, description: group.detail });
     connect('platform', id, 'dependency', null, 'hub');
     if (!open) continue;
@@ -86,29 +87,32 @@ export function buildNetwork({ modules, agents = [], integrations = [], events =
     }
   }
   const agentMembers = visibleAgents.map(agent => ({ ...agent, nodeId: `agent:${agent.id}`, label: agent.name, subtitle: agent.connectionLabel, kind: 'agent', layer: 3 }));
-  add('automation-group', 3, { label: 'Agents & Automation', subtitle: visibleAgents.length ? `${visibleAgents.length} registered agents in view` : 'No matching agent evidence', kind: 'agent-group', status: 'unknown', members: agentMembers, open: expanded.has('agents'), expandKey: 'agents', description: 'Registered identities and their existing evidence. Connection observations do not establish current online presence.' });
-  if (expanded.has('agents')) for (const member of agentMembers) {
+  add('automation-group', 3, { label: 'Agents & Automation', subtitle: visibleAgents.length ? `${visibleAgents.length} registered agents in view` : 'No matching agent evidence', kind: 'agent-group', status: 'unknown', members: agentMembers, open: true, expandKey: 'agents', description: 'Registered identities and their existing evidence. Connection observations do not establish current online presence.' });
+  for (const member of agentMembers) {
     add(member.nodeId, 3, member);
-    connect('automation-group', member.nodeId, 'dependency', null, 'outer');
+
   }
-  for (const group of groups.filter(group => visibleAgents.some(agent => agent.workspaces.includes(group.id)))) connect(`workspace:${group.id}`, 'automation-group', 'dependency', null, 'outer');
+  for (const group of groups.filter(group => visibleAgents.some(agent => agent.workspaces.includes(group.id)))) for (const agent of visibleAgents.filter(agent => agent.workspaces.includes(group.id))) connect(`workspace:${group.id}`, `agent:${agent.id}`, 'authorization', null, 'outer');
   for (const agent of visibleAgents) for (const target of nodes.filter(node => node.data.kind === 'module' && agent.moduleIds.includes(node.id))) {
+    connect(`agent:${agent.id}`, target.id, 'authorization', null, 'outer');
     const event = events.find(event => event.agentId === agent.id && event.moduleIds.includes(target.id) && ['running', 'pending', 'failed', 'completed'].includes(event.status));
     // Only exact recorded agent/module evidence can become an execution relationship.
-    if (event) connect(expanded.has('agents') ? `agent:${agent.id}` : 'automation-group', target.id, 'execution', event, 'outer');
+    if (event) connect(`agent:${agent.id}`, target.id, 'execution', event, 'outer');
   }
   const dataMembers = [
     { nodeId: 'data-platform', layer: 4, label: 'Supabase', subtitle: 'Database · Auth · Storage', status: 'unknown', kind: 'data', description: 'Declared platform infrastructure. Uptime, throughput and database health are not measured by this view.' },
     ...visibleAgents.map(agent => ({ nodeId: `gateway:${agent.id}`, layer: 4, label: agent.provider || 'External provider', subtitle: `${agent.name} · Gateway`, status: agent.status, kind: 'integration', agentId: agent.id, lastObserved: agent.lastObserved, description: 'Recorded connection evidence. A successful request does not establish current online presence.' })),
     ...visibleIntegrations.map(item => ({ ...item, nodeId: item.id, layer: 4, kind: 'integration' })),
   ];
-  add('data-group', 4, { label: 'Data & Integrations', subtitle: 'Database · gateway · saved connections', status: 'unknown', kind: 'data-group', members: dataMembers, open: expanded.has('data-integrations'), expandKey: 'data-integrations', description: 'Declared infrastructure and accessible saved connection snapshots. This is not a system health measurement.' });
-  connect('platform', 'data-group', 'dependency', null, 'outer-left');
-  if (visibleAgents.length) connect('automation-group', 'data-group');
-  if (expanded.has('data-integrations') || expanded.has('social-connections')) for (const member of dataMembers) {
-    add(member.nodeId, 4, member); connect('data-group', member.nodeId, 'dependency', null, 'outer');
+  add('data-group', 4, { label: 'Data & Integrations', subtitle: 'Database · gateway · saved connections', status: 'unknown', kind: 'data-group', members: dataMembers, open: true, expandKey: 'data-integrations', description: 'Declared infrastructure and accessible saved connection snapshots. This is not a system health measurement.' });
+  connect('platform', 'data-platform', 'dependency', null, 'outer-left');
+
+  for (const member of dataMembers) {
+    add(member.nodeId, 4, member);
+    if (member.agentId) connect(`agent:${member.agentId}`, member.nodeId, 'dependency', null, 'outer');
+    if (member.workspace && groups.some(group=>group.id===member.workspace)) connect(`workspace:${member.workspace}`, member.nodeId, 'dependency', null, 'outer');
   }
-  if (visibleIntegrations.length && groups.some(group => group.id === 'marketing')) connect('workspace:marketing', 'data-group', 'dependency', null, 'outer');
+
   const laidOut = layoutNetworkNodes(nodes, edges, { narrow });
   return { ...laidOut, groups, matching, visibleAgents };
 }
