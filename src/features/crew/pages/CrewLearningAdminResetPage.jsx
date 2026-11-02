@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, CircleAlert, Copy, GraduationCap, Search, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleAlert, Copy, GraduationCap, MoreHorizontal, Search, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
@@ -11,7 +11,7 @@ import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
-import AdminSegmentedControl from "../../../components/forms/AdminSegmentedControl.jsx";
+import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { crewService } from "../../../services/crewService.js";
 import CrewOnboardingEditor from "../components/CrewOnboardingEditor.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
@@ -31,6 +31,7 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
   const [viewEmployeeId, setViewEmployeeId] = useState("");
   const [editorJourney, setEditorJourney] = useState(null);
   const [cloneOpen, setCloneOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -77,6 +78,9 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
     } finally { if (requestId === refreshSequence.current) setLoading(false); }
   }
   useEffect(() => {
+    setSection("modules");
+    setViewEmployeeId("");
+    setMoreOpen(false);
     setVersions([]);
     setProgress([]);
     setSops([]);
@@ -160,29 +164,33 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
 
   if (editorJourney) return <CrewOnboardingEditor key={editorJourney.id} journey={editorJourney} outlet={outlet} sops={sops} saving={saving} confirm={ui.confirm} onClose={() => setEditorJourney(null)} onSave={saveDraft} onPublish={publishOnboarding} />;
 
-  if (!accessibleOutlets.length && !loading) return <div className="crew-onboarding-admin-page"><PageHeader section="Crew · Learning" title="New Crew Onboarding" description="Mandatory for all eligible Crew" /><EmptyState icon={CircleAlert} title="No accessible outlet" description="Ask an administrator to grant the required outlet visibility." /></div>;
+  if (!accessibleOutlets.length && !loading) return <div className="crew-onboarding-admin-page"><PageHeader section="Crew · Learning" title="New Crew Onboarding" /><EmptyState icon={CircleAlert} title="No accessible outlet" description="Ask an administrator to grant the required outlet visibility." /></div>;
 
   return <div className="crew-onboarding-admin-page">
-    <PageHeader section="Crew · Learning" title="New Crew Onboarding" description="Mandatory for all eligible Crew" secondaryActions={canManage ? <button className="btn-secondary" onClick={() => setCloneOpen(true)}><Copy size={15} /> Clone From Outlet</button> : null} primaryActions={canManage ? <button className="btn-primary" disabled={saving} onClick={openEditor}>{draft ? "Edit Draft" : published ? "Create Draft" : "Create Onboarding"}</button> : null} />
-    <AdminFilterToolbar ariaLabel="Onboarding controls" outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />} />
-    <AsyncDataSurface loading={loading} error={loadError} errorTitle="Unable to load Onboarding" hasData={Boolean(journey)} isEmpty={!journey} emptyIcon={GraduationCap} emptyTitle={`No onboarding setup for ${outlet?.name || "this outlet"}`} emptyDescription="Create the standard eight-module onboarding or clone an independent setup from another outlet." emptyActions={canManage ? <><button className="btn-primary" onClick={openEditor}>Create Onboarding</button><button className="btn-secondary" onClick={() => setCloneOpen(true)}>Clone From Outlet</button></> : null} onRetry={() => refresh(outletId)} className="crew-onboarding-data-surface">
-      {journey ? <OnboardingWorkspace outlet={outlet} journey={journey} draft={draft} progress={progress} section={section} setSection={setSection} onViewEmployee={setViewEmployeeId} /> : null}
+    <PageHeader section="Crew · Learning" title={section === "progress" ? "Crew Progress" : "New Crew Onboarding"} breadcrumbs={section === "progress" ? [{ label: "New Crew Onboarding", onClick: () => setSection("modules") }, { label: "Crew Progress" }] : undefined} metadata={published || draft ? <>{published && <PublicationState status="published" version={published.version} />}{draft && <PublicationState status="draft" version={draft.version} />}</> : null} secondaryActions={<>
+      {section === "progress" ? <button type="button" className="btn-secondary" onClick={() => setSection("modules")}>Course Overview</button> : <button type="button" className="btn-secondary" disabled={loading || !journey} onClick={() => setSection("progress")}><Users size={15} /> Crew Progress</button>}
+      {canManage && <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} ariaLabel="Onboarding actions" trigger={({ toggle }) => <button type="button" className="btn-secondary" aria-label="More onboarding actions" aria-haspopup="menu" aria-expanded={moreOpen} onClick={toggle}><MoreHorizontal size={15} /> More <ChevronDown size={14} /></button>}><div role="menu" aria-label="Onboarding actions"><button type="button" role="menuitem" onClick={() => { setMoreOpen(false); setCloneOpen(true); }}><Copy size={15} /> Clone From Outlet</button></div></ActionMenu>}
+    </>} primaryActions={canManage ? <button className="btn-primary" disabled={saving || loading} onClick={openEditor}>{draft ? "Edit Draft" : published ? "Create Draft" : "Create Onboarding"}</button> : null} />
+    <AdminFilterToolbar compact denseFields ariaLabel="Onboarding controls" outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />} />
+    <AsyncDataSurface loading={loading} error={loadError} errorTitle="Unable to load Onboarding" hasData={Boolean(journey)} isEmpty={!journey} emptyIcon={GraduationCap} emptyTitle={`No onboarding setup for ${outlet?.name || "this outlet"}`} emptyDescription="Create the standard eight-module onboarding or clone an independent setup from another outlet." onRetry={() => refresh(outletId)} className="crew-onboarding-data-surface">
+      {journey ? <OnboardingWorkspace key={outletId} published={published} progress={progress} section={section} onViewEmployee={setViewEmployeeId} /> : null}
     </AsyncDataSurface>
     {viewEmployeeId ? <ProgressDetailModal row={progress.find((item) => item.employee?.id === viewEmployeeId)} journey={journey} onClose={() => setViewEmployeeId("")} /> : null}
     {cloneOpen ? <CloneOnboardingModal outlet={outlet} outlets={accessibleOutlets.filter((item) => item.id !== outletId)} saving={saving} onClose={() => setCloneOpen(false)} onClone={cloneOnboarding} /> : null}
   </div>;
 }
 
-function OnboardingWorkspace({ outlet, journey, draft, progress, section, setSection, onViewEmployee }) {
+function OnboardingWorkspace({ published, progress, section, onViewEmployee }) {
   const completed = progress.filter((item) => item.status === "completed").length;
   const started = progress.filter((item) => item.status !== "not_started").length;
   const average = progress.length ? Math.round(progress.reduce((total, item) => total + Number(item.progress_percentage || 0), 0) / progress.length) : 0;
-  const publishedProgress = journey.status === "published" ? progress.filter((row) => row.journey_id === journey.id || Number(row.journey_version) === Number(journey.version)) : [];
+  if (section === "progress") return <div className="crew-onboarding-workspace is-unified"><p className="text-sm text-text-secondary">Progress follows each Crew member’s assigned published version.</p><AdminSummaryGrid variant="compact" ariaLabel="Published learning progress" items={[{ label: "Completion", value: `${average}%` }, { label: "Crew started", value: started }, { label: "Crew completed", value: completed }]} /><OnboardingProgress rows={progress} onView={onViewEmployee} /></div>;
+  if (!published) return <EmptyState icon={GraduationCap} title="Onboarding not published" description="Continue editing the Draft in Builder. The course overview will appear after publication." />;
+  const publishedProgress = progress.filter((row) => row.journey_id === published.id || Number(row.journey_version) === Number(published.version));
   const publishedCompleted = publishedProgress.filter((row) => row.status === "completed").length;
   return <div className="crew-onboarding-workspace is-unified">
-    <section className="crew-onboarding-status-line"><div><PublicationState status={journey.status} version={journey.version} />{draft && journey.status === "published" && <PublicationState status="draft" version={draft.version} />}<span>{outlet?.name}</span></div><span>{journey.sequential_modules ? "Sequential learning" : "Non-sequential learning"}</span></section>
-    <AdminSegmentedControl className="crew-onboarding-section-switch" value={section} onChange={setSection} label="Onboarding sections" options={[{ value: "modules", label: "Overview", panelId: "onboarding-modules" }, { value: "progress", label: "Crew Progress", panelId: "onboarding-progress" }]} />
-    {section === "modules" ? <><header className="crew-onboarding-overview-heading"><h2>{journey.status === "published" ? `Published v${journey.version}` : `Draft v${journey.version}`}</h2><p>{journey.status === "published" ? "Current Crew learning content" : "Not yet available to Crew"}{draft && journey.status === "published" ? ` · Draft v${draft.version} changes are unpublished` : ""}</p></header>{journey.status === "published" && <AdminSummaryGrid variant="compact" ariaLabel={`Published v${journey.version} summary`} items={[{ label: "Modules", value: journey.modules?.length || 0 }, { label: "Lessons", value: lessonCount(journey) }, { label: "Knowledge Checks", value: quizCount(journey) }, { label: "Crew completion", value: `${publishedCompleted} / ${publishedProgress.length}`, helper: `Assigned to v${journey.version}` }]} />}<ModuleList journey={journey} /></> : <><p className="text-sm text-text-secondary">Progress follows each Crew member’s assigned published version. Draft edits do not affect these results.</p><AdminSummaryGrid variant="compact" ariaLabel="Published learning progress" items={[{ label: "Completion", value: `${average}%` }, { label: "Crew started", value: started }, { label: "Crew completed", value: completed }]} /><OnboardingProgress rows={progress} onView={onViewEmployee} /></>}
+    <AdminSummaryGrid variant="compact" mobileColumns={2} ariaLabel={`Published v${published.version} summary`} items={[{ label: "Modules", value: published.modules?.length || 0 }, { label: "Lessons", value: lessonCount(published) }, { label: "Knowledge Checks", value: quizCount(published) }, { label: "Crew Completed", value: `${publishedCompleted} / ${publishedProgress.length}` }]} />
+    <section aria-label="Course Modules"><h2 className="crew-onboarding-course-heading">Course Modules</h2><ModuleList key={published.id} journey={published} /></section>
   </div>;
 }
 
