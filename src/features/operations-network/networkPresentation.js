@@ -9,19 +9,20 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
     node.focusable = node.data.kind !== 'operation-group';
     node.style = { width, height, '--son-accent': workspaceAccents[node.data.workspace] || '#55e5db' };
   };
-  const columns = narrow ? Math.min(2, Math.max(workspaces.length, 1)) : Math.min(4, Math.max(workspaces.length, 1));
-  const gridWidth = Math.max(310, columns * 254 - 24);
+  const columns = narrow ? Math.min(2, Math.max(workspaces.length, 1)) : Math.min(7, Math.max(workspaces.length, 1));
+  const pitch = narrow ? 242 : 216, cardWidth = narrow ? 220 : 200;
+  const gridWidth = Math.max(310, columns * pitch - (pitch - cardWidth));
   place(byId.get('platform'), (gridWidth - 280) / 2, 0, 280, 112);
   const rows = Math.ceil(workspaces.length / columns);
   workspaces.forEach((node, index) => {
     const row = Math.floor(index / columns), count = Math.min(columns, workspaces.length - row * columns);
-    place(node, (gridWidth - (count * 254 - 24)) / 2 + index % columns * 254, 160 + row * 108, 230, 84);
+    place(node, (gridWidth - (count * pitch - (pitch - cardWidth))) / 2 + index % columns * pitch, 160 + row * 108, cardWidth, 84);
   });
   let cursor = 160 + Math.max(1, rows) * 108 + 14;
   for (const section of nodes.filter(node => node.data.kind === 'operation-group')) {
     place(section, 0, cursor, gridWidth, 42);
     const children = nodes.filter(node => node.data.kind === 'module' && node.data.workspace === section.data.workspace);
-    children.forEach((node, index) => place(node, index % columns * 254, cursor + 64 + Math.floor(index / columns) * 112, 230, 92));
+    children.forEach((node, index) => place(node, index % columns * pitch, cursor + 64 + Math.floor(index / columns) * 112, cardWidth, 92));
     cursor += 88 + Math.ceil(children.length / columns) * 112;
   }
   // Each support layer owns its expanded members, so data never shares the agent row.
@@ -29,7 +30,10 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
     place(byId.get(groupId), (gridWidth - gridWidth) / 2, cursor, gridWidth, 30);
     cursor += 44;
     const members = nodes.filter(node => kinds.includes(node.data.kind));
-    members.forEach((node, index) => place(node, index % columns * 254, cursor + Math.floor(index / columns) * 98, 230, 80));
+    members.forEach((node, index) => {
+      const count = Math.min(columns, members.length - Math.floor(index / columns) * columns);
+      place(node, (gridWidth - (count * pitch - (pitch - cardWidth))) / 2 + index % columns * pitch, cursor + Math.floor(index / columns) * 98, cardWidth, 80);
+    });
     if (members.length) cursor += Math.ceil(members.length / columns) * 98 + 18;
   }
   const edges = inputEdges.map((edge, index) => {

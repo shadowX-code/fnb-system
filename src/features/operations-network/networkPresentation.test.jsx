@@ -10,7 +10,7 @@ const overlap = (a,b) => a.position.x < b.position.x+b.width && a.position.x+a.w
 describe('readable network layout', () => {
   it('fits a seven-workspace overview in a ordered layers without overlapping node bounds', () => {
     const graph=buildNetwork({modules});
-    expect(Math.max(...graph.nodes.map(node=>node.position.x+node.width))-Math.min(...graph.nodes.map(node=>node.position.x))).toBeLessThanOrEqual(1100);
+    expect(Math.max(...graph.nodes.map(node=>node.position.x+node.width))-Math.min(...graph.nodes.map(node=>node.position.x))).toBeLessThanOrEqual(1550);
     expect(Math.max(...graph.nodes.map(node=>node.position.y+node.height))).toBeLessThan(800);
     for(const [index,node] of graph.nodes.entries()) for(const other of graph.nodes.slice(index+1)) expect(overlap(node,other),`${node.id} overlaps ${other.id}`).toBe(false);
     expect(graph.nodes.find(node=>node.id==='platform').width).toBeGreaterThan(graph.nodes.find(node=>node.data.kind==='workspace').width);
@@ -19,7 +19,7 @@ describe('readable network layout', () => {
     const graph=buildNetwork({modules});
     const find=id=>graph.nodes.find(node=>node.id===id);
     const workspaces=graph.nodes.filter(node=>node.data.kind==='workspace');
-    expect(new Set(workspaces.map(node=>node.position.y)).size).toBe(2);
+    expect(new Set(workspaces.map(node=>node.position.y)).size).toBe(1);
     for (const node of workspaces.filter(node=>node.position.y>190)) expect(graph.edges.find(edge=>edge.source==='platform'&&edge.target===node.id).data.routing).toBe('workspace-column');
     expect(Math.min(...workspaces.map(node=>node.position.y))).toBeGreaterThan(find('platform').height);
     expect(find('automation-group').position.y).toBeGreaterThan(Math.max(...workspaces.map(node=>node.position.y+node.height)));
