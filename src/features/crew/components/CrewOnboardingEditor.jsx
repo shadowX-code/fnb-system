@@ -308,7 +308,7 @@ export default function CrewOnboardingEditor({ journey, outlet, sops, saving, co
         </div>}</AdminSortableList>
         {!draft.modules.length && <p>Add a module to begin.</p>}
       </aside>
-      <main className="crew-onboarding-editor-main">{pane === "preview" ? <OnboardingPreview draft={draft} selectedLessonId={selectedLesson?.id} selectedModuleId={selectedModule?.id} onSelect={(moduleId, lessonId) => setSelection({ type: "lesson", moduleId, lessonId })} /> : pane === "languages" ? <LocalizedContentEditor domain="onboarding" versionId={draft.id} sourceLanguage={sourceLanguage} onSourceLanguageChange={(next) => { setSourceLanguage(next); setDirty(true); }} onHydrateSourceLanguage={setSourceLanguage} sourceUnits={localizationUnits} sourceDirty={dirty} confirm={confirm} disabled={locked} /> : selection.type === "lesson" && selectedLesson ? <LessonEditor module={selectedModule} lesson={selectedLesson} sops={sops} onBack={() => selectItem(selectedModule.id)} onUpdate={updateLesson} onUpdateBlock={updateBlock} onUploadMedia={uploadBlockMedia} onAddBlock={addBlock} onMoveBlock={moveBlock} onMoveBlockTo={moveBlockTo} onDeleteBlock={deleteBlock} onUpdateQuiz={updateQuiz} onDeleteQuiz={deleteQuiz} onDeleteLesson={() => deleteLesson(selectedLesson.id)} /> : selectedModule ? <ModuleEditor module={selectedModule} moduleIndex={draft.modules.indexOf(selectedModule)} onDeleteModule={deleteModule} onUpdate={updateModule} onSelectLesson={(id) => selectItem(selectedModule.id,id)} onAddLesson={() => addLesson()} onMoveLesson={moveLesson} onMoveLessonTo={moveLessonTo} onDeleteLesson={deleteLesson} /> : <p>Select or add a module from the course outline.</p>}</main>
+      <main className="crew-onboarding-editor-main">{pane === "preview" ? <OnboardingPreview draft={draft} sops={sops} selectedLessonId={selectedLesson?.id} selectedModuleId={selectedModule?.id} onSelect={(moduleId, lessonId) => setSelection({ type: "lesson", moduleId, lessonId })} /> : pane === "languages" ? <LocalizedContentEditor domain="onboarding" versionId={draft.id} sourceLanguage={sourceLanguage} onSourceLanguageChange={(next) => { setSourceLanguage(next); setDirty(true); }} onHydrateSourceLanguage={setSourceLanguage} sourceUnits={localizationUnits} sourceDirty={dirty} confirm={confirm} disabled={locked} /> : selection.type === "lesson" && selectedLesson ? <LessonEditor module={selectedModule} lesson={selectedLesson} sops={sops} onBack={() => selectItem(selectedModule.id)} onUpdate={updateLesson} onUpdateBlock={updateBlock} onUploadMedia={uploadBlockMedia} onAddBlock={addBlock} onMoveBlock={moveBlock} onMoveBlockTo={moveBlockTo} onDeleteBlock={deleteBlock} onUpdateQuiz={updateQuiz} onDeleteQuiz={deleteQuiz} onDeleteLesson={() => deleteLesson(selectedLesson.id)} /> : selectedModule ? <ModuleEditor module={selectedModule} moduleIndex={draft.modules.indexOf(selectedModule)} onDeleteModule={deleteModule} onUpdate={updateModule} onSelectLesson={(id) => selectItem(selectedModule.id,id)} onAddLesson={() => addLesson()} onMoveLesson={moveLesson} onMoveLessonTo={moveLessonTo} onDeleteLesson={deleteLesson} /> : <p>Select or add a module from the course outline.</p>}</main>
     </fieldset>
   </section>;
 }
@@ -384,7 +384,7 @@ function Toggle({ label, detail, checked, onChange, className }) {
   return <ToggleField label={label} helper={detail} checked={checked} onChange={onChange} className={className} />;
 }
 
-export function OnboardingPreview({ draft, selectedLessonId, selectedModuleId, onSelect }) {
+export function OnboardingPreview({ draft, sops = [], selectedLessonId, selectedModuleId, onSelect }) {
   const [inspectAnswers, setInspectAnswers] = useState(false);
   const [answers, setAnswers] = useState({});
   const viewport = useRef(null);
@@ -402,7 +402,12 @@ export function OnboardingPreview({ draft, selectedLessonId, selectedModuleId, o
   return <section className="crew-onboarding-lesson-preview" ref={viewport} aria-label="Crew Learning Preview">
     <header className="crew-preview-toolbar"><div><h2>Crew Learning Preview</h2><p>Draft v{draft.version} · Read-only · Lesson {index + 1} of {lessons.length}</p></div><AdminSegmentedControl label="Preview mode" value={inspectAnswers ? "answers" : "crew"} onChange={(mode) => setInspectAnswers(mode === "answers")} options={[{ value: "crew", label: "Crew Preview" }, { value: "answers", label: "Inspect Answers" }]} /></header>
     <div className="crew-learning-reader"><header className="crew-learning-lesson-header"><span className="crew-learning-context">{module.title}</span><h2>{lesson.title}</h2><p className="crew-learning-summary">{lesson.estimated_minutes || 0} min · {lesson.required ? "Required" : "Optional"}</p></header>
-      <CrewLessonBlocks blocks={lesson.blocks} renderImage={(block) => <AdminLearningImage media={block.payload.media} previewUrl={block.media_preview_url} />} />
+      <CrewLessonBlocks blocks={lesson.blocks.map((block) => {
+        if (block.block_type !== "sop_reference") return block;
+        const sop = sops.find((item) => item.id === block.payload?.sop_id || item.versions?.some((version) => version.id === block.payload?.sop_version_id));
+        const version = sop?.versions?.find((item) => item.id === block.payload?.sop_version_id);
+        return { ...block, payload: { ...block.payload, title: sop?.title || block.payload?.title, version: version?.version || block.payload?.version } };
+      })} renderImage={(block) => <AdminLearningImage media={block.payload.media} previewUrl={block.media_preview_url} />} />
       {lesson.quizzes?.map((quiz) => <section className="crew-quiz" key={quiz.id}><div className="crew-learning-quiz-header"><span className="crew-learning-section-label">Knowledge Check</span><h3>{quiz.title}</h3><p>Pass score: {quiz.passing_score}%</p></div><CrewQuizQuestions quiz={quiz} answers={answers} onChoose={choose} inspectAnswers={inspectAnswers} /></section>)}
     </div>
     <footer className="crew-preview-navigation"><button type="button" className="btn-secondary" disabled={index === 0} onClick={() => navigate(-1)}>Previous Lesson</button><span>{index + 1} / {lessons.length}</span><button type="button" className="btn-secondary" disabled={index === lessons.length - 1} onClick={() => navigate(1)}>Next Lesson</button></footer>

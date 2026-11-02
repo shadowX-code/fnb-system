@@ -33,3 +33,5 @@
 .crew-onboarding-overview-lesson[open]>summary>svg{transform:rotate(90deg)}
 .crew-onboarding-overview-lesson>summary:focus-visible{outline:2px solid var(--theme-primary,#147b64);outline-offset:2px}
 @media(max-width:760px){.crew-preview-navigation{gap:8px}.crew-preview-navigation .btn-secondary{padding-inline:10px;font-size:12px}.crew-onboarding-overview-lessons{padding-left:12px}.crew-onboarding-overview-lesson>summary{flex-wrap:wrap}.crew-onboarding-overview-lesson>summary>strong{flex-basis:65%}}
+.crew-onboarding-builder .crew-onboarding-module-outline>.crew-onboarding-outline-list>.admin-sortable-list-row{width:100%;min-width:0;flex:initial}
+.crew-onboarding-builder .crew-onboarding-outline-lessons{width:calc(100% - 32px)}
