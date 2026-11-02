@@ -29,3 +29,31 @@ it('refits the primary hierarchy when asynchronous evidence adds individual node
   await act(async()=>view.rerender(<OperationsNetworkPage {...props}/>));
   expect(mocks.flow.fitView.mock.calls.at(-1)[0].nodes.map(node=>node.id)).toContain('gateway:a');
 });
+
+it('keeps active search/reset, time selection and polling status distinct from synthetic Demo',async()=>{
+  render(<OperationsNetworkPage auth={{hasPermission:()=>false,user:{id:'test'},permissions:[],profile:{}}} store={{outlets:[]}} ui={{networkRoutes:[],networkWorkspace:'factory',returnFromNetwork:()=>{},navigate:()=>{}}}/>);
+  fireEvent.click(screen.getByText('Filters & search'));
+  fireEvent.change(screen.getByRole('searchbox',{name:'Search nodes'}),{target:{value:'Operation 1'}});
+  expect(screen.getByLabelText('Active filters').textContent).toContain('Operation 1');
+  fireEvent.click(screen.getByRole('button',{name:'Reset filters'}));
+  expect(screen.getByRole('searchbox',{name:'Search nodes'}).value).toBe('');
+  expect(screen.queryByLabelText('Active filters')).toBeNull();
+  fireEvent.click(screen.getByRole('tab',{name:'24H',exact:true}));
+  expect(screen.getByText('Snapshot · manual refresh')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'Visual Demo',exact:true}));
+  expect(screen.getByText('Synthetic motion · recorded evidence unchanged')).toBeTruthy();
+  expect(screen.getByText('Snapshot · manual refresh')).toBeTruthy();
+});
+it('moves complete coverage information and layer explanations into shared drawers',()=>{
+  render(<OperationsNetworkPage auth={{hasPermission:()=>false,user:{id:'test'},permissions:[],profile:{}}} store={{outlets:[]}} ui={{networkRoutes:[],networkWorkspace:'factory',returnFromNetwork:()=>{},navigate:()=>{}}}/>);
+  expect(screen.queryByText(/System health & throughput/)).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Data Coverage',exact:true}));
+  expect(screen.getByRole('dialog',{name:'Data Coverage'})).toBeTruthy();
+  expect(screen.getByText(/System health & throughput: unavailable/)).toBeTruthy();
+  expect(screen.getByText(/Agent telemetry requires existing AI Integrations view authority/)).toBeTruthy();
+  expect(screen.getByText(/Connections show the latest saved snapshot/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'Close drawer',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:'Layers',exact:true}));
+  expect(screen.getByRole('dialog',{name:'Network layers'})).toBeTruthy();
+  expect(screen.getByText('L5')).toBeTruthy();
+});

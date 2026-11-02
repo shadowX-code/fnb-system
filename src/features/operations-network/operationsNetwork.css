@@ -287,3 +287,77 @@
 .son-edge[data-dimmed] { opacity: .07; }
 .son-edge[data-demo] .react-flow__edge-path { stroke-width: 1.25; }
 .son-edge-authorization .react-flow__edge-path { stroke-dasharray: 3 4; }
+
+/* Admin chrome stays on the canonical light surface; graph styling is unchanged. */
+.son-experience { padding: 0; background: transparent; border-radius: 0; color: var(--theme-text); color-scheme: light; }
+.son-admin-header { position: relative; z-index: 8; padding: 4px 0 10px; color: var(--theme-text); }
+.son-admin-title { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.son-admin-title > [data-page-header] { flex: 1; min-width: 0; }
+.son-admin-title .icon-btn { flex: 0 0 auto; color: var(--theme-muted); }
+.son-admin-title [data-page-header-actions] { align-self: center; }
+.son-admin-title h1 { font-size: var(--type-page-title); }
+.son-polling { color: var(--theme-muted); font-size: 11px; font-weight: 500; white-space: nowrap; }
+.son-header-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.son-header-controls .admin-segmented-control { margin-left: auto; }
+.son-header-counts { display: flex; flex-wrap: wrap; gap: 12px; color: var(--theme-muted); font-size: 11px; }
+.son-header-counts strong { color: var(--theme-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.son-active-scope { margin-top: 7px; color: var(--theme-primary); font-size: 11px; overflow-wrap: anywhere; }
+.son-admin-header .son-filters { border: 0; }
+.son-admin-header .son-filters > summary { display: inline-flex; align-items: center; gap: 7px; height: 32px; min-height: 32px; padding: 0 10px; font-size: 11px; list-style: none; }
+.son-admin-header .son-filters > summary::-webkit-details-marker { display: none; }
+.son-admin-header .son-filters > summary .son-filter-count { margin: 0; color: var(--theme-primary); font-size: 11px; }
+.son-admin-header .son-filter-bar { position: absolute; z-index: 12; left: 0; right: 0; top: calc(100% - 4px); gap: 12px; padding: 16px; border: 1px solid var(--theme-border); border-radius: var(--radius-card); background: var(--theme-surface); box-shadow: 0 8px 22px rgb(15 23 42 / .12); }
+.son-admin-header .son-filter-bar :is(label,label > span) { color: var(--theme-muted); }
+.son-admin-header .son-filter-bar :is(button,input) { color: var(--theme-text); background: var(--theme-input-bg,var(--theme-surface)); border-color: var(--theme-border); }
+.son-admin-header .son-filter-bar input::placeholder { color: var(--theme-muted); }
+.son-reset-filters { grid-column: 1 / -1; justify-self: end; }
+.son-workbench { color: var(--son-text); color-scheme: dark; border-radius: var(--radius-card); }
+.son-canvas { height: clamp(480px,calc(100dvh - 205px),1100px); }
+.son-map-toolbar { position: absolute; z-index: 5; top: 12px; right: 12px; left: auto; padding: 3px; background: #0b2532ed; border: 1px solid #294651; border-radius: 9px; }
+.son-map-toolbar .son-canvas-actions { display: flex; flex-wrap: nowrap; width: auto; gap: 2px; }
+.son-map-toolbar button { width: 32px; height: 32px; min-height: 32px; padding: 7px; }
+.son-map-toolbar .son-demo-toggle { width: auto; padding-inline: 9px; margin: 0; border: 0; }
+.son-map-toolbar .son-activity-toggle { width: auto; margin: 0; border: 0; }
+.son-canvas-mode { position: absolute; z-index: 3; left: 12px; top: 16px; color: #e6ce9d; font-size: 10px; pointer-events: none; }
+.son-canvas-mode:empty { display: none; }
+.son-information-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; min-height: 34px; padding: 4px 10px; color: var(--theme-muted); background: var(--theme-surface); color-scheme: light; border-top: 1px solid var(--theme-border); font-size: 10px; }
+.son-semantics,.son-information-actions { display: flex; align-items: center; gap: 12px; }
+.son-semantics span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.son-semantics i { display: block; width: 15px; border-top: 1px solid var(--theme-muted); }
+.son-semantics .son-authorization-swatch { border-top-style: dashed; }
+.son-semantics .son-recorded-swatch { border-color: var(--theme-primary); }
+.son-information-actions { margin-left: auto; gap: 6px; }
+.son-information-actions button { display: inline-flex; align-items: center; gap: 5px; padding: 4px; border-radius: 5px; color: var(--theme-muted); background: transparent; font-size: 11px; }
+.son-information-actions button:hover { background: var(--theme-primary-soft); color: var(--theme-primary); }
+.son-pan-hint { font-size: 10px; }
+.son-layer-explanations { display: grid; gap: 16px; color: var(--theme-text); }
+.son-layer-explanations li { display: flex; gap: 12px; align-items: center; font-size: 13px; }
+.son-layer-explanations strong { color: var(--theme-primary); }
+.son-coverage-content { color: var(--theme-text); font-size: 13px; line-height: 1.7; }
+.son-coverage-content p + p { margin-top: 16px; }
+.son-experience.son-fullscreen,.son-experience:fullscreen { display: flex; flex-direction: column; padding: 10px; background: var(--theme-background); }
+.son-fullscreen .son-workbench { flex: 1; min-height: 0; }
+.son-fullscreen .son-map-section { height: 100%; display: flex; flex-direction: column; }
+.son-fullscreen .son-canvas { height: auto; min-height: 0; flex: 1; }
+.son-inspector { top: 0; }
+@media(max-width:1100px) { .son-pan-hint { display: none; } }
+@media(max-width:767px) {
+  .son-admin-header { padding: 4px 2px 9px; }
+  .son-admin-title { gap: 6px; }
+  .son-admin-title h1 { font-size: 19px; }
+  .son-admin-title [data-page-header] > div { gap: 4px; }
+  .son-admin-title [data-page-header-actions] { align-self: flex-start; }
+  .son-header-controls { gap: 8px; }
+  .son-header-counts { font-size: 10px; gap: 8px; }
+  .son-header-controls .admin-segmented-control { margin-left: 0; }
+  .son-canvas { height: 620px; }
+  .son-map-toolbar { top: 8px; right: 8px; padding: 3px; }
+  .son-map-toolbar .son-activity-toggle span { display: none; }
+  .son-canvas-mode { top: 50px; left: 10px; font-size: 9px; }
+  .son-information-bar { gap: 4px; padding: 5px 8px; }
+  .son-semantics { gap: 9px; font-size: 9px; }
+  .son-information-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
+  .son-admin-header .son-filter-bar { padding: 12px; }
+}
+.son-experience > .son-scope-note { color: var(--theme-muted); margin: 8px 0; }
+.son-admin-header :focus-visible,.son-information-bar :focus-visible,.son-experience [role="dialog"] :focus-visible { outline-color: var(--theme-primary); }
