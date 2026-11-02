@@ -35,6 +35,11 @@ describe('shared obstacle routing and multi-layer demo',()=>{
     expect(demo.filter(e=>e.data.demoMotion).some(e=>e.data.kind==='authorization')).toBe(true);
     expect(presentNetworkEdges(graph.edges,false).every(e=>!e.data.demoMotion)).toBe(true);
   });
+  it('chooses an on-screen operation rather than an off-screen alphabetical match',()=>{
+    const graph=buildNetwork({...options,expanded:new Set(['factory'])});
+    const demo=presentNetworkEdges(graph.edges,true,null,['operations:factory','factory-9']);
+    expect(demo.find(edge=>edge.data.demoMotion&&edge.data.sourceLayer===2&&edge.data.targetLayer===2).target).toBe('factory-9');
+  });
   it('reuses identical paths during ordinary evidence/focus refreshes',()=>{
     const a=buildNetwork(options),b=buildNetwork({...options,selectedId:'agent:a0',now:Date.now()+12000});
     expect(b.edges.map(e=>e.data.routePoints)).toEqual(a.edges.map(e=>e.data.routePoints));

@@ -21,6 +21,7 @@ function NetworkExperience({ auth, ui, store }) {
   const [workspace, setWorkspace] = useState(() => globalThis.matchMedia?.('(max-width: 767px)').matches && modules.some(module => module.workspace === ui.networkWorkspace) ? ui.networkWorkspace : 'all');
   const [company, setCompany] = useState('all'), [outlet, setOutlet] = useState('all');
   const [status, setStatus] = useState('all'), [window, setWindow] = useState('live'), [search, setSearch] = useState('');
+  const [visibleNodeIds, setVisibleNodeIds] = useState([]);
   const [expanded, setExpanded] = useState(new Set()), [selectedId, setSelectedId] = useState(null);
   const [inspectorOpen, setInspectorOpen] = useState(false), [visualDemo, setVisualDemo] = useState(false), [motionPaused, setMotionPaused] = useState(false);
   const [narrow, setNarrow] = useState(() => !!globalThis.matchMedia?.('(max-width: 767px)').matches);
@@ -63,7 +64,7 @@ function NetworkExperience({ auth, ui, store }) {
     setExpanded(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else { if (!['agents', 'data-integrations', 'social-connections'].includes(id)) for (const key of next) if (!['agents', 'data-integrations', 'social-connections'].includes(key)) next.delete(key); next.add(id); } return next; });
   }, [expanded]);
   const nodes = useMemo(() => graph.nodes.map(node => ({ ...node, data: { ...node.data, onToggle: toggleWorkspace, dimmed: !!selectedId && node.id !== selectedId && !graph.edges.some(edge => (edge.source === selectedId && edge.target === node.id) || (edge.target === selectedId && edge.source === node.id)) }, domAttributes: { onKeyDown: event => { if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key) && node.data.kind !== 'operation-group') { event.preventDefault(); selectNode(node.id); } } } })), [graph.nodes, graph.edges, selectedId, toggleWorkspace, selectNode]);
-  const edges = useMemo(() => presentNetworkEdges(graph.edges, visualDemo, selectedId), [graph.edges, visualDemo, selectedId]);
+  const edges = useMemo(() => presentNetworkEdges(graph.edges, visualDemo, selectedId, visibleNodeIds), [graph.edges, visualDemo, selectedId, visibleNodeIds]);
   const layoutKey = `${narrow}:${graph.nodes.map(node => node.id).join('|')}`;
   function fitPrimary() { flow.fitView({ nodes: graph.primaryIds.map(id => ({ id })), padding: 0.08, duration: reducedMotion ? 0 : 240, maxZoom: 1.15 }); }
   useEffect(() => {
@@ -118,7 +119,12 @@ function NetworkExperience({ auth, ui, store }) {
         {fullscreenNotice && <p className="son-scope-note" role="status">{fullscreenNotice}</p>}
         <div className="son-canvas">
 
-          <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="dark" fitView fitViewOptions={{ padding: 0.08, maxZoom: 1.15, nodes: graph.primaryIds.map(id => ({ id })) }} minZoom={0.15} maxZoom={1.8} nodesDraggable={false} nodesConnectable={false} edgesFocusable={false} deleteKeyCode={null} onNodeClick={(_, node) => { if (node.data.kind !== 'operation-group') selectNode(node.id); }} onPaneClick={() => setSelectedId(null)} aria-label="FeedX operations network">
+          <ReactFlow onMoveEnd={(_, viewport) => {
+            const bounds = rootRef.current?.querySelector('.son-canvas')?.getBoundingClientRect();
+            if (!bounds) return;
+            const ids = graph.nodes.filter(node => node.position.x * viewport.zoom + viewport.x < bounds.width && (node.position.x + node.width) * viewport.zoom + viewport.x > 0 && node.position.y * viewport.zoom + viewport.y < bounds.height && (node.position.y + node.height) * viewport.zoom + viewport.y > 0).map(node => node.id);
+            setVisibleNodeIds(current => JSON.stringify(current) === JSON.stringify(ids) ? current : ids);
+          }} nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="dark" fitView fitViewOptions={{ padding: 0.08, maxZoom: 1.15, nodes: graph.primaryIds.map(id => ({ id })) }} minZoom={0.15} maxZoom={1.8} nodesDraggable={false} nodesConnectable={false} edgesFocusable={false} deleteKeyCode={null} onNodeClick={(_, node) => { if (node.data.kind !== 'operation-group') selectNode(node.id); }} onPaneClick={() => setSelectedId(null)} aria-label="FeedX operations network">
             <Controls showInteractive={false} />
           </ReactFlow>
           <div className="son-canvas-caption"><Network size={14} /><span>{visualDemo ? 'Synthetic motion showcase' : 'Architecture & observed evidence'}</span><span>{reducedMotion ? 'Reduced motion' : motionPaused ? 'Motion paused' : !evidence.active ? 'Motion paused while inactive' : ''}</span></div>

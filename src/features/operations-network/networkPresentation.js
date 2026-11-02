@@ -43,10 +43,11 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
 }
 
 // Synthetic motion is a rendering flag only. It never replaces evidence, outcomes or timestamps.
-export function presentNetworkEdges(edges, visualDemo, selectedId = null) {
-  const representatives = new Map();
+export function presentNetworkEdges(edges, visualDemo, selectedId = null, visibleNodeIds = []) {
+  const representatives = new Map(), visible = new Set(visibleNodeIds);
+  const priority = edge => (edge.source === selectedId || edge.target === selectedId ? 10 : 0) + Number(visible.has(edge.source)) + Number(visible.has(edge.target));
   const candidates = edges.filter(edge=>edge.data.kind !== 'execution');
-  for (const edge of [...candidates].sort((a,b)=>Number(b.source===selectedId||b.target===selectedId)-Number(a.source===selectedId||a.target===selectedId)||a.id.localeCompare(b.id))) {
+  for (const edge of [...candidates].sort((a,b)=>priority(b)-priority(a)||a.id.localeCompare(b.id))) {
     const category=`${edge.data.sourceLayer}:${edge.data.targetLayer}:${edge.data.kind}`;
     if(!representatives.has(category)) representatives.set(category,edge.id);
   }
