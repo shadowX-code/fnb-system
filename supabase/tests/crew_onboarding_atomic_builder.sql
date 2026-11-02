@@ -30,7 +30,7 @@ begin
  assert saved#>>'{modules,0,id}'=first_module::text and saved#>>'{modules,0,lessons,0,id}'=lesson::text,'Module and lesson identities preserved';
  assert exists(select 1 from jsonb_array_elements(saved#>'{modules,0,lessons,0,blocks}') b where b#>>'{payload,body}'='中文 / Bahasa Melayu preserved'),'Multilingual source content retained';
  assert public.crew_save_onboarding_draft(jid,0,req,payload)->>'draft_revision'='1','Lost-response retry does not save twice';
- denied:=false;begin perform public.crew_save_onboarding_draft(jid,0,gen_random_uuid(),payload);exception when serialization_failure then denied:=true;end;assert denied,'Stale/concurrent editor cannot overwrite saved state';
+ denied:=false;begin perform public.crew_save_onboarding_draft(jid,0,gen_random_uuid(),payload);exception when sqlstate 'PT409' then denied:=true;end;assert denied,'Stale/concurrent editor cannot overwrite saved state';
  prior:=public.crew_admin_onboarding_detail(jid);
  payload:=jsonb_set(saved,'{modules,0,title}','"Partial write must roll back"');
  payload:=jsonb_set(payload,'{modules,0,lessons,0,quizzes,0,passing_score}','101');
@@ -45,7 +45,7 @@ begin
  saved:=public.crew_save_onboarding_draft(jid,1,gen_random_uuid(),payload);
  assert saved#>>'{modules,0,lessons,1,id}'=lesson::text,'Nested permutation persisted';
  assert saved#>>'{modules,0,lessons,1,quizzes,0,questions,1,id}'=qid::text,'Question permutation persisted';
- denied:=false;begin perform public.crew_publish_onboarding_draft(jid,1);exception when serialization_failure then denied:=true;end;assert denied,'Publishing stale revision forbidden';
+ denied:=false;begin perform public.crew_publish_onboarding_draft(jid,1);exception when sqlstate 'PT409' then denied:=true;end;assert denied,'Publishing stale revision forbidden';
  insert into public.employees(id,full_name,employee_code,workplace,position) values(emp,'QA Onboarding Builder','QA-ONB-'||emp,'QA Onboarding Builder '||outlet,'Crew');
  insert into public.crew_access(employee_id,mobile_number,passcode_hash,primary_outlet_id) values(emp,'qa-'||emp,'rollback-only',outlet);
  perform public.crew_publish_onboarding_draft(jid,2);
