@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Background, Controls, ReactFlow, ReactFlowProvider, useReactFlow } from '@xyflow/react';
-import { ArrowLeft, Activity, Bot, Focus, Maximize2, Minimize2, Network, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Controls, ReactFlow, ReactFlowProvider, useReactFlow } from '@xyflow/react';
+import { ArrowLeft, Activity, Bot, Focus, Maximize2, Minimize2, Network, RefreshCw, FlaskConical, Pause, Play, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import SelectField from '../../components/forms/SelectField.jsx';
 import AdminSearchField from '../../components/forms/AdminSearchField.jsx';
 import { formatOperationalDateTime } from '../../lib/dateTime.js';
 import { getAccessibleOutlets } from '../../utils/accessControl.js';
 import { accessibleNetworkModules, buildNetwork, filterEvents, layers, statusLabels } from './networkModel.js';
 import useNetworkEvidence from './useNetworkEvidence.js';
+import { presentNetworkEdges } from './networkPresentation.js';
 import useNetworkFullscreen from './useNetworkFullscreen.js';
 import { edgeTypes, nodeTypes } from './NetworkGraph.jsx';
 import NetworkDetailPanel, { NetworkTimeline } from './NetworkDetailPanel.jsx';
@@ -21,10 +22,21 @@ function NetworkExperience({ auth, ui, store }) {
   const [company, setCompany] = useState('all'), [outlet, setOutlet] = useState('all');
   const [status, setStatus] = useState('all'), [window, setWindow] = useState('live'), [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(new Set()), [selectedId, setSelectedId] = useState(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false), [visualDemo, setVisualDemo] = useState(false), [motionPaused, setMotionPaused] = useState(false);
+  const [narrow, setNarrow] = useState(() => !!globalThis.matchMedia?.('(max-width: 767px)').matches);
+  const [reducedMotion, setReducedMotion] = useState(() => !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  useEffect(() => {
+    const queries = [['(max-width: 767px)', setNarrow], ['(prefers-reduced-motion: reduce)', setReducedMotion]].map(([query, set]) => {
+      const media = globalThis.matchMedia?.(query), update = () => set(!!media?.matches);
+      media?.addEventListener('change', update); return [media, update];
+    });
+    return () => queries.forEach(([media, update]) => media?.removeEventListener('change', update));
+  }, []);
   const [clock, setClock] = useState(Date.now());
-  const rootRef = useRef(null), fitPending = useRef(true);
+  const rootRef = useRef(null), fitPending = useRef(true), fitRequest = useRef('primary');
   const { fullscreen, notice: fullscreenNotice, toggleFullscreen } = useNetworkFullscreen(rootRef);
   const flow = useReactFlow();
+  useEffect(() => { fitPending.current = true; fitRequest.current = 'primary'; }, [narrow]);
   const evidence = useNetworkEvidence(auth, modules, window === 'live');
   useEffect(() => {
     if (!evidence.active) return;
@@ -35,19 +47,32 @@ function NetworkExperience({ auth, ui, store }) {
   const scoped = company !== 'all' || outlet !== 'all';
   const agents = scoped ? (evidence.agents || []).filter(agent => events.some(event => event.agentId === agent.id)) : evidence.agents || [];
   const integrations = scoped ? [] : evidence.integrations || [];
-  const graph = useMemo(() => buildNetwork({ modules, agents, integrations, events, expanded, workspace, search, status, selectedId, now: clock }), [modules, agents, integrations, events, expanded, workspace, search, status, selectedId, clock]);
-  function toggleWorkspace(id) { fitPending.current = true; setExpanded(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
-  const nodes = graph.nodes.map(node => ({ ...node, data: { ...node.data, onToggle: toggleWorkspace } }));
-  const layoutKey = graph.nodes.map(node => node.id).join('|');
+  const graph = useMemo(() => buildNetwork({ modules, agents, integrations, events, expanded, workspace, search, status, selectedId, now: clock, narrow }), [modules, agents, integrations, events, expanded, workspace, search, status, selectedId, clock, narrow]);
+  const toggleWorkspace = useCallback((id) => {
+    fitPending.current = true; fitRequest.current = expanded.has(id) ? 'primary' : id;
+    setExpanded(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  }, [expanded]);
+  const nodes = useMemo(() => graph.nodes.map(node => ({ ...node, data: { ...node.data, onToggle: toggleWorkspace } })), [graph.nodes, toggleWorkspace]);
+  const edges = useMemo(() => presentNetworkEdges(graph.edges, visualDemo), [graph.edges, visualDemo]);
+  const layoutKey = `${narrow}:${inspectorOpen}:${graph.nodes.map(node => node.id).join('|')}`;
+  function fitPrimary() { flow.fitView({ nodes: graph.primaryIds.map(id => ({ id })), padding: 0.08, duration: 0, maxZoom: 1.15 }); }
   useEffect(() => {
     if (!fitPending.current) return;
-    const frame = requestAnimationFrame(() => { flow.fitView({ padding: 0.15, duration: 0, maxZoom: 1 }); fitPending.current = false; });
+    const focus = fitRequest.current;
+    let ids = graph.primaryIds;
+    if (focus !== 'primary') {
+      const members = graph.nodes.filter(node => focus === 'agents' ? node.data.kind === 'agent' : ['data-integrations', 'social-connections'].includes(focus) ? ['data', 'integration'].includes(node.data.kind) : node.data.kind === 'module' && node.data.workspace === focus);
+      if (members.length) ids = members.slice(0, 8).map(node => node.id);
+    }
+    const frame = requestAnimationFrame(() => { flow.fitView({ nodes: ids.map(id => ({ id })), padding: 0.12, duration: 0, maxZoom: 1.15 }); fitPending.current = false; });
     return () => cancelAnimationFrame(frame);
   }, [layoutKey, flow]);
   function selectNode(id, workspaceId) {
     if (workspaceId) setExpanded(current => new Set([...current, workspaceId]));
     else { const module = modules.find(module => module.id === id); if (module) setExpanded(current => new Set([...current, module.workspace])); }
-    setSelectedId(id);
+    if (id.startsWith('agent:')) setExpanded(current => new Set([...current, 'agents']));
+    if (id === 'data-platform' || id.startsWith('gateway:') || id.startsWith('social:')) setExpanded(current => new Set([...current, 'data-integrations']));
+    setSelectedId(id); setInspectorOpen(true);
   }
   useEffect(() => {
     if (!selectedId || !graph.nodes.some(node => node.id === selectedId)) return;
@@ -59,11 +84,11 @@ function NetworkExperience({ auth, ui, store }) {
   const failures = (evidence.sources || []).filter(source => source.state === 'unavailable');
   const canObserve = modules.some(module => module.id === 'external_agents');
   const agentSourceAvailable = evidence.sources?.some(source => source.name === 'AI Integrations' && source.state === 'available');
-  const changeFilter = setter => value => { setter(value); setSelectedId(null); fitPending.current = true; };
-  return <div ref={rootRef} className={`son-experience${evidence.active ? '' : ' son-inactive'}${fullscreen ? ' son-fullscreen' : ''}`}>
+  const changeFilter = setter => value => { setter(value); setSelectedId(null); fitPending.current = true; fitRequest.current = 'primary'; };
+  return <div ref={rootRef} className={`son-experience${evidence.active ? '' : ' son-inactive'}${fullscreen ? ' son-fullscreen' : ''}${visualDemo ? ' son-demo-active' : ''}${motionPaused ? ' son-motion-paused' : ''}`}>
     <header className="son-page-header">
       <div><button type="button" className="son-return" onClick={ui.returnFromNetwork}><ArrowLeft size={15} />Return to workspace</button><h1>Smart Operations Network</h1><p>Explore how FeedX connects. Inspect the evidence behind each operation.</p></div>
-      <div className="son-refresh-state"><span className="son-status" data-status={window === 'live' && evidence.active ? 'observed' : 'idle'}>{window === 'live' ? evidence.active ? 'Live · 30s polling' : 'Live paused' : 'History snapshot'}</span><span>{evidence.observedAt ? `Checked ${formatOperationalDateTime(evidence.observedAt)}` : 'Checking available sources…'}</span></div>
+      <div className="son-refresh-state"><span className="son-status" data-status={window === 'live' && evidence.active ? 'observed' : 'idle'}>{visualDemo ? 'Visual Demo · synthetic motion' : window === 'live' ? evidence.active ? 'Live · 30s polling' : 'Live paused' : 'History snapshot'}</span><span>{evidence.observedAt ? `Checked ${formatOperationalDateTime(evidence.observedAt)}` : 'Checking available sources…'}</span></div>
     </header>
     <div className="son-filter-bar" aria-label="Network filters">
       <SelectField label="Workspace" value={workspace} onChange={changeFilter(setWorkspace)} options={[{ value: 'all', label: 'All accessible workspaces' }, ...availableWorkspaces.map(([value, label]) => ({ value, label }))]} />
@@ -78,25 +103,35 @@ function NetworkExperience({ auth, ui, store }) {
     </div>
     {(evidence.error || failures.length > 0) && <div className="son-notice" role="alert">{evidence.error || `Some evidence could not be checked: ${failures.map(source => source.name).join(', ')}.`}<button type="button" onClick={evidence.refresh}>Retry sources</button></div>}
     {scoped && <p className="son-scope-note">Activity is limited to recorded {company !== 'all' ? 'company' : 'outlet'} attribution. Unattributed activity and agents are excluded; module architecture remains visible.</p>}
-    <div className="son-workbench">
+    <div className={`son-workbench${inspectorOpen ? ' son-inspector-open' : ''}`}>
       <section className="son-map-section" aria-label="Operations network canvas">
-        <div className="son-map-toolbar"><div role="group" aria-label="Activity time range">{timeOptions.map(option => <button type="button" key={option.value} aria-pressed={window === option.value} onClick={() => setWindow(option.value)}>{option.label}</button>)}</div>
-          <div><button type="button" className="son-icon-button" aria-label="Refresh evidence" disabled={evidence.loading} onClick={evidence.refresh}><RefreshCw size={16} /></button><button type="button" className="son-icon-button" aria-label="Fit network to view" onClick={() => flow.fitView({ padding: 0.15, duration: 0, maxZoom: 1 })}><Focus size={17} /></button><button type="button" className="son-icon-button" aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button></div>
+        <div className="son-map-toolbar">
+          <div role="group" aria-label="Activity time range">{timeOptions.map(option => <button type="button" key={option.value} aria-pressed={window === option.value} onClick={() => setWindow(option.value)}>{option.label}</button>)}</div>
+          <div className="son-canvas-actions">
+            <button type="button" className="son-demo-toggle" aria-pressed={visualDemo} onClick={() => setVisualDemo(value => !value)}><FlaskConical size={15} />Visual Demo</button>
+            <button type="button" className="son-icon-button" aria-label={motionPaused ? 'Resume motion' : 'Pause motion'} aria-pressed={motionPaused} onClick={() => setMotionPaused(value => !value)}>{motionPaused ? <Play size={16} /> : <Pause size={16} />}</button>
+            <button type="button" className="son-icon-button" aria-label="Refresh evidence" disabled={evidence.loading} onClick={evidence.refresh}><RefreshCw size={16} /></button>
+            <button type="button" className="son-icon-button" aria-label="Fit network to view" onClick={fitPrimary}><Focus size={17} /></button>
+            <button type="button" className="son-icon-button" aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
+            <button type="button" className="son-activity-toggle" aria-expanded={inspectorOpen} aria-controls="son-inspector" onClick={() => { fitPending.current = true; fitRequest.current = 'primary'; setInspectorOpen(value => !value); }}>{inspectorOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}<span>Activity</span></button>
+          </div>
         </div>
         {fullscreenNotice && <p className="son-scope-note" role="status">{fullscreenNotice}</p>}
         <div className="son-canvas">
-          <ReactFlow nodes={nodes} edges={graph.edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="dark" fitView fitViewOptions={{ padding: 0.15, maxZoom: 1 }} minZoom={0.05} maxZoom={1.6} nodesDraggable={false} nodesConnectable={false} edgesFocusable={false} deleteKeyCode={null} onlyRenderVisibleElements onNodeClick={(_, node) => { if (node.data.kind === 'collapsed') toggleWorkspace(node.data.workspace); else setSelectedId(node.id); }} onPaneClick={() => setSelectedId(null)} aria-label="FeedX operations network">
-            <svg><defs><marker id="son-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#609fba" /></marker></defs></svg>
-            <Background color="#183a4c" gap={28} size={1} /><Controls showInteractive={false} />
+          <div className="son-canvas-atmosphere" aria-hidden="true"><div /><div /><div /></div>
+          <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="dark" fitView fitViewOptions={{ padding: 0.08, maxZoom: 1.15, nodes: graph.primaryIds.map(id => ({ id })) }} minZoom={0.15} maxZoom={1.8} nodesDraggable={false} nodesConnectable={false} edgesFocusable={false} deleteKeyCode={null} onlyRenderVisibleElements onNodeClick={(_, node) => { if (node.data.kind !== 'operation-group') selectNode(node.id); }} onPaneClick={() => setSelectedId(null)} aria-label="FeedX operations network">
+            <Controls showInteractive={false} />
           </ReactFlow>
+          <div className="son-canvas-caption"><Network size={14} /><span>{visualDemo ? 'Synthetic motion showcase' : 'Architecture & observed evidence'}</span><span>{reducedMotion ? 'Reduced motion' : motionPaused ? 'Motion paused' : !evidence.active ? 'Motion paused while inactive' : ''}</span></div>
+          {visualDemo && <div className="son-demo-banner" role="status"><FlaskConical size={17} /><div><strong>VISUAL DEMO · SYNTHETIC MOTION</strong><span>Particles illustrate direction only. Real statuses, metrics and recorded activity are unchanged.</span></div></div>}
           {evidence.loading && <div className="son-canvas-state" role="status">Checking source evidence…</div>}
           {!graph.matching.length && <div className="son-canvas-state">No modules match this view. Change the filters or search.</div>}
         </div>
         <div className="son-layer-key" aria-label="Network layers">{layers.map((layer, index) => <span key={layer}><b>L{index + 1}</b>{layer}</span>)}</div>
-        <footer className="son-map-legend"><span><i className="son-dependency-line" />Declared dependency</span><span><i className="son-execution-line" />Recorded execution</span><span>Drag to pan · scroll to zoom · select a node to inspect</span></footer>
-        <div className="son-source-note"><strong>Evidence coverage</strong><p>{canObserve ? 'AI Integrations: latest 50 access events, 50 configuration events and 50 completed receipts per agent, plus saved open requests. Live includes current open requests and the latest 24 hours. Time ranges filter returned activity; they are not complete historical totals.' : 'Agent telemetry requires existing AI Integrations view authority.'}</p><p>Connections always show the latest saved snapshot. Brand social connections include last sync where accessible. Current module availability reflects your permissions. Uptime, general automation runs and cross-module business timelines are not connected here. Open the owning module for its authoritative evidence.</p></div>
+        <footer className="son-map-legend"><span><i className="son-dependency-line" />Structural · ambient light</span><span><i className="son-execution-line" />Execution · recorded evidence</span><span>{narrow && graph.groups.length > 2 ? 'Primary connections in view · pan to explore' : 'Drag to pan · scroll to zoom · select to inspect'}</span></footer>
+        <details className="son-source-note"><summary>Evidence coverage & limitations</summary><p>{canObserve ? 'AI Integrations: latest 50 access events, 50 configuration events and 50 completed receipts per agent, plus saved open requests. Live includes current open requests and the latest 24 hours. Time ranges filter returned activity; they are not complete historical totals.' : 'Agent telemetry requires existing AI Integrations view authority.'}</p><p>Connections show the latest saved snapshot. Brand social connections include last sync where accessible. Module availability reflects your permissions. Uptime, general automation runs and cross-module business timelines are not connected here. Visual Demo is synthetic presentation only.</p></details>
       </section>
-      <aside className="son-inspector" aria-label="Network inspector">{selected ? <NetworkDetailPanel node={selected} modules={modules} events={events} onClose={() => setSelectedId(null)} onNavigate={ui.navigate} onToggle={toggleWorkspace} onSelect={selectNode} /> : evidence.loading ? <p role="status">Checking recorded activity…</p> : <NetworkTimeline events={events} modules={modules} onSelect={selectNode} />}</aside>
+      {inspectorOpen && <aside id="son-inspector" className="son-inspector" aria-label="Network inspector">{selected ? <NetworkDetailPanel node={selected} modules={modules} events={events} onClose={() => setSelectedId(null)} onNavigate={ui.navigate} onToggle={toggleWorkspace} onSelect={selectNode} /> : evidence.loading ? <p role="status">Checking recorded activity…</p> : <NetworkTimeline events={events} modules={modules} onSelect={selectNode} />}</aside>}
     </div>
   </div>;
 }

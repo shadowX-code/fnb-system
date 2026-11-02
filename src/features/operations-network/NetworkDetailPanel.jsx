@@ -19,7 +19,7 @@ export function NetworkTimeline({ events, modules, onSelect }) {
 export default function NetworkDetailPanel({ node, events, modules, onClose, onNavigate, onToggle, onSelect }) {
   if (!node) return null;
   const data = node.data;
-  const related = data.kind === 'platform' ? events : events.filter(event => data.kind === 'workspace' ? event.workspaces.includes(data.workspace) : data.kind === 'agent' || data.kind === 'integration' ? event.agentId === (data.agentId || node.id.slice(6)) : event.moduleIds.includes(node.id));
+  const related = data.kind === 'platform' ? events : events.filter(event => data.members ? data.members.some(member => (member.agentId || (member.kind === 'agent' && member.id)) === event.agentId) : data.kind === 'workspace' ? event.workspaces.includes(data.workspace) : data.kind === 'agent' || data.kind === 'integration' ? event.agentId === (data.agentId || node.id.slice(6)) : event.moduleIds.includes(node.id));
   return <section className="son-detail" aria-label={`${data.label} details`}>
     <div className="son-section-heading"><h2>{data.label}</h2><button type="button" className="son-icon-button" onClick={onClose} aria-label="Close node details"><X size={17} /></button></div>
     <span className="son-status" data-status={data.status}>{statusLabels[data.status]}</span>
@@ -29,6 +29,7 @@ export default function NetworkDetailPanel({ node, events, modules, onClose, onN
     {data.kind === 'integration' && data.moduleId && <button type="button" className="son-button" onClick={() => onNavigate(data.moduleId)}>Open connection settings<ArrowUpRight size={16} /></button>}
     {(data.kind === 'agent' || (data.kind === 'integration' && data.agentId)) && modules.some(module => module.id === 'external_agents') && <button type="button" className="son-button" onClick={() => onNavigate('external_agents')}>Open AI Integrations<ArrowUpRight size={16} /></button>}
     {data.kind === 'workspace' && <><button type="button" className="son-button" onClick={() => onToggle(data.workspace)}>{data.open ? 'Collapse operations' : 'Expand operations'}<ChevronRight size={16} /></button><ul className="son-module-list">{data.modules.map(module => <li key={module.id}><button type="button" onClick={() => onSelect(module.id, module.workspace)}>{module.label}<ChevronRight size={14} /></button></li>)}</ul></>}
+    {data.members && <><button type="button" className="son-button" onClick={() => onToggle(data.expandKey)}>{data.open ? 'Collapse connections' : 'Expand connections'}<ChevronRight size={16} /></button><ul className="son-module-list">{data.members.map(member => <li key={member.nodeId}><button type="button" onClick={() => onSelect(member.nodeId)}>{member.label}<ChevronRight size={14} /></button></li>)}</ul></>}
     {data.kind === 'integration-group' && <><button type="button" className="son-button" onClick={() => onToggle('social-connections')}>Expand saved connections<ChevronRight size={16} /></button><ul className="son-module-list">{data.integrations.map(item => <li key={item.id}><button type="button" onClick={() => { onToggle('social-connections'); onSelect(item.id); }}>{item.label}<ChevronRight size={14} /></button></li>)}</ul></>}
     <p className="son-muted">Read-only view · source permissions apply</p>
     <NetworkTimeline events={related} modules={modules} onSelect={onSelect} />

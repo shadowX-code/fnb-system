@@ -1,30 +1,60 @@
-import { memo } from 'react';
+import { memo, useId } from 'react';
 import { BaseEdge, Handle, Position, getBezierPath } from '@xyflow/react';
-import { Bot, Building2, ChevronDown, ChevronUp, Database, Layers3, Link2, Network, Workflow } from 'lucide-react';
+import { Bot, Building2, ChevronDown, ChevronUp, Database, Factory, Layers3, Link2, Megaphone, Network, ShieldCheck, Sparkles, Users, UtensilsCrossed, Wallet, Workflow } from 'lucide-react';
 import { statusLabels } from './networkModel.js';
 
-const icons = { platform: Network, workspace: Building2, module: Workflow, agent: Bot, data: Database, integration: Link2, 'integration-group': Link2, collapsed: Layers3, gap: Bot };
+const workspaceIcons = { restaurant: UtensilsCrossed, factory: Factory, hr: Users, crew: ShieldCheck, finance: Wallet, marketing: Megaphone, guest_ai: Sparkles };
+const icons = { platform: Network, workspace: Building2, module: Workflow, agent: Bot, data: Database, integration: Link2, 'agent-group': Bot, 'data-group': Database, 'operation-group': Layers3 };
+const sides = { top: Position.Top, bottom: Position.Bottom, left: Position.Left, right: Position.Right };
+
 export const NetworkNode = memo(function NetworkNode({ data, selected }) {
-  const Icon = icons[data.kind] || Network;
+  const Icon = workspaceIcons[data.workspace] && data.kind === 'workspace' ? workspaceIcons[data.workspace] : icons[data.kind] || Network;
+  const group = ['agent-group', 'data-group'].includes(data.kind);
+  const toggleKey = data.kind === 'workspace' ? data.workspace : data.expandKey;
+  const caption = data.kind === 'platform' ? 'Platform architecture' : data.kind === 'data' ? 'Not measured' : data.kind === 'module' && data.status === 'unknown' ? 'No telemetry' : statusLabels[data.status];
   return <article className={`son-node son-node-${data.kind}${selected ? ' son-selected' : ''}`} data-status={data.status}>
-    <Handle type="target" position={Position.Top} isConnectable={false} />
-    <div className="son-node-title"><Icon size={data.kind === 'platform' ? 30 : 20} aria-hidden="true" /><strong>{data.label}</strong><span className="son-node-layer">L{data.layer + 1}</span></div>
-    <p>{data.subtitle}</p>
-    <div className="son-node-footer"><span className="son-status" data-status={data.status}><i aria-hidden="true" />{data.kind === 'collapsed' ? 'Collapsed' : data.kind === 'data' ? 'Not measured' : data.kind === 'integration-group' ? 'Saved connections' : data.kind === 'module' && data.status === 'unknown' ? 'No telemetry' : statusLabels[data.status]}</span>
-      {(data.kind === 'workspace' || data.kind === 'collapsed') && <button type="button" className="nodrag nopan" aria-label={`${data.open ? 'Collapse' : 'Expand'} ${data.label}`} aria-expanded={!!data.open} onClick={event => { event.stopPropagation(); data.onToggle(data.workspace); }}>{data.open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>}
-      {data.kind === 'integration-group' && <button type="button" className="nodrag nopan" aria-label="Expand saved connections" onClick={event => { event.stopPropagation(); data.onToggle('social-connections'); }}><ChevronDown size={16} /></button>}
-    </div>
-    <Handle type="source" position={Position.Bottom} isConnectable={false} />
+    {Object.entries(sides).map(([side, position]) => <span key={side}><Handle id={`in-${side}`} type="target" position={position} isConnectable={false} /><Handle id={`out-${side}`} type="source" position={position} isConnectable={false} /></span>)}
+    {data.kind === 'platform' ? <>
+      <div className="son-hub-orbit son-hub-orbit-outer" aria-hidden="true" /><div className="son-hub-orbit" aria-hidden="true" />
+      <div className="son-hub-body"><Network size={35} strokeWidth={1.6} aria-hidden="true" /><strong>FeedX OS</strong><p>{data.subtitle}</p><span>L1 · {caption}</span></div>
+      <div className="son-hub-base" aria-hidden="true" />
+    </> : data.kind === 'operation-group' ? <div className="son-bay-title"><Layers3 size={17} /><strong>{data.label}</strong><span>L3 · {data.subtitle}</span></div> : <>
+      <div className="son-node-title"><span className="son-node-icon"><Icon size={group ? 25 : 22} strokeWidth={1.6} aria-hidden="true" /></span><div><span className="son-node-layer">L{data.layer + 1}{group ? ' · ' + (data.kind === 'agent-group' ? 'Intelligence' : 'Foundation') : ''}</span><strong>{data.label}</strong></div></div>
+      {data.kind === 'workspace' ? <div className="son-workspace-bottom"><span><span className="son-mini-layer">L3</span><b>{data.modules.length}</b> operations</span><button type="button" className="nodrag nopan" aria-label={`${data.open ? 'Collapse' : 'Expand'} ${data.label}`} aria-expanded={!!data.open} onClick={event => { event.stopPropagation(); data.onToggle(toggleKey); }}>{data.open ? 'Collapse' : 'Explore'}{data.open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button></div> : <div className="son-node-footer"><span className={group ? 'son-node-summary' : 'son-status'} data-status={data.status}>{group ? data.subtitle : <><i aria-hidden="true" />{caption}</>}</span>{group && <button type="button" className="nodrag nopan" aria-label={`${data.open ? 'Collapse' : 'Expand'} ${data.label}`} aria-expanded={!!data.open} onClick={event => { event.stopPropagation(); data.onToggle(toggleKey); }}>{data.open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>}</div>}
+      {!group && data.kind !== 'workspace' && <p className="son-node-subtitle">{data.subtitle}</p>}
+    </>}
   </article>;
 });
 
+export function networkEdgePath(props) {
+  const { sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, data } = props;
+  if (data.routing === 'module') {
+    const laneX = tx - 14, lineY = sy + 18, r = 8;
+    return `M ${sx} ${sy} L ${sx} ${lineY} L ${laneX + r} ${lineY} Q ${laneX} ${lineY} ${laneX} ${lineY + r} L ${laneX} ${ty - r} Q ${laneX} ${ty} ${laneX + r} ${ty} L ${tx} ${ty}`;
+  }
+  if (data.routing?.startsWith('outer')) {
+    const x = data.outerX, direction = ty >= sy ? 1 : -1, reach = data.routing === 'outer-left' ? -55 : 55;
+    if (data.endAtTop) {
+      const turn = x < tx ? 16 : -16;
+      return `M ${sx} ${sy} C ${sx + reach} ${sy} ${x} ${sy} ${x} ${sy + 30} L ${x} ${ty - 42} Q ${x} ${ty - 26} ${x + turn} ${ty - 26} L ${tx - turn} ${ty - 26} Q ${tx} ${ty - 26} ${tx} ${ty - 10} L ${tx} ${ty}`;
+    }
+    return `M ${sx} ${sy} C ${sx + reach} ${sy} ${x} ${sy} ${x} ${sy + direction * 38} L ${x} ${ty - direction * 38} C ${x} ${ty} ${tx + reach} ${ty} ${tx} ${ty}`;
+  }
+  return getBezierPath({ ...props, curvature: 0.32 })[0];
+}
+
 export const NetworkEdge = memo(function NetworkEdge(props) {
-  const [path] = getBezierPath(props);
-  const { kind, status, fresh } = props.data;
-  const moving = kind === 'execution' && status === 'running';
-  return <g className={`son-edge son-edge-${kind}`} data-status={status}>
-    <BaseEdge id={props.id} path={path} markerEnd="url(#son-arrow)" interactionWidth={0} />
-    {(moving || (status === 'completed' && fresh)) && <path className={moving ? 'son-flow-particle' : 'son-success-pulse'} d={path} pathLength="100" />}
+  const uid = useId().replace(/:/g, ''), path = networkEdgePath(props);
+  const { kind, status, fresh, demoMotion, accent } = props.data;
+  const executing = kind === 'execution';
+  const moving = demoMotion || (executing && status === 'running');
+  const completion = executing && status === 'completed' && fresh;
+  const color = executing ? ({ pending: '#f9c872', running: '#61fff0', completed: '#8df0be', failed: '#ff819c', unknown: '#8595aa', idle: '#527b91' }[status] || '#88bbc5') : accent || '#4de9dd';
+  return <g className={`son-edge son-edge-${kind}`} data-status={status} data-demo={demoMotion || undefined} style={{ '--son-edge-color': color }}>
+    <defs><linearGradient id={`${uid}-line`}><stop stopColor={color} stopOpacity=".35" /><stop offset=".5" stopColor={color} stopOpacity=".95" /><stop offset="1" stopColor={color} stopOpacity=".6" /></linearGradient><marker id={`${uid}-arrow`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke={color} strokeWidth="1.5" /></marker></defs>
+    <path className="son-edge-aura" d={path} /><path className="son-edge-sheath" d={path} />
+    <BaseEdge id={props.id} path={path} markerEnd={`url(#${uid}-arrow)`} interactionWidth={0} style={{ stroke: `url(#${uid}-line)` }} />
+    {(moving || completion) && [0, 1, 2].map(index => <circle key={index} className={`son-motion-particle${completion && !moving ? ' son-completion-particle' : ''}`} data-motion-source={demoMotion ? 'synthetic-demo' : 'recorded-execution'} r={index === 0 ? 3.2 : index === 1 ? 2.1 : 1.3} style={{ offsetPath: `path('${path}')`, animationDelay: `${-index * 0.09}s`, opacity: 1 - index * 0.24 }} />)}
   </g>;
 });
 

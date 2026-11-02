@@ -15,16 +15,17 @@ describe('permission-derived operations network', () => {
   });
   it('keeps five layers, collapses operations and never invents execution on collapsed workspaces', () => {
     const result = buildNetwork({ modules, agents: [agent], events: [event], now });
-    expect(new Set(result.nodes.map(node => node.data.layer)).size).toBe(5);
+    expect(new Set(result.nodes.flatMap(node => node.data.kind === 'workspace' ? [node.data.layer, 2] : [node.data.layer])).size).toBe(5);
     expect(result.nodes.some(node => node.id === 'inventory_stock_check')).toBe(false);
     expect(result.edges.every(edge => edge.data.kind === 'dependency')).toBe(true);
-    expect(result.nodes.find(node => node.id === 'data-platform').data.status).toBe('unknown');
+    expect(result.nodes.find(node => node.id === 'data-group').data.members.find(member => member.nodeId === 'data-platform').status).toBe('unknown');
   });
   it('draws execution only for exact agent/module evidence and expires the success pulse', () => {
     const options = { modules, agents: [agent], events: [event], expanded: new Set(['restaurant']), now };
     const result = buildNetwork(options);
     const edge = result.edges.find(edge => edge.data.kind === 'execution');
-    expect(edge).toMatchObject({ source: 'agent:a', target: 'inventory_stock_check', data: { status: 'completed', fresh: true } });
+    expect(edge).toMatchObject({ source: 'automation-group', target: 'inventory_stock_check', data: { agentId: 'a', eventId: 'e', status: 'completed', fresh: true } });
+    expect(buildNetwork({ ...options, expanded: new Set(['restaurant', 'agents']) }).edges.find(edge => edge.data.kind === 'execution').source).toBe('agent:a');
     expect(buildNetwork({ ...options, now: now + 15000 }).edges.find(edge => edge.data.kind === 'execution').data.fresh).toBe(false);
   });
   it('searches and expands matching modules without exposing unrelated workspaces', () => {
@@ -55,7 +56,7 @@ describe('permission-derived operations network', () => {
     const result = buildNetwork({ modules, agents: [agent], integrations, workspace: 'factory' });
     expect(result.visibleAgents).toEqual([]);
     const overview = buildNetwork({ modules, integrations });
-    expect(overview.nodes.find(node => node.id === 'social-connections').data.integrations).toHaveLength(10);
+    expect(overview.nodes.find(node => node.id === 'data-group').data.members.filter(member => member.nodeId.startsWith('social:'))).toHaveLength(10);
     expect(overview.nodes.some(node => node.id === 'social:0')).toBe(false);
     expect(buildNetwork({ modules, integrations, expanded: new Set(['social-connections']) }).nodes.filter(node => node.id.startsWith('social:'))).toHaveLength(10);
   });
