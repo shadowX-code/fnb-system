@@ -78,7 +78,7 @@ export default function CustomerPerformancePanel({ outletId, period, auth, onPre
     </label>
     {canEdit ? <button className="btn-secondary" type="button" disabled={loading || saving || previewing || !context || context.target_locked || !validTarget || Number(target) === context.positive_target} onClick={save}>{saving ? 'Saving…' : 'Save Target'}</button> : null}
     <button className="btn-secondary" type="button" disabled={loading || !context} onClick={openHistory}>Target History</button>
-    {canPreview ? <button className="btn-secondary" type="button" disabled={loading || saving || previewing || !context || Number(target) !== context.positive_target} onClick={refreshPreview}>{previewing ? 'Preparing preview…' : 'Refresh Customer Preview'}</button> : null}
+    {canPreview ? <button className="btn-secondary" type="button" disabled={loading || saving || previewing || !context || target !== String(context.positive_target ?? '')} onClick={refreshPreview}>{previewing ? 'Preparing preview…' : 'Refresh Customer Preview'}</button> : null}
    </div>
    {context?.target_locked ? <p className="text-sm text-text-secondary">Target locked after Performance finalization.</p> : null}
    {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
