@@ -1,5 +1,5 @@
-// Server-only, dormant integration contract. No network, credentials or persistence.
-// Google content must not enter this boundary before policy approval.
+// Server-only contract. Persistent scoring/reconciliation stays policy-gated.
+// Request-local previews reuse the pure classifier/scorer, never stored content.
 export interface GoogleReviewRecord {
   name: string;
   createTime: string;
@@ -54,9 +54,14 @@ export async function reconcileGoogleReviewMonth(provider: GoogleReviewsProvider
     if (token && seenTokens.has(token)) throw new Error("Repeated Google page token.");
     if (token) seenTokens.add(token);
   } while (token);
+  return googleReviewMonthEvidence([...reviews.values()], period, pages);
+}
+
+// Transient classification shared by the dormant contract and live-request preview.
+export function googleReviewMonthEvidence(reviews: GoogleReviewRecord[], period: string, pages = 1) {
   const month = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit" });
   const breakdown: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-  for (const review of reviews.values()) {
+  for (const review of reviews) {
     const parts = month.formatToParts(new Date(review.createTime));
     const key = `${parts.find(p => p.type === "year")?.value}-${parts.find(p => p.type === "month")?.value}`;
     if (key === period.slice(0, 7)) ++breakdown[ratings[review.starRating]];

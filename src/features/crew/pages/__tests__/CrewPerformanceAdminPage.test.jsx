@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({ data: vi.fn(), page: vi.fn(), feedbackPage: vi.fn(), review: vi.fn(), recalculate: vi.fn(), moderate: vi.fn(), correct: vi.fn() }));
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { performanceAdminData: mocks.data, performanceAdminPage: mocks.page, feedbackAdminPage: mocks.feedbackPage, submitPerformanceReview: mocks.review, recalculatePerformanceEmployment: mocks.recalculate, moderateFeedback: mocks.moderate, correctFeedbackAttribution: mocks.correct } }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { googleReviewsAdminContext: vi.fn().mockResolvedValue({ positive_target: null, target_locked: false }), performanceAdminData: mocks.data, performanceAdminPage: mocks.page, feedbackAdminPage: mocks.feedbackPage, submitPerformanceReview: mocks.review, recalculatePerformanceEmployment: mocks.recalculate, moderateFeedback: mocks.moderate, correctFeedbackAttribution: mocks.correct } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
 import CrewPerformanceAdminPage from "../CrewPerformanceAdminPage.jsx";
 
@@ -131,7 +131,7 @@ describe("Crew Performance Admin", () => {
     expect(screen.getByText("Total Feedback").closest("[data-admin-summary-card]").textContent).toContain("2");
     fireEvent.change(screen.getByPlaceholderText("Search Crew, comment or tag"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Feedback scoring" }));
-    fireEvent.click(screen.getByRole("button", { name: "Excluded" }));
+    fireEvent.click(screen.getByRole("option", { name: "Excluded" }));
     expect(await screen.findByText("Too slow")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
     fireEvent.change(screen.getByPlaceholderText("Explain why this feedback should be restored"), { target: { value: "Duplicate was rechecked" } });

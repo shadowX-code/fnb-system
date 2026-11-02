@@ -3,6 +3,7 @@ import { disconnectBusinessConnection } from '../_shared/googleBusinessDisconnec
 import { googleBusinessEnvironment } from '../_shared/googleBusinessEnvironment.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { hash, nonce, seal, unseal, base64url, tokenEncryptionReady } from '../_shared/metaSecurity.ts';
+import { customerPerformancePreview } from '../_shared/googleCustomerPreview.ts';
 import type { GoogleReviewRecord } from '../_shared/googleReviewsContract.ts';
 import { googleGrant, DriveError } from '../_shared/googleDrive.ts';
 import { GoogleBusinessProfile, BUSINESS_SCOPE, BusinessProfileError, completePages, readReviewInbox, reviewInboxPayload, revokeBusinessGrant } from '../_shared/googleBusinessProfile.ts';
@@ -110,6 +111,26 @@ export async function handle(req: Request) {
   const body = await req.json(); outlet = body.outletId;
   if (typeof outlet !== 'string' || !/^[a-f0-9-]{36}$/i.test(outlet)) throw new Error('Select an outlet.');
   const context = await call('context');
+  if (action === 'customer-preview') {
+   const viewer = createClient(supabase, env('SUPABASE_ANON_KEY'), { global: { headers: { Authorization: auth } }, auth: { persistSession: false, autoRefreshToken: false } });
+   const target = async () => {
+    const result = await viewer.rpc('crew_google_reviews_admin_context', { p_outlet_id: outlet, p_period: body.period });
+    if (result.error) throw new Error('Performance access is required for this outlet and month.');
+    return result.data;
+   };
+   const initial = await target();
+   return reply(await customerPerformancePreview({ period: body.period, context, target: initial.positive_target,
+    read: async () => {
+     const material = await call('material');
+     const resolved = await resolveBusinessToken({call,material,keys:keys(),key:secret(),grant});
+     const payload = await readReviewInbox(new GoogleBusinessProfile(resolved.token.access_token), material.mapping.location_resource_name);
+     await call('guard', { generation: material.generation, revision: material.mapping.revision });
+     const latest = await call('context');
+     if (!latest.can_sync || (await target()).positive_target !== initial.positive_target) throw new Error('Access or monthly target changed. Reload the preview.');
+     return { ...payload, fetchedAt: new Date().toISOString() };
+    }
+   }));
+  }
   if (action === 'context') {
    const result = { ...context, configured: Boolean(configured()) && await tokenEncryptionReady(secret()), reviews: [], google_aggregate: null };
    if (context.connection_status === 'connected' && context.sync_status === 'complete') {

@@ -11,6 +11,7 @@ async function command(action, outletId, body = {}) {
  return data;
 }
 export const googleBusinessService = {
+ customerPreview: (outlet, period) => command('customer-preview', outlet, { period }),
  detail: (outlet, review, basis) => command('review',outlet,{review,generation:basis.generation,revision:basis.mapping.revision}),
  reply: (outlet, intent) => command('reply',outlet,{...intent,confirmed:true}),
  replyStatus: (outlet,id) => command('reply_status',outlet,{id}),
