@@ -88,6 +88,9 @@ begin
  exception when sqlstate '22023' then null; end;
  result:=public.crew_performance_settle_customer_month(outlet,'2026-10-01',basis,'{"score":9.5,"positiveTarget":4.5,"quality":5}');
  first_summary:=result->'summary';
+ if first_summary-array['status','score','max_score','target_revision','calculation_version','settled_at','settlement_method']<>'{}'::jsonb
+  or first_summary ? 'positiveTarget' or first_summary ? 'quality' then
+  raise exception 'Performance retained more than the final Customer outcome and internal audit'; end if;
  if result->>'status'<>'settled' then raise exception 'Controlled settlement failed: %',result; end if;
  if not exists(select 1 from public.crew_performance_results r join public.employees e on e.id=r.employee_id
    where e.employee_code='QA-CREW-CO-01' and r.period_start='2026-10-01' and r.customer_score=9.5

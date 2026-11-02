@@ -77,11 +77,12 @@ it('automatically reads provisional evidence and retries after a Pending result'
 });
 
 it('shows the immutable monthly summary without fetching or replacing it with a provisional score', async () => {
- mocks.context.mockResolvedValue({positive_target:10,target_locked:true,customer_summary:{status:'settled',score:9.5,positiveTarget:4.5,quality:5,settled_at:new Date().toISOString()}});
+ mocks.context.mockResolvedValue({positive_target:10,target_locked:true,customer_summary:{status:'settled',score:9.5,settled_at:new Date().toISOString()}});
  mount();
  expect(await screen.findByText('9.5 / 20')).not.toBeNull();
- expect(screen.getByText('4.5 / 15')).not.toBeNull();
- expect(screen.getByText('5 / 5')).not.toBeNull();
+ expect(screen.queryByText('Positive Target')).toBeNull();
+ expect(screen.queryByText('Review Quality')).toBeNull();
+ expect(screen.queryByText(/NaN/)).toBeNull();
  expect(screen.queryByText('Monthly Reviews')).toBeNull();
  expect(screen.queryByRole('button',{name:'Refresh Preview'})).toBeNull();
  expect(screen.queryByRole('button',{name:/Finalize/})).toBeNull();
