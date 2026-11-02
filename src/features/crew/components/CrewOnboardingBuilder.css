@@ -4,3 +4,32 @@
    disclosure controls and labels each have their own geometry. */
 .crew-onboarding-builder .crew-onboarding-outline-list,.crew-onboarding-builder .crew-onboarding-outline-lessons{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;min-width:0}.crew-onboarding-builder .crew-onboarding-module-outline>header{display:flex}.crew-onboarding-builder .crew-onboarding-outline-row>button{grid-template-columns:none;box-sizing:border-box;min-width:0}.crew-onboarding-builder .crew-onboarding-outline-row>button:not(:last-child){display:inline-flex;align-items:center;justify-content:center;flex:0 0 28px;width:28px;min-width:28px;max-width:28px;padding:4px}.crew-onboarding-builder .crew-onboarding-outline-row>button:last-child{grid-template-columns:minmax(0,1fr);width:auto;flex:1 1 0%;min-width:0}.crew-onboarding-builder .crew-onboarding-outline-row>button:last-child>strong,.crew-onboarding-builder .crew-onboarding-outline-row>button:last-child>small{grid-column:1;min-width:0;white-space:normal;overflow-wrap:break-word}
 .crew-onboarding-builder .crew-onboarding-module-outline{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box}.crew-onboarding-builder-workspace{width:100%;max-width:100%;box-sizing:border-box}.crew-onboarding-builder .crew-onboarding-outline-list{width:100%}
+
+/* Outline actions are separate from draggable rows. */
+.crew-onboarding-builder .crew-onboarding-module-outline>header{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:12px}
+.crew-onboarding-add-module{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;width:100%}
+.crew-onboarding-builder .crew-onboarding-add-lesson{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px 58px;min-height:36px;font-size:12px}
+.crew-outline-number{font-variant-numeric:tabular-nums;color:var(--theme-muted,#526477);font-weight:500}
+.crew-onboarding-builder .crew-onboarding-outline-lessons{margin-left:32px;border-left:1px solid var(--theme-border,#dbe3e8);padding-left:4px}
+.crew-onboarding-builder .crew-onboarding-outline-row>button.is-active{box-shadow:inset 3px 0 var(--theme-primary,#147b64)}
+.crew-onboarding-lesson-preview{max-width:760px;margin-inline:auto;display:grid;gap:24px;min-width:0}
+.crew-preview-toolbar{display:grid;gap:12px;padding-bottom:16px;border-bottom:1px solid var(--theme-border,#dbe3e8)}
+.crew-preview-toolbar h2,.crew-onboarding-overview-heading h2{margin:0;font-size:18px;line-height:1.4}
+.crew-preview-toolbar p,.crew-onboarding-overview-heading p{margin:4px 0 0;font-size:13px;color:var(--theme-muted,#526477)}
+.crew-preview-toolbar .admin-segmented-control{justify-self:start}
+.crew-onboarding-lesson-preview .crew-learning-reader{min-height:0;padding:0;max-width:none;background:transparent}
+.crew-preview-navigation{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--theme-border,#dbe3e8);padding-top:16px}
+.crew-preview-navigation>span{white-space:nowrap;font-size:12px;color:var(--theme-muted,#526477)}
+.crew-preview-correct{margin-left:auto;font-size:12px;color:var(--theme-primary,#147b64)}
+.crew-preview-explanation{font-size:13px;line-height:1.6;padding:10px 12px;background:var(--theme-panel-soft,#f8fafb);border-radius:6px}
+.crew-onboarding-overview-heading{margin:8px 0 16px}
+.crew-onboarding-overview-lessons{padding:0 12px 16px 32px}
+.crew-onboarding-overview-lesson{border-top:1px solid var(--theme-border,#dbe3e8)}
+.crew-onboarding-overview-lesson>summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;padding:12px 4px;font-size:13px}
+.crew-onboarding-overview-lesson>summary::-webkit-details-marker{display:none}
+.crew-onboarding-overview-lesson>summary>strong{flex:1}
+.crew-onboarding-overview-lesson>summary>small,.crew-onboarding-overview-lesson>div{font-size:12px;color:var(--theme-muted,#526477)}
+.crew-onboarding-overview-lesson>div{padding:0 12px 12px 38px}
+.crew-onboarding-overview-lesson[open]>summary>svg{transform:rotate(90deg)}
+.crew-onboarding-overview-lesson>summary:focus-visible{outline:2px solid var(--theme-primary,#147b64);outline-offset:2px}
+@media(max-width:760px){.crew-preview-navigation{gap:8px}.crew-preview-navigation .btn-secondary{padding-inline:10px;font-size:12px}.crew-onboarding-overview-lessons{padding-left:12px}.crew-onboarding-overview-lesson>summary{flex-wrap:wrap}.crew-onboarding-overview-lesson>summary>strong{flex-basis:65%}}
