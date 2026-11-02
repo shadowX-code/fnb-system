@@ -12,7 +12,7 @@ export async function customerPerformancePreview(options: {
  if (!/^\d{4}-(0[1-9]|1[0-2])-01$/.test(options.period)) throw new Error('Choose a Performance month.');
  if (!options.context.can_sync) throw new Error('Google Reviews Sync permission is required to prepare a fresh preview.');
  if (options.context.connection_status !== 'connected') return pending('reconnect_required');
- if (!options.context.mapping?.location_resource_name) return pending('mapping_required');
+ if (!options.context.mapping?.name) return pending('mapping_required');
  if (!Number.isSafeInteger(options.target) || options.target <= 0) return pending('target_required');
  // Current/future months cannot provide a complete monthly denominator.
  const [year, month] = options.period.split('-').map(Number);

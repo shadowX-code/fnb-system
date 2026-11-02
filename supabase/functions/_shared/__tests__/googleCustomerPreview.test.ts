@@ -3,7 +3,7 @@ import { customerPerformancePreview } from '../googleCustomerPreview.ts';
 
 const now = Date.parse('2026-11-02T00:00:00Z');
 const location = 'accounts/a/locations/l';
-const context = { can_sync: true, connection_status: 'connected', mapping: { location_resource_name: location } };
+const context = { can_sync: true, connection_status: 'connected', mapping: { name: location, revision: "mapped-revision" } };
 const reviews = ['FIVE', 'FOUR', 'THREE', 'ONE'].map((starRating, i) => ({ name: `${location}/reviews/${i}`, createTime: '2026-10-15T00:00:00Z', updateTime: '2026-10-15T00:00:00Z', starRating }));
 const options = () => ({ period: '2026-10-01', context, target: 4, now: () => now, read: vi.fn().mockResolvedValue({ reviews, googleAggregate: { totalReviewCount: 4 }, fetchedAt: new Date(now).toISOString() }) });
 
