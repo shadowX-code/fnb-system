@@ -113,7 +113,7 @@
 .son-completion-particle { fill: #baffd8; animation: son-arrival 1.5s linear 2 forwards; }
 @keyframes son-travel { to { offset-distance: 100%; } }
 @keyframes son-arrival { 0% { offset-distance: 0%; opacity: 1; } 85% { opacity: 1; } 100% { offset-distance: 100%; opacity: 0; } }
-:is(.son-inactive,.son-motion-paused) .son-motion-particle { animation-play-state: paused; }
+:is(.son-inactive,.son-motion-paused) :is(.son-motion-particle,.son-node[data-status="running"]) { animation-play-state: paused; }
 .son-canvas-caption { position: absolute; z-index: 2; top: 14px; left: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 10px; color: #9fbed1; pointer-events: none; }
 .son-canvas-caption svg { color: #64c8ca; }
 .son-canvas-caption > :last-child:not(:empty) { color: #f6cf8c; }
