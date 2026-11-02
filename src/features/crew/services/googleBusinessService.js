@@ -6,7 +6,7 @@ async function command(action, outletId, body = {}) {
   let message = 'Google Reviews request could not be completed.';
   let status;
   if (error.context instanceof Response) try { status=error.context.status; message = (await error.context.json()).error || message; } catch { /* Keep safe fallback. */ }
-  const cause=new Error(message); cause.uncertain=!status || status>=500; throw cause;
+  const cause=new Error(message); cause.status=status; cause.uncertain=!status || status>=500; throw cause;
  }
  return data;
 }

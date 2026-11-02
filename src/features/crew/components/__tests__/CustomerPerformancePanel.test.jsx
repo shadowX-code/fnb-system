@@ -43,7 +43,7 @@ describe('Customer configuration and transient preview', () => {
  it('requires Google permissions separately and respects finalized target lock', async () => {
   mocks.context.mockResolvedValue({ positive_target: 10, target_locked: true });
   mount({ auth: { hasPermission: key => key === 'crew_performance.review' } });
-  expect(await screen.findByText('Target locked after Performance finalization.')).not.toBeNull();
+  expect(await screen.findByText('Target locked after Customer settlement or Performance finalization.')).not.toBeNull();
   expect(screen.queryByLabelText('Monthly Positive Review Target')).toBeNull();
   expect(screen.getByRole('button',{name:'Edit',exact:true}).disabled).toBe(true);
   expect(screen.queryByRole('button', { name: 'Refresh Preview' })).toBeNull();
@@ -53,11 +53,39 @@ describe('Customer configuration and transient preview', () => {
   const onPreview = vi.fn(); const view = mount({ onPreview });
   await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh Preview' }).disabled).toBe(false));
   fireEvent.click(screen.getByRole('button', { name: 'Refresh Preview' }));
+  await waitFor(() => expect(resolve).toBeTypeOf('function'));
   view.rerender(<CustomerPerformancePanel outletId="outlet-2" period="2026-10-01" auth={auth} onPreview={onPreview} />);
   resolve({ status: 'preview_only', score: 20 });
   await waitFor(() => expect(mocks.context).toHaveBeenCalledWith('outlet-2', '2026-10-01'));
   expect(onPreview).not.toHaveBeenCalledWith(expect.objectContaining({ score: 20 }));
  });
+});
+
+it('automatically reads provisional evidence and retries after a Pending result', async () => {
+ vi.useFakeTimers();
+ mocks.preview.mockResolvedValueOnce({status:'pending',reason:'incomplete_evidence'})
+  .mockResolvedValueOnce({status:'preview_only',score:6.5,positiveTarget:1.5,quality:5,positive:1,target:10,negative:0,total:1,negativeRate:0,
+   periodState:'provisional',fetchedAt:new Date(Date.now()+300000).toISOString(),expiresAt:new Date(Date.now()+600000).toISOString()});
+ mount({period:'2026-11-01'}); await act(async()=>{});
+ await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+ expect(mocks.preview).toHaveBeenCalledTimes(1);
+ expect(screen.getByText('Pending')).not.toBeNull();
+ await act(async()=>{await vi.advanceTimersByTimeAsync(300000);});
+ expect(screen.getByText('6.5 / 20')).not.toBeNull();
+ expect(screen.getByText('Provisional preview')).not.toBeNull();
+ expect(mocks.save).not.toHaveBeenCalled();
+});
+
+it('shows the immutable monthly summary without fetching or replacing it with a provisional score', async () => {
+ mocks.context.mockResolvedValue({positive_target:10,target_locked:true,customer_summary:{status:'settled',score:9.5,positiveTarget:4.5,quality:5,settled_at:new Date().toISOString()}});
+ mount();
+ expect(await screen.findByText('9.5 / 20')).not.toBeNull();
+ expect(screen.getByText('4.5 / 15')).not.toBeNull();
+ expect(screen.getByText('5 / 5')).not.toBeNull();
+ expect(screen.queryByText('Monthly Reviews')).toBeNull();
+ expect(screen.queryByRole('button',{name:'Refresh Preview'})).toBeNull();
+ expect(screen.queryByRole('button',{name:/Finalize/})).toBeNull();
+ expect(mocks.preview).not.toHaveBeenCalled();
 });
 
 

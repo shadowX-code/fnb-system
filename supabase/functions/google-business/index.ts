@@ -4,6 +4,7 @@ import { googleBusinessEnvironment } from '../_shared/googleBusinessEnvironment.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { hash, nonce, seal, unseal, base64url, tokenEncryptionReady } from '../_shared/metaSecurity.ts';
 import { assertCustomerPreviewBasis, customerPerformancePreview } from '../_shared/googleCustomerPreview.ts';
+import { settleCustomerMonths } from '../_shared/googleCustomerSettlement.ts';
 import type { GoogleReviewRecord } from '../_shared/googleReviewsContract.ts';
 import { googleGrant, DriveError } from '../_shared/googleDrive.ts';
 import { GoogleBusinessProfile, BUSINESS_SCOPE, BusinessProfileError, completePages, readReviewInbox, reviewInboxPayload, revokeBusinessGrant } from '../_shared/googleBusinessProfile.ts';
@@ -75,7 +76,13 @@ export async function handle(req: Request) {
    try {
     result=await runScheduledReviewSync(claimed.outlets,async(id:string)=>{
      const scoped=async(command:string,data:any={})=>{const result=await db.rpc('crew_google_business_server',{p_action:command,p_user:null,p_outlet:id,p_data:{...data,worker_run:run,worker_proof:proof}});if(result.error)throw new BusinessProfileError('sync_authority_changed',409);return result.data;};
-     return synchronizeBusinessReviews({call:scoped,key:secret(),keys:keys(),grant,deadline:Math.min(deadline,Date.now()+90000)});
+     return synchronizeBusinessReviews({call:scoped,key:secret(),keys:keys(),grant,deadline:Math.min(deadline,Date.now()+90000),
+      onSynchronized: (snapshot,material)=>settleCustomerMonths({snapshot,generation:material.generation,
+       revision:material.mapping.revision,location:material.mapping.location_resource_name,
+       settle:async(period,basis,customer)=>{
+        const settled=await db.rpc('crew_performance_settle_customer_month',{p_outlet:id,p_period:period,p_basis:basis ?? null,p_customer:customer ?? null});
+        if(settled.error)throw new Error('Customer settlement will retry after synchronization.');return settled.data;
+       }})});
     },{deadline});
     await worker('finish',{error:result.stopped || (result.failed ? 'location_sync_failed' : '')});
    }catch{await worker('finish',{error:'scheduled_sync_failed'}).catch(()=>{});throw new Error('Scheduled sync could not finish.');}
