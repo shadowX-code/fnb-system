@@ -384,7 +384,7 @@ function Toggle({ label, detail, checked, onChange, className }) {
   return <ToggleField label={label} helper={detail} checked={checked} onChange={onChange} className={className} />;
 }
 
-export function OnboardingPreview({ draft, sops = [], selectedLessonId, selectedModuleId, onSelect }) {
+export function OnboardingPreview({ draft, sops = [], selectedLessonId, selectedModuleId, onSelect, onExit }) {
   const [inspectAnswers, setInspectAnswers] = useState(false);
   const [answers, setAnswers] = useState({});
   const viewport = useRef(null);
@@ -393,14 +393,14 @@ export function OnboardingPreview({ draft, sops = [], selectedLessonId, selected
   const index = Math.max(0, matched);
   const current = lessons[index];
   useEffect(() => { setAnswers({}); setInspectAnswers(false); viewport.current?.scrollIntoView?.({ block: "start" }); }, [current?.lesson.id]);
-  if (!current) return <section><h2>Crew Learning Preview</h2><p>{draft.status === "published" ? "This Published version has no lessons to preview." : "Add a lesson to preview this Draft."}</p></section>;
+  if (!current) return <section><h2>Crew Learning Preview</h2><p>{draft.status === "published" ? "This Published version has no lessons to preview." : "Add a lesson to preview this Draft."}</p>{onExit && <button type="button" className="btn-secondary" onClick={onExit}>Exit Preview</button>}</section>;
   const { module, lesson } = current;
   function choose(question, optionId) {
     setAnswers((value) => ({ ...value, [question.id]: question.question_type === "multiple_choice" ? value[question.id]?.includes(optionId) ? value[question.id].filter((id) => id !== optionId) : [...(value[question.id] || []), optionId] : [optionId] }));
   }
   function navigate(offset) { const next = lessons[index + offset]; if (next) onSelect(next.module.id, next.lesson.id); }
   return <section className="crew-onboarding-lesson-preview" ref={viewport} aria-label="Crew Learning Preview">
-    <header className="crew-preview-toolbar"><div><h2>Crew Learning Preview</h2><p>{draft.status === "published" ? "Published" : "Draft"} v{draft.version} · Read-only · Lesson {index + 1} of {lessons.length}</p></div><AdminSegmentedControl label="Preview mode" value={inspectAnswers ? "answers" : "crew"} onChange={(mode) => setInspectAnswers(mode === "answers")} options={[{ value: "crew", label: "Crew Preview" }, { value: "answers", label: "Inspect Answers" }]} /></header>
+    <header className="crew-preview-toolbar"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2>Crew Learning Preview</h2><p>{draft.status === "published" ? "Published" : "Draft"} v{draft.version} · Read-only · Lesson {index + 1} of {lessons.length}</p></div>{onExit && <button type="button" className="btn-secondary" onClick={onExit}>Exit Preview</button>}</div><AdminSegmentedControl label="Preview mode" value={inspectAnswers ? "answers" : "crew"} onChange={(mode) => setInspectAnswers(mode === "answers")} options={[{ value: "crew", label: "Crew Preview" }, { value: "answers", label: "Inspect Answers" }]} /></header>
     <div className="crew-learning-reader"><header className="crew-learning-lesson-header"><span className="crew-learning-context">{module.title}</span><h2>{lesson.title}</h2><p className="crew-learning-summary">{lesson.estimated_minutes || 0} min · {lesson.required ? "Required" : "Optional"}</p></header>
       <CrewLessonBlocks blocks={lesson.blocks.map((block) => {
         if (block.block_type !== "sop_reference") return block;
