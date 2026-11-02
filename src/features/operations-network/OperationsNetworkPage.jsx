@@ -67,7 +67,7 @@ function NetworkExperience({ auth, ui, store }) {
   const layoutKey = `${narrow}:${graph.nodes.map(node => node.id).join('|')}`;
   function fitPrimary() { flow.fitView({ nodes: graph.primaryIds.map(id => ({ id })), padding: 0.08, duration: reducedMotion ? 0 : 240, maxZoom: 1.15 }); }
   useEffect(() => {
-    if (!fitPending.current) return;
+    if (!fitPending.current && (fitRequest.current !== 'primary' || selectedId)) return;
     const focus = fitRequest.current;
     let ids = graph.primaryIds;
     if (focus !== 'primary') {
