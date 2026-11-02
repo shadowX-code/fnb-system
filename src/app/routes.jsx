@@ -1,4 +1,5 @@
 import { lazy } from "react";
+const OperationsNetworkPage = lazy(() => import("../features/operations-network/OperationsNetworkPage.jsx"));
 const CreatorsPage = lazy(() => import("../features/marketing/CreatorsPage.jsx"));
 const PlanningInsightsPage = lazy(() => import("../features/marketing/PlanningInsightsPage.jsx"));
 const ContentPlannerPage = lazy(() => import("../features/marketing/ContentPlannerPage.jsx"));
@@ -77,6 +78,7 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 }
 
 export const routeDetails = {
+  operations_network: { component: OperationsNetworkPage, permission: "", description: "Read-only network of accessible FeedX modules and recorded operational evidence." },
   hr_dashboard: { component: HrDashboardPage, description: "Scoped People, recruitment and Payroll preparation overview." },
   external_agents: { component: ExternalAgentsPage, permission: "roles.view OR roles_permissions.view", description: "External Agent Gateway connections, credentials and safe access history." },
   marketing_creators: { component: CreatorsPage, permission: "marketing_workspace.access AND marketing_creators.view", description: "Creator relationships, collaborations, post records and performance evidence." },

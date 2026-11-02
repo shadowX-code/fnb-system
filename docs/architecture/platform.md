@@ -48,6 +48,18 @@ Do not force-push `main` or `dev` during routine integration or cleanup. Reconci
 
 ## Workspace Ownership
 
+### Smart Operations Network
+
+`/system/operations-network` (`operations_network`) is a lazy, read-only Admin observability surface, entered from the shared header in every Admin workspace. It preserves the selected workspace/sidebar and saves the previous canonical route, parameters and product query for Return to workspace; an inaccessible saved route falls back to the current accessible navigation. It is not another workspace or permission grant. Its module nodes derive from `config/modules.ts` and the composed runtime route permissions, including workspace gates and compatibility ownership. Hidden modules, relationships and counts are excluded before graph construction.
+
+The five-layer React Flow graph distinguishes declared platform/workspace/module dependencies (dashed) from exact recorded agent-to-module execution (solid). Modules start collapsed; workspace expansion, search, status/workspace filters, node details, canonical module navigation, pan/zoom/fit and fullscreen are presentation only. Brand social nodes consume the existing authorized Brand context and settings connection read, without provider probes or sync commands. Supabase is identified as declared infrastructure, not a health measurement. Accounting connections remain unavailable under the existing Finance foundation; no configured accounting provider is inferred.
+
+The modular Network adapters reuse AI Integrations' existing Admin list/detail and, only with existing identity-management authority, action-request reads. They reuse the shared Activity receipt validator: accepted calls, eligibility checks and unproven results never become completed business operations. Display projections discard credentials, raw inputs, targets, receipts and diagnostics. Business events require accessible owning modules; scope-bearing action evidence also retains the existing Human authority and outlet gates. Agent identities, grants and credentials remain solely managed by AI Integrations.
+
+Live refresh polls every 30 seconds while visible, coalesces concurrent reads and discards responses from old identity/permission/scope generations. Historical views are snapshots with manual refresh. Source windows remain the latest 50 access events, 50 management events and 50 completed receipts per identity, plus saved open requests. Live shows current open requests and the latest 24 hours; 24H/7D/30D filter returned historical evidence and do not promise complete history. Company and Outlet filters include only recorded matching attribution; unattributed events/identities and Brand connections are excluded from narrowed scopes. Architecture remains visible and is explicitly labeled as such. Company choices use the existing authorized Legal Entity read; a missing source is unavailable rather than an invented scope mapping.
+
+Running flow requires explicit execution evidence; completed receipts get a short pulse only when newly completed. Pending/failed/idle/unknown states remain distinct. Connection observations establish historical successful requests, never current online presence. Reduced motion disables flow/pulse transitions and background tabs pause animation and polling. General uptime/health percentages, throughput, universal automation history and unrelated cross-domain timelines are unsupported; the surface states these gaps rather than fabricating activity or introducing a universal event store.
+
 FeedX currently exposes seven workspaces:
 
 - Restaurant: operational financial input, purchasing, inventory, assets and existing reporting.

@@ -1,0 +1,31 @@
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+const read = vi.hoisted(() => vi.fn());
+vi.mock('./networkEvidence.js', () => ({ readNetworkEvidence: read }));
+import useNetworkEvidence from './useNetworkEvidence.js';
+const modules = [{ id: 'inventory_stock_check' }];
+const makeAuth = user => ({ user: { id: user }, permissions: ['inventory_stock_check.view'], profile: { role_outlet_ids: [user] } });
+beforeEach(() => { read.mockReset(); Object.defineProperty(document, 'hidden', { configurable: true, value: false }); });
+afterEach(cleanup);
+it('coalesces concurrent foreground refreshes and pauses reads while hidden', async () => {
+  let resolve;
+  read.mockImplementation(() => new Promise(done => { resolve = done; }));
+  const auth = makeAuth('one');
+  const { result } = renderHook(() => useNetworkEvidence(auth, modules, true));
+  act(() => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('focus')); });
+  expect(read).toHaveBeenCalledTimes(1);
+  await act(async () => resolve({ agents: [], events: [] }));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  act(() => { Object.defineProperty(document, 'hidden', { value: true }); document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus')); });
+  expect(read).toHaveBeenCalledTimes(1);
+  expect(result.current.active).toBe(false);
+});
+it('never exposes an old authorization response after identity or outlet scope changes', async () => {
+  let resolveOld;
+  read.mockImplementationOnce(() => new Promise(done => { resolveOld = done; })).mockResolvedValue({ agents: [{ name: 'New scope' }], events: [] });
+  const { result, rerender } = renderHook(({ auth }) => useNetworkEvidence(auth, modules, true), { initialProps: { auth: makeAuth('one') } });
+  rerender({ auth: makeAuth('two') });
+  await waitFor(() => expect(result.current.agents?.[0]?.name).toBe('New scope'));
+  await act(async () => resolveOld({ agents: [{ name: 'Private old scope' }] }));
+  expect(result.current.agents[0].name).toBe('New scope');
+});

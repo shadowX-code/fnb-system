@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-03 — Smart Operations Network
+
+Added a shared Admin header entry and permission-derived five-layer operations network at `/system/operations-network`. The read-only graph reuses AI Integrations' observed access, scoped action queue and validated receipt history, plus authorized Brand social connection snapshots. Declared dependencies remain separate from recorded execution; missing health, throughput and universal histories remain explicit. Search, scope/status/time filters, expansion, details, canonical navigation and viewport controls preserve the existing workspaces and business authorities. Canonical owner: `docs/architecture/platform.md`. Staging-only delivery; no schema, grants, credentials or business data changed.
+
 ## 2026-11-01 — Permission-authorized Factory Cleaning actions
 
 Area/Equipment Cleaning Complete and Verify now use existing action grants directly, including same-actor Complete → Verify and Human Monthly bulk verification. Canonical transitions, genuine operational evidence, source/version locks, typed actors, audited receipts and retry protection remain intact. Historical Agent intents remain evidence and require an explicit eligible retry; no automatic approval or execution occurs. Calibration, Production, Receiving and Stock Check policies remain unchanged. Canonical owners: docs/domains/factory-master-data.md and docs/architecture/trusted-authorities.md. Staging-only delivery.

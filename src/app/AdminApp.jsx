@@ -577,8 +577,24 @@ function AdminApp() {
 
   function navigate(routeId) {
     const canonicalId = canonicalRouteId(routeId);
+    if (canonicalId === "operations_network" && activeRouteId !== canonicalId) {
+      const previous = currentAdminLocation();
+      try { sessionStorage.setItem("feedx.network.return", JSON.stringify({ definitionId: previous?.definitionId, routeId: previous?.routeId, params: previous?.params, query: previous?.query })); } catch { /* Navigation still works without saved preferences. */ }
+    }
     setActiveRouteId(canonicalId);
     navigateAdminRoute(canonicalId);
+  }
+
+  function returnFromNetwork() {
+    let previous;
+    try { previous = JSON.parse(sessionStorage.getItem("feedx.network.return") || "null"); } catch { /* Fall back to an accessible workspace page. */ }
+    if (previous?.routeId !== "operations_network" && accessibleRoutes.some(route => route.id === previous?.routeId)) {
+      setActiveRouteId(previous.routeId);
+      navigateAdminRoute(previous.definitionId || previous.routeId, previous.params || {}, previous.query || {});
+      return;
+    }
+    const fallback = accessibleSections.flatMap(section => section.items).find(item => item.type !== "label");
+    navigate(fallback?.id || accessibleRoutes.find(route => route.id !== "operations_network")?.id || "operations_network");
   }
 
   function handleWorkspaceChange(nextWorkspace) {
@@ -596,7 +612,7 @@ function AdminApp() {
     });
   }
 
-  const ui = { notify, confirm, navigate };
+  const ui = { notify, confirm, navigate, returnFromNetwork, networkRoutes: accessibleRoutes, networkWorkspace: workspace };
 
   if (isPublicProductFeedbackRoute()) {
     return <FactoryProductFeedbackPublic />;
