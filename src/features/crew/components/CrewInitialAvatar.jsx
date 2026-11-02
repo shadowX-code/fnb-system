@@ -1,0 +1,1 @@
+export default function CrewInitialAvatar({ name, size = "sm" }) { const initials = String(name || "Crew").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase(); return <span className={`crew-growth-avatar is-${size}`} aria-hidden="true">{initials}</span>; }

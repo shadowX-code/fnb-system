@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, CircleAlert, Copy, GraduationCap, MoreHorizontal, Search, Users } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, CircleAlert, ClipboardCheck, Copy, GraduationCap, Layers, MoreHorizontal, Search, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import AdminSummaryGrid from "../../../components/ui/AdminSummaryGrid.jsx";
+import InitialAvatar from "../components/CrewInitialAvatar.jsx";
+import { CrewProgressBar } from "../components/CrewMobileUI.jsx";
+import RecordViewAction from "../../../components/ui/RecordViewAction.jsx";
 import PublicationState from "../../../components/ui/PublicationState.jsx";
 import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
 import SelectField from "../../../components/forms/SelectField.jsx";
@@ -189,8 +192,8 @@ function OnboardingWorkspace({ published, progress, section, onViewEmployee }) {
   const publishedProgress = progress.filter((row) => row.journey_id === published.id || Number(row.journey_version) === Number(published.version));
   const publishedCompleted = publishedProgress.filter((row) => row.status === "completed").length;
   return <div className="crew-onboarding-workspace is-unified">
-    <AdminSummaryGrid variant="compact" mobileColumns={2} ariaLabel={`Published v${published.version} summary`} items={[{ label: "Modules", value: published.modules?.length || 0 }, { label: "Lessons", value: lessonCount(published) }, { label: "Knowledge Checks", value: quizCount(published) }, { label: "Crew Completed", value: `${publishedCompleted} / ${publishedProgress.length}` }]} />
-    <section aria-label="Course Modules"><h2 className="crew-onboarding-course-heading">Course Modules</h2><ModuleList key={published.id} journey={published} /></section>
+    <AdminSummaryGrid variant="compact" mobileColumns={2} ariaLabel={`Published v${published.version} summary`} items={[{ label: "Modules", icon: Layers, value: published.modules?.length || 0 }, { label: "Lessons", icon: BookOpen, value: lessonCount(published) }, { label: "Knowledge Checks", icon: ClipboardCheck, value: quizCount(published) }, { label: "Crew Completed", icon: Users, value: `${publishedCompleted} / ${publishedProgress.length}` }]} />
+    <section aria-label="Course Modules"><header className="crew-onboarding-course-header"><h2 className="crew-onboarding-course-heading">Course Modules</h2><PublicationState status="published" version={published.version} /></header><ModuleList key={published.id} journey={published} /></section>
   </div>;
 }
 
@@ -203,7 +206,15 @@ function OnboardingProgress({ rows, onView }) {
   const [status, setStatus] = useState("all");
   const visible = rows.filter((row) => `${row.employee?.full_name || ""} ${row.employee?.employee_code || ""}`.toLowerCase().includes(query.toLowerCase()) && (status === "all" || row.status === status));
   const activeFilters = [query && { key: "query", label: "Search", value: query, onRemove: () => setQuery("") }, status !== "all" && { key: "status", label: "Status", value: status.replace("_", " "), onRemove: () => setStatus("all") }].filter(Boolean);
-  return <section className="crew-progress-panel" id="onboarding-progress"><AdminFilterToolbar ariaLabel="Crew Progress filters" search={<label className="crew-progress-search-control"><span>Search Crew</span><span><Search size={16} /><input aria-label="Search Crew" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Crew" /></span></label>} filters={<SelectField label="Status" ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "all", label: "All" }, { value: "not_started", label: "Not Started" }, { value: "in_progress", label: "In Progress" }, { value: "completed", label: "Completed" }]} />} activeFilters={activeFilters} onClear={() => { setQuery(""); setStatus("all"); }} />{visible.length ? <DataTable rows={visible} getRowKey={(row) => row.employee?.id} onRowClick={(row) => onView(row.employee?.id)} columns={[{ key: "journey_version", header: "Published Version", render: (row) => row.journey_version ? `v${row.journey_version}` : "Not assigned" }, { key: "employee", header: "Employee", render: (row) => <span className="crew-progress-employee"><strong>{row.employee?.full_name}</strong><small>{row.employee?.position || row.employee?.employee_code}</small></span> }, { key: "progress", header: "Progress", render: (row) => `${row.progress_percentage || 0}%` }, { key: "module", header: "Current Module", render: (row) => row.current_module || (row.status === "completed" ? "Completed" : "Not Started") }, { key: "completed", header: "Completed Modules", render: (row) => `${row.completed_modules || 0} / ${row.total_modules || 0}` }, { key: "started", header: "Started", render: (row) => formatDate(row.started_at) }, { key: "finished", header: "Completed", render: (row) => formatDate(row.completed_at) }, { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{String(row.status).replace("_", " ")}</Badge> }]} /> : <EmptyState icon={Users} title="No Crew match these filters" description="Eligible active Crew appear automatically; no manual assignment is required." />}</section>;
+  return <section className="crew-progress-panel" id="onboarding-progress"><AdminFilterToolbar ariaLabel="Crew Progress filters" search={<label className="crew-progress-search-control"><span>Search Crew</span><span><Search size={16} /><input aria-label="Search Crew" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Crew" /></span></label>} filters={<SelectField label="Status" ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "all", label: "All" }, { value: "not_started", label: "Not Started" }, { value: "in_progress", label: "In Progress" }, { value: "completed", label: "Completed" }]} />} activeFilters={activeFilters} onClear={() => { setQuery(""); setStatus("all"); }} />{visible.length ? <DataTable density="compact" columnSpacing="compact" mobileLayout="stack" minWidth={840} rows={visible} getRowKey={(row) => row.employee?.id} onRowClick={(row) => onView(row.employee?.id)} columns={[
+    { key: "employee", header: "Employee", width: 240, render: (row) => <span className="crew-learning-employee-cell"><InitialAvatar name={row.employee?.full_name} /><span className="crew-progress-employee"><strong>{row.employee?.full_name}</strong><small>{row.employee?.position || row.employee?.employee_code || "Crew"} · {row.journey_version ? `Published v${row.journey_version}` : "Not assigned"}</small></span></span> },
+    { key: "progress", header: "Progress", render: (row) => <div className="crew-learning-progress-cell"><div><strong>{row.progress_percentage || 0}%</strong><small>{row.completed_modules || 0} / {row.total_modules || 0} modules</small></div><CrewProgressBar value={row.progress_percentage} label={`${row.employee?.full_name || "Crew"}: ${row.progress_percentage || 0}% complete`} /></div> },
+    { key: "module", header: "Current Module", render: (row) => row.current_module || (row.status === "completed" ? "Completed" : "Not Started") },
+    { key: "started", header: "Started", render: (row) => formatDate(row.started_at) },
+    { key: "finished", header: "Completed", render: (row) => formatDate(row.completed_at) },
+    { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{({ not_started: "Not Started", in_progress: "In Progress", completed: "Completed" })[row.status] || row.status}</Badge> },
+    { key: "view", header: "", render: (row) => <RecordViewAction label={`View ${row.employee?.full_name || "Crew"} progress`} onClick={() => onView(row.employee?.id)} /> },
+  ]} /> : <EmptyState icon={Users} title="No Crew match these filters" description="Eligible active Crew appear automatically; no manual assignment is required." />}</section>;
 }
 
 function ProgressDetailModal({ row, journey, onClose }) {

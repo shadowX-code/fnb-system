@@ -171,9 +171,9 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.getByLabelText("Outlet").textContent).toContain("Hola Hola Kopitiam Ipoh");
     expect(screen.getByRole("region", { name: "Published v2 summary" })).not.toBeNull();
     expect(screen.getByText("Modules")).not.toBeNull();
-    expect(screen.getByText("Published")).not.toBeNull();
+    expect(screen.getAllByText("Published")).toHaveLength(2);
     expect(screen.getByText("Draft")).not.toBeNull();
-    expect(screen.getByText("v2")).not.toBeNull();
+    expect(screen.getAllByText("v2")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Edit Draft" })).not.toBeNull();
     expect(screen.queryByRole("tab", { name: "Overview" })).toBeNull();
     expect(screen.queryByText("Mandatory for all eligible Crew")).toBeNull();
@@ -192,6 +192,23 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.getByRole("button", { name: "Clear all" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
     expect(screen.getByLabelText("Search Crew").value).toBe("");
+  });
+
+  it("uses shared summaries, employee initials and assigned-version progress presentation", async () => {
+    mocks.progress.mockResolvedValue([{ employee: { id: "employee-1", full_name: "Alex Tan", position: "Crew" }, journey_version: 1, progress_percentage: 62, completed_modules: 4, total_modules: 8, current_module: "Cleaning & Hygiene", status: "in_progress" }]);
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    const summary = await screen.findByRole("region", { name: "Published v2 summary" });
+    expect(summary.querySelectorAll("[data-admin-summary-card] svg")).toHaveLength(4);
+    fireEvent.click(screen.getByRole("button", { name: "Crew Progress" }));
+    expect(screen.getByText("AT")).not.toBeNull();
+    expect(screen.getByText("Crew · Published v1")).not.toBeNull();
+    expect(screen.getByText("4 / 8 modules")).not.toBeNull();
+    expect(screen.getByLabelText("Alex Tan: 62% complete").firstChild.style.width).toBe("62%");
+    expect(screen.getByText("In Progress")).not.toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Published Version" })).toBeNull();
+    expect(screen.getByRole("table").dataset.mobileLayout).toBe("stack");
+    fireEvent.click(screen.getByRole("button", { name: "View Alex Tan progress" }));
+    expect(await screen.findByRole("dialog", { name: "Alex Tan" })).not.toBeNull();
   });
 
   it("opens module information without navigating to another page", async () => {
