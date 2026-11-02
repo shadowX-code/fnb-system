@@ -339,7 +339,7 @@
 .son-fullscreen .son-workbench { flex: 1; min-height: 0; }
 .son-fullscreen .son-map-section { height: 100%; display: flex; flex-direction: column; }
 .son-fullscreen .son-canvas { height: auto; min-height: 0; flex: 1; }
-.son-inspector { top: 0; }
+@media(min-width:900px) { .son-inspector { top: 56px; bottom: 34px; } }
 @media(max-width:1100px) { .son-pan-hint { display: none; } }
 @media(max-width:767px) {
   .son-admin-header { padding: 4px 2px 9px; }
