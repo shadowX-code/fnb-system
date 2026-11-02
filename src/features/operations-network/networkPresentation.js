@@ -41,6 +41,8 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
       routing = 'outer';
       sourceHandle = source.position.y > target.position.y ? 'top' : 'bottom';
     }
+    // A staggered final workspace row aligns with the gutters above it.
+    if (!narrow && source.id === 'platform' && target.data.kind === 'workspace' && target.position.y > 190 && workspaces.length % columns === columns - 1) routing = 'workspace-column';
     if (edge.data.routing === 'module') { routing = 'module'; targetHandle = 'left'; }
     const leftLane = (source.position.x + source.width / 2 < gridWidth / 2) || edge.data.routing === 'outer-left';
     return { ...edge, sourceHandle: `out-${sourceHandle}`, targetHandle: `in-${targetHandle}`, data: { ...edge.data, routing, departureY: sourceHandle === 'top' ? source.position.y - 22 : source.position.y + source.height + 22, startMode: sourceHandle, entryGap: 24, outerX: leftLane ? -28 - index % 3 * 9 : gridWidth + 28 + index % 3 * 9 } };

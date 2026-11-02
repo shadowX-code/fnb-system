@@ -92,13 +92,14 @@ function NetworkExperience({ auth, ui, store }) {
       <div><button type="button" className="son-return" onClick={ui.returnFromNetwork}><ArrowLeft size={15} />Return to workspace</button><h1>Smart Operations Network</h1><p>Explore how FeedX connects. Inspect the evidence behind each operation.</p></div>
       <div className="son-refresh-state"><span className="son-status" data-status={window === 'live' && evidence.active ? 'observed' : 'idle'}>{visualDemo ? 'Visual Demo · synthetic motion' : window === 'live' ? evidence.active ? 'Live · 30s polling' : 'Live paused' : 'History snapshot'}</span><span>{evidence.observedAt ? `Checked ${formatOperationalDateTime(evidence.observedAt)}` : 'Checking available sources…'}</span></div>
     </header>
-    <div className="son-filter-bar" aria-label="Network filters">
+    <details className="son-filters"><summary>Filters & search<span>{workspace === 'all' ? 'All workspaces' : availableWorkspaces.find(([id]) => id === workspace)?.[1]} · {company === 'all' ? 'All companies' : 'Company scoped'} · {outlet === 'all' ? 'All outlets' : 'Outlet scoped'}{search ? ` · “${search}”` : ''}{status !== 'all' ? ` · ${statusLabels[status]}` : ''}</span></summary><div className="son-filter-bar" aria-label="Network filters">
       <SelectField label="Workspace" value={workspace} onChange={changeFilter(setWorkspace)} options={[{ value: 'all', label: 'All accessible workspaces' }, ...availableWorkspaces.map(([value, label]) => ({ value, label }))]} />
       <SelectField label="Company" value={company} onChange={changeFilter(setCompany)} disabled={!evidence.companies?.length} options={[{ value: 'all', label: evidence.companies?.length ? 'All accessible companies' : 'Company scope unavailable' }, ...(evidence.companies || []).map(row => ({ value: row.id, label: row.name }))]} searchable="auto" />
       <SelectField label="Outlet" value={outlet} onChange={changeFilter(setOutlet)} options={[{ value: 'all', label: 'All accessible outlets' }, ...getAccessibleOutlets(auth, store.outlets || []).map(row => ({ value: row.id, label: row.name }))]} searchable="auto" />
       <SelectField label="Status" value={status} onChange={changeFilter(setStatus)} options={[{ value: 'all', label: 'All statuses' }, ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))]} />
       <AdminSearchField label="Search nodes" value={search} onChange={changeFilter(setSearch)} placeholder="Module, workspace or agent…" />
     </div>
+    </details>
     <div className="son-observation-strip">
       <span><Network size={17} /><strong>{graph.groups.length}</strong> matching workspaces</span><span><Activity size={17} /><strong>{graph.matching.length}</strong> matching modules</span><span><Bot size={17} /><strong>{agentSourceAvailable ? graph.visibleAgents.length : '—'}</strong> matching agents</span>
       <span className="son-muted">System health & throughput: unavailable</span>

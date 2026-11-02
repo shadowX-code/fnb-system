@@ -20,6 +20,7 @@ describe('readable network layout', () => {
     const find=id=>graph.nodes.find(node=>node.id===id);
     const workspaces=graph.nodes.filter(node=>node.data.kind==='workspace');
     expect(new Set(workspaces.map(node=>node.position.y)).size).toBe(2);
+    for (const node of workspaces.filter(node=>node.position.y>190)) expect(graph.edges.find(edge=>edge.source==='platform'&&edge.target===node.id).data.routing).toBe('workspace-column');
     expect(Math.min(...workspaces.map(node=>node.position.y))).toBeGreaterThan(find('platform').height);
     expect(find('automation-group').position.y).toBeGreaterThan(Math.max(...workspaces.map(node=>node.position.y+node.height)));
     expect(find('data-group').position.y).toBeGreaterThan(find('automation-group').position.y+find('automation-group').height);

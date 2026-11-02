@@ -210,7 +210,7 @@
 }
 
 /* Ordered architecture: compact hub, workspace bands, then independent support layers. */
-.son-canvas { height: clamp(460px,calc(100dvh - 350px),1000px); }
+.son-canvas { height: clamp(480px,calc(100dvh - 235px),1100px); }
 .son-edge { transition: opacity .2s ease-out; }
 .son-edge[data-dimmed] { opacity: .12; }
 .son-edge[data-demo] .son-edge-aura { opacity: .1; }
@@ -224,3 +224,22 @@
 @media(prefers-reduced-motion: reduce) { .son-edge { transition: none; } }
 
 .son-edge-label { fill: #d7f8f3; font-size: 11px; paint-order: stroke; stroke: #071321; stroke-width: 5px; stroke-linejoin: round; font-weight: 600; }
+
+/* Keep operating controls compact so the network owns the first viewport. */
+.son-page-header { margin-bottom: 8px; }
+.son-page-header > div:first-child { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; }
+.son-page-header h1 { margin: 0; font-size: clamp(20px,1.6vw,26px); }
+.son-return { font-size: 10px; }
+.son-filters { color: #b7d0db; border-bottom: 1px solid #1b3442; }
+.son-filters > summary { padding: 8px 0; cursor: pointer; font-size: 11px; }
+.son-filters > summary span { color: #9fb9c8; margin-left: 18px; font-size: 10px; }
+.son-filters[open] .son-filter-bar { padding: 7px 0 12px; }
+.son-observation-strip { padding: 8px 0; }
+.son-map-toolbar { padding: 5px 10px; }
+.son-node[data-status="running"] { animation: son-node-execution 2.4s ease-in-out infinite; }
+@keyframes son-node-execution { 50% { border-color: #61fff0; box-shadow: 0 12px 30px #0004,0 0 22px #61fff023; } }
+@media(max-width:700px) {
+  .son-page-header > div:first-child { gap: 8px; }
+  .son-filters > summary span { display: block; margin: 5px 0 0 14px; line-height: 1.5; }
+  .son-canvas { height: 680px; }
+}

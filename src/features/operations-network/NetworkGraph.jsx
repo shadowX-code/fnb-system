@@ -28,6 +28,7 @@ export const NetworkNode = memo(function NetworkNode({ data, selected }) {
 
 export function networkEdgePath(props) {
   const { sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, data } = props;
+  if (data.routing === 'workspace-column') return `M ${sx} ${sy} C ${sx} ${sy + 20} ${tx} ${sy + 12} ${tx} ${sy + 30} L ${tx} ${ty}`;
   if (data.routing === 'module') {
     const laneX = tx - 14, lineY = sy + 18, r = 8;
     return `M ${sx} ${sy} L ${sx} ${lineY} L ${laneX + r} ${lineY} Q ${laneX} ${lineY} ${laneX} ${lineY + r} L ${laneX} ${ty - r} Q ${laneX} ${ty} ${laneX + r} ${ty} L ${tx} ${ty}`;
