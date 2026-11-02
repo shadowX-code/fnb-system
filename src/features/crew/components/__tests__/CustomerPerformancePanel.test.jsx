@@ -88,6 +88,20 @@ it('shows the immutable monthly summary without fetching or replacing it with a 
  expect(mocks.preview).not.toHaveBeenCalled();
 });
 
+it('automatically displays a confirmed empty month as 0/20 rather than Pending or 5/20', async () => {
+ vi.useFakeTimers();
+ mocks.preview.mockResolvedValue({status:'preview_only',periodState:'provisional',score:0,positiveTarget:0,quality:0,
+  total:0,positive:0,negative:0,negativeRate:null,target:10,fetchedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+300000).toISOString()});
+ mount(); await act(async()=>{});
+ await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+ expect(screen.getByText('0 / 20')).not.toBeNull();
+ expect(screen.getByText('0 / 15')).not.toBeNull();
+ expect(screen.getByText('0 / 5')).not.toBeNull();
+ expect(screen.getByText('No reviews this month')).not.toBeNull();
+ expect(screen.queryByText('Pending')).toBeNull();
+ expect(mocks.save).not.toHaveBeenCalled();
+});
+
 
 it('clears expired numeric scores and breakdown without persisting a replacement', async () => {
  vi.useFakeTimers(); const onPreview = vi.fn();

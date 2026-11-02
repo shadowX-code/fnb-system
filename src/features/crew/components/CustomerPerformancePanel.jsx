@@ -12,7 +12,6 @@ const reasons = {
  period_not_started: 'This Performance month has not started.' ,
  evidence_expired: 'Evidence expired. Refresh the preview for a new read.',
  incomplete_evidence: 'Complete monthly review evidence is unavailable. Try again after synchronization.',
- no_eligible_reviews: 'No eligible reviews for this month; Review Quality has no denominator.',
  google_retention_unresolved: 'Monthly settlement is pending Google-derived result retention clearance.',
 };
 const number = value => new Intl.NumberFormat('en-MY', { maximumFractionDigits: 2 }).format(value);
@@ -98,7 +97,7 @@ export default function CustomerPerformancePanel({ outletId, period, auth, onPre
     <div className="min-w-0"><p className="text-xl font-semibold tabular-nums">{ready ? `${number(result.score)} / 20` : 'Pending'}</p>{!ready ? <p className="mt-1 text-sm text-text-secondary">{reasons[preview?.reason] || (context && !context.positive_target ? reasons.target_required : 'Refresh Preview to read monthly evidence.')}</p> : <p className="mt-1 text-sm text-text-secondary">{settled ? 'Monthly Customer summary' : result.periodState === 'provisional' ? 'Month to date' : 'Closed-month calculation'}</p>}</div>
     <dl className={`grid gap-3 ${settled ? "grid-cols-2" : "grid-cols-3"}`}>
      <div><dt className="text-xs text-text-secondary">Positive Target</dt><dd className="mt-1 font-semibold tabular-nums">{ready ? `${number(result.positiveTarget)} / 15` : '— / 15'}</dd>{ready && !settled ? <dd className="text-xs text-text-secondary">{result.positive} / {result.target} positive reviews</dd> : null}</div>
-     <div><dt className="text-xs text-text-secondary">Review Quality</dt><dd className="mt-1 font-semibold tabular-nums">{ready ? `${result.quality} / 5` : '— / 5'}</dd>{ready && !settled ? <dd className="text-xs text-text-secondary">{number(result.negativeRate * 100)}% negative</dd> : null}</div>
+     <div><dt className="text-xs text-text-secondary">Review Quality</dt><dd className="mt-1 font-semibold tabular-nums">{ready ? `${result.quality} / 5` : '— / 5'}</dd>{ready && !settled ? <dd className="text-xs text-text-secondary">{result.total === 0 ? 'No reviews this month' : `${number(result.negativeRate * 100)}% negative`}</dd> : null}</div>
      {!settled ? <div><dt className="text-xs text-text-secondary">Monthly Reviews</dt><dd className="mt-1 font-semibold tabular-nums">{ready ? result.total : '—'}</dd>{ready && !settled ? <dd className="text-xs text-text-secondary">{result.positive} positive · {result.total - result.positive - result.negative} neutral · {result.negative} negative</dd> : null}</div> : null}
     </dl>
    </div>

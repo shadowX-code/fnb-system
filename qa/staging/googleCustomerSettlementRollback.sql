@@ -4,6 +4,7 @@ begin;
 set local request.jwt.claims='{"role":"service_role"}';
 create temporary table customer_test_before as
 select md5(string_agg(to_jsonb(r)::text,'' order by id)) as hash from public.crew_performance_results r;
+create temporary table customer_reward_before as select md5((select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_cycles t) || (select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_entries t) || (select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_adjustments t) || (select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_participants t)) as hash;
 do $$
 declare outlet uuid; result jsonb;
 begin
@@ -24,6 +25,30 @@ end $$;
 -- Transaction-local test substitution only. It is never committed or exposed.
 create or replace function google_business_private.customer_settlement_permitted() returns boolean
 language sql stable set search_path=public,pg_temp as $$ select true $$;
+
+
+savepoint zero_review_month;
+do $$
+declare outlet uuid; context jsonb; basis jsonb; result jsonb;
+begin
+ select r.outlet_id into outlet from public.crew_performance_results r join public.employees e on e.id=r.employee_id
+   where e.employee_code='QA-CREW-CO-01' and period_start='2026-10-01';
+ update public.crew_performance_results set attendance_score=25,service_score=24,knowledge_score=15,peer_score=4,
+   current_score=68,customer_score=null,total_score=null,status='review_required',finalized_at=null,finalized_by=null
+   where outlet_id=outlet and period_start='2026-10-01';
+ context:=public.crew_performance_settle_customer_month(outlet,'2026-10-01');
+ basis:=(context->'basis')||jsonb_build_object('fetchedAt',now());
+ result:=public.crew_performance_settle_customer_month(outlet,'2026-10-01',basis,'{"score":0,"positiveTarget":0,"quality":0}');
+ if result->>'status'<>'settled' or (result->'summary'->>'score')::numeric<>0 then raise exception 'Confirmed zero month did not settle'; end if;
+ if not exists(select 1 from public.crew_performance_results r join public.employees e on e.id=r.employee_id
+   where e.employee_code='QA-CREW-CO-01' and r.period_start='2026-10-01' and r.customer_score=0 and r.total_score=68
+     and r.current_score=68 and r.status='finalized') then raise exception 'Zero Customer did not reconcile full 100-point model'; end if;
+ result:=public.crew_performance_settle_customer_month(outlet,'2026-10-01',basis,'{"score":20,"positiveTarget":15,"quality":5}');
+ if (result->>'changed')::int<>0 or (result->'summary'->>'score')::numeric<>0 then raise exception 'Zero settlement overwritten on retry'; end if;
+ if (select hash from customer_reward_before) is distinct from (select md5((select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_cycles t) || (select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_entries t) || (select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_adjustments t) || (select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_participants t))) then
+   raise exception 'Customer settlement changed Reward evidence'; end if;
+end $$;
+rollback to savepoint zero_review_month;
 
 do $$
 declare outlet uuid; context jsonb; result jsonb; basis jsonb; fixture public.crew_performance_results%rowtype;
@@ -51,7 +76,7 @@ begin
  context:=public.crew_performance_settle_customer_month(outlet,'2026-10-01');
  if context->>'status'<>'ready' then raise exception 'Fixture prerequisites unavailable: %',context; end if;
  basis:=(context->'basis')||jsonb_build_object('fetchedAt',now());
- result:=public.crew_performance_settle_customer_month(outlet,'2026-11-01',basis,'{"score":9.5,"positiveTarget":4.5,"quality":5}');
+ result:=public.crew_performance_settle_customer_month(outlet,date_trunc('month',now() at time zone 'Asia/Kuala_Lumpur')::date,basis,'{"score":9.5,"positiveTarget":4.5,"quality":5}');
  if result->>'reason'<>'month_not_closed' then raise exception 'Current month settled'; end if;
  result:=public.crew_performance_settle_customer_month(outlet,'2026-10-01',basis||'{"target_revision":-1}','{"score":9.5,"positiveTarget":4.5,"quality":5}');
  if result->>'reason'<>'evidence_changed_or_expired' then raise exception 'Target revision guard failed'; end if;
@@ -91,6 +116,8 @@ begin
  if not exists(select 1 from public.crew_performance_results r join public.employees e on e.id=r.employee_id
    where e.employee_code='QA-CREW-IF-01' and r.period_start='2026-10-01' and r.customer_score=9.5) then
    raise exception 'Missing eligible baseline was not initialized with frozen shared Customer'; end if;
+ if (select hash from customer_reward_before) is distinct from (select md5((select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_cycles t) || (select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_entries t) || (select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_adjustments t) || (select coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'') from public.crew_reward_participants t))) then
+   raise exception 'Customer settlement changed Reward evidence'; end if;
 end $$;
 rollback;
 

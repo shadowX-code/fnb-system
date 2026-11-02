@@ -74,12 +74,12 @@ export function googleReviewMonthEvidence(reviews: GoogleReviewRecord[], period:
     averageRating: total ? Object.entries(breakdown).reduce((sum, [rating, count]) => sum + Number(rating) * count, 0) / total : null };
 }
 
-// Approved weights, not wired to Performance. Zero eligible reviews has no
-// quality denominator; the approved rule keeps Customer pending, never 5 by default.
+// A verified complete empty month earns no Customer points. Missing evidence
+// still stays pending; absence must never be inferred from a failed/partial sync.
 export function previewGoogleCustomerScore(evidence: { evidence_status: string; total: number; positive: number; negative: number }, target: number) {
   if (evidence.evidence_status !== "complete" || !Number.isSafeInteger(target) || target <= 0) return { status: "pending", score: null };
   if (![evidence.total, evidence.positive, evidence.negative].every(n => Number.isSafeInteger(n) && n >= 0) || evidence.positive + evidence.negative > evidence.total) throw new Error("Invalid monthly Google evidence.");
-  if (!evidence.total) return { status: "pending", score: null, reason: "no_eligible_reviews" };
+  if (!evidence.total) return { status: "preview_only", score: 0, positiveTarget: 0, quality: 0 };
   const rate = evidence.negative / evidence.total;
   const quality = rate <= 0.02 ? 5 : rate <= 0.05 ? 4 : rate <= 0.10 ? 3 : rate <= 0.15 ? 2 : rate <= 0.20 ? 1 : 0;
   const positiveTarget = Math.min(evidence.positive / target, 1) * 15;

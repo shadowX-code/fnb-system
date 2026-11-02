@@ -36,9 +36,9 @@ describe('non-persistent Customer preview', () => {
   const input = options(); input.read.mockResolvedValue({ reviews, googleAggregate: { totalReviewCount: 4 }, fetchedAt: new Date(now).toISOString(), ...change });
   expect(await customerPerformancePreview(input)).toMatchObject({ status: 'pending', score: null, reason });
  });
- it('keeps complete empty evidence Pending and propagates read failures instead of assuming zero', async () => {
+ it('scores a complete empty month zero and propagates read failures instead of assuming zero', async () => {
   const input = options(); input.read.mockResolvedValue({ reviews: [], googleAggregate: { totalReviewCount: 0 }, fetchedAt: new Date(now).toISOString() });
-  expect(await customerPerformancePreview(input)).toMatchObject({ status: 'pending', score: null, reason: 'no_eligible_reviews' });
+  expect(await customerPerformancePreview(input)).toMatchObject({ status: 'preview_only', score: 0, positiveTarget:0,quality:0,negativeRate:null });
   input.read.mockRejectedValue(new Error('Google read failed'));
   await expect(customerPerformancePreview(input)).rejects.toThrow('Google read failed');
  });
@@ -47,7 +47,7 @@ describe('non-persistent Customer preview', () => {
   for (const [time,periodState] of [['2026-02-28T15:59:59Z','provisional'],['2026-02-28T16:00:00Z','closed_month']]) {
    input.now = () => Date.parse(time);
    input.read.mockResolvedValue({reviews:[],googleAggregate:{totalReviewCount:0},fetchedAt:time});
-   expect(await customerPerformancePreview(input)).toMatchObject({periodState,status:'pending',score:null});
+   expect(await customerPerformancePreview(input)).toMatchObject({periodState,status:'preview_only',score:0});
   }
  });
  it('calculates the current month with the unchanged scorer without adding points to a stored total', async () => {

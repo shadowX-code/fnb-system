@@ -271,26 +271,28 @@ it('masks the previous outlet KPIs and rows if a new outlet read fails', async (
 });
 
 
-it('shows the shared provisional score in an eligible row without changing assessed totals or finalized scores', async () => {
+it.each([0,6.5])('shows shared provisional %s in eligible rows/details without changing assessed totals or finalized scores', async (customerScore) => {
  const period = new Date().toISOString().slice(0,7)+'-01';
  const eligible = {...row,result:{...row.result,period_start:period,total_score:null,current_score:66,components:{...row.result.components,employment:{state:'eligible',outlet_id:'outlet-1'}}}};
  const frozen = {...eligible,employee:{...eligible.employee,id:'frozen',full_name:'Frozen Crew'},result:{...eligible.result,status:'finalized',total_score:85,customer_score:20,components:{...eligible.result.components,customer:{score:20,max_score:20,status:'finalized'}}}};
  mocks.data.mockResolvedValue({...fixture,crew:[eligible,frozen]});
  mocks.page.mockResolvedValue({rows:[eligible,frozen],total_count:2,page:1,page_size:20});
  vi.mocked(crewService.googleReviewsAdminContext).mockResolvedValueOnce({positive_target:10,target_locked:false});
- const remote = vi.spyOn(googleBusinessService,'customerPreview').mockResolvedValue({status:'preview_only',periodState:'provisional',score:6.5,positiveTarget:1.5,quality:5,positive:1,total:1,negative:0,negativeRate:0,target:10,fetchedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+300000).toISOString()});
+ const remote = vi.spyOn(googleBusinessService,'customerPreview').mockResolvedValue({status:'preview_only',periodState:'provisional',score:customerScore,positiveTarget:customerScore ? 1.5 : 0,quality:customerScore ? 5 : 0,positive:customerScore ? 1 : 0,total:customerScore ? 1 : 0,negative:0,negativeRate:customerScore ? 0 : null,target:10,fetchedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+300000).toISOString()});
  try {
   render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{outlets:[outlet]}} />);
   await screen.findByRole('button',{name:'Open Performance for Alex Tan'});
   await waitFor(() => expect(screen.getByRole('button',{name:'Refresh Preview'}).disabled).toBe(false));
   fireEvent.click(screen.getByRole('button',{name:'Refresh Preview'}));
   const activeRow = screen.getByRole('button',{name:'Open Performance for Alex Tan'}).closest('tr');
-  await within(activeRow).findByText('6.5 / 20');
+  await within(activeRow).findByText(`${customerScore} / 20`);
   expect(within(activeRow).getByText('Preview')).not.toBeNull();
   expect(within(activeRow).getByText('66')).not.toBeNull();
   const frozenRow = screen.getByRole('button',{name:'Open Performance for Frozen Crew'}).closest('tr');
   expect(within(frozenRow).getByText('20 / 20')).not.toBeNull();
   expect(within(frozenRow).getByText('85')).not.toBeNull();
   expect(within(frozenRow).queryByText('Preview')).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Open Performance for Alex Tan'}));
+  expect(await screen.findByText(`Outlet Customer preview: ${customerScore} / 20 · Not included in saved Performance.`)).not.toBeNull();
  } finally {remote.mockRestore();}
 });

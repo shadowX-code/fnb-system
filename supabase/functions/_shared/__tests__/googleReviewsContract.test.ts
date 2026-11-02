@@ -58,9 +58,11 @@ describe("dormant server Google review contract", () => {
   it.each([[2,5],[3,4],[5,4],[6,3],[10,3],[11,2],[15,2],[16,1],[20,1],[21,0]])("preserves quality boundary at %s percent", (negative, quality) => {
     expect(previewGoogleCustomerScore({ evidence_status: "complete", total: 100, positive: 50, negative }, 50)).toMatchObject({ quality, score: 15 + quality });
   });
-  it("keeps missing/zero-denominator evidence pending and caps the approved positive target", () => {
+  it("keeps missing evidence pending, scores confirmed zero as zero and preserves the positive target calculation", () => {
     expect(previewGoogleCustomerScore({ evidence_status: "partial", total: 100, positive: 100, negative: 0 }, 50).score).toBeNull();
-    expect(previewGoogleCustomerScore({ evidence_status: "complete", total: 0, positive: 0, negative: 0 }, 50).score).toBeNull();
+    expect(previewGoogleCustomerScore({ evidence_status: "complete", total: 0, positive: 0, negative: 0 }, 50)).toMatchObject({score:0,positiveTarget:0,quality:0});
+    expect(previewGoogleCustomerScore({ evidence_status: "partial", total: 0, positive: 0, negative: 0 }, 50).score).toBeNull();
+    expect(previewGoogleCustomerScore({ evidence_status: "complete", total: 0, positive: 0, negative: 0 }, 0).score).toBeNull();
     expect(previewGoogleCustomerScore({ evidence_status: "complete", total: 10, positive: 5, negative: 0 }, 10)).toMatchObject({ positiveTarget: 7.5, score: 12.5 });
   });
 });
