@@ -208,3 +208,19 @@
   .son-experience *, .son-experience *::before, .son-experience *::after { animation: none !important; transition: none !important; }
   .son-motion-particle { display: none; }
 }
+
+/* Ordered architecture: compact hub, workspace bands, then independent support layers. */
+.son-canvas { height: clamp(600px,calc(100dvh - 260px),1000px); }
+.son-edge { transition: opacity .2s ease-out; }
+.son-edge[data-dimmed] { opacity: .12; }
+.son-edge[data-demo] .son-edge-aura { opacity: .18; }
+.son-motion-particle { animation-duration: 2.4s; filter: drop-shadow(0 0 3px #e7fff9) drop-shadow(0 0 8px #38eddd); }
+.son-hub-body { inset: 5px 0 20px; border-radius: 18px; background: linear-gradient(140deg,#153c4b,#071a2b); }
+.son-hub-base { left: 20px; right: 20px; top: 110px; height: 24px; border-radius: 50%; opacity: .6; }
+.son-hub-orbit { left: -12px; right: -12px; top: 120px; height: 23px; }
+.son-hub-orbit-outer { left: -28px; right: -28px; top: 117px; height: 34px; }
+.son-node-workspace { padding: 12px 15px; }
+@media(max-width: 700px) { .son-canvas { height: 680px; } }
+@media(prefers-reduced-motion: reduce) { .son-edge { transition: none; } }
+
+.son-edge-label { fill: #d7f8f3; font-size: 11px; paint-order: stroke; stroke: #071321; stroke-width: 5px; stroke-linejoin: round; font-weight: 600; }

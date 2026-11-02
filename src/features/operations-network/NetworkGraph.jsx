@@ -46,16 +46,17 @@ export function networkEdgePath(props) {
 
 export const NetworkEdge = memo(function NetworkEdge(props) {
   const uid = useId().replace(/:/g, ''), path = networkEdgePath(props);
-  const { kind, status, fresh, demoMotion, accent } = props.data;
+  const { kind, status, fresh, demoMotion, accent, dimmed } = props.data;
   const executing = kind === 'execution';
   const moving = demoMotion || (executing && status === 'running');
   const completion = executing && status === 'completed' && fresh;
   const color = executing ? ({ pending: '#f9c872', running: '#61fff0', completed: '#8df0be', failed: '#ff819c', unknown: '#8595aa', idle: '#527b91' }[status] || '#88bbc5') : accent || '#4de9dd';
-  return <g className={`son-edge son-edge-${kind}`} data-status={status} data-demo={demoMotion || undefined} style={{ '--son-edge-color': color }}>
+  return <g className={`son-edge son-edge-${kind}`} data-status={status} data-dimmed={dimmed || undefined} data-demo={demoMotion || undefined} style={{ '--son-edge-color': color }}>
     <defs><linearGradient id={`${uid}-line`}><stop stopColor={color} stopOpacity=".35" /><stop offset=".5" stopColor={color} stopOpacity=".95" /><stop offset="1" stopColor={color} stopOpacity=".6" /></linearGradient><marker id={`${uid}-arrow`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke={color} strokeWidth="1.5" /></marker></defs>
-    <path className="son-edge-aura" d={path} /><path className="son-edge-sheath" d={path} />
+    <path id={`${uid}-track`} className="son-edge-aura" d={path} /><path className="son-edge-sheath" d={path} />
     <BaseEdge id={props.id} path={path} markerEnd={`url(#${uid}-arrow)`} interactionWidth={0} style={{ stroke: `url(#${uid}-line)` }} />
-    {(moving || completion) && [0, 1, 2].map(index => <circle key={index} className={`son-motion-particle${completion && !moving ? ' son-completion-particle' : ''}`} data-motion-source={demoMotion ? 'synthetic-demo' : 'recorded-execution'} r={index === 0 ? 3.2 : index === 1 ? 2.1 : 1.3} style={{ offsetPath: `path('${path}')`, animationDelay: `${-index * 0.09}s`, opacity: 1 - index * 0.24 }} />)}
+    {(demoMotion || executing) && <text className="son-edge-label" dy="-9"><textPath href={`#${uid}-track`} startOffset="50%" textAnchor="middle">{demoMotion ? 'Demo flow' : statusLabels[status]}</textPath></text>}
+    {(moving || completion) && [0, 1, 2].map(index => <circle key={index} className={`son-motion-particle${completion && !moving ? ' son-completion-particle' : ''}`} data-motion-source={demoMotion ? 'synthetic-demo' : 'recorded-execution'} r={index === 0 ? 4 : index === 1 ? 2.8 : 1.7} style={{ offsetPath: `path('${path}')`, animationDelay: `${index * 0.075}s`, opacity: 1 - index * 0.24 }} />)}
   </g>;
 });
 

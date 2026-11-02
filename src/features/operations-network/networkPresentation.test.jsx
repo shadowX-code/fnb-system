@@ -8,12 +8,23 @@ const modules = ['restaurant','factory','hr','crew','finance','marketing','guest
 const overlap = (a,b) => a.position.x < b.position.x+b.width && a.position.x+a.width > b.position.x && a.position.y < b.position.y+b.height && a.position.y+a.height > b.position.y;
 
 describe('readable network layout', () => {
-  it('fits a seven-workspace overview in a compact fan without overlapping node bounds', () => {
+  it('fits a seven-workspace overview in a ordered layers without overlapping node bounds', () => {
     const graph=buildNetwork({modules});
     expect(Math.max(...graph.nodes.map(node=>node.position.x+node.width))-Math.min(...graph.nodes.map(node=>node.position.x))).toBeLessThanOrEqual(1100);
     expect(Math.max(...graph.nodes.map(node=>node.position.y+node.height))).toBeLessThan(800);
     for(const [index,node] of graph.nodes.entries()) for(const other of graph.nodes.slice(index+1)) expect(overlap(node,other),`${node.id} overlaps ${other.id}`).toBe(false);
     expect(graph.nodes.find(node=>node.id==='platform').width).toBeGreaterThan(graph.nodes.find(node=>node.data.kind==='workspace').width);
+  });
+  it('orders platform, workspace rows, automation and data vertically', () => {
+    const graph=buildNetwork({modules});
+    const find=id=>graph.nodes.find(node=>node.id===id);
+    const workspaces=graph.nodes.filter(node=>node.data.kind==='workspace');
+    expect(new Set(workspaces.map(node=>node.position.y)).size).toBe(2);
+    expect(Math.min(...workspaces.map(node=>node.position.y))).toBeGreaterThan(find('platform').height);
+    expect(find('automation-group').position.y).toBeGreaterThan(Math.max(...workspaces.map(node=>node.position.y+node.height)));
+    expect(find('data-group').position.y).toBeGreaterThan(find('automation-group').position.y+find('automation-group').height);
+    const focused=presentNetworkEdges(graph.edges,false,'workspace:factory');
+    expect(focused.filter(edge=>!edge.data.dimmed).every(edge=>edge.source==='workspace:factory'||edge.target==='workspace:factory')).toBe(true);
   });
   it('keeps expanded modules in their own grid and preserves unique evidenced edges for different actors', () => {
     const agents=['one','two'].map(id=>({id,name:id,status:'observed',workspaces:['factory'],moduleIds:['factory-0']}));
@@ -50,7 +61,7 @@ describe('evidence and synthetic motion separation', () => {
     expect(JSON.stringify(graph)).toBe(original);
     expect(demo.filter(edge=>edge.data.demoMotion).length).toBeLessThanOrEqual(5);
     expect(demo.some(edge=>edge.data.demoMotion)).toBe(true);
-    expect(demo.at(-1).data).toEqual({...real.data,demoMotion:false});
+    expect(demo.at(-1).data).toEqual({...real.data,demoMotion:false,dimmed:false});
     expect(presentNetworkEdges(graph.edges,false).every(edge=>!edge.data.demoMotion)).toBe(true);
   });
   it.each([

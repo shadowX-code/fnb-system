@@ -58,10 +58,10 @@ function NetworkExperience({ auth, ui, store }) {
   }, [modules]);
   const toggleWorkspace = useCallback((id) => {
     fitPending.current = true; fitRequest.current = expanded.has(id) ? 'primary' : id;
-    setExpanded(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+    setExpanded(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else { if (!['agents', 'data-integrations', 'social-connections'].includes(id)) for (const key of next) if (!['agents', 'data-integrations', 'social-connections'].includes(key)) next.delete(key); next.add(id); } return next; });
   }, [expanded]);
   const nodes = useMemo(() => graph.nodes.map(node => ({ ...node, data: { ...node.data, onToggle: toggleWorkspace }, domAttributes: { onKeyDown: event => { if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key) && node.data.kind !== 'operation-group') { event.preventDefault(); selectNode(node.id); } } } })), [graph.nodes, toggleWorkspace, selectNode]);
-  const edges = useMemo(() => presentNetworkEdges(graph.edges, visualDemo), [graph.edges, visualDemo]);
+  const edges = useMemo(() => presentNetworkEdges(graph.edges, visualDemo, selectedId), [graph.edges, visualDemo, selectedId]);
   const layoutKey = `${narrow}:${inspectorOpen}:${graph.nodes.map(node => node.id).join('|')}`;
   function fitPrimary() { flow.fitView({ nodes: graph.primaryIds.map(id => ({ id })), padding: 0.08, duration: 0, maxZoom: 1.15 }); }
   useEffect(() => {
