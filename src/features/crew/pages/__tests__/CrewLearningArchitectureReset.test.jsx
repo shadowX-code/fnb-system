@@ -175,7 +175,7 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.getByText("Draft")).not.toBeNull();
     expect(screen.getAllByText("v2")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Edit Draft" })).not.toBeNull();
-    expect(screen.queryByRole("tab", { name: "Overview" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Course Overview" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.queryByText("Mandatory for all eligible Crew")).toBeNull();
     expect(screen.queryByText("Sequential learning")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Published v2" })).toBeNull();
@@ -185,7 +185,7 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.queryByText("Journey Settings")).toBeNull();
     for (const module of modules) expect(screen.getByText(module.title)).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Crew Progress" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Crew Progress" }));
     expect(await screen.findByText("Alex Tan")).not.toBeNull();
     expect(screen.getAllByText("62%")).toHaveLength(2);
     fireEvent.change(screen.getByLabelText("Search Crew"), { target: { value: "Alex" } });
@@ -199,7 +199,9 @@ describe("Crew Learning architecture reset UI", () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     const summary = await screen.findByRole("region", { name: "Published v2 summary" });
     expect(summary.querySelectorAll("[data-admin-summary-card] svg")).toHaveLength(4);
-    fireEvent.click(screen.getByRole("button", { name: "Crew Progress" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Crew Progress" }));
+    expect(screen.getByLabelText("Alex Tan: 62% complete").dataset.tone).toBe("primary");
+    expect(screen.getByRole("region", { name: "Published learning progress" }).querySelectorAll("svg")).toHaveLength(3);
     expect(screen.getByText("AT")).not.toBeNull();
     expect(screen.getByText("Crew · Published v1")).not.toBeNull();
     expect(screen.getByText("4 / 8 modules")).not.toBeNull();
@@ -209,6 +211,77 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.getByRole("table").dataset.mobileLayout).toBe("stack");
     fireEvent.click(screen.getByRole("button", { name: "View Alex Tan progress" }));
     expect(await screen.findByRole("dialog", { name: "Alex Tan" })).not.toBeNull();
+  });
+
+  it("switches only the content area and retains the selected outlet and header", async () => {
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    await screen.findByRole("region", { name: "Published v2 summary" });
+    expect(screen.getByRole("tablist", { name: "Onboarding view" }).className).toContain("factory-segmented-control");
+    const header = screen.getByRole("heading", { name: "New Crew Onboarding" });
+    const outlet = screen.getByLabelText("Outlet").textContent;
+    fireEvent.click(screen.getByRole("tab", { name: "Crew Progress" }));
+    expect(screen.getByRole("heading", { name: "New Crew Onboarding" })).toBe(header);
+    expect(screen.getByLabelText("Outlet").textContent).toBe(outlet);
+    expect(screen.queryByText(/Progress follows each Crew/)).toBeNull();
+    expect(screen.getByRole("tabpanel", { name: "Crew Progress" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Course Overview" }));
+    expect(screen.getByRole("heading", { name: "New Crew Onboarding" })).toBe(header);
+    expect(screen.getByLabelText("Outlet").textContent).toBe(outlet);
+    expect(screen.getByRole("region", { name: "Published v2 summary" })).not.toBeNull();
+  });
+
+  it("opens the published version in the read-only renderer and navigates lessons without writes", async () => {
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Preview", exact: true }));
+    expect(await screen.findByRole("region", { name: "Crew Learning Preview" })).not.toBeNull();
+    expect(mocks.getOnboarding).toHaveBeenCalledWith(journey.id);
+    expect(screen.getByText(/Published v2 · Read-only · Lesson 1 of 8/)).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "Onboarding Builder" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next Lesson" }));
+    expect(screen.getByText("1. When should you greet a guest?")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Submit quiz|Complete lesson/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Exit Preview" }));
+    expect(screen.getByRole("region", { name: "Published v2 summary" })).not.toBeNull();
+    expect(mocks.saveOnboardingDraft).not.toHaveBeenCalled();
+    expect(mocks.publishJourney).not.toHaveBeenCalled();
+  });
+
+  it("clears the old preview when Builder publishes a newer version", async () => {
+    const nextPublished = { ...structuredClone(draftJourney), status: "published" };
+    mocks.listOnboarding.mockResolvedValueOnce([journey, draftJourney]).mockResolvedValueOnce([journey, draftJourney]).mockResolvedValueOnce([nextPublished]);
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Preview", exact: true }));
+    await screen.findByRole("region", { name: "Crew Learning Preview" });
+    fireEvent.click(screen.getByRole("button", { name: "Edit Draft" }));
+    await screen.findByRole("region", { name: "Onboarding Builder" });
+    fireEvent.click(screen.getByRole("button", { name: "Publish v3" }));
+    expect(await screen.findByRole("region", { name: "Published v3 summary" })).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "Crew Learning Preview" })).toBeNull();
+  });
+
+  it("ignores a published preview response after outlet changes", async () => {
+    let resolvePreview;
+    mocks.getOnboarding.mockImplementationOnce(() => new Promise((resolve) => { resolvePreview = resolve; }));
+    mocks.listOnboarding.mockImplementation(async (id) => id === "outlet-2" ? [draftJourney] : [journey, draftJourney]);
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Preview", exact: true }));
+    fireEvent.click(screen.getByLabelText("Outlet"));
+    fireEvent.click(screen.getByRole("option", { name: "JYMT Kopitiam" }));
+    await screen.findByText("Onboarding not published");
+    await act(async () => resolvePreview(structuredClone(journey)));
+    expect(screen.queryByRole("region", { name: "Crew Learning Preview" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Preview", exact: true })).toBeNull();
+  });
+
+  it("retries a failed published preview read without opening the Draft", async () => {
+    mocks.getOnboarding.mockRejectedValueOnce(new Error("Preview connection failed"));
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Preview", exact: true }));
+    expect(await screen.findByRole("alert")).not.toBeNull();
+    expect(screen.getByText("Preview connection failed")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Preview", exact: true }));
+    expect(await screen.findByRole("region", { name: "Crew Learning Preview" })).not.toBeNull();
+    expect(mocks.getOnboarding.mock.calls.map(([id]) => id)).toEqual([journey.id, journey.id]);
   });
 
   it("opens module information without navigating to another page", async () => {
@@ -235,8 +308,8 @@ describe("Crew Learning architecture reset UI", () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click((await screen.findByText("Welcome & Workplace", { selector: "summary strong" })).closest("summary"));
     expect(document.querySelectorAll(".crew-onboarding-overview-module[open]")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Crew Progress" }));
-    expect(screen.getByRole("heading", { name: "Crew Progress" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Crew Progress" }));
+    expect(screen.getByRole("heading", { name: "New Crew Onboarding" })).not.toBeNull();
     fireEvent.click(screen.getByLabelText("Outlet"));
     fireEvent.click(screen.getByRole("option", { name: "JYMT Kopitiam" }));
     expect(await screen.findByText("Onboarding not published")).not.toBeNull();

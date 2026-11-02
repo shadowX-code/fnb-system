@@ -26,10 +26,10 @@ export function CrewStatusBadge({ children, tone = "neutral" }) {
   return <span className={`crew-ui-status crew-type-status is-${tone}`}>{children}</span>;
 }
 
-export function CrewProgressBar({ value = 0, label }) {
+export function CrewProgressBar({ value = 0, label, tone }) {
   const { t } = useTranslation();
   const safe = Math.max(0, Math.min(100, Number(value) || 0));
-  return <div className="crew-ui-progress" aria-label={label || t("learn.percentComplete", { count: safe })}><span style={{ width: `${safe}%` }} /></div>;
+  return <div className="crew-ui-progress" data-tone={tone} aria-label={label || t("learn.percentComplete", { count: safe })}><span style={{ width: `${safe}%` }} /></div>;
 }
 
 export function CrewActionRow({ icon: Icon, title, subtitle, meta, tone = "blue", onClick, disabled = false, ariaLabel, children }) {

@@ -57,3 +57,6 @@
 .crew-learning-progress-cell{display:grid;gap:6px;min-width:140px}
 .crew-learning-progress-cell>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .crew-learning-progress-cell small{font-size:11px;color:var(--theme-muted,#66778c)}
+
+.crew-onboarding-published-preview{display:grid;gap:16px}
+@media(max-width:760px){.crew-onboarding-course-header{flex-wrap:wrap}}
