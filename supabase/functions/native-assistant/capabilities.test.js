@@ -19,7 +19,7 @@ test('denies missing human permission before snapshot/table reads (fixture)',asy
 test('scope-stable bounded canonical reads distinguish unknown minimums and include provenance (fixture)',async()=>{
  const rows=[{id:'a',product_name:'Fixture A',current_balance:2,min_stock_level:3},{id:'b',product_name:'Fixture B',current_balance:0,min_stock_level:null},{id:'c',product_name:'Fixture C',current_balance:9,min_stock_level:0}];
  const caller={rpc:(name)=>{const value={data:name==='current_user_role_id'?'fixture-role':name==='current_user_has_permission'?true:rows.map(x=>x.id)};return {then:fn=>Promise.resolve(value).then(fn),abortSignal:()=>Promise.resolve(value)};},from:()=>({select:()=>({in:()=>({abortSignal:async()=>({data:rows})})})})};
- const r=await readInventory(caller,{query:'',availability:'low'});assert.equal(r.total_matching,1);assert.equal(r.rows[0].id,'a');assert.equal(r.source,'/factory/warehouse/finished-goods');assert(r.as_of);assert.match(r.limitations,/absent\/zero minimum is unknown/);
+ const r=await readInventory(caller,{query:'',availability:'low'});assert.equal(r.total_matching,1);assert.equal(r.unknown_minimum_count,2);assert.equal(r.total_scoped_products,3);assert.equal(r.rows[0].id,'a');assert.equal(r.source,'/factory/warehouse/finished-goods');assert(r.as_of);assert.match(r.limitations,/absent\/zero minimum is unknown/);
 });
 test('voice is fail-closed, fixed configuration only, not implicit model/domain-key fallback',async()=>{
  assert.equal(voiceConnection(()=>undefined).ready,false);assert.equal(voiceConnection(k=>({NATIVE_ASSISTANT_VOICE_URL:'http://localhost:8080',NATIVE_ASSISTANT_VOICE_KEY:'x'.repeat(32),NATIVE_ASSISTANT_VOICE_APPROVED_USE:'native-assistant-staging-voice'}[k])).ready,false);
