@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Controls, ReactFlow, ReactFlowProvider, useReactFlow } from '@xyflow/react';
-import { ArrowLeft, Focus, Maximize2, Minimize2, RefreshCw, FlaskConical, Pause, Play, PanelRightOpen, PanelRightClose, Layers, Info } from 'lucide-react';
+import { ArrowLeft, Focus, Maximize2, Minimize2, RefreshCw, FlaskConical, Pause, Play, PanelRightOpen, PanelRightClose, Layers, Info, Building2, Workflow, Bot, Move, ZoomIn } from 'lucide-react';
 import PageHeader from '../../components/layout/PageHeader.jsx';
 import AdminFilterToolbar, { ALL_FILTER_OPTION } from '../../components/layout/AdminFilterToolbar.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
@@ -122,7 +122,11 @@ function NetworkExperience({ auth, ui, store }) {
         <SelectField label="Status" value={status} onChange={changeFilter(setStatus)} options={[ALL_FILTER_OPTION, ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))]} />
       </AdminFilterToolbar>
       <div className="son-header-controls">
-        <div className="son-header-counts" aria-label="Scoped network counts"><span><strong>{graph.groups.length}</strong> Workspaces</span><span><strong>{graph.matching.length}</strong> Modules</span><span><strong>{agentSourceAvailable ? graph.visibleAgents.length : '—'}</strong> Agents</span></div>
+        <div className="son-header-counts" aria-label="Scoped network counts">
+          <span className="son-hud-stat"><Building2 size={16} aria-hidden="true"/><strong>{graph.groups.length}</strong><span> Workspaces</span></span>
+          <span className="son-hud-stat"><Workflow size={16} aria-hidden="true"/><strong>{graph.matching.length}</strong><span> Modules</span></span>
+          <span className="son-hud-stat"><Bot size={16} aria-hidden="true"/><strong>{agentSourceAvailable ? graph.visibleAgents.length : '—'}</strong><span> Agents</span></span>
+        </div>
         <AdminSegmentedControl label="Activity time range" value={window} onChange={setWindow} options={timeOptions}/>
       </div>
     </header>
@@ -157,7 +161,16 @@ function NetworkExperience({ auth, ui, store }) {
 
       </section>
       {inspectorOpen && <aside id="son-inspector" className="son-inspector" aria-label="Network inspector">{selected ? <NetworkDetailPanel key={selected.id} node={selected} modules={modules} events={events} onClose={() => { setSelectedId(null); setInspectorOpen(false); }} onNavigate={ui.navigate} onToggle={toggleWorkspace} onSelect={selectNode} /> : evidence.loading ? <p role="status">Checking recorded activity…</p> : <NetworkTimeline events={events} modules={modules} onSelect={selectNode} />}</aside>}
-        <footer className="son-information-bar"><div className="son-semantics" aria-label="Connection semantics"><span><i className="son-structural-swatch"/>Structural</span><span><i className="son-authorization-swatch"/>Authorization</span><span><i className="son-recorded-swatch"/>Recorded Execution</span></div><span className="son-pan-hint">Drag to pan · pinch to zoom</span><div className="son-information-actions"><button type="button" onClick={()=>setInformation('layers')} aria-haspopup="dialog"><Layers size={14}/>Layers</button><button type="button" onClick={()=>setInformation('coverage')} aria-haspopup="dialog"><Info size={14}/>Data Coverage</button></div></footer>
+      <footer className="son-information-bar" aria-label="Network HUD">
+        <div className="son-semantics" aria-label="Connection semantics">
+          <span className="son-legend-item"><svg className="son-legend-sample" width="36" height="12" viewBox="0 0 36 12" aria-hidden="true"><path d="M1 6H35" stroke="currentColor" strokeWidth=".9"/></svg>Structural</span>
+          <span className="son-legend-item"><svg className="son-legend-sample" width="36" height="12" viewBox="0 0 36 12" aria-hidden="true"><path d="M1 6H35" stroke="currentColor" strokeWidth=".9" strokeDasharray="3 4"/></svg>Authorization</span>
+          <span className="son-legend-item" title="Illustrative motion sample only; does not indicate a current execution" aria-describedby="son-execution-sample-note"><svg className="son-legend-sample son-legend-execution" width="36" height="12" viewBox="0 0 36 12" aria-hidden="true"><path d="M1 6H35" stroke="currentColor" strokeWidth="1.4" strokeOpacity=".65"/><path d="m32 3 3 3-3 3" fill="none" stroke="currentColor" strokeWidth="1"/><g className="son-legend-particle" fill="currentColor"><circle cx="3" cy="6" r="1.3"/><circle cx="0" cy="6" r=".8" opacity=".45"/></g></svg>Recorded Execution <span className="son-legend-note">Sample</span></span>
+        </div>
+        <span id="son-execution-sample-note" className="sr-only">Illustrative motion sample only. This legend does not indicate a current execution.</span>
+        <div className="son-navigation-hints" aria-label="Canvas navigation"><span title="Drag the canvas to pan"><Move size={14} aria-hidden="true"/>Pan</span><span title="Pinch, control-wheel or use the zoom buttons"><ZoomIn size={14} aria-hidden="true"/>Zoom</span></div>
+        <div className="son-information-actions"><button type="button" onClick={()=>setInformation('layers')} aria-haspopup="dialog"><Layers size={14}/>Layers</button><button type="button" onClick={()=>setInformation('coverage')} aria-haspopup="dialog"><Info size={14}/>Data Coverage</button></div>
+      </footer>
     </div>
     <Drawer open={!!information} width="sm" title={information==='layers' ? 'Network layers' : 'Data Coverage'} onClose={()=>setInformation(null)}>
       {information==='layers' ? <ol className="son-layer-explanations">{layers.map((layer,index)=><li key={layer}><strong>L{index+1}</strong><span>{layer}</span></li>)}</ol> : <div className="son-coverage-content"><p>Last evidence check: {evidence.observedAt ? formatOperationalDateTime(evidence.observedAt) : 'Not available yet'}.</p><p>System health & throughput: unavailable. Uptime, success rates and universal execution totals are not measured by this view.</p><p>{canObserve ? 'AI Integrations: latest 50 access events, 50 configuration events and 50 completed receipts per agent, plus saved open requests. Live includes current open requests and the latest 24 hours. Time ranges filter returned activity; they are not complete historical totals.' : 'Agent telemetry requires existing AI Integrations view authority.'}</p><p>Connections show the latest saved snapshot. Brand social connections include last sync where accessible. Module availability reflects your permissions. Uptime, general automation runs and cross-module business timelines are not connected here. Visual Demo is synthetic presentation only.</p></div>}

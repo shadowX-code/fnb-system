@@ -369,3 +369,37 @@
 @media(max-width:899px) {
   .son-fullscreen .son-workbench.son-inspector-open { grid-template-rows: auto minmax(0,1fr) minmax(140px,25dvh) auto; }
 }
+
+/* Precision HUD: compact scope indicators on Admin surfaces and a quiet canvas legend. */
+.son-header-counts { gap: 8px; }
+.son-hud-stat { display: inline-flex; align-items: center; gap: 7px; height: 42px; padding: 0 10px; border: 1px solid color-mix(in srgb,var(--theme-primary) 16%,var(--theme-border)); border-radius: var(--radius-control); background: color-mix(in srgb,var(--theme-primary) 4%,var(--theme-surface)); white-space: nowrap; }
+.son-hud-stat > svg { color: var(--theme-primary); flex: none; }
+.son-hud-stat strong { font-size: 20px; line-height: 1; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.son-hud-stat > span { color: var(--theme-muted); font-size: 11px; }
+.son-information-bar { min-height: 44px; padding: 5px 12px; gap: 6px 20px; border-top: 1px solid #294651; background: #09232d; color: #b8ced4; color-scheme: dark; font-size: 11px; }
+.son-semantics { min-width: 0; flex-wrap: wrap; gap: 6px 18px; }
+.son-semantics .son-legend-item { display: inline-flex; align-items: center; gap: 7px; min-height: 24px; white-space: nowrap; }
+.son-legend-sample { flex: none; color: #789ba5; overflow: visible; }
+.son-legend-execution { color: #61fff0; }
+.son-semantics .son-legend-note { display: inline; color: #89a9b2; font-size: 10px; }
+.son-legend-particle { transform: translateX(14px); animation: son-legend-travel 3.4s linear infinite; }
+@keyframes son-legend-travel { 0% { transform: translateX(0); opacity: 0; } 12% { opacity: .9; } 88% { opacity: .9; } 100% { transform: translateX(30px); opacity: 0; } }
+.son-motion-paused .son-legend-particle,.son-inactive .son-legend-particle { animation-play-state: paused; }
+.son-navigation-hints { display: flex; align-items: center; gap: 14px; margin-left: auto; color: #9bb8c2; }
+.son-navigation-hints span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.son-information-actions { width: auto; margin-left: 0; gap: 4px; }
+.son-information-actions button { min-height: 32px; padding: 6px 8px; color: #c3d9df; border-radius: var(--radius-control); }
+.son-information-actions button:hover { color: #d8fff6; background: #143943; }
+.son-information-bar :focus-visible { outline: 2px solid #8de8d5; outline-offset: 2px; }
+@media(max-width:767px) {
+  .son-header-counts { gap: 6px; }
+  .son-hud-stat { gap: 6px; padding-inline: 9px; }
+  .son-hud-stat > span { font-size: 10px; }
+  .son-information-bar { padding: 6px 10px; gap: 6px 12px; }
+  .son-semantics { width: 100%; gap: 2px 14px; font-size: 10px; }
+  .son-legend-sample { width: 28px; }
+  .son-navigation-hints { margin-left: 0; gap: 10px; font-size: 10px; }
+  .son-information-actions { margin-left: auto; }
+  .son-information-actions button { padding-inline: 6px; }
+}
+@media(prefers-reduced-motion:reduce) { .son-legend-particle { animation: none; } }
