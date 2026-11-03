@@ -62,7 +62,7 @@ describe('evidence and synthetic motion separation', () => {
     expect(JSON.stringify(graph)).toBe(original);
     expect(demo.filter(edge=>edge.data.demoMotion).length).toBeLessThanOrEqual(5);
     expect(demo.some(edge=>edge.data.demoMotion)).toBe(true);
-    expect(demo.at(-1).data).toEqual({...real.data,demoMotion:false,dimmed:false,focused:false});
+    expect(demo.at(-1).data).toEqual({...real.data,ambientMotion:false,demoMotion:false,dimmed:false,focused:false});
     expect(presentNetworkEdges(graph.edges,false).every(edge=>!edge.data.demoMotion)).toBe(true);
   });
   it.each([
@@ -74,5 +74,42 @@ describe('evidence and synthetic motion separation', () => {
     expect((output.match(/class="son-motion-particle/g)||[]).length).toBe(count);
     if(count) expect(output).toContain(`data-motion-source="${demoMotion?'synthetic-demo':'recorded-execution'}"`);
     expect(output).not.toContain('NaN');
+  });
+});
+
+
+describe('decorative ambient flow', () => {
+  it('covers each visible structural layer pair with bounded particles and leaves evidence untouched', () => {
+    const graph = buildNetwork({modules, agents:[{id:'a',name:'Agent',status:'observed',workspaces:['factory'],moduleIds:['factory-0'],gatewayId:'g'}], gateways:[{id:'g',name:'Gateway'}], expanded:new Set(['factory'])});
+    const original = JSON.stringify(graph);
+    const edges = presentNetworkEdges(graph.edges, false);
+    const ambient = edges.filter(edge => edge.data.ambientMotion);
+    const pairs = list => new Set(list.map(edge => `${edge.data.sourceLayer}:${edge.data.targetLayer}`));
+    expect(pairs(ambient)).toEqual(pairs(graph.edges.filter(edge => edge.data.kind === 'dependency')));
+    expect(ambient.length).toBeGreaterThan(1);
+    expect(ambient.length).toBeLessThanOrEqual(12);
+    expect(ambient.every(edge => edge.data.kind === 'dependency' && !edge.data.demoMotion)).toBe(true);
+    expect(JSON.stringify(graph)).toBe(original);
+    expect(presentNetworkEdges(graph.edges, false)).toEqual(edges);
+    const visible = ['platform', 'workspace:factory'];
+    expect(presentNetworkEdges(graph.edges, false, null, visible).filter(edge => edge.data.ambientMotion).every(edge => visible.includes(edge.source) || visible.includes(edge.target))).toBe(true);
+  });
+  it('gives attributed running and fresh completion priority on the same directed relationship', () => {
+    const structural = {id:'s',source:'a',target:'b',data:{kind:'dependency'}};
+    const execution = {id:'e',source:'a',target:'b',data:{kind:'execution',eventId:'event',agentId:'actor',status:'running'}};
+    expect(presentNetworkEdges([structural, execution], false)[0].data.ambientMotion).toBe(false);
+    expect(presentNetworkEdges([structural, {...execution,data:{...execution.data,status:'completed',fresh:true}}],false)[0].data.ambientMotion).toBe(false);
+    expect(presentNetworkEdges([structural, {...execution,data:{...execution.data,agentId:null}}],false)[0].data.ambientMotion).toBe(true);
+    expect(presentNetworkEdges([structural, {...execution,data:{...execution.data,status:'pending'}}],false)[0].data.ambientMotion).toBe(true);
+  });
+  it('renders a small ambient particle on the routed structural path, never on authorization or as execution', () => {
+    const render = kind => renderToStaticMarkup(<svg><NetworkEdge id="ambient" sourceX={0} sourceY={0} targetX={250} targetY={200} sourcePosition="bottom" targetPosition="top" data={{kind,ambientMotion:true,routePoints:[{x:0,y:0},{x:0,y:100},{x:250,y:100},{x:250,y:200}]}}/></svg>);
+    const output = render('dependency');
+    expect((output.match(/class="son-motion-particle/g)||[])).toHaveLength(1);
+    expect(output).toContain('data-motion-source="ambient-network"');
+    expect(output).toContain('r="1.4"');
+    expect(output).toContain('offset-path:path(');
+    expect(output).not.toContain('recorded-execution');
+    expect(render('authorization')).not.toContain('son-motion-particle');
   });
 });

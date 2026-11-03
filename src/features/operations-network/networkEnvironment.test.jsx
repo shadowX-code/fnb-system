@@ -17,7 +17,7 @@ it.each([
   expect(networkDemoAllowed({dataUrl,development})).toBe(expected);
 });
 
-it('rejects URL/storage/requested-state and renderer flag bypasses in Production; retains only attributed execution particles',async()=>{
+it('rejects URL/storage/requested-state and renderer flag bypasses in Production; keeps ambient separate from attributed execution particles',async()=>{
   vi.stubEnv('VITE_SUPABASE_URL','https://oyfobxdoyfuzsodogpgs.supabase.co');
   vi.stubEnv('DEV',false);vi.resetModules();
   history.replaceState({visualDemo:true},'','/system/operations-network?demo=true&visualDemo=1&synthetic=true');
@@ -27,8 +27,12 @@ it('rejects URL/storage/requested-state and renderer flag bypasses in Production
   const {NetworkEdge}=await import('./NetworkGraph.jsx');
   expect(NETWORK_DEMO_ALLOWED).toBe(false);
   const structural={id:'structural',source:'p',target:'w',data:{kind:'dependency',demoMotion:true,status:'running'}};
-  expect(presentNetworkEdges([structural],true)[0].data.demoMotion).toBe(false);
+  const presented = presentNetworkEdges([structural],true)[0];
+  expect(presented.data.demoMotion).toBe(false);
+  expect(presented.data.ambientMotion).toBe(true);
   const render=data=>renderToStaticMarkup(<svg><NetworkEdge id="edge" sourceX={0} sourceY={0} targetX={200} targetY={100} sourcePosition="bottom" targetPosition="top" data={data}/></svg>);
+  expect(render(presented.data)).toContain('data-motion-source="ambient-network"');
+  expect(render(presented.data)).not.toContain('synthetic-demo');
   for(const kind of ['dependency','authorization','execution']) {
     expect(render({kind,status:'running',fresh:true,demoMotion:true})).not.toContain('son-motion-particle');
   }
