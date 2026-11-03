@@ -25,7 +25,7 @@ export async function dispatch(body,{rpc,get,signal,transport}){
   const privateConnection=connection(config,get);
   if(privateConnection.blocker){await rpc('test_record',{provider_revision:config.provider_revision,outcome:'unavailable',error_code:privateConnection.blocker});return {outcome:'unavailable',code:privateConnection.blocker,runtime};}
   const begun=await rpc('test_begin',{request_id:args.request_id});
-  if(begun.replayed)return {outcome:begun.state==='completed'?'verified':begun.state,runtime};
+  if(begun.replayed)throw new AssistantError('test_already_requested',409);
   const claim=await rpc('claim',{turn_id:begun.turn_id});
   try{
    const result=await generateText(claim,privateConnection.key,{transport,signal});
