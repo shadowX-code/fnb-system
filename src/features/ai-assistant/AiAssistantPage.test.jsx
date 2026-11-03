@@ -34,7 +34,7 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   const $=s=>document.querySelector(s), input=$('#cmd');
   const setState=vi.fn(s=>{document.body.dataset.state=s;});
   new Function('$','input','setState','wakeUI','applySchedule','STATE_LABEL','sysLive','tripLive','wxLive','SCHED',source)($,input,setState,vi.fn(),vi.fn(),{},false,false,false,[]);
-  input.value='<img src=x onerror=alert(1)> inventory';fireEvent.submit($('#form'));
+  input.value='<img src=x onerror=alert(1)> inventory';fireEvent.keyDown(input,{key:'Enter'});
   expect($('#webMessages').textContent).toContain('<img src=x');expect($('#webMessages img')).toBe(null);
   expect($('#webNotice').textContent).toContain('no AI answer was generated');expect(setState).not.toHaveBeenCalledWith('thinking');
   fireEvent.click($('#mic'));expect($('#webNotice').textContent).toContain('No microphone was opened');

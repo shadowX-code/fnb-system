@@ -22,13 +22,17 @@ const notice=$('#webNotice'),messageList=$('#webMessages'),history=$('#webHistor
 $('#webComposer').appendChild($('#form'));
 input.setAttribute('aria-label','Message AI Assistant');input.placeholder='Ask FeedX…';input.maxLength=2000;
 $('#mic').setAttribute('aria-label','Microphone unavailable');$('#mic').setAttribute('aria-disabled','true');$('#mic').title='No authorized speech recognition service is connected';
-const submit=document.createElement('button');submit.type='submit';submit.id='webSend';submit.textContent='Send';$('#form').appendChild(submit);
+const submit=document.createElement('button');submit.type='button';submit.id='webSend';submit.textContent='Send';$('#form').appendChild(submit);
 function showNotice(text,error=false){notice.textContent=text;notice.setAttribute('role',error?'alert':'status');notice.dataset.error=String(error);}
 function renderHistory(){history.replaceChildren(...sessions.map((s,i)=>{const option=document.createElement('option');option.value=s.id;option.textContent=s.messages[0]?.text.slice(0,48)||`Conversation ${i+1}`;return option;}));history.value=currentSession.id;}
 function renderMessages(){messageList.replaceChildren();if(!currentSession.messages.length){const empty=document.createElement('li');empty.className='web-empty';empty.textContent='Start with a question. Your request will appear here; responses require an authorized model connection.';messageList.appendChild(empty);}for(const message of currentSession.messages){const item=document.createElement('li');const label=document.createElement('strong');label.textContent='You';const text=document.createElement('p');text.textContent=message.text;item.append(label,text);messageList.appendChild(item);}messageList.scrollTop=messageList.scrollHeight;renderHistory();}
 // Same request/session identity boundary as the pilot. No remote engine is configured.
 let handle=function(text){text=text.trim();if(!text)return;captureEpoch++;activeRequest=crypto.randomUUID();if(currentSession.messages.length>=20){showNotice('This conversation reached its local request limit. Start a new conversation.',true);return;}currentSession.messages.push({request_id:activeRequest,text:text.slice(0,2000)});renderMessages();setState('idle');document.body.dataset.serviceState='unavailable';showNotice('Language model unavailable. Your request was not sent and no AI answer was generated.',true);};
-$('#form').addEventListener('submit',event=>{event.preventDefault();handle(input.value);input.value='';});
+// Sandboxed frames deliberately disallow form submission; use explicit local actions.
+function sendLocalRequest(){handle(input.value);input.value='';}
+submit.onclick=sendLocalRequest;
+input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isComposing){event.preventDefault();sendLocalRequest();}});
+$('#form').addEventListener('submit',event=>event.preventDefault());
 $('#webNew').onclick=()=>{activeRequest='';captureEpoch++;pilotSession=crypto.randomUUID();currentSession={id:pilotSession,messages:[]};sessions.push(currentSession);if(sessions.length>6)sessions.shift();input.value='';renderMessages();setState('idle');showNotice('New conversation. No model is connected; history stays in this tab.');input.focus();};
 history.onchange=()=>{activeRequest='';captureEpoch++;currentSession=sessions.find(s=>s.id===history.value)||sessions[0];input.value='';renderMessages();setState('idle');showNotice('Conversation opened. No AI service is connected.');};
 $('#mic').onclick=()=>showNotice('Speech recognition unavailable. No microphone was opened. You can type your request.',true);
