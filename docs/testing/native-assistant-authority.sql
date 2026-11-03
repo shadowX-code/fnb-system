@@ -25,7 +25,10 @@ begin
  update feedx_integrations.native_assistant_sessions set scope_key='unavailable-scope-fixture' where id=s;
  denied:=false;begin perform set_config('request.jwt.claims','{"role":"service_role"}',true);perform public.native_assistant_service(a,'history',jsonb_build_object('session_id',s));exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'cross-scope history accepted';end if;check_count:=check_count+1;
  update feedx_integrations.native_assistant_sessions set scope_key=null where id=s;
- -- Transaction-only fixture. Never a real provider result, never retained.
+ -- Transaction-only fixtures. Never provider evidence, never retained.
+ -- Completed usage must release reservations, otherwise these 90k old reservations block begin.
+ insert into feedx_integrations.native_assistant_requests(user_id,request_id,kind,prompt,provider_revision,model,reserved_tokens,state,input_tokens,output_tokens,created_at,finished_at)
+ select a,gen_random_uuid(),'test','QA usage fixture only',1,'gpt-4o-mini',6000,'completed',1,1,now()-interval '2 minutes',now()-interval '2 minutes' from generate_series(1,15);
  update feedx_integrations.native_assistant_config set enabled=true;
  perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'begin',jsonb_build_object('session_id',s,'request_id',rid,'text','QA fixture only'));t:=(r->>'turn_id')::uuid;
  perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'begin',jsonb_build_object('session_id',s,'request_id',rid,'text','QA fixture only'));if not (r->>'replayed')::boolean then raise exception 'retry not idempotent';end if;check_count:=check_count+1;
