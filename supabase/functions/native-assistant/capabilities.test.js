@@ -32,3 +32,8 @@ test('voice uses exact remote contract, rejects redirected/error/body diagnostic
  await assert.rejects(voiceRequest('/stt',{},get,{transport:async()=>new Response('upstream SECRET',{status:500})}),e=>e.code==='voice_runtime_unavailable'&&!e.message.includes('SECRET'));
  let init;await voiceRequest('/ready',{},get,{transport:async(_,options)=>{init=options;return response({stt:'whisper-base',tts:'kokoro-bm_george'});}});assert.equal(init.redirect,'error');
 });
+
+test('low-stock answer is formatted from real read evidence, unknown minima never become low (fixture)',async()=>{
+ let requests=0;const r=await generateText(claim,'fixture',{readTool:async()=>({availability:'low',total_matching:1,unknown_minimum_count:25,rows:[{product_name:'Fixture sauce',current_balance:42,min_stock_level:60,uom:'kg'}],scope:'Fixture scope',as_of:'fixture-time',source:'/factory/warehouse/finished-goods'}),transport:async()=>{requests++;return response({status:'completed',output:[{type:'function_call',name:'read_factory_finished_goods',call_id:'fixture-call',arguments:'{"query":"","availability":"low"}'}],usage:{input_tokens:80,output_tokens:10}});}});
+ assert.match(r.reply,/42 kg; minimum 60 kg/);assert.match(r.reply,/25 product\(s\).*no valid minimum/);assert.match(r.reply,/not classified as low or healthy/);assert.equal(requests,1);assert.equal(r.input_tokens,80);
+});
