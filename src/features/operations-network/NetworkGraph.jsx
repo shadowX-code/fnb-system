@@ -4,6 +4,7 @@ import { Bot, Building2, ChevronDown, ChevronUp, Database, Factory, Layers3, Lin
 import { roundedRoute } from './networkRouting.js';
 import { NETWORK_DEMO_ALLOWED } from './networkEnvironment.js';
 import { statusLabels } from './networkModel.js';
+import NetworkCoreNode from './NetworkCoreNode.jsx';
 
 const workspaceIcons = { restaurant: UtensilsCrossed, factory: Factory, hr: Users, crew: ShieldCheck, finance: Wallet, marketing: Megaphone, guest_ai: Sparkles };
 const icons = { platform: Network, workspace: Building2, module: Workflow, agent: Bot, data: Database, integration: Link2, 'agent-group': Bot, 'data-group': Database, 'operation-group': Layers3 };
@@ -16,9 +17,7 @@ export const NetworkNode = memo(function NetworkNode({ data, selected }) {
   const caption = data.kind === 'platform' ? 'Platform architecture' : data.kind === 'data' ? 'Not measured' : data.kind === 'module' && data.status === 'unknown' ? 'No telemetry' : statusLabels[data.status];
   return <article className={`son-node son-node-${data.kind}${selected ? ' son-selected' : ''}${data.related ? ' son-node-related' : ''}${data.dimmed ? ' son-node-dimmed' : ''}`} data-status={data.status} title={data.label}>
     {Object.entries(sides).map(([side, position]) => <Fragment key={side}><Handle id={`in-${side}`} type="target" position={position} isConnectable={false} /><Handle id={`out-${side}`} type="source" position={position} isConnectable={false} /></Fragment>)}
-    {data.kind === 'platform' ? <>
-      <div className="son-hub-body"><Network size={26} strokeWidth={1.6} aria-hidden="true" /><strong>FeedX OS</strong><p>F&B operations core</p></div>
-    </> : (data.kind === 'operation-group' || group) ? <div className="son-bay-title"><Layers3 size={17} /><strong>L{data.layer + 1} · {data.label}</strong><span>{data.subtitle}</span></div> : <>
+    {data.kind === 'platform' ? <NetworkCoreNode/> : (data.kind === 'operation-group' || group) ? <div className="son-bay-title"><Layers3 size={17} /><strong>L{data.layer + 1} · {data.label}</strong><span>{data.subtitle}</span></div> : <>
       <div className="son-node-title"><span className="son-node-icon"><Icon size={group ? 25 : 22} strokeWidth={1.6} aria-hidden="true" /></span><div><span className="son-node-layer">L{data.layer + 1}{data.kind === 'workspace' ? ' · Access allowed' : ''}</span><strong>{data.label}</strong></div></div>
       {data.kind === 'workspace' ? <div className="son-workspace-bottom"><span><span className="son-mini-layer">L3</span><b>{data.modules.length}</b> operations</span><button type="button" className="nodrag nopan" aria-label={`${data.open ? 'Collapse' : 'Expand'} ${data.label}`} aria-expanded={!!data.open} onClick={event => { event.stopPropagation(); data.onToggle(toggleKey); }}>{data.open ? 'Collapse' : 'Explore'}{data.open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button></div> : <div className="son-node-footer"><span className={group ? 'son-node-summary' : 'son-status'} data-status={data.status}>{group ? data.subtitle : <><i aria-hidden="true" />{caption}</>}</span>{group && <button type="button" className="nodrag nopan" aria-label={`${data.open ? 'Collapse' : 'Expand'} ${data.label}`} aria-expanded={!!data.open} onClick={event => { event.stopPropagation(); data.onToggle(toggleKey); }}>{data.open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>}</div>}
       {!group && data.kind !== 'workspace' && <p className="son-node-subtitle">{data.subtitle}</p>}
