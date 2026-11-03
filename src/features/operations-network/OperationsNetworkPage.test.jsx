@@ -118,5 +118,5 @@ it('hides Demo and synthetic legend animation in Production while retaining Live
   expect(screen.getByRole('button',{name:'Pause motion'})).toBeTruthy();
   expect(screen.getByRole('tab',{name:'Live',exact:true})).toBeTruthy();
   fireEvent.click(screen.getByRole('button',{name:'Data Coverage',exact:true}));
-  expect(screen.getByText(/Production flow animation requires recorded execution evidence/)).toBeTruthy();
+  expect(screen.getByText(/Ambient motion visualizes structural connections only/)).toBeTruthy();
 });

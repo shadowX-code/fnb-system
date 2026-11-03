@@ -404,3 +404,7 @@
   .son-information-actions button { padding-inline: 6px; }
 }
 @media(prefers-reduced-motion:reduce) { .son-legend-particle { animation: none; } }
+
+/* Decorative structural motion stays quieter than evidence-backed execution. */
+.son-edge .son-ambient-particle { fill: #6dded5; filter: none; }
+.son-edge[data-long][data-ambient]:not([data-dimmed]):not([data-focused]) { opacity: .45; }

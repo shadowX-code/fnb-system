@@ -80,7 +80,7 @@ export function deriveNetworkFocus(graph, selectedId) {
   return { active: true, nodeIds, edgeIds };
 }
 
-// Synthetic motion is a rendering flag only. It never replaces evidence, outcomes or timestamps.
+// Motion flags are presentation only; structural ambience never becomes execution evidence.
 export function presentNetworkEdges(edges, visualDemo, selectedId = null, visibleNodeIds = [], focus = null) {
   const representatives = new Map(), visible = new Set(visibleNodeIds);
   const priority = edge => (edge.source === selectedId || edge.target === selectedId ? 10 : 0) + Number(visible.has(edge.source)) + Number(visible.has(edge.target));
@@ -90,9 +90,22 @@ export function presentNetworkEdges(edges, visualDemo, selectedId = null, visibl
     if(!representatives.has(category)) representatives.set(category,edge.id);
   }
   const demoIds=new Set([...representatives.values()].slice(0,10));
+  const executionPairs = new Set(edges.filter(edge => edge.data.kind === 'execution' && edge.data.eventId && edge.data.agentId && (edge.data.status === 'running' || edge.data.status === 'completed' && edge.data.fresh)).map(edge => JSON.stringify([edge.source, edge.target])));
+  const ambientGroups = new Map();
+  for (const edge of candidates.filter(edge => edge.data.kind === 'dependency' && !executionPairs.has(JSON.stringify([edge.source, edge.target]))).sort((a,b) => priority(b)-priority(a) || a.id.localeCompare(b.id))) {
+    if (visible.size && !visible.has(edge.source) && !visible.has(edge.target)) continue;
+    const category = `${edge.data.sourceLayer}:${edge.data.targetLayer}`;
+    if (!ambientGroups.has(category)) ambientGroups.set(category, []);
+    ambientGroups.get(category).push(edge.id);
+  }
+  // Round-robin layer pairs keeps expanded module fans from starving cross-layer paths.
+  const ambientIds = new Set(), groups = [...ambientGroups.values()];
+  for (let index = 0; ambientIds.size < 12 && groups.some(group => index < group.length); index++) {
+    for (const group of groups) if (group[index] && ambientIds.size < 12) ambientIds.add(group[index]);
+  }
   return edges.map(edge => {
     const active = !!focus?.active;
     const focused = active && focus.edgeIds.has(edge.id);
-    return { ...edge, data: { ...edge.data, demoMotion: NETWORK_DEMO_ALLOWED && !!visualDemo && demoIds.has(edge.id), focused, dimmed: active && !focused } };
+    return { ...edge, data: { ...edge.data, ambientMotion: ambientIds.has(edge.id), demoMotion: NETWORK_DEMO_ALLOWED && !!visualDemo && demoIds.has(edge.id), focused, dimmed: active && !focused } };
   });
 }

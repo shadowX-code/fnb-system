@@ -38,12 +38,13 @@ export const NetworkEdge = memo(function NetworkEdge(props) {
   const { kind, status, fresh, accent, dimmed } = props.data;
   const demoMotion = NETWORK_DEMO_ALLOWED && kind !== 'execution' && !!props.data.demoMotion;
   const executing = kind === 'execution' && !!props.data.eventId && !!props.data.agentId;
-  const moving = demoMotion || (executing && status === 'running');
+  const ambientMotion = kind === 'dependency' && !!props.data.ambientMotion && !demoMotion;
+  const moving = ambientMotion || demoMotion || (executing && status === 'running');
   const completion = executing && status === 'completed' && fresh;
   useLayoutEffect(() => {
     if (!moving && !completion) { previousDuration.current = null; return; }
     const group=groupRef.current, length=group.querySelector('.son-edge-aura').getTotalLength();
-    const duration=Math.max(.1,length/95), phase=[...props.id].reduce((sum,c)=>sum+c.charCodeAt(0),0)%17/17;
+    const duration=Math.max(.1,length/(ambientMotion ? 38 : 95)), phase=[...props.id].reduce((sum,c)=>sum+c.charCodeAt(0),0)%17/17;
     group.querySelectorAll('.son-motion-particle').forEach((particle,index)=>{
       const animation=particle.getAnimations()[0], oldDuration=previousDuration.current;
       const oldDelay=oldDuration ? -phase*oldDuration+index*.06 : 0;
@@ -54,13 +55,13 @@ export const NetworkEdge = memo(function NetworkEdge(props) {
       if(animation&&progress!==null) animation.currentTime=(progress*duration+delay)*1000;
     });
     previousDuration.current=duration;
-  },[path,moving,completion,props.id]);
+  },[path,moving,completion,ambientMotion,props.id]);
   const color = executing ? ({ pending: '#f9c872', running: '#61fff0', completed: '#8df0be', failed: '#ff819c', unknown: '#8595aa', idle: '#527b91' }[status] || '#88bbc5') : accent || '#4de9dd';
-  return <g ref={groupRef} data-long={props.data.longStructural || undefined} data-focused={!dimmed && props.data.focused || undefined} className={`son-edge son-edge-${kind}`} data-status={status} data-dimmed={dimmed || undefined} data-demo={demoMotion || undefined} style={{ '--son-edge-color': color }}>
+  return <g ref={groupRef} data-long={props.data.longStructural || undefined} data-focused={!dimmed && props.data.focused || undefined} className={`son-edge son-edge-${kind}`} data-status={status} data-dimmed={dimmed || undefined} data-demo={demoMotion || undefined} data-ambient={ambientMotion || undefined} style={{ '--son-edge-color': color }}>
     <defs><linearGradient id={`${uid}-line`} gradientUnits="userSpaceOnUse" x1={props.sourceX} y1={props.sourceY} x2={props.targetX} y2={props.targetY}><stop stopColor={color} stopOpacity=".12" /><stop offset=".5" stopColor={color} stopOpacity=".55" /><stop offset="1" stopColor={color} stopOpacity=".8" /></linearGradient><marker id={`${uid}-arrow`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke={color} strokeWidth="1.5" /></marker></defs>
     <path id={`${uid}-track`} className="son-edge-aura" d={path} /><path className="son-edge-sheath" d={path} />
     <BaseEdge id={props.id} path={path} markerEnd={`url(#${uid}-arrow)`} interactionWidth={0} style={{ stroke: `url(#${uid}-line)` }} />
-    {(moving || completion) && [0, 1, 2].map(index => <circle key={index} className={`son-motion-particle${completion && !moving ? ' son-completion-particle' : ''}`} data-motion-source={demoMotion ? 'synthetic-demo' : 'recorded-execution'} r={index === 0 ? 2.6 : index === 1 ? 1.7 : 1} style={{ offsetPath: `path('${path}')`, animationDelay: `${index * 0.075}s`, opacity: 1 - index * 0.24 }} />)}
+    {(moving || completion) && (ambientMotion ? [0] : [0, 1, 2]).map(index => <circle key={index} className={`son-motion-particle${ambientMotion ? ' son-ambient-particle' : ''}${completion && !moving ? ' son-completion-particle' : ''}`} data-motion-source={ambientMotion ? 'ambient-network' : demoMotion ? 'synthetic-demo' : 'recorded-execution'} r={ambientMotion ? 1.4 : index === 0 ? 2.6 : index === 1 ? 1.7 : 1} style={{ offsetPath: `path('${path}')`, animationDelay: `${index * 0.075}s`, opacity: ambientMotion ? .7 : 1 - index * 0.24 }} />)}
   </g>;
 });
 
