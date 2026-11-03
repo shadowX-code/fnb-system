@@ -4,8 +4,8 @@ import { NetworkEdge } from './NetworkGraph.jsx';
 
 afterEach(() => vi.restoreAllMocks());
 
-it('uses slow distance-based speed and preserves mounted particle progress through focus and route updates', () => {
-  let length = 380;
+it('uses distance-based speed and preserves mounted particle progress through focus and route updates', () => {
+  let length = 850;
   Object.defineProperty(SVGElement.prototype, 'getTotalLength', {configurable:true,value:vi.fn(() => length)});
   const clocks = new WeakMap();
   Object.defineProperty(SVGElement.prototype, 'getAnimations', {configurable:true,value:function () {
@@ -21,7 +21,7 @@ it('uses slow distance-based speed and preserves mounted particle progress throu
   rerender(<svg><NetworkEdge {...props} data={{...props.data,focused:true}}/></svg>);
   expect(container.querySelector('.son-motion-particle')).toBe(particle);
   expect(clocks.get(particle)[0].currentTime).toBe(before);
-  length = 760;
+  length = 1700;
   rerender(<svg><NetworkEdge {...props} targetY={400}/></svg>);
   expect(container.querySelector('.son-motion-particle')).toBe(particle);
   expect(particle.style.animationDuration).toBe('20s');

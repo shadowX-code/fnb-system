@@ -44,7 +44,7 @@ export const NetworkEdge = memo(function NetworkEdge(props) {
   useLayoutEffect(() => {
     if (!moving && !completion) { previousDuration.current = null; return; }
     const group=groupRef.current, length=group.querySelector('.son-edge-aura').getTotalLength();
-    const duration=Math.max(.1,length/(ambientMotion ? 38 : 95)), phase=[...props.id].reduce((sum,c)=>sum+c.charCodeAt(0),0)%17/17;
+    const duration=Math.max(.1,length/(ambientMotion ? 85 : 95)), phase=[...props.id].reduce((sum,c)=>sum+c.charCodeAt(0),0)%17/17;
     group.querySelectorAll('.son-motion-particle').forEach((particle,index)=>{
       const animation=particle.getAnimations()[0], oldDuration=previousDuration.current;
       const oldDelay=oldDuration ? -phase*oldDuration+index*.06 : 0;
@@ -61,7 +61,7 @@ export const NetworkEdge = memo(function NetworkEdge(props) {
     <defs><linearGradient id={`${uid}-line`} gradientUnits="userSpaceOnUse" x1={props.sourceX} y1={props.sourceY} x2={props.targetX} y2={props.targetY}><stop stopColor={color} stopOpacity=".12" /><stop offset=".5" stopColor={color} stopOpacity=".55" /><stop offset="1" stopColor={color} stopOpacity=".8" /></linearGradient><marker id={`${uid}-arrow`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke={color} strokeWidth="1.5" /></marker></defs>
     <path id={`${uid}-track`} className="son-edge-aura" d={path} /><path className="son-edge-sheath" d={path} />
     <BaseEdge id={props.id} path={path} markerEnd={`url(#${uid}-arrow)`} interactionWidth={0} style={{ stroke: `url(#${uid}-line)` }} />
-    {(moving || completion) && (ambientMotion ? [0] : [0, 1, 2]).map(index => <circle key={index} className={`son-motion-particle${ambientMotion ? ' son-ambient-particle' : ''}${completion && !moving ? ' son-completion-particle' : ''}`} data-motion-source={ambientMotion ? 'ambient-network' : demoMotion ? 'synthetic-demo' : 'recorded-execution'} r={ambientMotion ? 1.4 : index === 0 ? 2.6 : index === 1 ? 1.7 : 1} style={{ offsetPath: `path('${path}')`, animationDelay: `${index * 0.075}s`, opacity: ambientMotion ? .7 : 1 - index * 0.24 }} />)}
+    {(moving || completion) && [0, 1, 2].map(index => <circle key={index} className={`son-motion-particle${ambientMotion ? ' son-ambient-particle' : ''}${completion && !moving ? ' son-completion-particle' : ''}`} data-motion-source={ambientMotion ? 'ambient-network' : demoMotion ? 'synthetic-demo' : 'recorded-execution'} r={ambientMotion ? [1.5, 1, .65][index] : [2.6, 1.7, 1][index]} style={{ offsetPath: `path('${path}')`, animationDelay: `${index * 0.075}s`, opacity: 1 - index * 0.24 }} />)}
   </g>;
 });
 

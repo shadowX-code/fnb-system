@@ -89,7 +89,7 @@ function NetworkExperience({ auth, ui, store }) {
   }, [expanded]);
   const focus = useMemo(() => deriveNetworkFocus(graph, selectedId), [graph, selectedId]);
   const nodes = useMemo(() => graph.nodes.map(node => ({ ...node, data: { ...node.data, onToggle: toggleWorkspace, related: focus.active && node.id !== selectedId && focus.nodeIds.has(node.id), dimmed: focus.active && !focus.nodeIds.has(node.id) }, domAttributes: { onKeyDown: event => { if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key) && node.data.kind !== 'operation-group') { event.preventDefault(); selectNode(node.id); } } } })), [graph.nodes, focus, selectedId, toggleWorkspace, selectNode]);
-  const edges = useMemo(() => presentNetworkEdges(graph.edges, visualDemo, selectedId, visibleNodeIds, focus), [graph.edges, visualDemo, selectedId, visibleNodeIds, focus]);
+  const edges = useMemo(() => presentNetworkEdges(graph.edges, visualDemo, selectedId, visibleNodeIds, focus, canvasSize), [graph.edges, visualDemo, selectedId, visibleNodeIds, focus, canvasSize]);
   const layoutKey = `${narrow}:${graph.nodes.map(node => node.id).join('|')}`;
   function fitPrimary() { flow.fitView({ nodes: graph.primaryIds.map(id => ({ id })), padding: 0.08, duration: reducedMotion ? 0 : 240, maxZoom: 1.15 }); }
   useEffect(() => {

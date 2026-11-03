@@ -81,9 +81,13 @@ export function deriveNetworkFocus(graph, selectedId) {
 }
 
 // Motion flags are presentation only; structural ambience never becomes execution evidence.
-export function presentNetworkEdges(edges, visualDemo, selectedId = null, visibleNodeIds = [], focus = null) {
+export function ambientEdgeBudget({ width = 1200, height = 900 } = {}) {
+  return Math.max(8, Math.min(48, Math.ceil((width || 1200) * (height || 900) / 28000)));
+}
+
+export function presentNetworkEdges(edges, visualDemo, selectedId = null, visibleNodeIds = [], focus = null, canvasSize) {
   const representatives = new Map(), visible = new Set(visibleNodeIds);
-  const priority = edge => (edge.source === selectedId || edge.target === selectedId ? 10 : 0) + Number(visible.has(edge.source)) + Number(visible.has(edge.target));
+  const priority = edge => (focus?.edgeIds.has(edge.id) ? 20 : 0) + (edge.source === selectedId || edge.target === selectedId ? 10 : 0) + Number(visible.has(edge.source)) + Number(visible.has(edge.target));
   const candidates = edges.filter(edge=>edge.data.kind !== 'execution');
   for (const edge of [...candidates].sort((a,b)=>priority(b)-priority(a)||a.id.localeCompare(b.id))) {
     const category=`${edge.data.sourceLayer}:${edge.data.targetLayer}:${edge.data.kind}`;
@@ -99,9 +103,9 @@ export function presentNetworkEdges(edges, visualDemo, selectedId = null, visibl
     ambientGroups.get(category).push(edge.id);
   }
   // Round-robin layer pairs keeps expanded module fans from starving cross-layer paths.
-  const ambientIds = new Set(), groups = [...ambientGroups.values()];
-  for (let index = 0; ambientIds.size < 12 && groups.some(group => index < group.length); index++) {
-    for (const group of groups) if (group[index] && ambientIds.size < 12) ambientIds.add(group[index]);
+  const ambientIds = new Set(), groups = [...ambientGroups.values()], budget = ambientEdgeBudget(canvasSize);
+  for (let index = 0; ambientIds.size < budget && groups.some(group => index < group.length); index++) {
+    for (const group of groups) if (group[index] && ambientIds.size < budget) ambientIds.add(group[index]);
   }
   return edges.map(edge => {
     const active = !!focus?.active;
