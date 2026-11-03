@@ -17,6 +17,8 @@ import FactoryAgentActions from './FactoryAgentActions.jsx';
 import AgentActivityTimeline from './AgentActivityTimeline.jsx';
 import {capabilityDomain,actionTypeCounts,agentWorkspaceLabel,capabilityWorkspaceLabel} from '../../components/permissions/capabilityActions.js';
 import "./externalAgents.css";
+import NativeAssistantSettings from "./NativeAssistantSettings.jsx";
+import { ASSISTANT_STAGING_ALLOWED } from "../ai-assistant/assistantEnvironment.js";
 
 const labels = { active: "Active", expired: "Expired", revoked: "Revoked", mcp_observed: "Connected", not_observed: "Not Connected", disabled: "Disabled", success: "Completed", failed: "Failed", denied: "Access denied" };
 const tone = (state) => ["active", "mcp_observed", "success"].includes(state) ? "success" : ["revoked", "denied", "failed"].includes(state) ? "danger" : state === "expired" ? "warning" : "neutral";
@@ -144,7 +146,8 @@ export default function ExternalAgentsPage({ auth }) {
   ];
   if (!canView) return <div className="card p-5" role="alert">Role Settings view permission is required to view external agents.</div>;
   return <div className="external-agents space-y-4">
-    <PageHeader title="AI Integrations" breadcrumbs={[{ label: "System" }, { label: "AI Integrations" }]} description="Control what external agents can access and review their activity." actions={<><button className="btn-secondary" type="button" disabled={loading || busy} onClick={load}><RefreshCw size={15} /> Refresh</button>{canCreate && canEdit && data?.can_register && <button className="btn-primary" type="button" disabled={busy || loading || !catalog.length} onClick={() => { setError(""); setConnection({ name: "", provider: "", adapter: catalog[0].key, tools: [], requestId: crypto.randomUUID(), validity: catalog[0].credential_policy?.default_days || 90 }); }}><Plus size={15} /> Connect agent</button>}</>} />
+    <PageHeader title="AI Integrations" breadcrumbs={[{ label: "System" }, { label: "AI Integrations" }]} description="Manage Native Assistant connectivity and external agent access." actions={<><button className="btn-secondary" type="button" disabled={loading || busy} onClick={load}><RefreshCw size={15} /> Refresh</button>{canCreate && canEdit && data?.can_register && <button className="btn-primary" type="button" disabled={busy || loading || !catalog.length} onClick={() => { setError(""); setConnection({ name: "", provider: "", adapter: catalog[0].key, tools: [], requestId: crypto.randomUUID(), validity: catalog[0].credential_policy?.default_days || 90 }); }}><Plus size={15} /> Connect agent</button>}</>} />
+    {ASSISTANT_STAGING_ALLOWED && <NativeAssistantSettings auth={auth} />}
     {!selected && !connection && error && <div role="alert" className="external-agent-notice">{error} <button type="button" className="btn-secondary" onClick={load}>Retry</button></div>}
     <div className="external-agent-toolbar"><AdminSearchField label="Search agents" placeholder="Name, provider or workspace" value={search} onChange={setSearch} /></div>
     <div className="external-agent-surface">{loading ? <p role="status" className="p-5 text-sm text-text-secondary">Loading agents…</p> : rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} density="compact" minWidth={900} mobileLayout="stack" /> : <p className="p-5 text-sm text-text-secondary">{error && !data ? "Agents could not be loaded. Refresh to try again." : search ? "No agents match your search." : "No external agents are connected yet."}</p>}</div>

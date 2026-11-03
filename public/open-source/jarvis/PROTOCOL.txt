@@ -1,0 +1,17 @@
+FeedX Assistant generic text protocol v1 — 2026-11-04
+This description accompanies the GPL-3.0 standalone HUD source. The HUD is not
+linked/imported into the proprietary host and may be run alone. Another host
+may independently implement this ordinary serialized text API.
+Envelope: protocol="feedx.assistant.text.v1".
+Child -> parent: action ready, new, history(session_id), send(session_id,text),
+cancel; request_id UUID, max text 2000 chars. No other keys accepted.
+Parent validates exact iframe window, opaque origin null and allowed fields.
+Parent -> child: type host-ready/reset/bootstrap, sessions, history, resume,
+state(thinking), result(reply), error(code,message), cancelled.
+Child validates parent window and canonical Staging host origin. Opaque child
+requires parent targetOrigin=* to its exact window; only safe text/session/status
+cross. No credentials, auth, settings, code, tools or renderer internals cross.
+HTTP is host-only; child CSP connect-src none. Thinking follows accepted turn;
+result requires real completed provider output. Text completion returns Idle,
+never Speaking. Error is non-speaking idle-shaped. New/cancel/session switches
+fence stale replies. Voice/tools remain unavailable; visuals are decorative.

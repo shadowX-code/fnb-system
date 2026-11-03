@@ -1215,3 +1215,7 @@ Added fixed Restaurant P&L/asset/inventory read and business-action mappings to 
 ## 2026-11-03 — Staging AI Assistant Web entry
 
 Added the authenticated global Admin AI Assistant system route and independent, source-distributed GPL Jarvis browser HUD. The page preserves workspace navigation, reuses shared header/fullscreen patterns and exposes explicitly unavailable LLM/STT/TTS/tool states, bounded tab-only request history and voice controls. No remote provider, local broker, Admin credential, Agent grant or business-data path was connected. Corresponding source, modification notices and distribution boundaries are documented in `docs/architecture/platform.md`. Staging-only delivery; no Production release.
+
+
+### 2026-11-04 — Native Assistant Phase 1A (Staging)
+Added compact AI Integrations provider settings, dedicated approval-only server reference and user-owned bounded text sessions. Independent GPL HUD uses a fixed text protocol with complete modified source/notices distributed. Domain keys, Agent grants, voice and business tools stay isolated; unavailable authorization fails closed. Fixture tests are distinct from actual provider conversation. Canonical owners: platform and trusted-authorities.

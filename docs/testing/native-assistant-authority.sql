@@ -1,0 +1,47 @@
+begin;
+do $$
+declare a uuid;b uuid;u record;r jsonb;s uuid;t uuid;l uuid;rid uuid:=gen_random_uuid();c jsonb; denied boolean; check_count integer:=0;
+begin
+ if has_function_privilege('anon','public.native_assistant_service(uuid,text,jsonb)','execute') or has_function_privilege('authenticated','public.native_assistant_service(uuid,text,jsonb)','execute') then raise exception 'browser dispatcher access';end if;
+ if has_table_privilege('authenticated','feedx_integrations.native_assistant_sessions','select') or has_table_privilege('authenticated','feedx_integrations.native_assistant_requests','insert') then raise exception 'direct browser table access';end if;
+ for u in select id,email from auth.users loop
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',u.id,'role','authenticated','email',u.email)::text,true);perform set_config('request.jwt.claim.sub',u.id::text,true);
+  if public.current_user_role_id() is not null then
+   if a is null and public.current_user_has_permission('roles.view') and public.current_user_has_permission('roles.edit') then a:=u.id;
+   elsif b is null then b:=u.id;end if;
+  end if;
+ end loop;
+ if a is null then raise exception 'No active settings Admin available for QA';end if;
+ if b is null then raise exception 'Second active Admin unavailable; cross-user QA cannot pass';end if;
+ denied:=false;begin perform set_config('request.jwt.claims','{"role":"service_role"}',true);perform public.native_assistant_service(gen_random_uuid(),'status');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'invalid actor accepted';end if;check_count:=check_count+1;
+ perform set_config('request.jwt.claims','{"role":"authenticated"}',true);denied:=false;begin perform public.native_assistant_service(a,'status');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'service gate failed';end if;check_count:=check_count+1;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);c:=(public.native_assistant_service(a,'configuration'))->'config';
+ denied:=false;begin perform set_config('request.jwt.claims','{"role":"service_role"}',true);perform public.native_assistant_service(a,'configure',jsonb_build_object('expected_revision',c->'revision','provider','openai','model',c->>'model','credential_ref','native-assistant-openai','enabled',true));exception when object_not_in_prerequisite_state then denied:=true;end;if not denied then raise exception 'untested enable allowed';end if;check_count:=check_count+1;
+ denied:=false;begin perform set_config('request.jwt.claims','{"role":"service_role"}',true);perform public.native_assistant_service(a,'test_record',jsonb_build_object('provider_revision',c->'provider_revision','outcome','verified','turn_id',gen_random_uuid()));exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'fake success accepted';end if;check_count:=check_count+1;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'session_new');s:=(r->>'session_id')::uuid;
+ if b is not null then denied:=false;begin perform set_config('request.jwt.claims','{"role":"service_role"}',true);perform public.native_assistant_service(b,'history',jsonb_build_object('session_id',s));exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'cross-user history accepted';end if;check_count:=check_count+1;end if;
+ -- Transaction-only fixture. Never a real provider result, never retained.
+ update feedx_integrations.native_assistant_config set enabled=true;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'begin',jsonb_build_object('session_id',s,'request_id',rid,'text','QA fixture only'));t:=(r->>'turn_id')::uuid;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'begin',jsonb_build_object('session_id',s,'request_id',rid,'text','QA fixture only'));if not (r->>'replayed')::boolean then raise exception 'retry not idempotent';end if;check_count:=check_count+1;
+ denied:=false;begin perform set_config('request.jwt.claims','{"role":"service_role"}',true);perform public.native_assistant_service(a,'begin',jsonb_build_object('session_id',s,'request_id',rid,'text','changed'));exception when serialization_failure then denied:=true;end;if not denied then raise exception 'retry payload mismatch accepted';end if;check_count:=check_count+1;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'claim',jsonb_build_object('session_id',s,'turn_id',t));l:=(r->>'lease_id')::uuid;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'claim',jsonb_build_object('session_id',s,'turn_id',t));if r ? 'lease_id' then raise exception 'duplicate claim leased';end if;check_count:=check_count+1;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);perform public.native_assistant_service(a,'cancel',jsonb_build_object('session_id',s,'turn_id',t));
+ denied:=false;begin perform set_config('request.jwt.claims','{"role":"service_role"}',true);perform public.native_assistant_service(a,'finish',jsonb_build_object('session_id',s,'turn_id',t,'lease_id',l,'reply','must not persist'));exception when serialization_failure then denied:=true;end;if not denied then raise exception 'late cancelled finish accepted';end if;check_count:=check_count+1;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'begin',jsonb_build_object('session_id',s,'request_id',gen_random_uuid(),'text','QA fixture second'));t:=(r->>'turn_id')::uuid;perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'claim',jsonb_build_object('session_id',s,'turn_id',t));l:=(r->>'lease_id')::uuid;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'finish',jsonb_build_object('session_id',s,'turn_id',t,'lease_id',l,'reply','QA fixture, not a model reply'));if r->>'input_tokens' is not null then raise exception 'unknown usage invented';end if;check_count:=check_count+1;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'cancel',jsonb_build_object('session_id',s,'turn_id',t));if r->>'state'<>'completed' then raise exception 'completed reply falsely cancelled';end if;check_count:=check_count+1;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'begin',jsonb_build_object('session_id',s,'request_id',gen_random_uuid(),'text','QA fixture context'));t:=(r->>'turn_id')::uuid;perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'claim',jsonb_build_object('session_id',s,'turn_id',t));if jsonb_array_length(r->'context')<>1 then raise exception 'invalid completed context';end if;check_count:=check_count+1;l:=(r->>'lease_id')::uuid;
+ update feedx_integrations.native_assistant_config set provider_revision=provider_revision+1;
+ denied:=false;begin perform set_config('request.jwt.claims','{"role":"service_role"}',true);perform public.native_assistant_service(a,'finish',jsonb_build_object('session_id',s,'turn_id',t,'lease_id',l,'reply','stale'));exception when serialization_failure then denied:=true;end;if not denied then raise exception 'stale config finish accepted';end if;check_count:=check_count+1;
+
+ update feedx_integrations.native_assistant_requests set lease_expires_at=now()-interval '1 second' where id=t;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);r:=public.native_assistant_service(a,'turn_status',jsonb_build_object('session_id',s,'turn_id',t));if r->>'error_code'<>'request_timeout' then raise exception 'expired lease not fenced';end if;check_count:=check_count+1;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);denied:=false;begin perform public.native_assistant_service(a,'configure',jsonb_build_object('expected_revision',999999,'provider','openai','model','gpt-4o-mini','credential_ref','native-assistant-openai','enabled',false));exception when serialization_failure then denied:=true;end;if not denied then raise exception 'stale configuration saved';end if;check_count:=check_count+1;
+ update feedx_integrations.native_assistant_requests set created_at=now()-interval '2 minutes',reserved_tokens=100001 where session_id=s;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);denied:=false;begin perform public.native_assistant_service(a,'begin',jsonb_build_object('session_id',s,'request_id',gen_random_uuid(),'text','budget fixture'));exception when program_limit_exceeded then denied:=true;end;if not denied then raise exception 'daily token budget exceeded';end if;check_count:=check_count+1;
+ raise notice 'Native Assistant authority fixture checks passed: %, second active Admin available: % (ROLLBACK follows)',check_count,b is not null;
+end$$;
+rollback;
+select count(*) as persisted_turns_after_rollback from feedx_integrations.native_assistant_requests;
