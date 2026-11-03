@@ -27,5 +27,5 @@ Deno.serve(async request=>{
   const raw=await request.text();if(new TextEncoder().encode(raw).length>16000)return json({error:'request_too_large'},413);
   let body;try{body=JSON.parse(raw);}catch{return json({error:'invalid_request'},400);}
   return json(await dispatch(body,{rpc,get:(name:string)=>Deno.env.get(name),signal:request.signal}));
- }catch(cause){return json({error:cause instanceof AssistantError?cause.code:'assistant_unavailable'},cause instanceof AssistantError?cause.status:503);}
+ }catch(cause){return json({error:cause instanceof AssistantError?cause.code:'assistant_unavailable',...(cause instanceof AssistantError&&cause.diagnostic?{diagnostic:cause.diagnostic}:{})},cause instanceof AssistantError?cause.status:503);}
 });

@@ -23,3 +23,19 @@ test('provider rejection classification never returns raw messages or unrecogniz
 test('oversized error bodies are discarded and fall back to sanitized HTTP classification',async()=>{
  await assert.rejects(generateText(claim,'fixture-key',{transport:async()=>new Response('secret'.repeat(4000),{status:403})}),{code:'provider_permission_denied'});
 });
+test('401 missing Responses scope is permission denial, not invalid key; diagnostics contain no raw message',async()=>{
+ const body={error:{code:null,type:'invalid_request_error',message:'You have insufficient permissions. Missing scopes: api.responses.write. secret fixture-key-do-not-leak'}};
+ await assert.rejects(generateText(claim,'fixture-key-do-not-leak',{transport:async()=>new Response(JSON.stringify(body),{status:401})}),e=>{
+  assert.equal(e.code,'provider_permission_denied');assert.deepEqual(e.diagnostic,{source:'openai',http_status:401,provider_error_code:null,provider_error_type:'invalid_request_error',endpoint:'https://api.openai.com/v1/responses',model:'gpt-4o-mini',missing_permissions:['api.responses.write']});
+  assert(!JSON.stringify(e.diagnostic).includes('fixture-key'));assert(!JSON.stringify(e.diagnostic).includes('You have'));return true;
+ });
+});
+test('bare 401 never confirms invalid_api_key; unknown upstream identifiers are redacted',async()=>{
+ await assert.rejects(generateText(claim,'fixture-key',{transport:async()=>new Response(JSON.stringify({error:{code:null,type:'authentication_error',message:'private details'}}),{status:401})}),e=>e.code==='provider_authentication_rejected'&&e.diagnostic.provider_error_code===null);
+ await assert.rejects(generateText(claim,'fixture-key',{transport:async()=>new Response(JSON.stringify({error:{code:'secret_value',type:'secret_type',message:'private details'}}),{status:400})}),e=>e.code==='provider_rejected'&&e.diagnostic.provider_error_code==='unrecognized_redacted'&&e.diagnostic.provider_error_type==='unrecognized_redacted');
+});
+test('local malformed credential fails before upstream and uses distinct format error',async()=>{
+ assert.equal(connection(config,k=>k==='NATIVE_ASSISTANT_OPENAI_API_KEY'?'fixture\nkey':get(k)).blocker,'provider_credential_format_invalid');
+ const actions=[];const r=await dispatch({action:'test',request_id:'10000000-0000-4000-8000-000000000001'},{get:k=>k==='NATIVE_ASSISTANT_OPENAI_API_KEY'?'fixture\nkey':get(k),rpc:async a=>{actions.push(a);return {config};},transport:()=>{throw Error('upstream must not be called');}});
+ assert.equal(r.outcome,'unavailable');assert.equal(r.code,'provider_credential_format_invalid');assert(!actions.includes('test_begin'));
+});
