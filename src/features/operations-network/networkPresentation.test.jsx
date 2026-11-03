@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { NetworkEdge } from './NetworkGraph.jsx';
 import { buildNetwork } from './networkModel.js';
-import { deriveNetworkFocus, presentNetworkEdges } from './networkPresentation.js';
+import { ambientEdgeBudget, deriveNetworkFocus, presentNetworkEdges } from './networkPresentation.js';
 
 const modules = ['restaurant','factory','hr','crew','finance','marketing','guest_ai'].flatMap(workspace => Array.from({length: 5},(_,i)=>({id:`${workspace}-${i}`,label:`${workspace} operation ${i}`,workspace,section:'Operations'})));
 const overlap = (a,b) => a.position.x < b.position.x+b.width && a.position.x+a.width > b.position.x && a.position.y < b.position.y+b.height && a.position.y+a.height > b.position.y;
@@ -87,7 +87,7 @@ describe('decorative ambient flow', () => {
     const pairs = list => new Set(list.map(edge => `${edge.data.sourceLayer}:${edge.data.targetLayer}`));
     expect(pairs(ambient)).toEqual(pairs(graph.edges.filter(edge => edge.data.kind === 'dependency')));
     expect(ambient.length).toBeGreaterThan(1);
-    expect(ambient.length).toBeLessThanOrEqual(12);
+    expect(ambient.length).toBeLessThanOrEqual(ambientEdgeBudget());
     expect(ambient.every(edge => edge.data.kind === 'dependency' && !edge.data.demoMotion)).toBe(true);
     expect(JSON.stringify(graph)).toBe(original);
     expect(presentNetworkEdges(graph.edges, false)).toEqual(edges);
@@ -105,11 +105,27 @@ describe('decorative ambient flow', () => {
   it('renders a small ambient particle on the routed structural path, never on authorization or as execution', () => {
     const render = kind => renderToStaticMarkup(<svg><NetworkEdge id="ambient" sourceX={0} sourceY={0} targetX={250} targetY={200} sourcePosition="bottom" targetPosition="top" data={{kind,ambientMotion:true,routePoints:[{x:0,y:0},{x:0,y:100},{x:250,y:100},{x:250,y:200}]}}/></svg>);
     const output = render('dependency');
-    expect((output.match(/class="son-motion-particle/g)||[])).toHaveLength(1);
+    expect((output.match(/class="son-motion-particle/g)||[])).toHaveLength(3);
     expect(output).toContain('data-motion-source="ambient-network"');
-    expect(output).toContain('r="1.4"');
+    expect(output).toContain('r="1.5"');
     expect(output).toContain('offset-path:path(');
     expect(output).not.toContain('recorded-execution');
     expect(render('authorization')).not.toContain('son-motion-particle');
   });
+});
+
+
+it('scales the ambient budget to viewport area while reserving every eligible layer pair and focus ancestry', () => {
+  const pairs = [[0,1],[1,2],[2,2],[0,4],[3,4]];
+  const edges = pairs.flatMap(([sourceLayer,targetLayer],group) => Array.from({length:25},(_,i) => ({id:`${group}-${i}`,source:`s${group}`,target:`t${i}`,data:{kind:'dependency',sourceLayer,targetLayer}})));
+  const selectedId = 't24', focus = {active:true,nodeIds:new Set(),edgeIds:new Set(['0-24','1-24','2-24'])};
+  const narrow = {width:383,height:630}, desktop = {width:1464,height:900};
+  const moving = size => presentNetworkEdges(edges,false,selectedId,[],focus,size).filter(edge => edge.data.ambientMotion);
+  expect(moving(narrow)).toHaveLength(ambientEdgeBudget(narrow));
+  expect(moving(desktop).length).toBeGreaterThan(12);
+  expect(moving(desktop)).toHaveLength(ambientEdgeBudget(desktop));
+  expect(ambientEdgeBudget({width:10000,height:10000})).toBe(48);
+  expect(ambientEdgeBudget({width:200,height:200})).toBe(8);
+  expect(new Set(moving(narrow).map(e => `${e.data.sourceLayer}:${e.data.targetLayer}`)).size).toBe(pairs.length);
+  expect(moving(narrow).filter(e => focus.edgeIds.has(e.id))).toHaveLength(3);
 });

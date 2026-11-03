@@ -406,5 +406,8 @@
 @media(prefers-reduced-motion:reduce) { .son-legend-particle { animation: none; } }
 
 /* Decorative structural motion stays quieter than evidence-backed execution. */
-.son-edge .son-ambient-particle { fill: #6dded5; filter: none; }
-.son-edge[data-long][data-ambient]:not([data-dimmed]):not([data-focused]) { opacity: .45; }
+.son-edge .son-ambient-particle { fill: #d2fff4; }
+.son-edge[data-ambient]:not([data-dimmed]) { opacity: 1; }
+.son-edge[data-long][data-ambient]:not([data-focused]) .react-flow__edge-path { opacity: .35; }
+.son-edge[data-ambient][data-dimmed] { opacity: .4; }
+.son-edge[data-ambient][data-focused] .son-ambient-particle { fill: #fff; filter: drop-shadow(0 0 3px #68f7e6); }
