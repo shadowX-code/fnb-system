@@ -577,7 +577,7 @@ function AdminApp() {
 
   function navigate(routeId) {
     const canonicalId = canonicalRouteId(routeId);
-    if (canonicalId === "operations_network" && activeRouteId !== canonicalId) {
+    if (["operations_network", "ai_assistant"].includes(canonicalId) && !["operations_network", "ai_assistant"].includes(activeRouteId)) {
       const previous = currentAdminLocation();
       try { sessionStorage.setItem("feedx.network.return", JSON.stringify({ definitionId: previous?.definitionId, routeId: previous?.routeId, params: previous?.params, query: previous?.query })); } catch { /* Navigation still works without saved preferences. */ }
     }
@@ -588,7 +588,7 @@ function AdminApp() {
   function returnFromNetwork() {
     let previous;
     try { previous = JSON.parse(sessionStorage.getItem("feedx.network.return") || "null"); } catch { /* Fall back to an accessible workspace page. */ }
-    if (previous?.routeId !== "operations_network" && accessibleRoutes.some(route => route.id === previous?.routeId)) {
+    if (!["operations_network", "ai_assistant"].includes(previous?.routeId) && accessibleRoutes.some(route => route.id === previous?.routeId)) {
       setActiveRouteId(previous.routeId);
       navigateAdminRoute(previous.definitionId || previous.routeId, previous.params || {}, previous.query || {});
       return;

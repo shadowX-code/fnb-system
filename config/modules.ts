@@ -1318,6 +1318,7 @@ export const moduleRegistry: AppModule[] = [
     workspace: "crew",
     permissions: {},
   },
+  { id: "ai_assistant", section: "System", label: "AI Assistant", route: "/system/ai-assistant", sidebar: false, permissions: {}, readPermission: "" },
   { id: "operations_network", section: "System", label: "Smart Operations Network", route: "/system/operations-network", sidebar: false, permissions: {}, readPermission: "" },
 ];
 

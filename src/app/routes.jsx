@@ -1,4 +1,5 @@
 import { lazy } from "react";
+const AiAssistantPage = lazy(() => import("../features/ai-assistant/AiAssistantPage.jsx"));
 const OperationsNetworkPage = lazy(() => import("../features/operations-network/OperationsNetworkPage.jsx"));
 const CreatorsPage = lazy(() => import("../features/marketing/CreatorsPage.jsx"));
 const PlanningInsightsPage = lazy(() => import("../features/marketing/PlanningInsightsPage.jsx"));
@@ -78,6 +79,7 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 }
 
 export const routeDetails = {
+  ai_assistant: { component: AiAssistantPage, permission: "", description: "Isolated Staging AI conversation interface with explicit service availability." },
   operations_network: { component: OperationsNetworkPage, permission: "", description: "Read-only network of accessible FeedX modules and recorded operational evidence." },
   hr_dashboard: { component: HrDashboardPage, description: "Scoped People, recruitment and Payroll preparation overview." },
   external_agents: { component: ExternalAgentsPage, permission: "roles.view OR roles_permissions.view", description: "External Agent Gateway connections, credentials and safe access history." },

@@ -101,7 +101,7 @@ const canonicalPathByModuleId = Object.freeze({
 });
 
 function routeDomain(module) {
-  if (["roles", "external_agents", "operations_network"].includes(module.id)) return "system";
+  if (["roles", "external_agents", "operations_network", "ai_assistant"].includes(module.id)) return "system";
   if (moduleWorkspace(module) === "hr") return "people";
   if (moduleWorkspace(module) === "marketing") return "marketing";
   if (moduleWorkspace(module) === "finance") return "finance";

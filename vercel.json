@@ -1,6 +1,17 @@
 {
   "routes": [
     {
+      "src": "/open-source/jarvis/(.*)",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Cross-Origin-Resource-Policy": "cross-origin",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; script-src 'self' https://fnb-system-staging.vercel.app/open-source/jarvis/ 'unsafe-inline'; style-src 'self' https://fnb-system-staging.vercel.app/open-source/jarvis/ 'unsafe-inline'; font-src 'self' https://fnb-system-staging.vercel.app/open-source/jarvis/; img-src 'self' data:; connect-src 'none'; media-src 'none'; object-src 'none'; worker-src 'none'; frame-ancestors 'self'; form-action 'none'; base-uri 'self'",
+        "Cache-Control": "no-cache"
+      },
+      "continue": true
+    },
+    {
       "src": "/privacy/?",
       "dest": "/privacy.html",
       "has": [

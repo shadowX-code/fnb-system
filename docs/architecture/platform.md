@@ -48,6 +48,16 @@ Do not force-push `main` or `dev` during routine integration or cleanup. Reconci
 
 ## Workspace Ownership
 
+### AI Assistant Staging Web Surface
+
+`/system/ai-assistant` (`ai_assistant`) is an authenticated Admin system surface entered alongside Smart Operations Network. It preserves the current workspace/sidebar and shares the Network return-to-workspace navigation context. The entry and immersive program are enabled only for the exact canonical Staging data identity; they do not add business permissions, provider authority, Agent identities or grants.
+
+The React page uses the shared PageHeader and fullscreen behavior. The Jarvis HUD is an independently usable GPL-3.0 browser program under `/open-source/jarvis/`, never imported into the proprietary bundle. Its iframe has `allow-scripts allow-downloads` only, an opaque origin, no parent messaging, no browser credential/storage access and explicitly denied microphone/camera. Only its public static assets permit anonymous CORS; their own CSP denies all connections and forms. The application never exposes the local Python runtime/broker or transfers Admin JWTs or business data to the HUD. This is an engineering isolation boundary, not a general legal conclusion about future combinations.
+
+Browser recipients receive the GPL licence, upstream/dependency notices, dated modifications, preferred unminified source and exact downloadable `source.zip` for every shipped version. The distribution manifest pins all runtime files. Source may be modified and redistributed under its own licence without proprietary FeedX restrictions. Restricted film voice, model weights, non-commercial wake models and upstream plugins are excluded. Rebuild the archive after any standalone-program edit and verify its content hashes before delivery.
+
+The original pinned Jarvis shader/particle renderer remains; the Web adaptation adds responsive controls and uses the pilot session/request UUID and stale-request boundary. It does not add a second LLM/session engine. Until a separately approved server-side service exists, LLM, STT, TTS and FeedX tools are explicitly unavailable. Text input only records a bounded request history in the isolated frame's memory (six conversations, twenty requests each); reload clears it and no AI response is invented. No messages leave the frame. Local Whisper/Kokoro availability does not establish Web availability. Pause, reduced motion and inactive-document suspension affect only decorative Core motion. Any future service transport, persisted session or parent messaging requires renewed authorization, data-boundary and GPL review.
+
 ### Smart Operations Network
 
 `/system/operations-network` (`operations_network`) is a lazy, read-only Admin observability surface, entered from the shared header in every Admin workspace. It preserves the selected workspace/sidebar and saves the previous canonical route, parameters and product query for Return to workspace; an inaccessible saved route falls back to the current accessible navigation. It is not another workspace or permission grant. Its module nodes derive from `config/modules.ts` and the composed runtime route permissions, including workspace gates and compatibility ownership. Hidden modules, relationships and counts are excluded before graph construction.

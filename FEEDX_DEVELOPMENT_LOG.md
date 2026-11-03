@@ -1210,3 +1210,8 @@ Separated administrative autonomous actions, source/evidence-conditional indepen
 ## Restaurant Agent Capability Extension (implementation)
 
 Added fixed Restaurant P&L/asset/inventory read and business-action mappings to the existing Gateway, with canonical role outlet scope, shared business bodies, typed machine lifecycle attribution and existing request/Activity authority. New grants remain opt-in. Delivery requires all seven Restaurant migrations, the matching Gateway and authenticated Staging acceptance; implementation alone is not runtime completion.
+
+
+## 2026-11-03 — Staging AI Assistant Web entry
+
+Added the authenticated global Admin AI Assistant system route and independent, source-distributed GPL Jarvis browser HUD. The page preserves workspace navigation, reuses shared header/fullscreen patterns and exposes explicitly unavailable LLM/STT/TTS/tool states, bounded tab-only request history and voice controls. No remote provider, local broker, Admin credential, Agent grant or business-data path was connected. Corresponding source, modification notices and distribution boundaries are documented in `docs/architecture/platform.md`. Staging-only delivery; no Production release.

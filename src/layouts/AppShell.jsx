@@ -1,4 +1,5 @@
 import "../components/layout/workspace.css";
+import { ASSISTANT_STAGING_ALLOWED } from "../features/ai-assistant/assistantEnvironment.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeftRight, BarChart3, Bell, Bot, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Clock3, Download, Eye, EyeOff, Factory, FileText, FlaskConical, Gauge, KeyRound, LogOut, Link2, Menu, MessageSquareText, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Share2, Shield, ShieldCheck, ShoppingCart, Sparkles, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
 import useNotificationSound from '../components/notifications/useNotificationSound.js';
@@ -1475,10 +1476,11 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
             >
               <Menu size={18} />
             </button>
-            <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <button type="button" className="son-global-entry" onClick={() => onNavigate('operations_network')} aria-current={activeRouteId === 'operations_network' ? 'page' : undefined} title="Explore accessible operations and recorded evidence. Live refresh runs while the Network is open.">
                 <Share2 size={17} aria-hidden="true" /><span>Smart Operations Network</span><span>Live</span>
               </button>
+              {ASSISTANT_STAGING_ALLOWED && <button type="button" className="son-global-entry" onClick={() => onNavigate("ai_assistant")} aria-current={activeRouteId === "ai_assistant" ? "page" : undefined} title="Open AI Assistant. Service availability is shown inside."><Bot size={17} aria-hidden="true" /><span>AI Assistant</span></button>}
             </div>
             <div className="relative ml-auto flex items-center gap-2">
               <button
