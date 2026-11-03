@@ -1228,6 +1228,7 @@ export const moduleRegistry: AppModule[] = [
     workspace: "crew",
     permissions: {},
   },
+  { id: "operations_network", section: "System", label: "Smart Operations Network", route: "/system/operations-network", sidebar: false, permissions: {}, readPermission: "" },
 ];
 
 

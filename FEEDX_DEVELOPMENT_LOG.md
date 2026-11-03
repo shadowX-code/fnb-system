@@ -915,3 +915,10 @@ Added fixed Restaurant P&L/asset/inventory read and business-action mappings to 
 ## 2026-11-02 — Scoped New Crew Onboarding Production candidate
 
 Prepared the verified Onboarding Builder/Overview/Preview/Progress scope from Staging on current Production main, with atomic Draft migrations 20261102073413 and 20261102080643. Production catalog guards, transactional rehearsal, exact migration selection, focused integration checks and learning-evidence fingerprints govern cutover; unrelated dev changes remain excluded. See docs/releases/2026-11-02-new-crew-onboarding-production.md.
+
+
+### 2026-11-03 — Smart Operations Network scoped Production release
+
+Prepared the validated read-only Network, shared header entry and canonical route on the current Production baseline. The only new runtime dependency is React Flow and its required dependency closure. Demo is restricted by build data identity to Staging/local development; Production ignores synthetic flags at UI, edge projection and rendering, and keeps the legend static. Existing permission/scoped read adapters remain authoritative; no schema, RPC, credential or business-data mutation is included.
+
+Source: canonical Staging `9c94d8bef88b8b0ca34feb53ba86921cc10efe4e`; Production baseline `d953acaa5892c5ca83fdec33f866bcfa6a54f462`. Isolated candidate verification: 109 targeted Network, routing, lazy-loading and shared-control tests plus a Production-identity build passed. The broad route-completeness fixture also fails on unchanged main because its internal-module list is stale; it is outside this release.
