@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import AiAssistantPage from './AiAssistantPage.jsx';
 import { assistantStagingAllowed } from './assistantEnvironment.js';
+import { accessibleNetworkModules } from '../operations-network/networkModel.js';
 import { moduleRegistry } from '../../../config/modules.ts';
 import { getAdminRouteDefinition } from '../../app/routeOwnership.js';
 vi.mock('./assistantEnvironment.js', async importOriginal => ({...await importOriginal(), ASSISTANT_STAGING_ALLOWED:true}));
@@ -12,6 +13,7 @@ afterEach(()=>{document.body.innerHTML='';vi.unstubAllGlobals();});
 it('owns one Admin system entry and enables only the canonical Staging data identity',()=>{
   expect(moduleRegistry.find(m=>m.id==='ai_assistant')).toMatchObject({route:'/system/ai-assistant',sidebar:false,permissions:{}});
   expect(getAdminRouteDefinition('ai_assistant').ownership.domain).toBe('system');
+  expect(accessibleNetworkModules([{id:'ai_assistant',permission:''}],{hasPermission:()=>true}).some(m=>m.id==='ai_assistant')).toBe(false);
   expect(assistantStagingAllowed('https://ujkzdaaadnvcfayuldmh.supabase.co')).toBe(true);
   for(const url of [undefined,'https://oyfobxdoyfuzsodogpgs.supabase.co','https://ujkzdaaadnvcfayuldmh.supabase.co?assistant=true'])expect(assistantStagingAllowed(url)).toBe(false);
 });
@@ -44,7 +46,7 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
 });
 it('distributes editable GPL source and denies network connections for this static program',()=>{
   const config=JSON.parse(readFileSync('vercel.json','utf8'));const boundary=config.routes.find(r=>r.src==='/open-source/jarvis/(.*)');
-  expect(boundary.headers['Access-Control-Allow-Origin']).toBe('*');expect(boundary.headers['Content-Security-Policy']).toContain("connect-src 'none'");
+  expect(boundary.headers['Access-Control-Allow-Origin']).toBe('*');expect(boundary.headers['Content-Security-Policy']).toContain('frame-ancestors https://fnb-system-staging.vercel.app');expect(boundary.headers['Content-Security-Policy']).toContain("connect-src 'none'");
   expect(readFileSync('public/open-source/jarvis/LICENSE.txt','utf8')).toContain('GNU GENERAL PUBLIC LICENSE');
   expect(readFileSync('public/open-source/jarvis/source.zip').length).toBeGreaterThan(10000);
   const page=readFileSync('src/features/ai-assistant/AiAssistantPage.jsx','utf8');expect(page).not.toMatch(/from.*open-source|postMessage/);

@@ -594,7 +594,7 @@ function AdminApp() {
       return;
     }
     const fallback = accessibleSections.flatMap(section => section.items).find(item => item.type !== "label");
-    navigate(fallback?.id || accessibleRoutes.find(route => route.id !== "operations_network")?.id || "operations_network");
+    navigate(fallback?.id || accessibleRoutes.find(route => !["operations_network", "ai_assistant"].includes(route.id))?.id || "operations_network");
   }
 
   function handleWorkspaceChange(nextWorkspace) {

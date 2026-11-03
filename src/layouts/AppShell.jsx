@@ -1465,7 +1465,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
 
       <div className="admin-shell-body lg:pl-[236px]">
         <header className="admin-shell-utility sticky top-0 z-20 border-b border-border bg-app-bg/95 backdrop-blur">
-          <div className="flex h-11 items-center justify-between gap-4 px-4 sm:px-5 lg:px-6">
+          <div className="flex min-h-11 items-center justify-between gap-2 px-4 py-1.5 sm:h-11 sm:gap-4 sm:px-5 sm:py-0 lg:px-6">
             <button
               ref={mobileMenuButtonRef}
               className="icon-btn lg:hidden"

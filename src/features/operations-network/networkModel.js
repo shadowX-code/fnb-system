@@ -18,7 +18,7 @@ export function accessibleNetworkModules(routes, auth) {
   return moduleRegistry.filter(module => {
     const route = routeById.get(module.id);
     const workspace = workspaceSwitcherOptions.find(option => option.id === moduleWorkspace(module));
-    return module.id !== 'operations_network' && module.routable !== false
+    return !['operations_network', 'ai_assistant'].includes(module.id) && module.routable !== false
       && canonicalRouteId(module.id) === module.id && route && permissionAllowed(auth, route.permission)
       && permissionAllowed(auth, workspace?.permission);
   }).map(module => ({
