@@ -96,3 +96,6 @@ addEventListener('message',event=>{
 // The renderer is unchanged; error is a non-speaking, idle-shaped visual state.
 STATES.error=STATES.idle;STATE_LABEL.error='Error';
 if(parent!==window)request('ready');
+
+// 2026-11-04: resize clears WebGL buffers; repaint the frozen scene without advancing time.
+addEventListener('resize',()=>{if(window.FEEDX_VISUAL_PAUSED&&!document.hidden)requestAnimationFrame(()=>composer.render());});

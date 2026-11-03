@@ -8,7 +8,7 @@ import { accessibleNetworkModules } from '../operations-network/networkModel.js'
 import { moduleRegistry } from '../../../config/modules.ts';
 import { getAdminRouteDefinition } from '../../app/routeOwnership.js';
 vi.mock('./assistantEnvironment.js', async importOriginal => ({...await importOriginal(), ASSISTANT_STAGING_ALLOWED:true}));
-afterEach(()=>{document.body.innerHTML='';vi.unstubAllGlobals();});
+afterEach(()=>{document.body.innerHTML='';vi.unstubAllGlobals();vi.restoreAllMocks();});
 
 it('owns one Admin system entry and enables only the canonical Staging data identity',()=>{
   expect(moduleRegistry.find(m=>m.id==='ai_assistant')).toMatchObject({route:'/system/ai-assistant',sidebar:false,permissions:{}});
@@ -33,7 +33,8 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   vi.stubGlobal('matchMedia',()=>({matches:false,addEventListener:vi.fn()}));
   const $=s=>document.querySelector(s), input=$('#cmd');
   const setState=vi.fn(s=>{document.body.dataset.state=s;});
-  new Function('$','input','setState','wakeUI','applySchedule','STATE_LABEL','sysLive','tripLive','wxLive','SCHED','STATES',source)($,input,setState,vi.fn(),vi.fn(),{},false,false,false,[],{idle:{}});
+  const frozenRender=vi.fn();vi.spyOn(document,'hidden','get').mockReturnValue(false);vi.stubGlobal('requestAnimationFrame',cb=>{cb();return 1;});
+  new Function('$','input','setState','wakeUI','applySchedule','STATE_LABEL','sysLive','tripLive','wxLive','SCHED','STATES','composer',source)($,input,setState,vi.fn(),vi.fn(),{},false,false,false,[],{idle:{}},{render:frozenRender});
   input.value='<img src=x onerror=alert(1)> inventory';fireEvent.keyDown(input,{key:'Enter'});
   expect($('#webMessages').textContent).toContain('<img src=x');expect($('#webMessages img')).toBe(null);
   expect($('#webNotice').textContent).toContain('no AI answer was generated');expect(setState).not.toHaveBeenCalledWith('thinking');
@@ -41,7 +42,7 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   fireEvent.click($('#webNew'));expect($('#webMessages').textContent).not.toContain('inventory');
   const history=$('#webHistory');history.value=history.options[0].value;fireEvent.change(history);
   expect($('#webMessages').textContent).toContain('inventory');
-  fireEvent.click($('#webPause'));expect(window.FEEDX_VISUAL_PAUSED).toBe(true);
+  fireEvent.click($('#webPause'));expect(window.FEEDX_VISUAL_PAUSED).toBe(true);fireEvent(window,new Event('resize'));expect(frozenRender).toHaveBeenCalledOnce();
   fireEvent.click($('#webStop'));expect($('#webNotice').textContent).toContain('No AI generation');
 });
 it('distributes editable GPL source and denies network connections for this static program',()=>{
