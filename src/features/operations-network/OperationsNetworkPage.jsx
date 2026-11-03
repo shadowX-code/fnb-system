@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Controls, ReactFlow, ReactFlowProvider, useReactFlow } from '@xyflow/react';
-import { ArrowLeft, Focus, Maximize2, Minimize2, RefreshCw, FlaskConical, Pause, Play, PanelRightOpen, PanelRightClose, Layers, Info, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Focus, Maximize2, Minimize2, RefreshCw, FlaskConical, Pause, Play, PanelRightOpen, PanelRightClose, Layers, Info } from 'lucide-react';
 import PageHeader from '../../components/layout/PageHeader.jsx';
+import AdminFilterToolbar, { ALL_FILTER_OPTION } from '../../components/layout/AdminFilterToolbar.jsx';
 import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
@@ -88,25 +89,23 @@ function NetworkExperience({ auth, ui, store }) {
   const canObserve = modules.some(module => module.id === 'external_agents');
   const agentSourceAvailable = evidence.sources?.some(source => source.name === 'AI Integrations' && source.state === 'available');
   const changeFilter = setter => value => { setter(value); setSelectedId(null); fitPending.current = true; fitRequest.current = 'primary'; };
-  const activeFilters = [workspace !== 'all' && (availableWorkspaces.find(([id])=>id===workspace)?.[1] || 'Workspace scoped'), company !== 'all' && (evidence.companies?.find(row=>row.id===company)?.name || 'Company scoped'), outlet !== 'all' && (store.outlets?.find(row=>row.id===outlet)?.name || 'Outlet scoped'), status !== 'all' && statusLabels[status], search && `“${search}”`].filter(Boolean);
+  const hasActiveFilters = workspace !== 'all' || company !== 'all' || outlet !== 'all' || status !== 'all' || !!search;
   function resetFilters() { setWorkspace('all'); setCompany('all'); setOutlet('all'); setStatus('all'); setSearch(''); setSelectedId(null); fitPending.current = true; fitRequest.current = 'primary'; }
   return <div ref={rootRef} className={`son-experience${evidence.active ? '' : ' son-inactive'}${fullscreen ? ' son-fullscreen' : ''}${visualDemo ? ' son-demo-active' : ''}${motionPaused ? ' son-motion-paused' : ''}`}>
     <header className="son-admin-header">
       <div className="son-admin-title"><button type="button" className="icon-btn" title="Back to Workspace" aria-label="Back to Workspace" onClick={ui.returnFromNetwork}><ArrowLeft size={18}/></button><PageHeader title="Smart Operations Network" wrapTitle actions={<span className="son-polling" role="status" title={evidence.observedAt ? `Checked ${formatOperationalDateTime(evidence.observedAt)}` : 'Checking available sources…'}>{window === 'live' ? evidence.active ? 'Auto-refresh · 30s' : 'Auto-refresh paused' : 'Snapshot · manual refresh'}</span>}/></div>
+      <AdminFilterToolbar compact denseFields presentation="inline" className="son-network-filters" ariaLabel="Network filters" searchAfterFilters
+        search={<AdminSearchField label="Search nodes" value={search} onChange={changeFilter(setSearch)} placeholder="Module, workspace or agent…" />}
+        secondaryActions={hasActiveFilters ? <button type="button" className="btn-secondary" onClick={resetFilters}>Clear all</button> : null}>
+        <SelectField label="Workspace" value={workspace} onChange={changeFilter(setWorkspace)} options={[ALL_FILTER_OPTION, ...availableWorkspaces.map(([value, label]) => ({ value, label }))]} />
+        <SelectField label="Company" value={company} onChange={changeFilter(setCompany)} disabled={!evidence.companies?.length} options={[ALL_FILTER_OPTION, ...(evidence.companies || []).map(row => ({ value: row.id, label: row.name }))]} />
+        <SelectField label="Outlet" value={outlet} onChange={changeFilter(setOutlet)} options={[ALL_FILTER_OPTION, ...getAccessibleOutlets(auth, store.outlets || []).map(row => ({ value: row.id, label: row.name }))]} />
+        <SelectField label="Status" value={status} onChange={changeFilter(setStatus)} options={[ALL_FILTER_OPTION, ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))]} />
+      </AdminFilterToolbar>
       <div className="son-header-controls">
-    <details className="son-filters" onKeyDown={event=>{if(event.key==='Escape' && !event.defaultPrevented){event.preventDefault();event.currentTarget.open=false;event.currentTarget.querySelector('summary').focus();}}}><summary className="btn-secondary"><SlidersHorizontal size={14}/>Filters & search{activeFilters.length>0 && <span className="son-filter-count">{activeFilters.length}</span>}</summary><div className="son-filter-bar" aria-label="Network filters">
-      <SelectField label="Workspace" value={workspace} onChange={changeFilter(setWorkspace)} options={[{ value: 'all', label: 'All accessible workspaces' }, ...availableWorkspaces.map(([value, label]) => ({ value, label }))]} />
-      <SelectField label="Company" value={company} onChange={changeFilter(setCompany)} disabled={!evidence.companies?.length} options={[{ value: 'all', label: evidence.companies?.length ? 'All accessible companies' : 'Company scope unavailable' }, ...(evidence.companies || []).map(row => ({ value: row.id, label: row.name }))]} searchable="auto" />
-      <SelectField label="Outlet" value={outlet} onChange={changeFilter(setOutlet)} options={[{ value: 'all', label: 'All accessible outlets' }, ...getAccessibleOutlets(auth, store.outlets || []).map(row => ({ value: row.id, label: row.name }))]} searchable="auto" />
-      <SelectField label="Status" value={status} onChange={changeFilter(setStatus)} options={[{ value: 'all', label: 'All statuses' }, ...Object.entries(statusLabels).map(([value, label]) => ({ value, label }))]} />
-      <AdminSearchField label="Search nodes" value={search} onChange={changeFilter(setSearch)} placeholder="Module, workspace or agent…" />
-      <button type="button" className="btn-secondary son-reset-filters" disabled={!activeFilters.length} onClick={resetFilters}>Reset filters</button>
-    </div>
-    </details>
         <div className="son-header-counts" aria-label="Scoped network counts"><span><strong>{graph.groups.length}</strong> Workspaces</span><span><strong>{graph.matching.length}</strong> Modules</span><span><strong>{agentSourceAvailable ? graph.visibleAgents.length : '—'}</strong> Agents</span></div>
         <AdminSegmentedControl label="Activity time range" value={window} onChange={setWindow} options={timeOptions}/>
       </div>
-      {activeFilters.length>0 && <div className="son-active-scope" aria-label="Active filters">{activeFilters.join(' · ')}</div>}
     </header>
     {(evidence.error || failures.length > 0) && <div className="son-notice" role="alert">{evidence.error || `Some evidence could not be checked: ${failures.map(source => source.name).join(', ')}.`}<button type="button" onClick={evidence.refresh}>Retry sources</button></div>}
     {scoped && <p className="son-scope-note">Activity is limited to recorded {company !== 'all' ? 'company' : 'outlet'} attribution. Unattributed activity and agents are excluded; module architecture remains visible.</p>}

@@ -32,12 +32,16 @@ it('refits the primary hierarchy when asynchronous evidence adds individual node
 
 it('keeps active search/reset, time selection and polling status distinct from synthetic Demo',async()=>{
   render(<OperationsNetworkPage auth={{hasPermission:()=>false,user:{id:'test'},permissions:[],profile:{}}} store={{outlets:[]}} ui={{networkRoutes:[],networkWorkspace:'factory',returnFromNetwork:()=>{},navigate:()=>{}}}/>);
-  fireEvent.click(screen.getByText('Filters & search'));
+  expect(screen.queryByText('Filters & search')).toBeNull();
+  expect(screen.queryByRole('button',{name:'Clear all'})).toBeNull();
+  for (const label of ['Workspace','Company','Outlet','Status']) expect(screen.getByRole('button',{name:label,exact:true}).textContent).toBe('All');
   fireEvent.change(screen.getByRole('searchbox',{name:'Search nodes'}),{target:{value:'Operation 1'}});
-  expect(screen.getByLabelText('Active filters').textContent).toContain('Operation 1');
-  fireEvent.click(screen.getByRole('button',{name:'Reset filters'}));
+  expect(screen.queryByRole('button',{name:'Operation 0',exact:true})).toBeNull();
+  expect(screen.getByRole('button',{name:'Operation 1',exact:true})).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'Clear all'}));
   expect(screen.getByRole('searchbox',{name:'Search nodes'}).value).toBe('');
-  expect(screen.queryByLabelText('Active filters')).toBeNull();
+  expect(screen.queryByRole('button',{name:'Clear all'})).toBeNull();
+  expect(screen.getByLabelText('Scoped network counts').textContent).toContain('2 Modules');
   fireEvent.click(screen.getByRole('tab',{name:'24H',exact:true}));
   expect(screen.getByText('Snapshot · manual refresh')).toBeTruthy();
   fireEvent.click(screen.getByRole('button',{name:'Visual Demo',exact:true}));
