@@ -398,7 +398,7 @@
 .son-edge[data-ambient][data-focused] .son-ambient-particle { fill: #fff; filter: drop-shadow(0 0 3px #68f7e6); }
 
 /* L1 owns its depth treatment; graph bounds, handles and all other nodes stay unchanged. */
-.son-node-platform,.son-node-platform:hover,.son-node-platform.son-selected { border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none; }
+.son-node-platform,.son-node-platform:hover,.son-node-platform.son-selected { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none; }
 .son-core-chip { position: relative; width: 100%; height: 100%; --son-core-rim: var(--son-accent); }
 .son-core-shell { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 7px 7px #020b1390); }
 .son-core-top { stroke: color-mix(in srgb,var(--son-core-rim) 65%,#24545e); stroke-width: 1; transition: stroke .18s ease-out; }
