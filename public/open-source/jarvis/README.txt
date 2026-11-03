@@ -17,11 +17,11 @@ Modifications: boot.js uses a reviewed allowlist and web.js instead of local
 pilot transport; web.js adapts pilot UUID/request fencing and HUD state hooks to
 a generic text-session JSON protocol with memory-only standalone fallback and controls;
 web.css adds responsive conversation presentation; loop.js adds pause/visibility
-suspension. Default original core.js/render.js shaders and animation math remain.
+suspension and actual host audio-level input. Default original core.js/render.js shaders and core animation otherwise remain.
 Browser assets are NOT imported into the FeedX proprietary React bundle; a
 sandboxed iframe has an opaque origin, no credentials, cookies,
 storage access, microphone, camera, tools or network transport. A documented
-postMessage interface exchanges ordinary text/session/status data only. No shared
+postMessage interface exchanges ordinary text/session/status, fixed read evidence and bounded actual audio-level data only. No shared
 renderer internals or GPL imports exist in the proprietary host. See PROTOCOL.txt.
 The HUD remains independently usable and modifiable. A process/iframe boundary
 alone is not a legal determination about combined works; future intimate
@@ -30,7 +30,7 @@ integration requires renewed licence review.
 No LLM answer, execution, stock data or voice response is simulated. Animated
 idle visuals are decorative. Standalone mode has no services and memory-only history. When embedded in
 canonical Staging, the host can supply authorized text sessions/results. Only
-actual successful results become Assistant messages; STT/TTS/tools are unavailable.
+actual successful results become Assistant messages. The host may supply current-human-authorized Factory Finished Goods read evidence. Microphone and playback are host-owned; voice remains unavailable until the separate remote Whisper/Kokoro service is configured, tested and enabled.
 The Python runtime is never exposed. Its bounded contract is adapted to one hosted
 session authority, not a browser conversation engine. No credentials or auth
 tokens cross the message boundary. Provider approval is independently required.
