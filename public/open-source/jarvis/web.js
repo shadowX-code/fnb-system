@@ -19,7 +19,7 @@ web.innerHTML=`<div class="web-core-caption"><span class="web-status-dot"></span
 <div id="webNotice" role="status">No model is connected. Requests stay in this tab; no AI answer will be generated.</div>
 <ol id="webMessages" aria-label="Conversation messages" aria-live="polite"></ol>
 <div id="webComposer"></div><div class="web-controls"><button type="button" id="webVoice" aria-disabled="true" title="No authorized voice service is connected">Voice unavailable</button><button type="button" id="webStop">Stop</button><button type="button" id="webRetry" hidden>Retry last question</button></div>
-<p class="web-privacy">Text is sent to the configured model only when enabled. Microphone audio is not retained. Business reads use your current Admin permissions. Conversation history expires after 24 hours.</p>
+<p class="web-privacy">Your enabled model processes text. Audio is not retained. Business reads recheck Admin access. History: 24 hours.</p>
 <footer class="web-license"><a href="source.zip" download>HUD source · GPL-3.0</a><a href="LICENSE.txt" download>License</a></footer></section>`;
 document.body.appendChild(web);
 const notice=$('#webNotice'),messageList=$('#webMessages'),history=$('#webHistory');
