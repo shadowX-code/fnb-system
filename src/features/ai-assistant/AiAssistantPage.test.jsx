@@ -44,6 +44,8 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   expect($('#webMessages').textContent).toContain('inventory');
   fireEvent.click($('#webPause'));expect(window.FEEDX_VISUAL_PAUSED).toBe(true);fireEvent(window,new Event('resize'));expect(frozenRender).toHaveBeenCalledOnce();
   fireEvent.click($('#webStop'));expect($('#webNotice').textContent).toContain('No AI generation');
+  fireEvent(window,new MessageEvent('message',{source:window.parent,origin:'https://fnb-system-staging.vercel.app',data:{protocol:'feedx.assistant.text.v1',type:'reset'}}));
+  expect($('#webMessages').textContent).not.toContain('inventory');expect($('#webHistory').options.length).toBe(1);expect(input.value).toBe('');
 });
 it('distributes editable GPL source and denies network connections for this static program',()=>{
   const config=JSON.parse(readFileSync('vercel.json','utf8'));const boundary=config.routes.find(r=>r.src==='/open-source/jarvis/(.*)');

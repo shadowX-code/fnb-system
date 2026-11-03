@@ -70,7 +70,7 @@ addEventListener('message',event=>{
  if(event.source!==parent||event.origin!==hostOrigin||event.data?.protocol!==protocol)return;
  const d=event.data;
  if(d.type==='host-ready'){request('ready');return;}
- if(d.type==='reset'){activeRequest='';currentSession.messages=[];runtime=null;connected=false;setState('idle');renderMessages();serviceStatus();return;}
+ if(d.type==='reset'){activeRequest='';sessions.splice(0,sessions.length,{id:crypto.randomUUID(),messages:[]});currentSession=sessions[0];input.value='';runtime=null;connected=false;setState('idle');renderMessages();serviceStatus();return;}
  if(d.type==='bootstrap'||d.type==='sessions'){
   connected=true;if(d.runtime)runtime=d.runtime;
   sessions.splice(0,sessions.length,...d.sessions.map(x=>({...x,messages:[]})));currentSession=sessions.find(x=>x.id===d.session_id)||sessions[0];
