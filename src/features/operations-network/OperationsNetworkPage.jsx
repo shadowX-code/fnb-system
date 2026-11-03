@@ -39,9 +39,26 @@ function NetworkExperience({ auth, ui, store }) {
     return () => queries.forEach(([media, update]) => media?.removeEventListener('change', update));
   }, []);
   const [clock, setClock] = useState(Date.now());
-  const rootRef = useRef(null), fitPending = useRef(true), fitRequest = useRef('primary');
+  const rootRef = useRef(null), canvasRef = useRef(null), fitPending = useRef(true), fitRequest = useRef('primary');
   const { fullscreen, notice: fullscreenNotice, toggleFullscreen } = useNetworkFullscreen(rootRef);
   const flow = useReactFlow();
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    if (!globalThis.ResizeObserver) return;
+    let frame, previousWidth = 0, previousHeight = 0;
+    const observer = new ResizeObserver(([entry]) => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const width = Math.round(entry.contentRect.width), height = Math.round(entry.contentRect.height);
+        if (!width || !height || (previousWidth === width && previousHeight === height)) return;
+        previousWidth = width; previousHeight = height;
+        fitPending.current = true;
+        setCanvasSize({ width, height });
+      });
+    });
+    observer.observe(canvasRef.current);
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+  }, []);
   useEffect(() => { fitPending.current = true; fitRequest.current = 'primary'; }, [narrow]);
   const evidence = useNetworkEvidence(auth, modules, window === 'live');
   useEffect(() => {
@@ -79,11 +96,11 @@ function NetworkExperience({ auth, ui, store }) {
     let ids = graph.primaryIds;
     if (focus !== 'primary') {
       const members = graph.nodes.filter(node => focus === 'agents' ? node.data.kind === 'agent' : ['data-integrations', 'social-connections'].includes(focus) ? ['data', 'integration'].includes(node.data.kind) : node.data.kind === 'module' && node.data.workspace === focus);
-      if (members.length) ids = members.slice(0, 8).map(node => node.id);
+      if (members.length) ids = ['platform', ...graph.nodes.filter(node => node.data.kind === 'workspace' && node.data.workspace === focus).map(node => node.id), ...members.slice(0, 8).map(node => node.id), ...graph.nodes.filter(node => node.id === selectedId).map(node => node.id)];
     }
-    const frame = requestAnimationFrame(() => { flow.fitView({ nodes: ids.map(id => ({ id })), padding: 0.12, duration: reducedMotion ? 0 : 240, maxZoom: 1.15 }); fitPending.current = false; });
+    const frame = requestAnimationFrame(() => { flow.fitView({ nodes: [...new Set(ids)].map(id => ({ id })), padding: 0.12, duration: reducedMotion ? 0 : 240, maxZoom: 1.15 }); fitPending.current = false; });
     return () => cancelAnimationFrame(frame);
-  }, [layoutKey, flow]);
+  }, [layoutKey, flow, canvasSize, inspectorOpen, fullscreen]);
   const selected = graph.selection;
   useEffect(() => { if (selectedId && !selected) setSelectedId(null); }, [selectedId, selected]);
   const availableWorkspaces = [...new Map(modules.map(module => [module.workspace, module.workspace === 'hr' ? 'HR' : module.workspace === 'guest_ai' ? 'Guest AI' : module.workspace[0].toUpperCase() + module.workspace.slice(1)])).entries()];
@@ -111,11 +128,9 @@ function NetworkExperience({ auth, ui, store }) {
     </header>
     {(evidence.error || failures.length > 0) && <div className="son-notice" role="alert">{evidence.error || `Some evidence could not be checked: ${failures.map(source => source.name).join(', ')}.`}<button type="button" onClick={evidence.refresh}>Retry sources</button></div>}
     {scoped && <p className="son-scope-note">Activity is limited to recorded {company !== 'all' ? 'company' : 'outlet'} attribution. Unattributed activity and agents are excluded; module architecture remains visible.</p>}
+    {fullscreenNotice && <p className="son-scope-note" role="status">{fullscreenNotice}</p>}
     <div className={`son-workbench${inspectorOpen ? ' son-inspector-open' : ''}`}>
-      <section className="son-map-section" aria-label="Operations network canvas">
-        {fullscreenNotice && <p className="son-scope-note" role="status">{fullscreenNotice}</p>}
-        <div className="son-canvas">
-        <div className="son-map-toolbar" role="group" aria-label="Canvas controls">
+      <div className="son-map-toolbar" role="group" aria-label="Canvas controls">
           <div className="son-canvas-actions">
             <button type="button" className="son-demo-toggle" aria-label="Visual Demo" title="Visual Demo: synthetic directional motion only; recorded evidence is unchanged" aria-pressed={visualDemo} onClick={() => setVisualDemo(value => !value)}><FlaskConical size={16} />{visualDemo ? 'Demo · Synthetic' : 'Demo'}</button>
             <button type="button" className="son-icon-button" title={motionPaused ? 'Resume motion' : 'Pause motion'} aria-label={motionPaused ? 'Resume motion' : 'Pause motion'} aria-pressed={motionPaused} onClick={() => setMotionPaused(value => !value)}>{motionPaused ? <Play size={16} /> : <Pause size={16} />}</button>
@@ -125,9 +140,9 @@ function NetworkExperience({ auth, ui, store }) {
             <button type="button" className="son-activity-toggle" aria-label="Activity" title="Recorded activity and node details" aria-expanded={inspectorOpen} aria-controls="son-inspector" onClick={() => { fitPending.current = true; fitRequest.current = 'primary'; if (inspectorOpen) setSelectedId(null); setInspectorOpen(value => !value); }}>{inspectorOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}<span>Activity</span></button>
           </div>
         </div>
-
-
-          <ReactFlow onMoveEnd={(_, viewport) => {
+      <section className="son-map-section" aria-label="Operations network canvas">
+        <div ref={canvasRef} className="son-canvas">
+          <ReactFlow preventScrolling={false} onMoveEnd={(_, viewport) => {
             const bounds = rootRef.current?.querySelector('.son-canvas')?.getBoundingClientRect();
             if (!bounds) return;
             const ids = graph.nodes.filter(node => node.position.x * viewport.zoom + viewport.x < bounds.width && (node.position.x + node.width) * viewport.zoom + viewport.x > 0 && node.position.y * viewport.zoom + viewport.y < bounds.height && (node.position.y + node.height) * viewport.zoom + viewport.y > 0).map(node => node.id);
@@ -139,9 +154,10 @@ function NetworkExperience({ auth, ui, store }) {
           {evidence.loading && <div className="son-canvas-state" role="status">Checking source evidence…</div>}
           {!graph.matching.length && <div className="son-canvas-state">No modules match this view. Change the filters or search.</div>}
         </div>
-        <footer className="son-information-bar"><div className="son-semantics" aria-label="Connection semantics"><span><i className="son-structural-swatch"/>Structural</span><span><i className="son-authorization-swatch"/>Authorization</span><span><i className="son-recorded-swatch"/>Recorded Execution</span></div><span className="son-pan-hint">Drag to pan · scroll to zoom</span><div className="son-information-actions"><button type="button" onClick={()=>setInformation('layers')} aria-haspopup="dialog"><Layers size={14}/>Layers</button><button type="button" onClick={()=>setInformation('coverage')} aria-haspopup="dialog"><Info size={14}/>Data Coverage</button></div></footer>
+
       </section>
       {inspectorOpen && <aside id="son-inspector" className="son-inspector" aria-label="Network inspector">{selected ? <NetworkDetailPanel key={selected.id} node={selected} modules={modules} events={events} onClose={() => { setSelectedId(null); setInspectorOpen(false); }} onNavigate={ui.navigate} onToggle={toggleWorkspace} onSelect={selectNode} /> : evidence.loading ? <p role="status">Checking recorded activity…</p> : <NetworkTimeline events={events} modules={modules} onSelect={selectNode} />}</aside>}
+        <footer className="son-information-bar"><div className="son-semantics" aria-label="Connection semantics"><span><i className="son-structural-swatch"/>Structural</span><span><i className="son-authorization-swatch"/>Authorization</span><span><i className="son-recorded-swatch"/>Recorded Execution</span></div><span className="son-pan-hint">Drag to pan · pinch to zoom</span><div className="son-information-actions"><button type="button" onClick={()=>setInformation('layers')} aria-haspopup="dialog"><Layers size={14}/>Layers</button><button type="button" onClick={()=>setInformation('coverage')} aria-haspopup="dialog"><Info size={14}/>Data Coverage</button></div></footer>
     </div>
     <Drawer open={!!information} width="sm" title={information==='layers' ? 'Network layers' : 'Data Coverage'} onClose={()=>setInformation(null)}>
       {information==='layers' ? <ol className="son-layer-explanations">{layers.map((layer,index)=><li key={layer}><strong>L{index+1}</strong><span>{layer}</span></li>)}</ol> : <div className="son-coverage-content"><p>Last evidence check: {evidence.observedAt ? formatOperationalDateTime(evidence.observedAt) : 'Not available yet'}.</p><p>System health & throughput: unavailable. Uptime, success rates and universal execution totals are not measured by this view.</p><p>{canObserve ? 'AI Integrations: latest 50 access events, 50 configuration events and 50 completed receipts per agent, plus saved open requests. Live includes current open requests and the latest 24 hours. Time ranges filter returned activity; they are not complete historical totals.' : 'Agent telemetry requires existing AI Integrations view authority.'}</p><p>Connections show the latest saved snapshot. Brand social connections include last sync where accessible. Module availability reflects your permissions. Uptime, general automation runs and cross-module business timelines are not connected here. Visual Demo is synthetic presentation only.</p></div>}

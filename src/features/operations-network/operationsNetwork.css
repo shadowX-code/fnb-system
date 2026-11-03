@@ -345,3 +345,26 @@
 .son-edge[data-focused] .react-flow__edge-path { stroke: var(--son-edge-color) !important; stroke-width: 1.2; }
 .son-edge-execution[data-focused] .react-flow__edge-path { stroke-width: 1.4; }
 .son-edge[data-dimmed] { opacity: .2; }
+
+/* The page owns vertical scrolling; the graph owns pan/zoom and the Inspector owns its content. */
+.son-workbench { --son-canvas-height: max(900px,calc(100dvh - 265px)); display: grid; grid-template-columns: minmax(0,1fr); background: #061b24; }
+.son-workbench.son-inspector-open { display: grid; grid-template-columns: minmax(0,1fr); }
+.son-map-toolbar { position: static; grid-column: 1 / -1; min-height: 56px; padding: 8px 12px; justify-content: flex-end; border: 0; border-bottom: 1px solid #294651; border-radius: 0; }
+.son-map-section { grid-column: 1; grid-row: 2; min-height: 0; }
+.son-canvas { height: var(--son-canvas-height); }
+.son-information-bar { grid-column: 1 / -1; }
+.son-inspector { position: static; width: auto; height: var(--son-canvas-height); max-height: none; min-height: 0; overflow-y: auto; overscroll-behavior: contain; box-shadow: none; }
+@media(min-width:900px) {
+  .son-workbench.son-inspector-open { grid-template-columns: minmax(0,1fr) 330px; }
+  .son-inspector { grid-column: 2; grid-row: 2; }
+}
+@media(max-width:899px) {
+  .son-workbench { --son-canvas-height: clamp(360px,70dvh,760px); }
+  .son-inspector { border-left: 0; border-top: 1px solid #294651; }
+}
+.son-experience.son-fullscreen,.son-experience:fullscreen { overflow: hidden; }
+.son-fullscreen .son-workbench { grid-template-rows: auto minmax(0,1fr) auto; }
+.son-fullscreen .son-canvas,.son-fullscreen .son-inspector { height: 100%; min-height: 0; }
+@media(max-width:899px) {
+  .son-fullscreen .son-workbench.son-inspector-open { grid-template-rows: auto minmax(0,1fr) minmax(140px,25dvh) auto; }
+}

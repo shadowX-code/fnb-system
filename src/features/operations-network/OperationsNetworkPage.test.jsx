@@ -18,7 +18,7 @@ it('focuses the operation bay when expanding from a selected workspace detail',a
   await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Factory',exact:true})));
   expect(screen.getByRole('region',{name:'Factory details'})).toBeTruthy();
   await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Expand operations',exact:true})));
-  expect(mocks.flow.fitView.mock.calls.at(-1)[0].nodes.map(node=>node.id)).toEqual(['factory-test-0','factory-test-1']);
+  expect(mocks.flow.fitView.mock.calls.at(-1)[0].nodes.map(node=>node.id)).toEqual(['platform','workspace:factory','factory-test-0','factory-test-1']);
 });
 
 it('refits the primary hierarchy when asynchronous evidence adds individual nodes',async()=>{
@@ -83,4 +83,28 @@ it('retains ownership focus across collapse, re-expansion and selection switchin
   fireEvent.click(screen.getByRole('button',{name:'Operation 1',exact:true}));
   fireEvent.click(screen.getByRole('button',{name:'Close node details',exact:true}));
   expect(screen.getByRole('button',{name:'Operation 1',exact:true}).getAttribute('aria-pressed')).toBe('false');
+});
+
+it('refits after real canvas size and Inspector changes, retaining L1 during expansion and cleaning up observation',()=>{
+  let resized;
+  const disconnect=vi.fn();
+  vi.stubGlobal('ResizeObserver',class { constructor(callback){resized=callback;} observe(){} disconnect=disconnect; });
+  vi.stubGlobal('requestAnimationFrame',callback=>{callback();return 1;});vi.stubGlobal('cancelAnimationFrame',()=>{});
+  const view=render(<OperationsNetworkPage auth={{hasPermission:()=>false,user:{id:'test'},permissions:[],profile:{}}} store={{outlets:[]}} ui={{networkRoutes:[],networkWorkspace:'factory',returnFromNetwork:()=>{},navigate:()=>{}}}/>);
+  act(()=>resized([{contentRect:{width:1200,height:900}}]));
+  fireEvent.click(screen.getByRole('button',{name:'Toggle Factory',exact:true}));
+  const ids=()=>mocks.flow.fitView.mock.calls.at(-1)[0].nodes.map(node=>node.id);
+  expect(ids()).toEqual(['platform','workspace:factory','factory-test-0','factory-test-1']);
+  fireEvent.click(screen.getByRole('button',{name:'Operation 1',exact:true}));
+  act(()=>resized([{contentRect:{width:870,height:900}}]));
+  expect(ids()).toContain('platform');
+  expect(ids()).toContain('factory-test-1');
+  const calls=mocks.flow.fitView.mock.calls.length;
+  act(()=>resized([{contentRect:{width:870,height:900}}]));
+  expect(mocks.flow.fitView.mock.calls.length).toBe(calls);
+  fireEvent.click(screen.getByRole('button',{name:'Close node details',exact:true}));
+  act(()=>resized([{contentRect:{width:1200,height:900}}]));
+  expect(mocks.flow.fitView.mock.calls.length).toBeGreaterThan(calls);
+  view.unmount();
+  expect(disconnect).toHaveBeenCalledOnce();
 });
