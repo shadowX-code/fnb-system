@@ -18,7 +18,7 @@ web.innerHTML=`<div class="web-core-caption"><span class="web-status-dot"></span
 <details class="web-services"><summary>Services · 4 unavailable</summary><dl><div><dt>Language model</dt><dd>Not configured</dd></div><div><dt>Speech recognition</dt><dd>Not connected</dd></div><div><dt>Voice output</dt><dd>Not connected</dd></div><div><dt>FeedX tools</dt><dd>Not authorized</dd></div></dl></details>
 <div id="webNotice" role="status">No model is connected. Requests stay in this tab; no AI answer will be generated.</div>
 <ol id="webMessages" aria-label="Conversation messages" aria-live="polite"></ol>
-<div id="webComposer"></div><div class="web-controls"><button type="button" id="webVoice" aria-disabled="true" title="No authorized voice service is connected">Voice unavailable</button><button type="button" id="webStop">Stop</button></div>
+<div id="webComposer"></div><div class="web-controls"><button type="button" id="webVoice" aria-disabled="true" title="No authorized voice service is connected">Voice unavailable</button><button type="button" id="webStop">Stop</button><button type="button" id="webRetry" hidden>Retry last question</button></div>
 <p class="web-privacy">Text is sent to the configured model only when enabled. Microphone audio is not retained. Business reads use your current Admin permissions. Conversation history expires after 24 hours.</p>
 <footer class="web-license"><a href="source.zip" download>HUD source · GPL-3.0</a><a href="LICENSE.txt" download>License</a></footer></section>`;
 document.body.appendChild(web);
@@ -32,7 +32,7 @@ function renderHistory(){history.replaceChildren(...sessions.map((s,i)=>{const o
 function renderMessages(){messageList.replaceChildren();if(!currentSession.messages.length){const empty=document.createElement('li');empty.className='web-empty';empty.textContent='Start with a question. Your request will appear here; responses require an authorized model connection.';messageList.appendChild(empty);}for(const message of currentSession.messages){const item=document.createElement('li');const label=document.createElement('strong');label.textContent=message.role==='assistant'?'Assistant':'You';const text=document.createElement('p');for(const part of message.text.split(/(\*\*[^*]+\*\*)/g)){if(part.startsWith('**')&&part.endsWith('**')){const bold=document.createElement('strong');bold.textContent=part.slice(2,-2);text.append(bold);}else text.append(document.createTextNode(part));}item.append(label,text);if(message.evidence?.capability==='read_factory_finished_goods'){const evidence=document.createElement('div');evidence.className='web-evidence';const link=document.createElement('a');link.href='https://fnb-system-staging.vercel.app/factory/warehouse/finished-goods';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Factory · Finished Goods ↗';const stamp=document.createElement('span');stamp.textContent=`${message.evidence.scope} · ${message.evidence.as_of} · ${message.evidence.returned}/${message.evidence.total_matching} matches${Number.isInteger(message.evidence.unknown_minimum_count)?' · '+message.evidence.unknown_minimum_count+' unknown minimums':''}`;const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('p');summary.textContent='Read evidence';note.textContent=message.evidence.limitations;details.append(summary,note);evidence.append(link,stamp,details);item.append(evidence);}messageList.appendChild(item);}messageList.scrollTop=messageList.scrollHeight;renderHistory();}
 // Same request/session identity boundary as the pilot. No remote engine is configured.
 let handle=function(text){text=text.trim();if(!text)return;if(activeRequest){showNotice('Stop the current response before sending another request.',true);return;}
- activeRequest=crypto.randomUUID();currentSession.messages.push({request_id:activeRequest,role:'user',text:text.slice(0,2000)});renderMessages();
+ $('#webRetry').hidden=true;activeRequest=crypto.randomUUID();currentSession.messages.push({request_id:activeRequest,role:'user',text:text.slice(0,2000)});renderMessages();
  if(connected){parent.postMessage({protocol,action:'send',request_id:activeRequest,session_id:currentSession.id,text:text.slice(0,2000)},hostOrigin);showNotice('Submitting request…');}
  else{activeRequest='';setState('idle');showNotice('Language model unavailable. Your request was not sent and no AI answer was generated.',true);}
 };
@@ -46,6 +46,7 @@ history.onchange=()=>{if(connected){activeRequest='';request('history',{session_
 $('#mic').style.display='none';$('#webVoice').style.display='none';
 $('#mic').onclick=()=>showNotice('Speech recognition unavailable. No microphone was opened. You can type your request.',true);
 $('#webVoice').onclick=()=>showNotice('Voice output unavailable. The local Kokoro runtime is not a web-connected service.',true);
+$('#webRetry').onclick=()=>{const last=[...currentSession.messages].reverse().find(m=>m.role==='user');if(last)handle(last.text);};
 $('#webStop').onclick=()=>{if(connected)request('cancel');activeRequest='';captureEpoch++;setState('idle');showNotice('Stopped. No AI generation, recording or playback is running.');};
 addEventListener('keydown',e=>{if(e.key==='Escape')$('#webStop').click();});
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');let paused=false;
@@ -72,7 +73,7 @@ addEventListener('message',event=>{
  if(event.source!==parent||event.origin!==hostOrigin||event.data?.protocol!==protocol)return;
  const d=event.data;
  if(d.type==='host-ready'){request('ready');return;}
- if(d.type==='reset'){activeRequest='';sessions.splice(0,sessions.length,{id:crypto.randomUUID(),messages:[]});currentSession=sessions[0];input.value='';runtime=null;connected=false;setState('idle');renderMessages();serviceStatus();return;}
+ if(d.type==='reset'){$('#webRetry').hidden=true;activeRequest='';sessions.splice(0,sessions.length,{id:crypto.randomUUID(),messages:[]});currentSession=sessions[0];input.value='';runtime=null;connected=false;setState('idle');renderMessages();serviceStatus();return;}
  if(d.type==='bootstrap'||d.type==='sessions'){
   connected=true;if(d.runtime)runtime=d.runtime;
   sessions.splice(0,sessions.length,...d.sessions.map(x=>({...x,messages:[]})));currentSession=sessions.find(x=>x.id===d.session_id)||sessions[0];
@@ -81,13 +82,13 @@ addEventListener('message',event=>{
  if(d.type==='history'){
   const selected=sessions.find(x=>x.id===d.session_id);if(!selected)return;currentSession=selected;activeRequest='';
   currentSession.messages=d.turns.flatMap(t=>[{role:'user',text:t.prompt,request_id:t.request_id},...(t.state==='completed'&&t.reply?[{role:'assistant',text:t.reply,request_id:t.request_id,evidence:t.evidence}]:[])]);
-  renderMessages();setState('idle');return;
+  $('#webRetry').hidden=true;renderMessages();setState('idle');return;
  }
  if(d.type==='resume'){activeRequest=d.request_id;showNotice('Recovering the active request…');return;}
- if(d.type==='cancelled'){activeRequest='';setState('idle');showNotice('Response stopped. Late replies will not be displayed.');return;}
+ if(d.type==='cancelled'){$('#webRetry').hidden=!currentSession.messages.some(m=>m.role==='user');activeRequest='';setState('idle');showNotice('Response stopped. Late replies will not be displayed.');return;}
  if(d.type==='error'){
   if(d.request_id&&activeRequest&&d.request_id!==activeRequest)return;
-  activeRequest='';setState('error');showNotice(d.message||'Assistant unavailable.',true);return;
+  $('#webRetry').hidden=!currentSession.messages.some(m=>m.role==='user');activeRequest='';setState('error');showNotice(d.message||'Assistant unavailable.',true);return;
  }
  if(d.type==='transcript'&&typeof d.text==='string'){handle(d.text.slice(0,2000));return;}
  if(d.type==='voice_error'){showNotice(d.message||'Voice service unavailable.',true);return;}

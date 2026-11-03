@@ -26,7 +26,9 @@ Deno.serve(async request=>{
   const {data:result,error:failure}=await service.rpc('native_assistant_service',{p_actor:data.user!.id,p_action:action,p_payload:payload});
   if(failure){const code=safeCodes.has(failure.message)?failure.message:'assistant_request_failed';throw new AssistantError(code,failure.code==='42501'?403:failure.code==='40001'?409:failure.code==='54000'?429:400);}return result;
  }
-  const raw=await request.text();if(new TextEncoder().encode(raw).length>1550000)return json({error:'request_too_large'},413);
+  const reader=request.body?.getReader();if(!reader)return json({error:'invalid_request'},400);
+  const chunks=[];let size=0;try{while(true){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>1550000){await reader.cancel();return json({error:'request_too_large'},413);}chunks.push(value);}}finally{reader.releaseLock();}
+  const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}const raw=new TextDecoder().decode(bytes);
   let body;try{body=JSON.parse(raw);}catch{return json({error:'invalid_request'},400);}
   return json(await dispatch(body,{rpc,get:(name:string)=>Deno.env.get(name),signal:request.signal,access,readTool:(args:unknown,signal:AbortSignal)=>readInventory(caller,args,signal)}));
  }catch(cause){return json({error:cause instanceof AssistantError?cause.code:'assistant_unavailable',...(cause instanceof AssistantError&&cause.diagnostic?{diagnostic:cause.diagnostic}:{})},cause instanceof AssistantError?cause.status:503);}
