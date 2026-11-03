@@ -31,7 +31,8 @@ async function providerFailure(response,model){
  const knownScopes=['api.responses.write','api.responses.read','api.model.request','model.request','api.chat_completions.request'];
  // Inspect only the explicit missing-scope section; return constant allowlisted identifiers, never message text.
  const section=typeof error?.message==='string'?error.message.match(/missing scopes?:\s*([a-z0-9_.:, ]+)/i)?.[1]||'':'';
- const missing=knownScopes.filter(scope=>new RegExp('\\b'+scope.replaceAll('.','\\.')+'\\b').test(section));
+ const scopeTokens=section.split(/[\s,:]+/).map(token=>token.replace(/\.+$/,''));
+ const missing=knownScopes.filter(scope=>scopeTokens.includes(scope));
  const denied=['permission_denied','insufficient_permissions'].includes(error?.code)||['permission_error','permission_denied','insufficient_permissions'].includes(error?.type)||missing.length>0;
  const fallback={401:'provider_authentication_rejected',403:'provider_permission_denied',404:'provider_model_unavailable',429:'provider_rate_limited'};
  const code=error?.code==='invalid_api_key'?'provider_credential_invalid':denied?'provider_permission_denied':Object.hasOwn(codes,error?.code)?codes[error.code]:fallback[response.status]||'provider_rejected';

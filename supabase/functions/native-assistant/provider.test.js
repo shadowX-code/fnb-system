@@ -39,3 +39,5 @@ test('local malformed credential fails before upstream and uses distinct format 
  const actions=[];const r=await dispatch({action:'test',request_id:'10000000-0000-4000-8000-000000000001'},{get:k=>k==='NATIVE_ASSISTANT_OPENAI_API_KEY'?'fixture\nkey':get(k),rpc:async a=>{actions.push(a);return {config};},transport:()=>{throw Error('upstream must not be called');}});
  assert.equal(r.outcome,'unavailable');assert.equal(r.code,'provider_credential_format_invalid');assert(!actions.includes('test_begin'));
 });
+
+test('missing permission identifiers match exact scopes without overlapping suffixes',async()=>{await assert.rejects(generateText(claim,'fixture-key',{transport:async()=>new Response(JSON.stringify({error:{code:null,type:'invalid_request_error',message:'Missing scopes: api.model.request. Check your role.'}}),{status:401})}),e=>JSON.stringify(e.diagnostic.missing_permissions)===JSON.stringify(['api.model.request']));});
