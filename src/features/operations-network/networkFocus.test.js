@@ -1,8 +1,9 @@
 import { expect, it } from 'vitest';
+import { workspaceSwitcherOptions } from '../../../config/modules.ts';
 import { buildNetwork } from './networkModel.js';
 import { deriveNetworkFocus, presentNetworkEdges } from './networkPresentation.js';
 
-const workspaces = ['factory', 'restaurant', 'hr', 'finance', 'marketing', 'crew', 'guest_ai'];
+const workspaces = workspaceSwitcherOptions.map(option => option.id);
 const modules = workspaces.flatMap(workspace => [0, 1].map(index => ({ id: `${workspace}-${index}`, label: `Operation ${index}`, workspace, section: 'Operations' })));
 const agents = [{ id: 'a', name: 'Agent A', status: 'observed', workspaces: ['factory'], moduleIds: ['factory-0'] }, { id: 'b', name: 'Agent B', status: 'idle', workspaces: ['restaurant'], moduleIds: ['restaurant-0'] }];
 const events = [{ id: 'e', agentId: 'a', status: 'pending', date: new Date().toISOString(), moduleIds: ['factory-0'], workspaces: ['factory'] }];
