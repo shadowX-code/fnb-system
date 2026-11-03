@@ -1,16 +1,17 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ flow: { fitView: vi.fn() }, agents: [], modules: [0,1].map(index=>({id:`factory-test-${index}`,label:`Operation ${index}`,workspace:'factory',section:'Production'})) }));
+const mocks = vi.hoisted(() => ({ flow: { fitView: vi.fn() }, demoAllowed:true, agents: [], modules: [0,1].map(index=>({id:`factory-test-${index}`,label:`Operation ${index}`,workspace:'factory',section:'Production'})) }));
 vi.mock('@xyflow/react', () => ({
   ReactFlowProvider: ({children})=>children, useReactFlow:()=>mocks.flow,
   ReactFlow:({nodes,onNodeClick})=><div>{nodes.map(node=><div key={node.id}><button data-related={node.data.related} data-dimmed={node.data.dimmed} aria-pressed={node.selected} onClick={event=>onNodeClick(event,node)}>{node.data.label}</button>{node.data.kind==='workspace' && <button onClick={()=>node.data.onToggle(node.data.workspace)}>Toggle {node.data.label}</button>}</div>)}</div>,
   Controls:()=>null, Handle:()=>null, BaseEdge:()=>null, Position:{Top:'top',Bottom:'bottom',Left:'left',Right:'right'}, getBezierPath:()=>['M0,0 L1,1'],
 }));
+vi.mock('./networkEnvironment.js',()=>({get NETWORK_DEMO_ALLOWED(){return mocks.demoAllowed;}}));
 vi.mock('./networkModel.js',async importOriginal=>({...await importOriginal(),accessibleNetworkModules:()=>mocks.modules}));
 vi.mock('./useNetworkEvidence.js',()=>({default:()=>({active:true,loading:false,agents:mocks.agents,events:[],integrations:[],sources:[],companies:[],refresh:()=>{}})}));
 vi.mock('./useNetworkFullscreen.js',()=>({default:()=>({fullscreen:false,notice:'',toggleFullscreen:()=>{}})}));
 import OperationsNetworkPage from './OperationsNetworkPage.jsx';
-afterEach(()=>{cleanup();vi.unstubAllGlobals();mocks.flow.fitView.mockClear();mocks.agents=[];});
+afterEach(()=>{cleanup();vi.unstubAllGlobals();mocks.flow.fitView.mockClear();mocks.agents=[];mocks.demoAllowed=true;});
 it('focuses the operation bay when expanding from a selected workspace detail',async()=>{
   vi.stubGlobal('requestAnimationFrame',callback=>{callback();return 1;});vi.stubGlobal('cancelAnimationFrame',()=>{});
   const auth={hasPermission:()=>false,user:{id:'test'},permissions:[],profile:{}};
@@ -107,4 +108,15 @@ it('refits after real canvas size and Inspector changes, retaining L1 during exp
   expect(mocks.flow.fitView.mock.calls.length).toBeGreaterThan(calls);
   view.unmount();
   expect(disconnect).toHaveBeenCalledOnce();
+});
+
+it('hides Demo and synthetic legend animation in Production while retaining Live controls',()=>{
+  mocks.demoAllowed=false;
+  const {container}=render(<OperationsNetworkPage auth={{hasPermission:()=>false,user:{id:'test'},permissions:[],profile:{}}} store={{outlets:[]}} ui={{networkRoutes:[],networkWorkspace:'factory',returnFromNetwork:()=>{},navigate:()=>{}}}/>);
+  expect(screen.queryByRole('button',{name:'Visual Demo'})).toBeNull();
+  expect(container.querySelector('.son-demo-active,.son-legend-animated')).toBeNull();
+  expect(screen.getByRole('button',{name:'Pause motion'})).toBeTruthy();
+  expect(screen.getByRole('tab',{name:'Live',exact:true})).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'Data Coverage',exact:true}));
+  expect(screen.getByText(/Production flow animation requires recorded execution evidence/)).toBeTruthy();
 });

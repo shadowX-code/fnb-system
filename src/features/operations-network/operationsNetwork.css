@@ -382,7 +382,8 @@
 .son-legend-sample { flex: none; color: #789ba5; overflow: visible; }
 .son-legend-execution { color: #61fff0; }
 .son-semantics .son-legend-note { display: inline; color: #89a9b2; font-size: 10px; }
-.son-legend-particle { transform: translateX(14px); animation: son-legend-travel 3.4s linear infinite; }
+.son-legend-particle { transform: translateX(14px); }
+.son-legend-animated { animation: son-legend-travel 3.4s linear infinite; }
 @keyframes son-legend-travel { 0% { transform: translateX(0); opacity: 0; } 12% { opacity: .9; } 88% { opacity: .9; } 100% { transform: translateX(30px); opacity: 0; } }
 .son-motion-paused .son-legend-particle,.son-inactive .son-legend-particle { animation-play-state: paused; }
 .son-navigation-hints { display: flex; align-items: center; gap: 14px; margin-left: auto; color: #9bb8c2; }

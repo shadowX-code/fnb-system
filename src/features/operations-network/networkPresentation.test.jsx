@@ -70,7 +70,7 @@ describe('evidence and synthetic motion separation', () => {
     ['unknown','execution',false,false,0], ['running','execution',false,false,3], ['completed','execution',true,false,3],
     ['completed','execution',false,false,0], ['idle','dependency',false,true,3],
   ])('renders %s particles only with running/fresh completion evidence or explicit demo', (status,kind,fresh,demoMotion,count) => {
-    const output=renderToStaticMarkup(<svg><NetworkEdge id="test" sourceX={0} sourceY={0} targetX={250} targetY={200} sourcePosition="bottom" targetPosition="top" data={{status,kind,fresh,demoMotion,routing:'curve'}} /></svg>);
+    const output=renderToStaticMarkup(<svg><NetworkEdge id="test" sourceX={0} sourceY={0} targetX={250} targetY={200} sourcePosition="bottom" targetPosition="top" data={{status,kind,fresh,demoMotion,routing:'curve',eventId:'recorded-event',agentId:'recorded-actor'}} /></svg>);
     expect((output.match(/class="son-motion-particle/g)||[]).length).toBe(count);
     if(count) expect(output).toContain(`data-motion-source="${demoMotion?'synthetic-demo':'recorded-execution'}"`);
     expect(output).not.toContain('NaN');

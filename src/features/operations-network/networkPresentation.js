@@ -1,3 +1,4 @@
+import { NETWORK_DEMO_ALLOWED } from './networkEnvironment.js';
 import { routeNetworkEdges } from './networkRouting.js';
 export const workspaceAccents = { restaurant: '#f5b86b', factory: '#51e5dc', hr: '#bda6ff', crew: '#8be1b3', finance: '#ead17c', marketing: '#f393bf', guest_ai: '#92beff' };
 const workspaceOrder = ['restaurant', 'factory', 'hr', 'crew', 'finance', 'marketing', 'guest_ai'];
@@ -92,6 +93,6 @@ export function presentNetworkEdges(edges, visualDemo, selectedId = null, visibl
   return edges.map(edge => {
     const active = !!focus?.active;
     const focused = active && focus.edgeIds.has(edge.id);
-    return { ...edge, data: { ...edge.data, demoMotion: !!visualDemo && demoIds.has(edge.id), focused, dimmed: active && !focused } };
+    return { ...edge, data: { ...edge.data, demoMotion: NETWORK_DEMO_ALLOWED && !!visualDemo && demoIds.has(edge.id), focused, dimmed: active && !focused } };
   });
 }

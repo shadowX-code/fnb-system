@@ -11,6 +11,7 @@ import { formatOperationalDateTime } from '../../lib/dateTime.js';
 import { getAccessibleOutlets } from '../../utils/accessControl.js';
 import { accessibleNetworkModules, buildNetwork, filterEvents, layers, statusLabels } from './networkModel.js';
 import useNetworkEvidence from './useNetworkEvidence.js';
+import { NETWORK_DEMO_ALLOWED } from './networkEnvironment.js';
 import { deriveNetworkFocus, presentNetworkEdges } from './networkPresentation.js';
 import useNetworkFullscreen from './useNetworkFullscreen.js';
 import { edgeTypes, nodeTypes } from './NetworkGraph.jsx';
@@ -28,7 +29,8 @@ function NetworkExperience({ auth, ui, store }) {
   const [information, setInformation] = useState(null);
   const [visibleNodeIds, setVisibleNodeIds] = useState([]);
   const [expanded, setExpanded] = useState(new Set()), [selectedId, setSelectedId] = useState(null);
-  const [inspectorOpen, setInspectorOpen] = useState(false), [visualDemo, setVisualDemo] = useState(false), [motionPaused, setMotionPaused] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false), [demoRequested, setVisualDemo] = useState(false), [motionPaused, setMotionPaused] = useState(false);
+  const visualDemo = NETWORK_DEMO_ALLOWED && demoRequested;
   const [narrow, setNarrow] = useState(() => !!globalThis.matchMedia?.('(max-width: 767px)').matches);
   const [reducedMotion, setReducedMotion] = useState(() => !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => {
@@ -136,7 +138,7 @@ function NetworkExperience({ auth, ui, store }) {
     <div className={`son-workbench${inspectorOpen ? ' son-inspector-open' : ''}`}>
       <div className="son-map-toolbar" role="group" aria-label="Canvas controls">
           <div className="son-canvas-actions">
-            <button type="button" className="son-demo-toggle" aria-label="Visual Demo" title="Visual Demo: synthetic directional motion only; recorded evidence is unchanged" aria-pressed={visualDemo} onClick={() => setVisualDemo(value => !value)}><FlaskConical size={16} />{visualDemo ? 'Demo · Synthetic' : 'Demo'}</button>
+            {NETWORK_DEMO_ALLOWED && <button type="button" className="son-demo-toggle" aria-label="Visual Demo" title="Visual Demo: synthetic directional motion only; recorded evidence is unchanged" aria-pressed={visualDemo} onClick={() => setVisualDemo(value => !value)}><FlaskConical size={16} />{visualDemo ? 'Demo · Synthetic' : 'Demo'}</button>}
             <button type="button" className="son-icon-button" title={motionPaused ? 'Resume motion' : 'Pause motion'} aria-label={motionPaused ? 'Resume motion' : 'Pause motion'} aria-pressed={motionPaused} onClick={() => setMotionPaused(value => !value)}>{motionPaused ? <Play size={16} /> : <Pause size={16} />}</button>
             <button type="button" className="son-icon-button" title="Refresh evidence" aria-label="Refresh evidence" disabled={evidence.loading} onClick={evidence.refresh}><RefreshCw size={16} /></button>
             <button type="button" className="son-icon-button" title="Fit network to view" aria-label="Fit network to view" onClick={fitPrimary}><Focus size={16} /></button>
@@ -165,7 +167,7 @@ function NetworkExperience({ auth, ui, store }) {
         <div className="son-semantics" aria-label="Connection semantics">
           <span className="son-legend-item"><svg className="son-legend-sample" width="36" height="12" viewBox="0 0 36 12" aria-hidden="true"><path d="M1 6H35" stroke="currentColor" strokeWidth=".9"/></svg>Structural</span>
           <span className="son-legend-item"><svg className="son-legend-sample" width="36" height="12" viewBox="0 0 36 12" aria-hidden="true"><path d="M1 6H35" stroke="currentColor" strokeWidth=".9" strokeDasharray="3 4"/></svg>Authorization</span>
-          <span className="son-legend-item" title="Illustrative motion sample only; does not indicate a current execution" aria-describedby="son-execution-sample-note"><svg className="son-legend-sample son-legend-execution" width="36" height="12" viewBox="0 0 36 12" aria-hidden="true"><path d="M1 6H35" stroke="currentColor" strokeWidth="1.4" strokeOpacity=".65"/><path d="m32 3 3 3-3 3" fill="none" stroke="currentColor" strokeWidth="1"/><g className="son-legend-particle" fill="currentColor"><circle cx="3" cy="6" r="1.3"/><circle cx="0" cy="6" r=".8" opacity=".45"/></g></svg>Recorded Execution <span className="son-legend-note">Sample</span></span>
+          <span className="son-legend-item" title="Illustrative motion sample only; does not indicate a current execution" aria-describedby="son-execution-sample-note"><svg className="son-legend-sample son-legend-execution" width="36" height="12" viewBox="0 0 36 12" aria-hidden="true"><path d="M1 6H35" stroke="currentColor" strokeWidth="1.4" strokeOpacity=".65"/><path d="m32 3 3 3-3 3" fill="none" stroke="currentColor" strokeWidth="1"/><g className={`son-legend-particle${NETWORK_DEMO_ALLOWED ? ' son-legend-animated' : ''}`} fill="currentColor"><circle cx="3" cy="6" r="1.3"/><circle cx="0" cy="6" r=".8" opacity=".45"/></g></svg>Recorded Execution <span className="son-legend-note">Sample</span></span>
         </div>
         <span id="son-execution-sample-note" className="sr-only">Illustrative motion sample only. This legend does not indicate a current execution.</span>
         <div className="son-navigation-hints" aria-label="Canvas navigation"><span title="Drag the canvas to pan"><Move size={14} aria-hidden="true"/>Pan</span><span title="Pinch, control-wheel or use the zoom buttons"><ZoomIn size={14} aria-hidden="true"/>Zoom</span></div>
@@ -173,7 +175,7 @@ function NetworkExperience({ auth, ui, store }) {
       </footer>
     </div>
     <Drawer open={!!information} width="sm" title={information==='layers' ? 'Network layers' : 'Data Coverage'} onClose={()=>setInformation(null)}>
-      {information==='layers' ? <ol className="son-layer-explanations">{layers.map((layer,index)=><li key={layer}><strong>L{index+1}</strong><span>{layer}</span></li>)}</ol> : <div className="son-coverage-content"><p>Last evidence check: {evidence.observedAt ? formatOperationalDateTime(evidence.observedAt) : 'Not available yet'}.</p><p>System health & throughput: unavailable. Uptime, success rates and universal execution totals are not measured by this view.</p><p>{canObserve ? 'AI Integrations: latest 50 access events, 50 configuration events and 50 completed receipts per agent, plus saved open requests. Live includes current open requests and the latest 24 hours. Time ranges filter returned activity; they are not complete historical totals.' : 'Agent telemetry requires existing AI Integrations view authority.'}</p><p>Connections show the latest saved snapshot. Brand social connections include last sync where accessible. Module availability reflects your permissions. Uptime, general automation runs and cross-module business timelines are not connected here. Visual Demo is synthetic presentation only.</p></div>}
+      {information==='layers' ? <ol className="son-layer-explanations">{layers.map((layer,index)=><li key={layer}><strong>L{index+1}</strong><span>{layer}</span></li>)}</ol> : <div className="son-coverage-content"><p>Last evidence check: {evidence.observedAt ? formatOperationalDateTime(evidence.observedAt) : 'Not available yet'}.</p><p>System health & throughput: unavailable. Uptime, success rates and universal execution totals are not measured by this view.</p><p>{canObserve ? 'AI Integrations: latest 50 access events, 50 configuration events and 50 completed receipts per agent, plus saved open requests. Live includes current open requests and the latest 24 hours. Time ranges filter returned activity; they are not complete historical totals.' : 'Agent telemetry requires existing AI Integrations view authority.'}</p><p>Connections show the latest saved snapshot. Brand social connections include last sync where accessible. Module availability reflects your permissions. Uptime, general automation runs and cross-module business timelines are not connected here. {NETWORK_DEMO_ALLOWED ? 'Visual Demo is synthetic presentation only.' : 'Production flow animation requires recorded execution evidence.'}</p></div>}
     </Drawer>
   </div>;
 }

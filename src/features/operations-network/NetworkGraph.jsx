@@ -2,6 +2,7 @@ import { Fragment, memo, useId, useLayoutEffect, useRef } from 'react';
 import { BaseEdge, Handle, Position, getBezierPath } from '@xyflow/react';
 import { Bot, Building2, ChevronDown, ChevronUp, Database, Factory, Layers3, Link2, Megaphone, Network, ShieldCheck, Sparkles, Users, UtensilsCrossed, Wallet, Workflow } from 'lucide-react';
 import { roundedRoute } from './networkRouting.js';
+import { NETWORK_DEMO_ALLOWED } from './networkEnvironment.js';
 import { statusLabels } from './networkModel.js';
 
 const workspaceIcons = { restaurant: UtensilsCrossed, factory: Factory, hr: Users, crew: ShieldCheck, finance: Wallet, marketing: Megaphone, guest_ai: Sparkles };
@@ -34,8 +35,9 @@ export function networkEdgePath(props) {
 export const NetworkEdge = memo(function NetworkEdge(props) {
   const groupRef = useRef(null), previousDuration = useRef(null);
   const uid = useId().replace(/:/g, ''), path = networkEdgePath(props);
-  const { kind, status, fresh, demoMotion, accent, dimmed } = props.data;
-  const executing = kind === 'execution';
+  const { kind, status, fresh, accent, dimmed } = props.data;
+  const demoMotion = NETWORK_DEMO_ALLOWED && kind !== 'execution' && !!props.data.demoMotion;
+  const executing = kind === 'execution' && !!props.data.eventId && !!props.data.agentId;
   const moving = demoMotion || (executing && status === 'running');
   const completion = executing && status === 'completed' && fresh;
   useLayoutEffect(() => {
