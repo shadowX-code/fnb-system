@@ -14,3 +14,12 @@ test('one claimed request calls transport once; replays do not regenerate (fixtu
 test('late cancelled finish cannot produce a result (fixture)',async()=>{const rpc=async a=>a==='status'?{config}:a==='claim'?{...claim,state:'running',lease_id:'lease'}:Promise.reject(new Error('turn_no_longer_active'));await assert.rejects(dispatch({action:'respond',session_id:'10000000-0000-4000-8000-000000000002',turn_id:'10000000-0000-4000-8000-000000000001'},{rpc,get,transport:async()=>response('late')}));});
 
 test('replayed test never manufactures a fresh verified outcome (fixture)',async()=>{await assert.rejects(dispatch({action:'test',request_id:'10000000-0000-4000-8000-000000000001'},{get,rpc:async a=>a==='configuration'?{config}:{replayed:true,state:'completed'},transport:()=>{throw Error('must not regenerate');}}),{code:'test_already_requested'});});
+
+test('provider rejection classification never returns raw messages or unrecognized codes',async()=>{
+ for(const [status,code,expected] of [[401,'invalid_api_key','provider_credential_invalid'],[403,'insufficient_permissions','provider_permission_denied'],[404,'model_not_found','provider_model_unavailable'],[429,'insufficient_quota','provider_quota_exhausted'],[429,'project_spend_limit_exceeded','provider_budget_exhausted'],[400,'untrusted-secret-code','provider_rejected']]){
+  await assert.rejects(generateText(claim,'fixture-key',{transport:async()=>new Response(JSON.stringify({error:{code,message:'secret raw provider details'}}),{status})}),e=>e.code===expected&&!e.message.includes('secret'));
+ }
+});
+test('oversized error bodies are discarded and fall back to sanitized HTTP classification',async()=>{
+ await assert.rejects(generateText(claim,'fixture-key',{transport:async()=>new Response('secret'.repeat(4000),{status:403})}),{code:'provider_permission_denied'});
+});
