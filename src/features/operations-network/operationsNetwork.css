@@ -354,6 +354,7 @@
 .son-canvas { height: var(--son-canvas-height); }
 .son-information-bar { grid-column: 1 / -1; }
 .son-inspector { position: static; width: auto; height: var(--son-canvas-height); max-height: none; min-height: 0; overflow-y: auto; overscroll-behavior: contain; box-shadow: none; }
+.son-inspector .son-module-list { max-height: none; overflow: visible; }
 @media(min-width:900px) {
   .son-workbench.son-inspector-open { grid-template-columns: minmax(0,1fr) 330px; }
   .son-inspector { grid-column: 2; grid-row: 2; }
