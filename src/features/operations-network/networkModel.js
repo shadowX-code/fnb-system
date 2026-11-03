@@ -114,5 +114,10 @@ export function buildNetwork({ modules, agents = [], integrations = [], events =
   }
 
   const laidOut = layoutNetworkNodes(nodes, edges, { narrow });
-  return { ...laidOut, groups, matching, visibleAgents };
+  const selectedModule = matching.find(module => module.id === selectedId);
+  const selectedEvent = selectedModule && latest(selectedId);
+  const selection = laidOut.nodes.find(node => node.id === selectedId) || (selectedModule && {
+    id: selectedId, data: { ...selectedModule, kind: 'module', layer: 2, collapsed: true, event: selectedEvent, status: selectedEvent?.status ?? 'unknown' },
+  });
+  return { ...laidOut, groups, matching, visibleAgents, selection };
 }

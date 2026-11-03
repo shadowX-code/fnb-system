@@ -42,8 +42,45 @@ export function layoutNetworkNodes(inputNodes, inputEdges, { narrow = false } = 
   return { nodes, edges, primaryIds: narrow && workspaces.length > 2 ? ['platform', ...workspaces.slice(0, 2).map(node => node.id)] : primaryIds };
 }
 
+// Follow declared relationships, then their structural ancestors; never fan out through an ancestor.
+export function deriveNetworkFocus(graph, selectedId) {
+  const byId = new Map(graph.nodes.map(node => [node.id, node]));
+  const selected = byId.get(selectedId);
+  const owner = !selected && graph.groups?.find(group => group.modules.some(module => module.id === selectedId));
+  const root = selected?.id || (owner && `workspace:${owner.id}`);
+  const nodeIds = new Set(root ? [root] : []), edgeIds = new Set();
+  const include = edge => { nodeIds.add(edge.source); nodeIds.add(edge.target); edgeIds.add(edge.id); };
+  if (!root) return { active: false, nodeIds, edgeIds };
+  const incident = graph.edges.filter(edge => edge.source === root || edge.target === root);
+  // A hidden module retains only its owning visible hierarchy, never hidden execution/access paths.
+  if (selected) {
+    incident.forEach(include);
+    const agents = new Set([...nodeIds].filter(id => byId.get(id)?.data.kind === 'agent'));
+    if (selected.data.kind === 'integration') {
+      graph.edges.filter(edge => (agents.has(edge.source) || agents.has(edge.target)) && ['authorization', 'execution'].includes(edge.data.kind)).forEach(include);
+    }
+  }
+  const incoming = new Map();
+  for (const edge of graph.edges) {
+    if (edge.data.kind !== 'dependency' || !byId.has(edge.source) || !byId.has(edge.target)) continue;
+    const source = byId.get(edge.source).data, target = byId.get(edge.target).data;
+    const operationOwnership = source.kind === 'operation-group' && target.kind === 'module' && source.workspace === target.workspace;
+    if (!operationOwnership && source.layer >= target.layer) continue;
+    if (!incoming.has(edge.target)) incoming.set(edge.target, []);
+    incoming.get(edge.target).push(edge);
+  }
+  const queue = [...nodeIds], visited = new Set();
+  for (let index = 0; index < queue.length; index++) {
+    const id = queue[index];
+    if (visited.has(id)) continue;
+    visited.add(id);
+    for (const edge of incoming.get(id) || []) { include(edge); queue.push(edge.source); }
+  }
+  return { active: true, nodeIds, edgeIds };
+}
+
 // Synthetic motion is a rendering flag only. It never replaces evidence, outcomes or timestamps.
-export function presentNetworkEdges(edges, visualDemo, selectedId = null, visibleNodeIds = []) {
+export function presentNetworkEdges(edges, visualDemo, selectedId = null, visibleNodeIds = [], focus = null) {
   const representatives = new Map(), visible = new Set(visibleNodeIds);
   const priority = edge => (edge.source === selectedId || edge.target === selectedId ? 10 : 0) + Number(visible.has(edge.source)) + Number(visible.has(edge.target));
   const candidates = edges.filter(edge=>edge.data.kind !== 'execution');
@@ -52,5 +89,9 @@ export function presentNetworkEdges(edges, visualDemo, selectedId = null, visibl
     if(!representatives.has(category)) representatives.set(category,edge.id);
   }
   const demoIds=new Set([...representatives.values()].slice(0,10));
-  return edges.map(edge => ({ ...edge, data: { ...edge.data, demoMotion: !!visualDemo && demoIds.has(edge.id), focused: !!selectedId && (edge.source === selectedId || edge.target === selectedId), dimmed: !!selectedId && edge.source !== selectedId && edge.target !== selectedId } }));
+  return edges.map(edge => {
+    const active = !!focus?.active;
+    const focused = active && focus.edgeIds.has(edge.id);
+    return { ...edge, data: { ...edge.data, demoMotion: !!visualDemo && demoIds.has(edge.id), focused, dimmed: active && !focused } };
+  });
 }

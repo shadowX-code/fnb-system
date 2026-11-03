@@ -11,7 +11,7 @@ import { formatOperationalDateTime } from '../../lib/dateTime.js';
 import { getAccessibleOutlets } from '../../utils/accessControl.js';
 import { accessibleNetworkModules, buildNetwork, filterEvents, layers, statusLabels } from './networkModel.js';
 import useNetworkEvidence from './useNetworkEvidence.js';
-import { presentNetworkEdges } from './networkPresentation.js';
+import { deriveNetworkFocus, presentNetworkEdges } from './networkPresentation.js';
 import useNetworkFullscreen from './useNetworkFullscreen.js';
 import { edgeTypes, nodeTypes } from './NetworkGraph.jsx';
 import NetworkDetailPanel, { NetworkTimeline } from './NetworkDetailPanel.jsx';
@@ -68,8 +68,9 @@ function NetworkExperience({ auth, ui, store }) {
     fitPending.current = true; fitRequest.current = expanded.has(id) ? 'primary' : id;
     setExpanded(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else { if (!['agents', 'data-integrations', 'social-connections'].includes(id)) for (const key of next) if (!['agents', 'data-integrations', 'social-connections'].includes(key)) next.delete(key); next.add(id); } return next; });
   }, [expanded]);
-  const nodes = useMemo(() => graph.nodes.map(node => ({ ...node, data: { ...node.data, onToggle: toggleWorkspace, dimmed: !!selectedId && node.id !== selectedId && !graph.edges.some(edge => (edge.source === selectedId && edge.target === node.id) || (edge.target === selectedId && edge.source === node.id)) }, domAttributes: { onKeyDown: event => { if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key) && node.data.kind !== 'operation-group') { event.preventDefault(); selectNode(node.id); } } } })), [graph.nodes, graph.edges, selectedId, toggleWorkspace, selectNode]);
-  const edges = useMemo(() => presentNetworkEdges(graph.edges, visualDemo, selectedId, visibleNodeIds), [graph.edges, visualDemo, selectedId, visibleNodeIds]);
+  const focus = useMemo(() => deriveNetworkFocus(graph, selectedId), [graph, selectedId]);
+  const nodes = useMemo(() => graph.nodes.map(node => ({ ...node, data: { ...node.data, onToggle: toggleWorkspace, related: focus.active && node.id !== selectedId && focus.nodeIds.has(node.id), dimmed: focus.active && !focus.nodeIds.has(node.id) }, domAttributes: { onKeyDown: event => { if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key) && node.data.kind !== 'operation-group') { event.preventDefault(); selectNode(node.id); } } } })), [graph.nodes, focus, selectedId, toggleWorkspace, selectNode]);
+  const edges = useMemo(() => presentNetworkEdges(graph.edges, visualDemo, selectedId, visibleNodeIds, focus), [graph.edges, visualDemo, selectedId, visibleNodeIds, focus]);
   const layoutKey = `${narrow}:${graph.nodes.map(node => node.id).join('|')}`;
   function fitPrimary() { flow.fitView({ nodes: graph.primaryIds.map(id => ({ id })), padding: 0.08, duration: reducedMotion ? 0 : 240, maxZoom: 1.15 }); }
   useEffect(() => {
@@ -83,7 +84,8 @@ function NetworkExperience({ auth, ui, store }) {
     const frame = requestAnimationFrame(() => { flow.fitView({ nodes: ids.map(id => ({ id })), padding: 0.12, duration: reducedMotion ? 0 : 240, maxZoom: 1.15 }); fitPending.current = false; });
     return () => cancelAnimationFrame(frame);
   }, [layoutKey, flow]);
-  const selected = graph.nodes.find(node => node.id === selectedId);
+  const selected = graph.selection;
+  useEffect(() => { if (selectedId && !selected) setSelectedId(null); }, [selectedId, selected]);
   const availableWorkspaces = [...new Map(modules.map(module => [module.workspace, module.workspace === 'hr' ? 'HR' : module.workspace === 'guest_ai' ? 'Guest AI' : module.workspace[0].toUpperCase() + module.workspace.slice(1)])).entries()];
   const failures = (evidence.sources || []).filter(source => source.state === 'unavailable');
   const canObserve = modules.some(module => module.id === 'external_agents');
@@ -120,7 +122,7 @@ function NetworkExperience({ auth, ui, store }) {
             <button type="button" className="son-icon-button" title="Refresh evidence" aria-label="Refresh evidence" disabled={evidence.loading} onClick={evidence.refresh}><RefreshCw size={16} /></button>
             <button type="button" className="son-icon-button" title="Fit network to view" aria-label="Fit network to view" onClick={fitPrimary}><Focus size={16} /></button>
             <button type="button" className="son-icon-button" title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>
-            <button type="button" className="son-activity-toggle" aria-label="Activity" title="Recorded activity and node details" aria-expanded={inspectorOpen} aria-controls="son-inspector" onClick={() => { fitPending.current = true; fitRequest.current = 'primary'; setInspectorOpen(value => !value); }}>{inspectorOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}<span>Activity</span></button>
+            <button type="button" className="son-activity-toggle" aria-label="Activity" title="Recorded activity and node details" aria-expanded={inspectorOpen} aria-controls="son-inspector" onClick={() => { fitPending.current = true; fitRequest.current = 'primary'; if (inspectorOpen) setSelectedId(null); setInspectorOpen(value => !value); }}>{inspectorOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}<span>Activity</span></button>
           </div>
         </div>
 
@@ -139,7 +141,7 @@ function NetworkExperience({ auth, ui, store }) {
         </div>
         <footer className="son-information-bar"><div className="son-semantics" aria-label="Connection semantics"><span><i className="son-structural-swatch"/>Structural</span><span><i className="son-authorization-swatch"/>Authorization</span><span><i className="son-recorded-swatch"/>Recorded Execution</span></div><span className="son-pan-hint">Drag to pan · scroll to zoom</span><div className="son-information-actions"><button type="button" onClick={()=>setInformation('layers')} aria-haspopup="dialog"><Layers size={14}/>Layers</button><button type="button" onClick={()=>setInformation('coverage')} aria-haspopup="dialog"><Info size={14}/>Data Coverage</button></div></footer>
       </section>
-      {inspectorOpen && <aside id="son-inspector" className="son-inspector" aria-label="Network inspector">{selected ? <NetworkDetailPanel key={selected.id} node={selected} modules={modules} events={events} onClose={() => setSelectedId(null)} onNavigate={ui.navigate} onToggle={toggleWorkspace} onSelect={selectNode} /> : evidence.loading ? <p role="status">Checking recorded activity…</p> : <NetworkTimeline events={events} modules={modules} onSelect={selectNode} />}</aside>}
+      {inspectorOpen && <aside id="son-inspector" className="son-inspector" aria-label="Network inspector">{selected ? <NetworkDetailPanel key={selected.id} node={selected} modules={modules} events={events} onClose={() => { setSelectedId(null); setInspectorOpen(false); }} onNavigate={ui.navigate} onToggle={toggleWorkspace} onSelect={selectNode} /> : evidence.loading ? <p role="status">Checking recorded activity…</p> : <NetworkTimeline events={events} modules={modules} onSelect={selectNode} />}</aside>}
     </div>
     <Drawer open={!!information} width="sm" title={information==='layers' ? 'Network layers' : 'Data Coverage'} onClose={()=>setInformation(null)}>
       {information==='layers' ? <ol className="son-layer-explanations">{layers.map((layer,index)=><li key={layer}><strong>L{index+1}</strong><span>{layer}</span></li>)}</ol> : <div className="son-coverage-content"><p>Last evidence check: {evidence.observedAt ? formatOperationalDateTime(evidence.observedAt) : 'Not available yet'}.</p><p>System health & throughput: unavailable. Uptime, success rates and universal execution totals are not measured by this view.</p><p>{canObserve ? 'AI Integrations: latest 50 access events, 50 configuration events and 50 completed receipts per agent, plus saved open requests. Live includes current open requests and the latest 24 hours. Time ranges filter returned activity; they are not complete historical totals.' : 'Agent telemetry requires existing AI Integrations view authority.'}</p><p>Connections show the latest saved snapshot. Brand social connections include last sync where accessible. Module availability reflects your permissions. Uptime, general automation runs and cross-module business timelines are not connected here. Visual Demo is synthetic presentation only.</p></div>}

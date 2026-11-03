@@ -13,7 +13,7 @@ export const NetworkNode = memo(function NetworkNode({ data, selected }) {
   const group = ['agent-group', 'data-group'].includes(data.kind);
   const toggleKey = data.kind === 'workspace' ? data.workspace : data.expandKey;
   const caption = data.kind === 'platform' ? 'Platform architecture' : data.kind === 'data' ? 'Not measured' : data.kind === 'module' && data.status === 'unknown' ? 'No telemetry' : statusLabels[data.status];
-  return <article className={`son-node son-node-${data.kind}${selected ? ' son-selected' : ''}${data.dimmed ? ' son-node-dimmed' : ''}`} data-status={data.status} title={data.label}>
+  return <article className={`son-node son-node-${data.kind}${selected ? ' son-selected' : ''}${data.related ? ' son-node-related' : ''}${data.dimmed ? ' son-node-dimmed' : ''}`} data-status={data.status} title={data.label}>
     {Object.entries(sides).map(([side, position]) => <Fragment key={side}><Handle id={`in-${side}`} type="target" position={position} isConnectable={false} /><Handle id={`out-${side}`} type="source" position={position} isConnectable={false} /></Fragment>)}
     {data.kind === 'platform' ? <>
       <div className="son-hub-body"><Network size={26} strokeWidth={1.6} aria-hidden="true" /><strong>FeedX OS</strong><p>F&B operations core</p></div>

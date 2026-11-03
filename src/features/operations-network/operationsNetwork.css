@@ -334,3 +334,14 @@
 }
 .son-experience > .son-scope-note { color: var(--theme-muted); margin: 8px 0; }
 .son-admin-header :focus-visible,.son-information-bar :focus-visible,.son-experience [role="dialog"] :focus-visible { outline-color: var(--theme-primary); }
+
+/* Selection is static relationship emphasis, independent of evidence and particle motion. */
+.son-node-related { border-color: #50858a; }
+.son-node.son-selected { border-color: #a3f4e8; outline: 1px solid #a3f4e8; outline-offset: 2px; }
+.son-node-related .son-hub-body { border-color: #71b9b4; }
+.son-node.son-selected .son-hub-body { border-color: #a3f4e8; }
+.son-node-dimmed { opacity: .72; }
+.son-edge[data-focused] { opacity: 1; }
+.son-edge[data-focused] .react-flow__edge-path { stroke: var(--son-edge-color) !important; stroke-width: 1.2; }
+.son-edge-execution[data-focused] .react-flow__edge-path { stroke-width: 1.4; }
+.son-edge[data-dimmed] { opacity: .2; }

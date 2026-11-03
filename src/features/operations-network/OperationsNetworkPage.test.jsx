@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ flow: { fitView: vi.fn() }, agents: [], modules: [0,1].map(index=>({id:`factory-test-${index}`,label:`Operation ${index}`,workspace:'factory',section:'Production'})) }));
 vi.mock('@xyflow/react', () => ({
   ReactFlowProvider: ({children})=>children, useReactFlow:()=>mocks.flow,
-  ReactFlow:({nodes,onNodeClick})=><div>{nodes.map(node=><button key={node.id} onClick={event=>onNodeClick(event,node)}>{node.data.label}</button>)}</div>,
+  ReactFlow:({nodes,onNodeClick})=><div>{nodes.map(node=><div key={node.id}><button data-related={node.data.related} data-dimmed={node.data.dimmed} aria-pressed={node.selected} onClick={event=>onNodeClick(event,node)}>{node.data.label}</button>{node.data.kind==='workspace' && <button onClick={()=>node.data.onToggle(node.data.workspace)}>Toggle {node.data.label}</button>}</div>)}</div>,
   Controls:()=>null, Handle:()=>null, BaseEdge:()=>null, Position:{Top:'top',Bottom:'bottom',Left:'left',Right:'right'}, getBezierPath:()=>['M0,0 L1,1'],
 }));
 vi.mock('./networkModel.js',async importOriginal=>({...await importOriginal(),accessibleNetworkModules:()=>mocks.modules}));
@@ -60,4 +60,27 @@ it('moves complete coverage information and layer explanations into shared drawe
   fireEvent.click(screen.getByRole('button',{name:'Layers',exact:true}));
   expect(screen.getByRole('dialog',{name:'Network layers'})).toBeTruthy();
   expect(screen.getByText('L5')).toBeTruthy();
+});
+
+it('retains ownership focus across collapse, re-expansion and selection switching, then clears on Inspector close',()=>{
+  render(<OperationsNetworkPage auth={{hasPermission:()=>false,user:{id:'test'},permissions:[],profile:{}}} store={{outlets:[]}} ui={{networkRoutes:[],networkWorkspace:'factory',returnFromNetwork:()=>{},navigate:()=>{}}}/>);
+  fireEvent.click(screen.getByRole('button',{name:'Toggle Factory',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:'Operation 0',exact:true}));
+  expect(screen.getByRole('button',{name:'Factory',exact:true}).getAttribute('data-related')).toBe('true');
+  expect(screen.getByRole('button',{name:'FeedX OS',exact:true}).getAttribute('data-related')).toBe('true');
+  expect(screen.getByRole('button',{name:'Operation 1',exact:true}).getAttribute('data-dimmed')).toBe('true');
+  fireEvent.click(screen.getByRole('button',{name:'Toggle Factory',exact:true}));
+  expect(screen.getByRole('region',{name:'Operation 0 details'})).toBeTruthy();
+  expect(screen.queryByRole('button',{name:'Operation 0',exact:true})).toBeNull();
+  expect(screen.getByRole('button',{name:'Factory',exact:true}).getAttribute('data-related')).toBe('true');
+  fireEvent.click(screen.getByRole('button',{name:'Show on network',exact:true}));
+  expect(screen.getByRole('button',{name:'Operation 0',exact:true}).getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(screen.getByRole('button',{name:'Operation 1',exact:true}));
+  expect(screen.getByRole('button',{name:'Operation 0',exact:true}).getAttribute('data-dimmed')).toBe('true');
+  fireEvent.click(screen.getByRole('group',{name:'Canvas controls'}).querySelector('[aria-label="Activity"]'));
+  expect(screen.queryByRole('region',{name:'Operation 1 details'})).toBeNull();
+  expect(screen.getByRole('button',{name:'Factory',exact:true}).getAttribute('data-related')).toBe('false');
+  fireEvent.click(screen.getByRole('button',{name:'Operation 1',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:'Close node details',exact:true}));
+  expect(screen.getByRole('button',{name:'Operation 1',exact:true}).getAttribute('aria-pressed')).toBe('false');
 });

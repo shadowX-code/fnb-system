@@ -28,6 +28,7 @@ export default function NetworkDetailPanel({ node, events, modules, onClose, onN
     {tab === 'overview' && <>
     <span className="son-status" data-status={data.status}>{statusLabels[data.status]}</span>
     <p>{data.description || (data.kind === 'module' ? 'An accessible FeedX operation. Open its page to inspect the authoritative records and available actions.' : data.kind === 'agent' ? 'Registered in AI Integrations. Connection evidence is historical and does not establish current online presence.' : 'Expand a workspace to inspect its operations.')}</p>
+    {data.collapsed && <><p className="son-muted">This workspace is collapsed. Module connections are hidden.</p><button type="button" className="son-button" onClick={() => onSelect(node.id, data.workspace)}>Show on network<ChevronRight size={16} /></button></>}
     {data.lastObserved && <dl><dt>Last successful request</dt><dd>{formatOperationalDateTime(data.lastObserved)}</dd></dl>}
     {data.kind === 'module' && <><dl><dt>Module telemetry</dt><dd>{data.event ? `${statusLabels[data.status]} · ${formatOperationalDateTime(data.event.date)}` : 'Unavailable — no matching observation returned'}</dd></dl><button type="button" className="son-button son-primary" onClick={() => onNavigate(node.id)}>Open {data.label}<ArrowUpRight size={16} /></button></>}
     {data.kind === 'integration' && data.moduleId && <button type="button" className="son-button" onClick={() => onNavigate(data.moduleId)}>Open connection settings<ArrowUpRight size={16} /></button>}

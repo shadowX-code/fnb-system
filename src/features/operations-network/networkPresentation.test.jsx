@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { NetworkEdge } from './NetworkGraph.jsx';
 import { buildNetwork } from './networkModel.js';
-import { presentNetworkEdges } from './networkPresentation.js';
+import { deriveNetworkFocus, presentNetworkEdges } from './networkPresentation.js';
 
 const modules = ['restaurant','factory','hr','crew','finance','marketing','guest_ai'].flatMap(workspace => Array.from({length: 5},(_,i)=>({id:`${workspace}-${i}`,label:`${workspace} operation ${i}`,workspace,section:'Operations'})));
 const overlap = (a,b) => a.position.x < b.position.x+b.width && a.position.x+a.width > b.position.x && a.position.y < b.position.y+b.height && a.position.y+a.height > b.position.y;
@@ -24,7 +24,7 @@ describe('readable network layout', () => {
     expect(Math.min(...workspaces.map(node=>node.position.y))).toBeGreaterThan(find('platform').height);
     expect(find('automation-group').position.y).toBeGreaterThan(Math.max(...workspaces.map(node=>node.position.y+node.height)));
     expect(find('data-group').position.y).toBeGreaterThan(find('automation-group').position.y+find('automation-group').height);
-    const focused=presentNetworkEdges(graph.edges,false,'workspace:factory');
+    const focused=presentNetworkEdges(graph.edges,false,'workspace:factory',[],deriveNetworkFocus(graph,'workspace:factory'));
     expect(focused.filter(edge=>!edge.data.dimmed).every(edge=>edge.source==='workspace:factory'||edge.target==='workspace:factory')).toBe(true);
   });
   it('keeps expanded modules in their own grid and preserves unique evidenced edges for different actors', () => {
