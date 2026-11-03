@@ -1219,3 +1219,7 @@ Added the authenticated global Admin AI Assistant system route and independent, 
 
 ### 2026-11-04 — Native Assistant Phase 1A (Staging)
 Added compact AI Integrations provider settings, dedicated approval-only server reference and user-owned bounded text sessions. Independent GPL HUD uses a fixed text protocol with complete modified source/notices distributed. Domain keys, Agent grants, voice and business tools stay isolated; unavailable authorization fails closed. Fixture tests are distinct from actual provider conversation. Canonical owners: platform and trusted-authorities.
+
+
+## 2026-11-04 — Native Assistant voice/read boundary
+Extended the existing Staging text authority with current-human Factory Finished Goods read evidence and scope-bound sessions, plus fail-closed isolated voice transport and host media controls. No Agent grants, business mutations, domain AI credentials or Production changes. Independent GPL voice worker is prepared in the persistent pilot; external hosting/credential approval and real remote voice acceptance remain separate delivery gates.

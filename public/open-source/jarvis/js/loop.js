@@ -28,7 +28,7 @@ function frame() {
   U.uWarm.value = lerp(U.uWarm.value, S.warm, f * 0.6);
   bloom.strength = lerp(bloom.strength, S.bloom, f);
   const t = simT;
-  speakEnv = state === 'speaking' ? Math.max(0, 0.25 + 0.75 * Math.sin(t * 6.1) * Math.sin(t * 2.3 + 1) + 0.25 * Math.sin(t * 13.7)) : 0;
+  speakEnv = (state === 'speaking' || state === 'listening') ? Math.max(0, Math.min(1, window.FEEDX_AUDIO_LEVEL || 0)) : 0;
   U.uVib.value = lerp(U.uVib.value, Math.min(1, speakEnv), 0.35);
   simT += dt; U.uTime.value = simT;
 

@@ -19,7 +19,7 @@ web.innerHTML=`<div class="web-core-caption"><span class="web-status-dot"></span
 <div id="webNotice" role="status">No model is connected. Requests stay in this tab; no AI answer will be generated.</div>
 <ol id="webMessages" aria-label="Conversation messages" aria-live="polite"></ol>
 <div id="webComposer"></div><div class="web-controls"><button type="button" id="webVoice" aria-disabled="true" title="No authorized voice service is connected">Voice unavailable</button><button type="button" id="webStop">Stop</button></div>
-<p class="web-privacy">Text is sent to the configured model only when enabled. Voice and business tools are unavailable. Conversation history expires after 24 hours.</p>
+<p class="web-privacy">Text is sent to the configured model only when enabled. Microphone audio is not retained. Business reads use your current Admin permissions. Conversation history expires after 24 hours.</p>
 <footer class="web-license"><a href="source.zip" download>HUD source · GPL-3.0</a><a href="LICENSE.txt" download>License</a></footer></section>`;
 document.body.appendChild(web);
 const notice=$('#webNotice'),messageList=$('#webMessages'),history=$('#webHistory');
@@ -29,7 +29,7 @@ $('#mic').setAttribute('aria-label','Microphone unavailable');$('#mic').setAttri
 const submit=document.createElement('button');submit.type='button';submit.id='webSend';submit.textContent='Send';$('#form').appendChild(submit);
 function showNotice(text,error=false){notice.textContent=text;notice.setAttribute('role',error?'alert':'status');notice.dataset.error=String(error);}
 function renderHistory(){history.replaceChildren(...sessions.map((s,i)=>{const option=document.createElement('option');option.value=s.id;option.textContent=s.title||s.messages[0]?.text.slice(0,48)||`Conversation ${i+1}`;return option;}));history.value=currentSession.id;}
-function renderMessages(){messageList.replaceChildren();if(!currentSession.messages.length){const empty=document.createElement('li');empty.className='web-empty';empty.textContent='Start with a question. Your request will appear here; responses require an authorized model connection.';messageList.appendChild(empty);}for(const message of currentSession.messages){const item=document.createElement('li');const label=document.createElement('strong');label.textContent=message.role==='assistant'?'Assistant':'You';const text=document.createElement('p');text.textContent=message.text;item.append(label,text);messageList.appendChild(item);}messageList.scrollTop=messageList.scrollHeight;renderHistory();}
+function renderMessages(){messageList.replaceChildren();if(!currentSession.messages.length){const empty=document.createElement('li');empty.className='web-empty';empty.textContent='Start with a question. Your request will appear here; responses require an authorized model connection.';messageList.appendChild(empty);}for(const message of currentSession.messages){const item=document.createElement('li');const label=document.createElement('strong');label.textContent=message.role==='assistant'?'Assistant':'You';const text=document.createElement('p');text.textContent=message.text;item.append(label,text);if(message.evidence?.capability==='read_factory_finished_goods'){const evidence=document.createElement('div');evidence.className='web-evidence';const link=document.createElement('a');link.href='https://fnb-system-staging.vercel.app/factory/warehouse/finished-goods';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Factory · Finished Goods ↗';const stamp=document.createElement('span');stamp.textContent=`${message.evidence.scope} · ${message.evidence.as_of} · ${message.evidence.returned}/${message.evidence.total_matching} matches`;const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('p');summary.textContent='Read evidence';note.textContent=message.evidence.limitations;details.append(summary,note);evidence.append(link,stamp,details);item.append(evidence);}messageList.appendChild(item);}messageList.scrollTop=messageList.scrollHeight;renderHistory();}
 // Same request/session identity boundary as the pilot. No remote engine is configured.
 let handle=function(text){text=text.trim();if(!text)return;if(activeRequest){showNotice('Stop the current response before sending another request.',true);return;}
  activeRequest=crypto.randomUUID();currentSession.messages.push({request_id:activeRequest,role:'user',text:text.slice(0,2000)});renderMessages();
@@ -43,6 +43,7 @@ input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isCompos
 $('#form').addEventListener('submit',event=>event.preventDefault());
 $('#webNew').onclick=()=>{if(connected){activeRequest='';request('new');return;}activeRequest='';captureEpoch++;pilotSession=crypto.randomUUID();currentSession={id:pilotSession,messages:[]};sessions.push(currentSession);if(sessions.length>6)sessions.shift();input.value='';renderMessages();setState('idle');showNotice('New conversation. No model is connected; history stays in this tab.');input.focus();};
 history.onchange=()=>{if(connected){activeRequest='';request('history',{session_id:history.value});return;}activeRequest='';captureEpoch++;currentSession=sessions.find(s=>s.id===history.value)||sessions[0];input.value='';renderMessages();setState('idle');showNotice('Conversation opened. No AI service is connected.');};
+$('#mic').style.display='none';$('#webVoice').style.display='none';
 $('#mic').onclick=()=>showNotice('Speech recognition unavailable. No microphone was opened. You can type your request.',true);
 $('#webVoice').onclick=()=>showNotice('Voice output unavailable. The local Kokoro runtime is not a web-connected service.',true);
 $('#webStop').onclick=()=>{if(connected)request('cancel');activeRequest='';captureEpoch++;setState('idle');showNotice('Stopped. No AI generation, recording or playback is running.');};
@@ -63,8 +64,9 @@ function serviceStatus(){
  const ready=!!runtime?.ready;document.body.dataset.serviceState=ready?'ready':'unavailable';
  $('.web-core-caption strong').textContent=ready?'Text ready':'Visual ready';
  $('.web-core-caption p').textContent='Original Jarvis Core · '+(ready?'authorized text service':'text service unavailable');
- $('.web-services summary').textContent='Services · '+(ready?'text connected · 3 unavailable':'4 unavailable');
- $('.web-services dd').textContent=ready?'Connected · '+runtime.model:'Not configured or authorized';
+ const services=[ready?'Connected · '+runtime.model:'Unavailable',runtime?.stt?'Whisper · use Talk above':'Runtime unavailable',runtime?.tts?'Kokoro bm_george · use Voice replies above':'Runtime unavailable',runtime?.tools?'Factory Finished Goods · read only':'Unavailable'];
+ $('.web-services summary').textContent='Services · '+services.filter(x=>!x.includes('unavailable')&&x!=='Unavailable').length+' connected';
+ document.querySelectorAll('.web-services dd').forEach((el,i)=>el.textContent=services[i]);
 }
 addEventListener('message',event=>{
  if(event.source!==parent||event.origin!==hostOrigin||event.data?.protocol!==protocol)return;
@@ -74,11 +76,11 @@ addEventListener('message',event=>{
  if(d.type==='bootstrap'||d.type==='sessions'){
   connected=true;if(d.runtime)runtime=d.runtime;
   sessions.splice(0,sessions.length,...d.sessions.map(x=>({...x,messages:[]})));currentSession=sessions.find(x=>x.id===d.session_id)||sessions[0];
-  if(!currentSession)return;renderMessages();serviceStatus();showNotice(runtime?.ready?'Text conversation ready. Voice and business tools are unavailable.':'Text service unavailable. Check Native Assistant in AI Integrations.');return;
+  if(!currentSession)return;renderMessages();serviceStatus();showNotice(runtime?.ready?'Conversation ready. Expand Services to see authorized capabilities.':'Text service unavailable. Check Native Assistant in AI Integrations.');return;
  }
  if(d.type==='history'){
   const selected=sessions.find(x=>x.id===d.session_id);if(!selected)return;currentSession=selected;activeRequest='';
-  currentSession.messages=d.turns.flatMap(t=>[{role:'user',text:t.prompt,request_id:t.request_id},...(t.state==='completed'&&t.reply?[{role:'assistant',text:t.reply,request_id:t.request_id}]:[])]);
+  currentSession.messages=d.turns.flatMap(t=>[{role:'user',text:t.prompt,request_id:t.request_id},...(t.state==='completed'&&t.reply?[{role:'assistant',text:t.reply,request_id:t.request_id,evidence:t.evidence}]:[])]);
   renderMessages();setState('idle');return;
  }
  if(d.type==='resume'){activeRequest=d.request_id;showNotice('Recovering the active request…');return;}
@@ -87,13 +89,19 @@ addEventListener('message',event=>{
   if(d.request_id&&activeRequest&&d.request_id!==activeRequest)return;
   activeRequest='';setState('error');showNotice(d.message||'Assistant unavailable.',true);return;
  }
+ if(d.type==='transcript'&&typeof d.text==='string'){handle(d.text.slice(0,2000));return;}
+ if(d.type==='voice_error'){showNotice(d.message||'Voice service unavailable.',true);return;}
+ if(d.type==='voice_level'){window.FEEDX_AUDIO_LEVEL=Math.max(0,Math.min(1,Number(d.level)||0));return;}
+ if(d.type==='voice_state'){const states={listening:'listening',transcribing:'thinking',speaking:'speaking',error:'error'};window.FEEDX_AUDIO_LEVEL=0;if(states[d.state])setState(states[d.state]);else if(!activeRequest)setState('idle');return;}
  if(d.request_id!==activeRequest)return;
+ if(d.type==='state'&&d.state==='executing'){setState('executing');showNotice('Reading authorized Factory Finished Goods…');}
  if(d.type==='state'&&d.state==='thinking'){setState('thinking');showNotice('Thinking…');}
  if(d.type==='result'&&typeof d.reply==='string'){
-  currentSession.messages.push({role:'assistant',text:d.reply.slice(0,3000),request_id:activeRequest});activeRequest='';renderMessages();setState('idle');showNotice('Response received · text only.');
+  currentSession.messages.push({role:'assistant',text:d.reply.slice(0,3000),request_id:activeRequest,evidence:d.evidence});activeRequest='';renderMessages();setState('idle');showNotice(d.evidence?'Response received · verified read evidence attached.':'Response received.');
  }
 });
 // The renderer is unchanged; error is a non-speaking, idle-shaped visual state.
+STATES.executing=STATES.thinking;STATE_LABEL.executing='Executing · read only';
 STATES.error=STATES.idle;STATE_LABEL.error='Error';
 if(parent!==window)request('ready');
 

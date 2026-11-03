@@ -1,6 +1,6 @@
 {
   "LICENSE.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
-  "PROTOCOL.txt": "38ae2c5c5a0024bc4336e1f2ab6bc262833b984957ce723ad463b66cb27c9a23",
+  "PROTOCOL.txt": "ea3a60b4231c49824db7a98d4b08670d43a8a44aad5990aa0f4a7c24f76c25a1",
   "README.txt": "bd778fb50024f2645a93ee85029762022c2ce7fa928b72ef3407e6d8dda2d39f",
   "THIRD-PARTY-NOTICES.txt": "72350f256b76a68dd5c96b5b998bd84c368bead5d9fceb252acf0e31c350cab6",
   "css/hud.css": "53e0c26310d9b0335607f6dab5d3af5181cacf776a9e748f40ed4946cfbdf96b",
@@ -25,7 +25,7 @@
   "js/holo-lib.js": "623739dad4f9eeadf71afc0b463a23f2d72a3e3b09c79e3abea5763672f192b0",
   "js/interaction.js": "6b1fd3b4d18a6cda2c6ca4bfc3ffccd90bee652cb537a125c1c11584e01d12ba",
   "js/live.js": "20396b950788d468af53755ccff2f67abfa7a9dcb6dee69e141ccb19d6ee110b",
-  "js/loop.js": "802e45886c4b5472e2faeff8abeb06482ad717ce1d7dd68fa19a0dcdd6362a4d",
+  "js/loop.js": "51fd2fb312f0ffff3af240b2a6c79190a901e619a9765705371fdeb97cf2e253",
   "js/machine.js": "9dcb4299a094ef57753e9cd9c2e2f2d7d805e102726faf2cd8e680af17aa5f83",
   "js/nav.js": "e464e7cee8660dd0000d57c369a87f8fd84e54c35922c50fc0e2ec7e57546727",
   "js/onboard.js": "ce5d976d36cc268c9e505aab11702e0a42629ce2dea3f5bef52b97a612069e31",
@@ -62,6 +62,6 @@
   "vendor/three/examples/jsm/shaders/CopyShader.js": "4e3346db194db56a596cd074e9bdb39fb5eb52040c333e0d29dc4eb1324d3b1d",
   "vendor/three/examples/jsm/shaders/LuminosityHighPassShader.js": "3d841cc594a0c1767d1b0185720b32761a0133c5f1b70b56658e28f2fb9b7900",
   "vendor/three/examples/jsm/shaders/OutputShader.js": "53a52e430c27bc36ceaab8ae90a2b4af7b02672d7ee4b29d6ba3c28e09c92c2a",
-  "web.css": "1df67e55e03a13bc494d7831494b314fccf8db71ceea2f910e88732c4fc7228c",
-  "web.js": "a0f831da0dfc5837092c3317d7eccb85abcf7062d9d95edf5493dd953f2823e7"
+  "web.css": "5fda28de395d9da9ab683e5ddc410dc21a80e2d8520736805e1716b8e67c7d4f",
+  "web.js": "dc50e3ba05c8ceb2637c6cf302ff7325420f9aea3c000b968a718a72d3e8c70a"
 }
