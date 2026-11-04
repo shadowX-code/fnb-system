@@ -3,15 +3,16 @@ begin;
 set local lock_timeout='2s';
 do $test$
 declare
- owner_id uuid; other_id uuid; candidate record; sid uuid; r jsonb; payload jsonb;
+ owner_id uuid; other_id uuid; candidate record; sid uuid; r jsonb; payload jsonb; fresh_id uuid;
  voice_before bigint; evidence_before bigint; older bigint;
 begin
  select count(*) into voice_before from feedx_integrations.native_assistant_requests where voice_lease_id is not null;
  select count(*) into evidence_before from feedx_integrations.native_assistant_requests where evidence is not null;
  for candidate in
-  select distinct u.id,u.email from auth.users u
+  select u.id,u.email from auth.users u
    where exists(select 1 from public.employees e where e.auth_user_id=u.id or e.id=u.id)
       or exists(select 1 from public.user_profiles p where p.id=u.id)
+   order by (select count(*) from feedx_integrations.native_assistant_sessions s where s.user_id=u.id) desc,u.id
  loop
   perform set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',candidate.id,'email',candidate.email)::text,true);
   perform set_config('request.jwt.claim.sub',candidate.id::text,true);
@@ -20,6 +21,18 @@ begin
   end if;
  end loop;
  if other_id is null then raise exception 'Two active Admin identities are required for this check'; end if;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ r:=public.native_assistant_service(other_id,'session_new');
+ fresh_id:=(r->>'session_id')::uuid;
+ if not exists(select 1 from feedx_integrations.native_assistant_sessions where id=fresh_id and user_id=other_id and scope_key is not null) then
+  raise exception 'New thread was not bound to its authenticated owner and scope';
+ end if;
+ update feedx_integrations.native_assistant_sessions set scope_key='fixture-other-scope' where id=fresh_id;
+ begin
+  perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+  perform public.native_assistant_service(other_id,'history',jsonb_build_object('session_id',fresh_id));
+  raise exception 'Changed scope did not fence thread history';
+ exception when insufficient_privilege then null; end;
  insert into feedx_integrations.native_assistant_sessions(user_id,created_at) values(owner_id,now()-interval '2 days') returning id into sid;
  payload:=jsonb_build_object('session_id',sid);
  insert into feedx_integrations.native_assistant_requests(user_id,request_id,session_id,kind,prompt,reply,provider_revision,model,reserved_tokens,state,finished_at)

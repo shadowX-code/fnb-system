@@ -204,3 +204,10 @@
  .assistant-page:not(.assistant-fullscreen) .assistant-voice-bar>*{pointer-events:auto}
  .assistant-page:not(.assistant-fullscreen) .assistant-voice-bar>span[role=status]{flex:1;min-width:90px;font-size:.72rem;line-height:1.35}
 }
+.assistant-drawer>header{background:#0d222c;border-color:#294650}
+.assistant-drawer>header h2{color:#eaf6f8}
+.assistant-drawer>header p{color:#bdd4db}
+.assistant-drawer:focus{outline:2px solid #6399a5;outline-offset:-2px}
+@media(max-width:800px){
+ .assistant-history-open strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal;overflow-wrap:anywhere}
+}

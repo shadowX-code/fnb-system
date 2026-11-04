@@ -106,8 +106,11 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
      const runtime=r=>({ready:r.ready,connection_ready:r.connection_ready,runtime_available:r.runtime_available,blocker:r.blocker,model:r.model,tools:r.tools,voice_provider:r.realtime?.openai?'OpenAI Realtime SDK':r.realtime?.grok?'Grok Voice':null});
      void call('status').then(({runtime:r})=>{
       if(!alive)return;
-      voice?.setAvailable(r);post('runtime',{runtime:runtime(r)});
-     }).catch(()=>{});
+      voice?.setAvailable?.(r);post('runtime',{runtime:runtime(r)});
+     }).catch(()=>{
+      if(!alive)return;
+      voice?.setAvailable?.({});post('runtime',{runtime:{ready:false}});
+     });
      const sessions=await list();
      if(!alive||generation!==mine)return;
      const fallback=sessions.find(s=>s.title&&s.title!=='New conversation')||sessions[0];

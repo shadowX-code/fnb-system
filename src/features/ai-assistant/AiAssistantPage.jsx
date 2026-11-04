@@ -33,7 +33,7 @@ export default function AiAssistantPage({ ui, auth }) {
     return ()=>clearInterval(clock);
   },[fullscreen]);
   const liveSignal = ['listening', 'thinking', 'executing', 'speaking'].includes(realtimeState.state);
-  return <section ref={root} className={`assistant-page${fullscreen ? ' assistant-fullscreen' : ''}`}>
+  return <section ref={root} onKeyDownCapture={event=>{if(drawer&&event.key==='Escape'){event.preventDefault();setDrawer(null);}}} className={`assistant-page${fullscreen ? ' assistant-fullscreen' : ''}`}>
     {!fullscreen&&<header className="assistant-standard-header">
       <div className="assistant-thread-heading">
         <button type="button" className="btn-ghost" aria-label="Back to workspace" onClick={()=>ui?.returnFromNetwork?.()}><ArrowLeft size={16}/></button>

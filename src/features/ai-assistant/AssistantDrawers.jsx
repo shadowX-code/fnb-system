@@ -48,7 +48,7 @@ export function HistoryDrawer({ close, thread, locked, act, rename }) {
     <div className="assistant-history-row">
      <button type="button" className="assistant-history-open" disabled={locked||busy} aria-current={thread?.id===item.id?'true':undefined} onClick={()=>item.id===thread?.id?close():run('history',item.id)}>
       {thread?.id===item.id?<Check size={17}/>:<MessageSquare size={17}/>}
-      <span><strong>{item.title}</strong>{item.last_activity_at&&<small><Clock3 size={12}/>{new Date(item.last_activity_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</small>}</span>
+      <span><strong title={item.title}>{item.title}</strong>{item.last_activity_at&&<small><Clock3 size={12}/>{new Date(item.last_activity_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</small>}</span>
      </button>
      <button type="button" className="icon-btn" aria-label={'Rename '+item.title} disabled={busy} onClick={()=>setIntent({action:'rename',id:item.id,title:item.title})}><Pencil size={15}/></button>
      <button type="button" className="icon-btn" aria-label={'Delete '+item.title} disabled={locked||busy} onClick={()=>setIntent({action:'delete',id:item.id,title:item.title})}><Trash2 size={15}/></button>
