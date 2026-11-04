@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
+    "@openai/agents-realtime": "0.21.0",
     "@sparticuz/chromium": "140.0.0",
     "@supabase/supabase-js": "^2.105.4",
     "@tiptap/pm": "^3.31.3",

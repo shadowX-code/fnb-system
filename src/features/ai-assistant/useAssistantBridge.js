@@ -1,3 +1,4 @@
+import {createSdkVoiceBaseline} from './sdkVoiceBaseline.js';
 import {useEffect,useRef,useState} from 'react';
 import {createRealtimeVoice} from './realtimeVoice.js';
 import {createAssistantVoice} from './assistantVoice.js';
@@ -89,13 +90,15 @@ export default function useAssistantBridge(frame,userId){
   if(!userId)return;
   let bridge;
   let available={},voiceDefault;
-  const realtime=createRealtimeVoice({call:assistantCall,getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),onChange:state=>setRealtimeState({...state,available,voiceDefault})});
+  const sdkBaseline=new URLSearchParams(window.location.search).get('voiceRuntime')==='sdk';
+  const createVoice=sdkBaseline?createSdkVoiceBaseline:createRealtimeVoice;
+  const realtime=createVoice({call:assistantCall,getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),onChange:state=>setRealtimeState({...state,available,voiceDefault,sdkBaseline})});
   realtimeRef.current={...realtime,start(provider,voice){if(available[provider]){bridge.interrupt();void realtime.start(provider,voice);}}};
   const voice=createAssistantVoice({getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),beforeStart:()=>bridge?.interrupt(),onChange:setVoiceState});voiceRef.current=voice;
   bridge=createAssistantBridge({getWindow:()=>frame.current?.contentWindow,userId,voice:{
    ...voice,
    stop(){realtime.stop();voice.stop();},
-   setAvailable(runtime){available=runtime.realtime||{};voiceDefault=runtime.voice_default;setRealtimeState({state:'idle',available,active:false,voiceDefault:runtime.voice_default});voice.setAvailable(runtime);}
+   setAvailable(runtime){available=runtime.realtime||{};voiceDefault=runtime.voice_default;setRealtimeState({state:'idle',available,active:false,voiceDefault:runtime.voice_default,sdkBaseline});voice.setAvailable(runtime);}
   }});
   const listener=e=>{void bridge.receive(e);};window.addEventListener('message',listener);
   frame.current?.contentWindow?.postMessage({protocol,type:'host-ready'},'*');

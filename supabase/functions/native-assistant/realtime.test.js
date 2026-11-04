@@ -75,3 +75,23 @@ test('Realtime inventory requires canonical permission and a charged reservation
  });
  assert.equal(result.query,'Sauce');
 });
+
+test('SDK baseline reserves before minting and never exposes the configured API key', async () => {
+ const { sdp, ...requestFields } = request;
+ const body = { ...requestFields, action:'realtime_sdk_connect' };
+ const ctx = {
+  rpc:async()=>({config:{enabled:true},can_edit:true}), get:key=>approved[key],
+  transport:async (url,init)=>{
+   assert.equal(url,'https://api.openai.com/v1/realtime/client_secrets');
+   const payload=JSON.parse(init.body);
+   assert.equal(payload.session.model,'gpt-realtime-2.1-mini');
+   assert.equal(payload.session.tools,undefined);
+   assert.equal(payload.expires_after.seconds,60);
+   return Response.json({value:'ek_fixture_token'});
+  },
+ };
+ await assert.rejects(dispatch(body,{...ctx,reserveRealtime:async()=>{throw new Error('quota');},transport:fail}),/quota/);
+ const result=await dispatch(body,{...ctx,reserveRealtime:async action=>assert.equal(action,'start')});
+ assert.equal(result.client_secret,'ek_fixture_token');
+ assert.ok(!JSON.stringify(result).includes(approved.NATIVE_ASSISTANT_REALTIME_API_KEY));
+});
