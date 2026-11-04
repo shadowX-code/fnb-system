@@ -53,7 +53,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
      return call('realtime_tool', { ...lease, turn_id, arguments: args }, run.controller.signal);
     },
     state: next => { if (active === run) show(next); },
-    trace: name => event(name),
+    trace: (name, turn, response, reason) => event(name, undefined, { turn, response, reason }),
    });
    run.history = history;
    const tools = (authorization.tools || []).map(definition => tool({
@@ -83,9 +83,9 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
    });
    run.session = session;
    let speechEnded, speaking = false;
-   function event(name, state) {
+   function event(name, state, details) {
     if (active !== run) return;
-    run.report.events.push({ ms: Math.round(performance.now() - run.started), event: name });
+    run.report.events.push({ ms: Math.round(performance.now() - run.started), event: name, ...details });
     if (run.report.events.length > 120) run.report.events.shift();
     if (state) show(state);
    }
