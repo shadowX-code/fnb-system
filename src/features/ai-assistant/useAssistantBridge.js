@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
+import {createRealtimeVoice} from './realtimeVoice.js';
 import {createAssistantVoice} from './assistantVoice.js';
 import {assistantCall} from './nativeAssistantService.js';
 const protocol='feedx.assistant.text.v1';
@@ -82,15 +83,24 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
  return {receive,interrupt(){void cancel();post('cancelled');},getSession:()=>current,post,destroy(){void cancel();post('reset');alive=false;}};
 }
 export default function useAssistantBridge(frame,userId){
+ const realtimeRef=useRef(null),[realtimeState,setRealtimeState]=useState({state:'idle',available:false,active:false});
  const voiceRef=useRef(null),[voiceState,setVoiceState]=useState({state:'idle',stt:false,tts:false,output:false});
  useEffect(()=>{
   if(!userId)return;
-  let bridge;const voice=createAssistantVoice({getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),beforeStart:()=>bridge?.interrupt(),onChange:setVoiceState});voiceRef.current=voice;
-  bridge=createAssistantBridge({getWindow:()=>frame.current?.contentWindow,userId,voice});
+  let bridge;
+  let available=false;
+  const realtime=createRealtimeVoice({call:assistantCall,getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),onChange:state=>setRealtimeState({...state,available})});
+  realtimeRef.current={...realtime,start(voice){if(available){bridge.interrupt();void realtime.start(voice);}}};
+  const voice=createAssistantVoice({getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),beforeStart:()=>bridge?.interrupt(),onChange:setVoiceState});voiceRef.current=voice;
+  bridge=createAssistantBridge({getWindow:()=>frame.current?.contentWindow,userId,voice:{
+   ...voice,
+   stop(){realtime.stop();voice.stop();},
+   setAvailable(runtime){available=!!runtime.realtime;setRealtimeState({state:'idle',available,active:false});voice.setAvailable(runtime);}
+  }});
   const listener=e=>{void bridge.receive(e);};window.addEventListener('message',listener);
   frame.current?.contentWindow?.postMessage({protocol,type:'host-ready'},'*');
-  const hidden=()=>{if(document.hidden)voice.stop();};document.addEventListener('visibilitychange',hidden);
-  return()=>{document.removeEventListener('visibilitychange',hidden);window.removeEventListener('message',listener);bridge.destroy();voice.destroy();voiceRef.current=null;};
+  const hidden=()=>{if(document.hidden){realtime.stop();voice.stop();}};document.addEventListener('visibilitychange',hidden);
+  return()=>{document.removeEventListener('visibilitychange',hidden);window.removeEventListener('message',listener);bridge.destroy();voice.destroy();voiceRef.current=null;realtimeRef.current=null;};
  },[frame,userId]);
- return {voiceState,voiceRef};
+ return {voiceState,voiceRef,realtimeState,realtimeRef};
 }
