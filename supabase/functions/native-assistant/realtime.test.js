@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dispatch } from './handler.js';
+import { sdkBaselineInstructions } from './realtime.js';
 
 const id = '249ec7e0-df75-4145-8a34-ec2baf82f9ef';
 const request = { action:'realtime_connect', provider:'openai', session_id:id, request_id:id, sdp:'v=0\r\n', voice:'cedar' };
@@ -83,10 +84,17 @@ test('SDK baseline reserves before minting and never exposes the configured API 
   rpc:async()=>({config:{enabled:true},can_edit:true}), get:key=>approved[key],
   transport:async (url,init)=>{
    assert.equal(url,'https://api.openai.com/v1/realtime/client_secrets');
-   const payload=JSON.parse(init.body);
-   assert.equal(payload.session.model,'gpt-realtime-2.1-mini');
-   assert.equal(payload.session.tools,undefined);
-   assert.equal(payload.expires_after.seconds,60);
+   assert.equal(init.method,'POST');
+   assert.deepEqual(JSON.parse(init.body),{
+    expires_after:{anchor:'created_at',seconds:60},
+    session:{
+     type:'realtime',
+     model:'gpt-realtime-2.1-mini',
+     instructions:sdkBaselineInstructions,
+     output_modalities:['audio'],
+     audio:{output:{voice:'cedar'}},
+    },
+   });
    return Response.json({value:'ek_fixture_token'});
   },
  };

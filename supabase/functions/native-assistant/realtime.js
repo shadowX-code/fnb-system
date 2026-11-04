@@ -62,7 +62,7 @@ export async function createSdkVoiceSecret(voice, get, { signal, transport = fet
    headers: { Authorization: `Bearer ${get('NATIVE_ASSISTANT_REALTIME_API_KEY')}`, 'Content-Type': 'application/json' },
    signal: AbortSignal.any([AbortSignal.timeout(10000), ...(signal ? [signal] : [])]),
    body: JSON.stringify({
-    expires_after: { seconds: 60 },
+    expires_after: { anchor: "created_at", seconds: 60 },
     session: { type: 'realtime', model: realtimeModel, instructions: sdkBaselineInstructions, output_modalities: ['audio'], audio: { output: { voice } } },
    }),
   });
