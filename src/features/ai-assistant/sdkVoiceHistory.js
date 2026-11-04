@@ -2,7 +2,7 @@
 export function createSdkVoiceHistory({ write, read, state, trace, id = () => crypto.randomUUID() }) {
  const inputs = new Map();
  const responses = new Map();
- let current, playing, writes = Promise.resolve();
+ let current, writes = Promise.resolve();
 
  function save(turn, step, text = '') {
   const saved = writes.then(() => write(turn.id, step, text));
@@ -29,46 +29,38 @@ export function createSdkVoiceHistory({ write, read, state, trace, id = () => cr
    const turn = inputs.get(item_id);
    if (turn) void save(turn, 'input', transcript.slice(0, 2000)).catch(() => {});
   }
-  if (type === 'response.created' && response?.id && current && !current.finished) {
-   if (!responses.has(response.id)) responses.set(response.id, { turn: current, number: responses.size + 1 });
+  if (type === 'response.created' && response?.id && current && !current.finished && !responses.has(response.id)) {
+   const owner = { turn: current, number: responses.size + 1 };
+   responses.set(response.id, owner);
+   current.response = owner;
   }
-  if (type === 'output_audio_buffer.started') {
+  if (['output_audio_buffer.started', 'output_audio_buffer.cleared', 'output_audio_buffer.stopped'].includes(type)) {
    const owner = responses.get(response_id);
-   if (owner && !owner.turn.finished) {
-    playing = owner;
-    owner.playbackStarted = true;
-   }
-  }
-  if (type === 'output_audio_buffer.cleared' || type === 'output_audio_buffer.stopped') {
-   const owner = response_id ? responses.get(response_id) : playing;
-   if (!owner || !owner.playbackStarted) return;
-   if (playing === owner) playing = undefined;
-   if (type === 'output_audio_buffer.cleared') {
-    if (!owner.playbackStopped && !owner.tool) finish(owner.turn, 'interrupted', undefined, 'playback_cleared', owner);
-   } else {
-    owner.playbackStopped = true;
-    if (owner.reply) finish(owner.turn, 'complete', owner.reply, 'playback_stopped', owner);
-   }
+   trace(type, owner?.turn.number, owner?.number);
+   return;
   }
   if (type !== 'response.done') return;
   const owner = responses.get(response?.id);
   const turn = owner?.turn;
-  if (!turn || turn.finished) return;
+  if (!turn || turn !== current || turn.finished) return;
   if (owner.tool || response.output?.some(item => item.type === 'function_call')) {
    trace('tool_response_done', turn.number, owner.number, response.status);
    return;
   }
+  if (turn.response !== owner) return;
+  if (response.status === 'cancelled') {
+   finish(turn, 'interrupted', undefined, 'provider_cancelled', owner);
+   return;
+  }
   if (response.status !== 'completed') {
-   const cancelled = response.status === 'cancelled';
-   finish(turn, cancelled ? 'interrupted' : 'failed', undefined, cancelled ? 'provider_cancelled' : 'provider_failed', owner);
+   const incomplete = response.status === 'incomplete';
+   finish(turn, incomplete ? 'unfinished' : 'failed', undefined, incomplete ? 'provider_incomplete' : 'provider_failed', owner);
    return;
   }
   const text = response.output?.flatMap(item => item.role === 'assistant'
    ? (item.content || []).map(content => content.type === 'output_audio' || content.type === 'audio' ? content.transcript : null)
    : []).filter(Boolean).join(' ').slice(0, 3000);
-  owner.reply = text;
-  if (!text) finish(turn, 'unavailable', undefined, 'missing_assistant_transcript', owner);
-  else if (owner.playbackStopped) finish(turn, 'complete', text, 'playback_stopped', owner);
+  finish(turn, text ? 'complete' : 'unavailable', text, text ? 'provider_completed' : 'missing_assistant_transcript', owner);
  }
 
  return {
@@ -76,7 +68,7 @@ export function createSdkVoiceHistory({ write, read, state, trace, id = () => cr
   async tool(args, responseId) {
    const owner = responses.get(responseId);
    const turn = owner?.turn;
-   if (!turn || turn !== current || turn.finished || turn.toolPending || owner.tool) return { stale: true };
+   if (!turn || turn !== current || turn.response !== owner || turn.finished || turn.toolPending || owner.tool) return { stale: true };
    owner.tool = true;
    turn.toolPending = true;
    state('executing');

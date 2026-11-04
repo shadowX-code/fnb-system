@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSdkVoiceHistory } from './sdkVoiceHistory.js';
 
-test('Factory handoff keeps the same turn and saves a completed answer only after playback', async () => {
+test('Factory handoff keeps the same turn and saves the finalized answer before delayed playback cleanup', async () => {
  const steps = [];
  const history = createSdkVoiceHistory({
   id: () => 'turn',
@@ -18,10 +18,16 @@ test('Factory handoff keeps the same turn and saves a completed answer only afte
  history.receive({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'input', transcript: 'Check stock' });
  history.receive({ type: 'response.created', response: { id: 'answer' } });
  history.receive({ type: 'output_audio_buffer.started', response_id: 'answer' });
- history.receive({ type: 'output_audio_buffer.cleared', response_id: 'unknown-old-response' });
+ history.receive({ type: 'output_audio_buffer.cleared', response_id: 'answer' });
+ history.receive({ type: 'output_audio_buffer.cleared' });
+ history.receive({ type: 'response.done', response: { id: 'tool', status: 'cancelled' } });
  history.receive({ type: 'output_audio_buffer.stopped', response_id: 'tool' });
  history.receive({ type: 'response.done', response: { id: 'answer', status: 'completed', output: [{ role: 'assistant', content: [{ type: 'output_audio', transcript: 'Stock checked.' }] }] } });
+ await new Promise(resolve => setImmediate(resolve));
+ assert.equal(steps.at(-1)?.[1], 'complete');
  history.receive({ type: 'output_audio_buffer.stopped', response_id: 'answer' });
+ history.receive({ type: 'output_audio_buffer.cleared', response_id: 'answer' });
+ history.receive({ type: 'response.done', response: { id: 'answer', status: 'cancelled' } });
  await history.close();
  assert.deepEqual(steps, [['turn', 'start', ''], ['turn', 'input', 'Check stock'], ['turn', 'complete', 'Stock checked.']]);
 });
@@ -51,7 +57,7 @@ test('an interrupted tool read cannot continue the old response after a new turn
  assert.deepEqual(steps, [[1, 'start'], [1, 'unfinished'], [2, 'start'], [2, 'unfinished']]);
 });
 
-test('a matching playback clear persists one interruption even if cancellation also arrives', async () => {
+test('only cancellation of the active response persists an interruption', async () => {
  const steps = [];
  const history = createSdkVoiceHistory({
   id: () => 'turn',
@@ -59,9 +65,13 @@ test('a matching playback clear persists one interruption even if cancellation a
   state() {}, trace() {},
  });
  history.receive({ type: 'input_audio_buffer.committed', item_id: 'input' });
+ history.receive({ type: 'response.created', response: { id: 'old' } });
  history.receive({ type: 'response.created', response: { id: 'answer' } });
  history.receive({ type: 'output_audio_buffer.started', response_id: 'answer' });
  history.receive({ type: 'output_audio_buffer.cleared', response_id: 'answer' });
+ history.receive({ type: 'response.done', response: { id: 'old', status: 'cancelled' } });
+ await new Promise(resolve => setImmediate(resolve));
+ assert.deepEqual(steps, ['start']);
  history.receive({ type: 'response.done', response: { id: 'answer', status: 'cancelled' } });
  await history.close();
  assert.deepEqual(steps, ['start', 'interrupted']);
