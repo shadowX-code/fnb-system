@@ -22,16 +22,16 @@ export default function AiAssistantPage({ ui, auth }) {
     const clock=setInterval(()=>setHudTime(new Date()),15000);
     return ()=>clearInterval(clock);
   },[fullscreen]);
-  const liveSignal = ['listening', 'speaking'].includes(realtimeState.state);
+  const liveSignal = ['listening', 'thinking', 'executing', 'speaking'].includes(realtimeState.state);
   return <section ref={root} className={`assistant-page${fullscreen ? ' assistant-fullscreen' : ''}`}>
     {!fullscreen&&<PageHeader title="AI Assistant" description="Your immersive FeedX conversation space. Services connect only when independently authorized."
       actions={<><button type="button" className="btn-ghost" onClick={() => ui?.returnFromNetwork?.()}><ArrowLeft size={15} /> Back to workspace</button>
         <a className="btn-ghost" href="/open-source/jarvis/source.zip" download><Download size={15} /> HUD source &amp; license</a>
         <button type="button" className="btn-ghost" onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? 'Exit fullscreen' : 'Immersive view'}</button></>} />}
     {fullscreen&&<header className="assistant-hud-header">
-      <div className="assistant-hud-brand"><AudioLines size={25} aria-hidden="true"/><div><strong>FeedX / AI Assistant</strong><small>F&B Operations Intelligence</small></div></div>
-            <div className="assistant-hud-clock"><time dateTime={hudTime.toISOString()}>{hudTime.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false})}</time><small>{hudTime.toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'})}</small></div>
-      <div className="assistant-hud-provider"><AudioLines size={17} aria-hidden="true"/><span>{provider==='openai'?'OpenAI Realtime SDK':provider==='grok'?'Grok Voice':'Voice unavailable'}</span>{provider==='openai'&&<small>gpt-realtime-2.1-mini</small>}<span className="assistant-hud-status" data-ready={realtimeAvailable===true}>{realtimeState.active?'In session':realtimeState.sdkRemaining===0&&provider==='openai'?'Allowance used':realtimeAvailable?'Ready':'Unavailable'}</span><a href="/open-source/jarvis/source.zip" download className="btn-ghost" aria-label="HUD source and license"><Download size={15}/></a></div>
+      <div className="assistant-hud-brand"><svg className="assistant-hud-mark" viewBox="0 0 36 36" fill="none" aria-hidden="true"><path d="M18 3v30M5 10l26 16M5 26l26-16M18 3 31 10v16L18 33 5 26V10Z" stroke="currentColor" strokeWidth="1.1"/><path d="m18 10 7 8-7 8-7-8z" fill="currentColor" fillOpacity=".28" stroke="currentColor"/><circle cx="18" cy="18" r="2" fill="currentColor"/></svg><div><strong>FeedX / AI Assistant</strong><small>F&B Operations Intelligence</small></div></div>
+      <div className="assistant-hud-clock"><time dateTime={hudTime.toISOString()}>{hudTime.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false})}</time><small>{hudTime.toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'})}</small></div>
+      <div className="assistant-hud-provider"><AudioLines size={17} aria-hidden="true"/><span>{provider==='openai'?'OpenAI Realtime SDK':provider==='grok'?'Grok Voice':'Voice unavailable'}</span>{provider==='openai'&&<small className="assistant-hud-model"><span>Model</span>gpt-realtime-2.1-mini</small>}<span className="assistant-hud-status" data-ready={realtimeState.active||Boolean(realtimeAvailable&&!(provider==='openai'&&realtimeState.sdkRemaining===0))}>{realtimeState.active?'In session':realtimeState.sdkRemaining===0&&provider==='openai'?'Allowance used':realtimeAvailable?'Ready':'Unavailable'}</span><a href="/open-source/jarvis/source.zip" download className="btn-ghost" aria-label="HUD source and license"><Download size={15}/></a></div>
     </header>}
     {notice && <p className="text-sm text-slate-600" role="status">{notice}</p>}
     {ASSISTANT_STAGING_ALLOWED&&<div className="assistant-voice-bar" aria-label="Voice controls" data-signal={liveSignal}>

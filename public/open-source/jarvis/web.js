@@ -18,14 +18,35 @@ function messagesForTurn(t){
  t.voice&&status[t.error_code]?[{role:'assistant',text:status[t.error_code],outcome:t.error_code,request_id:t.request_id,voice:true,evidence:t.evidence}]:[])];
 }
 
+// Presentation symbols and waveforms are authored here. No audio levels are inferred.
+const hudPaths={
+ understand:'M4 5h16v11H9l-5 4z M8 10h.1m4 0h.1m4 0h.1',
+ thinking:'M12 3v4m0 10v4M3 12h4m10 0h4M6 6l3 3m6 6 3 3M6 18l3-3m6-6 3-3',
+ factory:'M3 20V9l6 4V8l6 4 2-8h4v16z M7 16v1m5-1v1m5-1v1',
+ speech:'M3 11v2m4-5v8m5-12v16m5-12v8m4-5v2',
+ done:'m5 12 5 5L20 7',
+ pause:'M9 5v14m6-14v14',
+ alert:'M12 4 2 20h20L12 4zm0 6v4m0 3h.01',
+ box:'M12 3 3 8v9l9 5 9-5V8zm0 10v9M3 8l9 5 9-5M7 6l9 5',
+ spark:'M12 3c0 6-3 9-9 9 6 0 9 3 9 9 0-6 3-9 9-9-6 0-9-3-9-9z',
+};
+const hudIcon=name=>`<svg class="web-hud-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${hudPaths[name]}"/></svg>`;
+const voiceWave=`<svg class="web-signal" viewBox="0 0 240 40" aria-hidden="true">
+ <path class="web-wave-baseline" d="M0 20h240"/>
+ <path class="web-wave-echo" d="M0 20Q20 22 35 19T62 22T88 16T110 26T135 15T158 26T182 17T210 20T240 20"/>
+ <path class="web-wave-echo" d="M0 20Q18 17 34 21T58 18T84 23T109 12T132 27T159 14T182 22T208 19T240 20"/>
+ <path class="web-wave-main" d="M0 20C15 20 21 24 31 20S47 17 55 21S70 29 81 18S96 9 106 20S122 30 134 17S150 8 161 20S176 27 188 20S203 18 212 20S226 20 240 20"/>
+</svg>`;
+const activityWave=`<svg class="web-event-wave" viewBox="0 0 80 24" aria-hidden="true"><path d="M0 21h8l4-2 5 1 5-3 5-5 3 1 5-8 4 4 4 5 4-2 5 5 6 2 6 1h16v2H0z"/></svg>`;
+
 const web=document.createElement('section');web.id='assistantWeb';
 web.innerHTML=`<div class="web-core-caption"><span class="web-status-dot"></span><strong>Visual ready</strong><p>Original Jarvis Core · no active AI service</p><button type="button" id="webPause">Pause motion</button></div>
-<div class="web-reticle" aria-hidden="true"><i></i><b></b></div>
+<div class="web-reticle" aria-hidden="true"><i></i><b></b><span></span></div>
 <div class="web-core-name" aria-hidden="true">J A R V I S<small>FeedX AI Core</small></div>
 <aside class="web-telemetry" aria-label="Session telemetry">
 <section class="web-hud-panel"><h2>Agent activity</h2><ol id="webActivity"><li class="web-activity-idle">Waiting for a request</li></ol></section>
 <section class="web-hud-panel"><h2>Current session</h2><div class="web-session-body"><div class="web-session-ring"><strong id="webTurnCount">0</strong><span>Turns</span></div><dl id="webSessionFacts"></dl></div></section>
-<section class="web-hud-panel"><h2>Voice state</h2><div class="web-voice-state"><p id="webLiveState">Idle</p><span class="web-signal" aria-hidden="true"></span></div></section>
+<section class="web-hud-panel"><h2>Voice state</h2><div class="web-voice-state"><p id="webLiveState">Idle</p>${voiceWave}</div></section>
 </aside>
 <section class="web-conversation" aria-label="AI conversation"><section class="web-operations" aria-label="Operations intelligence"><h2>Operations intelligence</h2><div id="webOperations"></div></section><header><h1>Conversation</h1><button type="button" id="webNew">New</button></header>
 <label class="web-history-label" for="webHistory">Conversation history <span>your Admin account</span></label><select id="webHistory"></select>
@@ -51,22 +72,23 @@ function renderIntelligence(){
  const facts=$('#webSessionFacts');
  facts.replaceChildren();
  $('#webTurnCount').textContent=messages.filter(m=>m.role==='user').length;
- for(const [label,value] of [['Factory evidence',reads.length],['Completed replies',messages.filter(m=>m.role==='assistant'&&!m.outcome).length]]){
+ for(const [label,value,icon] of [['Factory evidence',reads.length,'factory'],['Completed replies',messages.filter(m=>m.role==='assistant'&&!m.outcome).length,'done']]){
   const name=document.createElement('dt'), count=document.createElement('dd');
-  name.textContent=label;count.textContent=value;facts.append(name,count);
+  name.innerHTML=hudIcon(icon);name.append(label);count.textContent=value;facts.append(name,count);
  }
  const operations=$('#webOperations');
  operations.replaceChildren();
  if(!evidence){operations.textContent='Factory insights appear after an authorized read.';return;}
  const metrics=document.createElement('dl');
  const values=[
-  ['Below minimum',evidence.availability==='low'?evidence.total_matching:null],
-  ['Unknown minimum',evidence.unknown_minimum_count],
+  ['Below minimum',evidence.availability==='low'?evidence.total_matching:null,'low','box'],
+  ['Unknown minimum',evidence.unknown_minimum_count,'unknown','alert'],
  ];
- for(const [label,value] of values){
+ for(const [label,value,severity,icon] of values){
   if(!Number.isInteger(value))continue;
   const tile=document.createElement('div'),name=document.createElement('dt'),count=document.createElement('dd');
-  name.textContent=label;count.textContent=value;tile.append(name,count);metrics.append(tile);
+  tile.dataset.severity=severity;name.textContent=label;count.textContent=value;
+  const badge=document.createElement('span');badge.className='web-metric-icon';badge.innerHTML=hudIcon(icon);tile.append(badge,name,count);metrics.append(tile);
  }
  const link=document.createElement('a');
  link.href=hostOrigin+'/factory/warehouse/finished-goods';link.target='_blank';link.rel='noopener noreferrer';
@@ -76,13 +98,14 @@ function renderIntelligence(){
  operations.append(metrics,link,scope);
 }
 const activityStyles={
- 'Understanding':['processing','∿','Request accepted'],
- 'Processing':['processing','◌','Preparing a response'],
- 'Querying Factory':['factory','◇','Reading Finished Goods'],
- 'Factory evidence saved':['factory','◇','Authorized Finished Goods read'],
- 'Completed':['complete','✓','Reply available in Conversation'],
- 'Interrupted':['error','Ⅱ','Response interrupted'],
- 'Error':['error','!','See Conversation for details'],
+ 'Understanding':['understanding','understand','Request accepted'],
+ 'Processing':['processing','thinking','Preparing a response'],
+ 'Executing':['factory','factory','Reading Finished Goods'],
+ 'Factory evidence saved':['factory','factory','Authorized Finished Goods read'],
+ 'Speaking':['speaking','speech','Assistant audio playing'],
+ 'Completed':['complete','done','Reply available in Conversation'],
+ 'Interrupted':['interrupted','pause','Response interrupted'],
+ 'Error':['error','alert','See Conversation for details'],
 };
 function activity(label){
  const list=$('#webActivity'),style=activityStyles[label];
@@ -92,8 +115,8 @@ function activity(label){
  const item=document.createElement('li');
  item.dataset.stage=stage;item.dataset.label=label;
  const marker=document.createElement('span'),copy=document.createElement('span'),caption=document.createElement('small');
- marker.className='web-event-node';marker.setAttribute('aria-hidden','true');marker.textContent=icon;
- copy.textContent=label;caption.textContent=detail;copy.append(caption);item.append(marker,copy);list.append(item);
+ marker.className='web-event-node';marker.setAttribute('aria-hidden','true');marker.innerHTML=hudIcon(icon);
+ copy.textContent=label;caption.textContent=detail;copy.append(caption);item.append(marker,copy);item.insertAdjacentHTML('beforeend',activityWave);list.append(item);
  if(list.children.length>4)list.firstElementChild.remove();
 }
 function restoreActivity(turns){
@@ -108,7 +131,7 @@ function restoreActivity(turns){
   const idle=document.createElement('li');idle.className='web-activity-idle';idle.textContent='Waiting for a request';list.append(idle);
  }
 }
-function renderMessages(){renderIntelligence();$('#webStop').hidden=!activeRequest;messageList.replaceChildren();if(!currentSession.messages.length){const empty=document.createElement('li');empty.className='web-empty';empty.textContent='Start with a question. Your request will appear here; responses require an authorized model connection.';messageList.appendChild(empty);}for(const message of currentSession.messages){const item=document.createElement('li');item.dataset.speaker=message.role;const label=document.createElement('strong');label.textContent=(message.role==='assistant'?'Assistant':'You')+(message.voice?' · Voice':'');const text=document.createElement('p');for(const part of message.text.split(/(\*\*[^*]+\*\*)/g)){if(part.startsWith('**')&&part.endsWith('**')){const bold=document.createElement('strong');bold.textContent=part.slice(2,-2);text.append(bold);}else text.append(document.createTextNode(part));}item.append(label,text);if(message.evidence?.capability==='read_factory_finished_goods'){const evidence=document.createElement('div');evidence.className='web-evidence';const link=document.createElement('a');link.href='https://fnb-system-staging.vercel.app/factory/warehouse/finished-goods';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Factory · Finished Goods ↗';const stamp=document.createElement('span');stamp.textContent=`${message.evidence.scope} · ${message.evidence.as_of} · ${message.evidence.returned}/${message.evidence.total_matching} matches${Number.isInteger(message.evidence.unknown_minimum_count)?' · '+message.evidence.unknown_minimum_count+' unknown minimums':''}`;const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('p');summary.textContent='Read evidence';note.textContent=message.evidence.limitations;details.append(summary,note);evidence.append(link,stamp,details);item.append(evidence);}messageList.appendChild(item);}messageList.scrollTop=messageList.scrollHeight;renderHistory();}
+function renderMessages(){renderIntelligence();$('#webStop').hidden=!activeRequest;messageList.replaceChildren();if(!currentSession.messages.length){const empty=document.createElement('li');empty.className='web-empty';empty.textContent='Start with a question. Your request will appear here; responses require an authorized model connection.';messageList.appendChild(empty);}for(const message of currentSession.messages){const item=document.createElement('li');item.dataset.speaker=message.role;if(message.outcome)item.dataset.outcome=message.outcome;const avatar=document.createElement('span');avatar.className='web-message-avatar';avatar.innerHTML=hudIcon(message.role==='assistant'?'spark':message.voice?'speech':'understand');const label=document.createElement('strong');label.textContent=(message.role==='assistant'?'Assistant':'You')+(message.voice?' · Voice':'');const text=document.createElement('p');for(const part of message.text.split(/(\*\*[^*]+\*\*)/g)){if(part.startsWith('**')&&part.endsWith('**')){const bold=document.createElement('strong');bold.textContent=part.slice(2,-2);text.append(bold);}else text.append(document.createTextNode(part));}item.append(avatar,label,text);if(message.evidence?.capability==='read_factory_finished_goods'){const evidence=document.createElement('div');evidence.className='web-evidence';const badge=document.createElement('span');badge.className='web-evidence-icon';badge.innerHTML=hudIcon('factory');const link=document.createElement('a');link.href='https://fnb-system-staging.vercel.app/factory/warehouse/finished-goods';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Factory · Finished Goods ↗';const stamp=document.createElement('span');stamp.textContent=`${message.evidence.scope} · ${message.evidence.as_of} · ${message.evidence.returned}/${message.evidence.total_matching} matches${Number.isInteger(message.evidence.unknown_minimum_count)?' · '+message.evidence.unknown_minimum_count+' unknown minimums':''}`;const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('p');summary.textContent='Read evidence';note.textContent=message.evidence.limitations;details.append(summary,note);evidence.append(badge,link,stamp,details);item.append(evidence);}messageList.appendChild(item);}messageList.scrollTop=messageList.scrollHeight;renderHistory();}
 // Same request/session identity boundary as the pilot. No remote engine is configured.
 let handle=function(text){text=text.trim();if(!text)return;if(activeRequest){showNotice('Stop the current response before sending another request.',true);return;}
  $('#webRetry').hidden=true;activeRequest=crypto.randomUUID();currentSession.messages.push({request_id:activeRequest,role:'user',text:text.slice(0,2000)});renderMessages();
@@ -204,11 +227,11 @@ addEventListener('message',event=>{
  if(d.type==='voice_level'){window.FEEDX_AUDIO_LEVEL=Math.max(0,Math.min(1,Number(d.level)||0));return;}
  if(d.type==='voice_state'){
   document.body.dataset.voiceState=d.state;
-  $('#webLiveState').textContent=({connecting:'Connecting',listening:'Listening',transcribing:'Processing',executing:'Querying Factory',speaking:'Speaking',interrupted:'Interrupted',error:'Error',playback_blocked:'Playback blocked'})[d.state]||'Idle';
-  activity(({transcribing:'Processing',executing:'Querying Factory',error:'Error'})[d.state]);
+  $('#webLiveState').textContent=({connecting:'Connecting',listening:'Listening',transcribing:'Thinking',executing:'Executing',speaking:'Speaking',interrupted:'Interrupted',error:'Error',playback_blocked:'Playback blocked'})[d.state]||'Idle';
+  activity(({transcribing:'Processing',executing:'Executing',speaking:'Speaking',error:'Error'})[d.state]);
   const states={interrupted:'listening',listening:'listening',transcribing:'thinking',executing:'executing',speaking:'speaking',error:'error'};window.FEEDX_AUDIO_LEVEL=0;if(states[d.state])setState(states[d.state]);else if(!activeRequest)setState('idle');return;}
  if(d.request_id!==activeRequest)return;
- if(d.type==='state'&&d.state==='executing'){activity('Querying Factory');setState('executing');showNotice('Reading authorized Factory Finished Goods…');}
+ if(d.type==='state'&&d.state==='executing'){activity('Executing');setState('executing');showNotice('Reading authorized Factory Finished Goods…');}
  if(d.type==='state'&&d.state==='thinking'){activity('Understanding');setState('thinking');showNotice('Thinking…');}
  if(d.type==='result'&&typeof d.reply==='string'){activity('Completed');
   currentSession.messages.push({role:'assistant',text:d.reply.slice(0,3000),request_id:activeRequest,evidence:d.evidence});activeRequest='';renderMessages();setState('idle');showNotice(d.evidence?'Response received · verified read evidence attached.':'Response received.');
