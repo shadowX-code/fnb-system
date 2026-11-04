@@ -30,6 +30,7 @@ export function openAiTransport({ stream, connect, onEvent, onError, signal }) {
    await peer.setRemoteDescription({ type: 'answer', sdp });
   },
   send(event) { if (channel.readyState === 'open') channel.send(JSON.stringify(event)); },
+  canPlay:()=>!audio.paused&&!!audio.srcObject,
   resume,
  };
 }
@@ -61,7 +62,7 @@ export function grokTransport({ stream, context, connect, onEvent, onError, sign
    const format = { type: 'audio/pcm', rate: 24000 };
    socket.onopen = () => send({ type: 'session.update', session: {
     voice, instructions, tools, turn_detection: { type: 'server_vad' },
-    audio: { input: { format, transport: 'binary' }, output: { format } },
+    audio: { input: { format, transcription:{model:'grok-transcribe'}, transport: 'binary' }, output: { format } },
    } });
    socket.onmessage = ({ data }) => {
     if (signal.aborted || typeof data !== 'string') return;

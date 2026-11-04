@@ -45,7 +45,7 @@ export async function verifyVoiceProvider(args, registry, {signal,transport,rese
   entry = await registry('test_key',args);
   const get = credentialEnvironment(args.provider,entry);
   const result = args.provider==='openai'
-   ? await createRealtimeCall({sdp:args.sdp,voice:'cedar',tools:[]},get,{signal,transport})
+   ? await createRealtimeCall({sdp:args.sdp,voice:'cedar',tools:[],transcription:false},get,{signal,transport})
    : await createGrokSession(get,{signal,transport});
   if(args.provider==='grok')await testGrok(result.client_secret,signal);
   await registry('test_finish',{provider:args.provider,revision:entry.revision});
