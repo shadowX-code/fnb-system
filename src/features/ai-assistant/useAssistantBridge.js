@@ -15,7 +15,7 @@ export function validAssistantMessage(event,source){
 }
 // A generic JSON message boundary. No renderer globals, credentials or business APIs cross it.
 export function createAssistantBridge({getWindow,userId,call=assistantCall,storage=globalThis.sessionStorage,voice}){
- let generation=0,alive=true,active=null,current=null,known=new Set();
+ let generation=0,alive=true,active=null,current=null,known=new Set(),bootstrapping=false;
  const key=`feedx.assistant.session.${userId}`;
  const post=(type,payload={})=>{if(alive)getWindow()?.postMessage({protocol,type,...payload},'*');};
  const error=(cause,request_id)=>post('error',{request_id,code:cause.code||'assistant_unavailable',message:cause.message||'Assistant unavailable.'});
@@ -62,13 +62,29 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
   try{
    if(d.action==='cancel'){await cancel();post('cancelled',{request_id:d.request_id});return;}
    if(d.action==='ready'){
-    await cancel();const mine=generation;post('reset');
-    const [status,sessions]=await Promise.all([call('status'),list()]);if(!alive||generation!==mine)return;
-    let preferred;try{preferred=storage.getItem(key);}catch{}
-    if(!known.has(preferred)){const created=await call('session_new');if(!alive||generation!==mine)return;preferred=created.session_id;known.add(preferred);sessions.unshift({id:preferred,title:'New conversation'});}
-    remember(preferred);const r=status.runtime;voice?.setAvailable(r);
-    post('bootstrap',{runtime:{ready:r.ready,connection_ready:r.connection_ready,runtime_available:r.runtime_available,blocker:r.blocker,model:r.model,stt:r.stt,tts:r.tts,tools:r.tools},sessions:sessions.slice(0,6),session_id:preferred});
-    await history(preferred);return;
+    if(bootstrapping)return;
+    bootstrapping=true;
+    try{
+     await cancel();const mine=generation;post('reset');
+     const [status,listing]=await Promise.allSettled([call('status'),list()]);
+     if(!alive||generation!==mine)return;
+     const r=status.status==='fulfilled'?status.value.runtime:{};
+     voice?.setAvailable(r);
+     if(listing.status==='rejected')throw listing.reason;
+     const sessions=listing.value;
+     let preferred;try{preferred=storage.getItem(key);}catch{}
+     if(!known.has(preferred))preferred=(sessions.find(s=>s.title&&s.title!=='New conversation')||sessions[0])?.id;
+     if(!preferred){
+      const created=await call('session_new');
+      if(!alive||generation!==mine)return;
+      preferred=created.session_id;
+      known.add(preferred);
+      sessions.push({id:preferred,title:'New conversation'});
+     }
+     post('bootstrap',{runtime:{ready:r.ready,connection_ready:r.connection_ready,runtime_available:r.runtime_available,blocker:r.blocker,model:r.model,stt:r.stt,tts:r.tts,tools:r.tools,sdk_voice:voice?.sdkSelected?!!r.realtime?.openai:null},sessions,session_id:preferred});
+     await history(preferred);
+     return;
+    }finally{bootstrapping=false;}
    }
    if(d.action==='new'){
     await cancel();const mine=generation;const created=await call('session_new');const sessions=await list();if(!alive||generation!==mine)return;
@@ -83,6 +99,16 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
  }
  return {receive,interrupt(){void cancel();post('cancelled');},getSession:()=>current,post,destroy(){void cancel();post('reset');alive=false;}};
 }
+export function sdkVoiceSelected(search, storage, userId) {
+ const selection=new URLSearchParams(search).get('voiceRuntime');
+ const key=`feedx.assistant.voiceRuntime.${userId}`;
+ try{
+  if(selection==='sdk')storage.setItem(key,'sdk');
+  if(selection==='legacy')storage.removeItem(key);
+  return selection==='sdk'||(selection!=='legacy'&&storage.getItem(key)==='sdk');
+ }catch{return selection==='sdk';}
+}
+
 export default function useAssistantBridge(frame,userId){
  const realtimeRef=useRef(null),[realtimeState,setRealtimeState]=useState({state:'idle',available:false,active:false});
  const voiceRef=useRef(null),[voiceState,setVoiceState]=useState({state:'idle',stt:false,tts:false,output:false});
@@ -90,7 +116,8 @@ export default function useAssistantBridge(frame,userId){
   if(!userId)return;
   let bridge;
   let available={},voiceDefault,sdkRemaining,alive=true;
-  const sdkBaseline=new URLSearchParams(window.location.search).get('voiceRuntime')==='sdk';
+  const sdkBaseline=sdkVoiceSelected(window.location.search,window.sessionStorage,userId);
+  setRealtimeState({state:'idle',active:false,sdkBaseline});
   const createVoice=sdkBaseline?createSdkVoiceBaseline:createRealtimeVoice;
   const realtime=createVoice({call:assistantCall,getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),onChange:state=>{
    setRealtimeState({...state,available,voiceDefault,sdkBaseline,sdkRemaining});
@@ -104,6 +131,7 @@ export default function useAssistantBridge(frame,userId){
   const voice=createAssistantVoice({getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),beforeStart:()=>bridge?.interrupt(),onChange:setVoiceState});voiceRef.current=voice;
   bridge=createAssistantBridge({getWindow:()=>frame.current?.contentWindow,userId,voice:{
    ...voice,
+   sdkSelected:sdkBaseline,
    stop(){realtime.stop();voice.stop();},
    setAvailable(runtime){available=runtime.realtime||{};voiceDefault=runtime.voice_default;sdkRemaining=runtime.sdk_remaining;setRealtimeState({state:'idle',available,active:false,voiceDefault:runtime.voice_default,sdkBaseline,sdkRemaining});voice.setAvailable(runtime);}
   }});

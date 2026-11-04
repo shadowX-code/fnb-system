@@ -73,7 +73,7 @@ function serviceStatus(){
  const ready=!!runtime?.ready;document.body.dataset.serviceState=ready?'ready':'unavailable';
  $('.web-core-caption strong').textContent=ready?'Text ready':'Visual ready';
  $('.web-core-caption p').textContent='Original Jarvis Core · '+(ready?'authorized text service':'text service unavailable');
- const services=[ready?'Connected · '+runtime.model:'Unavailable',runtime?.stt?'Whisper · use Talk above':'Runtime unavailable',runtime?.tts?'Kokoro bm_george · use Voice replies above':'Runtime unavailable',runtime?.tools?'Factory Finished Goods · read only':'Unavailable'];
+ const services=[ready?'Connected · '+runtime.model:'Unavailable',typeof runtime?.sdk_voice==='boolean'?(runtime.sdk_voice?'OpenAI Realtime SDK':'SDK unavailable'):runtime?.stt?'Whisper · use Talk above':'Runtime unavailable',typeof runtime?.sdk_voice==='boolean'?(runtime.sdk_voice?'OpenAI Realtime SDK':'SDK unavailable'):runtime?.tts?'Kokoro bm_george · use Voice replies above':'Runtime unavailable',runtime?.tools?'Factory Finished Goods · read only':'Unavailable'];
  $('.web-services summary').textContent='Services · '+services.filter(x=>!x.includes('unavailable')&&x!=='Unavailable').length+' connected';
  document.querySelectorAll('.web-services dd').forEach((el,i)=>el.textContent=services[i]);
 }
