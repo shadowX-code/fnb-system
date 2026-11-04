@@ -50,3 +50,7 @@
  .assistant-fullscreen .assistant-voice-bar>span[role=status]{grid-column:1/-1}
 }
 @media(prefers-reduced-motion:reduce){.assistant-fullscreen .assistant-dock-signal{animation:none!important}}
+@media(min-width:801px){
+ .assistant-fullscreen .assistant-frame{height:auto;min-height:430px;flex:1 1 0}
+ .assistant-fullscreen .assistant-voice-bar{flex:none}
+}
