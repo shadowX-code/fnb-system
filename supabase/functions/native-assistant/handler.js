@@ -24,7 +24,7 @@ export function validateBody(body){
  if(body.action==='provider_put'&&(body.provider==='render'||typeof body.credential!=='string'||!/^[!-~]{20,512}$/.test(body.credential)||typeof body.approval_reference!=='string'||!body.approval_reference.trim()||body.approval_reference.length>120))throw new AssistantError('configuration_invalid',400);
  if(body.action==='provider_test'&&(body.provider==='render'||(body.provider==='openai'?(typeof body.sdp!=='string'||!body.sdp.startsWith('v=0')||body.sdp.length>10000):body.sdp!==undefined)))throw new AssistantError('invalid_request',400);
  if(body.action==='provider_activate'&&body.provider!=='render'&&!providerVoices[body.provider]?.includes(body.voice))throw new AssistantError('configuration_invalid',400);
- if(body.action==='realtime_turn'&&(!['start','input','complete','interrupted','unavailable'].includes(body.step)||typeof body.text!=='string'||body.text.length>3000))throw new AssistantError('invalid_request',400);
+ if(body.action==='realtime_turn'&&(!['start','input','complete','interrupted','unavailable','unfinished','failed'].includes(body.step)||typeof body.text!=='string'||body.text.length>3000))throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_tool')inventoryArguments(body.arguments);
  return body;
 }

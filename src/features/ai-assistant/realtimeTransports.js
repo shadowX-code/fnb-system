@@ -18,9 +18,9 @@ export function openAiTransport({ stream, connect, onEvent, onError, signal }) {
   void resume().catch(() => onEvent({ type: 'playback_blocked' }));
  };
  peer.onconnectionstatechange = () => {
-  if (['failed', 'disconnected'].includes(peer.connectionState)) onError();
+  if (['failed', 'disconnected'].includes(peer.connectionState)) onError('peer_'+peer.connectionState);
  };
- channel.onclose = onError;
+ channel.onclose = ()=>onError('data_channel_closed');
  channel.onmessage = ({ data }) => onEvent(JSON.parse(data));
  for (const track of stream.getAudioTracks()) peer.addTrack(track, stream);
  return {
@@ -29,8 +29,10 @@ export function openAiTransport({ stream, connect, onEvent, onError, signal }) {
    const { sdp } = await connect({ sdp: peer.localDescription.sdp });
    await peer.setRemoteDescription({ type: 'answer', sdp });
   },
-  send(event) { if (channel.readyState === 'open') channel.send(JSON.stringify(event)); },
-  canPlay:()=>!audio.paused&&!!audio.srcObject,
+  send(event) {
+   if(channel.readyState!=='open')return false;
+   try{channel.send(JSON.stringify(event));return true;}catch{return false;}
+  },
   resume,
  };
 }
@@ -50,7 +52,8 @@ export function grokTransport({ stream, context, connect, onEvent, onError, sign
   clearAudio();
  }, { once: true });
  function send(event) {
-  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
+  if(socket?.readyState!==WebSocket.OPEN)return false;
+  try{socket.send(JSON.stringify(event));return true;}catch{return false;}
  }
  return {
   async start() {
@@ -58,7 +61,8 @@ export function grokTransport({ stream, context, connect, onEvent, onError, sign
    const { client_secret, instructions, tools } = await connect({});
    signal.throwIfAborted();
    socket = new WebSocket('wss://api.x.ai/v1/realtime?model=grok-voice-latest', 'xai-client-secret.' + client_secret);
-   socket.onerror = socket.onclose = onError;
+   socket.onerror = ()=>onError('socket_error');
+   socket.onclose = ()=>onError('socket_closed');
    const format = { type: 'audio/pcm', rate: 24000 };
    socket.onopen = () => send({ type: 'session.update', session: {
     voice, instructions, tools, turn_detection: { type: 'server_vad' },

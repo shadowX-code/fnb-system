@@ -12,7 +12,7 @@ function request(action,extra={}){parent.postMessage({protocol,action,request_id
 const sessions=[{id:pilotSession,messages:[]}];
 let currentSession=sessions[0];
 function messagesForTurn(t){
- const status={voice_interrupted:'Response interrupted',voice_transcript_unavailable:'Assistant transcript unavailable',voice_unfinished:'Response unfinished'};
+ const status={voice_interrupted:'Response interrupted',voice_transcript_unavailable:'Assistant transcript unavailable',voice_unfinished:'Response unfinished',voice_failed:'Response failed'};
  return [{role:'user',text:t.prompt,request_id:t.request_id,voice:t.voice},...(t.state==='completed'&&t.reply?
  [{role:'assistant',text:t.reply,request_id:t.request_id,evidence:t.evidence,voice:t.voice}]:
  t.voice&&status[t.error_code]?[{role:'assistant',text:status[t.error_code],request_id:t.request_id,voice:true,evidence:t.evidence}]:[])];
