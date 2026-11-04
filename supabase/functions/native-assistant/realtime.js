@@ -2,6 +2,7 @@ import { AssistantError } from './provider.js';
 
 export const realtimeModel = 'gpt-realtime-2.1-mini';
 export const realtimeVoices = ['cedar', 'marin', 'echo', 'ash', 'alloy'];
+export const voiceInstructions = 'You are FeedX Assistant. Respond briefly and professionally, using the user’s language including Malaysian mixed-language speech. Use a natural British English delivery when speaking English. For Finished Goods questions and follow-ups, fetch fresh evidence with the offered tool. If the tool is absent or denied, say you cannot access current stock. Never invent stock, timestamps or sources. Low means strictly below a positive recorded minimum. State unknown minimum counts separately and mention truncation, current Admin scope and read time. No business writes.';
 const endpoint = 'https://api.openai.com/v1/realtime/calls';
 
 export function realtimeReady(get) {
@@ -11,7 +12,7 @@ export function realtimeReady(get) {
   && !/[\r\n]/.test(get('NATIVE_ASSISTANT_REALTIME_API_KEY'));
 }
 
-export async function createRealtimeCall({ sdp, voice }, get, { signal, transport = fetch } = {}) {
+export async function createRealtimeCall({ sdp, voice, tools }, get, { signal, transport = fetch } = {}) {
  if (!realtimeReady(get)) throw new AssistantError('realtime_not_authorized', 403);
  const form = new FormData();
  form.set('sdp', sdp);
@@ -20,7 +21,8 @@ export async function createRealtimeCall({ sdp, voice }, get, { signal, transpor
   model: realtimeModel,
   output_modalities: ['audio'],
   max_output_tokens: 350,
-  instructions: 'You are FeedX Assistant. Be concise, calm and professional. When speaking English, use a natural British English delivery. Respond in the user’s language. You have no access to FeedX records or business tools in this voice session. Direct inventory questions to the text assistant.',
+  instructions: voiceInstructions,
+  ...(tools.length ? { tools, tool_choice: 'auto' } : {}),
   audio: {
    input: { noise_reduction: { type: 'near_field' }, turn_detection: { type: 'server_vad', create_response: true, interrupt_response: true } },
    output: { voice },

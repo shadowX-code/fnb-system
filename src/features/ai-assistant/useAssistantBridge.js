@@ -88,14 +88,14 @@ export default function useAssistantBridge(frame,userId){
  useEffect(()=>{
   if(!userId)return;
   let bridge;
-  let available=false;
+  let available={};
   const realtime=createRealtimeVoice({call:assistantCall,getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),onChange:state=>setRealtimeState({...state,available})});
-  realtimeRef.current={...realtime,start(voice){if(available){bridge.interrupt();void realtime.start(voice);}}};
+  realtimeRef.current={...realtime,start(provider,voice){if(available[provider]){bridge.interrupt();void realtime.start(provider,voice);}}};
   const voice=createAssistantVoice({getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),beforeStart:()=>bridge?.interrupt(),onChange:setVoiceState});voiceRef.current=voice;
   bridge=createAssistantBridge({getWindow:()=>frame.current?.contentWindow,userId,voice:{
    ...voice,
    stop(){realtime.stop();voice.stop();},
-   setAvailable(runtime){available=!!runtime.realtime;setRealtimeState({state:'idle',available,active:false});voice.setAvailable(runtime);}
+   setAvailable(runtime){available=runtime.realtime||{};setRealtimeState({state:'idle',available,active:false});voice.setAvailable(runtime);}
   }});
   const listener=e=>{void bridge.receive(e);};window.addEventListener('message',listener);
   frame.current?.contentWindow?.postMessage({protocol,type:'host-ready'},'*');

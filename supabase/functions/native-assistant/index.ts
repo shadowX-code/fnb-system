@@ -30,8 +30,8 @@ Deno.serve(async request=>{
   const chunks=[];let size=0;try{while(true){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>1550000){await reader.cancel();return json({error:'request_too_large'},413);}chunks.push(value);}}finally{reader.releaseLock();}
   const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}const raw=new TextDecoder().decode(bytes);
   let body;try{body=JSON.parse(raw);}catch{return json({error:'invalid_request'},400);}
-  async function reserveRealtime(session:string,id:string){
-   const {error:failure}=await service.rpc('native_assistant_reserve_realtime',{p_actor:data.user!.id,p_session:session,p_request:id});
+  async function reserveRealtime(action:string,args:{session_id:string;request_id:string;provider:string}){
+   const {error:failure}=await service.rpc('native_assistant_reserve_realtime',{p_actor:data.user!.id,p_session:args.session_id,p_request:args.request_id,p_provider:args.provider,p_action:action});
    if(failure){const code=safeCodes.has(failure.message)?failure.message:'assistant_request_failed';throw new AssistantError(code,failure.code==='42501'?403:failure.code==='40001'?409:failure.code==='54000'?429:503);}
   }
   return json(await dispatch(body,{rpc,reserveRealtime,get:(name:string)=>Deno.env.get(name),signal:request.signal,access,readTool:(args:unknown,signal:AbortSignal)=>readInventory(caller,args,signal)}));

@@ -1,12 +1,13 @@
-// This connection belongs to the authenticated host, outside the isolated HUD.
-export const voiceOptions = ['cedar', 'marin', 'echo', 'ash', 'alloy'];
+import { grokTransport, openAiTransport } from './realtimeTransports.js';
+
+export const voiceOptions = { openai: ['cedar', 'marin', 'echo', 'ash', 'alloy'], grok: ['eve'] };
 export const voicePreferenceKey = userId => `feedx.assistant.voice.${userId}`;
 
 export function createRealtimeVoice({ call, getSession, post, onChange }) {
  let active, report;
  function update(state, message = '') {
   onChange({ state, message, active: !!active, report });
-  post('voice_state', { state: state === 'connecting' ? 'permission' : state === 'thinking' ? 'transcribing' : state });
+  post('voice_state', { state: state === 'thinking' ? 'transcribing' : state });
  }
  function stop(message = '', state = 'idle') {
   const connection = active;
@@ -15,113 +16,151 @@ export function createRealtimeVoice({ call, getSession, post, onChange }) {
    clearTimeout(connection.timer);
    connection.controller.abort();
    connection.stream?.getTracks().forEach(track => track.stop());
-   connection.peer.close();
-   connection.audio.pause();
-   connection.audio.srcObject = null;
+   void connection.context?.close().catch(() => {});
+   if (connection.requested) void call('realtime_end', connection.lease).catch(() => {});
+   report.durationMs = Math.round(performance.now() - connection.started);
   }
   update(state, message);
  }
- async function start(voice) {
+ async function start(provider, voice) {
   const session_id = getSession();
-  if (active || !session_id || !voiceOptions.includes(voice)) return;
-  if (!globalThis.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) {
-   update('error', 'Voice requires a browser with microphone and WebRTC support.');
-   return;
-  }
-  const peer = new RTCPeerConnection();
-  const audio = new Audio();
-  audio.autoplay = true;
-  audio.setAttribute('playsinline', '');
+  if (active || !session_id || !voiceOptions[provider]?.includes(voice)) return;
   const controller = new AbortController();
-  report = { firstAudioMs: null, inputAudio: 0, outputAudio: 0, inputText: 0, outputText: 0 };
-  const connection = { peer, audio, controller, speechEndedAt: null, outputPlaying: false };
+  const lease = { session_id, request_id: crypto.randomUUID(), provider };
+  const connection = { controller, lease, started: performance.now() };
+  const isCurrent = () => active === connection;
   active = connection;
+  report = { firstAudioMs: null, durationMs: 0, inputAudio: 0, outputAudio: 0, inputText: 0, outputText: 0, usageReported: false };
   update('connecting');
+  const fail = () => {
+   if (isCurrent()) stop('Voice connection ended. Start voice to reconnect.', 'error');
+  };
+  connection.timer = setTimeout(fail, 25000);
   try {
+   if (provider === 'grok') {
+    connection.context = new AudioContext({ sampleRate: 24000 });
+    await connection.context.resume();
+    if (connection.context.sampleRate !== 24000) throw new Error('This browser cannot capture 24 kHz audio for Grok.');
+   }
+   if (!isCurrent()) return;
    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-   if (active !== connection) {
+   if (!isCurrent()) {
     stream.getTracks().forEach(track => track.stop());
     return;
    }
    connection.stream = stream;
-   stream.getAudioTracks().forEach(track => peer.addTrack(track, stream));
-   audio.onplaying = () => {
-    if (active === connection && connection.outputPlaying) markSpeaking();
-   };
-   function markSpeaking() {
-    if (report.firstAudioMs === null && connection.speechEndedAt !== null) report.firstAudioMs = Math.round(performance.now() - connection.speechEndedAt);
+   for (const track of stream.getAudioTracks()) track.onended = fail;
+   let speechEnded, turns = 0, generation = 0, responseId, blockedResponse, pending, executing = false;
+   const seen = new Set();
+   const speak = () => {
+    if (speechEnded !== undefined && report.firstAudioMs === null) report.firstAudioMs = Math.round(performance.now() - speechEnded);
     update('speaking');
+   };
+   async function tool(event, stamp) {
+    if (executing || seen.has(event.call_id)) return;
+    executing = true;
+    seen.add(event.call_id);
+    update('executing');
+    let output;
+    try {
+     output = await call('realtime_tool', { ...lease, arguments: JSON.parse(event.arguments) }, controller.signal);
+    } catch {
+     output = { error: 'Current Finished Goods evidence unavailable. Do not infer stock.' };
+    } finally {
+     executing = false;
+    }
+    if (!isCurrent() || generation !== stamp) return;
+    transport.send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: event.call_id, output: JSON.stringify(output) } });
+    transport.send({ type: 'response.create' });
+    update('thinking');
    }
-   peer.ontrack = ({ streams }) => {
-    if (active !== connection) return;
-    audio.srcObject = streams[0];
-    void audio.play().catch(() => {
-     if (active === connection) update('playback_blocked', 'Tap Resume audio to allow playback.');
-    });
-   };
-   peer.onconnectionstatechange = () => {
-    if (active !== connection) return;
-    if (['failed', 'disconnected'].includes(peer.connectionState)) stop('Voice connection dropped. Start voice to reconnect.', 'error');
-   };
-   const channel = peer.createDataChannel('oai-events');
-   channel.onclose = () => {
-    if (active === connection) stop('Voice connection ended. Start voice to reconnect.', 'error');
-   };
-   channel.onmessage = ({ data }) => {
-    if (active !== connection) return;
-    let event;
-    try { event = JSON.parse(data); } catch { return; }
+   const onEvent = event => {
+    if (!isCurrent()) return;
     switch (event.type) {
      case 'session.created':
-     case 'input_audio_buffer.speech_started':
+     case 'session.updated':
+      if (provider === 'grok' && event.type !== 'session.updated') break;
+      clearTimeout(connection.timer);
+      connection.timer = setTimeout(() => stop('The three-minute voice evaluation ended.'), 180000);
       update('listening');
       break;
-     case 'output_audio_buffer.stopped':
-     case 'output_audio_buffer.cleared':
-      connection.outputPlaying = false;
+     case 'input_audio_buffer.speech_started':
+      generation++;
+      pending = null;
+      blockedResponse = responseId;
+      transport.clearAudio?.();
       update('listening');
       break;
      case 'input_audio_buffer.speech_stopped':
-      connection.speechEndedAt = performance.now();
+      if (++turns > 12) { stop('The voice evaluation reached its turn limit.'); break; }
+      speechEnded = performance.now();
       update('thinking');
       break;
+     case 'response.created':
+      responseId = event.response?.id;
+      break;
      case 'output_audio_buffer.started':
-      connection.outputPlaying = true;
-      if (!audio.paused) markSpeaking();
+      speak();
+      break;
+     case 'output_audio_buffer.stopped':
+     case 'output_audio_buffer.cleared':
+      update('listening');
+      break;
+     case 'response.output_audio.delta':
+      if (provider === 'grok' && (!blockedResponse || event.response_id !== blockedResponse) && typeof event.delta === 'string' && event.delta.length < 96000) {
+       transport.play(event.delta, () => { if (isCurrent()) update('listening'); });
+       if (isCurrent() && connection.context.state === 'running') speak();
+      }
+      break;
+     case 'response.function_call_arguments.done':
+      if (event.name === 'read_factory_finished_goods' && typeof event.call_id === 'string' && (!blockedResponse || event.response_id !== blockedResponse)) pending = event;
       break;
      case 'response.done': {
       const usage = event.response?.usage;
       if (usage) {
+       report.usageReported = true;
        report.inputAudio += usage.input_token_details?.audio_tokens || 0;
        report.outputAudio += usage.output_token_details?.audio_tokens || 0;
        report.inputText += usage.input_token_details?.text_tokens || 0;
        report.outputText += usage.output_token_details?.text_tokens || 0;
       }
+      const request = pending;
+      if (request && request.response_id === event.response?.id) {
+       pending = null;
+       if (event.response.status === 'completed') void tool(request, generation);
+      }
       break;
      }
+     case 'playback_blocked':
+      update('playback_blocked', 'Tap Resume audio to allow playback.');
+      break;
      case 'error':
-      stop('Realtime voice could not continue. Start voice again or use text.', 'error');
+      fail();
       break;
     }
    };
-   await peer.setLocalDescription(await peer.createOffer());
-   const result = await call('realtime_connect', { session_id, request_id: crypto.randomUUID(), sdp: peer.localDescription.sdp, voice }, controller.signal);
-   if (active !== connection) return;
-   await peer.setRemoteDescription({ type: 'answer', sdp: result.sdp });
-   if (active !== connection) return;
-   connection.timer = setTimeout(() => stop('The three-minute voice evaluation ended.'), 180000);
+   const options = {
+    stream, context: connection.context, voice, onEvent, onError: fail, signal: controller.signal,
+    async connect(extra) {
+     controller.signal.throwIfAborted();
+     connection.requested = true;
+     return call('realtime_connect', { ...lease, voice, ...extra }, controller.signal);
+    },
+   };
+   const transport = provider === 'grok' ? grokTransport(options) : openAiTransport(options);
+   connection.transport = transport;
+   await transport.start();
   } catch (error) {
-   if (active !== connection) return;
-   stop(error.name === 'NotAllowedError' ? 'Allow microphone access, then start voice again.' : error.message, 'error');
+   if (isCurrent()) stop(error.name === 'NotAllowedError' ? 'Allow microphone access, then start voice again.' : error.message, 'error');
   }
  }
- return { start, stop, resume() {
+ return { start, stop, async resume() {
   const connection = active;
-  if (!connection) return;
-  void connection.audio.play().then(() => {
-   if (active === connection) update(connection.outputPlaying ? 'speaking' : 'listening');
-  }).catch(() => {
+  try {
+   await connection?.transport?.resume();
+   if (connection && active === connection) update('listening');
+  } catch {
    if (active === connection) update('playback_blocked', 'Playback is blocked. Check browser audio settings.');
-  });
+  }
  } };
 }

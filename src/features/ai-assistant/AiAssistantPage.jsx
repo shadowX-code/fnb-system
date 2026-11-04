@@ -12,7 +12,8 @@ export default function AiAssistantPage({ ui, auth }) {
   const {voiceState,voiceRef,realtimeState,realtimeRef}=useAssistantBridge(frame, ASSISTANT_STAGING_ALLOWED ? auth?.user?.id : null);
   const voiceChoice = localStorage.getItem(voicePreferenceKey(auth?.user?.id));
   const [provider, preferredVoice] = (voiceChoice || '').split(':');
-  const realtimeSelected = realtimeState.available && provider === 'realtime';
+  const realtimeSelected = Object.hasOwn(voiceOptions, provider);
+  const realtimeAvailable = realtimeState.available?.[provider];
   const { fullscreen, notice, toggleFullscreen } = useNetworkFullscreen(root);
   return <section ref={root} className={`assistant-page${fullscreen ? ' assistant-fullscreen' : ''}`}>
     <PageHeader title="AI Assistant" description="Your immersive FeedX conversation space. Services connect only when independently authorized."
@@ -21,11 +22,11 @@ export default function AiAssistantPage({ ui, auth }) {
         <button type="button" className="btn-ghost" onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? 'Exit fullscreen' : 'Immersive view'}</button></>} />
     {notice && <p className="text-sm text-slate-600" role="status">{notice}</p>}
     {ASSISTANT_STAGING_ALLOWED&&realtimeSelected&&<div className="assistant-voice-bar" aria-label="Voice controls">
-      <button type="button" className="btn-secondary" onClick={()=>realtimeState.active?realtimeRef.current?.stop():realtimeRef.current?.start(voiceOptions.includes(preferredVoice)?preferredVoice:'cedar')}>{realtimeState.active?'End voice':'Start voice'}</button>
+      <button type="button" className="btn-secondary" disabled={!realtimeAvailable&&!realtimeState.active} onClick={()=>realtimeState.active?realtimeRef.current?.stop():realtimeRef.current?.start(provider,voiceOptions[provider].includes(preferredVoice)?preferredVoice:voiceOptions[provider][0])}>{realtimeState.active?'End voice':'Start voice'}</button>
       {realtimeState.state==='playback_blocked'&&<button type="button" className="btn-ghost" onClick={()=>realtimeRef.current?.resume()}>Resume audio</button>}
-      <span role="status">{realtimeState.message||({connecting:'Connecting…',listening:'Listening',thinking:'Processing…',speaking:'Speaking'})[realtimeState.state]||'OpenAI Realtime · evaluation'}</span>
-      {!realtimeState.active&&realtimeState.report?.firstAudioMs!=null&&<details><summary>Last call measurements</summary>
-        <p>First audio signal: {realtimeState.report.firstAudioMs} ms · Audio tokens: {realtimeState.report.inputAudio} in / {realtimeState.report.outputAudio} out · Text tokens: {realtimeState.report.inputText} in / {realtimeState.report.outputText} out</p>
+      <span role="status">{realtimeState.message||(!realtimeAvailable?'Selected voice provider is unavailable. Choose a provider in AI Integrations.':null)||({connecting:'Connecting…',listening:'Listening',thinking:'Processing…',executing:'Reading Factory Finished Goods…',speaking:'Speaking'})[realtimeState.state]||(provider==='grok'?'Grok Voice':'OpenAI Realtime')+' · context lasts for this call'}</span>
+      {!realtimeState.active&&realtimeState.report?.durationMs>0&&<details><summary>Last call measurements</summary>
+        <p>Call: {Math.round(realtimeState.report.durationMs/1000)} s · First audio signal: {realtimeState.report.firstAudioMs==null?'unavailable':realtimeState.report.firstAudioMs+' ms'} · {realtimeState.report.usageReported?'Audio tokens: '+realtimeState.report.inputAudio+' in / '+realtimeState.report.outputAudio+' out':'Provider token usage unavailable'}</p>
       </details>}
     </div>}
     {ASSISTANT_STAGING_ALLOWED&&!realtimeSelected&&<div className="assistant-voice-bar" aria-label="Voice controls"><button type="button" className="btn-secondary" disabled={!voiceState.stt} onClick={()=>voiceState.state==='listening'?voiceRef.current?.finish():void voiceRef.current?.start()}>{voiceState.state==='listening'?'Finish speaking':'Talk'}</button><label><input type="checkbox" checked={voiceState.output} disabled={!voiceState.tts} onChange={e=>voiceRef.current?.setOutput(e.target.checked)}/> Voice replies</label>{voiceState.state==='playback_blocked'&&<button className="btn-secondary" type="button" onClick={()=>voiceRef.current?.play()}>Play voice</button>}<button type="button" className="btn-ghost" disabled={voiceState.state==='idle'} onClick={()=>voiceRef.current?.stop()}>Stop audio</button><span role="status">{voiceState.stt?voiceState.state==='idle'?'Push to talk · audio is not retained':voiceState.state:'Whisper / Kokoro voice unavailable · runtime not connected'}</span></div>}

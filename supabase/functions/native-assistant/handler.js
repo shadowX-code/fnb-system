@@ -1,8 +1,10 @@
-import {createRealtimeCall,realtimeReady,realtimeVoices} from './realtime.js';
+import {createGrokSession,grokReady,grokVoices} from './grokVoice.js';
+import {inventoryTool,inventoryArguments} from './inventory.js';
+import {createRealtimeCall,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {voiceConnection,voiceRequest} from './voice.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const fields={realtime_connect:['session_id','request_id','sdp','voice'],features:['voice_enabled','factory_reads_enabled','expected_revision'],voice_test:[],tool_test:[],voice_stt:['session_id','request_id','audio','mime'],voice_tts:['session_id','turn_id','request_id'],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],session_list:[],session_new:[],history:['session_id'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
+const fields={realtime_connect:['session_id','request_id','sdp','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments'],realtime_end:['session_id','request_id','provider'],features:['voice_enabled','factory_reads_enabled','expected_revision'],voice_test:[],tool_test:[],voice_stt:['session_id','request_id','audio','mime'],voice_tts:['session_id','turn_id','request_id'],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],session_list:[],session_new:[],history:['session_id'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
 export function validateBody(body){
  if(!body||typeof body!=='object'||Array.isArray(body)||!Object.hasOwn(fields,body.action))throw new AssistantError('invalid_request',400);
  const allowed=['action',...fields[body.action]];if(Object.keys(body).some(k=>!allowed.includes(k)))throw new AssistantError('invalid_request',400);
@@ -11,7 +13,12 @@ export function validateBody(body){
  if(body.action==='configure'&&(body.provider!=='openai'||!models.includes(body.model)||body.credential_ref!=='native-assistant-openai'||typeof body.enabled!=='boolean'||!Number.isSafeInteger(body.expected_revision)))throw new AssistantError('configuration_invalid',400);
  if(body.action==='features'&&(typeof body.voice_enabled!=='boolean'||typeof body.factory_reads_enabled!=='boolean'||!Number.isSafeInteger(body.expected_revision)))throw new AssistantError('configuration_invalid',400);
  if(body.action==='voice_stt'&&(typeof body.audio!=='string'||body.audio.length>1500000||!/^[-A-Za-z0-9+/=]+$/.test(body.audio)||!['audio/webm','audio/mp4','audio/ogg','audio/wav'].includes(body.mime)))throw new AssistantError('audio_invalid',400);
- if(body.action==='realtime_connect'&&(typeof body.sdp!=='string'||body.sdp.length>10000||!body.sdp.startsWith('v=0')||!realtimeVoices.includes(body.voice)))throw new AssistantError('invalid_request',400);
+ if(body.action.startsWith('realtime_')&&!['openai','grok'].includes(body.provider))throw new AssistantError('invalid_request',400);
+ if(body.action==='realtime_connect'){
+  const valid=body.provider==='openai'?realtimeVoices.includes(body.voice)&&typeof body.sdp==='string'&&body.sdp.length<=10000&&body.sdp.startsWith('v=0'):grokVoices.includes(body.voice)&&body.sdp===undefined;
+  if(!valid)throw new AssistantError('invalid_request',400);
+ }
+ if(body.action==='realtime_tool')inventoryArguments(body.arguments);
  return body;
 }
 export async function dispatch(body,{rpc,get,signal,transport,readTool,reserveRealtime,access={factory:false}}){
@@ -19,12 +26,30 @@ export async function dispatch(body,{rpc,get,signal,transport,readTool,reserveRe
  const {action,...args}=body;
  const configResponse=await rpc(['configuration','configure','test','features','voice_test','tool_test'].includes(action)?'configuration':'status',{});
  const config=configResponse.config;
- const realtime=!!config.enabled&&configResponse.can_edit&&realtimeReady(get);
+ const evaluator=!!config.enabled&&configResponse.can_edit;
+ const realtime={openai:!!(evaluator&&realtimeReady(get)),grok:!!(evaluator&&grokReady(get))};
  const runtime={realtime,...publicRuntime(config,get),stt:!!config.voice_enabled&&voiceConnection(get).ready,tts:!!config.voice_enabled&&voiceConnection(get).ready,tools:!!config.factory_reads_enabled&&access.factory,voice_configured:voiceConnection(get).ready};
- if(action==='realtime_connect'){
-  if(!realtime)throw new AssistantError('realtime_not_authorized',403);
-  await reserveRealtime(args.session_id,args.request_id);
-  return createRealtimeCall(args,get,{signal,transport});
+ if(action.startsWith('realtime_')){
+  if(!realtime[args.provider])throw new AssistantError('realtime_not_authorized',403);
+  if(action==='realtime_end'){
+   await reserveRealtime('end',args);
+   return {};
+  }
+  if(action==='realtime_tool'){
+   if(!runtime.tools)throw new AssistantError('factory_read_denied',403);
+   await reserveRealtime('tool',args);
+   return readTool(args.arguments,signal);
+  }
+  await reserveRealtime('start',args);
+  const {strict,...tool}=inventoryTool;
+  const tools=runtime.tools?[tool]:[];
+  try{
+   const result=args.provider==='openai'?await createRealtimeCall({...args,tools},get,{signal,transport}):await createGrokSession(get,{signal,transport});
+   return {...result,instructions:voiceInstructions,tools};
+  }catch(error){
+   await reserveRealtime('end',args).catch(()=>{});
+   throw error;
+  }
  }
  if(action==='configuration')return {...configResponse,runtime};
  if(action==='status')return {runtime};

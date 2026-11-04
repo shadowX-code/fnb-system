@@ -93,7 +93,7 @@ addEventListener('message',event=>{
  if(d.type==='transcript'&&typeof d.text==='string'){handle(d.text.slice(0,2000));return;}
  if(d.type==='voice_error'){showNotice(d.message||'Voice service unavailable.',true);return;}
  if(d.type==='voice_level'){window.FEEDX_AUDIO_LEVEL=Math.max(0,Math.min(1,Number(d.level)||0));return;}
- if(d.type==='voice_state'){const states={listening:'listening',transcribing:'thinking',speaking:'speaking',error:'error'};window.FEEDX_AUDIO_LEVEL=0;if(states[d.state])setState(states[d.state]);else if(!activeRequest)setState('idle');return;}
+ if(d.type==='voice_state'){const states={listening:'listening',transcribing:'thinking',executing:'executing',speaking:'speaking',error:'error'};window.FEEDX_AUDIO_LEVEL=0;if(states[d.state])setState(states[d.state]);else if(!activeRequest)setState('idle');return;}
  if(d.request_id!==activeRequest)return;
  if(d.type==='state'&&d.state==='executing'){setState('executing');showNotice('Reading authorized Factory Finished Goods…');}
  if(d.type==='state'&&d.state==='thinking'){setState('thinking');showNotice('Thinking…');}
