@@ -29,7 +29,7 @@ export function validateBody(body){
  if(body.action==='realtime_tool')inventoryArguments(body.arguments);
  return body;
 }
-export async function dispatch(body,{rpc,get,signal,transport,readTool,reserveRealtime,registry,voiceHistory,access={factory:false}}){
+export async function dispatch(body,{rpc,get,signal,transport,readTool,reserveRealtime,registry,voiceHistory,sdkRemaining,access={factory:false}}){
  validateBody(body);
  const {action,...args}=body;
  if(action.startsWith('provider_')){
@@ -82,7 +82,7 @@ export async function dispatch(body,{rpc,get,signal,transport,readTool,reserveRe
   }
  }
  if(action==='configuration')return {...configResponse,runtime};
- if(action==='status')return {runtime};
+ if(action==='status')return {runtime:{...runtime,sdk_remaining:evaluator&&sdkRemaining?await sdkRemaining():null}};
  if(action==='features'){
   if(args.voice_enabled&&!voiceConnection(get).ready)throw new AssistantError('voice_not_configured',409);
   return rpc('features',args);

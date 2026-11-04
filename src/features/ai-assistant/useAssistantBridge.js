@@ -89,21 +89,28 @@ export default function useAssistantBridge(frame,userId){
  useEffect(()=>{
   if(!userId)return;
   let bridge;
-  let available={},voiceDefault;
+  let available={},voiceDefault,sdkRemaining,alive=true;
   const sdkBaseline=new URLSearchParams(window.location.search).get('voiceRuntime')==='sdk';
   const createVoice=sdkBaseline?createSdkVoiceBaseline:createRealtimeVoice;
-  const realtime=createVoice({call:assistantCall,getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),onChange:state=>setRealtimeState({...state,available,voiceDefault,sdkBaseline})});
-  realtimeRef.current={...realtime,start(provider,voice){if(available[provider]){bridge.interrupt();void realtime.start(provider,voice);}}};
+  const realtime=createVoice({call:assistantCall,getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),onChange:state=>{
+   setRealtimeState({...state,available,voiceDefault,sdkBaseline,sdkRemaining});
+   if(sdkBaseline&&state.report)void assistantCall('status').then(({runtime})=>{
+    if(!alive)return;
+    sdkRemaining=runtime.sdk_remaining;
+    setRealtimeState(current=>({...current,sdkRemaining}));
+   }).catch(()=>{});
+  }});
+  realtimeRef.current={...realtime,start(provider,voice){if(available[provider]&&(!sdkBaseline||sdkRemaining!==0)){bridge.interrupt();void realtime.start(provider,voice);}}};
   const voice=createAssistantVoice({getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),beforeStart:()=>bridge?.interrupt(),onChange:setVoiceState});voiceRef.current=voice;
   bridge=createAssistantBridge({getWindow:()=>frame.current?.contentWindow,userId,voice:{
    ...voice,
    stop(){realtime.stop();voice.stop();},
-   setAvailable(runtime){available=runtime.realtime||{};voiceDefault=runtime.voice_default;setRealtimeState({state:'idle',available,active:false,voiceDefault:runtime.voice_default,sdkBaseline});voice.setAvailable(runtime);}
+   setAvailable(runtime){available=runtime.realtime||{};voiceDefault=runtime.voice_default;sdkRemaining=runtime.sdk_remaining;setRealtimeState({state:'idle',available,active:false,voiceDefault:runtime.voice_default,sdkBaseline,sdkRemaining});voice.setAvailable(runtime);}
   }});
   const listener=e=>{void bridge.receive(e);};window.addEventListener('message',listener);
   frame.current?.contentWindow?.postMessage({protocol,type:'host-ready'},'*');
   const hidden=()=>{if(document.hidden){realtime.stop();voice.stop();}};document.addEventListener('visibilitychange',hidden);
-  return()=>{document.removeEventListener('visibilitychange',hidden);window.removeEventListener('message',listener);bridge.destroy();voice.destroy();voiceRef.current=null;realtimeRef.current=null;};
+  return()=>{alive=false;document.removeEventListener('visibilitychange',hidden);window.removeEventListener('message',listener);bridge.destroy();voice.destroy();voiceRef.current=null;realtimeRef.current=null;};
  },[frame,userId]);
  return {voiceState,voiceRef,realtimeState,realtimeRef};
 }
