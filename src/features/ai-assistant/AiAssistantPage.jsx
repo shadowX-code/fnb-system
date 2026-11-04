@@ -1,4 +1,4 @@
-import { voicePreferenceKey, voiceOptions } from './realtimeVoice.js';
+import { voiceOptions } from './realtimeVoice.js';
 import { useRef } from 'react';
 import { ArrowLeft, Download, Maximize2, Minimize2 } from 'lucide-react';
 import PageHeader from '../../components/layout/PageHeader.jsx';
@@ -10,8 +10,7 @@ import './aiAssistant.css';
 export default function AiAssistantPage({ ui, auth }) {
   const root = useRef(null), frame = useRef(null);
   const {voiceState,voiceRef,realtimeState,realtimeRef}=useAssistantBridge(frame, ASSISTANT_STAGING_ALLOWED ? auth?.user?.id : null);
-  const voiceChoice = localStorage.getItem(voicePreferenceKey(auth?.user?.id));
-  const [provider, preferredVoice] = (voiceChoice || '').split(':');
+  const {provider,voice:preferredVoice}=realtimeState.voiceDefault||{provider:'render'};
   const realtimeSelected = Object.hasOwn(voiceOptions, provider);
   const realtimeAvailable = realtimeState.available?.[provider];
   const { fullscreen, notice, toggleFullscreen } = useNetworkFullscreen(root);

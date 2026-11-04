@@ -17,6 +17,7 @@ import FactoryAgentActions from './FactoryAgentActions.jsx';
 import AgentActivityTimeline from './AgentActivityTimeline.jsx';
 import {capabilityDomain,actionTypeCounts,agentWorkspaceLabel,capabilityWorkspaceLabel} from '../../components/permissions/capabilityActions.js';
 import "./externalAgents.css";
+import AssistantProviders from "./AssistantProviders.jsx";
 import NativeAssistantSettings from "./NativeAssistantSettings.jsx";
 import { ASSISTANT_STAGING_ALLOWED } from "../ai-assistant/assistantEnvironment.js";
 
@@ -62,6 +63,7 @@ function EffectiveAccessSummary({ agent }) {
   </div>;
 }
 export default function ExternalAgentsPage({ auth }) {
+  const [section,setSection]=useState(ASSISTANT_STAGING_ALLOWED?"providers":"agents");
   const [data, setData] = useState(null), [selected, setSelected] = useState(null), [detail, setDetail] = useState(null);
   const [search, setSearch] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("overview"), [advanced, setAdvanced] = useState(false), [connection, setConnection] = useState(null);
@@ -146,8 +148,11 @@ export default function ExternalAgentsPage({ auth }) {
   ];
   if (!canView) return <div className="card p-5" role="alert">Role Settings view permission is required to view external agents.</div>;
   return <div className="external-agents space-y-4">
-    <PageHeader title="AI Integrations" breadcrumbs={[{ label: "System" }, { label: "AI Integrations" }]} description="Manage Native Assistant connectivity and external agent access." actions={<><button className="btn-secondary" type="button" disabled={loading || busy} onClick={load}><RefreshCw size={15} /> Refresh</button>{canCreate && canEdit && data?.can_register && <button className="btn-primary" type="button" disabled={busy || loading || !catalog.length} onClick={() => { setError(""); setConnection({ name: "", provider: "", adapter: catalog[0].key, tools: [], requestId: crypto.randomUUID(), validity: catalog[0].credential_policy?.default_days || 90 }); }}><Plus size={15} /> Connect agent</button>}</>} />
-    {ASSISTANT_STAGING_ALLOWED && <NativeAssistantSettings auth={auth} />}
+    <PageHeader title="AI Integrations" breadcrumbs={[{ label: "System" }, { label: "AI Integrations" }]} description="Manage Native Assistant connectivity and external agent access." actions={section==="agents"&&<><button className="btn-secondary" type="button" disabled={loading || busy} onClick={load}><RefreshCw size={15} /> Refresh</button>{canCreate && canEdit && data?.can_register && <button className="btn-primary" type="button" disabled={busy || loading || !catalog.length} onClick={() => { setError(""); setConnection({ name: "", provider: "", adapter: catalog[0].key, tools: [], requestId: crypto.randomUUID(), validity: catalog[0].credential_policy?.default_days || 90 }); }}><Plus size={15} /> Connect agent</button>}</>} />
+    {ASSISTANT_STAGING_ALLOWED && <AdminUnderlineTabs value={section} onChange={setSection} ariaLabel="AI Integrations sections" tabs={[{value:'providers',label:'Providers'},{value:'assistant',label:'Native Assistant'},{value:'agents',label:'External Agents'}]} />}
+    {section==="providers"&&<AssistantProviders key={adminId} />}
+    {section==="assistant"&&<NativeAssistantSettings auth={auth} />}
+    {section==="agents"&&<div role="tabpanel" aria-label="External Agents" className="space-y-4">
     {!selected && !connection && error && <div role="alert" className="external-agent-notice">{error} <button type="button" className="btn-secondary" onClick={load}>Retry</button></div>}
     <div className="external-agent-toolbar"><AdminSearchField label="Search agents" placeholder="Name, provider or workspace" value={search} onChange={setSearch} /></div>
     <div className="external-agent-surface">{loading ? <p role="status" className="p-5 text-sm text-text-secondary">Loading agents…</p> : rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} density="compact" minWidth={900} mobileLayout="stack" /> : <p className="p-5 text-sm text-text-secondary">{error && !data ? "Agents could not be loaded. Refresh to try again." : search ? "No agents match your search." : "No external agents are connected yet."}</p>}</div>
@@ -197,5 +202,6 @@ export default function ExternalAgentsPage({ auth }) {
     </Modal>}
     {issued && <Modal title="Save the access key" description="Shown once. This window clears on close, when the tab is hidden, or after two minutes." onClose={clearIssued} footer={<button className="btn-primary" type="button" onClick={clearIssued}>I have saved the key</button>}><div className="space-y-3"><p className="text-sm text-text-secondary">Expires {stamp(issued.expires_at)}. FeedX cannot retrieve this key again.</p><label className="block text-sm font-semibold">New access key<input className="control mt-1 w-full" type={revealed ? "text" : "password"} readOnly autoComplete="off" value={issued.one_time_credential} /></label><div className="flex flex-wrap gap-2"><button className="btn-secondary" type="button" onClick={() => setRevealed((value) => !value)}>{revealed ? <EyeOff size={15} /> : <Eye size={15} />}{revealed ? "Hide" : "Reveal key"}</button><button className="btn-secondary" type="button" onClick={async () => { try { await navigator.clipboard.writeText(issued.one_time_credential); setCopied(true); } catch { setCopied(false); } }}><Copy size={15} />{copied ? "Copied" : "Copy key"}</button></div><p className="text-xs text-text-secondary">Save this key securely and configure it in the provider. If it is lost, use Replace access key to issue another.</p></div></Modal>}
     <ConfirmDialog request={confirmation} onCancel={() => setConfirmation(null)} onConfirm={manage} />
+    </div>}
   </div>;
 }
