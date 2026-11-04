@@ -14,7 +14,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
   clearTimeout(run.timer);
   run.controller.abort();
   run.session?.close();
-  if (run.requested) void call('realtime_end', run.lease).catch(() => {});
+  if (run.requested) void run.observations.then(()=>call('realtime_end',run.lease)).catch(()=>{});
   run.report.durationMs = Math.round(performance.now() - run.started);
   show(state, message, run.report);
  }
@@ -25,6 +25,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
   const lease = { session_id, request_id: crypto.randomUUID(), provider };
   const run = {
    lease,
+   observations:Promise.resolve(),
    controller: new AbortController(),
    started: performance.now(),
    report: { firstAudioMs: null, detectedTurns: 0, startsDuringPlayback: 0, inputAudio: 0, outputAudio: 0, usageReported: false, events: [] },
@@ -86,6 +87,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     if (type === 'response.done') {
      const usage = response?.usage;
      if (usage) {
+      if(!run.report.usageReported)run.observations=run.observations.then(()=>call('realtime_sdk_observe',{...lease,milestone:'usage_observed'})).catch(()=>{});
       run.report.usageReported = true;
       run.report.inputAudio += usage.input_token_details?.audio_tokens || 0;
       run.report.outputAudio += usage.output_token_details?.audio_tokens || 0;
@@ -103,15 +105,22 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     if (active === run) stop('The SDK reported a Realtime error.', 'error');
    });
    transport.on('connection_change', status => {
+    if(['connecting','connected','disconnected'].includes(status))event('webrtc_'+status);
     if (status === 'disconnected' && run.connected && active === run) stop('The SDK transport disconnected. Start voice to reconnect.', 'error');
    });
    await session.connect({ apiKey: authorization.client_secret });
    if (active !== run) return;
    run.connected = true;
+   run.observations=call('realtime_sdk_observe',{...lease,milestone:'connected'}).catch(()=>{});
    clearTimeout(run.timer);
    run.timer = setTimeout(() => stop('The three-minute evaluation ended.'), 180000);
    show('listening');
   } catch (error) {
+   if (active === run) {
+    const safeNames=['NotAllowedError','NotFoundError','NotReadableError','InvalidStateError','OperationError','AbortError'];
+    const name=safeNames.includes(error.name)?error.name:'unclassified';
+    run.report.events.push({ms:Math.round(performance.now()-run.started),event:run.session?'sdk_connect_failed':'sdk_authorization_failed',reason:name});
+   }
    if (active === run) stop(error.name === 'NotAllowedError' ? 'Allow microphone access and try again.' : error.code ? error.message : 'The SDK could not connect to OpenAI Realtime.', 'error');
   }
  }

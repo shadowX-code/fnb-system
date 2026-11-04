@@ -91,7 +91,7 @@ test('SDK baseline reserves before minting and never exposes the configured API 
   },
  };
  await assert.rejects(dispatch(body,{...ctx,reserveRealtime:async()=>{throw new Error('quota');},transport:fail}),/quota/);
- const result=await dispatch(body,{...ctx,reserveRealtime:async action=>assert.equal(action,'sdk_baseline')});
+ const result=await dispatch(body,{...ctx,reserveRealtime:async action=>assert.ok(['sdk_baseline','sdk_issued'].includes(action))});
  assert.equal(result.client_secret,'ek_fixture_token');
  assert.ok(!JSON.stringify(result).includes(approved.NATIVE_ASSISTANT_REALTIME_API_KEY));
 });

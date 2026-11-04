@@ -88,6 +88,10 @@ export async function createSdkVoiceSecret(voice, get, { signal, transport = fet
    server_error: 'realtime_provider_temporary',
    overloaded_error: 'realtime_provider_temporary',
    model_not_found: 'realtime_model_unavailable',
+   unsupported_value: 'realtime_unavailable',
+   invalid_value: 'realtime_unavailable',
+   unknown_parameter: 'realtime_unavailable',
+   missing_required_parameter: 'realtime_unavailable',
   };
   const recognized = value => typeof value === 'string' && Object.hasOwn(categories, value);
   const sanitize = value => value == null ? null : recognized(value) || value === 'invalid_request_error' ? value : 'unrecognized_redacted';
@@ -98,6 +102,8 @@ export async function createSdkVoiceSecret(voice, get, { signal, transport = fet
    source:'openai', http_status:response.status, endpoint, model:realtimeModel,
    provider_error_code:sanitize(error?.code), provider_error_type:sanitize(error?.type),
   };
+  const knownParameters=['session','session.type','session.model','session.instructions','session.output_modalities','session.audio.output.voice','expires_after','expires_after.seconds','expires_after.anchor'];
+  if(knownParameters.includes(error?.param))diagnostic.provider_error_param=error.param;
   const retryAfter = response.headers.get('retry-after')?.trim() || '';
   if (/^\d{1,9}$/.test(retryAfter)) diagnostic.retry_after_seconds = Number(retryAfter);
   else if (/^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(retryAfter)) {
