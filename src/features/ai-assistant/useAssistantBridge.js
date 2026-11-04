@@ -1,7 +1,6 @@
 import {createSdkVoiceBaseline} from './sdkVoiceBaseline.js';
-import {useEffect,useRef,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import {createRealtimeVoice} from './realtimeVoice.js';
-import {createAssistantVoice} from './assistantVoice.js';
 import {assistantCall} from './nativeAssistantService.js';
 const protocol='feedx.assistant.text.v1';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -45,7 +44,7 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
     turn=await call('turn_status',{session_id:a.session_id,turn_id:a.turn_id},a.controller.signal);
    }
    if(!alive||generation!==mine)return;
-   if(turn.state==='completed'&&typeof turn.reply==='string'){post('result',{request_id:a.request_id,reply:turn.reply.slice(0,3000),evidence:turn.evidence||null,tool_state:turn.tool_state||null});void voice?.speak(a.session_id,a.turn_id);}
+   if(turn.state==='completed'&&typeof turn.reply==='string'){post('result',{request_id:a.request_id,reply:turn.reply.slice(0,3000),evidence:turn.evidence||null,tool_state:turn.tool_state||null});}
    else error({code:turn.error_code||'request_timeout',message:turn.state==='cancelled'?'Response cancelled.':'This request did not complete. Retry with a new request.'},a.request_id);
   }catch(cause){if(alive&&generation===mine)error(cause,a.request_id);}
   finally{if(active===a)active=null;}
@@ -81,7 +80,7 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
       known.add(preferred);
       sessions.push({id:preferred,title:'New conversation'});
      }
-     post('bootstrap',{runtime:{ready:r.ready,connection_ready:r.connection_ready,runtime_available:r.runtime_available,blocker:r.blocker,model:r.model,stt:r.stt,tts:r.tts,tools:r.tools,sdk_voice:r.voice_default?.provider==='openai'?!!r.realtime?.openai:null},sessions,session_id:preferred});
+     post('bootstrap',{runtime:{ready:r.ready,connection_ready:r.connection_ready,runtime_available:r.runtime_available,blocker:r.blocker,model:r.model,tools:r.tools,voice_provider:r.realtime?.openai?'OpenAI Realtime SDK':r.realtime?.grok?'Grok Voice':null},sessions,session_id:preferred});
      await history(preferred);
      return;
     }finally{bootstrapping=false;}
@@ -101,7 +100,6 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
 }
 export default function useAssistantBridge(frame,userId){
  const realtimeRef=useRef(null),[realtimeState,setRealtimeState]=useState({state:'idle',available:false,active:false});
- const voiceRef=useRef(null),[voiceState,setVoiceState]=useState({state:'idle',stt:false,tts:false,output:false});
  useEffect(()=>{
   if(!userId)return;
   let bridge;
@@ -129,16 +127,17 @@ export default function useAssistantBridge(frame,userId){
    stop(){realtime?.stop();},
    resume(){return realtime?.resume?.();},
   };
-  const voice=createAssistantVoice({getSession:()=>bridge?.getSession(),post:(type,value)=>bridge?.post(type,value),beforeStart:()=>bridge?.interrupt(),onChange:setVoiceState});voiceRef.current=voice;
   bridge=createAssistantBridge({getWindow:()=>frame.current?.contentWindow,userId,voice:{
-   ...voice,
-   stop(){realtime?.stop();voice.stop();},
-   setAvailable(runtime){available=runtime.realtime||{};voiceDefault=runtime.voice_default;sdkRemaining=runtime.sdk_remaining;updateRealtime({state:'idle',active:false});voice.setAvailable(runtime);}
+   stop(){realtime?.stop();},
+   setAvailable(runtime){available=runtime.realtime||{};voiceDefault=runtime.voice_default;sdkRemaining=runtime.sdk_remaining;updateRealtime({state:'idle',active:false});}
   }});
   const listener=e=>{void bridge.receive(e);};window.addEventListener('message',listener);
   frame.current?.contentWindow?.postMessage({protocol,type:'host-ready'},'*');
-  const hidden=()=>{if(document.hidden){realtime?.stop();voice.stop();}};document.addEventListener('visibilitychange',hidden);
-  return()=>{alive=false;document.removeEventListener('visibilitychange',hidden);window.removeEventListener('message',listener);bridge.destroy();voice.destroy();voiceRef.current=null;realtimeRef.current=null;};
+  const hidden=()=>{if(document.hidden)realtime?.stop();};document.addEventListener('visibilitychange',hidden);
+  return()=>{alive=false;document.removeEventListener('visibilitychange',hidden);window.removeEventListener('message',listener);bridge.destroy();realtimeRef.current=null;};
  },[frame,userId]);
- return {voiceState,voiceRef,realtimeState,realtimeRef};
+ const setHudView=useCallback(immersive=>{
+  frame.current?.contentWindow?.postMessage({protocol,type:'view',immersive},'*');
+ },[frame]);
+ return {realtimeState,realtimeRef,setHudView};
 }

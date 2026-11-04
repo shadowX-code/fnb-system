@@ -5,3 +5,51 @@
 .web-evidence{display:grid;gap:5px;font-size:11px;color:#a5c3cc;border-top:1px solid #234451;margin-top:9px;padding-top:9px;overflow-wrap:anywhere}.web-evidence a{color:#7eebd6}.web-evidence details{font-size:11px}.web-evidence p{margin-top:5px}
 
 #webMessages p strong{font-size:inherit;font-weight:600;color:inherit}
+
+.web-telemetry,.web-operations{display:none}
+.web-immersive{--hud-line:#24505d;--hud-ink:#e6f5fa;--hud-muted:#a2c3ce;--hud-cyan:#75e6f3;--hud-panel:#07131ce8;--hud-left:clamp(184px,23vw,330px);--hud-right:clamp(295px,30vw,470px)}
+.web-immersive #stage{left:var(--hud-left);width:calc(100% - var(--hud-left) - var(--hud-right));height:100%}
+.web-immersive .web-core-caption{left:var(--hud-left);width:calc(100% - var(--hud-left) - var(--hud-right));max-width:none;bottom:20px;text-align:center;color:var(--hud-muted)}
+.web-immersive .web-core-caption strong{color:var(--hud-ink);letter-spacing:.12em;text-transform:uppercase}
+.web-immersive .web-telemetry{position:absolute;left:12px;top:12px;width:calc(var(--hud-left) - 24px);display:grid;gap:12px;pointer-events:auto}
+.web-immersive .web-hud-panel,.web-immersive .web-conversation{border:1px solid var(--hud-line);border-top-color:#46717c;border-radius:12px;background:linear-gradient(150deg,#0e2632a0,transparent 62%),var(--hud-panel);box-shadow:0 8px 24px #0005}
+.web-immersive .web-hud-panel{padding:13px}
+.web-immersive h2{margin:0 0 10px;color:var(--hud-ink);font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase}
+.web-immersive #webActivity{margin:0;padding:0;list-style:none;font-size:13px;color:var(--hud-muted)}
+.web-immersive #webActivity li{padding:8px 0;border-bottom:1px solid #1c3540}
+.web-immersive #webActivity li:last-child{border:0;color:var(--hud-cyan)}
+.web-immersive #webActivity li::before,.web-immersive #webLiveState::before{content:"";display:inline-block;margin-right:9px;width:5px;height:5px;border-radius:50%;background:currentColor}
+.web-immersive #webSessionFacts{display:grid;grid-template-columns:1fr auto;gap:9px;margin:0;color:var(--hud-muted);font-size:12px}
+.web-immersive #webSessionFacts dd{margin:0;color:var(--hud-ink);font-variant-numeric:tabular-nums}
+.web-immersive #webLiveState{margin:0;color:var(--hud-cyan);font-size:13px}
+.web-immersive .web-conversation{top:12px;right:12px;bottom:12px;width:calc(var(--hud-right) - 12px);padding:14px;gap:9px;scrollbar-color:#315866 transparent}
+.web-immersive .web-operations{display:block;padding:0 0 11px;border-bottom:1px solid var(--hud-line)}
+.web-immersive #webOperations{font-size:12px;line-height:1.45;color:var(--hud-muted);overflow-wrap:anywhere}
+.web-immersive #webOperations dl{display:flex;gap:8px;margin:0 0 8px}
+.web-immersive #webOperations dl div{flex:1;display:flex;flex-direction:column-reverse;gap:3px;padding:6px 8px;background:#12252e;border:1px solid #31505a;border-radius:8px}
+.web-immersive #webOperations dd{font-size:23px;color:#ffd0a0;margin:0;font-variant-numeric:tabular-nums}
+.web-immersive #webOperations a{color:var(--hud-cyan);text-underline-offset:3px}
+.web-immersive #webOperations p{margin:4px 0 0}
+.web-immersive .web-conversation h1{color:var(--hud-ink);font-size:16px}
+.web-immersive #webMessages li{border-color:#1b3541}
+.web-immersive #webMessages strong{color:var(--hud-cyan)}
+.web-immersive #webComposer .bar-in{border-color:var(--hud-line);background:#07151d}
+.web-immersive #webSend{background:#92e8f1;color:#07171b}
+.web-immersive .web-license{display:none}
+@media(max-width:800px){
+ .web-immersive #stage{left:0;width:100%;height:270px}
+ .web-immersive .web-core-caption{left:12px;top:12px;bottom:auto;width:auto;text-align:left}
+ .web-immersive .web-telemetry{display:none}
+ .web-immersive .web-conversation{top:256px;left:8px;right:8px;bottom:8px;width:auto}
+ .web-immersive .web-history-label span{display:none}
+}
+.web-dock{display:none}
+.web-immersive .web-dock{display:flex;position:absolute;bottom:8px;left:12px;right:12px;align-items:center;gap:8px;padding:6px 9px;border:1px solid var(--hud-line);border-radius:10px;background:#081823;pointer-events:auto}
+.web-immersive .web-dock #webComposer{flex:1;min-width:0;margin:0}
+.web-immersive .web-dock button{min-height:34px;padding:6px 10px;border:1px solid var(--hud-line);border-radius:7px;background:#132d38;color:#e1f5fa;font-size:12px}
+.web-immersive .web-conversation{bottom:70px}
+.web-immersive .web-core-caption{bottom:72px}
+@media(max-width:800px){
+ .web-immersive .web-core-caption{bottom:auto}
+ .web-immersive .web-dock{left:8px;right:8px}
+}

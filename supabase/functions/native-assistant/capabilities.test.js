@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {generateText} from './provider.js';import {inventoryArguments,callerAccess,readInventory} from './inventory.js';import {voiceConnection,voiceRequest} from './voice.js';import {validateBody,dispatch} from './handler.js';
+import {generateText} from './provider.js';import {inventoryArguments,callerAccess,readInventory} from './inventory.js';import {validateBody,dispatch} from './handler.js';
 const response=data=>new Response(JSON.stringify(data));
 const claim={kind:'turn',model:'gpt-4o-mini',prompt:'Check Finished Goods',context:[]};
 test('real transport contract routes one fixed tool, carries authoritative evidence and sums both usages (fixture)',async()=>{
@@ -21,16 +21,9 @@ test('scope-stable bounded canonical reads distinguish unknown minimums and incl
  const caller={rpc:(name)=>{const value={data:name==='current_user_role_id'?'fixture-role':name==='current_user_has_permission'?true:rows.map(x=>x.id)};return {then:fn=>Promise.resolve(value).then(fn),abortSignal:()=>Promise.resolve(value)};},from:()=>({select:()=>({in:()=>({abortSignal:async()=>({data:rows})})})})};
  const r=await readInventory(caller,{query:'',availability:'low'});assert.equal(r.total_matching,1);assert.equal(r.unknown_minimum_count,2);assert.equal(r.total_scoped_products,3);assert.equal(r.rows[0].id,'a');assert.equal(r.source,'/factory/warehouse/finished-goods');assert(r.as_of);assert.match(r.limitations,/absent\/zero minimum is unknown/);
 });
-test('voice is fail-closed, fixed configuration only, not implicit model/domain-key fallback',async()=>{
- assert.equal(voiceConnection(()=>undefined).ready,false);assert.equal(voiceConnection(k=>({NATIVE_ASSISTANT_VOICE_URL:'http://localhost:8080',NATIVE_ASSISTANT_VOICE_KEY:'x'.repeat(32),NATIVE_ASSISTANT_VOICE_APPROVED_USE:'native-assistant-staging-voice'}[k])).ready,false);
- await assert.rejects(voiceRequest('/stt',{},()=>undefined),{code:'voice_not_configured'});
- assert.throws(()=>validateBody({action:'voice_tts',text:'arbitrary text'}));assert.throws(()=>validateBody({action:'features',voice_enabled:true,factory_reads_enabled:true,expected_revision:1,endpoint:'https://evil.test'}));
-});
-test('voice uses exact remote contract, rejects redirected/error/body diagnostics and invalid readiness (fixture)',async()=>{
- const get=k=>({NATIVE_ASSISTANT_VOICE_URL:'https://voice.example/',NATIVE_ASSISTANT_VOICE_KEY:'fixture'.repeat(8),NATIVE_ASSISTANT_VOICE_APPROVED_USE:'native-assistant-staging-voice'}[k]);
- await assert.rejects(voiceRequest('/ready',{},get,{transport:async()=>response({stt:'wrong',tts:'jarvis-high'})}),{code:'voice_runtime_invalid'});
- await assert.rejects(voiceRequest('/stt',{},get,{transport:async()=>new Response('upstream SECRET',{status:500})}),e=>e.code==='voice_runtime_unavailable'&&!e.message.includes('SECRET'));
- let init;await voiceRequest('/ready',{},get,{transport:async(_,options)=>{init=options;return response({stt:'whisper-base',tts:'kokoro-bm_george'});}});assert.equal(init.redirect,'error');
+test('retired fallback requests are rejected at the Edge boundary',()=>{
+ for(const action of ['voice_test','voice_stt','voice_tts'])assert.throws(()=>validateBody({action}));
+ assert.throws(()=>validateBody({action:'provider_activate',provider:'render',voice:''}));
 });
 
 test('low-stock answer is formatted from real read evidence, unknown minima never become low (fixture)',async()=>{

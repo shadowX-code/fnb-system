@@ -1,3 +1,22 @@
 .assistant-page{display:flex;flex-direction:column;gap:12px;min-width:0}.assistant-page .btn-ghost{display:inline-flex;align-items:center;gap:6px}.assistant-frame{width:100%;height:max(720px,calc(100dvh - 170px));border:1px solid #183438;border-radius:14px;background:#030b11}.assistant-fullscreen{position:fixed;inset:0;z-index:10000;background:var(--surface,#fff);padding:12px;overflow:auto}.assistant-fullscreen .assistant-frame{height:calc(100dvh - 105px);min-height:550px}@media(max-width:767px){.assistant-frame{height:calc(100dvh - 110px);min-height:920px;border-radius:12px}.assistant-fullscreen{padding:8px}.assistant-page .btn-ghost{font-size:12px;padding:6px}.assistant-page{gap:8px}}
 
 .assistant-voice-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:8px 0;font-size:12px;color:var(--text-secondary,#64748b)}.assistant-voice-bar label{display:inline-flex;align-items:center;gap:6px}.assistant-voice-bar button{min-height:36px}.assistant-voice-bar span{min-width:0;overflow-wrap:anywhere}
+
+.assistant-voice-bar button{display:inline-flex;align-items:center;gap:8px}
+.assistant-fullscreen{background:#030a11;color:#e6f5fa;gap:8px;padding:10px}
+.assistant-hud-header{display:flex;align-items:center;gap:12px;min-height:48px;padding:7px 13px;border:1px solid #275363;border-radius:10px;background:linear-gradient(110deg,#0e2531,#07121b);color:#8eeaf3}
+.assistant-hud-header strong,.assistant-hud-header small{display:block}
+.assistant-hud-header strong{font-size:15px;color:#e6f5fa;font-weight:600;letter-spacing:.025em}
+.assistant-hud-header small,.assistant-hud-header span{font-size:11px;color:#a7c7d1}
+.assistant-hud-header span{margin-left:auto;text-align:right}
+.assistant-fullscreen .assistant-frame{order:1;height:calc(100dvh - 135px);min-height:550px;flex:none;border-color:#275363}
+.assistant-fullscreen .assistant-voice-bar{order:2;justify-content:center;gap:10px 16px;padding:9px 12px;border:1px solid #275363;border-radius:10px;background:#091923;color:#c0e0e8}
+.assistant-fullscreen .assistant-voice-bar .btn-secondary{min-height:44px;border:1px solid #60cadb;background:#103440;color:#e7fbff}
+.assistant-fullscreen .assistant-view-switch{color:#bfeef5}
+.assistant-fullscreen .assistant-voice-bar details{font-size:11px}
+@media(max-width:800px){
+ .assistant-fullscreen{padding:6px}
+ .assistant-fullscreen .assistant-frame{height:calc(100dvh - 135px);min-height:670px}
+ .assistant-fullscreen .assistant-voice-bar{position:sticky;bottom:0;z-index:1}
+ .assistant-fullscreen .assistant-voice-bar>span{flex-basis:100%;text-align:center;order:2}
+}
