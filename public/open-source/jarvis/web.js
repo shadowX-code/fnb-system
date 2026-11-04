@@ -33,8 +33,8 @@ const hudPaths={
 const hudIcon=name=>`<svg class="web-hud-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${hudPaths[name]}"/></svg>`;
 const voiceWave=`<svg class="web-signal" viewBox="0 0 240 40" aria-hidden="true">
  <path class="web-wave-baseline" d="M0 20h240"/>
- <path class="web-wave-echo" d="M0 20Q20 22 35 19T62 22T88 16T110 26T135 15T158 26T182 17T210 20T240 20"/>
- <path class="web-wave-echo" d="M0 20Q18 17 34 21T58 18T84 23T109 12T132 27T159 14T182 22T208 19T240 20"/>
+ <path class="web-wave-echo" d="M0 20Q21 17 36 21T63 20Q76 14 88 21T111 22Q125 12 139 21T162 22Q173 15 184 21T205 20Q222 20 240 20"/>
+ <path class="web-wave-echo" d="M0 20Q19 22 33 19T60 22Q71 26 84 19T108 20Q122 29 135 20T160 19Q172 26 183 20T207 19Q223 22 240 20"/>
  <path class="web-wave-main" d="M0 20C15 20 21 24 31 20S47 17 55 21S70 29 81 18S96 9 106 20S122 30 134 17S150 8 161 20S176 27 188 20S203 18 212 20S226 20 240 20"/>
 </svg>`;
 const activityWave=`<svg class="web-event-wave" viewBox="0 0 80 24" aria-hidden="true"><path d="M0 21h8l4-2 5 1 5-3 5-5 3 1 5-8 4 4 4 5 4-2 5 5 6 2 6 1h16v2H0z"/></svg>`;
@@ -48,7 +48,7 @@ web.innerHTML=`<div class="web-core-caption"><span class="web-status-dot"></span
 <section class="web-hud-panel"><h2>Current session</h2><div class="web-session-body"><div class="web-session-ring"><strong id="webTurnCount">0</strong><span>Turns</span></div><dl id="webSessionFacts"></dl></div></section>
 <section class="web-hud-panel"><h2>Voice state</h2><div class="web-voice-state"><p id="webLiveState">Idle</p>${voiceWave}</div></section>
 </aside>
-<section class="web-conversation" aria-label="AI conversation"><section class="web-operations" aria-label="Operations intelligence"><h2>Operations intelligence</h2><div id="webOperations"></div></section><header><h1>Conversation</h1><button type="button" id="webNew">New</button></header>
+<section class="web-conversation" aria-label="AI conversation"><section class="web-operations" aria-label="Operations intelligence"><h2>Operations intelligence</h2><div id="webOperations"></div></section><header><h1>Conversation</h1><button type="button" id="webNew" aria-label="New Conversation">New</button></header>
 <label class="web-history-label" for="webHistory">Conversation history <span>your Admin account</span></label><select id="webHistory"></select>
 <details class="web-services"><summary>Services · 4 unavailable</summary><dl><div><dt>Language model</dt><dd>Not configured</dd></div><div><dt>Speech recognition</dt><dd>Not connected</dd></div><div><dt>Voice output</dt><dd>Not connected</dd></div><div><dt>FeedX tools</dt><dd>Not authorized</dd></div></dl></details>
 <div id="webNotice" role="status">No model is connected. Requests stay in this tab; no AI answer will be generated.</div>
