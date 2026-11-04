@@ -1,4 +1,4 @@
-import { AssistantError } from './provider.js';
+import { AssistantError, providerJson } from './provider.js';
 
 export const realtimeModel = 'gpt-realtime-2.1-mini';
 export const realtimeVoices = ['cedar', 'marin', 'echo', 'ash', 'alloy'];
@@ -70,9 +70,44 @@ export async function createSdkVoiceSecret(voice, get, { signal, transport = fet
   throw new AssistantError('realtime_unavailable', 502);
  }
  if (!response.ok) {
-  await response.body?.cancel();
-  const code = [401,403].includes(response.status) ? 'realtime_permission_denied' : response.status===429 ? 'realtime_rate_limited' : 'realtime_unavailable';
-  throw new AssistantError(code, 502, { source:'openai',http_status:response.status,endpoint,model:realtimeModel });
+  const error = await providerJson(response, 16384).then(body => body?.error).catch(() => null);
+  const categories = {
+   insufficient_quota: 'provider_quota_exhausted',
+   billing_hard_limit_reached: 'provider_budget_exhausted',
+   project_spend_limit_exceeded: 'provider_budget_exhausted',
+   organization_spend_limit_exceeded: 'provider_budget_exhausted',
+   rate_limit_exceeded: 'realtime_rate_limited',
+   rate_limit_error: 'realtime_rate_limited',
+   tokens: 'realtime_rate_limited',
+   requests: 'realtime_rate_limited',
+   invalid_api_key: 'realtime_permission_denied',
+   authentication_error: 'realtime_permission_denied',
+   insufficient_permissions: 'realtime_permission_denied',
+   permission_denied: 'realtime_permission_denied',
+   permission_error: 'realtime_permission_denied',
+   server_error: 'realtime_provider_temporary',
+   overloaded_error: 'realtime_provider_temporary',
+   model_not_found: 'realtime_model_unavailable',
+  };
+  const recognized = value => typeof value === 'string' && Object.hasOwn(categories, value);
+  const sanitize = value => value == null ? null : recognized(value) || value === 'invalid_request_error' ? value : 'unrecognized_redacted';
+  const fallback = {401:'realtime_permission_denied',403:'realtime_permission_denied',429:'realtime_429_unclassified'};
+  const code = recognized(error?.code) ? categories[error.code] : recognized(error?.type) ? categories[error.type] :
+   fallback[response.status] || (response.status >= 500 ? 'realtime_provider_temporary' : 'realtime_unavailable');
+  const diagnostic = {
+   source:'openai', http_status:response.status, endpoint, model:realtimeModel,
+   provider_error_code:sanitize(error?.code), provider_error_type:sanitize(error?.type),
+  };
+  const retryAfter = response.headers.get('retry-after')?.trim() || '';
+  if (/^\d{1,9}$/.test(retryAfter)) diagnostic.retry_after_seconds = Number(retryAfter);
+  else if (/^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(retryAfter)) {
+   const retryAt = Date.parse(retryAfter);
+   if (Number.isFinite(retryAt)) diagnostic.retry_after_seconds = Math.max(0, Math.ceil((retryAt - Date.now()) / 1000));
+  }
+  const requestId = response.headers.get('x-request-id') || '';
+  if (/^req_[A-Za-z0-9_-]{1,100}$/.test(requestId)) diagnostic.request_id = requestId;
+  console.warn('Native Assistant SDK startup rejected', JSON.stringify({ code, ...diagnostic }));
+  throw new AssistantError(code, 502, diagnostic);
  }
  const result = await response.json().catch(() => null);
  if (typeof result?.value !== 'string' || !/^ek_[A-Za-z0-9_-]{8,2048}$/.test(result.value)) throw new AssistantError('realtime_unavailable', 502);

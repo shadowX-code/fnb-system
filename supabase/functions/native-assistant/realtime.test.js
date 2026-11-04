@@ -95,3 +95,30 @@ test('SDK baseline reserves before minting and never exposes the configured API 
  assert.equal(result.client_secret,'ek_fixture_token');
  assert.ok(!JSON.stringify(result).includes(approved.NATIVE_ASSISTANT_REALTIME_API_KEY));
 });
+
+test('SDK startup classifies provider rejections without disclosing response text or unsafe metadata', async () => {
+ const { createSdkVoiceSecret } = await import('./realtime.js');
+ const cases = [
+  [429, 'rate_limit_exceeded', 'realtime_rate_limited'],
+  [429, 'insufficient_quota', 'provider_quota_exhausted'],
+  [429, null, 'realtime_429_unclassified'],
+  [401, 'invalid_api_key', 'realtime_permission_denied'],
+  [503, 'secret-fixture', 'realtime_provider_temporary'],
+ ];
+ for (const [status, code, expected] of cases) {
+  await assert.rejects(createSdkVoiceSecret('cedar', key=>approved[key], {
+   transport:async()=>Response.json({error:{code,message:'private-fixture',type:'secret-fixture'}}, {
+    status, headers:{'retry-after':'15','x-request-id':'req_fixture123'},
+   }),
+  }), error => {
+   assert.equal(error.code, expected);
+   assert.equal(error.diagnostic.http_status, status);
+   assert.equal(error.diagnostic.provider_error_code,code==='secret-fixture'?'unrecognized_redacted':code);
+   assert.equal(error.diagnostic.provider_error_type,'unrecognized_redacted');
+   assert.equal(error.diagnostic.retry_after_seconds,15);
+   assert.equal(error.diagnostic.request_id,'req_fixture123');
+   assert.doesNotMatch(JSON.stringify(error.diagnostic),/private-fixture|secret-fixture/);
+   return true;
+  });
+ }
+});

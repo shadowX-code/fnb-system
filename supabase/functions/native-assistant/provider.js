@@ -19,7 +19,7 @@ export function publicRuntime(config,get){
 }
 
 // Only bounded, allowlisted classifications escape the provider boundary. Never its message/body.
-async function providerJson(response,limit=131072){
+export async function providerJson(response,limit=131072){
   const reader=response.body.getReader();let total=0;const chunks=[];
   try{while(true){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>limit){await reader.cancel();throw new AssistantError('provider_response_limit',502);}chunks.push(value);}}finally{reader.releaseLock();}
   const raw=new Uint8Array(total);let at=0;for(const c of chunks){raw.set(c,at);at+=c.length;}
