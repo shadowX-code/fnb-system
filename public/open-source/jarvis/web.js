@@ -23,7 +23,7 @@ web.innerHTML=`<div class="web-core-caption"><span class="web-status-dot"></span
 <div class="web-reticle" aria-hidden="true"><i></i><b></b></div>
 <div class="web-core-name" aria-hidden="true">J A R V I S<small>FeedX AI Core</small></div>
 <aside class="web-telemetry" aria-label="Session telemetry">
-<section class="web-hud-panel"><h2>Agent activity</h2><ol id="webActivity"><li>Waiting for a request</li></ol></section>
+<section class="web-hud-panel"><h2>Agent activity</h2><ol id="webActivity"><li class="web-activity-idle">Waiting for a request</li></ol></section>
 <section class="web-hud-panel"><h2>Current session</h2><div class="web-session-body"><div class="web-session-ring"><strong id="webTurnCount">0</strong><span>Turns</span></div><dl id="webSessionFacts"></dl></div></section>
 <section class="web-hud-panel"><h2>Voice state</h2><div class="web-voice-state"><p id="webLiveState">Idle</p><span class="web-signal" aria-hidden="true"></span></div></section>
 </aside>
@@ -75,17 +75,38 @@ function renderIntelligence(){
  scope.textContent=[evidence.scope,evidence.query?'Filter: '+evidence.query:'',evidence.as_of?new Date(evidence.as_of).toLocaleString():''].filter(Boolean).join(' · ');
  operations.append(metrics,link,scope);
 }
+const activityStyles={
+ 'Understanding':['processing','∿','Request accepted'],
+ 'Processing':['processing','◌','Preparing a response'],
+ 'Querying Factory':['factory','◇','Reading Finished Goods'],
+ 'Factory evidence saved':['factory','◇','Authorized Finished Goods read'],
+ 'Completed':['complete','✓','Reply available in Conversation'],
+ 'Interrupted':['error','Ⅱ','Response interrupted'],
+ 'Error':['error','!','See Conversation for details'],
+};
 function activity(label){
- const list=$('#webActivity');
- if(!label||list.lastElementChild?.lastElementChild?.textContent===label)return;
- if(list.firstElementChild?.textContent==='Waiting for a request')list.replaceChildren();
+ const list=$('#webActivity'),style=activityStyles[label];
+ if(!style||list.lastElementChild?.dataset.label===label)return;
+ if(list.firstElementChild?.classList.contains('web-activity-idle'))list.replaceChildren();
+ const [stage,icon,detail]=style;
  const item=document.createElement('li');
- item.dataset.stage=label==='Querying Factory'?'factory':label==='Error'?'error':label==='Completed'?'complete':'processing';
- const marker=document.createElement('span'),copy=document.createElement('span');
- marker.className='web-event-node';marker.setAttribute('aria-hidden','true');
- marker.textContent=({factory:'◇',error:'!',complete:'✓',processing:'∿'})[item.dataset.stage];
- copy.textContent=label;item.append(marker,copy);list.append(item);
- if(list.children.length>5)list.firstElementChild.remove();
+ item.dataset.stage=stage;item.dataset.label=label;
+ const marker=document.createElement('span'),copy=document.createElement('span'),caption=document.createElement('small');
+ marker.className='web-event-node';marker.setAttribute('aria-hidden','true');marker.textContent=icon;
+ copy.textContent=label;caption.textContent=detail;copy.append(caption);item.append(marker,copy);list.append(item);
+ if(list.children.length>4)list.firstElementChild.remove();
+}
+function restoreActivity(turns){
+ const list=$('#webActivity');list.replaceChildren();
+ for(const turn of turns){
+  if(turn.evidence?.capability==='read_factory_finished_goods')activity('Factory evidence saved');
+  if(turn.state==='completed'&&turn.reply)activity('Completed');
+  if(turn.error_code==='voice_interrupted')activity('Interrupted');
+  if(turn.state==='failed')activity('Error');
+ }
+ if(!list.children.length){
+  const idle=document.createElement('li');idle.className='web-activity-idle';idle.textContent='Waiting for a request';list.append(idle);
+ }
 }
 function renderMessages(){renderIntelligence();$('#webStop').hidden=!activeRequest;messageList.replaceChildren();if(!currentSession.messages.length){const empty=document.createElement('li');empty.className='web-empty';empty.textContent='Start with a question. Your request will appear here; responses require an authorized model connection.';messageList.appendChild(empty);}for(const message of currentSession.messages){const item=document.createElement('li');item.dataset.speaker=message.role;const label=document.createElement('strong');label.textContent=(message.role==='assistant'?'Assistant':'You')+(message.voice?' · Voice':'');const text=document.createElement('p');for(const part of message.text.split(/(\*\*[^*]+\*\*)/g)){if(part.startsWith('**')&&part.endsWith('**')){const bold=document.createElement('strong');bold.textContent=part.slice(2,-2);text.append(bold);}else text.append(document.createTextNode(part));}item.append(label,text);if(message.evidence?.capability==='read_factory_finished_goods'){const evidence=document.createElement('div');evidence.className='web-evidence';const link=document.createElement('a');link.href='https://fnb-system-staging.vercel.app/factory/warehouse/finished-goods';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Factory · Finished Goods ↗';const stamp=document.createElement('span');stamp.textContent=`${message.evidence.scope} · ${message.evidence.as_of} · ${message.evidence.returned}/${message.evidence.total_matching} matches${Number.isInteger(message.evidence.unknown_minimum_count)?' · '+message.evidence.unknown_minimum_count+' unknown minimums':''}`;const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('p');summary.textContent='Read evidence';note.textContent=message.evidence.limitations;details.append(summary,note);evidence.append(link,stamp,details);item.append(evidence);}messageList.appendChild(item);}messageList.scrollTop=messageList.scrollHeight;renderHistory();}
 // Same request/session identity boundary as the pilot. No remote engine is configured.
@@ -149,9 +170,9 @@ addEventListener('message',event=>{
   if(!currentSession)return;renderMessages();serviceStatus();showNotice(runtime?.ready?'Conversation ready. Expand Services to see authorized capabilities.':'Text service unavailable. Check Native Assistant in AI Integrations.');return;
  }
  if(d.type==='history'){
-  $('#webActivity').replaceChildren();activity('Waiting for a request');
   const selected=sessions.find(x=>x.id===d.session_id);if(!selected)return;currentSession=selected;activeRequest='';
   currentSession.messages=d.turns.flatMap(messagesForTurn);
+  restoreActivity(d.turns);
   $('#webRetry').hidden=true;renderMessages();setState('idle');return;
  }
  if(d.type==='resume'){activeRequest=d.request_id;$('#webStop').hidden=false;showNotice('Recovering the active request…');return;}
@@ -171,6 +192,7 @@ addEventListener('message',event=>{
   if(d.session_id!==currentSession.id||!d.turn)return;
   if(d.turn.state==='completed')activity('Completed');
   if(d.turn.state==='failed')activity('Error');
+  if(d.turn.error_code==='voice_interrupted')activity('Interrupted');
   const id=d.turn.request_id;
   const index=currentSession.messages.findIndex(m=>m.request_id===id);
   const replacement=messagesForTurn(d.turn);

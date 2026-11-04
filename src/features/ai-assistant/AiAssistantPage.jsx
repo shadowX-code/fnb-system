@@ -1,5 +1,5 @@
 import { voiceOptions } from './realtimeVoice.js';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, AudioLines, Download, Maximize2, Mic, Minimize2, Square } from 'lucide-react';
 import PageHeader from '../../components/layout/PageHeader.jsx';
 import useNetworkFullscreen from '../operations-network/useNetworkFullscreen.js';
@@ -15,6 +15,13 @@ export default function AiAssistantPage({ ui, auth }) {
   const realtimeAvailable = realtimeState.available?.[provider];
   const { fullscreen, notice, toggleFullscreen } = useNetworkFullscreen(root);
   useEffect(()=>setHudView(fullscreen),[fullscreen,setHudView]);
+  const [hudTime,setHudTime]=useState(()=>new Date());
+  useEffect(()=>{
+    if(!fullscreen)return;
+    setHudTime(new Date());
+    const clock=setInterval(()=>setHudTime(new Date()),15000);
+    return ()=>clearInterval(clock);
+  },[fullscreen]);
   const liveSignal = ['listening', 'speaking'].includes(realtimeState.state);
   return <section ref={root} className={`assistant-page${fullscreen ? ' assistant-fullscreen' : ''}`}>
     {!fullscreen&&<PageHeader title="AI Assistant" description="Your immersive FeedX conversation space. Services connect only when independently authorized."
@@ -23,7 +30,8 @@ export default function AiAssistantPage({ ui, auth }) {
         <button type="button" className="btn-ghost" onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? 'Exit fullscreen' : 'Immersive view'}</button></>} />}
     {fullscreen&&<header className="assistant-hud-header">
       <div className="assistant-hud-brand"><AudioLines size={25} aria-hidden="true"/><div><strong>FeedX / AI Assistant</strong><small>F&B Operations Intelligence</small></div></div>
-      <div className="assistant-hud-provider"><AudioLines size={17} aria-hidden="true"/><span>{provider==='openai'?'OpenAI Realtime SDK':provider==='grok'?'Grok Voice':'Voice unavailable'}</span></div>
+            <div className="assistant-hud-clock"><time dateTime={hudTime.toISOString()}>{hudTime.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false})}</time><small>{hudTime.toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'})}</small></div>
+      <div className="assistant-hud-provider"><AudioLines size={17} aria-hidden="true"/><span>{provider==='openai'?'OpenAI Realtime SDK':provider==='grok'?'Grok Voice':'Voice unavailable'}</span>{provider==='openai'&&<small>gpt-realtime-2.1-mini</small>}<span className="assistant-hud-status" data-ready={realtimeAvailable===true}>{realtimeState.active?'In session':realtimeState.sdkRemaining===0&&provider==='openai'?'Allowance used':realtimeAvailable?'Ready':'Unavailable'}</span><a href="/open-source/jarvis/source.zip" download className="btn-ghost" aria-label="HUD source and license"><Download size={15}/></a></div>
     </header>}
     {notice && <p className="text-sm text-slate-600" role="status">{notice}</p>}
     {ASSISTANT_STAGING_ALLOWED&&<div className="assistant-voice-bar" aria-label="Voice controls" data-signal={liveSignal}>

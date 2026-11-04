@@ -132,3 +132,41 @@
  .web-immersive .web-operations{padding-bottom:7px}
  .web-immersive #webOperations dl{margin-bottom:4px}
 }
+
+.web-immersive{--hud-left:27vw;--hud-right:30.5vw}
+.web-immersive .web-hud-panel,.web-immersive .web-conversation{
+ background:linear-gradient(155deg,#0a202caa 0%,#020b13ed 32%,#06151eea 100%);
+ border-color:#214553;border-top-color:#3a7a8c;
+ box-shadow:inset 0 -10px 22px #55dfff0b,0 4px 20px #0007;
+}
+.web-immersive .web-hud-panel{padding:0 12px 10px}
+.web-immersive h2,.web-immersive .web-conversation h1{letter-spacing:.045em;font-size:clamp(14px,1.12vw,19px);font-weight:500}
+.web-immersive .web-hud-panel h2{margin:0 -12px 5px;padding:9px 12px;border-bottom:1px solid #275663;background:linear-gradient(90deg,#0a2937a0,transparent)}
+.web-immersive .web-telemetry{grid-template-rows:auto auto auto;align-content:center;gap:clamp(10px,1.6vh,18px)}
+.web-immersive #webActivity li{min-height:clamp(47px,6.3vh,65px);gap:10px;color:#ddf4fa}
+.web-immersive #webActivity small{display:block;margin-top:4px;color:#a3c1cc;font-size:11px}
+.web-immersive #webActivity li::before{display:none}
+.web-immersive .web-event-node{width:35px;height:35px;box-shadow:inset 0 0 13px #75e9fa33,0 0 10px #68dcec2c}
+.web-immersive .web-session-body{min-height:clamp(84px,13vh,124px)}
+.web-immersive .web-voice-state{min-height:41px}
+.web-immersive .web-reticle i{border-color:#6adcf14d;box-shadow:0 0 22px #6bdafa14,inset 0 0 19px #6bdafa10}
+.web-immersive .web-reticle b{border-color:#53cbe765}
+.web-immersive .web-reticle i::after{
+ content:"";position:absolute;inset:-8px;border-radius:50%;
+ background:repeating-conic-gradient(from 11deg,#76dffb80 0deg .32deg,transparent .32deg 4deg);
+ mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 3px) 98%,transparent 99%);
+}
+.web-immersive #stage{filter:brightness(1.11) saturate(1.08)}
+.web-immersive #webMessages{scrollbar-color:#4a8598 transparent}
+.web-immersive #webOperations dl div{border-top-color:#af756a;box-shadow:inset 0 0 12px #dfa1730d}
+.web-immersive #webOperations dl div:last-child{border-top-color:#b38d55}
+.web-immersive .web-dock{border-color:#2d6575;background:linear-gradient(180deg,#0c222f,#050f19)}
+@media(min-width:1001px){
+ .web-immersive .web-dock{left:auto;right:12px;width:calc(var(--hud-right) - 12px);bottom:27px;padding:4px;border:0;background:none;box-shadow:none;z-index:1}
+ .web-immersive .web-conversation{bottom:116px}
+ .web-immersive .web-core-name{bottom:132px}
+ .web-immersive .web-core-caption{bottom:100px}
+ .web-immersive .web-telemetry{bottom:115px}
+ .web-immersive .web-reticle{bottom:117px}
+}
+.web-immersive .web-telemetry{align-content:start}
