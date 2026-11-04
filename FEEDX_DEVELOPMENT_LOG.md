@@ -1,5 +1,7 @@
 # FeedX Development Log
 
+- 2026-11-05: Native Assistant Staging adds persistent private threads, paginated history, explicit personal memory and shared FeedX-owned context for text and voice. See the [conversation authority](docs/architecture/trusted-authorities.md#native-assistant-conversation-authority-staging).
+
 ## 2026-11-03 — Smart Operations Network
 
 Added a shared Admin header entry and permission-derived five-layer operations network at `/system/operations-network`. The read-only graph reuses AI Integrations' observed access, scoped action queue and validated receipt history, plus authorized Brand social connection snapshots. Declared dependencies remain separate from recorded execution; missing health, throughput and universal histories remain explicit. Search, scope/status/time filters, expansion, details, canonical navigation and viewport controls preserve the existing workspaces and business authorities. Canonical owner: `docs/architecture/platform.md`. Staging-only delivery; no schema, grants, credentials or business data changed.
