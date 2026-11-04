@@ -1,3 +1,5 @@
+import { createSdkVoiceHistory } from './sdkVoiceHistory.js';
+
 // The SDK owns the peer, microphone, audio, cancellation and all response requests.
 export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
  let active;
@@ -14,7 +16,8 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
   clearTimeout(run.timer);
   run.controller.abort();
   run.session?.close();
-  if (run.requested) void run.observations.then(()=>call('realtime_end',run.lease)).catch(()=>{});
+  if (run.requested) void Promise.all([run.observations, run.history?.close()])
+   .then(() => call('realtime_end', run.lease)).catch(() => {});
   run.report.durationMs = Math.round(performance.now() - run.started);
   show(state, message, run.report);
  }
@@ -34,12 +37,34 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
   show('connecting');
   run.timer = setTimeout(() => stop('The SDK connection timed out.', 'error'), 25000);
   try {
-   const { RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC } = await import('@openai/agents-realtime');
+   const { RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC, tool, backgroundResult } = await import('@openai/agents-realtime');
    if (active !== run) return;
    run.requested = true;
    const authorization = await call('realtime_sdk_connect', { ...lease, voice }, run.controller.signal);
    if (active !== run) return;
-   const agent = new RealtimeAgent({ name: 'FeedX voice baseline', instructions: authorization.instructions });
+   const history = createSdkVoiceHistory({
+    async write(turn_id, step, text) {
+     const turn = await call('realtime_turn', { ...lease, turn_id, step, text });
+     if (getSession() === session_id) post('voice_turn', { session_id, turn });
+    },
+    async read(turn_id, args) {
+     await run.observations;
+     run.controller.signal.throwIfAborted();
+     return call('realtime_tool', { ...lease, turn_id, arguments: args }, run.controller.signal);
+    },
+    state: next => { if (active === run) show(next); },
+    trace: name => event(name),
+   });
+   run.history = history;
+   const tools = (authorization.tools || []).map(definition => tool({
+    name: definition.name, description: definition.description, parameters: definition.parameters, strict: true,
+    async execute(args, _context, details) {
+     const result = await history.tool(args, details?.toolCall?.responseId);
+     if (result.stale || active !== run) return backgroundResult('The voice turn has ended.');
+     return result.evidence || result.error;
+    },
+   }));
+   const agent = new RealtimeAgent({ name: 'FeedX voice assistant', instructions: authorization.instructions, tools });
    const transport = new OpenAIRealtimeWebRTC();
    const session = new RealtimeSession(agent, {
     model: authorization.model,
@@ -78,8 +103,14 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     speaking = false;
     event('audio_interrupted', 'interrupted');
    });
-   session.on('transport_event', ({ type, response }) => {
+   session.on('transport_event', raw => {
     if (active !== run) return;
+    const { type, response } = raw;
+    if (type === 'input_audio_buffer.speech_started' && run.report.detectedTurns >= 12) {
+     stop('The voice evaluation reached its turn limit.');
+     return;
+    }
+    history.receive(raw);
     if (type === 'input_audio_buffer.speech_started') {
      if (speaking) run.report.startsDuringPlayback++;
      event('speech_started');
