@@ -64,7 +64,7 @@ export async function dispatch(body,{rpc,get,signal,transport,readTool,reserveRe
   const credential=registry?await registry('key',args):null;
   if(credential&&credential.active_voice!==args.voice)throw new AssistantError('configuration_changed',409);
   const voiceGet=credential?credentialEnvironment(args.provider,credential):get;
-  await reserveRealtime('start',args);
+  await reserveRealtime(action==='realtime_sdk_connect'?'sdk_baseline':'start',args);
   try{
   if(action==='realtime_sdk_connect')return await createSdkVoiceSecret(args.voice,voiceGet,{signal,transport});
   const {strict,...tool}=inventoryTool;
