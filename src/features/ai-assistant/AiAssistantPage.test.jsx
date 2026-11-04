@@ -23,8 +23,8 @@ it('uses an opaque sandbox without credentials or browser permissions',()=>{
   expect(frame.getAttribute('sandbox')).toBe('allow-scripts allow-downloads');
   expect(frame.getAttribute('allow')).toContain("microphone 'none'");
   expect(frame.getAttribute('src')).toBe('/open-source/jarvis/index.html');
-  fireEvent.click(screen.getByText('Back to workspace'));expect(back).toHaveBeenCalledOnce();
-  expect(screen.getByText('HUD source & license').getAttribute('href')).toBe('/open-source/jarvis/source.zip');
+  fireEvent.click(screen.getByRole('button',{name:'Back to workspace'}));expect(back).toHaveBeenCalledOnce();
+  expect(screen.getByRole('link',{name:'HUD source & license'}).getAttribute('href')).toBe('/open-source/jarvis/source.zip');
 });
 it('keeps conversation requests inert, bounded, safely rendered and separate from AI answers',()=>{
   const source=readFileSync('public/open-source/jarvis/web.js','utf8');
@@ -40,12 +40,11 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   expect($('#webNotice').textContent).toContain('no AI answer was generated');expect(setState).not.toHaveBeenCalledWith('thinking');
   fireEvent.click($('#mic'));expect($('#webNotice').textContent).toContain('No microphone was opened');
   fireEvent.click($('#webNew'));expect($('#webMessages').textContent).not.toContain('inventory');
-  const history=$('#webHistory');history.value=history.options[0].value;fireEvent.change(history);
-  expect($('#webMessages').textContent).toContain('inventory');
+  expect($('#webHistory')).toBeNull();
   fireEvent.click($('#webPause'));expect(window.FEEDX_VISUAL_PAUSED).toBe(true);fireEvent(window,new Event('resize'));expect(frozenRender).toHaveBeenCalledOnce();
   fireEvent.click($('#webStop'));expect($('#webNotice').textContent).toContain('No AI generation');
   fireEvent(window,new MessageEvent('message',{source:window.parent,origin:'https://fnb-system-staging.vercel.app',data:{protocol:'feedx.assistant.text.v1',type:'reset'}}));
-  expect($('#webMessages').textContent).not.toContain('inventory');expect($('#webHistory').options.length).toBe(1);expect(input.value).toBe('');
+  expect($('#webMessages').textContent).not.toContain('inventory');expect($('#webOlder').hidden).toBe(true);expect(input.value).toBe('');
 });
 it('distributes editable GPL source and denies network connections for this static program',()=>{
   const config=JSON.parse(readFileSync('vercel.json','utf8'));const boundary=config.routes.find(r=>r.src==='/open-source/jarvis/(.*)');

@@ -9,13 +9,12 @@ let activeRequest='',captureEpoch=0;
 const protocol='feedx.assistant.text.v1',hostOrigin='https://fnb-system-staging.vercel.app';
 let connected=false,runtime=null;
 function request(action,extra={}){parent.postMessage({protocol,action,request_id:crypto.randomUUID(),...extra},hostOrigin);}
-const sessions=[{id:pilotSession,messages:[]}];
-let currentSession=sessions[0];
+let currentSession={id:pilotSession,messages:[]},hasOlder=false;
 function messagesForTurn(t){
  const status={voice_interrupted:'Response interrupted',voice_transcript_unavailable:'Assistant transcript unavailable',voice_unfinished:'Response unfinished',voice_failed:'Response failed'};
- return [{role:'user',text:t.prompt,request_id:t.request_id,voice:t.voice},...(t.state==='completed'&&t.reply?
- [{role:'assistant',text:t.reply,request_id:t.request_id,evidence:t.evidence,voice:t.voice}]:
- t.voice&&status[t.error_code]?[{role:'assistant',text:status[t.error_code],outcome:t.error_code,request_id:t.request_id,voice:true,evidence:t.evidence}]:[])];
+ return [{role:'user',text:t.prompt,request_id:t.request_id,voice:t.voice,time:t.created_at},...(t.state==='completed'&&t.reply?
+ [{role:'assistant',text:t.reply,request_id:t.request_id,evidence:t.evidence,voice:t.voice,time:t.finished_at}]:
+ t.voice&&status[t.error_code]?[{role:'assistant',text:status[t.error_code],outcome:t.error_code,request_id:t.request_id,voice:true,evidence:t.evidence,time:t.finished_at}]:[])];
 }
 
 // Presentation symbols and waveforms are authored here. No audio levels are inferred.
@@ -49,30 +48,31 @@ web.innerHTML=`<div class="web-core-caption"><span class="web-status-dot"></span
 <section class="web-hud-panel"><h2>Voice state</h2><div class="web-voice-state"><p id="webLiveState">Idle</p>${voiceWave}</div></section>
 </aside>
 <section class="web-conversation" aria-label="AI conversation"><section class="web-operations" aria-label="Operations intelligence"><h2>Operations intelligence</h2><div id="webOperations"></div></section><header><h1>Conversation</h1><button type="button" id="webNew" aria-label="New Conversation">New</button></header>
-<label class="web-history-label" for="webHistory">Conversation history <span>your Admin account</span></label><select id="webHistory"></select>
+<button type="button" id="webOlder" hidden>Load older messages</button>
 <details class="web-services"><summary>Services · 4 unavailable</summary><dl><div><dt>Language model</dt><dd>Not configured</dd></div><div><dt>Speech recognition</dt><dd>Not connected</dd></div><div><dt>Voice output</dt><dd>Not connected</dd></div><div><dt>FeedX tools</dt><dd>Not authorized</dd></div></dl></details>
-<div id="webNotice" role="status">No model is connected. Requests stay in this tab; no AI answer will be generated.</div>
+<div id="webNotice" role="status">Connecting to FeedX…</div>
 <p id="webVoicePreview" class="web-privacy" hidden></p>
 <ol id="webMessages" aria-label="Conversation messages" aria-live="polite"></ol>
 <div id="webComposer"></div><div class="web-controls"><button type="button" id="webVoice" aria-disabled="true" title="No authorized voice service is connected">Voice unavailable</button><button type="button" id="webStop">Stop</button><button type="button" id="webRetry" hidden>Retry last question</button></div>
-<p class="web-privacy">Your enabled model processes text. Audio is not retained. Business reads recheck Admin access. History: 24 hours.</p>
+<p class="web-privacy">Your enabled model processes text. Audio is not retained. Business reads recheck Admin access. Conversations are private to your FeedX account.</p>
 <footer class="web-license"><a href="source.zip" download>HUD source · GPL-3.0</a><a href="LICENSE.txt" download>License</a></footer></section><div class="web-dock" aria-label="Conversation controls"></div>`;
 document.body.appendChild(web);
-const notice=$('#webNotice'),messageList=$('#webMessages'),history=$('#webHistory');
+const notice=$('#webNotice'),messageList=$('#webMessages'),older=$('#webOlder');
 $('#webComposer').appendChild($('#form'));
+$('.web-dock').appendChild($('#webComposer'));
 input.setAttribute('aria-label','Message AI Assistant');input.placeholder='Ask FeedX…';input.maxLength=2000;
 $('#mic').setAttribute('aria-label','Microphone unavailable');$('#mic').setAttribute('aria-disabled','true');$('#mic').title='No authorized speech recognition service is connected';
 const submit=document.createElement('button');submit.type='button';submit.id='webSend';submit.textContent='Send';$('#form').appendChild(submit);
 function showNotice(text,error=false){notice.textContent=text;notice.setAttribute('role',error?'alert':'status');notice.dataset.error=String(error);}
-function renderHistory(){history.replaceChildren(...sessions.map((s,i)=>{const option=document.createElement('option');option.value=s.id;option.textContent=s.title||s.messages[0]?.text.slice(0,48)||`Conversation ${i+1}`;return option;}));history.value=currentSession.id;}
 function renderIntelligence(){
  const messages=currentSession.messages;
  const reads=messages.filter(m=>m.evidence?.capability==='read_factory_finished_goods');
  const evidence=reads.at(-1)?.evidence;
  const facts=$('#webSessionFacts');
  facts.replaceChildren();
+ $('.web-session-ring span').textContent=hasOlder?'Turns shown':'Turns';
  $('#webTurnCount').textContent=messages.filter(m=>m.role==='user').length;
- for(const [label,value,icon] of [['Factory evidence',reads.length,'factory'],['Completed replies',messages.filter(m=>m.role==='assistant'&&!m.outcome).length,'done']]){
+ for(const [label,value,icon] of [[hasOlder?'Evidence shown':'Factory evidence',reads.length,'factory'],[hasOlder?'Replies shown':'Completed replies',messages.filter(m=>m.role==='assistant'&&!m.outcome).length,'done']]){
   const name=document.createElement('dt'), count=document.createElement('dd');
   name.innerHTML=hudIcon(icon);name.append(label);count.textContent=value;facts.append(name,count);
  }
@@ -131,20 +131,22 @@ function restoreActivity(turns){
   const idle=document.createElement('li');idle.className='web-activity-idle';idle.textContent='Waiting for a request';list.append(idle);
  }
 }
-function renderMessages(){renderIntelligence();$('#webStop').hidden=!activeRequest;messageList.replaceChildren();if(!currentSession.messages.length){const empty=document.createElement('li');empty.className='web-empty';empty.textContent='Start with a question. Your request will appear here; responses require an authorized model connection.';messageList.appendChild(empty);}for(const message of currentSession.messages){const item=document.createElement('li');item.dataset.speaker=message.role;if(message.outcome)item.dataset.outcome=message.outcome;const avatar=document.createElement('span');avatar.className='web-message-avatar';avatar.innerHTML=hudIcon(message.role==='assistant'?'spark':message.voice?'speech':'understand');const label=document.createElement('strong');label.textContent=(message.role==='assistant'?'Assistant':'You')+(message.voice?' · Voice':'');const text=document.createElement('p');for(const part of message.text.split(/(\*\*[^*]+\*\*)/g)){if(part.startsWith('**')&&part.endsWith('**')){const bold=document.createElement('strong');bold.textContent=part.slice(2,-2);text.append(bold);}else text.append(document.createTextNode(part));}item.append(avatar,label,text);if(message.evidence?.capability==='read_factory_finished_goods'){const evidence=document.createElement('div');evidence.className='web-evidence';const badge=document.createElement('span');badge.className='web-evidence-icon';badge.innerHTML=hudIcon('factory');const link=document.createElement('a');link.href='https://fnb-system-staging.vercel.app/factory/warehouse/finished-goods';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Factory · Finished Goods ↗';const stamp=document.createElement('span');stamp.textContent=`${message.evidence.scope} · ${message.evidence.as_of} · ${message.evidence.returned}/${message.evidence.total_matching} matches${Number.isInteger(message.evidence.unknown_minimum_count)?' · '+message.evidence.unknown_minimum_count+' unknown minimums':''}`;const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('p');summary.textContent='Read evidence';note.textContent=message.evidence.limitations;details.append(summary,note);evidence.append(badge,link,stamp,details);item.append(evidence);}messageList.appendChild(item);}messageList.scrollTop=messageList.scrollHeight;renderHistory();}
+function renderMessages({prepend=false}={}){const previousHeight=messageList.scrollHeight,previousTop=messageList.scrollTop;renderIntelligence();older.hidden=!hasOlder;older.disabled=false;$('#webStop').hidden=!activeRequest;messageList.replaceChildren();if(!currentSession.messages.length){const empty=document.createElement('li');empty.className='web-empty';empty.textContent=connected&&!currentSession.id?'Choose New conversation to start, or open a saved thread from History.':'Start with a question. Your request will appear here; responses require an authorized model connection.';messageList.appendChild(empty);}for(const message of currentSession.messages){const item=document.createElement('li');item.dataset.speaker=message.role;if(message.outcome)item.dataset.outcome=message.outcome;const avatar=document.createElement('span');avatar.className='web-message-avatar';avatar.innerHTML=hudIcon(message.role==='assistant'?'spark':message.voice?'speech':'understand');const label=document.createElement('strong');label.textContent=(message.role==='assistant'?'Assistant':'You')+(message.voice?' · Voice':'');const text=document.createElement('p');for(const part of message.text.split(/(\*\*[^*]+\*\*)/g)){if(part.startsWith('**')&&part.endsWith('**')){const bold=document.createElement('strong');bold.textContent=part.slice(2,-2);text.append(bold);}else text.append(document.createTextNode(part));}item.append(avatar,label);
+ if(message.time&&Number.isFinite(Date.parse(message.time))){const time=document.createElement('time');time.dateTime=message.time;time.textContent=new Date(message.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});item.append(time);}
+ item.append(text);if(message.evidence?.capability==='read_factory_finished_goods'){const evidence=document.createElement('div');evidence.className='web-evidence';const badge=document.createElement('span');badge.className='web-evidence-icon';badge.innerHTML=hudIcon('factory');const link=document.createElement('a');link.href='https://fnb-system-staging.vercel.app/factory/warehouse/finished-goods';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Factory · Finished Goods ↗';const stamp=document.createElement('span');stamp.textContent=`${message.evidence.scope} · ${message.evidence.as_of} · ${message.evidence.returned}/${message.evidence.total_matching} matches${Number.isInteger(message.evidence.unknown_minimum_count)?' · '+message.evidence.unknown_minimum_count+' unknown minimums':''}`;const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('p');summary.textContent='Read evidence';note.textContent=message.evidence.limitations;details.append(summary,note);evidence.append(badge,link,stamp,details);item.append(evidence);}messageList.appendChild(item);}messageList.scrollTop=prepend?previousTop+messageList.scrollHeight-previousHeight:messageList.scrollHeight;}
 // Same request/session identity boundary as the pilot. No remote engine is configured.
-let handle=function(text){text=text.trim();if(!text)return;if(activeRequest){showNotice('Stop the current response before sending another request.',true);return;}
+let handle=function(text){text=text.trim();if(!text)return;if(connected&&!currentSession.id){showNotice('Choose New conversation to send a message.',true);return;}if(document.body.dataset.voiceLocked==='true'){showNotice('End voice before sending a text message.',true);return;}if(activeRequest){showNotice('Stop the current response before sending another request.',true);return;}
  $('#webRetry').hidden=true;activeRequest=crypto.randomUUID();currentSession.messages.push({request_id:activeRequest,role:'user',text:text.slice(0,2000)});renderMessages();
  if(connected){parent.postMessage({protocol,action:'send',request_id:activeRequest,session_id:currentSession.id,text:text.slice(0,2000)},hostOrigin);showNotice('Submitting request…');}
  else{activeRequest='';setState('idle');showNotice('Language model unavailable. Your request was not sent and no AI answer was generated.',true);}
 };
 // Sandboxed frames deliberately disallow form submission; use explicit local actions.
-function sendLocalRequest(){handle(input.value);input.value='';}
+function sendLocalRequest(){if(connected&&!currentSession.id||document.body.dataset.voiceLocked==='true'){handle(input.value);return;}handle(input.value);input.value='';}
 submit.onclick=sendLocalRequest;
 input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isComposing){event.preventDefault();sendLocalRequest();}});
 $('#form').addEventListener('submit',event=>event.preventDefault());
-$('#webNew').onclick=()=>{if(connected){activeRequest='';request('new');return;}activeRequest='';captureEpoch++;pilotSession=crypto.randomUUID();currentSession={id:pilotSession,messages:[]};sessions.push(currentSession);if(sessions.length>6)sessions.shift();input.value='';renderMessages();setState('idle');showNotice('New conversation. No model is connected; history stays in this tab.');input.focus();};
-history.onchange=()=>{if(connected){activeRequest='';request('history',{session_id:history.value});return;}activeRequest='';captureEpoch++;currentSession=sessions.find(s=>s.id===history.value)||sessions[0];input.value='';renderMessages();setState('idle');showNotice('Conversation opened. No AI service is connected.');};
+$('#webNew').onclick=()=>{if(connected){request('new');return;}activeRequest='';captureEpoch++;currentSession={id:crypto.randomUUID(),messages:[]};input.value='';renderMessages();setState('idle');showNotice('New conversation. No model is connected; history stays in this tab.');input.focus();};
+older.onclick=()=>{older.disabled=true;request('older');};
 $('#mic').style.display='none';$('#webVoice').style.display='none';
 $('#mic').onclick=()=>showNotice('Speech recognition unavailable. No microphone was opened. You can type your request.',true);
 $('#webVoice').onclick=()=>showNotice('Voice output unavailable. Use the voice control above the conversation.',true);
@@ -179,25 +181,42 @@ addEventListener('message',event=>{
   if(document.body.classList.contains('web-immersive')===immersive)return;
   const composer=$('#webComposer'),newButton=$('#webNew'),focused=document.activeElement;
   document.body.classList.toggle('web-immersive',immersive);
-  if(immersive){$('#assistantWeb .web-dock').append(composer,newButton);}
-  else{$('#assistantWeb .web-controls').before(composer);$('#assistantWeb .web-conversation header').appendChild(newButton);}
+  if(immersive){$('#assistantWeb .web-dock').append(newButton);}
+  else{$('#assistantWeb .web-conversation header').appendChild(newButton);}
   if(composer.contains(focused)||focused===newButton)focused.focus({preventScroll:true});
   window.dispatchEvent(new Event('resize'));
   return;
  }
  if(d.type==='host-ready'){request('ready');return;}
- if(d.type==='reset'){$('#webRetry').hidden=true;activeRequest='';sessions.splice(0,sessions.length,{id:crypto.randomUUID(),messages:[]});currentSession=sessions[0];input.value='';runtime=null;connected=false;setState('idle');renderMessages();serviceStatus();return;}
- if(d.type==='bootstrap'||d.type==='sessions'){
+ if(d.type==='reset'){
+  $('#webRetry').hidden=true;activeRequest='';currentSession={id:null,messages:[]};hasOlder=false;input.value='';runtime=null;connected=false;delete document.body.dataset.voiceLocked;
+  restoreActivity([]);setState('idle');renderMessages();serviceStatus();showNotice('Loading your conversation…');return;
+ }
+ if(d.type==='voice_lock'){
+  document.body.dataset.voiceLocked=String(d.active===true);
+  submit.disabled=$('#webNew').disabled=d.active===true;
+  input.readOnly=d.active===true;
+  return;
+ }
+ if(d.type==='bootstrap'||d.type==='runtime'){
   connected=true;if(d.runtime)runtime=d.runtime;
-  sessions.splice(0,sessions.length,...d.sessions.map(x=>({...x,messages:[]})));currentSession=sessions.find(x=>x.id===d.session_id)||sessions[0];
-  if(!currentSession)return;renderMessages();serviceStatus();showNotice(runtime?.ready?'Conversation ready. Expand Services to see authorized capabilities.':'Text service unavailable. Check Native Assistant in AI Integrations.');return;
+  serviceStatus();showNotice(runtime?.ready?'Conversation ready. Expand Services to see authorized capabilities.':'Text service unavailable. Check Native Assistant in AI Integrations.');return;
+ }
+ if(d.type==='empty'){
+  currentSession={id:null,messages:[]};hasOlder=false;restoreActivity([]);renderMessages();return;
  }
  if(d.type==='history'){
-  const selected=sessions.find(x=>x.id===d.session_id);if(!selected)return;currentSession=selected;activeRequest='';
-  currentSession.messages=d.turns.flatMap(messagesForTurn);
+  currentSession={id:d.session_id,messages:d.turns.flatMap(messagesForTurn)};hasOlder=d.has_more===true;activeRequest='';input.value='';
   restoreActivity(d.turns);
   $('#webRetry').hidden=true;renderMessages();setState('idle');return;
  }
+ if(d.type==='older'){
+  if(currentSession.id!==d.session_id)return;
+  const existing=new Set(currentSession.messages.map(message=>message.request_id));
+  currentSession.messages.unshift(...d.turns.filter(turn=>!existing.has(turn.request_id)).flatMap(messagesForTurn));hasOlder=d.has_more===true;
+  renderMessages({prepend:true});return;
+ }
+ if(d.type==='history_error'){older.disabled=false;showNotice(d.message||'Older messages are unavailable.',true);return;}
  if(d.type==='resume'){activeRequest=d.request_id;$('#webStop').hidden=false;showNotice('Recovering the active request…');return;}
  if(d.type==='cancelled'){$('#webRetry').hidden=!currentSession.messages.some(m=>m.role==='user');activeRequest='';$('#webStop').hidden=true;setState('idle');showNotice('Response stopped. Late replies will not be displayed.');return;}
  if(d.type==='error'){

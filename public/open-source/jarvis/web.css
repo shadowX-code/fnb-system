@@ -261,3 +261,46 @@
  .web-immersive #stage{filter:brightness(.97) saturate(1.06)}
  .web-immersive #webMessages li:not(.web-empty){padding-left:39px}
 }
+
+/* Standard is a conversation workspace. Immersive keeps its existing HUD layout. */
+body:not(.web-immersive) #stage{width:38%}
+body:not(.web-immersive) .web-core-caption{left:18px;bottom:24px;max-width:calc(38% - 36px)}
+body:not(.web-immersive) .web-conversation{
+ left:38%;right:0;top:0;bottom:0;width:auto;min-width:0;
+ border:0;border-left:1px solid #234551;border-radius:0;background:#09161e;
+ padding:18px clamp(15px,2vw,30px) 12px;gap:9px;
+}
+body:not(.web-immersive) #webNew{display:none}
+body:not(.web-immersive) .web-license{display:none}
+body:not(.web-immersive) #webMessages{padding:0 8px 0 0;scrollbar-color:#416b78 transparent}
+body:not(.web-immersive) #webMessages li{padding:12px 0;border-color:#203c47;font-size:14px}
+body:not(.web-immersive) #webMessages li>strong{color:#91dce7}
+body:not(.web-immersive) #webMessages li>p{max-width:74ch;line-height:1.58}
+body:not(.web-immersive) #webMessages li[data-outcome]>p{color:#f4b59f}
+body:not(.web-immersive) .web-evidence{max-width:72ch;border:1px solid #315968;border-radius:8px;background:#0e2430;padding:8px 10px}
+body:not(.web-immersive) #webComposer .bar-in{padding:5px 7px;background:#0b2029;border-color:#375d68}
+body:not(.web-immersive) #webSend{min-height:38px;border-radius:7px;padding:0 13px;background:#94e9eb;color:#082028}
+body:not(.web-immersive) #webNotice[data-error=false]{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);padding:0;border:0}
+body:not(.web-immersive) .web-privacy{font-size:11px}
+#webMessages li time{float:right;margin-left:7px;color:#a3bcc4;font-size:11px;font-variant-numeric:tabular-nums}
+#webOlder{align-self:center;min-height:36px}
+.web-immersive #webOlder{background:#0c2330;border-color:#315d6c}
+@media(max-width:800px){
+ body:not(.web-immersive) #stage{width:100%;height:152px}
+ body:not(.web-immersive) .web-core-caption{left:12px;top:12px;bottom:auto;max-width:none}
+ body:not(.web-immersive) .web-core-caption :is(p,strong,.web-status-dot){display:none}
+ body:not(.web-immersive) .web-conversation{top:150px;left:0;padding:12px;border-left:0;border-top:1px solid #234551}
+ body:not(.web-immersive) #webSend{min-height:44px}
+}
+body:not(.web-immersive) .web-conversation{bottom:65px}
+body:not(.web-immersive) .web-core-caption{bottom:86px}
+body:not(.web-immersive) .web-dock{
+ position:absolute;inset:auto 0 0;display:flex;align-items:center;height:65px;padding:8px 18px 8px calc(38% + 16px);
+ border-top:1px solid #294b57;background:#0a1b24;pointer-events:none
+}
+body:not(.web-immersive) .web-dock #webComposer{margin:0;width:100%;pointer-events:auto}
+body:not(.web-immersive) .web-dock #cmd{font-size:14px}
+@media(max-width:800px){
+ body:not(.web-immersive) .web-core-caption{bottom:auto}
+ body:not(.web-immersive) .web-dock{padding:8px 12px;border-top-color:#28434d}
+}

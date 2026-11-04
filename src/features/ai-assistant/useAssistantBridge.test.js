@@ -23,3 +23,29 @@ it('restores a saved voice conversation without allocating a new one when tab st
  expect(f.call.mock.calls.some(([action])=>action==='session_new')).toBe(false);
  expect(f.posts().find(x=>x.type==='history')).toMatchObject({session_id:sid,turns});
 });
+
+it('does not create an empty startup thread and blocks navigation while voice is active',async()=>{
+ const source={postMessage:vi.fn()},call=vi.fn(async action=>action==='session_list'?{sessions:[]}:{runtime:{}});
+ let voiceActive=false;
+ const bridge=createAssistantBridge({getWindow:()=>source,userId:'one',call,storage:{getItem:()=>null},voice:{isActive:()=>voiceActive}});
+ await bridge.receive({source,origin:'null',data:{protocol:'feedx.assistant.text.v1',action:'ready'}});
+ expect(call.mock.calls.some(([a])=>a==='session_new')).toBe(false);
+ voiceActive=true;
+ await expect(bridge.transition('history',sid)).rejects.toThrow('End voice');
+ await expect(bridge.transition('new')).rejects.toThrow('End voice');
+ await expect(bridge.transition('delete',sid)).rejects.toThrow('End voice');
+ expect(call.mock.calls.map(([a])=>a)).toEqual(['status','session_list']);
+ bridge.destroy();
+});
+
+it('pages older turns using the server-owned cursor without changing threads',async()=>{
+ const f=fixture();
+ const base=f.call.getMockImplementation();
+ f.call.mockImplementation((action,args)=>action==='history'?Promise.resolve(args.before_seq?
+  {turns:[{seq:20}],has_more:false}:{title:'First page',turns:[{seq:21}],has_more:true}):base(action,args));
+ await f.send('ready');await f.send('older');
+ expect(f.call.mock.calls).toContainEqual(['history',{session_id:sid,before_seq:21}]);
+ expect(f.posts().find(x=>x.type==='older')).toMatchObject({session_id:sid,has_more:false,turns:[{seq:20}]});
+ expect(f.b.getSession()).toBe(sid);
+ f.b.destroy();
+});
