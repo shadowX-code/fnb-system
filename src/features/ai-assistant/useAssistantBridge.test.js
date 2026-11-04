@@ -1,6 +1,6 @@
 import {expect,it,vi} from 'vitest';
 vi.mock('./nativeAssistantService.js',()=>({assistantCall:vi.fn()}));
-import {createAssistantBridge,sdkVoiceSelected,validAssistantMessage} from './useAssistantBridge.js';
+import {createAssistantBridge,validAssistantMessage} from './useAssistantBridge.js';
 const sid='10000000-0000-4000-8000-000000000001',rid='10000000-0000-4000-8000-000000000002',tid='10000000-0000-4000-8000-000000000003';
 function fixture(overrides={}){const source={postMessage:vi.fn()};const call=vi.fn(async a=>({status:{runtime:{ready:true,model:'gpt-4o-mini'}},session_list:{sessions:[{id:sid,title:'Fixture'}]},history:{turns:[]},begin:{turn_id:tid,state:'pending'},respond:{state:'completed',reply:'Fixture answer'},cancel:{state:'cancelled'}}[a]));if(overrides.call)call.mockImplementation(overrides.call);const b=createAssistantBridge({getWindow:()=>source,userId:'one',call,storage:{getItem:()=>overrides.saved===undefined?sid:overrides.saved,setItem:vi.fn()}});const send=(action,extra={})=>b.receive({source,origin:'null',data:{protocol:'feedx.assistant.text.v1',action,request_id:rid,...extra}});const posts=()=>source.postMessage.mock.calls.map(x=>x[0]);return {b,source,call,send,posts};}
 it('rejects origin/source spoofing and privileged messages',()=>{const source={};const event={source,origin:'null',data:{protocol:'feedx.assistant.text.v1',action:'ready'}};expect(validAssistantMessage(event,source)).toBe(true);expect(validAssistantMessage({...event,origin:'https://evil.example'},source)).toBe(false);expect(validAssistantMessage(event,{})).toBe(false);expect(validAssistantMessage({...event,data:{...event.data,actor:'x'}},source)).toBe(false);expect(validAssistantMessage({...event,data:{...event.data,action:'configure'}},source)).toBe(false);});
@@ -22,14 +22,4 @@ it('restores a saved voice conversation without allocating a new one when tab st
  await f.send('ready');
  expect(f.call.mock.calls.some(([action])=>action==='session_new')).toBe(false);
  expect(f.posts().find(x=>x.type==='history')).toMatchObject({session_id:sid,turns});
-});
-
-it('retains SDK opt-in on a queryless return to the Assistant in the same tab',()=>{
- const values=new Map();
- const storage={setItem:(k,v)=>values.set(k,v),getItem:k=>values.get(k),removeItem:k=>values.delete(k)};
- expect(sdkVoiceSelected('?voiceRuntime=sdk',storage,'one')).toBe(true);
- expect(sdkVoiceSelected('',storage,'one')).toBe(true);
- expect(sdkVoiceSelected('',storage,'two')).toBe(false);
- expect(sdkVoiceSelected('?voiceRuntime=legacy',storage,'one')).toBe(false);
- expect(sdkVoiceSelected('',storage,'one')).toBe(false);
 });

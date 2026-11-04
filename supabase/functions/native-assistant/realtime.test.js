@@ -4,7 +4,7 @@ import { dispatch } from './handler.js';
 import { sdkBaselineInstructions } from './realtime.js';
 
 const id = '249ec7e0-df75-4145-8a34-ec2baf82f9ef';
-const request = { action:'realtime_connect', provider:'openai', session_id:id, request_id:id, sdp:'v=0\r\n', voice:'cedar' };
+const request = { action:'realtime_sdk_connect', provider:'openai', session_id:id, request_id:id, voice:'cedar' };
 const approved = {
  NATIVE_ASSISTANT_REALTIME_API_KEY:'fixture-only',
  NATIVE_ASSISTANT_REALTIME_APPROVED_USE:'native-assistant-staging-realtime-evaluation',
@@ -16,34 +16,12 @@ test('Realtime requires separate authorization and settings edit authority', asy
   await assert.rejects(dispatch(request, { rpc:async () => ({ config:{enabled:true}, can_edit:canEdit }), get, reserveRealtime:fail, transport:fail }), { code:'realtime_not_authorized' });
  }
 });
-test('Realtime reserves before negotiating a fixed tool-free WebRTC session', async () => {
- let reserved = false;
- const result = await dispatch(request, {
-  rpc:async () => ({ config:{enabled:true}, can_edit:true }),
-  get:key => approved[key],
-  reserveRealtime:async (action, args) => {
-   assert.equal(action,'start');
-   assert.equal(args.session_id,id);
-   assert.equal(args.request_id,id);
-   reserved = true;
-  },
-  transport:async (url, init) => {
-   assert.equal(reserved,true);
-   assert.equal(url,'https://api.openai.com/v1/realtime/calls');
-   const session = JSON.parse(init.body.get('session'));
-   assert.equal(session.model,'gpt-realtime-2.1-mini');
-   assert.equal(session.audio.input.turn_detection.interrupt_response,true);
-   assert.equal(session.audio.output.voice,'cedar');
-   assert.equal(session.tools,undefined);
-   return new Response('v=0\r\n');
-  },
- });
- assert.equal(result.sdp,'v=0\r\n');
- assert.deepEqual(result.tools,[]);
+test('OpenAI conversation startup rejects the retired custom transport', async () => {
+ await assert.rejects(dispatch({...request,action:'realtime_connect'}, {rpc:fail,transport:fail}), {code:'invalid_request'});
 });
 
 test('Grok receives a separate credential and returns only ephemeral authorization', async () => {
- const { sdp, ...grok } = { ...request, provider: 'grok', voice: 'eve' };
+ const grok = { ...request, action:'realtime_connect', provider:'grok', voice:'eve' };
  const result = await dispatch(grok, {
   rpc: async () => ({ config: { enabled:true, factory_reads_enabled:true }, can_edit:true }),
   get: key => ({
@@ -65,7 +43,7 @@ test('Grok receives a separate credential and returns only ephemeral authorizati
 });
 
 test('Realtime inventory requires canonical permission and a charged reservation', async () => {
- const { sdp, voice, ...base } = request;
+ const { voice, ...base } = request;
  const tool = { ...base, action:'realtime_tool', arguments:{ query:'Sauce', availability:'low' } };
  const ctx = { rpc:async()=>({config:{enabled:true,factory_reads_enabled:true},can_edit:true}), get:key=>approved[key], reserveRealtime:fail, readTool:fail };
  await assert.rejects(dispatch(tool,ctx),{code:'factory_read_denied'});
@@ -78,8 +56,7 @@ test('Realtime inventory requires canonical permission and a charged reservation
 });
 
 test('SDK baseline reserves before minting and never exposes the configured API key', async () => {
- const { sdp, ...requestFields } = request;
- const body = { ...requestFields, action:'realtime_sdk_connect' };
+ const body = request;
  const ctx = {
   rpc:async()=>({config:{enabled:true},can_edit:true}), get:key=>approved[key],
   transport:async (url,init)=>{

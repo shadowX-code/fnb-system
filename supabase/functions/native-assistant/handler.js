@@ -1,11 +1,11 @@
 import {credentialEnvironment,verifyVoiceProvider,providerVoices} from './providerRegistry.js';
 import {createGrokSession,grokReady,grokVoices} from './grokVoice.js';
 import {inventoryTool,inventoryArguments} from './inventory.js';
-import {createSdkVoiceSecret,createRealtimeCall,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
+import {createSdkVoiceSecret,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {voiceConnection,voiceRequest} from './voice.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const fields={realtime_sdk_observe:['session_id','request_id','provider','milestone'],realtime_sdk_connect:['session_id','request_id','provider','voice'],provider_list:[],provider_put:['provider','credential','approval_reference'],provider_revoke:['provider'],provider_test:['provider','session_id','request_id','sdp'],provider_activate:['provider','voice'],realtime_connect:['session_id','request_id','sdp','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments','turn_id'],realtime_turn:['session_id','request_id','provider','turn_id','step','text'],realtime_end:['session_id','request_id','provider'],features:['voice_enabled','factory_reads_enabled','expected_revision'],voice_test:[],tool_test:[],voice_stt:['session_id','request_id','audio','mime'],voice_tts:['session_id','turn_id','request_id'],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],session_list:[],session_new:[],history:['session_id'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
+const fields={realtime_sdk_observe:['session_id','request_id','provider','milestone'],realtime_sdk_connect:['session_id','request_id','provider','voice'],provider_list:[],provider_put:['provider','credential','approval_reference'],provider_revoke:['provider'],provider_test:['provider','session_id','request_id','sdp'],provider_activate:['provider','voice'],realtime_connect:['session_id','request_id','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments','turn_id'],realtime_turn:['session_id','request_id','provider','turn_id','step','text'],realtime_end:['session_id','request_id','provider'],features:['voice_enabled','factory_reads_enabled','expected_revision'],voice_test:[],tool_test:[],voice_stt:['session_id','request_id','audio','mime'],voice_tts:['session_id','turn_id','request_id'],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],session_list:[],session_new:[],history:['session_id'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
 export function validateBody(body){
  if(!body||typeof body!=='object'||Array.isArray(body)||!Object.hasOwn(fields,body.action))throw new AssistantError('invalid_request',400);
  const allowed=['action',...fields[body.action]];if(Object.keys(body).some(k=>!allowed.includes(k)))throw new AssistantError('invalid_request',400);
@@ -17,10 +17,7 @@ export function validateBody(body){
  if(body.action.startsWith('realtime_')&&!['openai','grok'].includes(body.provider))throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_sdk_observe'&&(body.provider!=='openai'||!['connected','usage_observed'].includes(body.milestone)))throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_sdk_connect'&&(body.provider!=='openai'||!realtimeVoices.includes(body.voice)))throw new AssistantError('invalid_request',400);
- if(body.action==='realtime_connect'){
-  const valid=body.provider==='openai'?realtimeVoices.includes(body.voice)&&typeof body.sdp==='string'&&body.sdp.length<=10000&&body.sdp.startsWith('v=0'):grokVoices.includes(body.voice)&&body.sdp===undefined;
-  if(!valid)throw new AssistantError('invalid_request',400);
- }
+ if(body.action==='realtime_connect'&&(body.provider!=='grok'||!grokVoices.includes(body.voice)))throw new AssistantError('invalid_request',400);
  if(body.action.startsWith('provider_')&&body.action!=='provider_list'&&!['openai','grok','render'].includes(body.provider))throw new AssistantError('invalid_request',400);
  if(body.action==='provider_revoke'&&body.provider==='render')throw new AssistantError('invalid_request',400);
  if(body.action==='provider_put'&&(body.provider==='render'||typeof body.credential!=='string'||!/^[!-~]{20,512}$/.test(body.credential)||typeof body.approval_reference!=='string'||!body.approval_reference.trim()||body.approval_reference.length>120))throw new AssistantError('configuration_invalid',400);
@@ -84,7 +81,7 @@ export async function dispatch(body,{rpc,get,signal,transport,readTool,reserveRe
    await reserveRealtime('sdk_issued',args);
    return {...secret,tools,instructions};
   }
-   const result=args.provider==='openai'?await createRealtimeCall({...args,tools,instructions},voiceGet,{signal,transport}):await createGrokSession(voiceGet,{signal,transport});
+   const result=await createGrokSession(voiceGet,{signal,transport});
    return {...result,instructions,tools};
   }catch(error){
    if(action==='realtime_sdk_connect'&&error.diagnostic?.http_status)await reserveRealtime('sdk_rejected',args).catch(()=>{});

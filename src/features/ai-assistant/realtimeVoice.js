@@ -1,5 +1,5 @@
 import {createRealtimeLifecycle} from './realtimeLifecycle.js';
-import { grokTransport, openAiTransport } from './realtimeTransports.js';
+import { grokTransport } from './realtimeTransports.js';
 
 export const voiceOptions = { openai: ['cedar', 'marin', 'echo', 'ash', 'alloy'], grok: ['eve'] };
 export const voicePreferenceKey = userId => `feedx.assistant.voice.${userId}`;
@@ -27,7 +27,7 @@ export function createRealtimeVoice({ call, getSession, post, onChange }) {
  }
  async function start(provider, voice) {
   const session_id = getSession();
-  if (active || !session_id || !voiceOptions[provider]?.includes(voice)) return;
+  if (active || !session_id || provider !== 'grok' || !voiceOptions.grok.includes(voice)) return;
   const controller = new AbortController();
   const lease = { session_id, request_id: crypto.randomUUID(), provider };
   const connection = { controller, lease, started: performance.now(), writes: Promise.resolve() };
@@ -40,11 +40,9 @@ export function createRealtimeVoice({ call, getSession, post, onChange }) {
   };
   connection.timer = setTimeout(()=>fail('connection_timeout'), 25000);
   try {
-   if (provider === 'grok') {
-    connection.context = new AudioContext({ sampleRate: 24000 });
-    await connection.context.resume();
-    if (connection.context.sampleRate !== 24000) throw new Error('This browser cannot capture 24 kHz audio for Grok.');
-   }
+   connection.context = new AudioContext({ sampleRate: 24000 });
+   await connection.context.resume();
+   if (connection.context.sampleRate !== 24000) throw new Error('This browser cannot capture 24 kHz audio for Grok.');
    if (!isCurrent()) return;
    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
    if (!isCurrent()) {
@@ -85,22 +83,20 @@ export function createRealtimeVoice({ call, getSession, post, onChange }) {
    const onEvent=event=>{
     if(!isCurrent())return;
     switch(event.type){
-     case 'session.created':
      case 'session.updated':
-      if(provider==='grok'&&event.type!=='session.updated')break;
       clearTimeout(connection.timer);
       connection.timer=setTimeout(()=>stop('The three-minute voice evaluation ended.','idle','time_limit'),180000);
       update('listening');
       break;
      case 'input_audio_buffer.speech_started':
       if(lifecycle.playing)report.startsDuringPlayback++;
-      if(provider==='grok')transport.clearAudio?.();
+      transport.clearAudio();
       break;
      case 'input_audio_buffer.speech_stopped':
       speechEnded=performance.now();
       break;
      case 'response.output_audio.delta':
-      if(provider==='grok'&&typeof event.delta==='string'&&event.delta.length<96000){
+      if(typeof event.delta==='string'&&event.delta.length<96000){
        const drain=lifecycle.grokAudio(event);
        if(drain)transport.play(event.delta,drain);
       }
@@ -128,13 +124,13 @@ export function createRealtimeVoice({ call, getSession, post, onChange }) {
    };
    const options = {
     stream, context: connection.context, voice, onEvent, onError: fail, signal: controller.signal,
-    async connect(extra) {
+    async connect() {
      controller.signal.throwIfAborted();
      connection.requested = true;
-     return call('realtime_connect', { ...lease, voice, ...extra }, controller.signal);
+     return call('realtime_connect', { ...lease, voice }, controller.signal);
     },
    };
-   const transport = provider === 'grok' ? grokTransport(options) : openAiTransport(options);
+   const transport = grokTransport(options);
    connection.transport = transport;
    await transport.start();
   } catch (error) {

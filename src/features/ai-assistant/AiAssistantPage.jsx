@@ -10,7 +10,7 @@ import './aiAssistant.css';
 export default function AiAssistantPage({ ui, auth }) {
   const root = useRef(null), frame = useRef(null);
   const {voiceState,voiceRef,realtimeState,realtimeRef}=useAssistantBridge(frame, ASSISTANT_STAGING_ALLOWED ? auth?.user?.id : null);
-  const {provider,voice:preferredVoice}=realtimeState.sdkBaseline?{provider:'openai',voice:realtimeState.voiceDefault?.voice}:realtimeState.voiceDefault||{provider:'render'};
+  const {provider,voice:preferredVoice}=realtimeState.voiceDefault||{provider:'render'};
   const realtimeSelected = Object.hasOwn(voiceOptions, provider);
   const realtimeAvailable = realtimeState.available?.[provider];
   const { fullscreen, notice, toggleFullscreen } = useNetworkFullscreen(root);
@@ -21,10 +21,9 @@ export default function AiAssistantPage({ ui, auth }) {
         <button type="button" className="btn-ghost" onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? 'Exit fullscreen' : 'Immersive view'}</button></>} />
     {notice && <p className="text-sm text-slate-600" role="status">{notice}</p>}
     {ASSISTANT_STAGING_ALLOWED&&realtimeSelected&&<div className="assistant-voice-bar" aria-label="Voice controls">
-      <button type="button" className="btn-secondary" disabled={(!realtimeAvailable||(realtimeState.sdkBaseline&&realtimeState.sdkRemaining===0))&&!realtimeState.active} onClick={()=>realtimeState.active?realtimeRef.current?.stop():realtimeRef.current?.start(provider,voiceOptions[provider].includes(preferredVoice)?preferredVoice:voiceOptions[provider][0])}>{realtimeState.active?'End voice':'Start voice'}</button>
+      <button type="button" className="btn-secondary" disabled={(!realtimeAvailable||(realtimeState.sdkVoice&&realtimeState.sdkRemaining===0))&&!realtimeState.active} onClick={()=>realtimeState.active?realtimeRef.current?.stop():realtimeRef.current?.start(provider,voiceOptions[provider].includes(preferredVoice)?preferredVoice:voiceOptions[provider][0])}>{realtimeState.active?'End voice':'Start voice'}</button>
       {realtimeState.state==='playback_blocked'&&<button type="button" className="btn-ghost" onClick={()=>realtimeRef.current?.resume()}>Resume audio</button>}
-      {realtimeState.sdkBaseline&&<span>SDK audio evaluation{realtimeState.active?' · in progress':Number.isInteger(realtimeState.sdkRemaining)?` · ${realtimeState.sdkRemaining} remaining`:''}</span>}
-      <span role="status">{realtimeState.message||(!realtimeAvailable?'Selected voice provider is unavailable. Choose a provider in AI Integrations.':null)||({connecting:'Connecting…',listening:'Listening',thinking:'Processing…',executing:'Reading Factory Finished Goods…',speaking:'Speaking',interrupted:'Interrupted · listening'})[realtimeState.state]||(provider==='grok'?'Grok Voice':'OpenAI Realtime')+' · context lasts for this call'}</span>
+      <span role="status">{realtimeState.message||(realtimeState.sdkVoice&&realtimeState.sdkRemaining===0?'OpenAI Realtime SDK · Staging voice allowance used':null)||(!realtimeAvailable?'Selected voice provider is unavailable. Choose a provider in AI Integrations.':null)||({connecting:'Connecting…',listening:'Listening',thinking:'Processing…',executing:'Reading Factory Finished Goods…',speaking:'Speaking',interrupted:'Interrupted · listening'})[realtimeState.state]||(provider==='grok'?'Grok Voice':'OpenAI Realtime SDK')+' · context lasts for this call'}</span>
       {!realtimeState.active&&realtimeState.report?.durationMs>0&&<details><summary>Last call measurements</summary>
         <p>Call: {Math.round(realtimeState.report.durationMs/1000)} s · First audio signal: {realtimeState.report.firstAudioMs==null?'unavailable':realtimeState.report.firstAudioMs+' ms'} · {realtimeState.report.usageReported?'Audio tokens: '+realtimeState.report.inputAudio+' in / '+realtimeState.report.outputAudio+' out':'Provider token usage unavailable'}</p><p>Speech starts during playback: {realtimeState.report.startsDuringPlayback} · Committed speech turns: {realtimeState.report.detectedTurns}</p><ol className="max-h-48 overflow-auto">{realtimeState.report.events?.map((event,index)=><li key={index}>{event.ms} ms · {event.event}{event.turn?' · turn '+event.turn:''}{event.response?' · response '+event.response:''}{event.reason?' · '+event.reason:''}</li>)}</ol>
       </details>}

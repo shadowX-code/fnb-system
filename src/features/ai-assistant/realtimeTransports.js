@@ -1,42 +1,5 @@
 import captureUrl from './voiceCapture.worklet.js?url';
 
-export function openAiTransport({ stream, connect, onEvent, onError, signal }) {
- const peer = new RTCPeerConnection();
- const audio = new Audio();
- audio.autoplay = true;
- audio.setAttribute('playsinline', '');
- const channel = peer.createDataChannel('oai-events');
- const resume = () => audio.play();
- const close = () => {
-  peer.close();
-  audio.pause();
-  audio.srcObject = null;
- };
- signal.addEventListener('abort', close, { once: true });
- peer.ontrack = ({ streams }) => {
-  audio.srcObject = streams[0];
-  void resume().catch(() => onEvent({ type: 'playback_blocked' }));
- };
- peer.onconnectionstatechange = () => {
-  if (['failed', 'disconnected'].includes(peer.connectionState)) onError('peer_'+peer.connectionState);
- };
- channel.onclose = ()=>onError('data_channel_closed');
- channel.onmessage = ({ data }) => onEvent(JSON.parse(data));
- for (const track of stream.getAudioTracks()) peer.addTrack(track, stream);
- return {
-  async start() {
-   await peer.setLocalDescription(await peer.createOffer());
-   const { sdp } = await connect({ sdp: peer.localDescription.sdp });
-   await peer.setRemoteDescription({ type: 'answer', sdp });
-  },
-  send(event) {
-   if(channel.readyState!=='open')return false;
-   try{channel.send(JSON.stringify(event));return true;}catch{return false;}
-  },
-  resume,
- };
-}
-
 export function grokTransport({ stream, context, connect, onEvent, onError, signal, voice }) {
  let socket, capture, input, cursor = 0, ready = false;
  const scheduled = new Set();
