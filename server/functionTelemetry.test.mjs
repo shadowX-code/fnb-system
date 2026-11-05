@@ -2,6 +2,14 @@ import {afterEach,expect,it,vi} from 'vitest';
 import {withFunctionTelemetry} from './functionTelemetry.mjs';
 afterEach(()=>vi.restoreAllMocks());
 function response(){return {status(code){this.statusCode=code;return this},json(body){this.body=body;return this}}}
+it('emits completion before asynchronous post-response cleanup, without duplicating it',async()=>{
+ const log=vi.spyOn(console,'info').mockImplementation(()=>{}),res=response();let release;
+ const cleanup=new Promise(resolve=>{release=resolve});
+ const pending=withFunctionTelemetry('/api/fixture',async(_req,res)=>{res.json({browser_diagnostics:{attempted:true,succeeded:true,duration_ms:120}});await cleanup})({},res);
+ expect(log).toHaveBeenCalledTimes(2);
+ expect(JSON.parse(log.mock.calls[1][0])).toMatchObject({phase:'finish',browser_attempted:true,browser_succeeded:true});
+ release();await pending;expect(log).toHaveBeenCalledTimes(2);
+});
 it('logs only sanitized fixed-route outcomes and preserves the response',async()=>{
  const log=vi.spyOn(console,'info').mockImplementation(()=>{}),res=response(),status=res.status;
  const handler=withFunctionTelemetry('/api/fixture',async(_req,res)=>res.status(403).json({error:'private business payload'}));

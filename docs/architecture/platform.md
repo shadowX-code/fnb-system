@@ -34,7 +34,7 @@ After integration, inspect temporary branches and worktrees for cleanliness and 
 
 The Staging Creator inspector excludes unused Playwright recorder/viewer UI assets while retaining Chromium archives and runtime code. Metadata rendering disables WebGL, checks its existing deadline before executable resolution and launch, and bounds optional metadata waiting by the remaining budget. Browser cleanup, authorized inspection paths and metadata provenance remain unchanged.
 
-`/api/marketing-creator-inspect` emits sanitized `feedx.function` start/finish records with a generated correlation ID, fixed route, wall duration, HTTP outcome and bounded browser attempt/success/duration fields when available. It never logs request bodies, inspected URLs, credentials or provider errors. Wall time is not Active CPU; Vercel platform metrics remain the CPU authority. A missing finish record requires correlation with platform termination evidence.
+`/api/marketing-creator-inspect` emits sanitized `feedx.function` start/finish records with a generated correlation ID, fixed route, wall duration to the JSON response, HTTP outcome and bounded browser attempt/success/duration fields when available. Completion is emitted synchronously with the response, before asynchronous lease cleanup, and only once. It never logs request bodies, inspected URLs, credentials or provider errors. Wall time is not Active CPU; Vercel platform metrics remain the CPU authority. A missing finish record requires correlation with platform termination evidence.
 
 ### Production Release Trigger And Verification
 
