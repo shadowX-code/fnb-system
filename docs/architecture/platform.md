@@ -30,6 +30,12 @@ For canonical Staging delivery required by the selected QA level:
 
 After integration, inspect temporary branches and worktrees for cleanliness and unique or unreconciled patches. Remove them only when patch-equivalence checks prove the required work is preserved; a non-ancestor branch may still be equivalent, and an ancestor relationship alone does not prove cleanup is safe. Completed temporary workspaces should not accumulate.
 
+### Creator Inspection Runtime Budget
+
+The Staging Creator inspector excludes unused Playwright recorder/viewer UI assets while retaining Chromium archives and runtime code. Metadata rendering disables WebGL, checks its existing deadline before executable resolution and launch, and bounds optional metadata waiting by the remaining budget. Browser cleanup, authorized inspection paths and metadata provenance remain unchanged.
+
+`/api/marketing-creator-inspect` emits sanitized `feedx.function` start/finish records with a generated correlation ID, fixed route, wall duration, HTTP outcome and bounded browser attempt/success/duration fields when available. It never logs request bodies, inspected URLs, credentials or provider errors. Wall time is not Active CPU; Vercel platform metrics remain the CPU authority. A missing finish record requires correlation with platform termination evidence.
+
 ### Production Release Trigger And Verification
 
 Explicit Production authorization is required. Vercel Git deployments remain enabled: `fnb-system` deploys only `main`; `fnb-system-staging` deploys only `dev`. Both use `previewDeploymentsDisabled = true` and `gitProviderOptions.createDeployments = "enabled"`.

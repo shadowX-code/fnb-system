@@ -7,10 +7,16 @@ export async function renderPublic(url,platform,budget,{executablePath,urlResolv
  const nextStage=next=>{if(diagnostics){diagnostics[stage+'_ms']=boundedTiming(started);diagnostics.stage=next||stage;}stage=next;started=performance.now();};
  if(diagnostics)diagnostics.stage=stage;
  try{
+ if(Date.now()>=budget.deadline)throw new Error('inspection_limit');
  const {chromium:playwright}=await import('playwright-core');
  const {default:chromium}=await import('@sparticuz/chromium');
+ if(Date.now()>=budget.deadline)throw new Error('inspection_limit');
+ // Metadata extraction needs DOM/JavaScript, not software-rendered WebGL.
+ chromium.setGraphicsMode=false;
  nextStage('launch');
- const browser=await playwright.launch({executablePath:executablePath||await chromium.executablePath(),args:[...(executablePath?[]:chromium.args),'--dns-prefetch-disable','--force-webrtc-ip-handling-policy=disable_non_proxied_udp'],headless:true,timeout:12000});
+ const resolvedExecutable=executablePath||await chromium.executablePath();
+ if(Date.now()>=budget.deadline)throw new Error('inspection_limit');
+ const browser=await playwright.launch({executablePath:resolvedExecutable,args:[...(executablePath?[]:chromium.args),'--dns-prefetch-disable','--force-webrtc-ip-handling-policy=disable_non_proxied_udp'],headless:true,timeout:Math.min(12000,budget.deadline-Date.now())});
  nextStage('render');
  try{
   const context=await browser.newContext({serviceWorkers:'block',acceptDownloads:false});
@@ -29,8 +35,10 @@ export async function renderPublic(url,platform,budget,{executablePath,urlResolv
     await route.fulfill({status:result.status,headers,body:result.body});
    }catch{await route.abort().catch(()=>{})}
   });
+  if(Date.now()>=budget.deadline)throw new Error('inspection_limit');
   await page.goto(url,{waitUntil:'domcontentloaded',timeout:Math.min(18000,Math.max(1,budget.deadline-Date.now()))});
-  await page.waitForFunction(()=>document.querySelector('article time,#detail-title,#SIGI_STATE,script[type="application/ld+json"],meta[property="og:description"]'),{},{timeout:4000}).catch(()=>{});
+  const remaining=budget.deadline-Date.now();
+  if(remaining>0)await page.waitForFunction(()=>document.querySelector('article time,#detail-title,#SIGI_STATE,script[type="application/ld+json"],meta[property="og:description"]'),{},{timeout:Math.min(4000,remaining)}).catch(()=>{});
   const html=await page.content();return {html:html.slice(0,5000000),url:page.url(),status:mainStatus,method:'public_browser'};
  }catch(error){if(diagnostics)diagnostics.failed_stage=stage;throw error;}
  finally{nextStage('cleanup');await browser.close()}

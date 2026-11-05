@@ -1,10 +1,11 @@
 import {callReader} from '../server/xhsReaderPilot/client.mjs';
+import {withFunctionTelemetry} from '../server/functionTelemetry.mjs';
 import {inspectProfile,profileIdentity} from '../server/creatorExtraction/profiles.mjs';
 import {inspectPublic} from '../server/creatorExtraction/inspect.mjs';
 import {platformUrl} from '../server/creatorExtraction/urls.mjs';
 const STAGING='https://ujkzdaaadnvcfayuldmh.supabase.co';
 export const config={maxDuration:60};
-export default async function handler(req,res){
+export default withFunctionTelemetry('/api/marketing-creator-inspect',async function handler(req,res){
  res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
  if(req.method!=='POST')return res.status(405).json({error:'Use POST.'});
  if(process.env.VITE_SUPABASE_URL!==STAGING||process.env.VERCEL_PROJECT_ID&&process.env.VERCEL_PROJECT_ID!=='prj_t6uJtKPDu9GuyefG6IqAfxh5YoIi'||process.env.VERCEL_GIT_COMMIT_REF&&process.env.VERCEL_GIT_COMMIT_REF!=='dev')return res.status(403).json({error:'Staging extractor only.'});
@@ -54,4 +55,4 @@ export default async function handler(req,res){
   if(officialRequested)return res.status(502).json({reason:'profile_refresh_uncertain',error:'Refresh confirmation unavailable. It may already be saved. Check saved profile before refreshing again.'});
   return res.status(error.message==='signed_out'?401:400).json({error:error.message==='access_or_limit'?'Access changed or the inspection limit was reached. Try later.':'Post inspection is unavailable. Check the URL and use manual details if necessary.'})}
  finally{if(lease)await rpc('marketing_creator_inspection_access',{...scope,p_begin:false,p_lease:lease}).catch(()=>{})}
-}
+});
