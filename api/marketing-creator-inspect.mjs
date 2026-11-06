@@ -1,10 +1,11 @@
 import {marketingEnvironment} from '../supabase/functions/_shared/marketingEnvironment.mjs';
-import {inspectProfile,profileIdentity} from '../server/creatorExtraction/profiles.mjs';
-import {inspectPublic} from '../server/creatorExtraction/inspect.mjs';
+import {inspectProfile,inspectPublic} from '../server/creatorExtraction/remote.mjs';
+import {profileIdentity} from '../server/creatorExtraction/profileIdentity.mjs';
+import {withFunctionTelemetry} from '../server/functionTelemetry.mjs';
 import {platformUrl} from '../server/creatorExtraction/urls.mjs';
 
 export const config={maxDuration:60};
-export default async function handler(req,res){
+export default withFunctionTelemetry('/api/marketing-creator-inspect',async function handler(req,res){
  res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
  if(req.method!=='POST')return res.status(405).json({error:'Use POST.'});
  const runtime=marketingEnvironment(process.env.SUPABASE_URL||process.env.VITE_SUPABASE_URL,process.env.MARKETING_ENVIRONMENT);
@@ -50,4 +51,4 @@ export default async function handler(req,res){
   if(officialRequested)return res.status(502).json({reason:'profile_refresh_uncertain',error:'Refresh confirmation unavailable. It may already be saved. Check saved profile before refreshing again.'});
   return res.status(error.message==='signed_out'?401:400).json({error:error.message==='access_or_limit'?'Access changed or the inspection limit was reached. Try later.':'Post inspection is unavailable. Check the URL and use manual details if necessary.'})}
  finally{if(lease)await rpc('marketing_creator_inspection_access',{...scope,p_begin:false,p_lease:lease}).catch(()=>{})}
-}
+});

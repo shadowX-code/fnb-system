@@ -44,7 +44,6 @@
   ],
   "functions": {
     "api/marketing-creator-inspect.mjs": {
-      "includeFiles": "node_modules/@sparticuz/chromium/bin/**",
       "maxDuration": 60
     }
   }

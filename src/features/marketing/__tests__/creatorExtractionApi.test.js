@@ -1,9 +1,7 @@
-import {inspectProfile} from '../../../../server/creatorExtraction/profiles.mjs';
-vi.mock('../../../../server/creatorExtraction/profiles.mjs',async importOriginal=>({...await importOriginal(),inspectProfile:vi.fn()}));
+import {inspectProfile,inspectPublic} from '../../../../server/creatorExtraction/remote.mjs';
+vi.mock('../../../../server/creatorExtraction/remote.mjs',()=>({inspectProfile:vi.fn(),inspectPublic:vi.fn()}));
 import {describe,it,expect,vi,afterEach} from 'vitest';
 import handler from '../../../../api/marketing-creator-inspect.mjs';
-import {inspectPublic} from '../../../../server/creatorExtraction/inspect.mjs';
-vi.mock('../../../../server/creatorExtraction/inspect.mjs',()=>({inspectPublic:vi.fn()}));
 const org='ec42a08a-0f59-4b7b-a48e-b2faacf9eaf1',brand='88718f61-2915-42ef-b62f-5e6e2fe5b3eb';
 function res(){return {setHeader:vi.fn(),status(n){this.code=n;return this},json:vi.fn()}}
 function req(){return {method:'POST',headers:{authorization:'Bearer fixture.jwt.signature'},body:{org,brand,url:'https://www.instagram.com/p/abc/'}}}
@@ -15,6 +13,13 @@ describe('authenticated Staging public inspector',()=>{
  it('rechecks canonical identity after extraction, requires exact verified account matches, and releases its lease',async()=>{stage();const calls=[];vi.stubGlobal('fetch',vi.fn(async(url,options)=>{calls.push([url,JSON.parse(options.body)]);return new Response(JSON.stringify(url.endsWith('inspection_access')?(JSON.parse(options.body).p_begin?'lease':null):url.endsWith('creator_directory')?{accounts:[{id:'a',creator_id:'c',platform:'instagram',external_id:'123',identity_verified:true}]}:{platform:'instagram',canonical_url:'https://www.instagram.com/p/abc/',published_at:'2020-01-01T00:00:00Z',caption:'OAuth reference only'}))}));inspectPublic.mockResolvedValue({platform:'instagram',canonical_url:'https://www.instagram.com/p/abc/',author_external_id:'123',caption:'Observed',metadata_status:'public_extracted'});const r=res();await handler(req(),r);expect(r.code).toBe(200);expect(r.json.mock.calls[0][0].published_at).toBeUndefined();expect(r.json.mock.calls[0][0].caption).toBe('Observed');expect(r.json).toHaveBeenCalledWith(expect.objectContaining({matched_creator_id:'c',matched_account_id:'a'}));expect(calls.some(([url])=>url.endsWith('creators_read'))).toBe(false);expect(calls.filter(([url])=>url.endsWith('post_preview'))).toHaveLength(2);expect(calls.at(-1)[1]).toEqual({p_org:org,p_brand:brand,p_begin:false,p_lease:'lease'})});
  it('does not return an OAuth reference revoked during slow public retrieval',async()=>{stage();let previews=0;vi.stubGlobal('fetch',vi.fn(async(url,options)=>new Response(JSON.stringify(url.endsWith('inspection_access')?(JSON.parse(options.body).p_begin?'lease':null):url.endsWith('creator_directory')?{accounts:[]}:++previews===1?{platform:'instagram',metadata_status:'authorized_meta',caption:'Revoked reference'}:{platform:'instagram',canonical_url:'https://www.instagram.com/p/abc/',metadata_status:'unavailable'}))));inspectPublic.mockResolvedValue({platform:'instagram',canonical_url:'https://www.instagram.com/p/abc/',metadata_status:'unavailable'});const r=res();await handler(req(),r);expect(r.json.mock.calls[0][0].caption).toBeUndefined();expect(JSON.stringify(r.json.mock.calls)).not.toContain('Revoked reference')});
 
+});
+it('keeps Production RPCs on the existing Production authority and never sends Admin credentials to a worker',async()=>{
+ stage();vi.stubEnv('VITE_SUPABASE_URL','https://oyfobxdoyfuzsodogpgs.supabase.co');vi.stubEnv('VERCEL_PROJECT_ID','prj_1UOKHvE6Ft4a2WXrZyZGc9LZRWLP');vi.stubEnv('VERCEL_GIT_COMMIT_REF','main');
+ const fetch=vi.fn(async(url,options)=>new Response(JSON.stringify(url.endsWith('inspection_access')?(JSON.parse(options.body).p_begin?'lease':null):{accounts:[]})));vi.stubGlobal('fetch',fetch);
+ inspectProfile.mockResolvedValue({platform:'tiktok',profile_url:'https://www.tiktok.com/@creator',metadata_status:'unavailable'});
+ const request=req();request.body={...request.body,kind:'profile',url:'https://www.tiktok.com/@creator'};const response=res();await handler(request,response);
+ expect(response.code).toBe(200);expect(fetch.mock.calls.every(([url])=>url.startsWith('https://oyfobxdoyfuzsodogpgs.supabase.co/'))).toBe(true);expect(inspectProfile).toHaveBeenCalledWith(request.body.url);
 });
 
 it('profile mode rejects denied scope before public metadata or browser access',async()=>{stage();vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('{}',{status:403})));const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/tasteeipoh/'};const response=res();await handler(request,response);expect(response.code).toBe(400);expect(inspectPublic).not.toHaveBeenCalled()});

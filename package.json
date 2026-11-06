@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/verifyCreatorIsolation.mjs && vite build",
     "preview": "vite preview",
     "verify:staging-vercel-target": "bash scripts/verifyFeedxStagingVercelProject.sh --deployment-sha \"$(git rev-parse HEAD)\"",
     "deploy:preview": "bash scripts/deployFeedxPreview.sh",
@@ -35,10 +35,10 @@
     "react-i18next": "^17.0.12",
     "recharts": "^3.8.1",
     "vite": "^7.0.0",
-    "@sparticuz/chromium": "140.0.0",
     "cheerio": "1.1.2",
     "playwright-core": "1.55.0",
-    "@xyflow/react": "^12.12.1"
+    "@xyflow/react": "^12.12.1",
+    "@vercel/oidc": "4.0.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
@@ -48,6 +48,8 @@
     "jsdom": "^30.0.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^4.2.4",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "@sparticuz/chromium": "140.0.0",
+    "@vercel/nft": "0.30.4"
   }
 }

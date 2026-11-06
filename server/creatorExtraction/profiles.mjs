@@ -1,11 +1,12 @@
 import {load} from 'cheerio';
-import {recognizeCreatorProfile} from '../../src/features/marketing/creatorProfiles.js';
+import {profileIdentity} from './profileIdentity.mjs';
+export {profileIdentity} from './profileIdentity.mjs';
 import {boundedGet,networkBudget} from './network.mjs';
 import {renderPublic} from './browser.mjs';
+import {browserDiagnostics,measureBrowser} from './diagnostics.mjs';
 import {publicThumbnail} from './urls.mjs';
 import {metric} from './extract.mjs';
 function profileAvatar(value,platform){const url=publicThumbnail(value,platform);return url&&/^https:\/\/([a-z0-9-]+\.)*(cdninstagram\.com|fbcdn\.net|xhscdn\.com|sns-i11\.rednotecdn\.com|tiktokcdn\.com|tiktokcdn-us\.com|tiktokv\.com|ibytedtos\.com)\//i.test(url)?url:null}
-export function profileIdentity(url){const p=recognizeCreatorProfile(url);return {...p,request_url:p.profile_url,canonical_url:p.profile_url};}
 export function extractProfile(html,url){
  const input=profileIdentity(url),$=load(html);const meta=k=>$(`meta[property="${k}"],meta[name="${k}"]`).attr('content');
  const advertised=meta('og:url')||$('link[rel="canonical"]').attr('href');
@@ -31,12 +32,12 @@ export function extractProfile(html,url){
  return result;
 }
 export async function inspectProfile(url,options={}){
- const input=profileIdentity(url),started=Date.now(),budget=networkBudget(30000);
+ const input=profileIdentity(url),started=Date.now(),budget=networkBudget(Math.min(30000,options.deadline?Math.max(0,options.deadline-Date.now()):30000)),browser=browserDiagnostics();
  try{
   const r=await boundedGet(input.profile_url,input.platform,budget,true,undefined,profileIdentity);
   if(r.status!==200)throw new Error('profile_restricted');
   let result=extractProfile(r.body.toString('utf8'),r.url);
-  if(result.metadata_status==='unavailable')try{const page=await renderPublic(input.profile_url,input.platform,budget,{...options,urlResolver:profileIdentity});if(page.status===200)result=extractProfile(page.html,page.url)}catch{}
-  return {...result,runtime_ms:Date.now()-started,request_url:undefined,canonical_url:undefined};
- }catch{return {...input,request_url:undefined,canonical_url:undefined,metadata_status:'unavailable',followers:null,unavailable:{profile:'Public profile details are unavailable. Complete the optional fields manually.'},source:'Profile URL recognized; details unavailable',runtime_ms:Date.now()-started}}
+  if(result.metadata_status==='unavailable')try{const page=await measureBrowser(browser,()=>renderPublic(input.profile_url,input.platform,budget,{...options,urlResolver:profileIdentity,diagnostics:browser}));if(page.status===200)result=extractProfile(page.html,page.url)}catch{}
+  return {...result,browser_diagnostics:browser,runtime_ms:Date.now()-started,request_url:undefined,canonical_url:undefined};
+ }catch{return {...input,request_url:undefined,canonical_url:undefined,metadata_status:'unavailable',followers:null,unavailable:{profile:'Public profile details are unavailable. Complete the optional fields manually.'},source:'Profile URL recognized; details unavailable',browser_diagnostics:browser,runtime_ms:Date.now()-started}}
 }
