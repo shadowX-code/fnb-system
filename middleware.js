@@ -7,6 +7,11 @@ import {
 
 const PUBLIC_ASSET_PATHS = ["/assets/", "/design-homepage/", "/holographic-ring.webp", "/favicon.ico"];
 
+// Skip only assets already permitted on every host; API and document routes retain host gates.
+export const config = {
+  matcher: "/((?!assets/|design-homepage/|favicon\\.ico$|holographic-ring\\.webp$).*)",
+};
+
 export { isPublicHostname };
 
 function legacyProductFeedbackToken(pathname) {

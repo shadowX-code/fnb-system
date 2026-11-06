@@ -1,6 +1,32 @@
 import { expect, it } from "vitest";
-import hostnameRoutingMiddleware, { isPublicHostname } from "../../../middleware.js";
+import hostnameRoutingMiddleware, { config, isPublicHostname } from "../../../middleware.js";
 import { isCrewWebAppHostname, isProductFeedbackPublicHostname, isPublicHostname as isPublicClientHostname } from "../hostnameRouting.js";
+
+
+const matches = (url) => new RegExp(`^${config.matcher}$`).test(new URL(url).pathname);
+
+it("bypasses only existing no-op asset exemptions on every Production host", () => {
+  const hosts = ["feedx.my", "os.feedx.my", "feedx-os.vercel.app", "crew.feedx.my", "feedback.feedx.my"];
+  for (const host of hosts) for (const path of ["/assets/index-abcdefgh.js", "/assets/chunk.css?v=1", "/assets/missing.js", "/design-homepage/logo.png", "/favicon.ico?x=1", "/holographic-ring.webp"]) {
+    const url = `https://${host}${path}`;
+    expect(matches(url), url).toBe(false);
+    expect(hostnameRoutingMiddleware(new Request(url)), url).toBeUndefined();
+  }
+});
+
+it("keeps API, privacy, feedback and file-like paths under the existing hostname rules", () => {
+  for (const path of ["/", "/login", "/system/operations-network", "/api/marketing-creator-inspect", "/privacy", "/privacy.html", "/feedback/product/token", "/assets", "/assets-other/app.js", "/faviconXico", "/favicon.ico/extra", "/holographic-ring.webp.exe", "/private/file.js", "/%61ssets/app.js"]) {
+    expect(matches(`https://os.feedx.my${path}`), path).toBe(true);
+  }
+  for (const path of ["/private/file.js", "/api/marketing-creator-inspect", "/privacy/admin"]) {
+    const url = `https://feedx.my${path}`;
+    expect(matches(url), url).toBe(true);
+    expect(hostnameRoutingMiddleware(new Request(url))?.status, url).toBe(308);
+  }
+  const legacy = "https://os.feedx.my/feedback/product/opaque-token?utm_source=qr";
+  expect(matches(legacy)).toBe(true);
+  expect(hostnameRoutingMiddleware(new Request(legacy))?.headers.get("location")).toBe("https://feedback.feedx.my/opaque-token?utm_source=qr");
+});
 
 it("recognizes only the canonical public hostname", () => {
   [isPublicHostname, isPublicClientHostname].forEach((recognizes) => {
