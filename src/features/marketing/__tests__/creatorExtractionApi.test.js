@@ -2,10 +2,8 @@ import {callReader} from '../../../../server/xhsReaderPilot/client.mjs';
 vi.mock('../../../../server/xhsReaderPilot/client.mjs',()=>({callReader:vi.fn()}));
 import {describe,it,expect,vi,afterEach} from 'vitest';
 import handler from '../../../../api/marketing-creator-inspect.mjs';
-import {inspectProfile} from '../../../../server/creatorExtraction/profiles.mjs';
-vi.mock('../../../../server/creatorExtraction/profiles.mjs',async importOriginal=>({...await importOriginal(),inspectProfile:vi.fn()}));
-import {inspectPublic} from '../../../../server/creatorExtraction/inspect.mjs';
-vi.mock('../../../../server/creatorExtraction/inspect.mjs',()=>({inspectPublic:vi.fn()}));
+import {inspectPublic,inspectProfile} from '../../../../server/creatorExtraction/remote.mjs';
+vi.mock('../../../../server/creatorExtraction/remote.mjs',()=>({inspectPublic:vi.fn(),inspectProfile:vi.fn()}));
 const org='ec42a08a-0f59-4b7b-a48e-b2faacf9eaf1',brand='88718f61-2915-42ef-b62f-5e6e2fe5b3eb';
 function res(){return {setHeader:vi.fn(),status(n){this.code=n;return this},json:vi.fn()}}
 function req(){return {method:'POST',headers:{authorization:'Bearer fixture.jwt.signature'},body:{org,brand,url:'https://www.instagram.com/p/abc/'}}}

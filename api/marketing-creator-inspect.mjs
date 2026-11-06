@@ -1,7 +1,7 @@
 import {callReader} from '../server/xhsReaderPilot/client.mjs';
 import {withFunctionTelemetry} from '../server/functionTelemetry.mjs';
-import {inspectProfile,profileIdentity} from '../server/creatorExtraction/profiles.mjs';
-import {inspectPublic} from '../server/creatorExtraction/inspect.mjs';
+import {inspectProfile,inspectPublic} from '../server/creatorExtraction/remote.mjs';
+import {profileIdentity} from '../server/creatorExtraction/profileIdentity.mjs';
 import {platformUrl} from '../server/creatorExtraction/urls.mjs';
 const STAGING='https://ujkzdaaadnvcfayuldmh.supabase.co';
 export const config={maxDuration:60};

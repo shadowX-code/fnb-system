@@ -1,11 +1,11 @@
 import {load} from 'cheerio';
-import {recognizeCreatorProfile} from '../../src/features/marketing/creatorProfiles.js';
+import {profileIdentity} from './profileIdentity.mjs';
+export {profileIdentity} from './profileIdentity.mjs';
 import {boundedGet,networkBudget} from './network.mjs';
 import {renderPublic} from './browser.mjs';
 import {browserDiagnostics,measureBrowser} from './diagnostics.mjs';
 import {publicThumbnail} from './urls.mjs';
 function profileAvatar(value,platform){const url=publicThumbnail(value,platform);return url&&/^https:\/\/([a-z0-9-]+\.)*(cdninstagram\.com|fbcdn\.net|xhscdn\.com|sns-i11\.rednotecdn\.com|tiktokcdn\.com|tiktokcdn-us\.com|tiktokv\.com|ibytedtos\.com)\//i.test(url)?url:null}
-export function profileIdentity(url){const p=recognizeCreatorProfile(url);return {...p,request_url:p.profile_url,canonical_url:p.profile_url};}
 export function extractProfile(html,url){
  const input=profileIdentity(url),$=load(html);const meta=k=>$(`meta[property="${k}"],meta[name="${k}"]`).attr('content');
  const advertised=meta('og:url')||$('link[rel="canonical"]').attr('href');
@@ -40,7 +40,7 @@ const profileFailures={
  profile_fetch_failed:'The public profile could not be retrieved. Existing saved details remain unchanged.'
 };
 export async function inspectProfile(url,options={}){
- const input=profileIdentity(url),started=Date.now(),budget=networkBudget(30000),browser=browserDiagnostics();let method='public_html',status=null;
+ const input=profileIdentity(url),started=Date.now(),budget=networkBudget(Math.min(30000,options.deadline?Math.max(0,options.deadline-Date.now()):30000)),browser=browserDiagnostics();let method='public_html',status=null;
  const unavailable=reason=>({...input,request_url:undefined,canonical_url:undefined,metadata_status:'unavailable',followers:null,reason,method,http_status:status,unavailable:{profile:profileFailures[reason]},source:'Profile URL recognized; details unavailable',runtime_ms:Date.now()-started,browser_diagnostics:browser});
  try{
   const r=await boundedGet(input.profile_url,input.platform,budget,true,undefined,profileIdentity);status=r.status;

@@ -55,8 +55,6 @@
   ],
   "functions": {
     "api/marketing-creator-inspect.mjs": {
-      "includeFiles": "node_modules/@sparticuz/chromium/bin/**",
-      "excludeFiles": "node_modules/playwright-core/lib/vite/**",
       "maxDuration": 60
     }
   }

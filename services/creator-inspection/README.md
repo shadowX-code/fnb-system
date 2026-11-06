@@ -1,0 +1,13 @@
+# Isolated Creator Inspection
+
+Staging worker project: `feedx-creator-inspection-staging` / `prj_iBtNFmS6Jqso4P8S5GkM5ZO2THKJ`, existing Vercel Pro team. No dedicated server, seat or fixed subscription. Usage remains team-metered. This is not FeedX Production.
+
+The canonical extractor source stays in `server/creatorExtraction`; `node scripts/packageCreatorInspection.mjs --manifest` packages an independent, immutable deployment from that source and this directory's locked dependencies. The generated runtime is not a second maintained copy. Deploy this artifact to the worker project only, recording source SHA and artifact digest. No Git integration is attached: ordinary FeedX commits do not redeploy Chromium. Retain current worker plus at least three accepted compatible rollback versions. Do not delete versions without separate approval.
+
+The main API retains Admin/Brand authorization, quotas/leases, official Instagram calls, duplicate detection and post-read checks. Only anonymous public metadata extraction crosses the workload boundary; no Admin JWT, social credential or database credential goes to the worker. The worker verifies signed Vercel OIDC identity for the exact Staging project/team/environment and rejects arbitrary options, unsupported URLs, oversized input and invalid deadlines before extraction. Existing DNS pinning, private-IP blocking, resource allowlists, GET-only transport, byte limits, deadline guards, disabled WebGL and cleanup remain authoritative. Paid extraction is always disabled.
+
+Gateway calls use the fixed HTTPS endpoint, no redirects/retries, a deadline-bound abort and a bounded, identity-checked metadata response. Main `npm run build` traces every current API route and rejects browser dependencies. Chromium remains a main **development-only** dependency for existing isolated extractor regression tests, not a main runtime dependency. Worker production dependencies own Chromium. Vercel Resources and dependency traces must also be checked after delivery.
+
+Worker and gateway each emit sanitized `feedx.function` start/finish events. Use their separate project/route dimensions for invocations, platform Active CPU, errors/timeouts and memory. Wall milliseconds are not CPU. Do not log URLs, tokens, raw HTML or user/business data.
+
+Future Production integration requires its own worker identity, trusted caller binding, approved release and acceptance. Never point Production to this Staging worker. Rollback the main application to accepted `cb67bd042` if isolation fails; retain that deployment. No automatic failover that silently runs a second Chromium request.

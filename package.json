@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/verifyCreatorIsolation.mjs && vite build",
     "preview": "vite preview",
     "verify:staging-vercel-target": "bash scripts/verifyFeedxStagingVercelProject.sh --deployment-sha \"$(git rev-parse HEAD)\"",
     "deploy:preview": "bash scripts/deployFeedxPreview.sh",
@@ -21,11 +21,11 @@
   "dependencies": {
     "@gsap/react": "^2.1.2",
     "@openai/agents-realtime": "0.21.0",
-    "@sparticuz/chromium": "140.0.0",
     "@supabase/supabase-js": "^2.105.4",
     "@tiptap/pm": "^3.31.3",
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
+    "@vercel/oidc": "4.0.7",
     "@xyflow/react": "^12.12.1",
     "cheerio": "1.1.2",
     "gsap": "^3.15.0",
@@ -42,8 +42,10 @@
   },
   "devDependencies": {
     "@playwright/test": "1.55.1",
+    "@sparticuz/chromium": "140.0.0",
     "@tailwindcss/postcss": "^4.2.4",
     "@testing-library/react": "^16.3.2",
+    "@vercel/nft": "0.30.4",
     "@vitejs/plugin-react": "5.2.0",
     "autoprefixer": "^10.4.20",
     "jsdom": "^30.0.1",

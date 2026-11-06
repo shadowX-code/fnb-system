@@ -6,7 +6,7 @@ import {extractMetadata} from './extract.mjs';
 import {renderPublic} from './browser.mjs';
 import {browserDiagnostics,measureBrowser} from './diagnostics.mjs';
 export async function inspectPublic(value,options={}){
- const start=Date.now(),input=platformUrl(value),budget=networkBudget(45000),browser=browserDiagnostics();let result,resolved=input;
+ const start=Date.now(),input=platformUrl(value),budget=networkBudget(Math.min(45000,options.deadline?Math.max(0,options.deadline-Date.now()):45000)),browser=browserDiagnostics();let result,resolved=input;
  const provider=options.allowPaid===false?null:await inspectXhs(input,options);if(provider)return provider;
  try{
   if(input.share)resolved=await resolvePostUrl(value,budget);
