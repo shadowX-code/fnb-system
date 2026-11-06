@@ -1,6 +1,6 @@
 import {nodeFileTrace} from '@vercel/nft';
-import {stat,readFile} from 'node:fs/promises';
-const routes=['api/marketing-creator-inspect.mjs','api/marketing-xhs-reader.mjs'];
+import {stat,readFile,readdir} from 'node:fs/promises';
+const routes=(await readdir('api',{recursive:true})).filter(p=>/\.(mjs|cjs|js|ts|jsx|tsx)$/.test(p)).map(p=>'api/'+p);
 for(const route of routes){
  const trace=await nodeFileTrace([route],{base:process.cwd()});
  const forbidden=[...trace.fileList].filter(p=>/(@sparticuz|playwright-core|creatorExtraction\/(browser|inspect|profiles)\.mjs|chromium\.br|swiftshader)/.test(p));
