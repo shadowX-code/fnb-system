@@ -1,7 +1,7 @@
 -- Run after the migration inside BEGIN/ROLLBACK on Staging. Never calls a provider.
 create function pg_temp.voice_lease_test(tester uuid,action text,payload jsonb) returns jsonb language plpgsql as $$ begin perform set_config('request.jwt.claims','{"role":"service_role"}',true);return public.native_assistant_voice_lease(tester,action,payload);end $$;
 create function pg_temp.voice_connection_test(action text,payload jsonb) returns jsonb language plpgsql as $$ begin perform set_config('request.jwt.claims','{"role":"service_role"}',true);return public.native_assistant_voice_connection(action,payload);end $$;
-do $$ declare tester uuid; sid uuid; rid uuid:=gen_random_uuid(); rid2 uuid:=gen_random_uuid(); payload jsonb; r jsonb; failures integer:=0; old_count integer; revision integer;
+do $$ declare tester uuid; other_tester uuid; sid uuid; rid uuid:=gen_random_uuid(); rid2 uuid:=gen_random_uuid(); payload jsonb; r jsonb; failures integer:=0; old_count integer; revision integer;
 begin
  update feedx_integrations.assistant_voice_policy set enabled=true,per_user_daily_sessions=null where environment='staging';
  select count(*) into old_count from feedx_integrations.native_assistant_realtime_reservations;
@@ -43,10 +43,17 @@ begin
  update feedx_integrations.assistant_voice_leases set state='closed',closed_at=now() where actor=tester;
  update feedx_integrations.assistant_voice_policy set per_user_daily_sessions=0 where environment='staging';
  begin perform pg_temp.voice_lease_test(tester,'admit',payload||jsonb_build_object('request_id',gen_random_uuid()));raise exception 'Optional daily limit ignored';exception when sqlstate '54000' then failures:=failures+1;end;
- update feedx_integrations.assistant_voice_policy set enabled=false where environment='staging';
+ update feedx_integrations.assistant_voice_policy set per_user_daily_sessions=null,max_concurrent_sessions=1 where environment='staging';
+ select id into other_tester from auth.users where id<>tester limit 1;
+ if other_tester is null then raise exception 'No second identity for capacity fixture'; end if;
+ insert into feedx_integrations.assistant_voice_leases(actor,request_id,session_id,provider,state,expires_at,call_id,provider_revision,connected_at) values(other_tester,gen_random_uuid(),sid,'openai','active',now()+interval '3 minutes','rtc_otherFixture',revision,now());
+ begin perform pg_temp.voice_lease_test(tester,'admit',payload||jsonb_build_object('request_id',gen_random_uuid()));raise exception 'Environment capacity ignored';exception when sqlstate '54000' then failures:=failures+1;end;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ perform public.native_assistant_voice_usage(tester,'save',jsonb_build_object('revision',(select p.revision from feedx_integrations.assistant_voice_policy p where environment='staging'),'enabled',false,'maximum_seconds',180,'concurrency',1,'daily_sessions',null));
+ if not exists(select 1 from feedx_integrations.assistant_voice_leases where actor=other_tester and state='closing' and reason='admin_disabled') then raise exception 'Emergency disable did not revoke active calls';end if;
  begin perform pg_temp.voice_lease_test(tester,'admit',payload||jsonb_build_object('request_id',gen_random_uuid()));raise exception 'Disabled environment accepted';exception when insufficient_privilege then failures:=failures+1;end;
  if exists(select 1 from feedx_integrations.assistant_voice_policy where environment='production' and enabled) then raise exception 'Production activated';end if;
  if has_function_privilege('authenticated','public.native_assistant_voice_connection(text,jsonb)','execute') then raise exception 'Worker exposed';end if;
- if failures<>10 then raise exception 'Expected ten denials; got %',failures;end if;
+ if failures<>11 then raise exception 'Expected eleven denials; got %',failures;end if;
  raise notice 'Voice admission, idempotency, concurrency, ownership, production denial, expiry, cleanup replay, termination retry and reconnect passed';
 end $$;
