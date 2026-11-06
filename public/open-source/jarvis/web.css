@@ -331,3 +331,5 @@ body:not(.web-immersive) [data-speaker=assistant] .web-message-avatar{background
  body:not(.web-immersive) .web-dock{padding:8px 10px}
  body:not(.web-immersive) #webMessages li{padding-left:37px}
 }
+
+body:not(.web-immersive) .web-message-avatar .web-hud-icon{display:block;width:16px;height:16px}

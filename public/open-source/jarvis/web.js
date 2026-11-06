@@ -187,8 +187,8 @@ function serviceStatus(){
  const ready=!!runtime?.ready;document.body.dataset.serviceState=ready?'ready':'unavailable';
  $('.web-core-caption strong').textContent=ready?'Text ready':'Visual ready';
  $('.web-core-caption p').textContent='Original Jarvis Core · '+(ready?'authorized text service':'text service unavailable');
- const services=[ready?'Text · '+runtime.model:'Unavailable',runtime?.voice_provider||'Unavailable',runtime?.voice_provider||'Unavailable',runtime?.tools?'Factory Finished Goods · read only':'Unavailable'];
- $('.web-services summary').textContent='Services · '+services.filter(x=>!x.includes('unavailable')&&x!=='Unavailable').length+' connected';
+ const services=[ready?'Text · '+runtime.model:'Unavailable',runtime?.voice_provider?'Configured · '+runtime.voice_provider+' (start a voice session)':'Unavailable',runtime?.voice_provider?'Configured · '+runtime.voice_provider+' (start a voice session)':'Unavailable',runtime?.tools?'Factory Finished Goods · read only':'Unavailable'];
+ $('.web-services summary').textContent='Authorized capabilities';
  document.querySelectorAll('.web-services dd').forEach((el,i)=>el.textContent=services[i]);
 }
 addEventListener('message',event=>{
