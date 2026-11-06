@@ -233,3 +233,17 @@
 .assistant-drawer{--theme-surface:#0c1b24;--theme-surface-muted:#102933;--theme-surface-nested:#14323d;--theme-text:#eaf6f8;--theme-muted:#bdd4db;--theme-border:#375661;--theme-primary-soft:#153c35}
 .assistant-drawer .admin-select-option[aria-selected=true]{color:#96eed5}
 .assistant-page:not(.assistant-fullscreen) .assistant-voice-bar:not(:has(details[open])){position:static;inset:auto;width:auto;height:auto;overflow:visible;pointer-events:auto;background:#0a1b24;border:1px solid #294b57;min-height:66px}
+
+.assistant-thread-heading{min-width:0;flex:1}.assistant-thread-heading h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65ch}
+.assistant-header-actions{gap:4px}.assistant-header-actions :is(button,a){font-size:12px!important}
+.assistant-voice-availability{position:relative;font-size:11px}.assistant-voice-availability summary{cursor:pointer;padding:6px}
+.assistant-voice-availability[open]{background:#0c2631;border:1px solid #345965;border-radius:8px;padding:8px;max-width:320px}
+.assistant-voice-availability[open]>span{display:block;line-height:1.5;margin-block:6px}
+.assistant-usage{font-size:13px;line-height:1.5}.assistant-usage form{display:grid;gap:12px;margin-block:16px}.assistant-usage label{display:grid;gap:5px}.assistant-usage li{padding-block:8px;overflow-wrap:anywhere}.assistant-usage li span{display:flex;gap:8px}
+@media(min-width:801px){
+ .assistant-page:not(.assistant-fullscreen) .assistant-voice-bar:not(:has(details[open])){position:absolute;bottom:0;left:0;width:42%;min-height:65px;padding:7px 12px;border:0;background:transparent;z-index:2;gap:6px;justify-content:flex-start}
+ .assistant-page:not(.assistant-fullscreen) .assistant-voice-bar:has(details[open]){position:absolute;bottom:0;left:0;width:42%;z-index:3;background:#0a1b24;padding:8px;border:1px solid #345965;border-radius:8px}
+ .assistant-page:not(.assistant-fullscreen) .assistant-voice-refresh{font-size:11px;padding:4px}
+}
+@media(min-width:801px) and (max-width:1199px){.assistant-page:not(.assistant-fullscreen) .assistant-voice-bar:not(:has(details[open])),.assistant-page:not(.assistant-fullscreen) .assistant-voice-bar:has(details[open]){width:38%}}
+@media(max-width:800px){.assistant-page:not(.assistant-fullscreen) .assistant-voice-bar:not(:has(details[open])){padding:8px 12px;min-height:52px;gap:6px}.assistant-voice-bar button{min-height:40px}.assistant-voice-availability[open]{max-width:100%}}

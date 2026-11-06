@@ -49,6 +49,7 @@ Deno.serve(async request=>{
    if(error||!Number.isInteger(remaining))throw new AssistantError('assistant_request_failed',503);
    return remaining;
   }
-  return json(await dispatch(body,{rpc,reserveRealtime,registry,voiceHistory,sdkRemaining,get:(name:string)=>Deno.env.get(name),signal:request.signal,access,readTool:(args:unknown,signal:AbortSignal)=>readInventory(caller,args,signal)}));
+  async function voiceUsage(action:string,payload:unknown){const {data:result,error}=await service.rpc('native_assistant_voice_usage',{p_actor:data.user!.id,p_action:action,p_payload:payload});if(error)throw new AssistantError(safeCodes.has(error.message)?error.message:'assistant_request_failed',error.code==='42501'?403:error.code==='40001'?409:400);return result;}
+  return json(await dispatch(body,{voiceUsage,rpc,reserveRealtime,registry,voiceHistory,sdkRemaining,get:(name:string)=>Deno.env.get(name),signal:request.signal,access,readTool:(args:unknown,signal:AbortSignal)=>readInventory(caller,args,signal)}));
  }catch(cause){return json({error:cause instanceof AssistantError?cause.code:'assistant_unavailable',...(cause instanceof AssistantError&&cause.diagnostic?{diagnostic:cause.diagnostic}:{})},cause instanceof AssistantError?cause.status:503);}
 });

@@ -1,3 +1,5 @@
+import VoiceUsage from './VoiceUsage.jsx';
+import Drawer from '../../components/ui/Drawer.jsx';
 import { voiceOptions } from './realtimeVoice.js';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, AudioLines, Download, History, Brain, Plus, Maximize2, Mic, Minimize2, Square } from 'lucide-react';
@@ -57,10 +59,10 @@ export default function AiAssistantPage({ ui, auth }) {
     {ASSISTANT_STAGING_ALLOWED&&<div className="assistant-voice-bar" aria-label="Voice controls" data-signal={liveSignal}>
       {fullscreen&&<button type="button" className="btn-ghost assistant-view-switch" onClick={toggleFullscreen}><Minimize2 size={15}/> Standard view</button>}
       {fullscreen&&<span className="assistant-dock-signal" aria-hidden="true"/>}
-      <button type="button" className="btn-secondary assistant-mic-control" disabled={(!realtimeSelected||!realtimeAvailable||(realtimeState.sdkVoice&&realtimeState.sdkRemaining===0))&&!realtimeState.active} onClick={()=>realtimeState.active?realtimeRef.current?.stop():realtimeRef.current?.start(provider,voiceOptions[provider].includes(preferredVoice)?preferredVoice:voiceOptions[provider][0])}>{realtimeState.active?<Square size={16} aria-hidden="true"/>:<Mic size={17} aria-hidden="true"/>}<span>{realtimeState.active?'End voice':realtimeState.sdkVoice&&realtimeState.sdkRemaining===0?'Voice unavailable':'Start voice'}</span></button>
+      <button type="button" className="btn-secondary assistant-mic-control" disabled={(!realtimeSelected||!realtimeAvailable||(realtimeState.sdkVoice&&realtimeState.sdkRemaining===0))&&!realtimeState.active} onClick={()=>realtimeState.active?realtimeRef.current?.stop():realtimeRef.current?.start(provider,voiceOptions[provider].includes(preferredVoice)?preferredVoice:voiceOptions[provider][0])}>{realtimeState.active?<Square size={16} aria-hidden="true"/>:<Mic size={17} aria-hidden="true"/>}<span>{realtimeState.active?'End voice':realtimeState.sdkVoice&&realtimeState.sdkRemaining===0?'Approval required':'Start voice'}</span></button>
       {fullscreen&&<span className="assistant-dock-signal assistant-dock-signal-right" aria-hidden="true"/>}
       {realtimeState.state==='playback_blocked'&&<button type="button" className="btn-ghost" onClick={()=>realtimeRef.current?.resume()}>Resume audio</button>}
-      <span role="status">{realtimeState.message||(realtimeState.sdkVoice&&realtimeState.sdkRemaining===0?'0 approved Staging calls remaining. Additional evaluation requires explicit approval; there is no automatic reset.':null)||(!realtimeAvailable?'Selected voice provider is unavailable. Choose a provider in AI Integrations.':null)||({connecting:'Connecting…',listening:'Listening',thinking:'Processing…',executing:'Reading Factory Finished Goods…',speaking:'Speaking',interrupted:'Interrupted · listening'})[realtimeState.state]||(provider==='grok'?'Grok Voice':'OpenAI Realtime SDK')+' · context lasts for this call'}</span>
+      <details className="assistant-voice-availability"><summary>Voice status</summary><span role="status">{realtimeState.message||(realtimeState.sdkVoice&&realtimeState.sdkRemaining===0?'0 approved Staging calls remaining. Additional evaluation requires explicit approval; there is no automatic reset.':null)||(!realtimeAvailable?'Selected voice provider is unavailable. Choose a provider in AI Integrations.':null)||({connecting:'Connecting…',listening:'Listening',thinking:'Processing…',executing:'Reading Factory Finished Goods…',speaking:'Speaking',interrupted:'Interrupted · listening'})[realtimeState.state]||(provider==='grok'?'Grok Voice':'OpenAI Realtime SDK')+' · context lasts for this call'}</span><button type="button" className="btn-ghost" onClick={()=>setDrawer('usage')}>Usage &amp; approvals</button></details>
       {!realtimeState.active&&<button type="button" className="btn-ghost assistant-voice-refresh" onClick={refreshAvailability}>Check availability</button>}
       {realtimeState.sdkVoice&&realtimeState.sdkRemaining>0&&!realtimeState.active&&<small>{realtimeState.sdkRemaining} approved call remaining · up to 3 minutes</small>}
       {!realtimeState.active&&realtimeState.report?.durationMs>0&&<details><summary>Session details</summary>
@@ -69,6 +71,7 @@ export default function AiAssistantPage({ ui, auth }) {
 
     </div>}
     {drawer==='history'&&<HistoryDrawer close={()=>setDrawer(null)} thread={thread} locked={voiceLocked} act={threadAction} rename={renameThread}/>}
+    {drawer==='usage'&&<Drawer title="Voice usage" description="Environment policy and approval requests" width="sm" onClose={()=>setDrawer(null)} className="assistant-drawer"><VoiceUsage/></Drawer>}
     {drawer==='memory'&&<MemoryDrawer close={()=>setDrawer(null)} voiceActive={voiceLocked}/>}
     {ASSISTANT_STAGING_ALLOWED ? <iframe ref={frame} onLoad={()=>setHudView(fullscreen)} className="assistant-frame" title="FeedX AI Assistant — isolated Jarvis conversation HUD" src="/open-source/jarvis/index.html" sandbox="allow-scripts allow-downloads" allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'" referrerPolicy="no-referrer" />
       : <div role="status" className="rounded-xl border p-6">AI Assistant is available on canonical Staging only. No services are connected.</div>}

@@ -1,3 +1,4 @@
+import VoiceUsage from '../ai-assistant/VoiceUsage.jsx';
 import {voiceOptions} from '../ai-assistant/realtimeVoice.js';
 import {useEffect,useRef,useState} from 'react';
 import {RefreshCw} from 'lucide-react';
@@ -46,5 +47,6 @@ export default function NativeAssistantSettings({auth}){
    <p>Changes apply to new calls. Connect and test voice providers in Providers.</p></div><div className="space-y-2 text-xs text-text-secondary"><h3 className="text-sm font-medium text-text-primary">Factory Finished Goods</h3><p>Current Admin permissions · Factory shared catalogue · read only. No Company / Outlet attribution or machine grants.</p><div className="flex flex-wrap items-center gap-3"><button type="button" className="btn-secondary" disabled={!canEdit||busy} onClick={()=>void feature('tool_test')}>Test Finished Goods read</button><label className="inline-flex items-center gap-2"><input type="checkbox" checked={!!data.config.factory_reads_enabled} disabled={!canEdit||busy} onChange={e=>void feature('features',{expected_revision:data.config.revision,factory_reads_enabled:e.target.checked})}/> Enable authorized reads</label></div><p>Availability never grants business access. Each call rechecks your human permissions; no writes or Agent execution receipts.</p></div></div>
    {data.config.last_test_at&&<p className="mt-2 text-xs text-text-secondary">Last test attempt: {formatOperationalMoment(data.config.last_test_at)} · {data.config.last_test_outcome}. A successful test is historical, not continuous provider health.</p>}
   </>:<p className="text-sm text-text-secondary">{error?'Native Assistant configuration is unavailable. Refresh to try again.':'Loading server configuration…'}</p>}
+ <VoiceUsage/>
  </section>;
 }

@@ -333,3 +333,25 @@ body:not(.web-immersive) [data-speaker=assistant] .web-message-avatar{background
 }
 
 body:not(.web-immersive) .web-message-avatar .web-hud-icon{display:block;width:16px;height:16px}
+
+/* Standard workspace: Core / Conversation 42:58, without changing the renderer. */
+@media(min-width:1200px){
+ body:not(.web-immersive) #stage{width:42%}
+ body:not(.web-immersive) .web-conversation{left:42%}
+ body:not(.web-immersive) .web-dock{padding-left:calc(42% + 18px)}
+ body:not(.web-immersive) .web-core-caption{max-width:calc(42% - 30px)}
+}
+@media(min-width:801px) and (max-width:1199px){
+ body:not(.web-immersive) #stage{width:38%}
+ body:not(.web-immersive) .web-conversation{left:38%}
+ body:not(.web-immersive) .web-dock{padding-left:calc(38% + 18px)}
+ body:not(.web-immersive) .web-core-caption{max-width:calc(38% - 30px)}
+}
+body:not(.web-immersive) .web-core-caption{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;bottom:78px;left:16px;padding:8px 0;font-size:11px}
+body:not(.web-immersive) .web-core-caption p{flex-basis:100%;margin:0;font-size:11px}
+body:not(.web-immersive) .web-core-caption button{margin-left:auto;min-height:32px}
+body:not(.web-immersive) #webMessages li>p{max-width:68ch}
+body:not(.web-immersive) #webMessages li[data-speaker=user]{background:#11333b45;border-radius:8px;padding-right:10px}
+body:not(.web-immersive) #webMessages li[data-outcome]{padding-block:8px}
+body:not(.web-immersive) #webMessages li[data-outcome] p{font-size:12px}
+@media(max-width:800px){body:not(.web-immersive) .web-core-caption{top:8px;bottom:auto;left:10px}body:not(.web-immersive) .web-core-caption button{margin:0}}

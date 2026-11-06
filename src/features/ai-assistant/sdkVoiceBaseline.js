@@ -17,7 +17,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
   run.controller.abort();
   run.session?.close();
   if (run.requested) void Promise.all([run.observations, run.history?.close()])
-   .then(() => call('realtime_end', run.lease)).catch(() => {});
+   .then(async () => {await call('voice_usage_report',{request_id:run.lease.request_id,input_audio_tokens:run.report.usageReported?run.report.inputAudio:null,output_audio_tokens:run.report.usageReported?run.report.outputAudio:null,duration_ms:Math.round(performance.now()-run.started)}).catch(()=>{});return call('realtime_end',run.lease);}).catch(() => {});
   run.report.durationMs = Math.round(performance.now() - run.started);
   show(state, message, run.report);
  }
