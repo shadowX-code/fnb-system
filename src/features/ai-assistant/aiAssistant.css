@@ -231,6 +231,9 @@
 }
 
 .assistant-drawer{--theme-surface:#0c1b24;--theme-surface-muted:#102933;--theme-surface-nested:#14323d;--theme-text:#eaf6f8;--theme-muted:#bdd4db;--theme-border:#375661;--theme-primary-soft:#153c35}
+/* Tailwind aliases are resolved where declared; rebind them at this dark surface
+   so canonical controls and their modal-local portals inherit the same palette. */
+.assistant-drawer{--theme-input-bg:#102933;--theme-input-border:#375661;--theme-primary:#7ae5cd;--theme-primary-hover:#a3f3e1;--color-surface:var(--theme-surface);--color-border:var(--theme-border);--color-text-primary:var(--theme-text);--color-text-secondary:var(--theme-muted);--color-primary:var(--theme-primary);--color-primary-soft:var(--theme-primary-soft);color:var(--theme-text);color-scheme:dark}
 .assistant-drawer .admin-select-option[aria-selected=true]{color:#96eed5}
 .assistant-page:not(.assistant-fullscreen) .assistant-voice-bar:not(:has(details[open])){position:static;inset:auto;width:auto;height:auto;overflow:visible;pointer-events:auto;background:#0a1b24;border:1px solid #294b57;min-height:66px}
 
