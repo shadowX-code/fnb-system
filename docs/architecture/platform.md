@@ -7,6 +7,8 @@ Business behavior belongs in the canonical domain documents listed in `docs/READ
 
 Environment identities, authorization requirements, dirty-worktree safeguards, and risk-based QA levels remain governed by `FEEDX_CODEX_CONTEXT.md`.
 
+The Admin header's Network and Assistant destinations share `SystemNavigationChip`: explicit labels/badges, `aria-current` selection, keyboard focus, and bounded Cyan/Mint interaction feedback. Motion runs only on hover/focus, is suppressed for reduced motion, and never represents service activity. Visible labels replace redundant native tooltips; navigation and environment visibility remain shell-owned.
+
 ## Admin Notification Audio
 
 The shared `notificationSound` client owns optional audible attention, per-user/origin local preferences, browser audio readiness and bounded same-origin tab deduplication. Controls reuse the Admin notification popover and the same settings component in Inbox. Sounds default off; a persisted preference does not imply autoplay permission in another tab. Web Audio is initialized only after an explicit user gesture, and Web Locks serialize a bounded local seen ledger before playback. Unsupported/blocked storage, audio or coordination fails silent and cannot alter notification counts or business workflows. Domain read models own eligible event identity and scope; clients never infer actionable work from badge-count changes. Marketing currently supplies the only audible source and restricts it to its workspace. This does not create push delivery, a service worker or a new server scheduler.
