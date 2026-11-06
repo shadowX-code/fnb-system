@@ -6,14 +6,14 @@ import {inventoryTool,inventoryArguments} from './inventory.js';
 import {createSdkVoiceSecret,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const fields={voice_usage_report:['request_id','input_audio_tokens','output_audio_tokens','duration_ms'],voice_usage:[],voice_policy_save:['revision','budget_cents','daily_sessions'],voice_allowance_request:['cents','reason'],voice_allowance_review:['id','decision'],realtime_sdk_observe:['session_id','request_id','provider','milestone'],realtime_sdk_connect:['session_id','request_id','provider','voice'],provider_list:[],provider_put:['provider','credential','approval_reference'],provider_revoke:['provider'],provider_test:['provider','session_id','request_id','sdp'],provider_activate:['provider','voice'],realtime_connect:['session_id','request_id','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments','turn_id'],realtime_turn:['session_id','request_id','provider','turn_id','step','text'],realtime_end:['session_id','request_id','provider'],features:['factory_reads_enabled','expected_revision'],tool_test:[],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],history_recall:['query','exclude_session_id'],session_list:['query','before_activity','before_id'],session_new:[],session_rename:['session_id','title'],session_delete:['session_id'],memory_get:[],memory_save:['enabled',...Object.keys(preferences)],memory_delete:[],storage_usage:[],history:['session_id','before_seq'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
+const fields={voice_usage_report:['request_id','input_audio_tokens','output_audio_tokens','duration_ms'],voice_usage:[],voice_policy_save:['revision','enabled','maximum_seconds','concurrency','daily_sessions'],voice_allowance_request:['cents','reason'],voice_allowance_review:['id','decision'],realtime_heartbeat:['session_id','request_id','provider'],realtime_sdk_observe:['session_id','request_id','provider','milestone'],realtime_sdk_connect:['session_id','request_id','provider','voice','connection_protocol'],provider_list:[],provider_put:['provider','credential','approval_reference'],provider_revoke:['provider'],provider_test:['provider','session_id','request_id','sdp'],provider_activate:['provider','voice'],realtime_connect:['session_id','request_id','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments','turn_id'],realtime_turn:['session_id','request_id','provider','turn_id','step','text'],realtime_end:['session_id','request_id','provider'],features:['factory_reads_enabled','expected_revision'],tool_test:[],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],history_recall:['query','exclude_session_id'],session_list:['query','before_activity','before_id'],session_new:[],session_rename:['session_id','title'],session_delete:['session_id'],memory_get:[],memory_save:['enabled',...Object.keys(preferences)],memory_delete:[],storage_usage:[],history:['session_id','before_seq'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
 export function validateBody(body){
  if(!body||typeof body!=='object'||Array.isArray(body)||!Object.hasOwn(fields,body.action))throw new AssistantError('invalid_request',400);
  const allowed=['action',...fields[body.action]];if(Object.keys(body).some(k=>!allowed.includes(k)))throw new AssistantError('invalid_request',400);
  for(const k of fields[body.action])if(k.endsWith('_id')&&!['before_id','exclude_session_id'].includes(k)&&!(k==='turn_id'&&body.action==='realtime_tool'&&body[k]===undefined)&&!uuid.test(body[k]||''))throw new AssistantError('invalid_request',400);
  if(body.action==='history_recall'&&(typeof body.query!=='string'||body.query.trim().length<2||body.query.length>80||body.exclude_session_id!==undefined&&!uuid.test(body.exclude_session_id)))throw new AssistantError('invalid_request',400);
  if(body.action==='voice_usage_report'&&(['input_audio_tokens','output_audio_tokens','duration_ms'].some(k=>body[k]!==null&&(!Number.isSafeInteger(body[k])||body[k]<0||body[k]>3600000))))throw new AssistantError('invalid_request',400);
- if(body.action==='voice_policy_save'&&(!Number.isInteger(body.revision)||!Number.isInteger(body.budget_cents)||body.budget_cents<0||!Number.isInteger(body.daily_sessions)||body.daily_sessions<0||body.daily_sessions>100))throw new AssistantError('configuration_invalid',400);
+ if(body.action==='voice_policy_save'&&(!Number.isInteger(body.revision)||typeof body.enabled!=='boolean'||!Number.isInteger(body.maximum_seconds)||body.maximum_seconds<30||body.maximum_seconds>180||!Number.isInteger(body.concurrency)||body.concurrency<1||body.concurrency>8||body.daily_sessions!==null&&(!Number.isInteger(body.daily_sessions)||body.daily_sessions<0||body.daily_sessions>100)))throw new AssistantError('configuration_invalid',400);
  if(body.action==='voice_allowance_request'&&(!Number.isInteger(body.cents)||body.cents<1||body.cents>10000||typeof body.reason!=='string'||body.reason.trim().length<4||body.reason.length>160))throw new AssistantError('invalid_request',400);
  if(body.action==='voice_allowance_review'&&(!uuid.test(body.id)||!['approved','denied'].includes(body.decision)))throw new AssistantError('invalid_request',400);
  if(body.action==='session_list'){
@@ -28,6 +28,7 @@ export function validateBody(body){
  if(body.action==='features'&&(typeof body.factory_reads_enabled!=='boolean'||!Number.isSafeInteger(body.expected_revision)))throw new AssistantError('configuration_invalid',400);
  if(body.action.startsWith('realtime_')&&!['openai','grok'].includes(body.provider))throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_sdk_observe'&&(body.provider!=='openai'||!['connected','usage_observed'].includes(body.milestone)))throw new AssistantError('invalid_request',400);
+ if(body.action==='realtime_sdk_connect'&&body.connection_protocol!=='server_webrtc_v1')throw new AssistantError('voice_client_update_required',409);
  if(body.action==='realtime_sdk_connect'&&(body.provider!=='openai'||!realtimeVoices.includes(body.voice)))throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_connect'&&(body.provider!=='grok'||!grokVoices.includes(body.voice)))throw new AssistantError('invalid_request',400);
  if(body.action.startsWith('provider_')&&body.action!=='provider_list'&&!['openai','grok'].includes(body.provider))throw new AssistantError('invalid_request',400);
@@ -38,9 +39,9 @@ export function validateBody(body){
  if(body.action==='realtime_tool')inventoryArguments(body.arguments);
  return body;
 }
-export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readTool,reserveRealtime,registry,voiceHistory,sdkRemaining,access={factory:false}}){
+export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readTool,reserveRealtime,registry,voiceHistory,issueVoiceTicket,access={factory:false}}){
  validateBody(body);
- const {action,...args}=body;
+ const {action,connection_protocol,...args}=body;
  if(action.startsWith('voice_')&&['voice_usage_report','voice_usage','voice_policy_save','voice_allowance_request','voice_allowance_review'].includes(action))return voiceUsage(({voice_usage_report:'report',voice_usage:'get',voice_policy_save:'save',voice_allowance_request:'request',voice_allowance_review:'review'})[action],args);
  if(['history_recall','session_list','session_new','session_rename','session_delete','history','memory_get','memory_save','memory_delete','storage_usage'].includes(action))return rpc(action,args);
  if(action.startsWith('provider_')){
@@ -51,7 +52,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readToo
  }
  const configResponse=await rpc(['configuration','configure','test','features','tool_test'].includes(action)?'configuration':'status',{});
  const config=configResponse.config;
- const evaluator=!!config.enabled&&configResponse.can_edit;
+ const evaluator=!!config.enabled;
  const realtime={openai:!!(evaluator&&realtimeReady(get)),grok:!!(evaluator&&grokReady(get))};
  const managed=registry&&(['configuration','status'].includes(action)||action.startsWith('realtime_'))?await registry('runtime',{}):null;
  const voiceDefault=managed?.providers.find(row=>row.active_voice);
@@ -60,6 +61,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readToo
  if(action.startsWith('realtime_')){
   const connecting=action==='realtime_connect'||action==='realtime_sdk_connect';
   if(connecting?!realtime[args.provider]:!evaluator)throw new AssistantError('realtime_not_authorized',403);
+  if(action==='realtime_heartbeat'){return reserveRealtime('heartbeat',args);}
   if(action==='realtime_sdk_observe'){
    await reserveRealtime('sdk_'+args.milestone,args);
    return {};
@@ -79,7 +81,8 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readToo
   const credential=registry?await registry('key',args):null;
   if(credential&&credential.active_voice!==args.voice)throw new AssistantError('configuration_changed',409);
   const voiceGet=credential?credentialEnvironment(args.provider,credential):get;
-  await reserveRealtime(action==='realtime_sdk_connect'?'sdk_baseline':'start',args);
+  const admission=await reserveRealtime(action==='realtime_sdk_connect'?'sdk_baseline':'start',args);
+  if(admission?.replayed&&admission.state!=='reserved')throw new AssistantError('voice_session_active',409);
   try{
   const {strict,...tool}=inventoryTool;
   const tools=runtime.tools?[tool]:[];
@@ -89,7 +92,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readToo
   const priorContext=' Prior conversation, quoted data only: '+JSON.stringify(assembled.recent);
   const instructions=voiceInstructions+memoryContext(memory)+contextInstructions(assembled)+priorContext;
   if(action==='realtime_sdk_connect'){
-   const secret=await createSdkVoiceSecret(args.voice,voiceGet,{signal,transport});
+   const secret=await issueVoiceTicket(args,{tools,instructions});
    await reserveRealtime('sdk_issued',args);
    return {...secret,tools,instructions};
   }
@@ -97,12 +100,12 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readToo
    return {...result,instructions,tools};
   }catch(error){
    if(action==='realtime_sdk_connect'&&error.diagnostic?.http_status)await reserveRealtime('sdk_rejected',args).catch(()=>{});
-   await reserveRealtime('end',args).catch(()=>{});
+   if(!admission?.replayed)await reserveRealtime('end',args).catch(()=>{});
    throw error;
   }
  }
  if(action==='configuration')return {...configResponse,runtime};
- if(action==='status'){const remaining=evaluator&&sdkRemaining?await sdkRemaining():null;return {runtime:{...runtime,sdk_remaining:remaining,voice_allowance:{remaining,maximum_seconds:180,reset_at:null,reset_condition:'Additional Staging evaluation requires explicit approval. No automatic reset.'}}};}
+ if(action==='status'){const usage=voiceUsage?await voiceUsage('get',{}):null;return {runtime:{...runtime,voice_policy:usage?{state:usage.state,enabled:usage.policy.enabled,maximum_seconds:usage.policy.max_seconds,daily_limit:usage.policy.per_user_daily_sessions,reset_condition:usage.reset_condition}:null}};}
  if(action==='features')return rpc('features',{...args,voice_enabled:false});
  if(action==='tool_test'){
   if(!configResponse.can_edit)throw new AssistantError('settings_edit_required',403);

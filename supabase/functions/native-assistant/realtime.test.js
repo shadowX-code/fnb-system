@@ -4,15 +4,15 @@ import { dispatch } from './handler.js';
 import { sdkBaselineInstructions } from './realtime.js';
 
 const id = '249ec7e0-df75-4145-8a34-ec2baf82f9ef';
-const request = { action:'realtime_sdk_connect', provider:'openai', session_id:id, request_id:id, voice:'cedar' };
+const request = { action:'realtime_sdk_connect', provider:'openai', session_id:id, request_id:id, voice:'cedar', connection_protocol:'server_webrtc_v1' };
 const approved = {
  NATIVE_ASSISTANT_REALTIME_API_KEY:'fixture-only',
  NATIVE_ASSISTANT_REALTIME_APPROVED_USE:'native-assistant-staging-realtime-evaluation',
  NATIVE_ASSISTANT_REALTIME_APPROVAL_REFERENCE:'fixture',
 };
 const fail = () => assert.fail('Must stop before reservation or provider call');
-test('Realtime requires separate authorization and settings edit authority', async () => {
- for (const [get, canEdit] of [[() => undefined, true], [key => approved[key], false]]) {
+test('Realtime requires separate provider authorization', async () => {
+ for (const [get, canEdit] of [[() => undefined, true]]) {
   await assert.rejects(dispatch(request, { rpc:async () => ({ config:{enabled:true}, can_edit:canEdit }), get, reserveRealtime:fail, transport:fail }), { code:'realtime_not_authorized' });
  }
 });
@@ -21,7 +21,7 @@ test('OpenAI conversation startup rejects the retired custom transport', async (
 });
 
 test('Grok receives a separate credential and returns only ephemeral authorization', async () => {
- const grok = { ...request, action:'realtime_connect', provider:'grok', voice:'eve' };
+ const {connection_protocol,...grokBase}=request;const grok = { ...grokBase, action:'realtime_connect', provider:'grok', voice:'eve' };
  const result = await dispatch(grok, {
   rpc: async () => ({ config: { enabled:true, factory_reads_enabled:true }, can_edit:true }),
   get: key => ({
@@ -43,7 +43,7 @@ test('Grok receives a separate credential and returns only ephemeral authorizati
 });
 
 test('Realtime inventory requires canonical permission and a charged reservation', async () => {
- const { voice, ...base } = request;
+ const { voice, connection_protocol, ...base } = request;
  const tool = { ...base, action:'realtime_tool', arguments:{ query:'Sauce', availability:'low' } };
  const ctx = { rpc:async()=>({config:{enabled:true,factory_reads_enabled:true},can_edit:true}), get:key=>approved[key], reserveRealtime:fail, readTool:fail };
  await assert.rejects(dispatch(tool,ctx),{code:'factory_read_denied'});
@@ -55,30 +55,15 @@ test('Realtime inventory requires canonical permission and a charged reservation
  assert.equal(result.query,'Sauce');
 });
 
-test('SDK baseline reserves before minting and never exposes the configured API key', async () => {
- const body = request;
- const ctx = {
-  rpc:async()=>({config:{enabled:true},can_edit:true}), get:key=>approved[key],
-  transport:async (url,init)=>{
-   assert.equal(url,'https://api.openai.com/v1/realtime/client_secrets');
-   assert.equal(init.method,'POST');
-   assert.deepEqual(JSON.parse(init.body),{
-    expires_after:{anchor:'created_at',seconds:60},
-    session:{
-     type:'realtime',
-     model:'gpt-realtime-2.1-mini',
-     instructions:sdkBaselineInstructions,
-     output_modalities:['audio'],
-     audio:{output:{voice:'cedar'}},
-    },
-   });
-   return Response.json({value:'ek_fixture_token'});
-  },
- };
- await assert.rejects(dispatch(body,{...ctx,reserveRealtime:async()=>{throw new Error('quota');},transport:fail}),/quota/);
- const result=await dispatch(body,{...ctx,reserveRealtime:async action=>assert.ok(['sdk_baseline','sdk_issued'].includes(action))});
- assert.equal(result.client_secret,'ek_fixture_token');
+test('SDK admission issues a scoped server ticket without a provider call or fixed allowance', async () => {
+ const order=[];
+ const ctx={rpc:async()=>({config:{enabled:true},can_edit:false}),get:key=>approved[key],transport:fail,
+  issueVoiceTicket:async(args,config)=>{order.push('ticket');assert.equal(args.voice,'cedar');assert.ok(config.instructions);return {client_secret:'ek_fx_fixture',webrtc_url:'fixed-server-route'};},
+  reserveRealtime:async(action)=>{order.push(action);return {state:'reserved'};}};
+ const result=await dispatch(request,ctx);
+ assert.equal(result.client_secret,'ek_fx_fixture');assert.deepEqual(order,['sdk_baseline','ticket','sdk_issued']);
  assert.ok(!JSON.stringify(result).includes(approved.NATIVE_ASSISTANT_REALTIME_API_KEY));
+ await assert.rejects(dispatch(request,{...ctx,reserveRealtime:async()=>({replayed:true,state:'active'})}),{code:'voice_session_active'});
 });
 
 test('SDK startup classifies provider rejections without disclosing response text or unsafe metadata', async () => {

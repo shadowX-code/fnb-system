@@ -44,9 +44,12 @@ export async function verifyVoiceProvider(args, registry, {signal,transport,rese
  try {
   entry = await registry('test_key',args);
   const get = credentialEnvironment(args.provider,entry);
+  if(args.provider==='openai')await reserveRealtime('server_claim',args);
   const result = args.provider==='openai'
    ? await createRealtimeCall({sdp:args.sdp,voice:'cedar',tools:[],transcription:false},get,{signal,transport})
    : await createGrokSession(get,{signal,transport});
+  if(args.provider==='openai'&&!result.call_id)throw new AssistantError('realtime_call_binding_failed',502);
+  if(args.provider==='openai')await reserveRealtime('server_bind',{...args,call_id:result.call_id,provider_revision:entry.revision});
   if(args.provider==='grok')await testGrok(result.client_secret,signal);
   await registry('test_finish',{provider:args.provider,revision:entry.revision});
   return args.provider==='openai'?{outcome:'verified',sdp:result.sdp}:{outcome:'verified'};

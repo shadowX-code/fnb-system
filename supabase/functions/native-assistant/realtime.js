@@ -38,14 +38,10 @@ export async function createRealtimeCall({ sdp, voice, tools, transcription = tr
  } catch {
   throw new AssistantError('realtime_unavailable', 502);
  }
- if (!response.ok) {
-  await response.body?.cancel();
-  const code = ({401:'realtime_permission_denied',403:'realtime_permission_denied',404:'realtime_model_unavailable',429:'realtime_rate_limited'})[response.status] || 'realtime_unavailable';
-  throw new AssistantError(code, 502, { source: 'openai', http_status: response.status, endpoint, model: realtimeModel });
- }
+ if(!response.ok)await rejectRealtime(response,endpoint);
  const answer = await response.text();
  if (!answer.startsWith('v=0') || answer.length > 24000) throw new AssistantError('realtime_unavailable', 502);
- return { sdp: answer };
+ return { sdp: answer, call_id: response.headers.get('Location')?.split('/').pop() };
 }
 
 // This baseline is intentionally isolated from conversation history and business tools.
@@ -69,7 +65,13 @@ export async function createSdkVoiceSecret(voice, get, { signal, transport = fet
  } catch {
   throw new AssistantError('realtime_unavailable', 502);
  }
- if (!response.ok) {
+ if(!response.ok)await rejectRealtime(response,endpoint);
+ const result = await response.json().catch(() => null);
+ if (typeof result?.value !== 'string' || !/^ek_[A-Za-z0-9_-]{8,2048}$/.test(result.value)) throw new AssistantError('realtime_unavailable', 502);
+ return { client_secret: result.value, model: realtimeModel, instructions: sdkBaselineInstructions };
+}
+
+async function rejectRealtime(response,endpoint){
   const error = await providerJson(response, 16384).then(body => body?.error).catch(() => null);
   const categories = {
    insufficient_quota: 'provider_quota_exhausted',
@@ -112,10 +114,7 @@ export async function createSdkVoiceSecret(voice, get, { signal, transport = fet
   }
   const requestId = response.headers.get('x-request-id') || '';
   if (/^req_[A-Za-z0-9_-]{1,100}$/.test(requestId)) diagnostic.request_id = requestId;
-  console.warn('Native Assistant SDK startup rejected', JSON.stringify({ code, ...diagnostic }));
+  console.warn('Native Assistant voice startup rejected', JSON.stringify({ code, ...diagnostic }));
   throw new AssistantError(code, 502, diagnostic);
- }
- const result = await response.json().catch(() => null);
- if (typeof result?.value !== 'string' || !/^ek_[A-Za-z0-9_-]{8,2048}$/.test(result.value)) throw new AssistantError('realtime_unavailable', 502);
- return { client_secret: result.value, model: realtimeModel, instructions: sdkBaselineInstructions };
+
 }

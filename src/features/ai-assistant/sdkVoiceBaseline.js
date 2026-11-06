@@ -1,3 +1,4 @@
+import {assistantErrors} from './nativeAssistantService.js';
 import { createSdkVoiceHistory } from './sdkVoiceHistory.js';
 
 // The SDK owns the peer, microphone, audio, cancellation and all response requests.
@@ -13,7 +14,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
   const run = active;
   if (!run) return;
   active = null;
-  clearTimeout(run.timer);
+  clearTimeout(run.timer);clearInterval(run.heartbeat);
   run.controller.abort();
   run.session?.close();
   if (run.requested) void Promise.all([run.observations, run.history?.close()])
@@ -40,7 +41,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
    const { RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC, tool, backgroundResult } = await import('@openai/agents-realtime');
    if (active !== run) return;
    run.requested = true;
-   const authorization = await call('realtime_sdk_connect', { ...lease, voice }, run.controller.signal);
+   const authorization = await call('realtime_sdk_connect', { ...lease, voice, connection_protocol:'server_webrtc_v1' }, run.controller.signal);
    if (active !== run) return;
    const history = createSdkVoiceHistory({
     async write(turn_id, step, text) {
@@ -65,7 +66,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     },
    }));
    const agent = new RealtimeAgent({ name: 'FeedX voice assistant', instructions: authorization.instructions, tools });
-   const transport = new OpenAIRealtimeWebRTC();
+   const transport = new OpenAIRealtimeWebRTC(authorization.webrtc_url?{baseUrl:authorization.webrtc_url}:{});
    const session = new RealtimeSession(agent, {
     model: authorization.model,
     transport,
@@ -133,7 +134,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     }
    });
    session.on('error', () => {
-    if (active === run) stop('The SDK reported a Realtime error.', 'error');
+    if (active === run && run.connected) stop('The SDK reported a Realtime error.', 'error');
    });
    transport.on('connection_change', status => {
     if(['connecting','connected','disconnected'].includes(status))event('webrtc_'+status);
@@ -144,7 +145,8 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
    run.connected = true;
    run.observations=call('realtime_sdk_observe',{...lease,milestone:'connected'}).catch(()=>{});
    clearTimeout(run.timer);
-   run.timer = setTimeout(() => stop('The three-minute evaluation ended.'), 180000);
+   run.timer = setTimeout(() => stop('The session duration limit was reached.'), (authorization.maximum_seconds||180)*1000);
+   if(authorization.webrtc_url)run.heartbeat=setInterval(()=>{void call('realtime_heartbeat',lease).catch(()=>{if(active===run)stop('Voice session expired or was disabled.','error');});},15000);
    show('listening');
   } catch (error) {
    if (active === run) {
@@ -152,6 +154,8 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     const name=safeNames.includes(error.name)?error.name:'unclassified';
     run.report.events.push({ms:Math.round(performance.now()-run.started),event:run.session?'sdk_connect_failed':'sdk_authorization_failed',reason:name});
    }
+   const returnedCode=/["']error["']\s*:\s*["']([a-z_]+)["']/.exec(error.message||'')?.[1];
+   if(returnedCode&&Object.hasOwn(assistantErrors,returnedCode)){error.code=returnedCode;error.message=assistantErrors[returnedCode];}
    if (active === run) stop(error.name === 'NotAllowedError' ? 'Allow microphone access and try again.' : error.code ? error.message : 'The SDK could not connect to OpenAI Realtime.', 'error');
   }
  }

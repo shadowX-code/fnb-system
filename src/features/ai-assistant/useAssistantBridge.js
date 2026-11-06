@@ -141,21 +141,22 @@ export default function useAssistantBridge(frame,userId){
  useEffect(()=>{
   if(!userId)return;
   let bridge;
-  let available={},voiceDefault,sdkRemaining,alive=true,realtime,controllerProvider,voiceLocked=false;
+  let available={},voiceDefault,voicePolicy,alive=true,realtime,controllerProvider,voiceLocked=false,availabilityRefresh;
   function updateRealtime(state){
    voiceLocked=!!state.active||state.state==='connecting';
    bridge?.post('voice_lock',{active:voiceLocked});
    const sdkVoice=voiceDefault?.provider==='openai';
-   setRealtimeState({...state,available,voiceDefault,sdkVoice,sdkRemaining});
+   setRealtimeState({...state,available,voiceDefault,sdkVoice,voicePolicy});
    if(sdkVoice&&state.report)void assistantCall('status').then(({runtime})=>{
     if(!alive)return;
-    sdkRemaining=runtime.sdk_remaining;
-    setRealtimeState(current=>({...current,sdkRemaining}));
+    voicePolicy=runtime.voice_policy;
+    setRealtimeState(current=>({...current,voicePolicy}));
+    clearTimeout(availabilityRefresh);if(voicePolicy?.state==='active_elsewhere')availabilityRefresh=setTimeout(()=>{if(alive&&!voiceLocked)void realtimeRef.current?.refresh();},12000);
    }).catch(()=>{});
   }
   realtimeRef.current={
    async start(provider,voice){
-    if(voiceLocked||provider!==voiceDefault?.provider||!available[provider]||(provider==='openai'&&sdkRemaining===0))return;
+    if(voiceLocked||provider!==voiceDefault?.provider||!available[provider]||(provider==='openai'&&voicePolicy?.state!=='available'))return;
     if(!bridge.getSession()){try{await bridge.ensureSession();}catch(error){updateRealtime({state:'error',message:error.message});return;}}
     bridge.interrupt();
     if(controllerProvider!==provider){
@@ -169,14 +170,14 @@ export default function useAssistantBridge(frame,userId){
     voiceLocked=true;bridge.post('voice_lock',{active:true});
     void realtime.start(provider,voice);
    },
-   async refresh(){if(voiceLocked)return;try{const {runtime}=await assistantCall('status');if(alive&&!voiceLocked){available=runtime.realtime||{};voiceDefault=runtime.voice_default;sdkRemaining=runtime.sdk_remaining;setTextReady(runtime.ready===true);updateRealtime({state:'idle',active:false});}}catch(error){if(alive&&!voiceLocked)updateRealtime({state:'error',message:error.message});}},
+   async refresh(){if(voiceLocked)return;try{const {runtime}=await assistantCall('status');if(alive&&!voiceLocked){available=runtime.realtime||{};voiceDefault=runtime.voice_default;voicePolicy=runtime.voice_policy;setTextReady(runtime.ready===true);updateRealtime({state:'idle',active:false});}}catch(error){if(alive&&!voiceLocked)updateRealtime({state:'error',message:error.message});}},
    stop(){realtime?.stop();},
    resume(){return realtime?.resume?.();},
   };
   bridge=createAssistantBridge({getWindow:()=>frame.current?.contentWindow,userId,onThread:setThread,voice:{
    isActive:()=>voiceLocked,
    stop(){realtime?.stop();},
-   setAvailable(runtime){setTextReady(runtime.ready===true);available=runtime.realtime||{};voiceDefault=runtime.voice_default;sdkRemaining=runtime.sdk_remaining;updateRealtime({state:'idle',active:false});}
+   setAvailable(runtime){setTextReady(runtime.ready===true);available=runtime.realtime||{};voiceDefault=runtime.voice_default;voicePolicy=runtime.voice_policy;updateRealtime({state:'idle',active:false});}
   }});
   bridgeRef.current=bridge;
   // Provider readiness is host-owned and must not wait for the isolated visual program.
@@ -184,7 +185,7 @@ export default function useAssistantBridge(frame,userId){
   const listener=e=>{void bridge.receive(e);};window.addEventListener('message',listener);
   frame.current?.contentWindow?.postMessage({protocol,type:'host-ready'},'*');
   const hidden=()=>{if(document.hidden)realtime?.stop();};document.addEventListener('visibilitychange',hidden);
-  return()=>{alive=false;document.removeEventListener('visibilitychange',hidden);window.removeEventListener('message',listener);bridge.destroy();bridgeRef.current=null;realtimeRef.current=null;};
+  return()=>{alive=false;clearTimeout(availabilityRefresh);document.removeEventListener('visibilitychange',hidden);window.removeEventListener('message',listener);bridge.destroy();bridgeRef.current=null;realtimeRef.current=null;};
  },[frame,userId]);
  const setHudView=useCallback(immersive=>{
   frame.current?.contentWindow?.postMessage({protocol,type:'view',immersive},'*');
