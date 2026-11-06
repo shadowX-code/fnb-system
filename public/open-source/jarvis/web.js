@@ -155,10 +155,11 @@ let handle=function(text){text=text.trim();if(!text)return;if(document.body.data
  else{activeRequest='';setState('idle');showNotice('Language model unavailable. Your request was not sent and no AI answer was generated.',true);}
 };
 // Sandboxed frames deliberately disallow form submission; use explicit local actions.
-function sendLocalRequest(){if(document.body.dataset.voiceLocked==='true'){handle(input.value);return;}handle(input.value);input.value='';}
+function sendLocalRequest(){if(document.body.dataset.voiceLocked==='true'){handle(input.value);return;}handle(input.value);input.value='';fitComposer();}
 submit.onclick=sendLocalRequest;
 input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();sendLocalRequest();}});
-input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(110,input.scrollHeight)+'px';});
+function fitComposer(){input.style.height='auto';const height=Math.max(40,Math.min(110,input.scrollHeight));input.style.height=height+'px';document.body.style.setProperty('--composer-space',(height+24)+'px');}
+input.addEventListener('input',fitComposer);composePanel.addEventListener('toggle',fitComposer);addEventListener('resize',fitComposer);
 $('#form').addEventListener('submit',event=>event.preventDefault());
 $('#webNew').onclick=()=>{if(connected){request('new');return;}activeRequest='';captureEpoch++;currentSession={id:crypto.randomUUID(),messages:[]};input.value='';renderMessages();setState('idle');showNotice('New conversation. No model is connected; history stays in this tab.');input.focus();};
 older.onclick=()=>{older.disabled=true;request('older');};

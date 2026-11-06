@@ -257,3 +257,7 @@
 .assistant-fullscreen .assistant-voice-dock{width:min(410px,42%);background:none}
 @media(max-width:800px){.assistant-voice-dock,.assistant-fullscreen .assistant-voice-dock{width:calc(100% - 40px);max-width:360px}.assistant-audio-bands{max-width:340px}.assistant-voice-dock details[open]{background:#0a202cf5}.assistant-voice-dock details .btn-ghost{min-height:44px}}
 @media(prefers-reduced-motion:reduce){.assistant-audio-bands line{transition:none}.assistant-page .assistant-voice-dock .assistant-mic-control{box-shadow:0 0 0 5px #64e3de18}}
+@media(max-width:800px){
+ .assistant-fullscreen .assistant-stage{flex:1 1 0;min-height:720px}
+ .assistant-fullscreen .assistant-stage .assistant-frame{height:100%;min-height:720px}
+}
