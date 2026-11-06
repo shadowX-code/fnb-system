@@ -20,3 +20,15 @@ it('provides window fullscreen when native fullscreen is rejected and restores b
   expect(document.body.style.overflow).toBe(previousOverflow);
   unmount(); host.remove();
 });
+
+it('supports in-window Assistant mode and leaves nested modal Escape to its dialog',async()=>{
+ const root=document.createElement('section'),dialog=document.createElement('aside');dialog.setAttribute('role','dialog');root.append(dialog);document.body.append(root);
+ root.requestFullscreen=vi.fn();
+ const {result,unmount}=renderHook(()=>useNetworkFullscreen({current:root},{native:false}));
+ await act(async()=>result.current.toggleFullscreen());
+ expect(result.current.fullscreen).toBe(true);expect(root.requestFullscreen).not.toHaveBeenCalled();
+ act(()=>dialog.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true})));
+ expect(result.current.fullscreen).toBe(true);
+ act(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true})));
+ expect(result.current.fullscreen).toBe(false);unmount();root.remove();
+});

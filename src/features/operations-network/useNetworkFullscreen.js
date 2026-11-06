@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-export default function useNetworkFullscreen(rootRef) {
+export default function useNetworkFullscreen(rootRef, { native = true } = {}) {
   const [fullscreen, setFullscreen] = useState(false), [notice, setNotice] = useState('');
   const nativeEntered = useRef(false), request = useRef(0);
   useEffect(() => {
@@ -21,7 +21,7 @@ export default function useNetworkFullscreen(rootRef) {
     }
     document.body.style.overflow = 'hidden';
     const escape = event => {
-      if (event.key === 'Escape' && !event.defaultPrevented && !document.fullscreenElement) {
+      if (event.key === 'Escape' && !event.defaultPrevented && !event.target.closest?.('[role="dialog"]') && !document.fullscreenElement) {
         event.preventDefault(); request.current++; setFullscreen(false); setNotice('');
       }
     };
@@ -41,6 +41,7 @@ export default function useNetworkFullscreen(rootRef) {
       return;
     }
     setFullscreen(true);
+    if (!native) return;
     try { await rootRef.current.requestFullscreen(); }
     catch { if (request.current === generation) setNotice('Canvas expanded to fill this window. Press Escape or Exit fullscreen to return.'); }
   }

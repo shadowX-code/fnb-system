@@ -13,7 +13,7 @@ export default function AiAssistantPage({ ui, auth }) {
   const {provider,voice:preferredVoice}=realtimeState.voiceDefault||{};
   const realtimeSelected = Object.hasOwn(voiceOptions, provider);
   const realtimeAvailable = realtimeState.available?.[provider];
-  const { fullscreen, notice, toggleFullscreen } = useNetworkFullscreen(root);
+  const { fullscreen, notice, toggleFullscreen } = useNetworkFullscreen(root, { native: false });
   useEffect(()=>setHudView(fullscreen),[fullscreen,setHudView]);
   const [drawer,setDrawer]=useState(null),[threadError,setThreadError]=useState('');
   const voiceLocked=realtimeState.active||realtimeState.state==='connecting';

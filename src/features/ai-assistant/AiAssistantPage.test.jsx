@@ -53,3 +53,16 @@ it('distributes editable GPL source and denies network connections for this stat
   expect(readFileSync('public/open-source/jarvis/source.zip').length).toBeGreaterThan(10000);
   const page=readFileSync('src/features/ai-assistant/AiAssistantPage.jsx','utf8');expect(page).not.toMatch(/from.*open-source|postMessage/);
 });
+
+it('switches Assistant view in-window without requesting native fullscreen or replacing the Core',()=>{
+ const native=vi.fn();Element.prototype.requestFullscreen=native;
+ render(<AiAssistantPage/>);
+ const core=screen.getByTitle('FeedX AI Assistant — isolated Jarvis conversation HUD');
+ fireEvent.click(screen.getByRole('button',{name:'Immersive view'}));
+ expect(screen.getByRole('button',{name:'Standard view'})).toBeTruthy();
+ expect(screen.getByTitle('FeedX AI Assistant — isolated Jarvis conversation HUD')).toBe(core);
+ expect(native).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Standard view'}));
+ expect(screen.getByTitle('FeedX AI Assistant — isolated Jarvis conversation HUD')).toBe(core);
+ delete Element.prototype.requestFullscreen;
+});
