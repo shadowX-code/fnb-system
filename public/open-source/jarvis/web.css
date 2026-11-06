@@ -403,3 +403,11 @@ body:not(.web-immersive) .web-core-caption p{font-size:10px}
  .web-immersive .web-dock{bottom:8px!important;left:10px!important;right:10px!important;width:auto!important}
  .web-immersive #webComposePanel>summary{min-height:44px}
 }
+#webMessages p:empty{display:none}
+body:not(.web-immersive) #stage{height:auto;aspect-ratio:1 / 1.05;max-height:calc(100% - 180px);top:30px;bottom:auto}
+@media(max-width:800px){
+ body:not(.web-immersive) #stage{height:225px;aspect-ratio:auto;max-height:none;top:0}
+ .web-immersive #stage{height:275px}
+ .web-immersive .web-conversation{top:275px;bottom:70px}
+ .web-immersive .web-core-caption{left:auto;right:8px;top:8px;width:auto;max-width:none}
+}

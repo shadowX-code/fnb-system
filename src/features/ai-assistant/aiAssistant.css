@@ -240,3 +240,5 @@
  .assistant-fullscreen .assistant-stage>.assistant-view-switch{top:8px;left:8px;bottom:auto;min-height:44px}
 }
 @media(prefers-reduced-motion:reduce){.assistant-dock-wave path,.assistant-page .assistant-mic-control{transition:none!important}}
+.assistant-voice-dock .assistant-voice-availability .assistant-voice-refresh{position:static;display:inline-flex;margin-top:4px;min-height:34px}
+@media(max-width:800px){.assistant-voice-dock summary{min-height:44px;padding:12px 8px}.assistant-voice-availability .btn-ghost{min-height:44px}}
