@@ -7,7 +7,7 @@ function setup(){
  vi.stubEnv('CREATOR_INSPECTION_ENVIRONMENT','staging');vi.stubEnv('CREATOR_INSPECTION_PROJECT_ID','worker');vi.stubEnv('VERCEL_PROJECT_ID','worker');
  const dependencies={verifyVercelOidcToken:vi.fn().mockResolvedValue({}),inspectPublic:vi.fn().mockResolvedValue({platform:'facebook',metadata_status:'public_extracted'}),inspectProfile:vi.fn(),platformUrl,profileIdentity};
  const res={setHeader:vi.fn(),status(n){this.code=n;return this},json(body){this.body=body;return this}};
- const req={method:'POST',headers:{'x-vercel-trusted-oidc-idp-token':'fixture'},body:{version:1,environment:'staging',kind:'post',url:'https://www.facebook.com/brand/posts/12345',deadline:Date.now()+40000}};
+ const req={method:'POST',headers:{authorization:'Bearer fixture'},body:{version:1,environment:'staging',kind:'post',url:'https://www.facebook.com/brand/posts/12345',deadline:Date.now()+40000}};
  return {dependencies,req,res,run:()=>createInspectionHandler(dependencies)(req,res)};
 }
 it('verifies the exact Staging workload before running the existing bounded extractor',async()=>{
@@ -15,7 +15,7 @@ it('verifies the exact Staging workload before running the existing bounded extr
  expect(s.dependencies.inspectPublic).toHaveBeenCalledExactlyOnceWith(s.req.body.url,{deadline:s.req.body.deadline,allowPaid:false});
 });
 it.each(['missing','invalid','production'])('fails closed for %s identity/configuration',async failure=>{
- const s=setup();if(failure==='missing')delete s.req.headers['x-vercel-trusted-oidc-idp-token'];if(failure==='invalid')s.dependencies.verifyVercelOidcToken.mockRejectedValue(new Error('secret'));if(failure==='production')vi.stubEnv('CREATOR_INSPECTION_ENVIRONMENT','production');
+ const s=setup();if(failure==='missing')delete s.req.headers.authorization;if(failure==='invalid')s.dependencies.verifyVercelOidcToken.mockRejectedValue(new Error('secret'));if(failure==='production')vi.stubEnv('CREATOR_INSPECTION_ENVIRONMENT','production');
  await s.run();expect(s.res.code).toBe(failure==='production'?503:401);expect(s.dependencies.inspectPublic).not.toHaveBeenCalled();expect(JSON.stringify(s.res.body)).not.toContain('secret');
 });
 it.each(['expired','unbounded','ssrf','options','environment'])('rejects %s before browser work',async failure=>{
