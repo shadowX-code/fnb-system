@@ -27,3 +27,5 @@ Conversation refinement, 2026-11-06:
 - historical business replies are not reused as current operational evidence.
 
 Voice turn outcomes may include an actual partial reply and voice_details.reason from a fixed allowlist. Partial replies are never presented as completed answers. The host may send a bounded voice_level observation from SDK peer statistics; the isolated HUD never captures audio. View changes preserve the same frame and conversation.
+
+voice_level may carry twenty bounded frequency bands from the SDK-owned input/output track analyser. Silence and unsupported/suspended analysis produce zero bands. Hidden pages pause visualization only. Reconnecting, suspension and ending are real lifecycle presentation states. The one text composer supports Shift+Enter for a newline and Enter to send; it remains read-only during Voice.

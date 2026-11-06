@@ -30,12 +30,7 @@ const hudPaths={
  spark:'M12 3c0 6-3 9-9 9 6 0 9 3 9 9 0-6 3-9 9-9-6 0-9-3-9-9z',
 };
 const hudIcon=name=>`<svg class="web-hud-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${hudPaths[name]}"/></svg>`;
-const voiceWave=`<svg class="web-signal" viewBox="0 0 240 40" aria-hidden="true">
- <path class="web-wave-baseline" d="M0 20h240"/>
- <path class="web-wave-echo" d="M0 20Q21 17 36 21T63 20Q76 14 88 21T111 22Q125 12 139 21T162 22Q173 15 184 21T205 20Q222 20 240 20"/>
- <path class="web-wave-echo" d="M0 20Q19 22 33 19T60 22Q71 26 84 19T108 20Q122 29 135 20T160 19Q172 26 183 20T207 19Q223 22 240 20"/>
- <path class="web-wave-main" d="M0 20C15 20 21 24 31 20S47 17 55 21S70 29 81 18S96 9 106 20S122 30 134 17S150 8 161 20S176 27 188 20S203 18 212 20S226 20 240 20"/>
-</svg>`;
+const voiceWave=`<svg class="web-real-audio" viewBox="0 0 240 48" aria-hidden="true">${Array.from({length:20},(_,i)=>`<line x1="${i*12+5}" x2="${i*12+5}" y1="3" y2="45" style="transform-origin:${i*12+5}px 24px;transform:scaleY(calc(.025 + var(--voice-band-${i},0)*.975))"/>`).join('')}</svg>`;
 const activityWave=`<svg class="web-event-wave" viewBox="0 0 80 24" aria-hidden="true"><path d="M0 21h8l4-2 5 1 5-3 5-5 3 1 5-8 4 4 4 5 4-2 5 5 6 2 6 1h16v2H0z"/></svg>`;
 
 const web=document.createElement('section');web.id='assistantWeb';
@@ -64,7 +59,7 @@ const composeSummary=document.createElement('summary');composeSummary.textConten
 input.setAttribute('aria-label','Message AI Assistant');input.placeholder='Ask FeedX…';input.maxLength=2000;
 $('#mic').setAttribute('aria-label','Microphone unavailable');$('#mic').setAttribute('aria-disabled','true');$('#mic').title='No authorized speech recognition service is connected';
 const submit=document.createElement('button');submit.type='button';submit.id='webSend';submit.textContent='Send';$('#form').appendChild(submit);
-function showNotice(text,error=false){notice.textContent=text;notice.setAttribute('role',error?'alert':'status');notice.dataset.error=String(error);}
+function showNotice(text,error=false){submit.disabled=!!activeRequest||document.body.dataset.voiceLocked==='true';submit.textContent=activeRequest?'Sending…':'Send';notice.textContent=text;notice.setAttribute('role',error?'alert':'status');notice.dataset.error=String(error);}
 function renderIntelligence(){
  const messages=currentSession.messages;
  const reads=messages.filter(m=>m.evidence?.capability==='read_factory_finished_goods');
@@ -162,7 +157,8 @@ let handle=function(text){text=text.trim();if(!text)return;if(document.body.data
 // Sandboxed frames deliberately disallow form submission; use explicit local actions.
 function sendLocalRequest(){if(document.body.dataset.voiceLocked==='true'){handle(input.value);return;}handle(input.value);input.value='';}
 submit.onclick=sendLocalRequest;
-input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isComposing){event.preventDefault();sendLocalRequest();}});
+input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();sendLocalRequest();}});
+input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(110,input.scrollHeight)+'px';});
 $('#form').addEventListener('submit',event=>event.preventDefault());
 $('#webNew').onclick=()=>{if(connected){request('new');return;}activeRequest='';captureEpoch++;currentSession={id:crypto.randomUUID(),messages:[]};input.value='';renderMessages();setState('idle');showNotice('New conversation. No model is connected; history stays in this tab.');input.focus();};
 older.onclick=()=>{older.disabled=true;request('older');};
@@ -215,7 +211,7 @@ addEventListener('message',event=>{
  if(d.type==='voice_lock'){
   document.body.dataset.voiceLocked=String(d.active===true);
   submit.disabled=$('#webNew').disabled=d.active===true;
-  input.readOnly=d.active===true;
+  input.readOnly=d.active===true;input.placeholder=d.active?'End Voice to type a message…':'Ask FeedX…';
   return;
  }
  if(d.type==='bootstrap'||d.type==='runtime'){
@@ -264,12 +260,12 @@ addEventListener('message',event=>{
   renderMessages();return;
  }
  if(d.type==='voice_error'){showNotice(d.message||'Voice service unavailable.',true);return;}
- if(d.type==='voice_level'){window.FEEDX_AUDIO_LEVEL=Math.max(0,Math.min(1,Number(d.level)||0));return;}
+ if(d.type==='voice_level'){d.bands?.slice(0,20).forEach((value,i)=>document.body.style.setProperty('--voice-band-'+i,String(Math.max(0,Math.min(1,Number(value)||0)))));window.FEEDX_AUDIO_LEVEL=Math.max(0,Math.min(1,Number(d.level)||0));return;}
  if(d.type==='voice_state'){
   document.body.dataset.voiceState=d.state;
-  $('#webLiveState').textContent=({connecting:'Connecting',listening:'Listening',transcribing:'Thinking',executing:'Executing',speaking:'Speaking',interrupted:'Interrupted',error:'Error',playback_blocked:'Playback blocked'})[d.state]||'Idle';
+  $('#webLiveState').textContent=({connecting:'Connecting',reconnecting:'Reconnecting',ending:'Ending voice',suspended:'Microphone suspended',listening:'Listening',transcribing:'Thinking',executing:'Executing',speaking:'Speaking',interrupted:'Interrupted',error:'Error',playback_blocked:'Playback blocked'})[d.state]||'Idle';
   activity(({transcribing:'Processing',executing:'Executing',speaking:'Speaking',error:'Error'})[d.state]);
-  const states={interrupted:'listening',listening:'listening',transcribing:'thinking',executing:'executing',speaking:'speaking',error:'error'};window.FEEDX_AUDIO_LEVEL=0;if(states[d.state])setState(states[d.state]);else if(!activeRequest)setState('idle');return;}
+  const states={reconnecting:'thinking',connecting:'thinking',ending:'idle',suspended:'idle',interrupted:'listening',listening:'listening',transcribing:'thinking',executing:'executing',speaking:'speaking',error:'error'};window.FEEDX_AUDIO_LEVEL=0;if(states[d.state])setState(states[d.state]);else if(!activeRequest)setState('idle');return;}
  if(d.request_id!==activeRequest)return;
  if(d.type==='state'&&d.state==='executing'){activity('Executing');setState('executing');showNotice('Reading authorized Factory Finished Goods…');}
  if(d.type==='state'&&d.state==='thinking'){activity('Understanding');setState('thinking');showNotice('Thinking…');}

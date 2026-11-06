@@ -242,3 +242,18 @@
 @media(prefers-reduced-motion:reduce){.assistant-dock-wave path,.assistant-page .assistant-mic-control{transition:none!important}}
 .assistant-voice-dock .assistant-voice-availability .assistant-voice-refresh{position:static;display:inline-flex;margin-top:4px;min-height:34px}
 @media(max-width:800px){.assistant-voice-dock summary{min-height:44px;padding:12px 8px}.assistant-voice-availability .btn-ghost{min-height:44px}}
+/* A single lightweight audio interaction surface; amplitude comes only from real samples. */
+.assistant-voice-dock{width:min(400px,40%);gap:4px}
+.assistant-audio-bands{position:absolute;top:6px;left:50%;width:min(400px,100%);height:64px;transform:translateX(-50%);overflow:visible;pointer-events:none}
+.assistant-audio-bands line{stroke:#7ae5cd;stroke-width:2;stroke-linecap:round;opacity:.85;transition:transform 70ms linear}
+.assistant-page .assistant-voice-dock .assistant-mic-control{box-shadow:0 0 0 calc(5px + var(--voice-level,0)*11px) #64e3de18,0 0 calc(12px + var(--voice-level,0)*24px) #50c8d026,inset 0 0 16px #65ebda22}
+.assistant-voice-dock[data-phase=thinking] .assistant-mic-control,.assistant-voice-dock[data-phase=connecting] .assistant-mic-control,.assistant-voice-dock[data-phase=reconnecting] .assistant-mic-control{border-style:dashed;border-color:#9bbec8}
+.assistant-voice-dock[data-phase=executing] .assistant-mic-control{border-color:#dbbc89}
+.assistant-voice-dock[data-phase=error] .assistant-mic-control{border-color:#d98f83}
+.assistant-voice-dock[data-phase=suspended] .assistant-voice-state{color:#dbbc89}
+.assistant-voice-dock details[open]{max-width:320px;line-height:1.5}
+.assistant-voice-dock details p{font-size:11px}
+.assistant-session-details ol{max-height:160px;overflow:auto;padding-left:15px}
+.assistant-fullscreen .assistant-voice-dock{width:min(410px,42%);background:none}
+@media(max-width:800px){.assistant-voice-dock,.assistant-fullscreen .assistant-voice-dock{width:calc(100% - 40px);max-width:360px}.assistant-audio-bands{max-width:340px}.assistant-voice-dock details[open]{background:#0a202cf5}.assistant-voice-dock details .btn-ghost{min-height:44px}}
+@media(prefers-reduced-motion:reduce){.assistant-audio-bands line{transition:none}.assistant-page .assistant-voice-dock .assistant-mic-control{box-shadow:0 0 0 5px #64e3de18}}

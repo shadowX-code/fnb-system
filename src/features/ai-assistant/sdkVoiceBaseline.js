@@ -1,32 +1,43 @@
+import {createVoiceAudioMeter} from './voiceAudioMeter.js';
 import {assistantErrors} from './nativeAssistantService.js';
 import { createSdkVoiceHistory } from './sdkVoiceHistory.js';
 
 // The SDK owns the peer, microphone, audio, cancellation and all response requests.
 export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
- let active;
+ let active, finishing=false, closing=Promise.resolve();
 
  function show(state, message = '', report) {
+  if(active&&['listening','thinking','executing','speaking','interrupted'].includes(state))active.phase=state;
   onChange({ state, message, active: !!active, report });
   post('voice_state', { state: state === 'thinking' ? 'transcribing' : state });
  }
 
  function stop(message = '', state = 'idle', reason = 'session_ended') {
   const run = active;
-  if (!run) return;
+  if (!run) return closing;
   active = null;
-  clearTimeout(run.timer);clearInterval(run.heartbeat);clearInterval(run.levels);
-  post('voice_level', {level:0});
+  finishing=true;
+  clearTimeout(run.timer);clearInterval(run.heartbeat);
+  run.unwatch?.();run.meter?.close();
+  post('voice_level', {level:0,bands:Array(20).fill(0),source:'none'});
   run.controller.abort();
-  run.session?.close();
-  if (run.requested) void Promise.all([run.observations, run.history?.close(reason)])
-   .then(async () => {await call('voice_usage_report',{request_id:run.lease.request_id,input_audio_tokens:run.report.usageReported?run.report.inputAudio:null,output_audio_tokens:run.report.usageReported?run.report.outputAudio:null,duration_ms:Math.round(performance.now()-run.started)}).catch(()=>{});return call('realtime_end',run.lease);}).catch(() => {});
+  try{run.session?.close();}catch{}
+  if(run.audio){run.audio.pause();run.audio.srcObject=null;}
   run.report.durationMs = Math.round(performance.now() - run.started);
-  show(state, message, run.report);
+  show('ending','Releasing the voice connection…');
+  closing = Promise.all([run.observations, run.history?.close(reason)]).then(async()=>{
+   if(!run.requested)return;
+   await call('voice_usage_report',{request_id:run.lease.request_id,input_audio_tokens:run.report.usageReported?run.report.inputAudio:null,output_audio_tokens:run.report.usageReported?run.report.outputAudio:null,duration_ms:run.report.durationMs}).catch(()=>{});
+   await call('realtime_end',run.lease);
+  }).catch(()=>{message='Voice ended locally. Server cleanup is pending; check availability before reconnecting.';state='error';}).finally(()=>{
+   finishing=false;show(state,message,run.report);
+  });
+  return closing;
  }
 
  async function start(provider, voice) {
   const session_id = getSession();
-  if (provider !== 'openai' || !session_id || active) return;
+  if (provider !== 'openai' || !session_id || active || finishing) return;
   const lease = { session_id, request_id: crypto.randomUUID(), provider };
   const run = {
    lease,
@@ -36,6 +47,13 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
    report: { firstAudioMs: null, detectedTurns: 0, startsDuringPlayback: 0, inputAudio: 0, outputAudio: 0, usageReported: false, events: [] },
   };
   active = run;
+  run.phase='listening';
+  run.meter=createVoiceAudioMeter({phase:()=>run.phase,emit:value=>{
+   if(active!==run)return;
+   post('voice_level',value);
+   if(value.level>0){run.report.audioSamples=(run.report.audioSamples||0)+1;run.report.peakLevel=Math.max(run.report.peakLevel||0,value.level);run.report.audioSources={...run.report.audioSources,[value.source]:true};}
+  }});
+  void run.meter.resume();
   show('connecting');
   run.timer = setTimeout(() => stop('The SDK connection timed out.', 'error'), 25000);
   try {
@@ -67,7 +85,9 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     },
    }));
    const agent = new RealtimeAgent({ name: 'FeedX voice assistant', instructions: authorization.instructions, tools });
-   const transport = new OpenAIRealtimeWebRTC(authorization.webrtc_url?{baseUrl:authorization.webrtc_url}:{});
+   const audio=document.createElement('audio');audio.autoplay=true;audio.setAttribute('playsinline','');run.audio=audio;
+   const transport = new OpenAIRealtimeWebRTC({...authorization.webrtc_url?{baseUrl:authorization.webrtc_url}:{},audioElement:audio});
+   run.transport=transport;
    const session = new RealtimeSession(agent, {
     model: authorization.model,
     transport,
@@ -147,23 +167,56 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
    run.observations=call('realtime_sdk_observe',{...lease,milestone:'connected'}).catch(()=>{});
    clearTimeout(run.timer);
    run.timer = setTimeout(() => stop('The session duration limit was reached. Start voice to continue.', 'idle', 'session_expired'), (authorization.maximum_seconds||180)*1000);
-   if(authorization.webrtc_url)run.heartbeat=setInterval(()=>{void call('realtime_heartbeat',lease).catch(()=>{if(active===run)stop('Voice session could not be renewed. Check availability before reconnecting.','error','lease_failed');});},15000);
-   // Observe the SDK-owned peer; never open another microphone or playback controller.
-   let readingLevels = false;
-   run.levels = setInterval(async () => {
-    const peer = transport.connectionState.peerConnection;
-    if (active !== run || readingLevels || !peer) return;
-    readingLevels = true;
-    try {
-     const stats = await peer.getStats();
-     let level = 0;
-     stats.forEach(entry => {
-      if ((speaking ? entry.type === 'inbound-rtp' : entry.type === 'media-source') && entry.kind === 'audio' && Number.isFinite(entry.audioLevel)) level = Math.max(level, entry.audioLevel);
-     });
-     if (active === run) post('voice_level', {level:Math.min(1,level*4)});
-    } catch { /* Audio levels are optional browser telemetry. */ }
-    finally { readingLevels = false; }
-   }, 150);
+   run.deadline=Date.now()+(authorization.maximum_seconds||180)*1000;
+   run.lastLease=Date.now();
+   function leaseFailure(error){
+    if(active!==run)return;
+    if(error.code==='voice_session_expired')return stop('Voice expired or was revoked. Reconnect voice to continue.','error','session_expired');
+    if(Date.now()-run.lastLease>=30000)return stop('The voice lease could not be checked. Reconnect after availability is restored.','error','lease_failed');
+    event('lease_check_deferred','reconnecting');
+   }
+   let checking;
+   run.reconcile=()=>{
+    if(active!==run)return Promise.resolve();
+    if(document.hidden){event('page_background');run.meter.pause();return Promise.resolve();}
+    if(checking)return checking;
+    checking=(async()=>{
+     if(Date.now()>=run.deadline){await stop('Voice expired. Start voice to continue.','idle','session_expired');return;}
+     try{
+      const checked=await call('realtime_heartbeat',lease);
+      if(active!==run)return;
+      run.lastLease=Date.now();
+      if(checked.expires_at){run.deadline=Date.parse(checked.expires_at);clearTimeout(run.timer);run.timer=setTimeout(()=>stop('Voice expired. Start voice to continue.','idle','session_expired'),Math.max(0,run.deadline-Date.now()));}
+      const peer=transport.connectionState.peerConnection;
+      const microphone=peer?.getSenders().find(s=>s.track?.kind==='audio')?.track;
+      if(!peer||['closed','failed'].includes(peer.connectionState)||microphone?.readyState==='ended'){
+       await stop('Voice disconnected or its microphone ended. Reconnect voice to continue.','error','transport_disconnected');return;
+      }
+      if(peer.connectionState==='disconnected'||transport.connectionState.dataChannel?.readyState!=='open'){
+       event('background_reconciling','reconnecting');return;
+      }
+      await run.meter.resume(peer);
+      if(microphone?.muted){show('suspended','The browser has suspended the microphone. Keep this tab active, or end and restart Voice.');return;}
+      if(audio.paused&&audio.srcObject){try{await audio.play();}catch{show('playback_blocked','Tap Resume audio to continue the existing call.');return;}}
+      if(active===run){event('session_reconciled');show(run.phase);}
+     }catch(error){await leaseFailure(error);}
+    })().finally(()=>{checking=null;});
+    return checking;
+   };
+   if(authorization.webrtc_url)run.heartbeat=setInterval(()=>{
+    // Keep the bounded lease alive in background tabs; visualization alone is suspended.
+    if(document.hidden){void call('realtime_heartbeat',lease).then(()=>{if(active===run)run.lastLease=Date.now();}).catch(leaseFailure);}
+    else void run.reconcile();
+   },15000);
+   const peer=transport.connectionState.peerConnection;
+   const changed=()=>{if(active!==run)return;if(peer.connectionState==='disconnected')event('peer_recovering','reconnecting');else if(peer.connectionState==='connected')void run.reconcile();};
+   peer?.addEventListener('connectionstatechange',changed);
+   const microphone=peer?.getSenders().find(s=>s.track?.kind==='audio')?.track;
+   const mediaChanged=()=>void run.reconcile();
+   for(const type of ['ended','mute','unmute'])microphone?.addEventListener?.(type,mediaChanged);
+   run.unwatch=()=>{peer?.removeEventListener('connectionstatechange',changed);for(const type of ['ended','mute','unmute'])microphone?.removeEventListener?.(type,mediaChanged);};
+   await run.meter.resume(peer);
+   void run.reconcile();
    show('listening');
   } catch (error) {
    if (active === run) {
@@ -177,5 +230,5 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
   }
  }
 
- return { start, stop };
+ return { start, stop, reconcile(){return active?.reconcile?.();}, async resume(){const run=active;if(!run)return;try{await run.audio?.play();await run.reconcile?.();}catch{if(active===run)show('playback_blocked','Audio is still paused by the browser. Keep this tab active and try Resume audio.');}} };
 }

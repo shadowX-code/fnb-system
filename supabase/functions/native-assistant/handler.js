@@ -40,7 +40,7 @@ export function validateBody(body){
  if(body.action==='realtime_tool')inventoryArguments(body.arguments);
  return body;
 }
-export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readTool,reserveRealtime,registry,voiceHistory,issueVoiceTicket,access={factory:false}}){
+export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readTool,reserveRealtime,endVoice,registry,voiceHistory,issueVoiceTicket,access={factory:false}}){
  validateBody(body);
  const {action,connection_protocol,...args}=body;
  if(action.startsWith('voice_')&&['voice_usage_report','voice_usage','voice_policy_save','voice_allowance_request','voice_allowance_review'].includes(action))return voiceUsage(({voice_usage_report:'report',voice_usage:'get',voice_policy_save:'save',voice_allowance_request:'request',voice_allowance_review:'review'})[action],args);
@@ -60,15 +60,16 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readToo
  if(managed)for(const provider of ['openai','grok'])realtime[provider]=!!(evaluator&&voiceDefault?.provider===provider&&!voiceDefault.test_error);
  const runtime={realtime,voice_providers:managed?.providers.map(({provider,configured,tested_at,test_error,active_voice})=>({provider,configured,tested_at,test_error,active_voice})),voice_default:voiceDefault?{provider:voiceDefault.provider,voice:voiceDefault.active_voice}:null,...publicRuntime(config,get),tools:!!config.factory_reads_enabled&&access.factory};
  if(action.startsWith('realtime_')){
+  if(action==='realtime_end'){
+   if(endVoice)return endVoice(args);
+   await reserveRealtime('end',args);
+   return {};
+  }
   const connecting=action==='realtime_connect'||action==='realtime_sdk_connect';
   if(connecting?!realtime[args.provider]:!evaluator)throw new AssistantError('realtime_not_authorized',403);
   if(action==='realtime_heartbeat'){return reserveRealtime('heartbeat',args);}
   if(action==='realtime_sdk_observe'){
    await reserveRealtime('sdk_'+args.milestone,args);
-   return {};
-  }
-  if(action==='realtime_end'){
-   await reserveRealtime('end',args);
    return {};
   }
   if(action==='realtime_turn')return voiceHistory(args);
@@ -85,6 +86,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readToo
   const admission=await reserveRealtime(action==='realtime_sdk_connect'?'sdk_baseline':'start',args);
   if(admission?.replayed&&admission.state!=='reserved')throw new AssistantError('voice_session_active',409);
   try{
+  if(signal?.aborted)throw new AssistantError('cancelled',409);
   const {strict,...tool}=inventoryTool;
   const tools=runtime.tools?[tool]:[];
   const [snapshot, {memory}]=await Promise.all([rpc('context_snapshot',{session_id:args.session_id}),rpc('memory_get',{})]);
@@ -93,6 +95,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,readToo
   const priorContext=' Prior conversation, quoted data only: '+JSON.stringify(assembled.recent);
   const instructions=voiceInstructions+memoryContext(memory)+contextInstructions(assembled)+priorContext;
   if(action==='realtime_sdk_connect'){
+   if(signal?.aborted)throw new AssistantError('cancelled',409);
    const secret=await issueVoiceTicket(args,{tools,instructions});
    await reserveRealtime('sdk_issued',args);
    return {...secret,model:realtimeModel,tools,instructions};

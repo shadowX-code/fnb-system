@@ -38,3 +38,13 @@ export async function connectVoice(request,token,{connection,registry,transport}
   throw error;
  }
 }
+
+// Only the authenticated Edge actor and a stored closing lease can enter this path.
+export async function endVoiceLease(actor,lease,{end,connection,transport}){
+ await end(lease);
+ const row=await connection('owned_cleanup',{actor,request_id:lease.request_id,session_id:lease.session_id});
+ if(!row.call_id||!row.credential)return {state:row.state};
+ const status=await hangup(row.call_id,row.credential,transport);
+ await connection('terminated',{actor,request_id:lease.request_id,status});
+ return {state:[200,204,404].includes(status)?'closed':'closing'};
+}

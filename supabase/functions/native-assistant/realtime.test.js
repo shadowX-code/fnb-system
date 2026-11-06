@@ -92,3 +92,16 @@ test('SDK startup classifies provider rejections without disclosing response tex
   });
  }
 });
+
+
+test('an owned End remains available when Assistant provider readiness is disabled',async()=>{
+ const {voice,connection_protocol,...base}=request;
+ const result=await dispatch({...base,action:'realtime_end'},{rpc:async()=>({config:{enabled:false}}),get:()=>undefined,endVoice:async args=>{assert.equal(args.request_id,id);return {state:'closed'};},transport:fail});
+ assert.deepEqual(result,{state:'closed'});
+});
+
+test('cancelled SDK authorization cannot leave a late ticket after the client has ended startup',async()=>{
+ const controller=new AbortController();controller.abort();const actions=[];
+ await assert.rejects(dispatch(request,{signal:controller.signal,rpc:async()=>({config:{enabled:true}}),get:key=>approved[key],reserveRealtime:async action=>{actions.push(action);return{state:'reserved'};},issueVoiceTicket:fail,transport:fail}),{code:'cancelled'});
+ assert.deepEqual(actions,['sdk_baseline','end']);
+});

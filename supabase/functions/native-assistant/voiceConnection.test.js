@@ -26,3 +26,12 @@ test('cleanup only hangs up stored call IDs, reports outcome, and never creates 
  assert.deepEqual(result,{processed:1});assert.equal(calls,1);assert.deepEqual(actions,['cleanup','terminated']);
  await assert.rejects(hangup('../../other',entry.credential,()=>assert.fail('SSRF')),{code:'realtime_unavailable'});
 });
+
+test('explicit End reconciles the exact owner and stored call once, without returning credentials',async()=>{
+ const {endVoiceLease}=await import('./voiceConnection.js');let count=0;const actions=[];
+ const deps={end:async lease=>{assert.equal(lease.request_id,'lease');actions.push('end');},connection:async(action,p)=>{actions.push(action);assert.equal(p.actor,'authenticated-caller');assert.equal(p.request_id,'lease');return action==='owned_cleanup'?{state:'closing',call_id:'rtc_fixture',credential:'server-only'}:{};},transport:async()=>{count++;return new Response(null,{status:204});}};
+ const result=await endVoiceLease('authenticated-caller',{request_id:'lease',session_id:'session'},deps);
+ assert.deepEqual(result,{state:'closed'});assert.equal(count,1);assert.deepEqual(actions,['end','owned_cleanup','terminated']);assert.ok(!JSON.stringify(result).includes('server-only'));
+ const pending=await endVoiceLease('authenticated-caller',{request_id:'lease',session_id:'session'},{...deps,transport:async()=>new Response(null,{status:503})});
+ assert.deepEqual(pending,{state:'closing'});
+});

@@ -1,0 +1,27 @@
+import {it,expect,vi} from 'vitest';
+import {renderHook,waitFor,act} from '@testing-library/react';
+vi.mock('./nativeAssistantService.js',()=>({assistantCall:vi.fn()}));
+vi.mock('./sdkVoiceBaseline.js',()=>({createSdkVoiceBaseline:vi.fn()}));
+import useAssistantBridge from './useAssistantBridge.js';
+import {assistantCall} from './nativeAssistantService.js';
+import {createSdkVoiceBaseline} from './sdkVoiceBaseline.js';
+it('the shared bridge reconciles tab return rather than ending Voice, and retains last-call diagnostics',async()=>{
+ let hidden=false,options;vi.spyOn(document,'hidden','get').mockImplementation(()=>hidden);
+ const sid='10000000-0000-4000-8000-000000000001';
+ const runtime={ready:true,realtime:{openai:true},voice_default:{provider:'openai',voice:'cedar'},voice_policy:{state:'available'}};
+ assistantCall.mockImplementation(async action=>action==='status'?{runtime}:action==='session_list'?{sessions:[{id:sid,title:'Saved conversation'}]}:{turns:[]});
+ const reconcile=vi.fn(),stop=vi.fn();
+ createSdkVoiceBaseline.mockImplementation(o=>{options=o;return{reconcile,stop,start:()=>o.onChange({state:'listening',active:true})};});
+ const frame=document.createElement('iframe');document.body.append(frame);const ref={current:frame};
+ const hook=renderHook(()=>useAssistantBridge(ref,'fixture-user'));
+ await waitFor(()=>expect(hook.result.current.realtimeState.available.openai).toBe(true));
+ await act(async()=>window.dispatchEvent(new MessageEvent('message',{source:frame.contentWindow,origin:'null',data:{protocol:'feedx.assistant.text.v1',action:'ready'}})));
+ await waitFor(()=>expect(hook.result.current.thread?.id).toBe(sid));
+ await act(async()=>hook.result.current.realtimeRef.current.start('openai','cedar'));
+ hidden=true;act(()=>document.dispatchEvent(new Event('visibilitychange')));hidden=false;act(()=>document.dispatchEvent(new Event('visibilitychange')));
+ expect(reconcile).toHaveBeenCalledTimes(2);expect(stop).not.toHaveBeenCalled();expect(createSdkVoiceBaseline).toHaveBeenCalledTimes(1);
+ const report={durationMs:1000,events:[]};await act(async()=>options.onChange({state:'idle',active:false,report}));
+ await act(async()=>window.dispatchEvent(new Event('focus')));
+ expect(hook.result.current.realtimeState.report).toBe(report);
+ hook.unmount();frame.remove();vi.restoreAllMocks();
+});

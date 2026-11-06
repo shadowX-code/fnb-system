@@ -141,18 +141,25 @@ export default function useAssistantBridge(frame,userId){
  useEffect(()=>{
   if(!userId)return;
   let bridge;
-  let available={},voiceDefault,voicePolicy,alive=true,realtime,controllerProvider,voiceLocked=false,availabilityRefresh;
+  let available={},voiceDefault,voicePolicy,alive=true,realtime,controllerProvider,voiceLocked=false,availabilityRefresh,availabilityUntil=0,lastReport;
   function updateRealtime(state){
-   voiceLocked=!!state.active||state.state==='connecting';
+   if(!alive)return;
+   voiceLocked=!!state.active||['connecting','ending','reconnecting'].includes(state.state);
    bridge?.post('voice_lock',{active:voiceLocked});
    const sdkVoice=voiceDefault?.provider==='openai';
-   setRealtimeState({...state,available,voiceDefault,sdkVoice,voicePolicy});
+   if(state.state==='connecting'&&state.active)lastReport=undefined;
+   if(state.report)lastReport=state.report;
+   setRealtimeState({...state,report:state.report||lastReport,available,voiceDefault,sdkVoice,voicePolicy});
    if(sdkVoice&&state.report)void assistantCall('status').then(({runtime})=>{
     if(!alive)return;
     voicePolicy=runtime.voice_policy;
     setRealtimeState(current=>({...current,voicePolicy}));
-    clearTimeout(availabilityRefresh);if(voicePolicy?.state==='active_elsewhere')availabilityRefresh=setTimeout(()=>{if(alive&&!voiceLocked)void realtimeRef.current?.refresh();},12000);
+    availabilityUntil=Date.now()+30000;scheduleAvailability();
    }).catch(()=>{});
+  }
+  function scheduleAvailability(){
+   clearTimeout(availabilityRefresh);
+   if(voicePolicy?.state==='active_elsewhere'&&Date.now()<availabilityUntil)availabilityRefresh=setTimeout(()=>{if(alive&&!voiceLocked)void realtimeRef.current?.refresh();},2000);
   }
   realtimeRef.current={
    async start(provider,voice){
@@ -163,7 +170,7 @@ export default function useAssistantBridge(frame,userId){
      const createVoice=provider==='openai'?createSdkVoiceBaseline:createRealtimeVoice;
      realtime=createVoice({call:assistantCall,getSession:()=>bridge.getSession(),post:(type,value)=>{
       if(type==='voice_turn'&&value.session_id===bridge.getSession())bridge.titleChanged(value.turn?.thread_title);
-      if(type==='voice_level')frame.current?.parentElement?.style.setProperty('--voice-level',String(value.level));
+      if(type==='voice_level'){const style=frame.current?.parentElement?.style;style?.setProperty('--voice-level',String(value.level));value.bands?.forEach((band,i)=>style?.setProperty('--voice-band-'+i,String(band)));}
       bridge.post(type,value);
      },onChange:updateRealtime});
      controllerProvider=provider;
@@ -171,13 +178,13 @@ export default function useAssistantBridge(frame,userId){
     voiceLocked=true;bridge.post('voice_lock',{active:true});
     void realtime.start(provider,voice);
    },
-   async refresh(){if(voiceLocked)return;try{const {runtime}=await assistantCall('status');if(alive&&!voiceLocked){available=runtime.realtime||{};voiceDefault=runtime.voice_default;voicePolicy=runtime.voice_policy;setTextReady(runtime.ready===true);updateRealtime({state:'idle',active:false});}}catch(error){if(alive&&!voiceLocked)updateRealtime({state:'error',message:error.message});}},
-   stop(){realtime?.stop();},
+   async refresh(){if(voiceLocked)return;try{const {runtime}=await assistantCall('status');if(alive&&!voiceLocked){available=runtime.realtime||{};voiceDefault=runtime.voice_default;voicePolicy=runtime.voice_policy;setTextReady(runtime.ready===true);updateRealtime({state:'idle',active:false});scheduleAvailability();}}catch(error){if(alive&&!voiceLocked)updateRealtime({state:'error',message:error.message});}},
+   stop(){return realtime?.stop();},
    resume(){return realtime?.resume?.();},
   };
   bridge=createAssistantBridge({getWindow:()=>frame.current?.contentWindow,userId,onThread:setThread,voice:{
    isActive:()=>voiceLocked,
-   stop(){realtime?.stop();},
+   stop(){return realtime?.stop();},
    setAvailable(runtime){setTextReady(runtime.ready===true);available=runtime.realtime||{};voiceDefault=runtime.voice_default;voicePolicy=runtime.voice_policy;updateRealtime({state:'idle',active:false});}
   }});
   bridgeRef.current=bridge;
@@ -185,8 +192,9 @@ export default function useAssistantBridge(frame,userId){
   void realtimeRef.current.refresh();
   const listener=e=>{void bridge.receive(e);};window.addEventListener('message',listener);
   frame.current?.contentWindow?.postMessage({protocol,type:'host-ready'},'*');
-  const hidden=()=>{if(document.hidden)realtime?.stop();};document.addEventListener('visibilitychange',hidden);
-  return()=>{alive=false;clearTimeout(availabilityRefresh);document.removeEventListener('visibilitychange',hidden);window.removeEventListener('message',listener);bridge.destroy();bridgeRef.current=null;realtimeRef.current=null;};
+  const reconcile=()=>{if(voiceLocked){void realtime?.reconcile?.();}else if(!document.hidden){availabilityUntil=Date.now()+30000;void realtimeRef.current?.refresh();}};
+  document.addEventListener('visibilitychange',reconcile);window.addEventListener('online',reconcile);window.addEventListener('focus',reconcile);
+  return()=>{alive=false;clearTimeout(availabilityRefresh);document.removeEventListener('visibilitychange',reconcile);window.removeEventListener('online',reconcile);window.removeEventListener('focus',reconcile);window.removeEventListener('message',listener);bridge.destroy();bridgeRef.current=null;realtimeRef.current=null;};
  },[frame,userId]);
  const setHudView=useCallback(immersive=>{
   frame.current?.contentWindow?.postMessage({protocol,type:'view',immersive},'*');

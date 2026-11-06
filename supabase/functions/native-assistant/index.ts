@@ -1,4 +1,4 @@
-import {newTicket,hashTicket,connectVoice,cleanupVoice} from './voiceConnection.js';
+import {newTicket,hashTicket,connectVoice,cleanupVoice,endVoiceLease} from './voiceConnection.js';
 import {callerAccess,readInventory} from './inventory.js';
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import {dispatch} from './handler.js';
@@ -57,6 +57,7 @@ Deno.serve(async request=>{
   }
   async function voiceUsage(action:string,payload:unknown){const {data:result,error}=await service.rpc('native_assistant_voice_usage',{p_actor:data.user!.id,p_action:action,p_payload:payload});if(error)throw new AssistantError(safeCodes.has(error.message)?error.message:'assistant_request_failed',error.code==='42501'?403:error.code==='40001'?409:400);return result;}
   async function issueVoiceTicket(args:Record<string,unknown>,config:Record<string,unknown>){const token=newTicket();const {data:lease,error}=await service.rpc('native_assistant_voice_lease',{p_actor:data.user!.id,p_action:'ticket',p_payload:{...args,hash:await hashTicket(token),config:{...config,voice:args.voice}}});if(error)throw new AssistantError('voice_session_active',409);return {client_secret:token,webrtc_url:STAGING+'/functions/v1/native-assistant?voice=webrtc',maximum_seconds:lease.maximum_seconds};}
-  return json(await dispatch(body,{issueVoiceTicket,voiceUsage,rpc,reserveRealtime,registry,voiceHistory,get:(name:string)=>Deno.env.get(name),signal:request.signal,access,readTool:(args:unknown,signal:AbortSignal)=>readInventory(caller,args,signal)}));
+  const endVoice=(args:{session_id:string;request_id:string;provider:string})=>endVoiceLease(data.user!.id,args,{end:()=>reserveRealtime('end',args),connection});
+  return json(await dispatch(body,{endVoice,issueVoiceTicket,voiceUsage,rpc,reserveRealtime,registry,voiceHistory,get:(name:string)=>Deno.env.get(name),signal:request.signal,access,readTool:(args:unknown,signal:AbortSignal)=>readInventory(caller,args,signal)}));
  }catch(cause){return json({error:cause instanceof AssistantError?cause.code:'assistant_unavailable',...(cause instanceof AssistantError&&cause.diagnostic?{diagnostic:cause.diagnostic}:{})},cause instanceof AssistantError?cause.status:503);}
 });
