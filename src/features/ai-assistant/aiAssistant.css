@@ -250,3 +250,5 @@
 }
 @media(min-width:801px) and (max-width:1199px){.assistant-page:not(.assistant-fullscreen) .assistant-voice-bar:not(:has(details[open])),.assistant-page:not(.assistant-fullscreen) .assistant-voice-bar:has(details[open]){width:38%}}
 @media(max-width:800px){.assistant-page:not(.assistant-fullscreen) .assistant-voice-bar:not(:has(details[open])){padding:8px 12px;min-height:52px;gap:6px}.assistant-voice-bar button{min-height:40px}.assistant-voice-availability[open]{max-width:100%}}
+
+.assistant-usage .assistant-memory-toggle{display:flex;align-items:center;gap:10px}
