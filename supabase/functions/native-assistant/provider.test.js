@@ -41,3 +41,11 @@ test('local malformed credential fails before upstream and uses distinct format 
 });
 
 test('missing permission identifiers match exact scopes without overlapping suffixes',async()=>{await assert.rejects(generateText(claim,'fixture-key',{transport:async()=>new Response(JSON.stringify({error:{code:null,type:'invalid_request_error',message:'Missing scopes: api.model.request. Check your role.'}}),{status:401})}),e=>JSON.stringify(e.diagnostic.missing_permissions)===JSON.stringify(['api.model.request']));});
+
+
+test('voice outcome diagnostics accept only a fixed reason, never arbitrary provider payloads',()=>{
+ const id='249ec7e0-df75-4145-8a34-ec2baf82f9ef';
+ const turn={action:'realtime_turn',session_id:id,request_id:id,turn_id:id,provider:'openai',step:'unfinished',text:'actual partial'};
+ assert.doesNotThrow(()=>validateBody({...turn,details:{reason:'max_output_tokens'}}));
+ for(const details of [{reason:'raw-sensitive-provider-message'},{reason:'provider_failed',payload:'private'},[],null])assert.throws(()=>validateBody({...turn,details}),{code:'invalid_request'});
+});

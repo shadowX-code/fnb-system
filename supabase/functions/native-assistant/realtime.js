@@ -20,7 +20,8 @@ export async function createRealtimeCall({ sdp, voice, tools, transcription = tr
   type: 'realtime',
   model: realtimeModel,
   output_modalities: ['audio'],
-  max_output_tokens: 350,
+  // Audio and text share this per-response bound; the legacy 350 cap cut spoken replies short.
+  max_output_tokens: 1024,
   instructions,
   ...(tools.length ? { tools, tool_choice: 'auto' } : {}),
   audio: {

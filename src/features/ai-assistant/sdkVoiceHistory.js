@@ -4,8 +4,8 @@ export function createSdkVoiceHistory({ write, read, state, trace, id = () => cr
  const responses = new Map();
  let current, writes = Promise.resolve();
 
- function save(turn, step, text = '') {
-  const saved = writes.then(() => write(turn.id, step, text));
+ function save(turn, step, text = '', details) {
+  const saved = writes.then(() => write(turn.id, step, text, details));
   writes = saved.catch(() => trace('history_write_failed'));
   return saved;
  }
@@ -14,12 +14,11 @@ export function createSdkVoiceHistory({ write, read, state, trace, id = () => cr
   if (!turn || turn.finished) return;
   turn.finished = true;
   trace('turn_' + step, turn.number, owner?.number, reason);
-  void save(turn, step, text).catch(() => {});
+  void save(turn, step, text || '', {reason}).catch(() => {});
  }
 
- function receive({ type, item_id, response, response_id, transcript }) {
+ function receive({ type, item_id, response, response_id, transcript, delta }) {
   if (type === 'input_audio_buffer.committed' && item_id && !inputs.has(item_id)) {
-   finish(current, 'unfinished', undefined, 'next_input_committed');
    current = { id: id(), number: inputs.size + 1 };
    inputs.set(item_id, current);
    current.started = save(current, 'start');
@@ -39,27 +38,36 @@ export function createSdkVoiceHistory({ write, read, state, trace, id = () => cr
    trace(type, owner?.turn.number, owner?.number);
    return;
   }
+  if (['response.output_audio_transcript.delta', 'response.audio_transcript.delta'].includes(type)) {
+   const owner = responses.get(response_id);
+   if (owner && typeof delta === 'string') owner.transcript = ((owner.transcript || '') + delta).slice(0, 3000);
+  }
+  if (['response.output_audio_transcript.done', 'response.audio_transcript.done'].includes(type)) {
+   const owner = responses.get(response_id);
+   if (owner && typeof transcript === 'string') owner.transcript = transcript.slice(0, 3000);
+  }
   if (type !== 'response.done') return;
   const owner = responses.get(response?.id);
   const turn = owner?.turn;
-  if (!turn || turn !== current || turn.finished) return;
-  if (owner.tool || response.output?.some(item => item.type === 'function_call')) {
+  if (!turn || turn.finished || turn.response !== owner) return;
+  if (response.status === 'completed' && (owner.tool || response.output?.some(item => item.type === 'function_call'))) {
    trace('tool_response_done', turn.number, owner.number, response.status);
-   return;
-  }
-  if (turn.response !== owner) return;
-  if (response.status === 'cancelled') {
-   finish(turn, 'interrupted', undefined, 'provider_cancelled', owner);
-   return;
-  }
-  if (response.status !== 'completed') {
-   const incomplete = response.status === 'incomplete';
-   finish(turn, incomplete ? 'unfinished' : 'failed', undefined, incomplete ? 'provider_incomplete' : 'provider_failed', owner);
    return;
   }
   const text = response.output?.flatMap(item => item.role === 'assistant'
    ? (item.content || []).map(content => content.type === 'output_audio' || content.type === 'audio' ? content.transcript : null)
-   : []).filter(Boolean).join(' ').slice(0, 3000);
+   : []).filter(Boolean).join(' ').slice(0, 3000) || owner.transcript || '';
+  if (response.status === 'cancelled') {
+   finish(turn, 'interrupted', text, 'provider_cancelled', owner);
+   return;
+  }
+  if (response.status !== 'completed') {
+   const incomplete = response.status === 'incomplete';
+   const reason = ['max_output_tokens', 'content_filter'].includes(response.status_details?.reason)
+    ? response.status_details.reason : incomplete ? 'provider_incomplete' : 'provider_failed';
+   finish(turn, incomplete ? 'unfinished' : 'failed', text, reason, owner);
+   return;
+  }
   finish(turn, text ? 'complete' : 'unavailable', text, text ? 'provider_completed' : 'missing_assistant_transcript', owner);
  }
 
@@ -79,16 +87,19 @@ export function createSdkVoiceHistory({ write, read, state, trace, id = () => cr
     const evidence = await read(turn.id, args);
     trace('factory_read_completed', turn.number, owner.number);
     return turn.finished || turn !== current ? { stale: true } : { evidence };
-   } catch {
-    trace('factory_read_failed', turn.number, owner.number);
-    return turn.finished || turn !== current ? { stale: true } : { error: 'Current Factory stock is unavailable.' };
+   } catch (error) {
+    const denied = error.code === 'factory_read_denied';
+    trace('factory_read_failed', turn.number, owner.number, denied ? 'permission_denied' : 'tool_unavailable');
+    return turn.finished || turn !== current ? { stale: true } : { error: denied
+     ? 'Factory access was denied by current Admin permissions. Explain this in the user’s language. Do not retry the read or invent stock.'
+     : 'Current Factory stock is unavailable. Explain the failed read; do not claim successful evidence or retry automatically.' };
    } finally {
     turn.toolPending = false;
     if (!turn.finished && turn === current) state('thinking');
    }
   },
-  close() {
-   for (const turn of inputs.values()) finish(turn, 'unfinished');
+  close(reason = 'session_ended') {
+   for (const turn of inputs.values()) finish(turn, 'unfinished', turn.response?.transcript, reason, turn.response);
    return writes;
   },
  };

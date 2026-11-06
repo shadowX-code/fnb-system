@@ -10,14 +10,15 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
   post('voice_state', { state: state === 'thinking' ? 'transcribing' : state });
  }
 
- function stop(message = '', state = 'idle') {
+ function stop(message = '', state = 'idle', reason = 'session_ended') {
   const run = active;
   if (!run) return;
   active = null;
-  clearTimeout(run.timer);clearInterval(run.heartbeat);
+  clearTimeout(run.timer);clearInterval(run.heartbeat);clearInterval(run.levels);
+  post('voice_level', {level:0});
   run.controller.abort();
   run.session?.close();
-  if (run.requested) void Promise.all([run.observations, run.history?.close()])
+  if (run.requested) void Promise.all([run.observations, run.history?.close(reason)])
    .then(async () => {await call('voice_usage_report',{request_id:run.lease.request_id,input_audio_tokens:run.report.usageReported?run.report.inputAudio:null,output_audio_tokens:run.report.usageReported?run.report.outputAudio:null,duration_ms:Math.round(performance.now()-run.started)}).catch(()=>{});return call('realtime_end',run.lease);}).catch(() => {});
   run.report.durationMs = Math.round(performance.now() - run.started);
   show(state, message, run.report);
@@ -44,8 +45,8 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
    const authorization = await call('realtime_sdk_connect', { ...lease, voice, connection_protocol:'server_webrtc_v1' }, run.controller.signal);
    if (active !== run) return;
    const history = createSdkVoiceHistory({
-    async write(turn_id, step, text) {
-     const turn = await call('realtime_turn', { ...lease, turn_id, step, text });
+    async write(turn_id, step, text, details) {
+     const turn = await call('realtime_turn', { ...lease, turn_id, step, text, ...(details?{details}:{}) });
      if (getSession() === session_id) post('voice_turn', { session_id, turn });
     },
     async read(turn_id, args) {
@@ -108,7 +109,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     if (active !== run) return;
     const { type, response } = raw;
     if (type === 'input_audio_buffer.speech_started' && run.report.detectedTurns >= 12) {
-     stop('The voice evaluation reached its turn limit.');
+     stop('This call reached its 12-turn safety limit. Start voice to continue.', 'idle', 'turn_limit');
      return;
     }
     history.receive(raw);
@@ -125,7 +126,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
       run.report.outputAudio += usage.output_token_details?.audio_tokens || 0;
      }
      const status = response?.status;
-     event(['completed','cancelled','failed','incomplete'].includes(status) ? 'response_' + status : 'response_done');
+     event(['completed','cancelled','failed','incomplete'].includes(status) ? 'response_' + status : 'response_done',undefined,{reason:['max_output_tokens','content_filter'].includes(response?.status_details?.reason)?response.status_details.reason:undefined});
     }
     if (type === 'input_audio_buffer.committed') {
      speechEnded = performance.now();
@@ -134,19 +135,35 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     }
    });
    session.on('error', () => {
-    if (active === run && run.connected) stop('The SDK reported a Realtime error.', 'error');
+    if (active === run && run.connected) stop('The voice provider reported an error. Partial replies were kept. Start voice to reconnect.', 'error', 'provider_error');
    });
    transport.on('connection_change', status => {
     if(['connecting','connected','disconnected'].includes(status))event('webrtc_'+status);
-    if (status === 'disconnected' && run.connected && active === run) stop('The SDK transport disconnected. Start voice to reconnect.', 'error');
+    if (status === 'disconnected' && run.connected && active === run) stop('Voice disconnected. Partial replies were kept. Start voice to reconnect.', 'error', 'transport_disconnected');
    });
    await session.connect({ apiKey: authorization.client_secret });
    if (active !== run) return;
    run.connected = true;
    run.observations=call('realtime_sdk_observe',{...lease,milestone:'connected'}).catch(()=>{});
    clearTimeout(run.timer);
-   run.timer = setTimeout(() => stop('The session duration limit was reached.'), (authorization.maximum_seconds||180)*1000);
-   if(authorization.webrtc_url)run.heartbeat=setInterval(()=>{void call('realtime_heartbeat',lease).catch(()=>{if(active===run)stop('Voice session expired or was disabled.','error');});},15000);
+   run.timer = setTimeout(() => stop('The session duration limit was reached. Start voice to continue.', 'idle', 'session_expired'), (authorization.maximum_seconds||180)*1000);
+   if(authorization.webrtc_url)run.heartbeat=setInterval(()=>{void call('realtime_heartbeat',lease).catch(()=>{if(active===run)stop('Voice session could not be renewed. Check availability before reconnecting.','error','lease_failed');});},15000);
+   // Observe the SDK-owned peer; never open another microphone or playback controller.
+   let readingLevels = false;
+   run.levels = setInterval(async () => {
+    const peer = transport.connectionState.peerConnection;
+    if (active !== run || readingLevels || !peer) return;
+    readingLevels = true;
+    try {
+     const stats = await peer.getStats();
+     let level = 0;
+     stats.forEach(entry => {
+      if ((speaking ? entry.type === 'inbound-rtp' : entry.type === 'media-source') && entry.kind === 'audio' && Number.isFinite(entry.audioLevel)) level = Math.max(level, entry.audioLevel);
+     });
+     if (active === run) post('voice_level', {level:Math.min(1,level*4)});
+    } catch { /* Audio levels are optional browser telemetry. */ }
+    finally { readingLevels = false; }
+   }, 150);
    show('listening');
   } catch (error) {
    if (active === run) {

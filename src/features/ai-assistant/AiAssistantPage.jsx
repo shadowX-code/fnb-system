@@ -56,11 +56,13 @@ export default function AiAssistantPage({ ui, auth }) {
     </header>}
     {threadError&&<p className="assistant-thread-error" role="alert">{threadError}</p>}
     {notice && <p className="text-sm text-slate-600" role="status">{notice}</p>}
-    {ASSISTANT_STAGING_ALLOWED&&<div className="assistant-voice-bar" aria-label="Voice controls" data-signal={liveSignal}>
-      {fullscreen&&<button type="button" className="btn-ghost assistant-view-switch" onClick={toggleFullscreen}><Minimize2 size={15}/> Standard view</button>}
-      {fullscreen&&<span className="assistant-dock-signal" aria-hidden="true"/>}
+    <div className="assistant-stage" data-voice-state={realtimeState.state}>
+    {ASSISTANT_STAGING_ALLOWED ? <iframe ref={frame} onLoad={()=>setHudView(fullscreen)} className="assistant-frame" title="FeedX AI Assistant — isolated Jarvis conversation HUD" src="/open-source/jarvis/index.html" sandbox="allow-scripts allow-downloads" allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'" referrerPolicy="no-referrer" />
+      : <div role="status" className="rounded-xl border p-6">AI Assistant is available on canonical Staging only. No services are connected.</div>}
+    {ASSISTANT_STAGING_ALLOWED&&<div className="assistant-voice-dock" aria-label="Voice controls" data-signal={liveSignal}>
+      <svg className="assistant-dock-wave" viewBox="0 0 220 50" aria-hidden="true"><path d="M0 25h220"/><path d="M0 25Q20 26 32 25T55 25Q66 15 76 25T100 25Q112 8 122 25T145 25Q158 16 169 25T193 25Q204 25 220 25"/></svg>
       <button type="button" className="btn-secondary assistant-mic-control" disabled={(!realtimeSelected||!realtimeAvailable||(realtimeState.sdkVoice&&realtimeState.voicePolicy?.state!=='available'))&&!realtimeState.active} onClick={()=>realtimeState.active?realtimeRef.current?.stop():realtimeRef.current?.start(provider,voiceOptions[provider].includes(preferredVoice)?preferredVoice:voiceOptions[provider][0])}>{realtimeState.active?<Square size={16} aria-hidden="true"/>:<Mic size={17} aria-hidden="true"/>}<span>{realtimeState.active?'End voice':realtimeState.sdkVoice&&realtimeState.voicePolicy?.state==='approval_required'?'Approval required':realtimeState.sdkVoice&&realtimeState.voicePolicy?.state!=='available'?({disabled:'Voice disabled',active_elsewhere:'Session active',capacity:'Voice busy',daily_limit:'Daily limit reached'})[realtimeState.voicePolicy?.state]||'Voice unavailable':'Start voice'}</span></button>
-      {fullscreen&&<span className="assistant-dock-signal assistant-dock-signal-right" aria-hidden="true"/>}
+<p className="assistant-voice-state" role="status">{({idle:'Ready',connecting:'Connecting…',listening:'Listening',thinking:'Thinking',executing:'Reading Factory',speaking:'Speaking',interrupted:'Interrupted · listening',error:'Connection error',playback_blocked:'Tap to resume audio'})[realtimeState.state]||'Ready'}</p>
       {realtimeState.state==='playback_blocked'&&<button type="button" className="btn-ghost" onClick={()=>realtimeRef.current?.resume()}>Resume audio</button>}
       <details className="assistant-voice-availability"><summary>Voice status</summary><span role="status">{realtimeState.message||(!realtimeState.active&&realtimeState.sdkVoice&&realtimeAvailable?({available:'Available for authorized Staging testing. Up to '+(realtimeState.voicePolicy?.maximum_seconds||180)+' seconds per session. Provider charges and rate limits apply.',disabled:'Voice is disabled by an administrator. Text remains available.',active_elsewhere:'Another session is active or awaiting cleanup. End it before starting Voice here.',capacity:'Voice capacity is currently busy. Try again after a session ends.',daily_limit:'The configured daily limit was reached. It resets at midnight UTC.',approval_required:'The configured voice policy requires approval.'})[realtimeState.voicePolicy?.state]||'Checking voice policy…':null)||(!realtimeAvailable?'Selected voice provider is unavailable. Choose a provider in AI Integrations.':null)||({connecting:'Connecting…',listening:'Listening',thinking:'Processing…',executing:'Reading Factory Finished Goods…',speaking:'Speaking',interrupted:'Interrupted · listening'})[realtimeState.state]||(provider==='grok'?'Grok Voice':'OpenAI Realtime SDK')+' · context lasts for this call'}</span><button type="button" className="btn-ghost" onClick={()=>setDrawer('usage')}>Usage &amp; limits</button></details>
       {!realtimeState.active&&<button type="button" className="btn-ghost assistant-voice-refresh" onClick={refreshAvailability}>Check availability</button>}
@@ -70,10 +72,11 @@ export default function AiAssistantPage({ ui, auth }) {
       </details>}
 
     </div>}
+    {fullscreen&&<button type="button" className="btn-ghost assistant-view-switch" onClick={toggleFullscreen}><Minimize2 size={15}/> Standard view</button>}
+    </div>
     {drawer==='history'&&<HistoryDrawer close={()=>setDrawer(null)} thread={thread} locked={voiceLocked} act={threadAction} rename={renameThread}/>}
     {drawer==='usage'&&<Drawer title="Voice usage" description="Environment availability and session safety" width="sm" onClose={()=>setDrawer(null)} className="assistant-drawer"><VoiceUsage onSaved={refreshAvailability}/></Drawer>}
     {drawer==='memory'&&<MemoryDrawer close={()=>setDrawer(null)} voiceActive={voiceLocked}/>}
-    {ASSISTANT_STAGING_ALLOWED ? <iframe ref={frame} onLoad={()=>setHudView(fullscreen)} className="assistant-frame" title="FeedX AI Assistant — isolated Jarvis conversation HUD" src="/open-source/jarvis/index.html" sandbox="allow-scripts allow-downloads" allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'" referrerPolicy="no-referrer" />
-      : <div role="status" className="rounded-xl border p-6">AI Assistant is available on canonical Staging only. No services are connected.</div>}
+
   </section>;
 }

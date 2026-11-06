@@ -54,7 +54,7 @@ test('an interrupted tool read cannot continue the old response after a new turn
  resolveRead({ source: 'fixture' });
  assert.deepEqual(await pending, { stale: true });
  await history.close();
- assert.deepEqual(steps, [[1, 'start'], [1, 'unfinished'], [2, 'start'], [2, 'unfinished']]);
+ assert.deepEqual(steps, [[1, 'start'], [2, 'start'], [1, 'unfinished'], [2, 'unfinished']]);
 });
 
 test('only cancellation of the active response persists an interruption', async () => {
@@ -75,4 +75,50 @@ test('only cancellation of the active response persists an interruption', async 
  history.receive({ type: 'response.done', response: { id: 'answer', status: 'cancelled' } });
  await history.close();
  assert.deepEqual(steps, ['start', 'interrupted']);
+});
+
+test('incomplete speech preserves actual partial transcript and the sanitized provider reason', async () => {
+ const steps=[];
+ const history=createSdkVoiceHistory({id:()=> 'turn',write:async(...args)=>steps.push(args),state(){},trace(){}});
+ history.receive({type:'input_audio_buffer.committed',item_id:'input'});
+ history.receive({type:'response.created',response:{id:'answer'}});
+ history.receive({type:'response.output_audio_transcript.done',response_id:'answer',transcript:'我可以帮你查看'});
+ history.receive({type:'response.done',response:{id:'answer',status:'incomplete',status_details:{reason:'max_output_tokens'},output:[]}});
+ await history.close();
+ assert.deepEqual(steps.at(-1),['turn','unfinished','我可以帮你查看',{reason:'max_output_tokens'}]);
+});
+
+test('a new input commit cannot discard a late finalized response belonging to the earlier turn', async () => {
+ const steps=[];let turn=0;
+ const history=createSdkVoiceHistory({id:()=> ++turn,write:async(...args)=>steps.push(args),state(){},trace(){}});
+ history.receive({type:'input_audio_buffer.committed',item_id:'one'});
+ history.receive({type:'response.created',response:{id:'answer'}});
+ history.receive({type:'input_audio_buffer.committed',item_id:'two'});
+ history.receive({type:'response.done',response:{id:'answer',status:'completed',output:[{role:'assistant',content:[{type:'output_audio',transcript:'完整回复'}]}]}});
+ await history.close();
+ assert.deepEqual(steps.find(s=>s[0]===1&&s[1]==='complete'),[1,'complete','完整回复',{reason:'provider_completed'}]);
+ assert.equal(steps.filter(s=>s[0]===1&&s[1]==='unfinished').length,0);
+});
+
+test('denied tool returns a speakable explanation without retrying or ending the SDK session',async()=>{
+ let reads=0;
+ const history=createSdkVoiceHistory({id:()=> 'turn',write:async()=>{},read:async()=>{reads++;throw Object.assign(Error('denied'),{code:'factory_read_denied'});},state(){},trace(){}});
+ history.receive({type:'input_audio_buffer.committed',item_id:'one'});history.receive({type:'response.created',response:{id:'tool'}});
+ assert.match((await history.tool({},'tool')).error,/access was denied/);
+ assert.deepEqual(await history.tool({},'tool'),{stale:true});assert.equal(reads,1);
+ history.receive({type:'response.done',response:{id:'tool',status:'completed',output:[{type:'function_call'}]}});
+ history.receive({type:'response.created',response:{id:'answer'}});
+ history.receive({type:'response.done',response:{id:'answer',status:'completed',output:[{role:'assistant',content:[{type:'output_audio',transcript:'我无法读取目前的库存。'}]}]}});
+ await history.close();
+});
+
+
+test('transport loss preserves observed transcript deltas and its distinct termination reason',async()=>{
+ const steps=[];
+ const history=createSdkVoiceHistory({id:()=> 'turn',write:async(...args)=>steps.push(args),state(){},trace(){}});
+ history.receive({type:'input_audio_buffer.committed',item_id:'one'});history.receive({type:'response.created',response:{id:'answer'}});
+ history.receive({type:'response.output_audio_transcript.delta',response_id:'answer',delta:'实际'});
+ history.receive({type:'response.output_audio_transcript.delta',response_id:'answer',delta:'部分'});
+ await history.close('transport_disconnected');
+ assert.deepEqual(steps.at(-1),['turn','unfinished','实际部分',{reason:'transport_disconnected'}]);
 });

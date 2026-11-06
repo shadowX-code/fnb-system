@@ -163,6 +163,7 @@ export default function useAssistantBridge(frame,userId){
      const createVoice=provider==='openai'?createSdkVoiceBaseline:createRealtimeVoice;
      realtime=createVoice({call:assistantCall,getSession:()=>bridge.getSession(),post:(type,value)=>{
       if(type==='voice_turn'&&value.session_id===bridge.getSession())bridge.titleChanged(value.turn?.thread_title);
+      if(type==='voice_level')frame.current?.parentElement?.style.setProperty('--voice-level',String(value.level));
       bridge.post(type,value);
      },onChange:updateRealtime});
      controllerProvider=provider;

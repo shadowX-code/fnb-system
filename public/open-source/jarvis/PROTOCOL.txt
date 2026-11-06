@@ -25,3 +25,5 @@ Conversation refinement, 2026-11-06:
   input/output token counts, model plus versioned context estimates and same-user
   recall source references. No credentials or provider internals cross the boundary.
 - historical business replies are not reused as current operational evidence.
+
+Voice turn outcomes may include an actual partial reply and voice_details.reason from a fixed allowlist. Partial replies are never presented as completed answers. The host may send a bounded voice_level observation from SDK peer statistics; the isolated HUD never captures audio. View changes preserve the same frame and conversation.
