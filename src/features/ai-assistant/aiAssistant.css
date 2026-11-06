@@ -215,7 +215,7 @@
 .assistant-voice-bar .assistant-mic-control:disabled{cursor:not-allowed;opacity:.55;box-shadow:none}
 .assistant-voice-refresh{white-space:nowrap}
 .assistant-page:not(.assistant-fullscreen) .assistant-voice-bar{order:2;border-top:1px solid var(--border-color,#24434a);padding:10px 4px;gap:8px 12px}
-.assistant-page:not(.assistant-fullscreen) .assistant-frame{flex:1;height:max(640px,calc(100dvh - 225px))}
+.assistant-page:not(.assistant-fullscreen) .assistant-frame{flex:0 0 auto;height:max(560px,calc(100dvh - 245px))}
 .assistant-page:not(.assistant-fullscreen) .assistant-voice-bar>span[role=status]{max-width:76ch;line-height:1.5}
 .assistant-fullscreen .assistant-voice-refresh{grid-column:5;grid-row:2;justify-self:end;font-size:11px}
 .assistant-drawer .admin-select-trigger{min-height:44px}
