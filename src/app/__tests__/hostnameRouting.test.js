@@ -1,6 +1,32 @@
 import { expect, it } from "vitest";
-import hostnameRoutingMiddleware, { isPublicHostname } from "../../../middleware.js";
+import hostnameRoutingMiddleware, { config, isPublicHostname } from "../../../middleware.js";
 import { isCrewWebAppHostname, isInterviewPublicHostname, isProductFeedbackPublicHostname, isPublicHostname as isPublicClientHostname } from "../hostnameRouting.js";
+
+const matches = (url) => new RegExp(`^${config.matcher}$`).test(new URL(url).pathname);
+
+it("bypasses only existing no-op asset exemptions on every host", () => {
+  const hosts = ["feedx.my", "os.feedx.my", "feedx-os.vercel.app", "interview.feedx.my", "crew.feedx.my", "feedback.feedx.my", "fnb-system-staging.vercel.app"];
+  const paths = ["/assets/index-abcdefgh.js", "/assets/chunk.css?v=1", "/assets/missing.js", "/design-homepage/logo.png", "/favicon.ico?x=1", "/holographic-ring.webp"];
+  for (const host of hosts) for (const path of paths) {
+    const url = `https://${host}${path}`;
+    expect(matches(url), url).toBe(false);
+    expect(hostnameRoutingMiddleware(new Request(url)), url).toBeUndefined();
+  }
+});
+
+it("retains document, API, public denial and encoded-lookalike routing", () => {
+  for (const path of ["/", "/login", "/system/operations-network", "/api/marketing-creator-inspect", "/privacy", "/privacy.html", "/feedback/product/token", "/assets", "/assets-other/app.js", "/faviconXico", "/favicon.ico/extra", "/holographic-ring.webp.exe", "/private/file.js", "/%61ssets/app.js"]) {
+    expect(matches(`https://fnb-system-staging.vercel.app${path}`), path).toBe(true);
+  }
+  const publicUrl = "https://feedx.my/private/file.js";
+  expect(matches(publicUrl)).toBe(true);
+  expect(hostnameRoutingMiddleware(new Request(publicUrl))?.status).toBe(308);
+  for (const path of ["/api/marketing-creator-inspect", "/people/recruitment", "/private/file.js", "/i/invalid"]) {
+    const url = `https://interview.feedx.my${path}`;
+    expect(matches(url), url).toBe(true);
+    expect(hostnameRoutingMiddleware(new Request(url))?.status, url).toBe(404);
+  }
+});
 
 it("recognizes only the canonical public hostname", () => {
   [isPublicHostname, isPublicClientHostname].forEach((recognizes) => {
