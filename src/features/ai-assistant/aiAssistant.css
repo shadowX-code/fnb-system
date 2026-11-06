@@ -154,7 +154,6 @@
 }
 .assistant-drawer :is(.btn-secondary,.icon-btn){color:#d3edf2;background:#112a34;border-color:#375661}
 .assistant-drawer :is(.btn-secondary,.icon-btn):hover:not(:disabled){background:#1a3b47}
-.assistant-drawer .btn-primary{color:#072329;background:#8de2e5;border-color:#8de2e5}
 .assistant-drawer button:focus-visible,.assistant-drawer input:focus-visible,.assistant-drawer select:focus-visible{outline:2px solid #92e7ea;outline-offset:2px}
 .assistant-drawer-note,.assistant-drawer-error{font-size:.875rem;line-height:1.5;margin:0 0 12px;color:#bed5dd}
 .assistant-drawer-error{color:#ffc0af}
@@ -211,3 +210,26 @@
 @media(max-width:800px){
  .assistant-history-open strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal;overflow-wrap:anywhere}
 }
+
+/* Shared controls retain their canonical light/dark Admin tokens in both views. */
+.assistant-voice-bar .assistant-mic-control:disabled{cursor:not-allowed;opacity:.55;box-shadow:none}
+.assistant-voice-refresh{white-space:nowrap}
+.assistant-page:not(.assistant-fullscreen) .assistant-voice-bar{order:2;border-top:1px solid var(--border-color,#24434a);padding:10px 4px;gap:8px 12px}
+.assistant-page:not(.assistant-fullscreen) .assistant-frame{flex:1;height:max(640px,calc(100dvh - 225px))}
+.assistant-page:not(.assistant-fullscreen) .assistant-voice-bar>span[role=status]{max-width:76ch;line-height:1.5}
+.assistant-fullscreen .assistant-voice-refresh{grid-column:5;grid-row:2;justify-self:end;font-size:11px}
+.assistant-drawer .admin-select-trigger{min-height:44px}
+.assistant-drawer .assistant-memory-form{gap:20px}
+.assistant-drawer .assistant-memory-toggle{align-items:center;gap:10px}
+.assistant-search input{min-width:0;width:100%}
+@media(max-width:767px){
+ .assistant-page:not(.assistant-fullscreen) .assistant-frame{height:max(600px,calc(100dvh - 245px));min-height:600px}
+ .assistant-voice-bar>span[role=status]{flex-basis:100%;font-size:12px}
+ .assistant-drawer .assistant-history-tools{flex-wrap:wrap}
+ .assistant-drawer .assistant-search{flex:1 1 180px;min-width:0}
+ .assistant-fullscreen .assistant-voice-refresh{grid-row:3;grid-column:1/-1;justify-self:center}
+}
+
+.assistant-drawer{--theme-surface:#0c1b24;--theme-surface-muted:#102933;--theme-surface-nested:#14323d;--theme-text:#eaf6f8;--theme-muted:#bdd4db;--theme-border:#375661;--theme-primary-soft:#153c35}
+.assistant-drawer .admin-select-option[aria-selected=true]{color:#96eed5}
+.assistant-page:not(.assistant-fullscreen) .assistant-voice-bar:not(:has(details[open])){position:static;inset:auto;width:auto;height:auto;overflow:visible;pointer-events:auto;background:#0a1b24;border:1px solid #294b57;min-height:66px}

@@ -9,7 +9,7 @@ export function validAssistantMessage(event,source){
  if(event.source!==source||event.origin!=='null'||!d||typeof d!=='object'||Array.isArray(d)||d.protocol!==protocol||!['ready','new','history','older','send','cancel'].includes(d.action))return false;
  if(Object.keys(d).some(k=>!['protocol','action','request_id','session_id','text'].includes(k)))return false;
  if(d.action!=='ready'&&!uuid.test(d.request_id||''))return false;
- if(['history','send'].includes(d.action)&&!uuid.test(d.session_id||''))return false;
+ if((d.action==='history'||d.action==='send'&&d.session_id!=null)&&!uuid.test(d.session_id||''))return false;
  return d.action!=='send'||typeof d.text==='string'&&d.text.trim().length>0&&d.text.length<=2000;
 }
 // A generic JSON message boundary. No renderer globals, credentials or business APIs cross it.
@@ -50,7 +50,7 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
     turn=await call('turn_status',{session_id:a.session_id,turn_id:a.turn_id},a.controller.signal);
    }
    if(!alive||generation!==mine)return;
-   if(turn.state==='completed'&&typeof turn.reply==='string'){titleChanged(turn.thread_title);post('result',{request_id:a.request_id,reply:turn.reply.slice(0,3000),evidence:turn.evidence||null,tool_state:turn.tool_state||null});}
+   if(turn.state==='completed'&&typeof turn.reply==='string'){titleChanged(turn.thread_title);post('result',{request_id:a.request_id,reply:turn.reply.slice(0,3000),evidence:turn.evidence||null,tool_state:turn.tool_state||null,created_at:turn.created_at,finished_at:turn.finished_at,usage:{input_tokens:turn.input_tokens,output_tokens:turn.output_tokens,model:turn.model,context:turn.context_usage}});}
    else error({code:turn.error_code||'request_timeout',message:turn.state==='cancelled'?'Response cancelled.':'This request did not complete. Retry with a new request.'},a.request_id);
   }catch(cause){if(alive&&generation===mine)error(cause,a.request_id);}
   finally{if(active===a)active=null;}
@@ -77,7 +77,7 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
     if(alive&&generation===mine&&first)await history(first.id,request_id,first.title);
     return;
    }
-   if(action==='new')session_id=(await call('session_new')).session_id;
+   if(action==='new'){remember(null);cursor=null;post('empty');return;}
    if(alive&&generation===mine)await history(session_id,request_id);
   }finally{switching=false;}
  }
@@ -128,11 +128,13 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
    if(d.action==='older'){await older();return;}
    if(d.action==='new'||d.action==='history'){await transition(d.action,d.session_id,d.request_id);return;}
    guardVoice();
-   if(switching||!current||d.session_id!==current)throw new Error('Select a conversation before sending a message.');
-   await cancel();active={generation,session_id:current,request_id:d.request_id,text:d.text,controller:new AbortController()};void runTurn(active);
+   if(switching||d.session_id!==current)throw new Error('Select a conversation before sending a message.');
+   await cancel();
+   if(!current){const mine=generation;switching=true;try{const created=await call('session_new');if(!alive||mine!==generation)return;remember(created.session_id);post('session',{session_id:created.session_id});}finally{switching=false;}}
+   active={generation,session_id:current,request_id:d.request_id,text:d.text,controller:new AbortController()};void runTurn(active);
   }catch(cause){if(alive)error(cause,d.request_id);}
  }
- return {receive,transition,titleChanged,interrupt(){void cancel();post('cancelled');},getSession:()=>!switching&&!bootstrapping?current:null,post,destroy(){void cancel();post('reset');alive=false;}};
+ return {receive,transition,titleChanged,async ensureSession(){if(current)return current;if(switching||bootstrapping)throw new Error('Wait for the conversation to load.');switching=true;try{const created=await call('session_new');remember(created.session_id);post('history',{session_id:current,turns:[],has_more:false});return current;}finally{switching=false;}},interrupt(){void cancel();post('cancelled');},getSession:()=>!switching&&!bootstrapping?current:null,post,destroy(){void cancel();post('reset');alive=false;}};
 }
 export default function useAssistantBridge(frame,userId){
  const realtimeRef=useRef(null),bridgeRef=useRef(null),[thread,setThread]=useState(null),[textReady,setTextReady]=useState(null),[realtimeState,setRealtimeState]=useState({state:'idle',available:false,active:false});
@@ -152,8 +154,9 @@ export default function useAssistantBridge(frame,userId){
    }).catch(()=>{});
   }
   realtimeRef.current={
-   start(provider,voice){
-    if(!bridge.getSession()||voiceLocked||provider!==voiceDefault?.provider||!available[provider]||(provider==='openai'&&sdkRemaining===0))return;
+   async start(provider,voice){
+    if(voiceLocked||provider!==voiceDefault?.provider||!available[provider]||(provider==='openai'&&sdkRemaining===0))return;
+    if(!bridge.getSession()){try{await bridge.ensureSession();}catch(error){updateRealtime({state:'error',message:error.message});return;}}
     bridge.interrupt();
     if(controllerProvider!==provider){
      const createVoice=provider==='openai'?createSdkVoiceBaseline:createRealtimeVoice;
@@ -166,6 +169,7 @@ export default function useAssistantBridge(frame,userId){
     voiceLocked=true;bridge.post('voice_lock',{active:true});
     void realtime.start(provider,voice);
    },
+   async refresh(){if(voiceLocked)return;try{const {runtime}=await assistantCall('status');if(alive&&!voiceLocked){available=runtime.realtime||{};voiceDefault=runtime.voice_default;sdkRemaining=runtime.sdk_remaining;setTextReady(runtime.ready===true);updateRealtime({state:'idle',active:false});}}catch(error){if(alive&&!voiceLocked)updateRealtime({state:'error',message:error.message});}},
    stop(){realtime?.stop();},
    resume(){return realtime?.resume?.();},
   };
@@ -175,6 +179,8 @@ export default function useAssistantBridge(frame,userId){
    setAvailable(runtime){setTextReady(runtime.ready===true);available=runtime.realtime||{};voiceDefault=runtime.voice_default;sdkRemaining=runtime.sdk_remaining;updateRealtime({state:'idle',active:false});}
   }});
   bridgeRef.current=bridge;
+  // Provider readiness is host-owned and must not wait for the isolated visual program.
+  void realtimeRef.current.refresh();
   const listener=e=>{void bridge.receive(e);};window.addEventListener('message',listener);
   frame.current?.contentWindow?.postMessage({protocol,type:'host-ready'},'*');
   const hidden=()=>{if(document.hidden)realtime?.stop();};document.addEventListener('visibilitychange',hidden);
@@ -193,5 +199,5 @@ export default function useAssistantBridge(frame,userId){
   if(bridgeRef.current===bridge&&bridge?.getSession()===id)bridge.titleChanged(result.title);
   return result;
  },[]);
- return {realtimeState,realtimeRef,setHudView,thread,threadAction,renameThread,textReady};
+ return {realtimeState,realtimeRef,refreshAvailability:()=>realtimeRef.current?.refresh(),setHudView,thread,threadAction,renameThread,textReady};
 }

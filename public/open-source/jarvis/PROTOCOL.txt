@@ -17,3 +17,11 @@ never Speaking. Error is non-speaking idle-shaped. New/cancel/session switches
 fence stale replies. Voice/tools remain unavailable; visuals are decorative.
 
 2026-11-04: Host-only microphone/audio transport. Child receives transcript, voice_state and bounded voice_level events; it never receives microphone streams, audio payloads or tokens. Result/history may include fixed Factory read evidence. Executing denotes a real read call; Speaking only actual browser playback.
+
+Conversation refinement, 2026-11-06:
+- send permits session_id:null for an unsaved draft. Host lazily allocates on first
+  submission and emits session {session_id}; new/empty does not allocate a thread.
+- results/history may carry authoritative created_at/finished_at and measured
+  input/output token counts, model plus versioned context estimates and same-user
+  recall source references. No credentials or provider internals cross the boundary.
+- historical business replies are not reused as current operational evidence.

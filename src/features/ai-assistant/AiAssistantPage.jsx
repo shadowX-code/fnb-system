@@ -9,7 +9,7 @@ import './aiAssistant.css';
 
 export default function AiAssistantPage({ ui, auth }) {
   const root = useRef(null), frame = useRef(null);
-  const {realtimeState,realtimeRef,setHudView,thread,threadAction,renameThread,textReady}=useAssistantBridge(frame, ASSISTANT_STAGING_ALLOWED ? auth?.user?.id : null);
+  const {realtimeState,realtimeRef,refreshAvailability,setHudView,thread,threadAction,renameThread,textReady}=useAssistantBridge(frame, ASSISTANT_STAGING_ALLOWED ? auth?.user?.id : null);
   const {provider,voice:preferredVoice}=realtimeState.voiceDefault||{};
   const realtimeSelected = Object.hasOwn(voiceOptions, provider);
   const realtimeAvailable = realtimeState.available?.[provider];
@@ -33,7 +33,7 @@ export default function AiAssistantPage({ ui, auth }) {
     return ()=>clearInterval(clock);
   },[fullscreen]);
   const liveSignal = ['listening', 'thinking', 'executing', 'speaking'].includes(realtimeState.state);
-  return <section ref={root} onKeyDownCapture={event=>{if(drawer&&event.key==='Escape'){event.preventDefault();setDrawer(null);}}} className={`assistant-page${fullscreen ? ' assistant-fullscreen' : ''}`}>
+  return <section ref={root} className={`assistant-page${fullscreen ? ' assistant-fullscreen' : ''}`}>
     {!fullscreen&&<header className="assistant-standard-header">
       <div className="assistant-thread-heading">
         <button type="button" className="btn-ghost" aria-label="Back to workspace" onClick={()=>ui?.returnFromNetwork?.()}><ArrowLeft size={16}/></button>
@@ -57,10 +57,12 @@ export default function AiAssistantPage({ ui, auth }) {
     {ASSISTANT_STAGING_ALLOWED&&<div className="assistant-voice-bar" aria-label="Voice controls" data-signal={liveSignal}>
       {fullscreen&&<button type="button" className="btn-ghost assistant-view-switch" onClick={toggleFullscreen}><Minimize2 size={15}/> Standard view</button>}
       {fullscreen&&<span className="assistant-dock-signal" aria-hidden="true"/>}
-      <button type="button" className="btn-secondary assistant-mic-control" disabled={(!thread||!realtimeSelected||!realtimeAvailable||(realtimeState.sdkVoice&&realtimeState.sdkRemaining===0))&&!realtimeState.active} onClick={()=>realtimeState.active?realtimeRef.current?.stop():realtimeRef.current?.start(provider,voiceOptions[provider].includes(preferredVoice)?preferredVoice:voiceOptions[provider][0])}>{realtimeState.active?<Square size={16} aria-hidden="true"/>:<Mic size={17} aria-hidden="true"/>}<span>{realtimeState.active?'End voice':'Start voice'}</span></button>
+      <button type="button" className="btn-secondary assistant-mic-control" disabled={(!realtimeSelected||!realtimeAvailable||(realtimeState.sdkVoice&&realtimeState.sdkRemaining===0))&&!realtimeState.active} onClick={()=>realtimeState.active?realtimeRef.current?.stop():realtimeRef.current?.start(provider,voiceOptions[provider].includes(preferredVoice)?preferredVoice:voiceOptions[provider][0])}>{realtimeState.active?<Square size={16} aria-hidden="true"/>:<Mic size={17} aria-hidden="true"/>}<span>{realtimeState.active?'End voice':realtimeState.sdkVoice&&realtimeState.sdkRemaining===0?'Voice unavailable':'Start voice'}</span></button>
       {fullscreen&&<span className="assistant-dock-signal assistant-dock-signal-right" aria-hidden="true"/>}
       {realtimeState.state==='playback_blocked'&&<button type="button" className="btn-ghost" onClick={()=>realtimeRef.current?.resume()}>Resume audio</button>}
-      <span role="status">{realtimeState.message||(realtimeState.sdkVoice&&realtimeState.sdkRemaining===0?'OpenAI Realtime SDK · Staging voice allowance used':null)||(!realtimeAvailable?'Selected voice provider is unavailable. Choose a provider in AI Integrations.':null)||({connecting:'Connecting…',listening:'Listening',thinking:'Processing…',executing:'Reading Factory Finished Goods…',speaking:'Speaking',interrupted:'Interrupted · listening'})[realtimeState.state]||(provider==='grok'?'Grok Voice':'OpenAI Realtime SDK')+' · context lasts for this call'}</span>
+      <span role="status">{realtimeState.message||(realtimeState.sdkVoice&&realtimeState.sdkRemaining===0?'0 approved Staging calls remaining. Additional evaluation requires explicit approval; there is no automatic reset.':null)||(!realtimeAvailable?'Selected voice provider is unavailable. Choose a provider in AI Integrations.':null)||({connecting:'Connecting…',listening:'Listening',thinking:'Processing…',executing:'Reading Factory Finished Goods…',speaking:'Speaking',interrupted:'Interrupted · listening'})[realtimeState.state]||(provider==='grok'?'Grok Voice':'OpenAI Realtime SDK')+' · context lasts for this call'}</span>
+      {!realtimeState.active&&<button type="button" className="btn-ghost assistant-voice-refresh" onClick={refreshAvailability}>Check availability</button>}
+      {realtimeState.sdkVoice&&realtimeState.sdkRemaining>0&&!realtimeState.active&&<small>{realtimeState.sdkRemaining} approved call remaining · up to 3 minutes</small>}
       {!realtimeState.active&&realtimeState.report?.durationMs>0&&<details><summary>Session details</summary>
         <p>Call: {Math.round(realtimeState.report.durationMs/1000)} s · First audio signal: {realtimeState.report.firstAudioMs==null?'unavailable':realtimeState.report.firstAudioMs+' ms'} · {realtimeState.report.usageReported?'Audio tokens: '+realtimeState.report.inputAudio+' in / '+realtimeState.report.outputAudio+' out':'Provider token usage unavailable'}</p><p>Speech starts during playback: {realtimeState.report.startsDuringPlayback} · Committed speech turns: {realtimeState.report.detectedTurns}</p><ol className="max-h-48 overflow-auto">{realtimeState.report.events?.map((event,index)=><li key={index}>{event.ms} ms · {event.event}{event.turn?' · turn '+event.turn:''}{event.response?' · response '+event.response:''}{event.reason?' · '+event.reason:''}</li>)}</ol>
       </details>}

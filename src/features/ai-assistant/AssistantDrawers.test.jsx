@@ -1,0 +1,21 @@
+import React from 'react';
+import {afterEach,expect,it,vi} from 'vitest';
+import {fireEvent,render,screen,waitFor} from '@testing-library/react';
+import {MemoryDrawer} from './AssistantDrawers.jsx';
+import {assistantCall} from './nativeAssistantService.js';
+vi.mock('./nativeAssistantService.js',()=>({assistantCall:vi.fn(async action=>action==='storage_usage'?{turns:0,content_bytes:0,evidence_bytes:0}:{memory:{enabled:false,language:null,reply_style:null,work_preference:null}})}));
+afterEach(()=>{document.body.innerHTML='';vi.clearAllMocks();});
+it('uses the shared branded listbox within the drawer; Escape closes options before the drawer',async()=>{
+ const close=vi.fn();render(<MemoryDrawer close={close}/>);
+ const trigger=await screen.findByRole('button',{name:/Language preference/});
+ fireEvent.click(trigger);
+ const option=await screen.findByRole('option',{name:'Mandarin',exact:true});
+ expect(option.closest('[role=dialog]')).not.toBeNull();
+ fireEvent.keyDown(option,{key:'Escape'});expect(close).not.toHaveBeenCalled();
+ await waitFor(()=>expect(screen.queryByRole('listbox')).toBeNull());
+ fireEvent.click(trigger);fireEvent.click(await screen.findByRole('option',{name:'Mandarin',exact:true}));
+ expect(assistantCall).not.toHaveBeenCalledWith('memory_save',expect.anything(),expect.anything());
+ fireEvent.click(screen.getByRole('button',{name:'Save preferences'}));
+ await waitFor(()=>expect(assistantCall).toHaveBeenCalledWith('memory_save',expect.objectContaining({enabled:false,language:'mandarin'}),expect.anything()));
+ expect(document.querySelector('select')).toBeNull();
+});

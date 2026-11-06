@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Clock3, MessageSquare, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import SelectField from '../../components/forms/SelectField.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import { assistantCall } from './nativeAssistantService.js';
 
@@ -37,12 +38,13 @@ export function HistoryDrawer({ close, thread, locked, act, rename }) {
   finally{setBusy(false);}
  }
  return <Drawer title="Conversation history" description="Private to your FeedX account." width="sm" onClose={close} className="assistant-drawer">
+  <p className="assistant-drawer-note">Search your titles and messages. To bring relevant excerpts into a text reply, ask “Recall our previous conversation about…” with a specific topic. New conversations start with clean context.</p>
   {locked&&<p className="assistant-drawer-note" role="status">End voice before opening, creating, or deleting a conversation.</p>}
-  <div className="assistant-history-tools"><label className="assistant-search"><Search size={16}/><input type="search" aria-label="Search conversation titles" placeholder="Search titles…" value={query} maxLength={80} onChange={e=>{setQuery(e.target.value);setIntent(null);}}/></label>
+  <div className="assistant-history-tools"><label className="assistant-search"><Search size={16}/><input type="search" aria-label="Search conversations" placeholder="Search titles and messages…" value={query} maxLength={80} onChange={e=>{setQuery(e.target.value);setIntent(null);}}/></label>
    <button type="button" className="btn-secondary" disabled={locked||busy} onClick={()=>run('new')}><Plus size={16}/> New</button></div>
   {error&&<p role="alert" className="assistant-drawer-error">{error}</p>}
   {loading&&!page.sessions.length&&<p role="status" className="assistant-drawer-note">Loading conversations…</p>}
-  {!loading&&!page.sessions.length&&!error&&<p className="assistant-drawer-note">{query?'No titles match your search.':'No saved conversations yet. Start a new conversation to begin.'}</p>}
+  {!loading&&!page.sessions.length&&!error&&<p className="assistant-drawer-note">{query?'No conversations match your search.':'No saved conversations yet. Start a new conversation to begin.'}</p>}
   <ul className="assistant-history-list" aria-busy={loading}>
    {page.sessions.map(item=><li key={item.id} data-selected={thread?.id===item.id}>
     <div className="assistant-history-row">
@@ -88,17 +90,17 @@ export function MemoryDrawer({close,voiceActive}){
   finally{if(!controller.signal.aborted)setBusy(false);}
  }
  return <Drawer title="Personal memory" description="Choose what the Assistant remembers about how you work." width="sm" onClose={close} className="assistant-drawer">
-  <p className="assistant-drawer-note">Only the preferences you save here are remembered. They apply to new text replies and voice sessions. They don’t change access to company information.</p>
+  <p className="assistant-drawer-note">Personal Memory stores only the preferences you explicitly save. History keeps your conversations separately. Current business figures always require an authorized FeedX read. They apply to new text replies and voice sessions. They don’t change access to company information.</p>
   {voiceActive&&<p className="assistant-drawer-note">The current voice session keeps the preferences it started with.</p>}
   {error&&<p role="alert" className="assistant-drawer-error">{error}</p>}
   {notice&&<p role="status" className="assistant-drawer-note">{notice}</p>}
   {!memory&&!error&&<p role="status">Loading preferences…</p>}
   {memory&&<form className="assistant-memory-form" onSubmit={e=>{e.preventDefault();void save();}}>
-   <label className="assistant-memory-toggle"><input type="checkbox" checked={memory.enabled} onChange={e=>setMemory({...memory,enabled:e.target.checked})}/> Use my saved preferences</label>
-   {fields.map(([key,label,options])=><label key={key}>{label}<select value={memory[key]||''} onChange={e=>setMemory({...memory,[key]:e.target.value})}><option value="">No preference</option>{Object.entries(options).map(([value,copy])=><option key={value} value={value}>{copy}</option>)}</select></label>)}
+   <label className="assistant-memory-toggle"><input className="admin-checkbox" type="checkbox" checked={memory.enabled} onChange={e=>setMemory({...memory,enabled:e.target.checked})}/> Use my saved preferences</label>
+   {fields.map(([key,label,options])=><SelectField key={key} label={label} value={memory[key]||''} disabled={busy} options={[{value:'',label:'No preference'},...Object.entries(options).map(([value,label])=>({value,label}))]} onChange={value=>{setNotice('Unsaved changes');setMemory({...memory,[key]:value});}}/>)}
    <div className="assistant-memory-actions"><button type="submit" className="btn-primary" disabled={busy}>Save preferences</button>
-    {memory.updated_at&&<button type="button" className="btn-secondary assistant-danger" disabled={busy} onClick={()=>setConfirm(true)}>Delete saved memory</button>}</div>
-   {confirm&&<div className="assistant-history-edit"><p>Delete all saved preferences? Your conversations will remain.</p><div><button type="button" className="btn-secondary" onClick={()=>setConfirm(false)}>Cancel</button><button type="button" className="btn-secondary assistant-danger" disabled={busy} onClick={()=>save(true)}>Delete memory</button></div></div>}
+    {memory.updated_at&&<button type="button" className="btn-secondary assistant-danger" disabled={busy} onClick={()=>setConfirm(true)}>Reset preferences</button>}</div>
+   {confirm&&<div className="assistant-history-edit"><p>Reset all saved preferences? Your conversations will remain.</p><div><button type="button" className="btn-secondary" onClick={()=>setConfirm(false)}>Cancel</button><button type="button" className="btn-secondary assistant-danger" disabled={busy} onClick={()=>save(true)}>Reset preferences</button></div></div>}
   </form>}
   {usage&&<details className="assistant-storage"><summary>Conversation storage</summary>
    <p>{usage.turns} turns · {Math.ceil(usage.content_bytes/1024)} KB of message content · {Math.ceil(usage.evidence_bytes/1024)} KB of evidence</p>

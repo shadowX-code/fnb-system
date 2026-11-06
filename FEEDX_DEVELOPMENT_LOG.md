@@ -1225,3 +1225,7 @@ Added compact AI Integrations provider settings, dedicated approval-only server 
 
 ## 2026-11-04 — Native Assistant voice/read boundary
 Extended the existing Staging text authority with current-human Factory Finished Goods read evidence and scope-bound sessions, plus fail-closed isolated voice transport and host media controls. No Agent grants, business mutations, domain AI credentials or Production changes. Independent GPL voice worker is prepared in the persistent pilot; external hosting/credential approval and real remote voice acceptance remain separate delivery gates.
+
+### 2026-11-06 — Native Assistant private context and conversation workspace (Staging)
+
+Shared bounded context reconstruction now combines recent completed turns with versioned, deterministic extractive notes; original messages and Factory evidence remain canonical. Explicit prior-conversation text recall is owner/scope-bound and limited to three source-identified excerpts. Derived notes invalidate on source edits/deletion; no additional summarization provider is introduced. History omits empty drafts and searches message content. Personal Memory remains explicit curated preferences and uses canonical accessible selection controls. The exhausted Staging voice evaluation allowance is presented as requiring approval, with no ledger reset or additional paid call. See the Native Assistant sections of `docs/architecture/trusted-authorities.md` and `docs/architecture/platform.md`.

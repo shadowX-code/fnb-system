@@ -30,7 +30,7 @@ integration requires renewed licence review.
 No LLM answer, execution, stock data or voice response is simulated. Animated
 idle visuals are decorative. Standalone mode has no services and memory-only history. When embedded in
 canonical Staging, the host can supply authorized text sessions/results. Only
-actual successful results become Assistant messages. The host may supply current-human-authorized Factory Finished Goods read evidence. Microphone and playback are host-owned; voice remains unavailable until the separate remote Whisper/Kokoro service is configured, tested and enabled.
+actual successful results become Assistant messages. The host may supply current-human-authorized Factory Finished Goods read evidence. Microphone, playback and Realtime sessions are host-owned through the official OpenAI Agents SDK; authorized Staging evaluation limits apply. No Whisper/Kokoro runtime is used.
 The Python runtime is never exposed. Its bounded contract is adapted to one hosted
 session authority, not a browser conversation engine. No credentials or auth
 tokens cross the message boundary. Provider approval is independently required.

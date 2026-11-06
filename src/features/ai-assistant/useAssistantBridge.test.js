@@ -49,3 +49,14 @@ it('pages older turns using the server-owned cursor without changing threads',as
  expect(f.b.getSession()).toBe(sid);
  f.b.destroy();
 });
+
+it('New stays local and allocates exactly once on the first message',async()=>{
+ const f=fixture();const base=f.call.getMockImplementation();
+ f.call.mockImplementation((action,...args)=>action==='session_new'?Promise.resolve({session_id:sid}):base(action,...args));
+ await f.send('ready');await f.b.transition('new');await f.b.transition('new');
+ expect(f.b.getSession()).toBeNull();expect(f.call.mock.calls.filter(([a])=>a==='session_new')).toHaveLength(0);
+ await f.send('send',{session_id:null,text:'A real first question'});
+ await vi.waitFor(()=>expect(f.posts().some(x=>x.type==='result')).toBe(true));
+ expect(f.call.mock.calls.filter(([a])=>a==='session_new')).toHaveLength(1);
+ f.b.destroy();
+});

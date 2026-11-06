@@ -11,9 +11,9 @@ let connected=false,runtime=null;
 function request(action,extra={}){parent.postMessage({protocol,action,request_id:crypto.randomUUID(),...extra},hostOrigin);}
 let currentSession={id:pilotSession,messages:[]},hasOlder=false;
 function messagesForTurn(t){
- const status={voice_interrupted:'Response interrupted',voice_transcript_unavailable:'Assistant transcript unavailable',voice_unfinished:'Response unfinished',voice_failed:'Response failed'};
+ const status={voice_interrupted:'Interrupted — this reply was stopped before completion',voice_transcript_unavailable:'Assistant transcript unavailable',voice_unfinished:'Response unfinished',voice_failed:'Response failed'};
  return [{role:'user',text:t.prompt,request_id:t.request_id,voice:t.voice,time:t.created_at},...(t.state==='completed'&&t.reply?
- [{role:'assistant',text:t.reply,request_id:t.request_id,evidence:t.evidence,voice:t.voice,time:t.finished_at}]:
+ [{role:'assistant',text:t.reply,request_id:t.request_id,evidence:t.evidence,voice:t.voice,time:t.finished_at,usage:{input_tokens:t.input_tokens,output_tokens:t.output_tokens,model:t.model,context:t.context_usage}}]:
  t.voice&&status[t.error_code]?[{role:'assistant',text:status[t.error_code],outcome:t.error_code,request_id:t.request_id,voice:true,evidence:t.evidence,time:t.finished_at}]:[])];
 }
 
@@ -131,17 +131,35 @@ function restoreActivity(turns){
   const idle=document.createElement('li');idle.className='web-activity-idle';idle.textContent='Waiting for a request';list.append(idle);
  }
 }
-function renderMessages({prepend=false}={}){const previousHeight=messageList.scrollHeight,previousTop=messageList.scrollTop;renderIntelligence();older.hidden=!hasOlder;older.disabled=false;$('#webStop').hidden=!activeRequest;messageList.replaceChildren();if(!currentSession.messages.length){const empty=document.createElement('li');empty.className='web-empty';empty.textContent=connected&&!currentSession.id?'Choose New conversation to start, or open a saved thread from History.':'Start with a question. Your request will appear here; responses require an authorized model connection.';messageList.appendChild(empty);}for(const message of currentSession.messages){const item=document.createElement('li');item.dataset.speaker=message.role;if(message.outcome)item.dataset.outcome=message.outcome;const avatar=document.createElement('span');avatar.className='web-message-avatar';avatar.innerHTML=hudIcon(message.role==='assistant'?'spark':message.voice?'speech':'understand');const label=document.createElement('strong');label.textContent=(message.role==='assistant'?'Assistant':'You')+(message.voice?' · Voice':'');const text=document.createElement('p');for(const part of message.text.split(/(\*\*[^*]+\*\*)/g)){if(part.startsWith('**')&&part.endsWith('**')){const bold=document.createElement('strong');bold.textContent=part.slice(2,-2);text.append(bold);}else text.append(document.createTextNode(part));}item.append(avatar,label);
+// Provider totals are measured; context and USD are explicitly estimates, never invoices.
+function appendResponseDetails(item,message){
+ if(message.role!=='assistant')return;
+ const usage=message.usage,context=usage?.context;
+ if(!usage&&!message.outcome)return;
+ const details=document.createElement('details'),label=document.createElement('summary');
+ details.className='web-response-details';label.textContent=message.outcome?'Reply status':'Response details';details.append(label);
+ const note=document.createElement('p');
+ if(message.outcome){note.textContent=message.outcome==='voice_interrupted'?'The spoken reply was interrupted. This is not a completed answer.':'No completed assistant transcript is available.';details.append(note);}
+ if(Number.isInteger(usage?.input_tokens)&&Number.isInteger(usage?.output_tokens)){
+  const tokens=document.createElement('p');tokens.textContent=`Provider-reported tokens: ${usage.input_tokens} in / ${usage.output_tokens} out`;details.append(tokens);
+  if(Number.isFinite(context?.estimated_usd)){const cost=document.createElement('p');cost.textContent=`Estimated text cost: US$${context.estimated_usd.toFixed(6)} · uncached list rates (${context.pricing_version}); not an invoice`;details.append(cost);}
+ }
+ if(context){const info=document.createElement('p');info.textContent=`Context estimate: ${context.estimated_context_tokens} / ${context.budget_tokens} tokens · ${context.recent_turns} recent turns · ${context.summarized_turns} older turns indexed (${context.version}). Original messages remain in History.`;details.append(info);
+  for(const source of context.recall_sources||[]){const button=document.createElement('button');button.type='button';button.textContent=`History source: ${source.title} · turn ${source.seq}`;button.onclick=()=>request('history',{session_id:source.session_id});details.append(button);}
+ }
+ if(details.children.length>1)item.append(details);
+}
+function renderMessages({prepend=false,reset=false}={}){const previousHeight=messageList.scrollHeight,previousTop=messageList.scrollTop,nearBottom=previousHeight-previousTop-messageList.clientHeight<80;renderIntelligence();older.hidden=!hasOlder;older.disabled=false;$('#webStop').hidden=!activeRequest;messageList.replaceChildren();if(!currentSession.messages.length){const empty=document.createElement('li');empty.className='web-empty';empty.textContent=connected&&!currentSession.id?'What would you like to work on? Ask a question here, or open a private conversation from History.':'Start with a question. Your request will appear here; responses require an authorized model connection.';messageList.appendChild(empty);}for(const message of currentSession.messages){const item=document.createElement('li');item.dataset.speaker=message.role;if(message.outcome)item.dataset.outcome=message.outcome;const avatar=document.createElement('span');avatar.className='web-message-avatar';avatar.innerHTML=hudIcon(message.role==='assistant'?'spark':message.voice?'speech':'understand');const label=document.createElement('strong');label.textContent=(message.role==='assistant'?'Assistant':'You')+(message.voice?' · Voice':'');const text=document.createElement('p');for(const part of message.text.split(/(\*\*[^*]+\*\*)/g)){if(part.startsWith('**')&&part.endsWith('**')){const bold=document.createElement('strong');bold.textContent=part.slice(2,-2);text.append(bold);}else text.append(document.createTextNode(part));}item.append(avatar,label);
  if(message.time&&Number.isFinite(Date.parse(message.time))){const time=document.createElement('time');time.dateTime=message.time;time.textContent=new Date(message.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});item.append(time);}
- item.append(text);if(message.evidence?.capability==='read_factory_finished_goods'){const evidence=document.createElement('div');evidence.className='web-evidence';const badge=document.createElement('span');badge.className='web-evidence-icon';badge.innerHTML=hudIcon('factory');const link=document.createElement('a');link.href='https://fnb-system-staging.vercel.app/factory/warehouse/finished-goods';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Factory · Finished Goods ↗';const stamp=document.createElement('span');stamp.textContent=`${message.evidence.scope} · ${message.evidence.as_of} · ${message.evidence.returned}/${message.evidence.total_matching} matches${Number.isInteger(message.evidence.unknown_minimum_count)?' · '+message.evidence.unknown_minimum_count+' unknown minimums':''}`;const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('p');summary.textContent='Read evidence';note.textContent=message.evidence.limitations;details.append(summary,note);evidence.append(badge,link,stamp,details);item.append(evidence);}messageList.appendChild(item);}messageList.scrollTop=prepend?previousTop+messageList.scrollHeight-previousHeight:messageList.scrollHeight;}
+ item.append(text);if(message.evidence?.capability==='read_factory_finished_goods'){const evidence=document.createElement('div');evidence.className='web-evidence';const badge=document.createElement('span');badge.className='web-evidence-icon';badge.innerHTML=hudIcon('factory');const link=document.createElement('a');link.href='https://fnb-system-staging.vercel.app/factory/warehouse/finished-goods';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Factory · Finished Goods ↗';const stamp=document.createElement('span');stamp.textContent=`${message.evidence.scope} · ${message.evidence.as_of} · ${message.evidence.returned}/${message.evidence.total_matching} matches${Number.isInteger(message.evidence.unknown_minimum_count)?' · '+message.evidence.unknown_minimum_count+' unknown minimums':''}`;const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('p');summary.textContent='Read evidence';note.textContent=message.evidence.limitations;details.append(summary,note);evidence.append(badge,link,stamp,details);item.append(evidence);}appendResponseDetails(item,message);messageList.appendChild(item);}messageList.scrollTop=prepend?previousTop+messageList.scrollHeight-previousHeight:reset||nearBottom?messageList.scrollHeight:previousTop;}
 // Same request/session identity boundary as the pilot. No remote engine is configured.
-let handle=function(text){text=text.trim();if(!text)return;if(connected&&!currentSession.id){showNotice('Choose New conversation to send a message.',true);return;}if(document.body.dataset.voiceLocked==='true'){showNotice('End voice before sending a text message.',true);return;}if(activeRequest){showNotice('Stop the current response before sending another request.',true);return;}
+let handle=function(text){text=text.trim();if(!text)return;if(document.body.dataset.voiceLocked==='true'){showNotice('End voice before sending a text message.',true);return;}if(activeRequest){showNotice('Stop the current response before sending another request.',true);return;}
  $('#webRetry').hidden=true;activeRequest=crypto.randomUUID();currentSession.messages.push({request_id:activeRequest,role:'user',text:text.slice(0,2000)});renderMessages();
  if(connected){parent.postMessage({protocol,action:'send',request_id:activeRequest,session_id:currentSession.id,text:text.slice(0,2000)},hostOrigin);showNotice('Submitting request…');}
  else{activeRequest='';setState('idle');showNotice('Language model unavailable. Your request was not sent and no AI answer was generated.',true);}
 };
 // Sandboxed frames deliberately disallow form submission; use explicit local actions.
-function sendLocalRequest(){if(connected&&!currentSession.id||document.body.dataset.voiceLocked==='true'){handle(input.value);return;}handle(input.value);input.value='';}
+function sendLocalRequest(){if(document.body.dataset.voiceLocked==='true'){handle(input.value);return;}handle(input.value);input.value='';}
 submit.onclick=sendLocalRequest;
 input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isComposing){event.preventDefault();sendLocalRequest();}});
 $('#form').addEventListener('submit',event=>event.preventDefault());
@@ -169,7 +187,7 @@ function serviceStatus(){
  const ready=!!runtime?.ready;document.body.dataset.serviceState=ready?'ready':'unavailable';
  $('.web-core-caption strong').textContent=ready?'Text ready':'Visual ready';
  $('.web-core-caption p').textContent='Original Jarvis Core · '+(ready?'authorized text service':'text service unavailable');
- const services=[ready?'Connected · '+runtime.model:'Unavailable',runtime?.voice_provider||'Unavailable',runtime?.voice_provider||'Unavailable',runtime?.tools?'Factory Finished Goods · read only':'Unavailable'];
+ const services=[ready?'Text · '+runtime.model:'Unavailable',runtime?.voice_provider||'Unavailable',runtime?.voice_provider||'Unavailable',runtime?.tools?'Factory Finished Goods · read only':'Unavailable'];
  $('.web-services summary').textContent='Services · '+services.filter(x=>!x.includes('unavailable')&&x!=='Unavailable').length+' connected';
  document.querySelectorAll('.web-services dd').forEach((el,i)=>el.textContent=services[i]);
 }
@@ -202,13 +220,14 @@ addEventListener('message',event=>{
   connected=true;if(d.runtime)runtime=d.runtime;
   serviceStatus();showNotice(runtime?.ready?'Conversation ready. Expand Services to see authorized capabilities.':'Text service unavailable. Check Native Assistant in AI Integrations.');return;
  }
+ if(d.type==='session'){currentSession.id=d.session_id;return;}
  if(d.type==='empty'){
-  currentSession={id:null,messages:[]};hasOlder=false;restoreActivity([]);renderMessages();return;
+  currentSession={id:null,messages:[]};hasOlder=false;restoreActivity([]);renderMessages({reset:true});return;
  }
  if(d.type==='history'){
   currentSession={id:d.session_id,messages:d.turns.flatMap(messagesForTurn)};hasOlder=d.has_more===true;activeRequest='';input.value='';
   restoreActivity(d.turns);
-  $('#webRetry').hidden=true;renderMessages();setState('idle');return;
+  $('#webRetry').hidden=true;renderMessages({reset:true});setState('idle');return;
  }
  if(d.type==='older'){
   if(currentSession.id!==d.session_id)return;
@@ -253,7 +272,7 @@ addEventListener('message',event=>{
  if(d.type==='state'&&d.state==='executing'){activity('Executing');setState('executing');showNotice('Reading authorized Factory Finished Goods…');}
  if(d.type==='state'&&d.state==='thinking'){activity('Understanding');setState('thinking');showNotice('Thinking…');}
  if(d.type==='result'&&typeof d.reply==='string'){activity('Completed');
-  currentSession.messages.push({role:'assistant',text:d.reply.slice(0,3000),request_id:activeRequest,evidence:d.evidence});activeRequest='';renderMessages();setState('idle');showNotice(d.evidence?'Response received · verified read evidence attached.':'Response received.');
+  currentSession.messages.push({role:'assistant',text:d.reply.slice(0,3000),request_id:activeRequest,evidence:d.evidence,time:d.finished_at,usage:d.usage});const prompt=currentSession.messages.find(m=>m.request_id===activeRequest&&m.role==='user');if(prompt&&d.created_at)prompt.time=d.created_at;activeRequest='';renderMessages();setState('idle');showNotice(d.evidence?'Response received · verified read evidence attached.':'Response received.');
  }
 });
 // The renderer is unchanged; error is a non-speaking, idle-shaped visual state.
