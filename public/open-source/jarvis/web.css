@@ -427,3 +427,4 @@ body:not(.web-immersive) .web-dock{border:0!important;background:linear-gradient
 body:not(.web-immersive) .web-conversation{bottom:var(--composer-space,65px)}
 .web-immersive:has(#webComposePanel[open]) .web-conversation{bottom:calc(var(--composer-space,65px) + 52px)}
 @media(max-width:800px){#webComposer #cmd{font-size:16px}}
+#webComposer .bar-in{height:auto;min-height:48px}
