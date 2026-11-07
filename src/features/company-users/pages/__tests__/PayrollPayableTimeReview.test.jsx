@@ -211,3 +211,27 @@ it('keeps approved unpaid Leave source-owned and finalized evidence read-only', 
  expect(screen.queryByRole('link',{name:'View in Leave'})).toBeNull();
  expect(screen.getByText(/Finalized evidence/)).toBeTruthy();
 });
+
+it.each([25, 17])('shows all %s unsynchronized Monthly dates without offering to save a decision', count => {
+  const openSync = vi.fn();
+  const time = Array.from({length:count}, (_, index) => ({
+    ...row, id:`source-${index}`, work_date:`2026-10-${String(index + 1).padStart(2, '0')}`,
+    status:'unreconciled', issue_codes:['missing_punch'],
+    review_state:{required:true, state:'unreconciled'},
+  }));
+  render(<PayrollPayableTimeReview employee={{...employee,time,timeExceptionCount:count,pay:{pay_basis:'monthly'}}}
+    month="2026-10" canManage onClose={()=>{}} onOpenSynchronization={openSync} />);
+  expect(screen.getAllByText('Needs synchronization')).toHaveLength(count);
+  expect(screen.getAllByText('Missing clock evidence')).toHaveLength(count);
+  expect(screen.queryByText(/Time & Attendance — Ready/)).toBeNull();
+  expect(screen.queryByRole('button',{name:/Review exception|Continue Review/})).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Go to Evidence Sync'}));
+  expect(openSync).toHaveBeenCalledOnce();
+});
+
+it('fails closed when the run has exceptions but daily details are unavailable', () => {
+  render(<PayrollPayableTimeReview employee={{...employee,time:[],timeExceptionCount:17}}
+    month="2026-10" onClose={()=>{}} />);
+  expect(screen.getByText(/Evidence incomplete/)).toBeTruthy();
+  expect(screen.queryByText(/Time & Attendance — Ready/)).toBeNull();
+});
