@@ -4,7 +4,7 @@ import Modal from '../../../components/feedback/Modal.jsx';
 import DataTable from '../../../components/tables/DataTable.jsx';
 import Badge from '../../../components/ui/Badge.jsx';
 import { payrollTimeNeedsReview } from './payrollRunPresentation.js';
-import { DecisionModal, timeTreatment } from './PayrollTimeExceptionsTab.jsx';
+import { DecisionModal, LatestPublishedRoster, timeTreatment } from './PayrollTimeExceptionsTab.jsx';
 
 const hours = value => value == null ? '—' : `${(Number(value) / 60).toFixed(2)} h`;
 const money = value => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' }).format(value);
@@ -42,8 +42,8 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
   const rate = rates.length ? rates.join(' / ') : employee.pay?.hourly_rate != null ? money(employee.pay.hourly_rate) : '—';
   const columns = [
     { key:'date',header:'Date',render:row => <span className="whitespace-nowrap">{row.work_date}</span> },
-    { key:'roster',header:'Duty Roster',render:row => <div>{interval(row.evidence?.scheduled_start_at,row.evidence?.scheduled_end_at)}
-      <small className="block text-text-secondary">{hours(row.scheduled_minutes)} payable · {row.evidence?.roster_break_minutes == null ? 'Break not established' : `${row.evidence.roster_break_minutes}m unpaid break`}</small></div> },
+    { key:'roster',header:'Duty Roster',render:row => <div>{!frozen && row.latest_published_roster && <small className="block font-semibold">Roster used for this review</small>}{row.evidence?.roster_entry_type && row.evidence.roster_entry_type !== "working" ? human(row.evidence.roster_entry_type) : interval(row.evidence?.scheduled_start_at,row.evidence?.scheduled_end_at)}
+      <small className="block text-text-secondary">{hours(row.scheduled_minutes)} payable · {row.evidence?.roster_break_minutes == null ? 'Break not established' : `${row.evidence.roster_break_minutes}m unpaid break`}</small>{!frozen && <LatestPublishedRoster roster={row.latest_published_roster} />}</div> },
     { key:'clock',header:'Clock In–Out',render:row => interval(row.evidence?.clock_in_at,row.evidence?.clock_out_at) },
     { key:'leave',header:'Leave',render:row => <div>{row.evidence?.leave_id ? `Approved ${human(row.evidence.leave_type)} Leave` : 'No approved Leave'}{row.evidence?.leave_id && <small className="block text-text-secondary">Leave-owned evidence{canManage && canViewLeave && <a className="mt-1 block font-semibold text-primary" href={canonicalPathForRoute('crew_leave')} target="_blank" rel="noopener noreferrer">View in Leave</a>}</small>}</div> },
     { key:'actual',header:'Actual',align:'right',render:row => <span className="whitespace-nowrap tabular-nums">{hours(row.actual_minutes)}</span> },

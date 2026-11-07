@@ -199,6 +199,9 @@ append a reasoned payable-treatment correction on a non-Leave day, including
 automatically resolved attendance. Approved Leave is read-only here and links to
 its owning Leave authority; Payroll never creates Leave evidence. Returning from
 a saved correction resumes the existing stale → automatic calculation flow.
+Draft Time & Attendance and its decision dialog show a newer published roster for
+the same outlet and week alongside the roster used for review. This comparison
+is read-only and stays outside payable-time evidence, fingerprints and decisions.
 Finalized View Time reads only pinned `payroll_run_time_snapshots` and immutable
 versions/history up to the pinned revision through the existing finalized record
 read. Missing legacy snapshots are explicitly unavailable; later source changes
