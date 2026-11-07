@@ -1333,3 +1333,5 @@ Employee setup, compensation/statutory changes, PCB/PH/payable-time confirmation
 Finalize, Payment and Statutory Submission remain Human-owned. Frozen evidence is
 never recalculated. Raw statutory identity/setup internals remain Human-only; the
 Agent consumes the shared canonical statutory results and their unresolved issues.
+
+A verified terminal resignation or termination with unchanged employer, type, position and workplace ends eligibility without making earlier active work an ambiguous assignment. Draft Payroll retains both dated spans and uses the active identity for that work. Mixed assignments, gaps and a return to active employment after an inactive span still require review. Existing calculation fingerprints invalidate blocked Draft evidence when the resolver changes; finalized snapshots stay pinned.
