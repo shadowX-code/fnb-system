@@ -1,3 +1,4 @@
+import hrManifest from '../../../config/hrAgentActions.json';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import Badge from '../../components/ui/Badge.jsx';
 import ConfirmDialog from '../../components/feedback/ConfirmDialog.jsx';
@@ -6,7 +7,7 @@ import {externalAgentService} from '../../services/externalAgentService.js';
 import {actionLabels,executionPolicyLabels} from '../../components/permissions/capabilityActions.js';
 import factoryManifest from '../../../config/factoryAgentActions.json';
 import restaurantManifest from '../../../config/restaurantAgentActions.json';
-const actionManifest=[...factoryManifest,...restaurantManifest];
+const actionManifest=[...factoryManifest,...restaurantManifest,...hrManifest];
 import {getModuleById} from '../../../config/modules.ts';
 
 const activeStates = new Set(['pending_approval','awaiting_execution','needs_resolution']);

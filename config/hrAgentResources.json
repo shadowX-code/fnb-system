@@ -1,0 +1,202 @@
+[
+  {
+    "resource": "hr_workforce",
+    "module": "hr_dashboard",
+    "table": "employees",
+    "fields": [
+      "id",
+      "legal_entity_id",
+      "employment_type",
+      "employment_status"
+    ],
+    "kind": "employee"
+  },
+  {
+    "resource": "hr_employees",
+    "module": "employees",
+    "table": "employees",
+    "fields": [
+      "id",
+      "full_name",
+      "employee_code",
+      "legal_entity_id",
+      "employment_type",
+      "employment_status",
+      "position",
+      "department",
+      "workplace",
+      "joined_date",
+      "resigned_date"
+    ],
+    "kind": "employee"
+  },
+  {
+    "resource": "hr_employment_history",
+    "module": "employees",
+    "table": "employee_employment_assignment_revisions",
+    "fields": [
+      "id",
+      "employee_id",
+      "effective_from",
+      "employment_type",
+      "employment_status",
+      "position",
+      "legal_entity_id",
+      "workplace",
+      "employment_end_date",
+      "employment_jurisdiction",
+      "source_kind",
+      "recorded_at",
+      "corrects_revision_id",
+      "supersedes_revision_id",
+      "recorded_by_machine_id"
+    ],
+    "kind": "employment"
+  },
+  {
+    "resource": "hr_openings",
+    "module": "recruitment",
+    "table": "recruitment_openings",
+    "fields": [
+      "id",
+      "title",
+      "position_id",
+      "legal_entity_id",
+      "outlet_id",
+      "workplace",
+      "status",
+      "config_version",
+      "updated_at"
+    ],
+    "kind": "opening"
+  },
+  {
+    "resource": "hr_applications",
+    "module": "recruitment",
+    "table": "recruitment_applications",
+    "fields": [
+      "id",
+      "opening_id",
+      "decision_state",
+      "employee_id",
+      "created_at"
+    ],
+    "kind": "application"
+  },
+  {
+    "resource": "hr_payroll_periods",
+    "module": "payroll",
+    "table": "payroll_periods",
+    "fields": [
+      "id",
+      "legal_entity_id",
+      "period_start",
+      "period_end",
+      "current_finalized_run_id"
+    ],
+    "kind": "period"
+  },
+  {
+    "resource": "hr_payroll_runs",
+    "module": "payroll",
+    "table": "payroll_runs",
+    "fields": [
+      "id",
+      "period_id",
+      "revision",
+      "status",
+      "supersedes_run_id",
+      "created_at",
+      "finalized_at"
+    ],
+    "kind": "run"
+  },
+  {
+    "resource": "hr_payroll_earnings",
+    "module": "payroll",
+    "table": "payroll_run_calculation_versions",
+    "fields": [
+      "id",
+      "run_id",
+      "employee_id",
+      "revision",
+      "status",
+      "currency",
+      "gross_earnings",
+      "non_statutory_deductions",
+      "reimbursements",
+      "pre_statutory_pay",
+      "calculated_at"
+    ],
+    "kind": "calculation"
+  },
+  {
+    "resource": "hr_legal_entities",
+    "module": "legal_entities",
+    "table": "legal_entities",
+    "fields": [
+      "id",
+      "legal_company_name",
+      "display_name",
+      "company_registration_no",
+      "registered_address",
+      "is_active",
+      "updated_at"
+    ],
+    "kind": "entity"
+  },
+  {
+    "resource": "hr_departments",
+    "module": "departments",
+    "table": "departments",
+    "fields": [
+      "id",
+      "name",
+      "description",
+      "status",
+      "updated_at"
+    ],
+    "kind": "global"
+  },
+  {
+    "resource": "hr_job_positions",
+    "module": "job_positions",
+    "table": "job_positions",
+    "fields": [
+      "id",
+      "name",
+      "department",
+      "description",
+      "status",
+      "participates_in_team_review",
+      "updated_at"
+    ],
+    "kind": "global"
+  },
+  {
+    "resource": "hr_compliance_submissions",
+    "module": "employee_compliance",
+    "table": "employee_compliance_submissions",
+    "fields": [
+      "id",
+      "employee_id",
+      "requirement_id",
+      "expiry_date",
+      "submitted_at"
+    ],
+    "kind": "compliance"
+  },
+  {
+    "resource": "hr_compliance_reviews",
+    "module": "employee_compliance",
+    "table": "employee_compliance_reviews",
+    "fields": [
+      "id",
+      "submission_id",
+      "decision",
+      "reviewed_at",
+      "reviewed_by_machine_id"
+    ],
+    "kind": "compliance_review"
+  }
+]

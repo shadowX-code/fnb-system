@@ -1294,3 +1294,15 @@ Persisted PH reviews retain their original source snapshot and fingerprint. The 
 | `payroll.record_payment` | Current finalized Run settlement recording/reversal |
 
 Initial setup atomically writes pay and statutory evidence, so requires both setup and statutory grants. A PH treatment that changes payable time also requires time-review authority. Authorized input editors can invoke canonical recalculation; this does not grant another business mutation or bypass entity/outlet scope. Automated time-source synchronization requires preparation or time review. Existing owner/Admin restrictions for global settings, finalized guards, snapshots and controlled corrections remain unchanged. No command accepts legacy manage as a substitute for a workflow grant.
+
+## Agent preparation boundary
+
+Explicit Payroll Agent grants support saved, redacted calculation/period/Run reads,
+canonical Run creation and append/reverse Draft component adjustments. Company-wide
+management retains its existing all-outlet authority and exact Legal Entity binding;
+period membership and all pricing/statutory/finalization gates remain unchanged.
+Agent identity is stored independently in Run, adjustment and event records.
+A completed adjustment receipt establishes an appended business adjustment, not a
+fresh or finalized financial calculation. Saved calculation versions do not assert
+current readiness. Employee setup, compensation/statutory changes, payable-time/PH
+confirmation, Finalize and payment are not Agent operations in this rollout.

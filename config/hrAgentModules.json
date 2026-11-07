@@ -1,0 +1,58 @@
+[
+  {
+    "id": "hr_dashboard",
+    "label": "Dashboard",
+    "section": "Overview",
+    "route": "/hr/dashboard",
+    "human_permission": "employees.view"
+  },
+  {
+    "id": "employees",
+    "label": "Employees",
+    "section": "People",
+    "route": "/people/employees",
+    "human_permission": "employees.view"
+  },
+  {
+    "id": "recruitment",
+    "label": "Recruitment",
+    "section": "People",
+    "route": "/people/recruitment",
+    "human_permission": "recruitment.view"
+  },
+  {
+    "id": "payroll",
+    "label": "Payroll",
+    "section": "People",
+    "route": "/people/payroll",
+    "human_permission": "payroll.view"
+  },
+  {
+    "id": "legal_entities",
+    "label": "Legal Entities",
+    "section": "Organization",
+    "route": "/people/legal-entities",
+    "human_permission": "legal_entities.view"
+  },
+  {
+    "id": "departments",
+    "label": "Departments",
+    "section": "Organization",
+    "route": "/people/departments",
+    "human_permission": "departments.view"
+  },
+  {
+    "id": "job_positions",
+    "label": "Job Positions",
+    "section": "Organization",
+    "route": "/people/job-positions",
+    "human_permission": "job_positions.view"
+  },
+  {
+    "id": "employee_compliance",
+    "label": "Food Handling Compliance",
+    "section": "Compliance",
+    "route": "/people/food-handling-compliance",
+    "human_permission": "employee_compliance.view"
+  }
+]

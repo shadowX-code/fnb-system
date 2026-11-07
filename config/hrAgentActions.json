@@ -1,0 +1,190 @@
+[
+  {
+    "key": "hr_employment.update",
+    "module": "employees",
+    "label": "Employment Assignment",
+    "action": "update",
+    "human_permission": "employees.edit",
+    "table": "employees",
+    "target_required": true,
+    "input_fields": [
+      "legal_entity_id",
+      "record",
+      "effective_from",
+      "reason",
+      "expected_revision_id"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_employment",
+    "description": "Employment Assignment update. Explicit scope, source version and canonical evidence are required."
+  },
+  {
+    "key": "hr_recruitment.shortlist",
+    "module": "recruitment",
+    "label": "Candidate",
+    "action": "shortlist",
+    "human_permission": "recruitment.manage",
+    "table": "recruitment_applications",
+    "target_required": true,
+    "input_fields": [
+      "legal_entity_id",
+      "expected_state",
+      "reason"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_recruitment",
+    "description": "Candidate shortlist. Explicit scope, source version and canonical evidence are required."
+  },
+  {
+    "key": "hr_recruitment.advance",
+    "module": "recruitment",
+    "label": "Candidate",
+    "action": "advance",
+    "human_permission": "recruitment.manage",
+    "table": "recruitment_applications",
+    "target_required": true,
+    "input_fields": [
+      "legal_entity_id",
+      "expected_state",
+      "reason"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_recruitment",
+    "description": "Candidate advance. Explicit scope, source version and canonical evidence are required."
+  },
+  {
+    "key": "hr_recruitment.reject",
+    "module": "recruitment",
+    "label": "Candidate",
+    "action": "reject",
+    "human_permission": "recruitment.manage",
+    "table": "recruitment_applications",
+    "target_required": true,
+    "input_fields": [
+      "legal_entity_id",
+      "expected_state",
+      "reason"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_recruitment",
+    "description": "Candidate reject. Explicit scope, source version and canonical evidence are required."
+  },
+  {
+    "key": "hr_payroll.create",
+    "module": "payroll",
+    "label": "Payroll Run",
+    "action": "create",
+    "human_permission": "payroll.prepare",
+    "table": "payroll_runs",
+    "target_required": false,
+    "input_fields": [
+      "legal_entity_id",
+      "period_start",
+      "period_end",
+      "reason"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_payroll",
+    "description": "Payroll Run create. Explicit scope, source version and canonical evidence are required."
+  },
+  {
+    "key": "hr_payroll_adjustment.create",
+    "module": "payroll",
+    "label": "Payroll Adjustment",
+    "action": "create",
+    "human_permission": "payroll.adjust",
+    "table": "payroll_run_component_adjustments",
+    "target_required": false,
+    "input_fields": [
+      "legal_entity_id",
+      "run_id",
+      "employee_id",
+      "component_id",
+      "amount",
+      "reason"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_payroll_adjustment",
+    "description": "Payroll Adjustment create. Explicit scope, source version and canonical evidence are required."
+  },
+  {
+    "key": "hr_payroll_adjustment.reverse",
+    "module": "payroll",
+    "label": "Payroll Adjustment",
+    "action": "reverse",
+    "human_permission": "payroll.adjust",
+    "table": "payroll_run_component_adjustments",
+    "target_required": true,
+    "input_fields": [
+      "legal_entity_id",
+      "reason"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_payroll_adjustment",
+    "description": "Payroll Adjustment reverse. Explicit scope, source version and canonical evidence are required."
+  },
+  {
+    "key": "hr_compliance.verify",
+    "module": "employee_compliance",
+    "label": "Compliance Submission",
+    "action": "verify",
+    "human_permission": "employee_compliance.review",
+    "table": "employee_compliance_submissions",
+    "target_required": true,
+    "input_fields": [
+      "legal_entity_id",
+      "reason"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_compliance",
+    "description": "Compliance Submission verify. Explicit scope, source version and canonical evidence are required."
+  },
+  {
+    "key": "hr_compliance.reject",
+    "module": "employee_compliance",
+    "label": "Compliance Submission",
+    "action": "reject",
+    "human_permission": "employee_compliance.review",
+    "table": "employee_compliance_submissions",
+    "target_required": true,
+    "input_fields": [
+      "legal_entity_id",
+      "reason"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_compliance",
+    "description": "Compliance Submission reject. Explicit scope, source version and canonical evidence are required."
+  },
+  {
+    "key": "hr_legal_entity.create",
+    "module": "legal_entities",
+    "label": "Legal Entity",
+    "action": "create",
+    "human_permission": "legal_entities.manage",
+    "table": "legal_entities",
+    "target_required": false,
+    "input_fields": [
+      "legal_entity_id",
+      "record"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_legal_entity",
+    "description": "Legal Entity create. Explicit scope, source version and canonical evidence are required."
+  },
+  {
+    "key": "hr_legal_entity.update",
+    "module": "legal_entities",
+    "label": "Legal Entity",
+    "action": "update",
+    "human_permission": "legal_entities.manage",
+    "table": "legal_entities",
+    "target_required": true,
+    "input_fields": [
+      "legal_entity_id",
+      "record"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_legal_entity",
+    "description": "Legal Entity update. Explicit scope, source version and canonical evidence are required."
+  }
+]

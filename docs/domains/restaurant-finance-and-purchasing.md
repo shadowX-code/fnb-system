@@ -82,3 +82,16 @@ Marketing reads latest completed Product Analytics identity through canonical Br
 Outlet P&L Agent access is read-only and delegates to the existing `reporting_monthly_outlet_financials` body through a shared explicit-principal core. The Human RPC contract is unchanged. Agents can query a month or the twelve canonical monthly states for a year, discover recorded periods and compare separately authorized outlets. Missing sources remain incomplete. Existing management `net_profit`/EBITDA semantics remain unchanged; no independent financial calculation or P&L mutation is introduced.
 
 The shared Restaurant Purchasing Action capabilities bind to the existing PO Save/Transition/Receive authorities. They preserve supplier/outlet and source-stock-check validation, ordered transitions, immutable received evidence, canonical receiving stock movements and idempotent receipts. Capability grants are separate from module View and canonical outlet scope; no new capability is automatically assigned. See `inventory-and-assets.md` and `../architecture/trusted-authorities.md` for supported actions and evidence boundaries.
+
+### Product Sales Analytics Agent reads
+
+`query_product_sales_analytics` provides explicitly granted outlet-scoped periods,
+complete product/variant/category metrics, rankings, quantities, net sales,
+discounts and period comparisons. Admin and Gateway share normalization,
+aggregation, ranking and complete-read validation under `supabase/functions/_shared`.
+The source RPC binds every page to an authorized outlet and report-window digest;
+count, overlap, premature truncation or source revision failures prevent partial
+aggregates. Product-result pagination is applied after full source aggregation.
+Missing report periods and non-completed source reports remain explicit rather
+than implying a complete POS reporting period. Upload/replacement/deletion and all
+source sales data remain outside the Agent capability.

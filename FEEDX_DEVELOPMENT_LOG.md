@@ -1231,3 +1231,14 @@ Extended the existing Staging text authority with current-human Factory Finished
 ### 2026-11-06 — Native Assistant private context and conversation workspace (Staging)
 
 Shared bounded context reconstruction now combines recent completed turns with versioned, deterministic extractive notes; original messages and Factory evidence remain canonical. Explicit prior-conversation text recall is owner/scope-bound and limited to three source-identified excerpts. Derived notes invalidate on source edits/deletion; no additional summarization provider is introduced. History omits empty drafts and searches message content. Personal Memory remains explicit curated preferences and uses canonical accessible selection controls. The exhausted Staging voice evaluation allowance is presented as requiring approval, with no ledger reset or additional paid call. See the Native Assistant sections of `docs/architecture/trusted-authorities.md` and `docs/architecture/platform.md`.
+
+## HR and Product Sales Analytics Agent capabilities
+
+Extended the existing Gateway with explicit HR machine principals, fixed redacted
+company/workplace-scoped reads and supported canonical Employment, Recruitment,
+Compliance, Legal Entity and Payroll preparation/adjustment commands. Human RPCs
+retain their contracts and delegate to the same business bodies. New grants are
+opt-in; shared platform administration and unsupported Human workflows are not
+exposed. Product Sales Analytics shares complete-read validation and its canonical
+model between Admin and MCP, with source-bound paging and explicit period gaps.
+Verification/delivery evidence belongs in the scoped acceptance record.

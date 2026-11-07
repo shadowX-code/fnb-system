@@ -250,3 +250,15 @@ Physical Safari may suspend execution or terminate its renderer before callbacks
 VAD/ASR is a provider observation, not speaker verification. In the controlled runtime, finalized candidate segments remain local until the automatic multi-signal gate or deliberate fallback accepts them. Accepted segments retain original timing/item IDs and use the existing ordered transcript authority. Bounded diagnostics distinguish `turn_acceptance` reasons, `candidate_auto_accepted` and manual `candidate_confirmed`; they do not store raw audio or token probabilities. Duplicate finals cannot reinsert or quarantine an already accepted turn. Rejected, uncertain, discarded or unsubmitted segments retained during disposal receive `unverified_candidate` before raw text and remain excluded by existing coverage/context/report eligibility. No historical transcript or profile is rewritten. Confidence is ASR token uncertainty, not independently verified speech: confident hallucinations, another audible speaker or semantic end-of-turn errors remain possible. Physical multilingual/noise and iOS playback/recovery acceptance remains required. Deliberate interruption uses I’d like to speak; automatic acoustic barge-in stays disabled to prevent interviewer echo/breathing from cancelling output.
 
 Native teardown is issued when the old capture is stopped, before waiting for recorder onstop or storage. Its context is released once; late finalization cannot issue another native close against replacement playback. Device hooks detach old ownership before disposal, so a stale native track exception cannot retain a poisoned stream until refresh. MP4 units, immutable acknowledgements, integrity validation and upload/finalization contracts are unchanged.
+
+## Agent operations
+
+The shared Agent Gateway can read redacted scoped opening/application state and
+execute separately granted Shortlist, Advance to Final Interview or Reject intents
+through the same decision body used by Human managers. Decisions and events record
+the machine principal, retaining prior evidence, terminal-state protection, exact
+retry fingerprints and the active-interview guard. Each request binds the actual
+opening Legal Entity and workplace scope. Hiring/Employee conversion, report review,
+interview content/evidence, candidate contact, consent, invitations and provider
+sessions remain outside Agent execution. An Agent never impersonates a manager or
+manufactures candidate or inspection evidence.

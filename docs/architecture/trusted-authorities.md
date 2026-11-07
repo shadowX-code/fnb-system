@@ -257,3 +257,49 @@ Tab visibility alone never closes an SDK call. Return/online/focus events reconc
 End Voice remains available for an authenticated owner when provider readiness is disabled. The Edge runtime first closes that lease through the existing authority, then claims its stored closing call for immediate pinned-credential hangup. `owned_cleanup` is service-only and checks actor/request/session; credentials and call IDs are never accepted from or returned to clients. A cleanup claim is not reset by repeated End requests. Confirmed hangup/not-found closes the slot; uncertain outcomes stay protected for the existing scheduled cleanup. UI admission stays locked through cleanup and refreshes availability with bounded polling instead of requiring page reload.
 
 Voice visualization analyses existing SDK sender and receiver tracks through a non-playing Web Audio graph. It neither calls getUserMedia nor owns/stops those tracks. One analyser context is closed with the call; sampling stops in hidden pages and uses a reduced update rate for reduced-motion preferences. Frequency bands and amplitude are transient presentation observations, not stored audio or execution evidence. The shared VoiceInteraction component remains mounted across both views; the single GPL-isolated multiline text composer consumes the same voice lock.
+
+### HR Agent principals and Product Sales Analytics
+
+HR uses the existing opaque machine identity, credential, role grant, outlet scope,
+request/receipt and Activity authorities at `factory-mesti-mcp`. It never sets an
+Employee or Auth identity on behalf of an Agent. Supported Human RPCs and private
+machine commands delegate to the same canonical business bodies. Employment
+revisions, Recruitment decisions/events, Compliance reviews, Legal Entities and
+Payroll preparation/adjustment records retain explicit machine attribution;
+exclusive Human-or-Machine constraints preserve the original Human actor invariant.
+Existing historical rows are not backfilled or reattributed.
+
+`hrAgentModules.json`, `hrAgentResources.json` and `hrAgentActions.json` define the
+fixed supported surface. HR View and individual Action grants are opt-in. Reads and
+commands carry an explicit Legal Entity and revalidate the canonical role's
+workplace/outlet scope; company-wide Payroll and Legal Entity commands retain the
+existing all-outlet management requirement. Employment transfers to another Legal
+Entity remain Human-owned. The shared Roles & Permissions and AI Integrations pages
+are not duplicated as HR capabilities. Read projections exclude contacts, identity
+numbers, bank data, credentials, private documents and interview recordings. HR
+keyset pages bind a returned source snapshot; changed evidence requires restarting
+the complete read. Workforce aggregation reuses the Admin model and returns only
+the complete company summary through MCP.
+
+Supported machine commands append Employment evidence; shortlist, advance or reject
+Recruitment applications; verify/reject an existing Compliance submission; create a
+Payroll Run; append/reverse a Draft adjustment; and create/update a Legal Entity.
+Canonical permissions, reason, lifecycle, record locks, effective dates and evidence
+validation remain enforced. Hiring, Employee login/role changes, statutory setup,
+PH/payable-time confirmations, Payroll finalization/payment, candidate consent,
+private evidence access and browser-orchestrated master CRUD are not registered.
+No human approval or inspection is manufactured. Exact retry receipts reauthorize
+scope before replay. Completed operations carry the Agent, action, target and source
+versions; technical API acceptance is not business completion.
+
+Product Sales Analytics is a separate read-only Restaurant capability. Its fixed
+source RPC checks the exact View grant and outlet, observes report metadata/count/
+page/source digest together and rejects conflicting report-item outlet evidence.
+The Gateway reads every source page before using the same normalization,
+product/variant/category aggregation and deterministic rankings as Admin. Totals
+never use a truncated product page. Comparisons retain explicit missing periods and
+non-completed source states; retrieval completeness does not assert POS coverage.
+Source windows are bounded at 50,000 items, response products at 100/page, and
+available period metadata at 1,200 entries. POS report upload, replacement and
+source edits are not exposed. Existing Factory/Restaurant tools and grants remain
+unchanged unless an administrator explicitly changes them.
