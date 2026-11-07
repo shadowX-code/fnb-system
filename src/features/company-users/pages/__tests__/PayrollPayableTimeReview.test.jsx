@@ -8,11 +8,12 @@ const row = {id:'time',employee_name:'QA Hourly',work_date:'2026-09-25',status:'
 const employee = {name:'QA Hourly',time:[row],pay:{pay_basis:'hourly',hourly_rate:15.5},result:{earningsCurrent:true},calculation:{lines:[{kind:'earning',code:'regular',rate_per_minute:15.5/60,amount:100.75}]}};
 it('shows source comparison and pending approval without calculating earnings from Attendance',()=>{
   render(<PayrollPayableTimeReview employee={employee} month="2026-09" canManage onClose={()=>{}} />);
+  fireEvent.click(screen.getByRole('button', {name:'Show details for 2026-09-25'}));
   expect(screen.getByText('Late arrival · Early departure')).toBeTruthy();
   expect(screen.getAllByText('7.50 h')).toHaveLength(2);
   expect(screen.getByText('Proposed 6.50 h')).toBeTruthy();
   expect(screen.getByText(/RM\s*100\.75/)).toBeTruthy();
-  expect(screen.getByText(/review pending/)).toBeTruthy();
+  expect(screen.getByText(/Review or sync pending/)).toBeTruthy();
 });
 it('does not submit a saved decision again when payroll refresh fails',async()=>{
   mocks.decideTime.mockResolvedValue({});
@@ -178,7 +179,7 @@ it('uses server pay-impact states for Monthly evidence and excludes PH from the 
   expect(screen.getByText('Resolved automatically')).toBeTruthy();
   expect(screen.getAllByRole('button',{name:'Review exception'})).toHaveLength(1);
   expect(screen.getByText('2026-09-16')).toBeTruthy();
-  expect(screen.getByText('PH treatment is separate in Employee Review.')).toBeTruthy();
+  expect(screen.getByText('PH review separate')).toBeTruthy();
   expect(screen.queryByText('Approved Payable Hours')).toBeNull();
   expect(screen.queryByText('Hourly Rate')).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
@@ -203,6 +204,7 @@ it('keeps approved unpaid Leave source-owned and finalized evidence read-only', 
  const leave={...row,status:'non_payable',approved_minutes:0,evidence:{leave_id:'leave',leave_type:'unpaid'},review_state:{required:false,automatic:true,state:'ready'}};
  const view=render(<PayrollPayableTimeReview employee={{...employee,time:[leave]}} month="2026-09" canManage canViewLeave onClose={()=>{}} />);
  expect(screen.getByText('Approved Unpaid Leave')).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Show details for 2026-09-25'}));
  expect(screen.getByRole('link',{name:'View in Leave'}).getAttribute('href')).toBe('/crew/workforce/leave');
  expect(screen.queryByRole('button',{name:'Correct Decision'})).toBeNull();
  expect(screen.queryByRole('button',{name:'Adjust Payable Time'})).toBeNull();
@@ -221,7 +223,7 @@ it.each([25, 17])('shows all %s unsynchronized Monthly dates without offering to
   }));
   render(<PayrollPayableTimeReview employee={{...employee,time,timeExceptionCount:count,pay:{pay_basis:'monthly'}}}
     month="2026-10" canManage onClose={()=>{}} onOpenSynchronization={openSync} />);
-  expect(screen.getAllByText('Needs synchronization')).toHaveLength(count);
+  expect(screen.getAllByRole('cell', {name:'Needs Sync'})).toHaveLength(count);
   expect(screen.getAllByText('Missing clock evidence')).toHaveLength(count);
   expect(screen.queryByText(/Time & Attendance — Ready/)).toBeNull();
   expect(screen.queryByRole('button',{name:/Review exception|Continue Review/})).toBeNull();
@@ -241,6 +243,8 @@ it('shows a newer published roster alongside the bound roster in Draft review on
     latest_published_roster: {revision: 4, entry_type: 'working', start_time: '17:00', end_time: '22:00', break_minutes: 0}}];
   const props = {employee: {...employee, time}, month: '2026-09', canManage: true, onClose: vi.fn()};
   const view = render(<PayrollPayableTimeReview {...props} />);
+  expect(screen.queryByText('Latest published roster · Rev 4')).toBeNull();
+  fireEvent.click(screen.getByRole('button', {name:'Show details for 2026-09-25'}));
   expect(screen.getByText('Latest published roster · Rev 4')).toBeTruthy();
   expect(screen.getByText(/17:00 – 22:00/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', {name: 'Review exception'}));
@@ -249,4 +253,21 @@ it('shows a newer published roster alongside the bound roster in Draft review on
   view.unmount();
   render(<PayrollPayableTimeReview {...props} frozen />);
   expect(screen.queryByText('Latest published roster · Rev 4')).toBeNull();
+});
+
+it('filters dates without changing the clock totals or hiding approved decision history', () => {
+  const time = [row,
+    {...row, id:'approved', work_date:'2026-10-02', status:'approved_manual', approved_minutes:285, actual_minutes:1441,
+      history:[{id:'v2', status:'approved_manual', approved_minutes:285}]},
+    {...row, id:'sync', work_date:'2026-10-03', review_state:{state:'unreconciled',required:true}},
+  ];
+  render(<PayrollPayableTimeReview employee={{...employee,time}} month="2026-10" canManage onClose={()=>{}} />);
+  fireEvent.click(screen.getByRole('button', {name:'Approved 1'}));
+  expect(screen.queryByRole('button', {name:'Show details for 2026-10-03'})).toBeNull();
+  fireEvent.click(screen.getByRole('button', {name:'Show details for 2026-10-02'}));
+  expect(screen.getByText('Approved Manual · 4.75 h')).toBeTruthy();
+  expect(screen.getByText('24.02 h across 1 span of 24h or more')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', {name:'Needs Sync 1'}));
+  expect(screen.getByRole('button', {name:'Show details for 2026-10-03'})).toBeTruthy();
+  expect(screen.queryByRole('button', {name:'Correct Decision'})).toBeNull();
 });
