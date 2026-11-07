@@ -162,6 +162,8 @@ export function payrollIssueLabel(issue, context = {}) {
     phase3_calculation_missing_or_stale: "Refresh payroll after resolving employee inputs.",
     earnings_inputs_require_review: "Resolve the earning inputs above before calculating statutory amounts.",
     employment_start_date_requires_review: "Confirm the employee's commencement date in Employee setup.",
+    missing_unpaid_time_rule: "Review the saved time decision and its effective rule in Payroll Settings → Statutory & Pay Rules → Unpaid Time (Monthly).",
+    missing_non_payable_rule: "Verify the effective rule for this pay basis in Payroll Settings → Statutory & Pay Rules → Non-Payable Time.",
     unreconciled_time: "Refresh payable time evidence",
     unresolved_time_exception: "Resolve the payable time exception",
     stale_time_evidence: "Work evidence changed; refresh payable time",
