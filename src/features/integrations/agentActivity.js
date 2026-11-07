@@ -30,6 +30,8 @@ export function agentActivity(detail, requests = [], identityId) {
  const events = [...operations.values()], diagnostics = [];
  for (const row of detail.access_events || []) {
   const modules = [...new Set((row.resource_actions || []).map(action=>action.business_module).filter(Boolean))];
+  // The dedicated tool identifies this read domain even in its legacy access-event shape.
+  if(row.tool==='query_product_sales_analytics'&&!modules.length)modules.push('product_analytics');
   const read = readTools.has(row.tool), failed = row.outcome==='failed'||row.outcome==='denied';
   const entry = {id:`access:${row.id}`,date:row.occurred_at,category:failed?'failed':'read',state:row.outcome==='denied'?'denied':row.outcome==='failed'?'failed':'read',moduleIds:modules,
    title:read?(legacyReads[row.tool]||(row.tool==='query_hr_resources'?'Read HR records':row.tool==='query_product_sales_analytics'?'Read Product Sales Analytics':row.tool==='query_restaurant_resources'?'Read Restaurant records':'Read Factory records')):['execute_factory_action','execute_restaurant_action','execute_hr_action'].includes(row.tool)?'Business action attempt':['factory_action_context','restaurant_action_context','hr_action_context'].includes(row.tool)?'Business action eligibility':'Connection request',

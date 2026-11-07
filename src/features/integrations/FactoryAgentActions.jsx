@@ -8,7 +8,7 @@ import {actionLabels,executionPolicyLabels} from '../../components/permissions/c
 import factoryManifest from '../../../config/factoryAgentActions.json';
 import restaurantManifest from '../../../config/restaurantAgentActions.json';
 const actionManifest=[...factoryManifest,...restaurantManifest,...hrManifest];
-import {getModuleById} from '../../../config/modules.ts';
+import {agentBusinessModule} from './agentBusinessModule.js';
 
 const activeStates = new Set(['pending_approval','awaiting_execution','needs_resolution']);
 const labels = {pending_approval:'Pending Human Approval',awaiting_execution:'Awaiting Agent Execution',needs_resolution:'Needs Resolution',legacy_pending:'Legacy Pending Request',completed:'Completed',expired:'Expired',rejected:'Rejected'};
@@ -42,7 +42,7 @@ export default function FactoryAgentActions({identityId,canManage,history=false,
   {error&&<p role="alert" className="external-agent-notice">{error}</p>}
   {unsupported&&<p role="alert">Some request states are unavailable. Check requests before acting.</p>}
   {rows===null&&error?<p>Requests unavailable. Use Check requests to retry.</p>:rows===null?<p role="status">Loading action requests…</p>:!visible.length?<p className="text-sm text-text-secondary">{unsupported?'Check requests to recover the current queue.':history?'No historical requests. Denied attempts remain in the Activity log.':'No action required. Legacy requests and operation history are available in Activity.'}</p>:<ul className="divide-y divide-border">{visible.map(row=>{
-   const state=row.queue_state, route=getModuleById(actionManifest.find(action=>action.key===row.action)?.module)?.route;
+   const state=row.queue_state, route=agentBusinessModule(actionManifest.find(action=>action.key===row.action)?.module)?.route;
    return <li key={row.request_id} className="py-3 space-y-2">
     <div className="flex flex-wrap items-center justify-between gap-2"><strong>{row.label} · {actionLabels[row.action.split('.').at(-1)]}</strong><Badge tone={state==='completed'?'success':state==='pending_approval'||state==='needs_resolution'?'warning':'neutral'}>{labels[state]||'Status unavailable'}</Badge></div>
     <p className="text-xs text-text-secondary">{executionPolicyLabels[row.execution_policy]} · Requested {formatOperationalMoment(row.requested_at)}{row.confirmed_at&&<> · Approved {formatOperationalMoment(row.confirmed_at)}</>}{row.receipt?.completed_at&&<> · Completed {formatOperationalMoment(row.receipt.completed_at)}</>}</p>
