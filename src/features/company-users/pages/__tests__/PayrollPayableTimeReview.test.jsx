@@ -13,7 +13,7 @@ it('shows source comparison and pending approval without calculating earnings fr
   expect(screen.getAllByText('7.50 h')).toHaveLength(2);
   expect(screen.getByText('Proposed 6.50 h')).toBeTruthy();
   expect(screen.getByText(/RM\s*100\.75/)).toBeTruthy();
-  expect(screen.getByText(/Review or sync pending/)).toBeTruthy();
+  expect(screen.getByRole('cell', {name:'Needs Review'})).toBeTruthy();
 });
 it('does not submit a saved decision again when payroll refresh fails',async()=>{
   mocks.decideTime.mockResolvedValue({});
@@ -47,7 +47,7 @@ it('keeps an unsupported saved response on the same date without duplicating the
 });
 it('clean days and read-only access do not offer a decision',()=>{
   render(<PayrollPayableTimeReview employee={{...employee,time:[{...row,status:'approved_auto',approved_minutes:390,issue_codes:[]}]}} month="2026-09" canManage={false} onClose={()=>{}} />);
-  expect(screen.getByText('Resolved automatically')).toBeTruthy();
+  expect(screen.getByRole('cell', {name:'Approved'})).toBeTruthy();
   expect(screen.queryByRole('button',{name:'Review exception'})).toBeNull();
 });
 
@@ -180,7 +180,7 @@ it('uses server pay-impact states for Monthly evidence and excludes PH from the 
   expect(screen.getAllByRole('button',{name:'Review exception'})).toHaveLength(1);
   expect(screen.getByText('2026-09-16')).toBeTruthy();
   expect(screen.getByText('PH review separate')).toBeTruthy();
-  expect(screen.queryByText('Approved Payable Hours')).toBeNull();
+  expect(screen.queryByText('Saved Approved Hours')).toBeNull();
   expect(screen.queryByText('Hourly Rate')).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
   expect(screen.getByText('1 of 1 exceptions')).toBeTruthy();
@@ -270,4 +270,16 @@ it('filters dates without changing the clock totals or hiding approved decision 
   fireEvent.click(screen.getByRole('button', {name:'Needs Sync 1'}));
   expect(screen.getByRole('button', {name:'Show details for 2026-10-03'})).toBeTruthy();
   expect(screen.queryByRole('button', {name:'Correct Decision'})).toBeNull();
+});
+
+it('keeps saved approvals visible while changed evidence blocks Regular earnings', () => {
+  const time = [{...row,status:'approved_manual',approved_minutes:300,source_state:{updated:true}}];
+  render(<PayrollPayableTimeReview employee={{...employee,time,result:{earningsAvailable:true,earningsCurrent:false},
+    calculation:{status:'review_required',lines:[],issues:['stale_time_evidence:2026-09-25']}}} month="2026-09" canManage onClose={()=>{}} />);
+  expect(screen.getByRole('cell', {name:'Needs Review'})).toBeTruthy();
+  expect(screen.getByText('Source Updated')).toBeTruthy();
+  expect(screen.getByText('5.00 h Regular · 0.00 h other')).toBeTruthy();
+  expect(screen.getByText('Pending')).toBeTruthy();
+  expect(screen.getByText('Resolve changed time evidence')).toBeTruthy();
+  expect(screen.queryByText(/RM\s*0\.00/)).toBeNull();
 });

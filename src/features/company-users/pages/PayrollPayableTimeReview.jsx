@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import Modal from '../../../components/feedback/Modal.jsx';
 import DataTable from '../../../components/tables/DataTable.jsx';
+import SelectField from '../../../components/forms/SelectField.jsx';
 import Badge from '../../../components/ui/Badge.jsx';
 import { payrollTimeNeedsReview } from './payrollRunPresentation.js';
 import { DecisionModal, LatestPublishedRoster, timeTreatment } from './PayrollTimeExceptionsTab.jsx';
@@ -24,6 +25,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
   const [correcting, setCorrecting] = useState(false);
   const [queue, setQueue] = useState([]);
   const [latestRows, setLatestRows] = useState(null);
+  const [issueFilter, setIssueFilter] = useState('');
   const [filter, setFilter] = useState('All');
   const [expandedId, setExpandedId] = useState(null);
   const [dateDirection, setDateDirection] = useState('asc');
@@ -33,8 +35,22 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
   const exceptions = rows.filter(payrollTimeNeedsReview);
   const syncRows = exceptions.filter(isUnsynchronized);
   const actionable = exceptions.filter(row => !isUnsynchronized(row)).sort((a, b) => a.work_date.localeCompare(b.work_date));
-  const approved = rows.filter(row => !payrollTimeNeedsReview(row) && ['approved_auto', 'approved_manual'].includes(row.status));
-  const groups = { All: rows, 'Needs Review': actionable, Approved: approved, 'Needs Sync': syncRows };
+  const workflowStatus = row => isUnsynchronized(row) ? 'Needs Sync'
+    : payrollTimeNeedsReview(row) ? 'Needs Review'
+    : ['approved_auto', 'approved_manual'].includes(row.status) ? 'Approved'
+    : row.review_state?.automatic ? 'Resolved automatically' : human(row.status);
+  const reasons = row => [
+    ...(row.source_state?.updated ? ['Source Updated'] : []),
+    ...new Set((row.issue_codes || []).map(issue => differences[issue] || human(issue))),
+  ];
+  const issueOptions = [...new Set(rows.flatMap(reasons))].sort();
+  const matchingRows = issueFilter ? rows.filter(row => reasons(row).includes(issueFilter)) : rows;
+  const groups = {
+    All: matchingRows,
+    'Needs Review': matchingRows.filter(row => workflowStatus(row) === 'Needs Review'),
+    Approved: matchingRows.filter(row => workflowStatus(row) === 'Approved'),
+    'Needs Sync': matchingRows.filter(row => workflowStatus(row) === 'Needs Sync'),
+  };
   const priority = row => isUnsynchronized(row) ? 1 : payrollTimeNeedsReview(row) ? 0 : 2;
   const visibleRows = [...groups[filter]].sort((a, b) =>
     priority(a) - priority(b) || (dateDirection === 'asc' ? 1 : -1) * a.work_date.localeCompare(b.work_date));
@@ -50,7 +66,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
   const longSpans = nonHolidayRows.filter(row => row.actual_minutes >= 1440);
   const recorded = key => nonHolidayRows.some(row => row[key] != null) ? hours(sum(key)) : '—';
   const regular = (employee.calculation?.lines || []).filter(line => line.kind === 'earning' && line.code === 'regular');
-  const rates = [...new Set(regular.map(line => Number(line.rate_per_minute) * 60).filter(Number.isFinite).map(rate => money(rate)))];
+  const rates = employee.result.earningsCurrent ? [...new Set(regular.filter(line => line.rate_per_minute != null).map(line => Number(line.rate_per_minute) * 60).filter(Number.isFinite).map(rate => money(rate)))] : [];
   const rate = rates.length ? rates.join(' / ') : employee.pay?.hourly_rate != null ? money(employee.pay.hourly_rate) : '—';
   const rosterLabel = row => row.evidence?.roster_entry_type && row.evidence.roster_entry_type !== 'working'
     ? human(row.evidence.roster_entry_type) : interval(row.evidence?.scheduled_start_at, row.evidence?.scheduled_end_at);
@@ -72,11 +88,12 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
     { key: 'payable', header: 'Payable', render: row => <strong className="whitespace-nowrap tabular-nums">{row.approved_minutes != null
       ? hours(Number(row.approved_minutes) + Number(row.approved_extra_minutes || 0))
       : isUnsynchronized(row) ? 'Pending sync' : row.review_state?.automatic ? 'Monthly / Leave rules' : 'Pending review'}</strong> },
-    { key: 'issue', header: 'Issue', render: row => row.issue_codes?.length
-      ? <>{differences[row.issue_codes[0]] || human(row.issue_codes[0])}{row.issue_codes.length > 1 && <small className="ml-1 whitespace-nowrap text-text-secondary">+{row.issue_codes.length - 1}</small>}</> : '—' },
-    { key: 'status', header: 'Status', render: row => <Badge tone={payrollTimeNeedsReview(row) ? 'warning' : 'success'}>
-      {isUnsynchronized(row) ? 'Needs Sync' : payrollTimeNeedsReview(row) ? row.source_state?.updated ? 'Source Updated' : 'Needs Review'
-        : row.review_state?.automatic || row.status === 'approved_auto' ? 'Resolved automatically' : human(row.status)}
+    { key: 'issue', header: 'Issue', render: row => {
+      const [first, second, ...more] = reasons(row);
+      return first ? <div>{first}{second && <small className="block text-text-secondary">{second}{more.length > 0 && ` +${more.length}`}</small>}</div> : '—';
+    } },
+    { key: 'status', header: 'Status', render: row => <Badge tone={payrollTimeNeedsReview(row) || isUnsynchronized(row) ? 'warning' : 'success'}>
+      {workflowStatus(row)}
     </Badge> },
     { key: 'action', header: 'Action', render: row => {
       if (row.review_state?.state === 'ph_review') return <span className="text-text-secondary">PH review separate</span>;
@@ -84,7 +101,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
         ? <button type="button" className="btn-secondary btn-sm min-h-11 whitespace-nowrap md:min-h-0" onClick={onOpenSynchronization}>Evidence Sync</button> : '—';
       if (!canDecide) return '—';
       if (payrollTimeNeedsReview(row)) return <button type="button" className="btn-secondary btn-sm min-h-11 md:min-h-0"
-        aria-label={row.source_state?.updated ? 'Review source changes' : 'Review exception'} onClick={() => startReview(row)}>Review</button>;
+        aria-label={row.source_state?.updated ? 'Review source changes' : 'Review exception'} onClick={() => startReview(row)}>{row.source_state?.updated ? 'Review changes' : 'Review'}</button>;
       if (row.evidence?.leave_id) return '—';
       return <button type="button" className="btn-secondary btn-sm min-h-11 whitespace-nowrap md:min-h-0" onClick={() => {
         setCorrecting(true); setLatestRows(rows); setDecisionDate(row.work_date);
@@ -102,7 +119,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
     <section>
       <h3 className="font-semibold">Payroll review</h3>
       <p className="mt-1">{timeTreatment(row) || 'Classification unavailable'}</p>
-      {!!row.issue_codes?.length && <p className="text-text-secondary">{row.issue_codes.map(issue => differences[issue] || human(issue)).join(' · ')}</p>}
+      {reasons(row).length > 0 && <p className="text-text-secondary">{reasons(row).join(' · ')}</p>}
       {row.proposed_minutes != null && <p>Proposed {hours(row.proposed_minutes)}</p>}
       {row.evidence?.extra_candidate_minutes > 0 && <p>Extra candidate {hours(row.evidence.extra_candidate_minutes)}</p>}
       {row.approved_extra_minutes > 0 && <p>Approved OT {hours(row.approved_extra_minutes)}</p>}
@@ -151,17 +168,26 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
       if (correcting) { setDecisionDate(null); setCorrecting(false); } else advance(updated, decisionDate);
     }} />;
   const hourly = employee.pay?.pay_basis === 'hourly';
-  const hasPending = exceptions.length > 0 || evidenceIncomplete;
-  const earningsAvailable = employee.result.earningsAvailable ?? employee.result.earningsCurrent;
+  const calculation = employee.calculation;
+  const earningsCurrent = employee.result.earningsCurrent;
+  const timeBlocksCalculation = calculation?.issues?.some(issue => issue.startsWith('stale_time_evidence:'));
+  const savedRegular = sum('approved_minutes', nonHolidayRows.filter(row => row.classification === 'regular'));
+  const savedTotal = sum('approved_minutes') + sum('approved_extra_minutes');
+  const hasSavedHours = nonHolidayRows.some(row => row.approved_minutes != null);
+  const regularEarnings = earningsCurrent ? money(regular.reduce((total, line) => total + Number(line.amount), 0)) : 'Pending';
+  const calculationDetail = calculation?.is_stale ? 'Calculation out of date'
+    : timeBlocksCalculation ? 'Resolve changed time evidence'
+    : calculation && !earningsCurrent ? 'Calculation requires review' : null;
   const metrics = [
     ['Scheduled Hours', recorded('scheduled_minutes'), nonHolidayRows.some(row => row.scheduled_minutes == null) ? 'Some dates have no scheduled hours' : null],
     ['Recorded Clock Hours', recorded('actual_minutes'), longSpans.length
       ? `${hours(sum('actual_minutes', longSpans))} across ${longSpans.length} span${longSpans.length === 1 ? '' : 's'} of 24h or more`
       : 'Elapsed clock-in to clock-out'],
-    ['Approved Payable Hours', nonHolidayRows.some(row => row.approved_minutes != null) ? hours(sum('approved_minutes') + sum('approved_extra_minutes')) : '—',
-      hasPending ? 'Review or sync pending' : null],
-    ['Hourly Rate', rate === '—' ? rate : rates.length > 1 ? rate : `${rate} / hour`, rates.length > 1 ? 'Date-effective rates' : null],
-    ['Calculated Regular Earnings', earningsAvailable ? money(regular.reduce((total, line) => total + Number(line.amount), 0)) : 'Pending', null],
+    ['Saved Approved Hours', hasSavedHours ? hours(savedTotal) : '—', hasSavedHours
+      ? `${hours(savedRegular)} Regular · ${hours(savedTotal - savedRegular)} other` : null],
+    [earningsCurrent && rates.length ? 'Regular Pay Rate' : 'Configured Hourly Rate', rate === '—' ? rate : rates.length > 1 ? rate : `${rate} / hour`,
+      earningsCurrent && rates.length ? 'From calculated Regular lines' : 'Rates can vary by date'],
+    ['Regular Earnings', regularEarnings, calculationDetail],
   ];
   return <Modal title={`Time & Attendance · ${employee.name}`} description={`${month} · ${frozen ? 'Finalized evidence · Read-only' : 'Review daily evidence and payable time'}`}
     size="3xl" onClose={onClose} footerClassName="flex-wrap max-sm:[&>button]:min-h-11" footer={<>
@@ -169,22 +195,24 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
       {canDecide && actionable.length > 0 && <button type="button" className="btn-primary" onClick={() => startReview(actionable[0])}>Continue Review</button>}
     </>}>
     <div className="space-y-3 text-sm">
-      {hourly && <dl className="grid grid-cols-2 gap-3 border-b border-border pb-3 sm:grid-cols-3 lg:grid-cols-5">
-        {metrics.map(([label, value, detail]) => <div key={label}>
+      {hourly && <dl className="grid grid-cols-2 gap-x-3 gap-y-4 rounded-lg border border-border p-3 sm:grid-cols-6 lg:grid-cols-5">
+        {metrics.map(([label, value, detail], index) => <div key={label} className={`min-w-0 sm:col-span-2 lg:col-span-1 ${index === 4 ? 'col-span-2 border-t border-border pt-2 sm:border-0 sm:pt-0' : ''}`}>
           <dt className="text-xs text-text-secondary">{label}</dt>
-          <dd className="font-semibold tabular-nums">{value}</dd>
+          <dd className="mt-0.5 text-base font-semibold tabular-nums">{value}</dd>
           {detail && <dd className="text-xs text-text-secondary">{detail}</dd>}
         </div>)}
       </dl>}
       <p className="text-xs text-text-secondary">{frozen ? 'Pinned evidence for this Payroll revision.' : evidenceIncomplete
         ? 'Evidence incomplete. Return to Payroll to reload the affected dates.'
-        : `${actionable.length} need review · ${syncRows.length} need sync.`} {hourly && 'Dates in separate PH review are excluded from hour totals. Regular earnings use approved regular hours and effective rates.'}</p>
+        : `${actionable.length} need review · ${syncRows.length} need sync.`} {hourly && 'Hours exclude dates in separate PH review. Saved approvals may still need reconciliation. Regular earnings use eligible Regular time and date-effective rates.'}</p>
       {rows.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2">
         <div role="group" aria-label="Time status filter" className="flex flex-wrap gap-1.5">
           {Object.entries(groups).map(([label, items]) => <button type="button" key={label} aria-pressed={filter === label}
             className={`${filter === label ? 'btn-primary' : 'btn-secondary'} btn-sm min-h-11 md:min-h-0`} onClick={() => setFilter(label)}>{label} <span className="tabular-nums">{items.length}</span></button>)}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-end gap-2">
+          {issueOptions.length > 0 && <div className="w-48 max-w-full"><SelectField label="Issue" value={issueFilter} onChange={setIssueFilter}
+            options={[{ value: '', label: 'All issues' }, ...issueOptions.map(issue => ({ value: issue, label: issue }))]} /></div>}
           <button type="button" className="btn-secondary btn-sm min-h-11 min-[701px]:hidden" onClick={toggleDateDirection}>
             Date within status · {dateDirection === 'asc' ? 'Oldest first' : 'Newest first'}
           </button>
