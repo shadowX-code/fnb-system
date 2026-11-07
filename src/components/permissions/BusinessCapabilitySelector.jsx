@@ -12,7 +12,7 @@ export {actionLabels} from './capabilityActions.js';
 function businessRows(rows) {
  const modules=new Map();
  for(const row of rows){const key=row.workflow_id||row.module_id||row.name;if(!modules.has(key))modules.set(key,[]);modules.get(key).push(row);}
- const order=['view','create','update','submit','complete','verify','approve','confirm','receive','return_to_draft','cancel'];
+ const order=['view','create','prepare','calculate','update','reverse','submit','complete','verify','approve','confirm','receive','return_to_draft','cancel'];
  return [...modules].map(([key,entries])=>[key,entries.toSorted((a,b)=>order.indexOf(a.capability)-order.indexOf(b.capability))]);
 }
 export default function BusinessCapabilitySelector({capabilities=[],identityId=null,canManage=false,busy=false,onConfirmed,onConfirmRegistration,registration=false}) {

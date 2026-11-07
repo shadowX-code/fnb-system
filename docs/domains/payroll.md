@@ -1297,12 +1297,37 @@ Initial setup atomically writes pay and statutory evidence, so requires both set
 
 ## Agent preparation boundary
 
-Explicit Payroll Agent grants support saved, redacted calculation/period/Run reads,
-canonical Run creation and append/reverse Draft component adjustments. Company-wide
-management retains its existing all-outlet authority and exact Legal Entity binding;
-period membership and all pricing/statutory/finalization gates remain unchanged.
-Agent identity is stored independently in Run, adjustment and event records.
-A completed adjustment receipt establishes an appended business adjustment, not a
-fresh or finalized financial calculation. Saved calculation versions do not assert
-current readiness. Employee setup, compensation/statutory changes, payable-time/PH
-confirmation, Finalize and payment are not Agent operations in this rollout.
+Payroll Agent access uses explicit HR Payroll View and independent existing Create,
+Add Adjustment and Reverse Adjustment grants, plus opt-in Prepare, Calculate /
+Recalculate and Update Draft grants. AI Integrations groups these under Payroll
+Preparation without replacing or copying any existing grant. Company-wide operations
+retain the canonical all-outlet requirement and exact Legal Entity/Run binding.
+
+Create starts a unique calendar-month Draft. Prepare synchronizes only elapsed
+canonical payable-time evidence; its existing automatic clean-evidence resolution
+is unchanged and it never decides unresolved facts. Calculate/Recalculate delegates
+to the same earnings/statutory core as Human Payroll and may target one period member
+or the Run. Update Draft only requests the existing Draft/Ready → Review Required
+transition with a reason. Period, membership, compensation and statutory evidence
+cannot be edited through that action. Ready/finalized/paid calculation guards remain.
+
+`check_payroll_readiness` is a read-only Payroll View resource. It returns company,
+period, Run/revision, canonical employment/time/calculation/statutory gates, missing
+input codes, per-employee exceptions, known earning groups, current version/staleness,
+Draft adjustments and available component identities. Snapshot-bound pages retain
+complete Run-level readiness and totals; source changes require restarting pagination.
+Run totals remain unavailable until the existing gates resolve. A completed Calculate
+receipt means the calculation command finished, not that Payroll is financially ready.
+
+Human RPCs and Machine commands share private actor-aware canonical bodies. New
+calculation/statutory/time versions and Payroll events record exactly one Human or
+Machine actor; no historical row is reattributed. Blocked calculations preserve known
+evidence and the last valid version without persisting null required financial totals.
+Retries reauthorize exact grants/scope and return one saved receipt. Request/role/Run
+locks preserve concurrency; changed intents require new IDs. No repetitive Agent
+confirmation is added. Missing facts remain explicit and are never inferred.
+
+Employee setup, compensation/statutory changes, PCB/PH/payable-time confirmations,
+Finalize, Payment and Statutory Submission remain Human-owned. Frozen evidence is
+never recalculated. Raw statutory identity/setup internals remain Human-only; the
+Agent consumes the shared canonical statutory results and their unresolved issues.

@@ -2,7 +2,7 @@ import {it,expect,vi} from 'vitest';
 import {createHandler,tools,toolArguments} from '../factory-mesti-mcp/protocol.js';
 const retired=['get_mesti_daily_status','list_mesti_exceptions','list_pending_verifications','get_mesti_evidence_details','get_mesti_requirement_schedule','query_mesti_resources'];
 it('preserves read-only discovery for View grants and rejects all retired aliases',async()=>{
- expect(tools.map(t=>t.name)).toEqual(['query_factory_resources','factory_action_context','execute_factory_action','query_restaurant_resources','restaurant_action_context','execute_restaurant_action','query_hr_resources','hr_action_context','execute_hr_action','query_product_sales_analytics']);
+ expect(tools.map(t=>t.name)).toEqual(['query_factory_resources','factory_action_context','execute_factory_action','query_restaurant_resources','restaurant_action_context','execute_restaurant_action','query_hr_resources','hr_action_context','execute_hr_action','query_product_sales_analytics','check_payroll_readiness']);
  const read=vi.fn().mockResolvedValue({tools:['query_factory_resources',...retired]});
  const handler=createHandler(read);
  const request=(method,params)=>new Request('https://example.test',{method:'POST',headers:{authorization:`Bearer fxm_${'a'.repeat(43)}`,'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});

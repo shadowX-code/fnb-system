@@ -32,3 +32,16 @@ capability grouping, staged versus effective access and Activity. Revoke the key
 remove temporary grants/scopes and disable QA identity/role; retain immutable audit
 history. Any persistent business fixtures must stay explicitly labelled and use
 canonical reversal/deactivation where supported. No Production or main changes.
+
+## Operational Payroll preparation
+
+The Payroll preparation forward migration extracts Human/Machine shared calculation,
+statutory calculation, preparation/readiness and time reconciliation bodies, preserving
+Human signatures. Verify typed actor exclusivity, protected version triggers, month
+uniqueness, stale fingerprints and frozen guards. Opt-in grants must not change any
+original Agent access. Exercise canonical RM1,800 → RM1,810 adjustment → RM1,800
+reversal, a blocked partial-month case retaining known Basic/last valid version,
+missing statutory setup, exact and concurrent retries, action revocation, company
+mismatch, selected-outlet denial, snapshot pages and unchanged Human read results.
+Use approved isolated Staging QA records only; retain receipts and deactivate/remove
+temporary access after real MCP/browser checks. Never confirm missing real facts.

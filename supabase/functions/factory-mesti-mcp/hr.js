@@ -3,7 +3,7 @@ import {workforceOverview} from '../_shared/hrWorkforceModel.js';
 // Fixed transport vocabulary; canonical SQL owns identity, scope and execution.
 export const hrModules = ["hr_dashboard", "employees", "recruitment", "payroll", "legal_entities", "departments", "job_positions", "employee_compliance"];
 export const hrResources = ["hr_workforce", "hr_employees", "hr_employment_history", "hr_openings", "hr_applications", "hr_payroll_periods", "hr_payroll_runs", "hr_payroll_earnings", "hr_legal_entities", "hr_departments", "hr_job_positions", "hr_compliance_submissions", "hr_compliance_reviews"];
-export const hrActions = ["hr_employment.update", "hr_recruitment.shortlist", "hr_recruitment.advance", "hr_recruitment.reject", "hr_payroll.create", "hr_payroll_adjustment.create", "hr_payroll_adjustment.reverse", "hr_compliance.verify", "hr_compliance.reject", "hr_legal_entity.create", "hr_legal_entity.update"];
+export const hrActions = ["hr_employment.update", "hr_recruitment.shortlist", "hr_recruitment.advance", "hr_recruitment.reject", "hr_payroll.create", "hr_payroll_adjustment.create", "hr_payroll_adjustment.reverse", "hr_compliance.verify", "hr_compliance.reject", "hr_legal_entity.create", "hr_legal_entity.update", "hr_payroll.prepare", "hr_payroll.calculate", "hr_payroll.update"];
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const object=v=>v&&typeof v==='object'&&!Array.isArray(v);
 const actionProperties={action:{type:'string',enum:hrActions},legal_entity_id:{type:'string',format:'uuid'},target_id:{type:['string','null'],format:'uuid'}};
@@ -35,4 +35,11 @@ export async function readHrResources(args,source) {
   results.push({business_module:q.business_module,resource:q.resource,legal_entity_id:q.legal_entity_id,summary:workforceOverview(all.data,q.legal_entity_id),source_complete:true,source_rows:all.count,snapshot});
  }
  return {results};
+}
+
+export const payrollReadinessTool={name:'check_payroll_readiness',description:'Inspect one explicit company and open Payroll Run using canonical Payroll evidence. Returns preparation/calculation/statutory/time readiness, missing inputs, exceptions, versioned Draft results and available adjustment components. Follow snapshot-bound pages. View never authorizes preparation/calculation. Finalize, Payment and Statutory Submission remain unavailable.',annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},inputSchema:{type:'object',additionalProperties:false,required:['legal_entity_id','run_id'],properties:{legal_entity_id:{type:'string',format:'uuid'},run_id:{type:'string',format:'uuid'},page:{type:'integer',minimum:1},page_size:{type:'integer',minimum:1,maximum:100},snapshot:{type:'string',maxLength:128}}}};
+export function payrollReadinessArguments(args){
+ if(!object(args)||Object.keys(args).some(k=>!Object.hasOwn(payrollReadinessTool.inputSchema.properties,k))||!uuid.test(args.legal_entity_id||'')||!uuid.test(args.run_id||''))throw new Error('Exact Payroll company and Run required.');
+ if(args.page!==undefined&&(!Number.isInteger(args.page)||args.page<1)||args.page_size!==undefined&&(!Number.isInteger(args.page_size)||args.page_size<1||args.page_size>100)||args.snapshot!==undefined&&(typeof args.snapshot!=='string'||!args.snapshot||args.snapshot.length>128)||args.page>1&&!args.snapshot)throw new Error('Use valid Payroll pagination and returned snapshot.');
+ return {p_legal_entity_id:args.legal_entity_id,p_run_id:args.run_id,p_page:args.page??1,p_page_size:args.page_size??100,p_snapshot:args.snapshot??null};
 }

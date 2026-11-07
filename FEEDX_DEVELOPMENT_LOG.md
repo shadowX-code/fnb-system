@@ -1242,3 +1242,5 @@ opt-in; shared platform administration and unsupported Human workflows are not
 exposed. Product Sales Analytics shares complete-read validation and its canonical
 model between Admin and MCP, with source-bound paging and explicit period gaps.
 Verification/delivery evidence belongs in the scoped acceptance record.
+
+- HR Agent Payroll preparation reuses canonical earnings/statutory/time authorities with explicit Machine Actors, exact Draft action grants and redacted readiness. Finalize/payment/submission remain Human-owned.

@@ -13,6 +13,7 @@ export type ModuleAction =
   | "view"
   | "setup"
   | "statutory"
+  | "calculate"
   | "prepare"
   | "review_time"
   | "treat_ph"
@@ -98,7 +99,7 @@ export const permissionActionOrder: ModuleAction[] = [
   "manage_mapping",
   "setup",
   "statutory",
-  "prepare",
+  "prepare", "calculate",
   "review_time",
   "treat_ph",
   "configure",

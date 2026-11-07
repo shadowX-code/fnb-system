@@ -1,4 +1,4 @@
-import {hrReadTool,hrContextTool,hrActionTool,hrReadArguments,hrContextArguments,hrActionArguments,safeHrReads} from './hr.js';
+import {hrReadTool,hrContextTool,hrActionTool,hrReadArguments,hrContextArguments,hrActionArguments,safeHrReads,payrollReadinessTool,payrollReadinessArguments} from './hr.js';
 import {productAnalyticsTool,productAnalyticsArguments} from './productAnalytics.js';
 import {restaurantReadTool,restaurantContextTool,restaurantActionTool,restaurantReadArguments,restaurantContextArguments,restaurantActionArguments,safeRestaurantActions} from './restaurant.js';
 // Keep arbitrary SQL messages private; only fixed lifecycle wording may reach the formatter.
@@ -9,9 +9,10 @@ export function safeFactoryRpcError(error) {
 
 import { resourceArguments, factoryResourceTool, safeResourceActions } from "./resources.js";
 import { actionArguments, actionContextArguments, factoryActionTool, factoryActionContextTool } from './actions.js';
-export const tools = [factoryResourceTool, factoryActionContextTool, factoryActionTool,restaurantReadTool,restaurantContextTool,restaurantActionTool,hrReadTool,hrContextTool,hrActionTool,productAnalyticsTool];
+export const tools = [factoryResourceTool, factoryActionContextTool, factoryActionTool,restaurantReadTool,restaurantContextTool,restaurantActionTool,hrReadTool,hrContextTool,hrActionTool,productAnalyticsTool,payrollReadinessTool];
 export const versions = ["2025-03-26", "2025-06-18", "2025-11-25"];
 export function toolArguments(name, args = {}) {
+ if(name===payrollReadinessTool.name)return payrollReadinessArguments(args);
  if(name===hrReadTool.name)return hrReadArguments(args);
  if(name===hrContextTool.name)return hrContextArguments(args);
  if(name===hrActionTool.name)return hrActionArguments(args);
@@ -45,7 +46,7 @@ export function createHandler(read, { allowedOrigins = [], now, observe } = {}) 
       restaurantActions=Array.isArray(access.restaurant_actions)?access.restaurant_actions:[];
       actionAccess = Array.isArray(access.factory_actions) ? access.factory_actions : [];
       authorizedTools = tools.filter(tool => access.tools.includes(tool.name)).map(tool => tool.name === factoryResourceTool.name
-        ? { ...tool, _meta: { "feedx/authorized-resource-actions": resourceAccess, "feedx/resources": resourceCatalog } } : tool.name===restaurantReadTool.name?{...tool,_meta:{'feedx/restaurant-resources':access.restaurant_resource_catalog,'feedx/authorized-outlets':access.restaurant_outlets}}:tool.name===productAnalyticsTool.name?{...tool,_meta:{'feedx/authorized-outlets':access.restaurant_outlets}}:tool.name===hrReadTool.name?{...tool,_meta:{'feedx/hr-resources':hrAccess,'feedx/authorized-companies':access.hr_companies}}:tool);
+        ? { ...tool, _meta: { "feedx/authorized-resource-actions": resourceAccess, "feedx/resources": resourceCatalog } } : tool.name===restaurantReadTool.name?{...tool,_meta:{'feedx/restaurant-resources':access.restaurant_resource_catalog,'feedx/authorized-outlets':access.restaurant_outlets}}:tool.name===productAnalyticsTool.name?{...tool,_meta:{'feedx/authorized-outlets':access.restaurant_outlets}}:[hrReadTool.name,payrollReadinessTool.name].includes(tool.name)?{...tool,_meta:{'feedx/hr-resources':hrAccess,'feedx/authorized-companies':access.hr_companies}}:tool);
     } catch { return json({ error: "Credential or Factory access denied." }, 401, { "WWW-Authenticate": 'Bearer realm="FeedX Factory", error="invalid_token"' }); }
     authorizedTools = authorizedTools.map(tool => [factoryActionTool.name, factoryActionContextTool.name].includes(tool.name)
       ? { ...tool, _meta: { 'feedx/authorized-actions': actionAccess }, inputSchema: { ...tool.inputSchema, properties: { ...tool.inputSchema.properties, action: { type: 'string', enum: actionAccess.map(action => action.name) } } } }

@@ -14,6 +14,7 @@ const environment = externalAgentEnvironment(url);
 const telemetrySecret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const telemetry = createClient(url, telemetrySecret, { auth: { persistSession: false, autoRefreshToken: false } });
 const handler = createHandler(async (token: string, tool: string, args: Record<string, unknown>) => {
+  if(tool==='check_payroll_readiness'){const {data,error}=await client.rpc('hr_agent_payroll_readiness',{p_token:token,...args});if(error)throw Object.assign(new Error('Payroll evidence unavailable.'),{code:error.code});return data;}
   if(tool==='query_hr_resources')return readHrResources(args,async(params)=>{const {data,error}=await client.rpc('hr_agent_resource_query',{p_token:token,...params});if(error)throw Object.assign(new Error('HR source unavailable.'),{code:error.code});return data;});
   if(tool==='query_product_sales_analytics')return readProductAnalytics(args,async(params)=>{const {data,error}=await client.rpc('product_analytics_agent_source',{p_token:token,...params});if(error)throw Object.assign(new Error('Product Analytics source unavailable.'),{code:error.code});return data;});
   const { data, error } = tool === "authorize"

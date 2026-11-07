@@ -186,5 +186,52 @@
     "requires_human_confirmation": false,
     "capability_module": "hr_legal_entity",
     "description": "Legal Entity update. Explicit scope, source version and canonical evidence are required."
+  },
+  {
+    "key": "hr_payroll.prepare",
+    "module": "payroll",
+    "label": "Payroll Preparation",
+    "action": "prepare",
+    "human_permission": "payroll.prepare",
+    "table": "payroll_runs",
+    "target_required": true,
+    "input_fields": [
+      "legal_entity_id"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_payroll",
+    "description": "Refresh canonical elapsed time evidence for this open Run; unresolved facts are never approved."
+  },
+  {
+    "key": "hr_payroll.calculate",
+    "module": "payroll",
+    "label": "Payroll Preparation",
+    "action": "calculate",
+    "human_permission": "payroll.prepare",
+    "table": "payroll_runs",
+    "target_required": true,
+    "input_fields": [
+      "legal_entity_id",
+      "employee_id"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_payroll",
+    "description": "Calculate current earnings and statutory results through canonical Payroll; missing evidence remains Review Required."
+  },
+  {
+    "key": "hr_payroll.update",
+    "module": "payroll",
+    "label": "Payroll Preparation",
+    "action": "update",
+    "human_permission": "payroll.prepare",
+    "table": "payroll_runs",
+    "target_required": true,
+    "input_fields": [
+      "legal_entity_id",
+      "reason"
+    ],
+    "requires_human_confirmation": false,
+    "capability_module": "hr_payroll",
+    "description": "Return a Ready/Draft Run to Review Required through the existing lifecycle; never change period, membership or employee inputs."
   }
 ]

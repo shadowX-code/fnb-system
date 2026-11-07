@@ -283,7 +283,7 @@ the complete company summary through MCP.
 
 Supported machine commands append Employment evidence; shortlist, advance or reject
 Recruitment applications; verify/reject an existing Compliance submission; create a
-Payroll Run; append/reverse a Draft adjustment; and create/update a Legal Entity.
+Payroll Run; prepare elapsed evidence, calculate/recalculate and inspect Draft readiness; append/reverse a Draft adjustment; and create/update a Legal Entity.
 Canonical permissions, reason, lifecycle, record locks, effective dates and evidence
 validation remain enforced. Hiring, Employee login/role changes, statutory setup,
 PH/payable-time confirmations, Payroll finalization/payment, candidate consent,
