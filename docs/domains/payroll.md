@@ -734,8 +734,10 @@ treatment. This follows [KWSP salary/wage guidance](https://www.kwsp.gov.my/en/e
 and [PERKESO wages payable definition](https://www.perkeso.gov.my/uncategorised/774-employer-eligibility.html),
 with EIS wages under [Act 800](https://perkeso.gov.my/images/akta/ACT%20800/Akta%20800_EMPLOYMENT%20INSURANCE%20SYSTEM%20ACT%202017.pdf).
 It does not classify approved Unpaid Leave as the unresolved generic
-`unpaid_time` deduction or subtract nominal salary again. Monthly lateness/early
-departure remains separate and requires its own approved treatment. PCB retains
+`unpaid_time` deduction or subtract nominal salary again. A Regular Monthly time decision records payable minutes and does not authorize
+a salary deduction for lateness, early departure or missing clocks. Approved
+extra time still requires its own premium rule. A confirmed full-day unpaid
+absence or approved unpaid Leave is handled by Monthly entitlement. PCB retains
 V1 manual confirmation. Premium, paid-leave pricing, payslip and payment
 authorities are unchanged. Finalization pins this calculation as usual; changes
 after finalization require a correction revision, never snapshot rewrites.
