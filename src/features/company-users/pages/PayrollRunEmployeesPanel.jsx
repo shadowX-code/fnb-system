@@ -47,6 +47,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, p
   const [workplaceFilter, setWorkplaceFilter] = useState("all");
   const [search, setSearch] = useState("");
   const requests = useRef(0);
+  const syncButton = useRef(null);
   const scope = `${run.id}:${entityId}:${month}`;
   useEffect(() => () => runRead?.setTimeReviewActive?.(false), [scope, runRead?.setTimeReviewActive]);
   const load = useCallback(async () => {
@@ -192,6 +193,12 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, p
     runRead?.setTimeReviewActive?.(false);
     (runRead ? refresh() : updateCalculation(selected.id).then(refresh)).catch(cause => setError(cause.message));
   };
+  const openEvidenceSync = () => {
+    setReviewHours(false);
+    setEmployeeId("");
+    runRead?.setTimeReviewActive?.(false);
+    requestAnimationFrame(() => syncButton.current?.focus());
+  };
   const statutoryCell = (row, scheme) => {
     const value = payrollStatutoryCell(row, scheme);
     return value.state === 'calculated' ? <div className="whitespace-nowrap tabular-nums">
@@ -238,7 +245,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, p
   return <div className="space-y-3">
     {(synchronizationError || unsynchronizedDays > 0) && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
       <p>{synchronizationError ? "Payroll evidence could not be synchronized." : `${unsynchronizedDays} day${unsynchronizedDays === 1 ? "" : "s"} of time evidence need synchronization.`}</p>
-      {(unsynchronizedDays === 0 || (active && permissions.syncTime)) && <button type="button" className="btn-secondary" disabled={busy || runRead?.calculating} onClick={retryEvidence}>{busy ? "Synchronizing…" : "Retry Evidence Sync"}</button>}
+      {(unsynchronizedDays === 0 || (active && permissions.syncTime)) && <button ref={syncButton} type="button" className="btn-secondary" disabled={busy || runRead?.calculating} onClick={retryEvidence}>{busy ? "Synchronizing…" : "Retry Evidence Sync"}</button>}
     </div>}
     {stage === "review" && <AdminFilterToolbar ariaLabel="Payroll review filters" compact denseFields searchAfterFilters
       filters={<><SelectField label="Status" ariaLabel="Review status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, { value: "ready", label: "Ready" }, { value: "attention", label: "Need Attention" }]} />
@@ -322,7 +329,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, p
         {active && permissions.recalculate && calculationErrors[selected.id] && <div role="alert" className="text-rose-700">{calculationErrors[selected.id]} <button className="btn-secondary" type="button" disabled={busy} onClick={() => retryCalculation(selected.id)}>Retry Calculation</button></div>}
         {error && <p role="alert" className="text-rose-700">{error}</p>}
       </div></Modal>}
-    {selected && reviewHours && <PayrollPayableTimeReview employee={selected} runId={run.id} month={month} canManage={active && permissions.review_time} canViewLeave={canViewLeave} onClose={closeTimeReview} onDecisionSaved={timeDecisionSaved} />}
+    {selected && reviewHours && <PayrollPayableTimeReview employee={selected} runId={run.id} month={month} canManage={active && permissions.review_time} canViewLeave={canViewLeave} onClose={closeTimeReview} onDecisionSaved={timeDecisionSaved} onOpenSynchronization={active && permissions.syncTime && unsynchronizedDays > 0 ? openEvidenceSync : undefined} />}
     {pcbDraft && <Modal title="Confirm PCB / MTD" description="The confirmed amount is statutory evidence for this employee and period." onClose={() => !busy && setPcbDraft(null)}
       footer={<><button className="btn-secondary" type="button" onClick={() => setPcbDraft(null)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || pcbDraft.amount === "" || Number(pcbDraft.amount) < 0 || !pcbDraft.reason.trim()} onClick={savePcb}>Confirm PCB</button></>}>
       <div className="space-y-3"><AdminFormField label="Confirmed PCB (RM)" required><input className="control" type="number" min="0" step="0.01" value={pcbDraft.amount} onChange={(event) => setPcbDraft((old) => ({ ...old, amount: event.target.value }))} /></AdminFormField>

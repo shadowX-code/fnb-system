@@ -1335,3 +1335,7 @@ never recalculated. Raw statutory identity/setup internals remain Human-only; th
 Agent consumes the shared canonical statutory results and their unresolved issues.
 
 A verified terminal resignation or termination with unchanged employer, type, position and workplace ends eligibility without making earlier active work an ambiguous assignment. Draft Payroll retains both dated spans and uses the active identity for that work. Mixed assignments, gaps and a return to active employment after an inactive span still require review. Existing calculation fingerprints invalidate blocked Draft evidence when the resolver changes; finalized snapshots stay pinned.
+
+### Unsynchronized time evidence in Review Time
+
+The open Run evidence read includes the live source dates that already count as required but have no saved payable-time version. Review Time shows their roster, clock, leave and exception evidence with Needs synchronization. These rows have no decision identity and cannot enter the decision queue. Authorized users return directly to the Run's existing Evidence Sync action, then review the synchronized dates or reconcile a changed source through the existing correction flow. The read adds no saved evidence, leaves finalized snapshots untouched and does not change Monthly salary or Hourly pricing rules.
