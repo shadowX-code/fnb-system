@@ -10,6 +10,18 @@ const time = (value) => value ? new Intl.DateTimeFormat("en-MY", {
   timeZone: "Asia/Kuala_Lumpur", hour: "2-digit", minute: "2-digit", hour12: false,
 }).format(new Date(value)) : "—";
 
+export function LatestPublishedRoster({ roster }) {
+  if (!roster) return null;
+  const schedule = roster.entry_type === "working"
+    ? `${roster.start_time ?? "—"} – ${roster.end_time ?? "—"} · ${roster.break_minutes}m unpaid break`
+    : roster.entry_type ? titleCase(roster.entry_type) : "No roster entry";
+  return <small className="mt-1 block text-text-secondary">
+    <strong>Latest published roster · Rev {roster.revision}</strong><br />
+    {schedule}<br />
+    For comparison. Existing payable-time decisions are preserved.
+  </small>;
+}
+
 // Describe the owning evidence; a zero-hour decision never creates Leave.
 export function timeTreatment(row) {
   if (row.classification !== 'non_payable') return titleCase(row.classification);
@@ -119,7 +131,7 @@ export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Re
       {reviewed && <p role="status">Decision already recorded · {duration(row.approved_minutes)} · {timeTreatment(row)}</p>}
       {recorded && <p role="status">Decision recorded. Refresh the review to restore the latest payroll result; this will not submit another decision.</p>}
       <div className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
-        <div><strong>Published Roster</strong><p>{time(evidence.scheduled_start_at)} – {time(evidence.scheduled_end_at)} · {evidence.roster_break_minutes ?? "—"}m unpaid break</p><small className="text-text-muted">Entry {evidence.roster_entry_id || "None"}</small></div>
+        <div><strong>{row.latest_published_roster ? "Roster used for this review" : "Published Roster"}</strong><p>{evidence.roster_entry_type && evidence.roster_entry_type !== "working" ? titleCase(evidence.roster_entry_type) : `${time(evidence.scheduled_start_at)} – ${time(evidence.scheduled_end_at)} · ${evidence.roster_break_minutes ?? "—"}m unpaid break`}</p><small className="text-text-muted">Entry {evidence.roster_entry_id || "None"}</small><LatestPublishedRoster roster={row.latest_published_roster} /></div>
         <div><strong>Attendance</strong><p>{time(evidence.clock_in_at)} – {time(evidence.clock_out_at)} · {duration(row.actual_minutes)}</p><small className="text-text-muted">Record {evidence.attendance_id || "None"}</small></div>
         <div><strong>Leave / Holiday</strong><p>{titleCase(evidence.leave_type) || "No approved leave"} · {evidence.holiday_id ? "Public holiday" : "No matching public holiday"}</p></div>
         <div><strong>Proposed Payable</strong><p>{duration(row.proposed_minutes)} · extra candidate {duration(evidence.extra_candidate_minutes)}</p></div>

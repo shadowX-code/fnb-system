@@ -235,3 +235,18 @@ it('fails closed when the run has exceptions but daily details are unavailable',
   expect(screen.getByText(/Evidence incomplete/)).toBeTruthy();
   expect(screen.queryByText(/Time & Attendance — Ready/)).toBeNull();
 });
+
+it('shows a newer published roster alongside the bound roster in Draft review only', () => {
+  const time = [{...row, evidence: {...row.evidence, roster_entry_type: 'off'},
+    latest_published_roster: {revision: 4, entry_type: 'working', start_time: '17:00', end_time: '22:00', break_minutes: 0}}];
+  const props = {employee: {...employee, time}, month: '2026-09', canManage: true, onClose: vi.fn()};
+  const view = render(<PayrollPayableTimeReview {...props} />);
+  expect(screen.getByText('Latest published roster · Rev 4')).toBeTruthy();
+  expect(screen.getByText(/17:00 – 22:00/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', {name: 'Review exception'}));
+  expect(screen.getByText('Roster used for this review')).toBeTruthy();
+  expect(screen.getByText('Latest published roster · Rev 4')).toBeTruthy();
+  view.unmount();
+  render(<PayrollPayableTimeReview {...props} frozen />);
+  expect(screen.queryByText('Latest published roster · Rev 4')).toBeNull();
+});
