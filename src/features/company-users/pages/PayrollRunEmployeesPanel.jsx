@@ -26,7 +26,6 @@ const money = (value) => value == null ? "—" : new Intl.NumberFormat("en-MY", 
   style: "currency", currency: "MYR", minimumFractionDigits: 2, maximumFractionDigits: 2,
 }).format(Number(value));
 const periodEnd = (month) => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
-const currentDate = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const human = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const hours = (minutes) => minutes == null ? "—" : `${(Number(minutes) / 60).toFixed(2)} h`;
 const signedMoney = (amount) => `${amount < 0 ? "−" : "+"}${money(Math.abs(amount))}`;
@@ -149,13 +148,15 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, p
     finally { setBusy(false); }
   };
   const unsynchronizedDays = runRead?.data?.readiness?.time?.unreconciled || 0;
-  const synchronizationError = runRead?.error || (!runRead && !evidence && error);
+  const synchronizationError = runRead?.timeSyncError || runRead?.error || (!runRead && !evidence && error);
   const retryEvidence = async () => {
     setBusy(true); setError("");
     try {
-      const end = periodEnd(month);
-      if (unsynchronizedDays > 0) await payrollService.reconcileTime(entityId, `${month}-01`, end < currentDate() ? end : currentDate());
-      await refresh();
+      if (unsynchronizedDays > 0) {
+        if (runRead?.retryTimeSync) {
+          if (!await runRead.retryTimeSync()) throw new Error("Unable to reload synchronized evidence.");
+        } else { await payrollService.prepareRunTime(run.id); await refresh(); }
+      } else await refresh();
     } catch (cause) { setError(cause.message || "Unable to reconcile time evidence."); }
     finally { setBusy(false); }
   };
@@ -245,8 +246,11 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, p
   return <div className="space-y-3">
     {(synchronizationError || unsynchronizedDays > 0) && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
       <p>{synchronizationError ? "Payroll evidence could not be synchronized." : `${unsynchronizedDays} day${unsynchronizedDays === 1 ? "" : "s"} of time evidence need synchronization.`}</p>
-      {(unsynchronizedDays === 0 || (active && permissions.syncTime)) && <button ref={syncButton} type="button" className="btn-secondary" disabled={busy || runRead?.calculating} onClick={retryEvidence}>{busy ? "Synchronizing…" : "Retry Evidence Sync"}</button>}
+      {(unsynchronizedDays === 0 || (active && permissions.syncTime)) && <button ref={syncButton} type="button" className="btn-secondary" disabled={busy || runRead?.calculating} onClick={retryEvidence}>{busy || runRead?.calculating ? "Synchronizing…" : synchronizationError ? "Retry Evidence Sync" : "Synchronize Evidence"}</button>}
     </div>}
+    {runRead?.timeSyncSummary && !runRead?.calculating && <p role="status" className="text-sm text-text-secondary">
+      Evidence Sync · {runRead.timeSyncSummary.synchronized} synchronized · {runRead.timeSyncSummary.skipped} skipped · {runRead.timeSyncSummary.unresolved} still need review
+    </p>}
     {stage === "review" && <AdminFilterToolbar ariaLabel="Payroll review filters" compact denseFields searchAfterFilters
       filters={<><SelectField label="Status" ariaLabel="Review status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, { value: "ready", label: "Ready" }, { value: "attention", label: "Need Attention" }]} />
         <SelectField label="Pay Basis" ariaLabel="Review pay basis" value={basisFilter} onChange={setBasisFilter} options={[{ value: "all", label: "All" }, { value: "monthly", label: "Monthly" }, { value: "hourly", label: "Hourly" }]} />
