@@ -48,15 +48,13 @@ describe("Payroll Phase 3 pre-statutory calculation authority", () => {
     expect(employmentGuard).toContain("employment_ended_before_period");
   });
 
-  it("exposes explanation and sourced rule management without statutory amounts", () => {
-    expect(page).toContain('stage="review"');
-    expect(page).toContain('"Prepare Payroll", "Review Payroll", "Finalize"');
+  it("exposes payroll stages, statement details and sourced rule management", () => {
+    expect(page).toContain('stage={step === 1 ? "review" : "prepare"}');
+    expect(page).toContain('"Prepare", "Review", "Finalize"');
     expect(calculationPanel).toContain('"Employee Payroll statement"');
     expect(page).toContain("Pay Rules");
-    expect(page).toContain("Return to Review");
     expect(calculationPanel).toContain("compensation.effective_from");
     expect(calculationPanel).toContain("Employee Deductions");
-    expect(calculationPanel).toContain("Calculation evidence");
     expect(rulesPanel).toContain("Missing rules remain Review Required");
   });
 });
