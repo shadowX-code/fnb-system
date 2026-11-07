@@ -167,3 +167,14 @@ External Agent management reuses the same role and permission authority. Its nav
 Role edits submit only explicit permission changes (code, observed prior value, intended value). The trusted save locks the role, compares each touched grant with its observed value, and applies changes to the current server grant set. Hidden, compatibility and outside-registry grants remain intact. Non-overlapping edits merge; conflicting touched grants fail with a reload requirement. Request intent is stored in the existing request ledger for retry-safe read-back. Scope is preserved unless explicitly changed. Legacy snapshot edit requests fail closed; creation still submits its complete initial set. The internal snapshot implementation is not executable by API roles. Audit retains actual before/after grants.
 
 Permission presentation uses `crew_feedback` for Customer Feedback and includes the existing Factory MeSTI Record/Verify actions. HR exposes shared platform Roles without new grants or authority ownership changes. This isolated Production candidate does not introduce Recruitment, Finance or Guest AI modules.
+
+## HR Agent execution boundary
+
+The shared Agent Gateway supports explicitly granted, company/workplace-scoped HR
+reads and the canonical Employment assignment and Legal Entity commands. Machine
+principals are recorded separately from Employee/Admin actors in the same business
+records and audit lineage. A machine Employment revision is `machine_change` and
+passes the same active Position/Workplace, effective-date, correction, reason and
+concurrency checks as `admin_change`. Ordinary Employee identity, contacts, bank
+fields, Auth links, role grants and login changes are not writable through this
+surface.

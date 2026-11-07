@@ -29,3 +29,12 @@ it('refreshes through the existing authority without background polling',async()
  fireEvent.click(screen.getByRole('button',{name:'Refresh activity'}));
  expect(refresh).toHaveBeenCalledTimes(1);
 });
+
+it('resolves HR transport module IDs through canonical navigation without changing receipts',async()=>{
+ const receipt={status:'completed',request_id:'hr',action:'hr_legal_entity.update',actor:{identity_id:'agent'},before_version:'source',target_id:'company',completed_at:'2026-11-07T01:00:00Z'};
+ externalAgentService.actionRequests.mockResolvedValue([{identity_id:'agent',request_id:'hr',action:'hr_legal_entity.update',status:'completed',expected_version:'source',input:{},receipt}]);
+ render(<AgentActivityTimeline agent={{...agent,can_manage:true}} detail={{access_events:[{id:1,tool:'query_product_sales_analytics',outcome:'success',occurred_at:'2026-11-07T01:00:00Z'}]}} onRefresh={vi.fn()}/>);
+ expect(await screen.findByText('Legal Entity updated')).toBeTruthy();
+ expect(screen.getByRole('link',{name:'Open Legal Entities records'}).getAttribute('href')).toBe('/people/legal-entities');
+ expect(screen.getByText('Read Product Analytics records')).toBeTruthy();
+});

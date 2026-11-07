@@ -1,3 +1,4 @@
+import {normalizeProductName,productKey,variantKey,aggregateItems,rankProducts} from '../../../../supabase/functions/_shared/productAnalyticsModel.js';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUpDown, BarChart3, Clock, Download, FileSpreadsheet, History, Info, PieChart, Sparkles, Upload } from "lucide-react";
@@ -359,18 +360,6 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
-function normalizeProductName(value) {
-  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-function productKey(item) {
-  return `${normalizeProductName(item.category_name)}::${normalizeProductName(item.product_name)}`;
-}
-
-function variantKey(item) {
-  return `${productKey(item)}::${normalizeProductName(item.variant_name || "Default")}`;
-}
-
 function productContribution(product, total) {
   return total ? (product.nett_sales / total) * 100 : 0;
 }
@@ -392,69 +381,6 @@ function lowPerformerAction(product) {
   if (discountRate >= 20 && product.nett_sales < product.gross_sales * 0.8) return "Review pricing/promo.";
   if (product.quantity < 5) return "Review menu visibility.";
   return "Monitor and test promotion.";
-}
-
-function aggregateItems(items, options = {}) {
-  const { includeVariants = false } = options;
-  const byProduct = new Map();
-  const byCategory = new Map();
-  items.forEach((item) => {
-    const key = includeVariants ? variantKey(item) : productKey(item);
-    const variantName = String(item.variant_name ?? "").trim();
-    const product = byProduct.get(key) ?? {
-      key,
-      product: item.product_name,
-      variant: includeVariants ? variantName : "",
-      category: item.category_name,
-      quantity: 0,
-      gross_sales: 0,
-      nett_sales: 0,
-      discount: 0,
-      last_sold: item.created_at,
-      variant_count: 0,
-      variants: new Map(),
-    };
-    product.quantity += item.quantity;
-    product.gross_sales += item.gross_sales;
-    product.nett_sales += item.nett_sales;
-    product.discount += item.discount;
-    product.last_sold = item.created_at || product.last_sold;
-    const variantDisplay = variantName || "Default";
-    const variant = product.variants.get(variantDisplay) ?? {
-      variant: variantDisplay,
-      quantity: 0,
-      gross_sales: 0,
-      discount: 0,
-      sst: 0,
-      service_charge: 0,
-      nett_sales: 0,
-    };
-    variant.quantity += item.quantity;
-    variant.gross_sales += item.gross_sales;
-    variant.discount += item.discount;
-    variant.sst += item.sst;
-    variant.service_charge += item.service_charge;
-    variant.nett_sales += item.nett_sales;
-    product.variants.set(variantDisplay, variant);
-    product.variant_count = product.variants.size;
-    byProduct.set(key, product);
-
-    const category = byCategory.get(item.category_name) ?? { name: item.category_name, quantity: 0, nett_sales: 0 };
-    category.quantity += item.quantity;
-    category.nett_sales += item.nett_sales;
-    byCategory.set(item.category_name, category);
-  });
-  const products = [...byProduct.values()].map((product) => ({
-    ...product,
-    variants: [...product.variants.values()].sort((a, b) => b.nett_sales - a.nett_sales),
-  }));
-  const categories = [...byCategory.values()].sort((a, b) => b.nett_sales - a.nett_sales);
-  const totals = products.reduce((sum, item) => ({
-    quantity: sum.quantity + item.quantity,
-    nett_sales: sum.nett_sales + item.nett_sales,
-    discount: sum.discount + item.discount,
-  }), { quantity: 0, nett_sales: 0, discount: 0 });
-  return { products, categories, totals };
 }
 
 function CategoryDonut({ categories, total }) {
@@ -792,12 +718,8 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const current = aggregateItems(currentItems);
   const currentVariantDetail = aggregateItems(currentItems, { includeVariants: true });
   const comparison = aggregateItems(compareItems);
-  const rankedProducts = [...current.products]
-    .sort((a, b) => b.nett_sales - a.nett_sales)
-    .map((product, index) => ({ ...product, rank: index + 1 }));
-  const rankedVariantProducts = [...currentVariantDetail.products]
-    .sort((a, b) => b.nett_sales - a.nett_sales)
-    .map((product, index) => ({ ...product, rank: index + 1 }));
+  const rankedProducts = rankProducts(current.products);
+  const rankedVariantProducts = rankProducts(currentVariantDetail.products);
   const tableProducts = productViewMode === "variant" ? rankedVariantProducts : rankedProducts;
   const topProducts = [...rankedProducts].sort((a, b) => rankBy === "sales" ? b.nett_sales - a.nett_sales : b.quantity - a.quantity).slice(0, 10);
   const matrixAvgQty = rankedProducts.reduce((sum, item) => sum + item.quantity, 0) / (rankedProducts.length || 1);

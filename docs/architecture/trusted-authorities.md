@@ -197,3 +197,46 @@ Gateway change review also returns `effective_diff`: private, read-only before/a
 ### Gateway deployment binding
 
 The adapter catalog stores the fixed relative MCP path. Shared deployment configuration resolves it only against the canonical Staging or Production Supabase origin; Admin display and trusted probes use that same binding. Production probes allow only the canonical Admin origin; Staging additionally allows local development. Unknown deployment origins fail closed. Deployment installs infrastructure and permission definitions only: it does not register agents, issue credentials or grant external access. Production activation remains a separate authorized operation.
+
+### HR Agent principals and Product Sales Analytics
+
+HR uses the existing opaque machine identity, credential, role grant, outlet scope,
+request/receipt and Activity authorities at `factory-mesti-mcp`. It never sets an
+Employee or Auth identity on behalf of an Agent. Supported Human RPCs and private
+machine commands delegate to the same canonical business bodies. Employment
+revisions, Legal Entities and Payroll preparation/adjustment records retain explicit machine attribution;
+exclusive Human-or-Machine constraints preserve the original Human actor invariant.
+Existing historical rows are not backfilled or reattributed.
+
+`hrAgentModules.json`, `hrAgentResources.json` and `hrAgentActions.json` define the
+fixed supported surface. HR View and individual Action grants are opt-in. Reads and
+commands carry an explicit Legal Entity and revalidate the canonical role's
+workplace/outlet scope; company-wide Payroll and Legal Entity commands retain the
+existing all-outlet management requirement. Employment transfers to another Legal
+Entity remain Human-owned. The shared Roles & Permissions and AI Integrations pages
+are not duplicated as HR capabilities. Read projections exclude contacts, identity
+numbers, bank data, credentials and private documents. HR
+keyset pages bind a returned source snapshot; changed evidence requires restarting
+the complete read.
+
+Supported machine commands append Employment evidence; create a
+Payroll Run; prepare elapsed evidence, calculate/recalculate and inspect Draft readiness; append/reverse a Draft adjustment; and create/update a Legal Entity.
+Canonical permissions, reason, lifecycle, record locks, effective dates and evidence
+validation remain enforced. Hiring, Employee login/role changes, statutory setup,
+PH/payable-time confirmations, Payroll finalization/payment,
+private evidence access and browser-orchestrated master CRUD are not registered.
+No human approval or inspection is manufactured. Exact retry receipts reauthorize
+scope before replay. Completed operations carry the Agent, action, target and source
+versions; technical API acceptance is not business completion.
+
+Product Sales Analytics is a separate read-only Restaurant capability. Its fixed
+source RPC checks the exact View grant and outlet, observes report metadata/count/
+page/source digest together and rejects conflicting report-item outlet evidence.
+The Gateway reads every source page before using the same normalization,
+product/variant/category aggregation and deterministic rankings as Admin. Totals
+never use a truncated product page. Comparisons retain explicit missing periods and
+non-completed source states; retrieval completeness does not assert POS coverage.
+Source windows are bounded at 50,000 items, response products at 100/page, and
+available period metadata at 1,200 entries. POS report upload, replacement and
+source edits are not exposed. Existing Factory/Restaurant tools and grants remain
+unchanged unless an administrator explicitly changes them.

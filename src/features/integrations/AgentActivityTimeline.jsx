@@ -7,19 +7,19 @@ import SelectField from '../../components/forms/SelectField.jsx';
 import FeedXDateRangePicker from '../../components/ui/FeedXDateRangePicker.jsx';
 import AdminPagination,{useAdminClientPagination} from '../../components/tables/AdminPagination.jsx';
 import {operationalDateKey} from '../../lib/dateTime.js';
-import {getModuleById} from '../../../config/modules.ts';
+import {agentBusinessModule} from './agentBusinessModule.js';
 import {externalAgentService} from '../../services/externalAgentService.js';
 import {agentActivity} from './agentActivity.js';
 
 const states={committed:'Completed',configuration_changed:'Configuration changed',read:'Read succeeded',denied:'Denied',failed:'Failed',accepted:'API accepted',checked:'Eligibility checked',connection:'Connection check',pending_approval:'Pending Human Approval',awaiting_execution:'Awaiting Agent Execution',needs_resolution:'Needs Resolution',legacy_pending:'Legacy Pending Request',expired:'Expired',unproven:'Completion unverified'};
-const moduleLabel=id=>getModuleById(id)?.label||(id==='ai_integrations'?'AI Integrations':'Business module');
+const moduleLabel=id=>agentBusinessModule(id)?.label||(id==='ai_integrations'?'AI Integrations':'Business module');
 function ActivityEntries({entries,storageKey,resetKey}) {
  const pagination=useAdminClientPagination(storageKey,entries.length,20,resetKey);
  const events=entries.slice(pagination.from,pagination.to).map(entry=>({id:entry.id,date:entry.date,title:entry.category==='read'&&entry.moduleIds.length?`Read ${entry.moduleIds.map(moduleLabel).join(' / ')} records`:entry.title,
   icon:entry.category==='failed'?ShieldAlert:entry.state==='configuration_changed'?Settings:entry.category==='read'?Eye:FileCheck,
   description:<><span>{entry.moduleIds.length?entry.moduleIds.map(moduleLabel).join(' · '):'Business module not recorded'}</span>{entry.target&&<span className="block break-all">Record reference: {entry.target}</span>}</>,
   status:states[entry.state]||'Outcome unavailable',statusTone:entry.state==='committed'||entry.state==='read'?'success':entry.category==='failed'?'danger':'neutral',
-  metadata:<><p>{entry.impact}</p>{entry.target&&entry.evidenceVisible&&getModuleById(entry.moduleIds[0])?.route&&<a className="inline-block mt-1 underline" href={getModuleById(entry.moduleIds[0]).route}>Open {moduleLabel(entry.moduleIds[0])} records</a>}</>,
+  metadata:<><p>{entry.impact}</p>{entry.target&&entry.evidenceVisible&&agentBusinessModule(entry.moduleIds[0])?.route&&<a className="inline-block mt-1 underline" href={agentBusinessModule(entry.moduleIds[0]).route}>Open {moduleLabel(entry.moduleIds[0])} records</a>}</>,
   actions:<details className="min-w-0 w-full"><summary>Diagnostics &amp; evidence</summary><p className="text-xs text-text-secondary">Original event/operation identifiers are retained. Missing historical correlation is not reconstructed.</p><pre className="mt-2 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(entry.diagnostics,null,2)}</pre></details>,
  }));
  return <><Timeline events={events} variant="activity" groupByDate timeZone="Asia/Kuala_Lumpur" empty="No activity matches these filters."/><AdminPagination page={pagination.page} pageSize={pagination.pageSize} total={entries.length} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} compact noun="entries"/></>;

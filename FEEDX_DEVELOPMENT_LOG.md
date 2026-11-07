@@ -927,3 +927,7 @@ Source: canonical Staging `9c94d8bef88b8b0ca34feb53ba86921cc10efe4e`; Production
 ### 2026-11-03 — Ambient Network Flow visibility Production release
 
 Release the validated Ambient presentation from canonical Staging `9a713f1e2c13352cdc6895a11c1b9a40d5257128` on Production baseline `64b36ca161a3babd8a206e58175d292a858229dc`. The isolated Network source is byte-identical to Staging: 3px heads with short trails at 85 graph-pixels/second, canvas-area 8–48 structural-path budget, complete focus ancestry and recorded execution priority. Production Synthetic Demo remains disabled. No dependency, schema, authorization, data-adapter or business-lifecycle change is included. Candidate verification: 75 targeted tests and a Production-identity build passed; unrelated Staging changes are excluded. See docs/releases/2026-11-03-network-ambient-flow-production.md.
+
+## 2026-11-07 — Scoped HR Agent and Payroll release candidate
+
+Prepared the HR Employees, Legal Entities, Payroll Preparation and Product Sales Analytics Agent surface against the Production baseline. Recruitment and other HR capability registrations outside this release are deferred. Existing Human workflows retain their owning authorities. The Payroll resolver preserves dated terminal employment evidence without treating a same-assignment resignation or termination as an identity conflict. See the trusted-authority and Payroll domain contracts.

@@ -1,3 +1,4 @@
+import {mapProductItem as mapItem} from '../../supabase/functions/_shared/productAnalyticsModel.js';
 import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
@@ -21,24 +22,6 @@ function mapReport(row) {
     total_quantity: Number(row.total_quantity ?? 0),
     total_discount: Number(row.total_discount ?? 0),
     raw_metadata: row.raw_metadata ?? {},
-  };
-}
-
-function mapItem(row) {
-  return {
-    id: row.id,
-    report_id: row.report_id,
-    outlet_id: row.outlet_id,
-    category_name: row.category_name ?? "Uncategorized",
-    product_name: row.product_name ?? "",
-    variant_name: row.variant_name ?? "",
-    quantity: Number(row.quantity ?? 0),
-    gross_sales: Number(row.gross_sales ?? 0),
-    discount: Number(row.discount ?? 0),
-    sst: Number(row.sst ?? 0),
-    service_charge: Number(row.service_charge ?? 0),
-    nett_sales: Number(row.nett_sales ?? 0),
-    created_at: row.created_at,
   };
 }
 
