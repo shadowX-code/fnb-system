@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '../../../../components/feedback/Modal.jsx';
 import MetricCard from '../../../../components/ui/MetricCard.jsx';
 import Badge from '../../../../components/ui/Badge.jsx';
@@ -7,6 +7,8 @@ import SelectField from '../../../../components/forms/SelectField.jsx';
 import { Field, TextArea, selectInputText, parseNonNegativeNumber } from '../InventorySharedPresentation.jsx';
 import { isActiveInventoryItem } from '../inventoryItemModel.js';
 import { poProgress, poStatusLabel, poStatusTone as statusTone } from './inventoryPurchaseOrderHelpers.js';
+import { loadPurchaseOrderSupplierItems } from "./inventoryPurchaseOrdersReadService.js";
+import { purchaseOrderSupplierItems } from "./purchaseOrderSupplierItems.js";
 const makeId = prefix => prefix + '_' + crypto.randomUUID();
 
 export function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, existingOrders = [], businessPoNo = (order) => order?.poNo || "PO", saving = false, onClose, onCreateDraftPo, onViewPurchaseOrder }) {
@@ -163,6 +165,7 @@ export function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSav
     lines: (order.lines || []).map((line) => ({ ...line })),
   });
   const [saving, setSaving] = useState(false);
+  const [pendingSupplier, setPendingSupplier] = useState(null);
   const submit = async () => {
     if (saving) return;
     setSaving(true);
@@ -178,36 +181,70 @@ export function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSav
     ...current,
     lines: current.lines.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line),
   }));
-  const availableItems = items.filter((item) => isActiveInventoryItem(item) && item.linkedOutletIds?.includes(form.outletId || form.outletIds?.[0]));
+  const outletId = form.outletId || form.outletIds?.[0];
+  const manual = !form.sourceStockCheckId;
+  const [supplierCatalog, setSupplierCatalog] = useState(null);
+  const [catalogError, setCatalogError] = useState(false);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
+  useEffect(() => {
+    if (!manual) return undefined;
+    let current = true;
+    setCatalogError(false);
+    setSupplierCatalog(null);
+    loadPurchaseOrderSupplierItems(items, outletId).then(
+      (rows) => { if (current) setSupplierCatalog(rows); },
+      () => { if (current) setCatalogError(true); },
+    );
+    return () => { current = false; };
+  }, [manual, items, outletId, catalogAttempt]);
+  const outletSuppliers = suppliers.filter((supplier) => (supplier.status === "active" || supplier.is_active === true)
+    && (supplier.outletIds || supplier.assignedOutletIds || []).includes(outletId));
+  const itemsForSupplier = (id) => purchaseOrderSupplierItems(supplierCatalog || [], id, (item) =>
+    outletSuppliers.some((supplier) => supplier.id === id) && isActiveInventoryItem(item)
+      ? item.outletConfigs?.find((config) => config.outletId === outletId && config.isActive)?.supplierIds
+      : []);
+  const availableItems = manual ? itemsForSupplier(form.supplierId)
+    : items.filter((item) => isActiveInventoryItem(item) && item.linkedOutletIds?.includes(outletId));
+  function selectSupplier(id, confirmed = false) {
+    if (id === form.supplierId) return;
+    const eligible = new Set(itemsForSupplier(id).map((item) => item.id));
+    const lines = manual ? form.lines.filter((line) => eligible.has(line.itemId)) : form.lines;
+    if (!confirmed && lines.length !== form.lines.length) { setPendingSupplier(id); return; }
+    setForm({ ...form, supplierId: id, lines });
+    setPendingSupplier(null);
+  }
 
   return (
     <Modal
-      title="Edit Draft PO"
-      description="Draft purchase orders can be adjusted before submission."
+      title={pendingSupplier ? "Change supplier" : "Edit Draft PO"}
+      description={pendingSupplier ? "Items unavailable from the new supplier will be removed. All compatible items and their quantities will be kept." : "Draft purchase orders can be adjusted before submission."}
       size="xl"
-      onClose={onClose}
-      footer={(
+      onClose={pendingSupplier ? () => setPendingSupplier(null) : onClose}
+      footer={pendingSupplier ? <>
+        <button className="btn-secondary" type="button" onClick={() => setPendingSupplier(null)}>Cancel</button>
+        <button className="btn-primary" type="button" onClick={() => selectSupplier(pendingSupplier, true)}>Change supplier</button>
+      </> : (
         <>
           <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
           <button className="btn-primary" type="button" disabled={saving || form.status !== "draft" || !form.lines.length} onClick={submit}>{saving ? "Saving…" : "Save Draft PO"}</button>
         </>
       )}
     >
-      <div className="space-y-4">
+      {!pendingSupplier && <div className="space-y-4">
         {form.status !== "draft" ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 type-body-sm font-semibold text-amber-800">
             This PO has already been submitted. Create an adjustment or cancel if needed.
           </div>
         ) : null}
         <div className="grid gap-3 sm:grid-cols-2">
-          <SelectField label="Supplier" value={form.supplierId} options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))} onChange={(value) => setForm((current) => ({ ...current, supplierId: value }))} searchable disabled={form.status !== "draft"} />
+          <SelectField label="Supplier" value={form.supplierId} options={(manual ? suppliers.filter((supplier) => supplier.id === form.supplierId || outletSuppliers.includes(supplier)) : suppliers).map((supplier) => ({ value: supplier.id, label: supplier.name }))} onChange={selectSupplier} searchable disabled={saving || form.status !== "draft" || (manual && !supplierCatalog)} />
         </div>
         <div className="space-y-2">
           {form.lines.map((line, index) => {
             const item = items.find((entry) => entry.id === line.itemId);
             return (
               <div key={line.id || `${line.itemId}-${index}`} className="grid gap-2 rounded-2xl border border-border p-3 md:grid-cols-[1.4fr_120px_1fr_auto] md:items-end">
-                <SelectField label="Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => {
+                <SelectField label="Item" value={line.itemId} options={[...availableItems.map((entry) => ({ value: entry.id, label: entry.name, searchText: `${entry.name} ${entry.sku || ""}` })), ...(!availableItems.some((entry) => entry.id === line.itemId) && line.itemId ? [{ value: line.itemId, label: item?.name || "Existing item", disabled: true }] : [])]} onChange={(value) => {
                   const nextItem = items.find((entry) => entry.id === value);
                   updateLine(index, { itemId: value, unit: nextItem?.unit || line.unit });
                 }} searchable disabled={form.status !== "draft"} />
@@ -219,8 +256,12 @@ export function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSav
             );
           })}
         </div>
-        <button className="btn-secondary" type="button" disabled={form.status !== "draft"} onClick={() => setForm((current) => ({ ...current, lines: [...current.lines, { id: makeId("po_item"), itemId: availableItems[0]?.id || "", requestedQty: 1, receivedQty: 0, unit: availableItems[0]?.unit || "", remark: "" }] }))}>Add Item</button>
-      </div>
+        <button className="btn-secondary" type="button" disabled={form.status !== "draft" || (manual && (!form.supplierId || !availableItems.length))} onClick={() => setForm((current) => ({ ...current, lines: [...current.lines, { id: makeId("po_item"), itemId: availableItems[0]?.id || "", requestedQty: 1, receivedQty: 0, unit: availableItems[0]?.unit || "", remark: "" }] }))}>Add Item</button>
+        {manual && !supplierCatalog && (catalogError
+          ? <p role="alert">Supplier items could not be loaded. <button type="button" className="btn-secondary" onClick={() => setCatalogAttempt((attempt) => attempt + 1)}>Retry</button></p>
+          : <p role="status">Loading supplier items…</p>)}
+        {manual && supplierCatalog && form.supplierId && !availableItems.length && <EmptyState title="No active items are linked to this supplier." />}
+      </div>}
     </Modal>
   );
 }

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronRight, Copy, Plus, Trash2 } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import { formatPurchaseOrderText } from "../../sales-purchase/inventory/purchaseOrders/purchaseOrderText.js";
+import { purchaseOrderSupplierItems } from "../../sales-purchase/inventory/purchaseOrders/purchaseOrderSupplierItems.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
@@ -36,6 +37,7 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
   const [supplierId, setSupplierId] = useState(""); const [lines, setLines] = useState([]); const [remark, setRemark] = useState("");
   const [query, setQuery] = useState(""); const [itemPicker, setItemPicker] = useState(false); const [receiveQty, setReceiveQty] = useState({}); const [copyFallback, setCopyFallback] = useState("");
   const history = useCrewInventoryHistory(crewService.inventoryPurchaseOrderHistory, token, outletId, tab === "history");
+  const [pendingSupplier, setPendingSupplier] = useState(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [dirty, setDirty] = useState(false); const request = useRef(null); const newPoNo = useRef(null); const sourcePoNos = useRef({}); const active = useRef(true);
@@ -93,9 +95,18 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
   function startManual() { setSource(null); setSupplierId(""); setLines([]); setRemark(""); setDetail(null); setMode("editor"); setDirty(false); request.current = null; newPoNo.current = null; }
   function startFromCheck(check, existingOrders = data?.orders || []) { setSource(check); setSourceItems(sourceRows(check, existingOrders)); setMissingSourceId(null); setDetail(null); setMode("suggestions"); setDirty(false); request.current = null; sourcePoNos.current = {}; }
   function editDraft() { setSource(null); setSupplierId(detail.supplier_id); setLines((detail.lines || []).map(editableLine)); setRemark(detail.remark || ""); setMode("editor"); setDirty(false); request.current = null; }
-  function selectSupplier(id) {
-    setSupplierId(id); setDirty(true);
-    setLines([]);
+  const itemsForSupplier = (id) => purchaseOrderSupplierItems(catalog?.items || [], id, (item) => item.supplier_ids);
+  const eligibleItems = itemsForSupplier(supplierId);
+  const selectedItemIds = new Set(lines.map((line) => line.item_id));
+  const pickerItems = itemPicker ? eligibleItems.filter((item) => !selectedItemIds.has(item.id)
+    && `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase())) : [];
+  function selectSupplier(id, confirmed = false) {
+    if (id === supplierId || busy) return;
+    const eligibleIds = new Set(itemsForSupplier(id).map((item) => item.id));
+    const retainedLines = lines.filter((line) => eligibleIds.has(line.item_id));
+    if (!confirmed && retainedLines.length !== lines.length) { setPendingSupplier(id); return; }
+    setPendingSupplier(null); setSupplierId(id); setLines(retainedLines);
+    setItemPicker(false); setQuery(""); setError(""); setDirty(true);
   }
   function updateSourceItem(id, patch) { setSourceItems((current) => current.map((item) => item.stock_check_item_id === id ? { ...item, ...patch } : item)); setDirty(true); }
   function updateLine(id, patch) { setLines((current) => current.map((line) => line.item_id === id ? { ...line, ...patch } : line)); setDirty(true); }
@@ -225,14 +236,22 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
   </section>;
 
   if (mode === "editor") return <section className="crew-inventory-page"><CrewMobileDetailHeader title={detail ? t("inventory.editDraft") : t("inventory.createPo")} onBack={goBack} />
-    <div className="crew-inventory-form"><CrewChoicePicker label={t("inventory.supplier")} value={supplierId} options={sourceSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))} onChange={selectSupplier} disabled={Boolean(detail?.source_stock_check_id)} />
-      {supplierId && !detail?.source_stock_check_id && <button className="crew-mobile-secondary" type="button" onClick={() => setItemPicker(true)}><Plus size={16} />{t("inventory.addItem")}</button>}
-      {lines.map((line) => <article className="crew-inventory-count-row" key={line.item_id}><div className="crew-inventory-row-head"><span><strong>{itemById.get(line.item_id)?.name || t("inventory.item")}</strong><small>{itemById.get(line.item_id)?.sku || ""}</small></span>{!detail?.source_stock_check_id && <button type="button" aria-label={t("inventory.removeItem")} onClick={() => { setLines((current) => current.filter((row) => row.item_id !== line.item_id)); setDirty(true); }}><Trash2 size={18} /></button>}</div><CrewQuantityStepper value={line.requested_qty} onChange={(value) => updateLine(line.item_id, { requested_qty: value })} label={t("inventory.requestedQuantity")} unit={line.unit} /><label>{t("inventory.remarks")}<input value={line.remark} onChange={(event) => updateLine(line.item_id, { remark: event.target.value })} /></label></article>)}
-      {supplierId && !lines.length && <CrewEmptyState title={t("inventory.noItems")} />}
+    <div className="crew-inventory-form"><CrewChoicePicker label={t("inventory.supplier")} value={supplierId} options={sourceSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))} onChange={(id) => selectSupplier(id)} disabled={busy || Boolean(detail?.source_stock_check_id)} />
+      {!detail?.source_stock_check_id && <button className="crew-mobile-secondary" type="button" disabled={busy || !supplierId} onClick={() => { setQuery(""); setItemPicker(true); }}><Plus size={16} />{t("inventory.addItem")}</button>}
+      {lines.map((line) => <article className="crew-inventory-count-row" key={line.item_id}><div className="crew-inventory-row-head"><span><strong>{itemById.get(line.item_id)?.name || detail?.lines?.find((item) => item.item_id === line.item_id)?.item_name || t("inventory.item")}</strong><small>{itemById.get(line.item_id)?.sku || ""}</small></span>{!detail?.source_stock_check_id && <button type="button" aria-label={t("inventory.removeItem")} onClick={() => { setLines((current) => current.filter((row) => row.item_id !== line.item_id)); setDirty(true); }}><Trash2 size={18} /></button>}</div><CrewQuantityStepper value={line.requested_qty} onChange={(value) => updateLine(line.item_id, { requested_qty: value })} label={t("inventory.requestedQuantity")} unit={line.unit} /><label>{t("inventory.remarks")}<input value={line.remark} onChange={(event) => updateLine(line.item_id, { remark: event.target.value })} /></label></article>)}
+      {supplierId && !lines.length && <CrewEmptyState title={t(eligibleItems.length ? "inventory.noItems" : "inventory.noSupplierItems")} />}
     </div>{error && <p className="crew-v2-error" role="alert">{error}</p>}
     <div className="crew-inventory-sticky"><button className="crew-mobile-primary" type="button" disabled={busy || !supplierId || !validLines} onClick={() => void saveDraft()}>{busy ? t("common.saving") : t("inventory.saveDraft")}</button></div>
     {discardOpen && <CrewMobileModal title={t("inventory.discardChanges")} onClose={() => setDiscardOpen(false)} footer={<><button className="crew-mobile-secondary" type="button" onClick={() => setDiscardOpen(false)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" onClick={discardChanges}>{t("inventory.discardChanges")}</button></>}><p>{t("inventory.discardChangesBody")}</p></CrewMobileModal>}
-    {itemPicker && <CrewBottomSheet title={t("inventory.addItem")} onClose={() => setItemPicker(false)}><CrewSearchBar value={query} onChange={setQuery} placeholder={t("inventory.searchItems")} /><div className="crew-inventory-picker-list">{(catalog?.items || []).filter((item) => !lines.some((line) => line.item_id === item.id) && `${item.name} ${item.sku}`.toLowerCase().includes(query.toLowerCase())).map((item) => <button type="button" key={item.id} onClick={() => { setLines((current) => [...current, { item_id: item.id, requested_qty: "1", unit: item.unit, remark: "", source_stock_check_item_id: null }]); setDirty(true); setItemPicker(false); setQuery(""); }}><strong>{item.name}</strong><small>{item.sku} · {item.unit}</small></button>)}</div></CrewBottomSheet>}
+    {pendingSupplier !== null && <CrewMobileModal title={t("inventory.changeSupplier")} onClose={() => setPendingSupplier(null)}
+      footer={<><button className="crew-mobile-secondary" type="button" onClick={() => setPendingSupplier(null)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" onClick={() => selectSupplier(pendingSupplier, true)}>{t("inventory.changeSupplier")}</button></>}>
+      <p>{t("inventory.changeSupplierBody")}</p>
+    </CrewMobileModal>}
+    {itemPicker && <CrewBottomSheet title={t("inventory.addItem")} onClose={() => setItemPicker(false)}>
+      {eligibleItems.length > 0 && <CrewSearchBar value={query} onChange={setQuery} placeholder={t("inventory.searchItems")} />}
+      {!pickerItems.length && <CrewEmptyState title={t(eligibleItems.length ? "inventory.noItems" : "inventory.noSupplierItems")} />}
+      <div className="crew-inventory-picker-list">{pickerItems.map((item) => <button type="button" key={item.id} onClick={() => { setLines((current) => [...current, { item_id: item.id, requested_qty: "1", unit: item.unit, remark: "", source_stock_check_item_id: null }]); setDirty(true); setItemPicker(false); setQuery(""); }}><strong>{item.name}</strong><small>{item.sku} · {item.unit}</small></button>)}</div>
+    </CrewBottomSheet>}
   </section>;
 
   if (!detail) return <section className="crew-inventory-page"><CrewMobileDetailHeader title={t("inventory.purchaseOrder")} onBack={goBack} /><CrewEmptyState title={t("inventory.noOrders")} /></section>;
@@ -246,7 +265,7 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
     <p className="crew-inventory-context">{categorySummary(detail.category_names, t)} · {formatDate(relevantDate(detail))}</p>
     <div className="crew-inventory-detail-actions">{detail.status !== "draft" && <button className="crew-mobile-secondary" type="button" onClick={() => void copyText()}><Copy size={16} />{t("inventory.copyText")}</button>}{canManage && detail.status === "draft" && <button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => void transition("submit")}>{t("inventory.submitPo")}</button>}{canManage && detail.status === "submitted" && <button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => setReopenOpen(true)}>{t("inventory.editOrder")}</button>}</div>
     <div className="crew-inventory-detail-lines">{detail.lines.map((line) => <article key={line.id}><CrewInventoryItemThumb item={itemFor(line)} inspectable /><span><strong>{line.item_name}</strong><small>{line.sku_code}{line.remark ? ` · ${line.remark}` : ""}</small><small>{t("inventory.ordered")}: {line.requested_qty} {line.unit} · {t("inventory.received")}: {line.received_qty} {line.unit} · {t("inventory.remaining")}: {line.remaining_qty} {line.unit}</small></span></article>)}</div>
-    {detail.receipts?.length > 0 && <section className="crew-inventory-history"><h2>{t("inventory.receiptHistory")}</h2>{detail.receipts.map((receipt) => <article key={receipt.id}><strong>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(receipt.received_at))}</strong><small>{receipt.lines.map((line) => `${itemById.get(line.item_id)?.name || t("inventory.item")}: ${line.received_qty} ${line.unit}`).join(" · ")}</small>{receipt.remark && <p>{receipt.remark}</p>}</article>)}</section>}
+    {detail.receipts?.length > 0 && <section className="crew-inventory-history"><h2>{t("inventory.receiptHistory")}</h2>{detail.receipts.map((receipt) => <article key={receipt.id}><strong>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(receipt.received_at))}</strong><small>{receipt.lines.map((line) => `${itemById.get(line.item_id)?.name || detail?.lines?.find((item) => item.item_id === line.item_id)?.item_name || t("inventory.item")}: ${line.received_qty} ${line.unit}`).join(" · ")}</small>{receipt.remark && <p>{receipt.remark}</p>}</article>)}</section>}
     <div className="crew-inventory-sticky">{canManage && detail.status === "draft" && <button className="crew-mobile-primary" type="button" disabled={busy} onClick={editDraft}>{t("inventory.continueDraft")}</button>}{canManage && detail.status === "submitted" && <button className="crew-mobile-primary" type="button" disabled={busy} onClick={() => void transition("confirm")}>{t("inventory.markConfirmed")}</button>}{canReceive && ["supplier_confirmed", "partial_received"].includes(detail.status) && <button className="crew-mobile-primary" type="button" disabled={busy} onClick={startReceiving}>{detail.status === "partial_received" ? t("inventory.continueReceiving") : t("inventory.receivePo")}</button>}</div>
     {copyFallback && <CrewBottomSheet title={t("inventory.copyText")} onClose={() => setCopyFallback("")}><textarea className="crew-inventory-copy-fallback" readOnly value={copyFallback} onFocus={(event) => event.target.select()} /></CrewBottomSheet>}
     {reopenOpen && <CrewBottomSheet title={t("inventory.editSubmittedTitle")} description={t("inventory.editSubmittedBody")} onClose={() => setReopenOpen(false)} closeDisabled={busy} footer={<><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => setReopenOpen(false)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" disabled={busy} onClick={() => void transition("reopen_draft")}>{busy ? t("common.saving") : t("inventory.editOrder")}</button></>} />}

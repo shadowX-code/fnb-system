@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ read: vi.fn(), check: vi.fn(), tables: {} }));
 vi.mock('../../../../../services/inventoryCompleteRead.js', () => ({ readCompleteInventoryRows: mocks.read }));
 vi.mock('../../stockChecks/inventoryStockCheckResultService.js', () => ({ loadSubmittedStockCheck: mocks.check }));
-import { loadPurchaseOrders, loadStockCheckRestock } from '../inventoryPurchaseOrdersReadService.js';
+import { loadPurchaseOrders, loadPurchaseOrderSupplierItems, loadStockCheckRestock } from '../inventoryPurchaseOrdersReadService.js';
 
 beforeEach(() => {
   mocks.tables = {
@@ -19,6 +19,9 @@ beforeEach(() => {
 it('scopes every join to verified headers and retains historical duplicate orders', async () => {
   const data = await loadPurchaseOrders(['A']);
   expect(data.orders.map(order => order.id)).toEqual(['p1', 'p2']);
+  expect(mocks.read.mock.calls.map(([table]) => table)).not.toContain('inventory_item_outlet_suppliers');
+  const choices = await loadPurchaseOrderSupplierItems(data.items, 'A');
+  expect(choices[0].outletConfigs[0].supplierIds).toEqual(['S']);
   expect(data.orders[0].lines[0].requestedQty).toBe(6);
   expect(data.orders[0].createdByName).toBe('Recorded Creator');
   expect(data.orders[1].createdByName).toBe('Unknown User');

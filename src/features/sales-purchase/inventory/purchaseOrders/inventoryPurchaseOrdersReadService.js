@@ -23,6 +23,21 @@ async function readItems(links, extraIds = []) {
   return items.map(row => mapRemoteInventoryItem(row, links.filter(link => link.inventory_item_id === row.id)));
 }
 
+export async function loadPurchaseOrderSupplierItems(items, outletId) {
+  const linkIds = [...new Set(items.flatMap(item => item.outletConfigs || [])
+    .filter(config => config.outletId === outletId).map(config => config.id).filter(Boolean))];
+  const supplierLinks = linkIds.length ? (await readCompleteInventoryRows('inventory_item_outlet_suppliers', { in: { inventory_item_outlet_id: linkIds } })).data : [];
+  const supplierIds = new Map();
+  for (const link of supplierLinks) {
+    const ids = supplierIds.get(link.inventory_item_outlet_id) || [];
+    ids.push(link.supplier_id);
+    supplierIds.set(link.inventory_item_outlet_id, ids);
+  }
+  return items.map(item => ({ ...item, outletConfigs: (item.outletConfigs || []).map(config => ({
+    ...config, supplierIds: supplierIds.get(config.id) || [],
+  })) }));
+}
+
 export async function loadPurchaseOrders(outletIds) {
   const [orders, links] = await Promise.all([
     readOrders({ in: { outlet_id: outletIds } }),
@@ -49,10 +64,7 @@ export async function loadStockCheckRestock(checkId, outletIds, suppliers) {
     readOrders({ eq: { source_type: 'stock_check', source_stock_check_id: checkId } }),
     itemIds.length ? readCompleteInventoryRows('inventory_item_outlets', { eq: { outlet_id: check.outletId }, in: { inventory_item_id: itemIds } }) : { data: [] },
   ]);
-  const linkIds = links.data.map(row => row.id);
-  const supplierLinks = linkIds.length ? (await readCompleteInventoryRows('inventory_item_outlet_suppliers', { in: { inventory_item_outlet_id: linkIds } })).data : [];
-  const items = await readItems(links.data, itemIds);
-  for (const item of items) for (const config of item.outletConfigs) config.supplierIds = supplierLinks.filter(row => row.inventory_item_outlet_id === config.id).map(row => row.supplier_id);
+  const items = await loadPurchaseOrderSupplierItems(await readItems(links.data, itemIds), check.outletId);
   const categoryIds = [...new Set(items.map(item => item.categoryId).filter(Boolean))];
   const categories = categoryIds.length ? (await readCompleteInventoryRows('inventory_categories', { in: { id: categoryIds } })).data : [];
   return { check, orders: orders.filter(order => order.status !== 'cancelled'), items, suggestions: buildPurchaseSuggestions(check, items, categories, suppliers) };
