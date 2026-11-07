@@ -1304,7 +1304,7 @@ Preparation without replacing or copying any existing grant. Company-wide operat
 retain the canonical all-outlet requirement and exact Legal Entity/Run binding.
 
 Create starts a unique calendar-month Draft. Prepare synchronizes only elapsed
-canonical payable-time evidence; its existing automatic clean-evidence resolution
+canonical payable-time evidence for the Run's resolved members; its existing automatic clean-evidence resolution
 is unchanged and it never decides unresolved facts. Calculate/Recalculate delegates
 to the same earnings/statutory core as Human Payroll and may target one period member
 or the Run. Update Draft only requests the existing Draft/Ready → Review Required
@@ -1323,7 +1323,9 @@ Human RPCs and Machine commands share private actor-aware canonical bodies. New
 calculation/statutory/time versions and Payroll events record exactly one Human or
 Machine actor; no historical row is reattributed. Blocked calculations preserve known
 evidence and the last valid version without persisting null required financial totals.
-Retries reauthorize exact grants/scope and return one saved receipt. Request/role/Run
+Operation receipts commit independently of whole-Run reads and link to Check
+Readiness for current financial results. Retries reauthorize exact grants/scope and
+return one saved receipt. Request/role/Run
 locks preserve concurrency; changed intents require new IDs. No repetitive Agent
 confirmation is added. Missing facts remain explicit and are never inferred.
 

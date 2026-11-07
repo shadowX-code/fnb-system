@@ -20,8 +20,12 @@ it('View discovers canonical readiness without advertising or authorizing a calc
  const denied=await (await handler(request({method:'tools/call',params:{name:'execute_hr_action',arguments:{action:'hr_payroll.calculate',legal_entity_id:id,target_id:id,request_id:id,expected_version:'source',input:{}}}}))).json();expect(denied.error.code).toBe(-32003);expect(businessCalls).toBe(0);
  const read=await (await handler(request({method:'tools/call',params:{name:'check_payroll_readiness',arguments:{legal_entity_id:id,run_id:id}}}))).json();expect(read.result.structuredContent.financial_totals).toBeNull();expect(read.result.isError).toBe(false);
 });
-it('returns Review Required inside the successful canonical calculation receipt rather than claiming financial completion',async()=>{
- const receipt={status:'completed',action:'hr_payroll.calculate',payroll:{preparation_ready:false,financial_totals:null,employees:[{status:'review_required',calculation:{issues:['monthly_proration_legal_coverage_requires_review']}}]}};
- const handler=createHandler(async(_token,tool)=>tool==='authorize'?{tools:['execute_hr_action'],hr_actions:[{name:'hr_payroll.calculate'}]}:receipt);
- const result=await (await handler(request({method:'tools/call',params:{name:'execute_hr_action',arguments:{action:'hr_payroll.calculate',legal_entity_id:id,target_id:id,request_id:id,expected_version:'source',input:{employee_id:id}}}}))).json();expect(result.result.structuredContent).toEqual(receipt);
+it('separates the committed calculation receipt from current Review Required evidence',async()=>{
+ const receipt={status:'completed',action:'hr_payroll.calculate',payroll:{run_id:id,readiness_tool:'check_payroll_readiness'}};
+ const readiness={preparation_ready:false,financial_totals:null,employees:[{status:'review_required',calculation:{issues:['monthly_proration_legal_coverage_requires_review']}}]};
+ const handler=createHandler(async(_token,tool)=>tool==='authorize'?{tools:['execute_hr_action','check_payroll_readiness'],hr_actions:[{name:'hr_payroll.calculate'}]}:tool==='execute_hr_action'?receipt:readiness);
+ const result=await (await handler(request({method:'tools/call',params:{name:'execute_hr_action',arguments:{action:'hr_payroll.calculate',legal_entity_id:id,target_id:id,request_id:id,expected_version:'source',input:{employee_id:id}}}}))).json();
+ expect(result.result.structuredContent).toEqual(receipt);
+ const current=await (await handler(request({method:'tools/call',params:{name:'check_payroll_readiness',arguments:{legal_entity_id:id,run_id:id}}}))).json();
+ expect(current.result.structuredContent).toEqual(readiness);
 });
