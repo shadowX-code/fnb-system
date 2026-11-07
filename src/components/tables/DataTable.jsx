@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import {ArrowDown, ArrowUp, ArrowUpDown} from 'lucide-react';
 import './tableControls.css';
 
@@ -8,7 +9,7 @@ export function shouldIgnoreRowClick(event) {
     return Boolean(control && control !== event.currentTarget);
   }
 
-export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, density = "normal", columnSpacing = "normal", tableClassName = "", minWidth = 880, mobileLayout = "scroll" }) {
+export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, renderExpandedRow, density = "normal", columnSpacing = "normal", tableClassName = "", minWidth = 880, mobileLayout = "scroll" }) {
 
 
   return (
@@ -45,27 +46,30 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
               }
               : undefined;
             const { className: _className, onClick: _onClick, ...restRowProps } = rowProps;
+            const expanded = renderExpandedRow?.(row, index);
             return (
-              <tr
-                key={getRowKey(row, index)}
-                className={`table-row admin-table-row transition ${rowOnClick ? "cursor-pointer" : ""} ${getRowClassName ? getRowClassName(row, index) : ""} ${rowClassName}`}
-                onClick={rowOnClick}
-                {...restRowProps}
-              >
-                {columns.map((column) => (
-                  <td
-                    key={column.key}
-                    data-priority={column.priority}
-                    data-label={typeof column.header === "string" ? column.header : undefined}
-                    style={column.width ? { width: column.width } : undefined}
-                    className={`admin-table-cell align-middle ${column.className ?? ""} ${column.align === "right" ? "text-right" : ""} ${
-                      column.sticky ? "table-sticky-cell sticky left-0 z-10" : ""
-                    }`}
-                  >
-                    {column.render ? column.render(row, index) : row[column.key]}
-                  </td>
-                ))}
-              </tr>
+              <Fragment key={getRowKey(row, index)}>
+                <tr
+                  className={`table-row admin-table-row transition ${rowOnClick ? "cursor-pointer" : ""} ${getRowClassName ? getRowClassName(row, index) : ""} ${rowClassName}`}
+                  onClick={rowOnClick}
+                  {...restRowProps}
+                >
+                  {columns.map((column) => (
+                    <td
+                      key={column.key}
+                      data-priority={column.priority}
+                      data-label={typeof column.header === "string" ? column.header : undefined}
+                      style={column.width ? { width: column.width } : undefined}
+                      className={`admin-table-cell align-middle ${column.className ?? ""} ${column.align === "right" ? "text-right" : ""} ${
+                        column.sticky ? "table-sticky-cell sticky left-0 z-10" : ""
+                      }`}
+                    >
+                      {column.render ? column.render(row, index) : row[column.key]}
+                    </td>
+                  ))}
+                </tr>
+                {expanded && <tr className="admin-table-row"><td colSpan={columns.length} className="admin-table-cell w-full max-[700px]:!pr-0">{expanded}</td></tr>}
+              </Fragment>
             );
           })}
         </tbody>

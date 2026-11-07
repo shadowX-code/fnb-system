@@ -1,5 +1,6 @@
 import { canonicalPathForRoute } from '../../../app/routeOwnership.js';
 import { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import Modal from '../../../components/feedback/Modal.jsx';
 import DataTable from '../../../components/tables/DataTable.jsx';
 import Badge from '../../../components/ui/Badge.jsx';
@@ -23,41 +24,103 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
   const [correcting, setCorrecting] = useState(false);
   const [queue, setQueue] = useState([]);
   const [latestRows, setLatestRows] = useState(null);
+  const [filter, setFilter] = useState('All');
+  const [expandedId, setExpandedId] = useState(null);
+  const [dateDirection, setDateDirection] = useState('asc');
+  const toggleDateDirection = () => setDateDirection(direction => direction === 'asc' ? 'desc' : 'asc');
+  const isUnsynchronized = row => row.review_state?.state === 'unreconciled';
+  const rows = latestRows || employee.time;
+  const exceptions = rows.filter(payrollTimeNeedsReview);
+  const syncRows = exceptions.filter(isUnsynchronized);
+  const actionable = exceptions.filter(row => !isUnsynchronized(row)).sort((a, b) => a.work_date.localeCompare(b.work_date));
+  const approved = rows.filter(row => !payrollTimeNeedsReview(row) && ['approved_auto', 'approved_manual'].includes(row.status));
+  const groups = { All: rows, 'Needs Review': actionable, Approved: approved, 'Needs Sync': syncRows };
+  const priority = row => isUnsynchronized(row) ? 1 : payrollTimeNeedsReview(row) ? 0 : 2;
+  const visibleRows = [...groups[filter]].sort((a, b) =>
+    priority(a) - priority(b) || (dateDirection === 'asc' ? 1 : -1) * a.work_date.localeCompare(b.work_date));
   const startReview = row => {
     setCorrecting(false);
     setLatestRows(rows);
     setQueue(actionable.map(item => item.work_date));
     setDecisionDate(row.work_date);
   };
-  const rows = [...(latestRows || employee.time)].sort((a,b) => Number(payrollTimeNeedsReview(b)) - Number(payrollTimeNeedsReview(a)) || a.work_date.localeCompare(b.work_date));
-  const exceptions = rows.filter(row => payrollTimeNeedsReview(row));
-  const isUnsynchronized = row => row.review_state?.state === 'unreconciled';
-  const unsynchronized = exceptions.filter(isUnsynchronized).length;
-  const actionable = exceptions.filter(row => !isUnsynchronized(row));
   const evidenceIncomplete = !latestRows && (employee.timeExceptionCount ?? 0) > exceptions.length;
-  const sum = key => rows.filter(row => row.review_state?.state !== 'ph_review').reduce((total,row) => total + Number(row[key] || 0), 0);
-  const total = key => `${hours(sum(key))}${rows.some(row=>row[key] == null) ? ' · incomplete' : ''}`;
+  const nonHolidayRows = rows.filter(row => row.review_state?.state !== 'ph_review');
+  const sum = (key, items = nonHolidayRows) => items.reduce((total, row) => total + Number(row[key] ?? 0), 0);
+  const longSpans = nonHolidayRows.filter(row => row.actual_minutes >= 1440);
+  const recorded = key => nonHolidayRows.some(row => row[key] != null) ? hours(sum(key)) : '—';
   const regular = (employee.calculation?.lines || []).filter(line => line.kind === 'earning' && line.code === 'regular');
   const rates = [...new Set(regular.map(line => Number(line.rate_per_minute) * 60).filter(Number.isFinite).map(rate => money(rate)))];
   const rate = rates.length ? rates.join(' / ') : employee.pay?.hourly_rate != null ? money(employee.pay.hourly_rate) : '—';
+  const rosterLabel = row => row.evidence?.roster_entry_type && row.evidence.roster_entry_type !== 'working'
+    ? human(row.evidence.roster_entry_type) : interval(row.evidence?.scheduled_start_at, row.evidence?.scheduled_end_at);
+  const canDecide = canManage && !frozen;
   const columns = [
-    { key:'date',header:'Date',render:row => <span className="whitespace-nowrap">{row.work_date}</span> },
-    { key:'roster',header:'Duty Roster',render:row => <div>{!frozen && row.latest_published_roster && <small className="block font-semibold">Roster used for this review</small>}{row.evidence?.roster_entry_type && row.evidence.roster_entry_type !== "working" ? human(row.evidence.roster_entry_type) : interval(row.evidence?.scheduled_start_at,row.evidence?.scheduled_end_at)}
-      <small className="block text-text-secondary">{hours(row.scheduled_minutes)} payable · {row.evidence?.roster_break_minutes == null ? 'Break not established' : `${row.evidence.roster_break_minutes}m unpaid break`}</small>{!frozen && <LatestPublishedRoster roster={row.latest_published_roster} />}</div> },
-    { key:'clock',header:'Clock In–Out',render:row => interval(row.evidence?.clock_in_at,row.evidence?.clock_out_at) },
-    { key:'leave',header:'Leave',render:row => <div>{row.evidence?.leave_id ? `Approved ${human(row.evidence.leave_type)} Leave` : 'No approved Leave'}{row.evidence?.leave_id && <small className="block text-text-secondary">Leave-owned evidence{canManage && canViewLeave && <a className="mt-1 block font-semibold text-primary" href={canonicalPathForRoute('crew_leave')} target="_blank" rel="noopener noreferrer">View in Leave</a>}</small>}</div> },
-    { key:'actual',header:'Actual',align:'right',render:row => <span className="whitespace-nowrap tabular-nums">{hours(row.actual_minutes)}</span> },
-    { key:'difference',header:'Difference',render:row => <div className="max-w-44">{row.issue_codes?.length ? row.issue_codes.map(issue => differences[issue] || human(issue)).join(' · ') : 'No discrepancy'}
-      {Number(row.evidence?.extra_candidate_minutes) > 0 && <small className="block text-text-secondary">Extra candidate {hours(row.evidence.extra_candidate_minutes)}</small>}
-      {Number(row.approved_extra_minutes) > 0 && <small className="block text-text-secondary">Approved OT {hours(row.approved_extra_minutes)}</small>}</div> },
-    { key:'payable',header:'Payable',align:'right',render:row => <div className="whitespace-nowrap tabular-nums"><strong>{row.approved_minutes == null ? row.review_state?.automatic ? 'Monthly salary / Leave rules' : isUnsynchronized(row) ? 'Awaiting synchronization' : 'Awaiting review' : hours(Number(row.approved_minutes) + Number(row.approved_extra_minutes || 0))}</strong>
-      <small className="block text-text-secondary">Proposed {hours(row.proposed_minutes)}</small><small className="block text-text-secondary">{timeTreatment(row)}</small></div> },
-    { key:'status',header:'Status',render:row => <div><Badge tone={payrollTimeNeedsReview(row) ? 'warning' : 'success'}>{isUnsynchronized(row) ? 'Needs synchronization' : payrollTimeNeedsReview(row) && row.source_state?.updated ? 'Source Updated' : payrollTimeNeedsReview(row) ? 'Review Required' : row.review_state?.automatic || row.status === 'approved_auto' ? 'Resolved automatically' : human(row.status)}</Badge>
-      {canManage && !frozen && (payrollTimeNeedsReview(row) && !isUnsynchronized(row)) && <button type="button" className="mt-1 block font-semibold text-primary" onClick={()=>startReview(row)}>{row.source_state?.updated ? 'Review source changes' : 'Review exception'}</button>}
-      {row.review_state?.state === 'ph_review' && <small className="mt-1 block text-text-secondary">PH treatment is separate in Employee Review.</small>}
-      {canManage && !frozen && row.review_state?.state !== 'ph_review' && !payrollTimeNeedsReview(row) && !row.evidence?.leave_id && <button type="button" className="mt-1 block font-semibold text-primary" onClick={() => { setCorrecting(true); setLatestRows(rows); setDecisionDate(row.work_date); }}>{row.status === 'review_required' ? 'Adjust Payable Time' : 'Correct Decision'}</button>}
-      {!!row.history?.length && <details className="mt-1 text-xs text-text-secondary"><summary>Evidence / history</summary>{row.history.map(version => <p key={version.id} className="mt-1">{human(version.status)} · {hours(version.approved_minutes)}{version.reason ? ` · ${version.reason}` : ''}{version.at ? ` · ${new Date(version.at).toLocaleString()}` : ''}</p>)}</details>}</div> },
+    { key: 'date', header: 'Date', onSort: toggleDateDirection, sortDirection: dateDirection, render: row => {
+      const expanded = expandedId === row.id;
+      const Chevron = expanded ? ChevronDown : ChevronRight;
+      return <button type="button" className="inline-flex min-h-11 items-center gap-1 whitespace-nowrap rounded-md px-1 text-left font-semibold focus-visible:outline focus-visible:outline-primary md:min-h-8"
+        aria-expanded={expanded} aria-label={`${expanded ? 'Hide' : 'Show'} details for ${row.work_date}`} onClick={() => setExpandedId(expanded ? null : row.id)}>
+        <Chevron size={16} aria-hidden="true" />{row.work_date}
+      </button>;
+    } },
+    { key: 'roster', header: 'Roster', render: row => <div className="whitespace-nowrap">{rosterLabel(row)}
+      {!frozen && row.latest_published_roster && <small className="block text-text-secondary">Newer roster</small>}</div> },
+    { key: 'clock', header: 'Clock / Actual', render: row => <div className="whitespace-nowrap tabular-nums">{interval(row.evidence?.clock_in_at, row.evidence?.clock_out_at)}
+      {row.actual_minutes != null && <small className="block text-text-secondary">{hours(row.actual_minutes)}{row.actual_minutes >= 1440 ? ' · 24h+ span' : ''}</small>}</div> },
+    { key: 'leave', header: 'Leave', render: row => row.evidence?.leave_id ? `Approved ${human(row.evidence.leave_type)} Leave` : '—' },
+    { key: 'payable', header: 'Payable', render: row => <strong className="whitespace-nowrap tabular-nums">{row.approved_minutes != null
+      ? hours(Number(row.approved_minutes) + Number(row.approved_extra_minutes || 0))
+      : isUnsynchronized(row) ? 'Pending sync' : row.review_state?.automatic ? 'Monthly / Leave rules' : 'Pending review'}</strong> },
+    { key: 'issue', header: 'Issue', render: row => row.issue_codes?.length
+      ? <>{differences[row.issue_codes[0]] || human(row.issue_codes[0])}{row.issue_codes.length > 1 && <small className="ml-1 whitespace-nowrap text-text-secondary">+{row.issue_codes.length - 1}</small>}</> : '—' },
+    { key: 'status', header: 'Status', render: row => <Badge tone={payrollTimeNeedsReview(row) ? 'warning' : 'success'}>
+      {isUnsynchronized(row) ? 'Needs Sync' : payrollTimeNeedsReview(row) ? row.source_state?.updated ? 'Source Updated' : 'Needs Review'
+        : row.review_state?.automatic || row.status === 'approved_auto' ? 'Resolved automatically' : human(row.status)}
+    </Badge> },
+    { key: 'action', header: 'Action', render: row => {
+      if (row.review_state?.state === 'ph_review') return <span className="text-text-secondary">PH review separate</span>;
+      if (isUnsynchronized(row)) return onOpenSynchronization && !frozen
+        ? <button type="button" className="btn-secondary btn-sm min-h-11 whitespace-nowrap md:min-h-0" onClick={onOpenSynchronization}>Evidence Sync</button> : '—';
+      if (!canDecide) return '—';
+      if (payrollTimeNeedsReview(row)) return <button type="button" className="btn-secondary btn-sm min-h-11 md:min-h-0"
+        aria-label={row.source_state?.updated ? 'Review source changes' : 'Review exception'} onClick={() => startReview(row)}>Review</button>;
+      if (row.evidence?.leave_id) return '—';
+      return <button type="button" className="btn-secondary btn-sm min-h-11 whitespace-nowrap md:min-h-0" onClick={() => {
+        setCorrecting(true); setLatestRows(rows); setDecisionDate(row.work_date);
+      }}>{row.status === 'review_required' ? 'Adjust Payable Time' : 'Correct Decision'}</button>;
+    } },
   ];
+  const renderExpandedRow = row => expandedId === row.id && <div className="grid gap-4 py-2 text-sm md:grid-cols-3">
+    <section>
+      <h3 className="font-semibold">Roster comparison</h3>
+      <p className="mt-1 text-xs text-text-secondary">Roster used for Payroll review</p>
+      <p>{rosterLabel(row)}{row.evidence?.roster_break_minutes != null ? ` · ${row.evidence.roster_break_minutes}m unpaid break` : ''}</p>
+      {row.scheduled_minutes != null && <p className="text-text-secondary">{hours(row.scheduled_minutes)} scheduled payable</p>}
+      {!frozen && <LatestPublishedRoster roster={row.latest_published_roster} />}
+    </section>
+    <section>
+      <h3 className="font-semibold">Payroll review</h3>
+      <p className="mt-1">{timeTreatment(row) || 'Classification unavailable'}</p>
+      {!!row.issue_codes?.length && <p className="text-text-secondary">{row.issue_codes.map(issue => differences[issue] || human(issue)).join(' · ')}</p>}
+      {row.proposed_minutes != null && <p>Proposed {hours(row.proposed_minutes)}</p>}
+      {row.evidence?.extra_candidate_minutes > 0 && <p>Extra candidate {hours(row.evidence.extra_candidate_minutes)}</p>}
+      {row.approved_extra_minutes > 0 && <p>Approved OT {hours(row.approved_extra_minutes)}</p>}
+      {row.review_state?.state === 'ph_review' ? <p>Review PH treatment separately in Employee Review.</p>
+        : isUnsynchronized(row) ? <p>Synchronize evidence before recording a Payroll decision.</p>
+        : row.source_state?.updated ? <p>Review source changes before recording a new decision.</p>
+        : payrollTimeNeedsReview(row) && <p>Review the exception before recording payable time.</p>}
+      {row.evidence?.leave_id && canManage && canViewLeave && <a className="inline-flex min-h-11 items-center font-semibold text-primary"
+        href={canonicalPathForRoute('crew_leave')} target="_blank" rel="noopener noreferrer">View in Leave</a>}
+    </section>
+    <section>
+      <h3 className="font-semibold">Evidence / History</h3>
+      {row.actual_minutes >= 1440 && <p className="mt-1 text-text-secondary">Recorded clock span of {hours(row.actual_minutes)}. This span is included in the clock total.</p>}
+      {row.history?.length ? <ul className="mt-1 space-y-1 text-text-secondary">{row.history.map(version => <li key={version.id}>
+        {human(version.status)} · {hours(version.approved_minutes)}{version.reason ? ` · ${version.reason}` : ''}{version.at ? ` · ${new Date(version.at).toLocaleString()}` : ''}
+      </li>)}</ul> : <p className="mt-1 text-text-secondary">No decision history recorded.</p>}
+    </section>
+  </div>;
   const decision = rows.find(row => row.work_date === decisionDate);
   const index = queue.indexOf(decisionDate);
   const advance = (updated, savedDate) => {
@@ -87,24 +150,50 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
       setLatestRows(updated);
       if (correcting) { setDecisionDate(null); setCorrecting(false); } else advance(updated, decisionDate);
     }} />;
-  return <Modal title={`Time & Attendance · ${employee.name}`} description={`${month} · ${frozen ? "Finalized evidence · Read-only; changes require a Correction Revision." : "Roster, clock and approved Leave evidence. Corrections retain the original evidence."}`}
-    size="xl" onClose={onClose} footer={<><button type="button" className="btn-secondary" onClick={onClose}>Back to Employee Review</button>{canManage && !frozen && actionable.length > 0 && <button type="button" className="btn-primary" onClick={() => startReview(actionable[0])}>Continue Review</button>}</>}>
-    <div className="space-y-4 text-sm">
-      {employee.pay?.pay_basis === 'hourly' && <dl className="grid grid-cols-2 gap-3 border-b border-border pb-4 lg:grid-cols-5">
-        {[["Scheduled Hours",total('scheduled_minutes')],["Actual Hours",total('actual_minutes')],
-          ["Approved Payable Hours",`${hours(sum('approved_minutes') + sum('approved_extra_minutes'))}${exceptions.length ? ' · review pending' : ''}`],
-          ["Hourly Rate",employee.pay?.pay_basis === 'hourly' ? `${rate}${rates.length > 1 ? ' · Date-effective rates' : ' / hour'}` : 'Monthly pay rules'],
-          ["Calculated Regular Earnings",employee.pay?.pay_basis !== 'hourly' ? 'Included in monthly salary' : (employee.result.earningsAvailable ?? employee.result.earningsCurrent) ? money(regular.reduce((total,line)=>total+Number(line.amount),0)) : 'Pending calculation']].map(([label,value])=>
-          <div key={label}><dt className="text-xs text-text-secondary">{label}</dt><dd className="mt-1 font-bold tabular-nums">{value}</dd></div>)}
+  const hourly = employee.pay?.pay_basis === 'hourly';
+  const hasPending = exceptions.length > 0 || evidenceIncomplete;
+  const earningsAvailable = employee.result.earningsAvailable ?? employee.result.earningsCurrent;
+  const metrics = [
+    ['Scheduled Hours', recorded('scheduled_minutes'), nonHolidayRows.some(row => row.scheduled_minutes == null) ? 'Some dates have no scheduled hours' : null],
+    ['Recorded Clock Hours', recorded('actual_minutes'), longSpans.length
+      ? `${hours(sum('actual_minutes', longSpans))} across ${longSpans.length} span${longSpans.length === 1 ? '' : 's'} of 24h or more`
+      : 'Elapsed clock-in to clock-out'],
+    ['Approved Payable Hours', nonHolidayRows.some(row => row.approved_minutes != null) ? hours(sum('approved_minutes') + sum('approved_extra_minutes')) : '—',
+      hasPending ? 'Review or sync pending' : null],
+    ['Hourly Rate', rate === '—' ? rate : rates.length > 1 ? rate : `${rate} / hour`, rates.length > 1 ? 'Date-effective rates' : null],
+    ['Calculated Regular Earnings', earningsAvailable ? money(regular.reduce((total, line) => total + Number(line.amount), 0)) : 'Pending', null],
+  ];
+  return <Modal title={`Time & Attendance · ${employee.name}`} description={`${month} · ${frozen ? 'Finalized evidence · Read-only' : 'Review daily evidence and payable time'}`}
+    size="3xl" onClose={onClose} footerClassName="flex-wrap max-sm:[&>button]:min-h-11" footer={<>
+      <button type="button" className="btn-secondary" onClick={onClose}>Back to Employee Review</button>
+      {canDecide && actionable.length > 0 && <button type="button" className="btn-primary" onClick={() => startReview(actionable[0])}>Continue Review</button>}
+    </>}>
+    <div className="space-y-3 text-sm">
+      {hourly && <dl className="grid grid-cols-2 gap-3 border-b border-border pb-3 sm:grid-cols-3 lg:grid-cols-5">
+        {metrics.map(([label, value, detail]) => <div key={label}>
+          <dt className="text-xs text-text-secondary">{label}</dt>
+          <dd className="font-semibold tabular-nums">{value}</dd>
+          {detail && <dd className="text-xs text-text-secondary">{detail}</dd>}
+        </div>)}
       </dl>}
-      <p className="text-xs text-text-secondary">{frozen ? "Pinned time evidence only; current Roster, Attendance and Leave are not read." : evidenceIncomplete ? "Time & Attendance — Evidence incomplete. Return to Payroll to reload the affected dates." : exceptions.length ? `${exceptions.length} pay-impacting exception${exceptions.length === 1 ? '' : 's'} require review.` : rows.length ? "Time & Attendance — Ready. Complete evidence requires no approval." : "No Time & Attendance exceptions reported."} Public Holiday treatment is reviewed separately.</p>
-      {!frozen && unsynchronized > 0 && <div role="status" className="rounded-lg border border-border p-3">
-        <p>{unsynchronized} affected date{unsynchronized === 1 ? ' needs' : 's need'} synchronization before a Payroll decision can be recorded. The table shows the current source evidence.</p>
-        {onOpenSynchronization && <button type="button" className="btn-secondary mt-2" onClick={onOpenSynchronization}>Go to Evidence Sync</button>}
+      <p className="text-xs text-text-secondary">{frozen ? 'Pinned evidence for this Payroll revision.' : evidenceIncomplete
+        ? 'Evidence incomplete. Return to Payroll to reload the affected dates.'
+        : `${actionable.length} need review · ${syncRows.length} need sync.`} {hourly && 'Dates in separate PH review are excluded from hour totals. Regular earnings use approved regular hours and effective rates.'}</p>
+      {rows.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2">
+        <div role="group" aria-label="Time status filter" className="flex flex-wrap gap-1.5">
+          {Object.entries(groups).map(([label, items]) => <button type="button" key={label} aria-pressed={filter === label}
+            className={`${filter === label ? 'btn-primary' : 'btn-secondary'} btn-sm min-h-11 md:min-h-0`} onClick={() => setFilter(label)}>{label} <span className="tabular-nums">{items.length}</span></button>)}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-secondary btn-sm min-h-11 min-[701px]:hidden" onClick={toggleDateDirection}>
+            Date within status · {dateDirection === 'asc' ? 'Oldest first' : 'Newest first'}
+          </button>
+          {!frozen && syncRows.length > 0 && onOpenSynchronization && <button type="button" className="btn-secondary btn-sm min-h-11 md:min-h-0" onClick={onOpenSynchronization}>Go to Evidence Sync</button>}
+        </div>
       </div>}
-      {canManage && !frozen && <p className="text-xs text-text-secondary">Use Adjust Payable Time / Correct Decision only for a genuine Payroll treatment correction. Approved Leave must be corrected through Leave; Payroll cannot create or change a Leave record.</p>}
-      {employee.pay?.pay_basis === 'hourly' && <p className="text-xs text-text-secondary">Hour totals exclude PH; its treatment is separate. Regular earnings use approved Regular hours and date-effective rates with canonical per-day rounding—not raw clock duration. OT, rest-day and public-holiday work use separate approved classifications and existing pay rules.</p>}
-      {rows.length ? <DataTable density="compact" columns={columns} rows={rows} getRowKey={row=>row.id} /> : <p className="py-6 text-text-secondary">{frozen ? "No frozen daily time evidence is available for this revision." : "No daily time evidence is available for this period."}</p>}
+      {visibleRows.length ? <DataTable density="compact" columnSpacing="compact" mobileLayout="stack" minWidth={800}
+        columns={columns} rows={visibleRows} getRowKey={row => row.id} renderExpandedRow={renderExpandedRow} />
+        : <p className="py-6 text-text-secondary">{rows.length ? 'No dates match this filter.' : frozen ? 'No frozen daily time evidence is available for this revision.' : 'No daily time evidence is available for this period.'}</p>}
     </div>
   </Modal>;
 }
