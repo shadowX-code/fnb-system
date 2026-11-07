@@ -8,7 +8,7 @@ import "../../../../i18n/index.js";
 const api = vi.hoisted(() => ({ inventoryAttention: vi.fn(), inventoryStockChecks: vi.fn(), inventoryStockCheckHistory: vi.fn(), inventoryPurchaseOrders: vi.fn(), inventoryPurchaseOrderHistory: vi.fn(), inventoryPurchaseOrdersForCheck: vi.fn(), inventoryMobileCatalog: vi.fn(), saveInventoryStockCheck: vi.fn(), skipInventoryStockCheck: vi.fn(), deleteInventoryAuditDraft: vi.fn(), saveInventoryPurchaseOrder: vi.fn(), createInventoryStockCheckOrders: vi.fn(), transitionInventoryPurchaseOrder: vi.fn(), receiveInventoryPurchaseOrder: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: api }));
 
-const catalog = { outlet_id: "outlet-1", outlet_name: "Test Outlet", business_date: "2026-09-24", categories: [{ id: "cat-1", name: "Dry Goods" }], items: [{ id: "item-1", name: "Rice", sku: "RICE", category_id: "cat-1", unit: "kg", par_level: 10 }], suppliers: [{ id: "supplier-1", name: "Supplier A" }] };
+const catalog = { outlet_id: "outlet-1", outlet_name: "Test Outlet", business_date: "2026-09-24", categories: [{ id: "cat-1", name: "Dry Goods" }], items: [{ id: "item-1", name: "Rice", sku: "RICE", category_id: "cat-1", unit: "kg", par_level: 10, supplier_ids: ["supplier-1"] }], suppliers: [{ id: "supplier-1", name: "Supplier A" }] };
 const stock = { business_date: "2026-09-24", can_perform_stock_check: true, can_create_audit_stock_check: false, due: [{ group_id: "group-1", name: "Opening", shift: "Morning", status: "due", items: [{ item_id: "item-1", item_name: "Rice", category_id: "cat-1", par_level_quantity: 10, unit: "kg" }] }], checks: [] };
 const poDetail = { id: "po-1", po_no: "PO-1", business_po_no: "FC-260924-01", supplier_id: "supplier-1", supplier_name: "Supplier A", status: "supplier_confirmed", created_at: "2026-09-24T00:00:00Z", lines: [{ id: "line-1", item_id: "item-1", item_name: "Rice", requested_qty: 10, received_qty: 3, remaining_qty: 7, unit: "kg" }], receipts: [] };
 
@@ -481,4 +481,46 @@ describe("Crew Inventory mobile authority boundary", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Copy Text" }));
     expect((await screen.findByRole("textbox")).value).toContain("12 kg");
   });
+});
+
+it("scopes Add Item and search to the supplier and confirms removal on switch", async () => {
+  api.inventoryMobileCatalog.mockResolvedValue({
+    ...catalog,
+    items: [...catalog.items,
+      { id: "oil", name: "Oil", sku: "SHARED", unit: "L", supplier_ids: ["supplier-1", "supplier-2"] },
+      { id: "salt", name: "Salt", sku: "SALT", unit: "kg", supplier_ids: ["supplier-2"] }],
+    suppliers: [...catalog.suppliers, { id: "supplier-2", name: "Supplier B" }, { id: "supplier-3", name: "Empty Supplier" }],
+  });
+  render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} onBack={() => {}} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Create PO" }));
+  fireEvent.click(screen.getByRole("button", { name: /Manual PO/ }));
+  const add = () => screen.getByRole("button", { name: "Add item", exact: true });
+  const choose = (name) => {
+    fireEvent.click(screen.getByRole("button", { name: "Supplier" }));
+    fireEvent.click(screen.getByRole("option", { name }));
+  };
+  expect(add().disabled).toBe(true);
+  choose("Supplier A");
+  fireEvent.click(add());
+  const search = screen.getByPlaceholderText("Search items");
+  fireEvent.change(search, { target: { value: "SALT" } });
+  expect(screen.queryByRole("button", { name: /Salt/ })).toBeNull();
+  expect(screen.getAllByText("No items found").length).toBeGreaterThan(0);
+  fireEvent.change(search, { target: { value: "RICE" } });
+  fireEvent.click(screen.getByRole("button", { name: /Rice/ }));
+  fireEvent.click(add());
+  fireEvent.change(screen.getByPlaceholderText("Search items"), { target: { value: "SHARED" } });
+  fireEvent.click(screen.getByRole("button", { name: /Oil/ }));
+  choose("Supplier B");
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.getByText("Rice")).not.toBeNull();
+  choose("Supplier B");
+  fireEvent.click(screen.getByRole("button", { name: "Change supplier" }));
+  expect(screen.queryByText("Rice")).toBeNull();
+  expect(screen.getByText("Oil")).not.toBeNull();
+  choose("Empty Supplier");
+  fireEvent.click(screen.getByRole("button", { name: "Change supplier" }));
+  fireEvent.click(add());
+  expect(screen.getAllByText("No active items are linked to this supplier.").length).toBeGreaterThan(0);
+  expect(screen.queryByRole("button", { name: /Salt|Oil|Rice/ })).toBeNull();
 });
