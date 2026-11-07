@@ -3,12 +3,13 @@ import { payrollService } from "../../../services/payrollService.js";
 
 // Fingerprints/readiness and every amount remain server-owned. Only open-run
 // orchestration belongs here; failed commands wait for an explicit retry.
-export function usePayrollRunRead(run, revision, enabled = true, canManage = false) {
+export function usePayrollRunRead(run, revision, enabled = true, canManage = false, canPrepareTime = false) {
   const [state, setState] = useState(null);
   const generation = useRef(0);
   const failures = useRef(new Map());
   const inFlight = useRef(new Map());
   const timeReviewActive = useRef(false);
+  const sync = useRef(new Map());
   const dirtyEmployees = useRef(new Set());
   const key = run?.id ? `${run.id}:${run.status}` : "";
   const recalculateEmployee = useCallback(async id => {
@@ -28,7 +29,7 @@ export function usePayrollRunRead(run, revision, enabled = true, canManage = fal
     }
     finally { if (inFlight.current.get(workKey) === command) inFlight.current.delete(workKey); }
   }, [key]);
-  const refresh = useCallback(async ({ retryEmployeeId, skipAutomatic = false } = {}) => {
+  const refresh = useCallback(async ({ retryEmployeeId, skipAutomatic = false, retryTimeSync = false } = {}) => {
     if (timeReviewActive.current) return null;
     const request = ++generation.current;
     if (!enabled || !key) { setState(null); return null; }
@@ -51,6 +52,24 @@ export function usePayrollRunRead(run, revision, enabled = true, canManage = fal
       if (generation.current !== request) return null;
       if (retryEmployeeId) failures.current.delete(`${key}:${retryEmployeeId}`);
       const errors = Object.fromEntries([...dirtyEmployees.current].filter(id => failures.current.has(`${key}:${id}`)).map(id => [id,failures.current.get(`${key}:${id}`)]));
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(new Date());
+      const needsSync = data.time?.some(row => row.review_state?.state === 'unreconciled' && row.work_date <= today);
+      if (!skipAutomatic && (canPrepareTime || retryTimeSync) && needsSync &&
+        ['draft','review_required'].includes(run.status) && !run.foundation_only) {
+        let attempt = sync.current.get(key);
+        if (!attempt || (retryTimeSync && !attempt.command) || (!attempt.command && !attempt.error)) {
+          attempt = {};
+          attempt.command = payrollService.prepareRunTime(run.id)
+            .then(summary => { attempt.summary = summary; })
+            .catch(error => { attempt.error = error; })
+            .finally(() => { attempt.command = null; });
+          sync.current.set(key, attempt);
+        }
+        await attempt.command;
+        if (generation.current !== request) return null;
+        if (!attempt.error) data = await read();
+        if (generation.current !== request) return null;
+      }
       const attempted = new Set();
       if (canManage && !skipAutomatic && ["draft", "review_required"].includes(run.status) && !run.foundation_only) {
         setState({ key, data, calculating: true });
@@ -89,7 +108,7 @@ export function usePayrollRunRead(run, revision, enabled = true, canManage = fal
         calculationErrors:Object.fromEntries([...failures.current].filter(([workKey])=>workKey.startsWith(`${key}:`)).map(([workKey,message])=>[workKey.slice(key.length+1),message])) }));
       return null;
     }
-  }, [enabled, key, canManage, run?.foundation_only, recalculateEmployee]);
+  }, [enabled, key, canManage, canPrepareTime, run?.foundation_only, recalculateEmployee]);
   const setTimeReviewActive = useCallback(active => {
     timeReviewActive.current = active;
     if (active) {
@@ -113,6 +132,9 @@ export function usePayrollRunRead(run, revision, enabled = true, canManage = fal
   return { data: state?.key === key ? state.data : null, error: state?.key === key ? state.error ?? null : null,
     calculating: state?.key === key && state.calculating === true,
     calculationErrors: state?.key === key ? state.calculationErrors || {} : {},
+    timeSyncError: sync.current.get(key)?.error,
+    timeSyncSummary: sync.current.get(key)?.summary,
+    retryTimeSync: () => refresh({ retryTimeSync: true }),
     retryCalculation: employeeId => refresh({ retryEmployeeId: employeeId }), recalculateEmployee, refresh,
     setTimeReviewActive, invalidateEmployee };
 }

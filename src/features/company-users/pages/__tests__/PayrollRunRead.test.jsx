@@ -1,8 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { payrollReviewRows, payrollReviewSummary } from "../payrollRunPresentation.js";
-const mocks = vi.hoisted(() => ({ readPreparation: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), recalculateEmployee: vi.fn(), readFinalizedRecord:vi.fn() }));
-vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {...mocks, readRunEvidence: async id => { const [preparation,calculation,statutory]=await Promise.all([mocks.readPreparation(id),mocks.readCalculation(id),mocks.readStatutory(id)]); return {preparation,calculation,statutory}; }} }));
+const mocks = vi.hoisted(() => ({ readTime: vi.fn(), prepareRunTime: vi.fn(), readPreparation: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), recalculateEmployee: vi.fn(), readFinalizedRecord:vi.fn() }));
+vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {...mocks, readRunEvidence: async id => { const [preparation,calculation,statutory]=await Promise.all([mocks.readPreparation(id),mocks.readCalculation(id),mocks.readStatutory(id)]); return {preparation,calculation,statutory,time:await mocks.readTime(id)}; }} }));
 import { usePayrollRunRead } from "../usePayrollRunRead.js";
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 it('settles a blocked Monthly recalculation to current review evidence without repeat retries or stale totals', async () => {
@@ -141,3 +141,38 @@ it('coalesces review decisions without reads or calculations until the queue clo
   await act(async()=>{command.resolve();});
   expect(result.current.data.preparation.results[0].employee_id).toBe('one');
  });
+
+it("synchronizes elapsed evidence in Prepare before calculating, then leaves judgments pending", async () => {
+  const source = {work_date:"2026-10-01", review_state:{required:true,state:"unreconciled"}};
+  const summary = {synchronized:1,skipped:0,unresolved:1};
+  let synced = false, calculated = false;
+  mocks.readTime.mockImplementation(async () => [synced ? {...source,review_state:{required:true,state:"review_required"}} : source]);
+  mocks.readPreparation.mockResolvedValue({results:[{employee_id:"qa"}]});
+  mocks.readCalculation.mockImplementation(async () => ({results:calculated ? [{employee_id:"qa"}] : []}));
+  mocks.readStatutory.mockImplementation(async () => ({results:calculated ? [{employee_id:"qa"}] : []}));
+  mocks.prepareRunTime.mockImplementation(async () => {synced = true; return summary;});
+  mocks.recalculateEmployee.mockImplementation(async () => {expect(synced).toBe(true); calculated = true;});
+  const {result} = renderHook(() => usePayrollRunRead({id:"run",status:"draft"},null,true,true,true));
+  await waitFor(() => expect(result.current.calculating).toBe(false));
+  await waitFor(() => expect(result.current.data?.time[0].review_state.state).toBe("review_required"));
+  expect(result.current.timeSyncSummary).toEqual(summary);
+  await act(() => result.current.refresh());
+  expect(mocks.prepareRunTime).toHaveBeenCalledExactlyOnceWith("run");
+  expect(mocks.recalculateEmployee).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a failed automatic sync visible and retries only on explicit recovery", async () => {
+  mocks.readTime.mockResolvedValueOnce([{work_date:"2026-10-01",review_state:{state:"unreconciled"}}])
+    .mockResolvedValueOnce([{work_date:"2026-10-01",review_state:{state:"unreconciled"}}])
+    .mockResolvedValueOnce([{work_date:"2026-10-01",review_state:{state:"unreconciled"}}])
+    .mockResolvedValue([]);
+  mocks.readPreparation.mockResolvedValue({results:[]});
+  mocks.prepareRunTime.mockRejectedValueOnce(new Error("Sync unavailable")).mockResolvedValueOnce({synchronized:1});
+  const {result} = renderHook(() => usePayrollRunRead({id:"run",status:"draft"},null,true,false,true));
+  await waitFor(() => expect(result.current.timeSyncError?.message).toBe("Sync unavailable"));
+  await act(() => result.current.refresh());
+  expect(mocks.prepareRunTime).toHaveBeenCalledTimes(1);
+  await act(() => result.current.retryTimeSync());
+  expect(mocks.prepareRunTime).toHaveBeenCalledTimes(2);
+  expect(result.current.timeSyncError).toBeUndefined();
+});

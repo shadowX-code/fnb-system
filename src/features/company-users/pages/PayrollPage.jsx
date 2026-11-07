@@ -623,7 +623,8 @@ export default function PayrollPage({ auth }) {
   const activeRun = useMemo(() => (period?.runs || []).find((item) => item.id === openRunId)
     || (period?.runs || []).find((item) => ["draft", "review_required", "ready"].includes(item.status))
     || [...(period?.runs || [])].sort((a, b) => Number(b.revision) - Number(a.revision))[0], [period, openRunId]);
-  const runRead = usePayrollRunRead(activeRun, data, tab === "overview" || (tab === "runs" && Boolean(openRunId)), permissions.recalculate);
+  const runRead = usePayrollRunRead(activeRun, data, tab === "overview" || (tab === "runs" && Boolean(openRunId)), permissions.recalculate,
+    tab === "runs" && Boolean(openRunId) && runStep === 0 && permissions.prepare);
   const readiness = activeRun?.id && runRead.data?.readiness
     ? {...runRead.data.readiness, runId:activeRun.id} : runRead.error ? {runId:activeRun?.id,error:true} : null;
   const changeEntity = value => {
