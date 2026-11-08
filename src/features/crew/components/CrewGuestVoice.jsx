@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight, Pause, Play, Star } from "lucide-react";
+import { ChevronRight, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { crewService } from "../../../services/crewService.js";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
@@ -46,7 +46,6 @@ export default function CrewGuestVoice({ token, outletId, outletName }) {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [visible, setVisible] = useState(() => !document.hidden);
   const [reduced, setReduced] = useState(() => window.matchMedia(motionQuery).matches);
-  const [paused, setPaused] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -126,10 +125,10 @@ export default function CrewGuestVoice({ token, outletId, outletName }) {
   const current = slides[currentIndex];
 
   useEffect(() => {
-    if (slides.length < 2 || !visible || reduced || paused || hovered || focused || dragging || overlay) return undefined;
+    if (slides.length < 2 || !visible || reduced || hovered || focused || dragging || overlay) return undefined;
     const timer = window.setTimeout(() => setActive((current) => (current + 1) % slides.length), ROTATE_MS);
     return () => window.clearTimeout(timer);
-  }, [active, slides.length, visible, reduced, paused, hovered, focused, dragging, overlay]);
+  }, [active, slides.length, visible, reduced, hovered, focused, dragging, overlay]);
 
   useEffect(() => {
     const isNew = current && newIds.current.delete(current.id);
@@ -155,9 +154,6 @@ export default function CrewGuestVoice({ token, outletId, outletName }) {
 
   if (!outletId || !status) return null;
   const selected = overlay && overlay !== "all" ? reviews.find(review => review.id === overlay) : null;
-  const freshness = status === "ready" && feed.fetchedAt
-    ? new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(feed.fetchedAt))
-    : null;
 
   return <section className="crew-guest-voice" aria-label={t("guestVoice.title")}>
     <header className="crew-guest-header">
@@ -196,11 +192,8 @@ export default function CrewGuestVoice({ token, outletId, outletName }) {
       {slides.length > 1 && <div className="crew-guest-dots">{slides.map((review, index) => <button
         type="button" key={review.id} aria-label={t("guestVoice.slide", { index: index + 1, count: slides.length })}
         aria-current={index === currentIndex ? "true" : undefined} onClick={() => setActive(index)} />)}
-        {!reduced && <button type="button" className="crew-guest-motion" aria-label={t(paused ? "guestVoice.resume" : "guestVoice.pause")}
-          onClick={() => setPaused(!paused)}>{paused ? <Play size={13} /> : <Pause size={13} />}</button>}
       </div>}
     </div> : <p className="crew-guest-fallback">{t(`guestVoice.${status === "ready" ? "empty" : status}`)}</p>}
-    {freshness && <small className="crew-guest-freshness">{t("guestVoice.synced", { date: freshness })}</small>}
     {overlay === "all" && reviews.length > 0 && <CrewBottomSheet title={t("guestVoice.title")} description={t("guestVoice.source")} onClose={() => setOverlay(null)}>
       <div className="crew-guest-list">{reviews.slice(0, limit).map(review => <button type="button" className="crew-guest-review" key={review.id} onClick={() => setOverlay(review.id)}><Review review={review} /></button>)}</div>
       {limit < reviews.length && <button type="button" className="crew-mobile-secondary" onClick={() => setLimit(limit + PAGE_SIZE)}>{t("inventory.loadMore")}</button>}

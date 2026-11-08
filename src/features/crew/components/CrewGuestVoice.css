@@ -1,6 +1,6 @@
 .crew-guest-voice {
-  margin-block: 14px;
-  padding: 12px;
+  margin-block: 10px;
+  padding: 8px 10px 3px;
   min-width: 0;
   border: 1px solid var(--crew-color-operational-border);
   border-radius: var(--crew-radius-focus);
@@ -30,8 +30,8 @@
 
 .crew-guest-source {
   display: grid;
-  flex: 0 0 33px;
-  height: 33px;
+  flex: 0 0 30px;
+  height: 30px;
   place-items: center;
   border-radius: 50%;
   background: var(--crew-color-surface);
@@ -44,15 +44,16 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  min-height: 44px;
+  min-height: 36px;
   color: var(--crew-color-deep-teal);
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
 
-.crew-guest-rating { gap: 10px; margin-block: 5px 8px; }
-.crew-guest-rating > strong { font-size: 38px; line-height: 1; letter-spacing: -.05em; color: var(--crew-color-deep-teal); }
+.crew-guest-rating { gap: 8px; margin-block: 2px 6px; }
+.crew-guest-rating > span { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
+.crew-guest-rating > strong { font-size: 30px; line-height: 1; letter-spacing: -.05em; color: var(--crew-color-deep-teal); }
 .crew-guest-stars { display: inline-flex; flex-shrink: 0; gap: 1px; }
 .crew-guest-stars > span { position: relative; display: block; color: var(--crew-color-border); }
 .crew-guest-stars i { position: absolute; inset: 0 auto 0 0; overflow: hidden; color: #e8a400; }
@@ -63,8 +64,8 @@
   display: grid;
   width: 100%;
   min-width: 0;
-  gap: 6px;
-  padding: 9px 11px;
+  gap: 4px;
+  padding: 6px 9px;
   border: 1px solid var(--crew-color-operational-border);
   border-radius: 15px;
   color: var(--crew-color-text);
@@ -72,28 +73,27 @@
   text-align: start;
 }
 .crew-guest-swipe .crew-guest-review {
-  min-height: 88px;
+  min-height: calc(50px + 3lh);
+  font-size: 13px;
+  line-height: 1.3;
   align-content: start;
   box-shadow: 0 4px 10px rgb(10 80 77 / 9%);
   animation: crew-guest-enter 260ms ease-out both;
 }
 .crew-guest-swipe .crew-guest-review.is-new { animation: crew-guest-enter 260ms ease-out both, crew-guest-glow 900ms ease-out; }
 .crew-guest-review-byline strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.crew-guest-comment { overflow-wrap: anywhere; white-space: pre-wrap; font-size: 13px; line-height: 1.4; }
+.crew-guest-comment { overflow-wrap: anywhere; white-space: pre-wrap; font-size: 13px; line-height: 1.3; }
 .crew-guest-swipe .crew-guest-comment, .crew-guest-list .crew-guest-comment {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
 }
 .crew-guest-dots { display: flex; justify-content: center; }
-.crew-guest-dots button { display: grid; width: 26px; min-height: 30px; place-items: center; }
-.crew-guest-dots button::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--crew-color-border); }
+.crew-guest-dots button { display: grid; width: 24px; min-height: 24px; place-items: center; }
+.crew-guest-dots button::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--crew-color-border); }
 .crew-guest-dots button[aria-current]::after { background: var(--crew-color-deep-teal); }
-.crew-guest-dots button svg { color: var(--crew-color-deep-teal); }
-.crew-guest-dots button.crew-guest-motion::after { content: none; }
-.crew-guest-freshness, .crew-guest-fallback { color: var(--crew-color-text-secondary); font-size: 12px; }
-.crew-guest-freshness { display: block; text-align: center; }
+.crew-guest-fallback { color: var(--crew-color-text-secondary); font-size: 12px; }
 .crew-guest-fallback { margin: 4px 0 0; }
 .crew-guest-list { display: grid; gap: 8px; }
 .crew-guest-detail { margin-bottom: 10px; }

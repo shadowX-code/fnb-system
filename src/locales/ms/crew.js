@@ -157,7 +157,6 @@ resources.guestVoice = {
   "count_one": "{{count}} ulasan",
   "count_other": "{{count}} ulasan",
   "slide": "Ulasan {{index}} daripada {{count}}",
-  "synced": "Disegerakkan {{date}}",
   "disconnected": "Ulasan Google terputus.",
   "expired": "Ulasan Google perlu disambungkan semula.",
   "unmapped": "Ulasan Google belum dipautkan untuk cawangan ini.",
@@ -165,8 +164,6 @@ resources.guestVoice = {
   "unavailable": "Suara Tetamu tidak tersedia buat sementara waktu.",
   "empty": "Belum ada ulasan Google.",
   "detail": "Ulasan tetamu",
-  "pause": "Jeda ulasan",
-  "resume": "Sambung ulasan",
   "count": "{{count}} ulasan"
 };
 

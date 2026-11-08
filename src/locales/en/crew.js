@@ -151,7 +151,6 @@ resources.guestVoice = {
   "count_one": "{{count}} review",
   "count_other": "{{count}} reviews",
   "slide": "Review {{index}} of {{count}}",
-  "synced": "Synced {{date}}",
   "disconnected": "Google Reviews is disconnected.",
   "expired": "Google Reviews needs to reconnect.",
   "unmapped": "Google Reviews is not linked for this outlet.",
@@ -159,8 +158,6 @@ resources.guestVoice = {
   "unavailable": "Guest Voice is temporarily unavailable.",
   "empty": "No Google reviews yet.",
   "detail": "Guest review",
-  "pause": "Pause reviews",
-  "resume": "Resume reviews",
   "count": "{{count}} reviews"
 };
 
