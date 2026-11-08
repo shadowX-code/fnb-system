@@ -136,8 +136,17 @@ export default function InboxReplyComposer({
         {can("reply") && <button className="inbox-text-button active" aria-pressed="true">Staff Reply</button>}
         {can("manage") && <button className="inbox-text-button" onClick={() => switchMode("note")}>Internal note</button>}
         <span className="inbox-tool-spacer" />
-        {can("ai") && <button className="btn-secondary" disabled title="WhatsApp AI suggestions and automatic replies are disabled."><Sparkles size={14} />AI Suggested Reply</button>}
+        {can("ai") && <button className="btn-secondary" disabled={busy || Boolean(aiUnavailable)} title={aiUnavailable||"Prepare a suggestion for staff review"} onClick={()=>suggest()}><Sparkles size={14} />AI Suggested Reply</button>}
       </div>
+      {can("ai") && aiUnavailable && <p className="inbox-muted">{aiUnavailable}</p>}
+      {suggestion && <section className="inbox-suggestion" aria-label="AI suggested reply">
+        <strong>{assistanceLabel(suggestion.body.classification)}</strong>
+        <p className="whitespace-pre-wrap">{suggestion.body.text}</p>
+        {suggestion.body.handoff_reasons?.length>0&&<p>Staff review: {suggestion.body.handoff_reasons.map(reason=>reason.replaceAll('_',' ')).join(' · ')}</p>}
+        {suggestion.body.sources?.length>0&&<ul>{suggestion.body.sources.map(source=><li key={source.key}>{aiSourceLabel(source)} · {source.label}</li>)}</ul>}
+        <button className="inbox-text-button" disabled={busy} onClick={()=>reviewAI(suggestion.id,false)}>Dismiss</button>
+      </section>}
+      <p className="inbox-muted">WhatsApp AI replies require staff review. Automatic sending is disabled.</p>
       <p className="inbox-assistance-status" role="status"><strong>24-hour service window</strong> · {c.opted_out ? "Customer opted out. Replies paused." : whatsAppWindow}</p>
       {whatsAppOutbox && <p className="inbox-muted" role="status">Latest staff reply · {replyStateLabel(whatsAppOutbox.state)}</p>}
       {unavailable && <p className="inbox-muted">{unavailable}</p>}

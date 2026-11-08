@@ -1,7 +1,10 @@
 import {MetaGraph,MetaError} from './metaGraph.ts';
 import {connectionBinding,hash,nonce,seal,unseal,tokenEncryptionReady,STAGING_SUPABASE} from './metaSecurity.ts';
-import {CLOUD_TEST_APP,CLOUD_TEST_PHONE,verifyWhatsAppCloudTest,configured,exchangeWhatsAppCode,verifyWhatsAppAssets,resolveWhatsAppSignupAssets,finishWhatsAppOnboarding,type WhatsAppConfig} from './whatsappOnboarding.ts';
+import {CLOUD_TEST_APP,CLOUD_TEST_PHONE,CLOUD_TEST_WABA,readWhatsAppTestTemplates,verifyWhatsAppCloudTest,configured,exchangeWhatsAppCode,verifyWhatsAppAssets,resolveWhatsAppSignupAssets,finishWhatsAppOnboarding,type WhatsAppConfig} from './whatsappOnboarding.ts';
 const cloudTestFailures:Record<string,string>={
+ whatsapp_template_binding_changed:'Refresh Connections and select the current active Staging test connection.',
+ whatsapp_template_read_failed:'Meta could not list templates for the verified test WABA. Check WhatsApp Business Management access and try again.',
+
  whatsapp_test_brand_denied:'You need permission to configure WhatsApp for the designated Staging test Brand.',
  whatsapp_test_config_missing:'Staging test credentials or server configuration are missing or unusable.',
  whatsapp_test_generation_invalid:'Refresh Connections before verifying the test number again.',
@@ -35,6 +38,27 @@ export async function whatsappSignupHandler(path:string,body:any,caller:any,serv
  const cloudTestConfigured=env('SUPABASE_URL')===STAGING_SUPABASE&&c.appId===CLOUD_TEST_APP
   &&!!c.appSecret&&/^v\d+\.0$/.test(c.version)&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(testBrand)
   &&body.brandId===testBrand&&!!ready.can_configure&&!!testToken&&testToken.length<=16000&&await tokenEncryptionReady(key);
+ if(path==='/whatsapp/templates'){
+  if(!cloudTestConfigured)throw new MetaError('whatsapp_test_brand_denied');
+  const readMaterial=()=>call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user});
+  const check=(material:any)=>{
+   if(material.brand_id!==testBrand||material.organization_id!==body.organizationId||material.channel!=='whatsapp'
+    ||material.whatsapp_onboarding_mode!=='cloud_api'||material.provider_account_id!==CLOUD_TEST_PHONE
+    ||material.whatsapp_waba_id!==CLOUD_TEST_WABA||material.credential_generation!==body.generation
+    ||material.status!=='test_authorized'||material.whatsapp_local_state!=='active'
+    ||!(Date.parse(material.expires_at)>Date.now()))throw new MetaError('whatsapp_template_binding_changed');
+  };
+  const material=await readMaterial();
+  check(material);
+  const credential=await unseal(material.sealed_token,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
+  const graph=new MetaGraph({appId:c.appId,appSecret:c.appSecret,configId:c.configId,version:c.version});
+  await verifyWhatsAppCloudTest(graph,c,credential.token);
+  const templates=await readWhatsAppTestTemplates(graph,credential.token).catch(error=>{
+   throw new MetaError('whatsapp_template_read_failed',false,false,error instanceof MetaError?error.graphCode:undefined);
+  });
+  check(await readMaterial());
+  return {templates,checkedAt:new Date().toISOString()};
+ }
  if(path==='/whatsapp/bind-cloud-test'){
   if(!ready.can_configure||body.brandId!==testBrand)throw new MetaError('whatsapp_test_brand_denied');
   if(!cloudTestConfigured)throw new MetaError('whatsapp_test_config_missing');

@@ -20,6 +20,7 @@ async function meta(command, body) {
 }
 export const marketingService = {
   whatsappConnections:(org,brand,signal)=>rpc('marketing_whatsapp_connections',{p_org:org,p_brand:brand||null},signal),
+  whatsappTemplates:body=>meta('whatsapp/templates',body),
   whatsappReadiness:(organizationId,brandId)=>meta('whatsapp/readiness',{organizationId,brandId:brandId||null}),
   bindWhatsAppCloudTest:body=>meta('whatsapp/bind-cloud-test',body),
   beginWhatsApp:body=>meta('whatsapp/begin',body),

@@ -962,6 +962,12 @@ Connections separates Cloud API test setup from the Business App Coexistence sig
 
 The isolated QA conversation supports human-authored, free-form staff replies through the Cloud API. The Inbox checks staff permissions, takeover, signed inbound evidence for the current credential generation, the 24-hour window and the exact test asset and conversation. It records intent in the shared reply outbox before sending. An uncertain provider response stays in reconciliation and is never automatically resent. Signed receipts update the outbox by provider message ID and recipient. Templates, AI execution and campaigns remain outside this test path.
 
+### WhatsApp template catalog and staff suggestions
+
+Staging Connections lets an authorized configurator refresh the exact test WABA catalog using the current bound credential. The preview shows provider status, category, locale, text variables, media requirements and button labels. It is a read-only provider snapshot. Templates cannot be submitted from the catalog.
+
+WhatsApp Chat can request a staff-reviewed reply suggestion through the existing Inbox AI authority, subject to Brand consent, permissions and current-generation signed inbound evidence. The existing automatic worker still excludes WhatsApp. Suggestions do not confer send authority. Campaign Message retains the staff handling workflow and keeps Cloud API dispatch disabled.
+
 ### WhatsApp Workflow simulation
 
 Workflows is Brand-scoped and reuses Campaign view, manage and execute permissions. The first workflow is a fixed invitation recipe with configurable batch size and zero or one reminder. Saves append immutable revisions. Enabling a revision requires a successful simulation of that revision. The same configuration can be paused and revised without altering earlier rehearsal traces. Simulations use fictional recipient scenarios and write workflow audit events only. They do not enroll campaign recipients, change Inbox assignment, call Meta or grant live execution.

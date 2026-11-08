@@ -143,3 +143,23 @@ export async function resolveWhatsAppSignupAssets(g:Graph,token:string,session:a
  }
  return {waba_id:assets.waba_id,phone_id:phone,customer_business_id:session.customer_business_id,approved_phone_hash:session.approved_phone_hash};
 }
+
+/** Read the exact test WABA after the caller verifies its retained credential. */
+export async function readWhatsAppTestTemplates(graph:Graph,token:string){
+ const rows=await collect(graph,`${CLOUD_TEST_WABA}/message_templates`,token,{fields:'id,name,language,category,status,parameter_format,components'});
+ return rows.filter(row=>numeric(row?.id)&&typeof row.name==='string'&&/^[a-z0-9_]{1,512}$/.test(row.name)
+  &&typeof row.language==='string'&&/^[a-z]{2,3}(?:_[A-Za-z]{2,8}){0,2}$/.test(row.language))
+ .map(row=>{
+  const components=(Array.isArray(row.components)?row.components:[]).slice(0,12).map((component:any)=>({
+   type:typeof component?.type==='string'?component.type.slice(0,40):'UNKNOWN',
+   format:typeof component?.format==='string'?component.format.slice(0,40):null,
+   text:typeof component?.text==='string'?component.text.slice(0,2048):null,
+   buttons:(Array.isArray(component?.buttons)?component.buttons:[]).slice(0,10).map((button:any)=>({
+    type:typeof button?.type==='string'?button.type.slice(0,40):'UNKNOWN',
+    text:typeof button?.text==='string'?button.text.slice(0,80):null,
+   })),
+  }));
+  return {id:row.id,name:row.name,language:row.language,category:String(row.category??'UNKNOWN').slice(0,40),
+   status:String(row.status??'UNKNOWN').slice(0,40),parameterFormat:row.parameter_format==='NAMED'?'named':'positional',components};
+ });
+}

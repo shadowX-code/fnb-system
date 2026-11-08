@@ -120,3 +120,19 @@ describe('Staging Cloud API test number verification',()=>{
   await expect(verifyWhatsAppCloudTest(fixture(overrides),config,'fixture',now)).rejects.toThrow();
  });
 });
+
+it('reads template previews from the exact test WABA without retaining example or destination data', async()=>{
+ const {readWhatsAppTestTemplates}=await import('../../../../supabase/functions/_shared/whatsappOnboarding.ts');
+ const request=vi.fn().mockResolvedValue({data:[{
+  id:'103',name:'booking_notice',language:'en_US',category:'UTILITY',status:'APPROVED',parameter_format:'NAMED',
+  components:[{type:'HEADER',format:'IMAGE',example:{header_handle:['private media example']}},
+   {type:'BODY',text:'Hi {{name}}',example:{body_text:[['private example']]}},
+   {type:'BUTTONS',buttons:[{type:'URL',text:'View booking',url:'https://private.example'}]}],
+ }]});
+ const rows=await readWhatsAppTestTemplates({request},'fixture');
+ expect(request.mock.calls[0][0]).toBe('1675083730240518/message_templates');
+ expect(request.mock.calls[0][3]).toBeUndefined();
+ expect(rows[0]).toMatchObject({name:'booking_notice',language:'en_US',category:'UTILITY',status:'APPROVED',parameterFormat:'named'});
+ expect(rows[0].components[2].buttons).toEqual([{type:'URL',text:'View booking'}]);
+ expect(JSON.stringify(rows)).not.toContain('private');
+});
