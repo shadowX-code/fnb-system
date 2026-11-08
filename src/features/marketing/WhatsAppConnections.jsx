@@ -18,10 +18,11 @@ function ConnectionReadiness({receiving = false}) {
 export default function WhatsAppConnections({organizationId,brandId,brands=[]}) {
  const auth=useAuth(),configure=auth.hasPermission('marketing_settings.configure');
  const [data,setData]=useState(null),[error,setError]=useState(''),[loading,setLoading]=useState(true),[refresh,setRefresh]=useState(0),[busy,setBusy]=useState(false),[prepared,setPrepared]=useState(null),[confirmed,setConfirmed]=useState(false),[shutdown,setShutdown]=useState(null);
+ const [testError,setTestError]=useState(null);
  const scope=`${organizationId}:${brandId||''}:${auth.user?.id||''}`,currentScope=useRef(scope),lifetime=useRef(new AbortController());currentScope.current=scope;
  useEffect(()=>{
   const controller=new AbortController();lifetime.current=controller;let active=true;
-  setData(null);setError('');setLoading(true);setPrepared(null);setShutdown(null);setConfirmed(false);setBusy(false);
+  setData(null);setError('');setTestError(null);setLoading(true);setPrepared(null);setShutdown(null);setConfirmed(false);setBusy(false);
   Promise.all([marketingService.whatsappConnections(organizationId,brandId,controller.signal),marketingService.whatsappReadiness(organizationId,brandId)])
    .then(([accounts,readiness])=>{if(active)setData({scope,...accounts,readiness});})
    .catch(e=>{if(active)setError(e.message);})
@@ -38,11 +39,11 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
   finally{if(currentScope.current===requested)setBusy(false);}
  }
  async function bindCloudTest(connection){
-  const requested=scope;setBusy(true);setError('');
+  const requested=scope;setBusy(true);setTestError(null);
   try{
    await marketingService.bindWhatsAppCloudTest({organizationId,brandId,generation:connection?.credential_generation??0});
    if(currentScope.current===requested)setRefresh(n=>n+1);
-  }catch(e){if(currentScope.current===requested)setError(e.message);}
+  }catch(e){if(currentScope.current===requested)setTestError({scope:requested,message:e.message});}
   finally{if(currentScope.current===requested)setBusy(false);}
  }
  async function stopReceiving(){
@@ -65,11 +66,12 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
   <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">WhatsApp</h2><Badge tone={state==='connected'?'success':state==='action_required'?'warning':'neutral'}>{labels[state]||'Not Connected'}</Badge></div>
   <p className="mt-2 text-sm">Business App Coexistence uses Meta signup to connect an eligible existing account while staff keep using the mobile app. FeedX supports receive-only operation for an approved connection.</p>
   <p className="mt-2 text-sm"><strong>Cloud API test number:</strong> A Staging administrator can verify the authorized test number for receiving. Sending is disabled.</p>
+  {testError?.scope===scope?<p className="mt-3 text-sm" role="alert">{testError.message}</p>:null}
   <AsyncDataSurface loading={loading} error={error} hasData={!!current} onRetry={()=>setRefresh(n=>n+1)}>
    {current?<>
-    {brandId&&!current.connections?.length?<div className="mt-3"><Badge tone="neutral">{labels[readiness?.state]||'Verification Required'}</Badge></div>:null}
+    {brandId&&!current.connections?.length?<div className="mt-3"><Badge tone="neutral">{readiness?.cloud_test_configured?'Test verification available':labels[readiness?.state]||'Verification Required'}</Badge></div>:null}
     {current.signup_state==='action_required'&&!current.connections?.length?<p className="mt-3 text-sm">The previous Meta signup could not be confirmed. Start a new connection after reviewing the account in Meta.</p>:null}
-    {!brandId?<p className="mt-3 text-sm">Select one Brand to verify or connect WhatsApp.</p>:<p className="mt-3 text-sm" role="status">{reasons[readiness?.reason]||'Verify eligibility before connecting.'}</p>}
+    {!brandId?<p className="mt-3 text-sm">Select one Brand to verify or connect WhatsApp.</p>:<p className="mt-3 text-sm" role="status">{readiness?.cloud_test_configured?'The test number can be checked here. Business App Coexistence has separate eligibility requirements.':reasons[readiness?.reason]||'Verify eligibility before connecting.'}</p>}
     {current.connections?.length?<ul className="mt-3 space-y-3">{current.connections.map(c=><li key={c.id} className="text-sm">
      <div><strong>{c.account_name}</strong> · {brands.find(b=>b.id===c.brand_id)?.name||'Authorized Brand'} · {labels[c.state]||'Action Required'}</div>
      <p>{(c.onboarding_mode==='cloud_api'&&c.reason==='reconnect_required'?'Verify again with a valid Staging test token.':reasons[c.reason])||'Review this connection before continuing.'}</p>

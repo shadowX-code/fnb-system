@@ -55,3 +55,14 @@ it('offers the server-configured test binding independently of live signup',asyn
  await waitFor(()=>expect(marketingService.bindWhatsAppCloudTest).toHaveBeenCalledWith({organizationId:'org',brandId:'isolated',generation:0}));
  expect(screen.getByRole('button',{name:'Connect WhatsApp Business App'}).disabled).toBe(true);
 });
+
+it('shows a binding blocker without marking the connection reads stale',async()=>{
+ marketingService.whatsappReadiness.mockResolvedValue({cloud_test_configured:true,eligible:false});
+ marketingService.whatsappConnections.mockResolvedValue({connections:[]});
+ marketingService.bindWhatsAppCloudTest.mockRejectedValue(new Error('Configure the Staging WhatsApp webhook.'));
+ render(<WhatsAppConnections organizationId="org" brandId="isolated"/>);
+ fireEvent.click(await screen.findByRole('button',{name:'Verify and bind test number'}));
+ expect((await screen.findByRole('alert')).textContent).toBe('Configure the Staging WhatsApp webhook.');
+ expect(screen.getByText('No WhatsApp Cloud connection registered.')).toBeTruthy();
+ expect(screen.queryByText(/showing the last successfully loaded data/i)).toBeNull();
+});

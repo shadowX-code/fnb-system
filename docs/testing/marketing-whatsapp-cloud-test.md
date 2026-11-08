@@ -33,3 +33,5 @@ After Meta confirms the canonical callback, the `messages` field and the test WA
 Provider contracts: [Meta Cloud API collection](https://www.postman.com/meta/whatsapp-business-platform/documentation/wlk6lh4/whatsapp-cloud-api), [Meta Coexistence onboarding](https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users). The [Coexistence acceptance procedure](marketing-whatsapp-signup.md) covers the separate app review and synchronization gates.
 
 The readiness presentation can be accepted independently on Staging. Provider inbound, outbound and delivery acceptance require the authorized asset, recipient, credentials and verified app subscription. Local fixture results provide regression coverage only.
+
+A test verification failure appears beside the WhatsApp controls while the connection list stays available. The Staging Edge response and logs distinguish token validation, asset access, app webhook configuration and test WABA subscription. Logs contain only a fixed reason and an optional Meta error code.

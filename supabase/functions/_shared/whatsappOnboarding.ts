@@ -57,7 +57,11 @@ export const CLOUD_TEST_PHONE='1221509657713215';
 
 export async function verifyWhatsAppCloudTest(g:Graph,c:WhatsAppConfig,token:string,now=Date.now()){
  const appToken=`${c.appId}|${c.appSecret}`;
- const d=(await g.request('debug_token',appToken,{input_token:token})).data;
+ const checked=async<T>(code:string,read:()=>Promise<T>):Promise<T>=>{
+  try{return await read();}
+  catch(error){throw new MetaError(code,false,error instanceof MetaError&&error.retryable,error instanceof MetaError?error.graphCode:undefined);}
+ };
+ const d=(await checked('whatsapp_test_token_check_failed',()=>g.request('debug_token',appToken,{input_token:token})))?.data;
  if(c.appId!==CLOUD_TEST_APP||d?.is_valid!==true||d.app_id!==CLOUD_TEST_APP||!numeric(d.user_id)||!['USER','SYSTEM_USER'].includes(d.type))
   throw new MetaError('whatsapp_token_identity_mismatch');
  if(!Array.isArray(d.scopes)||!WHATSAPP_SCOPES.every(scope=>d.scopes.includes(scope)))throw new MetaError('whatsapp_permissions_required');
@@ -69,15 +73,17 @@ export async function verifyWhatsAppCloudTest(g:Graph,c:WhatsAppConfig,token:str
  const dataExpiry=d.data_access_expires_at??0;
  if(!Number.isSafeInteger(d.expires_at)||expiry<=now||!Number.isSafeInteger(dataExpiry)||dataExpiry<0||(dataExpiry!==0&&dataExpiry*1000<=now))
   throw new MetaError('whatsapp_token_expiry_unverified');
- const waba=await g.request(CLOUD_TEST_WABA,token,{fields:'id'});
- const phones=await collect(g,`${CLOUD_TEST_WABA}/phone_numbers`,token,{fields:'id'});
- const phone=await g.request(CLOUD_TEST_PHONE,token,{fields:'id,platform_type'});
+ const waba=await checked('whatsapp_test_asset_check_failed',()=>g.request(CLOUD_TEST_WABA,token,{fields:'id'}));
+ const phones=await checked('whatsapp_test_asset_check_failed',()=>collect(g,`${CLOUD_TEST_WABA}/phone_numbers`,token,{fields:'id'}));
+ const phone=await checked('whatsapp_test_asset_check_failed',()=>g.request(CLOUD_TEST_PHONE,token,{fields:'id,platform_type'}));
  if(waba.id!==CLOUD_TEST_WABA||phones.filter(p=>p.id===CLOUD_TEST_PHONE).length!==1||phone.id!==CLOUD_TEST_PHONE||phone.platform_type!=='CLOUD_API')
   throw new MetaError('whatsapp_phone_waba_mismatch');
- const subs=await collect(g,`${CLOUD_TEST_APP}/subscriptions`,appToken,{});
+ const subs=await checked('whatsapp_test_app_webhook_check_failed',()=>collect(g,`${CLOUD_TEST_APP}/subscriptions`,appToken,{}));
  const sub=subs.find(s=>s.object==='whatsapp_business_account'&&s.callback_url===c.callback&&s.active===true);
- if(!Array.isArray(sub?.fields)||!sub.fields.some((f:any)=>f==='messages'||f?.name==='messages')||!await subscribedWhatsApp(g,c,token,CLOUD_TEST_WABA))
-  throw new MetaError('whatsapp_test_webhook_unverified');
+ if(!Array.isArray(sub?.fields)||!sub.fields.some((f:any)=>f==='messages'||f?.name==='messages'))
+  throw new MetaError('whatsapp_test_app_webhook_missing');
+ if(!await checked('whatsapp_test_waba_subscription_check_failed',()=>subscribedWhatsApp(g,c,token,CLOUD_TEST_WABA)))
+  throw new MetaError('whatsapp_test_waba_subscription_missing');
  return {subject:d.user_id,expiresAt:new Date(Math.min(now+86400000,expiry,dataExpiry?dataExpiry*1000:Infinity)).toISOString()};
 }
 

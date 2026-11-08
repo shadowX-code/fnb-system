@@ -1,6 +1,6 @@
 import {facebookVideoConfigured,instagramExtendedConfigured} from '../_shared/marketingExecution.mjs';
 import {adsManagementLoginConfig} from '../_shared/metaAdsPrerequisites.ts';
-import {whatsappSignupHandler} from '../_shared/whatsappSignupHandler.ts';
+import {whatsappCloudTestFailure,whatsappSignupHandler} from '../_shared/whatsappSignupHandler.ts';
 import {metaOAuthRoute, metaOAuthRoutes} from '../_shared/metaOAuthRouting.mjs';
 import {publishingConfigured, productionPublishingConfigured, productionPublishingPolicy} from '../_shared/marketingExecution.mjs';
 import {readCreatorProfile} from '../_shared/metaCreatorProfile.ts';
@@ -181,5 +181,11 @@ Deno.serve(async(req)=>{
    outcomes.push({id:connection.id,health});
   }
   return json(req,{connections,outcomes,execution_separately_controlled:true});
- }catch(error) {if(path.startsWith('/whatsapp/'))return json(req,{error:error instanceof MetaError&&error.code==='coexistence_unsupported'?'Meta could not verify Business App Coexistence for this number. Keep using the mobile app and contact your FeedX administrator.':error instanceof MetaError&&error.code==='whatsapp_verification_required'?'WhatsApp onboarding requires verified Meta access and an approved Brand pilot. Check eligibility before continuing.':'WhatsApp verification could not finish. Check the connection state before trying again; a new Meta signup may be required.'},409);return json(req,{error:error instanceof MetaError&&error.graphCode===190?'Meta authorization expired or was revoked. Reconnect this account.':error instanceof MetaError&&[10,200].includes(error.graphCode||0)?'Meta has not authorized this operation. Review account access or contact your FeedX administrator about App Review.':'The connection could not be updated. Reload account selection, check brand ownership and resolve any pending delivery before trying again.'},409);}
+ }catch(error) {
+  if(path==='/whatsapp/bind-cloud-test'){
+   const failure=whatsappCloudTestFailure(error);
+   console.info(JSON.stringify({tag:'whatsapp_cloud_test_verification',code:failure.code,graph_code:error instanceof MetaError&&Number.isSafeInteger(error.graphCode)?error.graphCode:null}));
+   return json(req,failure,409);
+  }
+  if(path.startsWith('/whatsapp/'))return json(req,{error:error instanceof MetaError&&error.code==='coexistence_unsupported'?'Meta could not verify Business App Coexistence for this number. Keep using the mobile app and contact your FeedX administrator.':error instanceof MetaError&&error.code==='whatsapp_verification_required'?'WhatsApp onboarding requires verified Meta access and an approved Brand pilot. Check eligibility before continuing.':'WhatsApp verification could not finish. Check the connection state before trying again; a new Meta signup may be required.'},409);return json(req,{error:error instanceof MetaError&&error.graphCode===190?'Meta authorization expired or was revoked. Reconnect this account.':error instanceof MetaError&&[10,200].includes(error.graphCode||0)?'Meta has not authorized this operation. Review account access or contact your FeedX administrator about App Review.':'The connection could not be updated. Reload account selection, check brand ownership and resolve any pending delivery before trying again.'},409);}
 });
