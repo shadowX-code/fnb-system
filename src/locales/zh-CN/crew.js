@@ -157,7 +157,6 @@ resources.guestVoice = {
   "count_one": "{{count}} 条评论",
   "count_other": "{{count}} 条评论",
   "slide": "第 {{index}} 条，共 {{count}} 条评论",
-  "synced": "同步于 {{date}}",
   "disconnected": "Google 评论已断开连接。",
   "expired": "需要重新连接 Google 评论。",
   "unmapped": "此门店尚未关联 Google 评论。",
@@ -165,8 +164,6 @@ resources.guestVoice = {
   "unavailable": "顾客之声暂时无法使用。",
   "empty": "暂无 Google 评论。",
   "detail": "顾客评论",
-  "pause": "暂停轮播",
-  "resume": "继续轮播",
   "count": "{{count}} 条评论"
 };
 
