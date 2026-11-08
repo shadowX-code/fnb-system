@@ -29,3 +29,11 @@ Conversation refinement, 2026-11-06:
 Voice turn outcomes may include an actual partial reply and voice_details.reason from a fixed allowlist. Partial replies are never presented as completed answers. The host may send a bounded voice_level observation from SDK peer statistics; the isolated HUD never captures audio. View changes preserve the same frame and conversation.
 
 voice_level may carry twenty bounded frequency bands from the SDK-owned input/output track analyser. Silence and unsupported/suspended analysis produce zero bands. Hidden pages pause visualization only. Reconnecting, suspension and ending are real lifecycle presentation states. The one text composer supports Shift+Enter for a newline and Enter to send; it remains read-only during Voice.
+
+The 2026-11-08 Immersive HUD groups activity by the existing private turn
+identity. Optional voice_activity observations carry session_id, turn_id,
+phase, at (client-observed milliseconds), and operation (a local response
+ordinal for each Factory read). These display observations stay in the HUD
+and never write history or initiate a request. Historical durations use the
+recorded timestamps when present. The Immersive adapter hides the original
+decorative rain layers while retaining the original scene and motion settings.

@@ -1,11 +1,11 @@
 {
   "LICENSE.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
-  "PROTOCOL.txt": "ea3a60b4231c49824db7a98d4b08670d43a8a44aad5990aa0f4a7c24f76c25a1",
-  "README.txt": "a1ec9b5ae0c2ba74e1232f4b6091e8c2c8a46f8663f1dd3f8df60b2452545fc8",
+  "PROTOCOL.txt": "4886b690a12d41c78ed19e161fa9487ae55e70c8cfe7ae47eccab5ceeddcf3f2",
+  "README.txt": "db401a335ac02c7c116a6ee8ad2d4d48ffecf5002fcbdf9387076718eea66235",
   "THIRD-PARTY-NOTICES.txt": "72350f256b76a68dd5c96b5b998bd84c368bead5d9fceb252acf0e31c350cab6",
   "css/hud.css": "53e0c26310d9b0335607f6dab5d3af5181cacf776a9e748f40ed4946cfbdf96b",
   "disabled-features.js": "913a351d787416135d822cccaab74b7769a1d73c3df94deb454ca845ff6b93a2",
-  "index.html": "e4bd1ea9fc53afadaaa40d3d3c1c32c73c051672b571aa7766aa20f93400c027",
+  "index.html": "c2062f432978cfcc4dcff03935254d4f4f81291656e1b7edc12c9bc5938892df",
   "js/boot.js": "b629a6d4ca86a24cd539135c76d946328e9226abcdf117447dd3d264500a48da",
   "js/brain-window.js": "462c6c19251598927643895fce85ba816ecbb7ee4059c2103918245dc04a0761",
   "js/core.js": "ed2c30a7fa8e6ad6458f8d911a4fba2ad4f00e09ddf507175f5848594beb9319",
@@ -62,6 +62,6 @@
   "vendor/three/examples/jsm/shaders/CopyShader.js": "4e3346db194db56a596cd074e9bdb39fb5eb52040c333e0d29dc4eb1324d3b1d",
   "vendor/three/examples/jsm/shaders/LuminosityHighPassShader.js": "3d841cc594a0c1767d1b0185720b32761a0133c5f1b70b56658e28f2fb9b7900",
   "vendor/three/examples/jsm/shaders/OutputShader.js": "53a52e430c27bc36ceaab8ae90a2b4af7b02672d7ee4b29d6ba3c28e09c92c2a",
-  "web.css": "f75089bd17f894509c9bba553396b460d230fd74f9936e9919402d2e31f00395",
-  "web.js": "3955ac92d2ddabefb6ccdbd3eefc669f642cebf1906d7fbac35ceed7f0bb16bf"
+  "web.css": "33d1dfd521cfb6198ce090b0388cb9ee861880c7c7604c9536f644fbf06eea69",
+  "web.js": "2d43f628bff37afa84285f0900bb94956180b57c5b034039a269f24d0e8b6305"
 }

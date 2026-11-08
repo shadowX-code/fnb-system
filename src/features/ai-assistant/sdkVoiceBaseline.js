@@ -72,6 +72,9 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
      run.controller.signal.throwIfAborted();
      return call('realtime_tool', { ...lease, turn_id, arguments: args }, run.controller.signal);
     },
+    activity: detail => {
+     if (getSession() === session_id) post('voice_activity', { ...detail, session_id, at: Date.now() });
+    },
     state: next => { if (active === run) show(next); },
     trace: (name, turn, response, reason) => event(name, undefined, { turn, response, reason }),
    });

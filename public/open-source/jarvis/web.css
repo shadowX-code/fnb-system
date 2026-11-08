@@ -68,7 +68,6 @@
 .web-immersive .web-reticle b{width:min(88%,65vh);border-style:dashed;border-color:#4ac9ef33}
 .web-immersive .web-reticle::after{content:"";position:absolute;inset:7% 5%;border-top:1px solid #3fb8d522;border-bottom:1px solid #3fb8d522;clip-path:polygon(0 0,18% 0,18% 100%,0 100%,0 0,82% 0,100% 0,100% 100%,82% 100%,82% 0)}
 .web-immersive .web-core-name{position:absolute;display:block;left:var(--hud-left);right:var(--hud-right);bottom:104px;text-align:center;color:#edfaff;font-size:clamp(15px,1.6vw,23px);text-shadow:0 2px 12px #000}
-.web-immersive .web-core-name small{display:block;color:#accbd7;font-size:12px;margin-top:4px}
 .web-immersive .web-core-caption{bottom:67px}
 .web-immersive .web-core-caption strong,.web-immersive .web-core-caption p,.web-immersive .web-status-dot{display:none}
 .web-immersive .web-core-caption button{background:#07151ed9;border-color:#2d505c;font-size:11px}
@@ -107,7 +106,6 @@
  .web-immersive .web-reticle{left:0;right:0;top:0;bottom:auto;height:238px}
  .web-immersive .web-reticle i,.web-immersive .web-reticle b{max-width:220px}
  .web-immersive .web-core-name{left:0;right:0;top:210px;bottom:auto;font-size:13px}
- .web-immersive .web-core-name small{display:none}
  .web-immersive #stage{height:242px}
  .web-immersive .web-core-caption{top:8px;bottom:auto}
  .web-immersive .web-conversation{top:241px;bottom:77px}
@@ -375,9 +373,6 @@ body:not(.web-immersive) #webMessages li[data-outcome]>p{font-size:13px;color:#c
 #webMessages .web-response-details summary{min-height:28px;cursor:pointer;padding-block:5px}
 #webMessages .web-response-details p{max-width:65ch!important;color:#a5bdc7!important;font-size:11px!important;line-height:1.6!important}
 #webComposePanel{min-width:0;width:100%;color:#aac8d0;font-size:12px}
-#webComposePanel>summary{cursor:pointer;min-height:42px;padding:10px 14px;border:1px solid #315361;border-radius:999px;background:#09202bd9;list-style:none;width:fit-content;margin-left:auto}
-body:not(.web-immersive) #webComposePanel>summary{display:none}
-#webComposePanel[open]>summary{margin-bottom:6px}
 #webComposePanel:focus-within{outline:none}
 body:not(.web-immersive) .web-core-caption{bottom:10px;left:18px;right:auto;gap:4px 8px;padding:6px 0;max-width:calc(42% - 36px)}
 body:not(.web-immersive) .web-core-caption p{font-size:10px}
@@ -401,7 +396,6 @@ body:not(.web-immersive) .web-core-caption p{font-size:10px}
  body:not(.web-immersive) #webMessages li[data-speaker=user]{margin-left:5px;padding-left:39px}
  body:not(.web-immersive) #webMessages li>p{font-size:13px}
  .web-immersive .web-dock{bottom:8px!important;left:10px!important;right:10px!important;width:auto!important}
- .web-immersive #webComposePanel>summary{min-height:44px}
 }
 #webMessages p:empty{display:none}
 body:not(.web-immersive) #stage{height:auto;aspect-ratio:1 / 1.05;max-height:calc(100% - 180px);top:30px;bottom:auto}
@@ -420,11 +414,94 @@ body:not(.web-immersive) #stage{height:auto;aspect-ratio:1 / 1.05;max-height:cal
 #webComposer .bar-in:focus-within{box-shadow:inset 0 0 0 1px #75dbcf60,0 0 16px #75dbcf0c;background:#15303990!important}
 body:not(.web-immersive) .web-dock{border:0!important;background:linear-gradient(transparent,#08171e)!important;box-shadow:none!important}
 #webMessages .web-outcome-label{margin-inline:8px}
-#webComposePanel>summary{border:0;box-shadow:inset 0 0 0 1px #6ac9c226;background:#0b222b70}
 @media(max-width:800px){#webComposer #cmd{min-height:44px}#webComposer #webSend{min-height:44px}}
 @media(prefers-reduced-motion:reduce){.web-real-audio line,#webComposer .bar-in{transition:none}}
 #webComposer #cmd{font-size:14px}
 body:not(.web-immersive) .web-conversation{bottom:var(--composer-space,65px)}
-.web-immersive:has(#webComposePanel[open]) .web-conversation{bottom:calc(var(--composer-space,65px) + 52px)}
 @media(max-width:800px){#webComposer #cmd{font-size:16px}}
 #webComposer .bar-in{height:auto;min-height:48px}
+
+/* Immersive HUD presentation. The existing canvas and three desktop columns stay in place. */
+.web-immersive .web-core-caption{display:none}
+.web-immersive #stage{filter:brightness(1.03) saturate(1.04)}
+.web-immersive .web-reticle{
+ background:radial-gradient(ellipse at 50% 46%,#5bc5bb0d,transparent 56%);
+}
+.web-immersive .web-reticle i{border-color:#67dfd22b;box-shadow:none}
+.web-immersive .web-reticle i::after,.web-immersive .web-reticle span,.web-immersive .web-reticle::after{display:none}
+.web-immersive .web-reticle b{opacity:.62}
+.web-immersive .web-core-name{color:#b9d9dc}
+.web-immersive .web-hud-panel,.web-immersive .web-conversation{
+ border-color:#5fadb326;
+ background:linear-gradient(150deg,#0a202baf,#07131ceb 68%);
+ box-shadow:0 6px 20px #0004;
+}
+.web-immersive .web-hud-panel h2{border-bottom-color:#6fa9b320;background:none}
+.web-immersive .web-telemetry{grid-template-rows:minmax(0,auto) auto auto}
+.web-immersive .web-hud-panel:first-child{display:flex;flex-direction:column;min-height:0}
+.web-immersive #webActivity{overflow:auto;scrollbar-width:thin;min-height:0}
+.web-immersive #webActivity>li{
+ min-height:0;padding:9px 0;align-items:flex-start;border-bottom:1px solid #83b5bf16;
+}
+.web-immersive #webActivity>li:last-child{border-bottom:0}
+.web-immersive #webActivity li::after{display:none}
+.web-immersive #webActivity .web-event-node{width:27px;box-shadow:none}
+.web-immersive #webActivity .web-hud-icon{width:15px;height:15px}
+.web-activity-copy{min-width:0;overflow-wrap:anywhere}
+.web-activity-copy strong{font-size:12px;font-weight:600;color:#dcecee}
+.web-immersive #webActivity small{margin-top:3px;color:#acc9cf;line-height:1.5}
+.web-activity-copy details{margin-top:4px;font-size:11px;color:#a9d7d1}
+.web-activity-copy summary{cursor:pointer}
+.web-immersive #webActivity .web-activity-copy ul{list-style:none;padding:0;margin:4px 0 0}
+.web-immersive #webActivity .web-activity-copy li{display:block;min-height:0;padding:3px 0;color:#acc9cf}
+.web-immersive #webMessages li:not(.web-empty){border:0;padding-block:12px;margin-bottom:4px}
+.web-immersive #webMessages li[data-speaker=user]{
+ margin-left:18px;border-radius:15px 15px 4px 15px;
+ background:linear-gradient(120deg,#16414980,#12323955);
+ padding-left:12px;
+}
+.web-immersive #webMessages li[data-speaker=user] .web-message-avatar{display:none}
+.web-immersive #webMessages li[data-speaker=assistant]{background:transparent}
+.web-immersive #webMessages li>strong{color:#b5e2de}
+.web-immersive #webMessages li>time{color:#a2bdc5}
+.web-immersive #webMessages li>p{line-height:1.6;overflow-wrap:anywhere}
+.web-immersive #webMessages li[data-outcome] p{color:#e5e9e8}
+.web-immersive .web-outcome-label{color:#f5c6a9}
+.web-telemetry-toggle,#webComposeToggle{display:none}
+.web-immersive #webComposePanel{position:relative;display:flex;justify-content:flex-end}
+.web-immersive .web-dock #webComposeToggle{
+ display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 15px;
+ border:1px solid #6bd5c344;border-radius:999px;
+ background:linear-gradient(125deg,#173d43,#10222d);color:#d8f5ef;
+}
+.web-immersive #webComposeToggle[aria-expanded=true]{border-color:#80e3d5;background:#20494c}
+.web-immersive #webComposeToggle .web-hud-icon{width:16px;height:16px}
+.web-immersive #webComposePanel #webComposer{
+ position:absolute;right:0;bottom:calc(100% + 9px);width:min(360px,100%);margin:0;
+ opacity:0;visibility:hidden;transform:translateY(6px);
+ transition:opacity 170ms ease,transform 200ms cubic-bezier(.2,.8,.2,1),visibility 0s linear 200ms;
+}
+.web-immersive #webComposePanel[data-open=true] #webComposer{
+ opacity:1;visibility:visible;transform:none;transition-delay:0s;
+}
+.web-immersive #webComposer .bar-in{
+ background:#0c2631f7!important;box-shadow:0 10px 32px #0009,inset 0 0 0 1px #7de0d54d;
+}
+.web-immersive #webComposePanel #webComposer:focus-within .bar-in{
+ box-shadow:0 10px 32px #0009,inset 0 0 0 1px #80e3d5;
+}
+@media(min-width:801px){
+ .web-immersive .web-dock{left:auto;right:12px;width:calc(var(--hud-right) - 12px);z-index:1}
+}
+@media(max-width:800px){
+ .web-immersive .web-telemetry-toggle{display:block;align-self:flex-start;min-height:44px;flex:none}
+ .web-immersive .web-telemetry[data-mobile-open=true]{
+  position:static;display:grid;width:auto;overflow:visible;flex:none;
+ }
+ .web-immersive #webActivity{max-height:180px}
+ .web-immersive #webComposePanel #webComposer{width:100%}
+ .web-immersive #webMessages li[data-speaker=user]{margin-left:12px}
+}
+@media(prefers-reduced-motion:reduce){
+ .web-immersive #webComposePanel #webComposer{transition:none;transform:none}
+}

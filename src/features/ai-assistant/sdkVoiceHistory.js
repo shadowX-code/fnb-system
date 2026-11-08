@@ -1,5 +1,5 @@
 // Observe SDK events without taking ownership of transport, playback or response creation.
-export function createSdkVoiceHistory({ write, read, state, trace, id = () => crypto.randomUUID() }) {
+export function createSdkVoiceHistory({ write, read, state, trace, activity = () => {}, id = () => crypto.randomUUID() }) {
  const inputs = new Map();
  const responses = new Map();
  let current, writes = Promise.resolve();
@@ -13,6 +13,7 @@ export function createSdkVoiceHistory({ write, read, state, trace, id = () => cr
  function finish(turn, step, text, reason = step, owner) {
   if (!turn || turn.finished) return;
   turn.finished = true;
+  activity({ turn_id: turn.id, phase: step });
   trace('turn_' + step, turn.number, owner?.number, reason);
   void save(turn, step, text || '', {reason}).catch(() => {});
  }
@@ -21,6 +22,7 @@ export function createSdkVoiceHistory({ write, read, state, trace, id = () => cr
   if (type === 'input_audio_buffer.committed' && item_id && !inputs.has(item_id)) {
    current = { id: id(), number: inputs.size + 1 };
    inputs.set(item_id, current);
+   activity({ turn_id: current.id, phase: 'processing' });
    current.started = save(current, 'start');
    void current.started.catch(() => {});
   }
@@ -35,6 +37,9 @@ export function createSdkVoiceHistory({ write, read, state, trace, id = () => cr
   }
   if (['output_audio_buffer.started', 'output_audio_buffer.cleared', 'output_audio_buffer.stopped'].includes(type)) {
    const owner = responses.get(response_id);
+   if (type === 'output_audio_buffer.started' && owner && owner.turn.response === owner && !owner.turn.finished) {
+    activity({ turn_id: owner.turn.id, phase: 'speaking' });
+   }
    trace(type, owner?.turn.number, owner?.number);
    return;
   }
@@ -84,11 +89,15 @@ export function createSdkVoiceHistory({ write, read, state, trace, id = () => cr
    try {
     await turn.started;
     if (turn.finished || turn !== current) return { stale: true };
+    const tool = { turn_id: turn.id, operation: owner.number };
+    activity({ ...tool, phase: 'executing' });
     const evidence = await read(turn.id, args);
+    activity({ ...tool, phase: 'complete' });
     trace('factory_read_completed', turn.number, owner.number);
     return turn.finished || turn !== current ? { stale: true } : { evidence };
    } catch (error) {
     const denied = error.code === 'factory_read_denied';
+    activity({ turn_id: turn.id, operation: owner.number, phase: denied ? 'denied' : 'failed' });
     trace('factory_read_failed', turn.number, owner.number, denied ? 'permission_denied' : 'tool_unavailable');
     return turn.finished || turn !== current ? { stale: true } : { error: denied
      ? 'Factory access was denied by current Admin permissions. Explain this in the user’s language. Do not retry the read or invent stock.'

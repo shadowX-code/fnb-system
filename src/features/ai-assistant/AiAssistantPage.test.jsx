@@ -30,7 +30,8 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   const source=readFileSync('public/open-source/jarvis/web.js','utf8');
   expect(source).not.toMatch(/new WebSocket|fetch\(|getUserMedia|127\.0\.0\.1|localhost/);
   document.body.innerHTML=readFileSync('public/open-source/jarvis/index.html','utf8').replace(/<script[\s\S]*?<\/script>/g,'')+'<button id="demoBack"></button>';
-  vi.stubGlobal('matchMedia',()=>({matches:false,addEventListener:vi.fn()}));
+  const reducedMotion={matches:false,addEventListener:vi.fn()};
+  vi.stubGlobal('matchMedia',query=>query.includes('reduced-motion')?reducedMotion:{matches:false,addEventListener:vi.fn()});
   const $=s=>document.querySelector(s), input=$('#cmd');
   const setState=vi.fn(s=>{document.body.dataset.state=s;});
   const frozenRender=vi.fn();vi.spyOn(document,'hidden','get').mockReturnValue(false);vi.stubGlobal('requestAnimationFrame',cb=>{cb();return 1;});
@@ -45,6 +46,51 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   fireEvent.click($('#webStop'));expect($('#webNotice').textContent).toContain('No AI generation');
   fireEvent(window,new MessageEvent('message',{source:window.parent,origin:'https://fnb-system-staging.vercel.app',data:{protocol:'feedx.assistant.text.v1',type:'reset'}}));
   expect($('#webMessages').textContent).not.toContain('inventory');expect($('#webOlder').hidden).toBe(true);expect(input.value).toBe('');
+  const post=(type, payload={})=>fireEvent(window,new MessageEvent('message',{
+    source:window.parent,origin:'https://fnb-system-staging.vercel.app',
+    data:{protocol:'feedx.assistant.text.v1',type,...payload},
+  }));
+  const completed={state:'completed',prompt:'Stock check',reply:'Read complete',voice:true};
+  post('history',{session_id:'saved',turns:[{...completed,request_id:'first'},{...completed,request_id:'second'}]});
+  const rows=()=>[...document.querySelectorAll('#webActivity > li')];
+  expect(rows().map(row=>row.dataset.stage)).toEqual(['complete','complete']);
+  const voice=(phase, at, operation)=>post('voice_activity',{session_id:'saved',turn_id:'live',phase,at,operation});
+  voice('processing',1000);
+  const live=rows()[0];
+  voice('executing',1100,1);
+  voice('complete',1200,1);
+  voice('executing',1300,2);
+  voice('denied',1400,2);
+  voice('speaking',1500);
+  post('voice_turn',{session_id:'saved',turn:{request_id:'live',prompt:'Follow up',voice:true,state:'cancelled',error_code:'voice_unfinished',tool_state:'failed'}});
+  expect(live.dataset.stage).toBe('speaking');
+  expect($('#webMessages [data-outcome]')).toBeNull();
+  voice('complete',2100);
+  voice('processing',2200);
+  expect(rows()).toHaveLength(3);
+  expect(rows()[0]).toBe(live);
+  expect(live.textContent).toContain('Completed · 1.1 s');
+  expect([...live.querySelectorAll('ul > li')].map(row=>row.textContent)).toEqual([
+    'Factory Finished Goods · Completed · 0.1 s',
+    'Factory Finished Goods · Access denied · 0.1 s',
+  ]);
+  input.blur();
+  post('view',{immersive:true});
+  const toggle=$('#webComposeToggle');
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  fireEvent.click(toggle);
+  expect(document.activeElement).toBe(input);
+  input.value='Keep this\nmultiline draft';
+  fireEvent.keyDown(input,{key:'Escape'});
+  expect(document.activeElement).toBe(toggle);
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  fireEvent.click(toggle);
+  expect(input.value).toBe('Keep this\nmultiline draft');
+  fireEvent.click($('#webPause'));
+  reducedMotion.matches=true;
+  reducedMotion.addEventListener.mock.calls[0][1]();
+  expect(window.FEEDX_VISUAL_PAUSED).toBe(true);
+  expect($('#webPause').disabled).toBe(true);
 });
 it('distributes editable GPL source and denies network connections for this static program',()=>{
   const config=JSON.parse(readFileSync('vercel.json','utf8'));const boundary=config.routes.find(r=>r.src==='/open-source/jarvis/(.*)');

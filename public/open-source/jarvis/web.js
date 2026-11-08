@@ -10,11 +10,14 @@ const protocol='feedx.assistant.text.v1',hostOrigin='https://fnb-system-staging.
 let connected=false,runtime=null;
 function request(action,extra={}){parent.postMessage({protocol,action,request_id:crypto.randomUUID(),...extra},hostOrigin);}
 let currentSession={id:pilotSession,messages:[]},hasOlder=false;
+function isPendingVoiceReply(turn) {
+ return turn.error_code === 'voice_unfinished' && !turn.finished_at && !turn.voice_details?.reason && !turn.reply;
+}
 function messagesForTurn(t){
  const status={voice_interrupted:'Interrupted — this reply was stopped before completion',voice_transcript_unavailable:'Assistant transcript unavailable',voice_unfinished:'Response unfinished',voice_failed:'Response failed'};
  return [{role:'user',text:t.prompt,request_id:t.request_id,voice:t.voice,time:t.created_at},...(t.state==='completed'&&t.reply?
  [{role:'assistant',text:t.reply,request_id:t.request_id,evidence:t.evidence,voice:t.voice,time:t.finished_at,usage:{input_tokens:t.input_tokens,output_tokens:t.output_tokens,model:t.model,context:t.context_usage}}]:
- t.voice&&status[t.error_code]?[{role:'assistant',text:t.reply||'',outcome:t.error_code,reason:t.voice_details?.reason,request_id:t.request_id,voice:true,evidence:t.evidence,time:t.finished_at}]:[])];
+ t.voice&&status[t.error_code]&&!isPendingVoiceReply(t)?[{role:'assistant',text:t.reply||'',outcome:t.error_code,reason:t.voice_details?.reason,request_id:t.request_id,voice:true,evidence:t.evidence,time:t.finished_at}]:[])];
 }
 
 // Presentation symbols and waveforms are authored here. No audio levels are inferred.
@@ -31,12 +34,11 @@ const hudPaths={
 };
 const hudIcon=name=>`<svg class="web-hud-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${hudPaths[name]}"/></svg>`;
 const voiceWave=`<svg class="web-real-audio" viewBox="0 0 240 48" aria-hidden="true">${Array.from({length:20},(_,i)=>`<line x1="${i*12+5}" x2="${i*12+5}" y1="3" y2="45" style="transform-origin:${i*12+5}px 24px;transform:scaleY(calc(.025 + var(--voice-band-${i},0)*.975))"/>`).join('')}</svg>`;
-const activityWave=`<svg class="web-event-wave" viewBox="0 0 80 24" aria-hidden="true"><path d="M0 21h8l4-2 5 1 5-3 5-5 3 1 5-8 4 4 4 5 4-2 5 5 6 2 6 1h16v2H0z"/></svg>`;
 
 const web=document.createElement('section');web.id='assistantWeb';
 web.innerHTML=`<div class="web-core-caption"><span class="web-status-dot"></span><strong>Visual ready</strong><p>Original Jarvis Core · no active AI service</p><button type="button" id="webPause">Pause motion</button></div>
 <div class="web-reticle" aria-hidden="true"><i></i><b></b><span></span></div>
-<div class="web-core-name" aria-hidden="true">J A R V I S<small>FeedX AI Core</small></div>
+<div class="web-core-name" aria-hidden="true">J A R V I S</div>
 <aside class="web-telemetry" aria-label="Session telemetry">
 <section class="web-hud-panel"><h2>Agent activity</h2><ol id="webActivity"><li class="web-activity-idle">Waiting for a request</li></ol></section>
 <section class="web-hud-panel"><h2>Current session</h2><div class="web-session-body"><div class="web-session-ring"><strong id="webTurnCount">0</strong><span>Turns</span></div><dl id="webSessionFacts"></dl></div></section>
@@ -54,8 +56,53 @@ web.innerHTML=`<div class="web-core-caption"><span class="web-status-dot"></span
 document.body.appendChild(web);
 const notice=$('#webNotice'),messageList=$('#webMessages'),older=$('#webOlder');
 $('#webComposer').appendChild($('#form'));
-const composePanel=document.createElement('details');composePanel.id='webComposePanel';composePanel.open=true;
-const composeSummary=document.createElement('summary');composeSummary.textContent='Text message';composePanel.append(composeSummary,$('#webComposer'));$('.web-dock').appendChild(composePanel);
+const composerSurface = $('#webComposer');
+const composePanel = document.createElement('div');
+composePanel.id = 'webComposePanel';
+const composeToggle = document.createElement('button');
+composeToggle.type = 'button';
+composeToggle.id = 'webComposeToggle';
+composeToggle.setAttribute('aria-controls', composerSurface.id);
+composeToggle.innerHTML = hudIcon('understand') + '<span>Text</span>';
+composePanel.append(composeToggle, composerSurface);
+$('.web-dock').append(composePanel);
+
+function setComposerOpen(open, moveFocus = false) {
+ composeToggle.setAttribute('aria-expanded', String(open));
+ composePanel.dataset.open = String(open);
+ composerSurface.inert = !open;
+ if (open) {
+  fitComposer();
+  if (moveFocus) input.focus({ preventScroll: true });
+ } else if (moveFocus) {
+  composeToggle.focus({ preventScroll: true });
+ }
+}
+composeToggle.onclick = () => setComposerOpen(composePanel.dataset.open !== 'true', true);
+setComposerOpen(true);
+
+const telemetry = $('.web-telemetry');
+const conversation = $('.web-conversation');
+const telemetryToggle = document.createElement('button');
+telemetryToggle.type = 'button';
+telemetryToggle.className = 'web-telemetry-toggle';
+telemetryToggle.textContent = 'Session panels';
+telemetry.id = 'webTelemetry';
+telemetryToggle.setAttribute('aria-controls', telemetry.id);
+telemetryToggle.setAttribute('aria-expanded', 'false');
+telemetryToggle.onclick = () => {
+ const open = telemetryToggle.getAttribute('aria-expanded') !== 'true';
+ telemetryToggle.setAttribute('aria-expanded', String(open));
+ telemetry.dataset.mobileOpen = String(open);
+};
+conversation.prepend(telemetryToggle);
+const narrowHud = matchMedia('(max-width: 800px)');
+function placeTelemetry() {
+ if (narrowHud.matches) telemetryToggle.after(telemetry);
+ else web.insertBefore(telemetry, conversation);
+}
+narrowHud.addEventListener('change', placeTelemetry);
+placeTelemetry();
 input.setAttribute('aria-label','Message AI Assistant');input.placeholder='Ask FeedX…';input.maxLength=2000;
 $('#mic').setAttribute('aria-label','Microphone unavailable');$('#mic').setAttribute('aria-disabled','true');$('#mic').title='No authorized speech recognition service is connected';
 const submit=document.createElement('button');submit.type='button';submit.id='webSend';submit.textContent='Send';$('#form').appendChild(submit);
@@ -93,38 +140,100 @@ function renderIntelligence(){
  scope.textContent=[evidence.scope,evidence.query?'Filter: '+evidence.query:'',evidence.as_of?new Date(evidence.as_of).toLocaleString():''].filter(Boolean).join(' · ');
  operations.append(metrics,link,scope);
 }
-const activityStyles={
- 'Understanding':['understanding','understand','Request accepted'],
- 'Processing':['processing','thinking','Preparing a response'],
- 'Executing':['factory','factory','Reading Finished Goods'],
- 'Factory evidence saved':['factory','factory','Authorized Finished Goods read'],
- 'Speaking':['speaking','speech','Assistant audio playing'],
- 'Completed':['complete','done','Reply available in Conversation'],
- 'Interrupted':['interrupted','pause','Response interrupted'],
- 'Error':['error','alert','See Conversation for details'],
+const activityPhases = {
+ processing: ['Processing', 'thinking'],
+ executing: ['Reading', 'factory'],
+ speaking: ['Speaking', 'speech'],
+ complete: ['Completed', 'done'],
+ interrupted: ['Interrupted', 'pause'],
+ cancelled: ['Cancelled', 'pause'],
+ unfinished: ['Incomplete', 'alert'],
+ unavailable: ['Transcript unavailable', 'alert'],
+ denied: ['Access denied', 'alert'],
+ failed: ['Failed', 'alert'],
 };
-function activity(label){
- const list=$('#webActivity'),style=activityStyles[label];
- if(!style||list.lastElementChild?.dataset.label===label)return;
- if(list.firstElementChild?.classList.contains('web-activity-idle'))list.replaceChildren();
- const [stage,icon,detail]=style;
- const item=document.createElement('li');
- item.dataset.stage=stage;item.dataset.label=label;
- const marker=document.createElement('span'),copy=document.createElement('span'),caption=document.createElement('small');
- marker.className='web-event-node';marker.setAttribute('aria-hidden','true');marker.innerHTML=hudIcon(icon);
- copy.textContent=label;caption.textContent=detail;copy.append(caption);item.append(marker,copy);item.insertAdjacentHTML('beforeend',activityWave);list.append(item);
- if(list.children.length>4)list.firstElementChild.remove();
-}
-function restoreActivity(turns){
- const list=$('#webActivity');list.replaceChildren();
- for(const turn of turns){
-  if(turn.evidence?.capability==='read_factory_finished_goods')activity('Factory evidence saved');
-  if(turn.state==='completed'&&turn.reply)activity('Completed');
-  if(turn.error_code==='voice_interrupted')activity('Interrupted');
-  if(turn.state==='failed')activity('Error');
+const terminalPhases = new Set(['complete', 'interrupted', 'cancelled', 'unfinished', 'unavailable', 'denied', 'failed']);
+const activityRows = new Map();
+const activityList = $('#webActivity');
+
+function activity(id, phase, details = {}) {
+ if (!id || !activityPhases[phase]) return;
+ let entry = activityRows.get(id);
+ if (!entry) {
+  const row = document.createElement('li');
+  row.innerHTML = '<span class="web-event-node" aria-hidden="true"></span><div class="web-activity-copy"><strong></strong><small></small><details hidden><summary>Factory reads</summary><ul></ul></details></div>';
+  entry = { row, operations: new Map() };
+  activityRows.set(id, entry);
+  activityList.querySelector('.web-activity-idle')?.remove();
+  if (details.older) activityList.append(row);
+  else activityList.prepend(row);
  }
- if(!list.children.length){
-  const idle=document.createElement('li');idle.className='web-activity-idle';idle.textContent='Waiting for a request';list.append(idle);
+ const at = Number.isFinite(details.at) ? details.at : undefined;
+ entry.voice ||= details.voice;
+ entry.evidence ||= Boolean(details.evidence);
+ entry.factory ||= details.factory;
+ if (details.operation != null) {
+  let operation = entry.operations.get(details.operation);
+  if (!operation) {
+   const item = document.createElement('li');
+   entry.row.querySelector('ul').append(item);
+   operation = { item, started: at };
+   entry.operations.set(details.operation, operation);
+  }
+  const elapsed = terminalPhases.has(phase) ? activityDuration(operation.started, at) : '';
+  operation.phase = phase;
+  operation.item.textContent = ['Factory Finished Goods', activityPhases[phase][0], elapsed].filter(Boolean).join(' · ');
+  entry.row.querySelector('details').hidden = false;
+  entry.row.querySelector('summary').textContent = 'Factory reads (' + entry.operations.size + ')';
+  if (!terminalPhases.has(entry.phase) && phase === 'executing') entry.phase = phase;
+  entry.started ??= at;
+ } else if (!terminalPhases.has(entry.phase) && (!details.recorded || !entry.phase || terminalPhases.has(phase))) {
+  entry.phase = phase;
+  entry.started ??= Number.isFinite(details.started) ? details.started : at;
+  if (terminalPhases.has(phase)) entry.finished = at;
+ }
+ const [status, icon] = activityPhases[entry.phase || 'processing'];
+ entry.row.dataset.stage = entry.phase || 'processing';
+ entry.row.querySelector('.web-event-node').innerHTML = hudIcon(icon);
+ entry.row.querySelector('strong').textContent = entry.evidence || entry.operations.size || entry.factory
+  ? 'Factory Finished Goods' : entry.voice ? 'Voice response' : 'Text response';
+ const elapsed = activityDuration(entry.started, entry.finished);
+ entry.row.querySelector('small').textContent = [status, elapsed, entry.evidence && 'Evidence in Conversation'].filter(Boolean).join(' · ');
+}
+
+function activityDuration(started, finished) {
+ const elapsed = finished - started;
+ return Number.isFinite(elapsed) && elapsed >= 0 ? (elapsed / 1000).toFixed(1) + ' s' : '';
+}
+
+function showRecordedActivity(turn, older = false) {
+ let phase = {
+  voice_interrupted: 'interrupted', voice_transcript_unavailable: 'unavailable',
+  voice_failed: 'failed', voice_unfinished: 'unfinished',
+ }[turn.error_code];
+ if (!phase) phase = { completed: 'complete', failed: 'failed', cancelled: 'cancelled' }[turn.state] || 'processing';
+ if (isPendingVoiceReply(turn)) {
+  phase = turn.tool_state === 'executing' ? 'executing' : 'processing';
+ }
+ activity(turn.request_id, phase, {
+  voice: turn.voice, evidence: turn.evidence, factory: Boolean(turn.tool_state),
+  started: Date.parse(turn.created_at), at: Date.parse(turn.finished_at), older, recorded: true,
+ });
+ const operations = activityRows.get(turn.request_id)?.operations;
+ if (turn.tool_state === 'failed' && operations && ![...operations.values()].some(op => op.phase === 'failed' || op.phase === 'denied')) {
+  activity(turn.request_id, 'failed', { operation: 'recorded-read' });
+ }
+}
+
+function restoreActivity(turns) {
+ activityRows.clear();
+ activityList.replaceChildren();
+ for (const turn of turns) showRecordedActivity(turn);
+ if (!activityRows.size) {
+  const idle = document.createElement('li');
+  idle.className = 'web-activity-idle';
+  idle.textContent = 'Waiting for a request';
+  activityList.append(idle);
  }
 }
 // Provider totals are measured; context and USD are explicitly estimates, never invoices.
@@ -159,7 +268,7 @@ function sendLocalRequest(){if(document.body.dataset.voiceLocked==='true'){handl
 submit.onclick=sendLocalRequest;
 input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();sendLocalRequest();}});
 function fitComposer(){input.style.height='auto';const height=Math.max(40,Math.min(110,input.scrollHeight));input.style.height=height+'px';document.body.style.setProperty('--composer-space',(height+24)+'px');}
-input.addEventListener('input',fitComposer);composePanel.addEventListener('toggle',fitComposer);addEventListener('resize',fitComposer);
+input.addEventListener('input',fitComposer);addEventListener('resize',fitComposer);
 $('#form').addEventListener('submit',event=>event.preventDefault());
 $('#webNew').onclick=()=>{if(connected){request('new');return;}activeRequest='';captureEpoch++;currentSession={id:crypto.randomUUID(),messages:[]};input.value='';renderMessages();setState('idle');showNotice('New conversation. No model is connected; history stays in this tab.');input.focus();};
 older.onclick=()=>{older.disabled=true;request('older');};
@@ -167,8 +276,16 @@ $('#mic').style.display='none';$('#webVoice').style.display='none';
 $('#mic').onclick=()=>showNotice('Speech recognition unavailable. No microphone was opened. You can type your request.',true);
 $('#webVoice').onclick=()=>showNotice('Voice output unavailable. Use the voice control above the conversation.',true);
 $('#webRetry').onclick=()=>{const last=[...currentSession.messages].reverse().find(m=>m.role==='user');if(last)handle(last.text);};
-$('#webStop').onclick=()=>{if(connected)request('cancel');activeRequest='';captureEpoch++;setState('idle');showNotice('Stopped. No AI generation, recording or playback is running.');};
-addEventListener('keydown',e=>{if(e.key==='Escape')$('#webStop').click();});
+$('#webStop').onclick=()=>{if(connected)request('cancel');activity(activeRequest,'cancelled',{at:Date.now()});activeRequest='';captureEpoch++;setState('idle');showNotice('Stopped. No AI generation, recording or playback is running.');};
+addEventListener('keydown', event => {
+ if (event.key !== 'Escape') return;
+ if (document.body.classList.contains('web-immersive') && composePanel.dataset.open === 'true') {
+  event.preventDefault();
+  setComposerOpen(false, true);
+ } else if (activeRequest) {
+  $('#webStop').click();
+ }
+});
 const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');let paused=false;
 function updateMotion(){window.FEEDX_VISUAL_PAUSED=paused||motionPreference.matches;$('#webPause').textContent=motionPreference.matches?'Reduced motion':paused?'Resume motion':'Pause motion';$('#webPause').disabled=motionPreference.matches;$('#webPause').setAttribute('aria-pressed',String(window.FEEDX_VISUAL_PAUSED));}
 $('#webPause').onclick=()=>{paused=!paused;updateMotion();};motionPreference.addEventListener('change',updateMotion);updateMotion();
@@ -189,6 +306,13 @@ function serviceStatus(){
  $('.web-services summary').textContent='Authorized capabilities';
  document.querySelectorAll('.web-services dd').forEach((el,i)=>el.textContent=services[i]);
 }
+// Hide only the decorative rain layers in Immersive. The original core and orbit renderer stays mounted.
+function setImmersiveScenery(immersive) {
+ if (typeof scene === 'undefined') return;
+ for (const layer of scene.children) {
+  if (layer.material === rainM || layer.material === rpM) layer.visible = !immersive;
+ }
+}
 addEventListener('message',event=>{
  if(event.source!==parent||event.origin!==hostOrigin||event.data?.protocol!==protocol)return;
  const d=event.data;
@@ -197,7 +321,8 @@ addEventListener('message',event=>{
   if(document.body.classList.contains('web-immersive')===immersive)return;
   const composer=$('#webComposer'),newButton=$('#webNew'),focused=document.activeElement;
   document.body.classList.toggle('web-immersive',immersive);
-  composePanel.open=!immersive||composer.contains(focused);
+  setComposerOpen(!immersive || composer.contains(focused));
+  setImmersiveScenery(immersive);
   if(immersive){$('#assistantWeb .web-dock').append(newButton);}
   else{$('#assistantWeb .web-conversation header').appendChild(newButton);}
   if(composer.contains(focused)||focused===newButton)focused.focus({preventScroll:true});
@@ -231,15 +356,17 @@ addEventListener('message',event=>{
  if(d.type==='older'){
   if(currentSession.id!==d.session_id)return;
   const existing=new Set(currentSession.messages.map(message=>message.request_id));
-  currentSession.messages.unshift(...d.turns.filter(turn=>!existing.has(turn.request_id)).flatMap(messagesForTurn));hasOlder=d.has_more===true;
+  const olderTurns=d.turns.filter(turn=>!existing.has(turn.request_id));
+  currentSession.messages.unshift(...olderTurns.flatMap(messagesForTurn));hasOlder=d.has_more===true;
+  for (const turn of [...olderTurns].reverse()) showRecordedActivity(turn,true);
   renderMessages({prepend:true});return;
  }
  if(d.type==='history_error'){older.disabled=false;showNotice(d.message||'Older messages are unavailable.',true);return;}
  if(d.type==='resume'){activeRequest=d.request_id;$('#webStop').hidden=false;showNotice('Recovering the active request…');return;}
- if(d.type==='cancelled'){$('#webRetry').hidden=!currentSession.messages.some(m=>m.role==='user');activeRequest='';$('#webStop').hidden=true;setState('idle');showNotice('Response stopped. Late replies will not be displayed.');return;}
+ if(d.type==='cancelled'){activity(activeRequest,'cancelled',{at:Date.now()});$('#webRetry').hidden=!currentSession.messages.some(m=>m.role==='user');activeRequest='';$('#webStop').hidden=true;setState('idle');showNotice('Response stopped. Late replies will not be displayed.');return;}
  if(d.type==='error'){
   if(d.request_id&&activeRequest&&d.request_id!==activeRequest)return;
-  activity('Error');$('#webRetry').hidden=!currentSession.messages.some(m=>m.role==='user');activeRequest='';$('#webStop').hidden=true;setState('error');showNotice(d.message||'Assistant unavailable.',true);return;
+  if(activeRequest)activity(activeRequest,'failed',{at:Date.now()});$('#webRetry').hidden=!currentSession.messages.some(m=>m.role==='user');activeRequest='';$('#webStop').hidden=true;setState('error');showNotice(d.message||'Assistant unavailable.',true);return;
  }
  if(d.type==='transcript'&&typeof d.text==='string'){handle(d.text.slice(0,2000));return;}
  if(d.type==='voice_preview'){
@@ -248,11 +375,13 @@ addEventListener('message',event=>{
   preview.textContent=d.text?(d.assistant?'Assistant (partial): ':'You (partial): ')+d.text:'';
   return;
  }
+ if(d.type==='voice_activity'){
+  if(d.session_id===currentSession.id) activity(d.turn_id,d.phase,{...d,voice:true});
+  return;
+ }
  if(d.type==='voice_turn'){
   if(d.session_id!==currentSession.id||!d.turn)return;
-  if(d.turn.state==='completed')activity('Completed');
-  if(d.turn.state==='failed')activity('Error');
-  if(d.turn.error_code==='voice_interrupted')activity('Interrupted');
+  showRecordedActivity(d.turn);
   const id=d.turn.request_id;
   const index=currentSession.messages.findIndex(m=>m.request_id===id);
   const replacement=messagesForTurn(d.turn);
@@ -265,12 +394,12 @@ addEventListener('message',event=>{
  if(d.type==='voice_state'){
   document.body.dataset.voiceState=d.state;
   $('#webLiveState').textContent=({connecting:'Connecting',reconnecting:'Reconnecting',ending:'Ending voice',suspended:'Microphone suspended',listening:'Listening',transcribing:'Thinking',executing:'Executing',speaking:'Speaking',interrupted:'Interrupted',error:'Error',playback_blocked:'Playback blocked'})[d.state]||'Idle';
-  activity(({transcribing:'Processing',executing:'Executing',speaking:'Speaking',error:'Error'})[d.state]);
   const states={reconnecting:'thinking',connecting:'thinking',ending:'idle',suspended:'idle',interrupted:'listening',listening:'listening',transcribing:'thinking',executing:'executing',speaking:'speaking',error:'error'};window.FEEDX_AUDIO_LEVEL=0;if(states[d.state])setState(states[d.state]);else if(!activeRequest)setState('idle');return;}
  if(d.request_id!==activeRequest)return;
- if(d.type==='state'&&d.state==='executing'){activity('Executing');setState('executing');showNotice('Reading authorized Factory Finished Goods…');}
- if(d.type==='state'&&d.state==='thinking'){activity('Understanding');setState('thinking');showNotice('Thinking…');}
- if(d.type==='result'&&typeof d.reply==='string'){activity('Completed');
+ if(d.type==='state'&&d.state==='executing'){activity(activeRequest,'executing',{factory:true,at:Date.now()});setState('executing');showNotice('Reading authorized Factory Finished Goods…');}
+ if(d.type==='state'&&d.state==='thinking'){activity(activeRequest,'processing',{at:Date.now()});setState('thinking');showNotice('Thinking…');}
+ if(d.type==='result'&&typeof d.reply==='string'){activity(activeRequest,'complete',{factory:Boolean(d.tool_state),evidence:d.evidence,started:Date.parse(d.created_at),at:Date.parse(d.finished_at)});
+  if(d.tool_state==='failed')activity(activeRequest,'failed',{operation:'text-read'});
   currentSession.messages.push({role:'assistant',text:d.reply.slice(0,3000),request_id:activeRequest,evidence:d.evidence,time:d.finished_at,usage:d.usage});const prompt=currentSession.messages.find(m=>m.request_id===activeRequest&&m.role==='user');if(prompt&&d.created_at)prompt.time=d.created_at;activeRequest='';renderMessages();setState('idle');showNotice(d.evidence?'Response received · verified read evidence attached.':'Response received.');
  }
 });
