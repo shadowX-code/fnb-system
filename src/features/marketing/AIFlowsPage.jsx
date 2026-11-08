@@ -5,6 +5,7 @@ import {ArrowLeft, CircleCheck, GitBranch, ListFilter, MessageCircle, Plus, Sear
 import Modal from '../../components/feedback/Modal.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import './aiFlows.css';
+import {formatOperationalDateTime} from '../../lib/dateTime.js';
 import {useAuth} from '../../auth/AuthContext.jsx';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import AdminFormField from '../../components/forms/AdminFormField.jsx';
@@ -77,7 +78,8 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
  const [designer,setDesigner]=useState(false),[designerMessages,setDesignerMessages]=useState([]);
  const [prompt,setPrompt]=useState(''),[proposal,setProposal]=useState(null),[undo,setUndo]=useState(null);
  const [showInspector,setShowInspector]=useState(true);
- const generation=useRef(false),designerEnd=useRef(null);
+ const generation=useRef(false),designerEnd=useRef(null),designerRequest=useRef(null);
+ const [designerNotice,setDesignerNotice]=useState(null);
  useEffect(()=>{if(designerMessages.length)designerEnd.current?.scrollIntoView({block:'nearest'});},[designerMessages.length]);
  const [search,setSearch]=useState(''),[newOpen,setNewOpen]=useState(false),[panel,setPanel]=useState('node');
  const [palette,setPalette]=useState(null),[baseline,setBaseline]=useState(null),[chat,setChat]=useState([]);
@@ -92,6 +94,7 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
  },[org,brand,reload]);
  function open(item,definition=item?.definition||newFlow()){
   setRecord(item);setFlow(definition);setBaseline(item?.definition||newFlow());setSelected('trigger');setPanel(item?'node':'settings');
+  designerRequest.current=null;setDesignerNotice(null);
   setDesigner(false);setDesignerMessages([]);setPrompt('');setProposal(null);setUndo(null);setShowInspector(true);
   setPalette(null);setVersions(null);setTestInputs([]);setTest(null);setChat([]);setKnowledge(null);setAnswer('');setError('');setNewOpen(false);
  }
@@ -147,16 +150,24 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
   description=description.trim();
   if(busy||generation.current||proposal||!canEdit||!canGenerate||description.length<2)return;
   const draft=record||dirty?flow:null;
-  generation.current=true;setBusy(true);setError('');setPrompt('');
+  generation.current=true;setBusy(true);setError('');setDesignerNotice(null);setPrompt(description);
+  const request={org,brand,designer:true,description,draft,selected,
+   history:designerMessages.slice(-10).map(({role,text})=>({role,text:text.slice(0,1200)}))};
+  const key=JSON.stringify(request);
+  if(designerRequest.current?.key!==key)designerRequest.current={key,id:crypto.randomUUID()};
   try{
-   const result=await inboxService.generateFlow({
-    requestId:crypto.randomUUID(),org,brand,designer:true,description,draft,selected,
-    history:designerMessages.slice(-10).map(({role,text})=>({role,text:text.slice(0,1200)})),
-   });
-   if(result.state!=='completed'||!result.message)throw new Error('The Designer did not return a response. Try again.');
+   const result=await inboxService.generateFlow({...request,requestId:designerRequest.current.id});
+   if(result.state==='quota'||result.state==='in_progress'){
+    const messages={cooldown:'Please wait a moment before sending another request.',actor_turns:'You reached your Designer limit for completed turns.',actor_attempts:'You reached your Designer limit for attempts.',organization_attempts:'Your workspace reached its Designer limit.',project_attempts:'The Designer reached its shared usage limit.'};
+    setDesignerNotice({message:result.state==='in_progress'?'A Designer request is still pending.':messages[result.reason]||'The Designer limit was reached.',retryAt:result.retry_at});
+    return;
+   }
+   designerRequest.current=null;
+   if(result.state!=='completed'||!result.message)throw new Error(result.error||'The Designer did not return a response. Try again.');
+   setPrompt('');
    setDesignerMessages(items=>[...items,{role:'manager',text:description},{role:'designer',text:result.message,choices:result.choices||[]}]);
    if(result.kind==='proposal'&&result.definition)setProposal({definition:result.definition,base:flow});
-  }catch(failure){setError(failure.message);setPrompt(description);}
+  }catch(failure){setDesignerNotice({message:failure.message});}
   finally{generation.current=false;setBusy(false);}
  }
  function applyProposal(){
@@ -282,6 +293,11 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
     </div>:null}
     {undo?<button type="button" className="btn-secondary" disabled={busy||flow!==undo.after} onClick={()=>{update(undo.before);setSelected('trigger');setUndo(null);}}>Undo AI changes</button>:null}
     {undo&&flow!==undo.after?<p className="af-muted">Undo is unavailable after further canvas edits.</p>:null}
+    {designerNotice?<div className="af-designer-proposal" role="status">
+     <p>{designerNotice.message}</p>
+     {designerNotice.retryAt?<p className="af-muted">Retry time: {formatOperationalDateTime(designerNotice.retryAt)} (Malaysia time).</p>:null}
+     <button type="button" className="btn-secondary" onClick={()=>{setDesigner(false);setPanel('node');setShowInspector(true);}}>Continue Manually</button>
+    </div>:null}
     <form className="space-y-2" onSubmit={event=>{event.preventDefault();generate(prompt);}}>
      <AdminFormField label="Message the Designer"><textarea className="control" rows={3} value={prompt} maxLength={1200} disabled={busy||Boolean(proposal)}
       placeholder="Customer request booking from online" onChange={event=>setPrompt(event.target.value)}/></AdminFormField>

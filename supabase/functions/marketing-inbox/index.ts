@@ -285,24 +285,29 @@ Deno.serve(async (req) => {
         const selected=typeof body.selected==='string'?body.selected.slice(0,40):null;
         const fingerprint=await hash(JSON.stringify({description,history,draft,selected}));
         const prepared=await rpc(caller,'marketing_ai_flow_generate_prepare',{p_request:body.requestId,p_org:body.org,p_brand:body.brand,p_description:`Designer ${fingerprint}`});
-        if(prepared.state!=='prepared')return json({state:'unavailable'});
-        const context=await rpc(caller,'marketing_brand_context');
-        const brand=context.brands?.find((item:any)=>item.id===body.brand&&item.organization_id===body.org);
-        if(!brand)return json({error:'Brand access is unavailable.'},403);
+        if(prepared.state!=='prepared')return json(prepared);
+        const settle=(outcome:Record<string,unknown>)=>rpc(service,'marketing_ai_flow_designer_settle',{p_request:body.requestId,p_outcome:outcome});
         const fallback=draft===null&&!history.length?bookingEnquiryFallback(description):null;
-        let stage='provider';
+        let stage='context';
         try{
+          const context=await rpc(caller,'marketing_brand_context');
+          const brand=context.brands?.find((item:any)=>item.id===body.brand&&item.organization_id===body.org);
+          if(!brand)throw new Error('brand_unavailable');
+          stage='provider';
           const result=await designAIFlow({description,brandName:brand.name,history,draft,selected},env('OPENAI_API_KEY'),env('MARKETING_AI_MODEL'));
-          if(result.kind==='unsupported'&&fallback)throw new Error('unsupported_booking_intent');
-          stage='validation';
-          if(result.kind==='proposal')await rpc(service,'marketing_ai_flow_generate_finish',{p_request:body.requestId,p_definition:result.definition});
-          return json({state:'completed',...result});
+          if(result.kind==='unsupported'&&fallback)return json(await settle({state:'completed',...fallback,usedFallback:true}));
+          stage='settlement';
+          return json(await settle({state:'completed',...result}));
         }catch(error){
-          const reason=error instanceof Error&&['flow_provider_unavailable','flow_generation_incomplete','flow_generation_invalid','flow_edit_invalid','unsupported_booking_intent'].includes(error.message)?error.message:'request_failed';
-          console.warn('flow_designer_request_failed',{stage,reason,detail:(error as {safeMessage?:string})?.safeMessage||null});
-          if(!fallback)throw error;
-          await rpc(service,'marketing_ai_flow_generate_finish',{p_request:body.requestId,p_definition:fallback.definition});
-          return json({state:'completed',...fallback,usedFallback:true});
+          if(stage==='settlement')throw error; // A lost acknowledgement must be replayed using the same request ID.
+          const reason=error instanceof Error?error.message:'request_failed';
+          console.warn('flow_designer_request_failed',{stage,reason:['flow_provider_unavailable','flow_generation_incomplete','flow_generation_invalid','flow_edit_invalid','brand_unavailable'].includes(reason)?reason:'request_failed'});
+          if(fallback&&stage==='provider'&&['flow_generation_invalid','flow_edit_invalid'].includes(reason))
+            return json(await settle({state:'completed',...fallback,usedFallback:true}));
+          const message=stage==='context'?'Brand access is unavailable.':reason==='flow_provider_unavailable'||reason==='flow_generation_incomplete'
+            ?'The AI provider did not complete this request. Try again or continue manually.'
+            :'The Designer could not produce a valid proposal. Try rephrasing or continue manually.';
+          return json(await settle({state:'failed',error:message}));
         }
       }
       const prepared=await rpc(caller,'marketing_ai_flow_generate_prepare',{p_request:body.requestId,p_org:body.org,p_brand:body.brand,p_description:body.description});
