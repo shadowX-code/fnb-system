@@ -13,10 +13,11 @@ const motionQuery = "(prefers-reduced-motion: reduce)";
 
 function Stars({ value }) {
   const { t } = useTranslation();
-  return <span className="crew-guest-stars" role="img" aria-label={t("guestVoice.stars", { value })}>
+  const displayValue = Math.round(value * 10) / 10;
+  return <span className="crew-guest-stars" role="img" aria-label={t("guestVoice.stars", { value: displayValue })}>
     {Array.from({ length: 5 }, (_, index) => <span key={index} aria-hidden="true">
       <Star size={15} fill="currentColor" />
-      <i style={{ width: `${Math.max(0, Math.min(1, value - index)) * 100}%` }}><Star size={15} fill="currentColor" /></i>
+      <i style={{ width: `${Math.max(0, Math.min(1, displayValue - index)) * 100}%` }}><Star size={15} fill="currentColor" /></i>
     </span>)}
   </span>;
 }
