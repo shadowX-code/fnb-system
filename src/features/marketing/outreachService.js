@@ -14,6 +14,9 @@ export const outreachService = {
       p_page: page,
       p_search: search,
     }),
+  whatsappRehearsal: (org,brand,campaign,scheduledAt,batchSize) =>
+    rpc("marketing_campaign_whatsapp_rehearsal",{p_org:org,p_brand:brand,p_campaign:campaign.id,
+      p_revision:campaign.revision,p_scheduled_at:scheduledAt,p_batch_size:batchSize}),
   audiencePreview: (org,brand,criteria) => rpc("marketing_campaign_audience_preview",{p_org:org,p_brand:brand,p_criteria:criteria}),
   customers: (org,brand,filters={},page=1,size=20) => rpc("marketing_customers_read",{p_org:org,p_brand:brand,p_filters:filters,p_page:page,p_size:size}),
   importPreview: async (org,brand,rows,onProgress=()=>{}) => {

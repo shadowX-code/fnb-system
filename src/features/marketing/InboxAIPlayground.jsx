@@ -12,6 +12,7 @@ const modes=AI_REPLY_MODES.map(x=>({value:x.value,label:x.label}));
 const cost=value=>value==null?'Cost unavailable':`~US$${Number(value).toFixed(6)}`;
 export default function InboxAIPlayground({org,brand,brandName,initialMode='suggest_only',configuration,onClose}) {
  const [mode,setMode]=useState(initialMode),[outlet,setOutlet]=useState(''),[context,setContext]=useState(null),[turns,setTurns]=useState([]),[question,setQuestion]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [channel,setChannel]=useState('standard'),[scenario,setScenario]=useState('eligible');
  const request=useRef(null),inflight=useRef(false),live=useRef(true),end=useRef(null),input=useRef(null);
  function loadContext(){return inboxService.testContext(org,brand).then(value=>{if(live.current)setContext(value)}).catch(e=>{if(live.current)setError(e.message)})}
  useEffect(()=>{live.current=true;loadContext();return()=>{live.current=false}},[org,brand]);
@@ -19,9 +20,11 @@ export default function InboxAIPlayground({org,brand,brandName,initialMode='sugg
  const unavailable=!configuration?.ai_configured?'AI provider is unavailable. Review AI readiness.':context&&!context.consent?'Save Brand AI consent in settings before testing.':context?.daily_remaining===0?'The shared daily AI request limit is reached. Try again after earlier requests expire.':turns.length>=6?'Six test turns reached. Start a fresh simulation.':'';
  async function run(event){
   event.preventDefault();if(inflight.current||!context||unavailable||!question.trim()||question.length>1000)return;
-  const history=[...turns.flatMap(t=>[{kind:'incoming',text:t.question},{kind:'echo',text:Array.from(t.result.decision.text||t.result.body.text).slice(0,1000).join('')}]),{kind:'incoming',text:question.trim()}];
+  const history=[...(channel==='whatsapp'&&turns.at(-1)?.result.decision.kind==='handoff'?[]:turns).flatMap(t=>[{kind:'incoming',text:t.question},
+   ...(t.result.decision.kind==='handoff'&&channel==='whatsapp'?[]:[{kind:'echo',text:Array.from(t.result.decision.text||t.result.body.text).slice(0,1000).join('')}])
+  ]),{kind:'incoming',text:question.trim()}];
   while(history.length>1&&new TextEncoder().encode(JSON.stringify(history)).length>17000)history.splice(0,2);
-  const body={org,brand,mode,outletId:outlet||null,history},fingerprint=JSON.stringify(body);
+  const body={org,brand,mode,outletId:outlet||null,history,...(channel==='whatsapp'?{channel,scenario}:{})},fingerprint=JSON.stringify(body);
   if(request.current?.fingerprint!==fingerprint)request.current={fingerprint,id:crypto.randomUUID()};
   inflight.current=true;setBusy(true);setError('');
   try{
@@ -32,7 +35,19 @@ export default function InboxAIPlayground({org,brand,brandName,initialMode='sugg
  }
  function reset(){if(inflight.current)return;setTurns([]);setQuestion('');setError('');request.current=null}
  return <Modal title={`Test AI · ${brandName}`} description="Private simulation. No customer conversation, messaging delivery or activation." placement="right" panelClassName="inbox-playground-panel" bodyClassName="inbox-playground-body" onClose={onClose} footer={<><button type="button" className="btn-secondary" disabled={busy||(!turns.length&&!error)} onClick={reset}><RotateCcw size={15}/>Start fresh</button><button type="submit" form="inbox-ai-test-form" className="btn-primary" disabled={busy||!context||!!unavailable||!question.trim()||question.length>1000}><FlaskConical size={15}/>{busy?'Testing…':'Run test'}</button></>}>
-  <div className="inbox-playground-setup"><div><Badge tone="info"><FlaskConical size={13}/>Simulation only</Badge><span>{context?`${context.daily_remaining} shared requests left today`:'Checking readiness…'}</span></div><div className="inbox-playground-selects"><SelectField label="Simulated mode" value={mode} disabled={busy} onChange={value=>{setMode(value);reset()}} options={modes}/><SelectField label="Outlet context" value={outlet} disabled={busy||!context} onChange={setOutlet} options={[{value:'',label:'Auto / ask customer'},...(context?.outlets||[]).map(o=>({value:o.id,label:o.name}))]}/></div><p>Uses saved knowledge, consent and recent test context. Mode changes here are never saved. Live channel and recipient eligibility are not tested.</p></div>
+  <div className="inbox-playground-setup"><div><Badge tone="info"><FlaskConical size={13}/>Simulation only</Badge><span>{context?`${context.daily_remaining} shared requests left today`:'Checking readiness…'}</span></div><div className="inbox-playground-selects"><SelectField label="Simulated mode" value={mode} disabled={busy} onChange={value=>{setMode(value);reset()}} options={modes}/><SelectField label="Outlet context" value={outlet} disabled={busy||!context} onChange={setOutlet} options={[{value:'',label:'Auto / ask customer'},...(context?.outlets||[]).map(o=>({value:o.id,label:o.name}))]}/></div><div className="inbox-playground-selects">
+   <SelectField label="Simulated channel" value={channel} disabled={busy}
+    onChange={value=>{setChannel(value);reset()}} options={[{value:'standard',label:'Standard Inbox'},{value:'whatsapp',label:'WhatsApp'}]}/>
+   {channel==='whatsapp'&&<SelectField label="WhatsApp scenario" value={scenario} disabled={busy}
+    onChange={value=>{setScenario(value);reset()}} options={[
+     {value:'eligible',label:'Open service window and eligible'},
+     {value:'service_window_closed',label:'Closed service window'},
+     {value:'consent_missing',label:'Recipient consent unavailable'},
+     {value:'human_takeover',label:'Human takeover'},
+     {value:'external_owner',label:'External automation owner'},
+     {value:'credential_unverified',label:'Unverified credential generation'},
+    ]}/>}
+  </div><p>Uses saved knowledge, consent and recent test context. Mode changes here are never saved. WhatsApp scenarios use fictional eligibility and never authorize a send.</p></div>
   {unavailable?<div role="status" className="inbox-playground-notice">{unavailable}</div>:null}
   <div className="inbox-playground-transcript" aria-label="Simulated conversation" aria-live="polite">
    {!turns.length?<div className="inbox-playground-empty"><FlaskConical size={24}/><h3>Try a customer question</h3><p>Ask about this Brand’s menu, hours or offers, then try a follow-up. Use fictional, non-sensitive content.</p><div>{['What is your brand name?','Tonight still open ah?','I need a human about a refund.'].map(text=><button type="button" className="btn-secondary" disabled={busy} key={text} onClick={()=>setQuestion(text)}>{text}</button>)}</div></div>:turns.map((turn,i)=>{

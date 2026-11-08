@@ -133,6 +133,6 @@ it('reads template previews from the exact test WABA without retaining example o
  expect(request.mock.calls[0][0]).toBe('1675083730240518/message_templates');
  expect(request.mock.calls[0][3]).toBeUndefined();
  expect(rows[0]).toMatchObject({name:'booking_notice',language:'en_US',category:'UTILITY',status:'APPROVED',parameterFormat:'named'});
- expect(rows[0].components[2].buttons).toEqual([{type:'URL',text:'View booking'}]);
+ expect(rows[0].components[2].buttons).toEqual([{type:'URL',text:'View booking',needsValue:false}]);
  expect(JSON.stringify(rows)).not.toContain('private');
 });

@@ -3,6 +3,9 @@ import {afterEach,expect,it,vi} from 'vitest';
 import {cleanup,fireEvent,render,screen} from '@testing-library/react';
 import InboxReplyComposer from '../InboxReplyComposer.jsx';
 afterEach(cleanup);
+vi.mock('../inboxService.js',()=>({inboxService:{}}));
+vi.mock('../marketingService.js',()=>({marketingService:{}}));
+
 const current={conversation:{id:'c',version:1,channel:'instagram',medium:'dm',status:'open',opted_out:false},reply_requires_approval:false,reply_authority:{verified:true,recent:true},window_open:true,channel_capability:{receiving_verified:true},drafts:[],outbox:[]};
 function props(overrides={}){return {current,configuration:{staff_send_configured:true,recipient_allowed:true},can:()=>true,busy:false,command:vi.fn(),onDirectSend:vi.fn(),...overrides};}
 it('enables normal composition without prior outbound evidence or client allowlists',()=>{

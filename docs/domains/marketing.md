@@ -964,9 +964,13 @@ The isolated QA conversation supports human-authored, free-form staff replies th
 
 ### WhatsApp template catalog and staff suggestions
 
-Staging Connections lets an authorized configurator refresh the exact test WABA catalog using the current bound credential. The preview shows provider status, category, locale, text variables, media requirements and button labels. It is a read-only provider snapshot. Templates cannot be submitted from the catalog.
+Staging Connections lets an authorized configurator refresh the exact test WABA catalog using the current bound credential. The preview shows provider status, category, locale, text variables, media requirements and button labels. It is a read-only provider snapshot. The catalog itself does not submit templates.
 
-WhatsApp Chat can request a staff-reviewed reply suggestion through the existing Inbox AI authority, subject to Brand consent, permissions and current-generation signed inbound evidence. The existing automatic worker still excludes WhatsApp. Suggestions do not confer send authority. Campaign Message retains the staff handling workflow and keeps Cloud API dispatch disabled.
+WhatsApp Chat can request a staff-reviewed reply suggestion through the existing Inbox AI authority, subject to Brand consent, permissions and current-generation signed inbound evidence. The existing automatic worker still excludes WhatsApp. Suggestions do not confer send authority. Campaign Message retains the staff handling workflow. Its batch rehearsal reads the approved queued revision and rechecks recipient phone, consent, and suppression against current CRM records. Proposed times and batch sizes are used for a read-only estimate. Cloud API dispatch remains disabled.
+
+The Staging Chat template route uses the existing Inbox outbox. It requires explicit template-send configuration, staff permissions, exact test assets, current generation, human takeover, and current CRM consent for the exact recipient. An approved utility template can be prepared outside the service window. Meta template and media evidence is validated before preparation and again before the delivery lease, and the typed payload is pinned to the approved preview. A signed receipt reconciles by the same generation and provider message ID as a text reply. A lost response stays in reconciliation.
+
+The existing Inbox AI Playground applies fictional WhatsApp eligibility scenarios to Suggest Only, Safe Auto Reply, and AI First. A closed service window, unavailable consent, staff takeover, external ownership, or unverified credentials blocks a simulated automatic reply. Suggestions remain subject to Brand AI consent and staff permissions.
 
 ### WhatsApp Workflow simulation
 

@@ -13,7 +13,7 @@ export async function exchangeWhatsAppCode(g:Graph,c:WhatsAppConfig,code:string)
  if(typeof r.access_token!=='string'||!r.access_token||r.access_token.length>16000)throw new MetaError('signup_exchange_uncertain',true);
  return r.access_token as string;
 }
-async function collect(g:Graph,path:string,token:string,params:Record<string,unknown>){
+export async function collect(g:Graph,path:string,token:string,params:Record<string,unknown>){
  const rows:any[]=[];let after:string|undefined;const seen=new Set<string>();
  for(let page=0;page<10;page++){
   const r=await g.request(path,token,{...params,limit:100,...(after?{after}:{})});
@@ -157,6 +157,7 @@ export async function readWhatsAppTestTemplates(graph:Graph,token:string){
    buttons:(Array.isArray(component?.buttons)?component.buttons:[]).slice(0,10).map((button:any)=>({
     type:typeof button?.type==='string'?button.type.slice(0,40):'UNKNOWN',
     text:typeof button?.text==='string'?button.text.slice(0,80):null,
+    needsValue:button?.type==='QUICK_REPLY'||(button?.type==='URL'&&typeof button.url==='string'&&button.url.includes('{{')),
    })),
   }));
   return {id:row.id,name:row.name,language:row.language,category:String(row.category??'UNKNOWN').slice(0,40),

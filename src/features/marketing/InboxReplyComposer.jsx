@@ -1,3 +1,5 @@
+import WhatsAppTemplateCatalog from './WhatsAppTemplateCatalog.jsx';
+import {inboxService} from './inboxService.js';
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, Send, BookOpen, ThumbsUp, ThumbsDown } from "lucide-react";
 import {handoffHints,assistanceLabel} from '../../../supabase/functions/_shared/inboxAssistance.mjs';
@@ -18,6 +20,7 @@ export default function InboxReplyComposer({
   faqPreview,
   onSend,
   onDirectSend,
+  onTemplateSend,
   draftCache,
   canViewConnections = false,
   handoffVisibleInHeader = false,
@@ -151,6 +154,9 @@ export default function InboxReplyComposer({
       {whatsAppOutbox && <p className="inbox-muted" role="status">Latest staff reply · {replyStateLabel(whatsAppOutbox.state)}</p>}
       {unavailable && <p className="inbox-muted">{unavailable}</p>}
       {!unavailable && requiresApproval && <p className="inbox-muted">This reply requires review. The WhatsApp test supports direct staff replies only.</p>}
+      {configuration&&!configuration.whatsapp_templates_configured&&<p className="inbox-muted">Template sending awaits Staging authorization.</p>}
+      {configuration?.whatsapp_templates_configured&&can("reply")&&can("send")&&onTemplateSend&&
+        <WhatsAppTemplateCatalog loadTemplates={()=>inboxService.whatsappTemplateOptions(c.id)} onSend={onTemplateSend}/>}
       {canViewConnections && <a className="inbox-text-button" href={`/marketing/connections?marketing_brand=${encodeURIComponent(c.brand_id || '')}&marketing_org=${encodeURIComponent(c.organization_id || '')}`}>View Connections</a>}
       <label className="sr-only" htmlFor={`inbox-compose-${c.id}`}>Staff Reply</label>
       <textarea id={`inbox-compose-${c.id}`} className="control" rows={2} value={text}

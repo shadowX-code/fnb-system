@@ -1,3 +1,5 @@
+import {readWhatsAppTestTemplates,verifyWhatsAppCloudTest} from '../_shared/whatsappOnboarding.ts';
+import {whatsappTemplateIntent} from '../_shared/whatsappTemplateIntent.ts';
 import {bookingEnquiryFallback,designAIFlow,generateAIFlow} from '../_shared/aiFlowGeneration.ts';
 import {runInboxPlayground} from '../_shared/inboxPlayground.ts';
 import {normalizePublicationRemovals} from '../_shared/metaPostAvailability.ts';
@@ -181,6 +183,7 @@ Deno.serve(async (req) => {
       webhook_configured: Boolean(env("MARKETING_INBOX_WEBHOOK_VERIFY_TOKEN")),
       sending_enabled: false,
       staff_send_configured: staffReplyConfigured(env),
+      whatsapp_templates_configured: env('MARKETING_WHATSAPP_TEST_TEMPLATE_SEND_ENABLED')==='true',
       webhook_url: `${STAGING_SUPABASE}/functions/v1/marketing-inbox/webhook`,
       connectors: {...inboxConnectorContracts, whatsapp: whatsappConnectorContract},
     });
@@ -250,6 +253,35 @@ Deno.serve(async (req) => {
       if(scope.channel==='whatsapp')return json({whatsapp_staff_ready:scope.whatsapp_test_ready===true});
       return json({staff_send_configured:staffReplyConfigured(env),recipient_allowed:staffReplyAllowed(scope.account,scope.peer,env)});
     }catch{return json({error:'Sending availability could not be checked.'},403);}
+  }
+  if (['/whatsapp-template-options','/send-whatsapp-template'].includes(path) && req.method==='POST') {
+    if(env('MARKETING_WHATSAPP_TEST_TEMPLATE_SEND_ENABLED')!=='true')
+      return json({error:'WhatsApp template sending awaits explicit Staging authorization.'},403);
+    try {
+      const raw=await req.text();
+      if(raw.length>12000)return json({error:'Template request is too large.'},413);
+      const body=JSON.parse(raw);
+      const actor=identity.data.user.id;
+      const scope=await rpc(service,'marketing_inbox_whatsapp_template_material',{p_conversation:body.conversationId,p_auth_user:actor});
+      const connection=scope.connection;
+      const appSecret=env('MARKETING_META_APP_SECRET'),version=env('MARKETING_META_GRAPH_VERSION');
+      const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret,configId:'',version});
+      const credential=await unseal(connection.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(connection));
+      await verifyWhatsAppCloudTest(graph,{appId:env('MARKETING_META_APP_ID'),appSecret,version,configId:'',signupVersion:'',enabled:false,
+       callback:`${STAGING_SUPABASE}/functions/v1/marketing-inbox/webhook`},credential.token);
+      if(path==='/whatsapp-template-options'){
+       const templates=await readWhatsAppTestTemplates(graph,credential.token);
+       return json({templates:templates.filter(item=>item.status==='APPROVED'&&item.category==='UTILITY')});
+      }
+      const {id,language,values,mediaId}=body.template;
+      const choice={id,language,values,mediaId};
+      const intent=await whatsappTemplateIntent(graph,credential.token,choice,scope.account);
+      const prepared=await rpc(caller,'marketing_inbox_prepare_whatsapp_template',{p_request:body.requestId,p_conversation:body.conversationId,
+       p_version:body.version,p_body:intent.text,p_template:{...choice,providerFingerprint:intent.providerFingerprint},p_generation:connection.credential_generation});
+      return json(await deliverInboxReply(service,graph,env,prepared.draft_id,actor,(account,peer)=>account===scope.account&&peer===scope.peer,true,true));
+    }catch{
+      return json({error:'Template unavailable. Check the approved utility template, language, variables, media, buttons, recipient consent and current connection.'},409);
+    }
   }
   if (['/send-approved','/send-staff-reply'].includes(path) && req.method==='POST') {
     let draftId:string|undefined;

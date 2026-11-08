@@ -422,7 +422,7 @@ function InboxWorkspace({ whatsApp }) {
       if (s !== activeScope.current || g !== generation.current) return;
       request.current = null;
       setModal(null);
-      const isSend = ['staff_reply','send'].includes(intent.command);
+      const isSend = ['staff_reply','staff_template','send'].includes(intent.command);
       setNotice(isSend ? replyOutcomeMessage(result) : typeof message === "function" ? message(result) : message);
       setRefresh((r) => r + 1);
       notifyConversationsChanged();
@@ -893,6 +893,11 @@ function InboxWorkspace({ whatsApp }) {
                   preview={preview}
                   faqPreview={faqPreview}
                   onSend={(draft) => setModal({ type: "send", draft })}
+                  onTemplateSend={template=>mutate(
+                    {scope,command:'staff_template',conversation:c.id,version:c.version,template},
+                    id=>inboxService.sendWhatsAppTemplate(id,c,template),
+                    "Template attempt recorded. Check its delivery state.",
+                  )}
                   onDirectSend={(text, sourceArtifactId) =>
                     mutate(
                       {
