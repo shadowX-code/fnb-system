@@ -1,3 +1,4 @@
+import WhatsAppCampaignExecution from './WhatsAppCampaignExecution.jsx';
 import WhatsAppCampaignRehearsal from './WhatsAppCampaignRehearsal.jsx';
 import WhatsAppWorkflowsPage from './WhatsAppWorkflowsPage.jsx';
 import {resolveBrandContext,selectBrandContext} from './brandContext.js';
@@ -504,9 +505,12 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                           </section>
                         </div>
                         <AdminSummaryGrid variant="compact" ariaLabel="Recipient handling progress" items={['pending','opened','staff_confirmed','skipped'].map(key=>({key,label:names[key],value:data.progress[key]||0,state:loading?'loading':error?'unavailable':'ready'}))}/>
+                        <WhatsAppCampaignExecution key={active.id+':'+active.revision} organizationId={org} brandId={brand} campaign={active}
+                          canSchedule={can('marketing_campaigns.execute')&&can('marketing_campaigns.approve')&&can('marketing_settings.configure')}
+                          canExecute={can('marketing_campaigns.execute')}/>
                         {active.status==='ready'&&approvalCurrent&&can('marketing_campaigns.execute')&&
                           <WhatsAppCampaignRehearsal key={active.id+':'+active.revision} organizationId={org} brandId={brand} campaign={active}/>}
-                        <details className="outreach-evidence"><summary>Technical details & evidence</summary><p>Campaign revision: {active.revision} · Approved revision: {active.approved_revision??'None'} · Audience revision: {active.audience_revision??'Not reviewed'}</p><p>Verified delivery: unavailable · Verified redemptions: unavailable</p><p>This queue tracks staff handling. Cloud API campaign dispatch, scheduling and receipt attribution are disabled.</p></details>
+                        <details className="outreach-evidence"><summary>Technical details & evidence</summary><p>Campaign revision: {active.revision} · Approved revision: {active.approved_revision??'None'} · Audience revision: {active.audience_revision??'Not reviewed'}</p><p>Verified delivery: unavailable · Verified redemptions: unavailable</p><p>This queue tracks staff handling. Cloud API schedules and provider receipts appear in the execution panel.</p></details>
                       </>
                     ) : null}
                   </section>

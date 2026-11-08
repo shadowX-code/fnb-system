@@ -14,6 +14,10 @@ export const outreachService = {
       p_page: page,
       p_search: search,
     }),
+  whatsappExecution: (org,brand,campaignId,page) =>
+    rpc("marketing_campaign_whatsapp_read",{p_org:org,p_brand:brand,p_campaign:campaignId,p_page:page}),
+  whatsappExecutionCommand: (org,brand,campaignId,requestId,action,payload) =>
+    rpc("marketing_campaign_whatsapp_command",{p_org:org,p_brand:brand,p_campaign:campaignId,p_request:requestId,p_action:action,p_payload:payload}),
   whatsappRehearsal: (org,brand,campaign,scheduledAt,batchSize) =>
     rpc("marketing_campaign_whatsapp_rehearsal",{p_org:org,p_brand:brand,p_campaign:campaign.id,
       p_revision:campaign.revision,p_scheduled_at:scheduledAt,p_batch_size:batchSize}),

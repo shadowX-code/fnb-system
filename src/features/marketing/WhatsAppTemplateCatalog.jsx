@@ -3,7 +3,7 @@ import {marketingService} from './marketingService.js';
 
 const placeholder = /{{\s*([a-z][a-z0-9_]*|[1-9]\d*)\s*}}/gi;
 
-export default function WhatsAppTemplateCatalog({organizationId,brandId,connection,loadTemplates,onSend}){
+export default function WhatsAppTemplateCatalog({organizationId,brandId,connection,loadTemplates,onSend,submitLabel='Send approved template',purpose='staff'}){
  const [catalog,setCatalog]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const submitting=useRef(false);
  const [mediaId,setMediaId]=useState('');
@@ -35,7 +35,7 @@ export default function WhatsAppTemplateCatalog({organizationId,brandId,connecti
  }
  return <div className="mt-4 space-y-2 border-t border-border-default pt-3">
   <h3 className="font-semibold">Meta message templates</h3>
-  <p>{onSend?'Choose an approved utility template for this authorized recipient.':'Read and preview templates for this test WABA. Template sending is disabled.'}</p>
+  <p>{onSend?(purpose==='campaign'?'Choose an approved template for the scheduled campaign.':'Choose an approved utility template for this authorized recipient.'):'Read and preview templates for this test WABA. Template sending is disabled.'}</p>
   <button className="btn-secondary" disabled={busy} onClick={load}>{busy?'Checking Meta…':'Refresh templates from Meta'}</button>
   {error&&<p role="alert">{error}</p>}
   {catalog&&!catalog.templates.length&&<p role="status">Meta returned no templates for this WABA.</p>}
@@ -66,7 +66,7 @@ export default function WhatsAppTemplateCatalog({organizationId,brandId,connecti
      {component.buttons.length>0&&<ul className="mt-2">{component.buttons.map((button,i)=><li key={i}>{button.text||'Button'} · {button.type.replaceAll('_',' ').toLowerCase()}</li>)}</ul>}
     </div>)}
    </div>
-   {onSend&&<button className="btn-primary" disabled={busy||!complete||template.status!=='APPROVED'||template.category!=='UTILITY'} onClick={send}>Send approved template</button>}
+   {onSend&&<button className="btn-primary" disabled={busy||!complete||template.status!=='APPROVED'||!(purpose==='campaign'?['UTILITY','MARKETING'].includes(template.category):template.category==='UTILITY')} onClick={send}>{submitLabel}</button>}
   </>}
  </div>;
 }

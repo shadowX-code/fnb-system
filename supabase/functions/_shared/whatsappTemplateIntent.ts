@@ -4,7 +4,7 @@ import {CLOUD_TEST_WABA,collect,type Graph} from './whatsappOnboarding.ts';
 type TemplateChoice={id:string;language:string;values?:Record<string,string>;mediaId?:string};
 const fields='id,name,language,category,status,parameter_format,components';
 
-export async function whatsappTemplateIntent(graph:Graph,token:string,choice:TemplateChoice,phone:string){
+export async function whatsappTemplateIntent(graph:Graph,token:string,choice:TemplateChoice,phone:string,purpose:'staff'|'campaign'='staff'){
  if(!/^\d{1,32}$/.test(choice?.id)||typeof choice.language!=='string'||! /^[a-z]{2,3}(?:_[A-Za-z]{2,8}){0,2}$/.test(choice.language))
   throw new Error('template_identity_invalid');
  // Use the WABA edge and exact provider ID, even when more than one language shares the name.
@@ -12,7 +12,7 @@ export async function whatsappTemplateIntent(graph:Graph,token:string,choice:Tem
  const matches=rows.filter((row:any)=>row.id===choice.id&&row.language===choice.language);
  if(matches.length!==1)throw new Error('template_not_in_verified_waba');
  const row=matches[0];
- if(row.status!=='APPROVED'||row.category!=='UTILITY'||! /^[a-z0-9_]{1,512}$/.test(row.name)||!Array.isArray(row.components))
+ if(row.status!=='APPROVED'||!(purpose==='campaign'?['UTILITY','MARKETING'].includes(row.category):row.category==='UTILITY')||! /^[a-z0-9_]{1,512}$/.test(row.name)||!Array.isArray(row.components))
   throw new Error('template_not_approved_utility');
  const components:any[]=[];
  const preview:string[]=[];

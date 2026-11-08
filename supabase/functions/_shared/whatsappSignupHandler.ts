@@ -1,8 +1,10 @@
+import {whatsappTemplateIntent} from './whatsappTemplateIntent.ts';
 import {MetaGraph,MetaError} from './metaGraph.ts';
 import {connectionBinding,hash,nonce,seal,unseal,tokenEncryptionReady,STAGING_SUPABASE} from './metaSecurity.ts';
 import {CLOUD_TEST_APP,CLOUD_TEST_PHONE,CLOUD_TEST_WABA,readWhatsAppTestTemplates,verifyWhatsAppCloudTest,configured,exchangeWhatsAppCode,verifyWhatsAppAssets,resolveWhatsAppSignupAssets,finishWhatsAppOnboarding,type WhatsAppConfig} from './whatsappOnboarding.ts';
 const cloudTestFailures:Record<string,string>={
  whatsapp_template_binding_changed:'Refresh Connections and select the current active Staging test connection.',
+ whatsapp_campaign_schedule_failed:'Could not schedule the approved campaign. Check Campaign permissions, revision, consent queue and current test connection.',
  whatsapp_template_read_failed:'Meta could not list templates for the verified test WABA. Check WhatsApp Business Management access and try again.',
 
  whatsapp_test_brand_denied:'You need permission to configure WhatsApp for the designated Staging test Brand.',
@@ -38,7 +40,7 @@ export async function whatsappSignupHandler(path:string,body:any,caller:any,serv
  const cloudTestConfigured=env('SUPABASE_URL')===STAGING_SUPABASE&&c.appId===CLOUD_TEST_APP
   &&!!c.appSecret&&/^v\d+\.0$/.test(c.version)&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(testBrand)
   &&body.brandId===testBrand&&!!ready.can_configure&&!!testToken&&testToken.length<=16000&&await tokenEncryptionReady(key);
- if(path==='/whatsapp/templates'){
+ if(['/whatsapp/templates','/whatsapp/campaign-schedule'].includes(path)){
   if(!cloudTestConfigured)throw new MetaError('whatsapp_test_brand_denied');
   const readMaterial=()=>call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user});
   const check=(material:any)=>{
@@ -53,6 +55,18 @@ export async function whatsappSignupHandler(path:string,body:any,caller:any,serv
   const credential=await unseal(material.sealed_token,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
   const graph=new MetaGraph({appId:c.appId,appSecret:c.appSecret,configId:c.configId,version:c.version});
   await verifyWhatsAppCloudTest(graph,c,credential.token);
+  if(path==='/whatsapp/campaign-schedule'){
+   try {
+    const {id,language,values,mediaId}=body.template;
+    const template={id,language,values,mediaId};
+    const evidence=await whatsappTemplateIntent(graph,credential.token,template,CLOUD_TEST_PHONE,'campaign');
+    check(await readMaterial());
+    return await call(caller,'marketing_campaign_whatsapp_command',{p_org:body.organizationId,p_brand:body.brandId,
+     p_campaign:body.campaignId,p_request:body.requestId,p_action:'schedule',
+     p_payload:{revision:body.revision,generation:body.generation,scheduled_at:body.scheduledAt,batch_size:body.batchSize,
+      template:{...template,providerFingerprint:evidence.providerFingerprint}}});
+   }catch(error){throw new MetaError('whatsapp_campaign_schedule_failed',false,false,error instanceof MetaError?error.graphCode:undefined);}
+  }
   const templates=await readWhatsAppTestTemplates(graph,credential.token).catch(error=>{
    throw new MetaError('whatsapp_template_read_failed',false,false,error instanceof MetaError?error.graphCode:undefined);
   });

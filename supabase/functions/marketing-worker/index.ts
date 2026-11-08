@@ -1,3 +1,4 @@
+import {runWhatsAppCampaign} from '../_shared/whatsappCampaign.ts';
 import {publishingFormatKey,publishingFormatEnabled,publishingFormatAuthorization} from '../_shared/publishingFormatPolicy.mjs';
 import {facebookVideoConfigured,facebookReceiptRecoveryAllowed,instagramExtendedConfigured} from '../_shared/marketingExecution.mjs';
 import {runInboxAutomatic} from '../_shared/inboxAutomatic.ts';
@@ -114,6 +115,13 @@ Deno.serve(async(req)=>{
   if(Math.floor(started/60000)%2===0&&await runInboxAutomatic(db,graph,env)){await call(db,'marketing_worker_health',{p_completed:true});return reply({status:'inbox_ai_turn'});}
   // Independent four-second profile read; failure never blocks message ingestion or publishing.
   try{await runInboxProfile(db,graph.withSignal(AbortSignal.timeout(4000)),[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')]);}catch{console.warn('marketing_inbox_profile_pending');}
+  try {
+   await call(db,'marketing_campaign_whatsapp_cleanup');
+   if(await runWhatsAppCampaign(call.bind(null,db),graph.withSignal(AbortSignal.timeout(30000)),env,tokenFor)){
+    await call(db,'marketing_worker_health',{p_completed:true});
+    return reply({status:'whatsapp_campaign_processed'});
+   }
+  }catch{console.warn('whatsapp_campaign_worker_pending');}
   // One API read per idle tick; publishing always claims first. A separate deadline
   // bounds follower work without consuming connection-health or publishing leases.
   try{const followerGraph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')},fetch,undefined,AbortSignal.timeout(8000));await runCreatorFollowers(db,followerGraph,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')]);}catch{console.warn('marketing_creator_followers_pending');}

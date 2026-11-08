@@ -4,8 +4,8 @@
 import {CLOUD_TEST_PHONE} from './whatsappOnboarding.ts';
 import {messagingIntent} from './marketingInbox.ts';
 export type InboxDeliveryState={pending?:boolean;receipt?:string;failed?:string};
-export async function advanceInboxDelivery(input:{channel:'facebook'|'instagram'|'whatsapp';authority:any;whatsappStaff?:boolean;whatsappTemplate?:Record<string,unknown>;recipient:string;text:string;state:InboxDeliveryState;guard:()=>Promise<void>;checkpoint:(state:InboxDeliveryState)=>Promise<void>;post:(path:string,body:any)=>Promise<any>}) {
- if (!['facebook','instagram'].includes(input.channel)&&!(input.channel==='whatsapp'&&input.whatsappStaff===true)) throw new Error('messaging_channel_disabled');
+export async function advanceInboxDelivery(input:{channel:'facebook'|'instagram'|'whatsapp';authority:any;whatsappStaff?:boolean;whatsappCampaignCallback?:string;whatsappTemplate?:Record<string,unknown>;recipient:string;text:string;state:InboxDeliveryState;guard:()=>Promise<void>;checkpoint:(state:InboxDeliveryState)=>Promise<void>;post:(path:string,body:any)=>Promise<any>}) {
+ if (!['facebook','instagram'].includes(input.channel)&&!(input.channel==='whatsapp'&&(input.whatsappStaff===true||Boolean(input.whatsappCampaignCallback&&input.whatsappTemplate)))) throw new Error('messaging_channel_disabled');
  const {state}=input;
  if(state.receipt)return {state:'sent',receipt:state.receipt};
  if(state.failed)return {state:'failed',code:state.failed};
@@ -14,6 +14,7 @@ export async function advanceInboxDelivery(input:{channel:'facebook'|'instagram'
  if(whatsapp&&(!/^\d{7,15}$/.test(input.recipient)||!input.text.trim()||input.text.length>2000))throw new Error('whatsapp_reply_invalid');
  const intent=input.channel==='whatsapp'
   ?{path:`${CLOUD_TEST_PHONE}/messages`,body:{messaging_product:'whatsapp',recipient_type:'individual',to:input.recipient,
+    ...(input.whatsappCampaignCallback?{biz_opaque_callback_data:input.whatsappCampaignCallback}:{}),
     ...(input.whatsappTemplate?{type:'template',template:input.whatsappTemplate}:{type:'text',text:{body:input.text,preview_url:false}})}}
   :messagingIntent(input.channel,input.authority,input.recipient,input.text);
  await input.guard();

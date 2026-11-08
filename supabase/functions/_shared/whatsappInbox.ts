@@ -4,6 +4,7 @@ export type WhatsAppInboxEvent = {
  kind:'incoming'|'attachment'|'echo'|'status'|'edit'|'revoke'; event_id:string;
  occurred_at:string; body:string; medium:'dm';
  target_message_id?:string; target_direction?:'incoming'|'outgoing';
+ reply_to_message_id?:string; campaign_callback_id?:string;
  provider_status?:'sent'|'delivered'|'read'|'failed'; error_code?:string;
 };
 const numeric=(v:unknown):v is string=>typeof v==='string'&&/^\d{1,32}$/.test(v);
@@ -61,13 +62,13 @@ export function normalizeWhatsAppWebhook(payload:any,now=Date.now(),reject:()=>v
     const target=m[m.type]?.original_message_id;
     if(!messageId(target))throw new Error('invalid_whatsapp_target');
     events.push({...identity,kind:m.type,target_message_id:target,target_direction:echo?'outgoing':'incoming',body:m.type==='edit'?content(m.edit.message):''});
-   }else events.push({...identity,kind:echo?'echo':m.type==='text'?'incoming':'attachment',body:content(m)});
+   }else events.push({...identity,kind:echo?'echo':m.type==='text'?'incoming':'attachment',body:content(m),...(!echo&&messageId(m.context?.id)?{reply_to_message_id:m.context.id}:{})});
   }catch{reject();}
   for(const s of statuses)try{
    if(!messageId(s?.id)||!numeric(s?.recipient_id)||!['sent','delivered','read','failed'].includes(s?.status))throw new Error('invalid_whatsapp_status');
    const code=s.errors?.[0]?.code;
    if(code!==undefined&&!/^\d{1,12}$/.test(String(code)))throw new Error('invalid_whatsapp_error');
-   events.push({...base,peer_id:s.recipient_id,kind:'status',event_id:s.id,occurred_at:timestamp(s.timestamp,now),body:'',provider_status:s.status,...(code===undefined?{}:{error_code:String(code)})});
+   events.push({...base,peer_id:s.recipient_id,kind:'status',event_id:s.id,occurred_at:timestamp(s.timestamp,now),body:'',provider_status:s.status,...(typeof s.biz_opaque_callback_data==='string'&&/^[a-f0-9-]{36}$/.test(s.biz_opaque_callback_data)?{campaign_callback_id:s.biz_opaque_callback_data}:{}),...(code===undefined?{}:{error_code:String(code)})});
   }catch{reject();}
   if(events.length>1000)throw new Error('invalid_whatsapp_batch');
  }
