@@ -137,7 +137,12 @@ function Area({ label: caption, ...props }) {
     </AdminFormField>
   );
 }
-export default function MarketingInboxPage() {
+export default function MarketingInboxPage({ whatsApp = false }) {
+  return <InboxWorkspace key={String(whatsApp)} whatsApp={whatsApp} />;
+}
+
+function InboxWorkspace({ whatsApp }) {
+  const title = whatsApp ? "WhatsApp Chat" : "Conversations";
   const auth = useAuth(),
     can = (p) => auth.hasPermission(`marketing_inbox.${p}`);
   const [context, setContext] = useState({ organizations: [], brands: [] }),
@@ -145,7 +150,7 @@ export default function MarketingInboxPage() {
     [brand, setBrand] = useState("");
   const [view,setView]=useState("all");
   const [status, setStatus] = useState(""),
-    [channel, setChannel] = useState("social"),
+    [channel, setChannel] = useState(whatsApp ? "whatsapp" : "social_inbox"),
     [search, setSearch] = useState(""),
     [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(20),
@@ -278,6 +283,7 @@ export default function MarketingInboxPage() {
     generation.current++;
   }, [scope]);
   const openedDashboardConversation=useRef('');
+  const deepLink = useRef(new URLSearchParams(window.location.search).get('conversation_id'));
   useEffect(()=>{const id=new URLSearchParams(window.location.search).get('conversation_id');if(!data||!id||openedDashboardConversation.current===id)return;openedDashboardConversation.current=id;setSelected(id);const url=new URL(window.location.href);url.searchParams.delete('conversation_id');window.history.replaceState(window.history.state,'',url);},[data]);
   useEffect(() => {
     let live = true;
@@ -325,6 +331,18 @@ export default function MarketingInboxPage() {
         .detail(selected, historyPage)
         .then((v) => {
           if (live) {
+            const isWhatsApp = v.conversation.channel === "whatsapp";
+            if (isWhatsApp !== whatsApp) {
+              if (selected === deepLink.current) {
+                const url = new URL(window.location.href);
+                url.pathname = isWhatsApp ? "/marketing/whatsapp-chat" : "/marketing/inbox";
+                url.searchParams.set("conversation_id", selected);
+                window.location.replace(url);
+              } else {
+                setSelected("");
+              }
+              return;
+            }
             setDetail({ key: detailKey, baseKey: detailBaseKey, data: v });
             if (historyPage === 1 && v.read_through_sequence !== undefined)
               inboxService
@@ -509,8 +527,8 @@ export default function MarketingInboxPage() {
       <SelectField searchable="auto" ariaLabel="Brand" value={brand}
         onChange={value => selectBrandContext(context,value,org,setOrg,setBrand)}
         options={[{value:'',label:'All Brands'},...context.brands.map(b=>({value:b.id,label:b.name}))]} />
-      <SelectField ariaLabel="Channel" value={channel} onChange={value=>{setChannel(value);setPage(1);setSelected('');}}
-        options={[{value:'social',label:'All Channels'},{value:'facebook',label:'Messenger'},{value:'instagram',label:'Instagram'},{value:'whatsapp',label:'WhatsApp'},{value:'internal',label:'Internal cases'}]} />
+      {!whatsApp && <SelectField ariaLabel="Channel" value={channel} onChange={value=>{setChannel(value);setPage(1);setSelected('');}}
+        options={[{value:'social_inbox',label:'All Channels'},{value:'facebook',label:'Messenger'},{value:'instagram',label:'Instagram'},{value:'internal',label:'Internal cases'}]} />}
     </>}
     moreFilters={<><SelectField label="Assignee" value={assignee} onChange={value=>{setAssignee(value);setPage(1);setSelected('');}}
       options={[{value:'',label:'All'},{value:'me',label:'Assigned to me'},{value:'unassigned',label:'Unassigned'},...(data?.members||[]).map(m=>({value:m.id,label:m.name}))]} />
@@ -563,7 +581,7 @@ export default function MarketingInboxPage() {
   }
   return (
     <div className={`inbox-page ${selected ? "inbox-chat-open" : ""}`}>
-      <WorkspaceSurface tone="workspace" className="inbox-workspace-content" aria-label="Conversations workspace">
+      <WorkspaceSurface tone="workspace" className="inbox-workspace-content" aria-label={`${title} workspace`}>
         {error && (
           <p role="alert" className="text-danger inbox-feedback">
             {error}
@@ -579,8 +597,8 @@ export default function MarketingInboxPage() {
           style={{'--inbox-list-width': `${panelWidths.list}px`, '--inbox-context-width': `${panelWidths.context}px`}}
           className={`marketing-inbox-grid ${selected ? "has-selection" : ""} ${detailsOpen ? "details-open" : ""}`}
         >
-          <section className="marketing-inbox-list" aria-label="Conversations" inert={detailsOpen && !wideContext}>
-            <div className="inbox-list-heading"><h1>{channel === 'internal' ? 'Internal cases' : 'Conversations'}</h1>
+          <section className="marketing-inbox-list" aria-label={title} inert={detailsOpen && !wideContext}>
+            <div className="inbox-list-heading"><h1>{channel === 'internal' ? 'Internal cases' : title}</h1>
               <span className="inbox-list-count">{data?.total ?? '—'}</span>
               <div className="inbox-list-commands"><>
             <NotificationSoundControls identity={auth.profile?.id||auth.user?.id||"anonymous"}/>
@@ -654,7 +672,7 @@ export default function MarketingInboxPage() {
                 <div className="marketing-inbox-empty">
                   <MessageSquareText size={28} />
                   <p>No conversations match your filters.</p>
-                  {channel === "whatsapp" && <p>WhatsApp onboarding is disabled. Verified messages will appear here after an authorized connection is ready.</p>}
+                  {channel === "whatsapp" && <p>Verified WhatsApp messages will appear here when an authorized connection receives them.</p>}
                 </div>
               )}
               {data?.rows.map(row=>{

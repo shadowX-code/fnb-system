@@ -142,7 +142,7 @@ it("defaults to social conversations and never substitutes brand identity or ren
   render(<MarketingInboxPage />);
   await select();
   expect(inboxService.read).toHaveBeenCalledWith(
-    expect.objectContaining({ channel: "social" }),
+    expect.objectContaining({ channel: "social_inbox" }),
   );
   expect(screen.queryByText("Brand B conversation")).toBeNull();
   expect(screen.queryByText("Technical receipt")).toBeNull();

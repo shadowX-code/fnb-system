@@ -28,6 +28,7 @@ describe("FeedX canonical route contract", () => {
   it('retains CRM bookmarks under the canonical feature without granting campaign authority to customer viewers',()=>{
     expect(resolveCanonicalPath('/marketing/audience').routeId).toBe('marketing_audience');
     expect(resolveCanonicalPath('/marketing/customers').routeId).toBe('marketing_audience');
+    expect(resolveCanonicalPath('/marketing/whatsapp-chat').routeId).toBe('marketing_whatsapp_chat');
     expect(resolveCanonicalPath('/marketing/whatsapp').routeId).toBe('marketing_campaigns');
     expect(resolveCanonicalPath('/marketing/campaigns').routeId).toBe('marketing_crm_legacy');
   });

@@ -26,7 +26,7 @@ export default function useConversationReplyCount(enabled, identity, sound) {
       try {
         const data = await inboxService.replyCount();
         if (live) {
-          setResult({ identity, count: data.needs_reply });
+          setResult({ identity, counts: data.needs_reply_by_workspace });
           if(token && data.change_token && token!==data.change_token)
             window.dispatchEvent(new CustomEvent(CONVERSATIONS_OBSERVED,{detail:{identity}}));
           token=data.change_token;
@@ -69,5 +69,5 @@ export default function useConversationReplyCount(enabled, identity, sound) {
       document.removeEventListener("visibilitychange", visible);
     };
   }, [enabled, identity]);
-  return enabled && result?.identity === identity ? result.count : null;
+  return enabled && result?.identity === identity ? result.counts : null;
 }

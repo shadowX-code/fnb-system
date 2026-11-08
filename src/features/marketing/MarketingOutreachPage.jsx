@@ -362,7 +362,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
   return (
     <WorkspacePage
       section="Marketing"
-      title={section === "whatsapp" ? "WhatsApp Message" : "Customers"}
+      title={section === "whatsapp" ? "Campaign Message" : "Customers"}
       description={section === "whatsapp" ? "Approved campaigns, handled personally by your team." : "Customer profiles, brand relationships and contact preferences."}
       controls={controls}
     >
