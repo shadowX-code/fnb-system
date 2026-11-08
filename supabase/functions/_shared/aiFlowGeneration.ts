@@ -104,3 +104,21 @@ export async function designAIFlow(input:DesignerInput,key:string,model:string,t
  else throw new Error('flow_generation_invalid');
  return {kind:'proposal',message,choices,definition:proposed};
 }
+
+export function bookingEnquiryFallback(description:string){
+ if(!/^customer request booking from online[.!?]?$/i.test(description.trim()))return null;
+ return {
+  kind:'proposal',message:'I drafted a reservation enquiry that collects the details and passes them to staff for confirmation.',choices:[],
+  definition:{
+   name:'Online reservation enquiries',description:'Collect reservation details for the team.',objective:'Prepare a staff handoff for a reservation enquiry.',
+   intent:'Request a reservation',examples:[description],channels:['facebook','instagram','whatsapp'],
+   nodes:[
+    {id:'trigger',type:'trigger',next:'date'},
+    {id:'date',type:'ask',field:'requested_date',prompt:'What date would you like to visit?',value_type:'text',required:true,next:'time'},
+    {id:'time',type:'ask',field:'requested_time',prompt:'What time would you prefer?',value_type:'text',required:true,next:'guests'},
+    {id:'guests',type:'ask',field:'party_size',prompt:'How many guests will be joining?',value_type:'number',required:true,next:'staff'},
+    {id:'staff',type:'handoff',prompt:'Thanks for the details. Our team will review your request and confirm availability.'},
+   ],
+  },
+ };
+}

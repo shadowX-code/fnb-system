@@ -1,4 +1,4 @@
-import {designAIFlow,generateAIFlow} from '../_shared/aiFlowGeneration.ts';
+import {bookingEnquiryFallback,designAIFlow,generateAIFlow} from '../_shared/aiFlowGeneration.ts';
 import {runInboxPlayground} from '../_shared/inboxPlayground.ts';
 import {normalizePublicationRemovals} from '../_shared/metaPostAvailability.ts';
 import {whatsappLifecycle} from '../_shared/whatsappLifecycle.ts';
@@ -282,9 +282,21 @@ Deno.serve(async (req) => {
         const context=await rpc(caller,'marketing_brand_context');
         const brand=context.brands?.find((item:any)=>item.id===body.brand&&item.organization_id===body.org);
         if(!brand)return json({error:'Brand access is unavailable.'},403);
-        const result=await designAIFlow({description,brandName:brand.name,history,draft,selected},env('OPENAI_API_KEY'),env('MARKETING_AI_MODEL'));
-        if(result.kind==='proposal')await rpc(service,'marketing_ai_flow_generate_finish',{p_request:body.requestId,p_definition:result.definition});
-        return json({state:'completed',...result});
+        const fallback=draft===null&&!history.length?bookingEnquiryFallback(description):null;
+        let stage='provider';
+        try{
+          const result=await designAIFlow({description,brandName:brand.name,history,draft,selected},env('OPENAI_API_KEY'),env('MARKETING_AI_MODEL'));
+          if(result.kind==='unsupported'&&fallback)throw new Error('unsupported_booking_intent');
+          stage='validation';
+          if(result.kind==='proposal')await rpc(service,'marketing_ai_flow_generate_finish',{p_request:body.requestId,p_definition:result.definition});
+          return json({state:'completed',...result});
+        }catch(error){
+          const reason=error instanceof Error&&['flow_provider_unavailable','flow_generation_incomplete','flow_generation_invalid','flow_edit_invalid','unsupported_booking_intent'].includes(error.message)?error.message:'request_failed';
+          console.warn('flow_designer_request_failed',{stage,reason});
+          if(!fallback)throw error;
+          await rpc(service,'marketing_ai_flow_generate_finish',{p_request:body.requestId,p_definition:fallback.definition});
+          return json({state:'completed',...fallback,usedFallback:true});
+        }
       }
       const prepared=await rpc(caller,'marketing_ai_flow_generate_prepare',{p_request:body.requestId,p_org:body.org,p_brand:body.brand,p_description:body.description});
       if(prepared.state!=='prepared')return json(prepared);
