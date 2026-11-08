@@ -49,7 +49,7 @@ async function rpc(db: any, name: string, args: any = {}) {
       'Provide a reply of 1–2000 characters.':'Replies must contain 1–2000 characters.',
       'Marketing permission or brand access is unavailable.':'You do not have permission to send for this brand.'
     };
-    throw Object.assign(new Error('inbox_authority_rejected'),{safeMessage:safe[error.message]});
+    throw Object.assign(new Error('inbox_authority_rejected'),{safeMessage:safe[error.message],flowValidation:typeof safe[error.message]==='string'&&safe[error.message].startsWith('The Designer ')});
   }
   return data;
 }
@@ -299,7 +299,11 @@ Deno.serve(async (req) => {
           stage='settlement';
           return json(await settle({state:'completed',...result}));
         }catch(error){
-          if(stage==='settlement')throw error; // A lost acknowledgement must be replayed using the same request ID.
+          if(stage==='settlement'){
+            const rejection=error as {flowValidation?:boolean;safeMessage?:string};
+            if(rejection.flowValidation)return json(await settle({state:'failed',error:rejection.safeMessage}));
+            throw error; // An uncertain acknowledgement must be replayed using the same request ID.
+          }
           const reason=error instanceof Error?error.message:'request_failed';
           console.warn('flow_designer_request_failed',{stage,reason:['flow_provider_unavailable','flow_generation_incomplete','flow_generation_invalid','flow_edit_invalid','brand_unavailable'].includes(reason)?reason:'request_failed'});
           if(fallback&&stage==='provider'&&['flow_generation_invalid','flow_edit_invalid'].includes(reason))

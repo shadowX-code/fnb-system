@@ -41,3 +41,12 @@ it('returns a concise clarification without changing the current draft',async()=
  const result=await designAIFlow({description:'booking macam mana',brandName:'Fixture',history:[],draft:null,selected:null},'key','model',transport as typeof fetch);
  expect(result).toEqual({kind:'question',message:reply.message,choices:reply.choices});
 });
+
+it('fills optional collection defaults on new steps without changing existing fields',async()=>{
+ const {applyDesignerPatch}=await import('../../../../supabase/functions/_shared/aiFlowGeneration.ts');
+ const ask={id:'ask',type:'ask',next:'end',field:'guests',prompt:'Guests?',value_type:'number',required:true};
+ const draft={nodes:[{id:'trigger',type:'trigger',next:'ask'},ask,{id:'end',type:'end'}]};
+ const result=applyDesignerPatch(draft,[{...ask,next:'date',value_type:null,required:null},{id:'date',type:'ask',field:'date',prompt:'Preferred date?',next:'end',value_type:null,required:null}],[]);
+ expect(result.nodes[1]).toMatchObject({value_type:'number',required:true});
+ expect(result.nodes[2]).toMatchObject({value_type:'text',required:false});
+});
