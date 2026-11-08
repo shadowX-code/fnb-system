@@ -6,6 +6,15 @@ import Modal from '../../components/feedback/Modal.jsx';
 import {marketingService} from './marketingService.js';
 import {loadWhatsAppSDK,launchWhatsAppSignup,whatsappStateLabels as labels,whatsappReasonLabels as reasons} from './whatsappSignup.js';
 
+function ConnectionReadiness({receiving = false}) {
+ return <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+  <div><dt className="inline font-medium">Receiving</dt><dd className="ml-1 inline">{receiving ? 'Verified' : 'Not verified'}</dd></div>
+  <div><dt className="inline font-medium">FeedX sending</dt><dd className="ml-1 inline">Disabled</dd></div>
+  <div><dt className="inline font-medium">Number quality</dt><dd className="ml-1 inline">Not verified in FeedX</dd></div>
+  <div><dt className="inline font-medium">Messaging limits</dt><dd className="ml-1 inline">Not verified in FeedX</dd></div>
+ </dl>;
+}
+
 export default function WhatsAppConnections({organizationId,brandId,brands=[]}) {
  const auth=useAuth(),configure=auth.hasPermission('marketing_settings.configure');
  const [data,setData]=useState(null),[error,setError]=useState(''),[loading,setLoading]=useState(true),[refresh,setRefresh]=useState(0),[busy,setBusy]=useState(false),[prepared,setPrepared]=useState(null),[confirmed,setConfirmed]=useState(false),[shutdown,setShutdown]=useState(null);
@@ -45,8 +54,9 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
  }
  const readiness=current?.readiness,state=current?.connections?.[0]?.state||current?.signup_state||'not_connected';
  return <section className="card p-5" aria-label="WhatsApp Cloud API">
-  <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">WhatsApp Business App</h2><Badge tone={state==='connected'?'success':state==='action_required'?'warning':'neutral'}>{labels[state]||'Not Connected'}</Badge></div>
-  <p className="mt-2 text-sm">Connect an eligible WhatsApp Business App account through Meta while staff keep using the mobile app. This pilot receives messages only. Sending, AI replies and campaign execution are disabled.</p>
+  <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">WhatsApp</h2><Badge tone={state==='connected'?'success':state==='action_required'?'warning':'neutral'}>{labels[state]||'Not Connected'}</Badge></div>
+  <p className="mt-2 text-sm">Business App Coexistence uses Meta signup to connect an eligible existing account while staff keep using the mobile app. FeedX supports receive-only operation for an approved connection.</p>
+  <p className="mt-2 text-sm"><strong>Cloud API test number:</strong> Setup requires an authorized Meta test asset and a verified test recipient. Contact your FeedX administrator for test setup.</p>
   <AsyncDataSurface loading={loading} error={error} hasData={!!current} onRetry={()=>setRefresh(n=>n+1)}>
    {current?<>
     {brandId&&!current.connections?.length?<div className="mt-3"><Badge tone="neutral">{labels[readiness?.state]||'Verification Required'}</Badge></div>:null}
@@ -55,14 +65,13 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
     {current.connections?.length?<ul className="mt-3 space-y-3">{current.connections.map(c=><li key={c.id} className="text-sm">
      <div><strong>{c.account_name}</strong> · {brands.find(b=>b.id===c.brand_id)?.name||'Authorized Brand'} · {labels[c.state]||'Action Required'}</div>
      <p>{reasons[c.reason]||'Review this connection before continuing.'}</p>
-     <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
-      <div><dt className="inline font-medium">Receiving</dt><dd className="ml-1 inline">{c.state==='connected'?'Verified':'Not ready'}</dd></div>
-      <div><dt className="inline font-medium">FeedX sending</dt><dd className="ml-1 inline">Disabled</dd></div>
-      <div><dt className="inline font-medium">Quality and limits</dt><dd className="ml-1 inline">Not verified</dd></div>
-     </dl>
+     <ConnectionReadiness receiving={c.state==='connected'}/>
      {configure&&brandId?<div className="mt-2 flex flex-wrap gap-2">{c.local_state!=='disconnected'?<button className="btn-secondary" disabled={busy||!readiness?.eligible} onClick={()=>act(c,false,c.local_state==='paused')}>{c.local_state==='paused'?'Resume receiving':'Retry Verification'}</button>:null}<button className="btn-secondary" disabled={busy||!readiness?.eligible} onClick={()=>act(c,true)}>Reconnect</button>{c.local_state==='active'?<button className="btn-secondary" disabled={busy} onClick={()=>setShutdown({connection:c,action:'pause',request:crypto.randomUUID()})}>Pause receiving</button>:null}{c.local_state!=='disconnected'?<button className="btn-secondary" disabled={busy} onClick={()=>setShutdown({connection:c,action:'disconnect',request:crypto.randomUUID()})}>Disconnect from FeedX</button>:null}</div>:null}
-    </li>)}</ul>:<p className="mt-3 text-sm">No WhatsApp Cloud connection registered.</p>}
-    {configure&&brandId?<div className="mt-3 flex flex-wrap gap-2">{!current.connections?.length?<button className="btn-primary" disabled={busy||!readiness?.eligible} onClick={()=>act(null)}>Connect WhatsApp</button>:null}<button className="btn-secondary" disabled={busy} onClick={()=>setRefresh(n=>n+1)}>Check Eligibility</button></div>:null}
+    </li>)}</ul>:<>
+     <p className="mt-3 text-sm">No WhatsApp Cloud connection registered.</p>
+     <ConnectionReadiness/>
+    </>}
+    {configure&&brandId?<div className="mt-3 flex flex-wrap gap-2">{!current.connections?.length?<button className="btn-primary" disabled={busy||!readiness?.eligible} onClick={()=>act(null)}>Connect WhatsApp Business App</button>:null}<button className="btn-secondary" disabled={busy} onClick={()=>setRefresh(n=>n+1)}>Check Eligibility</button></div>:null}
    </>:null}
   </AsyncDataSurface>
   {shutdown?<Modal title={shutdown.action==='pause'?'Pause WhatsApp receiving':'Disconnect WhatsApp from FeedX'} onClose={()=>{if(!busy)setShutdown(null)}} footer={<button className="btn-primary" disabled={busy} onClick={stopReceiving}>{busy?'Updating…':shutdown.action==='pause'?'Confirm pause':'Confirm local disconnect'}</button>}>

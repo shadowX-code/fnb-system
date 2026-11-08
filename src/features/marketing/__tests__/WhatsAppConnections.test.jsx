@@ -9,7 +9,13 @@ it('blocks live signup while eligibility is missing',async()=>{
  marketingService.whatsappConnections.mockResolvedValue({connections:[]});
  render(<WhatsAppConnections organizationId="org" brandId="brand"/>);
  expect(await screen.findByText('No WhatsApp Cloud connection registered.')).toBeTruthy();
- expect(screen.getByText('Verification Required')).toBeTruthy();expect(screen.getByRole('button',{name:'Connect WhatsApp'}).disabled).toBe(true);fireEvent.click(screen.getByRole('button',{name:'Connect WhatsApp'}));expect(marketingService.beginWhatsApp).not.toHaveBeenCalled();expect(screen.queryByRole('textbox')).toBeNull();
+ expect(screen.getByText('Cloud API test number:')).toBeTruthy();
+ expect(screen.getByText('Not verified')).toBeTruthy();
+ expect(screen.getByText('Disabled')).toBeTruthy();
+ expect(screen.getByText('Number quality')).toBeTruthy();
+ expect(screen.getByText('Messaging limits')).toBeTruthy();
+ expect(screen.getAllByText('Not verified in FeedX')).toHaveLength(2);
+ expect(screen.getByText('Verification Required')).toBeTruthy();expect(screen.getByRole('button',{name:'Connect WhatsApp Business App'}).disabled).toBe(true);fireEvent.click(screen.getByRole('button',{name:'Connect WhatsApp Business App'}));expect(marketingService.beginWhatsApp).not.toHaveBeenCalled();expect(screen.queryByRole('textbox')).toBeNull();
 });
 it('discards a late response from the previous Brand',async()=>{
  let oldResolve;marketingService.whatsappConnections.mockImplementationOnce(()=>new Promise(r=>{oldResolve=r;})).mockResolvedValue({connections:[]});
@@ -20,7 +26,7 @@ it('discards a late response from the previous Brand',async()=>{
  await waitFor(()=>expect(screen.queryByText('Old private connection')).toBeNull());
 });
 
-it('requires one selected Brand before offering onboarding',async()=>{marketingService.whatsappConnections.mockResolvedValue({connections:[]});render(<WhatsAppConnections organizationId="org" brandId=""/>);await screen.findByText('Select one Brand to verify or connect WhatsApp.');expect(screen.queryByRole('button',{name:'Connect WhatsApp'})).toBeNull();});
+it('requires one selected Brand before offering onboarding',async()=>{marketingService.whatsappConnections.mockResolvedValue({connections:[]});render(<WhatsAppConnections organizationId="org" brandId=""/>);await screen.findByText('Select one Brand to verify or connect WhatsApp.');expect(screen.queryByRole('button',{name:'Connect WhatsApp Business App'})).toBeNull();});
 
 it.each([['pause','Pause receiving','Confirm pause'],['disconnect','Disconnect from FeedX','Confirm local disconnect']])('confirms %s locally without Meta calls, even when live signup is disabled',async(action,button,confirm)=>{
  marketingService.whatsappConnections.mockResolvedValue({connections:[{id:'connection',brand_id:'brand',account_name:'Fixture WhatsApp',state:'action_required',local_state:'active',credential_generation:7}]});
