@@ -12,7 +12,7 @@ function resize() {
   camera.aspect = w / h;
   // Fit the ribbons inside the actual canvas, with extra clearance above the Halo on short layouts.
   const aspectFit = THREE.MathUtils.clamp(8.1 / camera.aspect, 7.2, 9.5);
-  camera.position.z = Math.max(aspectFit, h < 300 ? 9 : 7.2);
+  camera.position.z = Math.max(aspectFit, h < 300 ? 10 : 7.2);
   camera.updateProjectionMatrix();
   skyU.uRes.value.set(w, h);
 }

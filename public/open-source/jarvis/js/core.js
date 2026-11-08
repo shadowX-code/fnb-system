@@ -248,7 +248,7 @@ world.add(core);
 
 /* out-of-focus bokeh in front of and behind the core */
 {
-  const n = small ? 40 : 110, a = new Float32Array(n * 3), s = new Float32Array(n), c = new Float32Array(n);
+  const n = small ? 20 : 48, a = new Float32Array(n * 3), s = new Float32Array(n), c = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const front = Math.random() < 0.35, low = !front && Math.random() < 0.55;
     a.set(low ? [(Math.random() * 2 - 1) * 4.5, -1.6 - Math.random() * 1.4, -0.5 - Math.random() * 3] : [(Math.random() * 2 - 1) * (front ? 3.2 : 6), (Math.random() * 2 - 1) * (front ? 2.0 : 3.5), front ? 2.2 + Math.random() * 2.4 : -2 - Math.random() * 4], i * 3);
@@ -267,7 +267,7 @@ world.add(core);
 
 /* ground: scattered city-like lights far below */
 {
-  const n = small ? 1500 : 4500, a = new Float32Array(n * 3), s = new Float32Array(n);
+  const n = small ? 420 : 1250, a = new Float32Array(n * 3), s = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const street = Math.random() < 0.6; const lane = Math.floor(Math.random() * 14) - 7;
     const x = street ? lane * 1.1 + (Math.random() - 0.5) * 0.08 : (Math.random() * 2 - 1) * 9;
@@ -292,7 +292,7 @@ function pointsLayer(count, fill, size, color, opacity) {
   g.setAttribute('position', new THREE.BufferAttribute(a, 3)); g.setAttribute('aS', new THREE.BufferAttribute(sd, 1));
   return g;
 }
-const dustG = pointsLayer(small ? 1500 : 4000, (a, i) => { const r = 2.6 + Math.random() * 5; const u = Math.random() * 2 - 1, t = Math.random() * 6.283; const s = Math.sqrt(1 - u * u); a.set([r * s * Math.cos(t), r * u * 0.7, r * s * Math.sin(t) - 1], i * 3); });
+const dustG = pointsLayer(small ? 650 : 1600, (a, i) => { const r = 2.6 + Math.random() * 5; const u = Math.random() * 2 - 1, t = Math.random() * 6.283; const s = Math.sqrt(1 - u * u); a.set([r * s * Math.cos(t), r * u * 0.7, r * s * Math.sin(t) - 1], i * 3); });
 const dustM = new THREE.ShaderMaterial({ uniforms: { uTime: U.uTime, uPixel: U.uPixel, uDorm: U.uDorm, uSkC: U.uSkC }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   vertexShader: `uniform float uTime,uPixel,uDorm; attribute float aS; varying float vA; void main(){ vec3 p=position; p.y+=sin(uTime*0.2+aS*30.0)*0.08; vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv; gl_PointSize=(0.6+aS*1.6)*uPixel*(4.0/-mv.z); vA=(0.12+0.4*pow(0.5+0.5*sin(uTime*(0.5+aS*2.)+aS*50.),6.))*(1.0-0.75*uDorm); }`,
   fragmentShader: `uniform vec3 uSkC; varying float vA; void main(){ vec2 d=gl_PointCoord-0.5; if(dot(d,d)>0.25) discard; gl_FragColor=vec4((uSkC*vec3(1.000,0.976,0.950))*vA,1.); }` });

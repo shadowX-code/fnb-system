@@ -372,7 +372,7 @@ body:not(.web-immersive) #webMessages li[data-outcome]>p{font-size:13px;color:#c
 body:not(.web-immersive) #stage{height:auto;aspect-ratio:1 / 1.05;max-height:calc(100% - 180px);top:30px;bottom:auto}
 @media(max-width:800px){
  body:not(.web-immersive) #stage{height:225px;aspect-ratio:auto;max-height:none;top:0}
- .web-immersive #stage{height:275px}
+ .web-immersive #stage{height:210px}
  .web-immersive .web-conversation{top:275px;bottom:70px}
 }
 /* Text and Voice share one lock and composer in the isolated presentation program. */
@@ -510,10 +510,10 @@ body:not(.web-immersive) #webComposer .bar-in{border-radius:16px;background:#102
 body:not(.web-immersive) #webComposer .bar-in:focus-within{background:#14323a!important}
 body:not(.web-immersive) #webSend{border-radius:10px}
 @media(max-width:800px){
- body:not(.web-immersive) #stage{height:228px;}
+ body:not(.web-immersive) #stage{height:210px}
  body:not(.web-immersive) .web-conversation{top:274px}
 }
 
 
 /* Keep the ribbons at full opacity and blend only the outer edge of the shared canvas. */
-#stage{mask-image:linear-gradient(#000 90%,transparent)}
+#stage{mask-image:linear-gradient(transparent,#000 5%,#000 90%,transparent)}
