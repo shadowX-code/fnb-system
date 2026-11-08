@@ -55,6 +55,11 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
     {current.connections?.length?<ul className="mt-3 space-y-3">{current.connections.map(c=><li key={c.id} className="text-sm">
      <div><strong>{c.account_name}</strong> · {brands.find(b=>b.id===c.brand_id)?.name||'Authorized Brand'} · {labels[c.state]||'Action Required'}</div>
      <p>{reasons[c.reason]||'Review this connection before continuing.'}</p>
+     <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+      <div><dt className="inline font-medium">Receiving</dt><dd className="ml-1 inline">{c.state==='connected'?'Verified':'Not ready'}</dd></div>
+      <div><dt className="inline font-medium">FeedX sending</dt><dd className="ml-1 inline">Disabled</dd></div>
+      <div><dt className="inline font-medium">Quality and limits</dt><dd className="ml-1 inline">Not verified</dd></div>
+     </dl>
      {configure&&brandId?<div className="mt-2 flex flex-wrap gap-2">{c.local_state!=='disconnected'?<button className="btn-secondary" disabled={busy||!readiness?.eligible} onClick={()=>act(c,false,c.local_state==='paused')}>{c.local_state==='paused'?'Resume receiving':'Retry Verification'}</button>:null}<button className="btn-secondary" disabled={busy||!readiness?.eligible} onClick={()=>act(c,true)}>Reconnect</button>{c.local_state==='active'?<button className="btn-secondary" disabled={busy} onClick={()=>setShutdown({connection:c,action:'pause',request:crypto.randomUUID()})}>Pause receiving</button>:null}{c.local_state!=='disconnected'?<button className="btn-secondary" disabled={busy} onClick={()=>setShutdown({connection:c,action:'disconnect',request:crypto.randomUUID()})}>Disconnect from FeedX</button>:null}</div>:null}
     </li>)}</ul>:<p className="mt-3 text-sm">No WhatsApp Cloud connection registered.</p>}
     {configure&&brandId?<div className="mt-3 flex flex-wrap gap-2">{!current.connections?.length?<button className="btn-primary" disabled={busy||!readiness?.eligible} onClick={()=>act(null)}>Connect WhatsApp</button>:null}<button className="btn-secondary" disabled={busy} onClick={()=>setRefresh(n=>n+1)}>Check Eligibility</button></div>:null}

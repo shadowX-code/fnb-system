@@ -75,3 +75,15 @@ it('renders canonical edited and deleted content without revealing superseded te
  expect(screen.queryByText('I will help you from the mobile app.')).toBeNull();
  expect(inboxService.suggest).not.toHaveBeenCalled();expect(inboxService.sendStaffReply).not.toHaveBeenCalled();
 });
+
+it.each([
+ [true, new Date(Date.now()+3600000).toISOString(), /Open until .* MYT/],
+ [false, '2026-10-23T00:00:00Z', /Closed · An approved WhatsApp template/],
+ [false, null, /Unverified · Waiting for an eligible WhatsApp customer message/],
+])('shows the server-projected WhatsApp window without enabling sending',async(window_open,window_expires_at,label)=>{
+ inboxService.detail.mockImplementation(async(_id,page)=>({...detail(page),window_open,window_expires_at}));
+ await open();
+ expect(screen.getByText(label)).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
+ expect(inboxService.sendStaffReply).not.toHaveBeenCalled();
+});

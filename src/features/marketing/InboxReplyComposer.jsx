@@ -3,6 +3,7 @@ import { Sparkles, Send, BookOpen, ThumbsUp, ThumbsDown } from "lucide-react";
 import {handoffHints,assistanceLabel} from '../../../supabase/functions/_shared/inboxAssistance.mjs';
 import {aiSuggestionUnavailable,faqPreviewMessage,aiSourceLabel} from "./inboxKnowledge.js";
 import SelectField from '../../components/forms/SelectField.jsx';
+import { formatOperationalDateTime } from "../../lib/dateTime.js";
 import { replyAvailability } from "./inboxPresentation.js";
 export default function InboxReplyComposer({
   current,
@@ -109,6 +110,20 @@ export default function InboxReplyComposer({
       setDirty(false);
     }
   }
+  const whatsAppDeadline = c.channel === "whatsapp" ? current.window_expires_at : null;
+  const [expiredDeadline, setExpiredDeadline] = useState(null);
+  useEffect(() => {
+    if (!whatsAppDeadline || !current.window_open) return;
+    const remaining = Date.parse(whatsAppDeadline) - Date.now();
+    if (!Number.isFinite(remaining)) return;
+    const timer = setTimeout(() => setExpiredDeadline(whatsAppDeadline), Math.max(0, remaining));
+    return () => clearTimeout(timer);
+  }, [whatsAppDeadline, current.window_open]);
+  const whatsAppWindow = current.window_open && whatsAppDeadline && expiredDeadline !== whatsAppDeadline
+    ? `Open until ${formatOperationalDateTime(current.window_expires_at)} MYT`
+    : current.window_expires_at
+      ? "Closed · An approved WhatsApp template is required to contact the customer outside the window."
+      : "Unverified · Waiting for an eligible WhatsApp customer message.";
   // WhatsApp execution remains unavailable independently of general messaging/AI flags.
   // Team notes continue through the same permission-checked canonical note authority.
   if (c.channel === "whatsapp" && mode === "reply") return (
@@ -119,9 +134,10 @@ export default function InboxReplyComposer({
         <span className="inbox-tool-spacer" />
         {can("ai") && <button className="btn-secondary" disabled title="WhatsApp AI suggestions and automatic replies are disabled."><Sparkles size={14} />AI Suggested Reply</button>}
       </div>
-      <p className="inbox-assistance-status" role="status">WhatsApp Staff Reply is disabled. Onboarding awaits Meta verification and an authorized receive-only pilot. Sending, AI replies and campaigns remain off.</p>
+      <p className="inbox-assistance-status" role="status"><strong>24-hour service window</strong> · {c.opted_out ? "Customer opted out. Replies paused." : whatsAppWindow}</p>
+      <p className="inbox-muted">FeedX sending is disabled for WhatsApp.</p>
       <p className="inbox-muted">{current.channel_capability?.receiving_verified ? "Receiving verification is recorded; this does not enable replies." : "Receiving has not been verified for this conversation."} Mobile-app replies remain separate from FeedX sending.</p>
-      {canViewConnections && <a className="inbox-text-button" href={`/marketing/connections?marketing_brand=${encodeURIComponent(c.brand_id || '')}`}>View Connections</a>}
+      {canViewConnections && <a className="inbox-text-button" href={`/marketing/connections?marketing_brand=${encodeURIComponent(c.brand_id || '')}&marketing_org=${encodeURIComponent(c.organization_id || '')}`}>View Connections</a>}
       <label className="sr-only" htmlFor={`inbox-compose-${c.id}`}>Staff Reply</label>
       <textarea id={`inbox-compose-${c.id}`} className="control" rows={2} disabled placeholder="WhatsApp Staff Reply is unavailable" />
       <div className="inbox-composer-footer"><p>Receive-only preparation · no message will be sent</p>{can("reply") && <button className="btn-primary" disabled><Send size={14} />Send</button>}</div>
