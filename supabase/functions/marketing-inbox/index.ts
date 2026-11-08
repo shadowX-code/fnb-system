@@ -28,6 +28,13 @@ async function rpc(db: any, name: string, args: any = {}) {
       'Daily AI request limit reached.':'The shared daily AI request limit has been reached. Try again after earlier requests expire.',
       'Save Brand AI consent before testing.':'Save this Brand’s AI consent before testing.',
       'Choose an active Outlet linked to this Brand.':'Choose an active Outlet linked to this Brand.',
+      'Flow definition is invalid.':'The Designer produced an invalid flow definition. Try a simpler request.',
+      'Flow steps or channels are invalid.':'The Designer produced invalid steps or channels. Try again.',
+      'Each step must be reachable and have a unique ID.':'The Designer produced unreachable or duplicate steps. Try again.',
+      'Add a question or message to the step.':'The Designer omitted a required question or message. Try again.',
+      'Invalid collection field.':'The Designer produced an invalid collection field. Try again.',
+      'Invalid condition.':'The Designer produced an invalid condition. Try again.',
+      'Each branch must go to a later step.':'The Designer produced an invalid connection. Try again.',
       'Flow generation limit reached.':'Flow generation limit reached. Wait before trying again.',
       'Test request identity changed.':'The test context changed. Start a new test turn.',
       'Take over this conversation before sending a staff reply.':'Take over this conversation before sending a staff reply.',
@@ -292,7 +299,7 @@ Deno.serve(async (req) => {
           return json({state:'completed',...result});
         }catch(error){
           const reason=error instanceof Error&&['flow_provider_unavailable','flow_generation_incomplete','flow_generation_invalid','flow_edit_invalid','unsupported_booking_intent'].includes(error.message)?error.message:'request_failed';
-          console.warn('flow_designer_request_failed',{stage,reason});
+          console.warn('flow_designer_request_failed',{stage,reason,detail:(error as {safeMessage?:string})?.safeMessage||null});
           if(!fallback)throw error;
           await rpc(service,'marketing_ai_flow_generate_finish',{p_request:body.requestId,p_definition:fallback.definition});
           return json({state:'completed',...fallback,usedFallback:true});
