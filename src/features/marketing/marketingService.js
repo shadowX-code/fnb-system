@@ -21,6 +21,7 @@ async function meta(command, body) {
 export const marketingService = {
   whatsappConnections:(org,brand,signal)=>rpc('marketing_whatsapp_connections',{p_org:org,p_brand:brand||null},signal),
   whatsappReadiness:(organizationId,brandId)=>meta('whatsapp/readiness',{organizationId,brandId:brandId||null}),
+  bindWhatsAppCloudTest:body=>meta('whatsapp/bind-cloud-test',body),
   beginWhatsApp:body=>meta('whatsapp/begin',body),
   completeWhatsApp:body=>meta('whatsapp/complete',body),
   aiFlows:(org,brand)=>rpc('marketing_ai_flow_drafts',{p_org:org,p_brand:brand}),

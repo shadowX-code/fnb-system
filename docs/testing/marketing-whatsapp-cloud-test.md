@@ -10,11 +10,17 @@
 
 | Surface | Implemented | Needed for the test |
 |---|---|---|
-| Connections | Brand-scoped authorization, encrypted credentials, exact phone/WABA identity and current-generation verification for the gated Coexistence path. | An authorized Cloud API test binding. The signup completion handler accepts Coexistence only and requires Business App evidence. A dashboard test asset cannot pass that path. |
+| Connections | Brand-scoped authorization, encrypted credentials, exact phone/WABA identity and current-generation verification for the gated Coexistence path. | A separate Staging-only test binding verifies the dashboard test asset with Meta before saving a generation-bound credential. |
 | WhatsApp Chat | Canonical conversation records, signed webhook normalization, generation fencing, immutable corrections, deduplication, external echoes and receipt reconciliation against matching outbox evidence. The service window derives from current-generation signed inbound messages. | Live Meta subscription and first inbound. The composer, send-material RPC and transport currently block WhatsApp sending. Manual test replies need a guarded Cloud API transport that consumes the existing durable send authority. |
 | CRM | Brand-scoped customer identity and explicit consent/suppression evidence. Inbox uses verified identity relationships. | Link a controlled test identity through the canonical CRM authority. A service conversation and provider phone match alone grant no marketing consent. Verify the same connection, Brand and peer carry replies and staff handoff. |
 | Campaign Message | Brand audience, consent and suppression checks, approved revisions and manual recipient handling. Existing caption substitutions are local and staff confirmation records manual handling. | Read approved templates from the verified WABA, validate locale and ordered variables, pin a reviewed template revision, and recheck recipient consent at execution. Official scheduling, per-recipient Cloud API submission, receipt linkage and reply attribution remain pending. |
 | AI Flows | Drafts, previews and simulation. | Live runtime remains disabled during this test. |
+
+## Staging secret handoff
+
+In [Staging Supabase Edge Function Secrets](https://supabase.com/dashboard/project/ujkzdaaadnvcfayuldmh/functions/secrets), save the temporary test token as `MARKETING_WHATSAPP_TEST_ACCESS_TOKEN`. Save the UUID of the explicitly authorized isolated Brand as `MARKETING_WHATSAPP_TEST_BRAND_ID`. Leave the existing `MARKETING_INBOX_WEBHOOK_VERIFY_TOKEN` unchanged. The token is read only on the server and the bound credential uses the existing encrypted store.
+
+After Meta confirms the canonical callback, the `messages` field and the test WABA subscription, select the isolated Brand in Marketing → Connections and choose **Verify and bind test number**. A successful bind reports that it is waiting for the first signed inbound event. Remove the temporary secret after the test or rotate it for a new verification. A local pause or disconnect leaves the Meta subscription intact.
 
 ## Isolated onboarding handoff
 

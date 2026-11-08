@@ -2,7 +2,7 @@ import {it,expect,vi,beforeEach} from 'vitest';
 import {render,screen,waitFor,cleanup,fireEvent} from '@testing-library/react';
 import WhatsAppConnections from '../WhatsAppConnections.jsx';
 import {marketingService} from '../marketingService.js';
-vi.mock('../marketingService.js',()=>({marketingService:{whatsappConnections:vi.fn(),whatsappReadiness:vi.fn(),beginWhatsApp:vi.fn(),verifyWhatsApp:vi.fn(),whatsappLocalCommand:vi.fn()}}));
+vi.mock('../marketingService.js',()=>({marketingService:{whatsappConnections:vi.fn(),whatsappReadiness:vi.fn(),bindWhatsAppCloudTest:vi.fn(),beginWhatsApp:vi.fn(),verifyWhatsApp:vi.fn(),whatsappLocalCommand:vi.fn()}}));
 vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>({user:{id:'user'},hasPermission:()=>true})}));
 beforeEach(()=>{cleanup();vi.clearAllMocks();marketingService.whatsappReadiness.mockResolvedValue({eligible:false,state:'verification_required',reason:'pilot_activation_required'});});
 it('blocks live signup while eligibility is missing',async()=>{
@@ -44,4 +44,14 @@ it('requires an explicit verified Resume action for a paused connection',async()
  marketingService.verifyWhatsApp.mockResolvedValue({});render(<WhatsAppConnections organizationId="org" brandId="brand"/>);
  fireEvent.click(await screen.findByRole('button',{name:'Resume receiving'}));
  await waitFor(()=>expect(marketingService.verifyWhatsApp).toHaveBeenCalledWith({organizationId:'org',brandId:'brand',connectionId:'connection',generation:8,resumeReceiving:true}));
+});
+
+it('offers the server-configured test binding independently of live signup',async()=>{
+ marketingService.whatsappReadiness.mockResolvedValue({cloud_test_configured:true,eligible:false,state:'verification_required'});
+ marketingService.whatsappConnections.mockResolvedValue({connections:[]});
+ marketingService.bindWhatsAppCloudTest.mockResolvedValue({});
+ render(<WhatsAppConnections organizationId="org" brandId="isolated"/>);
+ fireEvent.click(await screen.findByRole('button',{name:'Verify and bind test number'}));
+ await waitFor(()=>expect(marketingService.bindWhatsAppCloudTest).toHaveBeenCalledWith({organizationId:'org',brandId:'isolated',generation:0}));
+ expect(screen.getByRole('button',{name:'Connect WhatsApp Business App'}).disabled).toBe(true);
 });

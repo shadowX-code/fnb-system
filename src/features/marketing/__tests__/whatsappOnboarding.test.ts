@@ -76,3 +76,35 @@ it('isolates malformed lifecycle changes and retains encrypted valid history; en
  const events=await whatsappLifecycle(payload,key,Date.now(),reject);expect(events).toHaveLength(1);expect(events[0].progress).toBe(100);expect(reject).toHaveBeenCalledTimes(2);
  await expect(whatsappLifecycle(payload,'missing-key')).rejects.toThrow();
 });
+
+describe('Staging Cloud API test number verification',()=>{
+ const config={...c,appId:'2204918033458414'};
+ const waba='1675083730240518',phone='1221509657713215',now=1700000000000;
+ const debug={is_valid:true,app_id:config.appId,user_id:'999',type:'USER',scopes:['whatsapp_business_management','whatsapp_business_messaging'],expires_at:1700003600};
+ const subscription={object:'whatsapp_business_account',callback_url:config.callback,active:true,fields:[{name:'messages'}]};
+ const fixture=(overrides={})=>graph({
+  debug_token:{data:debug},[waba]:{id:waba},[`${waba}/phone_numbers`]:{data:[{id:phone}]},
+  [phone]:{id:phone,platform_type:'CLOUD_API'},[`${config.appId}/subscriptions`]:{data:[subscription]},
+  [`${waba}/subscribed_apps`]:{data:[{whatsapp_business_api_data:{id:config.appId}}]},...overrides
+ });
+ it('verifies a temporary dashboard token and uses read-only Graph calls',async()=>{
+  const {verifyWhatsAppCloudTest}=await import('../../../../supabase/functions/_shared/whatsappOnboarding.ts');
+  const g=fixture();
+  await expect(verifyWhatsAppCloudTest(g,config,'fixture',now)).resolves.toEqual({subject:'999',expiresAt:new Date(debug.expires_at*1000).toISOString()});
+  expect(g.request).toHaveBeenCalledTimes(6);
+  expect(g.request.mock.calls.every(args=>args.length<=3)).toBe(true);
+ });
+ it.each([
+  ['wrong app',{debug_token:{data:{...debug,app_id:'100'}}}],
+  ['expired token',{debug_token:{data:{...debug,expires_at:1700000000}}}],
+  ['unscoped token',{debug_token:{data:{...debug,scopes:[]}}}],
+  ['wrong WABA grant',{debug_token:{data:{...debug,granular_scopes:[{scope:'whatsapp_business_management',target_ids:['666']}]}}}],
+  ['wrong phone',{[`${waba}/phone_numbers`]:{data:[{id:'666'}]}}],
+  ['wrong callback',{[`${config.appId}/subscriptions`]:{data:[{...subscription,callback_url:'https://wrong.invalid'}]}}],
+  ['missing messages field',{[`${config.appId}/subscriptions`]:{data:[{...subscription,fields:[]}]}}],
+  ['unsubscribed WABA',{[`${waba}/subscribed_apps`]:{data:[]}}],
+ ])('rejects %s',async(_,overrides)=>{
+  const {verifyWhatsAppCloudTest}=await import('../../../../supabase/functions/_shared/whatsappOnboarding.ts');
+  await expect(verifyWhatsAppCloudTest(fixture(overrides),config,'fixture',now)).rejects.toThrow();
+ });
+});

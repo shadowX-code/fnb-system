@@ -956,7 +956,7 @@ Sounds are optional, off by default, limited to authorized Brands while Marketin
 
 ### WhatsApp connection readiness
 
-Connections separates Cloud API test setup from the Business App Coexistence signup action. It reports receiving, FeedX sending, number quality and messaging limits independently. Receiving Verified requires the current generation's signed inbound evidence and the existing onboarding checks. A phone listed as Connected in WhatsApp Manager does not confer FeedX authority. Quality and limits stay unverified in FeedX until a provider read can be tied to the exact authorized asset. See the [Cloud API test acceptance procedure](../testing/marketing-whatsapp-cloud-test.md).
+Connections separates Cloud API test setup from the Business App Coexistence signup action. It reports receiving, FeedX sending, number quality and messaging limits independently. The Staging test path pins the app, WABA, phone and isolated Brand, verifies the token and both webhook subscriptions with read-only Graph calls, and uses the shared encrypted credential authority. Receiving Verified requires a signed inbound message on the current generation. Business App Coexistence also requires its own onboarding and synchronization evidence. A phone listed as Connected in WhatsApp Manager does not confer FeedX authority. Quality and limits stay unverified in FeedX until a provider read can be tied to the exact authorized asset. See the [Cloud API test acceptance procedure](../testing/marketing-whatsapp-cloud-test.md).
 
 ### WhatsApp Workflow simulation
 

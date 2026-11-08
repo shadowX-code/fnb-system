@@ -1,16 +1,29 @@
 import {MetaGraph,MetaError} from './metaGraph.ts';
 import {connectionBinding,hash,nonce,seal,unseal,tokenEncryptionReady,STAGING_SUPABASE} from './metaSecurity.ts';
-import {configured,exchangeWhatsAppCode,verifyWhatsAppAssets,resolveWhatsAppSignupAssets,finishWhatsAppOnboarding,type WhatsAppConfig} from './whatsappOnboarding.ts';
+import {CLOUD_TEST_APP,CLOUD_TEST_PHONE,verifyWhatsAppCloudTest,configured,exchangeWhatsAppCode,verifyWhatsAppAssets,resolveWhatsAppSignupAssets,finishWhatsAppOnboarding,type WhatsAppConfig} from './whatsappOnboarding.ts';
 async function call(db:any,name:string,args:any){const {data,error}=await db.rpc(name,args);if(error)throw new MetaError('whatsapp_authority_rejected');return data;}
 export async function whatsappSignupHandler(path:string,body:any,caller:any,service:any,user:string,env:(n:string)=>string){
  const c:WhatsAppConfig={appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),version:env('MARKETING_META_GRAPH_VERSION'),configId:env('MARKETING_WHATSAPP_SIGNUP_CONFIG_ID'),signupVersion:env('MARKETING_WHATSAPP_SIGNUP_VERSION'),enabled:env('MARKETING_WHATSAPP_ONBOARDING_ENABLED')==='true',callback:`${STAGING_SUPABASE}/functions/v1/marketing-inbox/webhook`};
  const ready=await call(caller,'marketing_whatsapp_readiness',{p_org:body.organizationId,p_brand:body.brandId||null,p_app:c.appId,p_config:c.configId,p_version:c.version,p_signup:c.signupVersion});
+ const key=env('MARKETING_META_TOKEN_ENCRYPTION_KEY');
+ const testBrand=env('MARKETING_WHATSAPP_TEST_BRAND_ID');
+ const testToken=env('MARKETING_WHATSAPP_TEST_ACCESS_TOKEN');
+ const cloudTestConfigured=env('SUPABASE_URL')===STAGING_SUPABASE&&c.appId===CLOUD_TEST_APP
+  &&!!c.appSecret&&/^v\d+\.0$/.test(c.version)&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(testBrand)
+  &&body.brandId===testBrand&&!!ready.can_configure&&!!testToken&&testToken.length<=16000&&await tokenEncryptionReady(key);
+ if(path==='/whatsapp/bind-cloud-test'){
+  if(!cloudTestConfigured||!Number.isSafeInteger(body.generation)||body.generation<0)throw new MetaError('whatsapp_verification_required');
+  const graph=new MetaGraph({appId:c.appId,appSecret:c.appSecret,configId:c.configId,version:c.version});
+  const evidence=await verifyWhatsAppCloudTest(graph,c,testToken);
+  const sealed=await seal({token:testToken},key,connectionBinding({brand_id:testBrand,channel:'whatsapp',provider_account_id:CLOUD_TEST_PHONE}));
+  return await call(service,'marketing_whatsapp_bind_cloud_test',{p_org:body.organizationId,p_brand:testBrand,p_auth_user:user,
+   p_generation:body.generation,p_sealed:sealed,p_subject:evidence.subject,p_expiry:evidence.expiresAt});
+ }
  const serverReady=configured(c)&&await tokenEncryptionReady(env('MARKETING_META_TOKEN_ENCRYPTION_KEY'));
  const eligible=ready.eligible&&serverReady&&c.enabled;
- if(path==='/whatsapp/readiness')return {...ready,eligible,state:eligible?'eligible':'verification_required',reason:!serverReady?'server_configuration_required':!c.enabled?'pilot_activation_required':ready.reason,sending_enabled:false,ai_enabled:false};
+ if(path==='/whatsapp/readiness')return {...ready,cloud_test_configured:cloudTestConfigured,eligible,state:eligible?'eligible':'verification_required',reason:!serverReady?'server_configuration_required':!c.enabled?'pilot_activation_required':ready.reason,sending_enabled:false,ai_enabled:false};
  if(!eligible||!ready.can_configure)throw new MetaError('whatsapp_verification_required');
  const g=new MetaGraph({appId:c.appId,appSecret:c.appSecret,configId:c.configId,version:c.version});
- const key=env('MARKETING_META_TOKEN_ENCRYPTION_KEY');
  if(path==='/whatsapp/begin'){
   const state=nonce();const s=await call(caller,'marketing_whatsapp_begin',{p_org:body.organizationId,p_brand:body.brandId,p_state_hash:await hash(state),p_app:c.appId,p_config:c.configId,p_version:c.version,p_signup:c.signupVersion,p_connection:body.connectionId||null,p_generation:body.generation??0});
   return {...s,state,appId:c.appId,configId:c.configId,graphVersion:c.version,signupVersion:c.signupVersion};
