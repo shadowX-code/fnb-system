@@ -223,8 +223,31 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
     const fp=JSON.stringify([org,brand,form]);if(intent.current?.fp!==fp)intent.current={fp,id:crypto.randomUUID()};return intent.current.id;
   }
   async function save() {
+    if (busy) return;
+    if (modal === "link_customer") {
+      if (!can("platform_customers.manage") || brandInactive) return;
+      await perform(async () => {
+        try {
+          return await outreachService.customer(customerRequest(), org, brand, {
+            customer_id: form.id,
+            phone: form.phone,
+          });
+        } catch (error) {
+          // The command checks all Brand permissions before reporting an existing link.
+          if (error.cause?.message !== "Customer already belongs to this brand. Use Edit customer.") throw error;
+        }
+      }, "Customer linked to this Brand. WhatsApp consent is unchanged.");
+      return;
+    }
     if (modal === "customer") {
-      normalizeMalaysianPhone(form.phone);
+      const phone = normalizeMalaysianPhone(form.phone);
+      if (!form.edit && can("platform_customers.manage") && !brandInactive) {
+        const existing = data?.shared_customers?.find(customer => customer.phone === phone);
+        if (existing) {
+          show("link_customer", existing);
+          return;
+        }
+      }
       await perform(
         () =>
           outreachService.customer(customerRequest(), org, brand, {
@@ -656,6 +679,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
             title={
               modal === "campaign"
                 ? "Campaign draft"
+                : modal === "link_customer" ? "Link Existing Customer"
                 : modal === "customer"
                   ? form.edit ? "Edit customer" : "Add customer"
                   : modal === "confirm"
@@ -688,6 +712,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                   className="btn-primary"
                   disabled={
                     busy ||
+                    (modal === "link_customer" && (!can("platform_customers.manage") || brandInactive)) ||
                     (modal==='campaign'&&(!form.title?.trim()||!form.caption?.trim())) ||
                     (["approve", "confirm", "unsuppress"].includes(
                       modal,
@@ -720,13 +745,18 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                     else save().catch((e) => setError(e.message));
                   }}
                 >
-                  {modal === "sender_session" ? "Confirm Sender & Start Session" : modal === "customer" ? "Save customer" : modal === "campaign" ? "Save draft" : "Confirm"}
+                  {modal === "sender_session" ? "Confirm Sender & Start Session" : modal === "link_customer" ? "Link to Current Brand" : modal === "customer" ? "Save customer" : modal === "campaign" ? "Save draft" : "Confirm"}
                 </button>
               </>
             }
           >
             <div className="space-y-3">
               {error?<p role="alert" className="text-danger">{error}</p>:null}
+              {modal === "link_customer" ? <>
+                <p><strong>{form.name || form.phone}</strong>{form.name ? ` · ${form.phone}` : ""}</p>
+                <p>Linking this customer to <strong>{brandName}</strong> makes their shared customer profile visible to authorized users of that Brand.</p>
+                <p>Existing Brand relationships and consent history are preserved. This link does not grant WhatsApp consent.</p>
+              </> : null}
               {modal==='customer'?<>
                 <div className="outreach-form-grid">
                   <label className="admin-form-field"><span className="admin-form-field-label">Customer Name</span><input className="control" value={form.name||''} maxLength={160} onChange={e=>field('name',e.target.value)}/></label>

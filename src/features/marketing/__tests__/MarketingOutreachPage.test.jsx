@@ -99,3 +99,39 @@ it('shows provider reconciliation separately from rehearsal and can pause withou
  expect(outreach.whatsappExecutionCommand).toHaveBeenCalledWith('org','brand','campaign',expect.any(String),'pause',{revision:1,run_id:'run'});
  expect(outreach.command).not.toHaveBeenCalled();
 });
+
+it('confirms an authorized exact phone match before linking only the existing identity', async () => {
+  outreach.read.mockResolvedValue({...base, shared_customers: [{id:'existing', name:'QA Contact', phone:'+60123458678'}]});
+  outreach.customer.mockRejectedValueOnce(new Error('Connection interrupted')).mockResolvedValueOnce({id:'existing'});
+  render(<MarketingOutreachPage />);
+  await chooseBrand();
+  fireEvent.click(await screen.findByRole('button', {name:'Add customer'}));
+  fireEvent.change(screen.getByLabelText('Phone Number'), {target:{value:'012-345 8678'}});
+  fireEvent.change(screen.getByLabelText('Customer Name'), {target:{value:'Do not save this'}});
+  fireEvent.click(screen.getByRole('button', {name:'Save customer'}));
+  const dialog = await screen.findByRole('dialog', {name:'Link Existing Customer'});
+  expect(within(dialog).getByText(/makes their shared customer profile visible/)).toBeTruthy();
+  expect(outreach.customer).not.toHaveBeenCalled();
+  const link = within(dialog).getByRole('button', {name:'Link to Current Brand'});
+  fireEvent.click(link);
+  await within(dialog).findByText('Connection interrupted');
+  fireEvent.click(link);
+  await screen.findByText('Customer linked to this Brand. WhatsApp consent is unchanged.');
+  expect(outreach.customer).toHaveBeenCalledTimes(2);
+  expect(outreach.customer.mock.calls[0]).toEqual([expect.any(String), 'org', 'brand', {customer_id:'existing', phone:'+60123458678'}]);
+  expect(outreach.customer.mock.calls[1]).toEqual(outreach.customer.mock.calls[0]);
+  expect(outreach.command).not.toHaveBeenCalled();
+});
+
+it('shows only the generic error when the authorized read has no sharing match', async () => {
+  const collision = 'A customer with this number already exists. An authorized administrator must review brand sharing.';
+  outreach.customer.mockRejectedValueOnce(new Error(collision));
+  render(<MarketingOutreachPage />);
+  await chooseBrand();
+  fireEvent.click(await screen.findByRole('button', {name:'Add customer'}));
+  fireEvent.change(screen.getByLabelText('Phone Number'), {target:{value:'012-345 8678'}});
+  fireEvent.click(screen.getByRole('button', {name:'Save customer'}));
+  await within(screen.getByRole('dialog', {name:'Add customer'})).findByText(collision);
+  expect(screen.queryByRole('button', {name:'Link to Current Brand'})).toBeNull();
+  expect(outreach.customer.mock.calls[0][3]).not.toHaveProperty('customer_id');
+});
