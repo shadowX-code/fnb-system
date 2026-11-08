@@ -41,8 +41,8 @@ web.innerHTML=`<div class="web-core-caption"><span class="web-status-dot"></span
 <div class="web-core-name" aria-hidden="true">J A R V I S</div>
 <aside class="web-telemetry" aria-label="Session telemetry">
 <section class="web-hud-panel"><h2>Agent activity</h2><ol id="webActivity"><li class="web-activity-idle">Waiting for a request</li></ol></section>
-<section class="web-hud-panel"><h2>Current session</h2><div class="web-session-body"><div class="web-session-ring"><strong id="webTurnCount">0</strong><span>Turns</span></div><dl id="webSessionFacts"></dl></div></section>
-<section class="web-hud-panel"><h2>Voice state</h2><div class="web-voice-state"><p id="webLiveState">Idle</p>${voiceWave}</div></section>
+<section class="web-hud-panel"><h2>Current session</h2><div class="web-session-body"><div class="web-session-ring"><strong id="webTurnCount">0</strong><span>Turns</span></div><dl id="webSessionFacts"></dl></div><details class="web-voice-diagnostics"><summary>Session details</summary><div id="webVoiceDiagnostics">No call diagnostics yet.</div></details></section>
+<section class="web-hud-panel"><h2>Voice state</h2><div class="web-voice-state">${voiceWave}</div><p id="webVoiceAvailability" role="status"></p><div class="web-voice-actions"><button type="button" id="webVoiceResume" hidden>Resume audio</button><button type="button" id="webVoiceRefresh">Check availability</button><button type="button" id="webVoiceUsage">Usage &amp; limits</button></div></section>
 </aside>
 <section class="web-conversation" aria-label="AI conversation"><section class="web-operations" aria-label="Operations intelligence"><h2>Operations intelligence</h2><div id="webOperations"></div></section><header><h1>Conversation</h1><button type="button" id="webNew" aria-label="New Conversation">New</button></header>
 <button type="button" id="webOlder" hidden>Load older messages</button>
@@ -284,6 +284,9 @@ older.onclick=()=>{older.disabled=true;request('older');};
 $('#mic').style.display='none';$('#webVoice').style.display='none';
 $('#mic').onclick=()=>showNotice('Speech recognition unavailable. No microphone was opened. You can type your request.',true);
 $('#webVoice').onclick=()=>showNotice('Voice output unavailable. Use the voice control above the conversation.',true);
+$('#webVoiceResume').onclick=()=>request('voice_resume');
+$('#webVoiceRefresh').onclick=()=>request('voice_refresh');
+$('#webVoiceUsage').onclick=()=>request('voice_usage');
 $('#webRetry').onclick=()=>{const last=[...currentSession.messages].reverse().find(m=>m.role==='user');if(last)handle(last.text);};
 $('#webStop').onclick=()=>{if(connected)request('cancel');activity(activeRequest,'cancelled',{at:Date.now()});activeRequest='';captureEpoch++;setState('idle');showNotice('Stopped. No AI generation, recording or playback is running.');};
 addEventListener('keydown', event => {
@@ -400,9 +403,21 @@ addEventListener('message',event=>{
  }
  if(d.type==='voice_error'){showNotice(d.message||'Voice service unavailable.',true);return;}
  if(d.type==='voice_level'){d.bands?.slice(0,20).forEach((value,i)=>document.body.style.setProperty('--voice-band-'+i,String(Math.max(0,Math.min(1,Number(value)||0)))));window.FEEDX_AUDIO_LEVEL=Math.max(0,Math.min(1,Number(d.level)||0));return;}
+ if(d.type==='voice_telemetry'){
+  $('#webVoiceAvailability').textContent=d.active ? d.message || 'Voice session active.' : d.message || '';
+  $('#webVoiceResume').hidden=!d.resume;
+  $('#webVoiceRefresh').hidden=d.active;
+  const diagnostics=$('#webVoiceDiagnostics');
+  diagnostics.replaceChildren();
+  if(!d.report){diagnostics.textContent=d.active?'Diagnostics appear after the call.':'No call diagnostics yet.';return;}
+  for(const line of d.report.metrics){const p=document.createElement('p');p.textContent=line;diagnostics.append(p);}
+  const events=document.createElement('ol');
+  for(const line of d.report.events){const li=document.createElement('li');li.textContent=line;events.append(li);}
+  if(events.children.length)diagnostics.append(events);
+  return;
+ }
  if(d.type==='voice_state'){
   document.body.dataset.voiceState=d.state;
-  $('#webLiveState').textContent=({connecting:'Connecting',reconnecting:'Reconnecting',ending:'Ending voice',suspended:'Microphone suspended',listening:'Listening',transcribing:'Thinking',executing:'Executing',speaking:'Speaking',interrupted:'Interrupted',error:'Error',playback_blocked:'Playback blocked'})[d.state]||'Idle';
   const states={reconnecting:'thinking',connecting:'thinking',ending:'idle',suspended:'idle',interrupted:'listening',listening:'listening',transcribing:'thinking',executing:'executing',speaking:'speaking',error:'error'};window.FEEDX_AUDIO_LEVEL=0;if(states[d.state])setState(states[d.state]);else if(!activeRequest)setState('idle');return;}
  if(d.request_id!==activeRequest)return;
  if(d.type==='state'&&d.state==='executing'){activity(activeRequest,'executing',{factory:true,at:Date.now()});setState('executing');showNotice('Reading authorized Factory Finished Goods…');}

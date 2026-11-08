@@ -508,3 +508,22 @@ body:not(.web-immersive) .web-conversation{bottom:var(--composer-space,65px)}
 @media(prefers-reduced-motion:reduce){
  .web-immersive #webComposePanel #webComposer{transition:none;transform:none}
 }
+
+.web-immersive .web-voice-state{min-height:30px;justify-content:flex-start}
+.web-immersive .web-voice-state .web-real-audio{height:28px}
+.web-immersive .web-voice-diagnostics,.web-immersive #webVoiceAvailability{
+ color:var(--hud-muted);font-size:11px;line-height:1.5;
+}
+.web-immersive .web-voice-diagnostics{margin-top:8px}
+.web-immersive .web-voice-diagnostics summary{padding:6px 0;cursor:pointer;color:var(--hud-cyan)}
+.web-immersive #webVoiceDiagnostics{max-height:110px;overflow:auto;overflow-wrap:anywhere}
+.web-immersive #webVoiceDiagnostics p,.web-immersive #webVoiceAvailability{margin:4px 0}
+.web-immersive #webVoiceDiagnostics ol{padding-left:18px}
+.web-immersive .web-voice-actions{display:flex;gap:4px 12px;flex-wrap:wrap}
+.web-immersive .web-voice-actions button{
+ border:0;background:none;color:var(--hud-cyan);font-size:11px;padding:4px 0;min-height:32px;
+}
+@media(max-width:800px){
+ .web-immersive .web-core-name{top:177px;bottom:auto}
+ .web-immersive .web-voice-actions button,.web-immersive .web-voice-diagnostics summary{min-height:44px}
+}

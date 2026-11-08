@@ -76,6 +76,12 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   ]);
   input.blur();
   post('view',{immersive:true});
+  post('voice_telemetry',{message:'Connection interrupted',resume:true,active:true,report:{metrics:['Audio tokens: 20 in / 30 out'],events:['42 ms · connected']}});
+  expect($('#webVoiceAvailability').textContent).toBe('Connection interrupted');
+  expect($('#webVoiceResume').hidden).toBe(false);
+  expect($('#webVoiceRefresh').hidden).toBe(true);
+  expect($('#webVoiceDiagnostics').closest('details').open).toBe(false);
+  expect($('#webVoiceDiagnostics ol').textContent).toContain('42 ms · connected');
   const toggle=$('#webComposeToggle');
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
   fireEvent.click(toggle);

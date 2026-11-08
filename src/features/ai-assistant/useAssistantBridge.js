@@ -1,3 +1,4 @@
+import {voiceAvailability,voiceDiagnostics,voicePresentation} from './VoiceInteraction.jsx';
 import {createSdkVoiceBaseline} from './sdkVoiceBaseline.js';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {createRealtimeVoice} from './realtimeVoice.js';
@@ -6,7 +7,7 @@ const protocol='feedx.assistant.text.v1';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export function validAssistantMessage(event,source){
  const d=event.data;
- if(event.source!==source||event.origin!=='null'||!d||typeof d!=='object'||Array.isArray(d)||d.protocol!==protocol||!['ready','new','history','older','send','cancel'].includes(d.action))return false;
+ if(event.source!==source||event.origin!=='null'||!d||typeof d!=='object'||Array.isArray(d)||d.protocol!==protocol||!['ready','new','history','older','send','cancel','voice_refresh','voice_resume','voice_usage'].includes(d.action))return false;
  if(Object.keys(d).some(k=>!['protocol','action','request_id','session_id','text'].includes(k)))return false;
  if(d.action!=='ready'&&!uuid.test(d.request_id||''))return false;
  if((d.action==='history'||d.action==='send'&&d.session_id!=null)&&!uuid.test(d.session_id||''))return false;
@@ -97,6 +98,9 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
   if(!validAssistantMessage(event,getWindow())||!alive)return;
   const d=event.data;
   try{
+   if(d.action==='voice_refresh'){await voice?.refresh?.();return;}
+   if(d.action==='voice_resume'){await voice?.resume?.();return;}
+   if(d.action==='voice_usage'){voice?.usage?.();return;}
    if(d.action==='cancel'){await cancel();post('cancelled',{request_id:d.request_id});return;}
    if(d.action==='ready'){
     if(bootstrapping||voice?.isActive?.())return;
@@ -136,7 +140,7 @@ export function createAssistantBridge({getWindow,userId,call=assistantCall,stora
  }
  return {receive,transition,titleChanged,async ensureSession(){if(current)return current;if(switching||bootstrapping)throw new Error('Wait for the conversation to load.');switching=true;try{const created=await call('session_new');remember(created.session_id);post('history',{session_id:current,turns:[],has_more:false});return current;}finally{switching=false;}},interrupt(){void cancel();post('cancelled');},getSession:()=>!switching&&!bootstrapping?current:null,post,destroy(){void cancel();post('reset');alive=false;}};
 }
-export default function useAssistantBridge(frame,userId){
+export default function useAssistantBridge(frame,userId,onUsage){
  const realtimeRef=useRef(null),bridgeRef=useRef(null),[thread,setThread]=useState(null),[textReady,setTextReady]=useState(null),[realtimeState,setRealtimeState]=useState({state:'idle',available:false,active:false});
  useEffect(()=>{
   if(!userId)return;
@@ -184,6 +188,9 @@ export default function useAssistantBridge(frame,userId){
   };
   bridge=createAssistantBridge({getWindow:()=>frame.current?.contentWindow,userId,onThread:setThread,voice:{
    isActive:()=>voiceLocked,
+   refresh:()=>realtimeRef.current?.refresh(),
+   resume:()=>realtimeRef.current?.resume(),
+   usage:onUsage,
    stop(){return realtime?.stop();},
    setAvailable(runtime){setTextReady(runtime.ready===true);available=runtime.realtime||{};voiceDefault=runtime.voice_default;voicePolicy=runtime.voice_policy;updateRealtime({state:'idle',active:false});}
   }});
@@ -195,9 +202,21 @@ export default function useAssistantBridge(frame,userId){
   const reconcile=()=>{if(voiceLocked){void realtime?.reconcile?.();}else if(!document.hidden){availabilityUntil=Date.now()+30000;void realtimeRef.current?.refresh();}};
   document.addEventListener('visibilitychange',reconcile);window.addEventListener('online',reconcile);window.addEventListener('focus',reconcile);
   return()=>{alive=false;clearTimeout(availabilityRefresh);document.removeEventListener('visibilitychange',reconcile);window.removeEventListener('online',reconcile);window.removeEventListener('focus',reconcile);window.removeEventListener('message',listener);bridge.destroy();bridgeRef.current=null;realtimeRef.current=null;};
- },[frame,userId]);
+ },[frame,userId,onUsage]);
+ const hudVoice=useRef(null);
+ useEffect(()=>{
+  const {available}=voicePresentation(realtimeState);
+  hudVoice.current={
+   message:realtimeState.active?realtimeState.message:voiceAvailability(realtimeState,available),
+   active:Boolean(realtimeState.active),
+   resume:realtimeState.state==='playback_blocked',
+   report:realtimeState.active?null:voiceDiagnostics(realtimeState.report),
+  };
+  bridgeRef.current?.post('voice_telemetry',hudVoice.current);
+ },[realtimeState]);
  const setHudView=useCallback(immersive=>{
   frame.current?.contentWindow?.postMessage({protocol,type:'view',immersive},'*');
+  if(hudVoice.current)bridgeRef.current?.post('voice_telemetry',hudVoice.current);
  },[frame]);
  const threadAction=useCallback((action,id)=>{
   if(!bridgeRef.current)throw new Error('Wait for AI Assistant to load.');

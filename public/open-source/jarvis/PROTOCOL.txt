@@ -37,3 +37,9 @@ ordinal for each Factory read). These display observations stay in the HUD
 and never write history or initiate a request. Historical durations use the
 recorded timestamps when present. The Immersive adapter hides the original
 decorative rain layers while retaining the original scene and motion settings.
+
+Immersive Voice telemetry adds a host-only voice_telemetry presentation
+message with availability, recovery state and formatted call diagnostics.
+The sandbox can ask the host to refresh availability, resume existing
+playback or open usage settings via voice_refresh, voice_resume and
+voice_usage. Admission, playback and provider access stay host-owned.
