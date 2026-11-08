@@ -494,6 +494,9 @@ body:not(.web-immersive) .web-conversation{bottom:var(--composer-space,65px)}
  .web-immersive .web-dock{left:auto;right:12px;width:calc(var(--hud-right) - 12px);z-index:1}
 }
 @media(max-width:800px){
+ .web-immersive .web-conversation{overflow-y:auto}
+ .web-immersive .web-conversation>*{flex:none}
+ .web-immersive #webMessages{overflow:visible}
  .web-immersive .web-telemetry-toggle{display:block;align-self:flex-start;min-height:44px;flex:none}
  .web-immersive .web-telemetry[data-mobile-open=true]{
   position:static;display:grid;width:auto;overflow:visible;flex:none;
