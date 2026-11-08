@@ -20,3 +20,24 @@ it('rejects a refused or incomplete provider result',async()=>{
  ]}))).resolves.toBeNull();
  await expect(generateAIFlow('Make a sample flow.','key','model',send({status:'incomplete'}))).rejects.toThrow('flow_generation_incomplete');
 });
+
+it('preserves untouched nodes and rejects broken or cyclic edits',async()=>{
+ const {applyDesignerPatch}=await import('../../../../supabase/functions/_shared/aiFlowGeneration.ts');
+ const ask={id:'ask',type:'ask',next:'end',field:'guests',prompt:'How many guests?',value_type:'number',required:true};
+ const draft={name:'Booking enquiries',nodes:[{id:'trigger',type:'trigger',next:'ask'},ask,{id:'end',type:'end'}]};
+ const patched=applyDesignerPatch(draft,[{id:'ask',type:'ask',next:'handoff',field:'guests',prompt:'How many guests?',value_type:'number',required:true},
+  {id:'handoff',type:'handoff',prompt:'Our team will review your enquiry.'}],['end']);
+ expect(patched.nodes[0]).toBe(draft.nodes[0]);
+ expect(patched.nodes[1].field).toBe('guests');
+ expect(draft.nodes[1]).toBe(ask);
+ expect(()=>applyDesignerPatch(draft,[{...ask,next:'trigger'}],[])).toThrow('flow_edit_invalid');
+ expect(()=>applyDesignerPatch(draft,[],['end'])).toThrow('flow_edit_invalid');
+});
+
+it('returns a concise clarification without changing the current draft',async()=>{
+ const {designAIFlow}=await import('../../../../supabase/functions/_shared/aiFlowGeneration.ts');
+ const reply={kind:'question',message:'Nak kutip tarikh juga?',choices:['Ya','Tidak'],draft:null,upsert:[],remove:[]};
+ const transport=vi.fn(async()=>Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(reply)}]}]}));
+ const result=await designAIFlow({description:'booking macam mana',brandName:'Fixture',history:[],draft:null,selected:null},'key','model',transport as typeof fetch);
+ expect(result).toEqual({kind:'question',message:reply.message,choices:reply.choices});
+});

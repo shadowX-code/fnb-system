@@ -1,4 +1,4 @@
-import {generateAIFlow} from '../_shared/aiFlowGeneration.ts';
+import {designAIFlow,generateAIFlow} from '../_shared/aiFlowGeneration.ts';
 import {runInboxPlayground} from '../_shared/inboxPlayground.ts';
 import {normalizePublicationRemovals} from '../_shared/metaPostAvailability.ts';
 import {whatsappLifecycle} from '../_shared/whatsappLifecycle.ts';
@@ -9,7 +9,7 @@ import {requestKnowledgeAI} from '../_shared/brandKnowledgeAI.ts';
 import {requestInboxAssistant} from '../_shared/inboxAssistant.ts';
 import {staffReplyConfigured, staffReplyAllowed} from '../_shared/marketingExecution.mjs';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
-import { STAGING_ORIGIN, STAGING_SUPABASE, connectionBinding, unseal } from "../_shared/metaSecurity.ts";
+import { STAGING_ORIGIN, STAGING_SUPABASE, hash, connectionBinding, unseal } from "../_shared/metaSecurity.ts";
 import {enrichInboxProfile} from "../_shared/metaInboxProfile.ts";
 import { MetaGraph } from "../_shared/metaGraph.ts";
 import { verifyInboxConnection } from "../_shared/metaInboxVerification.ts";
@@ -265,9 +265,27 @@ Deno.serve(async (req) => {
   if(path==='/generate-flow'&&req.method==='POST'){
     if(!configured)return json({error:'AI provider is unavailable. Review AI readiness before generating a flow.'},409);
     const raw=await req.text();
-    if(raw.length>10000)return json({error:'Flow description is too long.'},413);
+    if(raw.length>55000)return json({error:'Flow description is too long.'},413);
     try{
       const body=JSON.parse(raw);
+      if(body.designer===true){
+        const description=typeof body.description==='string'?body.description.trim():'';
+        const history=body.history??[], draft=body.draft??null;
+        if(description.length<2||description.length>1200||!Array.isArray(history)||history.length>10||
+          history.some((item:any)=>!['manager','designer'].includes(item?.role)||typeof item.text!=='string'||item.text.length>1200)||
+          (draft!==null&&(!Array.isArray(draft.nodes)||draft.nodes.length>40||JSON.stringify(draft).length>40000)))
+          return json({error:'The designer request or draft exceeds the allowed size.'},400);
+        const selected=typeof body.selected==='string'?body.selected.slice(0,40):null;
+        const fingerprint=await hash(JSON.stringify({description,history,draft,selected}));
+        const prepared=await rpc(caller,'marketing_ai_flow_generate_prepare',{p_request:body.requestId,p_org:body.org,p_brand:body.brand,p_description:`Designer ${fingerprint}`});
+        if(prepared.state!=='prepared')return json({state:'unavailable'});
+        const context=await rpc(caller,'marketing_brand_context');
+        const brand=context.brands?.find((item:any)=>item.id===body.brand&&item.organization_id===body.org);
+        if(!brand)return json({error:'Brand access is unavailable.'},403);
+        const result=await designAIFlow({description,brandName:brand.name,history,draft,selected},env('OPENAI_API_KEY'),env('MARKETING_AI_MODEL'));
+        if(result.kind==='proposal')await rpc(service,'marketing_ai_flow_generate_finish',{p_request:body.requestId,p_definition:result.definition});
+        return json({state:'completed',...result});
+      }
       const prepared=await rpc(caller,'marketing_ai_flow_generate_prepare',{p_request:body.requestId,p_org:body.org,p_brand:body.brand,p_description:body.description});
       if(prepared.state!=='prepared')return json(prepared);
       const definition=await generateAIFlow(body.description,env('OPENAI_API_KEY'),env('MARKETING_AI_MODEL'));

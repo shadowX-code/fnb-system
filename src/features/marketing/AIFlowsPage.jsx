@@ -74,8 +74,11 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
  const [test,setTest]=useState(null),[answer,setAnswer]=useState(''),[mode,setMode]=useState('suggest_only');
  const [knowledge,setKnowledge]=useState(null);
  const pendingSave=useRef(null);
- const [prompt,setPrompt]=useState(null);
- const generation=useRef(null);
+ const [designer,setDesigner]=useState(false),[designerMessages,setDesignerMessages]=useState([]);
+ const [prompt,setPrompt]=useState(''),[proposal,setProposal]=useState(null),[undo,setUndo]=useState(null);
+ const [showInspector,setShowInspector]=useState(true);
+ const generation=useRef(false),designerEnd=useRef(null);
+ useEffect(()=>{if(designerMessages.length)designerEnd.current?.scrollIntoView({block:'nearest'});},[designerMessages.length]);
  const [search,setSearch]=useState(''),[newOpen,setNewOpen]=useState(false),[panel,setPanel]=useState('node');
  const [palette,setPalette]=useState(null),[baseline,setBaseline]=useState(null),[chat,setChat]=useState([]);
  const [reload,setReload]=useState(0),[libraryError,setLibraryError]=useState('');
@@ -89,6 +92,7 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
  },[org,brand,reload]);
  function open(item,definition=item?.definition||newFlow()){
   setRecord(item);setFlow(definition);setBaseline(item?.definition||newFlow());setSelected('trigger');setPanel(item?'node':'settings');
+  setDesigner(false);setDesignerMessages([]);setPrompt('');setProposal(null);setUndo(null);setShowInspector(true);
   setPalette(null);setVersions(null);setTestInputs([]);setTest(null);setChat([]);setKnowledge(null);setAnswer('');setError('');setNewOpen(false);
  }
  const issues=flow?flowIssues(flow):{};
@@ -111,7 +115,7 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
   if(busy||(dirty&&!window.confirm('Discard unsaved changes to this flow?')))return;
   setFlow(null);setError('');
  }
- function pick(id){setSelected(id);setPalette(null);setPanel('node');}
+ function pick(id){setSelected(id);setPalette(null);setPanel('node');setShowInspector(true);}
  function addStep(type){
   const next=insertFlowStep(flow,palette.id,palette.port,type);
   if(next===flow)return;
@@ -135,18 +139,34 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
   }catch(failure){setError(failure.message);}
   finally{setBusy(false);}
  }
- async function generate(event){
-  event.preventDefault();
-  if(busy||!canEdit||!canGenerate||prompt.trim().length<10)return;
-  const description=prompt.trim();
-  if(generation.current?.description!==description)generation.current={description,id:crypto.randomUUID()};
-  setBusy(true);setError('');
+ function openDesigner(){
+  open(null);
+  setDesigner(true);setShowInspector(false);
+ }
+ async function generate(description){
+  description=description.trim();
+  if(busy||generation.current||proposal||!canEdit||!canGenerate||description.length<2)return;
+  const draft=record||dirty?flow:null;
+  generation.current=true;setBusy(true);setError('');setPrompt('');
   try{
-   const result=await inboxService.generateFlow({requestId:generation.current.id,org,brand,description});
-   if(result.state!=='completed'||!result.definition)throw new Error('Generation did not return a draft. Change the description or start a new request.');
-   open(null,result.definition);setPrompt(null);
-  }catch(failure){setError(failure.message);}
-  finally{generation.current=null;setBusy(false);}
+   const result=await inboxService.generateFlow({
+    requestId:crypto.randomUUID(),org,brand,designer:true,description,draft,selected,
+    history:designerMessages.slice(-10).map(({role,text})=>({role,text:text.slice(0,1200)})),
+   });
+   if(result.state!=='completed'||!result.message)throw new Error('The Designer did not return a response. Try again.');
+   setDesignerMessages(items=>[...items,{role:'manager',text:description},{role:'designer',text:result.message,choices:result.choices||[]}]);
+   if(result.kind==='proposal'&&result.definition)setProposal({definition:result.definition,base:flow});
+  }catch(failure){setError(failure.message);setPrompt(description);}
+  finally{generation.current=false;setBusy(false);}
+ }
+ function applyProposal(){
+  if(!proposal||busy)return;
+  if(flow!==proposal.base){setError('The canvas changed during review. Ask the Designer to update its proposal.');setProposal(null);return;}
+  setUndo({before:flow,after:proposal.definition});
+  update(proposal.definition);
+  if(!proposal.definition.nodes.some(step=>step.id===selected))setSelected('trigger');
+  setProposal(null);
+  setDesignerMessages(items=>[...items,{role:'designer',text:'Changes applied to the canvas. Save the draft when you are ready.'}]);
  }
  async function continueTest(event){
   event.preventDefault();
@@ -215,18 +235,13 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
      </table></div>:<div className="af-empty"><Workflow size={22}/><h3>{query?'No matching flows':'No flows yet'}</h3><p>{query?'Try a different name, status or channel.':'Use New Flow to create a conversation flow for this Brand.'}</p></div>:null}
     </AsyncDataSurface>
    </section>
-   {newOpen?<Modal title="New Flow" onClose={()=>{if(!busy){setNewOpen(false);setPrompt(null);setError('');}}}>
+   {newOpen?<Modal title="New Flow" onClose={()=>{if(!busy){setNewOpen(false);setError('');}}}>
     <div className="space-y-3">
      {errorMessage}
-     {prompt===null?<div className="af-new-options">
-      {canGenerate?<button type="button" className="btn-secondary" onClick={()=>setPrompt('')}><Sparkles size={18}/><span><strong>Create with AI</strong><small>Describe the conversation and review a suggested draft.</small></span></button>:null}
+     <div className="af-new-options">
+      {canGenerate?<button type="button" className="btn-secondary" onClick={openDesigner}><Sparkles size={18}/><span><strong>Create with AI</strong><small>Work with the Designer while you build your flow.</small></span></button>:null}
       <button type="button" className="btn-secondary" onClick={()=>open(null)}><Workflow size={18}/><span><strong>Build Manually</strong><small>Start with a trigger and add the steps you need.</small></span></button>
-     </div>:<form className="space-y-3" onSubmit={generate}>
-      <AdminFormField label="Describe the flow"><textarea className="control" rows={4} maxLength={1500} value={prompt} disabled={busy} onChange={event=>setPrompt(event.target.value)}/></AdminFormField>
-      <p>Use fictional examples. Review the generated draft before saving.</p>
-      <div className="flex gap-2"><button type="submit" className="btn-primary" disabled={busy||prompt.trim().length<10}>{busy?'Generating…':'Generate draft'}</button>
-       <button type="button" className="btn-secondary" disabled={busy} onClick={()=>{setPrompt(null);setError('');}}>Back</button></div>
-     </form>}
+     </div>
     </div>
    </Modal>:null}
   </WorkspacePage>;
@@ -236,14 +251,43 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
    <button type="button" className="btn-secondary" onClick={back} disabled={busy}><ArrowLeft size={16}/> Library</button>
    <div className="af-editor-title"><h1>{flow.name||'Untitled flow'}</h1><span>{scope.name} · {record?`v${record.version} · ${flowStatus(record)}`:'New draft'}{dirty?' · Unsaved changes':''}</span></div>
    <div className="af-editor-actions">
-    <button type="button" className="btn-secondary" aria-pressed={panel==='settings'} onClick={()=>setPanel('settings')}><Settings2 size={15}/> Settings</button>
-    {record?<button type="button" className="btn-secondary" disabled={busy} aria-pressed={panel==='versions'} onClick={()=>{setPanel('versions');lifecycle('history');}}>Versions</button>:null}
-    <button type="button" className="btn-secondary" aria-pressed={panel==='test'} onClick={()=>{setPalette(null);setPanel(panel==='test'?'node':'test');}}><MessageCircle size={15}/> Test Flow</button>
+    {!designer&&canEdit&&canGenerate?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>{setDesigner(true);setShowInspector(false);}}><Sparkles size={15}/> AI Designer</button>:null}
+    <button type="button" className="btn-secondary" aria-pressed={panel==='settings'} onClick={()=>{setPanel('settings');setShowInspector(true);}}><Settings2 size={15}/> Settings</button>
+    {record?<button type="button" className="btn-secondary" disabled={busy} aria-pressed={panel==='versions'} onClick={()=>{setPanel('versions');setShowInspector(true);lifecycle('history');}}>Versions</button>:null}
+    <button type="button" className="btn-secondary" aria-pressed={panel==='test'} onClick={()=>{setPalette(null);setShowInspector(true);setPanel(panel==='test'?'node':'test');}}><MessageCircle size={15}/> Test Flow</button>
     {canEdit?<button type="button" className="btn-primary" disabled={busy||Object.keys(issues).length>0||Boolean(record&&!dirty)} onClick={save}>Save draft</button>:null}
    </div>
   </header>
   {errorMessage}
-  <div className="af-editor-body">
+  <div className={`af-editor-body${designer?' has-designer':''}${showInspector?' has-inspector':''}`}>
+   {designer?<aside className="af-designer" aria-label="AI Designer">
+    <div className="af-panel-title"><h2>AI Designer</h2><Badge>Draft only</Badge></div>
+    <p className="af-muted">Describe a flow or ask for a change. Review proposals before applying them to the canvas.</p>
+    <ol className="af-chat af-designer-chat" aria-label="Design conversation" aria-live="polite">
+     {designerMessages.map((message,index)=><li key={index} data-role={message.role==='manager'?'customer':'flow'}>
+      <strong>{message.role==='manager'?'You':'Designer'}</strong><p>{message.text}</p>
+      {index===designerMessages.length-1&&message.choices?.length&&!proposal?<div className="af-designer-choices">
+       {message.choices.map(choice=><button key={choice} type="button" className="btn-secondary" disabled={busy} onClick={()=>generate(choice)}>{choice}</button>)}
+      </div>:null}
+     </li>)}
+    </ol>
+    <div ref={designerEnd} aria-hidden="true"/>
+    {proposal?<div className="af-designer-proposal">
+     <strong>Proposed changes</strong>
+     <p>{proposal.definition.name} · {proposal.definition.nodes.length} steps</p>
+     <ul>{proposal.definition.nodes.filter(step=>JSON.stringify(flow.nodes.find(item=>item.id===step.id))!==JSON.stringify(step)).map(step=><li key={step.id}>{labels[step.type]} · {stepSummary(step)}</li>)}
+      {flow.nodes.filter(step=>!proposal.definition.nodes.some(item=>item.id===step.id)).map(step=><li key={step.id}>Remove {labels[step.type]} · {stepSummary(step)}</li>)}</ul>
+     <div className="flex flex-wrap gap-2"><button type="button" className="btn-primary" disabled={busy} onClick={applyProposal}>Apply changes</button>
+      <button type="button" className="btn-secondary" disabled={busy} onClick={()=>{setProposal(null);setDesignerMessages(items=>[...items,{role:'manager',text:'I rejected that proposal.'}]);}}>Reject</button></div>
+    </div>:null}
+    {undo?<button type="button" className="btn-secondary" disabled={busy||flow!==undo.after} onClick={()=>{update(undo.before);setSelected('trigger');setUndo(null);}}>Undo AI changes</button>:null}
+    {undo&&flow!==undo.after?<p className="af-muted">Undo is unavailable after further canvas edits.</p>:null}
+    <form className="space-y-2" onSubmit={event=>{event.preventDefault();generate(prompt);}}>
+     <AdminFormField label="Message the Designer"><textarea className="control" rows={3} value={prompt} maxLength={1200} disabled={busy||Boolean(proposal)}
+      placeholder="Customer request booking from online" onChange={event=>setPrompt(event.target.value)}/></AdminFormField>
+     <button type="submit" className="btn-primary" disabled={busy||Boolean(proposal)||prompt.trim().length<2}>{busy?'Working…':'Send to Designer'}</button>
+    </form>
+   </aside>:null}
    <section className="af-canvas" aria-label="Flow canvas">
     <div className="af-canvas-top"><span>{flow.nodes.length} steps</span>{Object.keys(issues).length?<span className="af-invalid"><TriangleAlert size={14}/> Needs configuration</span>:null}</div>
     <div className="af-graph">
@@ -252,7 +296,7 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
       nodes={flow.nodes.map((step,index)=>({id:step.id,type:'flow',position:positions[index],selected:step.id===selected,
        ariaLabel:`${labels[step.type]}. ${stepSummary(step)}`,data:{step,error:issues[step.id]||(step.id==='trigger'?issues.flow:null),running:panel==='test'&&test?.trace.at(-1)===step.id}}))}
       edges={flow.nodes.flatMap(step=>flowPorts(step).map(port=>({id:`${step.id}:${port}`,source:step.id,sourceHandle:port,target:step[port],type:'flow',
-       markerEnd:{type:MarkerType.ArrowClosed},data:{label:port==='next'?null:port==='yes'?'Yes':'No',sourceLabel:labels[step.type],insert:canEdit&&!busy?()=>{setSelected(step.id);setPalette({id:step.id,port});setPanel('node');}:null}})))}
+       markerEnd:{type:MarkerType.ArrowClosed},data:{label:port==='next'?null:port==='yes'?'Yes':'No',sourceLabel:labels[step.type],insert:canEdit&&!busy?()=>{setSelected(step.id);setPalette({id:step.id,port});setPanel('node');setShowInspector(true);}:null}})))}
       onNodeClick={(_event,item)=>pick(item.id)} onNodesChange={changes=>{
        const selection=changes.find(change=>change.type==='select'&&change.selected);
        if(selection)pick(selection.id);
@@ -267,7 +311,8 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
      </li>;})}
     </ol>
    </section>
-   <aside className="af-inspector" aria-label={panel==='test'?'Test Chat':'Flow inspector'}>
+   {showInspector?<aside className="af-inspector" aria-label={panel==='test'?'Test Chat':'Flow inspector'}>
+    {designer?<button type="button" className="btn-secondary af-hide-inspector" onClick={()=>setShowInspector(false)}>Hide panel</button>:null}
     {panel==='settings'?<><h2>Flow Settings</h2>
      <fieldset className="space-y-3" disabled={!canEdit||busy}>
       <Field label="Flow name" value={flow.name} maxLength={120} onChange={name=>update({name})}/>
@@ -338,7 +383,7 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
       <p>{knowledge.input_tokens??'—'} input · {knowledge.output_tokens??'—'} output · {knowledge.latency_ms??'—'} ms · {knowledge.estimated_cost_usd==null?'Cost unavailable':`US$${Number(knowledge.estimated_cost_usd).toFixed(6)} estimated`}</p>
      </div>:null}
     </>:null}
-   </aside>
+   </aside>:null}
   </div>
  </section>;
 }
