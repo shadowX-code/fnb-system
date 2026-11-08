@@ -149,6 +149,27 @@ Object.assign(resources.performance, { areasCompleted: "{{scored}} daripada {{to
 Object.assign(resources.performance, { googleUnavailable: "Bukti pelanggan bulan ini belum tersedia. Komponen ini kekal belum dinilai, bukan sifar, dan tidak mengurangkan mata yang telah dinilai.", googleEvidence: "Ulasan Google yang dibuat bulan ini menyumbang kepada komponen Pelanggan bersama cawangan anda. Keputusan muktamad mengekalkan bukti yang direkodkan." });
 Object.assign(resources.attendance, { withinClockInArea: "Dalam kawasan daftar masuk · sahkan untuk pengesahan", withinClockOutArea: "Dalam kawasan daftar keluar · sahkan untuk pengesahan", locationCheckDisabled: "Semakan lokasi belum diaktifkan untuk cawangan ini.", locationAccuracyLow: "Ketepatan GPS tidak mencukupi (perlu dalam ±{{meters}}m).", locationPermissionDenied: "Kebenaran lokasi ditolak. Benarkan dalam pelayar, kemudian cuba lagi.", locationTimedOut: "Permintaan lokasi tamat masa. Cuba lagi atau pilih sebab pengecualian.", retryLocation: "Cuba lokasi lagi" });
 Object.assign(resources.tasks, { responseRecorded:"Respons direkodkan", openTask:"Buka tugasan: {{title}}", completionNote:"Nota penyelesaian", completionNoteOptional:"Nota penyelesaian (pilihan)", requiredNotePlaceholder:"Tambah nota penyelesaian yang diperlukan", optionalNotePlaceholder:"Tambah nota jika perlu", evidenceTypes:{note:"Nota",optional_note:"Nota pilihan",photo:"Foto",structured:"Respons berstruktur"} });
+resources.guestVoice = {
+  "title": "Suara Tetamu",
+  "source": "Ulasan Google",
+  "anonymous": "Tetamu tanpa nama",
+  "stars": "{{value}} daripada 5 bintang",
+  "count_one": "{{count}} ulasan",
+  "count_other": "{{count}} ulasan",
+  "slide": "Ulasan {{index}} daripada {{count}}",
+  "synced": "Disegerakkan {{date}}",
+  "disconnected": "Ulasan Google terputus.",
+  "expired": "Ulasan Google perlu disambungkan semula.",
+  "unmapped": "Ulasan Google belum dipautkan untuk cawangan ini.",
+  "awaiting_sync": "Menunggu penyegerakan ulasan Google yang baharu.",
+  "unavailable": "Suara Tetamu tidak tersedia buat sementara waktu.",
+  "empty": "Belum ada ulasan Google.",
+  "detail": "Ulasan tetamu",
+  "pause": "Jeda ulasan",
+  "resume": "Sambung ulasan",
+  "count": "{{count}} ulasan"
+};
+
 export default resources;
 
 Object.assign(resources.cash, {"actionRequired": "Tindakan Diperlukan", "returnedForCorrection": "Dikembalikan untuk pembetulan", "correctCheckout": "Betulkan Penutupan Tunai"});

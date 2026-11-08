@@ -1,3 +1,4 @@
+import { guestVoiceProjection } from '../_shared/googleGuestVoice.ts';
 import { resolveBusinessToken, synchronizeBusinessReviews, runScheduledReviewSync } from '../_shared/googleBusinessSync.ts';
 import { disconnectBusinessConnection } from '../_shared/googleBusinessDisconnect.ts';
 import { googleBusinessEnvironment } from '../_shared/googleBusinessEnvironment.ts';
@@ -24,11 +25,12 @@ export async function handle(req: Request) {
  let environment;
  try{environment=googleBusinessEnvironment(env('SUPABASE_URL'));}catch{return new Response('Environment unavailable.',{status:403});}
  const {origin,supabase,redirect}=environment;
- const headers = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Vary': 'Origin' };
+ const action = new URL(req.url).pathname.split('/').pop()!;
+ const allowedOrigin = action === 'crew-guest-voice' && origin === 'https://os.feedx.my' ? 'https://crew.feedx.my' : origin;
+ const headers = { 'Access-Control-Allow-Origin': allowedOrigin, 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Vary': 'Origin' };
  const reply = (data: any, status = 200) => new Response(JSON.stringify(data), { status, headers: { ...headers, 'Content-Type': 'application/json' } });
  if (req.method === 'OPTIONS') return new Response(null, { headers });
- if (req.headers.has('origin') && req.headers.get('origin') !== origin) return reply({ error: 'Origin unavailable.' }, 403);
- const action = new URL(req.url).pathname.split('/').pop()!;
+ if (req.headers.has('origin') && req.headers.get('origin') !== allowedOrigin) return reply({ error: 'Origin unavailable.' }, 403);
  if (action === 'configuration' && req.method === 'GET') return reply({ configured: Boolean(configured()) && await tokenEncryptionReady(secret()), redirectUri: redirect, scope: BUSINESS_SCOPE });
  const db = createClient(supabase, env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false, autoRefreshToken: false } });
  let user: string | null = null, outlet: string | null = null, phase = 'request';
@@ -70,6 +72,23 @@ export async function handle(req: Request) {
   return { accounts, locations };
  };
  try {
+  if (action === 'crew-guest-voice') {
+   if (req.method !== 'POST') return reply({ error: 'Method unavailable.' }, 405);
+   const body = await req.json().catch(() => null);
+   if (typeof body?.token !== 'string' || !body.token || body.token.length > 256) return reply({ error: 'Crew session required.' }, 401);
+   if (typeof body.outletId !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(body.outletId)) return reply({ error: 'Select an outlet.' }, 400);
+   const { data: cache, error } = await db.rpc('crew_guest_voice_cache', { p_token: body.token, p_outlet: body.outletId });
+   if (error) return reply({ error: 'Guest Voice is unavailable.' }, error.code === '42501' ? 403 : 503);
+   if (cache.status !== 'ready') return reply({ status: cache.status });
+   try {
+    const snapshot = await unseal(cache.sealed_reviews, keys(), inboxBinding(cache.generation, { location_resource_name: cache.location, revision: cache.revision }));
+    const projection = guestVoiceProjection(snapshot, cache.location);
+    if (Date.parse(cache.expires_at) <= Date.now()) return reply({ status: 'awaiting_sync' });
+    return reply({ status: 'ready', fetchedAt: cache.fetched_at, expiresAt: cache.expires_at, revision: cache.revision, ...projection });
+   } catch {
+    return reply({ status: 'unavailable' }, 503);
+   }
+  }
   if(action==='scheduled-sync' && req.method==='POST') {
    if(!configured())return reply({error:'Google configuration unavailable.'},503);
    const supplied=req.headers.get('x-google-sync-token') || '';

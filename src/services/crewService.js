@@ -1407,6 +1407,15 @@ export const crewService = {
     return data;
   },
 
+  async guestVoice(token, outletId, signal) {
+    const { data, error } = await supabase.functions.invoke("google-business/crew-guest-voice", {
+      body: { token, outletId },
+      signal,
+    });
+    if (error) throw error;
+    return data;
+  },
+
   async inventoryMobileCatalog(token, outletId = null) {
     const { data, error } = await supabase.rpc("crew_inventory_mobile_catalog", {
       p_token: token, p_outlet_id: outletId,

@@ -1,3 +1,4 @@
+import CrewGuestVoice from "./CrewGuestVoice.jsx";
 import CrewManagementTodayTeam from "./CrewManagementTodayTeam.jsx";
 import useCrewTaskPresentationTime from "../hooks/useCrewTaskPresentationTime.js";
 import useCrewTaskTitles from "../hooks/useCrewTaskTitles.js";
@@ -67,6 +68,7 @@ export default function CrewHomeMobile({ session, attendance, context, roster, o
         </div>
         <button type="button" className="crew-home-attendance-footer" onClick={() => navigate("schedule")}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarCheck size={18} /></i><span className="crew-home-attendance-shift"><small>{t("home.todayShift")}</small><strong>{shiftLabel}</strong></span><em><span>{t("home.viewSchedule")}</span><ChevronRight size={16} /></em></button>
       </section>}
+      <CrewGuestVoice token={session.token} outletId={inventoryOutletId} outletName={context?.outlet_name} />
       {management && <CrewManagementTodayTeam key={inventoryOutletId} token={session.token} outletId={inventoryOutletId} onOpen={() => navigate("today-team")} />}
       <CrewTeamReviewHome token={session.token} employeeId={employee.id} />
       <section className="crew-v2-home-section crew-home-tasks"><CrewSectionHeader density="operational" title={<>{t("home.todaysTasks")}<span className={`crew-home-task-count is-${homeTaskBadgeState}`}>{homeTasks.length}</span></>} action={t("common.viewAll")} actionLabel={t("tasks.title")} onAction={() => onOpenTask(null)} /><div className="crew-home-list">
