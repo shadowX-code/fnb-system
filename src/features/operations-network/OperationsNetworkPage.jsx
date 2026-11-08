@@ -63,6 +63,12 @@ function NetworkExperience({ auth, ui, store }) {
   }, []);
   useEffect(() => { fitPending.current = true; fitRequest.current = 'primary'; }, [narrow]);
   const evidence = useNetworkEvidence(auth, modules, window === 'live');
+  const { setNetworkLive } = ui;
+  const live = window === 'live' && evidence.active && Boolean(evidence.observedAt) && !evidence.error;
+  useEffect(() => {
+    setNetworkLive?.(live);
+    return () => setNetworkLive?.(false);
+  }, [live, setNetworkLive]);
   useEffect(() => {
     if (!evidence.active) return;
     const timer = globalThis.setInterval(() => setClock(Date.now()), 12000);

@@ -1,4 +1,6 @@
-import {Mic,Square} from 'lucide-react';
+import {useId,useRef,useState} from 'react';
+import FloatingLayer from '../../components/ui/FloatingLayer.jsx';
+import {Info,Mic,Square,X} from 'lucide-react';
 import {voiceOptions} from './realtimeVoice.js';
 
 const labels={connecting:'Connecting',reconnecting:'Reconnecting',ending:'Ending voice',listening:'Listening',thinking:'Thinking',executing:'Reading Factory',speaking:'Speaking',interrupted:'Interrupted · listening',suspended:'Microphone suspended',playback_blocked:'Audio paused',error:'Connection error'};
@@ -31,26 +33,43 @@ export function voiceDiagnostics(report) {
 }
 
 export default function VoiceInteraction({state,controller,onRefresh,onUsage,immersive=false}){
+ const detailsId=useId(),detailsTrigger=useRef(null);
+ const [detailsOpen,setDetailsOpen]=useState(false);
+ const closeDetails=()=>{setDetailsOpen(false);detailsTrigger.current?.focus();};
  const {provider,voice:preferred}=state.voiceDefault||{};
  const view=voicePresentation(state);
  const report=immersive||state.active?null:voiceDiagnostics(state.report);
  const primary=()=>state.active?controller.current?.stop():controller.current?.start(provider,voiceOptions[provider]?.includes(preferred)?preferred:voiceOptions[provider]?.[0]);
  return <div className="assistant-voice-dock" aria-label="Voice controls" data-phase={state.state||'idle'}>
   <svg className="assistant-audio-bands" viewBox="0 0 400 64" aria-hidden="true">{Array.from({length:40},(_,i)=>{const index=i<20?i:39-i,x=i<20?i*6+4:282+(i-20)*6;return <line key={i} x1={x} x2={x} y1="7" y2="57" style={{transformOrigin:`${x}px 32px`,transform:`scaleY(calc(.025 + var(--voice-band-${index}, 0) * .975))`}}/>;})}</svg>
-  <button type="button" className="assistant-mic-control" disabled={view.disabled} onClick={primary} aria-label={view.label}>{state.active?<Square size={20}/>:<Mic size={24}/>}{!immersive&&<span>{view.label}</span>}</button>
-  <p className="assistant-voice-state" role="status">{immersive&&view.disabled&&!state.active&&view.status==='Voice unavailable'?view.label:view.status}</p>
-  {!immersive&&<>
-  {state.state==='playback_blocked'&&<button type="button" className="btn-ghost" onClick={()=>controller.current?.resume()}>Resume audio</button>}
-  <details className="assistant-voice-availability"><summary>Voice status</summary>
-   <p role="status">{voiceAvailability(state,view.available)}</p>
-   {state.active&&<p>Voice continues in supported background tabs. End Voice to type a message. Deep browser suspension may require reconnecting.</p>}
-   <button type="button" className="btn-ghost" onClick={onUsage}>Usage &amp; limits</button>
-   {!state.active&&<button type="button" className="btn-ghost" onClick={onRefresh}>Check availability</button>}
-  </details>
-  {report&&<details className="assistant-session-details"><summary>Session details</summary>
-   {report.metrics.map(line=><p key={line}>{line}</p>)}
-   <ol>{report.events.map((line,index)=><li key={index}>{line}</li>)}</ol>
-  </details>}
-  </>}
+  <button type="button" className="assistant-mic-control" disabled={view.disabled} onClick={primary} aria-label={view.label}>{state.active?<Square size={20}/>:<Mic size={24}/>}</button>
+  <div className="assistant-halo-meta">
+   <p className="assistant-voice-state" role="status">{view.disabled&&!state.active&&view.status==='Voice unavailable'?view.label:view.status}</p>
+   {!immersive&&<button ref={detailsTrigger} type="button" className="assistant-voice-info"
+     aria-label="Voice details" aria-expanded={detailsOpen} aria-haspopup="dialog"
+     aria-controls={detailsOpen?detailsId:undefined} onClick={()=>setDetailsOpen(open=>!open)}><Info size={14}/></button>}
+  </div>
+  <FloatingLayer open={!immersive&&detailsOpen} onOpenChange={setDetailsOpen} anchorRef={detailsTrigger} align="center"
+    width={300} maxHeight={310} estimatedHeight={180} focusOnOpen closeOnEscape={false} className="assistant-voice-popover">
+   <div id={detailsId} role="dialog" aria-label="Voice details" onKeyDown={event=>{
+    if(event.key==='Escape'){event.stopPropagation();closeDetails();}
+   }}>
+    <div className="assistant-voice-popover-heading">
+     <strong>Voice details</strong>
+     <button type="button" className="btn-ghost" aria-label="Close voice details" onClick={closeDetails}><X size={16}/></button>
+    </div>
+    <p>{voiceAvailability(state,view.available)}</p>
+    {state.active&&<p>End voice to type a message. Deep browser suspension may require reconnecting.</p>}
+    <div className="assistant-voice-popover-actions">
+     {state.state==='playback_blocked'&&<button type="button" className="btn-ghost" onClick={()=>controller.current?.resume()}>Resume audio</button>}
+     <button type="button" className="btn-ghost" onClick={()=>{setDetailsOpen(false);onUsage?.();}}>Usage &amp; limits</button>
+     {!state.active&&<button type="button" className="btn-ghost" onClick={onRefresh}>Check availability</button>}
+    </div>
+    {report&&<details className="assistant-session-details"><summary>Last session</summary>
+     {report.metrics.map(line=><p key={line}>{line}</p>)}
+     <ol>{report.events.map((line,index)=><li key={index}>{line}</li>)}</ol>
+    </details>}
+   </div>
+  </FloatingLayer>
  </div>;
 }

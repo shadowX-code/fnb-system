@@ -1,6 +1,6 @@
 /* FeedX Staging presentation for the independent GPL Jarvis program. */
-:root{color-scheme:dark}body{margin:0;overflow:hidden;background:#030b11;font-family:Arial,Helvetica,sans-serif;color:#e5f0ee}*{box-sizing:border-box}button,select,input{font:inherit}button,a,select,input{outline-offset:3px}button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #78dfce}button{cursor:pointer}button:disabled{cursor:default;opacity:.65}::selection{background:#18685c;color:#fff}#stage{left:0;top:0;width:calc(100% - 390px);height:100%;touch-action:pan-y}#assistantWeb{position:absolute;inset:0;pointer-events:none}.web-core-caption{position:absolute;left:28px;bottom:28px;max-width:calc(100% - 440px);pointer-events:auto;color:#b8d7d1;font-size:13px}.web-core-caption strong{font-size:14px;font-weight:500;color:#e9f6f2}.web-core-caption p{margin:8px 0 16px;line-height:1.6}.web-status-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#97c0b7;margin-right:8px}.web-core-caption button{padding:7px 10px;border:1px solid #31534c;background:#0b211d;color:#d9efea;border-radius:7px}.web-conversation{position:absolute;right:22px;top:22px;bottom:22px;width:360px;display:flex;flex-direction:column;gap:12px;padding:20px;background:#0a171b;border:1px solid #25413f;border-radius:14px;pointer-events:auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#355a50 transparent}.web-conversation header{display:flex;align-items:center;justify-content:space-between}.web-conversation h1{margin:0;font:600 19px/1.3 Arial,Helvetica,sans-serif;letter-spacing:-.02em}.web-conversation button{color:#d8ede7;background:#102822;border:1px solid #31534c;border-radius:7px;padding:7px 10px;font-size:12px}.web-conversation button:hover{background:#17382f}.web-history-label{font-size:12px;color:#c1d7d2;display:flex;justify-content:space-between;gap:8px}.web-history-label span{color:#a6bdb7}.web-conversation select{width:100%;min-width:0;border:1px solid #31534c;background:#0c211b;color:#e0f1eb;padding:8px;border-radius:7px;font-size:13px}.web-services{font-size:12px;color:#adc8c0}.web-services summary{cursor:pointer;padding:3px 0}.web-services dl{margin:10px 0 0}.web-services dl div{display:flex;justify-content:space-between;gap:8px;margin:7px 0}.web-services dt{color:#d8e9e5}.web-services dd{margin:0;color:#c6bca5}#webNotice{font-size:12px;line-height:1.6;color:#bfd5cf;background:#10221f;border:1px solid #2c4942;padding:10px;border-radius:8px}#webNotice[data-error=true]{color:#f0c9c0;border-color:#69483e;background:#281c19}#webMessages{flex:1;min-height:80px;overflow:auto;overscroll-behavior:contain;list-style:none;padding:0;margin:0;scrollbar-width:thin;scrollbar-color:#355a50 transparent}#webMessages li{padding:10px 0;border-bottom:1px solid #203b34;font-size:13px;line-height:1.6}#webMessages strong{font-size:11px;color:#83cbb9;font-weight:500}#webMessages p{margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;color:#e3efeb}.web-empty{color:#afc5be!important;border:0!important;padding-top:20px!important}#webComposer{margin-top:auto}#webComposer .bar-in{display:flex;position:static;opacity:1;transform:none;width:100%;margin:0;padding:8px;border:1px solid #3c6255;border-radius:9px;background:#071510;gap:6px}#webComposer .kbd{display:none}#cmd{min-width:0;flex:1;width:100%;background:transparent;border:0;outline:none;color:#e8f4ed;font:13px/1.5 Arial,Helvetica,sans-serif;padding:4px;letter-spacing:normal}#cmd::placeholder{color:#a0bbb0}#webComposer .mic{width:28px;height:30px;color:#a6c4b7;border:0;padding:4px;background:none;border-radius:5px}#webSend{background:#a6e4c8;color:#062218;border:0;font-weight:600}#webSend:hover{background:#c6f1d9}.web-controls{display:flex;justify-content:space-between;gap:8px}.web-privacy{margin:0;font-size:11px;line-height:1.55;color:#a4bdb3}.web-license{display:flex;justify-content:space-between;gap:10px;padding-top:8px;border-top:1px solid #29453d;font-size:11px}.web-license a{color:#a4d9c5;text-underline-offset:3px}.hud,.labels,.state-badge,#demoBack,#skinPick{display:none!important}#webBootStatus{position:fixed;top:24px;left:24px;max-width:80%;color:#c8ddd4;z-index:100;font:14px/1.6 Arial,sans-serif}
-@media(max-width:700px){#stage{width:100%;height:300px}.web-core-caption{left:16px;top:14px;bottom:auto;max-width:calc(100% - 32px);font-size:11px}.web-core-caption p{margin:4px 0 8px;font-size:11px}.web-core-caption button{padding:5px 8px;font-size:11px}.web-conversation{top:278px;left:12px;right:12px;bottom:12px;width:auto;padding:14px;gap:9px}.web-conversation h1{font-size:17px}.web-conversation header button{padding:6px 9px}.web-privacy{font-size:10px}.web-history-label{font-size:11px}#webMessages{min-height:60px}.web-services{font-size:11px}}
+:root{color-scheme:dark}body{margin:0;overflow:hidden;background:#030b11;font-family:Arial,Helvetica,sans-serif;color:#e5f0ee}*{box-sizing:border-box}button,select,input{font:inherit}button,a,select,input{outline-offset:3px}button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #78dfce}button{cursor:pointer}button:disabled{cursor:default;opacity:.65}::selection{background:#18685c;color:#fff}#stage{left:0;top:0;width:calc(100% - 390px);height:100%;touch-action:pan-y}#assistantWeb{position:absolute;inset:0;pointer-events:none}.web-status-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#97c0b7;margin-right:8px}.web-conversation{position:absolute;right:22px;top:22px;bottom:22px;width:360px;display:flex;flex-direction:column;gap:12px;padding:20px;background:#0a171b;border:1px solid #25413f;border-radius:14px;pointer-events:auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#355a50 transparent}.web-conversation header{display:flex;align-items:center;justify-content:space-between}.web-conversation h1{margin:0;font:600 19px/1.3 Arial,Helvetica,sans-serif;letter-spacing:-.02em}.web-conversation button{color:#d8ede7;background:#102822;border:1px solid #31534c;border-radius:7px;padding:7px 10px;font-size:12px}.web-conversation button:hover{background:#17382f}.web-history-label{font-size:12px;color:#c1d7d2;display:flex;justify-content:space-between;gap:8px}.web-history-label span{color:#a6bdb7}.web-conversation select{width:100%;min-width:0;border:1px solid #31534c;background:#0c211b;color:#e0f1eb;padding:8px;border-radius:7px;font-size:13px}.web-services{font-size:12px;color:#adc8c0}.web-services summary{cursor:pointer;padding:3px 0}.web-services dl{margin:10px 0 0}.web-services dl div{display:flex;justify-content:space-between;gap:8px;margin:7px 0}.web-services dt{color:#d8e9e5}.web-services dd{margin:0;color:#c6bca5}#webNotice{font-size:12px;line-height:1.6;color:#bfd5cf;background:#10221f;border:1px solid #2c4942;padding:10px;border-radius:8px}#webNotice[data-error=true]{color:#f0c9c0;border-color:#69483e;background:#281c19}#webMessages{flex:1;min-height:80px;overflow:auto;overscroll-behavior:contain;list-style:none;padding:0;margin:0;scrollbar-width:thin;scrollbar-color:#355a50 transparent}#webMessages li{padding:10px 0;border-bottom:1px solid #203b34;font-size:13px;line-height:1.6}#webMessages strong{font-size:11px;color:#83cbb9;font-weight:500}#webMessages p{margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;color:#e3efeb}.web-empty{color:#afc5be!important;border:0!important;padding-top:20px!important}#webComposer{margin-top:auto}#webComposer .bar-in{display:flex;position:static;opacity:1;transform:none;width:100%;margin:0;padding:8px;border:1px solid #3c6255;border-radius:9px;background:#071510;gap:6px}#webComposer .kbd{display:none}#cmd{min-width:0;flex:1;width:100%;background:transparent;border:0;outline:none;color:#e8f4ed;font:13px/1.5 Arial,Helvetica,sans-serif;padding:4px;letter-spacing:normal}#cmd::placeholder{color:#a0bbb0}#webComposer .mic{width:28px;height:30px;color:#a6c4b7;border:0;padding:4px;background:none;border-radius:5px}#webSend{background:#a6e4c8;color:#062218;border:0;font-weight:600}#webSend:hover{background:#c6f1d9}.web-controls{display:flex;justify-content:space-between;gap:8px}.web-privacy{margin:0;font-size:11px;line-height:1.55;color:#a4bdb3}.web-license{display:flex;justify-content:space-between;gap:10px;padding-top:8px;border-top:1px solid #29453d;font-size:11px}.web-license a{color:#a4d9c5;text-underline-offset:3px}.hud,.labels,.state-badge,#demoBack,#skinPick{display:none!important}#webBootStatus{position:fixed;top:24px;left:24px;max-width:80%;color:#c8ddd4;z-index:100;font:14px/1.6 Arial,sans-serif}
+@media(max-width:700px){#stage{width:100%;height:300px}.web-conversation{top:278px;left:12px;right:12px;bottom:12px;width:auto;padding:14px;gap:9px}.web-conversation h1{font-size:17px}.web-conversation header button{padding:6px 9px}.web-privacy{font-size:10px}.web-history-label{font-size:11px}#webMessages{min-height:60px}.web-services{font-size:11px}}
 
 .web-evidence{display:grid;gap:5px;font-size:11px;color:#a5c3cc;border-top:1px solid #234451;margin-top:9px;padding-top:9px;overflow-wrap:anywhere}.web-evidence a{color:#7eebd6}.web-evidence details{font-size:11px}.web-evidence p{margin-top:5px}
 
@@ -9,8 +9,6 @@
 .web-telemetry,.web-operations{display:none}
 .web-immersive{--hud-line:#24505d;--hud-ink:#e6f5fa;--hud-muted:#a2c3ce;--hud-cyan:#75e6f3;--hud-panel:#07131ce8;--hud-left:clamp(184px,23vw,330px);--hud-right:clamp(295px,30vw,470px)}
 .web-immersive #stage{left:var(--hud-left);width:calc(100% - var(--hud-left) - var(--hud-right));height:100%}
-.web-immersive .web-core-caption{left:var(--hud-left);width:calc(100% - var(--hud-left) - var(--hud-right));max-width:none;bottom:20px;text-align:center;color:var(--hud-muted)}
-.web-immersive .web-core-caption strong{color:var(--hud-ink);letter-spacing:.12em;text-transform:uppercase}
 .web-immersive .web-telemetry{position:absolute;left:12px;top:12px;width:calc(var(--hud-left) - 24px);display:grid;gap:12px;pointer-events:auto}
 .web-immersive .web-hud-panel,.web-immersive .web-conversation{border:1px solid var(--hud-line);border-top-color:#46717c;border-radius:12px;background:linear-gradient(150deg,#0e2632a0,transparent 62%),var(--hud-panel);box-shadow:0 8px 24px #0005}
 .web-immersive .web-hud-panel{padding:13px}
@@ -38,7 +36,6 @@
 .web-immersive .web-license{display:none}
 @media(max-width:800px){
  .web-immersive #stage{left:0;width:100%;height:270px}
- .web-immersive .web-core-caption{left:12px;top:12px;bottom:auto;width:auto;text-align:left}
  .web-immersive .web-telemetry{display:none}
  .web-immersive .web-conversation{top:256px;left:8px;right:8px;bottom:8px;width:auto}
  .web-immersive .web-history-label span{display:none}
@@ -48,9 +45,7 @@
 .web-immersive .web-dock #webComposer{flex:1;min-width:0;margin:0}
 .web-immersive .web-dock button{min-height:34px;padding:6px 10px;border:1px solid var(--hud-line);border-radius:7px;background:#132d38;color:#e1f5fa;font-size:12px}
 .web-immersive .web-conversation{bottom:70px}
-.web-immersive .web-core-caption{bottom:72px}
 @media(max-width:800px){
- .web-immersive .web-core-caption{bottom:auto}
  .web-immersive .web-dock{left:8px;right:8px}
 }
 
@@ -68,9 +63,6 @@
 .web-immersive .web-reticle b{width:min(88%,65vh);border-style:dashed;border-color:#4ac9ef33}
 .web-immersive .web-reticle::after{content:"";position:absolute;inset:7% 5%;border-top:1px solid #3fb8d522;border-bottom:1px solid #3fb8d522;clip-path:polygon(0 0,18% 0,18% 100%,0 100%,0 0,82% 0,100% 0,100% 100%,82% 100%,82% 0)}
 .web-immersive .web-core-name{position:absolute;display:block;left:var(--hud-left);right:var(--hud-right);bottom:104px;text-align:center;color:#edfaff;font-size:clamp(15px,1.6vw,23px);text-shadow:0 2px 12px #000}
-.web-immersive .web-core-caption{bottom:67px}
-.web-immersive .web-core-caption strong,.web-immersive .web-core-caption p,.web-immersive .web-status-dot{display:none}
-.web-immersive .web-core-caption button{background:#07151ed9;border-color:#2d505c;font-size:11px}
 .web-immersive .web-telemetry{top:16px;bottom:82px;align-content:space-between;grid-template-rows:minmax(135px,1fr) auto auto;gap:14px;overflow:auto;scrollbar-width:thin}
 .web-immersive .web-hud-panel,.web-immersive .web-conversation{background:linear-gradient(150deg,#102b37a0,#061018e8 40%,#06121be8);box-shadow:inset 0 -9px 24px #36c3e609,0 8px 24px #0005}
 .web-immersive h2,.web-immersive .web-conversation h1{font-size:14px;letter-spacing:.07em;text-transform:uppercase}
@@ -107,7 +99,6 @@
  .web-immersive .web-reticle i,.web-immersive .web-reticle b{max-width:220px}
  .web-immersive .web-core-name{left:0;right:0;top:210px;bottom:auto;font-size:13px}
  .web-immersive #stage{height:242px}
- .web-immersive .web-core-caption{top:8px;bottom:auto}
  .web-immersive .web-conversation{top:241px;bottom:77px}
  .web-immersive .web-dock button{min-height:44px}
  .web-immersive .web-history-label span{display:none}
@@ -163,7 +154,6 @@
  .web-immersive .web-dock{left:auto;right:12px;width:calc(var(--hud-right) - 12px);bottom:27px;padding:4px;border:0;background:none;box-shadow:none;z-index:1}
  .web-immersive .web-conversation{bottom:116px}
  .web-immersive .web-core-name{bottom:132px}
- .web-immersive .web-core-caption{bottom:100px}
  .web-immersive .web-telemetry{bottom:115px}
  .web-immersive .web-reticle{bottom:117px}
 }
@@ -248,7 +238,6 @@
  .web-immersive #stage{height:100%;transform:translateY(-24px);mask-image:linear-gradient(transparent,#000 9%,#000 86%,transparent 98%)}
  .web-immersive .web-conversation,.web-immersive .web-telemetry,.web-immersive .web-reticle{bottom:129px}
  .web-immersive .web-core-name{bottom:160px}
- .web-immersive .web-core-caption{bottom:126px}
  .web-immersive .web-dock{bottom:31px}
 }
 @media(prefers-reduced-motion:reduce){
@@ -262,7 +251,6 @@
 
 /* Standard is a conversation workspace. Immersive keeps its existing HUD layout. */
 body:not(.web-immersive) #stage{width:38%}
-body:not(.web-immersive) .web-core-caption{left:18px;bottom:24px;max-width:calc(38% - 36px)}
 body:not(.web-immersive) .web-conversation{
  left:38%;right:0;top:0;bottom:0;width:auto;min-width:0;
  border:0;border-left:1px solid #234551;border-radius:0;background:#09161e;
@@ -285,13 +273,10 @@ body:not(.web-immersive) .web-privacy{font-size:11px}
 .web-immersive #webOlder{background:#0c2330;border-color:#315d6c}
 @media(max-width:800px){
  body:not(.web-immersive) #stage{width:100%;height:152px}
- body:not(.web-immersive) .web-core-caption{left:12px;top:12px;bottom:auto;max-width:none}
- body:not(.web-immersive) .web-core-caption :is(p,strong,.web-status-dot){display:none}
  body:not(.web-immersive) .web-conversation{top:150px;left:0;padding:12px;border-left:0;border-top:1px solid #234551}
  body:not(.web-immersive) #webSend{min-height:44px}
 }
 body:not(.web-immersive) .web-conversation{bottom:65px}
-body:not(.web-immersive) .web-core-caption{bottom:86px}
 body:not(.web-immersive) .web-dock{
  position:absolute;inset:auto 0 0;display:flex;align-items:center;height:65px;padding:8px 18px 8px calc(38% + 16px);
  border-top:1px solid #294b57;background:#0a1b24;pointer-events:none
@@ -299,14 +284,12 @@ body:not(.web-immersive) .web-dock{
 body:not(.web-immersive) .web-dock #webComposer{margin:0;width:100%;pointer-events:auto}
 body:not(.web-immersive) .web-dock #cmd{font-size:14px}
 @media(max-width:800px){
- body:not(.web-immersive) .web-core-caption{bottom:auto}
  body:not(.web-immersive) .web-dock{padding:8px 12px;border-top-color:#28434d}
 }
 
 /* Conversation-first refinement. Source and business evidence retain their own semantics. */
 body:not(.web-immersive) #stage{width:29%;opacity:.88}
 body:not(.web-immersive) .web-conversation{left:29%;padding:16px clamp(18px,3vw,42px) 12px}
-body:not(.web-immersive) .web-core-caption{max-width:calc(29% - 36px)}
 body:not(.web-immersive) .web-dock{padding-left:calc(29% + 24px)}
 body:not(.web-immersive) .web-operations{display:none}
 body:not(.web-immersive) #webMessages li{position:relative;padding:16px 4px 16px 43px}
@@ -324,7 +307,6 @@ body:not(.web-immersive) [data-speaker=assistant] .web-message-avatar{background
 ::selection{background:#205c62;color:#f0fffc}
 @media(max-width:800px){
  body:not(.web-immersive) #stage{width:100%;height:110px}
- body:not(.web-immersive) .web-core-caption{max-width:none}
  body:not(.web-immersive) .web-conversation{top:108px;left:0;padding:12px}
  body:not(.web-immersive) .web-dock{padding:8px 10px}
  body:not(.web-immersive) #webMessages li{padding-left:37px}
@@ -337,22 +319,17 @@ body:not(.web-immersive) .web-message-avatar .web-hud-icon{display:block;width:1
  body:not(.web-immersive) #stage{width:42%}
  body:not(.web-immersive) .web-conversation{left:42%}
  body:not(.web-immersive) .web-dock{padding-left:calc(42% + 18px)}
- body:not(.web-immersive) .web-core-caption{max-width:calc(42% - 30px)}
 }
 @media(min-width:801px) and (max-width:1199px){
  body:not(.web-immersive) #stage{width:38%}
  body:not(.web-immersive) .web-conversation{left:38%}
  body:not(.web-immersive) .web-dock{padding-left:calc(38% + 18px)}
- body:not(.web-immersive) .web-core-caption{max-width:calc(38% - 30px)}
 }
-body:not(.web-immersive) .web-core-caption{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;bottom:78px;left:16px;padding:8px 0;font-size:11px}
-body:not(.web-immersive) .web-core-caption p{flex-basis:100%;margin:0;font-size:11px}
-body:not(.web-immersive) .web-core-caption button{margin-left:auto;min-height:32px}
 body:not(.web-immersive) #webMessages li>p{max-width:68ch}
 body:not(.web-immersive) #webMessages li[data-speaker=user]{background:#11333b45;border-radius:8px;padding-right:10px}
 body:not(.web-immersive) #webMessages li[data-outcome]{padding-block:8px}
 body:not(.web-immersive) #webMessages li[data-outcome] p{font-size:12px}
-@media(max-width:800px){body:not(.web-immersive) .web-core-caption{top:8px;bottom:auto;left:10px}body:not(.web-immersive) .web-core-caption button{margin:0}}
+@media(max-width:800px){}
 
 /* Conversation flow: restrained user bubbles, open assistant copy, compact evidence. */
 body:not(.web-immersive) #webMessages li{border:0;background:none;padding:14px 0 14px 40px;margin:0 0 7px;font-size:14px}
@@ -374,24 +351,20 @@ body:not(.web-immersive) #webMessages li[data-outcome]>p{font-size:13px;color:#c
 #webMessages .web-response-details p{max-width:65ch!important;color:#a5bdc7!important;font-size:11px!important;line-height:1.6!important}
 #webComposePanel{min-width:0;width:100%;color:#aac8d0;font-size:12px}
 #webComposePanel:focus-within{outline:none}
-body:not(.web-immersive) .web-core-caption{bottom:10px;left:18px;right:auto;gap:4px 8px;padding:6px 0;max-width:calc(42% - 36px)}
-body:not(.web-immersive) .web-core-caption p{font-size:10px}
 .web-immersive .web-dock{background:none!important;border:0!important;box-shadow:none!important;display:flex;align-items:flex-end;gap:6px;bottom:12px!important;padding:0!important}
 .web-immersive .web-dock #webComposePanel{flex:1}
 .web-immersive .web-dock #webNew{min-height:42px;margin-bottom:0}
 .web-immersive .web-conversation{bottom:85px}
 .web-immersive .web-core-name{bottom:169px}
-.web-immersive .web-core-caption{bottom:143px}
 @media(min-width:1001px){
  .web-immersive #stage{height:100%;transform:none;mask-image:linear-gradient(transparent,#000 6%,#000 90%,transparent)}
  .web-immersive .web-reticle{bottom:115px}
  .web-immersive .web-telemetry{bottom:80px}
 }
-@media(min-width:801px) and (max-width:1199px){body:not(.web-immersive) .web-core-caption{max-width:calc(38% - 30px)}}
+@media(min-width:801px) and (max-width:1199px){}
 @media(max-width:800px){
  body:not(.web-immersive) #stage{width:100%;height:225px;mask-image:linear-gradient(#000 55%,transparent)}
  body:not(.web-immersive) .web-conversation{top:225px;left:0;padding:10px 12px}
- body:not(.web-immersive) .web-core-caption{top:8px;bottom:auto;left:10px;max-width:none}
  body:not(.web-immersive) #webMessages li{padding-left:32px}
  body:not(.web-immersive) #webMessages li[data-speaker=user]{margin-left:5px;padding-left:39px}
  body:not(.web-immersive) #webMessages li>p{font-size:13px}
@@ -403,7 +376,6 @@ body:not(.web-immersive) #stage{height:auto;aspect-ratio:1 / 1.05;max-height:cal
  body:not(.web-immersive) #stage{height:225px;aspect-ratio:auto;max-height:none;top:0}
  .web-immersive #stage{height:275px}
  .web-immersive .web-conversation{top:275px;bottom:70px}
- .web-immersive .web-core-caption{left:auto;right:8px;top:8px;width:auto;max-width:none}
 }
 /* Text and Voice share one lock and composer in the isolated presentation program. */
 .web-real-audio{width:240px;max-width:65%;height:42px;overflow:visible}
@@ -420,9 +392,6 @@ body:not(.web-immersive) .web-dock{border:0!important;background:linear-gradient
 body:not(.web-immersive) .web-conversation{bottom:var(--composer-space,65px)}
 @media(max-width:800px){#webComposer #cmd{font-size:16px}}
 #webComposer .bar-in{height:auto;min-height:48px}
-
-/* Immersive HUD presentation. The existing canvas and three desktop columns stay in place. */
-.web-immersive .web-core-caption{display:none}
 .web-immersive #stage{filter:brightness(1.03) saturate(1.04)}
 .web-immersive .web-reticle{
  background:radial-gradient(ellipse at 50% 46%,#5bc5bb0d,transparent 56%);
@@ -531,4 +500,23 @@ body:not(.web-immersive) .web-conversation{bottom:var(--composer-space,65px)}
  .web-immersive #stage{mask-image:linear-gradient(#000 54%,#0007 68%,transparent 84%)}
  .web-immersive .web-core-name{color:var(--hud-ink);text-shadow:0 1px 8px #000}
  .web-immersive .web-conversation{top:284px}
+}
+
+
+/* Standard keeps the composition quiet and reserves room below the Core for the Halo. */
+body:not(.web-immersive) #stage{
+ max-height:calc(100% - 150px);
+ mask-image:linear-gradient(#000 72%,transparent);
+}
+body:not(.web-immersive) .web-conversation{
+ border-color:transparent;gap:10px;background:linear-gradient(140deg,#0c2029,#08171e 62%);
+}
+body:not(.web-immersive) #webMessages li{padding-block:10px;margin-bottom:5px}
+body:not(.web-immersive) #webMessages li[data-speaker=user]{background:#12384180}
+body:not(.web-immersive) #webComposer .bar-in{border-radius:16px;background:#10262e!important}
+body:not(.web-immersive) #webComposer .bar-in:focus-within{background:#14323a!important}
+body:not(.web-immersive) #webSend{border-radius:10px}
+@media(max-width:800px){
+ body:not(.web-immersive) #stage{height:228px;mask-image:linear-gradient(#000 55%,transparent 88%)}
+ body:not(.web-immersive) .web-conversation{top:274px}
 }

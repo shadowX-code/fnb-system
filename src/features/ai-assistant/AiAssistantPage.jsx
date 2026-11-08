@@ -13,7 +13,7 @@ export default function AiAssistantPage({ ui, auth }) {
   const root = useRef(null), frame = useRef(null);
   const [drawer,setDrawer]=useState(null),[threadError,setThreadError]=useState('');
   const openUsage=useCallback(()=>setDrawer('usage'),[]);
-  const {realtimeState,realtimeRef,refreshAvailability,setHudView,thread,threadAction,renameThread,textReady}=useAssistantBridge(frame, ASSISTANT_STAGING_ALLOWED ? auth?.user?.id : null,openUsage);
+  const {realtimeState,realtimeRef,refreshAvailability,setHudView,thread,threadAction,renameThread}=useAssistantBridge(frame, ASSISTANT_STAGING_ALLOWED ? auth?.user?.id : null,openUsage);
   const {provider,voice:preferredVoice}=realtimeState.voiceDefault||{};
   const { fullscreen, notice, toggleFullscreen } = useNetworkFullscreen(root, { native: false });
   useEffect(()=>setHudView(fullscreen),[fullscreen,setHudView]);
@@ -37,7 +37,7 @@ export default function AiAssistantPage({ ui, auth }) {
     {!fullscreen&&<header className="assistant-standard-header">
       <div className="assistant-thread-heading">
         <button type="button" className="btn-ghost" aria-label="Back to workspace" onClick={()=>ui?.returnFromNetwork?.()}><ArrowLeft size={16}/></button>
-        <div><h1 title={thread?.title||'AI Assistant'}>{thread?.title||'AI Assistant'}</h1><p><span aria-hidden="true" data-ready={textReady===true}/> AI Assistant · {voiceLocked?'Voice session active':textReady===true?'Text ready':textReady===false?'Text unavailable':'Checking services'}</p></div>
+        <div><h1 title={thread?.title||'AI Assistant'}>{thread?.title||'AI Assistant'}</h1><p>AI Assistant</p></div>
       </div>
       <nav aria-label="Conversation controls" className="assistant-header-actions">
         {threadControls}

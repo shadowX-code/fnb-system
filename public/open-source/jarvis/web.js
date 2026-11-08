@@ -36,8 +36,7 @@ const hudIcon=name=>`<svg class="web-hud-icon" viewBox="0 0 24 24" fill="none" s
 const voiceWave=`<svg class="web-real-audio" viewBox="0 0 240 48" aria-hidden="true">${Array.from({length:20},(_,i)=>`<line x1="${i*12+5}" x2="${i*12+5}" y1="3" y2="45" style="transform-origin:${i*12+5}px 24px;transform:scaleY(calc(.025 + var(--voice-band-${i},0)*.975))"/>`).join('')}</svg>`;
 
 const web=document.createElement('section');web.id='assistantWeb';
-web.innerHTML=`<div class="web-core-caption"><span class="web-status-dot"></span><strong>Visual ready</strong><p>Original Jarvis Core · no active AI service</p><button type="button" id="webPause">Pause motion</button></div>
-<div class="web-reticle" aria-hidden="true"><i></i><b></b><span></span></div>
+web.innerHTML=`<div class="web-reticle" aria-hidden="true"><i></i><b></b><span></span></div>
 <div class="web-core-name" aria-hidden="true">J A R V I S</div>
 <aside class="web-telemetry" aria-label="Session telemetry">
 <section class="web-hud-panel"><h2>Agent activity</h2><ol id="webActivity"><li class="web-activity-idle">Waiting for a request</li></ol></section>
@@ -298,9 +297,9 @@ addEventListener('keydown', event => {
   $('#webStop').click();
  }
 });
-const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');let paused=false;
-function updateMotion(){window.FEEDX_VISUAL_PAUSED=paused||motionPreference.matches;$('#webPause').textContent=motionPreference.matches?'Reduced motion':paused?'Resume motion':'Pause motion';$('#webPause').disabled=motionPreference.matches;$('#webPause').setAttribute('aria-pressed',String(window.FEEDX_VISUAL_PAUSED));}
-$('#webPause').onclick=()=>{paused=!paused;updateMotion();};motionPreference.addEventListener('change',updateMotion);updateMotion();
+const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
+function updateMotion(){window.FEEDX_VISUAL_PAUSED=motionPreference.matches;}
+motionPreference.addEventListener('change',updateMotion);updateMotion();
 // Retain the reviewed default renderer; hide unrelated upstream sample instruments.
 sysLive=true;tripLive=true;wxLive=true;SCHED=[];applySchedule([]);
 $('.hud').style.display='none';$('#labels').style.display='none';$('#badge').style.display='none';
@@ -312,8 +311,6 @@ $('#webBootStatus')?.remove();
 
 function serviceStatus(){
  const ready=!!runtime?.ready;document.body.dataset.serviceState=ready?'ready':'unavailable';
- $('.web-core-caption strong').textContent=ready?'Text ready':'Visual ready';
- $('.web-core-caption p').textContent='Original Jarvis Core · '+(ready?'authorized text service':'text service unavailable');
  const services=[ready?'Text · '+runtime.model:'Unavailable',runtime?.voice_provider?'Configured · '+runtime.voice_provider+' (start a voice session)':'Unavailable',runtime?.voice_provider?'Configured · '+runtime.voice_provider+' (start a voice session)':'Unavailable',runtime?.tools?'Factory Finished Goods · read only':'Unavailable'];
  $('.web-services summary').textContent='Authorized capabilities';
  document.querySelectorAll('.web-services dd').forEach((el,i)=>el.textContent=services[i]);

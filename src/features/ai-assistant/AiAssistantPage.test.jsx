@@ -42,7 +42,7 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   fireEvent.click($('#mic'));expect($('#webNotice').textContent).toContain('No microphone was opened');
   fireEvent.click($('#webNew'));expect($('#webMessages').textContent).not.toContain('inventory');
   expect($('#webHistory')).toBeNull();
-  fireEvent.click($('#webPause'));expect(window.FEEDX_VISUAL_PAUSED).toBe(true);fireEvent(window,new Event('resize'));expect(frozenRender).toHaveBeenCalledOnce();
+  reducedMotion.matches=true;reducedMotion.addEventListener.mock.calls[0][1]();expect(window.FEEDX_VISUAL_PAUSED).toBe(true);fireEvent(window,new Event('resize'));expect(frozenRender).toHaveBeenCalledOnce();
   fireEvent.click($('#webStop'));expect($('#webNotice').textContent).toContain('No AI generation');
   fireEvent(window,new MessageEvent('message',{source:window.parent,origin:'https://fnb-system-staging.vercel.app',data:{protocol:'feedx.assistant.text.v1',type:'reset'}}));
   expect($('#webMessages').textContent).not.toContain('inventory');expect($('#webOlder').hidden).toBe(true);expect(input.value).toBe('');
@@ -92,11 +92,7 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
   fireEvent.click(toggle);
   expect(input.value).toBe('Keep this\nmultiline draft');
-  fireEvent.click($('#webPause'));
-  reducedMotion.matches=true;
-  reducedMotion.addEventListener.mock.calls[0][1]();
-  expect(window.FEEDX_VISUAL_PAUSED).toBe(true);
-  expect($('#webPause').disabled).toBe(true);
+  expect($('#webPause')).toBeNull();
 });
 it('distributes editable GPL source and denies network connections for this static program',()=>{
   const config=JSON.parse(readFileSync('vercel.json','utf8'));const boundary=config.routes.find(r=>r.src==='/open-source/jarvis/(.*)');

@@ -8,7 +8,7 @@ vi.mock('@xyflow/react', () => ({
 }));
 vi.mock('./networkEnvironment.js',()=>({get NETWORK_DEMO_ALLOWED(){return mocks.demoAllowed;}}));
 vi.mock('./networkModel.js',async importOriginal=>({...await importOriginal(),accessibleNetworkModules:()=>mocks.modules}));
-vi.mock('./useNetworkEvidence.js',()=>({default:()=>({active:true,loading:false,agents:mocks.agents,events:[],integrations:[],sources:[],companies:[],refresh:()=>{}})}));
+vi.mock('./useNetworkEvidence.js',()=>({default:()=>({active:true,loading:false,observedAt:'2026-11-08T00:00:00Z',agents:mocks.agents,events:[],integrations:[],sources:[],companies:[],refresh:()=>{}})}));
 vi.mock('./useNetworkFullscreen.js',()=>({default:()=>({fullscreen:false,notice:'',toggleFullscreen:()=>{}})}));
 import OperationsNetworkPage from './OperationsNetworkPage.jsx';
 afterEach(()=>{cleanup();vi.unstubAllGlobals();mocks.flow.fitView.mockClear();mocks.agents=[];mocks.demoAllowed=true;});
@@ -32,7 +32,9 @@ it('refits the primary hierarchy when asynchronous evidence adds individual node
 });
 
 it('keeps active search/reset, time selection and polling status distinct from synthetic Demo',async()=>{
-  render(<OperationsNetworkPage auth={{hasPermission:()=>false,user:{id:'test'},permissions:[],profile:{}}} store={{outlets:[]}} ui={{networkRoutes:[],networkWorkspace:'factory',returnFromNetwork:()=>{},navigate:()=>{}}}/>);
+  const setNetworkLive=vi.fn();
+  render(<OperationsNetworkPage auth={{hasPermission:()=>false,user:{id:'test'},permissions:[],profile:{}}} store={{outlets:[]}} ui={{setNetworkLive,networkRoutes:[],networkWorkspace:'factory',returnFromNetwork:()=>{},navigate:()=>{}}}/>);
+  expect(setNetworkLive).toHaveBeenLastCalledWith(true);
   expect(screen.queryByText('Filters & search')).toBeNull();
   expect(screen.queryByRole('button',{name:'Clear all'})).toBeNull();
   for (const label of ['Workspace','Company','Outlet','Status']) expect(screen.getByRole('button',{name:label,exact:true}).textContent).toBe('All');
@@ -47,6 +49,7 @@ it('keeps active search/reset, time selection and polling status distinct from s
   expect(screen.getByText('Snapshot · manual refresh')).toBeTruthy();
   fireEvent.click(screen.getByRole('button',{name:'Visual Demo',exact:true}));
   expect(screen.getByText('Synthetic motion · recorded evidence unchanged')).toBeTruthy();
+  expect(setNetworkLive).toHaveBeenLastCalledWith(false);
   expect(screen.getByText('Snapshot · manual refresh')).toBeTruthy();
 });
 it('moves complete coverage information and layer explanations into shared drawers',()=>{

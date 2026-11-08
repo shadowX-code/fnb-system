@@ -970,7 +970,7 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
   );
 }
 
-export default function AppShell({ presentation = "standard", activeRoute, activeRouteId, sections, workspace = "restaurant", workspaceOptions = [], onWorkspaceChange, onNavigate, children, store, auth, onLogout, onNotify }) {
+export default function AppShell({ presentation = "standard", activeRoute, activeRouteId, networkLive, sections, workspace = "restaurant", workspaceOptions = [], onWorkspaceChange, onNavigate, children, store, auth, onLogout, onNotify }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState("All");
   const [notificationContext, setNotificationContext] = useState({});
@@ -1478,7 +1478,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
               <Menu size={18} />
             </button>
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <SystemNavigationChip kind="network" active={activeRouteId === 'operations_network'} onClick={() => onNavigate('operations_network')}/>
+              <SystemNavigationChip kind="network" live={activeRouteId === 'operations_network' && networkLive} active={activeRouteId === 'operations_network'} onClick={() => onNavigate('operations_network')}/>
               {ASSISTANT_STAGING_ALLOWED && <SystemNavigationChip kind="assistant" active={activeRouteId === 'ai_assistant'} onClick={() => onNavigate('ai_assistant')}/>}
             </div>
             <div className="relative ml-auto flex items-center gap-2">

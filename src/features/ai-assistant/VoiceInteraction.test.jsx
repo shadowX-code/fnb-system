@@ -17,5 +17,11 @@ it('uses one control and accurately distinguishes reconnect, ending, background 
  view.rerender(<VoiceInteraction state={{...ready,state:'reconnecting',active:true}} controller={controller}/>);
  expect(screen.getByText('Reconnecting',{exact:true}).textContent).toBe('Reconnecting');fireEvent.click(screen.getByRole('button',{name:'End voice'}));expect(stop).toHaveBeenCalledOnce();
  view.rerender(<VoiceInteraction state={{...ready,state:'suspended',active:true}} controller={controller}/>);expect(screen.getByText('Microphone suspended',{exact:true}).textContent).toBe('Microphone suspended');
- view.rerender(<VoiceInteraction state={{...ready,voicePolicy:{state:'active_elsewhere'}}} controller={controller}/>);expect(screen.getByRole('button',{name:'Finishing previous call'}).disabled).toBe(true);view.unmount();
+ view.rerender(<VoiceInteraction state={{...ready,voicePolicy:{state:'active_elsewhere'}}} controller={controller}/>);expect(screen.getByRole('button',{name:'Finishing previous call'}).disabled).toBe(true);fireEvent.click(screen.getByRole('button',{name:'Voice details'}));
+ const dialog=screen.getByRole('dialog',{name:'Voice details'});
+ expect(dialog.textContent).toContain('previous call is awaiting server cleanup');
+ fireEvent.keyDown(dialog,{key:'Escape'});
+ expect(screen.queryByRole('dialog')).toBeNull();
+ expect(document.activeElement).toBe(screen.getByRole('button',{name:'Voice details'}));
+ view.unmount();
 });

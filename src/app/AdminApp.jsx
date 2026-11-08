@@ -295,6 +295,7 @@ function AdminApp() {
   const [activeRouteId, setActiveRouteId] = useState(
     salesPurchaseRoutes.some((route) => route.id === initialRouteId) ? initialRouteId : "dashboard",
   );
+  const [networkLive, setNetworkLive] = useState(false);
   const [workspace, setWorkspace] = useState(() => {
     const routeWorkspace = workspaceForRoute(initialRouteId);
     if (routeWorkspace !== "restaurant") return routeWorkspace;
@@ -612,7 +613,7 @@ function AdminApp() {
     });
   }
 
-  const ui = { notify, confirm, navigate, returnFromNetwork, networkRoutes: accessibleRoutes, networkWorkspace: workspace };
+  const ui = { notify, confirm, navigate, returnFromNetwork, setNetworkLive, networkRoutes: accessibleRoutes, networkWorkspace: workspace };
 
   if (isPublicProductFeedbackRoute()) {
     return <FactoryProductFeedbackPublic />;
@@ -669,6 +670,7 @@ function AdminApp() {
       <AppShell
         activeRoute={activeRoute}
         activeRouteId={activeRouteId}
+        networkLive={networkLive}
         sections={accessibleSections}
         workspace={workspace}
         workspaceOptions={availableWorkspaceOptions}

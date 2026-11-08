@@ -43,3 +43,6 @@ message with availability, recovery state and formatted call diagnostics.
 The sandbox can ask the host to refresh availability, resume existing
 playback or open usage settings via voice_refresh, voice_resume and
 voice_usage. Admission, playback and provider access stay host-owned.
+
+Standard View leaves the voice interaction and details in the host. The
+isolated Core follows the browser's reduced-motion preference in both views.
