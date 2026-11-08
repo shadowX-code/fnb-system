@@ -33,23 +33,25 @@ export function voiceDiagnostics(report) {
 }
 
 export default function VoiceInteraction({state,controller,onRefresh,onUsage,immersive=false}){
- const detailsId=useId(),detailsTrigger=useRef(null);
+ const detailsId=useId(),detailsTrigger=useRef(null),halo=useRef(null);
  const [detailsOpen,setDetailsOpen]=useState(false);
  const closeDetails=()=>{setDetailsOpen(false);detailsTrigger.current?.focus();};
  const {provider,voice:preferred}=state.voiceDefault||{};
  const view=voicePresentation(state);
  const report=immersive||state.active?null:voiceDiagnostics(state.report);
  const primary=()=>state.active?controller.current?.stop():controller.current?.start(provider,voiceOptions[provider]?.includes(preferred)?preferred:voiceOptions[provider]?.[0]);
- return <div className="assistant-voice-dock" aria-label="Voice controls" data-phase={state.state||'idle'}>
+ return <div ref={halo} className="assistant-voice-dock" aria-label="Voice controls" data-phase={state.state||'idle'}>
   <svg className="assistant-audio-bands" viewBox="0 0 400 64" aria-hidden="true">{Array.from({length:40},(_,i)=>{const index=i<20?i:39-i,x=i<20?i*6+4:282+(i-20)*6;return <line key={i} x1={x} x2={x} y1="7" y2="57" style={{transformOrigin:`${x}px 32px`,transform:`scaleY(calc(.025 + var(--voice-band-${index}, 0) * .975))`}}/>;})}</svg>
   <button type="button" className="assistant-mic-control" disabled={view.disabled} onClick={primary} aria-label={view.label}>{state.active?<Square size={20}/>:<Mic size={24}/>}</button>
   <div className="assistant-halo-meta">
    <p className="assistant-voice-state" role="status">{view.disabled&&!state.active&&view.status==='Voice unavailable'?view.label:view.status}</p>
    {!immersive&&<button ref={detailsTrigger} type="button" className="assistant-voice-info"
      aria-label="Voice details" aria-expanded={detailsOpen} aria-haspopup="dialog"
-     aria-controls={detailsOpen?detailsId:undefined} onClick={()=>setDetailsOpen(open=>!open)}><Info size={14}/></button>}
+     aria-controls={detailsOpen?detailsId:undefined} onKeyDown={event=>{
+      if(detailsOpen&&event.key==='Escape'){event.stopPropagation();closeDetails();}
+     }} onClick={()=>setDetailsOpen(open=>!open)}><Info size={14}/></button>}
   </div>
-  <FloatingLayer open={!immersive&&detailsOpen} onOpenChange={setDetailsOpen} anchorRef={detailsTrigger} align="center"
+  <FloatingLayer open={!immersive&&detailsOpen} onOpenChange={setDetailsOpen} anchorRef={halo} align="center"
     width={300} maxHeight={310} estimatedHeight={180} focusOnOpen closeOnEscape={false} className="assistant-voice-popover">
    <div id={detailsId} role="dialog" aria-label="Voice details" onKeyDown={event=>{
     if(event.key==='Escape'){event.stopPropagation();closeDetails();}

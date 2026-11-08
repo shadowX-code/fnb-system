@@ -35,7 +35,9 @@
 .system-nav-chip:focus-visible::after { transform: scaleX(1); }
 .system-nav-chip__icon { position: relative; display: inline-flex; flex: none; color: var(--ambient-accent); }
 .system-nav-chip__status { display: inline-flex; align-items: center; gap: 4px; color: var(--ambient-accent); font-size: 10px; }
-.system-nav-chip__status i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: ambient-nav-breathe 3s ease-in-out 2; }
+.system-nav-chip__status[aria-hidden=true] { visibility: hidden; }
+.system-nav-chip__status:not([aria-hidden=true]) i { animation: ambient-nav-breathe 3s ease-in-out 2; }
+.system-nav-chip__status i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .system-nav-chip[data-kind=assistant] .system-nav-chip__icon::after {
   content: ''; position: absolute; inset: -4px; border: 1px solid currentColor; border-radius: 50%; opacity: 0; pointer-events: none;
 }
@@ -51,8 +53,10 @@
 @keyframes ambient-nav-breathe { 50% { opacity: .55; filter: drop-shadow(0 0 2px currentColor); } }
 @keyframes ambient-nav-orbit { from { transform: scale(.75); opacity: .55; } to { transform: scale(1.22); opacity: 0; } }
 @media(max-width:600px) {
-  .system-nav-chip { gap: 4px; padding-inline: 3px; font-size: 10px; }
+  .system-nav-chip { min-height: 44px; gap: 4px; padding-inline: 3px; font-size: 10px; }
   .system-nav-chip__icon svg { width: 14px; height: 14px; }
+  .system-nav-chip__status { position: absolute; left: 21px; bottom: 2px; font-size: 9px; }
+  .system-nav-chip[data-kind=network]::after { bottom: 0; }
 }
 @media(pointer:coarse) { .system-nav-chip { min-height: 44px; } }
 @media(prefers-reduced-motion:reduce) {
