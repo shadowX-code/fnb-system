@@ -46,10 +46,12 @@ export class MetaGraph {
    const proof=await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(token));
    form.set('appsecret_proof',Array.from(new Uint8Array(proof),b=>b.toString(16).padStart(2,'0')).join(''));
   }
+  const whatsappText=method==='POST'&&path==='1221509657713215/messages'&&params.messaging_product==='whatsapp'&&params.type==='text';
   if(method==='GET')url.search=form.toString();
+  if(whatsappText&&form.has('appsecret_proof'))url.searchParams.set('appsecret_proof',form.get('appsecret_proof')!);
   let response:Response;
   if(method!=='GET')await this.beforeWrite?.();
-  try { response=await this.transport(url,{method,headers:{...(token?{Authorization:`Bearer ${token}`}:{ }),...(method!=='GET'?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body:method==='GET'?undefined:form.toString(),signal:this.signal?AbortSignal.any([this.signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000),redirect:'error'}); }
+  try { response=await this.transport(url,{method,headers:{...(token?{Authorization:`Bearer ${token}`}:{ }),...(method!=='GET'?{'Content-Type':whatsappText?'application/json':'application/x-www-form-urlencoded'}:{})},body:method==='GET'?undefined:whatsappText?JSON.stringify(params):form.toString(),signal:this.signal?AbortSignal.any([this.signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000),redirect:'error'}); }
   catch {
    inspect?.(null,null);
    if(['me/accounts','me/permissions'].includes(path))this.report({event:'graph_response',endpoint:path,http_status:null,graph_error_code:null,returned_count:null,data_shape:'no_response'});

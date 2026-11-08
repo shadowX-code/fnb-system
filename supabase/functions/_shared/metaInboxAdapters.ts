@@ -1,15 +1,20 @@
 /** Server-only adapters. The staff-only route requires approved, allowlisted durable intent.
  * Fixed official endpoints; every write requires fresh operation-specific authority and durable intent.
  */
+import {CLOUD_TEST_PHONE} from './whatsappOnboarding.ts';
 import {messagingIntent} from './marketingInbox.ts';
 export type InboxDeliveryState={pending?:boolean;receipt?:string;failed?:string};
-export async function advanceInboxDelivery(input:{channel:'facebook'|'instagram';authority:any;recipient:string;text:string;state:InboxDeliveryState;guard:()=>Promise<void>;checkpoint:(state:InboxDeliveryState)=>Promise<void>;post:(path:string,body:any)=>Promise<any>}) {
- if (!['facebook','instagram'].includes(input.channel)) throw new Error('messaging_channel_disabled');
+export async function advanceInboxDelivery(input:{channel:'facebook'|'instagram'|'whatsapp';authority:any;whatsappStaff?:boolean;recipient:string;text:string;state:InboxDeliveryState;guard:()=>Promise<void>;checkpoint:(state:InboxDeliveryState)=>Promise<void>;post:(path:string,body:any)=>Promise<any>}) {
+ if (!['facebook','instagram'].includes(input.channel)&&!(input.channel==='whatsapp'&&input.whatsappStaff===true)) throw new Error('messaging_channel_disabled');
  const {state}=input;
  if(state.receipt)return {state:'sent',receipt:state.receipt};
  if(state.failed)return {state:'failed',code:state.failed};
  if(state.pending)return {state:'reconciling',code:'delivery_receipt_unknown'};
- const intent=messagingIntent(input.channel,input.authority,input.recipient,input.text);
+ const whatsapp=input.channel==='whatsapp';
+ if(whatsapp&&(!/^\d{7,15}$/.test(input.recipient)||!input.text.trim()||input.text.length>2000))throw new Error('whatsapp_reply_invalid');
+ const intent=input.channel==='whatsapp'
+  ?{path:`${CLOUD_TEST_PHONE}/messages`,body:{messaging_product:'whatsapp',recipient_type:'individual',to:input.recipient,type:'text',text:{body:input.text,preview_url:false}}}
+  :messagingIntent(input.channel,input.authority,input.recipient,input.text);
  await input.guard();
  await input.checkpoint({pending:true});
  await input.guard();
@@ -20,9 +25,13 @@ export async function advanceInboxDelivery(input:{channel:'facebook'|'instagram'
   if(error?.definitive===true) {const code=inboxFailureCode(error);await input.checkpoint({failed:code});return {state:'failed',code};}
   return {state:'reconciling',code:'delivery_receipt_unknown'};
  }
- if(typeof result?.message_id!=='string'||!result.message_id||result.message_id.length>300||result.recipient_id!==input.recipient)return {state:'reconciling',code:'delivery_receipt_unverified'};
- await input.checkpoint({receipt:result.message_id});
- return {state:'sent',receipt:result.message_id};
+ const receipt=whatsapp?result?.messages?.[0]?.id:result?.message_id;
+ const recipient=whatsapp?result?.contacts?.[0]?.wa_id:result?.recipient_id;
+ if(typeof receipt!=='string'||!receipt||receipt.length>300||recipient!==input.recipient
+  ||(whatsapp&&(!receipt.startsWith('wamid.')||result.messaging_product!=='whatsapp'||result.contacts.length!==1||result.messages.length!==1)))
+  return {state:'reconciling',code:'delivery_receipt_unverified'};
+ await input.checkpoint({receipt});
+ return {state:'sent',receipt};
 }
 /** Public comment reply contract only; private replies and messaging-window extensions are unsupported. */
 export function commentReplyIntent(channel:'facebook'|'instagram',authority:any,commentId:string,text:string) {

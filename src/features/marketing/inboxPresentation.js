@@ -69,7 +69,11 @@ export function conversationTimeline(detail) {
 export function replyAvailability(current, configuration, canSend) {
   const c = current.conversation;
   if (c.channel === "internal") return "Internal case · no customer recipient";
-  if (c.channel === "whatsapp") return "WhatsApp sending is disabled";
+  if (c.channel === "whatsapp") {
+    if (!canSend) return "Sending requires staff permission";
+    if (!current.window_open) return "Reply window closed or unavailable";
+    return configuration?.whatsapp_staff_ready === true ? "" : "WhatsApp sending is disabled";
+  }
   if (c.opted_out) return "Customer opted out · replies are paused";
   if (c.status === "resolved") return "Reopen this conversation to reply";
   if (c.medium && c.medium !== "dm") return "Comment replies are unavailable";

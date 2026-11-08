@@ -247,23 +247,30 @@ Deno.serve(async (req) => {
   }
   if(path==='/send-status' && req.method==='POST'){
     try{const raw=await req.text();if(raw.length>1000)return json({error:'Request too large.'},413);const body=JSON.parse(raw);const scope=await rpc(service,'marketing_inbox_staff_send_scope',{p_conversation:body.conversationId,p_auth_user:identity.data.user.id});
+      if(scope.channel==='whatsapp')return json({whatsapp_staff_ready:scope.whatsapp_test_ready===true});
       return json({staff_send_configured:staffReplyConfigured(env),recipient_allowed:staffReplyAllowed(scope.account,scope.peer,env)});
     }catch{return json({error:'Sending availability could not be checked.'},403);}
   }
   if (['/send-approved','/send-staff-reply'].includes(path) && req.method==='POST') {
-    if(!staffReplyConfigured(env))return json({error:'Staff sending is disabled pending explicit test approval.'},403);
     let draftId:string|undefined;
+    let testScope:{account:string;peer:string}|undefined;
     try {
       const raw=await req.text();if(raw.length>12000)return json({error:'Request too large.'},413);
       const body=JSON.parse(raw);draftId=body.draftId;
       if(path==='/send-staff-reply'){
         // Check exact test recipient before recording intent, with the same server-only gate as approved sends.
         const scope=await rpc(service,'marketing_inbox_staff_send_scope',{p_conversation:body.conversationId,p_auth_user:identity.data.user.id});
-        if(!staffReplyAllowed(scope.account,scope.peer,env))return json({error:'Recipient is outside the approved test scope.'},403);
+        if(scope.channel==='whatsapp'){
+         if(scope.whatsapp_test_ready!==true||body.sourceArtifactId)return json({error:'This WhatsApp conversation is outside the permitted staff reply scope or its service window has closed.'},403);
+         testScope={account:scope.account,peer:scope.peer};
+        }else if(!staffReplyAllowed(scope.account,scope.peer,env))return json({error:'Recipient is outside the approved test scope.'},403);
         const prepared=await rpc(caller,'marketing_inbox_prepare_staff_reply',{p_request:body.requestId,p_conversation:body.conversationId,p_version:body.version,p_body:body.text,p_artifact:body.sourceArtifactId||null});draftId=prepared.draft_id;
-      }else await rpc(caller,'marketing_inbox_prepare_send',{p_request:body.requestId,p_draft:draftId});
+      }else{
+       if(!staffReplyConfigured(env))return json({error:'Staff sending is disabled pending explicit test approval.'},403);
+       await rpc(caller,'marketing_inbox_prepare_send',{p_request:body.requestId,p_draft:draftId});
+      }
       const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret:env('MARKETING_META_APP_SECRET'),configId:env('MARKETING_META_LOGIN_CONFIG_ID'),version:env('MARKETING_META_GRAPH_VERSION')});
-      const result=await deliverInboxReply(service,graph,env,draftId!,identity.data.user.id,(account,peer)=>staffReplyAllowed(account,peer,env));
+      const result=await deliverInboxReply(service,graph,env,draftId!,identity.data.user.id,(account,peer)=>testScope?account===testScope.account&&peer===testScope.peer:staffReplyAllowed(account,peer,env),!!testScope);
       return json(result);
     }catch(error){
       return json({error:(error as {safeMessage?:string})?.safeMessage||'Reply unavailable. Check connection status, reply window and any existing send result.'},409);

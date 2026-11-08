@@ -124,8 +124,7 @@ export default function InboxReplyComposer({
     : current.window_expires_at
       ? "Closed · An approved WhatsApp template is required to contact the customer outside the window."
       : "Unverified · Waiting for an eligible WhatsApp customer message.";
-  // WhatsApp execution remains unavailable independently of general messaging/AI flags.
-  // Team notes continue through the same permission-checked canonical note authority.
+  const whatsAppReady = directReady && current.window_open && Boolean(whatsAppDeadline) && expiredDeadline !== whatsAppDeadline;
   if (c.channel === "whatsapp" && mode === "reply") return (
     <div className="inbox-composer" aria-label="Reply composer">
       <div className="inbox-composer-tools">
@@ -135,12 +134,16 @@ export default function InboxReplyComposer({
         {can("ai") && <button className="btn-secondary" disabled title="WhatsApp AI suggestions and automatic replies are disabled."><Sparkles size={14} />AI Suggested Reply</button>}
       </div>
       <p className="inbox-assistance-status" role="status"><strong>24-hour service window</strong> · {c.opted_out ? "Customer opted out. Replies paused." : whatsAppWindow}</p>
-      <p className="inbox-muted">FeedX sending is disabled for WhatsApp.</p>
-      <p className="inbox-muted">{current.channel_capability?.receiving_verified ? "Receiving verification is recorded; this does not enable replies." : "Receiving has not been verified for this conversation."} Mobile-app replies remain separate from FeedX sending.</p>
+      {unavailable && <p className="inbox-muted">{unavailable}</p>}
+      {!unavailable && requiresApproval && <p className="inbox-muted">This reply requires review. The WhatsApp test supports direct staff replies only.</p>}
       {canViewConnections && <a className="inbox-text-button" href={`/marketing/connections?marketing_brand=${encodeURIComponent(c.brand_id || '')}&marketing_org=${encodeURIComponent(c.organization_id || '')}`}>View Connections</a>}
       <label className="sr-only" htmlFor={`inbox-compose-${c.id}`}>Staff Reply</label>
-      <textarea id={`inbox-compose-${c.id}`} className="control" rows={2} disabled placeholder="WhatsApp Staff Reply is unavailable" />
-      <div className="inbox-composer-footer"><p>Receive-only preparation · no message will be sent</p>{can("reply") && <button className="btn-primary" disabled><Send size={14} />Send</button>}</div>
+      <textarea id={`inbox-compose-${c.id}`} className="control" rows={2} value={text}
+        disabled={Boolean(unavailable) || !can("reply") || busy} maxLength={2000}
+        placeholder={unavailable ? "WhatsApp Staff Reply is unavailable" : "Write a WhatsApp reply"}
+        onChange={event => {setText(event.target.value);setDirty(true);}} />
+      <div className="inbox-composer-footer">{can("reply") && <button className="btn-primary" disabled={busy || !whatsAppReady}
+        onClick={async () => {if (await onDirectSend(text, null)) {setText("");setDirty(false);}}}><Send size={14} />Send</button>}</div>
     </div>
   );
   return (

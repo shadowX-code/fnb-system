@@ -958,6 +958,10 @@ Sounds are optional, off by default, limited to authorized Brands while Marketin
 
 Connections separates Cloud API test setup from the Business App Coexistence signup action. It reports receiving, FeedX sending, number quality and messaging limits independently. The Staging test path pins the app, WABA, phone and isolated Brand, verifies the token and both webhook subscriptions with read-only Graph calls, and uses the shared encrypted credential authority. Receiving Verified requires a signed inbound message on the current generation. Business App Coexistence also requires its own onboarding and synchronization evidence. A phone listed as Connected in WhatsApp Manager does not confer FeedX authority. Quality and limits stay unverified in FeedX until a provider read can be tied to the exact authorized asset. See the [Cloud API test acceptance procedure](../testing/marketing-whatsapp-cloud-test.md).
 
+### WhatsApp staff replies on Staging
+
+The isolated QA conversation supports human-authored, free-form staff replies through the Cloud API. The Inbox checks staff permissions, takeover, signed inbound evidence for the current credential generation, the 24-hour window and the exact test asset and conversation. It records intent in the shared reply outbox before sending. An uncertain provider response stays in reconciliation and is never automatically resent. Signed receipts update the outbox by provider message ID and recipient. Templates, AI execution and campaigns remain outside this test path.
+
 ### WhatsApp Workflow simulation
 
 Workflows is Brand-scoped and reuses Campaign view, manage and execute permissions. The first workflow is a fixed invitation recipe with configurable batch size and zero or one reminder. Saves append immutable revisions. Enabling a revision requires a successful simulation of that revision. The same configuration can be paused and revised without altering earlier rehearsal traces. Simulations use fictional recipient scenarios and write workflow audit events only. They do not enroll campaign recipients, change Inbox assignment, call Meta or grant live execution.

@@ -28,3 +28,16 @@ describe('bounded Send API contracts',()=>{
 
 it('preserves bounded definitive rejection categories without retaining provider payloads',async()=>{for(const [graphCode,code] of [[190,'provider_token_invalid'],[200,'provider_permission_required'],[613,'provider_rate_limited'],[551,'provider_recipient_unavailable'],[100,'provider_rejected']] as const){let state:any={};const post=vi.fn().mockRejectedValue({definitive:true,graphCode,message:'private provider payload'});const args={channel:'facebook' as const,authority,recipient:'222',text:'Hello',guard:async()=>{},checkpoint:async(v:any)=>{state=v},post};expect(await advanceInboxDelivery({...args,state})).toEqual({state:'failed',code});expect(JSON.stringify(state)).not.toContain('private');await advanceInboxDelivery({...args,state});expect(post).toHaveBeenCalledTimes(1);expect(inboxFailureCode({graphCode})).toBe(code)}});
 it('closed and future messaging windows are rejected before any POST',async()=>{for(const last_inbound_at of [new Date(Date.now()-25*3600000).toISOString(),new Date(Date.now()+3600000).toISOString()]){const post=vi.fn();await expect(advanceInboxDelivery({channel:'instagram',authority:{...authority,last_inbound_at},recipient:'222',text:'Hello',state:{},guard:async()=>{},checkpoint:async()=>{},post})).rejects.toThrow();expect(post).not.toHaveBeenCalled()}});
+
+
+it('sends a controlled WhatsApp text once and retains its exact provider receipt',async()=>{
+ const recipient='60123456789';
+ const post=vi.fn().mockResolvedValue({messaging_product:'whatsapp',contacts:[{wa_id:recipient}],messages:[{id:'wamid.fixture'}]});
+ let state={};
+ const checkpoint=async(next:Record<string,unknown>)=>{state=next};
+ const args={channel:'whatsapp' as const,whatsappStaff:true,authority,recipient,text:'Test reply',guard:async()=>{},checkpoint,post};
+ await expect(advanceInboxDelivery({...args,state})).resolves.toEqual({state:'sent',receipt:'wamid.fixture'});
+ expect(post).toHaveBeenCalledWith('1221509657713215/messages',{messaging_product:'whatsapp',recipient_type:'individual',to:recipient,type:'text',text:{body:'Test reply',preview_url:false}});
+ await advanceInboxDelivery({...args,state});
+ expect(post).toHaveBeenCalledTimes(1);
+});
