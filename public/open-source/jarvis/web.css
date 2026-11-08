@@ -8,7 +8,7 @@
 
 .web-telemetry,.web-operations{display:none}
 .web-immersive{--hud-line:#24505d;--hud-ink:#e6f5fa;--hud-muted:#a2c3ce;--hud-cyan:#75e6f3;--hud-panel:#07131ce8;--hud-left:clamp(184px,23vw,330px);--hud-right:clamp(295px,30vw,470px)}
-.web-immersive #stage{left:var(--hud-left);width:calc(100% - var(--hud-left) - var(--hud-right));height:100%}
+.web-immersive #stage{left:var(--hud-left);width:calc(100% - var(--hud-left) - var(--hud-right));height:calc(100% - 115px)}
 .web-immersive .web-telemetry{position:absolute;left:12px;top:12px;width:calc(var(--hud-left) - 24px);display:grid;gap:12px;pointer-events:auto}
 .web-immersive .web-hud-panel,.web-immersive .web-conversation{border:1px solid var(--hud-line);border-top-color:#46717c;border-radius:12px;background:linear-gradient(150deg,#0e2632a0,transparent 62%),var(--hud-panel);box-shadow:0 8px 24px #0005}
 .web-immersive .web-hud-panel{padding:13px}
@@ -234,7 +234,6 @@
 .web-immersive .web-reticle b{border:0;background:conic-gradient(from 5deg,#92eaffaa,transparent 14%,transparent 43%,#84dff7a0 47%,transparent 60%,transparent 81%,#6dd9f970 86%,transparent 94%);mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 1px) 99%,transparent)}
 .web-immersive .web-reticle span{position:absolute;inset:0;background:linear-gradient(#6fd8ef88,#6fd8ef88) 50% 7%/1px 12px,linear-gradient(#6fd8ef88,#6fd8ef88) 50% 95%/1px 12px,linear-gradient(#6fd8ef88,#6fd8ef88) 4% 51%/13px 1px,linear-gradient(#6fd8ef88,#6fd8ef88) 96% 51%/13px 1px;background-repeat:no-repeat}
 @media(min-width:1001px){
- .web-immersive #stage{height:100%;transform:translateY(-24px);}
  .web-immersive .web-conversation,.web-immersive .web-telemetry,.web-immersive .web-reticle{bottom:129px}
  .web-immersive .web-core-name{bottom:160px}
  .web-immersive .web-dock{bottom:31px}
@@ -355,7 +354,6 @@ body:not(.web-immersive) #webMessages li[data-outcome]>p{font-size:13px;color:#c
 .web-immersive .web-conversation{bottom:85px}
 .web-immersive .web-core-name{bottom:169px}
 @media(min-width:1001px){
- .web-immersive #stage{height:100%;transform:none;}
  .web-immersive .web-reticle{bottom:115px}
  .web-immersive .web-telemetry{bottom:80px}
 }
