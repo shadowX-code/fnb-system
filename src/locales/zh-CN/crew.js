@@ -150,8 +150,7 @@ Object.assign(resources.performance, { googleUnavailable: "本月顾客评价数
 Object.assign(resources.attendance, { withinClockInArea: "在打卡范围内 · 确认后验证", withinClockOutArea: "在签退范围内 · 确认后验证", locationCheckDisabled: "此门店尚未启用位置验证。", locationAccuracyLow: "GPS 精度不足（需要在 ±{{meters}} 米以内）。", locationPermissionDenied: "定位权限被拒绝。请在浏览器中允许定位后重试。", locationTimedOut: "定位请求超时。请重试或选择例外原因。", retryLocation: "重试定位" });
 Object.assign(resources.tasks, { responseRecorded:"已记录回复", openTask:"打开任务：{{title}}", completionNote:"完成备注", completionNoteOptional:"完成备注（选填）", requiredNotePlaceholder:"填写所需的完成备注", optionalNotePlaceholder:"可补充备注", evidenceTypes:{note:"备注",optional_note:"选填备注",photo:"照片",structured:"结构化回复"} });
 resources.guestVoice = {
-  "title": "顾客之声",
-  "source": "Google 评论",
+  "title": "Google 评论",
   "anonymous": "匿名顾客",
   "stars": "{{value}} 星，满分 5 星",
   "count_one": "{{count}} 条评论",
@@ -161,7 +160,7 @@ resources.guestVoice = {
   "expired": "需要重新连接 Google 评论。",
   "unmapped": "此门店尚未关联 Google 评论。",
   "awaiting_sync": "正在等待新的 Google 评论同步。",
-  "unavailable": "顾客之声暂时无法使用。",
+  "unavailable": "Google 评论暂时无法使用。",
   "empty": "暂无 Google 评论。",
   "detail": "顾客评论",
   "count": "{{count}} 条评论"

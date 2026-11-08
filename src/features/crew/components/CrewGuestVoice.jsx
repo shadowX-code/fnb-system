@@ -1,3 +1,4 @@
+import googleLogo from "../assets/google-g-logo.png";
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -157,8 +158,8 @@ export default function CrewGuestVoice({ token, outletId, outletName }) {
 
   return <section className="crew-guest-voice" aria-label={t("guestVoice.title")}>
     <header className="crew-guest-header">
-      <span className="crew-guest-source" aria-hidden="true">G</span>
-      <span><h2>{t("guestVoice.title")}</h2><small>{t("guestVoice.source")}{outletName && ` · ${outletName}`}</small></span>
+      <span className="crew-guest-source" aria-hidden="true"><img src={googleLogo} alt="" width={20} height={20} /></span>
+      <span><h2>{t("guestVoice.title")}</h2>{outletName && <small>{outletName}</small>}</span>
       {reviews.length > 0 && <button type="button" onClick={() => { setLimit(PAGE_SIZE); setOverlay("all"); }}>{t("common.viewAll")} <ChevronRight size={16} /></button>}
     </header>
     {status === "ready" && (feed.rating !== null || feed.total !== null) && <div className="crew-guest-rating">
@@ -194,11 +195,11 @@ export default function CrewGuestVoice({ token, outletId, outletName }) {
         aria-current={index === currentIndex ? "true" : undefined} onClick={() => setActive(index)} />)}
       </div>}
     </div> : <p className="crew-guest-fallback">{t(`guestVoice.${status === "ready" ? "empty" : status}`)}</p>}
-    {overlay === "all" && reviews.length > 0 && <CrewBottomSheet title={t("guestVoice.title")} description={t("guestVoice.source")} onClose={() => setOverlay(null)}>
+    {overlay === "all" && reviews.length > 0 && <CrewBottomSheet title={t("guestVoice.title")} description={outletName} onClose={() => setOverlay(null)}>
       <div className="crew-guest-list">{reviews.slice(0, limit).map(review => <button type="button" className="crew-guest-review" key={review.id} onClick={() => setOverlay(review.id)}><Review review={review} /></button>)}</div>
       {limit < reviews.length && <button type="button" className="crew-mobile-secondary" onClick={() => setLimit(limit + PAGE_SIZE)}>{t("inventory.loadMore")}</button>}
     </CrewBottomSheet>}
-    {selected && <CrewBottomSheet title={t("guestVoice.detail")} description={t("guestVoice.source")} onClose={() => setOverlay(null)}>
+    {selected && <CrewBottomSheet title={t("guestVoice.detail")} description={t("guestVoice.title")} onClose={() => setOverlay(null)}>
       <article className="crew-guest-review crew-guest-detail"><Review review={selected} /></article>
       <button type="button" className="crew-mobile-secondary" onClick={() => setOverlay("all")}>{t("common.viewAll")}</button>
     </CrewBottomSheet>}

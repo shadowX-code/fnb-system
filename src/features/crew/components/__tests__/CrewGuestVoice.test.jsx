@@ -63,7 +63,7 @@ it("keeps low ratings in the read-only list and clears expired content", async (
   crewService.guestVoice.mockResolvedValue(cached);
   await renderFeed();
   fireEvent.click(screen.getByRole("button", { name: "View all" }));
-  const list = screen.getByRole("dialog", { name: "Guest Voice" });
+  const list = screen.getByRole("dialog", { name: "Google Reviews" });
   fireEvent.click(within(list).getByRole("button", { name: /Jordan/ }));
   const detail = screen.getByRole("dialog", { name: "Guest review" });
   expect(within(detail).getByText("Long wait")).toBeTruthy();
