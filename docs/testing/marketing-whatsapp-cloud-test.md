@@ -35,3 +35,5 @@ Provider contracts: [Meta Cloud API collection](https://www.postman.com/meta/wha
 The readiness presentation can be accepted independently on Staging. Provider inbound, outbound and delivery acceptance require the authorized asset, recipient, credentials and verified app subscription. Local fixture results provide regression coverage only.
 
 A test verification failure appears beside the WhatsApp controls while the connection list stays available. The Staging Edge response and logs distinguish token validation, asset access, app webhook configuration and test WABA subscription. Logs contain only a fixed reason and an optional Meta error code.
+
+A Meta test token may omit the messaging grant’s target IDs. FeedX accepts that shape only with an explicit management grant for the exact test WABA and successful reads of the WABA, its phone list and the exact Cloud API phone. The exact app subscription remains required.

@@ -94,6 +94,18 @@ describe('Staging Cloud API test number verification',()=>{
   expect(g.request).toHaveBeenCalledTimes(6);
   expect(g.request.mock.calls.every(args=>args.length<=3)).toBe(true);
  });
+ it('accepts omitted messaging targets only with an exact management grant and verified assets',async()=>{
+  const {verifyWhatsAppCloudTest}=await import('../../../../supabase/functions/_shared/whatsappOnboarding.ts');
+  const messaging={scope:'whatsapp_business_messaging'};
+  const management={scope:'whatsapp_business_management',target_ids:[waba]};
+  const token=(granular_scopes:Array<{scope:string;target_ids?:string[]}>)=>({debug_token:{data:{...debug,granular_scopes}}});
+  const grants=token([management,messaging]);
+  await expect(verifyWhatsAppCloudTest(fixture(grants),config,'fixture',now)).resolves.toMatchObject({subject:'999'});
+  await expect(verifyWhatsAppCloudTest(fixture(token([messaging])),config,'fixture',now)).rejects.toThrow('whatsapp_waba_grant_required');
+  await expect(verifyWhatsAppCloudTest(fixture(token([management,{...messaging,target_ids:['666']}])),config,'fixture',now)).rejects.toThrow('whatsapp_waba_grant_required');
+  await expect(verifyWhatsAppCloudTest(fixture({...grants,[`${waba}/phone_numbers`]:{data:[]}}),config,'fixture',now)).rejects.toThrow('whatsapp_phone_waba_mismatch');
+  await expect(verifyWhatsAppCloudTest(fixture({...grants,[`${waba}/subscribed_apps`]:{data:[]}}),config,'fixture',now)).rejects.toThrow('whatsapp_test_waba_subscription_missing');
+ });
  it.each([
   ['wrong app',{debug_token:{data:{...debug,app_id:'100'}}}],
   ['expired token',{debug_token:{data:{...debug,expires_at:1700000000}}}],

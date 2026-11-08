@@ -65,8 +65,14 @@ export async function verifyWhatsAppCloudTest(g:Graph,c:WhatsAppConfig,token:str
  if(c.appId!==CLOUD_TEST_APP||d?.is_valid!==true||d.app_id!==CLOUD_TEST_APP||!numeric(d.user_id)||!['USER','SYSTEM_USER'].includes(d.type))
   throw new MetaError('whatsapp_token_identity_mismatch');
  if(!Array.isArray(d.scopes)||!WHATSAPP_SCOPES.every(scope=>d.scopes.includes(scope)))throw new MetaError('whatsapp_permissions_required');
- for(const grant of d.granular_scopes??[]){
-  if(WHATSAPP_SCOPES.includes(grant.scope)&&(!Array.isArray(grant.target_ids)||!grant.target_ids.includes(CLOUD_TEST_WABA)))
+ const grants=d.granular_scopes??[];
+ const managementGrant=grants.some((grant:any)=>grant.scope==='whatsapp_business_management'
+  &&Array.isArray(grant.target_ids)&&grant.target_ids.includes(CLOUD_TEST_WABA));
+ for(const grant of grants){
+  if(!WHATSAPP_SCOPES.includes(grant.scope))continue;
+  // Meta's test token omits messaging targets. Require the exact management grant and the asset reads below.
+  if(grant.scope==='whatsapp_business_messaging'&&grant.target_ids===undefined&&managementGrant)continue;
+  if(!Array.isArray(grant.target_ids)||!grant.target_ids.includes(CLOUD_TEST_WABA))
    throw new MetaError('whatsapp_waba_grant_required');
  }
  const expiry=d.expires_at*1000;
