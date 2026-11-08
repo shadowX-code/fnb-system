@@ -144,8 +144,7 @@ Object.assign(resources.performance, { googleUnavailable: "Monthly customer evid
 Object.assign(resources.attendance, { withinClockInArea: "Within clock-in area · confirm to verify", withinClockOutArea: "Within clock-out area · confirm to verify", locationCheckDisabled: "Location check is not enabled for this outlet.", locationAccuracyLow: "GPS accuracy is too low (within ±{{meters}}m required).", locationPermissionDenied: "Location permission denied. Allow access in your browser, then retry.", locationTimedOut: "Location request timed out. Retry or choose an exception reason.", retryLocation: "Retry location" });
 Object.assign(resources.tasks, { responseRecorded:"Response recorded", openTask:"Open task: {{title}}", completionNote:"Completion note", completionNoteOptional:"Completion note (optional)", requiredNotePlaceholder:"Add the required completion note", optionalNotePlaceholder:"Add a note if useful", evidenceTypes:{note:"Note",optional_note:"Optional note",photo:"Photo",structured:"Structured response"} });
 resources.guestVoice = {
-  "title": "Guest Voice",
-  "source": "Google Reviews",
+  "title": "Google Reviews",
   "anonymous": "Anonymous guest",
   "stars": "{{value}} out of 5 stars",
   "count_one": "{{count}} review",
@@ -155,7 +154,7 @@ resources.guestVoice = {
   "expired": "Google Reviews needs to reconnect.",
   "unmapped": "Google Reviews is not linked for this outlet.",
   "awaiting_sync": "Waiting for a fresh Google review sync.",
-  "unavailable": "Guest Voice is temporarily unavailable.",
+  "unavailable": "Google Reviews is temporarily unavailable.",
   "empty": "No Google reviews yet.",
   "detail": "Guest review",
   "count": "{{count}} reviews"
