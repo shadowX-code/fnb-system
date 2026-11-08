@@ -505,7 +505,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                           </section>
                         </div>
                         <AdminSummaryGrid variant="compact" ariaLabel="Recipient handling progress" items={['pending','opened','staff_confirmed','skipped'].map(key=>({key,label:names[key],value:data.progress[key]||0,state:loading?'loading':error?'unavailable':'ready'}))}/>
-                        <WhatsAppCampaignExecution key={active.id+':'+active.revision} organizationId={org} brandId={brand} campaign={active}
+                        <WhatsAppCampaignExecution key={'execution:'+active.id+':'+active.revision} organizationId={org} brandId={brand} campaign={active}
                           canSchedule={can('marketing_campaigns.execute')&&can('marketing_campaigns.approve')&&can('marketing_settings.configure')}
                           canExecute={can('marketing_campaigns.execute')}/>
                         {active.status==='ready'&&approvalCurrent&&can('marketing_campaigns.execute')&&

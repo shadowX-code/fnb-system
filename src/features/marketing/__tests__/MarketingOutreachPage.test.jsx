@@ -1,13 +1,13 @@
 import {describe,it,expect,vi,beforeEach} from 'vitest';
 import {render,screen,fireEvent,cleanup,within,waitFor} from '@testing-library/react';
 import MarketingOutreachPage from '../MarketingOutreachPage.jsx';
-const {marketing,outreach}=vi.hoisted(()=>({marketing:{context:vi.fn()},outreach:{read:vi.fn(),command:vi.fn(),customer:vi.fn(),customers:vi.fn(),audiencePreview:vi.fn()}}));
+const {marketing,outreach}=vi.hoisted(()=>({marketing:{context:vi.fn()},outreach:{read:vi.fn(),command:vi.fn(),customer:vi.fn(),customers:vi.fn(),audiencePreview:vi.fn(),whatsappExecution:vi.fn(),whatsappExecutionCommand:vi.fn()}}));
 vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>({user:{id:'actor'},hasPermission:()=>true})}));
 vi.mock('../marketingService.js',()=>({marketingService:marketing}));
 vi.mock('../outreachService.js',()=>({outreachService:outreach}));
 vi.mock('../../../components/forms/SelectField.jsx',()=>({default:({label,value,onChange,options})=><label>{label}<select aria-label={label} value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>}));
 const base={customers:[],audiences:[],campaigns:[],senders:[],assets:[],recipients:[],progress:{},customer_total:0,outlets:[]};
-beforeEach(()=>{cleanup();vi.clearAllMocks();marketing.context.mockResolvedValue({organizations:[{id:'org',name:'Org'}],brands:[{id:'brand',organization_id:'org',name:'Brand'}]});outreach.read.mockResolvedValue(base);outreach.customers.mockResolvedValue({customers:[],total:0});outreach.audiencePreview.mockResolvedValue({matching:3,excluded:2,eligible:1,not_subscribed:1,do_not_contact:1});});
+beforeEach(()=>{cleanup();vi.clearAllMocks();marketing.context.mockResolvedValue({organizations:[{id:'org',name:'Org'}],brands:[{id:'brand',organization_id:'org',name:'Brand'}]});outreach.read.mockResolvedValue(base);outreach.whatsappExecution.mockResolvedValue(null);outreach.customers.mockResolvedValue({customers:[],total:0});outreach.audiencePreview.mockResolvedValue({matching:3,excluded:2,eligible:1,not_subscribed:1,do_not_contact:1});});
 async function chooseBrand(){await screen.findByRole('combobox',{name:'Brand'});fireEvent.change(screen.getByRole('combobox',{name:'Brand'}),{target:{value:'brand'}});}
 describe('Hybrid WhatsApp staff workflow',()=>{
  it('keeps completed campaign results visible without empty sending controls',async()=>{outreach.read.mockResolvedValue({...base,campaigns:[{id:'campaign',title:'Handled campaign',status:'ready',revision:1,caption:'Hello'}],recipients:[{id:'recipient',display_name:'Test contact',state:'staff_confirmed',eligible:false}],progress:{staff_confirmed:1}});render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click((await screen.findAllByRole('button',{name:'Handled campaign',exact:true}))[0]);await screen.findAllByText('Staff confirmation only');expect(screen.queryByRole('combobox',{name:'Registered sender'})).toBeNull();expect(screen.queryByRole('button',{name:'Open WhatsApp'})).toBeNull();expect(outreach.command).not.toHaveBeenCalled();});
@@ -85,4 +85,17 @@ it('keeps real mapped canonical outlets available in customer and campaign forms
  outreach.read.mockResolvedValue({...base,outlets:[{id:'canonical-outlet',name:'Canonical outlet'}]});
  const mounted=render(<MarketingOutreachPage/>);await chooseBrand();fireEvent.click(await screen.findByRole('button',{name:'Add customer'}));expect(screen.getByRole('combobox',{name:'Brand Outlet'})).toBeTruthy();expect(within(screen.getByRole('combobox',{name:'Brand Outlet'})).getByRole('option',{name:'Canonical outlet'}).value).toBe('canonical-outlet');mounted.unmount();
  render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click(await screen.findByRole('button',{name:'New campaign'}));expect(screen.getByRole('combobox',{name:'Outlet'})).toBeTruthy();expect(within(screen.getByRole('combobox',{name:'Outlet'})).getByRole('option',{name:'Canonical outlet'}).value).toBe('canonical-outlet');expect(outreach.command).not.toHaveBeenCalled();
+});
+
+it('shows provider reconciliation separately from rehearsal and can pause without sending',async()=>{
+ outreach.read.mockResolvedValue({...base,campaigns:[{id:'campaign',title:'Scheduled campaign',status:'ready',revision:1,caption:'Hello'}]});
+ outreach.whatsappExecution.mockResolvedValue({id:'run',state:'scheduled',scheduled_at:'2026-11-10T00:00:00Z',batch_size:25,
+  counts:{unknown:1,scheduled:1},rows:[{id:'delivery',display_name:'Test contact',batch:1,state:'unknown',due_at:'2026-11-10T00:00:00Z',reason:'provider_outcome_unknown'}],total:1});
+ render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();
+ fireEvent.click((await screen.findAllByRole('button',{name:'Scheduled campaign',exact:true}))[0]);
+ expect(await screen.findByText('Awaiting a matching provider receipt. Do not resend.')).toBeTruthy();
+ fireEvent.click(screen.getByText('WhatsApp Cloud API execution'));
+ fireEvent.click(screen.getByRole('button',{name:'Pause schedule'}));
+ expect(outreach.whatsappExecutionCommand).toHaveBeenCalledWith('org','brand','campaign',expect.any(String),'pause',{revision:1,run_id:'run'});
+ expect(outreach.command).not.toHaveBeenCalled();
 });
