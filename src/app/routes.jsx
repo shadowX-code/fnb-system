@@ -54,6 +54,7 @@ const FactoryWorkspacePage = lazy(() => import("../features/factory/pages/Factor
 const InventoryControlPage = lazy(() => import("../features/sales-purchase/pages/InventoryControlPage.jsx"));
 const AssetTrackingPage = lazy(() => import("../features/sales-purchase/pages/AssetTrackingPage.jsx"));
 const MarketingAdsPage = lazy(() => import("../features/marketing/MarketingAdsPage.jsx"));
+const WhatsAppWorkflowsPage = lazy(() => import("../features/marketing/WhatsAppWorkflowsPage.jsx"));
 const MarketingOutreachPage = lazy(() => import("../features/marketing/MarketingOutreachPage.jsx"));
 const MarketingInboxPage = lazy(() => import("../features/marketing/MarketingInboxPage.jsx"));
 const MarketingFAQPage = lazy(() => import("../features/marketing/MarketingFAQPage.jsx"));
@@ -88,6 +89,7 @@ export const routeDetails = {
   marketing_crm_legacy: { component: MarketingOutreachPage, props: { section: "legacy" }, permission: "marketing_workspace.access AND marketing_campaigns.view OR marketing_workspace.access AND marketing_audience.view", description: "Compatibility entry for existing CRM bookmarks." },
   marketing_audience: { component: MarketingOutreachPage, props: { section: "customers" }, permission: "marketing_workspace.access AND marketing_audience.view", description: "Brand customer relationships, consent and segments." },
   marketing_campaigns: { component: MarketingOutreachPage, props: { section: "whatsapp" }, permission: "marketing_workspace.access AND marketing_campaigns.view", description: "Approved campaigns and manual WhatsApp handling." },
+  marketing_whatsapp_workflows: { component: WhatsAppWorkflowsPage, permission: "marketing_workspace.access AND marketing_campaigns.view", description: "WhatsApp campaign workflow configuration and rehearsal." },
   marketing_whatsapp_chat: { component: MarketingInboxPage, props: { whatsApp: true }, permission: "marketing_workspace.access AND marketing_inbox.view", description: "Brand WhatsApp conversations and customer context." },
   marketing_inbox: { component: MarketingInboxPage, permission: "marketing_workspace.access AND marketing_inbox.view", description: "Brand conversations, human handling and approved AI reply proposals." },
   marketing_overview: { component: MarketingWorkspacePage, props: { section: "overview" }, permission: "marketing_workspace.access AND marketing_overview.view", description: "Brand publishing activity and action center." },
