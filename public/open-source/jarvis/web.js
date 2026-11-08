@@ -315,13 +315,6 @@ function serviceStatus(){
  $('.web-services summary').textContent='Authorized capabilities';
  document.querySelectorAll('.web-services dd').forEach((el,i)=>el.textContent=services[i]);
 }
-// Hide only the decorative rain layers in Immersive. The original core and orbit renderer stays mounted.
-function setImmersiveScenery(immersive) {
- if (typeof scene === 'undefined') return;
- for (const layer of scene.children) {
-  if (layer.material === rainM || layer.material === rpM) layer.visible = !immersive;
- }
-}
 addEventListener('message',event=>{
  if(event.source!==parent||event.origin!==hostOrigin||event.data?.protocol!==protocol)return;
  const d=event.data;
@@ -331,7 +324,6 @@ addEventListener('message',event=>{
   const composer=$('#webComposer'),newButton=$('#webNew'),focused=document.activeElement;
   document.body.classList.toggle('web-immersive',immersive);
   setComposerOpen(!immersive || composer.contains(focused));
-  setImmersiveScenery(immersive);
   if(immersive){$('#assistantWeb .web-dock').append(newButton);}
   else{$('#assistantWeb .web-conversation header').appendChild(newButton);}
   if(composer.contains(focused)||focused===newButton)focused.focus({preventScroll:true});

@@ -145,7 +145,6 @@
  background:repeating-conic-gradient(from 11deg,#76dffb80 0deg .32deg,transparent .32deg 4deg);
  mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 3px) 98%,transparent 99%);
 }
-.web-immersive #stage{filter:brightness(1.11) saturate(1.08)}
 .web-immersive #webMessages{scrollbar-color:#4a8598 transparent}
 .web-immersive #webOperations dl div{border-top-color:#af756a;box-shadow:inset 0 0 12px #dfa1730d}
 .web-immersive #webOperations dl div:last-child{border-top-color:#b38d55}
@@ -235,7 +234,7 @@
 .web-immersive .web-reticle b{border:0;background:conic-gradient(from 5deg,#92eaffaa,transparent 14%,transparent 43%,#84dff7a0 47%,transparent 60%,transparent 81%,#6dd9f970 86%,transparent 94%);mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 1px) 99%,transparent)}
 .web-immersive .web-reticle span{position:absolute;inset:0;background:linear-gradient(#6fd8ef88,#6fd8ef88) 50% 7%/1px 12px,linear-gradient(#6fd8ef88,#6fd8ef88) 50% 95%/1px 12px,linear-gradient(#6fd8ef88,#6fd8ef88) 4% 51%/13px 1px,linear-gradient(#6fd8ef88,#6fd8ef88) 96% 51%/13px 1px;background-repeat:no-repeat}
 @media(min-width:1001px){
- .web-immersive #stage{height:100%;transform:translateY(-24px);mask-image:linear-gradient(transparent,#000 9%,#000 86%,transparent 98%)}
+ .web-immersive #stage{height:100%;transform:translateY(-24px);}
  .web-immersive .web-conversation,.web-immersive .web-telemetry,.web-immersive .web-reticle{bottom:129px}
  .web-immersive .web-core-name{bottom:160px}
  .web-immersive .web-dock{bottom:31px}
@@ -245,8 +244,7 @@
 }
 
 @media(max-width:800px){
- .web-immersive #stage{filter:brightness(.97) saturate(1.06)}
- .web-immersive #webMessages li:not(.web-empty){padding-left:39px}
+  .web-immersive #webMessages li:not(.web-empty){padding-left:39px}
 }
 
 /* Standard is a conversation workspace. Immersive keeps its existing HUD layout. */
@@ -288,7 +286,7 @@ body:not(.web-immersive) .web-dock #cmd{font-size:14px}
 }
 
 /* Conversation-first refinement. Source and business evidence retain their own semantics. */
-body:not(.web-immersive) #stage{width:29%;opacity:.88}
+body:not(.web-immersive) #stage{width:29%}
 body:not(.web-immersive) .web-conversation{left:29%;padding:16px clamp(18px,3vw,42px) 12px}
 body:not(.web-immersive) .web-dock{padding-left:calc(29% + 24px)}
 body:not(.web-immersive) .web-operations{display:none}
@@ -357,13 +355,13 @@ body:not(.web-immersive) #webMessages li[data-outcome]>p{font-size:13px;color:#c
 .web-immersive .web-conversation{bottom:85px}
 .web-immersive .web-core-name{bottom:169px}
 @media(min-width:1001px){
- .web-immersive #stage{height:100%;transform:none;mask-image:linear-gradient(transparent,#000 6%,#000 90%,transparent)}
+ .web-immersive #stage{height:100%;transform:none;}
  .web-immersive .web-reticle{bottom:115px}
  .web-immersive .web-telemetry{bottom:80px}
 }
 @media(min-width:801px) and (max-width:1199px){}
 @media(max-width:800px){
- body:not(.web-immersive) #stage{width:100%;height:225px;mask-image:linear-gradient(#000 55%,transparent)}
+ body:not(.web-immersive) #stage{width:100%;height:225px;}
  body:not(.web-immersive) .web-conversation{top:225px;left:0;padding:10px 12px}
  body:not(.web-immersive) #webMessages li{padding-left:32px}
  body:not(.web-immersive) #webMessages li[data-speaker=user]{margin-left:5px;padding-left:39px}
@@ -392,7 +390,6 @@ body:not(.web-immersive) .web-dock{border:0!important;background:linear-gradient
 body:not(.web-immersive) .web-conversation{bottom:var(--composer-space,65px)}
 @media(max-width:800px){#webComposer #cmd{font-size:16px}}
 #webComposer .bar-in{height:auto;min-height:48px}
-.web-immersive #stage{filter:brightness(1.03) saturate(1.04)}
 .web-immersive .web-reticle{
  background:radial-gradient(ellipse at 50% 46%,#5bc5bb0d,transparent 56%);
 }
@@ -497,17 +494,13 @@ body:not(.web-immersive) .web-conversation{bottom:var(--composer-space,65px)}
  .web-immersive .web-voice-actions button,.web-immersive .web-voice-diagnostics summary{min-height:44px}
 }
 @media(max-width:800px){
- .web-immersive #stage{mask-image:linear-gradient(#000 54%,#0007 68%,transparent 84%)}
- .web-immersive .web-core-name{color:var(--hud-ink);text-shadow:0 1px 8px #000}
+  .web-immersive .web-core-name{color:var(--hud-ink);text-shadow:0 1px 8px #000}
  .web-immersive .web-conversation{top:284px}
 }
 
 
 /* Standard keeps the composition quiet and reserves room below the Core for the Halo. */
-body:not(.web-immersive) #stage{
- max-height:calc(100% - 150px);
- mask-image:linear-gradient(#000 72%,transparent);
-}
+body:not(.web-immersive) #stage{max-height:calc(100% - 150px)}
 body:not(.web-immersive) .web-conversation{
  border-color:transparent;gap:10px;background:linear-gradient(140deg,#0c2029,#08171e 62%);
 }
@@ -517,6 +510,10 @@ body:not(.web-immersive) #webComposer .bar-in{border-radius:16px;background:#102
 body:not(.web-immersive) #webComposer .bar-in:focus-within{background:#14323a!important}
 body:not(.web-immersive) #webSend{border-radius:10px}
 @media(max-width:800px){
- body:not(.web-immersive) #stage{height:228px;mask-image:linear-gradient(#000 55%,transparent 88%)}
+ body:not(.web-immersive) #stage{height:228px;}
  body:not(.web-immersive) .web-conversation{top:274px}
 }
+
+
+/* Keep the ribbons at full opacity and blend only the outer edge of the shared canvas. */
+#stage{mask-image:linear-gradient(#000 90%,transparent)}

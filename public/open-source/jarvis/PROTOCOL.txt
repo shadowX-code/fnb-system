@@ -46,3 +46,7 @@ voice_usage. Admission, playback and provider access stay host-owned.
 
 Standard View leaves the voice interaction and details in the host. The
 isolated Core follows the browser's reduced-motion preference in both views.
+
+Both FeedX views use the same sky, dust and orbits. The embedded scene
+omits the original full-page overlay shades and disables decorative rain.
+Camera framing uses the canvas dimensions and leaves the ribbon shaders intact.

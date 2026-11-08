@@ -10,7 +10,9 @@ function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   renderer.setSize(w, h, false); composer.setSize(w, h);
   camera.aspect = w / h;
-  camera.position.z = w / h < 1 ? 9.5 : 7.2;
+  // Fit the ribbons inside the actual canvas, with extra clearance above the Halo on short layouts.
+  const aspectFit = THREE.MathUtils.clamp(8.1 / camera.aspect, 7.2, 9.5);
+  camera.position.z = Math.max(aspectFit, h < 300 ? 9 : 7.2);
   camera.updateProjectionMatrix();
   skyU.uRes.value.set(w, h);
 }
@@ -20,7 +22,9 @@ addEventListener('resize', resize); resize();
 let drag = null, rotV = { x: 0, y: 0 }, target = { x: 0, y: 0 }, mouse = { x: 0, y: 0 };
 canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; canvas.setPointerCapture(e.pointerId); canvas.classList.add('dragging'); });
 canvas.addEventListener('pointermove', e => {
-  mouse.x = e.clientX / innerWidth - 0.5; mouse.y = e.clientY / innerHeight - 0.5;
+  const bounds = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - bounds.left) / bounds.width - 0.5;
+  mouse.y = (e.clientY - bounds.top) / bounds.height - 0.5;
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy);
   rotV.y += dx * 0.0009; rotV.x += dy * 0.0009; drag.x = e.clientX; drag.y = e.clientY;

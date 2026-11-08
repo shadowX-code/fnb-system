@@ -306,10 +306,14 @@ for (let i = 0; i < rainPts.length / 3; i++) {
 }
 const rlG = new THREE.BufferGeometry(); rlG.setAttribute('position', new THREE.Float32BufferAttribute(rainLines, 3));
 const rainM = new THREE.LineBasicMaterial({ color: 0x6fc6e8, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false });
-scene.add(new THREE.LineSegments(rlG, rainM));
+const rainStreaks = new THREE.LineSegments(rlG, rainM);
+rainStreaks.visible = false;
+scene.add(rainStreaks);
 const rpG = new THREE.BufferGeometry(); rpG.setAttribute('position', new THREE.BufferAttribute(rainPts, 3));
 const rpM = new THREE.PointsMaterial({ color: 0xbfeeff, size: 0.05, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });
-scene.add(new THREE.Points(rpG, rpM));
+const rainParticles = new THREE.Points(rpG, rpM);
+rainParticles.visible = false;
+scene.add(rainParticles);
 
 /* orbits + nodes */
 const orbits = new THREE.Group(); world.add(orbits);

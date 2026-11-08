@@ -40,9 +40,11 @@ function frame() {
   camera.position.y = lerp(camera.position.y, -mouse.y * 0.25, 0.03);
   camera.lookAt(0, -0.28, 0);
 
-  const rp = rpG.attributes.position.array;
-  rainSeeds.forEach((r, i) => { const y = r.top - ((r.o + simT * r.sp * 0.25) % 1) * r.h; rp[i * 3] = r.x; rp[i * 3 + 1] = y; rp[i * 3 + 2] = r.z; });
-  rpG.attributes.position.needsUpdate = true;
+  if (rainParticles.visible) {
+    const rp = rpG.attributes.position.array;
+    rainSeeds.forEach((r, i) => { const y = r.top - ((r.o + simT * r.sp * 0.25) % 1) * r.h; rp[i * 3] = r.x; rp[i * 3 + 1] = y; rp[i * 3 + 2] = r.z; });
+    rpG.attributes.position.needsUpdate = true;
+  }
 
   const w = canvas.clientWidth, h = canvas.clientHeight;
   nodes.forEach((n, i) => {
