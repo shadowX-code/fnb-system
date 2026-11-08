@@ -1,6 +1,10 @@
 import {useEffect,useRef,useState} from 'react';
-import {Controls,ReactFlow} from '@xyflow/react';
+import {Background,BaseEdge,Controls,EdgeLabelRenderer,Handle,MarkerType,Position,ReactFlow,getSmoothStepPath} from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import {ArrowLeft, CircleCheck, GitBranch, ListFilter, MessageCircle, Plus, Search, Settings2, Sparkles, TriangleAlert, UserRound, Workflow} from 'lucide-react';
+import Modal from '../../components/feedback/Modal.jsx';
+import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
+import './aiFlows.css';
 import {useAuth} from '../../auth/AuthContext.jsx';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import AdminFormField from '../../components/forms/AdminFormField.jsx';
@@ -11,50 +15,112 @@ import {marketingService} from './marketingService.js';
 import {flowTypes,flowChannels,flowPorts,newFlow,insertFlowStep,removeFlowStep,flowIssues,flowTurn,flowLayout} from './aiFlowDefinition.js';
 
 const labels={trigger:'Intent trigger',ask:'Ask / collect',condition:'Condition',knowledge:'Knowledge lookup',reply:'Reply / explain',handoff:'Human handoff',end:'Complete flow',facebook:'Messenger',instagram:'Instagram',whatsapp:'WhatsApp'};
+const stepIcons={trigger:Workflow,ask:ListFilter,condition:GitBranch,knowledge:Search,reply:MessageCircle,handoff:UserRound,end:CircleCheck};
+function stepSummary(step){
+ return step.prompt|| (step.type==='condition'&&step.field?`${step.field} equals ${step.equals||'…'}`:null)
+  || ({trigger:'Match a customer intent',ask:'Choose a field and question',knowledge:'Look up approved Brand knowledge',handoff:'Pass to the team',end:'Finish the conversation flow'}[step.type]||'Configure this step');
+}
+function FlowNode({data,selected}){
+ const {step,error,running}=data, Icon=stepIcons[step.type];
+ return <div className={`af-node${selected?' is-selected':''}${running?' is-running':''}${error?' has-error':''}`}>
+  {step.type!=='trigger'?<Handle type="target" position={Position.Top}/>:null}
+  <Icon size={16} aria-hidden="true"/>
+  <div><strong>{labels[step.type]}</strong><small>{stepSummary(step)}</small></div>
+  {error?<span title={error} aria-label={error}><TriangleAlert size={15}/></span>:running?<span className="af-current">Testing</span>:null}
+  {flowPorts(step).map(port=><Handle key={port} id={port} type="source" position={Position.Bottom}
+   style={{left:port==='yes'?'35%':port==='no'?'65%':'50%'}}/>)}
+ </div>;
+}
+function FlowEdge({id,sourceX,sourceY,targetX,targetY,sourcePosition,targetPosition,markerEnd,data}){
+ const [path,x,y]=getSmoothStepPath({sourceX,sourceY,targetX,targetY,sourcePosition,targetPosition,borderRadius:10});
+ return <><BaseEdge id={id} path={path} markerEnd={markerEnd}/>
+  {(data.label||data.insert)?<EdgeLabelRenderer><div className="af-edge-label nodrag nopan" style={{transform:`translate(-50%, -50%) translate(${x}px,${y}px)`}}>
+   {data.label?<span>{data.label}</span>:null}
+   {data.insert?<button type="button" aria-label={`Insert step after ${data.sourceLabel}${data.label?`, ${data.label} branch`:''}`} onClick={data.insert}><Plus size={13}/></button>:null}
+  </div></EdgeLabelRenderer>:null}
+ </>;
+}
+const nodeTypes={flow:FlowNode},edgeTypes={flow:FlowEdge};
+function flowStatus(record){
+ if(record?.active_version&&!record.paused)return `Active v${record.active_version}`;
+ if(record?.active_version)return 'Paused';
+ return record?.ready?'Ready':'Draft';
+}
 function Field({label,value,onChange,maxLength=300}){
  return <AdminFormField label={label}><input className="control" value={value} maxLength={maxLength} onChange={event=>onChange(event.target.value)}/></AdminFormField>;
 }
 
 export default function AIFlowsPage(){
  const auth=useAuth();
- const [brands,setBrands]=useState([]),[brand,setBrand]=useState(''),[error,setError]=useState('');
+ const [brands,setBrands]=useState(null),[brand,setBrand]=useState(''),[error,setError]=useState('');
  useEffect(()=>{
   let live=true;
   marketingService.context().then(context=>{if(live){setBrands(context.brands);setBrand(context.brands[0]?.id||'');}})
    .catch(failure=>{if(live)setError(failure.message);});
   return()=>{live=false;};
  },[auth.user?.id]);
- const scope=brands.find(item=>item.id===brand);
- return <WorkspacePage section="Marketing" title="AI Flows" description="Build conversation flows and test how they guide a customer."
-  controls={<SelectField label="Brand" value={brand} onChange={setBrand} options={brands.map(item=>({value:item.id,label:item.name}))}/>}>
-  {error?<p role="alert">{error}</p>:null}
-  {scope?<FlowWorkspace key={`${auth.user?.id}:${brand}`} scope={scope} canEdit={auth.hasPermission('marketing_campaigns.manage')} canGenerate={auth.hasPermission('marketing_inbox.ai')} canExecute={auth.hasPermission('marketing_campaigns.execute')}/>:null}
+ const scope=brands?.find(item=>item.id===brand);
+ if(!scope)return <WorkspacePage section="Marketing" title="AI Flows">
+  {error?<p role="alert">{error}</p>:<p role="status">{brands?'No accessible Brands.':'Loading Brands…'}</p>}
  </WorkspacePage>;
+ return <FlowWorkspace key={`${auth.user?.id}:${brand}`} scope={scope} brands={brands} onBrandChange={setBrand}
+  canEdit={auth.hasPermission('marketing_campaigns.manage')} canGenerate={auth.hasPermission('marketing_inbox.ai')}
+  canExecute={auth.hasPermission('marketing_campaigns.execute')}/>;
 }
 
-function FlowWorkspace({scope,canEdit,canGenerate,canExecute}){
- const [library,setLibrary]=useState([]),[record,setRecord]=useState(null),[flow,setFlow]=useState(null);
+function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecute}){
+ const [library,setLibrary]=useState(null),[record,setRecord]=useState(null),[flow,setFlow]=useState(null);
  const [selected,setSelected]=useState('trigger'),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [test,setTest]=useState(null),[answer,setAnswer]=useState(''),[mode,setMode]=useState('suggest_only');
  const [knowledge,setKnowledge]=useState(null);
  const pendingSave=useRef(null);
  const [prompt,setPrompt]=useState(null);
  const generation=useRef(null);
+ const [search,setSearch]=useState(''),[newOpen,setNewOpen]=useState(false),[panel,setPanel]=useState('node');
+ const [palette,setPalette]=useState(null),[baseline,setBaseline]=useState(null),[chat,setChat]=useState([]);
+ const [reload,setReload]=useState(0),[libraryError,setLibraryError]=useState('');
  const [versions,setVersions]=useState(null),[testInputs,setTestInputs]=useState([]);
  const org=scope.organization_id,brand=scope.id;
  useEffect(()=>{
   let live=true;
-  marketingService.aiFlows(org,brand).then(rows=>{if(live)setLibrary(rows);}).catch(failure=>{if(live)setError(failure.message);});
+  setLibraryError('');
+  marketingService.aiFlows(org,brand).then(rows=>{if(live)setLibrary(rows);}).catch(failure=>{if(live)setLibraryError(failure.message);});
   return()=>{live=false;};
- },[org,brand]);
- function open(item){
-  setRecord(item);setFlow(item?.definition||newFlow());setSelected('trigger');setVersions(null);setTestInputs([]);setTest(null);setKnowledge(null);setAnswer('');setError('');
+ },[org,brand,reload]);
+ function open(item,definition=item?.definition||newFlow()){
+  setRecord(item);setFlow(definition);setBaseline(item?.definition||newFlow());setSelected('trigger');setPanel(item?'node':'settings');
+  setPalette(null);setVersions(null);setTestInputs([]);setTest(null);setChat([]);setKnowledge(null);setAnswer('');setError('');setNewOpen(false);
  }
  const issues=flow?flowIssues(flow):{};
- const dirty=Boolean(flow&&record&&JSON.stringify(flow)!==JSON.stringify(record.definition));
+ const dirty=Boolean(flow&&JSON.stringify(flow)!==JSON.stringify(baseline));
+ useEffect(()=>{
+  if(!dirty)return;
+  const warn=event=>{event.preventDefault();event.returnValue='';};
+  const guardRoute=event=>{
+   if(event.destination.sameDocument&&event.cancelable&&new URL(event.destination.url).pathname!==window.location.pathname
+    &&!window.confirm('Discard unsaved changes to this flow?'))event.preventDefault();
+  };
+  window.addEventListener('beforeunload',warn);
+  window.navigation?.addEventListener('navigate',guardRoute);
+  return()=>{
+   window.removeEventListener('beforeunload',warn);
+   window.navigation?.removeEventListener('navigate',guardRoute);
+  };
+ },[dirty]);
+ function back(){
+  if(busy||(dirty&&!window.confirm('Discard unsaved changes to this flow?')))return;
+  setFlow(null);setError('');
+ }
+ function pick(id){setSelected(id);setPalette(null);setPanel('node');}
+ function addStep(type){
+  const next=insertFlowStep(flow,palette.id,palette.port,type);
+  if(next===flow)return;
+  const inserted=next.nodes.find(step=>step.id===palette.id)?.[palette.port];
+  update(next);pick(inserted);setPanel('node');
+ }
  const node=flow?.nodes.find(item=>item.id===selected);
  const positions=flow?flowLayout(flow.nodes):[];
- function update(patch){setFlow(current=>({...current,...patch}));setTest(null);setKnowledge(null);}
+ function update(patch){setFlow(current=>({...current,...patch}));setTest(null);setChat([]);setKnowledge(null);}
  function updateNode(patch){update({nodes:flow.nodes.map(item=>item.id===selected?{...item,...patch}:item)});}
  async function save(){
   if(!canEdit||busy||Object.keys(issues).length)return;
@@ -64,8 +130,8 @@ function FlowWorkspace({scope,canEdit,canGenerate,canExecute}){
   try{
    const saved=await marketingService.saveAIFlow(org,brand,record?.id||null,record?.version||0,flow,pendingSave.current.id);
    pendingSave.current=null;
-   open(saved);
-   setLibrary(await marketingService.aiFlows(org,brand));
+   setRecord({...record,...saved,ready:false});setBaseline(saved.definition);setFlow(saved.definition);setTest(null);setChat([]);
+   setLibrary(rows=>[{...record,...saved,ready:false},...(rows||[]).filter(item=>item.id!==saved.id)]);
   }catch(failure){setError(failure.message);}
   finally{setBusy(false);}
  }
@@ -78,7 +144,7 @@ function FlowWorkspace({scope,canEdit,canGenerate,canExecute}){
   try{
    const result=await inboxService.generateFlow({requestId:generation.current.id,org,brand,description});
    if(result.state!=='completed'||!result.definition)throw new Error('Generation did not return a draft. Change the description or start a new request.');
-   open(null);setFlow(result.definition);setPrompt(null);
+   open(null,result.definition);setPrompt(null);
   }catch(failure){setError(failure.message);}
   finally{generation.current=null;setBusy(false);}
  }
@@ -95,6 +161,7 @@ function FlowWorkspace({scope,canEdit,canGenerate,canExecute}){
     });
     if(result.state!=='completed'||!result.result)throw new Error('Knowledge test did not complete. Review AI readiness and try again.');
     setKnowledge(result.result);
+    setChat(items=>[...items,{role:'customer',text:answer.trim()},{role:'flow',text:result.result.decision.text||result.result.body.text}]);
     if(result.result.decision.kind==='handoff'){
      setTest({...test,status:'handoff',text:'The knowledge engine would hand this question to staff.'});
      return;
@@ -104,6 +171,7 @@ function FlowWorkspace({scope,canEdit,canGenerate,canExecute}){
   }
   const next=flowTurn(flow,test,test.status==='collect'?answer:'');
   if(test.status==='collect'&&next.step!==test.step)setTestInputs(values=>[...values,answer.trim().slice(0,500)]);
+  setChat(items=>[...items,...(test.status==='collect'&&answer.trim()?[{role:'customer',text:answer.trim()}]:[]),flowMessage(next)]);
   setTest(next);setAnswer('');
  }
  async function lifecycle(action,version){
@@ -120,54 +188,88 @@ function FlowWorkspace({scope,canEdit,canGenerate,canExecute}){
   }catch(failure){setError(failure.message);}
   finally{setBusy(false);}
  }
- return <div className="space-y-4">
-  {error?<p role="alert" className="text-danger">{error}</p>:null}
-  <div className="card space-y-3 p-4">
-   <div className="flex flex-wrap items-center justify-between gap-2"><h2>Flow Library</h2>{canEdit?<button type="button" className="btn-primary" disabled={busy} onClick={()=>open(null)}>Build manually</button>:null}</div>
-   {canEdit&&canGenerate?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>setPrompt('')}>Create with AI</button>:null}
-   {prompt!==null?<form className="space-y-2" onSubmit={generate}>
-    <AdminFormField label="Describe the flow"><textarea className="control" rows={3} maxLength={1500} value={prompt} disabled={busy} onChange={event=>setPrompt(event.target.value)}/></AdminFormField>
-    <p>Use fictional examples. Review the generated draft before saving.</p>
-    <div className="flex gap-2"><button type="submit" className="btn-primary" disabled={busy||prompt.trim().length<10}>{busy?'Generating…':'Generate draft'}</button>
-     <button type="button" className="btn-secondary" disabled={busy} onClick={()=>setPrompt(null)}>Cancel</button></div>
-   </form>:null}
-   {library.length?<ul className="flex flex-wrap gap-2">{library.map(item=><li key={item.id}><button type="button" className="btn-secondary" disabled={busy} onClick={()=>open(item)}>{item.definition.name} · v{item.version}{item.active_version&&!item.paused?` · Active v${item.active_version}`:item.active_version?' · Paused':item.ready?' · Ready':' · Draft'}</button></li>)}</ul>:<p className="text-sm">Saved drafts appear here for this Brand.</p>}
-  </div>
-  {record?<section className="card space-y-3 p-4" aria-label="Flow lifecycle">
-   <p className="text-sm">Version controls are available for testing. Live conversation routing is unavailable.</p>
-   <p>{record.ready?'Ready':'Draft'} v{record.version}{record.active_version?` · ${record.paused?'Paused':'Active'} v${record.active_version}`:''}</p>
-   <div className="flex flex-wrap gap-2">
-    <button type="button" className="btn-secondary" disabled={busy} onClick={()=>lifecycle('history')}>Version history</button>
-    {canExecute&&record.ready&&!dirty&&(record.paused||record.active_version!==record.version)?<button type="button" className="btn-primary" disabled={busy} onClick={()=>lifecycle('activate',record.version)}>Activate version</button>:null}
-    {canExecute&&record.active_version&&!record.paused?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>lifecycle('pause',record.active_version)}>Pause flow</button>:null}
-   </div>
-   {versions?<ul className="space-y-2">{versions.map(item=><li key={item.version} className="flex flex-wrap gap-2">
-    <span>Version {item.version} · {item.definition.name} · {item.ready?'Ready':'Draft'}</span>
-    {canExecute&&item.ready&&item.version!==record.active_version?<button type="button" className="btn-secondary" disabled={busy||dirty} onClick={()=>lifecycle('rollback',item.version)}>Restore v{item.version}</button>:null}
-   </li>)}</ul>:null}
-  </section>:null}
-  {flow&&node?<div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-   <section className="card min-w-0 space-y-3 p-4" aria-label="Flow canvas">
-    <div className="flex items-center justify-between gap-2"><h2>{flow.name||'Untitled flow'}</h2><Badge>Draft</Badge></div>
-    <div className="hidden h-[480px] overflow-hidden rounded-lg border md:block">
-     <ReactFlow fitView nodesDraggable={false} nodesConnectable={false} deleteKeyCode={null}
-      nodes={flow.nodes.map((item,index)=>({id:item.id,position:positions[index],selected:item.id===selected,
-       data:{label:`${issues[item.id]?'⚠ ':''}${labels[item.type]}${item.field?' · '+item.field:''}`}}))}
-      edges={flow.nodes.flatMap(item=>flowPorts(item).map(port=>({id:`${item.id}:${port}`,source:item.id,target:item[port],
-       label:port==='next'?undefined:port==='yes'?'Yes':'No',markerEnd:{type:'arrowclosed'}})))}
-      onNodeClick={(_event,item)=>setSelected(item.id)}><Controls showInteractive={false}/></ReactFlow>
+ function flowMessage(state){
+  return {role:'flow',text:state.text||({completed:'Flow completed',knowledge:'Ready for a knowledge question.',handoff:'Handoff to staff'}[state.status]||'Continue to the next step.')};
+ }
+ function startTest(){
+  const state=flowTurn(flow);
+  setTest(state);setChat([flowMessage(state)]);setTestInputs([]);setKnowledge(null);setAnswer('');
+ }
+ const errorMessage=error?<p role="alert" className="af-feedback">{error}</p>:null;
+ if(!flow){
+  const query=search.trim().toLowerCase();
+  const visible=(library||[]).filter(item=>[item.definition.name,item.definition.description,flowStatus(item),...item.definition.channels.map(channel=>labels[channel])].some(value=>(value||'').toLowerCase().includes(query)));
+  return <WorkspacePage section="Marketing" title="AI Flows" description="Design and test conversation flows for your Brand."
+   actions={canEdit?<button type="button" className="btn-primary" onClick={()=>setNewOpen(true)}><Plus size={16}/> New Flow</button>:null}>
+   <section className="af-library" aria-label="Flow Library">
+    <div className="af-library-tools">
+     <div><h2>Flow Library</h2><p>{library?`${library.length} ${library.length===1?'flow':'flows'}`:'Loading flows…'}</p></div>
+     <SelectField label="Brand" value={brand} onChange={onBrandChange} options={brands.map(item=>({value:item.id,label:item.name}))}/>
+     <AdminFormField label="Search flows"><input className="control" type="search" value={search} onChange={event=>setSearch(event.target.value)}/></AdminFormField>
     </div>
-    <SelectField label="Edit step" value={selected} onChange={setSelected} options={flow.nodes.map((item,index)=>({value:item.id,label:`${index+1}. ${labels[item.type]}`}))}/>
-    <div className="flex flex-wrap gap-2">
-     {canEdit&&flowPorts(node).map(port=><SelectField key={`${selected}:${port}`} label={port==='next'?'Insert next step':`Insert on ${port} branch`}
-      value="" disabled={busy} onChange={type=>{if(type)update(insertFlowStep(flow,selected,port,type));}}
-      options={[{value:'',label:'＋ Add step'},...flowTypes.map(type=>({value:type,label:labels[type]}))]}/>)}
-    </div>
+    <AsyncDataSurface loading={!library&&!libraryError} error={libraryError} hasData={Boolean(library)} onRetry={()=>setReload(value=>value+1)}>
+     {library?visible.length?<div className="af-library-scroll"><table><thead><tr><th>Flow</th><th>Status</th><th>Version</th><th>Channels</th><th><span className="sr-only">Actions</span></th></tr></thead>
+      <tbody>{visible.map(item=><tr key={item.id}><td><strong>{item.definition.name}</strong>{item.definition.description?<small>{item.definition.description}</small>:null}</td>
+       <td><Badge>{flowStatus(item)}</Badge></td><td>v{item.version}</td><td>{item.definition.channels.map(channel=>labels[channel]).join(' · ')}</td>
+       <td><button type="button" className="btn-secondary" aria-label={`${canEdit?'Edit':'Open'} ${item.definition.name}`} onClick={()=>open(item)}>{canEdit?'Edit':'Open'}</button></td></tr>)}</tbody>
+     </table></div>:<div className="af-empty"><Workflow size={22}/><h3>{query?'No matching flows':'No flows yet'}</h3><p>{query?'Try a different name, status or channel.':'Use New Flow to create a conversation flow for this Brand.'}</p></div>:null}
+    </AsyncDataSurface>
    </section>
-   <section className="card min-w-0 space-y-3 p-4" aria-label="Step inspector">
-    <h2>{labels[node.type]}</h2>
-    <fieldset className="space-y-3" disabled={!canEdit||busy}>
-     {node.type==='trigger'?<>
+   {newOpen?<Modal title="New Flow" onClose={()=>{if(!busy){setNewOpen(false);setPrompt(null);setError('');}}}>
+    <div className="space-y-3">
+     {errorMessage}
+     {prompt===null?<div className="af-new-options">
+      {canGenerate?<button type="button" className="btn-secondary" onClick={()=>setPrompt('')}><Sparkles size={18}/><span><strong>Create with AI</strong><small>Describe the conversation and review a suggested draft.</small></span></button>:null}
+      <button type="button" className="btn-secondary" onClick={()=>open(null)}><Workflow size={18}/><span><strong>Build Manually</strong><small>Start with a trigger and add the steps you need.</small></span></button>
+     </div>:<form className="space-y-3" onSubmit={generate}>
+      <AdminFormField label="Describe the flow"><textarea className="control" rows={4} maxLength={1500} value={prompt} disabled={busy} onChange={event=>setPrompt(event.target.value)}/></AdminFormField>
+      <p>Use fictional examples. Review the generated draft before saving.</p>
+      <div className="flex gap-2"><button type="submit" className="btn-primary" disabled={busy||prompt.trim().length<10}>{busy?'Generating…':'Generate draft'}</button>
+       <button type="button" className="btn-secondary" disabled={busy} onClick={()=>{setPrompt(null);setError('');}}>Back</button></div>
+     </form>}
+    </div>
+   </Modal>:null}
+  </WorkspacePage>;
+ }
+ return <section className="af-editor" aria-label="Flow Editor">
+  <header className="af-editor-header">
+   <button type="button" className="btn-secondary" onClick={back} disabled={busy}><ArrowLeft size={16}/> Library</button>
+   <div className="af-editor-title"><h1>{flow.name||'Untitled flow'}</h1><span>{scope.name} · {record?`v${record.version} · ${flowStatus(record)}`:'New draft'}{dirty?' · Unsaved changes':''}</span></div>
+   <div className="af-editor-actions">
+    <button type="button" className="btn-secondary" aria-pressed={panel==='settings'} onClick={()=>setPanel('settings')}><Settings2 size={15}/> Settings</button>
+    {record?<button type="button" className="btn-secondary" disabled={busy} aria-pressed={panel==='versions'} onClick={()=>{setPanel('versions');lifecycle('history');}}>Versions</button>:null}
+    <button type="button" className="btn-secondary" aria-pressed={panel==='test'} onClick={()=>{setPalette(null);setPanel(panel==='test'?'node':'test');}}><MessageCircle size={15}/> Test Flow</button>
+    {canEdit?<button type="button" className="btn-primary" disabled={busy||Object.keys(issues).length>0||Boolean(record&&!dirty)} onClick={save}>Save draft</button>:null}
+   </div>
+  </header>
+  {errorMessage}
+  <div className="af-editor-body">
+   <section className="af-canvas" aria-label="Flow canvas">
+    <div className="af-canvas-top"><span>{flow.nodes.length} steps</span>{Object.keys(issues).length?<span className="af-invalid"><TriangleAlert size={14}/> Needs configuration</span>:null}</div>
+    <div className="af-graph">
+     <ReactFlow fitView fitViewOptions={{maxZoom:1,padding:.2}} nodesDraggable={false} nodesConnectable={false} deleteKeyCode={null}
+      nodeTypes={nodeTypes} edgeTypes={edgeTypes}
+      nodes={flow.nodes.map((step,index)=>({id:step.id,type:'flow',position:positions[index],selected:step.id===selected,
+       ariaLabel:`${labels[step.type]}. ${stepSummary(step)}`,data:{step,error:issues[step.id]||(step.id==='trigger'?issues.flow:null),running:panel==='test'&&test?.trace.at(-1)===step.id}}))}
+      edges={flow.nodes.flatMap(step=>flowPorts(step).map(port=>({id:`${step.id}:${port}`,source:step.id,sourceHandle:port,target:step[port],type:'flow',
+       markerEnd:{type:MarkerType.ArrowClosed},data:{label:port==='next'?null:port==='yes'?'Yes':'No',sourceLabel:labels[step.type],insert:canEdit&&!busy?()=>{setSelected(step.id);setPalette({id:step.id,port});setPanel('node');}:null}})))}
+      onNodeClick={(_event,item)=>pick(item.id)} onNodesChange={changes=>{
+       const selection=changes.find(change=>change.type==='select'&&change.selected);
+       if(selection)pick(selection.id);
+      }}>
+      <Background gap={20} size={1}/><Controls showInteractive={false}/>
+     </ReactFlow>
+    </div>
+    <ol className="af-step-list" aria-label="Flow steps">
+     {flow.nodes.map(step=>{const Icon=stepIcons[step.type];return <li key={step.id}>
+      <button type="button" aria-pressed={selected===step.id} aria-current={panel==='test'&&test?.trace.at(-1)===step.id?'step':undefined} onClick={()=>pick(step.id)}><Icon size={16}/><span><strong>{labels[step.type]}</strong><small>{stepSummary(step)}</small></span>
+       {issues[step.id]?<TriangleAlert size={15} aria-label="Needs configuration"/>:null}</button>
+     </li>;})}
+    </ol>
+   </section>
+   <aside className="af-inspector" aria-label={panel==='test'?'Test Chat':'Flow inspector'}>
+    {panel==='settings'?<><h2>Flow Settings</h2>
+     <fieldset className="space-y-3" disabled={!canEdit||busy}>
       <Field label="Flow name" value={flow.name} maxLength={120} onChange={name=>update({name})}/>
       <Field label="Description" value={flow.description} onChange={description=>update({description})}/>
       <Field label="Objective" value={flow.objective} onChange={objective=>update({objective})}/>
@@ -175,7 +277,12 @@ function FlowWorkspace({scope,canEdit,canGenerate,canExecute}){
       <AdminFormField label="Trigger examples"><textarea className="control" rows={3} maxLength={3000} value={flow.examples.join('\n')} onChange={event=>update({examples:event.target.value.split('\n')})}/></AdminFormField>
       {flowChannels.map(channel=><label className="flex items-center gap-2" key={channel}><input type="checkbox" checked={flow.channels.includes(channel)}
        onChange={event=>update({channels:event.target.checked?[...flow.channels,channel]:flow.channels.filter(value=>value!==channel)})}/>{labels[channel]}</label>)}
-     </>:null}
+     </fieldset>
+
+      {issues.flow?<p role="status" className="af-invalid">{issues.flow}</p>:null}
+    </>:null}
+    {panel==='node'&&node?<><h2>{labels[node.type]}</h2><p className="af-muted">{stepSummary(node)}</p>
+     <fieldset className="space-y-3" disabled={!canEdit||busy}>
      {['ask','condition'].includes(node.type)?<Field label="Field key" value={node.field} maxLength={32} onChange={field=>updateNode({field})}/>:null}
      {node.type==='ask'?<>
       <SelectField label="Value type" value={node.value_type} onChange={value_type=>updateNode({value_type})} options={['text','number','boolean'].map(value=>({value,label:value}))}/>
@@ -183,38 +290,55 @@ function FlowWorkspace({scope,canEdit,canGenerate,canExecute}){
      </>:null}
      {node.type==='condition'?<Field label="Equals" value={node.equals} onChange={equals=>updateNode({equals})}/>:null}
      {['ask','reply','handoff'].includes(node.type)?<Field label={node.type==='ask'?'Question':'Message'} value={node.prompt} onChange={prompt=>updateNode({prompt})}/>:null}
-    </fieldset>
-    {issues[node.id]||issues.flow?<p role="status" className="text-danger">{issues[node.id]||issues.flow}</p>:null}
-    {canEdit?<div className="flex flex-wrap gap-2">
-     <button type="button" className="btn-primary" disabled={busy||Object.keys(issues).length>0} onClick={save}>Save draft</button>
-     {node.type!=='trigger'&&flowPorts(node).map(port=><button type="button" key={port} disabled={busy} className="btn-secondary"
-      onClick={()=>{update(removeFlowStep(flow,selected,port));setSelected('trigger');}}>
-      {port==='next'?'Remove step':`Remove condition, keep ${port==='yes'?'Yes':'No'}`}
-     </button>)}
-    </div>:null}
-   </section>
-   <section className="card space-y-3 p-4 lg:col-span-2" aria-label="Test flow">
-    <div className="flex items-center justify-between gap-2"><h2>Test Flow</h2><Badge>Simulation only</Badge></div>
-    <p>Try the selected flow with fictional details. Collection and branching run in the browser. Knowledge tests use the Brand’s existing AI test service.</p>
-    <SelectField label="Simulated AI mode" value={mode} onChange={setMode} disabled={busy} options={[
-     {value:'suggest_only',label:'Suggest Only'},{value:'safe_auto',label:'Safe Auto Reply'},{value:'ai_first',label:'AI First'},
-    ]}/>
-    <button type="button" className="btn-secondary" disabled={busy||Object.keys(issues).length>0} onClick={()=>{setTest(flowTurn(flow));setTestInputs([]);setKnowledge(null);setAnswer('');}}>Start test</button>
-    {test?<><p role="status">{test.text||({completed:'Flow completed',knowledge:'Knowledge lookup step',handoff:'Human handoff'}[test.status]||test.status)}</p>
-     <p>Steps in this turn · {test.trace.map(id=>labels[flow.nodes.find(step=>step.id===id)?.type]).join(' → ')}</p>
-     <p>{Object.entries(test.fields).map(([field,value])=>`${field}: ${value}`).join(' · ')}</p>
-     {['collect','reply','knowledge'].includes(test.status)?<form className="flex flex-wrap items-end gap-2" onSubmit={continueTest}>
-      {test.status==='collect'||test.status==='knowledge'?<Field label={test.status==='collect'?'Customer answer':'Customer question for Knowledge'} value={answer} onChange={setAnswer}/>:null}<button type="submit" className="btn-secondary" disabled={busy}>Continue test</button>
-     </form>:null}</>:null}
-    {record&&canEdit&&!dirty&&!record.ready&&['completed','handoff'].includes(test?.status)&&!knowledge?
-     <button type="button" className="btn-secondary" disabled={busy} onClick={()=>lifecycle('certify')}>Record successful simulation</button>:null}
-    {knowledge?<div className="space-y-2" aria-label="Knowledge test evidence">
-     <p>{knowledge.decision.text||knowledge.body.text}</p>
-     {knowledge.body.sources?.map(source=><p key={source.key}>{source.label}</p>)}
-     {knowledge.body.unresolved_questions?.map(question=><p key={question}>{question}</p>)}
-     <p>{knowledge.input_tokens??'—'} input · {knowledge.output_tokens??'—'} output · {knowledge.latency_ms??'—'} ms · {knowledge.estimated_cost_usd==null?'Cost unavailable':`US$${Number(knowledge.estimated_cost_usd).toFixed(6)} estimated`}</p>
-    </div>:null}
-   </section>
-  </div>:null}
- </div>;
+
+     </fieldset>
+     {issues[node.id]?<p role="status" className="af-invalid">{issues[node.id]}</p>:null}
+     {canEdit&&flowPorts(node).length?<div className="af-node-tools">
+      {flowPorts(node).map(port=><button type="button" className="btn-secondary" key={port} disabled={busy}
+       aria-expanded={palette?.id===node.id&&palette.port===port} onClick={()=>setPalette(palette?.id===node.id&&palette.port===port?null:{id:node.id,port})}>
+       <Plus size={14}/>{port==='next'?'Add step':`Add on ${port==='yes'?'Yes':'No'}`}</button>)}
+      {palette?<div className="af-palette" aria-label="Node palette">
+       {flowTypes.map(type=>{const Icon=stepIcons[type];return <button type="button" key={type} disabled={busy||flow.nodes.length>=40} onClick={()=>addStep(type)}><Icon size={15}/>{labels[type]}</button>;})}
+      </div>:null}
+      {node.type!=='trigger'?flowPorts(node).map(port=><button type="button" key={`remove-${port}`} disabled={busy} className="btn-secondary"
+       onClick={()=>{update(removeFlowStep(flow,selected,port));pick('trigger');}}>
+       {port==='next'?'Remove step':`Remove condition, keep ${port==='yes'?'Yes':'No'}`}</button>):null}
+     </div>:null}
+    </>:null}
+    {panel==='versions'&&record?<><h2>Versions</h2><p className="af-muted">Live conversation routing is unavailable. Activation here is for testing.</p>
+     <div className="flex flex-wrap gap-2">
+      {canExecute&&record.ready&&!dirty&&(record.paused||record.active_version!==record.version)?<button type="button" className="btn-primary" disabled={busy} onClick={()=>lifecycle('activate',record.version)}>Activate version</button>:null}
+      {canExecute&&record.active_version&&!record.paused?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>lifecycle('pause',record.active_version)}>Pause flow</button>:null}
+     </div>
+     {busy&&!versions?<p role="status">Loading versions…</p>:null}
+     {versions?<ul className="af-version-list">{versions.map(item=><li key={item.version}><div><strong>Version {item.version}</strong><small>{item.definition.name} · {item.ready?'Ready':'Draft'}</small></div>
+      {canExecute&&item.ready&&item.version!==record.active_version?<button type="button" className="btn-secondary" disabled={busy||dirty} onClick={()=>lifecycle('rollback',item.version)}>Restore</button>:null}</li>)}</ul>:null}
+    </>:null}
+    {panel==='test'?<><div className="af-panel-title"><h2>Test Chat</h2><Badge>Simulation only</Badge></div>
+     <p className="af-muted">Use fictional details. Knowledge steps use the Brand’s AI test service.</p>
+     <SelectField label="Simulated AI mode" value={mode} onChange={setMode} disabled={busy} options={[
+      {value:'suggest_only',label:'Suggest Only'},{value:'safe_auto',label:'Safe Auto Reply'},{value:'ai_first',label:'AI First'},
+     ]}/>
+     <button type="button" className="btn-secondary" disabled={busy||Object.keys(issues).length>0} onClick={startTest}>{test?'Restart test':'Start test'}</button>
+     <ol className="af-chat" aria-label="Test messages" aria-live="polite">{chat.map((message,index)=><li key={index} data-role={message.role}><strong>{message.role==='customer'?'Customer':'Flow'}</strong><p>{message.text}</p></li>)}</ol>
+     {test?<div className="af-test-details">
+      <p><strong>Steps this turn</strong> {test.trace.map(id=>labels[flow.nodes.find(step=>step.id===id)?.type]).join(' → ')}</p>
+      {Object.entries(test.fields).map(([field,value])=><p key={field}><strong>{field}</strong> {value}</p>)}
+      {['collect','reply','knowledge'].includes(test.status)?<form className="space-y-2" onSubmit={continueTest}>
+       {test.status==='collect'||test.status==='knowledge'?<Field label={test.status==='collect'?'Customer answer':'Customer question for Knowledge'} value={answer} onChange={setAnswer}/>:null}
+       <button type="submit" className="btn-primary" disabled={busy}>Continue test</button>
+      </form>:null}
+     </div>:null}
+     {record&&canEdit&&!dirty&&!record.ready&&['completed','handoff'].includes(test?.status)&&!knowledge?
+      <button type="button" className="btn-secondary" disabled={busy} onClick={()=>lifecycle('certify')}>Record successful simulation</button>:null}
+     {knowledge?<div className="af-test-details" aria-label="Knowledge test evidence">
+      <h3>Knowledge evidence</h3>
+      {knowledge.body.sources?.map(source=><p key={source.key}>{source.label}</p>)}
+      {knowledge.body.unresolved_questions?.map(question=><p key={question}>{question}</p>)}
+      <p>{knowledge.input_tokens??'—'} input · {knowledge.output_tokens??'—'} output · {knowledge.latency_ms??'—'} ms · {knowledge.estimated_cost_usd==null?'Cost unavailable':`US$${Number(knowledge.estimated_cost_usd).toFixed(6)} estimated`}</p>
+     </div>:null}
+    </>:null}
+   </aside>
+  </div>
+ </section>;
 }
