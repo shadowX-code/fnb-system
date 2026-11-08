@@ -527,3 +527,8 @@ body:not(.web-immersive) .web-conversation{bottom:var(--composer-space,65px)}
  .web-immersive .web-core-name{top:177px;bottom:auto}
  .web-immersive .web-voice-actions button,.web-immersive .web-voice-diagnostics summary{min-height:44px}
 }
+@media(max-width:800px){
+ .web-immersive #stage{mask-image:linear-gradient(#000 54%,#0007 68%,transparent 84%)}
+ .web-immersive .web-core-name{color:var(--hud-ink);text-shadow:0 1px 8px #000}
+ .web-immersive .web-conversation{top:284px}
+}
