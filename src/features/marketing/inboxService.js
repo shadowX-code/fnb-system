@@ -58,6 +58,7 @@ export const inboxService = {
       p_size: pageSize,
     }),
   testContext: (org,brand) => rpc("marketing_inbox_test_context",{p_org:org,p_brand:brand}),
+  generateFlow: (body) => invoke("generate-flow",{body}),
   testAI: (body) => invoke("test-ai",{body}),
   markRead: (id, through) => rpc("marketing_inbox_mark_read", {p_conversation:id,p_through:through}),
   analytics: ({org,brand,channel="",start=null,end=null}) => rpc("marketing_inbox_analytics",{p_org:org,p_brand:brand||null,p_channel:channel,p_start:start,p_end:end}),

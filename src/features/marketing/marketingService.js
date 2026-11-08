@@ -24,6 +24,13 @@ export const marketingService = {
   beginWhatsApp:body=>meta('whatsapp/begin',body),
   completeWhatsApp:body=>meta('whatsapp/complete',body),
   aiFlows:(org,brand)=>rpc('marketing_ai_flow_drafts',{p_org:org,p_brand:brand}),
+  aiFlowVersions:(org,brand,id)=>rpc('marketing_ai_flow_versions',{p_org:org,p_brand:brand,p_flow:id}),
+  certifyAIFlow:(org,brand,id,version,inputs)=>rpc('marketing_ai_flow_certify',{
+    p_org:org,p_brand:brand,p_flow:id,p_version:version,p_inputs:inputs,
+  }),
+  setAIFlowState:(org,brand,id,version,action)=>rpc('marketing_ai_flow_state',{
+    p_org:org,p_brand:brand,p_flow:id,p_version:version,p_action:action,
+  }),
   saveAIFlow:(org,brand,id,version,definition,request)=>rpc('marketing_ai_flow_save',{
     p_org:org,p_brand:brand,p_id:id,p_version:version,p_definition:definition,p_request:request,
   }),

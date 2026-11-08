@@ -1,3 +1,4 @@
+import {generateAIFlow} from '../_shared/aiFlowGeneration.ts';
 import {runInboxPlayground} from '../_shared/inboxPlayground.ts';
 import {normalizePublicationRemovals} from '../_shared/metaPostAvailability.ts';
 import {whatsappLifecycle} from '../_shared/whatsappLifecycle.ts';
@@ -27,6 +28,7 @@ async function rpc(db: any, name: string, args: any = {}) {
       'Daily AI request limit reached.':'The shared daily AI request limit has been reached. Try again after earlier requests expire.',
       'Save Brand AI consent before testing.':'Save this Brand’s AI consent before testing.',
       'Choose an active Outlet linked to this Brand.':'Choose an active Outlet linked to this Brand.',
+      'Flow generation limit reached.':'Flow generation limit reached. Wait before trying again.',
       'Test request identity changed.':'The test context changed. Start a new test turn.',
       'Take over this conversation before sending a staff reply.':'Take over this conversation before sending a staff reply.',
       'Use Resume AI after checking current eligibility.':'Use Resume AI after checking current eligibility.',
@@ -258,6 +260,21 @@ Deno.serve(async (req) => {
       return json(result);
     }catch(error){
       return json({error:(error as {safeMessage?:string})?.safeMessage||'Reply unavailable. Check connection status, reply window and any existing send result.'},409);
+    }
+  }
+  if(path==='/generate-flow'&&req.method==='POST'){
+    if(!configured)return json({error:'AI provider is unavailable. Review AI readiness before generating a flow.'},409);
+    const raw=await req.text();
+    if(raw.length>10000)return json({error:'Flow description is too long.'},413);
+    try{
+      const body=JSON.parse(raw);
+      const prepared=await rpc(caller,'marketing_ai_flow_generate_prepare',{p_request:body.requestId,p_org:body.org,p_brand:body.brand,p_description:body.description});
+      if(prepared.state!=='prepared')return json(prepared);
+      const definition=await generateAIFlow(body.description,env('OPENAI_API_KEY'),env('MARKETING_AI_MODEL'));
+      if(!definition)return json({error:'This request includes actions that AI Flows cannot perform.'},422);
+      return json(await rpc(service,'marketing_ai_flow_generate_finish',{p_request:body.requestId,p_definition:definition}));
+    }catch(error){
+      return json({error:(error as {safeMessage?:string})?.safeMessage||'The flow draft could not be generated or validated. Check Brand access and try a simpler description.'},409);
     }
   }
   if(path==='/test-ai'&&req.method==='POST') {

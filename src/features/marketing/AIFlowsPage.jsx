@@ -28,16 +28,19 @@ export default function AIFlowsPage(){
  return <WorkspacePage section="Marketing" title="AI Flows" description="Build conversation flows and test how they guide a customer."
   controls={<SelectField label="Brand" value={brand} onChange={setBrand} options={brands.map(item=>({value:item.id,label:item.name}))}/>}>
   {error?<p role="alert">{error}</p>:null}
-  {scope?<FlowWorkspace key={`${auth.user?.id}:${brand}`} scope={scope} canEdit={auth.hasPermission('marketing_campaigns.manage')}/>:null}
+  {scope?<FlowWorkspace key={`${auth.user?.id}:${brand}`} scope={scope} canEdit={auth.hasPermission('marketing_campaigns.manage')} canGenerate={auth.hasPermission('marketing_inbox.ai')} canExecute={auth.hasPermission('marketing_campaigns.execute')}/>:null}
  </WorkspacePage>;
 }
 
-function FlowWorkspace({scope,canEdit}){
+function FlowWorkspace({scope,canEdit,canGenerate,canExecute}){
  const [library,setLibrary]=useState([]),[record,setRecord]=useState(null),[flow,setFlow]=useState(null);
  const [selected,setSelected]=useState('trigger'),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [test,setTest]=useState(null),[answer,setAnswer]=useState(''),[mode,setMode]=useState('suggest_only');
  const [knowledge,setKnowledge]=useState(null);
  const pendingSave=useRef(null);
+ const [prompt,setPrompt]=useState(null);
+ const generation=useRef(null);
+ const [versions,setVersions]=useState(null),[testInputs,setTestInputs]=useState([]);
  const org=scope.organization_id,brand=scope.id;
  useEffect(()=>{
   let live=true;
@@ -45,9 +48,10 @@ function FlowWorkspace({scope,canEdit}){
   return()=>{live=false;};
  },[org,brand]);
  function open(item){
-  setRecord(item);setFlow(item?.definition||newFlow());setSelected('trigger');setTest(null);setKnowledge(null);setAnswer('');setError('');
+  setRecord(item);setFlow(item?.definition||newFlow());setSelected('trigger');setVersions(null);setTestInputs([]);setTest(null);setKnowledge(null);setAnswer('');setError('');
  }
  const issues=flow?flowIssues(flow):{};
+ const dirty=Boolean(flow&&record&&JSON.stringify(flow)!==JSON.stringify(record.definition));
  const node=flow?.nodes.find(item=>item.id===selected);
  const positions=flow?flowLayout(flow.nodes):[];
  function update(patch){setFlow(current=>({...current,...patch}));setTest(null);setKnowledge(null);}
@@ -60,9 +64,23 @@ function FlowWorkspace({scope,canEdit}){
   try{
    const saved=await marketingService.saveAIFlow(org,brand,record?.id||null,record?.version||0,flow,pendingSave.current.id);
    pendingSave.current=null;
-   setRecord(saved);setLibrary(rows=>[saved,...rows.filter(item=>item.id!==saved.id)]);
+   open(saved);
+   setLibrary(await marketingService.aiFlows(org,brand));
   }catch(failure){setError(failure.message);}
   finally{setBusy(false);}
+ }
+ async function generate(event){
+  event.preventDefault();
+  if(busy||!canEdit||!canGenerate||prompt.trim().length<10)return;
+  const description=prompt.trim();
+  if(generation.current?.description!==description)generation.current={description,id:crypto.randomUUID()};
+  setBusy(true);setError('');
+  try{
+   const result=await inboxService.generateFlow({requestId:generation.current.id,org,brand,description});
+   if(result.state!=='completed'||!result.definition)throw new Error('Generation did not return a draft. Change the description or start a new request.');
+   open(null);setFlow(result.definition);setPrompt(null);
+  }catch(failure){setError(failure.message);}
+  finally{generation.current=null;setBusy(false);}
  }
  async function continueTest(event){
   event.preventDefault();
@@ -84,14 +102,50 @@ function FlowWorkspace({scope,canEdit}){
    }catch(failure){setError(failure.message);return;}
    finally{setBusy(false);}
   }
-  setTest(flowTurn(flow,test,test.status==='collect'?answer:''));setAnswer('');
+  const next=flowTurn(flow,test,test.status==='collect'?answer:'');
+  if(test.status==='collect'&&next.step!==test.step)setTestInputs(values=>[...values,answer.trim().slice(0,500)]);
+  setTest(next);setAnswer('');
+ }
+ async function lifecycle(action,version){
+  if(busy||!record)return;
+  setBusy(true);setError('');
+  try{
+   if(action==='history'){setVersions(await marketingService.aiFlowVersions(org,brand,record.id));return;}
+   if(action==='certify')await marketingService.certifyAIFlow(org,brand,record.id,record.version,testInputs);
+   else await marketingService.setAIFlowState(org,brand,record.id,version,action);
+   const rows=await marketingService.aiFlows(org,brand);
+   setLibrary(rows);
+   setRecord(rows.find(item=>item.id===record.id)||record);
+   if(versions)setVersions(await marketingService.aiFlowVersions(org,brand,record.id));
+  }catch(failure){setError(failure.message);}
+  finally{setBusy(false);}
  }
  return <div className="space-y-4">
   {error?<p role="alert" className="text-danger">{error}</p>:null}
   <div className="card space-y-3 p-4">
    <div className="flex flex-wrap items-center justify-between gap-2"><h2>Flow Library</h2>{canEdit?<button type="button" className="btn-primary" disabled={busy} onClick={()=>open(null)}>Build manually</button>:null}</div>
-   {library.length?<ul className="flex flex-wrap gap-2">{library.map(item=><li key={item.id}><button type="button" className="btn-secondary" disabled={busy} onClick={()=>open(item)}>{item.definition.name} · Draft v{item.version}</button></li>)}</ul>:<p className="text-sm">Saved drafts appear here for this Brand.</p>}
+   {canEdit&&canGenerate?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>setPrompt('')}>Create with AI</button>:null}
+   {prompt!==null?<form className="space-y-2" onSubmit={generate}>
+    <AdminFormField label="Describe the flow"><textarea className="control" rows={3} maxLength={1500} value={prompt} disabled={busy} onChange={event=>setPrompt(event.target.value)}/></AdminFormField>
+    <p>Use fictional examples. Review the generated draft before saving.</p>
+    <div className="flex gap-2"><button type="submit" className="btn-primary" disabled={busy||prompt.trim().length<10}>{busy?'Generating…':'Generate draft'}</button>
+     <button type="button" className="btn-secondary" disabled={busy} onClick={()=>setPrompt(null)}>Cancel</button></div>
+   </form>:null}
+   {library.length?<ul className="flex flex-wrap gap-2">{library.map(item=><li key={item.id}><button type="button" className="btn-secondary" disabled={busy} onClick={()=>open(item)}>{item.definition.name} · v{item.version}{item.active_version&&!item.paused?` · Active v${item.active_version}`:item.active_version?' · Paused':item.ready?' · Ready':' · Draft'}</button></li>)}</ul>:<p className="text-sm">Saved drafts appear here for this Brand.</p>}
   </div>
+  {record?<section className="card space-y-3 p-4" aria-label="Flow lifecycle">
+   <p className="text-sm">Version controls are available for testing. Live conversation routing is unavailable.</p>
+   <p>{record.ready?'Ready':'Draft'} v{record.version}{record.active_version?` · ${record.paused?'Paused':'Active'} v${record.active_version}`:''}</p>
+   <div className="flex flex-wrap gap-2">
+    <button type="button" className="btn-secondary" disabled={busy} onClick={()=>lifecycle('history')}>Version history</button>
+    {canExecute&&record.ready&&!dirty&&(record.paused||record.active_version!==record.version)?<button type="button" className="btn-primary" disabled={busy} onClick={()=>lifecycle('activate',record.version)}>Activate version</button>:null}
+    {canExecute&&record.active_version&&!record.paused?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>lifecycle('pause',record.active_version)}>Pause flow</button>:null}
+   </div>
+   {versions?<ul className="space-y-2">{versions.map(item=><li key={item.version} className="flex flex-wrap gap-2">
+    <span>Version {item.version} · {item.definition.name} · {item.ready?'Ready':'Draft'}</span>
+    {canExecute&&item.ready&&item.version!==record.active_version?<button type="button" className="btn-secondary" disabled={busy||dirty} onClick={()=>lifecycle('rollback',item.version)}>Restore v{item.version}</button>:null}
+   </li>)}</ul>:null}
+  </section>:null}
   {flow&&node?<div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
    <section className="card min-w-0 space-y-3 p-4" aria-label="Flow canvas">
     <div className="flex items-center justify-between gap-2"><h2>{flow.name||'Untitled flow'}</h2><Badge>Draft</Badge></div>
@@ -145,13 +199,15 @@ function FlowWorkspace({scope,canEdit}){
     <SelectField label="Simulated AI mode" value={mode} onChange={setMode} disabled={busy} options={[
      {value:'suggest_only',label:'Suggest Only'},{value:'safe_auto',label:'Safe Auto Reply'},{value:'ai_first',label:'AI First'},
     ]}/>
-    <button type="button" className="btn-secondary" disabled={busy||Object.keys(issues).length>0} onClick={()=>{setTest(flowTurn(flow));setKnowledge(null);setAnswer('');}}>Start test</button>
+    <button type="button" className="btn-secondary" disabled={busy||Object.keys(issues).length>0} onClick={()=>{setTest(flowTurn(flow));setTestInputs([]);setKnowledge(null);setAnswer('');}}>Start test</button>
     {test?<><p role="status">{test.text||({completed:'Flow completed',knowledge:'Knowledge lookup step',handoff:'Human handoff'}[test.status]||test.status)}</p>
      <p>Steps in this turn · {test.trace.map(id=>labels[flow.nodes.find(step=>step.id===id)?.type]).join(' → ')}</p>
      <p>{Object.entries(test.fields).map(([field,value])=>`${field}: ${value}`).join(' · ')}</p>
      {['collect','reply','knowledge'].includes(test.status)?<form className="flex flex-wrap items-end gap-2" onSubmit={continueTest}>
       {test.status==='collect'||test.status==='knowledge'?<Field label={test.status==='collect'?'Customer answer':'Customer question for Knowledge'} value={answer} onChange={setAnswer}/>:null}<button type="submit" className="btn-secondary" disabled={busy}>Continue test</button>
      </form>:null}</>:null}
+    {record&&canEdit&&!dirty&&!record.ready&&['completed','handoff'].includes(test?.status)&&!knowledge?
+     <button type="button" className="btn-secondary" disabled={busy} onClick={()=>lifecycle('certify')}>Record successful simulation</button>:null}
     {knowledge?<div className="space-y-2" aria-label="Knowledge test evidence">
      <p>{knowledge.decision.text||knowledge.body.text}</p>
      {knowledge.body.sources?.map(source=><p key={source.key}>{source.label}</p>)}
