@@ -30,7 +30,7 @@ describe('Marketing workspace ownership',()=>{
     expect(adminRouteDefinitions.find(r=>r.id==='marketing_calendar').pathAliases).toContain('/marketing/content');
     expect(getSidebarSections('marketing').find(s=>s.label==='Settings').items.map(i=>i.label)).toEqual(['Connections','Brand Knowledge','FAQ & AI','Team & Brand Access']);
     expect(getSidebarSections('marketing').find(s=>s.label==='Analytics').items.map(i=>i.label)).toEqual(['Social Analytics','Ads Analytics']);
-    expect(getSidebarSections('marketing').find(s=>s.label==='CRM').items.map(i=>i.label)).toEqual(['Customers','WhatsApp Chat','Campaign Message','Workflows']);
+    expect(getSidebarSections('marketing').find(s=>s.label==='CRM').items.map(i=>i.label)).toEqual(['Customers','WhatsApp Chat','Campaign Message','AI Flows']);
     expect(routeDetails.marketing_audience.permission).toBe('marketing_workspace.access AND marketing_audience.view');
     expect(routeDetails.marketing_campaigns.permission).toBe('marketing_workspace.access AND marketing_campaigns.view');
     expect(getSidebarSections('restaurant').flatMap(s=>s.items).some(i=>i.id?.startsWith('marketing_'))).toBe(false);

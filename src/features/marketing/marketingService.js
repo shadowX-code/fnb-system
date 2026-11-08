@@ -23,6 +23,10 @@ export const marketingService = {
   whatsappReadiness:(organizationId,brandId)=>meta('whatsapp/readiness',{organizationId,brandId:brandId||null}),
   beginWhatsApp:body=>meta('whatsapp/begin',body),
   completeWhatsApp:body=>meta('whatsapp/complete',body),
+  aiFlows:(org,brand)=>rpc('marketing_ai_flow_drafts',{p_org:org,p_brand:brand}),
+  saveAIFlow:(org,brand,id,version,definition,request)=>rpc('marketing_ai_flow_save',{
+    p_org:org,p_brand:brand,p_id:id,p_version:version,p_definition:definition,p_request:request,
+  }),
   whatsappWorkflows:(org,brand,workflow=null)=>rpc('marketing_whatsapp_workflows',{p_org:org,p_brand:brand,p_workflow:workflow}),
   whatsappWorkflowCommand:({request,org,brand,workflow,revision,action,title,batch,wait,scenario})=>rpc('marketing_whatsapp_workflow_command',{
     p_request:request,p_org:org,p_brand:brand,p_workflow:workflow,p_revision:revision,p_action:action,

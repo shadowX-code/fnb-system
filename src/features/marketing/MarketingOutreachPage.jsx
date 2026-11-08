@@ -1,3 +1,4 @@
+import WhatsAppWorkflowsPage from './WhatsAppWorkflowsPage.jsx';
 import {resolveBrandContext,selectBrandContext} from './brandContext.js';
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext.jsx";
@@ -359,6 +360,9 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
       />
     </AdminFormField>
   );
+  if (section === "whatsapp" && new URLSearchParams(window.location.search).get("tab") === "follow-up") {
+    return <WhatsAppWorkflowsPage campaignFollowUp />;
+  }
   return (
     <WorkspacePage
       section="Marketing"
@@ -367,6 +371,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
       controls={controls}
     >
       <div className="outreach">
+        {section === "whatsapp" ? <a className="btn-secondary" href="/marketing/whatsapp?tab=follow-up">Campaign Follow-up</a> : null}
         {brandInactive?<p className="text-sm text-text-secondary">Inactive Brand · existing customer records and campaign history remain available. Reactivate it to start new work.</p>:null}
         {notice ? <p role="status">{notice}</p> : null}
         {error ? (
