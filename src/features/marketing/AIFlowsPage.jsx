@@ -163,7 +163,7 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
   if(!proposal||busy)return;
   if(flow!==proposal.base){setError('The canvas changed during review. Ask the Designer to update its proposal.');setProposal(null);return;}
   setUndo({before:flow,after:proposal.definition});
-  update(proposal.definition);
+  setFlow(proposal.definition);setTest(null);setChat([]);setKnowledge(null);
   if(!proposal.definition.nodes.some(step=>step.id===selected))setSelected('trigger');
   setProposal(null);
   setDesignerMessages(items=>[...items,{role:'designer',text:'Changes applied to the canvas. Save the draft when you are ready.'}]);
