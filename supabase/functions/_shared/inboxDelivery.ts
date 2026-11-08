@@ -34,7 +34,14 @@ export async function deliverInboxReply(db:any,graph:any,get:(key:string)=>strin
   }
   lease=material.lease;
   const result=await advanceInboxDelivery({channel:conn.channel,whatsappStaff,authority:material.authority,recipient:material.recipient,text:material.text,state:material.receipt?{receipt:material.receipt}:material.state==='failed'?{failed:material.failure_code||'provider_rejected'}:['pending','reconciling'].includes(material.state)?{pending:true}:{},guard,checkpoint,post:async(path,params)=>{
-   try{return await graph.request(path,credential.token,params,'POST');}catch(error){if(error instanceof MetaError&&!error.uncertain)throw Object.assign(new Error('provider_rejected'),{definitive:true,graphCode:error.graphCode});throw error;}
+   try{return await graph.request(path,credential.token,params,'POST');}
+   catch(error){
+    if(conn.channel==='whatsapp')console.info(JSON.stringify({tag:'wa_staff_reply_provider_failure',
+     graph_code:error instanceof MetaError&&Number.isSafeInteger(error.graphCode)?error.graphCode:null,
+     uncertain:!(error instanceof MetaError)||error.uncertain}));
+    if(error instanceof MetaError&&!error.uncertain)throw Object.assign(new Error('provider_rejected'),{definitive:true,graphCode:error.graphCode});
+    throw error;
+   }
   }});
   if(result.state==='reconciling'&&lease&&ownsLease)await checkpoint({});
   return result;

@@ -4,7 +4,7 @@ import {handoffHints,assistanceLabel} from '../../../supabase/functions/_shared/
 import {aiSuggestionUnavailable,faqPreviewMessage,aiSourceLabel} from "./inboxKnowledge.js";
 import SelectField from '../../components/forms/SelectField.jsx';
 import { formatOperationalDateTime } from "../../lib/dateTime.js";
-import { replyAvailability } from "./inboxPresentation.js";
+import { replyAvailability, replyStateLabel } from "./inboxPresentation.js";
 export default function InboxReplyComposer({
   current,
   configuration,
@@ -124,6 +124,11 @@ export default function InboxReplyComposer({
     : current.window_expires_at
       ? "Closed · An approved WhatsApp template is required to contact the customer outside the window."
       : "Unverified · Waiting for an eligible WhatsApp customer message.";
+  const whatsAppOutbox = c.channel === "whatsapp"
+    ? (current.outbox || []).filter(item => item.state !== "blocked").reduce((latest, item) =>
+      !latest || Date.parse(item.sent_at || item.authorized_at || item.created_at) > Date.parse(latest.sent_at || latest.authorized_at || latest.created_at)
+        ? item : latest, null)
+    : null;
   const whatsAppReady = directReady && current.window_open && Boolean(whatsAppDeadline) && expiredDeadline !== whatsAppDeadline;
   if (c.channel === "whatsapp" && mode === "reply") return (
     <div className="inbox-composer" aria-label="Reply composer">
@@ -134,6 +139,7 @@ export default function InboxReplyComposer({
         {can("ai") && <button className="btn-secondary" disabled title="WhatsApp AI suggestions and automatic replies are disabled."><Sparkles size={14} />AI Suggested Reply</button>}
       </div>
       <p className="inbox-assistance-status" role="status"><strong>24-hour service window</strong> · {c.opted_out ? "Customer opted out. Replies paused." : whatsAppWindow}</p>
+      {whatsAppOutbox && <p className="inbox-muted" role="status">Latest staff reply · {replyStateLabel(whatsAppOutbox.state)}</p>}
       {unavailable && <p className="inbox-muted">{unavailable}</p>}
       {!unavailable && requiresApproval && <p className="inbox-muted">This reply requires review. The WhatsApp test supports direct staff replies only.</p>}
       {canViewConnections && <a className="inbox-text-button" href={`/marketing/connections?marketing_brand=${encodeURIComponent(c.brand_id || '')}&marketing_org=${encodeURIComponent(c.organization_id || '')}`}>View Connections</a>}
