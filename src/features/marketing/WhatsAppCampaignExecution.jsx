@@ -33,7 +33,8 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,campai
  }
  async function loadTemplates(){
   const result=await marketingService.whatsappConnections(organizationId,brandId);
-  const active=result.connections?.find(item=>item.onboarding_mode==='cloud_api'&&item.state==='connected');
+  const active=result.connections?.find(item=>item.onboarding_mode==='cloud_api'&&
+   (item.state==='connected'||item.reason==='awaiting_test_inbound'));
   if(!active)throw new Error('Verify the current Staging WhatsApp test connection before scheduling.');
   connection.current=active;
   return marketingService.whatsappTemplates({organizationId,brandId,connectionId:active.id,generation:active.credential_generation});

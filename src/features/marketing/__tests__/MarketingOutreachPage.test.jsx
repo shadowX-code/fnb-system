@@ -1,7 +1,7 @@
 import {describe,it,expect,vi,beforeEach} from 'vitest';
 import {render,screen,fireEvent,cleanup,within,waitFor} from '@testing-library/react';
 import MarketingOutreachPage from '../MarketingOutreachPage.jsx';
-const {marketing,outreach}=vi.hoisted(()=>({marketing:{context:vi.fn()},outreach:{read:vi.fn(),command:vi.fn(),customer:vi.fn(),customers:vi.fn(),audiencePreview:vi.fn(),whatsappExecution:vi.fn(),whatsappExecutionCommand:vi.fn()}}));
+const {marketing,outreach}=vi.hoisted(()=>({marketing:{context:vi.fn(),whatsappConnections:vi.fn(),whatsappTemplates:vi.fn()},outreach:{read:vi.fn(),command:vi.fn(),customer:vi.fn(),customers:vi.fn(),audiencePreview:vi.fn(),whatsappExecution:vi.fn(),whatsappExecutionCommand:vi.fn()}}));
 vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>({user:{id:'actor'},hasPermission:()=>true})}));
 vi.mock('../marketingService.js',()=>({marketingService:marketing}));
 vi.mock('../outreachService.js',()=>({outreachService:outreach}));
@@ -134,4 +134,20 @@ it('shows only the generic error when the authorized read has no sharing match',
   await within(screen.getByRole('dialog', {name:'Add customer'})).findByText(collision);
   expect(screen.queryByRole('button', {name:'Link to Current Brand'})).toBeNull();
   expect(outreach.customer.mock.calls[0][3]).not.toHaveProperty('customer_id');
+});
+
+it('loads campaign templates after credential verification without waiting for inbound', async () => {
+  outreach.read.mockResolvedValue({...base,campaigns:[{id:'campaign',title:'Renewal pilot',status:'ready',revision:1,caption:'QA'}]});
+  marketing.whatsappConnections.mockResolvedValue({connections:[{
+    id:'connection',onboarding_mode:'cloud_api',state:'action_required',reason:'awaiting_test_inbound',credential_generation:3
+  }]});
+  marketing.whatsappTemplates.mockResolvedValue({templates:[]});
+  render(<MarketingOutreachPage section="whatsapp"/>);
+  await chooseBrand();
+  fireEvent.click((await screen.findAllByRole('button',{name:'Renewal pilot',exact:true}))[0]);
+  fireEvent.click(await screen.findByText('WhatsApp Cloud API execution'));
+  fireEvent.click(await screen.findByRole('button',{name:'Refresh templates from Meta'}));
+  await waitFor(()=>expect(marketing.whatsappTemplates).toHaveBeenCalledWith({
+    organizationId:'org',brandId:'brand',connectionId:'connection',generation:3
+  }));
 });
