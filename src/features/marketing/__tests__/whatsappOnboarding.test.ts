@@ -1,4 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
+import {hash} from "../../../../supabase/functions/_shared/metaSecurity.ts";
 import {verifyWhatsAppAssets,exchangeWhatsAppCode,finishWhatsAppOnboarding,WHATSAPP_FIELDS} from '../../../../supabase/functions/_shared/whatsappOnboarding.ts';
 import {whatsappLifecycle} from '../../../../supabase/functions/_shared/whatsappLifecycle.ts';
 const c={appId:'100',appSecret:'fixture-secret',configId:'101',version:'v25.0',signupVersion:'v4',enabled:true,callback:'https://example.invalid/webhook'};
@@ -142,4 +143,22 @@ it('reads template previews from the exact test WABA without retaining example o
  expect(rows[0]).toMatchObject({name:'booking_notice',language:'en_US',category:'UTILITY',status:'APPROVED',parameterFormat:'named'});
  expect(rows[0].components[2].buttons).toEqual([{type:'URL',text:'View booking',needsValue:false}]);
  expect(JSON.stringify(rows)).not.toContain('private');
+});
+
+it('verifies the exact approved new number before and after owner registration',async()=>{
+ const approved_phone_hash=await hash('+60123456789');
+ const intent={...expected,approved_phone_hash,mode:'new_number' as const};
+ const phone={id:'201',is_on_biz_app:false,code_verification_status:'VERIFIED',display_phone_number:'+60 12 345 6789'};
+ const get=(fields:object)=>graph({'201':{...phone,...fields}});
+ expect(await verifyWhatsAppAssets(get({platform_type:'NOT_APPLICABLE',status:'PENDING'}),c,'fixture',intent)).toMatchObject({registration_verified:false});
+ expect(await verifyWhatsAppAssets(get({platform_type:'CLOUD_API',status:'CONNECTED'}),c,'fixture',intent)).toMatchObject({registration_verified:true});
+ await expect(verifyWhatsAppAssets(get({platform_type:'CLOUD_API',status:'CONNECTED',display_phone_number:'+60123456780'}),c,'fixture',intent)).rejects.toThrow('whatsapp_approved_phone_mismatch');
+ await expect(verifyWhatsAppAssets(get({platform_type:'CLOUD_API',status:'CONNECTED',is_on_biz_app:true}),c,'fixture',intent)).rejects.toThrow('whatsapp_cloud_identity_unverified');
+});
+it('stops after subscription for a registered new Cloud API number',async()=>{
+ const g=graph({'200/subscribed_apps':{data:[{whatsapp_business_api_data:{id:'100'}}]}});
+ const s=steps();
+ expect(await finishWhatsAppOnboarding(g,c,'fixture','200','201',s.step,async()=>{},'new_number')).toMatchObject({reason:'awaiting_customer_inbound'});
+ expect(s.states).toEqual({subscription:'verified',contacts:'pending',history:'pending'});
+ expect(g.request).toHaveBeenCalledTimes(1);
 });

@@ -23,7 +23,7 @@ export async function collect(g:Graph,path:string,token:string,params:Record<str
  }
  throw new MetaError('whatsapp_assets_incomplete');
 }
-export async function verifyWhatsAppAssets(g:Graph,c:WhatsAppConfig,token:string,expected:{waba_id:string;phone_id:string;customer_business_id:string;approved_phone_hash?:string|null},now=Date.now()){
+export async function verifyWhatsAppAssets(g:Graph,c:WhatsAppConfig,token:string,expected:{waba_id:string;phone_id:string;customer_business_id:string;approved_phone_hash?:string|null;mode?:'coexistence'|'new_number'},now=Date.now()){
  if(![expected.waba_id,expected.phone_id,expected.customer_business_id].every(numeric))throw new MetaError('invalid_whatsapp_assets');
  const d=(await g.request('debug_token',`${c.appId}|${c.appSecret}`,{input_token:token})).data;
  if(d?.is_valid!==true||String(d.app_id)!==c.appId||!numeric(d.user_id)||d.type!=='SYSTEM_USER')throw new MetaError('whatsapp_token_identity_mismatch');
@@ -39,17 +39,27 @@ export async function verifyWhatsAppAssets(g:Graph,c:WhatsAppConfig,token:string
  if(w.id!==expected.waba_id||w.owner_business_info?.id!==expected.customer_business_id)throw new MetaError('whatsapp_business_owner_mismatch');
  const phones=await collect(g,`${expected.waba_id}/phone_numbers`,token,{fields:'id'});
  if(phones.filter(p=>p.id===expected.phone_id).length!==1)throw new MetaError('whatsapp_phone_waba_mismatch');
- const p=await g.request(expected.phone_id,token,{fields:expected.approved_phone_hash?'id,is_on_biz_app,platform_type,display_phone_number':'id,is_on_biz_app,platform_type'});
- if(p.id!==expected.phone_id||p.is_on_biz_app!==true||p.platform_type!=='CLOUD_API')throw new MetaError('coexistence_unsupported');
+ const newNumber=expected.mode==='new_number';
+ const fieldsToRead=['id','is_on_biz_app','platform_type'];
+ if(expected.approved_phone_hash)fieldsToRead.push('display_phone_number');
+ if(newNumber)fieldsToRead.push('status','code_verification_status');
+ const p=await g.request(expected.phone_id,token,{fields:fieldsToRead.join(',')});
+ if(newNumber){
+  if(!expected.approved_phone_hash||p.id!==expected.phone_id||p.is_on_biz_app!==false
+   ||p.code_verification_status!=='VERIFIED'||!['CLOUD_API','NOT_APPLICABLE'].includes(p.platform_type))
+   throw new MetaError('whatsapp_cloud_identity_unverified');
+ }else if(p.id!==expected.phone_id||p.is_on_biz_app!==true||p.platform_type!=='CLOUD_API'){
+  throw new MetaError('coexistence_unsupported');
+ }
  const phoneHash=expected.approved_phone_hash?await verifiedPhoneHash(p.display_phone_number):null;
  if(expected.approved_phone_hash&&phoneHash!==expected.approved_phone_hash)throw new MetaError('whatsapp_approved_phone_mismatch');
  // App configuration is inspected, never changed by onboarding.
  const subs=await collect(g,`${c.appId}/subscriptions`,`${c.appId}|${c.appSecret}`,{});
  const sub=subs.find(s=>s.object==='whatsapp_business_account'&&s.callback_url===c.callback&&s.active===true);
  const fields=sub?.fields?.map((f:any)=>typeof f==='string'?f:f.name)||[];
- if(!WHATSAPP_FIELDS.every(f=>fields.includes(f)))throw new MetaError('whatsapp_app_webhooks_required');
+ if(!(newNumber?['messages','account_update']:WHATSAPP_FIELDS).every(f=>fields.includes(f)))throw new MetaError('whatsapp_app_webhooks_required');
  return {app_id:c.appId,waba_id:expected.waba_id,phone_id:expected.phone_id,business_id:expected.customer_business_id,subject:d.user_id,
- ...(phoneHash?{approved_phone_hash:phoneHash}:{}),scopes:WHATSAPP_SCOPES,expires_at:expiry,is_on_biz_app:true,platform_type:'CLOUD_API'};
+ ...(phoneHash?{approved_phone_hash:phoneHash}:{}),scopes:WHATSAPP_SCOPES,expires_at:expiry,is_on_biz_app:!newNumber,platform_type:p.platform_type,registration_verified:newNumber&&p.platform_type==='CLOUD_API'&&p.status==='CONNECTED'};
 }
 export const CLOUD_TEST_APP='2204918033458414';
 export const CLOUD_TEST_WABA='1675083730240518';
@@ -103,10 +113,10 @@ export async function subscribedWhatsApp(g:Graph,c:WhatsAppConfig,token:string,w
 }
 /** Intent persists before provider mutation. A timeout or lost checkpoint never replays a one-shot call. */
 export async function finishWhatsAppOnboarding(g:Graph,c:WhatsAppConfig,token:string,waba:string,phone:string,
- step:(name:string,outcome?:string,receipt?:string)=>Promise<any>,guard:()=>Promise<void>){
+ step:(name:string,outcome?:string,receipt?:string)=>Promise<any>,guard:()=>Promise<void>,mode='coexistence'){
  await guard();
  if(await subscribedWhatsApp(g,c,token,waba)){
-  const s=await step('subscription');if(s.state!=='verified')await step('subscription','verified');
+  const s=await step('subscription');if(s.state!=='verified'||mode==='new_number')await step('subscription','verified');
  }else{
   const s=await step('subscription');
   if(!s.perform){if(s.state==='verified')await step('subscription','uncertain');return {state:'action_required',reason:'subscription_outcome_uncertain'};}
@@ -115,6 +125,7 @@ export async function finishWhatsAppOnboarding(g:Graph,c:WhatsAppConfig,token:st
    await step('subscription','verified');
   }catch{await step('subscription','uncertain');return {state:'action_required',reason:'subscription_outcome_uncertain'};}
  }
+ if(mode==='new_number')return {state:'action_required',reason:'awaiting_customer_inbound'};
  for(const name of ['contacts','history']){
   await guard();const s=await step(name);
   if(!s.perform){if(s.state!=='accepted')return {state:'action_required',reason:'sync_outcome_uncertain'};continue;}
@@ -134,9 +145,10 @@ async function verifiedPhoneHash(value:unknown){
 }
 /** Resolve only the approved number; popup IDs never authorize a Brand binding. */
 export async function resolveWhatsAppSignupAssets(g:Graph,token:string,session:any,assets:any){
- if(assets?.mode!=='coexistence'||!numeric(assets.waba_id)||(session.waba_id&&assets.waba_id!==session.waba_id)
+ const mode=session.mode==='new_number'?'new_number':'coexistence';
+ if(assets?.mode!==mode||!numeric(assets.waba_id)||(session.waba_id&&assets.waba_id!==session.waba_id)
  ||(assets.business_id&&assets.business_id!==session.customer_business_id)||(session.phone_id&&assets.phone_id&&assets.phone_id!==session.phone_id))throw new MetaError('whatsapp_signup_assets_mismatch');
- if(session.phone_id)return {waba_id:session.waba_id,phone_id:session.phone_id,customer_business_id:session.customer_business_id,approved_phone_hash:session.approved_phone_hash};
+ if(session.phone_id)return {waba_id:session.waba_id,phone_id:session.phone_id,customer_business_id:session.customer_business_id,approved_phone_hash:session.approved_phone_hash,mode};
  if(!/^[a-f0-9]{64}$/.test(session.approved_phone_hash||''))throw new MetaError('whatsapp_pilot_intent_required');
  let phone=assets.phone_id;
  if(phone!==undefined&&!numeric(phone))throw new MetaError('invalid_whatsapp_assets');
@@ -145,7 +157,7 @@ export async function resolveWhatsAppSignupAssets(g:Graph,token:string,session:a
   for(const p of phones){if(numeric(p.id)&&await verifiedPhoneHash(p.display_phone_number)===session.approved_phone_hash)matches.push(p.id);}
   if(matches.length!==1)throw new MetaError('whatsapp_approved_phone_mismatch');phone=matches[0];
  }
- return {waba_id:assets.waba_id,phone_id:phone,customer_business_id:session.customer_business_id,approved_phone_hash:session.approved_phone_hash};
+ return {waba_id:assets.waba_id,phone_id:phone,customer_business_id:session.customer_business_id,approved_phone_hash:session.approved_phone_hash,mode};
 }
 
 /** Read the exact test WABA after the caller verifies its retained credential. */
