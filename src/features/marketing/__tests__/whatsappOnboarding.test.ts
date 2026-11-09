@@ -102,6 +102,13 @@ describe('Staging Cloud API test number verification',()=>{
   const grants=token([management,messaging]);
   await expect(verifyWhatsAppCloudTest(fixture(grants),config,'fixture',now)).resolves.toMatchObject({subject:'999'});
   await expect(verifyWhatsAppCloudTest(fixture(token([messaging])),config,'fixture',now)).rejects.toThrow('whatsapp_waba_grant_required');
+
+  const systemUser=(target_ids?:string[])=>({debug_token:{data:{...debug,type:'SYSTEM_USER',user_id:'122103065595539221',
+   granular_scopes:[{scope:'whatsapp_business_management',target_ids},messaging]}}});
+  await expect(verifyWhatsAppCloudTest(fixture(systemUser()),config,'fixture',now)).resolves.toMatchObject({subject:'122103065595539221'});
+  await expect(verifyWhatsAppCloudTest(fixture(systemUser(['666'])),config,'fixture',now)).rejects.toThrow('whatsapp_waba_grant_required');
+  await expect(verifyWhatsAppCloudTest(fixture({...systemUser(),[waba]:{id:'666'}}),config,'fixture',now)).rejects.toThrow('whatsapp_phone_waba_mismatch');
+
   await expect(verifyWhatsAppCloudTest(fixture(token([management,{...messaging,target_ids:['666']}])),config,'fixture',now)).rejects.toThrow('whatsapp_waba_grant_required');
   await expect(verifyWhatsAppCloudTest(fixture({...grants,[`${waba}/phone_numbers`]:{data:[]}}),config,'fixture',now)).rejects.toThrow('whatsapp_phone_waba_mismatch');
   await expect(verifyWhatsAppCloudTest(fixture({...grants,[`${waba}/subscribed_apps`]:{data:[]}}),config,'fixture',now)).rejects.toThrow('whatsapp_test_waba_subscription_missing');

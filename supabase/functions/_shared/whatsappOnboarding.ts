@@ -54,6 +54,7 @@ export async function verifyWhatsAppAssets(g:Graph,c:WhatsAppConfig,token:string
 export const CLOUD_TEST_APP='2204918033458414';
 export const CLOUD_TEST_WABA='1675083730240518';
 export const CLOUD_TEST_PHONE='1221509657713215';
+const CLOUD_TEST_SYSTEM_USER='122103065595539221';
 
 export async function verifyWhatsAppCloudTest(g:Graph,c:WhatsAppConfig,token:string,now=Date.now()){
  const appToken=`${c.appId}|${c.appSecret}`;
@@ -70,8 +71,11 @@ export async function verifyWhatsAppCloudTest(g:Graph,c:WhatsAppConfig,token:str
   &&Array.isArray(grant.target_ids)&&grant.target_ids.includes(CLOUD_TEST_WABA));
  for(const grant of grants){
   if(!WHATSAPP_SCOPES.includes(grant.scope))continue;
-  // Meta's test token omits messaging targets. Require the exact management grant and the asset reads below.
-  if(grant.scope==='whatsapp_business_messaging'&&grant.target_ids===undefined&&managementGrant)continue;
+  // The verified Staging System User omits both targets. The exact asset reads below are still required.
+  if(grant.target_ids===undefined&&(
+   (d.type==='SYSTEM_USER'&&d.user_id===CLOUD_TEST_SYSTEM_USER)||
+   (grant.scope==='whatsapp_business_messaging'&&managementGrant)
+  ))continue;
   if(!Array.isArray(grant.target_ids)||!grant.target_ids.includes(CLOUD_TEST_WABA))
    throw new MetaError('whatsapp_waba_grant_required');
  }
