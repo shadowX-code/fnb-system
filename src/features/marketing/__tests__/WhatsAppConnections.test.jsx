@@ -66,3 +66,17 @@ it('shows a binding blocker without marking the connection reads stale',async()=
  expect(screen.getByText('No WhatsApp Cloud connection registered.')).toBeTruthy();
  expect(screen.queryByText(/showing the last successfully loaded data/i)).toBeNull();
 });
+
+it('rehearses trusted and rejected callbacks without opening signup or changing the connection',async()=>{
+ marketingService.whatsappConnections.mockResolvedValue({connections:[]});
+ render(<WhatsAppConnections organizationId="org" brandId="brand"/>);
+ fireEvent.click(await screen.findByRole('button',{name:'Rehearse WhatsApp signup'}));
+ fireEvent.click(screen.getByRole('button',{name:'Run simulated callback'}));
+ expect(screen.getByText(/Sample callback passed/)).toBeTruthy();
+ fireEvent.change(screen.getByLabelText('Sample response'),{target:{value:'untrusted'}});
+ fireEvent.click(screen.getByRole('button',{name:'Run simulated callback'}));
+ expect(screen.getByText(/Callback rejected/)).toBeTruthy();
+ expect(marketingService.beginWhatsApp).not.toHaveBeenCalled();
+ expect(marketingService.bindWhatsAppCloudTest).not.toHaveBeenCalled();
+ expect(marketingService.whatsappConnections).toHaveBeenCalledTimes(1);
+});

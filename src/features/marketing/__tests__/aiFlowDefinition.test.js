@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {newFlow,insertFlowStep,flowTurn,flowIssues} from '../aiFlowDefinition.js';
+import {newFlow,insertFlowStep,flowTurn,flowIssues,simulateWhatsAppInbound} from '../aiFlowDefinition.js';
 
 it('collects typed details and follows the configured branch on the same graph used by the editor',()=>{
  let flow={...newFlow(),name:'A custom visit flow',intent:'visit',channels:['instagram']};
@@ -17,4 +17,11 @@ it('collects typed details and follows the configured branch on the same graph u
  expect(flowTurn(flow,waiting,'several')).toMatchObject({status:'collect',text:expect.stringContaining('number')});
  expect(flowTurn(flow,waiting,'8')).toMatchObject({status:'handoff',fields:{guests:'8'}});
  expect(flowTurn(flow,waiting,'2')).toMatchObject({status:'completed',fields:{guests:'2'}});
+});
+
+it('routes a fictional WhatsApp inbound message through the saved graph only on a matching trigger',()=>{
+ const flow={...newFlow(),name:'Hours',intent:'opening hours',examples:['When do you open?'],channels:['whatsapp']};
+ expect(simulateWhatsAppInbound(flow,'  WHEN do you open? ')).toMatchObject({status:'completed',trace:['trigger','end']});
+ expect(simulateWhatsAppInbound(flow,'I need a refund')).toMatchObject({status:'unmatched',trace:[]});
+ expect(simulateWhatsAppInbound({...flow,channels:['instagram']},'opening hours')).toMatchObject({status:'unmatched'});
 });

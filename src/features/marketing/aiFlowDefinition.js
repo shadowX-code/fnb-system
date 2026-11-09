@@ -57,6 +57,16 @@ export function flowIssues(flow) {
  return errors;
 }
 
+// A deliberately deterministic inbound fixture: no fuzzy routing or outbound action.
+export function simulateWhatsAppInbound(definition,text){
+ const normalize=value=>value.normalize('NFKC').trim().toLowerCase().replace(/\s+/g,' ');
+ const input=normalize(text);
+ if(!definition.channels.includes('whatsapp')||!input||Object.keys(flowIssues(definition)).length)
+  return {status:'unmatched',fields:{},trace:[],text:'No eligible WhatsApp flow. Staff retain ownership.'};
+ if(![definition.intent,...definition.examples].some(example=>normalize(example)===input))
+  return {status:'unmatched',fields:{},trace:[],text:'No exact intent or example matched. Staff retain ownership.'};
+ return flowTurn(definition);
+}
 export function flowTurn(definition, previous, answer) {
  const state={step:previous?.step||'trigger',fields:{...previous?.fields},trace:[],status:'running'};
  const value=answer?.trim()||'';

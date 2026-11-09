@@ -13,7 +13,7 @@ import SelectField from '../../components/forms/SelectField.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import {inboxService} from './inboxService.js';
 import {marketingService} from './marketingService.js';
-import {flowTypes,flowChannels,flowPorts,newFlow,insertFlowStep,removeFlowStep,flowIssues,flowTurn,flowLayout} from './aiFlowDefinition.js';
+import {flowTypes,flowChannels,flowPorts,newFlow,insertFlowStep,removeFlowStep,flowIssues,flowTurn,flowLayout,simulateWhatsAppInbound} from './aiFlowDefinition.js';
 
 const labels={trigger:'Intent trigger',ask:'Ask / collect',condition:'Condition',knowledge:'Knowledge lookup',reply:'Reply / explain',handoff:'Human handoff',end:'Complete flow',facebook:'Messenger',instagram:'Instagram',whatsapp:'WhatsApp'};
 const stepIcons={trigger:Workflow,ask:ListFilter,condition:GitBranch,knowledge:Search,reply:MessageCircle,handoff:UserRound,end:CircleCheck};
@@ -84,8 +84,10 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
  const [search,setSearch]=useState(''),[newOpen,setNewOpen]=useState(false),[panel,setPanel]=useState('node');
  const [palette,setPalette]=useState(null),[baseline,setBaseline]=useState(null),[chat,setChat]=useState([]);
  const [reload,setReload]=useState(0),[libraryError,setLibraryError]=useState('');
+ const [inbound,setInbound]=useState('');
  const [versions,setVersions]=useState(null),[testInputs,setTestInputs]=useState([]);
  const org=scope.organization_id,brand=scope.id;
+ const sample=flow?.channels.includes('whatsapp')?inbound.trim():'';
  useEffect(()=>{
   let live=true;
   setLibraryError('');
@@ -96,7 +98,7 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
   setRecord(item);setFlow(definition);setBaseline(item?.definition||newFlow());setSelected('trigger');setPanel(item?'node':'settings');
   designerRequest.current=null;setDesignerNotice(null);
   setDesigner(false);setDesignerMessages([]);setPrompt('');setProposal(null);setUndo(null);setShowInspector(true);
-  setPalette(null);setVersions(null);setTestInputs([]);setTest(null);setChat([]);setKnowledge(null);setAnswer('');setError('');setNewOpen(false);
+  setPalette(null);setVersions(null);setTestInputs([]);setTest(null);setChat([]);setKnowledge(null);setAnswer('');setError('');setNewOpen(false);setInbound('');
  }
  const issues=flow?flowIssues(flow):{};
  const dirty=Boolean(flow&&JSON.stringify(flow)!==JSON.stringify(baseline));
@@ -187,7 +189,7 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
    setBusy(true);setError('');
    try{
     const result=await inboxService.testAI({
-     requestId:crypto.randomUUID(),org,brand,mode,
+     requestId:crypto.randomUUID(),org,brand,mode:sample?'suggest_only':mode,
      history:[{kind:'incoming',text:answer.trim()}],
     });
     if(result.state!=='completed'||!result.result)throw new Error('Knowledge test did not complete. Review AI readiness and try again.');
@@ -223,8 +225,8 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
   return {role:'flow',text:state.text||({completed:'Flow completed',knowledge:'Ready for a knowledge question.',handoff:'Handoff to staff'}[state.status]||'Continue to the next step.')};
  }
  function startTest(){
-  const state=flowTurn(flow);
-  setTest(state);setChat([flowMessage(state)]);setTestInputs([]);setKnowledge(null);setAnswer('');
+  const state=sample?simulateWhatsAppInbound(flow,sample):flowTurn(flow);
+  setTest(state);setChat([...(sample?[{role:'customer',text:sample}]:[]),flowMessage(state)]);setTestInputs([]);setKnowledge(null);setAnswer('');
  }
  const errorMessage=error?<p role="alert" className="af-feedback">{error}</p>:null;
  if(!flow){
@@ -377,7 +379,8 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
     </>:null}
     {panel==='test'?<><div className="af-panel-title"><h2>Test Chat</h2><Badge>Simulation only</Badge></div>
      <p className="af-muted">Use fictional details. Knowledge steps use the Brand’s AI test service.</p>
-     <SelectField label="Simulated AI mode" value={mode} onChange={setMode} disabled={busy} options={[
+     {flow.channels.includes('whatsapp')?<><Field label="Fictional inbound WhatsApp message" value={inbound} onChange={value=>{setInbound(value);setTest(null);setChat([]);setKnowledge(null);}} maxLength={500}/><p className="af-muted">An exact intent or example match starts the flow in Suggest Only. Leave blank to walk through the steps directly.</p></>:null}
+     <SelectField label="Simulated AI mode" value={sample?'suggest_only':mode} onChange={setMode} disabled={busy||!!sample} options={[
       {value:'suggest_only',label:'Suggest Only'},{value:'safe_auto',label:'Safe Auto Reply'},{value:'ai_first',label:'AI First'},
      ]}/>
      <button type="button" className="btn-secondary" disabled={busy||Object.keys(issues).length>0} onClick={startTest}>{test?'Restart test':'Start test'}</button>

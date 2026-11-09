@@ -423,7 +423,9 @@ function InboxWorkspace({ whatsApp }) {
       request.current = null;
       setModal(null);
       const isSend = ['staff_reply','staff_template','send'].includes(intent.command);
-      setNotice(isSend ? replyOutcomeMessage(result) : typeof message === "function" ? message(result) : message);
+      setNotice(isSend ? (intent.command==='staff_template'&&result?.state==='sent'
+        ? 'Meta accepted the template. Check Latest staff reply for delivery updates.'
+        : replyOutcomeMessage(result)) : typeof message === "function" ? message(result) : message);
       setRefresh((r) => r + 1);
       notifyConversationsChanged();
       if (intent.command === "create") {

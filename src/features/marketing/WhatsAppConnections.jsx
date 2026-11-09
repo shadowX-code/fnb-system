@@ -5,7 +5,7 @@ import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import Modal from '../../components/feedback/Modal.jsx';
 import {marketingService} from './marketingService.js';
-import {loadWhatsAppSDK,launchWhatsAppSignup,whatsappStateLabels as labels,whatsappReasonLabels as reasons} from './whatsappSignup.js';
+import {loadWhatsAppSDK,launchWhatsAppSignup,rehearseWhatsAppSignup,whatsappStateLabels as labels,whatsappReasonLabels as reasons} from './whatsappSignup.js';
 
 function ConnectionReadiness({receiving = false}) {
  return <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
@@ -20,10 +20,12 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
  const auth=useAuth(),configure=auth.hasPermission('marketing_settings.configure');
  const [data,setData]=useState(null),[error,setError]=useState(''),[loading,setLoading]=useState(true),[refresh,setRefresh]=useState(0),[busy,setBusy]=useState(false),[prepared,setPrepared]=useState(null),[confirmed,setConfirmed]=useState(false),[shutdown,setShutdown]=useState(null);
  const [testError,setTestError]=useState(null);
+ const [rehearsal,setRehearsal]=useState(null);
+ const [signupError,setSignupError]=useState(null);
  const scope=`${organizationId}:${brandId||''}:${auth.user?.id||''}`,currentScope=useRef(scope),lifetime=useRef(new AbortController());currentScope.current=scope;
  useEffect(()=>{
   const controller=new AbortController();lifetime.current=controller;let active=true;
-  setData(null);setError('');setTestError(null);setLoading(true);setPrepared(null);setShutdown(null);setConfirmed(false);setBusy(false);
+  setData(null);setRehearsal(null);setError('');setTestError(null);setLoading(true);setPrepared(null);setShutdown(null);setConfirmed(false);setBusy(false);
   Promise.all([marketingService.whatsappConnections(organizationId,brandId,controller.signal),marketingService.whatsappReadiness(organizationId,brandId)])
    .then(([accounts,readiness])=>{if(active)setData({scope,...accounts,readiness});})
    .catch(e=>{if(active)setError(e.message);})
@@ -54,12 +56,12 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
   finally{if(currentScope.current===requested)setBusy(false);}
  }
  function launch(){
-  const requested=scope,s=prepared;setBusy(true);setError('');
+  const requested=scope,s=prepared;setBusy(true);setSignupError(null);
   launchWhatsAppSignup(s,{signal:lifetime.current.signal}).then(({code,assets})=>{
    if(currentScope.current!==requested) return;
    return marketingService.completeWhatsApp({organizationId,brandId,sessionId:s.id,state:s.state,code,assets,confirmBrandOwnership:true});
   }).then(()=>{if(currentScope.current===requested){setPrepared(null);setRefresh(n=>n+1);}})
-   .catch(e=>{if(currentScope.current===requested){setPrepared(null);setError(e.message);}})
+   .catch(e=>{if(currentScope.current===requested){setPrepared(null);setSignupError({scope,message:e.message});setRefresh(n=>n+1);}})
    .finally(()=>{if(currentScope.current===requested)setBusy(false);});
  }
  const readiness=current?.readiness,state=current?.connections?.[0]?.state||current?.signup_state||'not_connected';
@@ -68,9 +70,15 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
   <p className="mt-2 text-sm">Business App Coexistence uses Meta signup to connect an eligible existing account while staff keep using the mobile app. FeedX supports receive-only operation for an approved connection.</p>
   <p className="mt-2 text-sm"><strong>Cloud API test number:</strong> A Staging administrator can verify the authorized test number for receiving. Sending is disabled.</p>
   {testError?.scope===scope?<p className="mt-3 text-sm" role="alert">{testError.message}</p>:null}
+  {signupError?.scope===scope?<p className="mt-3 text-sm" role="alert">{signupError.message} Review the refreshed connection status before trying again.</p>:null}
   <AsyncDataSurface loading={loading} error={error} hasData={!!current} onRetry={()=>setRefresh(n=>n+1)}>
    {current?<>
     {brandId&&!current.connections?.length?<div className="mt-3"><Badge tone="neutral">{readiness?.cloud_test_configured?'Test verification available':labels[readiness?.state]||'Verification Required'}</Badge></div>:null}
+    {brandId&&!readiness?.eligible?<div className="mt-3 space-y-2">
+     <Badge tone="warning">Live onboarding pending approval</Badge>
+     <p className="text-sm">Live signup requires Meta business verification, app permissions and approval for this Brand. You can rehearse signup now with fictional responses.</p>
+     {configure?<button className="btn-secondary" onClick={()=>setRehearsal({scope,scenario:'success',version:'v5'})}>Rehearse WhatsApp signup</button>:null}
+    </div>:null}
     {current.signup_state==='action_required'&&!current.connections?.length?<p className="mt-3 text-sm">The previous Meta signup could not be confirmed. Start a new connection after reviewing the account in Meta.</p>:null}
     {!brandId?<p className="mt-3 text-sm">Select one Brand to verify or connect WhatsApp.</p>:<p className="mt-3 text-sm" role="status">{readiness?.cloud_test_configured?'The test number can be checked here. Business App Coexistence has separate eligibility requirements.':reasons[readiness?.reason]||'Verify eligibility before connecting.'}</p>}
     {current.connections?.length?<ul className="mt-3 space-y-3">{current.connections.map(c=><li key={c.id} className="text-sm">
@@ -87,6 +95,15 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
     {configure&&brandId?<div className="mt-3 flex flex-wrap gap-2">{!current.connections?.length&&readiness?.cloud_test_configured?<button className="btn-secondary" disabled={busy} onClick={()=>bindCloudTest(null)}>Verify and bind test number</button>:null}{!current.connections?.length?<button className="btn-primary" disabled={busy||!readiness?.eligible} onClick={()=>act(null)}>Connect WhatsApp Business App</button>:null}<button className="btn-secondary" disabled={busy} onClick={()=>setRefresh(n=>n+1)}>Check Eligibility</button></div>:null}
    </>:null}
   </AsyncDataSurface>
+  {rehearsal?.scope===scope?<Modal title="WhatsApp signup rehearsal" onClose={()=>setRehearsal(null)}
+   footer={<button className="btn-primary" onClick={()=>setRehearsal({...rehearsal,result:rehearseWhatsAppSignup(rehearsal.scenario,rehearsal.version)})}>Run simulated callback</button>}>
+   <p className="text-sm">Simulation only. No Meta popup, credentials or changes to this Brand’s connections.</p>
+   <label className="mt-3 block text-sm">Signup version<select className="control block" value={rehearsal.version} onChange={e=>setRehearsal({...rehearsal,version:e.target.value,result:null})}><option value="v5">Version 5</option><option value="v4">Version 4</option></select></label>
+   <label className="mt-3 block text-sm">Sample response<select className="control block" value={rehearsal.scenario} onChange={e=>setRehearsal({...rehearsal,scenario:e.target.value,result:null})}>
+    <option value="success">Coexistence callback</option><option value="cancel">Customer cancels</option><option value="untrusted">Untrusted callback origin</option><option value="mismatch">Number differs from approval</option><option value="uncertain">Synchronization outcome unknown</option>
+   </select></label>
+   {rehearsal.result?<p className="mt-3 text-sm" role="status">{rehearsal.result}</p>:null}
+  </Modal>:null}
   {shutdown?<Modal title={shutdown.action==='pause'?'Pause WhatsApp receiving':'Disconnect WhatsApp from FeedX'} onClose={()=>{if(!busy)setShutdown(null)}} footer={<button className="btn-primary" disabled={busy} onClick={stopReceiving}>{busy?'Updating…':shutdown.action==='pause'?'Confirm pause':'Confirm local disconnect'}</button>}>
    <p className="text-sm">{shutdown.action==='pause'?'FeedX will stop receiving and processing new WhatsApp messages until you explicitly resume and verify access.':'FeedX will stop receiving and remove its saved WhatsApp authorization. Reconnect the same number to restore access.'}</p>
    {shutdown.connection.onboarding_mode==='cloud_api'?<p className="mt-3 text-sm">This only changes FeedX receiving. The Meta test number and its webhook subscription stay configured.</p>:<p className="mt-3 text-sm">Your mobile app keeps working. This action does not disconnect Meta’s Business Platform link. For provider offboarding, the account owner must use WhatsApp Business App → Settings → Account → Business Platform → Disconnect Account.</p>}

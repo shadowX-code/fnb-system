@@ -18,6 +18,21 @@ export function signupAssets(event,version){
  if(p.data.phone_number_id!==undefined&&!id(p.data.phone_number_id)||p.data.business_id!==undefined&&!id(p.data.business_id))return null;
  return {waba_id:p.data.waba_id,phone_id:p.data.phone_number_id,business_id:p.data.business_id,mode:'coexistence'};
 }
+// Exercise the same message parser without an SDK, authorization code or server request.
+export function rehearseWhatsAppSignup(scenario,version='v5'){
+ const origin=scenario==='untrusted'?'https://example.invalid':'https://www.facebook.com';
+ const cancelled=scenario==='cancel';
+ const data=version==='v5'
+  ?{is_on_biz_app:scenario!=='unsupported',messaging_account_ids:['101'],phone_number_id:'102',business_id:'103'}
+  :{waba_id:'101',phone_number_id:'102',business_id:'103'};
+ const event=cancelled?'CANCEL':version==='v5'?'FINISH':'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING';
+ const result=signupAssets({origin,data:JSON.stringify({type:'WA_EMBEDDED_SIGNUP',event,data})},version);
+ if(result?.cancelled)return 'Signup cancelled. Close this rehearsal and start again when ready.';
+ if(!result)return 'Callback rejected. Review the signup configuration and confirm Coexistence eligibility.';
+ if(scenario==='mismatch')return 'Connection validation rejected the number. Use the exact number approved for this Brand.';
+ if(scenario==='uncertain')return 'Synchronization could not be confirmed. Review the existing connection with your administrator before reconnecting.';
+ return 'Sample callback passed. A live connection still requires Meta authorization, asset verification, synchronization and a signed inbound message.';
+}
 let sdkPromise,initialized,active;
 export function loadWhatsAppSDK(config){
  if(!id(config.appId)||!/^v\d+\.0$/.test(config.graphVersion))return Promise.reject(new Error('Meta configuration is unavailable.'));
