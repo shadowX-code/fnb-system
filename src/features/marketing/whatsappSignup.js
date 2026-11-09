@@ -5,11 +5,20 @@ export function signupOptions(config){
  return {config_id:config.configId,response_type:'code',override_default_response_type:true,
   extras:config.signupVersion==='v5'?{version:'v5'}:{setup:{},featureType:'whatsapp_business_app_onboarding',sessionInfoVersion:'3'}};
 }
-export function signupAssets(event,version){
+export function signupAssets(event,version,mode='coexistence'){
  if(!origins.has(event.origin)||typeof event.data!=='string'||event.data.length>12000)return null;
  let p;try{p=JSON.parse(event.data)}catch{return null}
  if(p?.type!=='WA_EMBEDDED_SIGNUP')return null;
  if(['CANCEL','ERROR'].includes(p.event))return {cancelled:true};
+ if(mode==='new_number'){
+  const data=p.data;
+  if(p.event!=='FINISH'||!id(data?.phone_number_id)||!id(data?.business_id))return null;
+  const waba=version==='v5'
+   ?(data.is_on_biz_app===false&&Array.isArray(data.messaging_account_ids)&&data.messaging_account_ids.length===1?data.messaging_account_ids[0]:null)
+   :(version==='v4'&&data.is_on_biz_app!==true?data.waba_id:null);
+  return id(waba)?{waba_id:waba,phone_id:data.phone_number_id,business_id:data.business_id,mode:'new_number'}:null;
+ }
+ if(mode!=='coexistence')return null;
  if(version==='v5'){
   const d=p.data;if(p.event!=='FINISH'||d?.is_on_biz_app!==true||!Array.isArray(d.messaging_account_ids)||d.messaging_account_ids.length!==1||!id(d.messaging_account_ids[0])||!id(d.phone_number_id)||!id(d.business_id))return null;
   return {waba_id:d.messaging_account_ids[0],phone_id:d.phone_number_id,business_id:d.business_id,mode:'coexistence'};
@@ -22,13 +31,15 @@ export function signupAssets(event,version){
 export function rehearseWhatsAppSignup(scenario,version='v5'){
  const origin=scenario==='untrusted'?'https://example.invalid':'https://www.facebook.com';
  const cancelled=scenario==='cancel';
+ const newNumber=scenario==='new_number';
  const data=version==='v5'
-  ?{is_on_biz_app:scenario!=='unsupported',messaging_account_ids:['101'],phone_number_id:'102',business_id:'103'}
+  ?{is_on_biz_app:!newNumber,messaging_account_ids:['101'],phone_number_id:'102',business_id:'103'}
   :{waba_id:'101',phone_number_id:'102',business_id:'103'};
- const event=cancelled?'CANCEL':version==='v5'?'FINISH':'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING';
- const result=signupAssets({origin,data:JSON.stringify({type:'WA_EMBEDDED_SIGNUP',event,data})},version);
+ const event=cancelled?'CANCEL':version==='v5'||newNumber?'FINISH':'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING';
+ const result=signupAssets({origin,data:JSON.stringify({type:'WA_EMBEDDED_SIGNUP',event,data})},version,newNumber?'new_number':'coexistence');
  if(result?.cancelled)return 'Signup cancelled. Close this rehearsal and start again when ready.';
  if(!result)return 'Callback rejected. Review the signup configuration and confirm Coexistence eligibility.';
+ if(newNumber)return 'Sample new-number callback passed. Live signup requires a reviewed Meta configuration and a separate approved registration and verification flow.';
  if(scenario==='mismatch')return 'Connection validation rejected the number. Use the exact number approved for this Brand.';
  if(scenario==='uncertain')return 'Synchronization could not be confirmed. Review the existing connection with your administrator before reconnecting.';
  return 'Sample callback passed. A live connection still requires Meta authorization, asset verification, synchronization and a signed inbound message.';

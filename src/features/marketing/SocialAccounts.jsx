@@ -1,3 +1,4 @@
+import CreatorEnrichmentDelegation from './CreatorEnrichmentDelegation.jsx';
 import { useEffect, useRef, useState } from "react";
 import { Facebook, Instagram, Plus, Eye } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext.jsx";
@@ -36,6 +37,7 @@ const platform = (c) => (c === "facebook" ? "Facebook Page" : "Instagram");
 export default function SocialAccounts({ organizationId, brandId, brands }) {
   const auth = useAuth(),
     configure = auth.hasPermission("marketing_settings.configure");
+  const canManageCreator = auth.hasPermission("platform_organizations.manage") && auth.hasPermission("marketing_creators.manage");
   const [data, setData] = useState(null),
     [configuration, setConfiguration] = useState(null),
     [pending, setPending] = useState([]),
@@ -170,17 +172,17 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
     selectedAssets.length < 2 ||
     selectedAssets.find((a) => a.channel === "instagram")?.page_id ===
       selectedAssets.find((a) => a.channel === "facebook")?.id;
+  const [creatorDetails,setCreatorDetails]=useState(false);
   return (
     <section className="settings-social social-accounts" aria-label="Social Accounts">
       <div className="social-accounts-heading">
         <div>
-          <h2>Meta Social Accounts</h2>
+          <h2>Social accounts</h2>
           <p>
-            Connect Meta accounts to a FeedX brand. Publishing and replies stay
-            separately controlled.
+            Facebook and Instagram account health for this Brand scope.
           </p>
         </div>
-        {configure ? (
+        <div className="flex flex-wrap gap-2">{canManageCreator?<button className="btn-secondary" onClick={()=>setCreatorDetails(true)}>Creator enrichment</button>:null}{configure ? (
           <button
             className="btn-primary"
             disabled={
@@ -195,8 +197,9 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
             <Plus size={15} />
             Connect Account
           </button>
-        ) : null}
+        ) : null}</div>
       </div>
+      {creatorDetails&&canManageCreator?<Drawer title="Creator enrichment" onClose={()=>setCreatorDetails(false)}><CreatorEnrichmentDelegation org={organizationId}/></Drawer>:null}
       {notice ? (
         <p role="status" className="social-account-notice">
           {notice}
@@ -250,13 +253,12 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
             </button>
           </div>
         ))}
-        {accounts.length?<div className="settings-integration-table card overflow-hidden"><DataTable mobileLayout="stack" density="compact" minWidth={760} getRowKey={c=>c.id} rows={[...accounts].sort((a,b)=>Number(socialAccountIssues(b).length>0||socialNeedsReconnect(b))-Number(socialAccountIssues(a).length>0||socialNeedsReconnect(a)))} columns={[
+        {['facebook','instagram'].map(channel=><section key={channel} aria-label={platform(channel)} className="mb-3"><h3 className="mb-2 text-sm font-semibold">{platform(channel)} <span className="font-normal text-text-secondary">· {accounts.filter(c=>c.channel===channel).length} accounts</span></h3>{accounts.some(c=>c.channel===channel)?<div className="settings-integration-table card overflow-hidden"><DataTable mobileLayout="stack" density="compact" minWidth={540} getRowKey={c=>c.id} rows={accounts.filter(c=>c.channel===channel).sort((a,b)=>Number(socialAccountIssues(b).length>0||socialNeedsReconnect(b))-Number(socialAccountIssues(a).length>0||socialNeedsReconnect(a)))} columns={[
  {key:'identity',header:'Meta Account',render:c=><div className="settings-integration-identity"><span className={`settings-platform-icon ${c.channel}`}>{c.channel==='facebook'?<Facebook size={20} aria-label="Facebook Page"/>:<Instagram size={20} aria-label="Instagram"/>}</span><span><strong>{c.account_name||platform(c.channel)}</strong><small>{brands.find(b=>b.id===c.brand_id)?.name||'Authorized Brand'} · {platform(c.channel)}</small></span></div>},
  {key:'health',header:'Health',render:c=><Badge tone={['expired','permission_required','action_required'].includes(socialAccountStatus(c))?'warning':'neutral'}>{socialStateLabel(socialAccountStatus(c))}</Badge>},
- {key:'capabilities',header:'Capabilities',render:c=><div className="settings-capability-strip">{Object.entries(socialCapabilities(c)).map(([name,value])=><span key={name} className={`settings-capability ${(['verified','operational','delivery_verified'].includes(value.state)||(name==='insights'&&value.state==='connected'))?'good':['permission_required','action_required','needs_attention'].includes(value.state)?'attention':'pending'}`} title={socialReason(value.reason)}><span className="settings-capability-dot" aria-hidden="true"/>{name==='messaging'?'Inbox':name==='publishing'?'Publishing':'Insights'} · {socialStateLabel(value.state,name)}</span>)}</div>},
- {key:'sync',header:'Last Sync',priority:'secondary',render:c=><span className="text-xs text-text-secondary">{stamp(c.last_synced_at)}</span>},
+ {key:'next',header:'Next action',render:c=>socialNeedsReconnect(c)?'Review reconnect':socialAccountIssues(c).length?'Review account health':'View details'},
  {key:'actions',header:'',align:'right',render:c=><button className="icon-btn" aria-label={`View connection ${c.account_name||platform(c.channel)}`} onClick={()=>setDetail(c.id)}><Eye size={16}/></button>}
- ]} onRowClick={c=>setDetail(c.id)} getRowProps={c=>({role:'button',tabIndex:0,'aria-label':`Open connection ${c.account_name||platform(c.channel)}`,onKeyDown:e=>{if(e.target===e.currentTarget&&['Enter',' '].includes(e.key)){e.preventDefault();setDetail(c.id)}}})}/></div>:<div className="social-account-empty"><p>No social accounts are connected. Select Connect Account to get started.</p></div>}
+ ]} onRowClick={c=>setDetail(c.id)} getRowProps={c=>({role:'button',tabIndex:0,'aria-label':`Open connection ${c.account_name||platform(c.channel)}`,onKeyDown:e=>{if(e.target===e.currentTarget&&['Enter',' '].includes(e.key)){e.preventDefault();setDetail(c.id)}}})}/></div>:<div className="social-account-empty"><p>No accounts in this Brand scope.</p></div>}</section>)}
 
       </AsyncDataSurface>
       {detail&&accounts.find(c=>c.id===detail)?(()=>{const c=accounts.find(c=>c.id===detail),status=socialAccountStatus(c),capabilities=socialCapabilities(c),issues=socialAccountIssues(c),needsReconnect=socialNeedsReconnect(c),Icon=c.channel==='facebook'?Facebook:Instagram;return <Drawer title="Connection Details" description={c.account_name||platform(c.channel)} width="lg" onClose={()=>{if(!busy)setDetail(null)}}><div className="social-account social-account-detail">

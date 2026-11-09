@@ -30,7 +30,7 @@ describe('Social Accounts', () => {
  it('shows configuration readiness without manual checks, OAuth changes or execution',async()=>{
   marketingService.metaConfiguration.mockResolvedValue({configured:true});marketingService.socialAccounts.mockResolvedValue({connections:[{...connection,capabilities:{posts:true,publishing:true,insights:true,execution_enabled:false},messaging:{configuration_verified:true,receiving_verified:true,delivery_verified:false}}]});
   render(<MetaConnections organizationId="org" brandId="brand" brands={[{id:'brand',name:'QA Brand'}]}/>);
-  await screen.findByText(/Awaiting First Delivery/);fireEvent.click(screen.getByRole('button',{name:'View connection QA Test Page'}));expect(screen.getByText(/Configuration verified. Delivery/)).toBeTruthy();
+  fireEvent.click(await screen.findByRole('button',{name:'View connection QA Test Page'}));expect(screen.getByText(/Configuration verified. Delivery/)).toBeTruthy();
   expect(screen.queryByRole('button',{name:'Refresh Status'})).toBeNull();expect(screen.queryByRole('button',{name:'Reconnect'})).toBeNull();expect(screen.queryByRole('button',{name:'Resolve Issue'})).toBeNull();
   expect(marketingService.refreshMetaHealth).not.toHaveBeenCalled();expect(marketingService.authorizeMeta).not.toHaveBeenCalled();expect(marketingService.bindMetaSelection).not.toHaveBeenCalled();expect(marketingService.execute).not.toHaveBeenCalled();
  });

@@ -20,3 +20,13 @@ it('pairs SDK code and trusted completion in either arrival order and aborts sta
  const controller=new AbortController();pending=launchWhatsAppSignup(config,{signal:controller.signal});const rejected=expect(pending).rejects.toThrow('cancelled');controller.abort();await rejected;callback({authResponse:{code:'stale'}});emit();
  pending=launchWhatsAppSignup(config);const cancelled=expect(pending).rejects.toThrow('cancelled');window.dispatchEvent(new MessageEvent('message',event({type:'WA_EMBEDDED_SIGNUP',event:'CANCEL'})));await cancelled;
 });
+
+
+it.each(['v4','v5'])('keeps a new-number %s completion out of the live Coexistence path',version=>{
+ const data=version==='v5'
+  ?{messaging_account_ids:['101'],is_on_biz_app:false,phone_number_id:'102',business_id:'103'}
+  :{waba_id:'101',phone_number_id:'102',business_id:'103'};
+ const event={origin:'https://www.facebook.com',data:JSON.stringify({type:'WA_EMBEDDED_SIGNUP',event:'FINISH',data})};
+ expect(signupAssets(event,version)).toBeNull();
+ expect(signupAssets(event,version,'new_number')).toEqual({waba_id:'101',phone_id:'102',business_id:'103',mode:'new_number'});
+});

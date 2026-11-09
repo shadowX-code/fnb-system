@@ -1,3 +1,5 @@
+import Drawer from '../../components/ui/Drawer.jsx';
+import DataTable from '../../components/tables/DataTable.jsx';
 import WhatsAppTemplateCatalog from './WhatsAppTemplateCatalog.jsx';
 import {useEffect,useRef,useState} from 'react';
 import {useAuth} from '../../auth/AuthContext.jsx';
@@ -16,10 +18,11 @@ function ConnectionReadiness({receiving = false}) {
  </dl>;
 }
 
-export default function WhatsAppConnections({organizationId,brandId,brands=[]}) {
+export default function WhatsAppConnections({organizationId,brandId,brands=[],directory=false}) {
  const auth=useAuth(),configure=auth.hasPermission('marketing_settings.configure');
  const [data,setData]=useState(null),[error,setError]=useState(''),[loading,setLoading]=useState(true),[refresh,setRefresh]=useState(0),[busy,setBusy]=useState(false),[prepared,setPrepared]=useState(null),[confirmed,setConfirmed]=useState(false),[shutdown,setShutdown]=useState(null);
  const [testError,setTestError]=useState(null);
+ const [detail,setDetail]=useState(null);
  const [rehearsal,setRehearsal]=useState(null);
  const [signupError,setSignupError]=useState(null);
  const scope=`${organizationId}:${brandId||''}:${auth.user?.id||''}`,currentScope=useRef(scope),lifetime=useRef(new AbortController());currentScope.current=scope;
@@ -64,8 +67,13 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
    .catch(e=>{if(currentScope.current===requested){setPrepared(null);setSignupError({scope,message:e.message});setRefresh(n=>n+1);}})
    .finally(()=>{if(currentScope.current===requested)setBusy(false);});
  }
- const readiness=current?.readiness,state=current?.connections?.[0]?.state||current?.signup_state||'not_connected';
- return <section className="card p-5" aria-label="WhatsApp Cloud API">
+ const readiness=current?.readiness;
+ const connections=current?.connections||[];
+ const detailConnection=connections.find(c=>c.id===detail);
+ const visibleConnections=directory?(detailConnection?[detailConnection]:[]):connections;
+ const state=visibleConnections[0]?.state||current?.signup_state||'not_connected';
+ const accountDetails=(
+ <section className={directory?'space-y-3':'card p-5'} aria-label="WhatsApp Cloud API">
   <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">WhatsApp</h2><Badge tone={state==='connected'?'success':state==='action_required'?'warning':'neutral'}>{labels[state]||'Not Connected'}</Badge></div>
   <p className="mt-2 text-sm">Business App Coexistence uses Meta signup to connect an eligible existing account while staff keep using the mobile app. FeedX supports receive-only operation for an approved connection.</p>
   <p className="mt-2 text-sm"><strong>Cloud API test number:</strong> A Staging administrator can verify the authorized test number for receiving. Sending is disabled.</p>
@@ -74,25 +82,30 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
   <AsyncDataSurface loading={loading} error={error} hasData={!!current} onRetry={()=>setRefresh(n=>n+1)}>
    {current?<>
     {brandId&&!current.connections?.length?<div className="mt-3"><Badge tone="neutral">{readiness?.cloud_test_configured?'Test verification available':labels[readiness?.state]||'Verification Required'}</Badge></div>:null}
-    {brandId&&!readiness?.eligible?<div className="mt-3 space-y-2">
+    {directory&&detail==='setup'&&brandId?<div className="mt-3 space-y-2">
+     <h3 className="font-semibold">New Cloud API number</h3>
+     <p className="text-sm">Setup required. This path needs a WhatsApp Embedded Signup configuration for new numbers and approved customer access from Meta.</p>
+     <h3 className="font-semibold">Existing WhatsApp Business App</h3>
+    </div>:null}
+    {(!directory||detail==='setup')&&brandId&&!readiness?.eligible?<div className="mt-3 space-y-2">
      <Badge tone="warning">Live onboarding pending approval</Badge>
      <p className="text-sm">Live signup requires Meta business verification, app permissions and approval for this Brand. You can rehearse signup now with fictional responses.</p>
      {configure?<button className="btn-secondary" onClick={()=>setRehearsal({scope,scenario:'success',version:'v5'})}>Rehearse WhatsApp signup</button>:null}
     </div>:null}
     {current.signup_state==='action_required'&&!current.connections?.length?<p className="mt-3 text-sm">The previous Meta signup could not be confirmed. Start a new connection after reviewing the account in Meta.</p>:null}
     {!brandId?<p className="mt-3 text-sm">Select one Brand to verify or connect WhatsApp.</p>:<p className="mt-3 text-sm" role="status">{readiness?.cloud_test_configured?'The test number can be checked here. Business App Coexistence has separate eligibility requirements.':reasons[readiness?.reason]||'Verify eligibility before connecting.'}</p>}
-    {current.connections?.length?<ul className="mt-3 space-y-3">{current.connections.map(c=><li key={c.id} className="text-sm">
+    {visibleConnections.length?<ul className="mt-3 space-y-3">{visibleConnections.map(c=><li key={c.id} className="text-sm">
      <div><strong>{c.account_name}</strong> · {brands.find(b=>b.id===c.brand_id)?.name||'Authorized Brand'} · {labels[c.state]||'Action Required'}</div>
      <p>{(c.onboarding_mode==='cloud_api'&&c.reason==='reconnect_required'?'Verify again with a valid Staging test token.':reasons[c.reason])||'Review this connection before continuing.'}</p>
      <ConnectionReadiness receiving={c.state==='connected'}/>
      {configure&&brandId&&readiness?.cloud_test_configured&&c.onboarding_mode==='cloud_api'&&c.local_state==='active'&&
       <WhatsAppTemplateCatalog key={c.id+':'+c.credential_generation} organizationId={organizationId} brandId={brandId} connection={c}/>}
      {configure&&brandId?<div className="mt-2 flex flex-wrap gap-2">{c.onboarding_mode==='cloud_api'?(readiness?.cloud_test_configured&&c.reason!=='awaiting_test_inbound'&&c.state!=='connected'?<button className="btn-secondary" disabled={busy} onClick={()=>bindCloudTest(c)}>Verify test number again</button>:null):<>{c.local_state!=='disconnected'?<button className="btn-secondary" disabled={busy||!readiness?.eligible} onClick={()=>act(c,false,c.local_state==='paused')}>{c.local_state==='paused'?'Resume receiving':'Retry Verification'}</button>:null}<button className="btn-secondary" disabled={busy||!readiness?.eligible} onClick={()=>act(c,true)}>Reconnect</button></>}{c.local_state==='active'?<button className="btn-secondary" disabled={busy} onClick={()=>setShutdown({connection:c,action:'pause',request:crypto.randomUUID()})}>Pause receiving</button>:null}{c.local_state!=='disconnected'?<button className="btn-secondary" disabled={busy} onClick={()=>setShutdown({connection:c,action:'disconnect',request:crypto.randomUUID()})}>Disconnect from FeedX</button>:null}</div>:null}
-    </li>)}</ul>:<>
+    </li>)}</ul>:directory&&connections.length?null:<>
      <p className="mt-3 text-sm">No WhatsApp Cloud connection registered.</p>
      <ConnectionReadiness/>
     </>}
-    {configure&&brandId?<div className="mt-3 flex flex-wrap gap-2">{!current.connections?.length&&readiness?.cloud_test_configured?<button className="btn-secondary" disabled={busy} onClick={()=>bindCloudTest(null)}>Verify and bind test number</button>:null}{!current.connections?.length?<button className="btn-primary" disabled={busy||!readiness?.eligible} onClick={()=>act(null)}>Connect WhatsApp Business App</button>:null}<button className="btn-secondary" disabled={busy} onClick={()=>setRefresh(n=>n+1)}>Check Eligibility</button></div>:null}
+    {configure&&brandId&&(!directory||detail==='setup')?<div className="mt-3 flex flex-wrap gap-2">{!current.connections?.length&&readiness?.cloud_test_configured?<button className="btn-secondary" disabled={busy} onClick={()=>bindCloudTest(null)}>Verify and bind test number</button>:null}{!current.connections?.length?<button className="btn-primary" disabled={busy||!readiness?.eligible} onClick={()=>act(null)}>Connect WhatsApp Business App</button>:null}<button className="btn-secondary" disabled={busy} onClick={()=>setRefresh(n=>n+1)}>Check Eligibility</button></div>:null}
    </>:null}
   </AsyncDataSurface>
   {rehearsal?.scope===scope?<Modal title="WhatsApp signup rehearsal" onClose={()=>setRehearsal(null)}
@@ -100,7 +113,7 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
    <p className="text-sm">Simulation only. No Meta popup, credentials or changes to this Brand’s connections.</p>
    <label className="mt-3 block text-sm">Signup version<select className="control block" value={rehearsal.version} onChange={e=>setRehearsal({...rehearsal,version:e.target.value,result:null})}><option value="v5">Version 5</option><option value="v4">Version 4</option></select></label>
    <label className="mt-3 block text-sm">Sample response<select className="control block" value={rehearsal.scenario} onChange={e=>setRehearsal({...rehearsal,scenario:e.target.value,result:null})}>
-    <option value="success">Coexistence callback</option><option value="cancel">Customer cancels</option><option value="untrusted">Untrusted callback origin</option><option value="mismatch">Number differs from approval</option><option value="uncertain">Synchronization outcome unknown</option>
+    <option value="success">Coexistence callback</option><option value="new_number">New Cloud API number callback</option><option value="cancel">Customer cancels</option><option value="untrusted">Untrusted callback origin</option><option value="mismatch">Number differs from approval</option><option value="uncertain">Synchronization outcome unknown</option>
    </select></label>
    {rehearsal.result?<p className="mt-3 text-sm" role="status">{rehearsal.result}</p>:null}
   </Modal>:null}
@@ -112,5 +125,19 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[]}) 
    <p className="text-sm">Meta will check this account’s eligibility. Use the existing WhatsApp Business App option and keep the mobile app open during synchronization. FeedX will not register a replacement number or disconnect the app.</p>
    <label className="mt-4 flex gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>I am authorized to connect this WhatsApp number exclusively to {brands.find(b=>b.id===brandId)?.name||'this Brand'}.</label>
   </Modal>:null}
+ </section>);
+ if(!directory)return accountDetails;
+ return <section aria-label="WhatsApp connections">
+  <div className="settings-section-heading"><div><h2>WhatsApp</h2><p>{current?`${connections.length} saved · ${connections.filter(c=>c.state==='connected').length} receiving verified`:'Customer onboarding and isolated Staging tests.'}</p></div></div>
+  <AsyncDataSurface loading={loading} error={error} hasData={!!current} onRetry={()=>setRefresh(n=>n+1)}>
+   {current?<div className="settings-integration-table card overflow-hidden"><DataTable mobileLayout="stack" density="compact" minWidth={540}
+    getRowKey={row=>row.id} rows={[{id:'setup',account_name:'Customer onboarding',brand_id:brandId},...connections]}
+    columns={[
+     {key:'account',header:'Account / Brand',render:row=><div className="settings-integration-identity"><span><strong>{row.account_name}</strong><small>{row.onboarding_mode==='cloud_api'?'Staging test number · ':''}{brands.find(b=>b.id===row.brand_id)?.name||(row.id==='setup'?'Select a Brand to check eligibility':'Authorized Brand')}</small></span></div>},
+     {key:'health',header:'Health',render:row=><Badge tone={row.state==='connected'?'success':'neutral'}>{row.id==='setup'?(readiness?.eligible?'Eligible for Coexistence':brandId?(readiness?.reason==='server_configuration_required'?'Setup required':'Approval required'):'Brand required'):labels[row.state]||'Action Required'}</Badge>},
+     {key:'action',header:'Next action',align:'right',render:row=><button className="btn-secondary" onClick={()=>setDetail(row.id)}>{row.id==='setup'?'Review onboarding':row.state==='connected'?'View details':'Review connection'}</button>}
+    ]}/></div>:null}
+  </AsyncDataSurface>
+  {detail==='setup'||detailConnection?<Drawer title={detailConnection?.account_name||'WhatsApp onboarding'} onClose={()=>{if(!busy){setDetail(null);setPrepared(null);setRehearsal(null);setShutdown(null);}}}>{accountDetails}</Drawer>:null}
  </section>;
 }

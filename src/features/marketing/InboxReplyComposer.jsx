@@ -126,7 +126,7 @@ export default function InboxReplyComposer({
     ? `Open until ${formatOperationalDateTime(current.window_expires_at)} MYT`
     : current.window_expires_at
       ? "Closed · An approved WhatsApp template is required to contact the customer outside the window."
-      : "Unverified · Waiting for an eligible WhatsApp customer message.";
+      : "Waiting for an eligible customer message on this connection.";
   const whatsAppOutbox = c.channel === "whatsapp"
     ? (current.outbox || []).filter(item => item.state !== "blocked").reduce((latest, item) =>
       !latest || Date.parse(item.sent_at || item.authorized_at || item.created_at) > Date.parse(latest.sent_at || latest.authorized_at || latest.created_at)
