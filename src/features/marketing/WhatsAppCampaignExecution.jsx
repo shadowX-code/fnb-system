@@ -18,6 +18,7 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,campai
  const [run,setRun]=useState(undefined),[page,setPage]=useState(1),[date,setDate]=useState(''),[time,setTime]=useState('');
  const [size,setSize]=useState(25),[error,setError]=useState(''),[busy,setBusy]=useState(false),[refresh,setRefresh]=useState(0);
  const pending=useRef(null),connection=useRef(null);
+ const canReschedule=canSchedule&&['scheduled','paused'].includes(run?.state)&&run.total>0&&run.counts.scheduled===run.total;
  useEffect(()=>{
   let active=true;
   const read=()=>outreachService.whatsappExecution(organizationId,brandId,campaign.id,page)
@@ -54,6 +55,10 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,campai
   if(busy)return;
   setBusy(true);setError('');
   const body={revision:campaign.revision,run_id:run.id};
+  if(action==='reschedule'){
+   body.previous_schedule=run.scheduled_at;
+   body.scheduled_at=`${date}T${time}:00+08:00`;
+  }
   try{
    await outreachService.whatsappExecutionCommand(organizationId,brandId,campaign.id,request(action,body),action,body);
    pending.current=null;setRefresh(n=>n+1);
@@ -80,6 +85,11 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,campai
    {canExecute&&['scheduled','paused'].includes(run.state)&&<div className="flex flex-wrap gap-2">
     <button className="btn-secondary" disabled={busy} onClick={()=>control(run.state==='paused'?'resume':'pause')}>{run.state==='paused'?'Resume schedule':'Pause schedule'}</button>
     <button className="btn-secondary" disabled={busy} onClick={()=>control('cancel')}>Cancel remaining recipients</button>
+   </div>}
+   {canReschedule&&<div className="flex flex-wrap items-end gap-2">
+    <label>New schedule date (MYT)<input className="control block" type="date" value={date} onChange={event=>setDate(event.target.value)}/></label>
+    <label>New schedule time (MYT)<input className="control block" type="time" value={time} onChange={event=>setTime(event.target.value)}/></label>
+    <button className="btn-secondary" disabled={busy||!date||!time} onClick={()=>control('reschedule')}>Reschedule existing run</button>
    </div>}
    <ul className="mt-2 space-y-2" aria-label="Campaign recipient execution">
     {run.rows.map(row=><li key={row.id} className="break-words border-b border-border-default pb-2">
