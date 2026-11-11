@@ -42,3 +42,20 @@
 .practical-knowledge:has(.knowledge-inline-editor) .knowledge-area{padding-bottom:0}.knowledge-inline-editor{padding-top:.25rem}.knowledge-inline-editor .knowledge-editor-footer{background:var(--theme-surface)}
 .knowledge-tone-controls>div{min-width:0;max-width:100%}
 .knowledge-form>*{min-width:0}
+
+.settings-provider-directory { width: min(100%, 46rem); overflow: hidden; }
+.settings-provider-directory button {
+ display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+ width: 100%; gap: .875rem; padding: .875rem 1rem; text-align: left;
+}
+.settings-provider-directory button + button { border-top: 1px solid var(--theme-border); }
+.settings-provider-directory button:hover { background: var(--theme-surface-nested); }
+.settings-provider-directory button:focus-visible { outline-offset: -3px; }
+.settings-provider-directory strong, .settings-provider-directory small { display: block; }
+.settings-provider-directory small { color: var(--theme-muted); margin-top: .125rem; }
+.settings-directory-back { align-self: flex-start; width: fit-content; }
+.settings-wa-setup { max-width: 43rem; }
+.settings-wa-modes { display: grid; gap: .625rem; }
+.settings-wa-modes label { display: flex; align-items: flex-start; gap: .75rem; padding: .875rem; cursor: pointer; }
+.settings-wa-modes input { margin-top: .25rem; }
+.settings-wa-modes small { display: block; margin-top: .125rem; }

@@ -102,6 +102,8 @@ export async function whatsappSignupHandler(path:string,body:any,caller:any,serv
  let registrationVerified=false;
  if(path==='/whatsapp/complete'){
   if(body.confirmBrandOwnership!==true||typeof body.state!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(body.state))throw new MetaError('whatsapp_ownership_confirmation_required');
+  const confirmedPhoneNumber=body.confirmPhoneNumber;
+  if(confirmedPhoneNumber!==undefined&&(typeof confirmedPhoneNumber!=='string'||!/^\+[1-9]\d{6,14}$/.test(confirmedPhoneNumber)))throw new MetaError('whatsapp_phone_identity_unverified');
   // Consumption occurs before exchange. Replays, revoked roles and wrong actors cannot obtain a token.
   const s=await call(service,'marketing_whatsapp_consume',{p_session:body.sessionId,p_auth_user:user,p_state_hash:await hash(body.state)});
   if(s.brand_id!==body.brandId||s.organization_id!==body.organizationId||s.app_id!==c.appId||s.config_id!==c.configId||s.graph_version!==c.version||s.signup_version!==c.signupVersion)throw new MetaError('whatsapp_signup_scope_changed');
@@ -109,7 +111,7 @@ export async function whatsappSignupHandler(path:string,body:any,caller:any,serv
   if(!a||a.mode!==s.mode||s.mode!==ready.mode)throw new MetaError('whatsapp_signup_assets_mismatch');
   const token=await exchangeWhatsAppCode(g,c,body.code);
   const expected=await resolveWhatsAppSignupAssets(g,token,s,a);
-  const evidence=await verifyWhatsAppAssets(g,c,token,expected);
+  const evidence=await verifyWhatsAppAssets(g,c,token,{...expected,confirmedPhoneNumber});
   registrationVerified=evidence.registration_verified;
   const sealed=await seal({token},key,connectionBinding({brand_id:s.brand_id,channel:'whatsapp',provider_account_id:expected.phone_id}));
   const bound=await call(service,'marketing_whatsapp_bind',{p_session:s.id,p_auth_user:user,p_sealed:sealed,p_evidence:evidence});

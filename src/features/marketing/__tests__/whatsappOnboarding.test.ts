@@ -11,6 +11,13 @@ function graph(overrides:Record<string,any>={}){
 describe('official WhatsApp server-side contracts',()=>{
  it('exchanges a code once without extending a Facebook user token',async()=>{const g=graph({'oauth/access_token':{access_token:'fixture'}});expect(await exchangeWhatsAppCode(g,c,'code')).toBe('fixture');expect(g.request).toHaveBeenCalledTimes(1);expect(g.request.mock.calls[0][0]).toBe('oauth/access_token');});
  it('verifies app, granular WABA grant, business ownership, exact phone and coexistence',async()=>{const r=await verifyWhatsAppAssets(graph(),c,'fixture',expected,1700000000000);expect(r.expires_at).toBe(new Date(1700086400000).toISOString());expect(r.subject).toBe('999');});
+ it('checks the confirmed display number even when the approval pins the phone ID',async()=>{
+  const g=graph({'201':{id:'201',is_on_biz_app:true,platform_type:'CLOUD_API',display_phone_number:'+60 11-9900 000'}});
+  await expect(verifyWhatsAppAssets(g,c,'fixture',{...expected,confirmedPhoneNumber:'+60119900000'}))
+   .resolves.toMatchObject({display_phone_number:'+60119900000'});
+  await expect(verifyWhatsAppAssets(g,c,'fixture',{...expected,confirmedPhoneNumber:'+60118800000'}))
+   .rejects.toThrow('whatsapp_approved_phone_mismatch');
+ });
  it.each([
  ['wrong app',{debug_token:{data:{is_valid:true,app_id:'666'}}}],
  ['wrong business',{'200':{id:'200',owner_business_info:{id:'666'}}}],

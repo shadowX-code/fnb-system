@@ -34,7 +34,7 @@ const tone = (s) =>
       ? "warning"
       : "neutral";
 const platform = (c) => (c === "facebook" ? "Facebook Page" : "Instagram");
-export default function SocialAccounts({ organizationId, brandId, brands }) {
+export default function SocialAccounts({ organizationId, brandId, brands, channel: provider }) {
   const auth = useAuth(),
     configure = auth.hasPermission("marketing_settings.configure");
   const canManageCreator = auth.hasPermission("platform_organizations.manage") && auth.hasPermission("marketing_creators.manage");
@@ -154,6 +154,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
           throw new Error(
             "Meta authorization is unavailable. Try again later.",
           );
+        try{if(provider)sessionStorage.setItem('marketing.meta.connectionsProvider',provider);}catch{}
         window.location.assign(url.toString());
       },
       "Opening official Meta authorization.",
@@ -174,12 +175,12 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
       selectedAssets.find((a) => a.channel === "facebook")?.id;
   const [creatorDetails,setCreatorDetails]=useState(false);
   return (
-    <section className="settings-social social-accounts" aria-label="Social Accounts">
+    <section className="settings-social social-accounts" aria-label={provider ? platform(provider) : "Social Accounts"}>
       <div className="social-accounts-heading">
         <div>
-          <h2>Social accounts</h2>
+          <h2>{provider ? `${platform(provider)} connections` : "Social accounts"}</h2>
           <p>
-            Facebook and Instagram account health for this Brand scope.
+            {provider ? "Review connected accounts and their available features." : "Facebook and Instagram account health for this Brand scope."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">{canManageCreator?<button className="btn-secondary" onClick={()=>setCreatorDetails(true)}>Creator enrichment</button>:null}{configure ? (
@@ -253,7 +254,7 @@ export default function SocialAccounts({ organizationId, brandId, brands }) {
             </button>
           </div>
         ))}
-        {['facebook','instagram'].map(channel=><section key={channel} aria-label={platform(channel)} className="mb-3"><h3 className="mb-2 text-sm font-semibold">{platform(channel)} <span className="font-normal text-text-secondary">· {accounts.filter(c=>c.channel===channel).length} accounts</span></h3>{accounts.some(c=>c.channel===channel)?<div className="settings-integration-table card overflow-hidden"><DataTable mobileLayout="stack" density="compact" minWidth={540} getRowKey={c=>c.id} rows={accounts.filter(c=>c.channel===channel).sort((a,b)=>Number(socialAccountIssues(b).length>0||socialNeedsReconnect(b))-Number(socialAccountIssues(a).length>0||socialNeedsReconnect(a)))} columns={[
+        {(provider?[provider]:['facebook','instagram']).map(channel=><section key={channel} aria-label={platform(channel)} className="mb-3"><h3 className="mb-2 text-sm font-semibold">{platform(channel)} <span className="font-normal text-text-secondary">· {accounts.filter(c=>c.channel===channel).length} accounts</span></h3>{accounts.some(c=>c.channel===channel)?<div className="settings-integration-table card overflow-hidden"><DataTable mobileLayout="stack" density="compact" minWidth={540} getRowKey={c=>c.id} rows={accounts.filter(c=>c.channel===channel).sort((a,b)=>Number(socialAccountIssues(b).length>0||socialNeedsReconnect(b))-Number(socialAccountIssues(a).length>0||socialNeedsReconnect(a)))} columns={[
  {key:'identity',header:'Meta Account',render:c=><div className="settings-integration-identity"><span className={`settings-platform-icon ${c.channel}`}>{c.channel==='facebook'?<Facebook size={20} aria-label="Facebook Page"/>:<Instagram size={20} aria-label="Instagram"/>}</span><span><strong>{c.account_name||platform(c.channel)}</strong><small>{brands.find(b=>b.id===c.brand_id)?.name||'Authorized Brand'} · {platform(c.channel)}</small></span></div>},
  {key:'health',header:'Health',render:c=><Badge tone={['expired','permission_required','action_required'].includes(socialAccountStatus(c))?'warning':'neutral'}>{socialStateLabel(socialAccountStatus(c))}</Badge>},
  {key:'next',header:'Next action',render:c=>socialNeedsReconnect(c)?'Review reconnect':socialAccountIssues(c).length?'Review account health':'View details'},

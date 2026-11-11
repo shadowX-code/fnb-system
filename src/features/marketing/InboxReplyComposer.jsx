@@ -157,7 +157,7 @@ export default function InboxReplyComposer({
       {configuration&&!configuration.whatsapp_templates_configured&&<p className="inbox-muted">Template sending awaits Staging authorization.</p>}
       {configuration?.whatsapp_templates_configured&&can("reply")&&can("send")&&onTemplateSend&&
         <WhatsAppTemplateCatalog loadTemplates={()=>inboxService.whatsappTemplateOptions(c.id)} onSend={onTemplateSend}/>}
-      {canViewConnections && <a className="inbox-text-button" href={`/marketing/connections?marketing_brand=${encodeURIComponent(c.brand_id || '')}&marketing_org=${encodeURIComponent(c.organization_id || '')}`}>View Connections</a>}
+      {canViewConnections && <a className="inbox-text-button" href={`/marketing/connections?provider=whatsapp&marketing_brand=${encodeURIComponent(c.brand_id || '')}&marketing_org=${encodeURIComponent(c.organization_id || '')}`}>View Connections</a>}
       <label className="sr-only" htmlFor={`inbox-compose-${c.id}`}>Staff Reply</label>
       <textarea id={`inbox-compose-${c.id}`} className="control" rows={2} value={text}
         disabled={Boolean(unavailable) || !can("reply") || busy} maxLength={2000}

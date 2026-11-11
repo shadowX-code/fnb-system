@@ -1,3 +1,5 @@
+import Drawer from '../../components/ui/Drawer.jsx';
+import WhatsAppConnections from './WhatsAppConnections.jsx';
 import NotificationSoundControls from '../../components/notifications/NotificationSoundControls.jsx';
 import {InboxOperationalViews,InboxHandlingBar,InboxReminderMenu} from './InboxOperations.jsx';
 import {resolveBrandContext,selectBrandContext} from './brandContext.js';
@@ -210,6 +212,7 @@ function InboxWorkspace({ whatsApp }) {
     [loading, setLoading] = useState(false),
     [busy, setBusy] = useState(false),
     [modal, setModal] = useState(null),
+    [whatsappTestingOpen, setWhatsAppTestingOpen] = useState(false),
     [preview, setPreview] = useState(null);
   const busyRef = useRef(busy);
   busyRef.current = busy;
@@ -238,6 +241,10 @@ function InboxWorkspace({ whatsApp }) {
   const request = useRef(null),
     generation = useRef(0),
     historyRef = useRef(null);
+  const whatsappTestingAllowed = whatsApp
+    && import.meta.env.VITE_SUPABASE_URL === 'https://ujkzdaaadnvcfayuldmh.supabase.co'
+    && auth.hasPermission('marketing_settings.view')
+    && auth.hasPermission('marketing_settings.configure');
   const brands = context.brands.filter((b) => b.organization_id === org),
     data = read?.baseKey === listBaseKey ? read.data : null,
     current = detail?.baseKey === detailBaseKey ? detail.data : null,
@@ -644,6 +651,11 @@ function InboxWorkspace({ whatsApp }) {
               >
                 Diagnostics
               </button>
+              {whatsappTestingAllowed && org ? (
+                <button role="menuitem" onClick={() => { setActionsOpen(false); setWhatsAppTestingOpen(true); }}>
+                  WhatsApp Staging tools
+                </button>
+              ) : null}
               <a role="menuitem" href={`/marketing/faq-ai${c?.brand_id||brand?`?marketing_brand=${c?.brand_id||brand}&marketing_org=${org}`:''}`} target="_blank" rel="noopener noreferrer" title="Open FAQ Management in a new tab and keep this conversation draft">FAQ Management <ArrowUpRight size={13}/></a>
             </ActionMenu>
             {channel === "internal" && can("manage") && (
@@ -1217,6 +1229,11 @@ function InboxWorkspace({ whatsApp }) {
             </aside>
           )}
         </div>
+        {whatsappTestingAllowed && whatsappTestingOpen && org ? (
+          <Drawer title="WhatsApp Staging tools" onClose={() => setWhatsAppTestingOpen(false)}>
+            <WhatsAppConnections testing organizationId={org} brandId={brand} brands={brands} />
+          </Drawer>
+        ) : null}
         {modal && (
           <Modal
             title={label(
