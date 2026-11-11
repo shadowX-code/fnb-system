@@ -2,21 +2,45 @@ import {callReader} from '../server/xhsReaderPilot/client.mjs';
 import {withFunctionTelemetry} from '../server/functionTelemetry.mjs';
 import {inspectProfile,inspectPublic} from '../server/creatorExtraction/remote.mjs';
 import {profileIdentity} from '../server/creatorExtraction/profileIdentity.mjs';
-import {platformUrl} from '../server/creatorExtraction/urls.mjs';
+import {networkBudget,resolvePostUrl} from '../server/creatorExtraction/network.mjs';
+import {platformUrl,xhsUrl} from '../server/creatorExtraction/urls.mjs';
 const STAGING='https://ujkzdaaadnvcfayuldmh.supabase.co';
+const PRODUCTION='https://oyfobxdoyfuzsodogpgs.supabase.co';
 export const config={maxDuration:60};
 export default withFunctionTelemetry('/api/marketing-creator-inspect',async function handler(req,res){
  res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
  if(req.method!=='POST')return res.status(405).json({error:'Use POST.'});
- if(process.env.VITE_SUPABASE_URL!==STAGING||process.env.VERCEL_PROJECT_ID&&process.env.VERCEL_PROJECT_ID!=='prj_t6uJtKPDu9GuyefG6IqAfxh5YoIi'||process.env.VERCEL_GIT_COMMIT_REF&&process.env.VERCEL_GIT_COMMIT_REF!=='dev')return res.status(403).json({error:'Staging extractor only.'});
+ const matches=(url,project,branch)=>process.env.VITE_SUPABASE_URL===url&&
+  (!process.env.VERCEL_PROJECT_ID||process.env.VERCEL_PROJECT_ID===project)&&
+  (!process.env.VERCEL_GIT_COMMIT_REF||process.env.VERCEL_GIT_COMMIT_REF===branch);
+ const staging=matches(STAGING,'prj_t6uJtKPDu9GuyefG6IqAfxh5YoIi','dev');
+ const production=matches(PRODUCTION,'prj_1UOKHvE6Ft4a2WXrZyZGc9LZRWLP','main');
+ if(!staging&&!production)return res.status(403).json({error:'Creator inspection is unavailable in this environment.'});
  if(!/^Bearer [\w.-]+$/.test(req.headers.authorization||''))return res.status(401).json({error:'Sign in to inspect a post.'});
  let body;try{body=typeof req.body==='string'?JSON.parse(req.body):req.body}catch{return res.status(400).json({error:'Invalid request.'})}
- if(!body||JSON.stringify(body).length>5000||!/^[-\da-f]{36}$/i.test(body.org||'')||(body.kind!=='profile'&&!/^[-\da-f]{36}$/i.test(body.brand||'')))return res.status(400).json({error:'Choose an authorized Brand and post URL.'});
+ const linkMode=body?.kind==='xhs_profile_link'||body?.kind==='xhs_post_link';
+ const profileMode=body?.kind==='profile'||body?.kind==='xhs_profile_link';
+ if(!staging&&!linkMode)return res.status(403).json({error:'Metadata inspection is unavailable. You can enter details manually.'});
+ if(!body||JSON.stringify(body).length>5000||!/^[-\da-f]{36}$/i.test(body.org||'')||(!profileMode&&!/^[-\da-f]{36}$/i.test(body.brand||'')))return res.status(400).json({error:'Choose an authorized Brand and post URL.'});
  let lease,officialRequested=false;
- async function rpc(name,args){const r=await fetch(STAGING+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:process.env.VITE_SUPABASE_ANON_KEY||'',Authorization:req.headers.authorization,'Content-Type':'application/json'},body:JSON.stringify(args),signal:AbortSignal.timeout(10000)});if(!r.ok)throw new Error(r.status===401?'signed_out':'access_or_limit');return r.json()}
- const scope={p_org:body.org,p_brand:body.kind==='profile'?null:body.brand};
+ async function rpc(name,args){const r=await fetch((staging?STAGING:PRODUCTION)+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:process.env.VITE_SUPABASE_ANON_KEY||'',Authorization:req.headers.authorization,'Content-Type':'application/json'},body:JSON.stringify(args),signal:AbortSignal.timeout(10000)});if(!r.ok)throw new Error(r.status===401?'signed_out':'access_or_limit');return r.json()}
+ const scope={p_org:body.org,p_brand:profileMode?null:body.brand};
  try{
-  const profileMode=body.kind==='profile';
+  if(linkMode){
+   const parse=value=>xhsUrl(value,profileMode?'profile':'post');
+   const original=parse(body.url);
+   if(!original?.share)return res.status(400).json({error:'Enter a valid Xiaohongshu share link.'});
+   lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
+   let resolved;
+   try{resolved=await resolvePostUrl(body.url,networkBudget(7000),parse);}
+   catch{return res.status(422).json({error:profileMode?'Could not open this share link. Paste the full Xiaohongshu profile URL.':'Could not open this share link. Paste the full Xiaohongshu note URL and choose Enter manually.'});}
+   if(profileMode){
+    await rpc('marketing_creator_directory',scope);
+    return res.status(200).json({profile_url:resolved.original_url});
+   }
+   const post=await rpc('marketing_creator_post_preview',{...scope,p_url:resolved.canonical_url});
+   return res.status(200).json({...post,original_url:original.original_url});
+  }
   const input=profileMode?profileIdentity(body.url):platformUrl(body.url);
   if(profileMode){
    await rpc('marketing_creator_directory',scope);

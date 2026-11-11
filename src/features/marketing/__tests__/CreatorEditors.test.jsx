@@ -3,7 +3,7 @@ import {render,screen,fireEvent,waitFor,cleanup} from '@testing-library/react';
 import CreatorEditor,{AccountEditor,CollaborationEditor,PostEditor,MetricsEditor} from '../CreatorEditors.jsx';
 import {creatorService} from '../creatorService.js';
 vi.mock('../MarketingMediaPicker.jsx',()=>({default:()=> <span>Canonical media picker</span>}));
-vi.mock('../creatorService.js',()=>({creatorService:{followersStatus:vi.fn().mockResolvedValue({}),refreshFollowers:vi.fn(),history:vi.fn().mockResolvedValue({rows:[],total:0,next:null}),preview:vi.fn(),manualPreview:vi.fn(),directory:vi.fn().mockResolvedValue({creators:[],accounts:[],options:[]}),profile:vi.fn().mockResolvedValue({metadata_status:'unavailable'})}}));
+vi.mock('../creatorService.js',()=>({creatorService:{followersStatus:vi.fn().mockResolvedValue({}),refreshFollowers:vi.fn(),history:vi.fn().mockResolvedValue({rows:[],total:0,next:null}),preview:vi.fn(),manualPreview:vi.fn(),resolveXhsProfile:vi.fn(),directory:vi.fn().mockResolvedValue({creators:[],accounts:[],options:[]}),profile:vi.fn().mockResolvedValue({metadata_status:'unavailable'})}}));
 const brands=[{id:'b',organization_id:'org',name:'Authorized Brand',outlets:[]}];
 const data={creators:[{id:'c',name:'Creator',brand_ids:['b'],archived:false,categories:[]}],accounts:[],collaborations:[],posts:[],snapshots:[],members:[],campaigns:[]};
 const props={org:'org',brands,data,defaultBrand:'b',assets:[],canMedia:false,busy:false,onClose:vi.fn(),onSave:vi.fn(),canManage:true};
@@ -102,20 +102,39 @@ it.each([true,false])('opens canonical duplicate targets without reassigning (sa
  if(!same){fireEvent.click(screen.getByRole('button',{name:'Open Creator'}));expect(onOpenConflict).toHaveBeenCalledWith(conflict,false)}
  expect(onSave).toHaveBeenCalledTimes(1);fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911d'}});expect(screen.getByRole('button',{name:'Save'}).disabled).toBe(false);
 });
-it('saves a new XHS identity when public enrichment is unavailable without follower input',async()=>{
- creatorService.profile.mockResolvedValueOnce({metadata_status:'unavailable',unavailable:{profile:'Public XHS details unavailable.'}});const onSave=vi.fn();
+it('saves a new XHS identity with the exact share parameters and no metadata request',()=>{
+ const onSave=vi.fn(),url='https://xiaohongshu.com/user/profile/5DCAAAD4000000000100911C/?xsec_token=a%2Bb%3D&source=share';
  render(<AccountEditor {...props} creator={data.creators[0]} org="org" onSave={onSave}/>);
- fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://xiaohongshu.com/user/profile/5DCAAAD4000000000100911C/?source=share'}});fireEvent.blur(screen.getByLabelText('Profile URL'));await screen.findByText('Public XHS details unavailable.');
- fireEvent.submit(screen.getByRole('dialog').querySelector('form'));expect(onSave).toHaveBeenCalledWith(expect.objectContaining({creator_id:'c',platform:'xhs',external_id:'5dcaaad4000000000100911c',profile_url:'https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911c'}));expect(onSave.mock.calls[0][0]).not.toHaveProperty('followers');
+ fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:url}});fireEvent.blur(screen.getByLabelText('Profile URL'));
+ fireEvent.click(screen.getByRole('button',{name:'Save'}));
+ expect(onSave).toHaveBeenCalledWith(expect.objectContaining({creator_id:'c',platform:'xhs',external_id:'5dcaaad4000000000100911c',profile_url:url}));
+ expect(onSave.mock.calls[0][0]).not.toHaveProperty('followers');expect(creatorService.profile).not.toHaveBeenCalled();
 });
 
-it('retains duplicate feedback when an in-flight enrichment finishes without changing identity',async()=>{
- let finish;creatorService.profile.mockReturnValueOnce(new Promise(resolve=>{finish=resolve}));
- const conflict={account_id:'existing',creator_id:'other',creator_name:'Existing Creator',same_creator:false},onSave=vi.fn().mockResolvedValue({identityConflict:conflict});
- render(<AccountEditor {...props} creator={data.creators[0]} org="org" onSave={onSave}/>);
- fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911c'}});fireEvent.blur(screen.getByLabelText('Profile URL'));
- fireEvent.submit(screen.getByRole('dialog').querySelector('form'));await screen.findByText('Linked to Existing Creator');
- finish({metadata_status:'unavailable',unavailable:{profile:'Profile unavailable.'}});await screen.findByText('Profile unavailable.');expect(screen.getByText('Linked to Existing Creator')).toBeTruthy();expect(screen.getByRole('button',{name:'Save'}).disabled).toBe(true);
+it('resolves an XHS profile short link before enabling Save',async()=>{
+ const onSave=vi.fn(),url='https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911c?xsec_token=x%2By';
+ creatorService.resolveXhsProfile.mockResolvedValueOnce({profile_url:url});
+ render(<AccountEditor {...props} creator={data.creators[0]} onSave={onSave}/>);
+ fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://xhslink.com/m/fixture'}});
+ expect(screen.getByRole('button',{name:'Save'}).disabled).toBe(true);
+ fireEvent.click(screen.getByRole('button',{name:'Resolve share link'}));
+ await waitFor(()=>expect(screen.getByLabelText('Profile URL').value).toBe(url));
+ fireEvent.click(screen.getByRole('button',{name:'Save'}));
+ expect(onSave).toHaveBeenCalledWith(expect.objectContaining({creator_id:'c',platform:'xhs',profile_url:url,external_id:'5dcaaad4000000000100911c'}));
+});
+
+it('binds the exact Creator, Brand, Collaboration and matching XHS account in manual post entry',async()=>{
+ const onSave=vi.fn(),id='6a8fb7f30000000037034698',url='https://xhslink.com/o/fixture',canonical='https://www.xiaohongshu.com/explore/'+id;
+ const fixture={...data,accounts:[{id:'xhs1',creator_id:'c',platform:'xhs',display_name:'XHS Account'},{id:'other',creator_id:'other',platform:'xhs'}],collaborations:[{id:'collab',brand_id:'b',creator_id:'c',title:'Fixture Collaboration'}]};
+ creatorService.directory.mockResolvedValue(fixture);
+ creatorService.manualPreview.mockResolvedValueOnce({platform:'xhs',canonical_url:canonical,original_url:url,metadata_status:'unavailable'});
+ render(<PostEditor {...props} data={fixture} seed={{creator_id:'c',brand_id:'b',collaboration_id:'collab'}} onSave={onSave}/>);
+ fireEvent.change(screen.getByLabelText('Post URL *'),{target:{value:url}});fireEvent.click(screen.getByRole('button',{name:'Enter manually'}));
+ await screen.findByRole('button',{name:'Xiaohongshu Social Profile'});
+ fireEvent.click(screen.getByRole('button',{name:'Save Post'}));
+ expect(onSave).toHaveBeenCalledWith(expect.objectContaining({creator_id:'c',account_id:'xhs1',brand_id:'b',collaboration_id:'collab',url:canonical,original_url:url,confirm_published:true}),'b');
+ expect(onSave.mock.calls[0][0]).not.toHaveProperty('public_observation');
+ creatorService.directory.mockResolvedValue({creators:[],accounts:[],options:[]});
 });
 
 it('confirms the exact social profile removal without deleting the Creator or saving unsaved edits',()=>{
