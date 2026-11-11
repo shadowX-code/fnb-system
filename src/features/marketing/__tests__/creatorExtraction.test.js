@@ -1,4 +1,4 @@
-import {describe,it,expect} from 'vitest';
+import {describe,it,expect,vi} from 'vitest';
 import {platformUrl,allowedResource} from '../../../../server/creatorExtraction/urls.mjs';
 import {publicIPv4} from '../../../../server/creatorExtraction/network.mjs';
 import {safePostMediaUrl} from '../contentManagement.js';
@@ -59,3 +59,18 @@ describe('public Creator extraction boundaries',()=>{
  });
 
 it('separates XHS navigation parameters and discovery path from stable identity',()=>{const id='6a8fb7f30000000037034698',url='https://www.xiaohongshu.com/discovery/item/'+id+'?source=webshare&xsec_token=a%2Bb%2Fc%3D%26&xsec_source=pc_share&custom=%252F';const p=platformUrl(url);expect(p.post_id).toBe(id);expect(p.canonical_url).toBe(platformUrl('https://www.xiaohongshu.com/explore/'+id).canonical_url);expect(p.original_url).toBe(url);expect(p.request_url).toBe(url);expect(platformUrl('https://xhslink.com/o/8ztP9aMRnzT').share).toBe(true)});
+
+it('stops a public XHS redirect at the stable note or profile identity without downloading metadata',async()=>{
+ const {xhsUrl}=await import('../../../../server/creatorExtraction/urls.mjs');
+ const {resolvePostUrl,networkBudget}=await import('../../../../server/creatorExtraction/network.mjs');
+ const short='https://xhslink.com/m/Fixture_1?source=test',uid='5dcaaad4000000000100911c',note='6a8fb7f30000000037034698';
+ for(const [kind,path,idKey,id] of [['profile','/user/profile/'+uid,'external_id',uid],['post','/user/profile/'+uid+'/'+note,'post_id',note]]){
+  const target='https://www.xiaohongshu.com'+path+'?xsec_token=A%2Bb%3D&source=share';
+  const request=vi.fn(async()=>({status:302,headers:{location:target}}));
+  const result=await resolvePostUrl(short,networkBudget(7000),value=>xhsUrl(value,kind),request);
+  expect(result).toMatchObject({[idKey]:id,original_url:target});expect(request).toHaveBeenCalledOnce();
+  expect(request.mock.calls[0][0]).toBe(short);expect(request.mock.calls[0][6]).toBe(true);
+ }
+ const hostile=async()=>({status:302,headers:{location:'https://www.xiaohongshu.com.evil.invalid/explore/'+note}});
+ await expect(resolvePostUrl(short,networkBudget(),v=>xhsUrl(v,'post'),hostile)).rejects.toThrow('redirect_not_supported');
+});

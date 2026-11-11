@@ -1,11 +1,23 @@
 const hosts={instagram:['instagram.com','www.instagram.com'],facebook:['facebook.com','www.facebook.com','m.facebook.com','web.facebook.com','fb.watch'],xhs:['xiaohongshu.com','www.xiaohongshu.com','xhslink.com','www.xhslink.com'],tiktok:['tiktok.com','www.tiktok.com','vt.tiktok.com','vm.tiktok.com']};
+// Keep the submitted navigation URL separate from the stable XHS identity.
+export function xhsUrl(value,kind){
+ const original=typeof value==='string'?value.trim():'';
+ if(!original||original.length>(kind==='profile'?1500:2000)||/[\s\\]/.test(original))return null;
+ let u;try{u=new URL(original)}catch{return null}
+ if(u.protocol!=='https:'||u.port||u.username||u.password||!hosts.xhs.includes(u.hostname))return null;
+ const short=['xhslink.com','www.xhslink.com'].includes(u.hostname);
+ if(short&&!/^\/(?:[a-z]\/)?[\w-]+\/?$/i.test(u.pathname))return null;
+ const id=short?null:u.pathname.match(kind==='profile'?/^\/user\/profile\/([a-f0-9]{1,160})\/?$/i:/^\/(?:explore|discovery\/item|user\/profile\/[a-f0-9]{24})\/([a-f0-9]{24})\/?$/i)?.[1]?.toLowerCase();
+ if(!short&&!id)return null;
+ return {platform:'xhs',post_id:kind==='post'?id:null,external_id:kind==='profile'?id:null,share:short,original_url:original,request_url:u.href,canonical_url:id?'https://www.xiaohongshu.com/'+(kind==='profile'?'user/profile/':'explore/')+id:u.origin+u.pathname};
+}
 export function platformUrl(value){
  let u;try{u=new URL(value)}catch{throw new Error('invalid_url')}
  if(value.length>2000||u.protocol!=='https:'||u.port||u.username||u.password||!Object.values(hosts).flat().includes(u.hostname))throw new Error('unsupported_url');
  const platform=Object.keys(hosts).find(k=>hosts[k].includes(u.hostname));
  const p=u.pathname;let id,canonical;
  if(platform==='instagram'){id=p.match(/^\/(?:[A-Za-z0-9._]+\/)?(?:p|reel|reels|tv)\/([\w-]+)\/?$/)?.[1];if(id)canonical=`https://www.instagram.com/p/${id}/`;}
- if(platform==='xhs'){id=p.match(/^\/(?:explore|discovery\/item)\/([a-f0-9]{24})\/?$/i)?.[1];if(id)canonical=`https://www.xiaohongshu.com/explore/${id.toLowerCase()}`;}
+ if(platform==='xhs'){const result=xhsUrl(value,'post');if(!result)throw new Error('unsupported_post_url');return result;}
  if(platform==='tiktok'){const m=p.match(/^\/@([\w.-]+)\/video\/(\d+)\/?$/);id=m?.[2];if(m)canonical=`https://www.tiktok.com/@${m[1]}/video/${id}`;}
  if(platform==='facebook'){
   const route=p.match(/^\/([^/?]+)\/(posts|videos)\/(?:[^/?]+\/)?([0-9A-Za-z_-]+)\/?$/);
@@ -24,9 +36,9 @@ export function platformUrl(value){
    }
   }
  }
- const share=(platform==='tiktok'&&['vt.tiktok.com','vm.tiktok.com'].includes(u.hostname)&&/^\/[\w-]+\/?$/.test(p))||(platform==='xhs'&&u.hostname.endsWith('xhslink.com')&&/^\/(?:[a-z]\/)?[\w-]+\/?$/.test(p))||(platform==='facebook'&&(u.hostname==='fb.watch'&&/^\/[\w-]+\/?$/.test(p)||/^\/share\/(?:[prv]\/)?[\w-]+\/?$/.test(p)));
+ const share=(platform==='tiktok'&&['vt.tiktok.com','vm.tiktok.com'].includes(u.hostname)&&/^\/[\w-]+\/?$/.test(p))||(platform==='facebook'&&(u.hostname==='fb.watch'&&/^\/[\w-]+\/?$/.test(p)||/^\/share\/(?:[prv]\/)?[\w-]+\/?$/.test(p)));
  if(!id&&!share)throw new Error('unsupported_post_url');
- u.hash='';const keep={instagram:['img_index'],facebook:['story_fbid','id','fbid','v'],xhs:['xsec_token','xsec_source'],tiktok:[]}[platform];for(const key of [...u.searchParams.keys()])if(platform!=='xhs'&&!keep.includes(key))u.searchParams.delete(key);return {platform,post_id:id||null,canonical_url:canonical||u.origin+u.pathname,request_url:u.href,original_url:platform==='xhs'?value.trim():undefined,share};
+ u.hash='';const keep={instagram:['img_index'],facebook:['story_fbid','id','fbid','v'],tiktok:[]}[platform];for(const key of [...u.searchParams.keys()])if(!keep.includes(key))u.searchParams.delete(key);return {platform,post_id:id||null,canonical_url:canonical||u.origin+u.pathname,request_url:u.href,share};
 }
 export function allowedResource(value,platform){
  let u;try{u=new URL(value)}catch{return false}

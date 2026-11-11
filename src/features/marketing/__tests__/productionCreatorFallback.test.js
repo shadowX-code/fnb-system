@@ -1,7 +1,7 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import handler from '../../../../api/marketing-creator-inspect.mjs';
-import {inspectPublic} from '../../../../server/creatorExtraction/inspect.mjs';
-vi.mock('../../../../server/creatorExtraction/inspect.mjs',()=>({inspectPublic:vi.fn()}));
+import {inspectPublic} from '../../../../server/creatorExtraction/remote.mjs';
+vi.mock('../../../../server/creatorExtraction/remote.mjs',()=>({inspectPublic:vi.fn(),inspectProfile:vi.fn()}));
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.clearAllMocks()});
 it('retains Production XHS URL identity and unavailable/manual fallback without paid or session access',async()=>{
  vi.stubEnv('VITE_SUPABASE_URL','https://oyfobxdoyfuzsodogpgs.supabase.co');

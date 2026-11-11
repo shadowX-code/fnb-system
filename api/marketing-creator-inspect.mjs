@@ -2,7 +2,8 @@ import {marketingEnvironment} from '../supabase/functions/_shared/marketingEnvir
 import {inspectProfile,inspectPublic} from '../server/creatorExtraction/remote.mjs';
 import {profileIdentity} from '../server/creatorExtraction/profileIdentity.mjs';
 import {withFunctionTelemetry} from '../server/functionTelemetry.mjs';
-import {platformUrl} from '../server/creatorExtraction/urls.mjs';
+import {networkBudget,resolvePostUrl} from '../server/creatorExtraction/network.mjs';
+import {platformUrl,xhsUrl} from '../server/creatorExtraction/urls.mjs';
 
 export const config={maxDuration:60};
 export default withFunctionTelemetry('/api/marketing-creator-inspect',async function handler(req,res){
@@ -12,12 +13,28 @@ export default withFunctionTelemetry('/api/marketing-creator-inspect',async func
  if(!runtime || process.env.SUPABASE_URL && process.env.VITE_SUPABASE_URL && process.env.SUPABASE_URL!==process.env.VITE_SUPABASE_URL || process.env.VERCEL_PROJECT_ID && process.env.VERCEL_PROJECT_ID!==runtime.vercelProject || process.env.VERCEL_GIT_COMMIT_REF && process.env.VERCEL_GIT_COMMIT_REF!==runtime.branch)return res.status(403).json({error:'Marketing environment configuration is invalid.'});
  if(!/^Bearer [\w.-]+$/.test(req.headers.authorization||''))return res.status(401).json({error:'Sign in to inspect a post.'});
  let body;try{body=typeof req.body==='string'?JSON.parse(req.body):req.body}catch{return res.status(400).json({error:'Invalid request.'})}
- if(!body||JSON.stringify(body).length>5000||!/^[-\da-f]{36}$/i.test(body.org||'')||(body.kind!=='profile'&&!/^[-\da-f]{36}$/i.test(body.brand||'')))return res.status(400).json({error:'Choose an authorized Brand and post URL.'});
+ const linkMode=body?.kind==='xhs_profile_link'||body?.kind==='xhs_post_link';
+ const profileMode=body?.kind==='profile'||body?.kind==='xhs_profile_link';
+ if(!body||JSON.stringify(body).length>5000||!/^[-\da-f]{36}$/i.test(body.org||'')||(!profileMode&&!/^[-\da-f]{36}$/i.test(body.brand||'')))return res.status(400).json({error:'Choose an authorized Brand and post URL.'});
  let lease,officialRequested=false;
  async function rpc(name,args){const r=await fetch(runtime.supabaseUrl+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:process.env.VITE_SUPABASE_ANON_KEY||'',Authorization:req.headers.authorization,'Content-Type':'application/json'},body:JSON.stringify(args),signal:AbortSignal.timeout(10000)});if(!r.ok)throw new Error(r.status===401?'signed_out':'access_or_limit');return r.json()}
- const scope={p_org:body.org,p_brand:body.kind==='profile'?null:body.brand};
+ const scope={p_org:body.org,p_brand:profileMode?null:body.brand};
  try{
-  const profileMode=body.kind==='profile';
+  if(linkMode){
+   const parse=value=>xhsUrl(value,profileMode?'profile':'post');
+   const original=parse(body.url);
+   if(!original?.share)return res.status(400).json({error:'Enter a valid Xiaohongshu share link.'});
+   lease=await rpc('marketing_creator_inspection_access',{...scope,p_begin:true});
+   let resolved;
+   try{resolved=await resolvePostUrl(body.url,networkBudget(7000),parse);}
+   catch{return res.status(422).json({error:profileMode?'Could not open this share link. Paste the full Xiaohongshu profile URL.':'Could not open this share link. Paste the full Xiaohongshu note URL and choose Enter manually.'});}
+   if(profileMode){
+    await rpc('marketing_creator_directory',scope);
+    return res.status(200).json({profile_url:resolved.original_url});
+   }
+   const post=await rpc('marketing_creator_post_preview',{...scope,p_url:resolved.canonical_url});
+   return res.status(200).json({...post,original_url:original.original_url});
+  }
   const input=profileMode?profileIdentity(body.url):platformUrl(body.url);
   if(profileMode){
    await rpc('marketing_creator_directory',scope);

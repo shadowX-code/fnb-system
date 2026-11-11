@@ -52,3 +52,13 @@ it.each(['transport','invalid-json','http-error'])('reports an uncertain officia
  const request=req();request.body={...request.body,kind:'profile',url:'https://instagram.com/target/'};const response=res();await handler(request,response);
  expect(response.code).toBe(502);expect(response.json).toHaveBeenCalledWith(expect.objectContaining({reason:'profile_refresh_uncertain'}));expect(fetch).toHaveBeenCalledTimes(2);expect(inspectProfile).not.toHaveBeenCalled();
 });
+
+it('uses the Production authority for XHS short links and denies access before external inspection',async()=>{
+ vi.stubEnv('VITE_SUPABASE_URL','https://oyfobxdoyfuzsodogpgs.supabase.co');
+ vi.stubEnv('VERCEL_PROJECT_ID','prj_1UOKHvE6Ft4a2WXrZyZGc9LZRWLP');vi.stubEnv('VERCEL_GIT_COMMIT_REF','main');
+ const calls=vi.fn(async()=>new Response('{}',{status:403}));vi.stubGlobal('fetch',calls);
+ const request=req();request.body={...request.body,kind:'xhs_post_link',url:'https://xhslink.com/m/fixture'};
+ const denied=res();await handler(request,denied);expect(denied.code).toBe(400);
+ expect(calls).toHaveBeenCalledOnce();expect(calls.mock.calls[0][0]).toContain('oyfobxdoyfuzsodogpgs.supabase.co/rest/v1/rpc/marketing_creator_inspection_access');
+ expect(inspectPublic).not.toHaveBeenCalled();expect(inspectProfile).not.toHaveBeenCalled();
+});

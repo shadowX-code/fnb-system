@@ -8,13 +8,14 @@ describe('staff profile URL recognition',()=>{
 it('never constructs a link from a handle or opens an unsupported/mismatched saved URL',async()=>{
  const {creatorProfileLink}=await import('../creatorProfiles.js');
  expect(creatorProfileLink({platform:'facebook',profile_url:'https://m.facebook.com/profile.php?id=123&tracking=1'})).toBe('https://www.facebook.com/profile.php?id=123');
- expect(creatorProfileLink({platform:'xhs',profile_url:'https://xiaohongshu.com/user/profile/ABC123?share=1'})).toBe('https://www.xiaohongshu.com/user/profile/abc123');
+ expect(creatorProfileLink({platform:'xhs',profile_url:'https://xiaohongshu.com/user/profile/ABC123?share=1'})).toBe('https://xiaohongshu.com/user/profile/ABC123?share=1');
  expect(creatorProfileLink({platform:'tiktok',handle:'no_url'})).toBeNull();expect(creatorProfileLink({platform:'facebook',profile_url:'https://facebook.com/profile.php'})).toBeNull();expect(creatorProfileLink({platform:'facebook',profile_url:'https://instagram.com/alias/'})).toBeNull();
 });
 
 it('keeps equivalent XHS profile URLs on one identity and distinct accounts separate',()=>{
  const expected=recognizeCreatorProfile('https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911c');
- expect(recognizeCreatorProfile('https://xiaohongshu.com/user/profile/5DCAAAD4000000000100911C/?source=share#profile')).toEqual(expected);
+ const alternate='https://xiaohongshu.com/user/profile/5DCAAAD4000000000100911C/?source=share#profile';
+ expect(recognizeCreatorProfile(alternate)).toEqual({...expected,profile_url:alternate});
  expect(recognizeCreatorProfile('https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911d').external_id).not.toBe(expected.external_id);
 });
 
