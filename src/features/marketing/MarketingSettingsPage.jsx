@@ -61,7 +61,7 @@ function ProviderDirectory({organizationId,onOpen}){
      <strong>{name}</strong><small>{description}</small>
      <span className="settings-provider-status">
       <Badge tone={status?.connected?'success':'neutral'}>{status?`${status.connected} connected`:health?'Status unavailable':'Checking status…'}</Badge>
-      {status?.attention?<Badge tone="warning">{status.attention} need attention</Badge>:null}
+      {status?.attention?<Badge tone="warning">{status.attention} {status.attention===1?'needs':'need'} attention</Badge>:null}
      </span>
     </span>
     <ChevronRight size={18} aria-hidden="true"/>

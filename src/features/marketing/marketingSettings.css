@@ -75,6 +75,6 @@
  .settings-provider-header { width: 100%; }
  .fixed:has(> .settings-wa-sheet) { align-items: flex-end; padding: 0; }
  .settings-wa-sheet { max-width: none; max-height: 90dvh; border-radius: 1rem 1rem 0 0; }
- .settings-wa-sheet .btn-primary, .settings-wa-sheet .btn-secondary { width: 100%; min-height: 2.75rem; }
+ .settings-wa-sheet .btn-primary, .settings-wa-sheet .btn-secondary { width: 100%; min-height: 44px; }
  .settings-wa-sheet .sticky { padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
 }

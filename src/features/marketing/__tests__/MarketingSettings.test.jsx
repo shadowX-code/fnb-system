@@ -19,7 +19,7 @@ it('opens a single provider and keeps the directory free of account lists',async
  const facebook=await screen.findByRole('button',{name:'Facebook'});
  expect(await within(facebook).findByText('1 connected')).toBeTruthy();
  expect(within(screen.getByRole('button',{name:'WhatsApp Business'})).getByText('0 connected')).toBeTruthy();
- expect(within(screen.getByRole('button',{name:'Google Drive'})).getByText('1 need attention')).toBeTruthy();
+ expect(within(screen.getByRole('button',{name:'Google Drive'})).getByText('1 needs attention')).toBeTruthy();
  fireEvent.click(facebook);
  expect(screen.getByRole('heading',{name:'facebook accounts'})).toBeTruthy();
  expect(screen.queryByRole('heading',{name:'instagram accounts'})).toBeNull();
