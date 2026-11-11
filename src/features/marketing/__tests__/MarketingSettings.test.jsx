@@ -1,4 +1,4 @@
-vi.mock('../WhatsAppConnections.jsx',()=>({default:()=> <h2>WhatsApp Cloud API</h2>}));
+vi.mock('../WhatsAppConnections.jsx',()=>({default:({brandId})=> <p>WhatsApp Brand {brandId}</p>}));
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {render,screen,fireEvent,cleanup,within,waitFor} from '@testing-library/react';
 import MarketingSettingsPage,{legacySettingsDestination} from '../MarketingSettingsPage.jsx';
@@ -6,31 +6,29 @@ import BrandKnowledgeWorkspace from '../BrandKnowledgeWorkspace.jsx';
 import BrandAccessConsole from '../BrandAccessConsole.jsx';
 const {service,roles,auth}=vi.hoisted(()=>({service:{context:vi.fn(),socialAccounts:vi.fn(),whatsappConnections:vi.fn(),read:vi.fn(),knowledgeWorkspace:vi.fn(),knowledge:vi.fn(),setup:vi.fn(),teamAccess:vi.fn(),roleScope:vi.fn(),teamBrandAccess:vi.fn(),memberBrandAccess:vi.fn()},roles:{listRoleOptions:vi.fn()},auth:{user:{id:'user'},profile:{id:'actor',role_name:'owner'},hasPermission:vi.fn(()=>true)}}));
 vi.mock('../marketingService.js',()=>({marketingService:service}));vi.mock('../../../services/roleService.js',()=>({roleService:roles}));vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>auth}));
-vi.mock('../SocialAccounts.jsx',()=>({default:({channel})=> <h2>{channel} accounts</h2>}));vi.mock('../driveService.js',()=>({driveService:{context:vi.fn(async()=>({status:'expired'}))}}));
-vi.mock('../GoogleDriveSettings.jsx',()=>({default:()=> <h2>Google Drive</h2>}));
+vi.mock('../SocialAccounts.jsx',()=>({default:({channel,brandId})=> <p>{channel} Brand {brandId}</p>}));vi.mock('../driveService.js',()=>({driveService:{context:vi.fn(async()=>({status:'expired'}))}}));
+vi.mock('../GoogleDriveSettings.jsx',()=>({default:({brandId})=> <p>Drive Brand {brandId}</p>}));
 vi.mock('../../../components/forms/SelectField.jsx',()=>({default:({label,value,onChange,options,disabled})=><label>{label}<select aria-label={label} disabled={disabled} value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>}));
 const brand={id:'brand',organization_id:'org',name:'Idamans',timezone:'Asia/Kuala_Lumpur',outlets:[]};
 const profile={identity:{text:'Approved brand identity',provenance:'verified_brand_fact'},voice:{text:'Proposed voice',provenance:'ai_suggestion'},references:{text:'Market reference',provenance:'external_research',source_url:'https://example.com/source'}};
 const data={knowledge:[{brand_id:'brand',revision:3,profile}],role_scopes:[{role_id:'staff',all_brands:false,brand_ids:['brand']}],events:[]};
 beforeEach(()=>{cleanup();vi.clearAllMocks();window.history.replaceState({},'','/');sessionStorage.clear();auth.hasPermission.mockImplementation(()=>true);service.socialAccounts.mockResolvedValue({connections:[{channel:'facebook',status:'test_authorized',expires_at:'2099-01-01',health:{publishing:{state:'verified'},messaging:{state:'verified'},insights:{state:'verified'}}},{channel:'instagram',status:'expired'}]});service.whatsappConnections.mockResolvedValue({connections:[{onboarding_mode:'cloud_api',state:'connected'}]});service.context.mockResolvedValue({organizations:[{id:'org'}],brands:[brand]});service.read.mockResolvedValue(data);service.knowledgeWorkspace.mockResolvedValue(data);service.setup.mockResolvedValue({members:[{id:'actor',name:'Isaac',role_id:'owner'},{id:'member',name:'Staff',role_id:'staff'}],roles:[{id:'staff',name:'Marketing Staff'}],employees:[{id:'new',name:'New staff'}]});roles.listRoleOptions.mockResolvedValue([{id:'owner',name:'owner'},{id:'staff',name:'Marketing Staff'}]);service.teamBrandAccess.mockResolvedValue({members:[{id:"actor",name:"Isaac",role_id:"owner",role_name:"owner",brand_ids:["brand"],all_brands:true,revision:1,editable:false},{id:"member",name:"Staff",role_id:"staff",role_name:"Marketing Staff",brand_ids:["brand"],revision:1,editable:true,permission_codes:["marketing_content.view"]}],employees:[{id:"new",name:"New staff"}]});service.memberBrandAccess.mockResolvedValue({});service.knowledge.mockResolvedValue({});service.roleScope.mockResolvedValue({});});
 afterEach(cleanup);
-it('opens a single provider and keeps the directory free of account lists',async()=>{
+it('keeps one Brand and Connections heading across provider tabs',async()=>{
  render(<MarketingSettingsPage/>);
- const facebook=await screen.findByRole('button',{name:'Facebook'});
- expect(await within(facebook).findByText('1 connected')).toBeTruthy();
- expect(within(screen.getByRole('button',{name:'WhatsApp Business'})).getByText('0 connected')).toBeTruthy();
- expect(within(screen.getByRole('button',{name:'Google Drive'})).getByText('1 needs attention')).toBeTruthy();
- fireEvent.click(facebook);
- expect(screen.getByRole('heading',{name:'facebook accounts'})).toBeTruthy();
- expect(screen.queryByRole('heading',{name:'instagram accounts'})).toBeNull();
- expect(screen.queryByRole('heading',{name:'Google Drive'})).toBeNull();
- fireEvent.click(screen.getByRole('button',{name:'All connections'}));
- fireEvent.click(screen.getByRole('button',{name:'Instagram'}));
- expect(screen.getByRole('heading',{name:'instagram accounts'})).toBeTruthy();
- expect(screen.queryByRole('heading',{name:'facebook accounts'})).toBeNull();
+ const brand=await screen.findByRole('combobox',{name:'Brand'});
+ fireEvent.change(brand,{target:{value:'brand'}});
+ expect(screen.getByText('facebook Brand brand')).toBeTruthy();
+ for(const [label,content] of [['Instagram','instagram Brand brand'],['WhatsApp Business','WhatsApp Brand brand'],['Google Drive','Drive Brand brand']]){
+  fireEvent.click(screen.getByRole('tab',{name:label}));
+  expect(within(screen.getByRole('tabpanel',{name:label})).getByText(content)).toBeTruthy();
+  expect(screen.getAllByRole('combobox',{name:'Brand'})).toEqual([brand]);
+  expect(brand.value).toBe('brand');
+  expect(screen.getByRole('heading',{name:'Connections',level:1})).toBeTruthy();
+ }
  expect(service.read).not.toHaveBeenCalled();
 });
-it('legacy URLs preserve callback state and lead to canonical Connections',async()=>{window.history.replaceState({},'','/marketing/settings?drive_result=connected&marketing_brand=brand');render(<MarketingSettingsPage section="legacy"/>);await screen.findAllByRole('heading',{name:'Google Drive',exact:true});expect(window.location.pathname).toBe('/marketing/connections');expect(new URLSearchParams(window.location.search).get('drive_result')).toBe('connected');expect(legacySettingsDestination('?tab=knowledge')).toBe('/marketing/brand-knowledge');expect(legacySettingsDestination('?tab=access')).toBe('/marketing/brand-access')});
+it('legacy URLs preserve callback state and lead to canonical Connections',async()=>{window.history.replaceState({},'','/marketing/settings?drive_result=connected&marketing_brand=brand');render(<MarketingSettingsPage section="legacy"/>);await screen.findByRole('tabpanel',{name:'Google Drive'});expect(window.location.pathname).toBe('/marketing/connections');expect(new URLSearchParams(window.location.search).get('drive_result')).toBe('connected');expect(legacySettingsDestination('?tab=knowledge')).toBe('/marketing/brand-knowledge');expect(legacySettingsDestination('?tab=access')).toBe('/marketing/brand-access')});
 it('Access shows real members/roles/scopes and only links to canonical Brand management',async()=>{render(<BrandAccessConsole org="org" brandId="" brands={[brand]} data={data} auth={auth} onSaved={()=>{}}/>);await screen.findByText('Staff');expect(screen.getByRole('link',{name:'Manage Brands & Outlets'}).getAttribute('href')).toBe('/system/brands');expect(screen.queryByRole('button',{name:'Add Brand'})).toBeNull();expect(screen.queryByRole('combobox',{name:'Organization'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'View access for Staff'}));expect(await screen.findByRole('dialog',{name:'Brand Access · Staff'})).toBeTruthy();expect(within(screen.getByRole('dialog')).getByText('Marketing Staff')).toBeTruthy();expect(service.teamAccess).not.toHaveBeenCalled();expect(service.roleScope).not.toHaveBeenCalled()});
 it('saves only the selected member using a revision-bound Platform command',async()=>{render(<BrandAccessConsole org="org" brands={[brand]} auth={auth} onSaved={()=>{}}/>);fireEvent.click(await screen.findByRole('button',{name:'View access for Staff'}));fireEvent.click(screen.getByRole('checkbox',{name:'Idamans'}));fireEvent.click(screen.getByRole('button',{name:'Save Changes'}));await waitFor(()=>expect(service.memberBrandAccess).toHaveBeenCalledWith('org','member',[],1,expect.any(String)));expect(service.roleScope).not.toHaveBeenCalled();});
 it('does not expose membership or role mutation controls without permission',async()=>{service.teamBrandAccess.mockResolvedValue({members:[{id:'member',name:'Staff',role_name:'Marketing Staff',brand_ids:['brand'],editable:false}],employees:[]});const readAuth={...auth,hasPermission:()=>false};render(<BrandAccessConsole org="org" brands={[brand]} data={data} auth={readAuth} onSaved={()=>{}}/>);await screen.findByText('Staff');expect(screen.queryByRole('button',{name:'Add Member'})).toBeNull();expect(screen.queryByRole('button',{name:'Edit Brand Scope'})).toBeNull();expect(roles.listRoleOptions).not.toHaveBeenCalled()});

@@ -134,6 +134,7 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
   }
   function openModal(value){setDetail(null);setModal(value)}
   function openConnect(c = null) {
+    if(managedHeader&&!brandId)return;
     setOAuthPurpose("publishing");
     setChosenBrand(c?.brand_id || brandId || "");
     openModal({ type: "connect", connection: c });
@@ -145,7 +146,7 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
       async () => {
         const result = await marketingService.authorizeMeta(
           organizationId,
-          chosenBrand,
+          managedHeader?brandId:chosenBrand,
           modal.connection?.id,
           oauthPurpose,
         );
@@ -175,21 +176,31 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
     selectedAssets.find((a) => a.channel === "instagram")?.page_id ===
       selectedAssets.find((a) => a.channel === "facebook")?.id;
   const [creatorDetails,setCreatorDetails]=useState(false);
+  const showCreatorDelegation=canManageCreator&&(!managedHeader||(provider==='instagram'&&!brandId));
+  const scopedAccounts=accounts.filter(c=>c.channel===provider);
+  const primaryAccount=brandId&&scopedAccounts.length===1&&socialAccountStatus(scopedAccounts[0])!=='not_connected'?scopedAccounts[0]:null;
   const connectAction=configure?<button className="btn-primary"
-   disabled={loading||busy||!organizationId||!brands.length||!configuration?.configured} onClick={()=>openConnect()}>
+   disabled={loading||busy||!organizationId||!brands.length||!configuration?.configured||(managedHeader&&!brandId)} onClick={()=>openConnect()}>
    <Plus size={15}/>{managedHeader?(provider==='facebook'?'Connect Facebook':'Connect Instagram'):'Connect Account'}
   </button>:null;
+  const primaryAction=primaryAccount
+    ?<button className="btn-primary" onClick={()=>setDetail(primaryAccount.id)}>Manage connection</button>
+    :connectAction;
+  const setupHint=!brandId?'Choose a Brand above to connect an account.'
+    :!configure?'A Brand administrator can connect an account.'
+    :provider==='facebook'?'Connect a Facebook Page you manage. Meta will ask you to confirm the Page.'
+    :'Connect an Instagram professional account linked to a Facebook Page you manage.';
   return (
     <section className="settings-social social-accounts" aria-label={provider ? platform(provider) : "Social Accounts"}>
-      {actionTarget&&connectAction?createPortal(connectAction,actionTarget):null}
-      {!managedHeader||canManageCreator?<div className="social-accounts-heading">
+      {actionTarget&&primaryAction?createPortal(primaryAction,actionTarget):null}
+      {!managedHeader||showCreatorDelegation?<div className="social-accounts-heading">
         {!managedHeader?<div><h2>{provider ? `${platform(provider)} connections` : "Social accounts"}</h2><p>Review connected accounts and their available features.</p></div>:null}
         <div className="flex flex-wrap gap-2">
-          {canManageCreator?<button className="btn-secondary" onClick={()=>setCreatorDetails(true)}>Creator enrichment</button>:null}
+          {showCreatorDelegation?<button className="btn-secondary" onClick={()=>setCreatorDetails(true)}>Creator enrichment</button>:null}
           {!managedHeader?connectAction:null}
         </div>
       </div>:null}
-      {creatorDetails&&canManageCreator?<Drawer title="Creator enrichment" onClose={()=>setCreatorDetails(false)}><CreatorEnrichmentDelegation org={organizationId}/></Drawer>:null}
+      {creatorDetails&&showCreatorDelegation?<Drawer title="Creator enrichment" onClose={()=>setCreatorDetails(false)}><CreatorEnrichmentDelegation org={organizationId}/></Drawer>:null}
       {notice ? (
         <p role="status" className="social-account-notice">
           {notice}
@@ -210,8 +221,7 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
       >
         {configuration && !configuration.configured ? (
           <p>
-            Social connections need FeedX administrator setup. API secrets and
-            webhook settings are managed by FeedX.
+            Meta signup is unavailable. Ask your FeedX administrator to finish setup.
           </p>
         ) : null}
         {result === "select_account" &&
@@ -224,6 +234,8 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
             with the correct Page administrator.
           </p>
         ) : null}
+        {managedHeader&&scopedAccounts.length>0&&scopedAccounts.every(c=>socialAccountStatus(c)==='not_connected')&&configuration?.configured
+          ?<p className="text-sm text-text-secondary">{setupHint}</p>:null}
         {pending.map((s) => (
           <div key={s.id} className="social-account-resume">
             <span>
@@ -243,12 +255,12 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
             </button>
           </div>
         ))}
-        {(provider?[provider]:['facebook','instagram']).map(channel=><section key={channel} aria-label={platform(channel)} className="mb-3"><h3 className="mb-2 text-sm font-semibold">{platform(channel)} <span className="font-normal text-text-secondary">· {accounts.filter(c=>c.channel===channel).length} accounts</span></h3>{accounts.some(c=>c.channel===channel)?<div className="settings-integration-table card overflow-hidden"><DataTable mobileLayout="stack" density="compact" minWidth={540} getRowKey={c=>c.id} rows={accounts.filter(c=>c.channel===channel).sort((a,b)=>Number(socialAccountIssues(b).length>0||socialNeedsReconnect(b))-Number(socialAccountIssues(a).length>0||socialNeedsReconnect(a)))} columns={[
+        {(provider?[provider]:['facebook','instagram']).map(channel=><section key={channel} aria-label={platform(channel)} className="mb-3">{!managedHeader?<h3 className="mb-2 text-sm font-semibold">{platform(channel)} <span className="font-normal text-text-secondary">· {accounts.filter(c=>c.channel===channel).length} accounts</span></h3>:null}{accounts.some(c=>c.channel===channel)?<div className="settings-integration-table card overflow-hidden"><DataTable mobileLayout="stack" density="compact" minWidth={540} getRowKey={c=>c.id} rows={accounts.filter(c=>c.channel===channel).sort((a,b)=>Number(socialAccountIssues(b).length>0||socialNeedsReconnect(b))-Number(socialAccountIssues(a).length>0||socialNeedsReconnect(a)))} columns={[
  {key:'identity',header:'Meta Account',render:c=><div className="settings-integration-identity"><span className={`settings-platform-icon ${c.channel}`}>{c.channel==='facebook'?<Facebook size={20} aria-label="Facebook Page"/>:<Instagram size={20} aria-label="Instagram"/>}</span><span><strong>{c.account_name||platform(c.channel)}</strong><small>{brands.find(b=>b.id===c.brand_id)?.name||'Authorized Brand'} · {platform(c.channel)}</small></span></div>},
  {key:'health',header:'Health',render:c=><Badge tone={['expired','permission_required','action_required'].includes(socialAccountStatus(c))?'warning':'neutral'}>{socialStateLabel(socialAccountStatus(c))}</Badge>},
- {key:'next',header:'Next action',render:c=>socialNeedsReconnect(c)?'Review reconnect':socialAccountIssues(c).length?'Review account health':'View details'},
+ {key:'next',header:'Next action',render:c=>socialNeedsReconnect(c)?'Review reconnect':socialAccountIssues(c).length?'Review account health':'Manage connection'},
  {key:'actions',header:'',align:'right',render:c=><button className="icon-btn" aria-label={`View connection ${c.account_name||platform(c.channel)}`} onClick={()=>setDetail(c.id)}><Eye size={16}/></button>}
- ]} onRowClick={c=>setDetail(c.id)} getRowProps={c=>({role:'button',tabIndex:0,'aria-label':`Open connection ${c.account_name||platform(c.channel)}`,onKeyDown:e=>{if(e.target===e.currentTarget&&['Enter',' '].includes(e.key)){e.preventDefault();setDetail(c.id)}}})}/></div>:<div className="social-account-empty"><p>No accounts in this Brand scope.</p></div>}</section>)}
+ ]} onRowClick={c=>setDetail(c.id)} getRowProps={c=>({role:'button',tabIndex:0,'aria-label':`Open connection ${c.account_name||platform(c.channel)}`,onKeyDown:e=>{if(e.target===e.currentTarget&&['Enter',' '].includes(e.key)){e.preventDefault();setDetail(c.id)}}})}/></div>:<div className="social-account-empty"><p>{managedHeader&&brandId?`No ${channel==='facebook'?'Facebook Pages':'Instagram accounts'} connected.`:'No accounts in this Brand scope.'}</p>{managedHeader&&configuration?.configured?<p className="mt-1">{setupHint}</p>:null}</div>}</section>)}
 
       </AsyncDataSurface>
       {detail&&accounts.find(c=>c.id===detail)?(()=>{const c=accounts.find(c=>c.id===detail),status=socialAccountStatus(c),capabilities=socialCapabilities(c),issues=socialAccountIssues(c),needsReconnect=socialNeedsReconnect(c),Icon=c.channel==='facebook'?Facebook:Instagram;return <Drawer title="Connection Details" description={c.account_name||platform(c.channel)} width="lg" onClose={()=>{if(!busy)setDetail(null)}}><div className="social-account social-account-detail">
@@ -294,12 +306,13 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
                       Publishing, staff replies and automatic replies retain
                       their existing approval and execution controls.
                     </p>
+                    {managedHeader&&needsReconnect&&!brandId?<p className="text-sm">Choose this account’s Brand above to reconnect.</p>:null}
                     {configure ? (
                       <div className="social-account-actions">
                         {needsReconnect ? (
                         <button
                           className="btn-secondary"
-                          disabled={busy || !configuration?.configured}
+                          disabled={busy || !configuration?.configured || (managedHeader&&!brandId)}
                           onClick={() => openConnect(c)}
                         >
                           Reconnect
@@ -379,7 +392,7 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
               </button>
               <button
                 className="btn-primary"
-                disabled={busy || !chosenBrand || configuration?.oauth_routes?.[oauthPurpose]?.available === false}
+                disabled={busy || !(managedHeader?brandId:chosenBrand) || configuration?.oauth_routes?.[oauthPurpose]?.available === false}
                 onClick={launch}
               >
                 Continue to Meta
@@ -388,7 +401,7 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
           }
         >
           <div className="space-y-4">
-            <SelectField
+            {managedHeader?<p className="text-sm">Brand: <strong>{brands.find(b=>b.id===brandId)?.name}</strong></p>:<SelectField
               label="FeedX brand"
               value={chosenBrand}
               disabled={!!modal.connection || busy}
@@ -396,7 +409,7 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
               searchable
               options={brands.map((b) => ({ value: b.id, label: b.name }))}
               placeholder="Select an existing brand"
-            />
+            />}
             <SelectField
               label="Connection purpose"
               value={oauthPurpose}
@@ -407,7 +420,7 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
                 { value: 'messaging', label: 'Inbox, publishing & analytics', disabled: !configuration?.oauth_routes?.messaging?.available },
               ]}
             />
-            {oauthPurpose === 'messaging' ? <p>Review Inbox access in Meta. Receiving needs verified subscriptions and genuine delivery. Staff replies remain separately controlled.</p> : null}
+            {oauthPurpose === 'messaging' ? <p>Approve Inbox access in Meta. FeedX will confirm receiving when the first message arrives.</p> : null}
             {modal.connection ? (
               <p>
                 Reconnect only {modal.connection.account_name}. Its brand and
@@ -423,9 +436,7 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
             )}
 
             <p className="text-sm text-text-secondary">
-              Meta may restrict access until FeedX has the necessary App Review
-              and Advanced Access. Eligible accounts do not need tester-role or
-              Accounts Center setup.
+              If Meta blocks access, check your Page permissions or ask your FeedX administrator to review approval status.
             </p>
           </div>
         </Modal>

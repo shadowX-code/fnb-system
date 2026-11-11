@@ -1,9 +1,10 @@
 import {useEffect,useRef,useState} from 'react';
-import {ArrowLeft,ChevronRight,Facebook,HardDrive,Instagram,MessageCircle} from 'lucide-react';
 import {useAuth} from '../../auth/AuthContext.jsx';
-import Badge from '../../components/ui/Badge.jsx';
-import {driveService} from './driveService.js';
-import {socialAccountStatus} from './socialAccountHealth.js';
+import AdminUnderlineTabs from '../../components/navigation/AdminUnderlineTabs.jsx';
+import facebookLogo from '../../assets/social/facebook.png';
+import instagramLogo from '../../assets/social/instagram.png';
+import whatsappLogo from '../../assets/social/whatsapp.png';
+import driveLogo from '../../assets/social/google-drive.png';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
@@ -20,64 +21,26 @@ export function legacySettingsDestination(search=''){
  return tab==='knowledge'?'/marketing/brand-knowledge':tab==='access'?'/marketing/brand-access':'/marketing/connections';
 }
 const titles={connections:'Connections',knowledge:'Brand Knowledge',access:'Team & Brand Access'};
-const providers=[
- {id:'facebook',name:'Facebook',description:'Pages, publishing, inbox and insights',Icon:Facebook},
- {id:'instagram',name:'Instagram',description:'Professional accounts, publishing, inbox and insights',Icon:Instagram},
- {id:'whatsapp',name:'WhatsApp Business',description:'Business numbers and customer conversations',Icon:MessageCircle},
- {id:'drive',name:'Google Drive',description:'Shared media and Brand folders',Icon:HardDrive},
-];
-function ProviderDirectory({organizationId,onOpen}){
- const [health,setHealth]=useState(null);
- useEffect(()=>{
-  const controller=new AbortController();
-  Promise.allSettled([
-   marketingService.socialAccounts(organizationId),
-   marketingService.whatsappConnections(organizationId,'',controller.signal),
-   driveService.context(organizationId,''),
-  ]).then(([social,whatsapp,drive])=>{
-   if(controller.signal.aborted)return;
-   const summary=(items,isConnected)=>({
-    connected:items.filter(isConnected).length,
-    attention:items.filter(item=>!isConnected(item)).length,
-   });
-   const socialSummary=channel=>social.status==='fulfilled'
-    ?summary((social.value.connections||[]).filter(c=>c.channel===channel&&c.status!=='not_connected'),c=>['connected','operational'].includes(socialAccountStatus(c)))
-    :null;
-   setHealth({
-    facebook:socialSummary('facebook'),
-    instagram:socialSummary('instagram'),
-    whatsapp:whatsapp.status==='fulfilled'?summary((whatsapp.value.connections||[]).filter(c=>c.onboarding_mode!=='cloud_api'&&c.local_state!=='disconnected'),c=>c.state==='connected'&&c.local_state!=='paused'):null,
-    drive:drive.status==='fulfilled'?{connected:Number(drive.value.status==='connected'),attention:Number(drive.value.status==='expired')}:null,
-   });
-  });
-  return()=>controller.abort();
- },[organizationId]);
- return <section className="settings-provider-directory" aria-label="Connection providers">
-  {providers.map(({id,name,description,Icon})=>{
-   const status=health?.[id];
-   return <button key={id} type="button" className="card settings-provider-card" aria-label={name} aria-describedby={`connection-provider-${id}`} onClick={()=>onOpen(id)}>
-    <span className={`settings-platform-icon ${id}`}><Icon size={21} aria-hidden="true"/></span>
-    <span className="settings-provider-copy" id={`connection-provider-${id}`}>
-     <strong>{name}</strong><small>{description}</small>
-     <span className="settings-provider-status">
-      <Badge tone={status?.connected?'success':'neutral'}>{status?`${status.connected} connected`:health?'Status unavailable':'Checking status…'}</Badge>
-      {status?.attention?<Badge tone="warning">{status.attention} {status.attention===1?'needs':'need'} attention</Badge>:null}
-     </span>
-    </span>
-    <ChevronRight size={18} aria-hidden="true"/>
-   </button>;
-  })}
- </section>;
+function platformLogo(src,variant){
+ return function Logo({className}){
+  return <img src={src} alt="" className={`${className} settings-tab-logo ${variant}`}/>;
+ };
 }
+const providers=[
+ {value:'facebook',label:'Facebook',icon:platformLogo(facebookLogo,'meta'),heading:'Facebook Pages'},
+ {value:'instagram',label:'Instagram',icon:platformLogo(instagramLogo,'meta'),heading:'Instagram professional accounts'},
+ {value:'whatsapp',label:'WhatsApp Business',icon:platformLogo(whatsappLogo,'whatsapp'),heading:'WhatsApp numbers'},
+ {value:'drive',label:'Google Drive',icon:platformLogo(driveLogo,'drive'),heading:'Google Drive folders'},
+];
 function providerFromLocation(){
  const query=new URLSearchParams(window.location.search);
- if(query.has('provider'))return providers.find(p=>p.id===query.get('provider'))?.id||'';
+ if(providers.some(p=>p.value===query.get('provider')))return query.get('provider');
  if(query.has('drive_result'))return 'drive';
  if(query.has('meta_result')){
   try{if(sessionStorage.getItem('marketing.meta.connectionsProvider')==='instagram')return 'instagram';}catch{}
   return 'facebook';
  }
- return '';
+ return 'facebook';
 }
 export default function MarketingSettingsPage({section='connections',ui}){
  const legacy=section==='legacy',page=legacy?({'/marketing/brand-knowledge':'knowledge','/marketing/brand-access':'access'}[legacySettingsDestination(window.location.search)]||'connections'):section;
@@ -89,14 +52,27 @@ export default function MarketingSettingsPage({section='connections',ui}){
   window.addEventListener('popstate',restore);
   return()=>window.removeEventListener('popstate',restore);
  },[]);
- function openProvider(id){
+ function changeProvider(id){
+  if(id===provider)return;
   const url=new URL(window.location.href);
   url.searchParams.set('provider',id);
-  if(!id){url.searchParams.delete('meta_result');url.searchParams.delete('meta_reason');url.searchParams.delete('drive_result');}
-  window.history.pushState(window.history.state,'',url);
+  window.history.replaceState(window.history.state,'',url);
   setProvider(id);
  }
- const selected=providers.find(p=>p.id===provider);
+ function changeBrand(value){
+  selectBrandContext(context,value,org,setOrg,setBrandId);
+  if(page!=='connections')return;
+  const next=resolveBrandContext(context,value,org);
+  const url=new URL(window.location.href);
+  if(next.brand)url.searchParams.set('marketing_brand',next.brand);
+  else url.searchParams.delete('marketing_brand');
+  url.searchParams.set('marketing_org',next.org);
+  url.searchParams.delete('meta_result');
+  url.searchParams.delete('meta_reason');
+  url.searchParams.delete('drive_result');
+  window.history.replaceState(window.history.state,'',url);
+ }
+ const selected=providers.find(p=>p.value===provider);
  const scope=useRef('');scope.current=JSON.stringify([user,org,brandId,page]);
  useEffect(()=>{if(!legacy)return;const url=new URL(window.location.href);url.pathname=legacySettingsDestination(url.search);window.history.replaceState(window.history.state,'',url);window.dispatchEvent(new PopStateEvent('popstate'));},[legacy]);
  useEffect(()=>{let live=true;setContext(null);setRead(null);setLoading(true);setError('');marketingService.context().then(c=>{if(!live)return;setContext(c);const query=new URLSearchParams(window.location.search);let saved='';try{saved=sessionStorage.getItem(`marketing.settings.brand.${user}`)||'';}catch{}const next=resolveBrandContext(c,query.get('marketing_brand')||saved,query.get('marketing_org'));if(page==='knowledge'&&!next.brand)next.brand=c.brands.find(b=>b.organization_id===next.org&&b.is_active!==false)?.id||c.brands.find(b=>b.organization_id===next.org)?.id||'';setOrg(next.org);setBrandId(next.brand);}).catch(e=>{if(live)setError(e.message)}).finally(()=>{if(live)setLoading(false)});return()=>{live=false};},[user,contextRefresh]);
@@ -105,21 +81,24 @@ export default function MarketingSettingsPage({section='connections',ui}){
  useEffect(()=>{if(page==='knowledge'&&context&&!brandId){const b=context.brands.find(b=>b.organization_id===org&&b.is_active!==false)||context.brands.find(b=>b.organization_id===org);if(b)setBrandId(b.id)}},[page,context,org,brandId]);
  const data=read?.key===scope.current?read.data:null;
  const brands=context?.brands.filter(b=>b.organization_id===org)||[],brand=brands.find(b=>b.id===brandId);
- const brandControl=context?<div className="admin-scope-controls" aria-label="Settings Brand context"><SelectField label="Brand" value={brandId} onChange={v=>selectBrandContext(context,v,org,setOrg,setBrandId)} searchable="auto" options={[...(page==='knowledge'?[]:[{value:'',label:'All Brands'}]),...context.brands.map(b=>({value:b.id,label:b.name}))]}/></div>:null;
- const providerHeader=page==='connections'&&selected;
+ const brandControl=context?<div className="admin-scope-controls" aria-label="Settings Brand context"><SelectField label="Brand" value={brandId} onChange={changeBrand} searchable="auto" options={[...(page==='knowledge'?[]:[{value:'',label:'All Brands'}]),...context.brands.map(b=>({value:b.id,label:b.name}))]}/></div>:null;
  const providerProps={organizationId:org,brandId,brands,actionTarget,managedHeader:true};
- return <WorkspacePage section={providerHeader?<button type="button" className="btn-ghost settings-provider-back" onClick={()=>openProvider('')}><ArrowLeft size={15}/> All connections</button>:"Marketing · Settings"}
- title={providerHeader?selected.name:titles[page]} wrapTitle={page==='access'||!!providerHeader} density="compact"
- controls={page==='knowledge'?brandControl:null}
- actions={providerHeader?<div className="settings-provider-header">{brandControl}<div ref={setActionTarget}/></div>:null}>
+ return <WorkspacePage section="Marketing · Settings" title={titles[page]} wrapTitle={page==='access'} density="compact"
+ controls={page!=='access'?brandControl:null}>
  <AsyncDataSurface loading={loading} error={error} hasData={!!context} onRetry={()=>context?setRefresh(v=>v+1):setContextRefresh(v=>v+1)}>
  {context&&!org?<div className="card p-5 text-sm">Ask an administrator to grant Brand access and team permissions.</div>:null}
- {org&&page==='connections'?<div className="settings-connections">
-  {!selected?<ProviderDirectory key={`${org}:${user}`} organizationId={org} onOpen={openProvider}/>:null}
-  {provider==='facebook'||provider==='instagram'?<SocialAccounts key={`${provider}:${org}:${brandId}:${user}`} channel={provider} {...providerProps}/>:null}
-  {provider==='whatsapp'?<WhatsAppConnections key={user} {...providerProps} onBrandChange={id=>selectBrandContext(context,id,org,setOrg,setBrandId)}/>:null}
-  {provider==='drive'?<GoogleDriveSettings key={`drive:${org}:${brandId}:${user}`} {...providerProps}/>:null}
- </div>:null}
+ {org&&page==='connections'?<>
+  <AdminUnderlineTabs className="settings-platform-tabs" ariaLabel="Connection platforms" tabs={providers} value={provider} onChange={changeProvider}/>
+  <section role="tabpanel" aria-label={selected.label} className="settings-connections">
+   <div className="settings-provider-heading">
+    <h2 className="type-title font-semibold">{selected.heading}</h2>
+    <div ref={setActionTarget}/>
+   </div>
+   {provider==='facebook'||provider==='instagram'?<SocialAccounts key={`${provider}:${org}:${brandId}:${user}`} channel={provider} {...providerProps}/>:null}
+   {provider==='whatsapp'?<WhatsAppConnections key={`whatsapp:${org}:${brandId}:${user}`} {...providerProps}/>:null}
+   {provider==='drive'?<GoogleDriveSettings key={`drive:${org}:${brandId}:${user}`} {...providerProps}/>:null}
+  </section>
+ </>:null}
  {org&&page==='knowledge'&&data?(brand?<BrandKnowledgeWorkspace key={`${org}:${brandId}:${user}`} brand={brand} data={data} can={can} onSaved={()=>{ui?.notify?.({title:'Brand Knowledge saved.',tone:'success'});setRefresh(v=>v+1)}}/>:<div className="card p-5 text-sm">Select an authorized Brand to view its knowledge.</div>):null}
  {org&&page==='access'?<BrandAccessConsole key={`${org}:${user}`} org={org} brands={brands} auth={auth} onSaved={()=>setRefresh(v=>v+1)}/>:null}
  </AsyncDataSurface>

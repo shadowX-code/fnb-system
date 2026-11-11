@@ -30,7 +30,7 @@ function connectionStatus(connection){
  return 'Action required';
 }
 
-export default function WhatsAppConnections({organizationId,brandId,brands=[],onBrandChange,testing=false,actionTarget,managedHeader}) {
+export default function WhatsAppConnections({organizationId,brandId,brands=[],testing=false,actionTarget,managedHeader}) {
  const auth=useAuth();
  const configure=auth.hasPermission('marketing_settings.configure');
  const [data,setData]=useState(null),[loadError,setLoadError]=useState(''),[loading,setLoading]=useState(true),[refresh,setRefresh]=useState(0);
@@ -55,9 +55,9 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[],on
  const readiness=current?.readiness;
  const accounts=current?.connections||[];
  const connections=accounts.filter(c=>testing?c.onboarding_mode==='cloud_api':c.onboarding_mode!=='cloud_api');
- const selected=connections.find(c=>c.id===detail?.id&&c.brand_id===brandId);
+ const selected=connections.find(c=>c.id===detail?.id);
  const activeSignup=signup?.scope===scope?signup:null;
- const canConfigure=configure&&readiness?.can_configure===true;
+ const canConfigure=configure&&!!brandId&&readiness?.can_configure===true;
  const brandAvailable=!!brandId&&brands.some(b=>b.id===brandId&&b.is_active!==false)&&!accounts.length;
  const modeAvailable=mode=>canConfigure&&!loading&&!loadError&&readiness?.eligible===true&&readiness.mode===mode;
  const eligible=modeAvailable(activeSignup?.mode);
@@ -127,7 +127,6 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[],on
  }
  function manage(c){
   setError('');setDetail({id:c.id,brand_id:c.brand_id});
-  if(c.brand_id!==brandId)onBrandChange?.(c.brand_id);
  }
  function openChat(c){
   return `/marketing/whatsapp-chat?marketing_brand=${encodeURIComponent(c.brand_id)}&marketing_org=${encodeURIComponent(organizationId)}`;
@@ -231,6 +230,7 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[],on
    <div className="space-y-3"><p className="text-sm">{brandName(brands,selected.brand_id)} · {modes[selected.onboarding_mode]?.title||'WhatsApp Business'}</p>
     <Badge tone={selected.state==='connected'?'success':'neutral'}>{connectionStatus(selected)}</Badge>
     <p className="text-sm">{statusMessage(selected.reason)}</p>
+    {!brandId&&configure?<p className="text-sm">Choose this number’s Brand above to change its connection.</p>:null}
     {statusError}
     <p className="text-sm">Sending in FeedX: {selected.sending_enabled?'Enabled':'Unavailable'}</p>
     {canConfigure?<>{actions(selected)}<details className="settings-history"><summary>Advanced Details</summary><dl className="settings-connection-details mt-3"><dt>Connection ID</dt><dd className="break-all">{selected.id}</dd><dt>Authorization generation</dt><dd>{selected.credential_generation}</dd><dt>Verification status</dt><dd>{selected.reason||'Unavailable'}</dd></dl></details></>:null}

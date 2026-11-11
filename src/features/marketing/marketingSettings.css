@@ -1,4 +1,4 @@
-.settings-connections{display:flex;flex-direction:column;gap:24px;min-width:0}
+.settings-connections{display:flex;flex-direction:column;gap:12px;min-width:0;padding-top:12px}
 .settings-section-heading,.settings-access-header,.settings-team-section>header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .settings-section-heading h2,.settings-access-header h2,.settings-team-section h2{font-size:16px;font-weight:650;display:flex;align-items:center;gap:8px}
 .settings-section-heading p,.settings-access-header p{font-size:13px;color:var(--theme-muted);margin-top:4px;max-width:70ch}
@@ -43,21 +43,16 @@
 .knowledge-tone-controls>div{min-width:0;max-width:100%}
 .knowledge-form>*{min-width:0}
 
-.settings-provider-directory {
- display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .875rem;
+.settings-platform-tabs > div { flex-wrap: nowrap; overflow-x: auto; }
+.settings-platform-tabs button {
+ display: inline-flex; flex-shrink: 0; align-items: center; white-space: nowrap; min-height: 44px;
 }
-.settings-provider-card {
- display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start;
- gap: .875rem; padding: 1rem; text-align: left; min-width: 0;
-}
-.settings-provider-card:hover { background: var(--theme-surface-nested); }
-.settings-provider-card:focus-visible { outline-offset: 3px; }
-.settings-provider-card > svg { align-self: center; color: var(--theme-muted); }
-.settings-provider-copy { display: grid; gap: .25rem; min-width: 0; }
-.settings-provider-copy small { color: var(--theme-muted); }
-.settings-provider-status { display: flex; flex-wrap: wrap; gap: .375rem; margin-top: .375rem; }
-.settings-provider-header { display: flex; flex-wrap: wrap; align-items: end; gap: .625rem; }
-.settings-provider-back { display: inline-flex; align-items: center; gap: .375rem; min-height: 2rem; padding-inline: 0; text-transform: none; letter-spacing: normal; }
+.settings-platform-tabs button:focus-visible { outline-offset: -2px; }
+.settings-tab-logo { width: 34px; height: 34px; object-fit: contain; flex-shrink: 0; }
+.settings-tab-logo.whatsapp { width: 29px; height: 29px; }
+.settings-tab-logo.drive { width: 21px; height: 21px; margin-inline: 5px 9px; }
+.settings-provider-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .625rem; }
+.settings-provider-heading > div:empty { display: none; }
 .settings-wa-empty { display: flex; flex-wrap: wrap; align-items: center; gap: .875rem; padding: 1rem; }
 .settings-wa-modes { display: grid; gap: .625rem; }
 .settings-wa-option {
@@ -71,8 +66,7 @@
 .settings-wa-confirm { display: flex; gap: .625rem; min-height: 2.75rem; align-items: flex-start; }
 .settings-wa-availability { display: grid; justify-items: start; gap: .375rem; }
 @media (max-width: 639px) {
- .settings-provider-directory { grid-template-columns: minmax(0, 1fr); }
- .settings-provider-header { width: 100%; }
+ .settings-platform-tabs button { padding-inline: .5rem; }
  .fixed:has(> .settings-wa-sheet) { align-items: flex-end; padding: 0; }
  .settings-wa-sheet { max-width: none; max-height: 90dvh; border-radius: 1rem 1rem 0 0; }
  .settings-wa-sheet .btn-primary, .settings-wa-sheet .btn-secondary { width: 100%; min-height: 44px; }

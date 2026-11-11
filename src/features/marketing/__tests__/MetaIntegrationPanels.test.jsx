@@ -10,12 +10,22 @@ afterEach(cleanup);
 describe('Social Accounts', () => {
  it('keeps server setup out of ordinary onboarding and disables OAuth when unavailable',async()=>{
   render(<MetaConnections organizationId="org" brandId="brand" brands={[{id:'brand',name:'QA Brand'}]}/>);
-  await screen.findByText(/Social connections need FeedX administrator setup/);
+  await screen.findByText(/Ask your FeedX administrator to finish setup/);
   expect(screen.getByRole('button',{name:'Connect Account'}).disabled).toBe(true);expect(screen.queryByText(/MARKETING_META_APP_ID/)).toBeNull();
  });
  it('opens a brand selection workflow from the organization-wide view',async()=>{
   marketingService.metaConfiguration.mockResolvedValue({configured:true});render(<MetaConnections organizationId="org" brandId="" brands={[{id:'brand',name:'QA Brand'}]}/>);
   fireEvent.click(await screen.findByRole('button',{name:'Connect Account'}));expect(await screen.findByRole('dialog',{name:'Connect Social Account'})).toBeTruthy();expect(screen.getByRole('button',{name:'Continue to Meta'}).disabled).toBe(true);expect(screen.getByRole('button',{name:'FeedX brand'})).toBeTruthy();expect(marketingService.authorizeMeta).not.toHaveBeenCalled();
+ });
+ it('uses the page Brand in the Connections tab without asking for it again',async()=>{
+  marketingService.metaConfiguration.mockResolvedValue({configured:true});
+  render(<MetaConnections managedHeader channel="instagram" actionTarget={document.body} organizationId="org" brandId="brand" brands={[{id:'brand',name:'QA Brand'}]}/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Connect Instagram'}));
+  expect(screen.getByRole('dialog',{name:'Connect Social Account'})).toBeTruthy();
+  expect(screen.getByText('QA Brand')).toBeTruthy();
+  expect(screen.queryByRole('button',{name:'FeedX brand'})).toBeNull();
+  expect(screen.getByRole('button',{name:'Continue to Meta'}).disabled).toBe(false);
+  expect(marketingService.authorizeMeta).not.toHaveBeenCalled();
  });
  it('requires exact asset selection and brand confirmation, without enabling execution',async()=>{
   marketingService.metaConfiguration.mockResolvedValue({configured:true});marketingService.pendingMeta.mockResolvedValue([{id:'session',expires_at:'2099-01-01',accounts:[{id:'111',channel:'facebook',name:'QA Page',available:true,current_connection_id:null,current_generation:null}]}]);marketingService.bindMetaSelection.mockResolvedValue({connections:[connection]});
