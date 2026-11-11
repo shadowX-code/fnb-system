@@ -1,3 +1,4 @@
+import {createPortal} from 'react-dom';
 import {useEffect,useRef,useState} from 'react';
 import {MessageCircle} from 'lucide-react';
 import {useAuth} from '../../auth/AuthContext.jsx';
@@ -12,8 +13,8 @@ import {marketingService} from './marketingService.js';
 import {loadWhatsAppSDK,launchWhatsAppSignup,rehearseWhatsAppSignup,whatsappReasonLabels as reasons} from './whatsappSignup.js';
 
 const modes={
- coexistence:{title:'Existing WhatsApp Business App',description:'Connect an eligible number through Meta and keep using the WhatsApp Business App on your phone.'},
- new_number:{title:'Dedicated WhatsApp Number',description:'Set up a dedicated number on the WhatsApp Cloud API. After authorization, complete registration in Meta.'},
+ coexistence:{title:'Keep using WhatsApp Business App',description:'Connect your existing number and keep using the app on your phone.'},
+ new_number:{title:'Use a dedicated WhatsApp number',description:'Set up a separate number for your team to use in FeedX.'},
 };
 const normalizePhone=value=>value.trim().replace(/[ ().-]/g,'');
 const phonePattern=/^\+[1-9]\d{6,14}$/;
@@ -29,12 +30,12 @@ function connectionStatus(connection){
  return 'Action required';
 }
 
-export default function WhatsAppConnections({organizationId,brandId,brands=[],onBrandChange,testing=false}) {
+export default function WhatsAppConnections({organizationId,brandId,brands=[],onBrandChange,testing=false,actionTarget,managedHeader}) {
  const auth=useAuth();
  const configure=auth.hasPermission('marketing_settings.configure');
  const [data,setData]=useState(null),[loadError,setLoadError]=useState(''),[loading,setLoading]=useState(true),[refresh,setRefresh]=useState(0);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[detail,setDetail]=useState(null);
- const [wizard,setWizard]=useState(null),[shutdown,setShutdown]=useState(null),[rehearsal,setRehearsal]=useState(null);
+ const [signup,setSignup]=useState(null),[shutdown,setShutdown]=useState(null),[rehearsal,setRehearsal]=useState(null);
  const scope=JSON.stringify([organizationId,brandId,auth.user?.id]);
  const lifetime=useRef(null);
  useEffect(()=>{
@@ -55,10 +56,12 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[],on
  const accounts=current?.connections||[];
  const connections=accounts.filter(c=>testing?c.onboarding_mode==='cloud_api':c.onboarding_mode!=='cloud_api');
  const selected=connections.find(c=>c.id===detail?.id&&c.brand_id===brandId);
- const activeWizard=wizard?.scope===scope?wizard:null;
+ const activeSignup=signup?.scope===scope?signup:null;
  const canConfigure=configure&&readiness?.can_configure===true;
  const brandAvailable=!!brandId&&brands.some(b=>b.id===brandId&&b.is_active!==false)&&!accounts.length;
- const eligible=canConfigure&&!loading&&!loadError&&readiness?.eligible===true&&readiness.mode===activeWizard?.mode;
+ const modeAvailable=mode=>canConfigure&&!loading&&!loadError&&readiness?.eligible===true&&readiness.mode===mode;
+ const eligible=modeAvailable(activeSignup?.mode);
+ const startAvailable=brandAvailable&&canConfigure&&!loading&&!loadError;
  const statusMessage=reason=>reason==='reconnect_required'?'Meta authorization needs renewal. Reconnect the same WhatsApp number.':reasons[reason]||'Review this connection before continuing.';
  const reload=()=>setRefresh(n=>n+1);
  async function run(action,onSuccess=reload,onFailure){
@@ -70,38 +73,51 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[],on
  }
  useEffect(()=>{
   setBusy(false);setError('');setShutdown(null);setRehearsal(null);
-  setWizard(w=>w?.scope===scope?w:null);
+  setSignup(w=>w?.scope===scope?w:null);
   setDetail(d=>d?.brand_id===brandId?d:null);
  },[scope,brandId]);
 
- function startWizard(connection){
+ function startSignup(connection){
   setError('');
-  setWizard({scope,step:connection?'authorize':'brand',mode:connection?.onboarding_mode||'',connection,
-   phone:phonePattern.test(connection?.account_name||'')?connection.account_name:''});
+  const next={scope,phase:'options',mode:connection?.onboarding_mode||'',connection,
+   phone:phonePattern.test(connection?.account_name||'')?connection.account_name:''};
+  setSignup(next);
+  if(connection)prepare(next);
  }
- function prepare(){
-  const w=activeWizard;
-  if(!eligible||!phonePattern.test(normalizePhone(w.phone)))return;
+ function prepare(next){
+  if(!modeAvailable(next.mode)||busy)return;
+  // Prepare before the button click so Meta opens with a direct user gesture.
   run(async signal=>{
-   const s=await marketingService.beginWhatsApp({organizationId,brandId,connectionId:w.connection?.id||null,generation:w.connection?.credential_generation||0,mode:w.mode});
-   if(!signal.aborted)await loadWhatsAppSDK(s);
-   return s;
-  },session=>setWizard({...w,step:'meta',session}));
+   const session=await marketingService.beginWhatsApp({organizationId,brandId,connectionId:next.connection?.id||null,generation:next.connection?.credential_generation||0,mode:next.mode});
+   if(!signal.aborted)await loadWhatsAppSDK(session);
+   return session;
+  },session=>setSignup({...next,session}));
+ }
+ function chooseMode(mode){
+  const next={...activeSignup,mode};
+  setError('');setSignup(next);
+  if(!next.session)prepare(next);
  }
  function launch(){
-  const w=activeWizard;
-  if(!eligible||!w.session)return;
-  run(signal=>launchWhatsAppSignup(w.session,{signal}),authorization=>setWizard({...w,step:'confirm',authorization}),
-   ()=>setWizard({...w,step:'authorize',session:null}));
+  const current=activeSignup;
+  if(!eligible||busy||!current.session)return;
+  if(Date.parse(current.session.expires_at)<=Date.now()){
+   setSignup({...current,session:null});
+   setError('Your authorization window expired. Try again to open Meta.');
+   return;
+  }
+  setSignup({...current,phase:'authorizing'});
+  run(signal=>launchWhatsAppSignup(current.session,{signal}),
+   authorization=>setSignup({...current,phase:'confirm',authorization}),
+   ()=>setSignup({...current,phase:'options',session:null}));
  }
  function finish(){
-  const w=activeWizard;
-  if(!eligible||!w.confirmed||!w.authorization)return;
-  const {code,assets}=w.authorization;
-  setWizard({...w,step:'verify',authorization:null,session:null});
-  run(()=>marketingService.completeWhatsApp({organizationId,brandId,sessionId:w.session.id,state:w.session.state,code,assets,
-   confirmBrandOwnership:true,confirmPhoneNumber:normalizePhone(w.phone)}),()=>{setWizard({...w,step:'verify',session:null,authorization:null});reload();},
-   ()=>{setWizard({...w,step:'verify',session:null,authorization:null});reload();});
+  const current=activeSignup;
+  if(!eligible||busy||!current.confirmed||!current.authorization||!phonePattern.test(normalizePhone(current.phone)))return;
+  const {code,assets}=current.authorization;
+  setSignup({...current,phase:'verify',authorization:null,session:null});
+  run(()=>marketingService.completeWhatsApp({organizationId,brandId,sessionId:current.session.id,state:current.session.state,code,assets,
+   confirmBrandOwnership:true,confirmPhoneNumber:normalizePhone(current.phone)}),reload,reload);
  }
  function verify(c){
   run(()=>marketingService.verifyWhatsApp({organizationId,brandId,connectionId:c.id,generation:c.credential_generation,resumeReceiving:c.local_state==='paused'}));
@@ -121,15 +137,21 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[],on
    ?readiness?.cloud_test_configured&&c.reason!=='awaiting_test_inbound'&&c.state!=='connected'?<button className="btn-secondary" disabled={busy} onClick={()=>bindTest(c)}>Verify test number again</button>:null
    :<>
     {c.local_state!=='disconnected'?<button className="btn-secondary" disabled={busy||loading||!!loadError||!readiness?.eligible||readiness.mode!==c.onboarding_mode} onClick={()=>verify(c)}>{c.local_state==='paused'?'Resume receiving':c.reason==='cloud_registration_required'?'Verify registration':'Verify connection'}</button>:null}
-    <button className="btn-secondary" disabled={busy||loading||!!loadError||!readiness?.eligible||readiness.mode!==c.onboarding_mode} onClick={()=>{setDetail(null);startWizard(c);}}>Reconnect</button>
+    <button className="btn-secondary" disabled={busy||loading||!!loadError||!readiness?.eligible||readiness.mode!==c.onboarding_mode} onClick={()=>{setDetail(null);startSignup(c);}}>Reconnect</button>
    </>}
   {c.local_state==='active'?<button className="btn-secondary" disabled={busy} onClick={()=>setShutdown({connection:c,action:'pause',request:crypto.randomUUID()})}>Pause receiving</button>:null}
   {c.local_state!=='disconnected'?<button className="btn-secondary" disabled={busy} onClick={()=>setShutdown({connection:c,action:'disconnect',request:crypto.randomUUID()})}>Disconnect from FeedX</button>:null}
  </div>;
  const verifiedConnection=connections.find(c=>c.brand_id===brandId);
+ const connectAction=!testing&&configure&&(!brandId||!connections.length)
+  ?<button className="btn-primary" disabled={!startAvailable} onClick={()=>startSignup()}>Connect WhatsApp</button>:null;
+ const headerAction=connectAction||(!testing&&verifiedConnection
+  ?<button className="btn-primary" onClick={()=>manage(verifiedConnection)}>Manage connection</button>:null);
+ const approvalStatus=readiness?.reason==='server_configuration_required'?'Signup setup pending':!canConfigure?'Administrator access required':'Meta approval pending';
  const statusError=error?<p role="alert" className="text-sm">{error}</p>:null;
 
  return <section aria-label={testing?'WhatsApp Staging tools':'WhatsApp numbers'}>
+  {actionTarget&&headerAction?createPortal(headerAction,actionTarget):null}
   <AsyncDataSurface loading={loading} error={loadError} hasData={!!current} onRetry={reload}>
    {current&&testing?<div className="space-y-3">
     <p className="text-sm">Test WABA and simulated Meta callbacks for Staging verification.</p>
@@ -149,11 +171,7 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[],on
     </div>
    </div>:null}
    {current&&!testing?<>
-    {!activeWizard&&connections.length?<div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-     <h2 className="font-semibold">WhatsApp numbers</h2>
-     {configure&&(!brandId||brandAvailable)?<button className="btn-primary" onClick={()=>startWizard()}>Connect WhatsApp</button>:null}
-    </div>:null}
-    {!activeWizard&&connections.length?<div className="settings-integration-table card overflow-hidden"><DataTable mobileLayout="stack" density="compact" minWidth={570}
+    {connections.length?<div className="settings-integration-table card overflow-hidden"><DataTable mobileLayout="stack" density="compact" minWidth={570}
      getRowKey={c=>c.id} rows={connections} columns={[
       {key:'account',header:'Number / Brand',render:c=><div className="settings-integration-identity"><MessageCircle size={19} aria-hidden="true"/><span><strong>{c.account_name}</strong><small>{brandName(brands,c.brand_id)}</small></span></div>},
       {key:'status',header:'Status',render:c=><Badge tone={c.state==='connected'?'success':'neutral'}>{connectionStatus(c)}</Badge>},
@@ -162,52 +180,53 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[],on
        <button className="btn-secondary" onClick={()=>manage(c)}>Manage Connection</button>
       </div>},
      ]}/></div>:null}
-    {!activeWizard&&!connections.length?<div className="card p-5 settings-wa-setup">
-     <MessageCircle size={23} aria-hidden="true"/>
-     <h2 className="mt-3 font-semibold">Connect WhatsApp</h2>
-     <p className="mt-1 text-sm text-text-secondary">Add a business number so your team can handle WhatsApp conversations in FeedX.</p>
-     {configure?<button className="btn-primary mt-3" onClick={()=>startWizard()}>Connect WhatsApp</button>:<p className="mt-2 text-sm">A Brand administrator can connect a number.</p>}
+    {!connections.length?<div className="card settings-wa-empty">
+     <span className="settings-platform-icon"><MessageCircle size={21} aria-hidden="true"/></span>
+     <div><h2 className="font-semibold">No WhatsApp numbers connected</h2>
+     <p className="mt-1 text-sm text-text-secondary">{!configure?'A Brand administrator can connect a business number.':!brandId?'Choose a Brand above to connect a business number.':accounts.length?'Choose another Brand to connect a business number.':!canConfigure?'A Brand administrator can connect a business number.':'Connect a business number to manage customer conversations in FeedX.'}</p></div>
+     {!managedHeader?connectAction:null}
     </div>:null}
    </>:null}
   </AsyncDataSurface>
-  {activeWizard?<div className="card p-5 settings-wa-setup space-y-4" aria-label="Connect WhatsApp setup">
-   <div><h2 className="font-semibold">{activeWizard.connection?'Reconnect WhatsApp':'Connect WhatsApp'}</h2>
-    <p className="text-sm text-text-secondary">{activeWizard.step==='brand'?'Step 1 of 5 · Brand':activeWizard.step==='mode'?'Step 2 of 5 · Connection type':['authorize','meta'].includes(activeWizard.step)?'Step 3 of 5 · Meta authorization':activeWizard.step==='confirm'?'Step 4 of 5 · Confirm number':'Step 5 of 5 · Verify connection'}</p></div>
-   {statusError}
-   {activeWizard.step==='brand'?<>
-    <SelectField label="Brand for WhatsApp" value={brandId} options={[{value:'',label:'Select a Brand'},...brands.filter(b=>b.is_active!==false).map(b=>({value:b.id,label:b.name}))]} onChange={id=>{
-     onBrandChange?.(id);setWizard({...activeWizard,scope:JSON.stringify([organizationId,id,auth.user?.id])});
-    }}/>
-    {brandId&&!loading&&accounts.length?<p className="text-sm">{connections.length?'This Brand already has a WhatsApp connection. Select another Brand or manage its existing connection.':'This Brand is unavailable for customer signup. Choose another Brand.'}</p>:null}
-    <button className="btn-primary" disabled={!brandAvailable||loading||!current||!!loadError} onClick={()=>setWizard({...activeWizard,step:'mode'})}>Continue</button>
-   </>:null}
-   {activeWizard.step==='mode'?<>
-    <fieldset className="settings-wa-modes"><legend className="mb-2 font-medium">How will your team use WhatsApp?</legend>
-     {Object.entries(modes).map(([id,mode])=><label className="card" key={id}><input type="radio" name="whatsapp-mode" checked={activeWizard.mode===id} onChange={()=>setWizard({...activeWizard,mode:id})}/><span><strong>{mode.title}</strong><small className="text-text-secondary">{mode.description}</small></span></label>)}
-    </fieldset>
-    <button className="btn-primary" disabled={!activeWizard.mode} onClick={()=>setWizard({...activeWizard,step:'authorize'})}>Continue</button>
-   </>:null}
-   {['authorize','meta'].includes(activeWizard.step)?<>
-    <p className="text-sm"><strong>{brandName(brands,brandId)}</strong> · {modes[activeWizard.mode].title}</p>
-    {eligible?<p className="text-sm">{activeWizard.mode==='coexistence'?'Choose the same number in Meta and keep WhatsApp Business open on your phone when prompted.':'Choose the approved number in Meta, then complete its registration in WhatsApp Manager.'}</p>
-     :<div className="space-y-2" role="status"><Badge tone="warning">{loading?'Checking availability':'Signup unavailable'}</Badge><p className="text-sm">{loading?'Checking the selected Brand and connection type.':loadError?'Availability could not be checked. Refresh the connection and try again.':!canConfigure?'A Brand administrator must authorize this connection.':readiness?.eligible?'This Brand has approval for a different connection type.':readiness?.reason==='server_configuration_required'?'FeedX is still configuring Meta signup.':readiness?.reason==='platform_or_pilot_verification_required'?'Meta access and approval for this Brand and number must be verified before signup can open.':'WhatsApp onboarding is pending approval. Your administrator can confirm when it becomes available.'}</p></div>}
-    {activeWizard.step==='authorize'&&eligible?<label className="block text-sm">Approved WhatsApp number <input className="control block mt-1" type="tel" autoComplete="tel" placeholder="+60123456789" value={activeWizard.phone} disabled={busy} onChange={e=>setWizard({...activeWizard,phone:e.target.value})}/><small className="block mt-1">Include the country code.</small></label>:null}
-    {!eligible&&!loading?<button className="btn-secondary mr-2" onClick={reload}>Check availability</button>:null}
-    <button className="btn-primary" disabled={!eligible||busy||!phonePattern.test(normalizePhone(activeWizard.phone))} onClick={activeWizard.step==='meta'?launch:prepare}>{busy?'Please wait…':activeWizard.step==='meta'?'Continue to Meta':'Prepare Meta authorization'}</button>
-   </>:null}
-   {activeWizard.step==='confirm'?<>
-    <p className="text-sm">Meta returned an authorization. Confirm the exact number you selected for <strong>{brandName(brands,brandId)}</strong>.</p>
-    <label className="flex gap-2 text-sm"><input type="checkbox" checked={!!activeWizard.confirmed} onChange={e=>setWizard({...activeWizard,confirmed:e.target.checked})}/>I selected {normalizePhone(activeWizard.phone)} in Meta and am authorized to connect it to this Brand.</label>
-    <button className="btn-primary" disabled={busy||!eligible||!activeWizard.confirmed} onClick={finish}>Confirm and verify</button>
-   </>:null}
-   {activeWizard.step==='verify'?<div role="status" className="space-y-2">
-    {busy||loading?<p className="text-sm">Verifying the approved number with Meta…</p>:verifiedConnection?<><Badge tone={verifiedConnection.state==='connected'?'success':'neutral'}>{connectionStatus(verifiedConnection)}</Badge><p className="text-sm">{statusMessage(verifiedConnection.reason)}</p><button className="btn-secondary" onClick={()=>{setWizard(null);manage(verifiedConnection);}}>Manage Connection</button></>:<p className="text-sm">A connection could not be confirmed. Check your account in Meta before starting again.</p>}
-   </div>:null}
-   <div className="flex flex-wrap gap-2">
-    {['mode','authorize','meta'].includes(activeWizard.step)&&!activeWizard.connection?<button className="btn-secondary" disabled={busy} onClick={()=>{setError('');setWizard({...activeWizard,step:activeWizard.step==='mode'?'brand':'mode',session:null});}}>Back</button>:null}
-    <button className="btn-secondary" disabled={busy} onClick={()=>{setWizard(null);setError('');}}>{activeWizard.step==='verify'?'Done':'Cancel setup'}</button>
+  {activeSignup?<Modal title={activeSignup.connection?'Reconnect WhatsApp':'Connect WhatsApp'}
+   description={brandName(brands,brandId)} panelClassName="settings-wa-sheet"
+   onClose={()=>{if(!busy){setSignup(null);setError('');}}}
+   footer={activeSignup.phase==='options'
+    ?eligible&&!activeSignup.session&&!busy
+     ?<button className="btn-primary" onClick={()=>prepare(activeSignup)}>Try again</button>
+     :<button className="btn-primary" disabled={!eligible||!activeSignup.session||busy} onClick={launch}>{busy?'Preparing Meta…':'Continue with Meta'}</button>
+    :activeSignup.phase==='confirm'
+     ?<button className="btn-primary" disabled={busy||!eligible||!activeSignup.confirmed||!phonePattern.test(normalizePhone(activeSignup.phone))} onClick={finish}>Confirm and verify</button>
+     :activeSignup.phase==='verify'&&!busy&&!loading
+      ?verifiedConnection?<button className="btn-primary" onClick={()=>{setSignup(null);manage(verifiedConnection);}}>Manage connection</button>
+       :<button className="btn-secondary" onClick={reload}>Check status again</button>
+      :null}>
+   <div className="space-y-3">
+    {statusError}
+    {activeSignup.phase==='options'?<>
+     <fieldset className="settings-wa-modes" disabled={busy||!!activeSignup.connection}>
+      <legend className="mb-2 text-sm font-medium">How will you use WhatsApp?</legend>
+      {Object.entries(modes).map(([id,mode])=><label key={id} className="settings-wa-option">
+       <input type="radio" name="whatsapp-mode" checked={activeSignup.mode===id} onChange={()=>chooseMode(id)}/>
+       <span><strong>{mode.title}</strong><small className="text-text-secondary">{mode.description}</small></span>
+      </label>)}
+     </fieldset>
+     <div className="settings-wa-availability" role="status">
+      <Badge tone={eligible?'success':loading?'neutral':'warning'}>{loading?'Checking availability':loadError?'Status unavailable':eligible?'Meta signup available':readiness?.eligible&&!activeSignup.mode?'Choose a connection option':readiness?.eligible?'Option unavailable':approvalStatus}</Badge>
+      {!eligible&&!loading?<p className="text-sm text-text-secondary">{loadError?'Refresh the connection page and try again.':readiness?.eligible?(activeSignup.mode?'This Brand is approved for the other connection option.':'FeedX checks availability for the selected option.'):readiness?.reason==='server_configuration_required'?'FeedX is preparing Meta signup.':!canConfigure?'A Brand administrator can continue.':'This Brand can connect once Meta access and number approval are confirmed.'}</p>:null}
+     </div>
+    </>:null}
+    {activeSignup.phase==='authorizing'?<p role="status" className="text-sm">Complete authorization in the Meta window to continue.</p>:null}
+    {activeSignup.phase==='confirm'?<>
+     <p className="text-sm">Enter the exact number you selected in Meta, including its country code.</p>
+     <label className="block text-sm font-medium">WhatsApp number <input className="control block w-full mt-1" type="tel" autoComplete="tel" value={activeSignup.phone} onChange={e=>setSignup({...activeSignup,phone:e.target.value,confirmed:false})}/></label>
+     <label className="settings-wa-confirm text-sm"><input type="checkbox" checked={!!activeSignup.confirmed} onChange={e=>setSignup({...activeSignup,confirmed:e.target.checked})}/>I’m authorized to connect this number to {brandName(brands,brandId)}.</label>
+    </>:null}
+    {activeSignup.phase==='verify'?<div role="status" className="space-y-2">
+     {busy||loading?<p className="text-sm">Verifying the number with Meta…</p>:verifiedConnection?<><Badge tone={verifiedConnection.state==='connected'?'success':'neutral'}>{connectionStatus(verifiedConnection)}</Badge><p className="text-sm">{statusMessage(verifiedConnection.reason)}</p></>:<p className="text-sm">FeedX could not confirm the connection. Check its status before starting again.</p>}
+    </div>:null}
    </div>
-  </div>:null}
+  </Modal>:null}
   {selected&&!shutdown?<Drawer title="Manage Connection" description={selected.account_name} onClose={()=>{if(!busy)setDetail(null);}}>
    <div className="space-y-3"><p className="text-sm">{brandName(brands,selected.brand_id)} · {modes[selected.onboarding_mode]?.title||'WhatsApp Business'}</p>
     <Badge tone={selected.state==='connected'?'success':'neutral'}>{connectionStatus(selected)}</Badge>

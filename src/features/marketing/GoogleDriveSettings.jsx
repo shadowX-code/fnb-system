@@ -1,3 +1,4 @@
+import {createPortal} from 'react-dom';
 import DataTable from '../../components/tables/DataTable.jsx';
 import {useEffect,useRef,useState} from 'react';
 import {Folder,ChevronRight,ExternalLink,HardDrive,Eye} from 'lucide-react';
@@ -8,14 +9,16 @@ import SelectField from '../../components/forms/SelectField.jsx';
 import AdminSearchField from '../../components/forms/AdminSearchField.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import {driveService} from './driveService.js';
-export default function GoogleDriveSettings({organizationId,brandId,brands}){
+export default function GoogleDriveSettings({organizationId,brandId,brands,actionTarget,managedHeader}){
  const [state,setState]=useState(null),[config,setConfig]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[refresh,setRefresh]=useState(0),[detail,setDetail]=useState(false),[mapping,setMapping]=useState(null),[files,setFiles]=useState([]),[path,setPath]=useState([{id:'root',name:'Google Drive'}]),[search,setSearch]=useState(''),[cursor,setCursor]=useState(null),[after,setAfter]=useState(''),[mode,setMode]=useState('root'),[disconnect,setDisconnect]=useState(false);const generation=useRef(0);
  useEffect(()=>{let live=true;generation.current++;setState(null);setConfig(null);setLoading(true);setError('');setBusy(false);setDetail(false);setDisconnect(false);setMapping(null);setFiles([]);setCursor(null);setAfter('');setSearch('');Promise.allSettled([driveService.context(organizationId,brandId),driveService.configuration()]).then(([context,configuration])=>{if(!live)return;if(context.status==='fulfilled')setState(context.value);else setError(context.reason.message);if(configuration.status==='fulfilled')setConfig(configuration.value);else setError(e=>e||'Google Drive setup readiness could not be checked.');setLoading(false)});return()=>{live=false;generation.current++};},[organizationId,brandId,refresh]);
  useEffect(()=>{let live=true;if(!mapping)return;setBusy(true);driveService.folders(organizationId,{folderId:path.at(-1).id,search,after}).then(data=>{if(live){setFiles(data.files);setCursor(data.nextPageToken||'')}}).catch(e=>{if(live)setError(e.message)}).finally(()=>{if(live)setBusy(false)});return()=>{live=false};},[Boolean(mapping),organizationId,path,search,after]);
  async function run(action){const start=generation.current;setBusy(true);setError('');try{await action();if(start===generation.current)setRefresh(r=>r+1)}catch(e){if(start===generation.current)setError(e.message)}finally{if(start===generation.current)setBusy(false)}}
  const mappings=(state?.mappings||[]).filter(m=>!brandId||m.brand_id===brandId),health=state?.status==='connected'?'Connected':state?.status==='expired'?'Reconnect required':config?.configured===false?'Setup required':'Not connected';
  function mapFolder(){setDetail(false);setMapping({brandId:brandId||brands.find(b=>b.is_active!==false)?.id||'',root:null,favorites:null});setPath([{id:'root',name:'Google Drive'}]);setMode('root');setSearch('');setAfter('')}
- return <section className="settings-drive" aria-label="Google Drive connections"><div className="settings-section-heading"><div><h2>Google Drive</h2><p>Read-only source media, with an explicit folder for each Brand.</p></div></div>
+ return <section className="settings-drive" aria-label="Google Drive connections">
+ {actionTarget&&state?.can_manage?createPortal(<button className="btn-primary" disabled={loading||busy} onClick={state.status==='connected'?mapFolder:()=>setDetail(true)}>{state.status==='connected'?'Map Brand Folder':state.status==='expired'?'Reconnect Google Drive':'Connect Google Drive'}</button>,actionTarget):null}
+ {!managedHeader?<div className="settings-section-heading"><div><h2>Google Drive</h2><p>Read-only source media, with an explicit folder for each Brand.</p></div></div>:null}
  {new URLSearchParams(window.location.search).get('drive_result')==='failed'?<p role="alert" className="text-sm text-danger mt-3">Google authorization did not complete. Existing connections and Brand folders remain unchanged.</p>:null}
  <AsyncDataSurface loading={loading} error={error} hasData={!!state} onRetry={()=>setRefresh(r=>r+1)}>
  {state?<div className="settings-integration-table card overflow-hidden"><DataTable mobileLayout="stack" density="compact" minWidth={540}

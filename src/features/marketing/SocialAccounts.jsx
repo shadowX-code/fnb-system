@@ -1,4 +1,5 @@
 import CreatorEnrichmentDelegation from './CreatorEnrichmentDelegation.jsx';
+import {createPortal} from 'react-dom';
 import { useEffect, useRef, useState } from "react";
 import { Facebook, Instagram, Plus, Eye } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext.jsx";
@@ -34,7 +35,7 @@ const tone = (s) =>
       ? "warning"
       : "neutral";
 const platform = (c) => (c === "facebook" ? "Facebook Page" : "Instagram");
-export default function SocialAccounts({ organizationId, brandId, brands, channel: provider }) {
+export default function SocialAccounts({ organizationId, brandId, brands, channel: provider, actionTarget, managedHeader }) {
   const auth = useAuth(),
     configure = auth.hasPermission("marketing_settings.configure");
   const canManageCreator = auth.hasPermission("platform_organizations.manage") && auth.hasPermission("marketing_creators.manage");
@@ -174,32 +175,20 @@ export default function SocialAccounts({ organizationId, brandId, brands, channe
     selectedAssets.find((a) => a.channel === "instagram")?.page_id ===
       selectedAssets.find((a) => a.channel === "facebook")?.id;
   const [creatorDetails,setCreatorDetails]=useState(false);
+  const connectAction=configure?<button className="btn-primary"
+   disabled={loading||busy||!organizationId||!brands.length||!configuration?.configured} onClick={()=>openConnect()}>
+   <Plus size={15}/>{managedHeader?(provider==='facebook'?'Connect Facebook':'Connect Instagram'):'Connect Account'}
+  </button>:null;
   return (
     <section className="settings-social social-accounts" aria-label={provider ? platform(provider) : "Social Accounts"}>
-      <div className="social-accounts-heading">
-        <div>
-          <h2>{provider ? `${platform(provider)} connections` : "Social accounts"}</h2>
-          <p>
-            {provider ? "Review connected accounts and their available features." : "Facebook and Instagram account health for this Brand scope."}
-          </p>
+      {actionTarget&&connectAction?createPortal(connectAction,actionTarget):null}
+      {!managedHeader||canManageCreator?<div className="social-accounts-heading">
+        {!managedHeader?<div><h2>{provider ? `${platform(provider)} connections` : "Social accounts"}</h2><p>Review connected accounts and their available features.</p></div>:null}
+        <div className="flex flex-wrap gap-2">
+          {canManageCreator?<button className="btn-secondary" onClick={()=>setCreatorDetails(true)}>Creator enrichment</button>:null}
+          {!managedHeader?connectAction:null}
         </div>
-        <div className="flex flex-wrap gap-2">{canManageCreator?<button className="btn-secondary" onClick={()=>setCreatorDetails(true)}>Creator enrichment</button>:null}{configure ? (
-          <button
-            className="btn-primary"
-            disabled={
-              loading ||
-              busy ||
-              !organizationId ||
-              !brands.length ||
-              !configuration?.configured
-            }
-            onClick={() => openConnect()}
-          >
-            <Plus size={15} />
-            Connect Account
-          </button>
-        ) : null}</div>
-      </div>
+      </div>:null}
       {creatorDetails&&canManageCreator?<Drawer title="Creator enrichment" onClose={()=>setCreatorDetails(false)}><CreatorEnrichmentDelegation org={organizationId}/></Drawer>:null}
       {notice ? (
         <p role="status" className="social-account-notice">

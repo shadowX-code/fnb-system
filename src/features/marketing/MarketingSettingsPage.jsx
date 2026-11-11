@@ -1,6 +1,9 @@
 import {useEffect,useRef,useState} from 'react';
 import {ArrowLeft,ChevronRight,Facebook,HardDrive,Instagram,MessageCircle} from 'lucide-react';
 import {useAuth} from '../../auth/AuthContext.jsx';
+import Badge from '../../components/ui/Badge.jsx';
+import {driveService} from './driveService.js';
+import {socialAccountStatus} from './socialAccountHealth.js';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
@@ -23,6 +26,49 @@ const providers=[
  {id:'whatsapp',name:'WhatsApp Business',description:'Business numbers and customer conversations',Icon:MessageCircle},
  {id:'drive',name:'Google Drive',description:'Shared media and Brand folders',Icon:HardDrive},
 ];
+function ProviderDirectory({organizationId,onOpen}){
+ const [health,setHealth]=useState(null);
+ useEffect(()=>{
+  const controller=new AbortController();
+  Promise.allSettled([
+   marketingService.socialAccounts(organizationId),
+   marketingService.whatsappConnections(organizationId,'',controller.signal),
+   driveService.context(organizationId,''),
+  ]).then(([social,whatsapp,drive])=>{
+   if(controller.signal.aborted)return;
+   const summary=(items,isConnected)=>({
+    connected:items.filter(isConnected).length,
+    attention:items.filter(item=>!isConnected(item)).length,
+   });
+   const socialSummary=channel=>social.status==='fulfilled'
+    ?summary((social.value.connections||[]).filter(c=>c.channel===channel&&c.status!=='not_connected'),c=>['connected','operational'].includes(socialAccountStatus(c)))
+    :null;
+   setHealth({
+    facebook:socialSummary('facebook'),
+    instagram:socialSummary('instagram'),
+    whatsapp:whatsapp.status==='fulfilled'?summary((whatsapp.value.connections||[]).filter(c=>c.onboarding_mode!=='cloud_api'&&c.local_state!=='disconnected'),c=>c.state==='connected'&&c.local_state!=='paused'):null,
+    drive:drive.status==='fulfilled'?{connected:Number(drive.value.status==='connected'),attention:Number(drive.value.status==='expired')}:null,
+   });
+  });
+  return()=>controller.abort();
+ },[organizationId]);
+ return <section className="settings-provider-directory" aria-label="Connection providers">
+  {providers.map(({id,name,description,Icon})=>{
+   const status=health?.[id];
+   return <button key={id} type="button" className="card settings-provider-card" aria-label={name} aria-describedby={`connection-provider-${id}`} onClick={()=>onOpen(id)}>
+    <span className={`settings-platform-icon ${id}`}><Icon size={21} aria-hidden="true"/></span>
+    <span className="settings-provider-copy" id={`connection-provider-${id}`}>
+     <strong>{name}</strong><small>{description}</small>
+     <span className="settings-provider-status">
+      <Badge tone={status?.connected?'success':'neutral'}>{status?`${status.connected} connected`:health?'Status unavailable':'Checking status…'}</Badge>
+      {status?.attention?<Badge tone="warning">{status.attention} need attention</Badge>:null}
+     </span>
+    </span>
+    <ChevronRight size={18} aria-hidden="true"/>
+   </button>;
+  })}
+ </section>;
+}
 function providerFromLocation(){
  const query=new URLSearchParams(window.location.search);
  if(query.has('provider'))return providers.find(p=>p.id===query.get('provider'))?.id||'';
@@ -37,7 +83,7 @@ export default function MarketingSettingsPage({section='connections',ui}){
  const legacy=section==='legacy',page=legacy?({'/marketing/brand-knowledge':'knowledge','/marketing/brand-access':'access'}[legacySettingsDestination(window.location.search)]||'connections'):section;
  const auth=useAuth(),user=auth.user?.id,can=code=>auth.hasPermission(code);
  const [context,setContext]=useState(null),[contextRefresh,setContextRefresh]=useState(0),[org,setOrg]=useState(''),[brandId,setBrandId]=useState(''),[read,setRead]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[refresh,setRefresh]=useState(0);
- const [provider,setProvider]=useState(providerFromLocation);
+ const [provider,setProvider]=useState(providerFromLocation),[actionTarget,setActionTarget]=useState(null);
  useEffect(()=>{
   const restore=()=>setProvider(providerFromLocation());
   window.addEventListener('popstate',restore);
@@ -59,20 +105,20 @@ export default function MarketingSettingsPage({section='connections',ui}){
  useEffect(()=>{if(page==='knowledge'&&context&&!brandId){const b=context.brands.find(b=>b.organization_id===org&&b.is_active!==false)||context.brands.find(b=>b.organization_id===org);if(b)setBrandId(b.id)}},[page,context,org,brandId]);
  const data=read?.key===scope.current?read.data:null;
  const brands=context?.brands.filter(b=>b.organization_id===org)||[],brand=brands.find(b=>b.id===brandId);
- return <WorkspacePage section="Marketing · Settings" title={page==='connections'&&selected?selected.name:titles[page]} wrapTitle={page==='access'} density="compact" controls={context&&(page==='knowledge'||page==='connections'&&selected)?<div className="admin-scope-controls" aria-label="Settings Brand context"><SelectField label="Brand" value={brandId} onChange={v=>selectBrandContext(context,v,org,setOrg,setBrandId)} searchable="auto" options={[...(page==='knowledge'?[]:[{value:'',label:'All'}]),...context.brands.map(b=>({value:b.id,label:b.name}))]}/></div>:null}>
+ const brandControl=context?<div className="admin-scope-controls" aria-label="Settings Brand context"><SelectField label="Brand" value={brandId} onChange={v=>selectBrandContext(context,v,org,setOrg,setBrandId)} searchable="auto" options={[...(page==='knowledge'?[]:[{value:'',label:'All Brands'}]),...context.brands.map(b=>({value:b.id,label:b.name}))]}/></div>:null;
+ const providerHeader=page==='connections'&&selected;
+ const providerProps={organizationId:org,brandId,brands,actionTarget,managedHeader:true};
+ return <WorkspacePage section={providerHeader?<button type="button" className="btn-ghost settings-provider-back" onClick={()=>openProvider('')}><ArrowLeft size={15}/> All connections</button>:"Marketing · Settings"}
+ title={providerHeader?selected.name:titles[page]} wrapTitle={page==='access'||!!providerHeader} density="compact"
+ controls={page==='knowledge'?brandControl:null}
+ actions={providerHeader?<div className="settings-provider-header">{brandControl}<div ref={setActionTarget}/></div>:null}>
  <AsyncDataSurface loading={loading} error={error} hasData={!!context} onRetry={()=>context?setRefresh(v=>v+1):setContextRefresh(v=>v+1)}>
  {context&&!org?<div className="card p-5 text-sm">Ask an administrator to grant Brand access and team permissions.</div>:null}
  {org&&page==='connections'?<div className="settings-connections">
-  {selected?<button className="btn-secondary settings-directory-back" onClick={()=>openProvider('')}><ArrowLeft size={16}/> All connections</button>:null}
-  {!selected?<section className="card settings-provider-directory" aria-label="Connection providers">
-   {providers.map(({id,name,description,Icon})=><button key={id} aria-label={name} aria-describedby={`connection-provider-${id}`} onClick={()=>openProvider(id)}>
-    <span className={`settings-platform-icon ${id}`}><Icon size={20} aria-hidden="true"/></span>
-    <span><strong>{name}</strong><small id={`connection-provider-${id}`}>{description}</small></span><ChevronRight size={17} aria-hidden="true"/>
-   </button>)}
-  </section>:null}
-  {provider==='facebook'||provider==='instagram'?<SocialAccounts key={`${provider}:${org}:${brandId}:${user}`} channel={provider} organizationId={org} brandId={brandId} brands={brands}/>:null}
-  {provider==='whatsapp'?<WhatsAppConnections key={user} organizationId={org} brandId={brandId} brands={brands} onBrandChange={id=>selectBrandContext(context,id,org,setOrg,setBrandId)}/>:null}
-  {provider==='drive'?<GoogleDriveSettings key={`drive:${org}:${brandId}:${user}`} organizationId={org} brandId={brandId} brands={brands}/>:null}
+  {!selected?<ProviderDirectory key={`${org}:${user}`} organizationId={org} onOpen={openProvider}/>:null}
+  {provider==='facebook'||provider==='instagram'?<SocialAccounts key={`${provider}:${org}:${brandId}:${user}`} channel={provider} {...providerProps}/>:null}
+  {provider==='whatsapp'?<WhatsAppConnections key={user} {...providerProps} onBrandChange={id=>selectBrandContext(context,id,org,setOrg,setBrandId)}/>:null}
+  {provider==='drive'?<GoogleDriveSettings key={`drive:${org}:${brandId}:${user}`} {...providerProps}/>:null}
  </div>:null}
  {org&&page==='knowledge'&&data?(brand?<BrandKnowledgeWorkspace key={`${org}:${brandId}:${user}`} brand={brand} data={data} can={can} onSaved={()=>{ui?.notify?.({title:'Brand Knowledge saved.',tone:'success'});setRefresh(v=>v+1)}}/>:<div className="card p-5 text-sm">Select an authorized Brand to view its knowledge.</div>):null}
  {org&&page==='access'?<BrandAccessConsole key={`${org}:${user}`} org={org} brands={brands} auth={auth} onSaved={()=>setRefresh(v=>v+1)}/>:null}

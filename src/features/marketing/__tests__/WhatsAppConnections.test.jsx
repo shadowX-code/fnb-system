@@ -12,9 +12,7 @@ const props={organizationId:'org',brandId:'brand',brands:[{id:'brand',name:'Rest
 const read=()=>screen.findByRole('button',{name:'Connect WhatsApp',exact:true});
 async function pickMode(mode){
  fireEvent.click(await read());
- fireEvent.click(screen.getByRole('button',{name:'Continue',exact:true}));
  fireEvent.click(screen.getByRole('radio',{name:new RegExp(mode)}));
- fireEvent.click(screen.getByRole('button',{name:'Continue',exact:true}));
 }
 beforeEach(()=>{
  cleanup();
@@ -23,11 +21,11 @@ beforeEach(()=>{
  marketingService.whatsappReadiness.mockResolvedValue({can_configure:true,eligible:false,reason:'pilot_activation_required'});
 });
 
-it.each(['Existing WhatsApp Business App','Dedicated WhatsApp Number'])('explains pending approval for %s without launching Meta',async mode=>{
+it.each(['Keep using WhatsApp Business App','Use a dedicated WhatsApp number'])('explains pending approval for %s without launching Meta',async mode=>{
  render(<WhatsAppConnections {...props}/>);
  await pickMode(mode);
- expect(screen.getByText('Signup unavailable')).toBeTruthy();
- expect(screen.getByRole('button',{name:'Prepare Meta authorization'}).disabled).toBe(true);
+ expect(screen.getByText('Meta approval pending')).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Continue with Meta'}).disabled).toBe(true);
  expect(screen.queryByText(/Test WABA|signup rehearsal/)).toBeNull();
  expect(marketingService.beginWhatsApp).not.toHaveBeenCalled();
 });
@@ -38,14 +36,15 @@ it('requires post-Meta confirmation of the exact selected number before completi
  launchWhatsAppSignup.mockResolvedValue({code:'code',assets:{mode:'new_number'}});
  marketingService.completeWhatsApp.mockResolvedValue({});
  render(<WhatsAppConnections {...props}/>);
- await pickMode('Dedicated WhatsApp Number');
- fireEvent.change(screen.getByRole('textbox',{name:/Approved WhatsApp number/}),{target:{value:'+60 123-456789'}});
- fireEvent.click(screen.getByRole('button',{name:'Prepare Meta authorization'}));
- fireEvent.click(await screen.findByRole('button',{name:'Continue to Meta'}));
+ await pickMode('Use a dedicated WhatsApp number');
+ const launch=await screen.findByRole('button',{name:'Continue with Meta'});
+ await waitFor(()=>expect(launch.disabled).toBe(false));
+ fireEvent.click(launch);
  const confirm=await screen.findByRole('button',{name:'Confirm and verify'});
  expect(confirm.disabled).toBe(true);
  expect(marketingService.completeWhatsApp).not.toHaveBeenCalled();
- fireEvent.click(screen.getByRole('checkbox',{name:/selected \+60123456789/}));
+ fireEvent.change(screen.getByRole('textbox',{name:'WhatsApp number'}),{target:{value:'+60 123-456789'}});
+ fireEvent.click(screen.getByRole('checkbox',{name:/authorized to connect this number/}));
  fireEvent.click(confirm);
  await waitFor(()=>expect(marketingService.completeWhatsApp).toHaveBeenCalledWith(expect.objectContaining({brandId:'brand',sessionId:'session',confirmBrandOwnership:true,confirmPhoneNumber:'+60123456789'})));
 });
