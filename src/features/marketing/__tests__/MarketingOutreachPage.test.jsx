@@ -150,7 +150,7 @@ it('shows only the generic error when the authorized read has no sharing match',
 it('loads campaign templates after credential verification without waiting for inbound', async () => {
   outreach.read.mockResolvedValue({...base,
     cloud_sender:{id:'connection',name:'Authorized sender',generation:3},
-    campaigns:[{id:'campaign',title:'Renewal pilot',status:'ready',revision:1,caption:'QA',adapter:'whatsapp_cloud'}]});
+    campaigns:[{id:'campaign',title:'Renewal pilot',status:'ready',revision:1,recipient_count:1,caption:'QA',adapter:'whatsapp_cloud'}]});
   marketing.whatsappTemplates.mockResolvedValue({templates:[]});
   render(<MarketingOutreachPage section="whatsapp"/>);
   await chooseBrand();
@@ -160,4 +160,21 @@ it('loads campaign templates after credential verification without waiting for i
   await waitFor(()=>expect(marketing.whatsappTemplates).toHaveBeenCalledWith({
     organizationId:'org',brandId:'brand',connectionId:'connection',generation:3
   }));
+});
+
+
+it('saves the chosen Cloud API delivery mode without offering a manual caption',async()=>{
+ outreach.command.mockResolvedValue({id:'draft'});
+ render(<MarketingOutreachPage section="whatsapp"/>);
+ await chooseBrand();
+ fireEvent.click(await screen.findByRole('button',{name:'New campaign'}));
+ const dialog=screen.getByRole('dialog',{name:'Campaign draft'});
+ fireEvent.change(within(dialog).getByRole('combobox',{name:'Delivery mode'}),{target:{value:'whatsapp_cloud'}});
+ expect(within(dialog).queryByRole('textbox',{name:'Caption'})).toBeNull();
+ fireEvent.change(within(dialog).getByRole('textbox',{name:'Campaign brief'}),{target:{value:'Cloud API fixture'}});
+ fireEvent.change(within(dialog).getByLabelText('Campaign title'),{target:{value:'Cloud campaign'}});
+ fireEvent.click(within(dialog).getByRole('button',{name:'Save draft'}));
+ await waitFor(()=>expect(outreach.command).toHaveBeenCalledTimes(1));
+ expect(outreach.command.mock.calls[0][3]).toBe('save');
+ expect(outreach.command.mock.calls[0][5]).toMatchObject({adapter:'whatsapp_cloud',caption:'Cloud API fixture'});
 });

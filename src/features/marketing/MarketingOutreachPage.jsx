@@ -626,7 +626,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                   {active&&!cloud&&<CampaignRecipientsTable key={active.id} rows={data.recipients} total={queueTotal}
                     page={page} pageSize={50} onPageChange={setPage} loading={loading}
                     statuses={{pending:names.pending,opened:names.opened,staff_confirmed:names.staff_confirmed,skipped:names.skipped}}
-                    emptyMessage="Recipients will appear once the campaign queue is prepared." columns={[
+                    emptyMessage={active.status==='ready'||active.status==='cancelled'?'No recipients in this campaign.':'Recipients will appear once the campaign queue is prepared.'} columns={[
                       {key:'display_name',header:'Recipient',render:r=>customerName(r)},
                       {key:'state',header:'Handling',render:r=><Badge tone={r.state==='staff_confirmed'?'success':r.state==='skipped'?'warning':'neutral'}>{names[r.state]}</Badge>},
                       {key:'eligible',header:'Current consent',render:r=>r.eligible?'Eligible':'Contact blocked'},
@@ -744,9 +744,9 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
               {modal === "campaign" ? <div className="space-y-5">
                 {input("Campaign title", "title")}
                 <SelectField label="Delivery mode" value={form.adapter||'whatsapp_manual'} disabled={Boolean(form.id)||busy}
-                  options={deliveryModes} onChange={adapter=>setForm(previous=>({...previous,adapter,...(adapter==='whatsapp_cloud'?{asset_id:null}:{})}))}/>
-                <div className="outreach-campaign-layout">
-                  <div className="space-y-4 min-w-0"><TextareaField label={cloudMode(form)?"Campaign brief":"Caption"} rows={5} maxLength={4000} value={form.caption||''} onChange={caption=>field('caption',caption)} helper={cloudMode(form)?"Choose the approved WhatsApp template when scheduling.":"Personalize with {name} and {brand}."} disabled={busy}/>
+                  options={deliveryModes} onChange={adapter=>setForm(previous=>({...previous,adapter,...(adapter==='whatsapp_cloud'?{asset_id:null,caption:previous.caption==='Hi {name}, '?'':previous.caption}:{})}))}/>
+                <div className={cloudMode(form)?"space-y-4":"outreach-campaign-layout"}>
+                  <div className="space-y-4 min-w-0"><TextareaField label={cloudMode(form)?"Campaign brief":"Caption"} ariaLabel={cloudMode(form)?"Campaign brief":"Caption"} rows={5} maxLength={4000} value={form.caption||''} onChange={caption=>field('caption',caption)} helper={cloudMode(form)?"Choose the approved WhatsApp template when scheduling.":"Personalize with {name} and {brand}."} disabled={busy}/>
 
                   <section className="space-y-4 min-w-0" aria-label="Campaign audience"><h3 className="text-sm font-semibold">Audience</h3>
                     {form.audience_criteria?<><TagPicker value={form.audience_criteria.tags||(form.audience_criteria.tag?[form.audience_criteria.tag]:[])} options={data.tags||[]} onChange={tags=>field('audience_criteria',{...form.audience_criteria,tag:'',tags})}/>{(data.outlets.length>0||form.audience_criteria.outlet_id)?<SelectField label="Outlet" disabled={!data.outlets.length} placeholder="Saved outlet filter" value={form.audience_criteria.outlet_id||''} onChange={outlet_id=>field('audience_criteria',{...form.audience_criteria,outlet_id})} options={[{value:'',label:'All'},...data.outlets.map(o=>({value:o.id,label:o.name}))]}/>:null}<SelectField label="WhatsApp Consent" value="eligible" disabled options={[{value:'eligible',label:'Subscribed only'}]}/></>:<SelectField label="Audience" value={form.audience_id||''} onChange={v=>field('audience_id',v)} options={[{value:'',label:'Select audience'},...data.audiences.map(a=>({value:a.id,label:`${a.name} · ${a.eligible_count} eligible`}))]}/>}

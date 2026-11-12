@@ -93,7 +93,7 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,brandN
   (part.buttons===undefined||Array.isArray(part.buttons)&&part.buttons.every(button=>typeof button?.text==='string')))
   ?snapshot:[];
  const actions=<>
-  {ready&&run===null&&canSchedule&&connection&&<button className="btn-primary" onClick={()=>open('schedule')}>Schedule</button>}
+  {ready&&run===null&&queuedTotal>0&&canSchedule&&connection&&<button className="btn-primary" onClick={()=>open('schedule')}>Schedule</button>}
   {canExecute&&scheduled&&run.state==='scheduled'&&run.dispatch_confirmed!==false&&<button className="btn-primary" disabled={busy} onClick={()=>control('pause')}>Pause</button>}
   {canExecute&&scheduled&&run.state==='paused'&&run.dispatch_confirmed!==false&&connection&&<button className="btn-primary" disabled={busy} onClick={()=>control('resume')}>Resume</button>}
   {canReschedule&&<button className={run.dispatch_confirmed===false?'btn-primary':'btn-secondary'} onClick={()=>open('reschedule')}>Reschedule</button>}
@@ -129,7 +129,7 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,brandN
   <CampaignRecipientsTable rows={rows} statuses={showingQueue?{queued:'Queued',suppressed:'Ineligible'}:deliveryStates}
    total={showingQueue?queuedTotal:run?.total||0} page={showingQueue?queuePage:page} pageSize={showingQueue?50:20}
    onPageChange={showingQueue?onQueuePageChange:setPage} loading={run===undefined&&!readError}
-   emptyMessage={readError?'Delivery details are unavailable.':'Delivery results will appear when the campaign is scheduled.'} columns={[
+   emptyMessage={readError?'Delivery details are unavailable.':showingQueue?'No recipients are queued for this campaign.':'Recipients will appear once the campaign queue is prepared.'} columns={[
     {key:'display_name',header:'Recipient',render:row=>row.display_name||'Unavailable'},
     {key:'state',header:'Delivery',render:row=><Badge tone={['sent','delivered','read'].includes(row.state)?'success':['failed','unknown','suppressed'].includes(row.state)?'warning':'neutral'}>{row.state==='queued'?'Queued':labels[row.state]||'Unavailable'}</Badge>},
     {key:'due_at',header:'Scheduled (MYT)',render:row=>row.due_at?formatOperationalDateTime(row.due_at):'—'},
