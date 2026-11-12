@@ -43,8 +43,8 @@ export default function WhatsAppTemplatesPage() {
  },[auth.user?.id,attempt]);
  const brand=context?.find(item=>item.id===brandId);
  const layout=children=><WorkspacePage section="Marketing · CRM" title="WhatsApp Templates" density="compact"
-  controls={context?.length?<SelectField label="Brand" value={brandId} onChange={setBrandId}
-   searchable="auto" options={context.map(item=>({value:item.id,label:item.name}))}/>:null}>
+  controls={context?.length?<div className="wa-template-brand"><SelectField label="Brand" value={brandId} onChange={setBrandId}
+   searchable="auto" options={context.map(item=>({value:item.id,label:item.name}))}/></div>:null}>
   {children}
  </WorkspacePage>;
  if(brand)return <WhatsAppTemplateWorkspace key={`${auth.user?.id}:${brandId}`} brand={brand}

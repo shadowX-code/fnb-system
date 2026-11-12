@@ -14,6 +14,7 @@
   justify-content: space-between;
   gap: .55rem;
 }
+.wa-template-brand { width: min(100%, 24rem); }
 .wa-template-library-title { display: grid; gap: .35rem; }
 .wa-template-library-title h2,
 .wa-template-section-heading h2,
@@ -40,7 +41,7 @@
   border-radius: .75rem;
   background: var(--theme-surface);
 }
-.wa-template-list > .admin-filter-toolbar { margin: .55rem .75rem; }
+.wa-template-list > .admin-filter-toolbar { width: auto; margin: .55rem .75rem; }
 .wa-template-counts {
   display: flex;
   flex-wrap: wrap;
@@ -77,6 +78,7 @@
   gap: clamp(1rem, 3vw, 2rem);
 }
 .wa-template-form { display: grid; gap: .9rem; padding: 1rem; }
+.wa-template-form textarea.control { min-height: 6.5rem; }
 .wa-template-form fieldset,
 .wa-template-form section { display: grid; gap: .75rem; min-width: 0; }
 .wa-template-form section + section { border-top: 1px solid var(--theme-border); padding-top: .95rem; }
@@ -90,7 +92,7 @@
 .wa-template-recovery button { justify-self: start; }
 .wa-template-error { color: var(--theme-danger, #be123c); font-size: .875rem; }
 .wa-template-recovery { display: grid; gap: .5rem; font-size: .875rem; }
-.wa-template-editor-preview { position: sticky; top: 1rem; display: grid; gap: .6rem; min-width: 0; }
+.wa-template-editor-preview { position: sticky; top: 3.75rem; display: grid; gap: .6rem; min-width: 0; }
 .wa-template-device { overflow: hidden; border-radius: .75rem; border: 1px solid #b8c8be; }
 .wa-template-device-bar {
   display: flex;
