@@ -234,6 +234,7 @@ function InboxWorkspace({ whatsApp }) {
     ]),
     detailBaseKey = JSON.stringify([scope, selected, historyPage]),
     detailKey = JSON.stringify([scope, selected, historyPage, refresh,observedRevision]);
+  const sendStatusKey = whatsApp ? JSON.stringify([scope, selected]) : detailKey;
   const activeScope = useRef(scope);
   activeScope.current = scope;
   const activeDetail = useRef(detailKey);
@@ -245,6 +246,7 @@ function InboxWorkspace({ whatsApp }) {
     && import.meta.env.VITE_SUPABASE_URL === 'https://ujkzdaaadnvcfayuldmh.supabase.co'
     && auth.hasPermission('marketing_settings.view')
     && auth.hasPermission('marketing_settings.configure');
+  const includeWhatsAppQaDiagnostics = whatsappTestingAllowed && whatsappTestingOpen;
   const brands = context.brands.filter((b) => b.organization_id === org),
     data = read?.baseKey === listBaseKey ? read.data : null,
     current = detail?.baseKey === detailBaseKey ? detail.data : null,
@@ -519,18 +521,20 @@ function InboxWorkspace({ whatsApp }) {
   }, []);
   useEffect(() => {
     let live = true;
-    setSendStatus(null);
     if (selected)
       inboxService
-        .sendStatus(selected)
+        .sendStatus(selected, includeWhatsAppQaDiagnostics)
         .then((v) => {
-          if (live) setSendStatus({ key: detailKey, data: v });
+          if (live) setSendStatus({ key: sendStatusKey, data: v });
         })
-        .catch(() => {});
+        .catch(() => {
+          if (live) setSendStatus({ key: sendStatusKey, failed: true });
+        });
     return () => {
       live = false;
     };
-  }, [detailKey]);
+  }, [detailKey, sendStatusKey, selected, includeWhatsAppQaDiagnostics]);
+  const currentSendStatus = sendStatus?.key === sendStatusKey ? sendStatus : null;
   const controls = <AdminFilterToolbar compact denseFields ariaLabel="Conversation filters" className="inbox-list-filters" moreFiltersIconOnly
     filters={<>
       <SelectField searchable="auto" ariaLabel="Brand" value={brand}
@@ -893,11 +897,8 @@ function InboxWorkspace({ whatsApp }) {
                   draftCache={composerDrafts.current}
                   canViewConnections={auth.hasPermission("marketing_settings.view")}
                   current={current}
-                  configuration={
-                    sendStatus?.key === detailKey
-                      ? { ...configuration, ...sendStatus.data }
-                      : { ...configuration, recipient_allowed: false }
-                  }
+                  configuration={{ ...configuration, recipient_allowed: false, ...currentSendStatus?.data }}
+                  whatsAppStatusUnavailable={currentSendStatus?.failed === true}
                   can={can}
                   busy={busy}
                   command={command}
@@ -1231,6 +1232,14 @@ function InboxWorkspace({ whatsApp }) {
         </div>
         {whatsappTestingAllowed && whatsappTestingOpen && org ? (
           <Drawer title="WhatsApp Staging tools" onClose={() => setWhatsAppTestingOpen(false)}>
+            <section className="mb-4 text-sm" aria-label="QA sending diagnostics">
+              <h3 className="font-semibold">QA sending</h3>
+              <p>Template send gate: {currentSendStatus?.data?.whatsapp_qa ? (currentSendStatus.data.whatsapp_qa.template_gate_enabled ? "Enabled" : "Disabled") : "Select a WhatsApp conversation to check"}</p>
+              {currentSendStatus?.data && c?.channel === "whatsapp" && <>
+                <p>Selected conversation staff reply: {currentSendStatus.data.whatsapp_staff_ready ? "Eligible" : "Unavailable"}</p>
+                <p>Selected conversation template reply: {currentSendStatus.data.whatsapp_template_ready ? "Eligible" : "Unavailable"}</p>
+              </>}
+            </section>
             <WhatsAppConnections testing organizationId={org} brandId={brand} brands={brands} />
           </Drawer>
         ) : null}

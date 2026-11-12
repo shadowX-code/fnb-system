@@ -183,7 +183,6 @@ Deno.serve(async (req) => {
       webhook_configured: Boolean(env("MARKETING_INBOX_WEBHOOK_VERIFY_TOKEN")),
       sending_enabled: false,
       staff_send_configured: staffReplyConfigured(env),
-      whatsapp_templates_configured: env('MARKETING_WHATSAPP_TEST_TEMPLATE_SEND_ENABLED')==='true',
       webhook_url: `${STAGING_SUPABASE}/functions/v1/marketing-inbox/webhook`,
       connectors: {...inboxConnectorContracts, whatsapp: whatsappConnectorContract},
     });
@@ -249,14 +248,35 @@ Deno.serve(async (req) => {
     }catch{return json({error:'Messaging verification unavailable. Check scope and connection.'},409);}
   }
   if(path==='/send-status' && req.method==='POST'){
-    try{const raw=await req.text();if(raw.length>1000)return json({error:'Request too large.'},413);const body=JSON.parse(raw);const scope=await rpc(service,'marketing_inbox_staff_send_scope',{p_conversation:body.conversationId,p_auth_user:identity.data.user.id});
-      if(scope.channel==='whatsapp')return json({whatsapp_staff_ready:scope.whatsapp_test_ready===true});
+    try{
+      const raw=await req.text();
+      if(raw.length>1000)return json({error:'Request too large.'},413);
+      const body=JSON.parse(raw);
+      const args={p_conversation:body.conversationId,p_auth_user:identity.data.user.id};
+      const scope=await rpc(service,'marketing_inbox_staff_send_scope',args);
+      if(scope.channel==='whatsapp'){
+        // Only expose eligibility. Credential material stays within the service boundary.
+        const templateGateEnabled=env('MARKETING_WHATSAPP_TEST_TEMPLATE_SEND_ENABLED')==='true';
+        let templateReady=false;
+        if(scope.whatsapp_connection_ready===true && templateGateEnabled){
+          const {data,error}=await service.rpc('marketing_inbox_whatsapp_template_material',args);
+          templateReady=!error && Boolean(data);
+        }
+        return json({
+          whatsapp_connection_ready:scope.whatsapp_connection_ready===true,
+          whatsapp_staff_ready:scope.whatsapp_test_ready===true,
+          whatsapp_template_ready:templateReady,
+          ...(body.includeWhatsAppQaDiagnostics===true && env('SUPABASE_URL')===STAGING_SUPABASE
+            && scope.whatsapp_qa_diagnostics_allowed===true
+            ? {whatsapp_qa:{template_gate_enabled:templateGateEnabled}} : {}),
+        });
+      }
       return json({staff_send_configured:staffReplyConfigured(env),recipient_allowed:staffReplyAllowed(scope.account,scope.peer,env)});
     }catch{return json({error:'Sending availability could not be checked.'},403);}
   }
   if (['/whatsapp-template-options','/send-whatsapp-template'].includes(path) && req.method==='POST') {
     if(env('MARKETING_WHATSAPP_TEST_TEMPLATE_SEND_ENABLED')!=='true')
-      return json({error:'WhatsApp template sending awaits explicit Staging authorization.'},403);
+      return json({error:'Template sending is unavailable for this conversation.'},403);
     try {
       const raw=await req.text();
       if(raw.length>12000)return json({error:'Template request is too large.'},413);

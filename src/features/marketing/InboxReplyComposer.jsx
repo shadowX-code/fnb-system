@@ -5,8 +5,8 @@ import { Sparkles, Send, BookOpen, ThumbsUp, ThumbsDown } from "lucide-react";
 import {handoffHints,assistanceLabel} from '../../../supabase/functions/_shared/inboxAssistance.mjs';
 import {aiSuggestionUnavailable,faqPreviewMessage,aiSourceLabel} from "./inboxKnowledge.js";
 import SelectField from '../../components/forms/SelectField.jsx';
-import { formatOperationalDateTime } from "../../lib/dateTime.js";
-import { replyAvailability, replyStateLabel } from "./inboxPresentation.js";
+import Modal from "../../components/feedback/Modal.jsx";
+import { replyAvailability } from "./inboxPresentation.js";
 export default function InboxReplyComposer({
   current,
   configuration,
@@ -24,6 +24,7 @@ export default function InboxReplyComposer({
   draftCache,
   canViewConnections = false,
   handoffVisibleInHeader = false,
+  whatsAppStatusUnavailable = false,
 }) {
   const c = current.conversation;
   const latestSentAt = Math.max(0,...(current.outbox || []).filter(o=>['sent','delivered','read'].includes(o.state)&&o.sent_at).map(o=>Date.parse(o.sent_at)));
@@ -89,15 +90,16 @@ export default function InboxReplyComposer({
   const draftNeedsReview=draft?.source_references?.some(r=>r?.human_required===true);
   const requiresApproval = current.reply_requires_approval !== false || linkedSuggestion?.body.human_required===true || draftNeedsReview;
   const handoff=[...new Set([...(c.escalation_reasons||[]),...handoffHints(faqQuestion)])];
+  const sendInProgress = current.outbox?.some((item) =>
+    ["prepared", "pending", "reconciling"].includes(item.state),
+  );
   const directReady =
     !requiresApproval &&
     text.trim().length > 0 &&
     text.length <= 2000 &&
     !unavailable &&
     can("reply") &&
-    !current.outbox?.some((o) =>
-      ["prepared", "pending", "reconciling"].includes(o.state),
-    );
+    !sendInProgress;
   const sendReady =
     exact &&
     draft.status === "approved" &&
@@ -122,51 +124,103 @@ export default function InboxReplyComposer({
     const timer = setTimeout(() => setExpiredDeadline(whatsAppDeadline), Math.max(0, remaining));
     return () => clearTimeout(timer);
   }, [whatsAppDeadline, current.window_open]);
-  const whatsAppWindow = current.window_open && whatsAppDeadline && expiredDeadline !== whatsAppDeadline
-    ? `Open until ${formatOperationalDateTime(current.window_expires_at)} MYT`
-    : current.window_expires_at
-      ? "Closed · An approved WhatsApp template is required to contact the customer outside the window."
-      : "Waiting for an eligible customer message on this connection.";
-  const whatsAppOutbox = c.channel === "whatsapp"
-    ? (current.outbox || []).filter(item => item.state !== "blocked").reduce((latest, item) =>
-      !latest || Date.parse(item.sent_at || item.authorized_at || item.created_at) > Date.parse(latest.sent_at || latest.authorized_at || latest.created_at)
-        ? item : latest, null)
-    : null;
-  const whatsAppReady = directReady && current.window_open && Boolean(whatsAppDeadline) && expiredDeadline !== whatsAppDeadline;
-  if (c.channel === "whatsapp" && mode === "reply") return (
-    <div className="inbox-composer" aria-label="Reply composer">
-      <div className="inbox-composer-tools">
-        {can("reply") && <button className="inbox-text-button active" aria-pressed="true">Staff Reply</button>}
-        {can("manage") && <button className="inbox-text-button" onClick={() => switchMode("note")}>Internal note</button>}
-        <span className="inbox-tool-spacer" />
-        {can("ai") && <button className="btn-secondary" disabled={busy || Boolean(aiUnavailable)} title={aiUnavailable||"Prepare a suggestion for staff review"} onClick={()=>suggest()}><Sparkles size={14} />AI Suggested Reply</button>}
+  const [showTemplates, setShowTemplates] = useState(false);
+  if (c.channel === "whatsapp") {
+    const note = mode === "note";
+    const windowOpen = current.window_open && expiredDeadline !== whatsAppDeadline
+      && Date.parse(whatsAppDeadline) > Date.now();
+    const connectionsHref = `/marketing/connections?provider=whatsapp&marketing_brand=${encodeURIComponent(c.brand_id || '')}&marketing_org=${encodeURIComponent(c.organization_id || '')}`;
+    const connectionAction = canViewConnections
+      ? <a href={connectionsHref}>View Connections</a>
+      : "Ask an administrator to check Connections.";
+    let notice;
+    let action;
+    let chooseTemplate = false;
+    if (!can("reply") || !can("send")) {
+      notice = "You need reply and send permissions to message this customer.";
+      action = "Ask an administrator for access.";
+    } else if (c.opted_out) {
+      notice = "This customer opted out. You can still add an internal note.";
+    } else if (c.status === "resolved") {
+      notice = "This conversation is resolved. Reopen it from the conversation status to reply.";
+    } else if (sendInProgress) {
+      notice = "A reply is awaiting its send result. Check the message in this conversation before sending again.";
+    } else if (whatsAppStatusUnavailable) {
+      notice = "Sending availability could not be checked.";
+      action = "Refresh this conversation to try again.";
+    } else if (configuration?.whatsapp_connection_ready === false) {
+      notice = "This WhatsApp connection needs attention before you can send.";
+      action = connectionAction;
+    } else if (configuration?.whatsapp_staff_ready === undefined) {
+      notice = "Checking WhatsApp sending availability…";
+    } else if (!c.takeover) {
+      notice = "Take over this conversation in the conversation header to reply.";
+    } else if (!windowOpen) {
+      notice = "The 24-hour reply window is closed.";
+      if (current.reply_requires_approval !== false) {
+        action = "Ask the conversation owner to review it before sending.";
+      } else if (configuration.whatsapp_template_ready === true && onTemplateSend) {
+        chooseTemplate = true;
+        action = <button type="button" className="inbox-text-button" onClick={() => setShowTemplates(true)}>Choose approved template</button>;
+      } else {
+        notice += " Template sending is unavailable for this conversation.";
+        action = connectionAction;
+      }
+    } else if (configuration.whatsapp_staff_ready !== true) {
+      notice = "WhatsApp sending is unavailable for this conversation.";
+      action = connectionAction;
+    } else if (requiresApproval) {
+      notice = "This reply requires staff review. Ask the conversation owner to review it.";
+    }
+    const inputLabel = note ? "Internal note" : "Staff Reply";
+    const aiHint = aiUnavailable || "Prepare a suggestion for staff review. Suggestions never send automatically.";
+    return (
+      <div className="inbox-composer" aria-label="Reply composer">
+        <div className="inbox-composer-tools">
+          {can("reply") && <button type="button" className={`inbox-text-button ${note ? "" : "active"}`} aria-pressed={!note} onClick={() => switchMode("reply")}>Staff Reply</button>}
+          {can("manage") && <button type="button" className={`inbox-text-button ${note ? "active" : ""}`} aria-pressed={note} onClick={() => switchMode("note")}>Internal note</button>}
+          <span className="inbox-tool-spacer" />
+          {!note && can("ai") && !suggestion && <span title={aiHint}>
+            <button type="button" className="btn-secondary" aria-label="AI Suggested Reply" aria-description={aiHint} disabled={busy || Boolean(aiUnavailable)} onClick={() => suggest()}><Sparkles size={14} />AI Suggested Reply</button>
+          </span>}
+          {!note && suggestion && <details className="inbox-suggestion">
+            <summary>AI suggested reply</summary>
+            <strong>{assistanceLabel(suggestion.body.classification)}</strong>
+            <p className="whitespace-pre-wrap">{suggestion.body.text}</p>
+            {suggestion.body.handoff_reasons?.length > 0 && <p>Staff review: {suggestion.body.handoff_reasons.map(reason => reason.replaceAll('_',' ')).join(' · ')}</p>}
+            {suggestion.body.sources?.length > 0 && <ul>{suggestion.body.sources.map(source => <li key={source.key}>{aiSourceLabel(source)} · {source.label}</li>)}</ul>}
+            <button type="button" className="inbox-text-button" disabled={busy} onClick={() => reviewAI(suggestion.id,false)}>Dismiss</button>
+          </details>}
+        </div>
+        {!note && notice && <div className="inbox-assistance-status mb-2">
+          <span role="status">{notice}</span>{action && <> {action}</>}
+        </div>}
+        <label className="sr-only" htmlFor={`inbox-compose-${c.id}`}>{inputLabel}</label>
+        <textarea id={`inbox-compose-${c.id}`} className="control" rows={2} value={text}
+          disabled={busy || (note ? !can("manage") : Boolean(notice))}
+          maxLength={note ? 8000 : 2000}
+          placeholder={note ? "Add a note for your team…" : "Write a WhatsApp reply…"}
+          onChange={event => {setText(event.target.value);setDirty(true);}} />
+        <div className="inbox-composer-footer"><div className="marketing-inbox-actions ml-auto">
+          {note
+            ? <button type="button" className="btn-primary" disabled={busy || !can("manage") || !text.trim()} onClick={save}>Save note</button>
+            : can("reply") && <button type="button" className="btn-primary" disabled={busy || Boolean(notice) || !directReady || !windowOpen}
+              onClick={async () => {
+                if (Date.parse(whatsAppDeadline) <= Date.now()) {setExpiredDeadline(whatsAppDeadline);return;}
+                if (await onDirectSend(text, null)) {setText("");setDirty(false);}
+              }}><Send size={14} />Send</button>}
+        </div></div>
+        {!note && chooseTemplate && showTemplates && <Modal title="Choose approved template" onClose={() => setShowTemplates(false)}>
+          <WhatsAppTemplateCatalog loadTemplates={() => inboxService.whatsappTemplateOptions(c.id)} onSend={async (template) => {
+            if (busy) return false;
+            const result = await onTemplateSend(template);
+            if (result) setShowTemplates(false);
+            return result;
+          }} />
+        </Modal>}
       </div>
-      {can("ai") && aiUnavailable && <p className="inbox-muted">{aiUnavailable}</p>}
-      {suggestion && <section className="inbox-suggestion" aria-label="AI suggested reply">
-        <strong>{assistanceLabel(suggestion.body.classification)}</strong>
-        <p className="whitespace-pre-wrap">{suggestion.body.text}</p>
-        {suggestion.body.handoff_reasons?.length>0&&<p>Staff review: {suggestion.body.handoff_reasons.map(reason=>reason.replaceAll('_',' ')).join(' · ')}</p>}
-        {suggestion.body.sources?.length>0&&<ul>{suggestion.body.sources.map(source=><li key={source.key}>{aiSourceLabel(source)} · {source.label}</li>)}</ul>}
-        <button className="inbox-text-button" disabled={busy} onClick={()=>reviewAI(suggestion.id,false)}>Dismiss</button>
-      </section>}
-      <p className="inbox-muted">WhatsApp AI replies require staff review. Automatic sending is disabled.</p>
-      <p className="inbox-assistance-status" role="status"><strong>24-hour service window</strong> · {c.opted_out ? "Customer opted out. Replies paused." : whatsAppWindow}</p>
-      {whatsAppOutbox && <p className="inbox-muted" role="status">Latest staff reply · {replyStateLabel(whatsAppOutbox.state)}</p>}
-      {unavailable && <p className="inbox-muted">{unavailable}</p>}
-      {!unavailable && requiresApproval && <p className="inbox-muted">This reply requires review. The WhatsApp test supports direct staff replies only.</p>}
-      {configuration&&!configuration.whatsapp_templates_configured&&<p className="inbox-muted">Template sending awaits Staging authorization.</p>}
-      {configuration?.whatsapp_templates_configured&&can("reply")&&can("send")&&onTemplateSend&&
-        <WhatsAppTemplateCatalog loadTemplates={()=>inboxService.whatsappTemplateOptions(c.id)} onSend={onTemplateSend}/>}
-      {canViewConnections && <a className="inbox-text-button" href={`/marketing/connections?provider=whatsapp&marketing_brand=${encodeURIComponent(c.brand_id || '')}&marketing_org=${encodeURIComponent(c.organization_id || '')}`}>View Connections</a>}
-      <label className="sr-only" htmlFor={`inbox-compose-${c.id}`}>Staff Reply</label>
-      <textarea id={`inbox-compose-${c.id}`} className="control" rows={2} value={text}
-        disabled={Boolean(unavailable) || !can("reply") || busy} maxLength={2000}
-        placeholder={unavailable ? "WhatsApp Staff Reply is unavailable" : "Write a WhatsApp reply"}
-        onChange={event => {setText(event.target.value);setDirty(true);}} />
-      <div className="inbox-composer-footer">{can("reply") && <button className="btn-primary" disabled={busy || !whatsAppReady}
-        onClick={async () => {if (await onDirectSend(text, null)) {setText("");setDirty(false);}}}><Send size={14} />Send</button>}</div>
-    </div>
-  );
+    );
+  }
   return (
     <div className="inbox-composer" aria-label="Reply composer">
       <div className="inbox-composer-tools">
@@ -178,7 +232,7 @@ export default function InboxReplyComposer({
               switchMode("reply");
             }}
           >
-            {c.channel === "whatsapp" ? "Staff Reply" : "Reply"}
+            Reply
           </button>
         )}
         {can("manage") && (

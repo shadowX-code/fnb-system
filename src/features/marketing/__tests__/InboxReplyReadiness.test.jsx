@@ -1,6 +1,6 @@
 import React from 'react';
 import {afterEach,expect,it,vi} from 'vitest';
-import {cleanup,fireEvent,render,screen} from '@testing-library/react';
+import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import InboxReplyComposer from '../InboxReplyComposer.jsx';
 afterEach(cleanup);
 vi.mock('../inboxService.js',()=>({inboxService:{}}));
@@ -75,4 +75,74 @@ it('keeps WhatsApp reply and AI entry points disabled independently of general f
  render(<InboxReplyComposer {...p}/>);
  expect(screen.getByRole('textbox',{name:'Staff Reply'}).disabled).toBe(true);expect(screen.queryByRole('button',{name:'Send',exact:true})).toBeNull();expect(screen.queryByRole('button',{name:'AI Suggested Reply'})).toBeNull();expect(screen.queryByRole('link',{name:'View Connections'})).toBeNull();
  expect(screen.getByRole('button',{name:'Internal note'})).toBeTruthy();
+});
+
+const whatsApp = {
+ ...current,
+ conversation: {...current.conversation, channel:'whatsapp', takeover:true},
+ window_expires_at:new Date(Date.now() + 60000).toISOString(),
+};
+const ready = {whatsapp_connection_ready:true, whatsapp_staff_ready:true, whatsapp_template_ready:true};
+
+it('shows a normal WhatsApp staff reply in an authorized open window, with delivery and AI notices omitted', async () => {
+ const p=props({current:{...whatsApp,outbox:[{state:'delivered'}]},configuration:ready,onDirectSend:vi.fn().mockResolvedValue(true)});
+ render(<InboxReplyComposer {...p}/>);
+ expect(screen.queryByRole('status')).toBeNull();
+ expect(screen.queryByText(/Delivered/)).toBeNull();
+ expect(screen.queryByRole('button',{name:'Choose approved template'})).toBeNull();
+ fireEvent.change(screen.getByLabelText('Staff Reply'),{target:{value:'Thanks for your message.'}});
+ const send=screen.getByRole('button',{name:'Send',exact:true});
+ expect(send.disabled).toBe(false);
+ fireEvent.click(send);
+ await waitFor(()=>expect(screen.getByLabelText('Staff Reply').value).toBe(''));
+ expect(p.onDirectSend).toHaveBeenCalledExactlyOnceWith('Thanks for your message.',null);
+});
+
+it('offers a template picker only on a closed window with exact template authority', () => {
+ const p=props({
+  current:{...whatsApp,window_open:false},
+  configuration:{...ready,whatsapp_staff_ready:false},
+  onTemplateSend:vi.fn(),
+ });
+ render(<InboxReplyComposer {...p}/>);
+ expect(screen.getByRole('status').textContent).toBe('The 24-hour reply window is closed.');
+ expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
+ fireEvent.click(screen.getByRole('button',{name:'Choose approved template'}));
+ expect(screen.getByRole('dialog',{name:'Choose approved template'})).toBeTruthy();
+ expect(p.onTemplateSend).not.toHaveBeenCalled();
+});
+
+it.each([
+ ['closed without exact template authority',{window_open:false},{whatsapp_template_ready:false,whatsapp_templates_configured:true},/window is closed.*Template sending is unavailable/],
+ ['disconnected',{window_open:false},{whatsapp_connection_ready:false},/connection needs attention/],
+ ['QA-gated open window',{}, {whatsapp_template_ready:false},/sending is unavailable/],
+])('shows one recovery notice for WhatsApp %s',(_label,detail,status,message)=>{
+ const p=props({current:{...whatsApp,...detail},configuration:{...ready,whatsapp_staff_ready:false,...status},onTemplateSend:vi.fn(),canViewConnections:true});
+ render(<InboxReplyComposer {...p}/>);
+ expect(screen.getAllByRole('status')).toHaveLength(1);
+ expect(screen.getByRole('status').textContent).toMatch(message);
+ expect(screen.getByRole('link',{name:'View Connections'})).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'Choose approved template'})).toBeNull();
+ expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
+});
+
+it('saves a WhatsApp internal note independently of connection, service window and send permissions',async()=>{
+ const p=props({current:{...whatsApp,window_open:false},configuration:{whatsapp_connection_ready:false},can:permission=>permission==='manage',command:vi.fn().mockResolvedValue(true)});
+ render(<InboxReplyComposer {...p}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Internal note',exact:true}));
+ expect(screen.queryByRole('status')).toBeNull();
+ fireEvent.change(screen.getByLabelText('Internal note'),{target:{value:'Follow up with the team.'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save note'}));
+ await waitFor(()=>expect(screen.getByLabelText('Internal note').value).toBe(''));
+ expect(p.command).toHaveBeenCalledExactlyOnceWith('note',{body:'Follow up with the team.'});
+ expect(p.onDirectSend).not.toHaveBeenCalled();
+});
+
+it.each([
+ ['staff review',{reply_requires_approval:true},/requires staff review/],
+ ['unresolved send',{outbox:[{state:'reconciling'}]},/awaiting its send result/],
+])('keeps WhatsApp send blocked by %s',(_label,detail,message)=>{
+ render(<InboxReplyComposer {...props({current:{...whatsApp,...detail},configuration:ready})}/>);
+ expect(screen.getByRole('status').textContent).toMatch(message);
+ expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
 });

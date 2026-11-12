@@ -964,6 +964,8 @@ Connections separates Cloud API test setup from the Business App Coexistence sig
 
 The isolated QA conversation supports human-authored, free-form staff replies through the Cloud API. The Inbox checks staff permissions, takeover, signed inbound evidence for the current credential generation, the 24-hour window and the exact test asset and conversation. It records intent in the shared reply outbox before sending. An uncertain provider response stays in reconciliation and is never automatically resent. Signed receipts update the outbox by provider message ID and recipient. Templates, AI execution and campaigns remain outside this test path.
 
+WhatsApp Chat shows one current send blocker when staff reply is unavailable. The Inbox send-status read separates WhatsApp receiving availability from staff-reply and template eligibility for the exact conversation. After the signed-inbound service window closes, Chat offers the approved utility template picker only when the existing template authority allows it. Eligibility is rechecked on send. Internal notes use the independent Inbox manage permission, delivery states stay with their messages, and QA gate diagnostics remain in authorized WhatsApp Staging tools.
+
 ### WhatsApp template catalog and staff suggestions
 
 WhatsApp Templates sits in Marketing CRM. Brand Settings configurators read the live Meta catalog through the active Brand connection and see the last successful refresh, review status, language, category, variables and preview. Test WABA access is scoped to the isolated Staging Brand. Customer WABAs require the existing Meta and exact-asset pilot authority. The internal Staging tools retain connection diagnostics and signup rehearsal.

@@ -77,13 +77,21 @@ it('renders canonical edited and deleted content without revealing superseded te
 });
 
 it.each([
- [true, new Date(Date.now()+3600000).toISOString(), /Open until .* MYT/],
- [false, '2026-10-23T00:00:00Z', /Closed · An approved WhatsApp template/],
- [false, null, /Waiting for an eligible customer message on this connection/],
-])('shows the server-projected WhatsApp window without enabling sending',async(window_open,window_expires_at,label)=>{
- inboxService.detail.mockImplementation(async(_id,page)=>({...detail(page),window_open,window_expires_at}));
+ [true, true, /WhatsApp sending is unavailable for this conversation/],
+ [false, true, /The 24-hour reply window is closed/],
+ [false, false, /This WhatsApp connection needs attention/],
+])('uses the server-projected window and connection state for one recovery notice',async(window_open,whatsapp_connection_ready,label)=>{
+ inboxService.detail.mockImplementation(async(_id,page)=>{
+  const value=detail(page);
+  return {...value,conversation:{...value.conversation,takeover:true},window_open,
+   window_expires_at:window_open ? new Date(Date.now()+3600000).toISOString() : null,reply_requires_approval:false};
+ });
+ inboxService.sendStatus.mockResolvedValue({whatsapp_connection_ready,whatsapp_staff_ready:false,whatsapp_template_ready:false});
  await open();
- expect(screen.getByText(label)).toBeTruthy();
- expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
+ const composer=within(screen.getByLabelText('Reply composer'));
+ expect(await composer.findByText(label)).toBeTruthy();
+ expect(composer.getAllByRole('status')).toHaveLength(1);
+ expect(composer.queryByRole('button',{name:'Choose approved template'})).toBeNull();
+ expect(composer.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
  expect(inboxService.sendStaffReply).not.toHaveBeenCalled();
 });
