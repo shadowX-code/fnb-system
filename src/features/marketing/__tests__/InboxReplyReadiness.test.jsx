@@ -115,7 +115,7 @@ it('offers a template picker only on a closed window with exact template authori
 it.each([
  ['closed without exact template authority',{window_open:false},{whatsapp_template_ready:false,whatsapp_templates_configured:true},/window is closed.*Template sending is unavailable/],
  ['disconnected',{window_open:false},{whatsapp_connection_ready:false},/connection needs attention/],
- ['QA-gated open window',{}, {whatsapp_template_ready:false},/sending is unavailable/],
+ ['ineligible open window',{}, {whatsapp_template_ready:false},/sending is unavailable/],
 ])('shows one recovery notice for WhatsApp %s',(_label,detail,status,message)=>{
  const p=props({current:{...whatsApp,...detail},configuration:{...ready,whatsapp_staff_ready:false,...status},onTemplateSend:vi.fn(),canViewConnections:true});
  render(<InboxReplyComposer {...p}/>);
@@ -145,4 +145,14 @@ it.each([
  render(<InboxReplyComposer {...props({current:{...whatsApp,...detail},configuration:ready})}/>);
  expect(screen.getByRole('status').textContent).toMatch(message);
  expect(screen.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
+});
+
+
+it('makes approved templates available alongside a normal open-window reply',()=>{
+ const p=props({current:whatsApp,configuration:ready,onTemplateSend:vi.fn()});
+ render(<InboxReplyComposer {...p}/>);
+ expect(screen.queryByRole('status')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Use template'}));
+ expect(screen.getByRole('dialog',{name:'Choose approved template'})).toBeTruthy();
+ expect(p.onTemplateSend).not.toHaveBeenCalled();
 });

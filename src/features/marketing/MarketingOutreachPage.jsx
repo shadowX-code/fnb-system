@@ -524,7 +524,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                               <div><dt>Approval</dt><dd>{active.status==='cancelled'?'Cancelled':approvalCurrent?'Approved':active.status==='review'?'Pending approval':'Review required'}</dd></div>
                               <div><dt>Created</dt><dd>{formatDate(active.created_at)}</dd></div><div><dt>Approved</dt><dd>{formatDate(active.approved_at)}</dd></div>
                             </dl>
-                            <p className="text-xs text-text-secondary">Sending is manual. Staff Confirmed records staff handling, not WhatsApp delivery or read status.</p>
+                            <p className="text-xs text-text-secondary">Staff Confirmed records manual handling. Cloud API delivery and read status appear under WhatsApp Cloud API execution.</p>
                           </section>
                         </div>
                         <AdminSummaryGrid variant="compact" ariaLabel="Recipient handling progress" items={['pending','opened','staff_confirmed','skipped'].map(key=>({key,label:names[key],value:data.progress[key]||0,state:loading?'loading':error?'unavailable':'ready'}))}/>
@@ -800,7 +800,7 @@ export default function MarketingOutreachPage({ section: requestedSection = "cus
                     Image:{" "}
                     {data.assets.find((a) => a.id === form.asset_id)
                       ?.filename || "None"}
-                    . Sending is manual and consent is checked per recipient.
+                    . Recipient consent is checked before sending.
                   </p>
                 </>
               ) : null}

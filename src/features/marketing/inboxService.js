@@ -29,7 +29,7 @@ export const inboxService = {
   historyStatus:connection=>rpc("marketing_inbox_history_status",{p_connection:connection}),
   requestHistory:connection=>rpc("marketing_inbox_history_request",{p_connection:connection}),
   replyCount: () => rpc("marketing_inbox_reply_count"),
-  sendStatus: (conversationId, includeWhatsAppQaDiagnostics = false) => invoke("send-status",{body:{conversationId,includeWhatsAppQaDiagnostics}}),
+  sendStatus: (conversationId) => invoke("send-status",{body:{conversationId}}),
   whatsappTemplateOptions: (conversationId) => invoke("whatsapp-template-options",{body:{conversationId}}),
   sendWhatsAppTemplate: (requestId,conversation,template) => invoke("send-whatsapp-template",{body:{requestId,conversationId:conversation.id,version:conversation.version,template}}),
   sendStaffReply: (requestId,conversation,text,sourceArtifactId=null) => invoke("send-staff-reply",{body:{requestId,conversationId:conversation.id,version:conversation.version,text,sourceArtifactId}}),

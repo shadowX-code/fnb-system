@@ -246,7 +246,6 @@ function InboxWorkspace({ whatsApp }) {
     && import.meta.env.VITE_SUPABASE_URL === 'https://ujkzdaaadnvcfayuldmh.supabase.co'
     && auth.hasPermission('marketing_settings.view')
     && auth.hasPermission('marketing_settings.configure');
-  const includeWhatsAppQaDiagnostics = whatsappTestingAllowed && whatsappTestingOpen;
   const brands = context.brands.filter((b) => b.organization_id === org),
     data = read?.baseKey === listBaseKey ? read.data : null,
     current = detail?.baseKey === detailBaseKey ? detail.data : null,
@@ -523,7 +522,7 @@ function InboxWorkspace({ whatsApp }) {
     let live = true;
     if (selected)
       inboxService
-        .sendStatus(selected, includeWhatsAppQaDiagnostics)
+        .sendStatus(selected)
         .then((v) => {
           if (live) setSendStatus({ key: sendStatusKey, data: v });
         })
@@ -533,7 +532,7 @@ function InboxWorkspace({ whatsApp }) {
     return () => {
       live = false;
     };
-  }, [detailKey, sendStatusKey, selected, includeWhatsAppQaDiagnostics]);
+  }, [detailKey, sendStatusKey, selected]);
   const currentSendStatus = sendStatus?.key === sendStatusKey ? sendStatus : null;
   const controls = <AdminFilterToolbar compact denseFields ariaLabel="Conversation filters" className="inbox-list-filters" moreFiltersIconOnly
     filters={<>
@@ -1232,14 +1231,6 @@ function InboxWorkspace({ whatsApp }) {
         </div>
         {whatsappTestingAllowed && whatsappTestingOpen && org ? (
           <Drawer title="WhatsApp Staging tools" onClose={() => setWhatsAppTestingOpen(false)}>
-            <section className="mb-4 text-sm" aria-label="QA sending diagnostics">
-              <h3 className="font-semibold">QA sending</h3>
-              <p>Template send gate: {currentSendStatus?.data?.whatsapp_qa ? (currentSendStatus.data.whatsapp_qa.template_gate_enabled ? "Enabled" : "Disabled") : "Select a WhatsApp conversation to check"}</p>
-              {currentSendStatus?.data && c?.channel === "whatsapp" && <>
-                <p>Selected conversation staff reply: {currentSendStatus.data.whatsapp_staff_ready ? "Eligible" : "Unavailable"}</p>
-                <p>Selected conversation template reply: {currentSendStatus.data.whatsapp_template_ready ? "Eligible" : "Unavailable"}</p>
-              </>}
-            </section>
             <WhatsAppConnections testing organizationId={org} brandId={brand} brands={brands} />
           </Drawer>
         ) : null}

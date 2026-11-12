@@ -8,15 +8,12 @@ export async function runWhatsAppCampaign(
  call:(name:string,args:any)=>Promise<any>, graph:any, env:(key:string)=>string,
  tokenFor:(connection:{id:string;credential_generation:number})=>Promise<string>,
 ){
- const runId=env('MARKETING_WHATSAPP_CAMPAIGN_RUN_ID');
- const peers=env('MARKETING_WHATSAPP_CAMPAIGN_TEST_PEERS').split(',').map(value=>value.trim()).filter(Boolean);
- if(env('SUPABASE_URL')!==STAGING_SUPABASE||env('MARKETING_META_APP_ID')!==CLOUD_TEST_APP
-  ||env('MARKETING_WHATSAPP_CAMPAIGN_DISPATCH_ENABLED')!=='true'
-  ||! /^[a-f0-9-]{36}$/.test(runId)||!peers.length||peers.length>100||peers.some(peer=>!/^\d{7,15}$/.test(peer)))return false;
- const operation=(name:string,extra:Record<string,unknown>={})=>call('marketing_campaign_whatsapp_worker',
-  {p_run:runId,p_operation:name,p_allowed_peers:peers,...extra});
- const claim=await operation('claim');
+ if(env('SUPABASE_URL')!==STAGING_SUPABASE||env('MARKETING_META_APP_ID')!==CLOUD_TEST_APP)return false;
+ const worker=(run:string|null,operation:string,extra:Record<string,unknown>={})=>call('marketing_campaign_whatsapp_worker',
+  {p_run:run,p_operation:operation,...extra});
+ const claim=await worker(null,'claim');
  if(!claim)return false;
+ const operation=(name:string,extra:Record<string,unknown>)=>worker(claim.run_id,name,extra);
  const identity={p_delivery:claim.id,p_lease:claim.lease};
  let postStarted=false;
  const checkpoint=async(state:{pending?:boolean;receipt?:string;failed?:string})=>{

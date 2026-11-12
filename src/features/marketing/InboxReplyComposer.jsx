@@ -135,6 +135,10 @@ export default function InboxReplyComposer({
       : "Ask an administrator to check Connections.";
     let notice;
     let action;
+    const templateReady = configuration?.whatsapp_template_ready === true && Boolean(onTemplateSend)
+      && current.reply_requires_approval === false;
+    const chooseTemplateAction = <button type="button" className="inbox-text-button" disabled={busy}
+      onClick={() => setShowTemplates(true)}>Choose approved template</button>;
     let chooseTemplate = false;
     if (!can("reply") || !can("send")) {
       notice = "You need reply and send permissions to message this customer.";
@@ -159,19 +163,23 @@ export default function InboxReplyComposer({
       notice = "The 24-hour reply window is closed.";
       if (current.reply_requires_approval !== false) {
         action = "Ask the conversation owner to review it before sending.";
-      } else if (configuration.whatsapp_template_ready === true && onTemplateSend) {
+      } else if (templateReady) {
         chooseTemplate = true;
-        action = <button type="button" className="inbox-text-button" onClick={() => setShowTemplates(true)}>Choose approved template</button>;
+        action = chooseTemplateAction;
       } else {
         notice += " Template sending is unavailable for this conversation.";
         action = connectionAction;
       }
     } else if (configuration.whatsapp_staff_ready !== true) {
-      notice = "WhatsApp sending is unavailable for this conversation.";
-      action = connectionAction;
+      notice = templateReady
+        ? "A text reply is unavailable for this conversation."
+        : "WhatsApp sending is unavailable for this conversation.";
+      chooseTemplate = templateReady;
+      action = chooseTemplate ? chooseTemplateAction : connectionAction;
     } else if (requiresApproval) {
       notice = "This reply requires staff review. Ask the conversation owner to review it.";
     }
+    const templateAvailable = chooseTemplate || (windowOpen && !notice && templateReady);
     const inputLabel = note ? "Internal note" : "Staff Reply";
     const aiHint = aiUnavailable || "Prepare a suggestion for staff review. Suggestions never send automatically.";
     return (
@@ -202,6 +210,8 @@ export default function InboxReplyComposer({
           placeholder={note ? "Add a note for your team…" : "Write a WhatsApp reply…"}
           onChange={event => {setText(event.target.value);setDirty(true);}} />
         <div className="inbox-composer-footer"><div className="marketing-inbox-actions ml-auto">
+          {!note && !notice && templateAvailable &&
+            <button type="button" className="btn-secondary" disabled={busy} onClick={() => setShowTemplates(true)}>Use template</button>}
           {note
             ? <button type="button" className="btn-primary" disabled={busy || !can("manage") || !text.trim()} onClick={save}>Save note</button>
             : can("reply") && <button type="button" className="btn-primary" disabled={busy || Boolean(notice) || !directReady || !windowOpen}
@@ -210,7 +220,7 @@ export default function InboxReplyComposer({
                 if (await onDirectSend(text, null)) {setText("");setDirty(false);}
               }}><Send size={14} />Send</button>}
         </div></div>
-        {!note && chooseTemplate && showTemplates && <Modal title="Choose approved template" onClose={() => setShowTemplates(false)}>
+        {!note && templateAvailable && showTemplates && <Modal title="Choose approved template" onClose={() => setShowTemplates(false)}>
           <WhatsAppTemplateCatalog loadTemplates={() => inboxService.whatsappTemplateOptions(c.id)} onSend={async (template) => {
             if (busy) return false;
             const result = await onTemplateSend(template);

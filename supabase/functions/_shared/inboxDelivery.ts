@@ -20,7 +20,7 @@ export async function deliverInboxReply(db:any,graph:any,get:(key:string)=>strin
    ||get('MARKETING_META_APP_ID')!==CLOUD_TEST_APP||conn.provider_account_id!==CLOUD_TEST_PHONE
    ||conn.whatsapp_waba_id!==CLOUD_TEST_WABA))throw new Error('inbox_execution_disabled');
   if(Boolean(material.whatsapp_template)!==templateSend
-   ||(templateSend&&(conn.channel!=='whatsapp'||get('MARKETING_WHATSAPP_TEST_TEMPLATE_SEND_ENABLED')!=='true')))
+   ||(templateSend&&conn.channel!=='whatsapp'))
    throw new Error('inbox_execution_disabled');
   if(material.receipt)return {state:material.state,receipt:material.receipt};
   const credential=await unseal(conn.sealed_token,[get('MARKETING_META_TOKEN_ENCRYPTION_KEY'),get('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(conn));

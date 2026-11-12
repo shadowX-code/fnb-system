@@ -6,8 +6,8 @@ import {STAGING_SUPABASE} from '../../../../supabase/functions/_shared/metaSecur
 
 const app='2204918033458414',waba='1675083730240518',phone='1221509657713215',peer='60123456789';
 const delivery='c3864149-d3ba-41af-9ac4-d5533b73c22b',provider='wamid.campaign_fixture';
-const data:Record<string,string>={SUPABASE_URL:STAGING_SUPABASE,MARKETING_META_APP_ID:app,
- MARKETING_WHATSAPP_CAMPAIGN_DISPATCH_ENABLED:'true',MARKETING_WHATSAPP_CAMPAIGN_RUN_ID:delivery,MARKETING_WHATSAPP_CAMPAIGN_TEST_PEERS:peer};
+const data:Record<string,string>={SUPABASE_URL:STAGING_SUPABASE,MARKETING_META_APP_ID:app};
+const run='db4c84ca-8ca2-4b37-a551-0be843fa48ec';
 const env=(key:string)=>data[key]||'';
 function graph(){
  return {version:'v25.0',request:vi.fn(async(path:string,_token:string,_params?:unknown,method?:string)=>{
@@ -35,7 +35,7 @@ async function fixture(){
   if(args.p_operation==='claim'){
    if(leased||state!=='scheduled')return null;
    leased=true;
-   return {id:delivery,lease:'fixture',connection_id:'fixture',generation:2,peer,template:{...choice,providerFingerprint:intent.providerFingerprint}};
+   return {id:delivery,run_id:run,lease:'fixture',connection_id:'fixture',generation:2,peer,template:{...choice,providerFingerprint:intent.providerFingerprint}};
   }
   if(args.p_operation==='begin')state='sending';
   if(['accepted','failed','unknown'].includes(args.p_operation))state=args.p_operation;
@@ -43,11 +43,27 @@ async function fixture(){
  });
  return {g,call,state:()=>state};
 }
-it('does not claim or call Meta with the bulk permit absent',async()=>{
+it.each(['SUPABASE_URL','MARKETING_META_APP_ID'])('does not claim or call Meta with a different %s',async(key)=>{
  const {g,call}=await fixture();
- expect(await runWhatsAppCampaign(call,g,key=>key==='MARKETING_WHATSAPP_CAMPAIGN_DISPATCH_ENABLED'?'':env(key),tokenFor)).toBe(false);
+ expect(await runWhatsAppCampaign(call,g,name=>name===key?'different':env(name),tokenFor)).toBe(false);
  expect(call).not.toHaveBeenCalled();
  expect(g.request).not.toHaveBeenCalled();
+});
+it('does not call Meta when the server finds no eligible campaign delivery',async()=>{
+ const g=graph();
+ const call=vi.fn().mockResolvedValue(null);
+ expect(await runWhatsAppCampaign(call,g,env,tokenFor)).toBe(false);
+ expect(call).toHaveBeenCalledExactlyOnceWith('marketing_campaign_whatsapp_worker',{p_run:null,p_operation:'claim'});
+ expect(g.request).not.toHaveBeenCalled();
+});
+it('does not send when the server rejects the leased delivery at the final guard',async()=>{
+ const {g,call}=await fixture();
+ const original=call.getMockImplementation()!;
+ let guards=0;
+ call.mockImplementation((name,args)=>args.p_operation==='guard'&&++guards===2?Promise.resolve(null):original(name,args));
+ expect(await runWhatsAppCampaign(call,g,env,tokenFor)).toBe(true);
+ expect(g.request.mock.calls.filter(args=>args[3]==='POST')).toHaveLength(0);
+ expect(call.mock.calls.every(([,args])=>args.p_operation==='claim'||args.p_run===run)).toBe(true);
 });
 it('persists one accepted outcome across concurrent ticks and a restart',async()=>{
  const {g,call,state}=await fixture();

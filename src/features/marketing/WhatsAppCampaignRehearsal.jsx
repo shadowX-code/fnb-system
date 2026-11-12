@@ -17,14 +17,14 @@ export default function WhatsAppCampaignRehearsal({organizationId,brandId,campai
  }
  return <details className="outreach-evidence">
   <summary>Rehearse Cloud API batches</summary>
-  <p>Check the current approved queue and recipient consent against a proposed schedule. This rehearsal does not schedule or dispatch messages.</p>
+  <p>Preview which approved test recipients are eligible for the proposed schedule.</p>
   <form className="flex flex-wrap items-end gap-2" onSubmit={run}>
    <label>Proposed date (MYT)<input required className="control block" type="date" value={date} disabled={busy} onChange={event=>{setDate(event.target.value);clear();}}/></label>
    <label>Proposed time (MYT)<input required className="control block" type="time" value={time} disabled={busy} onChange={event=>{setTime(event.target.value);clear();}}/></label>
    <label>Recipients per batch<input required className="control block" type="number" min="1" max="100" value={batchSize} disabled={busy} onChange={event=>{setBatchSize(event.target.value);clear();}}/></label>
    <button className="btn-secondary" disabled={busy||!date||!time||!batchSize}>{busy?'Checking…':'Rehearse batches'}</button>
   </form>
-  {result&&<p role="status">{result.eligible} eligible of {result.queued} queued · {result.excluded} excluded · {result.batches} batches · Dispatch disabled</p>}
+  {result&&<p role="status">{result.eligible} eligible of {result.queued} queued · {result.excluded} excluded · {result.batches} batches</p>}
   {error&&<p role="alert">{error}</p>}
  </details>;
 }

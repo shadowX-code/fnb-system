@@ -44,7 +44,7 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,campai
   if(!date||!time||!size){setError('Choose a proposed date, time and batch size.');return false;}
   const body={organizationId,brandId,campaignId:campaign.id,revision:campaign.revision,
    connectionId:connection.current.id,generation:connection.current.credential_generation,
-   scheduledAt:`${date}T${time}:00+08:00`,batchSize:Number(size),template};
+   scheduledAt:`${date}T${time}:00+08:00`,batchSize:Number(size),dispatchConfirmed:true,template};
   setError('');
   try{
    await marketingService.scheduleWhatsAppCampaign({...body,requestId:request('schedule',body)});
@@ -56,6 +56,7 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,campai
   setBusy(true);setError('');
   const body={revision:campaign.revision,run_id:run.id};
   if(action==='reschedule'){
+   body.dispatch_confirmed=true;
    body.previous_schedule=run.scheduled_at;
    body.scheduled_at=`${date}T${time}:00+08:00`;
   }
@@ -67,7 +68,7 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,campai
  }
  return <details className="outreach-evidence">
   <summary>WhatsApp Cloud API execution</summary>
-  <p>Scheduling saves the approved recipient batches. Real bulk dispatch requires a separate Staging permit.</p>
+  <p>Confirmed schedules send only to approved test recipients who are eligible at send time.</p>
   {error&&<p role="alert">{error}</p>}
   {run===undefined&&<p role="status">Checking campaign execution…</p>}
   {run===null&&canSchedule&&campaign.status==='ready'&&<>
@@ -76,20 +77,23 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,campai
     <label>Schedule time (MYT)<input className="control block" type="time" value={time} onChange={event=>setTime(event.target.value)}/></label>
     <label>Recipients per batch<input className="control block" type="number" min="1" max="100" value={size} onChange={event=>setSize(event.target.value)}/></label>
    </div>
-   <WhatsAppTemplateCatalog purpose="campaign" submitLabel="Save approved schedule" loadTemplates={loadTemplates} onSend={schedule}/>
+   <WhatsAppTemplateCatalog purpose="campaign" submitLabel="Confirm and schedule test sends" loadTemplates={loadTemplates} onSend={schedule}/>
   </>}
   {run===null&&(!canSchedule||campaign.status!=='ready')&&<p>No Cloud API schedule. Scheduling requires the current approved queue and Campaign execution and approval access.</p>}
   {run&&<>
    <p>{labels[run.state]} · {formatOperationalDateTime(run.scheduled_at)} MYT · {run.batch_size} recipients per batch</p>
    <p role="status">{Object.entries(run.counts).map(([state,count])=>`${labels[state]||state} ${count}`).join(' · ')}</p>
+   {run.dispatch_confirmed===false&&['scheduled','paused'].includes(run.state)&&
+    <p>Choose a new schedule to confirm sending for this saved run.</p>}
    {canExecute&&['scheduled','paused'].includes(run.state)&&<div className="flex flex-wrap gap-2">
-    <button className="btn-secondary" disabled={busy} onClick={()=>control(run.state==='paused'?'resume':'pause')}>{run.state==='paused'?'Resume schedule':'Pause schedule'}</button>
+    {(run.state!=='paused'||run.dispatch_confirmed!==false)&&
+     <button className="btn-secondary" disabled={busy} onClick={()=>control(run.state==='paused'?'resume':'pause')}>{run.state==='paused'?'Resume schedule':'Pause schedule'}</button>}
     <button className="btn-secondary" disabled={busy} onClick={()=>control('cancel')}>Cancel remaining recipients</button>
    </div>}
    {canReschedule&&<div className="flex flex-wrap items-end gap-2">
     <label>New schedule date (MYT)<input className="control block" type="date" value={date} onChange={event=>setDate(event.target.value)}/></label>
     <label>New schedule time (MYT)<input className="control block" type="time" value={time} onChange={event=>setTime(event.target.value)}/></label>
-    <button className="btn-secondary" disabled={busy||!date||!time} onClick={()=>control('reschedule')}>Reschedule existing run</button>
+    <button className="btn-secondary" disabled={busy||!date||!time} onClick={()=>control('reschedule')}>Reschedule test sends</button>
    </div>}
    <ul className="mt-2 space-y-2" aria-label="Campaign recipient execution">
     {run.rows.map(row=><li key={row.id} className="break-words border-b border-border-default pb-2">

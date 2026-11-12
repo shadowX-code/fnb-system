@@ -157,8 +157,10 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[],te
     {!brandId?<p className="text-sm">Select the isolated QA Brand in WhatsApp Chat to manage its test number.</p>:null}
     {connections.map(c=><div key={c.id} className="space-y-2">
      <strong>{c.account_name}</strong> · {connectionStatus(c)}
-     <p className="text-sm">{c.reason==='reconnect_required'?'Verify again with a valid Staging test token.':statusMessage(c.reason)}</p>
-     <dl className="text-sm"><dt>Receiving</dt><dd>{c.state==='connected'?'Verified':'Not verified'}</dd><dt>Sending</dt><dd>Controlled by separate Staging QA gates.</dd></dl>
+     {c.reason!=='receive_only'&&<p className="text-sm">{c.reason==='reconnect_required'?'Verify again with a valid Staging test token.':statusMessage(c.reason)}</p>}
+     <dl className="text-sm"><dt>Receiving</dt><dd>{c.state==='connected'?'Verified':'Not verified'}</dd><dt>Sending</dt>
+      <dd>{c.state==='connected'||c.reason==='awaiting_test_inbound'?'Available for eligible test recipients.':'Verify the test connection to send.'}</dd>
+     </dl>
      {canConfigure?actions(c):null}
     </div>)}
     <div className="flex flex-wrap gap-2">

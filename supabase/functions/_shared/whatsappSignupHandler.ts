@@ -105,7 +105,7 @@ export async function whatsappSignupHandler(path:string,body:any,caller:any,serv
   }
  }
  if(['/whatsapp/templates','/whatsapp/campaign-schedule'].includes(path)){
-  if(!cloudTestConfigured)throw new MetaError('whatsapp_test_brand_denied');
+  if(!staging||!ready.can_configure||!testBrand||body.brandId!==testBrand)throw new MetaError('whatsapp_test_brand_denied');
   const readMaterial=()=>call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user});
   const check=(material:any)=>{
    if(material.brand_id!==testBrand||material.organization_id!==body.organizationId||material.channel!=='whatsapp'
@@ -120,6 +120,7 @@ export async function whatsappSignupHandler(path:string,body:any,caller:any,serv
   const graph=new MetaGraph({appId:c.appId,appSecret:c.appSecret,configId:c.configId,version:c.version});
   await verifyWhatsAppCloudTest(graph,c,credential.token);
   if(path==='/whatsapp/campaign-schedule'){
+   if(body.dispatchConfirmed!==true)throw new MetaError('whatsapp_campaign_schedule_failed');
    try {
     const {id,language,values,mediaId}=body.template;
     const template={id,language,values,mediaId};
@@ -127,7 +128,7 @@ export async function whatsappSignupHandler(path:string,body:any,caller:any,serv
     check(await readMaterial());
     return await call(caller,'marketing_campaign_whatsapp_command',{p_org:body.organizationId,p_brand:body.brandId,
      p_campaign:body.campaignId,p_request:body.requestId,p_action:'schedule',
-     p_payload:{revision:body.revision,generation:body.generation,scheduled_at:body.scheduledAt,batch_size:body.batchSize,
+     p_payload:{revision:body.revision,generation:body.generation,scheduled_at:body.scheduledAt,batch_size:body.batchSize,dispatch_confirmed:true,
       template:{...template,providerFingerprint:evidence.providerFingerprint}}});
    }catch(error){throw new MetaError('whatsapp_campaign_schedule_failed',false,false,error instanceof MetaError?error.graphCode:undefined);}
   }

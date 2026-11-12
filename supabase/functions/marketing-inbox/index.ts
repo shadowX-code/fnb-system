@@ -1,4 +1,4 @@
-import {readWhatsAppTestTemplates,verifyWhatsAppCloudTest} from '../_shared/whatsappOnboarding.ts';
+import {CLOUD_TEST_APP,CLOUD_TEST_PHONE,CLOUD_TEST_WABA,readWhatsAppTestTemplates,verifyWhatsAppCloudTest} from '../_shared/whatsappOnboarding.ts';
 import {whatsappTemplateIntent} from '../_shared/whatsappTemplateIntent.ts';
 import {bookingEnquiryFallback,designAIFlow,generateAIFlow} from '../_shared/aiFlowGeneration.ts';
 import {runInboxPlayground} from '../_shared/inboxPlayground.ts';
@@ -23,6 +23,8 @@ import {
 } from "../_shared/marketingInbox.ts";
 const env = (n: string) => Deno.env.get(n) || "";
 const origins = new Set([STAGING_ORIGIN, "http://localhost:5173"]);
+const stagingWhatsAppSender = (account:string) => env('SUPABASE_URL')===STAGING_SUPABASE
+  && env('MARKETING_META_APP_ID')===CLOUD_TEST_APP && account===CLOUD_TEST_PHONE;
 async function rpc(db: any, name: string, args: any = {}) {
   const { data, error } = await db.rpc(name, args);
   if (error) {
@@ -256,27 +258,22 @@ Deno.serve(async (req) => {
       const scope=await rpc(service,'marketing_inbox_staff_send_scope',args);
       if(scope.channel==='whatsapp'){
         // Only expose eligibility. Credential material stays within the service boundary.
-        const templateGateEnabled=env('MARKETING_WHATSAPP_TEST_TEMPLATE_SEND_ENABLED')==='true';
+        const senderReady=stagingWhatsAppSender(scope.account);
         let templateReady=false;
-        if(scope.whatsapp_connection_ready===true && templateGateEnabled){
+        if(scope.whatsapp_connection_ready===true && senderReady){
           const {data,error}=await service.rpc('marketing_inbox_whatsapp_template_material',args);
           templateReady=!error && Boolean(data);
         }
         return json({
           whatsapp_connection_ready:scope.whatsapp_connection_ready===true,
-          whatsapp_staff_ready:scope.whatsapp_test_ready===true,
+          whatsapp_staff_ready:senderReady && scope.whatsapp_test_ready===true,
           whatsapp_template_ready:templateReady,
-          ...(body.includeWhatsAppQaDiagnostics===true && env('SUPABASE_URL')===STAGING_SUPABASE
-            && scope.whatsapp_qa_diagnostics_allowed===true
-            ? {whatsapp_qa:{template_gate_enabled:templateGateEnabled}} : {}),
         });
       }
       return json({staff_send_configured:staffReplyConfigured(env),recipient_allowed:staffReplyAllowed(scope.account,scope.peer,env)});
     }catch{return json({error:'Sending availability could not be checked.'},403);}
   }
   if (['/whatsapp-template-options','/send-whatsapp-template'].includes(path) && req.method==='POST') {
-    if(env('MARKETING_WHATSAPP_TEST_TEMPLATE_SEND_ENABLED')!=='true')
-      return json({error:'Template sending is unavailable for this conversation.'},403);
     try {
       const raw=await req.text();
       if(raw.length>12000)return json({error:'Template request is too large.'},413);
@@ -284,6 +281,8 @@ Deno.serve(async (req) => {
       const actor=identity.data.user.id;
       const scope=await rpc(service,'marketing_inbox_whatsapp_template_material',{p_conversation:body.conversationId,p_auth_user:actor});
       const connection=scope.connection;
+      if(!stagingWhatsAppSender(connection.provider_account_id)||connection.whatsapp_waba_id!==CLOUD_TEST_WABA)
+        return json({error:'Template sending is unavailable for this conversation.'},403);
       const appSecret=env('MARKETING_META_APP_SECRET'),version=env('MARKETING_META_GRAPH_VERSION');
       const graph=new MetaGraph({appId:env('MARKETING_META_APP_ID'),appSecret,configId:'',version});
       const credential=await unseal(connection.sealed_token,[env('MARKETING_META_TOKEN_ENCRYPTION_KEY'),env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(connection));
@@ -310,10 +309,10 @@ Deno.serve(async (req) => {
       const raw=await req.text();if(raw.length>12000)return json({error:'Request too large.'},413);
       const body=JSON.parse(raw);draftId=body.draftId;
       if(path==='/send-staff-reply'){
-        // Check exact test recipient before recording intent, with the same server-only gate as approved sends.
+        // Resolve the exact connection and approved recipient before recording intent.
         const scope=await rpc(service,'marketing_inbox_staff_send_scope',{p_conversation:body.conversationId,p_auth_user:identity.data.user.id});
         if(scope.channel==='whatsapp'){
-         if(scope.whatsapp_test_ready!==true||body.sourceArtifactId)return json({error:'This WhatsApp conversation is outside the permitted staff reply scope or its service window has closed.'},403);
+         if(!stagingWhatsAppSender(scope.account)||scope.whatsapp_test_ready!==true||body.sourceArtifactId)return json({error:'This WhatsApp conversation is outside the permitted staff reply scope or its service window has closed.'},403);
          testScope={account:scope.account,peer:scope.peer};
         }else if(!staffReplyAllowed(scope.account,scope.peer,env))return json({error:'Recipient is outside the approved test scope.'},403);
         const prepared=await rpc(caller,'marketing_inbox_prepare_staff_reply',{p_request:body.requestId,p_conversation:body.conversationId,p_version:body.version,p_body:body.text,p_artifact:body.sourceArtifactId||null});draftId=prepared.draft_id;
