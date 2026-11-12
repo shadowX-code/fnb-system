@@ -227,7 +227,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
       await onSave({ ...form, status: nextStatus });
     } catch (saveError) {
       console.error("[Factory] Stock Check mutation failed.", saveError);
-      setError("Unable to save Stock Check.");
+      setError(saveError?.message || "Unable to save Stock Check. Try again.");
     } finally {
       setSavingAction("");
     }

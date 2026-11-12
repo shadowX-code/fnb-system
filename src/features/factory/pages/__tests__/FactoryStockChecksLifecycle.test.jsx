@@ -26,6 +26,39 @@ describe("Factory Stock Check mounted lifecycle", () => {
   it.each([["raw", raw], ["product", product]])("approves submitted %s checks once, updates the row, and refreshes listing plus Factory data", async (type, check) => { const { listing } = mount(type, check); const approve = vi.spyOn(factoryService, "approveStockCheck").mockResolvedValue(); await screen.findAllByText(check.check_no); fireEvent.click(within(checkRow(check.check_no)).getByRole("button", { name: "Approve" })); await waitFor(() => expect(approve).toHaveBeenCalledWith(type, check, "employee-1")); expect(approve).toHaveBeenCalledTimes(1); await waitFor(() => expect(listing).toHaveBeenCalledTimes(2)); await waitFor(() => expect(factoryService.listFactoryData).toHaveBeenCalledTimes(2)); });
   it.each([["raw", raw], ["product", product]])("does not mark %s checks approved or refresh after rejection, then permits a successful retry", async (type, check) => { const notify = vi.fn(); const { listing } = mount(type, check, { notify, confirm: vi.fn().mockResolvedValue(true) }); const approve = vi.spyOn(factoryService, "approveStockCheck").mockRejectedValueOnce(new Error("reject")).mockResolvedValueOnce(); await screen.findAllByText(check.check_no); const approveButton = within(checkRow(check.check_no)).getByRole("button", { name: "Approve" }); fireEvent.click(approveButton); await waitFor(() => expect(approve).toHaveBeenCalledTimes(1)); expect(listing).toHaveBeenCalledTimes(1); expect(factoryService.listFactoryData).toHaveBeenCalledTimes(1); expect(notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Unable to approve Stock Check.", tone: "error" })); fireEvent.click(approveButton); await waitFor(() => expect(approve).toHaveBeenCalledTimes(2)); await waitFor(() => expect(listing).toHaveBeenCalledTimes(2)); await waitFor(() => expect(factoryService.listFactoryData).toHaveBeenCalledTimes(2)); });
   it.each([["raw", raw, "Spices"], ["product", product, "Packaging"]])("saves a new %s stock-check draft through the mounted modal", async (type, check, category) => { const { listing } = mount(type, check); const save = vi.spyOn(factoryService, "saveStockCheck").mockResolvedValue({ ...check, id: `new-${type}`, status: "draft" }); fireEvent.click(await screen.findByRole("button", { name: "New Stock Check" })); fireEvent.click(screen.getByRole("button", { name: type === "raw" ? "Category *" : "Category" })); fireEvent.click(await screen.findByText(category)); await waitFor(() => expect(screen.getAllByRole("spinbutton").length).toBeGreaterThan(0)); fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "5" } }); fireEvent.click(screen.getByRole("button", { name: "Save Draft" })); await waitFor(() => expect(save).toHaveBeenCalledTimes(1)); expect(save).toHaveBeenCalledWith(type, expect.objectContaining({ status: "draft", check_date: expect.any(String), items: [expect.objectContaining({ [type === "raw" ? "raw_material_id" : "finished_good_id"]: type === "raw" ? "rm-1" : "sku-1", physical_qty: "5" })] }), "employee-1"); await waitFor(() => expect(listing).toHaveBeenCalledTimes(2)); expect(factoryService.listFactoryData).toHaveBeenCalledTimes(1); });
+  it("keeps a counted zero and the specific failure visible, then retries the unresolved draft", async () => {
+    mount("product", product);
+    factoryService.getFinishedGoodInventoryReconciliation.mockResolvedValue([
+      { finished_good_id: "sku-1", reconciliation_status: "reconciled", aggregate_balance: 5, batch_balance: 5 },
+    ]);
+    const save = vi.spyOn(factoryService, "saveStockCheck")
+      .mockRejectedValueOnce(new Error("Packaging SKU system balance must be a whole number before Stock Check."))
+      .mockResolvedValueOnce({ ...product, id: "new-product", status: "draft" });
+    fireEvent.click(await screen.findByRole("button", { name: "New Stock Check" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Counted", exact: true })[0]);
+    fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "0" } });
+    await screen.findAllByText("Reconciled");
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit Check" }));
+    expect(screen.getByText("Variance reason is required for variance rows.")).toBeTruthy();
+    const reason = screen.getAllByPlaceholderText("Reason required")[0];
+    fireEvent.change(reason, { target: { value: "Counted zero" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit Check" }));
+    expect(screen.getByText("Resolve the 5-pack difference before submitting.")).toBeTruthy();
+    fireEvent.change(reason, { target: { value: "" } });
+    expect(save).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    expect(await screen.findByText("Packaging SKU system balance must be a whole number before Stock Check.")).toBeTruthy();
+    expect(screen.getAllByRole("spinbutton")[0].value).toBe("0");
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save).toHaveBeenLastCalledWith("product", expect.objectContaining({
+      status: "draft",
+      items: [expect.objectContaining({ physical_qty: "0", count_status: "counted", batch_allocations: [], variance_reason: "" })],
+    }), "employee-1");
+  });
+
   it("submits a positive finished-goods variance as a Reconciliation Batch intent when no batch is selected", async () => {
     mount("product", product);
     const save = vi.spyOn(factoryService, "saveStockCheck").mockResolvedValue({ ...product, id: "new-product", status: "submitted" });
