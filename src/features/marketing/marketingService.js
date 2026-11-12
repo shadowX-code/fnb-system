@@ -13,8 +13,9 @@ async function meta(command, body) {
   const { data, error } = await supabase.functions.invoke(`marketing-meta/${command}`, { body });
   if (error) {
     let message = 'Meta connection could not be completed. Reload or reconnect and try again.';
-    if (error.context instanceof Response) { try { const value = await error.context.json(); message = value.error || message; } catch {} }
-    throw new Error(message);
+    let code;
+    if (error.context instanceof Response) { try { const value = await error.context.json(); message = value.error || message; code = value.code; } catch {} }
+    throw Object.assign(new Error(message), { code });
   }
   return data;
 }
@@ -22,6 +23,8 @@ export const marketingService = {
   whatsappConnections:(org,brand,signal)=>rpc('marketing_whatsapp_connections',{p_org:org,p_brand:brand||null},signal),
   scheduleWhatsAppCampaign:body=>meta('whatsapp/campaign-schedule',body),
   whatsappTemplates:body=>meta('whatsapp/templates',body),
+  whatsappTemplateCatalog:body=>meta('whatsapp/template-catalog',body),
+  submitWhatsAppTemplate:body=>meta('whatsapp/template-submit',body),
   whatsappReadiness:(organizationId,brandId)=>meta('whatsapp/readiness',{organizationId,brandId:brandId||null}),
   bindWhatsAppCloudTest:body=>meta('whatsapp/bind-cloud-test',body),
   beginWhatsApp:body=>meta('whatsapp/begin',body),

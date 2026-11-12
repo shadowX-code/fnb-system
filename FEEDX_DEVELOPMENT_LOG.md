@@ -1,5 +1,10 @@
 # FeedX Development Log
 
+## 2026-11-12 — WhatsApp Templates in Marketing CRM
+
+Added the Brand-scoped Meta template catalog and text template submissions on Staging. The module shares the live catalog with Chat, Campaign Message and the read-only AI Flows reference. Connection and send authority stay with their existing server checks.
+
+
 - 2026-11-07: Native Assistant Staging replaces the fixed voice evaluation counter with private, idempotent environment/session leases, bounded concurrency, one-use SDK WebRTC gateway tickets and server expiry/revocation cleanup using the existing Supabase scheduler. Authorized testing has no default daily count or individual approval; provider billing limits are unchanged and Production remains disabled. Canonical owner: [voice session authority](docs/architecture/trusted-authorities.md#voice-session-admission-and-usage-staging). Deterministic database/provider-fixture checks passed; no new paid audio call was made.
 
 - 2026-11-05: Native Assistant Staging adds persistent private threads, paginated history, explicit personal memory and shared FeedX-owned context for text and voice. See the [conversation authority](docs/architecture/trusted-authorities.md#native-assistant-conversation-authority-staging).

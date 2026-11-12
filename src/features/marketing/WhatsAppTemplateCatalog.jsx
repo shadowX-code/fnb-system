@@ -3,15 +3,29 @@ import {marketingService} from './marketingService.js';
 
 const placeholder = /{{\s*([a-z][a-z0-9_]*|[1-9]\d*)\s*}}/gi;
 
+export function templateFields(template){
+ return template?.components.flatMap((component,index)=>
+  [...new Set([...String(component.text??'').matchAll(placeholder)].map(match=>match[1]))].map(name=>({index,name,key:`${component.type.toLowerCase()}:${name}`}))
+ )||[];
+}
+
+export function WhatsAppTemplatePreview({template,values={}}){
+ return <div className="break-words rounded border border-border-default p-3" aria-label="Template preview">
+    {template.components.map((component,index)=><div key={index}>
+     {component.text&&<p className="whitespace-pre-wrap">{component.text.replace(placeholder,(token,name)=>values[`${component.type.toLowerCase()}:${name}`]?.trim()||token)}</p>}
+     {component.type==='HEADER'&&component.format&&component.format!=='TEXT'&&<p>Header requires {component.format.toLowerCase()} media or data.</p>}
+     {component.buttons.length>0&&<ul className="mt-2">{component.buttons.map((button,i)=><li key={i}>{button.text||'Button'} · {button.type.replaceAll('_',' ').toLowerCase()}</li>)}</ul>}
+    </div>)}
+   </div>;
+}
+
 export default function WhatsAppTemplateCatalog({organizationId,brandId,connection,loadTemplates,onSend,submitLabel='Send approved template',purpose='staff'}){
  const [catalog,setCatalog]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const submitting=useRef(false);
  const [mediaId,setMediaId]=useState('');
  const [selected,setSelected]=useState(''),[values,setValues]=useState({});
  const template=catalog?.templates.find(item=>item.id===selected);
- const fields=template?.components.flatMap((component,index)=>
-  [...new Set([...String(component.text??'').matchAll(placeholder)].map(match=>match[1]))].map(name=>({index,name,key:`${component.type.toLowerCase()}:${name}`}))
- )||[];
+ const fields=templateFields(template);
  const buttons=template?.components.flatMap(component=>component.buttons)||[];
  const buttonFields=buttons.flatMap((button,index)=>button.needsValue?[{label:button.text||'Button',key:`button:${index}`}]:[]);
  const media=template?.components.find(component=>component.type==='HEADER'&&['IMAGE','VIDEO','DOCUMENT'].includes(component.format));
@@ -59,13 +73,7 @@ export default function WhatsAppTemplateCatalog({organizationId,brandId,connecti
      onChange={event=>setValues(previous=>({...previous,[field.key]:event.target.value}))}/>
    </label>)}
    {fields.some(field=>!values[field.key]?.trim())&&<p>Fill all variables to preview the completed text.</p>}
-   <div className="break-words rounded border border-border-default p-3" aria-label="Template preview">
-    {template.components.map((component,index)=><div key={index}>
-     {component.text&&<p className="whitespace-pre-wrap">{component.text.replace(placeholder,(token,name)=>values[`${component.type.toLowerCase()}:${name}`]?.trim()||token)}</p>}
-     {component.type==='HEADER'&&component.format&&component.format!=='TEXT'&&<p>Header requires {component.format.toLowerCase()} media or data.</p>}
-     {component.buttons.length>0&&<ul className="mt-2">{component.buttons.map((button,i)=><li key={i}>{button.text||'Button'} · {button.type.replaceAll('_',' ').toLowerCase()}</li>)}</ul>}
-    </div>)}
-   </div>
+   <WhatsAppTemplatePreview template={template} values={values}/>
    {onSend&&<button className="btn-primary" disabled={busy||!complete||template.status!=='APPROVED'||!(purpose==='campaign'?['UTILITY','MARKETING'].includes(template.category):template.category==='UTILITY')} onClick={send}>{submitLabel}</button>}
   </>}
  </div>;

@@ -57,6 +57,7 @@ const MarketingAdsPage = lazy(() => import("../features/marketing/MarketingAdsPa
 const AIFlowsPage = lazy(() => import("../features/marketing/AIFlowsPage.jsx"));
 const MarketingOutreachPage = lazy(() => import("../features/marketing/MarketingOutreachPage.jsx"));
 const MarketingInboxPage = lazy(() => import("../features/marketing/MarketingInboxPage.jsx"));
+const WhatsAppTemplatesPage = lazy(() => import("../features/marketing/WhatsAppTemplatesPage.jsx"));
 const MarketingFAQPage = lazy(() => import("../features/marketing/MarketingFAQPage.jsx"));
 const MarketingSettingsPage = lazy(() => import("../features/marketing/MarketingSettingsPage.jsx"));
 const MarketingWorkspacePage = lazy(() => import("../features/marketing/MarketingWorkspacePage.jsx"));
@@ -91,6 +92,7 @@ export const routeDetails = {
   marketing_campaigns: { component: MarketingOutreachPage, props: { section: "whatsapp" }, permission: "marketing_workspace.access AND marketing_campaigns.view", description: "Approved campaigns and manual WhatsApp handling." },
   marketing_whatsapp_workflows: { component: AIFlowsPage, permission: "marketing_workspace.access AND marketing_campaigns.view", description: "Brand conversation flow configuration and rehearsal." },
   marketing_whatsapp_chat: { component: MarketingInboxPage, props: { whatsApp: true }, permission: "marketing_workspace.access AND marketing_inbox.view", description: "Brand WhatsApp conversations and customer context." },
+  marketing_whatsapp_templates: { component: WhatsAppTemplatesPage, permission: "marketing_workspace.access AND marketing_settings.view AND marketing_settings.configure", description: "Brand WhatsApp template catalog and Meta review submissions." },
   marketing_inbox: { component: MarketingInboxPage, permission: "marketing_workspace.access AND marketing_inbox.view", description: "Brand conversations, human handling and approved AI reply proposals." },
   marketing_overview: { component: MarketingWorkspacePage, props: { section: "overview" }, permission: "marketing_workspace.access AND marketing_overview.view", description: "Brand publishing activity and action center." },
   marketing_planning_insights: { component: PlanningInsightsPage, permission: "marketing_workspace.access AND marketing_planner.view", description: "Monthly production, publishing and published Brand targets." },

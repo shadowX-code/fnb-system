@@ -14,7 +14,7 @@ describe('Marketing workspace ownership',()=>{
   it('is one launcher workspace with independent routes and explicit action permissions',()=>{
     expect(workspaceSwitcherOptions.filter(w=>w.id==='marketing')).toEqual([{id:'marketing',label:'Marketing',detail:'Brands, content & engagement',permission:'marketing_workspace.access'}]);
     const pages=moduleRegistry.filter(m=>m.workspace==='marketing'&&m.sidebar);
-    expect(pages).toHaveLength(17);
+    expect(pages).toHaveLength(18);
     for(const page of pages){
       expect(adminRouteDefinitions.find(r=>r.id===page.id).ownership).toMatchObject({workspace:'marketing',domain:'marketing',surface:'admin'});
       expect(adminRouteDefinitions.find(r=>r.id===page.id).canonicalPath).toMatch(/^\/marketing\//);
@@ -30,7 +30,7 @@ describe('Marketing workspace ownership',()=>{
     expect(adminRouteDefinitions.find(r=>r.id==='marketing_calendar').pathAliases).toContain('/marketing/content');
     expect(getSidebarSections('marketing').find(s=>s.label==='Settings').items.map(i=>i.label)).toEqual(['Connections','Brand Knowledge','FAQ & AI','Team & Brand Access']);
     expect(getSidebarSections('marketing').find(s=>s.label==='Analytics').items.map(i=>i.label)).toEqual(['Social Analytics','Ads Analytics']);
-    expect(getSidebarSections('marketing').find(s=>s.label==='CRM').items.map(i=>i.label)).toEqual(['Customers','WhatsApp Chat','Campaign Message','AI Flows']);
+    expect(getSidebarSections('marketing').find(s=>s.label==='CRM').items.map(i=>i.label)).toEqual(['Customers','WhatsApp Chat','WhatsApp Templates','Campaign Message','AI Flows']);
     expect(routeDetails.marketing_audience.permission).toBe('marketing_workspace.access AND marketing_audience.view');
     expect(routeDetails.marketing_campaigns.permission).toBe('marketing_workspace.access AND marketing_campaigns.view');
     expect(getSidebarSections('restaurant').flatMap(s=>s.items).some(i=>i.id?.startsWith('marketing_'))).toBe(false);

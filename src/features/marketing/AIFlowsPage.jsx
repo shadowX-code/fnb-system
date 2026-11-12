@@ -13,6 +13,7 @@ import SelectField from '../../components/forms/SelectField.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import {inboxService} from './inboxService.js';
 import {marketingService} from './marketingService.js';
+import {WhatsAppTemplateWorkspace} from './WhatsAppTemplatesPage.jsx';
 import {flowTypes,flowChannels,flowPorts,newFlow,insertFlowStep,removeFlowStep,flowIssues,flowTurn,flowLayout,simulateWhatsAppInbound} from './aiFlowDefinition.js';
 
 const labels={trigger:'Intent trigger',ask:'Ask / collect',condition:'Condition',knowledge:'Knowledge lookup',reply:'Reply / explain',handoff:'Human handoff',end:'Complete flow',facebook:'Messenger',instagram:'Instagram',whatsapp:'WhatsApp'};
@@ -66,10 +67,11 @@ export default function AIFlowsPage(){
  </WorkspacePage>;
  return <FlowWorkspace key={`${auth.user?.id}:${brand}`} scope={scope} brands={brands} onBrandChange={setBrand}
   canEdit={auth.hasPermission('marketing_campaigns.manage')} canGenerate={auth.hasPermission('marketing_inbox.ai')}
-  canExecute={auth.hasPermission('marketing_campaigns.execute')}/>;
+  canExecute={auth.hasPermission('marketing_campaigns.execute')}
+  canViewTemplates={auth.hasPermission('marketing_settings.view')&&auth.hasPermission('marketing_settings.configure')}/>;
 }
 
-function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecute}){
+function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecute,canViewTemplates}){
  const [library,setLibrary]=useState(null),[record,setRecord]=useState(null),[flow,setFlow]=useState(null);
  const [selected,setSelected]=useState('trigger'),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [test,setTest]=useState(null),[answer,setAnswer]=useState(''),[mode,setMode]=useState('suggest_only');
@@ -268,6 +270,8 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
     <button type="button" className="btn-secondary" aria-pressed={panel==='settings'} onClick={()=>{setPanel('settings');setShowInspector(true);}}><Settings2 size={15}/> Settings</button>
     {record?<button type="button" className="btn-secondary" disabled={busy} aria-pressed={panel==='versions'} onClick={()=>{setPanel('versions');setShowInspector(true);lifecycle('history');}}>Versions</button>:null}
     <button type="button" className="btn-secondary" aria-pressed={panel==='test'} onClick={()=>{setPalette(null);setShowInspector(true);setPanel(panel==='test'?'node':'test');}}><MessageCircle size={15}/> Test Flow</button>
+    {canViewTemplates&&flow.channels.includes('whatsapp')?<button type="button" className="btn-secondary" aria-pressed={panel==='templates'}
+     onClick={()=>{setPanel(panel==='templates'?'node':'templates');setShowInspector(true);}}>WhatsApp Templates</button>:null}
     {canEdit?<button type="button" className="btn-primary" disabled={busy||Object.keys(issues).length>0||Boolean(record&&!dirty)} onClick={save}>Save draft</button>:null}
    </div>
   </header>
@@ -331,6 +335,9 @@ function FlowWorkspace({scope,brands,onBrandChange,canEdit,canGenerate,canExecut
    </section>
    {showInspector?<aside className="af-inspector" aria-label={panel==='test'?'Test Chat':'Flow inspector'}>
     {designer?<button type="button" className="btn-secondary af-hide-inspector" onClick={()=>setShowInspector(false)}>Hide panel</button>:null}
+    {panel==='templates'&&canViewTemplates?<><h2>WhatsApp Templates</h2>
+     <WhatsAppTemplateWorkspace brand={scope} readOnly/>
+    </>:null}
     {panel==='settings'?<><h2>Flow Settings</h2>
      <fieldset className="space-y-3" disabled={!canEdit||busy}>
       <Field label="Flow name" value={flow.name} maxLength={120} onChange={name=>update({name})}/>

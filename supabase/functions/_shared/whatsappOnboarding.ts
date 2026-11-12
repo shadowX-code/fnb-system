@@ -23,7 +23,7 @@ export async function collect(g:Graph,path:string,token:string,params:Record<str
  }
  throw new MetaError('whatsapp_assets_incomplete');
 }
-export async function verifyWhatsAppAssets(g:Graph,c:WhatsAppConfig,token:string,expected:{waba_id:string;phone_id:string;customer_business_id:string;approved_phone_hash?:string|null;confirmedPhoneNumber?:string;mode?:'coexistence'|'new_number'},now=Date.now()){
+export async function verifyWhatsAppAccount(g:Graph,c:WhatsAppConfig,token:string,expected:{waba_id:string;phone_id:string;customer_business_id:string},now=Date.now()){
  if(![expected.waba_id,expected.phone_id,expected.customer_business_id].every(numeric))throw new MetaError('invalid_whatsapp_assets');
  const d=(await g.request('debug_token',`${c.appId}|${c.appSecret}`,{input_token:token})).data;
  if(d?.is_valid!==true||String(d.app_id)!==c.appId||!numeric(d.user_id)||d.type!=='SYSTEM_USER')throw new MetaError('whatsapp_token_identity_mismatch');
@@ -40,6 +40,10 @@ export async function verifyWhatsAppAssets(g:Graph,c:WhatsAppConfig,token:string
  const phones=await collect(g,`${expected.waba_id}/phone_numbers`,token,{fields:'id'});
  if(phones.filter(p=>p.id===expected.phone_id).length!==1)throw new MetaError('whatsapp_phone_waba_mismatch');
  const newNumber=expected.mode==='new_number';
+ return {subject:d.user_id,expiresAt:expiry};
+}
+export async function verifyWhatsAppAssets(g:Graph,c:WhatsAppConfig,token:string,expected:{waba_id:string;phone_id:string;customer_business_id:string;approved_phone_hash?:string|null;confirmedPhoneNumber?:string;mode?:'coexistence'|'new_number'},now=Date.now()){
+ const {subject,expiresAt}=await verifyWhatsAppAccount(g,c,token,expected,now);
  const fieldsToRead=['id','is_on_biz_app','platform_type'];
  if(expected.approved_phone_hash||expected.confirmedPhoneNumber)fieldsToRead.push('display_phone_number');
  if(newNumber)fieldsToRead.push('status','code_verification_status');
@@ -60,8 +64,8 @@ export async function verifyWhatsAppAssets(g:Graph,c:WhatsAppConfig,token:string
  const sub=subs.find(s=>s.object==='whatsapp_business_account'&&s.callback_url===c.callback&&s.active===true);
  const fields=sub?.fields?.map((f:any)=>typeof f==='string'?f:f.name)||[];
  if(!(newNumber?['messages','account_update']:WHATSAPP_FIELDS).every(f=>fields.includes(f)))throw new MetaError('whatsapp_app_webhooks_required');
- return {app_id:c.appId,waba_id:expected.waba_id,phone_id:expected.phone_id,business_id:expected.customer_business_id,subject:d.user_id,
- ...(phoneHash?{approved_phone_hash:phoneHash}:{}),...(displayPhone?{display_phone_number:displayPhone}:{}),scopes:WHATSAPP_SCOPES,expires_at:expiry,is_on_biz_app:!newNumber,platform_type:p.platform_type,registration_verified:newNumber&&p.platform_type==='CLOUD_API'&&p.status==='CONNECTED'};
+ return {app_id:c.appId,waba_id:expected.waba_id,phone_id:expected.phone_id,business_id:expected.customer_business_id,subject,
+ ...(phoneHash?{approved_phone_hash:phoneHash}:{}),...(displayPhone?{display_phone_number:displayPhone}:{}),scopes:WHATSAPP_SCOPES,expires_at:expiresAt,is_on_biz_app:!newNumber,platform_type:p.platform_type,registration_verified:newNumber&&p.platform_type==='CLOUD_API'&&p.status==='CONNECTED'};
 }
 export const CLOUD_TEST_APP='2204918033458414';
 export const CLOUD_TEST_WABA='1675083730240518';
@@ -162,9 +166,14 @@ export async function resolveWhatsAppSignupAssets(g:Graph,token:string,session:a
  return {waba_id:assets.waba_id,phone_id:phone,customer_business_id:session.customer_business_id,approved_phone_hash:session.approved_phone_hash,mode};
 }
 
-/** Read the exact test WABA after the caller verifies its retained credential. */
+/** Call only after verifying the connection credential and exact WABA. */
+export function readWhatsAppTemplateRows(graph:Graph,token:string,waba:string){
+ return collect(graph,`${waba}/message_templates`,token,{fields:'id,name,language,category,status,parameter_format,components'});
+}
 export async function readWhatsAppTestTemplates(graph:Graph,token:string){
- const rows=await collect(graph,`${CLOUD_TEST_WABA}/message_templates`,token,{fields:'id,name,language,category,status,parameter_format,components'});
+ return presentWhatsAppTemplates(await readWhatsAppTemplateRows(graph,token,CLOUD_TEST_WABA));
+}
+export function presentWhatsAppTemplates(rows:any[]){
  return rows.filter(row=>numeric(row?.id)&&typeof row.name==='string'&&/^[a-z0-9_]{1,512}$/.test(row.name)
   &&typeof row.language==='string'&&/^[a-z]{2,3}(?:_[A-Za-z]{2,8}){0,2}$/.test(row.language))
  .map(row=>{

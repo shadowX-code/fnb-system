@@ -8,7 +8,6 @@ import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import Modal from '../../components/feedback/Modal.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
-import WhatsAppTemplateCatalog from './WhatsAppTemplateCatalog.jsx';
 import {marketingService} from './marketingService.js';
 import {loadWhatsAppSDK,launchWhatsAppSignup,rehearseWhatsAppSignup,whatsappReasonLabels as reasons} from './whatsappSignup.js';
 
@@ -160,7 +159,6 @@ export default function WhatsAppConnections({organizationId,brandId,brands=[],te
      <strong>{c.account_name}</strong> · {connectionStatus(c)}
      <p className="text-sm">{c.reason==='reconnect_required'?'Verify again with a valid Staging test token.':statusMessage(c.reason)}</p>
      <dl className="text-sm"><dt>Receiving</dt><dd>{c.state==='connected'?'Verified':'Not verified'}</dd><dt>Sending</dt><dd>Controlled by separate Staging QA gates.</dd></dl>
-     {canConfigure&&readiness.cloud_test_configured&&c.local_state==='active'?<WhatsAppTemplateCatalog key={c.id+':'+c.credential_generation} organizationId={organizationId} brandId={brandId} connection={c}/>:null}
      {canConfigure?actions(c):null}
     </div>)}
     <div className="flex flex-wrap gap-2">

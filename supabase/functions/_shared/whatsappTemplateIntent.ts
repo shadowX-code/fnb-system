@@ -1,14 +1,13 @@
 import {hash} from './metaSecurity.ts';
-import {CLOUD_TEST_WABA,collect,type Graph} from './whatsappOnboarding.ts';
+import {CLOUD_TEST_WABA,readWhatsAppTemplateRows,type Graph} from './whatsappOnboarding.ts';
 
 type TemplateChoice={id:string;language:string;values?:Record<string,string>;mediaId?:string};
-const fields='id,name,language,category,status,parameter_format,components';
 
 export async function whatsappTemplateIntent(graph:Graph,token:string,choice:TemplateChoice,phone:string,purpose:'staff'|'campaign'='staff'){
  if(!/^\d{1,32}$/.test(choice?.id)||typeof choice.language!=='string'||! /^[a-z]{2,3}(?:_[A-Za-z]{2,8}){0,2}$/.test(choice.language))
   throw new Error('template_identity_invalid');
  // Use the WABA edge and exact provider ID, even when more than one language shares the name.
- const rows=await collect(graph,`${CLOUD_TEST_WABA}/message_templates`,token,{fields});
+ const rows=await readWhatsAppTemplateRows(graph,token,CLOUD_TEST_WABA);
  const matches=rows.filter((row:any)=>row.id===choice.id&&row.language===choice.language);
  if(matches.length!==1)throw new Error('template_not_in_verified_waba');
  const row=matches[0];

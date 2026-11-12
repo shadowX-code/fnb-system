@@ -1,11 +1,22 @@
+import {managementCatalog,submitWhatsAppTemplate} from './whatsappTemplateManagement.ts';
 import {whatsappTemplateIntent} from './whatsappTemplateIntent.ts';
 import {MetaGraph,MetaError} from './metaGraph.ts';
 import {connectionBinding,hash,nonce,seal,unseal,tokenEncryptionReady,STAGING_SUPABASE} from './metaSecurity.ts';
-import {CLOUD_TEST_APP,CLOUD_TEST_PHONE,CLOUD_TEST_WABA,readWhatsAppTestTemplates,verifyWhatsAppCloudTest,configured,exchangeWhatsAppCode,verifyWhatsAppAssets,resolveWhatsAppSignupAssets,finishWhatsAppOnboarding,type WhatsAppConfig} from './whatsappOnboarding.ts';
+import {CLOUD_TEST_APP,CLOUD_TEST_PHONE,CLOUD_TEST_WABA,readWhatsAppTestTemplates,readWhatsAppTemplateRows,verifyWhatsAppCloudTest,configured,exchangeWhatsAppCode,verifyWhatsAppAccount,verifyWhatsAppAssets,resolveWhatsAppSignupAssets,finishWhatsAppOnboarding,type WhatsAppConfig} from './whatsappOnboarding.ts';
 const cloudTestFailures:Record<string,string>={
- whatsapp_template_binding_changed:'Refresh Connections and select the current active Staging test connection.',
+ whatsapp_template_access_denied:'An active, authorized WhatsApp connection and Brand configuration access are required.',
+ whatsapp_template_invalid:'Check the template name, language, category and message body.',
+ whatsapp_template_variables_invalid:'Use numbered variables in order and provide a sample for each one.',
+ whatsapp_template_edit_unavailable:'This template is no longer eligible for editing in FeedX. Refresh the catalog.',
+ whatsapp_template_stale:'This template changed in Meta. Refresh the catalog before editing it again.',
+ whatsapp_template_unchanged:'Change the message or its examples before submitting.',
+ whatsapp_template_duplicate:'This template name and language already exist. Refresh the catalog or choose another name.',
+ whatsapp_template_provider_denied:'Meta denied this template operation. Check WhatsApp Business Management access for the connected account.',
+ whatsapp_template_provider_rejected:'Meta rejected this submission. Check the content, examples and category in WhatsApp Manager.',
+ whatsapp_template_outcome_uncertain:'Meta did not confirm the result. Refresh the catalog and check WhatsApp Manager before trying again.',
+ whatsapp_template_binding_changed:'Refresh the connection and verify the active Staging test number.',
  whatsapp_campaign_schedule_failed:'Could not schedule the approved campaign. Check Campaign permissions, revision, consent queue and current test connection.',
- whatsapp_template_read_failed:'Meta could not list templates for the verified test WABA. Check WhatsApp Business Management access and try again.',
+ whatsapp_template_read_failed:'Meta could not list templates for this WhatsApp account. Check WhatsApp Business Management access and try again.',
 
  whatsapp_test_brand_denied:'You need permission to configure WhatsApp for the designated Staging test Brand.',
  whatsapp_test_config_missing:'Staging test credentials or server configuration are missing or unusable.',
@@ -43,6 +54,55 @@ export async function whatsappSignupHandler(path:string,body:any,caller:any,serv
  const cloudTestConfigured=env('SUPABASE_URL')===STAGING_SUPABASE&&c.appId===CLOUD_TEST_APP
   &&!!c.appSecret&&/^v\d+\.0$/.test(c.version)&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(testBrand)
   &&body.brandId===testBrand&&!!ready.can_configure&&!!testToken&&testToken.length<=16000&&await tokenEncryptionReady(key);
+ const management=['/whatsapp/template-catalog','/whatsapp/template-submit'].includes(path);
+ if(management){
+  const reject=()=>new MetaError('whatsapp_template_access_denied');
+  if(!staging||!ready.can_configure||!body.brandId||!Number.isSafeInteger(body.generation))throw reject();
+  const args={p_connection:body.connectionId,p_auth_user:user};
+  const read=()=>call(service,'marketing_meta_diagnostic_material',args);
+  const material=await read();
+  const test=material.whatsapp_onboarding_mode==='cloud_api';
+  const guard=async(snapshot?:any)=>{
+   const current=snapshot??await read();
+   if(current.brand_id!==body.brandId||current.organization_id!==body.organizationId||current.channel!=='whatsapp'
+    ||current.credential_generation!==body.generation||current.status!=='test_authorized'||current.whatsapp_local_state!=='active'
+    ||!(Date.parse(current.expires_at)>Date.now())||current.whatsapp_waba_id!==material.whatsapp_waba_id
+    ||current.provider_account_id!==material.provider_account_id||current.whatsapp_onboarding_mode!==material.whatsapp_onboarding_mode)throw reject();
+   if(test){
+    if(!cloudTestConfigured||current.whatsapp_waba_id!==CLOUD_TEST_WABA||current.provider_account_id!==CLOUD_TEST_PHONE)throw reject();
+    return null;
+   }
+   if(!ready.eligible||!c.enabled||!configured(c)||!['new_number','coexistence'].includes(current.whatsapp_onboarding_mode)
+    ||current.whatsapp_waba_id===CLOUD_TEST_WABA)throw reject();
+   return call(service,'marketing_whatsapp_verification_material',{...args,p_generation:body.generation});
+  };
+  const expected=await guard(material);
+  const credential=await unseal(material.sealed_token,[key,env('MARKETING_META_PREVIOUS_TOKEN_ENCRYPTION_KEY')],connectionBinding(material));
+  const graph=new MetaGraph({appId:c.appId,appSecret:c.appSecret,configId:c.configId,version:c.version});
+  if(test)await verifyWhatsAppCloudTest(graph,c,credential.token);
+  else await verifyWhatsAppAccount(graph,c,credential.token,expected);
+  const waba=material.whatsapp_waba_id;
+  const rows=await readWhatsAppTemplateRows(graph,credential.token,waba).catch(error=>{
+   throw new MetaError('whatsapp_template_read_failed',false,false,error instanceof MetaError?error.graphCode:undefined);
+  });
+  if(path==='/whatsapp/template-catalog'){
+   await guard();
+   return {templates:await managementCatalog(rows,waba),checkedAt:new Date().toISOString()};
+  }
+  try{
+   const result=await submitWhatsAppTemplate(graph.withWriteGuard(async()=>{await guard();}),credential.token,waba,body.template,rows);
+   console.info(JSON.stringify({tag:'whatsapp_template_submitted',actor:user,brand_id:material.brand_id,
+    waba_id:waba,template_id:result.id,operation:body.template.id?'edit':'create'}));
+   return result;
+  }catch(error){
+   if(error instanceof MetaError){
+    if(error.uncertain)throw new MetaError('whatsapp_template_outcome_uncertain',true);
+    if([10,190,200].includes(error.graphCode||0))throw new MetaError('whatsapp_template_provider_denied');
+    if(error.graphCode!=null)throw new MetaError('whatsapp_template_provider_rejected');
+   }
+   throw error;
+  }
+ }
  if(['/whatsapp/templates','/whatsapp/campaign-schedule'].includes(path)){
   if(!cloudTestConfigured)throw new MetaError('whatsapp_test_brand_denied');
   const readMaterial=()=>call(service,'marketing_meta_diagnostic_material',{p_connection:body.connectionId,p_auth_user:user});
