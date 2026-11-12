@@ -36,7 +36,7 @@ export type FinancialConnectionView = {
   connection: Connection; providerLabel: string; legalEntityLabel: string;
   state: 'connected' | 'disconnected' | 'deactivated' | 'error' | 'pending' | 'revoked';
   status: 'active' | 'historical'; sync: SyncState[]; evidenceAt?: string | null; lastConnectedAt?: string | null;
-  connector?: { verifiedAt: string | null; entityActive: boolean; lastSyncAt: string | null;
+  connector?: { bookId?: string | null; verifiedAt: string | null; entityActive: boolean; lastSyncAt: string | null;
     syncState: 'running' | 'succeeded' | 'failed' | 'interrupted' | null; syncError: string | null;
     pendingRetries: number | null; sourceRows: number | null; retryRequestedAt: string | null };
   datasets?: { dataset: 'COA' | 'GL' | 'Department' | 'Project'; scopeDate: string | null; acceptedRows: number; acceptedAt: string }[];
@@ -51,7 +51,9 @@ export type ReconciliationComparison = {
   reconciliation: Reconciliation;
 };
 export type FinanceDataSources = {
-  connections: FinancialConnectionView[]; connectorEntities?: { id: string; label: string }[] | null; authorityPeriods: AuthorityPeriod[];
+  connections: FinancialConnectionView[]; connectorEntities?: { id: string; label: string }[] | null;
+  connectorDevices?: { id: string; active: boolean; pairedAt: string; lastSeenAt: string | null;
+    books: { id: string; name: string; company: string; ready: boolean; connectionId: string | null }[] }[]; authorityPeriods: AuthorityPeriod[];
   mappingReadiness: MappingReadiness[]; reconciliations: ReconciliationComparison[];
   operationalSource: { providerId: string; label: string; capabilities: Record<Capability, CapabilityState> };
 };

@@ -31,6 +31,13 @@ export function manageAccountingConnector(action, { connectionId, legalEntityId,
   });
 }
 
+export function manageAutoCountDevice(action, { deviceId, bookId, legalEntityId } = {}) {
+  if (!stagingAccounting()) throw new Error('Connector management is available on Staging.');
+  return accountingRpc('finance_autocount_owner', {
+    p_action: action, p_device_id: deviceId ?? null, p_book_id: bookId ?? null, p_legal_entity_id: legalEntityId ?? null,
+  });
+}
+
 const sourceResources = { COA: 'chart_of_accounts', GL: 'journal_lines', Department: 'financial_dimensions', Project: 'financial_dimensions' };
 
 function accountingConnection(source) {
@@ -38,17 +45,17 @@ function accountingConnection(source) {
   const observed = (resource) => datasets.some((item) => sourceResources[item.dataset] === resource) ? 'partial' : 'unverified';
   return {
     connection: {
-      id: source.id, providerId: 'autocount', legalEntityId: source.legalEntityId, externalTenantId: 'AED_TEST', currency: null,
+      id: source.id, providerId: 'autocount', legalEntityId: source.legalEntityId, externalTenantId: source.sourceBook ?? 'AED_TEST', currency: null,
       capabilities: {
         chart_of_accounts: observed('chart_of_accounts'), journal_lines: observed('journal_lines'),
         financial_dimensions: observed('financial_dimensions'), incremental_sync: datasets.length ? 'partial' : 'unverified',
         profit_loss_report: 'unverified', balance_sheet_report: 'unverified',
       },
     },
-    providerLabel: 'AutoCount · AED_TEST',
+    providerLabel: source.companyName ? `AutoCount · ${source.companyName}` : 'AutoCount · AED_TEST',
     legalEntityLabel: source.legalEntityLabel,
     state: !source.active ? 'revoked' : !source.entityActive ? 'error' : source.verifiedAt ? 'connected' : 'pending',
-    connector: { verifiedAt: source.verifiedAt, entityActive: source.entityActive, lastSyncAt: source.lastSyncAt,
+    connector: { bookId: source.bookId, verifiedAt: source.verifiedAt, entityActive: source.entityActive, lastSyncAt: source.lastSyncAt,
       syncState: source.syncState, syncError: source.syncError, pendingRetries: source.pendingRetries,
       sourceRows: source.sourceRows, retryRequestedAt: source.retryRequestedAt },
     status: source.active ? 'active' : 'historical',
@@ -64,15 +71,17 @@ function accountingConnection(source) {
 export async function readFinanceDataSources() {
   let connections = [];
   let connectorEntities = null;
+  let connectorDevices = [];
   if (stagingAccounting()) {
     const [sources, entities] = await Promise.all([
       accountingRpc('finance_accounting_source_status'), accountingRpc('finance_accounting_connector_options'),
     ]);
     connections = sources.map(accountingConnection);
     connectorEntities = entities;
+    if (entities !== null) connectorDevices = await manageAutoCountDevice('catalog');
   }
   return {
-    connections, connectorEntities, authorityPeriods: [], mappingReadiness: [], reconciliations: [],
+    connections, connectorEntities, connectorDevices, authorityPeriods: [], mappingReadiness: [], reconciliations: [],
     operationalSource: { providerId: operationalProvider.id, label: 'FeedX Reporting', capabilities: operationalProvider.capabilities },
   };
 }

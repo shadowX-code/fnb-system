@@ -11,7 +11,7 @@ import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import { money } from '../reports/components/reportingFormatters.js';
 import { metricRegistry } from './metrics.js';
 import { connectionActions, dataSourceReadiness, mappingLabels, readFinanceDataSources } from './dataSources.js';
-import { AutoCountActionModal, AutoCountStatus } from './AutoCountConnector.jsx';
+import { AutoCountActionModal, AutoCountDevices, AutoCountStatus } from './AutoCountConnector.jsx';
 import './finance.css';
 
 const sections = ['Connection', 'Authority', 'Mapping', 'Reconciliation'];
@@ -40,6 +40,7 @@ function FoundationNotice({ title, children }) {
 function ConnectionSection({ state, onAction }) {
   return <section aria-label="Accounting connections">
     <div className="finance-section-heading"><div><h2>Accounting connections</h2><p>Provider access, legal entity binding and retained history.</p></div><Link2 size={20} aria-hidden="true" /></div>
+    {onAction && <AutoCountDevices state={state} onAction={onAction} timestamp={timestamp} />}
     {!state.connections.length ? <EmptyState className="my-4" title="No accounting provider connected" description="Operational reporting is available. Accounting statements and balances require validated provider evidence." icon={Link2} /> : state.connections.map((entry) => {
       const periods = state.authorityPeriods.filter((period) => period.connectionId === entry.connection.id);
       const successfulSyncs = entry.sync.map((sync) => sync.lastSuccessAt).filter((value) => Number.isFinite(Date.parse(value))).sort((a, b) => Date.parse(a) - Date.parse(b));
@@ -61,7 +62,6 @@ function ConnectionSection({ state, onAction }) {
         <FinanceDisclosure label="Provider capabilities"><Capabilities values={entry.connection.capabilities} /></FinanceDisclosure>
         {entry.connector && onAction ? <div className="finance-source-actions" aria-label="AutoCount connector actions">
           {entry.state === 'connected' && <button type="button" className="btn-secondary" disabled={Boolean(entry.connector.retryRequestedAt)} onClick={() => onAction('retry', entry)}>{['failed', 'interrupted'].includes(entry.connector.syncState) ? 'Retry sync' : 'Request sync'}</button>}
-          {entry.connector.entityActive && <button type="button" className="btn-secondary" onClick={() => onAction('reenroll', entry)}>Re-enroll</button>}
           {entry.state !== 'revoked' && <button type="button" className="btn-secondary" onClick={() => onAction('revoke', entry)}>Revoke access</button>}
         </div> : !entry.connector && <div className="finance-source-actions">{connectionActions.filter((action) => action.id !== 'connect').map((action) => <button key={action.id} type="button" className="btn-secondary" disabled>{action.label}</button>)}</div>}
       </article>;
@@ -132,7 +132,7 @@ function LiveFinanceDataSourcesPage() {
   }, [canManage]);
   function onSaved(action) {
     setModal(null);
-    setNotice({ enroll: 'Connector registered. Complete verification on the office PC.', reenroll: 'Enrollment replaced. Complete verification on the office PC.', retry: 'Sync requested.', revoke: 'Connector access revoked.' }[action]);
+    setNotice({ bind: 'Account Book connected. Waiting for the Windows Connector to verify the book.', retry: 'Sync requested.', revoke: 'Book access revoked.', revoke_device: 'Computer access revoked.' }[action]);
     setAttempt((value) => value + 1);
   }
   useEffect(() => {
@@ -141,10 +141,10 @@ function LiveFinanceDataSourcesPage() {
     readFinanceDataSources().then((next) => { if (active) setState(next); }).catch(() => { if (active) setError('Financial source status could not be loaded.'); });
     return () => { active = false; };
   }, [attempt]);
-  return <WorkspacePage className="finance-workspace" section="Finance · Manage" title="Data Sources" description="Manage where financial evidence comes from and whether it is usable." actions={<button type="button" className="btn-secondary" disabled={!canManage || !state.connectorEntities.length || state.connections.some((entry) => entry.connection.providerId === 'autocount')} onClick={() => setModal({ action: 'enroll' })}><Link2 size={15} />Connect provider</button>}>
+  return <WorkspacePage className="finance-workspace" section="Finance · Manage" title="Data Sources" description="Manage where financial evidence comes from and whether it is usable." actions={<button type="button" className="btn-secondary" disabled={!canManage || !state.connectorEntities.length} onClick={() => setModal({ action: 'pair' })}><Link2 size={15} />Connect provider</button>}>
     {notice && <p role="status" className="type-body-sm text-text-secondary">{notice}</p>}
-    <AsyncDataSurface loading={!state && !error} error={error} hasData={Boolean(state)} onRetry={() => setAttempt((value) => value + 1)}>{state ? <FinanceDataSources state={state} onAction={canManage ? (action, entry) => setModal({ action, entry }) : undefined} /> : null}</AsyncDataSurface>
-    {modal && <AutoCountActionModal {...modal} entities={state.connectorEntities} onClose={() => setModal(null)} onSaved={onSaved} />}
+    <AsyncDataSurface loading={!state && !error} error={error} hasData={Boolean(state)} onRetry={() => setAttempt((value) => value + 1)}>{state ? <FinanceDataSources state={state} onAction={canManage ? (action, entry, details) => setModal({ action, entry, ...details }) : undefined} /> : null}</AsyncDataSurface>
+    {modal && <AutoCountActionModal {...modal} entities={state.connectorEntities} onClose={() => { setModal(null); setAttempt((value) => value + 1); }} onSaved={onSaved} />}
   </WorkspacePage>;
 }
 
