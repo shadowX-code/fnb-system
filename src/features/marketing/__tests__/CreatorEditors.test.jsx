@@ -160,3 +160,14 @@ it('immediately displays the committed avatar and32 followers while retaining th
  render(<AccountEditor {...props} record={record} creator={data.creators[0]} onSave={onSave} onEnriched={onEnriched}/>);fireEvent.click(screen.getByRole('button',{name:'Refresh Profile'}));await screen.findByText('32');expect(screen.getByRole('img',{name:'Public profile'}).getAttribute('src')).toContain('/new.jpg');expect(screen.queryByText('31')).toBeNull();expect(onEnriched).toHaveBeenCalledWith(account);expect(onSave).not.toHaveBeenCalled();expect(creatorService.refreshFollowers).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));expect(onSave).toHaveBeenCalledOnce();expect(onSave.mock.calls[0][0]).not.toHaveProperty('profile_enrichment_receipt');expect(onSave.mock.calls[0][0]).not.toHaveProperty('public_observation');
 });
+
+it('keeps Save disabled if manual preview returns an unresolved XHS identity',async()=>{
+ const onSave=vi.fn();
+ creatorService.manualPreview.mockResolvedValueOnce({platform:'xhs',short_link:true,canonical_url:'https://xhslink.com/o/fixture'});
+ render(<PostEditor {...props} onSave={onSave}/>);
+ fireEvent.change(screen.getByLabelText('Post URL *'),{target:{value:'http://xhslink.com/o/fixture'}});
+ fireEvent.click(screen.getByRole('button',{name:'Enter manually'}));
+ await screen.findByText(/This Xiaohongshu link is unresolved/);
+ expect(screen.getByRole('button',{name:'Save Post'}).disabled).toBe(true);
+ expect(onSave).not.toHaveBeenCalled();
+});

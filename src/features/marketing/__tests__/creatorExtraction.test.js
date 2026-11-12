@@ -74,3 +74,17 @@ it('stops a public XHS redirect at the stable note or profile identity without d
  const hostile=async()=>({status:302,headers:{location:'https://www.xiaohongshu.com.evil.invalid/explore/'+note}});
  await expect(resolvePostUrl(short,networkBudget(),v=>xhsUrl(v,'post'),hostile)).rejects.toThrow('redirect_not_supported');
 });
+
+it('upgrades XHS short links before redirect lookup and keeps other HTTP hosts blocked',async()=>{
+ const {xhsUrl}=await import('../../../../server/creatorExtraction/urls.mjs');
+ const {resolvePostUrl,networkBudget}=await import('../../../../server/creatorExtraction/network.mjs');
+ const short='http://xhslink.com/o/Fixture_1?source=app%2Bshare';
+ const secure='https://xhslink.com/o/Fixture_1?source=app%2Bshare';
+ const request=vi.fn(async()=>({status:302,headers:{location:'https://www.xiaohongshu.com/explore/6a8fb7f30000000037034698'}}));
+ expect(await resolvePostUrl(short,networkBudget(),platformUrl,request)).toMatchObject({post_id:'6a8fb7f30000000037034698'});
+ expect(request.mock.calls[0][0]).toBe(secure);
+ expect(xhsUrl(short,'profile')).toMatchObject({share:true,request_url:secure});
+ expect(xhsUrl('http://xhslink.com.evil.invalid/o/Fixture_1','post')).toBeNull();
+ expect(xhsUrl('http://xhslink.com:80/o/Fixture_1','post')).toBeNull();
+ expect(xhsUrl('http://www.xiaohongshu.com/explore/6a8fb7f30000000037034698','post')).toBeNull();
+});

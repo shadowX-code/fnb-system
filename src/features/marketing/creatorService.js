@@ -26,7 +26,7 @@ export const creatorService={
  resolveXhsProfile:(org,url)=>resolveXhsLink(org,null,url,'xhs_profile_link'),
  manualPreview:async(org,brand,url)=>{
   const xhs=xhsUrl(url,'post');
-  if(xhs?.share)return resolveXhsLink(org,brand,url,'xhs_post_link');
+  if(xhs?.share)return resolveXhsLink(org,brand,xhs.original_url,'xhs_post_link');
   const preview=await rpc('marketing_creator_post_preview',{p_org:org,p_brand:brand,p_url:xhs?.canonical_url||url});
   return xhs?{...preview,original_url:xhs.original_url}:preview;
  },

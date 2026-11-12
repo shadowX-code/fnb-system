@@ -17,3 +17,14 @@ it('shares one in-flight profile request across consumers without caching its on
  await vi.waitFor(()=>expect(fetch).toHaveBeenCalledTimes(1));resolve(new Response(JSON.stringify({metadata_status:'public_extracted',enrichment_receipt:'one-use'})));await one;
  const next=creatorService.profile('org',null,'https://www.instagram.com/shared/');expect(next).not.toBe(one);await vi.waitFor(()=>expect(fetch).toHaveBeenCalledTimes(2));resolve(new Response('{}'));await next;
 });
+
+it.each(['preview','manualPreview'])('routes an HTTP XHS short link to the HTTPS identity resolver in %s',async method=>{
+ const result={platform:'xhs',short_link:false,canonical_url:'https://www.xiaohongshu.com/explore/6a8fb7f30000000037034698',original_url:'https://xhslink.com/o/fixture'};
+ const fetch=vi.fn(async()=>new Response(JSON.stringify(result)));
+ vi.stubGlobal('fetch',fetch);
+ expect(await creatorService[method]('org','brand','http://xhslink.com/o/fixture')).toEqual(result);
+ expect(fetch).toHaveBeenCalledOnce();
+ const [endpoint,options]=fetch.mock.calls[0];
+ expect(endpoint).toBe('/api/marketing-creator-inspect');
+ expect(JSON.parse(options.body)).toEqual({org:'org',brand:'brand',url:'https://xhslink.com/o/fixture',kind:'xhs_post_link'});
+});

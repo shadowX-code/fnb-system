@@ -3,9 +3,11 @@ const hosts={instagram:['instagram.com','www.instagram.com'],facebook:['facebook
 export function xhsUrl(value,kind){
  const input=typeof value==='string'?value.trim():'';
  if(!input||input.length>(kind==='profile'?1500:2000)||/[\s\\]/.test(input))return null;
- const parts=input.match(/^https:\/\/[^/?#]+\/[^?#]*([?#].*)?$/i);
+ // XHS still shares some short URLs as HTTP. Upgrade only its exact short-link hosts.
+ const secureInput=input.replace(/^http:\/\/((?:www\.)?xhslink\.com)\//i,'https://$1/');
+ const parts=secureInput.match(/^https:\/\/[^/?#]+\/[^?#]*([?#].*)?$/i);
  if(!parts)return null;
- let u;try{u=new URL(input)}catch{return null}
+ let u;try{u=new URL(secureInput)}catch{return null}
  if(u.protocol!=='https:'||u.port||u.username||u.password||!hosts.xhs.includes(u.hostname))return null;
  const short=['xhslink.com','www.xhslink.com'].includes(u.hostname);
  if(short&&!/^\/(?:[a-z]\/)?[\w-]+\/?$/i.test(u.pathname))return null;
@@ -17,11 +19,11 @@ export function xhsUrl(value,kind){
 }
 export function platformUrl(value){
  let u;try{u=new URL(value)}catch{throw new Error('invalid_url')}
- if(value.length>2000||u.protocol!=='https:'||u.port||u.username||u.password||!Object.values(hosts).flat().includes(u.hostname))throw new Error('unsupported_url');
  const platform=Object.keys(hosts).find(k=>hosts[k].includes(u.hostname));
+ if(platform==='xhs'){const result=xhsUrl(value,'post');if(!result)throw new Error('unsupported_post_url');return result;}
+ if(value.length>2000||u.protocol!=='https:'||u.port||u.username||u.password||!platform)throw new Error('unsupported_url');
  const p=u.pathname;let id,canonical;
  if(platform==='instagram'){id=p.match(/^\/(?:[A-Za-z0-9._]+\/)?(?:p|reel|reels|tv)\/([\w-]+)\/?$/)?.[1];if(id)canonical=`https://www.instagram.com/p/${id}/`;}
- if(platform==='xhs'){const result=xhsUrl(value,'post');if(!result)throw new Error('unsupported_post_url');return result;}
  if(platform==='tiktok'){const m=p.match(/^\/@([\w.-]+)\/video\/(\d+)\/?$/);id=m?.[2];if(m)canonical=`https://www.tiktok.com/@${m[1]}/video/${id}`;}
  if(platform==='facebook'){
   const route=p.match(/^\/([^/?]+)\/(posts|videos)\/(?:[^/?]+\/)?([0-9A-Za-z_-]+)\/?$/);
