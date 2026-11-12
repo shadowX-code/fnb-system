@@ -39,11 +39,11 @@ export async function verifyWhatsAppAccount(g:Graph,c:WhatsAppConfig,token:strin
  if(w.id!==expected.waba_id||w.owner_business_info?.id!==expected.customer_business_id)throw new MetaError('whatsapp_business_owner_mismatch');
  const phones=await collect(g,`${expected.waba_id}/phone_numbers`,token,{fields:'id'});
  if(phones.filter(p=>p.id===expected.phone_id).length!==1)throw new MetaError('whatsapp_phone_waba_mismatch');
- const newNumber=expected.mode==='new_number';
  return {subject:d.user_id,expiresAt:expiry};
 }
 export async function verifyWhatsAppAssets(g:Graph,c:WhatsAppConfig,token:string,expected:{waba_id:string;phone_id:string;customer_business_id:string;approved_phone_hash?:string|null;confirmedPhoneNumber?:string;mode?:'coexistence'|'new_number'},now=Date.now()){
  const {subject,expiresAt}=await verifyWhatsAppAccount(g,c,token,expected,now);
+ const newNumber=expected.mode==='new_number';
  const fieldsToRead=['id','is_on_biz_app','platform_type'];
  if(expected.approved_phone_hash||expected.confirmedPhoneNumber)fieldsToRead.push('display_phone_number');
  if(newNumber)fieldsToRead.push('status','code_verification_status');
