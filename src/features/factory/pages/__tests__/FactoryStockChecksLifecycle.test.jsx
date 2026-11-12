@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { factoryService } from "../../../../services/factoryService.js";
 import FactoryWorkspacePage from "../FactoryWorkspacePage.jsx";
@@ -21,6 +21,47 @@ describe("Factory Stock Check mounted lifecycle", () => {
     expect(within(detail).getAllByText("Mushroom Sauce").length).toBeGreaterThan(0);
     expect(within(detail).getAllByText("S7 · 500 g").length).toBeGreaterThan(0);
     expect(within(detail).queryByText("Mushroom Sauce - 500 kg Pack")).toBeNull();
+  });
+
+  it("reviews a saved shortage after availability loads and preserves it across read failures and retry", async () => {
+    const draft = { ...product, status: "draft" };
+    mount("product", draft);
+    const batch = { batch_id: "fg-batch", batch_no: "PB-1", available_qty: 5, storage_location_type: "Freezer" };
+    const availability = { batches: [batch], allocatable_batch_balance: 5 };
+    let completeRead;
+    const read = vi.spyOn(factoryService, "getFinishedGoodBatchAvailability")
+      .mockReturnValueOnce(new Promise((resolve) => { completeRead = resolve; }))
+      .mockRejectedValueOnce(Object.assign(new Error("permission denied"), { code: "42501" }))
+      .mockRejectedValueOnce(new Error("Failed to fetch"))
+      .mockResolvedValueOnce(availability);
+    const save = vi.spyOn(factoryService, "saveStockCheck");
+    await screen.findAllByText(draft.check_no);
+    fireEvent.click(within(checkRow(draft.check_no)).getByRole("button", { name: "More row actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit", exact: true }));
+    const review = () => fireEvent.click(screen.getAllByRole("button", { name: "Review Batch Resolution" })[0]);
+    const editor = () => within(screen.getByRole("dialog", { name: "Suggested Batch Resolution (FEFO)" }));
+    const apply = () => editor().getByRole("button", { name: "Accept Suggested Resolution" });
+    const cancel = () => fireEvent.click(editor().getByRole("button", { name: "Cancel" }));
+    review();
+    expect(editor().getByText("Loading available batches...")).toBeTruthy();
+    expect(editor().queryByRole("alert")).toBeNull();
+    expect(apply().disabled).toBe(true);
+    await act(async () => completeRead(availability));
+    expect(editor().getByRole("row", { name: /PB-1.*5 Packs.*-1 Packs.*4 Packs/ })).toBeTruthy();
+    expect(apply().disabled).toBe(false);
+    cancel();
+
+    review();
+    expect((await editor().findByRole("alert")).textContent).toContain("Your batch resolution has been kept.");
+    expect(apply().disabled).toBe(true);
+    cancel();
+    review();
+    expect((await editor().findByRole("alert")).textContent).toContain("Unable to load batch availability.");
+    fireEvent.click(editor().getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(apply().disabled).toBe(false));
+    expect(editor().queryByRole("alert")).toBeNull();
+    expect(read).toHaveBeenCalledTimes(4);
+    expect(save).not.toHaveBeenCalled();
   });
 
   it.each([["raw", raw], ["product", product]])("approves submitted %s checks once, updates the row, and refreshes listing plus Factory data", async (type, check) => { const { listing } = mount(type, check); const approve = vi.spyOn(factoryService, "approveStockCheck").mockResolvedValue(); await screen.findAllByText(check.check_no); fireEvent.click(within(checkRow(check.check_no)).getByRole("button", { name: "Approve" })); await waitFor(() => expect(approve).toHaveBeenCalledWith(type, check, "employee-1")); expect(approve).toHaveBeenCalledTimes(1); await waitFor(() => expect(listing).toHaveBeenCalledTimes(2)); await waitFor(() => expect(factoryService.listFactoryData).toHaveBeenCalledTimes(2)); });

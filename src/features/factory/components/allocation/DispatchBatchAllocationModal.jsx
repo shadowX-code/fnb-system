@@ -41,7 +41,8 @@ export default function DispatchBatchAllocationModal({ item, sku, batches, unava
   const invalidLocationAllocations = (item.allocations || []).filter((allocation) => (
     allocation.location_valid === false && Number(quantities[allocation.batch_id || allocation.batch_balance_id] || 0) > 0
   ));
-  const canApply = !loading && !error && !isStale
+  const hasCurrentAvailability = !loading && !error && !isStale;
+  const canApply = hasCurrentAvailability
     && Number.isInteger(requiredQty) && requiredQty > 0
     && requiredQty <= resolvedAvailableToThisLine
     && allocatedQty === requiredQty
@@ -120,20 +121,20 @@ export default function DispatchBatchAllocationModal({ item, sku, batches, unava
 
         {loading ? <div className="rounded-xl border border-border bg-slate-50 px-4 py-8 text-center text-sm font-semibold text-text-secondary">Loading available batches...</div> : null}
         {error ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+          <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
             <div>{error}</div>
             {errorKind === "load" ? <button className="mt-2 underline" type="button" onClick={onRetry}>Retry</button> : null}
           </div>
         ) : null}
-        {isStale ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800"><div>Unable to load the latest batch availability. Showing the last successfully loaded results.</div><button className="mt-2 underline" type="button" onClick={onRetry}>Retry</button></div> : null}
-        {staleAllocationKeys.length ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">One or more selected batches are no longer available. Please reallocate.</div> : null}
-        {!loading && invalidLocationAllocations.length ? (
+        {!loading && isStale ? <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800"><div>Unable to load the latest batch availability. Showing the last successfully loaded results.</div><button className="mt-2 underline" type="button" onClick={onRetry}>Retry</button></div> : null}
+        {hasCurrentAvailability && staleAllocationKeys.length ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">One or more selected batches are no longer available. Please reallocate.</div> : null}
+        {hasCurrentAvailability && invalidLocationAllocations.length ? (
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
             <div className="font-bold">This batch is not available from an active Finished Goods location.</div>
             <div className="mt-1 text-xs">Clear or auto-allocate again before applying.</div>
           </div>
         ) : null}
-        {!loading && !error && !batches.length ? <EmptyState title="No Available Batches" description={allowExpired ? "No active Finished Goods batches have available pack balance." : "No active, unexpired Finished Goods batches have available pack balance."} /> : null}
+        {hasCurrentAvailability && !batches.length ? <EmptyState title="No Available Batches" description={allowExpired ? "No active Finished Goods batches have available pack balance." : "No active, unexpired Finished Goods batches have available pack balance."} /> : null}
 
         {!error && batches.length ? (
           <div className="space-y-3 md:hidden">
@@ -168,9 +169,9 @@ export default function DispatchBatchAllocationModal({ item, sku, batches, unava
           </div>
         ) : null}
 
-        {!loading && !error && shortage > 0 ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">Only {quantity(resolvedAvailableToThisLine, pluralizePackagingType(packagingTypeLabel(sku), resolvedAvailableToThisLine).toLowerCase())} {resolvedAvailableToThisLine === 1 ? "is" : "are"} available. {isStockCheck ? "Review batch reconciliation before submitting." : "Reduce the Dispatch quantity."}</div> : null}
-        {!loading && !error && shortage === 0 && allocatedQty !== requiredQty ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Allocate exactly {quantity(requiredQty, pluralizePackagingType(packagingTypeLabel(sku), requiredQty))} before applying.</div> : null}
-        {shortage === 0 && exceedsAvailability ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">One or more selected batches exceed the available quantity. Please reallocate.</div> : null}
+        {hasCurrentAvailability && shortage > 0 ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">Only {quantity(resolvedAvailableToThisLine, pluralizePackagingType(packagingTypeLabel(sku), resolvedAvailableToThisLine).toLowerCase())} {resolvedAvailableToThisLine === 1 ? "is" : "are"} available. {isStockCheck ? "Review batch reconciliation before submitting." : "Reduce the Dispatch quantity."}</div> : null}
+        {hasCurrentAvailability && shortage === 0 && allocatedQty !== requiredQty ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Allocate exactly {quantity(requiredQty, pluralizePackagingType(packagingTypeLabel(sku), requiredQty))} before applying.</div> : null}
+        {hasCurrentAvailability && shortage === 0 && exceedsAvailability ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">One or more selected batches exceed the available quantity. Please reallocate.</div> : null}
       </div>
     </Modal>
   );

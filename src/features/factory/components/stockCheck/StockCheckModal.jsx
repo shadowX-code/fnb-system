@@ -115,18 +115,22 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
     } catch (loadError) {
       const permissionDenied = isFactoryPermissionError(loadError);
       console.error("[Factory] Unable to load Product Stock Check batch availability.", loadError);
-      if (permissionDenied) {
-        updateRow(row.id, { batch_allocations: [] });
-        setBatchEditor(null);
-        setError("Batch availability is hidden by your current role.");
-        return;
-      }
       setBatchEditor((current) => current?.rowId === row.id ? {
         ...current,
         loading: false,
-        error: current.batches?.length ? "" : "Unable to load the latest batch availability.",
-        errorKind: "load",
-        isStale: Boolean(current.batches?.length),
+        ...(permissionDenied ? {
+          batches: [],
+          unavailableBatches: [],
+          batchAvailable: null,
+          availableToThisLine: null,
+          error: "Your role cannot view batch availability. Ask a Factory administrator to check your access. Your batch resolution has been kept.",
+          errorKind: "permission",
+          isStale: false,
+        } : {
+          error: current.batches?.length ? "" : "Unable to load batch availability. Retry to review your batch resolution.",
+          errorKind: "load",
+          isStale: Boolean(current.batches?.length),
+        }),
       } : current);
     }
   }
