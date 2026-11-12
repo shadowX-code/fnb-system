@@ -1,7 +1,9 @@
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useState} from 'react';
+import {Eye, Pencil, Plus, RefreshCw} from 'lucide-react';
 import {useAuth} from '../../auth/AuthContext.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
-import AdminFormField from '../../components/forms/AdminFormField.jsx';
+import AdminSearchField from '../../components/forms/AdminSearchField.jsx';
+import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import DataTable from '../../components/tables/DataTable.jsx';
@@ -9,10 +11,15 @@ import Badge from '../../components/ui/Badge.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import {formatOperationalDateTime} from '../../lib/dateTime.js';
 import {marketingService} from './marketingService.js';
+import {numberedVariables} from '../../../supabase/functions/_shared/whatsappTemplateContent.mjs';
 import {templateFields, WhatsAppTemplatePreview} from './WhatsAppTemplateCatalog.jsx';
 
-const categories = [{value:'UTILITY',label:'Utility'},{value:'MARKETING',label:'Marketing'}];
-const statusLabels = {APPROVED:'Approved',PENDING:'In review',REJECTED:'Rejected',PAUSED:'Paused',IN_APPEAL:'In appeal'};
+import WhatsAppTemplateEditor from './WhatsAppTemplateEditor.jsx';
+import {draftStorageKey, emptyTemplateDrafts, friendlyTemplateName, makeTemplateDraft, readTemplateDrafts, templateLanguageLabel} from './whatsappTemplateDrafts.js';
+import './whatsappTemplates.css';
+
+const allFilters={search:'',category:'',status:'',language:''};
+const statusLabels = {APPROVED:'Approved',PENDING:'In review',REJECTED:'Rejected',PAUSED:'Paused',IN_APPEAL:'In appeal',DRAFT:'Draft'};
 const statusLabel = status => statusLabels[status] || status.toLowerCase().replaceAll('_',' ').replace(/^./,letter=>letter.toUpperCase());
 
 export default function WhatsAppTemplatesPage() {
@@ -35,34 +42,43 @@ export default function WhatsAppTemplatesPage() {
   return()=>{current=false;};
  },[auth.user?.id,attempt]);
  const brand=context?.find(item=>item.id===brandId);
- return <WorkspacePage section="Marketing · CRM" title="WhatsApp Templates" density="compact"
+ const layout=children=><WorkspacePage section="Marketing · CRM" title="WhatsApp Templates" density="compact"
   controls={context?.length?<SelectField label="Brand" value={brandId} onChange={setBrandId}
    searchable="auto" options={context.map(item=>({value:item.id,label:item.name}))}/>:null}>
-  <AsyncDataSurface loading={!context&&!error} error={error} hasData={Boolean(context)} onRetry={()=>setAttempt(value=>value+1)}>
-   {brand?<WhatsAppTemplateWorkspace key={`${auth.user?.id}:${brandId}`} brand={brand}/>:context?<p className="card p-4">No active Brand is available.</p>:null}
-  </AsyncDataSurface>
+  {children}
  </WorkspacePage>;
+ if(brand)return <WhatsAppTemplateWorkspace key={`${auth.user?.id}:${brandId}`} brand={brand}
+  userId={auth.user?.id} wrapLibrary={layout}/>;
+ return layout(<AsyncDataSurface loading={!context&&!error} error={error} hasData={Boolean(context)} onRetry={()=>setAttempt(value=>value+1)}>
+  {context?<p className="card p-4">No active Brand is available.</p>:null}
+ </AsyncDataSurface>);
 }
 
-export function WhatsAppTemplateWorkspace({brand,readOnly=false}) {
+export function WhatsAppTemplateWorkspace({brand,userId,readOnly=false,wrapLibrary}) {
  const [scope,setScope]=useState(null);
  const [catalog,setCatalog]=useState(null);
  const [error,setError]=useState('');
  const [notice,setNotice]=useState('');
  const [selected,setSelected]=useState(null);
  const [editor,setEditor]=useState(null);
- const [search,setSearch]=useState('');
+ const [filters,setFilters]=useState(allFilters);
  const [sync,setSync]=useState(0);
  const [busy,setBusy]=useState(true);
+ const storageKey=userId&&!readOnly?draftStorageKey(userId,brand):null;
+ const [local,setLocal]=useState(()=>storageKey?readTemplateDrafts(storageKey):emptyTemplateDrafts);
+ const organizationId=brand.organization_id,brandId=brand.id;
+
  useEffect(()=>{
   let current=true;
-  const organizationId=brand.organization_id,brandId=brand.id;
   setBusy(true);
   setError('');
   marketingService.whatsappConnections(organizationId,brandId).then(async result=>{
    if(!current)return;
    const connection=result.connections.find(item=>item.brand_id===brandId);
-   setScope(connection?{organizationId,brandId,connectionId:connection.id,generation:connection.credential_generation,test:connection.onboarding_mode==='cloud_api'}:null);
+   setScope(connection?{
+    organizationId,brandId,connectionId:connection.id,generation:connection.credential_generation,
+    test:connection.onboarding_mode==='cloud_api',
+   }:null);
    if(!connection){setCatalog(null);return;}
    const refreshed=await marketingService.whatsappTemplateCatalog({organizationId,brandId,connectionId:connection.id,generation:connection.credential_generation});
    if(current)setCatalog(refreshed);
@@ -70,102 +86,158 @@ export function WhatsAppTemplateWorkspace({brand,readOnly=false}) {
    if(current){setError(failure.message);setCatalog(null);}
   }).finally(()=>{if(current)setBusy(false);});
   return()=>{current=false;};
- },[brand.id,brand.organization_id,sync]);
+ },[brandId,organizationId,sync]);
+
  const refresh=()=>setSync(value=>value+1);
- const rows=(catalog?.templates||[]).filter(row=>[row.name,row.language,row.category,statusLabel(row.status)].some(value=>value.toLowerCase().includes(search.trim().toLowerCase())));
- const current=catalog?.templates.find(row=>row.id===selected);
- const detail=()=>setSelected(null);
- const connectionsHref=`/marketing/connections?provider=whatsapp&marketing_brand=${encodeURIComponent(brand.id)}&marketing_org=${encodeURIComponent(brand.organization_id)}`;
- return <section className="space-y-3" aria-label="WhatsApp template catalog">
-  <div className="flex flex-wrap items-center justify-between gap-3">
-   <div className="space-y-1">
-    <div className="flex flex-wrap items-center gap-2">
+ const changeFilter=(key,value)=>setFilters(current=>({...current,[key]:value}));
+ const metaRows=(catalog?.templates||[]).map(row=>({...row,friendly:local.labels[row.id]||friendlyTemplateName(row.name)}));
+ const library=[...local.drafts.map(draft=>({...draft,id:`draft:${draft.draftId}`,status:'DRAFT'})),...metaRows];
+ const rows=library.filter(row=>{
+  const query=filters.search.trim().toLowerCase();
+  return (!filters.category||row.category===filters.category)&&(!filters.status||row.status===filters.status)
+   &&(!filters.language||row.language===filters.language)
+   &&[row.friendly,row.name,templateLanguageLabel(row.language)].some(value=>value.toLowerCase().includes(query));
+ });
+ const current=metaRows.find(row=>row.id===selected);
+ const editorSource=editor?.source?metaRows.find(row=>row.id===editor.source.id):null;
+ const unavailable=busy?'Wait for the Meta catalog to finish refreshing.':
+  !scope||!catalog?'An active WhatsApp connection and successful Meta sync are required to submit.':
+  editor?.source&&(!editorSource?.canEdit||editorSource.revision!==editor.source.revision)?
+   'The Meta template changed. Open its current version from the library before submitting another edit.':'';
+ const connectionsHref=`/marketing/connections?provider=whatsapp&marketing_brand=${encodeURIComponent(brandId)}&marketing_org=${encodeURIComponent(organizationId)}`;
+
+ function persist(change) {
+  if(!storageKey)throw new Error('Local drafts are unavailable.');
+  const next=change(readTemplateDrafts(storageKey));
+  localStorage.setItem(storageKey,JSON.stringify(next));
+  setLocal(next);
+ }
+
+ function storeDraft(draft) {
+  persist(previous=>({...previous,drafts:[
+   {...draft,savedAt:new Date().toISOString()},...previous.drafts.filter(item=>item.draftId!==draft.draftId),
+  ]}));
+ }
+
+ function openEditor(row) {
+  setSelected(null);
+  setNotice('');
+  const existing=row&&local.drafts.find(item=>item.source?.id===row.id);
+  setEditor(existing||makeTemplateDraft(row,row?.friendly));
+ }
+
+ function closeEditor() {
+  setEditor(null);
+ }
+
+ function saveDraft(draft) {
+  storeDraft(draft);
+  setFilters({...allFilters,status:'DRAFT'});
+  setNotice('Draft saved in this browser.');
+  closeEditor();
+ }
+
+ async function submitDraft(draft, template) {
+  try{storeDraft({...draft,uncertain:true});}
+  catch{throw Object.assign(new Error('This browser could not save the draft before submission. Try again after restoring browser storage.'),{code:'draft_storage_failed'});}
+  const {test,...connection}=scope;
+  let result;
+  try{result=await marketingService.submitWhatsAppTemplate({...connection,template});}
+  catch(failure){
+   if(failure.code&&failure.code!=='whatsapp_template_outcome_uncertain'){
+    try{storeDraft({...draft,uncertain:false});}catch{/* Keep the original recovery draft. */}
+   }
+   throw failure;
+  }
+  let message='Meta accepted the submission. The catalog shows the status returned by Meta.';
+  try{
+   persist(previous=>({drafts:previous.drafts.filter(item=>item.draftId!==draft.draftId),
+    labels:{...previous.labels,[result.id]:draft.friendly.trim()}}));
+  }catch{message='Meta accepted the submission. This browser could not clear the saved draft. Check the catalog before taking another action.';}
+  setNotice(message);
+  setFilters(allFilters);
+  setCatalog(null);
+  closeEditor();
+  refresh();
+ }
+
+ const counts=library.reduce((totals,row)=>({...totals,[row.status]:(totals[row.status]||0)+1}),{});
+ const statusOptions=[...new Set(library.map(row=>row.status))];
+ const filterOptions=(key,label,values,labelFor)=>(
+  <SelectField label={label} value={filters[key]} onChange={value=>changeFilter(key,value)}
+   options={[{value:'',label:{category:'All categories',status:'All statuses',language:'All languages'}[key]},...values.map(value=>({value,label:labelFor(value)}))]}/>
+ );
+ if(editor)return <WhatsAppTemplateEditor key={editor.draftId} initial={editor} brandName={brand.name}
+  scope={scope} unavailable={unavailable} onClose={closeEditor} onSave={saveDraft} onSubmit={submitDraft}
+  onRefresh={()=>{closeEditor();refresh();}}
+  onDiscard={id=>{persist(previous=>({...previous,drafts:previous.drafts.filter(item=>item.draftId!==id)}));setNotice('Draft discarded.');closeEditor();}}/>;
+
+ const libraryView=<section className="wa-template-library" aria-label="WhatsApp template catalog">
+  <div className="wa-template-library-header">
+   <div className="wa-template-library-title">
+    {!readOnly?<h2>Template Library</h2>:null}
+    <div className="wa-template-sync" role="status">
      {scope?.test?<Badge tone="warning">Staging test account</Badge>:null}
-     <Badge tone={busy?'neutral':error?'warning':catalog?'success':'neutral'}>{busy?'Checking Meta':error?'Sync unavailable':catalog?'Synced from Meta':'Connection required'}</Badge>
+     <Badge tone={busy?'neutral':error?'warning':catalog?'success':'neutral'}>
+      {busy?'Checking Meta':error?'Sync unavailable':catalog?'Synced from Meta':'Connection required'}
+     </Badge>
+     {catalog?.checkedAt?<span>Last checked {formatOperationalDateTime(catalog.checkedAt)}</span>:null}
     </div>
-    {catalog?.checkedAt?<p className="text-sm text-text-secondary">Last checked {formatOperationalDateTime(catalog.checkedAt)}</p>:null}
    </div>
-   <div className="flex flex-wrap gap-2">
-    <button className="btn-secondary" disabled={busy} onClick={refresh}>Refresh from Meta</button>
-    {!readOnly&&catalog?<button className="btn-primary" disabled={busy} onClick={()=>{setNotice('');setEditor({});}}>New template</button>:null}
+   <div className="wa-template-actions">
+    <button className="btn-secondary" disabled={busy} onClick={refresh}><RefreshCw size={15} aria-hidden="true"/> Refresh from Meta</button>
+    {!readOnly&&storageKey?<button className="btn-primary" onClick={()=>openEditor()}><Plus size={16} aria-hidden="true"/> New template</button>:null}
    </div>
   </div>
-  {notice?<p role="status" className="text-sm">{notice}</p>:null}
-  {error?<p role="alert" className="card p-4 text-sm">{error} {scope?.test?'Verify the test number in WhatsApp Chat’s Staging tools if its authorization expired.':<a href={connectionsHref}>Open Connections</a>}</p>:null}
-  {!scope&&!busy&&!error?<div className="card space-y-2 p-4"><p>Connect WhatsApp for this Brand to see its templates.</p><a href={connectionsHref}>Open Connections</a></div>:null}
-  {catalog?<><AdminFormField label="Search templates"><input type="search" className="control w-full" value={search} onChange={event=>setSearch(event.target.value)}/></AdminFormField>
-   {rows.length?<DataTable rows={rows} getRowKey={row=>row.id} density="compact" mobileLayout="stack" minWidth={520}
+  {notice?<p role="status" className="wa-template-help">{notice}</p>:null}
+  {error?<p role="alert" className="card p-3 text-sm">{error} {scope?.test?'Verify the test number in WhatsApp Chat’s Staging tools if its authorization expired.':<a href={connectionsHref}>Open Connections</a>}</p>:null}
+  {!scope&&!busy&&!error?<div className="card space-y-2 p-3 text-sm"><p>Connect WhatsApp for this Brand to sync Meta templates.</p><a href={connectionsHref}>Open Connections</a></div>:null}
+  {catalog||library.length?<div className="wa-template-list">
+   {!readOnly?<div className="wa-template-counts" aria-label="Template counts">
+    {[['','All'],['DRAFT','Drafts'],['PENDING','In review'],['APPROVED','Approved'],['REJECTED','Rejected']].map(([value,label])=>(
+     <button type="button" key={label} aria-pressed={filters.status===value} onClick={()=>changeFilter('status',value)}>
+      {label} <span>{value?(counts[value]||0):library.length}</span>
+     </button>
+    ))}
+   </div>:null}
+   <AdminFilterToolbar compact denseFields ariaLabel="Template filters"
+    search={<AdminSearchField label="Search templates" placeholder="Friendly or Meta name" value={filters.search} onChange={value=>changeFilter('search',value)}/>}
+    filters={readOnly?null:<>
+     {filterOptions('category','Category',[...new Set(library.map(row=>row.category))],statusLabel)}
+     {filterOptions('status','Status',statusOptions,statusLabel)}
+     {filterOptions('language','Language',[...new Set(library.map(row=>row.language))],templateLanguageLabel)}
+    </>}
+    onClear={Object.values(filters).some(Boolean)?()=>setFilters(allFilters):undefined}/>
+   {rows.length?<DataTable rows={rows} getRowKey={row=>row.id} density="compact" mobileLayout="stack" minWidth={560}
     columns={[
-     {key:'name',header:'Template',render:row=><button type="button" className="break-all text-left font-semibold text-primary" onClick={()=>setSelected(row.id)}>{row.name}</button>},
+     {key:'name',header:'Template',render:row=><div className="wa-template-row-name">
+      <strong>{row.friendly||'Untitled draft'}</strong>
+      {row.name?<small>{row.name}</small>:null}
+     </div>},
      {key:'category',header:'Category',render:row=>statusLabel(row.category)},
-     {key:'language',header:'Language',render:row=>row.language},
-     {key:'status',header:'Meta status',render:row=><Badge tone={row.status==='APPROVED'?'success':row.status==='PENDING'?'warning':row.status==='REJECTED'?'danger':'neutral'}>{statusLabel(row.status)}</Badge>},
-     {key:'variables',header:'Variables',render:row=>templateFields(row).length+row.components.flatMap(component=>component.buttons).filter(button=>button.needsValue).length},
-    ]}/>:<p role="status" className="card p-4">{search?'No templates match this search.':'Meta returned no templates for this account.'}</p>}
-  </>:null}
-  {current&&!editor?<Drawer title="Template details" description={current.name} onClose={detail}
-   footer={!readOnly&&current.canEdit?<button className="btn-primary" onClick={()=>{setNotice('');setEditor(current);}}>Edit template</button>:null}>
+     {key:'language',header:'Language',render:row=>templateLanguageLabel(row.language)},
+     {key:'status',header:'Status',render:row=><Badge tone={row.status==='APPROVED'?'success':row.status==='PENDING'?'warning':row.status==='REJECTED'?'danger':'neutral'}>
+      {statusLabel(row.status)}
+     </Badge>},
+     {key:'variables',header:'Variables',render:row=>row.status==='DRAFT'?
+      numberedVariables(row.header).length+numberedVariables(row.text).length:
+      templateFields(row).length+row.components.flatMap(component=>component.buttons).filter(button=>button.needsValue).length},
+     {key:'actions',header:'Actions',render:row=>row.status==='DRAFT'?
+      <button className="btn-secondary" onClick={()=>{setNotice('');setEditor(row);}}><Pencil size={14} aria-hidden="true"/> Open draft</button>:
+      <div className="wa-template-actions">
+       <button className="btn-secondary" aria-label={`Preview ${row.friendly}`} onClick={()=>setSelected(row.id)}><Eye size={14} aria-hidden="true"/> Preview</button>
+       {!readOnly&&row.canEdit?<button className="btn-secondary" aria-label={`Edit ${row.friendly}`} onClick={()=>openEditor(row)}><Pencil size={14} aria-hidden="true"/> Edit</button>:null}
+      </div>},
+    ]}/>:<p role="status" className="wa-template-empty">{library.length?'No templates match these filters.':'Meta returned no templates for this account.'}</p>}
+  </div>:null}
+  {current?<Drawer title={current.friendly} description={current.name} onClose={()=>setSelected(null)}
+   footer={!readOnly&&current.canEdit?<button className="btn-primary" onClick={()=>openEditor(current)}>Edit template</button>:null}>
    <div className="space-y-3">
-    <p className="text-sm">{statusLabel(current.category)} · {current.language} · {statusLabel(current.status)}</p>
+    <p className="text-sm">{statusLabel(current.category)} · {templateLanguageLabel(current.language)} · {statusLabel(current.status)}</p>
     <WhatsAppTemplatePreview template={current}/>
     {current.status==='REJECTED'?<p className="text-sm">Review Meta’s reason in WhatsApp Manager before resubmitting.</p>:null}
-    {!readOnly&&!current.canEdit?<p className="text-sm text-text-secondary">Editing is unavailable for this template or its current status.</p>:null}
    </div>
   </Drawer>:null}
-  {editor?<TemplateEditor record={editor} scope={scope} onClose={()=>setEditor(null)}
-   onResult={message=>{setNotice(message);setEditor(null);setSelected(null);setCatalog(null);refresh();}}/>:null}
  </section>;
-}
-
-function TemplateEditor({record,scope,onClose,onResult}) {
- const [name,setName]=useState(record.name||'');
- const [language,setLanguage]=useState(record.language||'en');
- const [category,setCategory]=useState(record.category||'UTILITY');
- const [text,setText]=useState(record.components?.[0]?.text||'');
- const [samples,setSamples]=useState({});
- const [error,setError]=useState('');
- const [busy,setBusy]=useState(false);
- const [refreshRequired,setRefreshRequired]=useState(false);
- const sending=useRef(false);
- const preview={components:[{type:'BODY',text,buttons:[]}]};
- const fields=templateFields(preview);
- const sampleValues=fields.map(field=>samples[field.key]||'');
- const valid=Boolean(text.trim()&&sampleValues.every(value=>value.trim())
-  &&(record.id||(/^[a-z0-9_]{1,512}$/.test(name)&&/^[a-z]{2,3}(?:_[A-Za-z]{2,8}){0,2}$/.test(language))));
- async function submit(event) {
-  event.preventDefault();
-  if(!valid||refreshRequired||sending.current)return;
-  sending.current=true;
-  setBusy(true);
-  setError('');
-  const {test,...connection}=scope;
-  const identity=record.id?{id:record.id,revision:record.revision}:{name,language,category};
-  try{
-   await marketingService.submitWhatsAppTemplate({...connection,template:{...identity,text,samples:sampleValues}});
-   onResult('Meta accepted the submission. Refresh the catalog for its current review status.');
-  }catch(failure){
-   setError(failure.message);
-   if(!failure.code||['whatsapp_template_outcome_uncertain','whatsapp_template_stale','whatsapp_template_duplicate','whatsapp_template_edit_unavailable'].includes(failure.code))setRefreshRequired(true);
-  }
-  finally{sending.current=false;setBusy(false);}
- }
- const close=()=>{if(!sending.current)onClose();};
- return <Drawer title={record.id?'Edit WhatsApp template':'New WhatsApp template'} onClose={close}
-  closeOnEscape={!busy} closeOnOverlay={!busy}
-  footer={refreshRequired?<button type="button" className="btn-secondary" onClick={()=>onResult(error)}>Refresh catalog</button>:<button type="submit" form="whatsapp-template-editor" className="btn-primary" disabled={busy||!valid}>{busy?'Submitting…':'Submit to Meta for review'}</button>}>
-  <form id="whatsapp-template-editor" className="space-y-3" onSubmit={submit}>
-   <p className="text-sm text-text-secondary">FeedX supports text-only Utility and Marketing templates. Meta reviews every submission.</p>
-   {record.id?<p className="break-all text-sm">{name} · {language} · {statusLabel(category)}</p>:<>
-    <AdminFormField label="Template name"><input className="control w-full" value={name} onChange={event=>setName(event.target.value)} maxLength={512} required disabled={busy} placeholder="reservation_reminder"/></AdminFormField>
-    <SelectField label="Category" value={category} onChange={setCategory} options={categories} disabled={busy}/>
-    <AdminFormField label="Language code"><input className="control w-full" value={language} onChange={event=>setLanguage(event.target.value)} maxLength={12} required disabled={busy} placeholder="en or en_US"/></AdminFormField>
-   </>}
-   <AdminFormField label="Message body"><textarea className="control w-full" rows={5} maxLength={1024} required value={text} disabled={busy}
-    placeholder="Your reservation for {{1}} is confirmed." onChange={event=>setText(event.target.value)}/></AdminFormField>
-   {fields.map(field=><AdminFormField key={field.key} label={`Example for {{${field.name}}}`}><input className="control w-full" maxLength={100} required disabled={busy}
-    value={samples[field.key]||''} onChange={event=>setSamples(values=>({...values,[field.key]:event.target.value}))}/></AdminFormField>)}
-   <WhatsAppTemplatePreview template={preview} values={samples}/>
-   {error?<p role="alert" className="text-sm">{error}</p>:null}
-  </form>
- </Drawer>;
+ return wrapLibrary?wrapLibrary(libraryView):libraryView;
 }

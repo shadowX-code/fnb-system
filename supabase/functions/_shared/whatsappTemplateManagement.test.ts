@@ -68,3 +68,31 @@ describe('WhatsApp template endpoint scope',()=>{
   });
  });
 });
+
+it('submits the supported text components and preserves them when editing',async()=>{
+ const rich={
+  name:row.name,language:row.language,category:row.category,text:'Your booking is confirmed.',samples:[],
+  header:'Booking for {{1}}',headerSample:'Friday',footer:'Test Restaurant',
+  buttons:[{type:'URL',text:'Booking details',url:'https://example.com/reservations'},{type:'PHONE_NUMBER',text:'Call us',phone_number:'+60123456789'}],
+ };
+ const components=[
+  {type:'HEADER',format:'TEXT',text:rich.header,example:{header_text:['Friday']}},
+  {type:'BODY',text:rich.text},{type:'FOOTER',text:rich.footer},{type:'BUTTONS',buttons:rich.buttons},
+ ];
+ const request=vi.fn().mockResolvedValueOnce({id:'789'}).mockResolvedValueOnce({success:true});
+ await submitWhatsAppTemplate({request},'credential',waba,rich,[]);
+ expect(request).toHaveBeenNthCalledWith(1,'456/message_templates','credential',{
+  name:row.name,language:row.language,category:row.category,components,
+ },'POST');
+ const current={...row,components};
+ const [projected]=await managementCatalog([current],waba);
+ expect(projected.editor).toMatchObject({headerSample:'Friday',footer:rich.footer,buttons:rich.buttons});
+ await submitWhatsAppTemplate({request},'credential',waba,{...rich,id:row.id,revision:projected.revision,footer:'Contact our team'},[current]);
+ expect(request).toHaveBeenNthCalledWith(2,row.id,'credential',{components:[
+  components[0],components[1],{type:'FOOTER',text:'Contact our team'},components[3],
+ ]},'POST');
+ await expect(submitWhatsAppTemplate({request},'credential',waba,{...rich,buttons:[
+  {type:'URL',text:'Dynamic link',url:'https://example.com/{{1}}'},
+ ]},[])).rejects.toThrow('whatsapp_template_buttons_invalid');
+ expect(request).toHaveBeenCalledTimes(2);
+});

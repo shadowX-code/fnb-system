@@ -3,10 +3,11 @@ import {whatsappTemplateIntent} from './whatsappTemplateIntent.ts';
 import {MetaGraph,MetaError} from './metaGraph.ts';
 import {connectionBinding,hash,nonce,seal,unseal,tokenEncryptionReady,STAGING_SUPABASE} from './metaSecurity.ts';
 import {CLOUD_TEST_APP,CLOUD_TEST_PHONE,CLOUD_TEST_WABA,readWhatsAppTestTemplates,readWhatsAppTemplateRows,verifyWhatsAppCloudTest,configured,exchangeWhatsAppCode,verifyWhatsAppAccount,verifyWhatsAppAssets,resolveWhatsAppSignupAssets,finishWhatsAppOnboarding,type WhatsAppConfig} from './whatsappOnboarding.ts';
+import {templateValidationMessages} from './whatsappTemplateContent.mjs';
 const cloudTestFailures:Record<string,string>={
+ ...templateValidationMessages,
  whatsapp_template_access_denied:'An active, authorized WhatsApp connection and Brand configuration access are required.',
  whatsapp_template_invalid:'Check the template name, language, category and message body.',
- whatsapp_template_variables_invalid:'Use numbered variables in order and provide a sample for each one.',
  whatsapp_template_edit_unavailable:'This template is no longer eligible for editing in FeedX. Refresh the catalog.',
  whatsapp_template_stale:'This template changed in Meta. Refresh the catalog before editing it again.',
  whatsapp_template_unchanged:'Change the message or its examples before submitting.',
