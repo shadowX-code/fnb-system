@@ -7,8 +7,9 @@ Add-Type -AssemblyName System.Drawing
 
 $form = [Windows.Forms.Form]::new()
 $form.Text = 'FeedX AutoCount Connector'
-$form.ClientSize = [Drawing.Size]::new(640,485)
-$form.MinimumSize = [Drawing.Size]::new(655,525)
+$form.ClientSize = [Drawing.Size]::new(640,650)
+$form.FormBorderStyle = 'FixedDialog'
+$form.MaximizeBox = $false
 $form.StartPosition = 'CenterScreen'
 $form.Font = [Drawing.Font]::new('Segoe UI',10)
 function Add-Control($Control,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$Text) {
@@ -81,12 +82,95 @@ $date.MinDate = [datetime]'2000-01-01'
 $date.MaxDate = [datetime]::Today
 $date.Value = [datetime]::Today.AddDays(-7)
 $null = Add-Label 320 '3. Match the authorized book to a Legal Entity in FeedX.'
-$syncNow = Add-Control ([Windows.Forms.Button]::new()) 20 355 220 32 'Sync approved books now'
-$logs = Add-Control ([Windows.Forms.Button]::new()) 255 355 175 32 'Open local diagnostics'
-$message = Add-Label 410 'The connector sends financial rows only for books authorized here and connected in FeedX.' 56
+$test = Add-Control ([Windows.Forms.Button]::new()) 20 355 185 32 'Test Connection'
+$syncNow = Add-Control ([Windows.Forms.Button]::new()) 220 355 185 32 'Sync Now'
+$copyDiagnostics = Add-Control ([Windows.Forms.Button]::new()) 420 355 195 32 'Copy diagnostics'
+$message = Add-Label 395 'Authorize and connect a book before running its connection test or sync.' 55
+$null = Add-Label 450 'Diagnostics'
+$diagnostics = Add-Control ([Windows.Forms.TextBox]::new()) 20 477 595 150 ''
+$diagnostics.AccessibleName = 'Connector diagnostics'
+$diagnostics.Multiline = $true
+$diagnostics.ReadOnly = $true
+$diagnostics.ScrollBars = 'Vertical'
+$script:job = $null
+
+function Read-ConnectorReport([string]$Path) {
+    if (Test-Path -LiteralPath $Path) {
+        try { return [IO.File]::ReadAllText($Path) | ConvertFrom-Json } catch { return $null }
+    }
+}
+function Format-ConnectorTime([string]$Value) {
+    if (-not $Value) { return 'time unavailable' }
+    try { return [datetimeoffset]::Parse($Value).LocalDateTime.ToString('g') } catch { return 'time unavailable' }
+}
+function Get-DiagnosticHint([string]$Code) {
+    switch -Regex ($Code) {
+        '^DEVICE_NOT_PAIRED$|^STAGING_HTTP_401$' { return 'Check pairing and book binding in FeedX.' }
+        '^STAGING_HTTPS_|^STAGING_HTTP_5' { return 'Check network access to FeedX Staging.' }
+        '^STAGING_HTTP_4|^STAGING_RECEIPT_' { return 'Check the book binding in FeedX. Queued uploads are kept for retry.' }
+        '^ACCOUNTING_SCOPE_EXCEEDS' { return 'The posting scope exceeds the connector limit. Contact FeedX support.' }
+        '^SQL_|^READER_|^PROVISIONED_READER_|^BOOK_COMPANY_|^ACCOUNTING_' { return 'Ask your SQL administrator to review the authorized book and reader.' }
+        default { return 'Retry when other connector work finishes. Contact FeedX support if this persists.' }
+    }
+}
+function Refresh-Diagnostics {
+    $lines = @(foreach ($operation in @(@('Connection test','test-summary.json'),@('Sync','sync-summary.json'))) {
+        $result = Read-ConnectorReport (Join-Path $deviceRoot $operation[1])
+        if (-not $result) { continue }
+        $when = Format-ConnectorTime $result.finishedAt
+        if ($result.error) { "$($operation[0]): $($result.error) ($when). $(Get-DiagnosticHint $result.error)" }
+        elseif (-not $result.attempted) { "$($operation[0]): FeedX pairing verified. Connect an authorized book in Finance. ($when)" }
+        else { "$($operation[0]): $($result.passed) of $($result.attempted) books passed. ($when)" }
+    })
+    foreach ($folder in @(Get-ChildItem -LiteralPath $deviceRoot -Directory | Where-Object Name -cmatch '^[a-f0-9]{64}$')) {
+        $book = Read-ConnectorReport (Join-Path $folder.FullName 'book.json')
+        if ($book.database -cnotmatch '^[A-Z][A-Z0-9_]{0,63}$') { continue }
+        $lines += $book.database
+        $checked = Read-ConnectorReport (Join-Path $folder.FullName 'connection-test.json')
+        if ($checked) {
+            $lines += "  Last test ($(Format-ConnectorTime $checked.finishedAt)): SQL $($checked.sqlConnection); FeedX $($checked.stagingConnection)."
+            if ($checked.error) { $lines += "  $($checked.error). $(Get-DiagnosticHint $checked.error)" }
+        }
+        $synced = Read-ConnectorReport (Join-Path $folder.FullName 'status.json')
+        if ($synced) {
+            $accepted = 0
+            foreach ($receipt in $synced.receipts) { $accepted += $receipt.rows }
+            $extracted = 0
+            foreach ($dataset in $synced.extracted) { $extracted += $dataset.rows }
+            $when = Format-ConnectorTime $synced.finishedAt
+            $pending = if ($null -ne $synced.pending) { $synced.pending } else { 'not yet reported' }
+            $lines += "  Sync ($when): $extracted extracted; $accepted accepted (includes retries); $pending pending."
+            if ($synced.error) { $lines += "  $($synced.error). $(Get-DiagnosticHint $synced.error)" }
+        }
+    }
+    $text = if ($lines.Count) { $lines -join [Environment]::NewLine } else { 'No connection test or sync has been recorded on this computer.' }
+    if ($diagnostics.Text -cne $text) { $diagnostics.Text = $text }
+}
+function Start-ConnectorJob([string]$Switch,[string]$Label) {
+    $worker = Join-Path $PSScriptRoot 'worker.ps1'
+    $script:job = Start-Process (Join-Path $PSHOME 'powershell.exe') -WindowStyle Hidden -ArgumentList ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+$worker+'" '+$Switch) -PassThru
+    $test.Enabled = $false
+    $syncNow.Enabled = $false
+    $message.Text = "$Label in progress..."
+}
+$timer = [Windows.Forms.Timer]::new()
+$timer.Interval = 2000
+$timer.Add_Tick({
+    if ($script:job -and $script:job.HasExited) {
+        $message.Text = if ($script:job.ExitCode -eq 0) { 'Operation finished. See diagnostics for the result.' } else { 'Operation needs attention. See diagnostics for the result.' }
+        $script:job.Dispose()
+        $script:job = $null
+        $test.Enabled = $true
+        $syncNow.Enabled = $true
+    }
+    Refresh-Diagnostics
+})
+$form.Add_FormClosed({ $timer.Stop(); $timer.Dispose(); if ($script:job) { $script:job.Dispose() } })
+$timer.Start()
+Refresh-Diagnostics
 
 $open.Add_Click({ Start-Process 'https://fnb-system-staging.vercel.app/finance/data-sources' })
-$logs.Add_Click({ Start-Process explorer.exe ('"'+$deviceRoot+'"') })
+$copyDiagnostics.Add_Click({ Run-UiAction { [Windows.Forms.Clipboard]::SetText($diagnostics.Text); $message.Text = 'Diagnostics copied.' } })
 $pair.Add_Click({
     Run-UiAction {
         $code = ($codeBox.Text -replace '[-\s]','').ToUpperInvariant()
@@ -142,12 +226,8 @@ $authorize.Add_Click({
         } finally { $credential.Password.Dispose() }
     }
 })
-$syncNow.Add_Click({
-    Run-UiAction {
-        Start-Process (Join-Path $PSHOME 'powershell.exe') -WindowStyle Hidden -ArgumentList ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'+(Join-Path $PSScriptRoot 'worker.ps1')+'" -RunNow')
-        $message.Text = 'Sync requested for approved and bound books. Check progress in FeedX.'
-    }
-})
+$test.Add_Click({ Run-UiAction { Start-ConnectorJob '-TestConnection' 'Connection test' } })
+$syncNow.Add_Click({ Run-UiAction { Start-ConnectorJob '-RunNow' 'Sync' } })
 $form.Add_Shown({
     if (Test-Path -LiteralPath $deviceCredentialPath) {
         Run-UiAction {

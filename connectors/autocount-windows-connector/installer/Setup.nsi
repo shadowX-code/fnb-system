@@ -4,11 +4,11 @@ OutFile "${OUTPUT}"
 InstallDir "$LOCALAPPDATA\Programs\FeedX AutoCount Connector"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
-VIProductVersion "3.0.0.0"
+VIProductVersion "3.0.1.0"
 VIAddVersionKey "ProductName" "FeedX AutoCount Connector"
 VIAddVersionKey "FileDescription" "FeedX AutoCount Connector Setup"
 VIAddVersionKey "CompanyName" "FeedX"
-VIAddVersionKey "FileVersion" "3.0.0"
+VIAddVersionKey "FileVersion" "3.0.1"
 
 !include "MUI2.nsh"
 !include "x64.nsh"
@@ -36,7 +36,7 @@ Section
   CreateDirectory "$SMPROGRAMS\FeedX"
   CreateShortCut "$SMPROGRAMS\FeedX\AutoCount Connector.lnk" "$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" '-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\installer\desktop.ps1"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FeedXAutoCount" "DisplayName" "FeedX AutoCount Connector"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FeedXAutoCount" "DisplayVersion" "3.0.0"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FeedXAutoCount" "DisplayVersion" "3.0.1"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FeedXAutoCount" "UninstallString" '"$INSTDIR\Uninstall.exe"'
 SectionEnd
 

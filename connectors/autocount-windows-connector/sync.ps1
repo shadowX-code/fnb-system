@@ -23,7 +23,8 @@ $null = [IO.Directory]::CreateDirectory($sqlPrivate)
 $configPath = Join-Path $private 'config.json'
 $credentialPath = Join-Path $private 'staging.credential.xml'
 $pendingCredential = Join-Path $private 'staging.pending.credential.xml'
-$reportPath = Join-Path $private 'status.json'
+$reportName = if ($InstalledBook -and $ConnectionTest) { 'connection-test.json' } else { 'status.json' }
+$reportPath = Join-Path $private $reportName
 $lock = [IO.File]::Open((Join-Path $private 'sync.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
 $connection = $null
 $reader = $null
@@ -90,11 +91,13 @@ try {
     $today = [TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([datetime]::UtcNow,'Singapore Standard Time').Date
     if ($InstalledBook) {
         $cloud = Get-DeviceCredential
-        if (-not (Test-Path -LiteralPath $configPath)) {
-            Write-LocalTextAtomically $configPath (@{startDate=$InstalledBook.startDate;nextDate=$InstalledBook.startDate;connectionId=$ExpectedBinding} | ConvertTo-Json) -CreateNew
+        if (-not $ConnectionTest) {
+            if (-not (Test-Path -LiteralPath $configPath)) {
+                Write-LocalTextAtomically $configPath (@{startDate=$InstalledBook.startDate;nextDate=$InstalledBook.startDate;connectionId=$ExpectedBinding} | ConvertTo-Json) -CreateNew
+            }
+            $config = [IO.File]::ReadAllText($configPath) | ConvertFrom-Json
+            if ($config.connectionId -cne $ExpectedBinding) { Stop-ReadPoc 'STAGING_BINDING_CHANGED' }
         }
-        $config = [IO.File]::ReadAllText($configPath) | ConvertFrom-Json
-        if ($config.connectionId -cne $ExpectedBinding) { Stop-ReadPoc 'STAGING_BINDING_CHANGED' }
         $reader = Import-Clixml -LiteralPath (Join-Path $private 'reader.credential.xml')
         if ($reader -isnot [Management.Automation.PSCredential] -or $reader.UserName -cnotmatch '^feedx_ro_[a-f0-9]{32}$') { Stop-ReadPoc 'READER_CREDENTIAL_PRINCIPAL_MISMATCH' }
         $script:ProvisionedLogin = $reader.UserName
@@ -107,6 +110,7 @@ try {
         $connectionStatus = Request-FeedX $cloud '{}'
         if ($connectionStatus.state -cne 'Connected' -or $connectionStatus.connectionId -cne $ExpectedBinding) { Stop-ReadPoc 'STAGING_CONNECTION_RESPONSE_INVALID' }
         $status.stagingConnection = 'Connected'
+        if ($ConnectionTest) { return }
     } else {
     $selectedCredential = if ($ReEnroll) { $pendingCredential } else { $credentialPath }
     if ($Setup -and -not (Test-Path -LiteralPath $selectedCredential)) {
@@ -222,7 +226,7 @@ try {
 } catch {
     $failure = $_.Exception.GetBaseException()
     $status.error = if ($failure.Message -cmatch '^[A-Z][A-Z0-9_]{4,95}$') { $failure.Message } elseif ($failure -is [Data.SqlClient.SqlException]) { 'SQL_ERROR_'+$failure.Number } else { 'LOCAL_SYNC_ERROR' }
-    if ($InstalledBook -and -not $runId -and $cloud -and $status.sqlConnection -ne 'Connected') {
+    if ($InstalledBook -and -not $ConnectionTest -and -not $runId -and $cloud -and $status.sqlConnection -ne 'Connected') {
         try { $null = Invoke-DeviceAction $cloud @{p_action='source_error';p_book_key=$InstalledBook.key} }
         catch { $status.progressReport = 'Not delivered' }
     }
@@ -246,6 +250,7 @@ try {
     if ($reader -is [Management.Automation.PSCredential]) { $reader.Password.Dispose() }
     if ($cloud -is [Management.Automation.PSCredential]) { $cloud.Password.Dispose() }
     try {
+        $status.finishedAt = [datetime]::UtcNow.ToString('o')
         $status.pending = @(Get-ChildItem -LiteralPath $queue -File -Filter '*.json').Count
         Write-LocalTextAtomically $reportPath ($status | ConvertTo-Json -Depth 8)
         Write-Host ('Sync diagnostics: '+$reportPath)
