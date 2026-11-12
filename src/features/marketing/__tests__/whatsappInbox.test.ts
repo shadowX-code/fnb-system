@@ -12,6 +12,29 @@ describe('disabled WhatsApp provider fixtures',()=>{
   expect(JSON.stringify(e)).not.toContain('Untrusted');
   expect(normalizeWhatsAppWebhook(wire({messages:[msg,msg]}),now)).toEqual([e,e]);
  });
+ it('keeps only the matching inbound sender profile in a batch',()=>{
+  const other={...msg,id:'wamid.other',from:'60110000001',type:'image'};
+  const events=normalizeWhatsAppWebhook(wire({messages:[msg,other],contacts:[
+   {wa_id:other.from,profile:{name:'Other sender'}},
+   {wa_id:msg.from,profile:{name:'  Actual sender  ',unexpected:'never retained'}},
+  ]}),now);
+  expect(events.map(({profile_name})=>profile_name)).toEqual(['Actual sender','Other sender']);
+  expect(JSON.stringify(events)).not.toContain('never retained');
+  expect(normalizeWhatsAppWebhook(wire({message_echoes:[{...msg,to:msg.from}],contacts:[
+   {wa_id:msg.from,profile:{name:'Outbound only'}},
+  ]},'smb_message_echoes'),now)[0]).not.toHaveProperty('profile_name');
+ });
+ it('accepts the message when the matching profile is missing, malformed or ambiguous',()=>{
+  for(const contacts of [
+   {wa_id:msg.from,profile:{name:'Invalid collection'}},
+   [{wa_id:msg.from,profile:{name:'x'.repeat(161)}}],
+   [{wa_id:msg.from,profile:{name:'First'}},{wa_id:msg.from,profile:{name:'Conflicting'}}],
+  ]){
+   const [event]=normalizeWhatsAppWebhook(wire({messages:[msg],contacts}),now);
+   expect(event.peer_id).toBe(msg.from);
+   expect(event).not.toHaveProperty('profile_name');
+  }
+ });
  it('retains out-of-order exact statuses independently of message text',()=>{
   const statuses=['read','sent','delivered','failed'].map(status=>({id:msg.id,recipient_id:msg.from,timestamp,status,errors:status==='failed'?[{code:131000,message:'private provider message'}]:undefined}));
   const e=normalizeWhatsAppWebhook(wire({statuses}),now);

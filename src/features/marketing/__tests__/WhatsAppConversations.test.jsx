@@ -4,7 +4,7 @@ import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/r
 import MarketingInboxPage from '../MarketingInboxPage.jsx';
 import {inboxService} from '../inboxService.js';
 import {marketingService} from '../marketingService.js';
-import {conversationTimeline} from '../inboxPresentation.js';
+import {conversationTimeline,socialIdentity} from '../inboxPresentation.js';
 import {context,conversation,detail,read} from '../../../../qa/marketing/inbox/fixtures.js';
 vi.mock('../../../auth/AuthContext.jsx',()=>({useAuth:()=>({user:{id:'fixture-user'},hasPermission:()=>true})}));
 vi.mock('../marketingService.js',()=>({marketingService:{context:vi.fn()}}));
@@ -94,4 +94,32 @@ it.each([
  expect(composer.queryByRole('button',{name:'Choose approved template'})).toBeNull();
  expect(composer.getByRole('button',{name:'Send',exact:true}).disabled).toBe(true);
  expect(inboxService.sendStaffReply).not.toHaveBeenCalled();
+});
+
+
+it('uses the scoped sender name and formatted phone in the list, header and Customer Context',async()=>{
+ const profile={display_name:'Fixture customer',phone_e164:'+60123458678',source:'crm'};
+ const withProfile={...conversation,customer_profile:profile};
+ inboxService.read.mockImplementation(async options=>({...read(options),rows:[withProfile]}));
+ inboxService.detail.mockImplementation(async(_id,page)=>({...detail(page),conversation:withProfile}));
+ await open();
+ const row=screen.getByRole('button',{name:/Fixture customer.*8678/});
+ expect(within(row).getByText('+60 12-345 8678')).toBeTruthy();
+ const thread=screen.getByRole('region',{name:'Conversation history'});
+ expect(within(thread).getByRole('heading',{name:'Fixture customer'})).toBeTruthy();
+ expect(within(thread).getByText('+60 12-345 8678')).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Show customer details'}));
+ const customer=screen.getByRole('complementary',{name:'Customer details'});
+ expect(within(customer).getByRole('heading',{name:'Fixture customer'})).toBeTruthy();
+ expect(within(customer).getByText('+60 12-345 8678')).toBeTruthy();
+ expect(within(customer).getByText('Customer record linked to this Brand.')).toBeTruthy();
+ expect(inboxService.profiles).not.toHaveBeenCalled();
+});
+
+it('falls back from a provider name to the sender phone and then the generic label',()=>{
+ const identity=profile=>socialIdentity({...conversation,customer_profile:profile});
+ expect(identity({display_name:'Profile name',phone_e164:'+60123458678',source:'whatsapp_profile'}))
+  .toMatchObject({name:'Profile name',phone:'+60 12-345 8678',known:true,crmLinked:false});
+ expect(identity({phone_e164:'+60123458678'})).toMatchObject({name:'+60 12-345 8678',phone:null,known:true});
+ expect(identity({phone_e164:'unusable',display_name:' '})).toMatchObject({name:'WhatsApp customer',phone:null,known:false});
 });

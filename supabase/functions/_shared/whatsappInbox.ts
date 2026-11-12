@@ -3,6 +3,7 @@ export type WhatsAppInboxEvent = {
  channel:'whatsapp'; account_id:string; waba_id:string; peer_id:string;
  kind:'incoming'|'attachment'|'echo'|'status'|'edit'|'revoke'; event_id:string;
  occurred_at:string; body:string; medium:'dm';
+ profile_name?:string;
  target_message_id?:string; target_direction?:'incoming'|'outgoing';
  reply_to_message_id?:string; campaign_callback_id?:string;
  provider_status?:'sent'|'delivered'|'read'|'failed'; error_code?:string;
@@ -43,6 +44,17 @@ function content(m:any){
  if(['image','audio','video','document','sticker','location','contacts','interactive','button','reaction','unsupported'].includes(m?.type))return `[WhatsApp ${m.type}]`;
  throw new Error('unsupported_whatsapp_message');
 }
+function inboundProfileNames(contacts:unknown) {
+ const names=new Map<string,string|null>();
+ if(!Array.isArray(contacts)||contacts.length>1000)return names;
+ for(const contact of contacts){
+  const peer=contact?.wa_id,raw=contact?.profile?.name;
+  if(!numeric(peer)||typeof raw!=='string'||raw.length>160)continue;
+  const name=raw.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g,'').trim();
+  if(name)names.set(peer,names.has(peer)&&names.get(peer)!==name?null:name);
+ }
+ return names;
+}
 export function normalizeWhatsAppWebhook(payload:any,now=Date.now(),reject:()=>void=()=>{}):WhatsAppInboxEvent[]{
  const events:WhatsAppInboxEvent[]=[];
  for(const {entry,change} of whatsappChanges(payload,reject)){
@@ -51,6 +63,7 @@ export function normalizeWhatsAppWebhook(payload:any,now=Date.now(),reject:()=>v
   if(value?.messaging_product!=='whatsapp'||!numeric(value?.metadata?.phone_number_id)){reject();continue;}
   const base={channel:'whatsapp' as const,account_id:value.metadata.phone_number_id,waba_id:entry.id,medium:'dm' as const};
   const echo=change.field==='smb_message_echoes';
+  const names=echo?null:inboundProfileNames(value.contacts);
   let messages:any[]=[],statuses:any[]=[];
   try{messages=list(echo?value.message_echoes:value.messages);}catch{reject();}
   if(!echo)try{statuses=list(value.statuses);}catch{reject();}
@@ -62,7 +75,12 @@ export function normalizeWhatsAppWebhook(payload:any,now=Date.now(),reject:()=>v
     const target=m[m.type]?.original_message_id;
     if(!messageId(target))throw new Error('invalid_whatsapp_target');
     events.push({...identity,kind:m.type,target_message_id:target,target_direction:echo?'outgoing':'incoming',body:m.type==='edit'?content(m.edit.message):''});
-   }else events.push({...identity,kind:echo?'echo':m.type==='text'?'incoming':'attachment',body:content(m),...(!echo&&messageId(m.context?.id)?{reply_to_message_id:m.context.id}:{})});
+   }else{
+    const profileName=names?.get(peer);
+    events.push({...identity,kind:echo?'echo':m.type==='text'?'incoming':'attachment',body:content(m),
+     ...(profileName?{profile_name:profileName}:{}),
+     ...(!echo&&messageId(m.context?.id)?{reply_to_message_id:m.context.id}:{})});
+   }
   }catch{reject();}
   for(const s of statuses)try{
    if(!messageId(s?.id)||!numeric(s?.recipient_id)||!['sent','delivered','read','failed'].includes(s?.status))throw new Error('invalid_whatsapp_status');

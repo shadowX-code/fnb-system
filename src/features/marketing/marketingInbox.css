@@ -57,6 +57,7 @@
 .inbox-row-top, .inbox-row-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .inbox-row-top strong { font-size: 13px; line-height: 1.4; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inbox-row-top time { font-size: 10px; white-space: nowrap; color: var(--inbox-muted); font-variant-numeric: tabular-nums; }
+.inbox-row-phone { color: var(--inbox-muted); font-size: 11px; line-height: 1.4; }
 .inbox-row-preview { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--inbox-muted); }
 .inbox-row-bottom { font-size: 10px; color: var(--inbox-muted); line-height: 1.4; }
 .inbox-row-bottom > span:first-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

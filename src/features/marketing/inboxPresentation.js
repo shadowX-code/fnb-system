@@ -4,13 +4,26 @@ export function socialIdentity(conversation) {
     return { name: conversation.title || "Internal case", known: true };
   // Never use the connection's account name or brand-derived conversation title as a customer.
   const profile = conversation.customer_profile;
+  if (conversation.channel === "whatsapp") {
+    const phone = typeof profile?.phone_e164 === "string" && /^\+[1-9]\d{6,14}$/.test(profile.phone_e164)
+      ? profile.phone_e164.replace(/^(\+60)(1\d)(\d{3,4})(\d{4})$/, "$1 $2-$3 $4")
+      : null;
+    const name = profile?.display_name?.trim() || phone;
+    return {
+      name: name || "WhatsApp customer",
+      phone: phone && phone !== name ? phone : null,
+      known: Boolean(name),
+      crmLinked: profile?.source === "crm",
+      unavailableReason: "Customer profile unavailable",
+    };
+  }
   const handle = profile?.handle;
   return {
     name:
       profile?.display_name ||
       (handle
         ? `@${handle.replace(/^@/, "")}`
-        : `${conversation.channel === "whatsapp" ? "WhatsApp" : conversation.channel === "instagram" ? "Instagram" : "Facebook"} customer`),
+        : `${conversation.channel === "instagram" ? "Instagram" : "Facebook"} customer`),
     handle,
     avatar: profile?.avatar_url,
     known: Boolean(profile?.display_name || handle),

@@ -493,7 +493,7 @@ function InboxWorkspace({ whatsApp }) {
   }
   const profileIds = JSON.stringify(
     (data?.rows || [])
-      .filter((row) => row.channel !== "internal")
+      .filter((row) => ["facebook", "instagram"].includes(row.channel))
       .map((row) => row.id),
   );
   useEffect(() => {
@@ -674,7 +674,7 @@ function InboxWorkspace({ whatsApp }) {
           </></div>
             </div>
             <InboxOperationalViews value={view} counts={data?.view_counts} onChange={value=>{setView(value);setPage(1);}}/>
-            <div className="inbox-list-search"><AdminSearchField hideLabel label="Search" ariaLabel="Search conversations" placeholder="Search messages or keywords…" value={search} maxLength={100} onChange={value=>{setSearch(value);setPage(1);setSelected('');}} /></div>
+            <div className="inbox-list-search"><AdminSearchField hideLabel label="Search" ariaLabel="Search conversations" placeholder={whatsApp ? "Search names, phone numbers or messages…" : "Search messages or keywords…"} value={search} maxLength={100} onChange={value=>{setSearch(value);setPage(1);setSelected('');}} /></div>
             <AdminSegmentedControl className="inbox-status-tabs" label="Conversation status" value={status}
               onChange={value=>{setStatus(value);setPage(1);setSelected('');}}
               options={inboxStatusTabs(data?.status_counts)} />
@@ -693,10 +693,12 @@ function InboxWorkspace({ whatsApp }) {
                 </div>
               )}
               {data?.rows.map(row=>{
+                const rowIdentity = socialIdentity(row);
                 const activity=row.last_activity_at||row.latest_message_at||row.updated_at,attention=inboxRowAttention(row);
                 return <button key={row.id} className={`marketing-inbox-row ${selected===row.id?'selected':''} ${row.unread_count>0?'is-unread':''}`} aria-pressed={selected===row.id} title={`${label(row.status)} · ${label(row.priority)} priority`} onClick={()=>{setSelected(row.id);setHistoryPage(1);setModal(null);setPreview(null);followMessages.current=true}}>
                   <CustomerAvatar conversation={row}/><span className="inbox-row-content">
-                    <span className="inbox-row-top"><strong>{socialIdentity(row).name}</strong><span className="inbox-row-time"><time dateTime={activity} title={stamp(activity)}>{inboxActivityLabel(activity)}</time>{row.unread_count>0?<span className="inbox-unread" aria-label={`${row.unread_count} unread`}>{row.unread_count}</span>:null}</span></span>
+                    <span className="inbox-row-top"><strong>{rowIdentity.name}</strong><span className="inbox-row-time"><time dateTime={activity} title={stamp(activity)}>{inboxActivityLabel(activity)}</time>{row.unread_count>0?<span className="inbox-unread" aria-label={`${row.unread_count} unread`}>{row.unread_count}</span>:null}</span></span>
+                    {rowIdentity.phone && <span className="inbox-row-phone" dir="ltr">{rowIdentity.phone}</span>}
                     <span className="inbox-row-preview">{row.latest_message_kind==='note'?'Note: ':row.latest_message_kind==='echo'?'Sent: ':''}{row.latest_message||'No messages yet'}</span>
                     <span className="inbox-row-bottom"><span title={`${row.brand_name} · ${row.channel==='facebook'?'Messenger':label(row.channel)}`}>{row.brand_name} · {row.channel==='facebook'?'Messenger':label(row.channel)}{row.medium==='comment'?' · Comment':''}</span><span className="inbox-row-action">{attention.label?<Badge tone={attention.tone}>{attention.label}</Badge>:null}{row.assigned_to?<span role="img" title={`Assigned to ${row.assignee_name||'staff'}`} aria-label={`Assigned to ${row.assignee_name||'staff'}`}><UserCheck size={12}/></span>:null}{row.remind_at?<span className={Date.parse(row.remind_at)<=Date.now()?'inbox-reminder-due':''} title={stamp(row.remind_at)}>{Date.parse(row.remind_at)<=Date.now()?'Reminder due':'Reminder set'}</span>:null}</span></span>
                   </span>
@@ -746,6 +748,7 @@ function InboxWorkspace({ whatsApp }) {
                   <CustomerAvatar conversation={c} />
                   <div className="inbox-thread-identity">
                     <h2>{identity.name}</h2>
+                    {identity.phone && <p dir="ltr">{identity.phone}</p>}
                     <p>
                       {data?.rows.find((r) => r.id === c.id)?.brand_name ||
                         brands.find((b) => b.id === c.brand_id)?.name}{" "}
@@ -957,7 +960,7 @@ function InboxWorkspace({ whatsApp }) {
                 </button>
               </div>
               {!c ? <div className="marketing-inbox-empty"><UserRound size={30}/><p>Select a conversation to see customer context.</p></div> : <>
-              <div className="inbox-context-identity"><CustomerAvatar conversation={c} /><div><h3>{identity.name}</h3><p>{c.channel === 'facebook' ? 'Messenger' : label(c.channel)}{c.customer_profile?.handle ? ` · @${c.customer_profile.handle}` : ''}</p></div></div>
+              <div className="inbox-context-identity"><CustomerAvatar conversation={c} /><div><h3>{identity.name}</h3><p>{c.channel === 'facebook' ? 'Messenger' : label(c.channel)}{identity.handle ? ` · @${identity.handle}` : ''}</p>{identity.phone && <p dir="ltr">{identity.phone}</p>}</div></div>
               <AdminUnderlineTabs ariaLabel="Customer context" value={contextTab} onChange={setContextTab} tabs={[{value:'profile',label:'Profile'},{value:'history',label:'Activity'},{value:'notes',label:'Notes'}]} />
               {contextTab === 'profile' && <div className="inbox-context-section">
               {!identity.known && <p className="inbox-profile-unavailable">{identity.unavailableReason}</p>}
@@ -965,7 +968,8 @@ function InboxWorkspace({ whatsApp }) {
                                 <dt>Brand</dt><dd>{data?.rows.find(row=>row.id===c.id)?.brand_name || brands.find(b=>b.id===c.brand_id)?.name || 'Unavailable'}</dd>
                 <dt>Channel</dt><dd>{c.channel === 'facebook' ? 'Messenger' : label(c.channel)}</dd>
               </dl>
-              <section className="inbox-crm-context"><h3>CRM Summary</h3><p className="inbox-muted">No verified CRM customer link. Contact, visits and spend are unavailable.</p>
+              <section className="inbox-crm-context"><h3>CRM Summary</h3>
+                <p className="inbox-muted">{identity.crmLinked ? "Customer record linked to this Brand." : "No verified CRM customer link. Contact, visits and spend are unavailable."}</p>
                 {auth.hasPermission('marketing_audience.view') && <a className="btn-secondary" href="/marketing/customers">Open Customer Directory<ArrowUpRight size={14}/></a>}
               </section>
               <h3>Conversation context</h3><SelectField label="Confirmed Outlet" ariaLabel="Outlet context" value={(current?.outlet_context ? current.outlet_context.outlet_id : c.outlet_id)||''} disabled={busy||!can("manage")} onChange={value=>command("outlet_context",{outlet_id:value||null})} options={[{value:'',label:'Unknown / Ask customer'},...(current?.outlet_options||[]).map(o=>({value:o.id,label:o.name}))]}/><p className="inbox-muted">{current?.outlet_context?.source==='single_outlet'?'Using the only active linked Outlet.':current?.outlet_context?.source?.includes('reference')?'Using the customer’s explicit Outlet reference.':'Confirm the customer’s Outlet when it is unclear.'} Changes apply to future suggestions.</p>
