@@ -14,6 +14,23 @@ export const connectionActions = Object.freeze([
   { id: 'deactivate', label: 'Deactivate connection' },
 ]);
 
+const stagingAccounting = () => import.meta.env.VITE_SUPABASE_URL === 'https://ujkzdaaadnvcfayuldmh.supabase.co';
+
+async function accountingRpc(name, params) {
+  const { supabase } = await import('../../lib/supabase');
+  const { data, error } = await supabase.rpc(name, params);
+  if (error) throw error;
+  return data;
+}
+
+export function manageAccountingConnector(action, { connectionId, legalEntityId, fingerprint } = {}) {
+  if (!stagingAccounting()) throw new Error('Connector management is available on Staging.');
+  return accountingRpc('finance_manage_accounting_connector', {
+    p_action: action, p_connection_id: connectionId ?? null, p_legal_entity_id: legalEntityId ?? null,
+    p_enrollment_fingerprint: fingerprint ?? null,
+  });
+}
+
 const sourceResources = { COA: 'chart_of_accounts', GL: 'journal_lines', Department: 'financial_dimensions', Project: 'financial_dimensions' };
 
 function accountingConnection(source) {
@@ -30,7 +47,10 @@ function accountingConnection(source) {
     },
     providerLabel: 'AutoCount · AED_TEST',
     legalEntityLabel: source.legalEntityLabel,
-    state: source.active ? source.lastConnectedAt ? 'connected' : 'disconnected' : 'deactivated',
+    state: !source.active ? 'revoked' : !source.entityActive ? 'error' : source.verifiedAt ? 'connected' : 'pending',
+    connector: { verifiedAt: source.verifiedAt, entityActive: source.entityActive, lastSyncAt: source.lastSyncAt,
+      syncState: source.syncState, syncError: source.syncError, pendingRetries: source.pendingRetries,
+      sourceRows: source.sourceRows, retryRequestedAt: source.retryRequestedAt },
     status: source.active ? 'active' : 'historical',
     lastConnectedAt: source.lastConnectedAt,
     datasets,
@@ -43,14 +63,16 @@ function accountingConnection(source) {
 
 export async function readFinanceDataSources() {
   let connections = [];
-  if (import.meta.env.VITE_SUPABASE_URL === 'https://ujkzdaaadnvcfayuldmh.supabase.co') {
-    const { supabase } = await import('../../lib/supabase');
-    const { data, error } = await supabase.rpc('finance_accounting_source_status');
-    if (error) throw error;
-    connections = data.map(accountingConnection);
+  let connectorEntities = null;
+  if (stagingAccounting()) {
+    const [sources, entities] = await Promise.all([
+      accountingRpc('finance_accounting_source_status'), accountingRpc('finance_accounting_connector_options'),
+    ]);
+    connections = sources.map(accountingConnection);
+    connectorEntities = entities;
   }
   return {
-    connections, authorityPeriods: [], mappingReadiness: [], reconciliations: [],
+    connections, connectorEntities, authorityPeriods: [], mappingReadiness: [], reconciliations: [],
     operationalSource: { providerId: operationalProvider.id, label: 'FeedX Reporting', capabilities: operationalProvider.capabilities },
   };
 }
@@ -77,12 +99,12 @@ export function dataSourceReadiness(state, authorityRequest = null) {
   if (!state.reconciliations.length) issues.push('No validated reconciliation evidence is available.');
   else if (state.reconciliations.some((entry) => entry.reconciliation.status !== 'reconciled')) issues.push('Reconciliation review is incomplete.');
   state.connections.forEach((entry) => {
-    if (entry.state === 'error' || entry.sync.some((sync) => sync.status === 'failed')) issues.push(`${entry.providerLabel}: connection or sync needs attention.`);
+    if (entry.state === 'error' || ['failed', 'interrupted'].includes(entry.connector?.syncState) || entry.sync.some((sync) => sync.status === 'failed')) issues.push(`${entry.providerLabel}: connection or sync needs attention.`);
   });
   return {
     coverage, issues,
     summary: [
-      { label: 'Connection', value: active.length ? `${active.length} active` : 'Not connected', detail: historical.length ? `${historical.length} historical · retained for history` : 'No historical accounting connections' },
+      { label: 'Connection', value: active.length ? `${active.length} active` : state.connections.some((entry) => entry.state === 'pending') ? 'Pending verification' : 'Not connected', detail: historical.length ? `${historical.length} historical · retained for history` : 'No historical accounting connections' },
       { label: 'Authority coverage', value: !state.authorityPeriods.length ? 'Not assigned' : coverage ? coverage.gaps.length ? 'Gaps identified' : 'Covered for selected period' : 'Not assessed', detail: coverage ? `${coverage.segments.length} authority segments · ${coverage.gaps.length} gaps` : `${state.authorityPeriods.length} defined resource periods` },
       { label: 'Mapping readiness', value: !state.mappingReadiness.length ? 'Not assessed' : unresolved ? 'Needs review' : mappingKinds.size === Object.keys(mappingLabels).length ? 'Mapped evidence available' : 'Partial evidence', detail: !state.mappingReadiness.length ? 'Awaiting provider records' : 'Counts apply to the source, scope and period shown' },
       { label: 'Reconciliation', value: !state.reconciliations.length ? 'Not assessed' : state.reconciliations.every((entry) => entry.reconciliation.status === 'reconciled') ? 'Reconciled evidence available' : 'Needs review', detail: `${state.reconciliations.length} validated comparison records` },
