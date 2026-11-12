@@ -93,6 +93,7 @@ export function buildStockCheckRows(stockType, stockItems, initialValue, categor
       positive_adjustment_batch_balance_id: item.positive_adjustment_batch_balance_id || "",
       positive_adjustment_batch_no: item.positive_adjustment_batch_no || "",
       positive_adjustment_batch_source_type: item.positive_adjustment_batch_source_type || "",
+      positive_adjustment_batch_location: item.positive_adjustment_batch_location || "",
       product_family_name: item.product_family_name || stockItem.product_family_name || "",
       product_code: item.product_code || stockItem.product_code || "",
       packaging_type: item.packaging_type || stockItem.packaging_type || "",

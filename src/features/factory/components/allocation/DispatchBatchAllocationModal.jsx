@@ -38,7 +38,9 @@ export default function DispatchBatchAllocationModal({ item, sku, batches, unava
   const hasProvisionalReservations = batches.some((batch) => Number(batch.provisional_qty || 0) > 0);
   const invalidQuantity = Object.values(quantities).some((value) => value !== "" && (!Number.isInteger(Number(value)) || Number(value) < 0));
   const exceedsAvailability = batches.some((batch) => Number(quantities[batch.batch_id] || 0) > Number(batch.available_qty || 0));
-  const invalidLocationAllocations = (item.allocations || []).filter((allocation) => (
+  const isStockCheck = purpose === "stock-check";
+  // Stock Check uses the current availability result; saved flags cannot veto an eligible batch.
+  const invalidLocationAllocations = isStockCheck ? [] : (item.allocations || []).filter((allocation) => (
     allocation.location_valid === false && Number(quantities[allocation.batch_id || allocation.batch_balance_id] || 0) > 0
   ));
   const hasCurrentAvailability = !loading && !error && !isStale;
@@ -51,7 +53,6 @@ export default function DispatchBatchAllocationModal({ item, sku, batches, unava
     && !exceedsAvailability
     && !invalidLocationAllocations.length;
   const isExpired = (batch) => Boolean(referenceDate && batch.expiry_date && batch.expiry_date < referenceDate);
-  const isStockCheck = purpose === "stock-check";
 
   function autoAllocate() {
     let remaining = requiredQty;

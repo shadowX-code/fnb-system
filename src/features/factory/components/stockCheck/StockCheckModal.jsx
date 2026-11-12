@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, AlertTriangle, CheckCircle2, CircleOff, ClipboardCheck, RefreshCw } from "lucide-react";
 import EmptyState from "../../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../../components/feedback/Modal.jsx";
@@ -34,6 +34,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
   const [lastSubmitAction, setLastSubmitAction] = useState("");
   const [error, setError] = useState("");
   const [batchEditor, setBatchEditor] = useState(null);
+  const batchReadVersion = useRef(0);
   const [positiveBatchEditor, setPositiveBatchEditor] = useState(null);
   const [reconciliation, setReconciliation] = useState({ rows: [], loading: stockType === "product", error: "" });
   const itemIdKey = stockType === "raw" ? "raw_material_id" : "finished_good_id";
@@ -78,6 +79,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
   async function openStockCheckBatchAllocation(row) {
     const requiredQty = Math.abs(Math.min(stockCheckVariance(row.system_qty, row.physical_qty).variance, 0));
     if (!row.finished_good_id || !Number.isInteger(requiredQty) || requiredQty <= 0) return;
+    const readVersion = ++batchReadVersion.current;
     setError("");
     setBatchEditor((current) => current?.rowId === row.id ? {
       ...current,
@@ -99,6 +101,23 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
     });
     try {
       const availability = await factoryService.getFinishedGoodBatchAvailability({ finishedGoodId: row.finished_good_id });
+      if (readVersion !== batchReadVersion.current) return;
+      // Refresh location evidence without changing the operator's proposed batch reductions.
+      const checkedLocations = new Map();
+      for (const batch of availability.batches) checkedLocations.set(batch.batch_id, "");
+      for (const batch of availability.unavailable_batches || []) {
+        if (/^Storage Location\b/i.test(batch.exclusion_reason || "")) checkedLocations.set(batch.batch_id, batch.exclusion_reason);
+      }
+      if (row.batch_allocations?.length) setForm((current) => ({
+        ...current,
+        items: current.items.map((item) => item.id !== row.id ? item : {
+          ...item,
+          batch_allocations: (item.batch_allocations || []).map((allocation) => {
+            const issue = checkedLocations.get(allocation.batch_id || allocation.batch_balance_id);
+            return issue === undefined ? allocation : { ...allocation, location_valid: !issue, location_issue: issue };
+          }),
+        }),
+      }));
       setBatchEditor((current) => current?.rowId === row.id ? {
         ...current,
         loading: false,
@@ -113,6 +132,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
         isStale: false,
       } : current);
     } catch (loadError) {
+      if (readVersion !== batchReadVersion.current) return;
       const permissionDenied = isFactoryPermissionError(loadError);
       console.error("[Factory] Unable to load Product Stock Check batch availability.", loadError);
       setBatchEditor((current) => current?.rowId === row.id ? {
@@ -189,16 +209,9 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
         const missingAdjustmentDestination = form.items.find((row) => {
           if (row.count_status === "skip" || row.physical_qty === "" || row.physical_qty == null) return false;
           if (stockCheckVariance(row.system_qty, row.physical_qty).variance <= 0) return false;
-          if (!row.positive_adjustment_confirmed) return true;
-          if (row.positive_adjustment_batch_balance_id) return false;
-          const sku = stockItems.find((item) => item.id === row.finished_good_id);
-          return !sku?.storage_location_id
-            || String(sku.storage_location_ref?.status || sku.storage_location_status || "").toLowerCase() !== "active"
-            || (sku.storage_location_is_storage_location ?? sku.storage_location_ref?.is_storage_location) !== true;
+          return !row.positive_adjustment_confirmed;
         });
-        if (missingAdjustmentDestination) return "Choose a valid existing batch or configure an active storage location for the Reconciliation Batch before submitting.";
-        const invalidAllocationLocation = form.items.find((row) => (row.batch_allocations || []).some((allocation) => allocation.location_valid === false));
-        if (invalidAllocationLocation) return "Storage location unavailable. Replace invalid batch allocations before submitting.";
+        if (missingAdjustmentDestination) return "Choose a batch treatment for each positive variance before submitting.";
         const missingBatchAllocation = form.items.find((row) => {
           if (row.count_status === "skip" || row.physical_qty === "" || row.physical_qty == null) return false;
           const varianceQty = stockCheckVariance(row.system_qty, row.physical_qty).variance;
@@ -263,6 +276,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
 
   function reconciliationSummary(row) {
     const snapshot = reconciliationBySku.get(row.finished_good_id);
+    if (row.batch_allocations?.some((allocation) => allocation.location_valid === false)) return { label: "Storage issue", tone: "danger", snapshot };
     if (!snapshot) return { label: reconciliation.loading ? "Checking" : "Unavailable", tone: "warning", snapshot: null };
     if (snapshot.reconciliation_status === "reconciled") return { label: "Reconciled", tone: "success", snapshot };
     if (snapshot.reconciliation_status === "legacy_unallocated") return { label: "Legacy / Unallocated", tone: "warning", snapshot };
@@ -408,7 +422,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
                       <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-bold text-text-primary">Batch Reconciliation</span><Badge tone={reconciliationState.tone}>{reconciliationState.label}</Badge></div>
                       {reconciliationState.snapshot ? <div className="mt-1">Aggregate {quantity(reconciliationState.snapshot.aggregate_balance, row.uom)} · Batch {quantity(reconciliationState.snapshot.batch_balance, row.uom)}</div> : null}
                       {reconciliationState.snapshot && (reconciliationState.snapshot.ambiguous_reference_count || reconciliationState.snapshot.unmatched_reference_count) ? <div className="mt-1 font-semibold text-amber-800">Historical references: {reconciliationState.snapshot.ambiguous_reference_count} ambiguous · {reconciliationState.snapshot.unmatched_reference_count} unmatched</div> : null}
-                      {variance.variance > 0 ? <div className="mt-1">{positiveAdjustmentBatchLabel(row)}: <span className="font-semibold text-text-primary">{rowSku?.storage_location || "Missing"}</span> · +{quantity(variance.variance, row.uom)}</div> : null}
+                      {variance.variance > 0 ? <div className="mt-1">{positiveAdjustmentBatchLabel(row)}: <span className="font-semibold text-text-primary">{(row.positive_adjustment_batch_balance_id ? row.positive_adjustment_batch_location : rowSku?.storage_location) || "Location unavailable"}</span> · +{quantity(variance.variance, row.uom)}</div> : null}
                       {variance.variance < 0 ? <div className="mt-1">Batch allocation: <span className="font-semibold text-text-primary">{quantity(dispatchAllocationTotal(row.batch_allocations), row.uom)}</span>{expiredAllocationCount ? <span className="ml-2 font-bold text-rose-700">{expiredAllocationCount} expired</span> : null}</div> : null}
                       {invalidLocationAllocation ? <div className="mt-1 font-bold text-rose-700">Storage location unavailable · {invalidLocationAllocation.location_issue}</div> : null}
                     </div>
@@ -506,7 +520,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
                           onChange={(event) => updateRow(row.id, { variance_reason: event.target.value })}
                         />
                         {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">Required for variance rows.</div> : null}
-                        {!isRaw && variance.variance > 0 ? <div className="mt-2 text-xs text-text-secondary">{positiveAdjustmentBatchLabel(row)}: <span className="font-bold text-text-primary">{rowSku?.storage_location || "Missing"}</span> · +{quantity(variance.variance, "Packs")}</div> : null}
+                        {!isRaw && variance.variance > 0 ? <div className="mt-2 text-xs text-text-secondary">{positiveAdjustmentBatchLabel(row)}: <span className="font-bold text-text-primary">{(row.positive_adjustment_batch_balance_id ? row.positive_adjustment_batch_location : rowSku?.storage_location) || "Location unavailable"}</span> · +{quantity(variance.variance, "Packs")}</div> : null}
                         {!isRaw && variance.variance < 0 ? <div className="mt-2 text-xs text-text-secondary">Resolved: <span className="font-bold text-text-primary">{quantity(dispatchAllocationTotal(row.batch_allocations), "Packs")}</span>{expiredAllocationCount ? <span className="ml-2 font-bold text-rose-700">{expiredAllocationCount} expired</span> : null}</div> : null}
                         {invalidLocationAllocation ? <div className="mt-1 text-xs font-bold text-rose-700">Storage location unavailable · {invalidLocationAllocation.location_issue}</div> : null}
                         {!isRaw && variance.variance < 0 ? <button className="mt-2 text-xs font-bold text-primary hover:underline" type="button" disabled={isLocked} onClick={() => openStockCheckBatchAllocation(row)}>{dispatchAllocationTotal(row.batch_allocations) === Math.abs(variance.variance) ? "Review Batch Resolution" : "Resolve Batch Difference"}</button> : null}
@@ -546,7 +560,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
         referenceDate={form.check_date}
         purpose="stock-check"
         onRetry={() => openStockCheckBatchAllocation(batchItem)}
-        onClose={() => setBatchEditor(null)}
+        onClose={() => { batchReadVersion.current += 1; setBatchEditor(null); }}
         onApply={(allocations) => {
           updateRow(batchItem.id, { batch_allocations: allocations });
           setBatchEditor(null);
@@ -560,7 +574,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
           <button className={`w-full rounded-xl border px-3 py-3 text-left text-sm ${!row.positive_adjustment_batch_balance_id ? "border-primary bg-primary/5" : "border-border bg-white"}`} type="button" onClick={() => { updateRow(row.id, { positive_adjustment_confirmed: true, positive_adjustment_batch_balance_id: "", positive_adjustment_batch_no: "" }); setPositiveBatchEditor(null); }}><div className="font-bold text-text-primary">Create Reconciliation Batch on approval</div><div className="mt-1 text-xs text-text-secondary">No Production Batch is created. Draft and Submitted checks leave inventory unchanged.</div></button>
           {positiveBatchEditor.loading ? <div className="text-sm text-text-secondary">Loading valid batches...</div> : null}
           {positiveBatchEditor.error ? <div className="text-sm font-semibold text-rose-700">{positiveBatchEditor.error}</div> : null}
-          {!positiveBatchEditor.loading && !positiveBatchEditor.error && positiveBatchEditor.batches.map((batch) => <button key={batch.batch_balance_id} className={`w-full rounded-xl border px-3 py-3 text-left text-sm ${row.positive_adjustment_batch_balance_id === batch.batch_balance_id ? "border-primary bg-primary/5" : "border-border bg-white"}`} type="button" onClick={() => { updateRow(row.id, { positive_adjustment_confirmed: true, positive_adjustment_batch_balance_id: batch.batch_balance_id, positive_adjustment_batch_no: batch.batch_no }); setPositiveBatchEditor(null); }}><div className="font-bold text-text-primary">{batch.batch_no}</div><div className="mt-1 text-xs text-text-secondary">{batch.source_type} · {quantity(batch.current_balance, "Packs")} · {batch.storage_location}</div></button>)}
+          {!positiveBatchEditor.loading && !positiveBatchEditor.error && positiveBatchEditor.batches.map((batch) => <button key={batch.batch_balance_id} className={`w-full rounded-xl border px-3 py-3 text-left text-sm ${row.positive_adjustment_batch_balance_id === batch.batch_balance_id ? "border-primary bg-primary/5" : "border-border bg-white"}`} type="button" onClick={() => { updateRow(row.id, { positive_adjustment_confirmed: true, positive_adjustment_batch_balance_id: batch.batch_balance_id, positive_adjustment_batch_no: batch.batch_no, positive_adjustment_batch_source_type: batch.source_type, positive_adjustment_batch_location: batch.storage_location }); setPositiveBatchEditor(null); }}><div className="font-bold text-text-primary">{batch.batch_no}</div><div className="mt-1 text-xs text-text-secondary">{batch.source_type} · {quantity(batch.current_balance, "Packs")} · {batch.storage_location}</div></button>)}
         </div>
       </Modal>;
     })() : null}
