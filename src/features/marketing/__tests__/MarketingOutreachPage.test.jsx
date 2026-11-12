@@ -14,7 +14,7 @@ describe('Hybrid WhatsApp staff workflow',()=>{
 
  it('never requests recipient data without organization and brand context',async()=>{render(<MarketingOutreachPage/>);await screen.findByRole('heading',{name:'Customers'});expect(outreach.read.mock.calls.every(args=>args[0]==='org'&&args[1]==='brand')).toBe(true);});
  it('provides a campaign empty state without claiming sends',async()=>{render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();await screen.findByText(/No campaigns yet/);expect(screen.queryByRole('button',{name:'Send automatically'})).toBeNull();});
- it('keeps manual open and confirmation disabled without sender attestation',async()=>{outreach.read.mockResolvedValue({...base,campaigns:[{id:'campaign',title:'Test',status:'ready',revision:1,caption:'Hello'}],senders:[{id:'sender',label:'Declared sender',phone_e164:'+60123456789',active:true}],recipients:[{id:'recipient',display_name:'Test contact',phone_e164:'+60111111111',caption:'Hello Test contact',state:'pending',eligible:true}]});render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click((await screen.findAllByRole('button',{name:'Test',exact:true}))[0]);await screen.findByRole('button',{name:'Open WhatsApp'});expect(screen.getByRole('button',{name:'Open WhatsApp'}).disabled).toBe(true);expect(screen.getByRole('button',{name:'Confirm Sent'}).disabled).toBe(true);expect(screen.getByText(/Verified delivery: unavailable/)).toBeTruthy();expect(outreach.command).not.toHaveBeenCalled();});
+ it('keeps manual open and confirmation disabled without sender attestation',async()=>{outreach.read.mockResolvedValue({...base,campaigns:[{id:'campaign',title:'Test',status:'ready',revision:1,caption:'Hello'}],senders:[{id:'sender',label:'Declared sender',phone_e164:'+60123456789',active:true}],recipients:[{id:'recipient',display_name:'Test contact',phone_e164:'+60111111111',caption:'Hello Test contact',state:'pending',eligible:true}]});render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click((await screen.findAllByRole('button',{name:'Test',exact:true}))[0]);await screen.findByRole('button',{name:'Open WhatsApp'});expect(screen.getByRole('button',{name:'Open WhatsApp'}).disabled).toBe(true);expect(screen.getByRole('button',{name:'Confirm Sent'}).disabled).toBe(true);expect(screen.queryByLabelText('WhatsApp delivery summary')).toBeNull();expect(outreach.command).not.toHaveBeenCalled();});
  it('shows changed consent and denies opening while allowing skip recovery',async()=>{outreach.read.mockResolvedValue({...base,campaigns:[{id:'campaign',title:'Test',status:'ready',revision:1,caption:'Hello'}],recipients:[{id:'recipient',display_name:'Test contact',phone_e164:'+60111111111',caption:'Hello',state:'pending',eligible:false}]});render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click((await screen.findAllByRole('button',{name:'Test',exact:true}))[0]);await screen.findByRole('combobox',{name:'Recipient'});fireEvent.change(screen.getByRole('combobox',{name:'Recipient'}),{target:{value:'recipient'}});await screen.findByText(/Consent or suppression changed/);expect(screen.getByRole('button',{name:'Open WhatsApp'}).disabled).toBe(true);expect(screen.getByRole('button',{name:'Skip → Next'}).disabled).toBe(false);});
 });
 
@@ -36,12 +36,12 @@ it('paginates complete campaign records and opens a row with keyboard without ex
  render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();await screen.findByRole('row',{name:'Open campaign Campaign 0'});
  expect(screen.queryByRole('button',{name:'Campaign 20',exact:true})).toBeNull();fireEvent.click(screen.getAllByRole('button',{name:'Next',exact:true})[0]);await screen.findAllByRole('button',{name:'Campaign 20',exact:true});
  fireEvent.keyDown(screen.getByRole('row',{name:'Open campaign Campaign 20'}),{key:'Enter'});await screen.findByRole('heading',{name:'Campaign 20',exact:true});
- expect(outreach.command).not.toHaveBeenCalled();expect(screen.queryByRole('link',{name:'Customers',exact:true})).toBeNull();
+ expect(outreach.command).not.toHaveBeenCalled();expect(screen.queryByRole('link',{name:'Customers',exact:true})).toBeNull();expect(screen.queryByRole('link',{name:'Campaign Follow-up'})).toBeNull();
 });
 it('keeps started campaigns read-only for revision and distinguishes handling from delivery',async()=>{
  outreach.read.mockResolvedValue({...base,campaigns:[{id:'c',title:'Handled',status:'ready',revision:1,approved_revision:1,caption:'Approved caption',recipient_count:1,handled_count:1}],recipients:[{id:'r',display_name:'Actual recipient',caption:'Approved caption',state:'staff_confirmed',eligible:false}],progress:{staff_confirmed:1}});
  render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click((await screen.findAllByRole('button',{name:'Handled',exact:true}))[0]);await screen.findByText('Handling complete');
- expect(screen.queryByRole('button',{name:'Revise draft'})).toBeNull();expect(screen.queryByRole('button',{name:'Open WhatsApp'})).toBeNull();expect(screen.getByText(/Staff Confirmed records manual handling.*Cloud API delivery and read status/)).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'Revise draft'})).toBeNull();expect(screen.queryByRole('button',{name:'Open WhatsApp'})).toBeNull();expect(screen.getByText('Staff confirmation only')).toBeTruthy();expect(screen.queryByLabelText('WhatsApp delivery summary')).toBeNull();
 });
 
 it('keeps sender confirmation across recipients, and requires it again on a new mount',async()=>{
@@ -89,15 +89,24 @@ it('keeps real mapped canonical outlets available in customer and campaign forms
  render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();fireEvent.click(await screen.findByRole('button',{name:'New campaign'}));expect(screen.getByRole('combobox',{name:'Outlet'})).toBeTruthy();expect(within(screen.getByRole('combobox',{name:'Outlet'})).getByRole('option',{name:'Canonical outlet'}).value).toBe('canonical-outlet');expect(outreach.command).not.toHaveBeenCalled();
 });
 
-it('shows provider reconciliation separately from rehearsal and can pause without sending',async()=>{
- outreach.read.mockResolvedValue({...base,campaigns:[{id:'campaign',title:'Scheduled campaign',status:'ready',revision:1,caption:'Hello'}]});
+it('shows the historical Cloud API run without manual or diagnostic controls and can pause',async()=>{
+ outreach.read.mockResolvedValue({...base,campaigns:[{id:'campaign',title:'Scheduled campaign',status:'ready',revision:1,caption:'Hello',adapter:'whatsapp_manual',delivery_mode:'whatsapp_cloud',delivery_status:'scheduled'}]});
  outreach.whatsappExecution.mockResolvedValue({id:'run',state:'scheduled',scheduled_at:'2026-11-10T00:00:00Z',batch_size:25,
-  counts:{unknown:1,scheduled:1},rows:[{id:'delivery',display_name:'Test contact',batch:1,state:'unknown',due_at:'2026-11-10T00:00:00Z',reason:'provider_outcome_unknown'}],total:1});
+  counts:{unknown:1,read:1},rows:[{id:'delivery',display_name:'Test contact',batch:1,state:'unknown',due_at:'2026-11-10T00:00:00Z',reason:'provider_outcome_unknown',provider_message_id:'wamid.fixture'}],total:2,sender:'Verified Brand number',template_preview:[{type:'BODY',text:'Approved Cloud message'}]});
  render(<MarketingOutreachPage section="whatsapp"/>);await chooseBrand();
  fireEvent.click((await screen.findAllByRole('button',{name:'Scheduled campaign',exact:true}))[0]);
- expect(await screen.findByText('Awaiting a matching provider receipt. Do not resend.')).toBeTruthy();
- fireEvent.click(screen.getByText('WhatsApp Cloud API execution'));
- fireEvent.click(screen.getByRole('button',{name:'Pause schedule'}));
+ expect(await screen.findByText('Awaiting a matching WhatsApp receipt.')).toBeTruthy();
+ expect(screen.getByText('Verified Brand number')).toBeTruthy();
+ expect(within(screen.getByLabelText('Campaign message preview')).getByText('Approved Cloud message')).toBeTruthy();
+ expect(screen.queryByText('wamid.fixture')).toBeNull();
+ expect(screen.queryByText('Rehearse Cloud API batches')).toBeNull();
+ expect(screen.queryByLabelText('Recipient handling progress')).toBeNull();
+ expect(screen.queryByRole('combobox',{name:'WhatsApp Sender'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Confirm Sent'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Copy Caption'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Open WhatsApp'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Cancel campaign'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Pause',exact:true}));
  expect(outreach.whatsappExecutionCommand).toHaveBeenCalledWith('org','brand','campaign',expect.any(String),'pause',{revision:1,run_id:'run'});
  expect(outreach.command).not.toHaveBeenCalled();
 });
@@ -139,15 +148,14 @@ it('shows only the generic error when the authorized read has no sharing match',
 });
 
 it('loads campaign templates after credential verification without waiting for inbound', async () => {
-  outreach.read.mockResolvedValue({...base,campaigns:[{id:'campaign',title:'Renewal pilot',status:'ready',revision:1,caption:'QA'}]});
-  marketing.whatsappConnections.mockResolvedValue({connections:[{
-    id:'connection',onboarding_mode:'cloud_api',state:'action_required',reason:'awaiting_test_inbound',credential_generation:3
-  }]});
+  outreach.read.mockResolvedValue({...base,
+    cloud_sender:{id:'connection',name:'Authorized sender',generation:3},
+    campaigns:[{id:'campaign',title:'Renewal pilot',status:'ready',revision:1,caption:'QA',adapter:'whatsapp_cloud'}]});
   marketing.whatsappTemplates.mockResolvedValue({templates:[]});
   render(<MarketingOutreachPage section="whatsapp"/>);
   await chooseBrand();
   fireEvent.click((await screen.findAllByRole('button',{name:'Renewal pilot',exact:true}))[0]);
-  fireEvent.click(await screen.findByText('WhatsApp Cloud API execution'));
+  fireEvent.click(await screen.findByRole('button',{name:'Schedule',exact:true}));
   fireEvent.click(await screen.findByRole('button',{name:'Refresh templates from Meta'}));
   await waitFor(()=>expect(marketing.whatsappTemplates).toHaveBeenCalledWith({
     organizationId:'org',brandId:'brand',connectionId:'connection',generation:3

@@ -129,7 +129,7 @@ export async function whatsappSignupHandler(path:string,body:any,caller:any,serv
     return await call(caller,'marketing_campaign_whatsapp_command',{p_org:body.organizationId,p_brand:body.brandId,
      p_campaign:body.campaignId,p_request:body.requestId,p_action:'schedule',
      p_payload:{revision:body.revision,generation:body.generation,scheduled_at:body.scheduledAt,batch_size:body.batchSize,dispatch_confirmed:true,
-      template:{...template,providerFingerprint:evidence.providerFingerprint}}});
+      template:{...template,providerFingerprint:evidence.providerFingerprint,preview:evidence.previewComponents}}});
    }catch(error){throw new MetaError('whatsapp_campaign_schedule_failed',false,false,error instanceof MetaError?error.graphCode:undefined);}
   }
   const templates=await readWhatsAppTestTemplates(graph,credential.token).catch(error=>{

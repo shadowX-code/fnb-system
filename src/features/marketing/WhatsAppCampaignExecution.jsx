@@ -1,28 +1,40 @@
 import {useEffect,useRef,useState} from 'react';
-import AdminPagination from '../../components/tables/AdminPagination.jsx';
+import AdminSummaryGrid from '../../components/ui/AdminSummaryGrid.jsx';
+import Badge from '../../components/ui/Badge.jsx';
+import Modal from '../../components/feedback/Modal.jsx';
+import DatePickerField from '../../components/forms/DatePickerField.jsx';
+import AdminFormField from '../../components/forms/AdminFormField.jsx';
+import CampaignRecipientsTable from './CampaignRecipientsTable.jsx';
+import WhatsAppMessagePreview from './WhatsAppMessagePreview.jsx';
 import WhatsAppTemplateCatalog from './WhatsAppTemplateCatalog.jsx';
 import {marketingService} from './marketingService.js';
 import {outreachService} from './outreachService.js';
 import {formatOperationalDateTime} from '../../lib/dateTime.js';
 
 const labels={scheduled:'Scheduled',paused:'Paused',cancelled:'Cancelled',complete:'Complete',sending:'Sending',
- accepted:'Provider accepted',sent:'Sent',delivered:'Delivered',read:'Read',failed:'Failed',unknown:'Unknown outcome',suppressed:'Suppressed'};
-const reasons={provider_outcome_unknown:'Awaiting a matching provider receipt. Do not resend.',
- recipient_ineligible:'Recipient consent, identity, opt-out or test allowlist no longer permits delivery.',
- provider_token_invalid:'Reconnect the test WhatsApp credential.',
- provider_permission_required:'Check Meta permissions and template approval.',
- provider_rate_limited:'Meta rate-limited the attempt.',
- provider_recipient_unavailable:'Meta rejected the recipient.',
- template_or_provider_unavailable:'Check the current Meta template, credential and provider availability.'};
-export default function WhatsAppCampaignExecution({organizationId,brandId,campaign,canSchedule,canExecute}){
+ accepted:'Accepted by Meta',sent:'Sent',delivered:'Delivered',read:'Read',failed:'Failed',unknown:'Awaiting confirmation',suppressed:'Ineligible'};
+const reasons={provider_outcome_unknown:'Awaiting a matching WhatsApp receipt.',
+ recipient_ineligible:'Recipient is no longer eligible.',
+ provider_token_invalid:'The WhatsApp connection needs attention.',
+ provider_permission_required:'Check the WhatsApp connection and template approval.',
+ provider_rate_limited:'WhatsApp limited the send rate.',
+ provider_recipient_unavailable:'WhatsApp could not reach this recipient.',
+ template_or_provider_unavailable:'Template or WhatsApp connection unavailable.'};
+const deliveryStates=Object.fromEntries(Object.entries(labels).filter(([key])=>!['paused','complete'].includes(key)));
+
+export default function WhatsAppCampaignExecution({organizationId,brandId,brandName,campaign,queuedTotal,queuedRecipients,queuePage,onQueuePageChange,connection,
+ canSchedule,canExecute,renderHeader,renderInfo}){
  const [run,setRun]=useState(undefined),[page,setPage]=useState(1),[date,setDate]=useState(''),[time,setTime]=useState('');
- const [size,setSize]=useState(25),[error,setError]=useState(''),[busy,setBusy]=useState(false),[refresh,setRefresh]=useState(0);
- const pending=useRef(null),connection=useRef(null);
- const canReschedule=canSchedule&&['scheduled','paused'].includes(run?.state)&&run.total>0&&run.counts.scheduled===run.total;
+ const [size,setSize]=useState(25),[readError,setReadError]=useState(''),[error,setError]=useState('');
+ const [busy,setBusy]=useState(false),[refresh,setRefresh]=useState(0),[dialog,setDialog]=useState(null);
+ const pending=useRef(null);
+ const ready=campaign.status==='ready';
+ const scheduled=ready&&['scheduled','paused'].includes(run?.state);
+ const canReschedule=canSchedule&&connection&&scheduled&&run.total>0&&run.counts.scheduled===run.total;
  useEffect(()=>{
   let active=true;
   const read=()=>outreachService.whatsappExecution(organizationId,brandId,campaign.id,page)
-   .then(data=>{if(active)setRun(data);}).catch(error=>{if(active)setError(error.message);});
+   .then(data=>{if(active){setRun(data);setReadError('');}}).catch(error=>{if(active)setReadError(error.message);});
   read();
   const timer=setInterval(read,30000);
   return()=>{active=false;clearInterval(timer);};
@@ -32,27 +44,29 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,campai
   if(pending.current?.fingerprint!==fingerprint)pending.current={fingerprint,id:crypto.randomUUID()};
   return pending.current.id;
  }
- async function loadTemplates(){
-  const result=await marketingService.whatsappConnections(organizationId,brandId);
-  const active=result.connections?.find(item=>item.onboarding_mode==='cloud_api'&&
-   (item.state==='connected'||item.reason==='awaiting_test_inbound'));
-  if(!active)throw new Error('Verify the current Staging WhatsApp test connection before scheduling.');
-  connection.current=active;
-  return marketingService.whatsappTemplates({organizationId,brandId,connectionId:active.id,generation:active.credential_generation});
+ function open(action){
+  setError('');setDate('');setTime('');setDialog(action);
+ }
+ function changed(){
+  pending.current=null;setDialog(null);setRefresh(value=>value+1);
  }
  async function schedule(template){
-  if(!date||!time||!size){setError('Choose a proposed date, time and batch size.');return false;}
+  if(!connection||!date||!time||!Number.isInteger(Number(size))||size<1||size>100){
+   setError('Choose a schedule date, time and batch size from 1 to 100.');
+   return false;
+  }
   const body={organizationId,brandId,campaignId:campaign.id,revision:campaign.revision,
-   connectionId:connection.current.id,generation:connection.current.credential_generation,
-   scheduledAt:`${date}T${time}:00+08:00`,batchSize:Number(size),dispatchConfirmed:true,template};
-  setError('');
+   connectionId:connection.id,generation:connection.generation,scheduledAt:`${date}T${time}:00+08:00`,batchSize:Number(size),
+   dispatchConfirmed:true,template};
+  setBusy(true);setError('');
   try{
    await marketingService.scheduleWhatsAppCampaign({...body,requestId:request('schedule',body)});
-   pending.current=null;setRefresh(n=>n+1);return true;
-  }catch(error){setError(error.message);return false;}
+   changed();return true;
+  }catch(failure){setError(failure.message);return false;}
+  finally{setBusy(false);}
  }
  async function control(action){
-  if(busy)return;
+  if(busy||!run)return;
   setBusy(true);setError('');
   const body={revision:campaign.revision,run_id:run.id};
   if(action==='reschedule'){
@@ -62,49 +76,74 @@ export default function WhatsAppCampaignExecution({organizationId,brandId,campai
   }
   try{
    await outreachService.whatsappExecutionCommand(organizationId,brandId,campaign.id,request(action,body),action,body);
-   pending.current=null;setRefresh(n=>n+1);
-  }catch(error){setError(error.message);}
+   changed();
+  }catch(failure){setError(failure.message);}
   finally{setBusy(false);}
  }
- return <details className="outreach-evidence">
-  <summary>WhatsApp Cloud API execution</summary>
-  <p>Confirmed schedules send only to approved test recipients who are eligible at send time.</p>
-  {error&&<p role="alert">{error}</p>}
-  {run===undefined&&<p role="status">Checking campaign execution…</p>}
-  {run===null&&canSchedule&&campaign.status==='ready'&&<>
-   <div className="flex flex-wrap items-end gap-2">
-    <label>Schedule date (MYT)<input className="control block" type="date" value={date} onChange={event=>setDate(event.target.value)}/></label>
-    <label>Schedule time (MYT)<input className="control block" type="time" value={time} onChange={event=>setTime(event.target.value)}/></label>
-    <label>Recipients per batch<input className="control block" type="number" min="1" max="100" value={size} onChange={event=>setSize(event.target.value)}/></label>
-   </div>
-   <WhatsAppTemplateCatalog purpose="campaign" submitLabel="Confirm and schedule test sends" loadTemplates={loadTemplates} onSend={schedule}/>
-  </>}
-  {run===null&&(!canSchedule||campaign.status!=='ready')&&<p>No Cloud API schedule. Scheduling requires the current approved queue and Campaign execution and approval access.</p>}
-  {run&&<>
-   <p>{labels[run.state]} · {formatOperationalDateTime(run.scheduled_at)} MYT · {run.batch_size} recipients per batch</p>
-   <p role="status">{Object.entries(run.counts).map(([state,count])=>`${labels[state]||state} ${count}`).join(' · ')}</p>
-   {run.dispatch_confirmed===false&&['scheduled','paused'].includes(run.state)&&
-    <p>Choose a new schedule to confirm sending for this saved run.</p>}
-   {canExecute&&['scheduled','paused'].includes(run.state)&&<div className="flex flex-wrap gap-2">
-    {(run.state!=='paused'||run.dispatch_confirmed!==false)&&
-     <button className="btn-secondary" disabled={busy} onClick={()=>control(run.state==='paused'?'resume':'pause')}>{run.state==='paused'?'Resume schedule':'Pause schedule'}</button>}
-    <button className="btn-secondary" disabled={busy} onClick={()=>control('cancel')}>Cancel remaining recipients</button>
-   </div>}
-   {canReschedule&&<div className="flex flex-wrap items-end gap-2">
-    <label>New schedule date (MYT)<input className="control block" type="date" value={date} onChange={event=>setDate(event.target.value)}/></label>
-    <label>New schedule time (MYT)<input className="control block" type="time" value={time} onChange={event=>setTime(event.target.value)}/></label>
-    <button className="btn-secondary" disabled={busy||!date||!time} onClick={()=>control('reschedule')}>Reschedule test sends</button>
-   </div>}
-   <ul className="mt-2 space-y-2" aria-label="Campaign recipient execution">
-    {run.rows.map(row=><li key={row.id} className="break-words border-b border-border-default pb-2">
-     <strong>{row.display_name}</strong> · Batch {row.batch} · {labels[row.state]||row.state}
-     <p>{formatOperationalDateTime(row.due_at)} MYT</p>
-     {row.reason&&<p>{reasons[row.reason]||'Provider reported a delivery failure.'}</p>}
-     {row.provider_message_id&&<details><summary>Provider receipt</summary><code>{row.provider_message_id}</code></details>}
-     {row.reply_conversation_id&&<a href={`/marketing/whatsapp-chat?marketing_org=${organizationId}&marketing_brand=${brandId}&conversation_id=${row.reply_conversation_id}`}>Open attributed reply</a>}
-    </li>)}
-   </ul>
-   <AdminPagination page={page} pageSize={20} total={run.total} onPageChange={setPage}/>
-  </>}
- </details>;
+ const showingQueue=run===null&&ready;
+ const rows=showingQueue?queuedRecipients.map(row=>({...row,state:row.eligible?'queued':'suppressed'})):run?.rows||[];
+ const counts=run?.counts||{};
+ const sent=(counts.sent||0)+(counts.delivered||0)+(counts.read||0);
+ const delivered=(counts.delivered||0)+(counts.read||0);
+ const summaryState=readError?'unavailable':run===undefined?'loading':'ready';
+ const snapshot=run?.template_preview;
+ const preview=Array.isArray(snapshot)&&snapshot.every(part=>part&&
+  (part.text===undefined||typeof part.text==='string')&&
+  (part.format===undefined||typeof part.format==='string')&&
+  (part.buttons===undefined||Array.isArray(part.buttons)&&part.buttons.every(button=>typeof button?.text==='string')))
+  ?snapshot:[];
+ const actions=<>
+  {ready&&run===null&&canSchedule&&connection&&<button className="btn-primary" onClick={()=>open('schedule')}>Schedule</button>}
+  {canExecute&&scheduled&&run.state==='scheduled'&&run.dispatch_confirmed!==false&&<button className="btn-primary" disabled={busy} onClick={()=>control('pause')}>Pause</button>}
+  {canExecute&&scheduled&&run.state==='paused'&&run.dispatch_confirmed!==false&&connection&&<button className="btn-primary" disabled={busy} onClick={()=>control('resume')}>Resume</button>}
+  {canReschedule&&<button className={run.dispatch_confirmed===false?'btn-primary':'btn-secondary'} onClick={()=>open('reschedule')}>Reschedule</button>}
+  {canExecute&&scheduled&&<button className="btn-secondary" onClick={()=>open('cancel')}>Cancel remaining</button>}
+ </>;
+ const scheduleFields=<div className="outreach-form-grid">
+  <DatePickerField label="Schedule date (MYT)" value={date} onChange={setDate} disabled={busy}/>
+  <AdminFormField label="Schedule time (MYT)"><input className="control" type="time" value={time} onChange={event=>setTime(event.target.value)} disabled={busy}/></AdminFormField>
+  {dialog==='schedule'&&<AdminFormField label="Recipients per batch"><input className="control" type="number" min="1" max="100" value={size} onChange={event=>setSize(event.target.value)} disabled={busy}/></AdminFormField>}
+ </div>;
+ return <>
+  {renderHeader(labels[run?.state||campaign.delivery_status],actions)}
+  {readError&&<p role="alert" className="text-danger">{readError}</p>}
+  {error&&!dialog&&<p role="alert" className="text-danger">{error}</p>}
+  {ready&&(!run||run.state==='paused')&&!connection&&run!==undefined&&
+   <p className="text-sm text-text-secondary">Verify the Brand’s WhatsApp connection before scheduling or resuming sends.</p>}
+  {scheduled&&run.dispatch_confirmed===false&&<p className="text-sm text-text-secondary">Choose a new schedule to confirm sending for this saved run.</p>}
+  <AdminSummaryGrid variant="compact" ariaLabel="WhatsApp delivery summary" items={[
+   {key:'recipients',label:'Recipients',value:run?.total??queuedTotal,state:summaryState},
+   {key:'sent',label:'Sent',value:sent,state:summaryState},
+   {key:'delivered',label:'Delivered',value:delivered,state:summaryState},
+   {key:'read',label:'Read',value:counts.read||0,state:summaryState},
+   {key:'attention',label:'Needs attention',value:(counts.failed||0)+(counts.unknown||0)+(counts.suppressed||0),state:summaryState},
+  ]}/>
+  <div className="outreach-campaign-layout">
+   <section className="card p-4 space-y-3 min-w-0" aria-label="Campaign message preview">
+    <h2 className="text-base font-semibold">Message preview</h2>
+    <WhatsAppMessagePreview brandName={brandName} components={preview}
+     emptyBody={run?'The original template preview is unavailable for this run.':'Choose an approved WhatsApp template when scheduling.'}/>
+   </section>
+   {renderInfo(run?.sender||connection?.name||'No authorized Brand connection',run?.scheduled_at&&formatOperationalDateTime(run.scheduled_at)+' MYT')}
+  </div>
+  <CampaignRecipientsTable rows={rows} statuses={showingQueue?{queued:'Queued',suppressed:'Ineligible'}:deliveryStates}
+   total={showingQueue?queuedTotal:run?.total||0} page={showingQueue?queuePage:page} pageSize={showingQueue?50:20}
+   onPageChange={showingQueue?onQueuePageChange:setPage} loading={run===undefined&&!readError}
+   emptyMessage={readError?'Delivery details are unavailable.':'Delivery results will appear when the campaign is scheduled.'} columns={[
+    {key:'display_name',header:'Recipient',render:row=>row.display_name||'Unavailable'},
+    {key:'state',header:'Delivery',render:row=><Badge tone={['sent','delivered','read'].includes(row.state)?'success':['failed','unknown','suppressed'].includes(row.state)?'warning':'neutral'}>{row.state==='queued'?'Queued':labels[row.state]||'Unavailable'}</Badge>},
+    {key:'due_at',header:'Scheduled (MYT)',render:row=>row.due_at?formatOperationalDateTime(row.due_at):'—'},
+    {key:'result',header:'Result',render:row=><>{row.reason?(reasons[row.reason]||'Check delivery status.'):null}{row.reply_conversation_id&&<a className="btn-secondary" href={`/marketing/whatsapp-chat?marketing_org=${organizationId}&marketing_brand=${brandId}&conversation_id=${row.reply_conversation_id}`}>Open reply</a>}{!row.reason&&!row.reply_conversation_id?'—':null}</>},
+   ]}/>
+  {dialog&&<Modal title={dialog==='cancel'?'Cancel remaining recipients':dialog==='reschedule'?'Reschedule campaign':'Schedule campaign'}
+   size={dialog==='schedule'?'lg':'sm'} onClose={()=>{if(!busy)setDialog(null);}}
+   footer={dialog!=='schedule'&&<button className="btn-primary" disabled={busy||(dialog==='reschedule'&&(!date||!time))} onClick={()=>control(dialog)}>
+    {dialog==='cancel'?'Cancel remaining recipients':'Confirm new schedule'}
+   </button>}>
+   {error&&<p role="alert" className="text-danger">{error}</p>}
+   {dialog==='cancel'?<p>Cancel sends that have not started. Existing delivery history remains available.</p>:scheduleFields}
+   {dialog==='schedule'&&connection&&<WhatsAppTemplateCatalog purpose="campaign" brandName={brandName} submitLabel="Confirm and schedule"
+    loadTemplates={()=>marketingService.whatsappTemplates({organizationId,brandId,connectionId:connection.id,generation:connection.generation})} onSend={schedule}/>}
+  </Modal>}
+ </>;
 }

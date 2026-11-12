@@ -112,3 +112,6 @@
 .import-confirm details {margin-top:16px;font-size:13px;color:var(--theme-text-secondary);}
 .outreach-pos-snapshot {padding:12px 0;}
 .outreach-pos-snapshot > small {display:block;margin-top:4px;color:var(--theme-text-secondary);}
+.outreach-campaign-header{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:4px}
+.outreach-campaign-header>.outreach-actions:last-child{margin-inline-start:auto}
+.outreach-campaign-layout .wa-template-chat-surface{min-height:10rem}

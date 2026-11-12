@@ -1,3 +1,4 @@
+import WhatsAppCampaignDiagnostics from './WhatsAppCampaignDiagnostics.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import WhatsAppConnections from './WhatsAppConnections.jsx';
 import NotificationSoundControls from '../../components/notifications/NotificationSoundControls.jsx';
@@ -1236,6 +1237,8 @@ function InboxWorkspace({ whatsApp }) {
         {whatsappTestingAllowed && whatsappTestingOpen && org ? (
           <Drawer title="WhatsApp Staging tools" onClose={() => setWhatsAppTestingOpen(false)}>
             <WhatsAppConnections testing organizationId={org} brandId={brand} brands={brands} />
+            {brand&&auth.hasPermission('marketing_campaigns.view')&&<WhatsAppCampaignDiagnostics key={`${org}:${brand}`}
+              organizationId={org} brandId={brand} canRehearse={auth.hasPermission('marketing_campaigns.execute')}/>}
           </Drawer>
         ) : null}
         {modal && (

@@ -22,7 +22,7 @@ const scenarios = [
 ];
 const initial = {title:'',batch_size:30,follow_up_hours:24};
 const labels = {draft:'Draft',enabled:'Enabled for simulation',paused:'Paused',save:'Saved revision',enable:'Enabled for simulation',pause:'Paused',simulate:'Simulation'};
-export default function WhatsAppWorkflowsPage({campaignFollowUp=false}){
+export default function WhatsAppWorkflowsPage(){
  const auth=useAuth();
  const [context,setContext]=useState(null),[brand,setBrand]=useState(''),[error,setError]=useState('');
  useEffect(()=>{
@@ -36,9 +36,8 @@ export default function WhatsAppWorkflowsPage({campaignFollowUp=false}){
   return()=>{active=false;};
  },[auth.user?.id]);
  const scope=context?.brands.find(row=>row.id===brand);
- return <WorkspacePage section="Marketing" title={campaignFollowUp?"Campaign Follow-up":"Workflows"} description="Configure and test a WhatsApp campaign follow-up."
+ return <WorkspacePage section="Marketing" title="Workflows" description="Configure and test a WhatsApp campaign follow-up."
   controls={<SelectField label="Brand" value={brand} onChange={setBrand} disabled={!context} options={(context?.brands||[]).map(row=>({value:row.id,label:row.name}))}/>}>
-   {campaignFollowUp?<a className="btn-secondary" href="/marketing/whatsapp">Back to Campaign Message</a>:null}
    {error?<p role="alert" className="text-danger">{error}</p>:null}
    {scope?<WorkflowWorkspace key={`${auth.user?.id}:${brand}`} org={scope.organization_id} brand={brand}
     canEdit={auth.hasPermission('marketing_campaigns.manage')} canExecute={auth.hasPermission('marketing_campaigns.execute')}/>:

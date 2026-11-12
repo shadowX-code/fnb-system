@@ -1,4 +1,5 @@
 import {useRef,useState} from 'react';
+import WhatsAppMessagePreview from './WhatsAppMessagePreview.jsx';
 import {marketingService} from './marketingService.js';
 
 const placeholder = /{{\s*([a-z][a-z0-9_]*|[1-9]\d*)\s*}}/gi;
@@ -19,7 +20,7 @@ export function WhatsAppTemplatePreview({template,values={}}){
    </div>;
 }
 
-export default function WhatsAppTemplateCatalog({organizationId,brandId,connection,loadTemplates,onSend,submitLabel='Send approved template',purpose='staff'}){
+export default function WhatsAppTemplateCatalog({organizationId,brandId,brandName,connection,loadTemplates,onSend,submitLabel='Send approved template',purpose='staff'}){
  const [catalog,setCatalog]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const submitting=useRef(false);
  const [mediaId,setMediaId]=useState('');
@@ -29,6 +30,7 @@ export default function WhatsAppTemplateCatalog({organizationId,brandId,connecti
  const buttons=template?.components.flatMap(component=>component.buttons)||[];
  const buttonFields=buttons.flatMap((button,index)=>button.needsValue?[{label:button.text||'Button',key:`button:${index}`}]:[]);
  const media=template?.components.find(component=>component.type==='HEADER'&&['IMAGE','VIDEO','DOCUMENT'].includes(component.format));
+ const samples=type=>Object.fromEntries(Object.entries(values).filter(([key])=>key.startsWith(type+':')).map(([key,value])=>[key.slice(type.length+1),value]));
  const complete=fields.every(field=>values[field.key]?.trim())&&buttonFields.every(field=>values[field.key]?.trim())
   &&(!media||/^\d{1,32}$/.test(mediaId));
  async function send(){
@@ -73,7 +75,7 @@ export default function WhatsAppTemplateCatalog({organizationId,brandId,connecti
      onChange={event=>setValues(previous=>({...previous,[field.key]:event.target.value}))}/>
    </label>)}
    {fields.some(field=>!values[field.key]?.trim())&&<p>Fill all variables to preview the completed text.</p>}
-   <WhatsAppTemplatePreview template={template} values={values}/>
+   {purpose==='campaign'?<WhatsAppMessagePreview brandName={brandName} components={template.components} headerSamples={samples('header')} bodySamples={samples('body')}/>:<WhatsAppTemplatePreview template={template} values={values}/>}
    {onSend&&<button className="btn-primary" disabled={busy||!complete||template.status!=='APPROVED'||!(purpose==='campaign'?['UTILITY','MARKETING'].includes(template.category):template.category==='UTILITY')} onClick={send}>{submitLabel}</button>}
   </>}
  </div>;

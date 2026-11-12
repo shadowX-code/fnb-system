@@ -15,6 +15,7 @@ export async function whatsappTemplateIntent(graph:Graph,token:string,choice:Tem
   throw new Error('template_not_approved_utility');
  const components:any[]=[];
  const preview:string[]=[];
+ const previewComponents:Record<string,unknown>[]=[];
  if(choice.values!==undefined&&(!choice.values||Array.isArray(choice.values)||typeof choice.values!=='object'))throw new Error('template_parameter_invalid');
  const remaining=new Set(Object.keys(choice.values||{}));
  const take=(key:string,max=1024)=>{
@@ -39,6 +40,7 @@ export async function whatsappTemplateIntent(graph:Graph,token:string,choice:Tem
     throw new Error('template_media_type_invalid');
    components.push({type,parameters:[{type:mediaType,[mediaType]:{id:choice.mediaId}}]});
    mediaRequired=true;
+   previewComponents.push({type:'HEADER',format:part.format});
   }else if(['header','body','footer'].includes(type)&&typeof part.text==='string'){
    if(type==='header'&&part.format!=='TEXT')throw new Error('template_component_unsupported');
    const source:string=part.text;
@@ -55,8 +57,10 @@ export async function whatsappTemplateIntent(graph:Graph,token:string,choice:Tem
    const rendered=source.replace(/{{\s*([^{}]+?)\s*}}/g,(token,name)=>replacements.get(name)||token);
    if(/{{|}}/.test(rendered))throw new Error('template_parameter_format_invalid');
    preview.push(rendered);
+   previewComponents.push({type:type.toUpperCase(),text:rendered});
    if(parameters.length)components.push({type,parameters});
   }else if(type==='buttons'&&Array.isArray(part.buttons)&&part.buttons.length<=10){
+   previewComponents.push({type:'BUTTONS',buttons:part.buttons.map((button:any)=>({type:button?.type,text:button?.text}))});
    part.buttons.forEach((button:any,index:number)=>{
     if(typeof button?.text!=='string'||!button.text.trim())throw new Error('template_component_unsupported');
     preview.push(button.text);
@@ -76,5 +80,5 @@ export async function whatsappTemplateIntent(graph:Graph,token:string,choice:Tem
  if(!text||text.length>2000)throw new Error('template_preview_invalid');
  const template={name:row.name,language:{code:row.language},...(components.length?{components}:{})};
  const providerFingerprint=await hash(JSON.stringify([row.id,row.category,row.components,template]));
- return {text,template,providerFingerprint};
+ return {text,template,providerFingerprint,previewComponents};
 }

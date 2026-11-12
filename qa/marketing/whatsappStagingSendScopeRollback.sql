@@ -60,6 +60,8 @@ begin
   and marketing_private.actor_allowed(e.id,chat.organization_id,chat.brand_id,'marketing_inbox.view')
   and marketing_private.actor_allowed(e.id,chat.organization_id,chat.brand_id,'marketing_inbox.reply')
   and marketing_private.actor_allowed(e.id,chat.organization_id,chat.brand_id,'marketing_inbox.send')
+  and marketing_private.actor_allowed(e.id,chat.organization_id,chat.brand_id,'marketing_campaigns.manage')
+  and marketing_private.actor_allowed(e.id,chat.organization_id,chat.brand_id,'marketing_campaigns.view')
   and marketing_private.actor_allowed(e.id,chat.organization_id,chat.brand_id,'marketing_campaigns.execute')
   and marketing_private.actor_allowed(e.id,chat.organization_id,chat.brand_id,'marketing_campaigns.approve')
  limit 1;
@@ -111,12 +113,28 @@ begin
  select * into campaign from public.marketing_campaigns where id=historical.campaign_id;
  select r.* into recipient from public.marketing_campaign_recipients r
  join marketing_private.whatsapp_campaign_deliveries d on d.recipient_id=r.id where d.run_id=historical.id;
- campaign.id:=gen_random_uuid();
- campaign.title:='Rollback-only WhatsApp schedule';
- insert into public.marketing_campaigns select (campaign).*;
- recipient.id:=gen_random_uuid();
- recipient.campaign_id:=campaign.id;
- insert into public.marketing_campaign_recipients select (recipient).*;
+ result:=public.marketing_outreach_read(campaign.organization_id,campaign.brand_id,campaign.id);
+ if not exists(select 1 from jsonb_array_elements(result->'campaigns') item where item->>'id'=campaign.id::text
+  and item->>'delivery_mode'='whatsapp_cloud' and item->>'delivery_status'='complete' and item->>'can_revise'='false')
+ then raise exception 'Historical Cloud delivery mode was not projected';end if;
+ result:=public.marketing_campaign_whatsapp_read(campaign.organization_id,campaign.brand_id,campaign.id,1);
+ if result->>'sender' is distinct from conn.account_name or result#>>'{counts,read}' is distinct from '1'
+ then raise exception 'Historical sender or read evidence was lost';end if;
+ begin
+  perform public.marketing_outreach_command(gen_random_uuid(),campaign.organization_id,campaign.brand_id,'inspect',recipient.id);
+  raise exception 'Historical Cloud campaign allowed a manual recipient action';
+ exception when raise_exception then
+  if sqlerrm<>'Manual recipient actions are unavailable for this Cloud API campaign.' then raise;end if;
+ end;
+
+ result:=public.marketing_outreach_command(gen_random_uuid(),campaign.organization_id,campaign.brand_id,'save',null,
+  jsonb_build_object('title','Rollback-only WhatsApp schedule','caption','Cloud API regression fixture',
+   'audience_id',campaign.audience_id,'adapter','whatsapp_cloud'));
+ select * into campaign from public.marketing_campaigns where id=(result->>'id')::uuid;
+ if campaign.adapter is distinct from 'whatsapp_cloud' then raise exception 'Cloud campaign mode was not saved';end if;
+ perform public.marketing_outreach_command(gen_random_uuid(),campaign.organization_id,campaign.brand_id,'review',campaign.id,jsonb_build_object('revision',campaign.revision));
+ perform public.marketing_outreach_command(gen_random_uuid(),campaign.organization_id,campaign.brand_id,'approve',campaign.id,jsonb_build_object('revision',campaign.revision));
+ perform public.marketing_outreach_command(gen_random_uuid(),campaign.organization_id,campaign.brand_id,'queue',campaign.id,jsonb_build_object('revision',campaign.revision));
 
  payload:=jsonb_build_object('revision',campaign.revision,'generation',conn.credential_generation,
   'scheduled_at',now()+interval '1 minute','batch_size',1,'template',historical.template);
@@ -131,6 +149,13 @@ begin
  if result->>'state' is distinct from 'scheduled' or public.marketing_campaign_whatsapp_command(
   campaign.organization_id,campaign.brand_id,campaign.id,test_run,'schedule',payload) is distinct from result
  then raise exception 'Confirmed schedule was not idempotent';end if;
+ payload:=jsonb_build_object('revision',campaign.revision,'run_id',test_run);
+ if public.marketing_campaign_whatsapp_command(campaign.organization_id,campaign.brand_id,campaign.id,
+  gen_random_uuid(),'pause',payload)->>'state' is distinct from 'paused'
+ then raise exception 'Cloud API pause was denied';end if;
+ if public.marketing_campaign_whatsapp_command(campaign.organization_id,campaign.brand_id,campaign.id,
+  gen_random_uuid(),'resume',payload)->>'state' is distinct from 'scheduled'
+ then raise exception 'Cloud API resume was denied';end if;
  update marketing_private.whatsapp_campaign_deliveries set due_at=now()-interval '1 second' where run_id=test_run;
 
  perform set_config('request.jwt.claim.role','service_role',true);

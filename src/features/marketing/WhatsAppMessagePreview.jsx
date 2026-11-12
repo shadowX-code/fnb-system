@@ -1,4 +1,5 @@
 import {Link2, MessageCircle, Phone} from 'lucide-react';
+import './whatsappTemplates.css';
 
 const variable = /{{\s*([a-z][a-z0-9_]*|[1-9]\d*)\s*}}/gi;
 const buttonIcons = {QUICK_REPLY:MessageCircle,URL:Link2,PHONE_NUMBER:Phone};
@@ -8,7 +9,7 @@ function withSamples(text, samples) {
 }
 
 export default function WhatsAppMessagePreview({
- brandName, components, headerSamples, bodySamples, emptyBody='Your message will appear here.',
+ brandName, components, headerSamples, bodySamples, media, emptyBody='Your message will appear here.',
 }) {
  const header=components.find(part=>part.type==='HEADER');
  const body=components.find(part=>part.type==='BODY')?.text;
@@ -19,6 +20,7 @@ export default function WhatsAppMessagePreview({
   <div className="wa-template-chat-surface">
    <div className="wa-template-message">
     <div className="wa-template-bubble">
+     {media}
      {header?.text?.trim()?<strong>{withSamples(header.text,headerSamples)}</strong>:null}
      {header?.format&&header.format!=='TEXT'?<small>Header requires {header.format.toLowerCase()} media or data.</small>:null}
      <p className={!body?.trim()?'wa-template-preview-empty':''}>{body?.trim()?withSamples(body,bodySamples):emptyBody}</p>

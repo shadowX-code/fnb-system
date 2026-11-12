@@ -25,7 +25,7 @@ function graph(){
  })};
 }
 const tokenFor=async()=> 'fixture';
-async function fixture(){
+async function fixture(preview?:unknown){
  const g=graph();
  const choice={id:'111',language:'en_US'};
  const intent=await whatsappTemplateIntent(g,'fixture',choice,phone,'campaign');
@@ -35,7 +35,7 @@ async function fixture(){
   if(args.p_operation==='claim'){
    if(leased||state!=='scheduled')return null;
    leased=true;
-   return {id:delivery,run_id:run,lease:'fixture',connection_id:'fixture',generation:2,peer,template:{...choice,providerFingerprint:intent.providerFingerprint}};
+   return {id:delivery,run_id:run,lease:'fixture',connection_id:'fixture',generation:2,peer,template:{...choice,providerFingerprint:intent.providerFingerprint,...(preview===undefined?{}:{preview})}};
   }
   if(args.p_operation==='begin')state='sending';
   if(['accepted','failed','unknown'].includes(args.p_operation))state=args.p_operation;
@@ -64,6 +64,12 @@ it('does not send when the server rejects the leased delivery at the final guard
  expect(await runWhatsAppCampaign(call,g,env,tokenFor)).toBe(true);
  expect(g.request.mock.calls.filter(args=>args[3]==='POST')).toHaveLength(0);
  expect(call.mock.calls.every(([,args])=>args.p_operation==='claim'||args.p_run===run)).toBe(true);
+});
+it('rejects a saved preview that no longer matches the approved template',async()=>{
+ const {g,call,state}=await fixture([{type:'BODY',text:'Changed copy'}]);
+ expect(await runWhatsAppCampaign(call,g,env,tokenFor)).toBe(true);
+ expect(state()).toBe('failed');
+ expect(g.request.mock.calls.filter(args=>args[3]==='POST')).toHaveLength(0);
 });
 it('persists one accepted outcome across concurrent ticks and a restart',async()=>{
  const {g,call,state}=await fixture();

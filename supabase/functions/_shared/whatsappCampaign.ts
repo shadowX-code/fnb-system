@@ -29,7 +29,8 @@ export async function runWhatsAppCampaign(
    configId:'',signupVersion:'',enabled:false,callback:`${STAGING_SUPABASE}/functions/v1/marketing-inbox/webhook`,
   },token);
   const intent=await whatsappTemplateIntent(graph,token,claim.template,CLOUD_TEST_PHONE,'campaign');
-  if(intent.providerFingerprint!==claim.template.providerFingerprint)throw new Error('campaign_template_changed');
+  if(intent.providerFingerprint!==claim.template.providerFingerprint
+   ||(claim.template.preview && JSON.stringify(claim.template.preview,['type','format','text','buttons'])!==JSON.stringify(intent.previewComponents,['type','format','text','buttons'])))throw new Error('campaign_template_changed');
   const result=await advanceInboxDelivery({
    channel:'whatsapp',whatsappCampaignCallback:claim.id,whatsappTemplate:intent.template,
    authority:{},recipient:claim.peer,text:intent.text,state:{},checkpoint,
