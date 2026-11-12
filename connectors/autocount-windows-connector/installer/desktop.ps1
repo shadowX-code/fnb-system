@@ -39,8 +39,8 @@ function Run-UiAction([scriptblock]$Action) {
     } catch {
         $failure = $_.Exception.GetBaseException()
         $reason = switch -Regex ($failure.Message) {
-            '^STAGING_HTTP_401$' { 'The pairing code expired, was used, or this computer was revoked. Generate a fresh code in FeedX.'; break }
-            '^STAGING_HTTP_409$' { 'The code is out of date or the book belongs to another connector. Use Replace computer in FeedX.'; break }
+            '^STAGING_HTTP_401$' { 'The pairing code expired, was used, or this computer was revoked. Generate a fresh code in Windows.'; break }
+            '^STAGING_HTTP_409$' { 'This computer is already registered. Open FeedX to review its connection.'; break }
             '^AUTHORIZED_WINDOWS_SYSADMIN_REQUIRED$' { 'Sign in to Windows as an authorized SQL Server administrator to approve this book.'; break }
             '^SQL_AUTHENTICATION_NOT_ENABLED$' { 'This SQL Server does not allow SQL reader accounts. Ask your SQL administrator to review its authentication mode.'; break }
             '^BOOK_COMPANY_|^MAPPING_|^ACCOUNTING_' { 'The selected database could not be verified as a supported AutoCount Account Book.'; break }
@@ -53,35 +53,35 @@ function Run-UiAction([scriptblock]$Action) {
         Write-LocalTextAtomically (Join-Path $deviceRoot 'setup-status.txt') $code
     } finally { $form.UseWaitCursor = $false }
 }
-$null = Add-Label 20 '1. Pair this computer with FeedX'
-$open = Add-Control ([Windows.Forms.Button]::new()) 20 52 170 32 'Open FeedX Staging'
-$codeBox = Add-Control ([Windows.Forms.TextBox]::new()) 203 53 227 27 ''
-$codeBox.MaxLength = 20
-$codeBox.AccessibleName = 'Pairing code'
-$pair = Add-Control ([Windows.Forms.Button]::new()) 445 52 170 32 'Pair computer'
-$null = Add-Label 90 'Generate a pairing code in Finance > Data Sources > Connect provider.'
 $products = @(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
     Where-Object { $_.DisplayName -like '*AutoCount*Accounting*' } | Select-Object -ExpandProperty DisplayName -Unique)
-$description = if ($products.Count) { '2. Authorize an Account Book | '+$products[0] } else { '2. Find and authorize each Account Book' }
-$null = Add-Label 130 $description
-$instances = Add-Control ([Windows.Forms.ComboBox]::new()) 20 164 260 28 ''
+$description = if ($products.Count) { '1. Authorize an Account Book | '+$products[0] } else { '1. Find and authorize each Account Book' }
+$null = Add-Label 20 $description
+$instances = Add-Control ([Windows.Forms.ComboBox]::new()) 20 54 260 28 ''
 $instances.AccessibleName = 'Local SQL instance'
 $instances.DropDownStyle = 'DropDownList'
 $instances.Items.AddRange([object[]](Get-LocalSqlInstances))
 if ($instances.Items.Contains('A2006')) { $instances.SelectedItem = 'A2006' } else { $instances.SelectedIndex = 0 }
-$scan = Add-Control ([Windows.Forms.Button]::new()) 300 161 315 32 'Find accessible databases'
-$books = Add-Control ([Windows.Forms.ComboBox]::new()) 20 208 260 28 ''
+$scan = Add-Control ([Windows.Forms.Button]::new()) 300 51 315 32 'Find accessible databases'
+$books = Add-Control ([Windows.Forms.ComboBox]::new()) 20 98 260 28 ''
 $books.AccessibleName = 'Database candidate'
 $books.DropDownStyle = 'DropDownList'
-$authorize = Add-Control ([Windows.Forms.Button]::new()) 300 205 315 32 'Review and authorize selected book'
-$null = Add-Label 247 'First posting date for this book'
-$date = Add-Control ([Windows.Forms.DateTimePicker]::new()) 20 275 260 28 ''
+$authorize = Add-Control ([Windows.Forms.Button]::new()) 300 95 315 32 'Review and authorize selected book'
+$null = Add-Label 137 'First posting date for this book'
+$date = Add-Control ([Windows.Forms.DateTimePicker]::new()) 20 165 260 28 ''
 $date.AccessibleName = 'First posting date'
 $date.Format = 'Short'
 $date.MinDate = [datetime]'2000-01-01'
 $date.MaxDate = [datetime]::Today
 $date.Value = [datetime]::Today.AddDays(-7)
-$null = Add-Label 320 '3. Match the authorized book to a Legal Entity in FeedX.'
+$null = Add-Label 220 '2. Generate a pairing code for this computer'
+$pair = Add-Control ([Windows.Forms.Button]::new()) 20 248 185 32 'Generate pairing code'
+$codeBox = Add-Control ([Windows.Forms.TextBox]::new()) 220 251 185 28 ''
+$codeBox.AccessibleName = 'Pairing code'
+$codeBox.ReadOnly = $true
+$open = Add-Control ([Windows.Forms.Button]::new()) 420 248 195 32 'Open FeedX Staging'
+$null = Add-Label 290 'Enter the code in FeedX and confirm this computer. Codes expire in 15 minutes.'
+$null = Add-Label 320 '3. Match each authorized book to a Legal Entity in FeedX and connect.'
 $test = Add-Control ([Windows.Forms.Button]::new()) 20 355 185 32 'Test Connection'
 $syncNow = Add-Control ([Windows.Forms.Button]::new()) 220 355 185 32 'Sync Now'
 $copyDiagnostics = Add-Control ([Windows.Forms.Button]::new()) 420 355 195 32 'Copy diagnostics'
@@ -173,19 +173,17 @@ $open.Add_Click({ Start-Process 'https://fnb-system-staging.vercel.app/finance/d
 $copyDiagnostics.Add_Click({ Run-UiAction { [Windows.Forms.Clipboard]::SetText($diagnostics.Text); $message.Text = 'Diagnostics copied.' } })
 $pair.Add_Click({
     Run-UiAction {
-        $code = ($codeBox.Text -replace '[-\s]','').ToUpperInvariant()
-        if ($code -cnotmatch '^[A-F0-9]{16}$') { $message.Text = 'Enter the 16-character pairing code shown in FeedX.'; return }
+        if (-not @(Get-AuthorizedLocalBooks).Count) {
+            $message.Text = 'Authorize an Account Book on this computer first.'
+            return
+        }
         $credential = Get-DeviceCredential -Create
         try {
-            try { $null = Invoke-DeviceAction $credential @{p_action='pair';p_code=$code} }
-            catch {
-                # A response may be lost after successful redemption. Check with the same credential.
-                if ($_.Exception.GetBaseException().Message -ne 'STAGING_HTTPS_UNAVAILABLE') { throw }
-                $null = Invoke-DeviceAction $credential @{p_action='books'}
-            }
-            $codeBox.Clear()
+            $pairing = Invoke-DeviceAction $credential @{p_action='issue';p_company=$env:COMPUTERNAME}
+            if ($pairing.code -cnotmatch '^[A-F0-9]{16}$') { Stop-ReadPoc 'PAIRING_RESPONSE_INVALID' }
+            $codeBox.Text = $pairing.code -replace '(.{4})(?=.)','$1-'
+            $message.Text = "Computer: $env:COMPUTERNAME. Enter the code in FeedX, then use Test Connection to send authorized books."
             Register-ConnectorSchedule
-            $message.Text = 'Computer paired. Find and authorize the Account Book you want to connect.'
         } finally { $credential.Password.Dispose() }
     }
 })
@@ -206,24 +204,20 @@ $authorize.Add_Click({
     Run-UiAction {
         $database = [string]$books.SelectedItem
         if (-not $database) { $message.Text = 'Select the Account Book database you want to authorize.'; return }
-        $credential = Get-DeviceCredential
-        try {
-            $null = Invoke-DeviceAction $credential @{p_action='books'}
-            if ([Windows.Forms.MessageBox]::Show($form,"Read the company identity of $database on $($instances.SelectedItem)?",'Review Account Book','YesNo','Question') -ne 'Yes') { return }
-            $book = Authorize-LocalBook $instances.SelectedItem $database {
-                param($Company)
-                return [Windows.Forms.MessageBox]::Show($form,"Authorize FeedX to read $Company ($database)? This creates a reader for accounts in this book, journals, departments, projects and company identity. Confirm your SQL monitoring masks generated login passwords.",'Approve read-only access','YesNo','Warning') -eq 'Yes'
-            }
-            if (-not $book) { return }
-            $remote = Invoke-DeviceAction $credential @{p_action='discover';p_book_key=$book.key;p_book=$book.database;p_company=$book.company}
-            $path = Join-Path $book.root 'book.json'
-            $existing = if (Test-Path -LiteralPath $path) { [IO.File]::ReadAllText($path) | ConvertFrom-Json }
-            $book.bookId = $remote.bookId
-            $book.startDate = if ($existing) { $existing.startDate } else { $date.Value.ToString('yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture) }
-            $book.Remove('root')
-            Write-LocalTextAtomically $path ($book | ConvertTo-Json -Depth 4)
-            $message.Text = 'Book authorized. Select its Legal Entity and click Connect in FeedX. Initial sync starts on the next background check.'
-        } finally { $credential.Password.Dispose() }
+        if ([Windows.Forms.MessageBox]::Show($form,"Read the company identity of $database on $($instances.SelectedItem)?",'Review Account Book','YesNo','Question') -ne 'Yes') { return }
+        $book = Authorize-LocalBook $instances.SelectedItem $database {
+            param($Company)
+            return [Windows.Forms.MessageBox]::Show($form,"Authorize FeedX to read $Company ($database)? This creates a reader for accounts in this book, journals, departments, projects and company identity. Confirm your SQL monitoring masks generated login passwords.",'Approve read-only access','YesNo','Warning') -eq 'Yes'
+        }
+        if (-not $book) { return }
+        $path = Join-Path $book.root 'book.json'
+        $existing = Read-ConnectorReport $path
+        $book.bookId = $existing.bookId
+        $book.startDate = if ($existing) { $existing.startDate } else { $date.Value.ToString('yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture) }
+        $book.Remove('root')
+        Write-LocalTextAtomically $path ($book | ConvertTo-Json -Depth 4)
+        $message.Text = 'Book authorization saved on this computer. Generate a pairing code if needed. If already paired, use Test Connection to send the book to FeedX.'
+        Refresh-Diagnostics
     }
 })
 $test.Add_Click({ Run-UiAction { Start-ConnectorJob '-TestConnection' 'Connection test' } })
@@ -233,9 +227,14 @@ $form.Add_Shown({
         Run-UiAction {
             $credential = Get-DeviceCredential
             try {
-                $null = Invoke-DeviceAction $credential @{p_action='books'}
+                try { $null = Invoke-DeviceAction $credential @{p_action='books'} }
+                catch {
+                    if ($_.Exception.GetBaseException().Message -ne 'STAGING_HTTP_401') { throw }
+                    $message.Text = 'Computer awaiting pairing confirmation. Generate a new code if needed.'
+                    return
+                }
                 Register-ConnectorSchedule
-                $message.Text = 'This computer is already paired. Authorize a book or open Finance to review existing connections.'
+                $message.Text = 'This computer is paired. Use Test Connection to check in and send any newly authorized books.'
             } finally { $credential.Password.Dispose() }
         }
     }

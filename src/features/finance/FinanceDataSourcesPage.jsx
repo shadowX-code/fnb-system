@@ -132,7 +132,7 @@ function LiveFinanceDataSourcesPage() {
   }, [canManage]);
   function onSaved(action) {
     setModal(null);
-    setNotice({ bind: 'Account Book connected. Waiting for the Windows Connector to verify the book.', retry: 'Sync requested.', revoke: 'Book access revoked.', revoke_device: 'Computer access revoked.' }[action]);
+    setNotice({ pair: 'Computer paired. Use Test Connection in Windows to send its authorized books now, or wait for the next background check.', bind: 'Account Book connected. Waiting for the Windows Connector to verify the book.', retry: 'Sync requested.', revoke: 'Book access revoked.', revoke_device: 'Computer access revoked.' }[action]);
     setAttempt((value) => value + 1);
   }
   useEffect(() => {

@@ -49,6 +49,15 @@ function Invoke-DeviceAction($Credential,[hashtable]$Command) {
     return Invoke-DeviceApi $Credential 'finance_autocount_device' ($Command | ConvertTo-Json -Compress)
 }
 
+function Get-AuthorizedLocalBooks {
+    foreach ($folder in (Get-ChildItem -LiteralPath $deviceRoot -Directory | Where-Object Name -cmatch '^[a-f0-9]{64}$')) {
+        $path = Join-Path $folder.FullName 'book.json'
+        if (-not (Test-Path -LiteralPath $path) -or -not (Test-Path -LiteralPath (Join-Path $folder.FullName 'reader.credential.xml'))) { continue }
+        try { $book = [IO.File]::ReadAllText($path) | ConvertFrom-Json } catch { continue }
+        if ($book.key -ceq $folder.Name -and $book.database -cmatch '^[A-Z][A-Z0-9_]{0,63}$') { $book }
+    }
+}
+
 function Get-LocalSqlInstances {
     $instances = @('MSSQLSERVER','A2006')
     foreach ($path in @('HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Microsoft SQL Server\Instance Names\SQL')) {

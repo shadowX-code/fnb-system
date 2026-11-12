@@ -52,7 +52,7 @@ export type ReconciliationComparison = {
 };
 export type FinanceDataSources = {
   connections: FinancialConnectionView[]; connectorEntities?: { id: string; label: string }[] | null;
-  connectorDevices?: { id: string; active: boolean; pairedAt: string; lastSeenAt: string | null;
+  connectorDevices?: { id: string; label: string | null; active: boolean; pairedAt: string; lastSeenAt: string | null;
     books: { id: string; name: string; company: string; ready: boolean; connectionId: string | null }[] }[]; authorityPeriods: AuthorityPeriod[];
   mappingReadiness: MappingReadiness[]; reconciliations: ReconciliationComparison[];
   operationalSource: { providerId: string; label: string; capabilities: Record<Capability, CapabilityState> };

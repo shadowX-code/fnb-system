@@ -54,11 +54,11 @@ const windowsInstaller = '/downloads/FeedX-AutoCount-Connector-Setup.exe';
 export function AutoCountDevices({ state, onAction, timestamp }) {
   return state.connectorDevices?.map((device) => <article key={device.id} className="finance-source-connection">
     <div className="finance-section-heading">
-      <div><h3>AutoCount Desktop Connector</h3><p>Last check-in: {timestamp(device.lastSeenAt)}</p></div>
+      <div><h3>{device.label || 'AutoCount Desktop Connector'}</h3><p>Last check-in: {timestamp(device.lastSeenAt)}</p></div>
       <StatusBadge status={device.active ? 'info' : 'neutral'}>{device.active ? 'Paired' : 'Revoked'}</StatusBadge>
     </div>
     <p className="finance-source-note">SQL sync and native report support are assessed independently. Native Trial Balance, P&amp;L and Balance Sheet are unverified.</p>
-    {!device.books.length && <p className="finance-source-note">Authorize an Account Book in the Windows Connector. It will appear here when the reader is verified.</p>}
+    {!device.books.length && <p className="finance-source-note">Authorized books appear after the Windows Connector checks in. Use Test Connection in Windows to check in now.</p>}
     {device.books.length > 0 && <ul className="divide-y divide-border">
       {device.books.map((book) => {
         const entry = state.connections.find((item) => item.connection.id === book.connectionId);
@@ -82,13 +82,15 @@ export function AutoCountDevices({ state, onAction, timestamp }) {
 export function AutoCountActionModal({ action, entry, book, device, entities, onClose, onSaved }) {
   const [provider, setProvider] = useState('');
   const [entity, setEntity] = useState(entry?.connection.legalEntityId ?? '');
+  const [code, setCode] = useState('');
   const [pairing, setPairing] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const pairingMode = action === 'pair';
   const title = { pair: device ? 'Replace computer' : 'Connect provider', bind: 'Connect Account Book', retry: 'Request connector sync', revoke: 'Revoke book access', revoke_device: 'Revoke computer' }[action];
-  const verb = { pair: 'Generate pairing code', bind: 'Connect', retry: 'Request sync', revoke: 'Revoke access', revoke_device: 'Revoke computer' }[action];
-  const disabled = busy || (pairingMode && !device && !provider) || (action === 'bind' && !entity);
+  const verb = { pair: pairing ? 'Confirm device' : 'Review device', bind: 'Connect', retry: 'Request sync', revoke: 'Revoke access', revoke_device: 'Revoke computer' }[action];
+  const normalizedCode = code.replace(/[-\s]/g, '').toUpperCase();
+  const disabled = busy || (pairingMode && ((!device && !provider) || !/^[A-F0-9]{16}$/.test(normalizedCode))) || (action === 'bind' && !entity);
   async function submit(event) {
     event.preventDefault();
     if (disabled) return;
@@ -96,8 +98,13 @@ export function AutoCountActionModal({ action, entry, book, device, entities, on
     setError('');
     try {
       if (pairingMode) {
-        setPairing(await manageAutoCountDevice('pair', { deviceId: device?.id }));
-        setBusy(false);
+        if (pairing) {
+          await manageAutoCountDevice('confirm', { code: normalizedCode, deviceId: device?.id });
+          onSaved(action);
+        } else {
+          setPairing(await manageAutoCountDevice('preview', { code: normalizedCode }));
+          setBusy(false);
+        }
         return;
       }
       if (action === 'bind' || action === 'revoke_device') {
@@ -109,23 +116,29 @@ export function AutoCountActionModal({ action, entry, book, device, entities, on
     } catch (failure) {
       const message = failure?.message === 'Legacy binding requires a history review'
         ? 'This book has a previous manual connection. Ask FeedX support to review its history before transferring it.'
-        : commandErrors[failure?.code];
+        : pairingMode && failure?.code === 'PT404'
+          ? 'This pairing code expired or has already been used. Generate a new code in Windows.'
+          : commandErrors[failure?.code];
       setError(message ?? 'FeedX could not save the connector change. Try again.');
       setBusy(false);
     }
   }
   return <Modal title={title} onClose={() => { if (!busy) onClose(); }}
-    footer={<><button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>{pairing ? 'Done' : 'Cancel'}</button><button className="btn-primary" type="submit" form="autocount-management" disabled={disabled}>{busy ? 'Saving…' : pairing ? 'Generate new code' : verb}</button></>}>
+    footer={<><button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>Cancel</button><button className="btn-primary" type="submit" form="autocount-management" disabled={disabled}>{busy ? 'Saving…' : verb}</button></>}>
     <form id="autocount-management" onSubmit={submit} className="grid gap-4">
       {pairingMode && !device && <SelectField label="Provider" value={provider} onChange={setProvider} disabled={busy}
         options={[{ value: 'autocount', label: 'AutoCount Desktop' }]} placeholder="Select provider" required />}
       {pairingMode && (provider || device) && <>
-        <p>Install the Windows Connector on the computer that can access AutoCount. Generate a code here and enter it in the Connector.</p>
+        <p>Install the Windows Connector and authorize the Account Books you want to connect. Generate a pairing code in Windows and enter it here.</p>
         <div><a className="btn-secondary" href={windowsInstaller} download>Download Windows Connector</a></div>
-        {device && <p>Pairing the replacement computer revokes the previous computer. Re-authorize its books in Windows to resume syncing against the same bindings and history.</p>}
+        {device && <p>Confirming the replacement revokes the previous computer. The existing book bindings and history stay in FeedX.</p>}
+        <label className="grid gap-2">Pairing code
+          <input className="control" autoComplete="off" spellCheck={false} maxLength={24} disabled={busy} value={code}
+            onChange={(event) => { setCode(event.target.value); setPairing(null); setError(''); }} />
+        </label>
         {pairing && <div className="rounded-lg border border-border p-3" aria-live="polite">
-          <p className="type-caption text-text-secondary">Single-use pairing code · expires at {new Date(pairing.expiresAt).toLocaleTimeString()}</p>
-          <output className="type-title font-semibold tracking-widest">{pairing.code.match(/.{4}/g).join('-')}</output>
+          <p>Confirm this matches the computer shown in Windows.</p>
+          <p className="type-title font-semibold">{pairing.deviceLabel}</p>
         </div>}
       </>}
       {action === 'bind' && <>

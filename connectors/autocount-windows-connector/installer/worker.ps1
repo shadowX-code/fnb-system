@@ -15,16 +15,30 @@ try {
     $credential = Get-DeviceCredential
     $state = Invoke-DeviceAction $credential @{p_action='books'}
     $summary.paired = $true
+    $localBooks = @(Get-AuthorizedLocalBooks)
+    $published = $false
+    foreach ($book in $localBooks) {
+        if (@($state.books | Where-Object { $_.bookId -ceq $book.bookId -and $_.ready }).Count) { continue }
+        try {
+            $remote = Invoke-DeviceAction $credential @{
+                p_action='discover';p_book_key=$book.key;p_book=$book.database;p_company=$book.company
+            }
+            if ($remote.bookId -cnotmatch '^[a-f0-9-]{36}$') { Stop-ReadPoc 'BOOK_DISCOVERY_RESPONSE_INVALID' }
+            $book.bookId = $remote.bookId
+            $path = Join-Path (Join-Path $deviceRoot $book.key) 'book.json'
+            Write-LocalTextAtomically $path ($book | ConvertTo-Json -Depth 4)
+            $published = $true
+        } catch {
+            $failed = $true
+            $message = $_.Exception.GetBaseException().Message
+            $summary.error = if ($message -cmatch '^[A-Z][A-Z0-9_]{4,95}$') { $message } else { 'BOOK_DISCOVERY_FAILED' }
+        }
+    }
+    if ($published) { $state = Invoke-DeviceAction $credential @{p_action='books'} }
     foreach ($record in $state.books) {
         if (-not $record.ready -or -not $record.bound) { continue }
         $lastSync = if ($record.lastSyncAt) { [datetimeoffset]::Parse($record.lastSyncAt) }
-        $book = @(Get-ChildItem -LiteralPath $deviceRoot -Directory | Where-Object Name -cmatch '^[a-f0-9]{64}$' | ForEach-Object {
-            $path = Join-Path $_.FullName 'book.json'
-            if (Test-Path -LiteralPath $path) {
-                $item = [IO.File]::ReadAllText($path) | ConvertFrom-Json
-                if ($item.bookId -ceq $record.bookId -and $item.key -ceq $_.Name) { $item }
-            }
-        })
+        $book = @($localBooks | Where-Object bookId -CEQ $record.bookId)
         if ($book.Count -ne 1) { continue }
         if (-not $TestConnection -and -not $RunNow) {
             $checkpoint = Join-Path (Join-Path $deviceRoot $book[0].key) 'config.json'
@@ -47,7 +61,7 @@ try {
     $failed = $true
     $message = $_.Exception.GetBaseException().Message
     if ($message -cnotmatch '^[A-Z][A-Z0-9_]{4,95}$') { $message = 'CONNECTOR_CHECK_FAILED' }
-    $summary.error = $message
+    $summary.error = if (-not $summary.paired -and $message -eq 'STAGING_HTTP_401') { 'DEVICE_NOT_PAIRED' } else { $message }
 } finally {
     if ($credential) { $credential.Password.Dispose() }
     $summary.state = if ($failed) { 'Failed' } elseif ($summary.attempted) { 'Complete' } else { 'No eligible books' }

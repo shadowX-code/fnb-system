@@ -31,10 +31,10 @@ export function manageAccountingConnector(action, { connectionId, legalEntityId,
   });
 }
 
-export function manageAutoCountDevice(action, { deviceId, bookId, legalEntityId } = {}) {
+export function manageAutoCountDevice(action, { deviceId, bookId, legalEntityId, code } = {}) {
   if (!stagingAccounting()) throw new Error('Connector management is available on Staging.');
   return accountingRpc('finance_autocount_owner', {
-    p_action: action, p_device_id: deviceId ?? null, p_book_id: bookId ?? null, p_legal_entity_id: legalEntityId ?? null,
+    p_action: action, p_device_id: deviceId ?? null, p_book_id: bookId ?? null, p_legal_entity_id: legalEntityId ?? null, p_code: code ?? null,
   });
 }
 
