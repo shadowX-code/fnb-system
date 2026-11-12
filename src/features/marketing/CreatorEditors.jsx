@@ -168,9 +168,11 @@ export function PostEditor({record,seed={},data,brands,defaultBrand,org,canMedia
  const save=async e=>{e.preventDefault();setError('');try{
   if(!record&&!preview)throw new Error('Inspect the URL or choose manual entry before saving.');
   if(!resolved)throw new Error('Resolve the conflicting Creator identity before saving.');
-  if(preview?.duplicate&&!record){if(!canLink)throw new Error('This Post is already tracked. Open its existing record.');await onLinkExisting(duplicate,{collaboration_id:seed.collaboration_id,deliverable_id:v.deliverable_id,content_type:v.content_type||duplicate.content_type,original_url:v.original_url||v.url,confirm_link:true,confirm_published:true});return;}
+  const originalUrl=v.original_url||v.url;
+  const normalizedOriginal=platform==='xhs'?xhsUrl(originalUrl,'post')?.original_url||originalUrl:originalUrl;
+  if(preview?.duplicate&&!record){if(!canLink)throw new Error('This Post is already tracked. Open its existing record.');await onLinkExisting(duplicate,{collaboration_id:seed.collaboration_id,deliverable_id:v.deliverable_id,content_type:v.content_type||duplicate.content_type,original_url:normalizedOriginal,confirm_link:true,confirm_published:true});return;}
   if(needsXhsAccount&&!accountId)throw new Error('Choose this Creator’s Xiaohongshu profile before saving.');
-  const payload={...v,account_id:accountId,url:v.identity_url||v.url,confirm_link:true,confirm_published:true,published_at:date&&time?scheduleInstant(date+'T'+time,'Asia/Kuala_Lumpur'):'',published_date:date||null};
+  const payload={...v,account_id:accountId,url:v.identity_url||v.url,...(platform==='xhs'?{original_url:normalizedOriginal}:{}),confirm_link:true,confirm_published:true,published_at:date&&time?scheduleInstant(date+'T'+time,'Asia/Kuala_Lumpur'):'',published_date:date||null};
   if(preview?.metadata_status==='public_extracted')payload.public_observation={...preview,metrics:extractedMetrics};else delete payload.public_observation;
   if(!canMedia||v.asset_id===record?.asset_id)delete payload.asset_id;
   await onSave(payload,v.brand_id);

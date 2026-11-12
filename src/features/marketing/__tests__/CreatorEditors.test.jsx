@@ -102,10 +102,10 @@ it.each([true,false])('opens canonical duplicate targets without reassigning (sa
  if(!same){fireEvent.click(screen.getByRole('button',{name:'Open Creator'}));expect(onOpenConflict).toHaveBeenCalledWith(conflict,false)}
  expect(onSave).toHaveBeenCalledTimes(1);fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:'https://www.xiaohongshu.com/user/profile/5dcaaad4000000000100911d'}});expect(screen.getByRole('button',{name:'Save'}).disabled).toBe(false);
 });
-it('saves a new XHS identity with the exact share parameters and no metadata request',()=>{
+it.each(['https://xiaohongshu.com','HTTPS://xiaohongshu.com:443'])('saves a new XHS identity from %s with the exact share parameters and no metadata request',origin=>{
  const onSave=vi.fn(),url='https://xiaohongshu.com/user/profile/5DCAAAD4000000000100911C/?xsec_token=a%2Bb%3D&source=share';
  render(<AccountEditor {...props} creator={data.creators[0]} org="org" onSave={onSave}/>);
- fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:url}});fireEvent.blur(screen.getByLabelText('Profile URL'));
+ fireEvent.change(screen.getByLabelText('Profile URL'),{target:{value:url.replace('https://xiaohongshu.com',origin)}});fireEvent.blur(screen.getByLabelText('Profile URL'));
  fireEvent.click(screen.getByRole('button',{name:'Save'}));
  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({creator_id:'c',platform:'xhs',external_id:'5dcaaad4000000000100911c',profile_url:url}));
  expect(onSave.mock.calls[0][0]).not.toHaveProperty('followers');expect(creatorService.profile).not.toHaveBeenCalled();
@@ -123,8 +123,11 @@ it('resolves an XHS profile short link before enabling Save',async()=>{
  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({creator_id:'c',platform:'xhs',profile_url:url,external_id:'5dcaaad4000000000100911c'}));
 });
 
-it('binds the exact Creator, Brand, Collaboration and matching XHS account in manual post entry',async()=>{
- const onSave=vi.fn(),id='6a8fb7f30000000037034698',url='https://xhslink.com/o/fixture',canonical='https://www.xiaohongshu.com/explore/'+id;
+it.each([
+ ['https://xhslink.com/o/fixture','https://xhslink.com/o/fixture'],
+ ['https://www.xiaohongshu.com:443/explore/6a8fb7f30000000037034698?source=app%2Bshare','https://www.xiaohongshu.com/explore/6a8fb7f30000000037034698?source=app%2Bshare'],
+])('binds the exact Creator, Brand, Collaboration and XHS account for %s',async(url,original)=>{
+ const onSave=vi.fn(),canonical='https://www.xiaohongshu.com/explore/6a8fb7f30000000037034698';
  const fixture={...data,accounts:[{id:'xhs1',creator_id:'c',platform:'xhs',display_name:'XHS Account'},{id:'other',creator_id:'other',platform:'xhs'}],collaborations:[{id:'collab',brand_id:'b',creator_id:'c',title:'Fixture Collaboration'}]};
  creatorService.directory.mockResolvedValue(fixture);
  creatorService.manualPreview.mockResolvedValueOnce({platform:'xhs',canonical_url:canonical,original_url:url,metadata_status:'unavailable'});
@@ -132,7 +135,7 @@ it('binds the exact Creator, Brand, Collaboration and matching XHS account in ma
  fireEvent.change(screen.getByLabelText('Post URL *'),{target:{value:url}});fireEvent.click(screen.getByRole('button',{name:'Enter manually'}));
  await screen.findByRole('button',{name:'Xiaohongshu Social Profile'});
  fireEvent.click(screen.getByRole('button',{name:'Save Post'}));
- expect(onSave).toHaveBeenCalledWith(expect.objectContaining({creator_id:'c',account_id:'xhs1',brand_id:'b',collaboration_id:'collab',url:canonical,original_url:url,confirm_published:true}),'b');
+ expect(onSave).toHaveBeenCalledWith(expect.objectContaining({creator_id:'c',account_id:'xhs1',brand_id:'b',collaboration_id:'collab',url:canonical,original_url:original,confirm_published:true}),'b');
  expect(onSave.mock.calls[0][0]).not.toHaveProperty('public_observation');
  creatorService.directory.mockResolvedValue({creators:[],accounts:[],options:[]});
 });

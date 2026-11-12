@@ -1,14 +1,18 @@
 const hosts={instagram:['instagram.com','www.instagram.com'],facebook:['facebook.com','www.facebook.com','m.facebook.com','web.facebook.com','fb.watch'],xhs:['xiaohongshu.com','www.xiaohongshu.com','xhslink.com','www.xhslink.com'],tiktok:['tiktok.com','www.tiktok.com','vt.tiktok.com','vm.tiktok.com']};
 // Keep the submitted navigation URL separate from the stable XHS identity.
 export function xhsUrl(value,kind){
- const original=typeof value==='string'?value.trim():'';
- if(!original||original.length>(kind==='profile'?1500:2000)||/[\s\\]/.test(original))return null;
- let u;try{u=new URL(original)}catch{return null}
+ const input=typeof value==='string'?value.trim():'';
+ if(!input||input.length>(kind==='profile'?1500:2000)||/[\s\\]/.test(input))return null;
+ const parts=input.match(/^https:\/\/[^/?#]+\/[^?#]*([?#].*)?$/i);
+ if(!parts)return null;
+ let u;try{u=new URL(input)}catch{return null}
  if(u.protocol!=='https:'||u.port||u.username||u.password||!hosts.xhs.includes(u.hostname))return null;
  const short=['xhslink.com','www.xhslink.com'].includes(u.hostname);
  if(short&&!/^\/(?:[a-z]\/)?[\w-]+\/?$/i.test(u.pathname))return null;
  const id=short?null:u.pathname.match(kind==='profile'?/^\/user\/profile\/([a-f0-9]{1,160})\/?$/i:/^\/(?:explore|discovery\/item|user\/profile\/[a-f0-9]{24})\/([a-f0-9]{24})\/?$/i)?.[1]?.toLowerCase();
  if(!short&&!id)return null;
+ // Normalize the origin for database validation without re-encoding the share path or query.
+ const original=u.origin+u.pathname+(parts[1]||'');
  return {platform:'xhs',post_id:kind==='post'?id:null,external_id:kind==='profile'?id:null,share:short,original_url:original,request_url:u.href,canonical_url:id?'https://www.xiaohongshu.com/'+(kind==='profile'?'user/profile/':'explore/')+id:u.origin+u.pathname};
 }
 export function platformUrl(value){
