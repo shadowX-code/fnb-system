@@ -46,16 +46,21 @@ function ConnectionSection({ state }) {
         <div className="finance-section-heading"><h3>{entry.providerLabel}</h3><StatusBadge status="neutral">{entry.status === 'historical' ? 'Historical' : 'Active'} · {entry.state}</StatusBadge></div>
         <dl className="finance-source-facts">
           <div><dt>Legal entity</dt><dd>{entry.legalEntityLabel}</dd></div>
-          <div><dt>Last successful sync</dt><dd>{timestamp(successfulSyncs.at(-1))}</dd></div>
+          <div><dt>Last connector check-in</dt><dd>{timestamp(entry.lastConnectedAt)}</dd></div>
+          <div><dt>Last accepted upload</dt><dd>{timestamp(successfulSyncs.at(-1))}</dd></div>
           <div><dt>Source freshness</dt><dd>{entry.evidenceAt ? timestamp(entry.evidenceAt) : 'Not assessed · sync time alone does not prove complete evidence'}</dd></div>
           <div><dt>Effective authority</dt><dd>{periods.length ? periods.map((period) => <div key={`${period.resource}:${period.start}`}>{period.resource} · {periodLabel(period)}</div>) : 'Not assigned'}</dd></div>
         </dl>
-        {entry.status === 'historical' ? <p className="finance-source-note">Historical visibility preserves the source of earlier evidence. Deactivation does not delete financial history.</p> : null}
+        {entry.datasets?.length ? <FinanceDisclosure label="Accepted accounting evidence">
+          <ul className="list-disc space-y-1 pl-4">{entry.datasets.map((item) => <li key={item.dataset}>{item.dataset} · {item.acceptedRows} accepted rows{item.scopeDate ? ` · ${item.scopeDate}` : ''} · {timestamp(item.acceptedAt)}</li>)}</ul>
+          <p className="finance-source-note">Native reconciliation and financial classification are pending. This test evidence has no accounting authority.</p>
+        </FinanceDisclosure> : null}
+        {entry.status === 'historical'  ? <p className="finance-source-note">Historical visibility preserves the source of earlier evidence. Deactivation does not delete financial history.</p> : null}
         <FinanceDisclosure label="Provider capabilities"><Capabilities values={entry.connection.capabilities} /></FinanceDisclosure>
         <div className="finance-source-actions" aria-label={`${entry.providerLabel} future actions`}>{connectionActions.filter((action) => action.id !== 'connect').map((action) => <button key={action.id} type="button" className="btn-secondary" disabled aria-describedby="finance-connection-boundary">{action.label}</button>)}</div>
       </article>;
     })}
-    <p id="finance-connection-boundary" className="finance-source-note">Provider setup and accounting sync are not available. Actions remain disabled.</p>
+    <p id="finance-connection-boundary" className="finance-source-note">Set up and run the AED_TEST connector on the office PC.</p>
     <FinanceDisclosure label="FeedX operational source capabilities"><p>{state.operationalSource.label} supplies the existing outlet-scoped management P&L. It is separate from an accounting provider connection.</p><Capabilities values={state.operationalSource.capabilities} /></FinanceDisclosure>
   </section>;
 }
@@ -116,7 +121,7 @@ function LiveFinanceDataSourcesPage() {
     return () => { active = false; };
   }, [attempt]);
   return <WorkspacePage className="finance-workspace" section="Finance · Manage" title="Data Sources" description="Manage where financial evidence comes from and whether it is usable." actions={<button type="button" className="btn-secondary" disabled aria-describedby="finance-connect-availability"><Link2 size={15} />Connect provider</button>}>
-    <p id="finance-connect-availability" className="sr-only">Accounting connections are not available yet. FeedX operational reporting remains available.</p>
+    <p id="finance-connect-availability" className="sr-only">Accounting connector setup is managed outside this screen.</p>
     <AsyncDataSurface loading={!state && !error} error={error} hasData={Boolean(state)} onRetry={() => setAttempt((value) => value + 1)}>{state ? <FinanceDataSources state={state} /> : null}</AsyncDataSurface>
   </WorkspacePage>;
 }

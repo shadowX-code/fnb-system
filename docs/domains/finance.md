@@ -158,3 +158,9 @@ Analysis's independent Profitability Trend section reuses the Finance monthly tr
 Profit Conversion uses canonical shared category tokens: COGS Coral `#F04452`, Labour Azure `#139FE6`, OPEX Slate `#94A3B8`, EBITDA Emerald `#16A765`. Segments, legend dots and tooltip identity use the same mapping, with dark segment labels for contrast. These category tokens are distinct from signed movement colours; expense category identity is not a warning. Overview separates its chart grid and permanent EBITDA bridge with the canonical 24px layout gap.
 
 Planning presents canonical readiness surfaces for Forecasting, Scenarios and Capital Allocation, with concise prerequisites and a Data Sources route; no planning model or completed readiness is simulated. Statements presents separate operational P&L, Balance Sheet and Cash Flow surfaces. Monthly / Yearly P&L remains owned by Reporting; the accounting statements retain unavailable evidence states. Data Sources uses shared management surfaces, visible actual readiness summaries and the existing Connection / Authority / Mapping / Reconciliation tabs. Provider setup and sync remain disabled; no provider, authority, mapping or reconciliation mutation is introduced.
+
+## AutoCount test-book ingestion
+
+The office Windows Connector sends source observations for local A2006 / AED_TEST to the Staging Finance ingestion RPC. The enrolled device credential binds the source book to an existing legal entity. Request receipts are idempotent and changed observations append snapshots. Access to raw snapshots is server-only.
+
+Finance Data Sources shows the owner the connector check-in and accepted row counts. Acceptance records structural validation and receipt. Accounting authority, classification mapping, native reconciliation and eligibility for financial metrics require separately validated evidence. Native Trial Balance, P&L and Balance Sheet are gated on SDK compatibility, licensing and structured-report contracts.

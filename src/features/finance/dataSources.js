@@ -14,13 +14,43 @@ export const connectionActions = Object.freeze([
   { id: 'deactivate', label: 'Deactivate connection' },
 ]);
 
-/** Canonical management read seam. No persistent accounting provider is configured in Phase 1.
- * Replace the empty collections only with an authorized trusted read, never browser vendor data.
- * Operational Reporting is a source owner, not an accounting tenant or entity connection.
- */
-export async function readFinanceDataSources() {
+const sourceResources = { COA: 'chart_of_accounts', GL: 'journal_lines', Department: 'financial_dimensions', Project: 'financial_dimensions' };
+
+function accountingConnection(source) {
+  const datasets = source.datasets ?? [];
+  const observed = (resource) => datasets.some((item) => sourceResources[item.dataset] === resource) ? 'partial' : 'unverified';
   return {
-    connections: [], authorityPeriods: [], mappingReadiness: [], reconciliations: [],
+    connection: {
+      id: source.id, providerId: 'autocount', legalEntityId: source.legalEntityId, externalTenantId: 'AED_TEST', currency: null,
+      capabilities: {
+        chart_of_accounts: observed('chart_of_accounts'), journal_lines: observed('journal_lines'),
+        financial_dimensions: observed('financial_dimensions'), incremental_sync: datasets.length ? 'partial' : 'unverified',
+        profit_loss_report: 'unverified', balance_sheet_report: 'unverified',
+      },
+    },
+    providerLabel: 'AutoCount · AED_TEST',
+    legalEntityLabel: source.legalEntityLabel,
+    state: source.active ? source.lastConnectedAt ? 'connected' : 'disconnected' : 'deactivated',
+    status: source.active ? 'active' : 'historical',
+    lastConnectedAt: source.lastConnectedAt,
+    datasets,
+    sync: datasets.map((item) => ({
+      connectionId: source.id, resource: sourceResources[item.dataset], cursor: item.scopeDate,
+      lastSuccessAt: item.acceptedAt, status: 'idle',
+    })),
+  };
+}
+
+export async function readFinanceDataSources() {
+  let connections = [];
+  if (import.meta.env.VITE_SUPABASE_URL === 'https://ujkzdaaadnvcfayuldmh.supabase.co') {
+    const { supabase } = await import('../../lib/supabase');
+    const { data, error } = await supabase.rpc('finance_accounting_source_status');
+    if (error) throw error;
+    connections = data.map(accountingConnection);
+  }
+  return {
+    connections, authorityPeriods: [], mappingReadiness: [], reconciliations: [],
     operationalSource: { providerId: operationalProvider.id, label: 'FeedX Reporting', capabilities: operationalProvider.capabilities },
   };
 }

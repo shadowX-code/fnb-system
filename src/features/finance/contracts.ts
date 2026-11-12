@@ -6,7 +6,7 @@ export type Period = { start: string; end: string }; // inclusive ISO calendar d
 export type Scope = { kind: 'group' | 'legal_entity' | 'outlet' | 'dimension' | 'authorized_outlets'; id: string | null; legalEntityId?: string; groupId?: string };
 export type SourceIdentity = { providerId: string; connectionId: string; externalId: string; revision: string };
 export type Provenance = { identity: SourceIdentity; semantic: SourceSemantic; demo: boolean; observedAt: string | null; evidenceAt: string | null };
-export type Connection = { id: string; providerId: string; legalEntityId: string; externalTenantId: string; currency: string; capabilities: Record<Capability, CapabilityState> };
+export type Connection = { id: string; providerId: string; legalEntityId: string; externalTenantId: string; currency: string | null; capabilities: Record<Capability, CapabilityState> };
 export type AuthorityPeriod = Period & { legalEntityId: string; connectionId: string; resource: 'statements' | 'balances' | 'transactions' };
 export type Account = { identity: SourceIdentity; legalEntityId: string; code: string; name: string; type: 'asset' | 'liability' | 'equity' | 'income' | 'expense' };
 export type Dimension = { identity: SourceIdentity; legalEntityId: string; kind: 'outlet' | 'central_kitchen' | 'warehouse' | 'corporate' | 'department' | 'other'; outletId?: string; name: string };
@@ -35,7 +35,8 @@ export interface AccountingProvider {
 export type FinancialConnectionView = {
   connection: Connection; providerLabel: string; legalEntityLabel: string;
   state: 'connected' | 'disconnected' | 'deactivated' | 'error';
-  status: 'active' | 'historical'; sync: SyncState[]; evidenceAt?: string | null;
+  status: 'active' | 'historical'; sync: SyncState[]; evidenceAt?: string | null; lastConnectedAt?: string | null;
+  datasets?: { dataset: 'COA' | 'GL' | 'Department' | 'Project'; scopeDate: string | null; acceptedRows: number; acceptedAt: string }[];
 };
 export type MappingReadiness = {
   connectionId: Connection['id']; kind: Mapping['kind']; scope: Scope; scopeLabel: string; period: Period;
