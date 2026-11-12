@@ -41,7 +41,6 @@
   border-radius: .75rem;
   background: var(--theme-surface);
 }
-.wa-template-list > .admin-filter-toolbar { width: auto; margin: .55rem .75rem; }
 .wa-template-counts {
   display: flex;
   flex-wrap: wrap;
@@ -93,6 +92,14 @@
 .wa-template-error { color: var(--theme-danger, #be123c); font-size: .875rem; }
 .wa-template-recovery { display: grid; gap: .5rem; font-size: .875rem; }
 .wa-template-editor-preview { position: sticky; top: 3.75rem; display: grid; gap: .6rem; min-width: 0; }
+.wa-template-preview-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem .75rem;
+  color: var(--theme-text-secondary);
+  font-size: .875rem;
+}
 .wa-template-device { overflow: hidden; border-radius: .75rem; border: 1px solid #b8c8be; }
 .wa-template-device-bar {
   display: flex;
@@ -114,8 +121,14 @@
   background: #e8e2d7;
   color: #20352c;
 }
-.wa-template-bubble,
-.wa-template-preview-buttons { width: min(100%, 23rem); margin-left: auto; }
+.wa-template-message {
+  display: grid;
+  gap: .25rem;
+  justify-self: end;
+  width: fit-content;
+  max-width: min(100%, 23rem);
+  min-width: 0;
+}
 .wa-template-bubble {
   display: grid;
   gap: .45rem;
@@ -146,6 +159,8 @@
   padding: .5rem;
   overflow-wrap: anywhere;
 }
+.wa-template-preview-buttons li svg { flex-shrink: 0; }
+.wa-template-preview-buttons li span { min-width: 0; }
 .wa-template-preview-buttons li + li { border-top: 1px solid #c5d8cc; }
 
 @media (max-width: 900px) {

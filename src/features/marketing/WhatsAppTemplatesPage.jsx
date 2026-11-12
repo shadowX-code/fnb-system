@@ -3,7 +3,7 @@ import {Eye, Pencil, Plus, RefreshCw} from 'lucide-react';
 import {useAuth} from '../../auth/AuthContext.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import AdminSearchField from '../../components/forms/AdminSearchField.jsx';
-import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
+import AdminFilterToolbar, {ALL_FILTER_OPTION} from '../../components/layout/AdminFilterToolbar.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import DataTable from '../../components/tables/DataTable.jsx';
@@ -12,7 +12,8 @@ import Drawer from '../../components/ui/Drawer.jsx';
 import {formatOperationalDateTime} from '../../lib/dateTime.js';
 import {marketingService} from './marketingService.js';
 import {numberedVariables} from '../../../supabase/functions/_shared/whatsappTemplateContent.mjs';
-import {templateFields, WhatsAppTemplatePreview} from './WhatsAppTemplateCatalog.jsx';
+import {templateFields} from './WhatsAppTemplateCatalog.jsx';
+import WhatsAppMessagePreview from './WhatsAppMessagePreview.jsx';
 
 import WhatsAppTemplateEditor from './WhatsAppTemplateEditor.jsx';
 import {draftStorageKey, emptyTemplateDrafts, friendlyTemplateName, makeTemplateDraft, readTemplateDrafts, templateLanguageLabel} from './whatsappTemplateDrafts.js';
@@ -21,6 +22,11 @@ import './whatsappTemplates.css';
 const allFilters={search:'',category:'',status:'',language:''};
 const statusLabels = {APPROVED:'Approved',PENDING:'In review',REJECTED:'Rejected',PAUSED:'Paused',IN_APPEAL:'In appeal',DRAFT:'Draft'};
 const statusLabel = status => statusLabels[status] || status.toLowerCase().replaceAll('_',' ').replace(/^./,letter=>letter.toUpperCase());
+
+function TemplateStatus({status}) {
+ const tone={APPROVED:'success',PENDING:'warning',REJECTED:'danger'}[status]||'neutral';
+ return <Badge tone={tone}>{statusLabel(status)}</Badge>;
+}
 
 export default function WhatsAppTemplatesPage() {
  const auth=useAuth();
@@ -165,7 +171,7 @@ export function WhatsAppTemplateWorkspace({brand,userId,readOnly=false,wrapLibra
  const statusOptions=[...new Set(library.map(row=>row.status))];
  const filterOptions=(key,label,values,labelFor)=>(
   <SelectField label={label} value={filters[key]} onChange={value=>changeFilter(key,value)}
-   options={[{value:'',label:{category:'All categories',status:'All statuses',language:'All languages'}[key]},...values.map(value=>({value,label:labelFor(value)}))]}/>
+   options={[{...ALL_FILTER_OPTION,value:''},...values.map(value=>({value,label:labelFor(value)}))]}/>
  );
  if(editor)return <WhatsAppTemplateEditor key={editor.draftId} initial={editor} brandName={brand.name}
   scope={scope} unavailable={unavailable} onClose={closeEditor} onSave={saveDraft} onSubmit={submitDraft}
@@ -192,14 +198,7 @@ export function WhatsAppTemplateWorkspace({brand,userId,readOnly=false,wrapLibra
   {notice?<p role="status" className="wa-template-help">{notice}</p>:null}
   {error?<p role="alert" className="card p-3 text-sm">{error} {scope?.test?'Verify the test number in WhatsApp Chat’s Staging tools if its authorization expired.':<a href={connectionsHref}>Open Connections</a>}</p>:null}
   {!scope&&!busy&&!error?<div className="card space-y-2 p-3 text-sm"><p>Connect WhatsApp for this Brand to sync Meta templates.</p><a href={connectionsHref}>Open Connections</a></div>:null}
-  {catalog||library.length?<div className="wa-template-list">
-   {!readOnly?<div className="wa-template-counts" aria-label="Template counts">
-    {[['','All'],['DRAFT','Drafts'],['PENDING','In review'],['APPROVED','Approved'],['REJECTED','Rejected']].map(([value,label])=>(
-     <button type="button" key={label} aria-pressed={filters.status===value} onClick={()=>changeFilter('status',value)}>
-      {label} <span>{value?(counts[value]||0):library.length}</span>
-     </button>
-    ))}
-   </div>:null}
+  {catalog||library.length?<>
    <AdminFilterToolbar compact denseFields ariaLabel="Template filters"
     search={<AdminSearchField label="Search templates" placeholder="Friendly or Meta name" value={filters.search} onChange={value=>changeFilter('search',value)}/>}
     filters={readOnly?null:<>
@@ -208,33 +207,47 @@ export function WhatsAppTemplateWorkspace({brand,userId,readOnly=false,wrapLibra
      {filterOptions('language','Language',[...new Set(library.map(row=>row.language))],templateLanguageLabel)}
     </>}
     onClear={Object.values(filters).some(Boolean)?()=>setFilters(allFilters):undefined}/>
-   {rows.length?<DataTable rows={rows} getRowKey={row=>row.id} density="compact" mobileLayout="stack" minWidth={560}
-    columns={[
-     {key:'name',header:'Template',render:row=><div className="wa-template-row-name">
-      <strong>{row.friendly||'Untitled draft'}</strong>
-      {row.name?<small>{row.name}</small>:null}
-     </div>},
-     {key:'category',header:'Category',render:row=>statusLabel(row.category)},
-     {key:'language',header:'Language',render:row=>templateLanguageLabel(row.language)},
-     {key:'status',header:'Status',render:row=><Badge tone={row.status==='APPROVED'?'success':row.status==='PENDING'?'warning':row.status==='REJECTED'?'danger':'neutral'}>
-      {statusLabel(row.status)}
-     </Badge>},
-     {key:'variables',header:'Variables',render:row=>row.status==='DRAFT'?
-      numberedVariables(row.header).length+numberedVariables(row.text).length:
-      templateFields(row).length+row.components.flatMap(component=>component.buttons).filter(button=>button.needsValue).length},
-     {key:'actions',header:'Actions',render:row=>row.status==='DRAFT'?
-      <button className="btn-secondary" onClick={()=>{setNotice('');setEditor(row);}}><Pencil size={14} aria-hidden="true"/> Open draft</button>:
-      <div className="wa-template-actions">
-       <button className="btn-secondary" aria-label={`Preview ${row.friendly}`} onClick={()=>setSelected(row.id)}><Eye size={14} aria-hidden="true"/> Preview</button>
-       {!readOnly&&row.canEdit?<button className="btn-secondary" aria-label={`Edit ${row.friendly}`} onClick={()=>openEditor(row)}><Pencil size={14} aria-hidden="true"/> Edit</button>:null}
+   <div className="wa-template-list">
+    {!readOnly?<div className="wa-template-counts" aria-label="Template counts">
+     {[['','All'],['DRAFT','Drafts'],['PENDING','In review'],['APPROVED','Approved'],['REJECTED','Rejected']].map(([value,label])=>(
+      <button type="button" key={label} aria-pressed={filters.status===value} onClick={()=>changeFilter('status',value)}>
+       {label} <span>{value?(counts[value]||0):library.length}</span>
+      </button>
+     ))}
+    </div>:null}
+    {rows.length?<DataTable rows={rows} getRowKey={row=>row.id} density="compact" mobileLayout="stack" minWidth={560}
+     columns={[
+      {key:'name',header:'Template',render:row=><div className="wa-template-row-name">
+       <strong>{row.friendly||'Untitled draft'}</strong>
+       {row.name?<small>{row.name}</small>:null}
       </div>},
-    ]}/>:<p role="status" className="wa-template-empty">{library.length?'No templates match these filters.':'Meta returned no templates for this account.'}</p>}
-  </div>:null}
-  {current?<Drawer title={current.friendly} description={current.name} onClose={()=>setSelected(null)}
+      {key:'category',header:'Category',render:row=>statusLabel(row.category)},
+      {key:'language',header:'Language',render:row=>templateLanguageLabel(row.language)},
+      {key:'status',header:'Status',render:row=><TemplateStatus status={row.status}/>},
+      {key:'variables',header:'Variables',render:row=>row.status==='DRAFT'?
+       numberedVariables(row.header).length+numberedVariables(row.text).length:
+       templateFields(row).length+row.components.flatMap(component=>component.buttons).filter(button=>button.needsValue).length},
+      {key:'actions',header:'Actions',render:row=>row.status==='DRAFT'?
+       <button className="btn-secondary" onClick={()=>{setNotice('');setEditor(row);}}><Pencil size={14} aria-hidden="true"/> Open draft</button>:
+       <div className="wa-template-actions">
+        <button className="btn-secondary" aria-label={`Preview ${row.friendly}`} onClick={()=>setSelected(row.id)}><Eye size={14} aria-hidden="true"/> Preview</button>
+        {!readOnly&&row.canEdit?<button className="btn-secondary" aria-label={`Edit ${row.friendly}`} onClick={()=>openEditor(row)}><Pencil size={14} aria-hidden="true"/> Edit</button>:null}
+       </div>},
+     ]}/>:<p role="status" className="wa-template-empty">{library.length?'No templates match these filters.':'Meta returned no templates for this account.'}</p>}
+   </div>
+  </>:null}
+  {current?<Drawer width="md" title={current.friendly} description={current.name} onClose={()=>setSelected(null)}
    footer={!readOnly&&current.canEdit?<button className="btn-primary" onClick={()=>openEditor(current)}>Edit template</button>:null}>
    <div className="space-y-3">
-    <p className="text-sm">{statusLabel(current.category)} · {templateLanguageLabel(current.language)} · {statusLabel(current.status)}</p>
-    <WhatsAppTemplatePreview template={current}/>
+    <div className="wa-template-preview-metadata">
+     <span>{statusLabel(current.category)}</span>
+     <span>{templateLanguageLabel(current.language)}</span>
+     <TemplateStatus status={current.status}/>
+    </div>
+    <WhatsAppMessagePreview brandName={brand.name} components={current.components}
+     headerSamples={{1:current.editor?.headerSample}}
+     bodySamples={Object.fromEntries((current.editor?.samples||[]).map((sample,index)=>[index+1,sample]))}
+     emptyBody="No text body in this template."/>
     {current.status==='REJECTED'?<p className="text-sm">Review Meta’s reason in WhatsApp Manager before resubmitting.</p>:null}
    </div>
   </Drawer>:null}

@@ -72,3 +72,33 @@ it('validates the editor and waits for explicit confirmation before handing the 
  expect(await screen.findByText(/Meta accepted the submission/)).toBeTruthy();
  expect(screen.queryByText('Booking confirmation')).toBeNull();
 });
+
+it('places the shared filters beside the table and previews catalog components with their saved examples',async()=>{
+ const reservation={
+  ...approved,
+  components:[
+   {type:'HEADER',format:'TEXT',text:'Booking for {{1}}',buttons:[]},
+   {type:'BODY',text:'We have a table for {{1}}.',buttons:[]},
+   {type:'FOOTER',text:'Test Restaurant',buttons:[]},
+   {type:'BUTTONS',buttons:[{type:'QUICK_REPLY',text:'Thanks',needsValue:true}]},
+  ],
+  editor:{headerSample:'Friday',samples:['three guests']},
+ };
+ marketingService.whatsappTemplateCatalog.mockResolvedValue({templates:[reservation,pending]});
+ render(<WhatsAppTemplatesPage/>);
+ const toolbar=await screen.findByRole('region',{name:'Template filters'});
+ const table=screen.getByRole('table');
+ expect(toolbar.parentElement).toBe(table.closest('.wa-template-list').parentElement);
+ for(const label of ['Category','Status','Language']){
+  expect(within(toolbar).getByRole('button',{name:label,exact:true}).textContent.trim()).toBe('All');
+ }
+ click('Preview Reservation update');
+ const dialog=screen.getByRole('dialog',{name:'Reservation update'});
+ expect(within(dialog).getByText('Approved')).toBeTruthy();
+ expect(within(dialog).getByText('Booking for Friday')).toBeTruthy();
+ expect(within(dialog).getByText('We have a table for three guests.')).toBeTruthy();
+ expect(within(dialog).getAllByText('Test Restaurant')).toHaveLength(2);
+ expect(within(dialog).getByText('Thanks').closest('li')).toBeTruthy();
+ expect(within(dialog).queryByRole('textbox')).toBeNull();
+ expect(marketingService.submitWhatsAppTemplate).not.toHaveBeenCalled();
+});

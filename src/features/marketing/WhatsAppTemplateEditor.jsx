@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
-import {ArrowLeft, Link2, MessageCircle, Phone, Plus, Trash2} from 'lucide-react';
+import {ArrowLeft, Plus, Trash2} from 'lucide-react';
 import AdminFormField from '../../components/forms/AdminFormField.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
@@ -7,15 +7,15 @@ import Badge from '../../components/ui/Badge.jsx';
 import Modal from '../../components/feedback/Modal.jsx';
 import {compileTemplateComponents, numberedVariables, templateNamePattern, templateValidationMessages} from '../../../supabase/functions/_shared/whatsappTemplateContent.mjs';
 import {generateMetaTemplateName, templateLanguageLabel, templateLanguages} from './whatsappTemplateDrafts.js';
+import WhatsAppMessagePreview from './WhatsAppMessagePreview.jsx';
 
 export const templateCategories = [{value:'UTILITY',label:'Utility'},{value:'MARKETING',label:'Marketing'}];
 const buttonOptions = [
- {value:'QUICK_REPLY',label:'Quick reply',Icon:MessageCircle},
- {value:'URL',label:'Visit website',Icon:Link2},
- {value:'PHONE_NUMBER',label:'Call phone',Icon:Phone},
+ {value:'QUICK_REPLY',label:'Quick reply'},
+ {value:'URL',label:'Visit website'},
+ {value:'PHONE_NUMBER',label:'Call phone'},
 ];
 const refreshCodes=['whatsapp_template_stale','whatsapp_template_duplicate','whatsapp_template_edit_unavailable'];
-const renderText=(text, values)=>text.replace(/{{([1-9]\d*)}}/g,(token,key)=>values[key]?.trim()||token);
 
 export default function WhatsAppTemplateEditor({initial,brandName,scope,unavailable,onClose,onSave,onSubmit,onRefresh,onDiscard}) {
  const [draft,setDraft]=useState(initial);
@@ -208,22 +208,11 @@ export default function WhatsAppTemplateEditor({initial,brandName,scope,unavaila
     </form>
     <aside className="wa-template-editor-preview" aria-label="Live WhatsApp preview">
      <div className="wa-template-preview-heading"><h2>Message preview</h2><span>Sample values</span></div>
-     <div className="wa-template-device">
-      <div className="wa-template-device-bar"><MessageCircle size={18} aria-hidden="true"/><strong>{brandName}</strong></div>
-      <div className="wa-template-chat-surface">
-       <div className="wa-template-bubble">
-        {draft.header.trim()?<strong>{renderText(draft.header,{'1':draft.headerSample})}</strong>:null}
-        <p className={!draft.text.trim()?'wa-template-preview-empty':''}>{renderText(draft.text,draft.samples)||'Your message will appear here.'}</p>
-        {draft.footer.trim()?<small>{draft.footer}</small>:null}
-       </div>
-       {draft.buttons.some(button=>button.text.trim())?<ul className="wa-template-preview-buttons">
-        {draft.buttons.map((button,index)=>{
-         const Icon=buttonOptions.find(item=>item.value===button.type)?.Icon||MessageCircle;
-         return button.text.trim()?<li key={index}><Icon size={15} aria-hidden="true"/>{button.text}</li>:null;
-        })}
-       </ul>:null}
-      </div>
-     </div>
+     <WhatsAppMessagePreview brandName={brandName} headerSamples={{1:draft.headerSample}} bodySamples={draft.samples}
+      components={[
+       {type:'HEADER',text:draft.header},{type:'BODY',text:draft.text},
+       {type:'FOOTER',text:draft.footer},{type:'BUTTONS',buttons:draft.buttons},
+      ]}/>
     </aside>
    </div>
   </WorkspacePage>
