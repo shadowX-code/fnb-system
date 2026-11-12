@@ -64,6 +64,43 @@ describe("Factory Stock Check mounted lifecycle", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
+  it("refreshes saved location warnings from the actual batch without replacing its proposed reduction", async () => {
+    const draft = { ...product, status: "draft", items: [{ ...product.items[0], batch_allocations: [
+      { batch_balance_id: "fg-batch", quantity: 1, location_valid: false, location_issue: "Storage location is not a Finished Goods Area" },
+    ] }] };
+    mount("product", draft);
+    factoryService.getFinishedGoodInventoryReconciliation.mockResolvedValue([
+      { finished_good_id: "sku-1", reconciliation_status: "reconciled", aggregate_balance: 5, batch_balance: 5 },
+    ]);
+    const batch = { batch_id: "fg-batch", batch_no: "PB-COLD", available_qty: 5, storage_location_id: "actual-cold", storage_location_type: "Freezer" };
+    vi.spyOn(factoryService, "getFinishedGoodBatchAvailability")
+      .mockResolvedValueOnce({ batches: [batch], allocatable_batch_balance: 5 })
+      .mockResolvedValueOnce({ batches: [], unavailable_batches: [{ ...batch, exclusion_reason: "Storage Location Archived" }], allocatable_batch_balance: 0 });
+    await screen.findAllByText(draft.check_no);
+    fireEvent.click(within(checkRow(draft.check_no)).getByRole("button", { name: "More row actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit", exact: true }));
+    const review = () => fireEvent.click(screen.getAllByRole("button", { name: "Review Batch Resolution" })[0]);
+    const editor = () => within(screen.getByRole("dialog", { name: "Suggested Batch Resolution (FEFO)" }));
+    const apply = () => editor().getByRole("button", { name: "Accept Suggested Resolution" });
+    const cancel = () => fireEvent.click(editor().getByRole("button", { name: "Cancel" }));
+    expect(screen.getAllByText(/Storage location is not a Finished Goods Area/)).not.toHaveLength(0);
+
+    review();
+    await waitFor(() => expect(apply().disabled).toBe(false));
+    expect(editor().getByRole("row", { name: /PB-COLD.*5 Packs.*-1 Packs.*4 Packs/ })).toBeTruthy();
+    cancel();
+    expect(screen.queryByText(/Storage location is not a Finished Goods Area/)).toBeNull();
+    expect(screen.getAllByText("Reconciled")).not.toHaveLength(0);
+
+    review();
+    await editor().findByText(/excluded: Storage Location Archived/);
+    expect(apply().disabled).toBe(true);
+    cancel();
+    expect(screen.getAllByText(/Storage location unavailable · Storage Location Archived/)).not.toHaveLength(0);
+    expect(screen.queryByText("Reconciled")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Review Batch Resolution" })).not.toHaveLength(0);
+  });
+
   it.each([["raw", raw], ["product", product]])("approves submitted %s checks once, updates the row, and refreshes listing plus Factory data", async (type, check) => { const { listing } = mount(type, check); const approve = vi.spyOn(factoryService, "approveStockCheck").mockResolvedValue(); await screen.findAllByText(check.check_no); fireEvent.click(within(checkRow(check.check_no)).getByRole("button", { name: "Approve" })); await waitFor(() => expect(approve).toHaveBeenCalledWith(type, check, "employee-1")); expect(approve).toHaveBeenCalledTimes(1); await waitFor(() => expect(listing).toHaveBeenCalledTimes(2)); await waitFor(() => expect(factoryService.listFactoryData).toHaveBeenCalledTimes(2)); });
   it.each([["raw", raw], ["product", product]])("does not mark %s checks approved or refresh after rejection, then permits a successful retry", async (type, check) => { const notify = vi.fn(); const { listing } = mount(type, check, { notify, confirm: vi.fn().mockResolvedValue(true) }); const approve = vi.spyOn(factoryService, "approveStockCheck").mockRejectedValueOnce(new Error("reject")).mockResolvedValueOnce(); await screen.findAllByText(check.check_no); const approveButton = within(checkRow(check.check_no)).getByRole("button", { name: "Approve" }); fireEvent.click(approveButton); await waitFor(() => expect(approve).toHaveBeenCalledTimes(1)); expect(listing).toHaveBeenCalledTimes(1); expect(factoryService.listFactoryData).toHaveBeenCalledTimes(1); expect(notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Unable to approve Stock Check.", tone: "error" })); fireEvent.click(approveButton); await waitFor(() => expect(approve).toHaveBeenCalledTimes(2)); await waitFor(() => expect(listing).toHaveBeenCalledTimes(2)); await waitFor(() => expect(factoryService.listFactoryData).toHaveBeenCalledTimes(2)); });
   it.each([["raw", raw, "Spices"], ["product", product, "Packaging"]])("saves a new %s stock-check draft through the mounted modal", async (type, check, category) => { const { listing } = mount(type, check); const save = vi.spyOn(factoryService, "saveStockCheck").mockResolvedValue({ ...check, id: `new-${type}`, status: "draft" }); fireEvent.click(await screen.findByRole("button", { name: "New Stock Check" })); fireEvent.click(screen.getByRole("button", { name: type === "raw" ? "Category *" : "Category" })); fireEvent.click(await screen.findByText(category)); await waitFor(() => expect(screen.getAllByRole("spinbutton").length).toBeGreaterThan(0)); fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "5" } }); fireEvent.click(screen.getByRole("button", { name: "Save Draft" })); await waitFor(() => expect(save).toHaveBeenCalledTimes(1)); expect(save).toHaveBeenCalledWith(type, expect.objectContaining({ status: "draft", check_date: expect.any(String), items: [expect.objectContaining({ [type === "raw" ? "raw_material_id" : "finished_good_id"]: type === "raw" ? "rm-1" : "sku-1", physical_qty: "5" })] }), "employee-1"); await waitFor(() => expect(listing).toHaveBeenCalledTimes(2)); expect(factoryService.listFactoryData).toHaveBeenCalledTimes(1); });
