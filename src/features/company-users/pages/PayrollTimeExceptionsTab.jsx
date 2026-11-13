@@ -10,14 +10,17 @@ const time = (value) => value ? new Intl.DateTimeFormat("en-MY", {
   timeZone: "Asia/Kuala_Lumpur", hour: "2-digit", minute: "2-digit", hour12: false,
 }).format(new Date(value)) : "—";
 
+export function publishedRosterLabel(roster) {
+  if (roster.entry_type === "working") return `${roster.start_time ?? "—"} – ${roster.end_time ?? "—"}`;
+  return roster.entry_type ? titleCase(roster.entry_type) : "No roster entry";
+}
+
 export function LatestPublishedRoster({ roster }) {
   if (!roster) return null;
-  const schedule = roster.entry_type === "working"
-    ? `${roster.start_time ?? "—"} – ${roster.end_time ?? "—"} · ${roster.break_minutes}m unpaid break`
-    : roster.entry_type ? titleCase(roster.entry_type) : "No roster entry";
+  const schedule = publishedRosterLabel(roster);
   return <small className="mt-1 block text-text-secondary">
     <strong>Latest published roster · Rev {roster.revision}</strong><br />
-    {schedule}<br />
+    {schedule}{roster.entry_type === "working" && roster.break_minutes != null && ` · ${roster.break_minutes}m unpaid break`}<br />
     For comparison. Existing payable-time decisions are preserved.
   </small>;
 }

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 const mocks = vi.hoisted(()=>({decideTime:vi.fn()}));
 vi.mock('../../../../services/payrollService.js',()=>({payrollService:mocks}));
 import PayrollPayableTimeReview from '../PayrollPayableTimeReview.jsx';
@@ -243,10 +243,12 @@ it('shows a newer published roster alongside the bound roster in Draft review on
     latest_published_roster: {revision: 4, entry_type: 'working', start_time: '17:00', end_time: '22:00', break_minutes: 0}}];
   const props = {employee: {...employee, time}, month: '2026-09', canManage: true, onClose: vi.fn()};
   const view = render(<PayrollPayableTimeReview {...props} />);
+  const rosterRow = screen.getByRole('button', {name:'Show details for 2026-09-25'}).closest('tr');
+  expect(within(rosterRow).getByText('17:00 – 22:00')).toBeTruthy();
+  expect(within(rosterRow).getByText('Roster changed')).toBeTruthy();
   expect(screen.queryByText('Latest published roster · Rev 4')).toBeNull();
   fireEvent.click(screen.getByRole('button', {name:'Show details for 2026-09-25'}));
   expect(screen.getByText('Latest published roster · Rev 4')).toBeTruthy();
-  expect(screen.getByText(/17:00 – 22:00/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', {name: 'Review exception'}));
   expect(screen.getByText('Roster used for this review')).toBeTruthy();
   expect(screen.getByText('Latest published roster · Rev 4')).toBeTruthy();
@@ -282,4 +284,28 @@ it('keeps saved approvals visible while changed evidence blocks Regular earnings
   expect(screen.getByText('Pending')).toBeTruthy();
   expect(screen.getByText('Resolve changed time evidence')).toBeTruthy();
   expect(screen.queryByText(/RM\s*0\.00/)).toBeNull();
+});
+
+it.each([
+  ['22:00', 60, true],
+  ['18:00', 60, false],
+  ['18:00', 90, true],
+])('uses the latest published schedule and checks content (%s, %s minutes)', (end, breakMinutes, changed) => {
+  const working = {...row, work_date:'2026-10-14', status:'approved_manual', approved_minutes:420,
+    evidence:{...row.evidence, roster_entry_type:'working', scheduled_start_at:'2026-10-14T02:00:00Z', scheduled_end_at:'2026-10-14T10:00:00Z'},
+    latest_published_roster:{revision:3, entry_type:'working', start_time:'10:00', end_time:end, break_minutes:breakMinutes},
+  };
+  const fallback = {...working, id:'fallback', work_date:'2026-10-15', latest_published_roster:null};
+  render(<PayrollPayableTimeReview employee={{...employee,time:[working,fallback]}} month="2026-10" canManage onClose={()=>{}} />);
+  const workingRow = screen.getByRole('button', {name:'Show details for 2026-10-14'}).closest('tr');
+  const fallbackRow = screen.getByRole('button', {name:'Show details for 2026-10-15'}).closest('tr');
+  expect(within(workingRow).getByText(`10:00 – ${end}`)).toBeTruthy();
+  expect(Boolean(within(workingRow).queryByText('Roster changed'))).toBe(changed);
+  expect(within(workingRow).getByText('7.00 h')).toBeTruthy();
+  expect(within(fallbackRow).getByText('10:00 – 18:00')).toBeTruthy();
+  expect(within(fallbackRow).queryByText('Roster changed')).toBeNull();
+  fireEvent.click(within(workingRow).getByRole('button', {name:'Show details for 2026-10-14'}));
+  expect(screen.getByText('Latest published roster · Rev 3')).toBeTruthy();
+  expect(screen.getByText('Roster used for Payroll review')).toBeTruthy();
+  expect(screen.getAllByText('10:00 – 18:00 · 60m unpaid break').length).toBeGreaterThan(0);
 });
