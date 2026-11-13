@@ -83,3 +83,19 @@ it('a new speech segment cannot erase the bounded pending transcription of the p
  response();drain();e({type:'input_audio_buffer.speech_started',item_id:'one'});e({type:'input_audio_buffer.speech_stopped',item_id:'one'});
  e({type:'input_audio_buffer.speech_started',item_id:'two'});vi.advanceTimersByTime(15100);expect(recovery).toHaveBeenCalledWith('transcription_timeout');
 });
+
+it('a tool continuation waits for the preceding controlled response audio to drain',async()=>{
+ response();drain();speak('I helped a customer.','candidate');c.confirmAnswer();
+ c.onTool=vi.fn().mockResolvedValue({can_finish:true});
+ response('tool','answer',c.acceptedOwner);
+ e({type:'response.output_item.added',response_id:'tool',item:{type:'message',id:'ai-tool'}});
+ e({type:'output_audio_buffer.started',response_id:'tool'});
+ e({type:'response.function_call_arguments.done',response_id:'tool',call_id:'call',name:'request_completion'});
+ e({type:'response.done',response:{id:'tool',status:'completed'}});
+ await vi.advanceTimersByTimeAsync(0);
+ const continuations=()=>send.mock.calls.filter(([event])=>event.response?.metadata?.feedx_kind==='tool');
+ expect(continuations()).toHaveLength(0);
+ e({type:'output_audio_buffer.stopped',response_id:'tool'});
+ e({type:'output_audio_buffer.stopped',response_id:'tool'});
+ expect(continuations()).toHaveLength(1);
+});

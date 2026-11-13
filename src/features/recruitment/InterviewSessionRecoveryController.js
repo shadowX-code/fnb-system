@@ -1,3 +1,4 @@
+import { interviewQaTransport } from "./interviewSdkTransport.js";
 import { InterviewTransportGeneration } from "./InterviewTransportGeneration.js";
 import { InterviewRecoveryTrace } from "./InterviewRecoveryTrace.js";
 import { activateInterviewPlayback } from "./InterviewPlayback.js";
@@ -18,7 +19,8 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
       this.updateAll({recoveryView:view,busy:view.state==="RECOVERING"});
       this.observe("recovery.transition",{...view,request_id:this.operation?.id||this.intentId||this.recoveryId});
     });
-    Object.assign(this,{token,entry,devices});this.listeners=new Set();
+    Object.assign(this,{token,entry,devices});
+    this.qaTransport = interviewQaTransport(entry.job?.title, globalThis.location);this.listeners=new Set();
     this.journal=new InterviewRecoveryTrace(token);this.lastReference=this.journal.latestRequest();
     this.snapshot={status:["starting","interviewing","interrupted"].includes(entry.status)?"interrupted":entry.status,
       recoveryView:{state:"RECOVERY_REQUIRED",stage:""},recordingStatus:"idle",aiStatus:"idle",error:"",busy:false,terminalReason:"",recoveryNotice:"",presence:initialPresence,turnView:{text:"",canSend:false,canInterrupt:false,listening:false},roomEpoch:0};

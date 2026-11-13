@@ -1,0 +1,122 @@
+import {afterEach, expect, it, vi} from "vitest";
+import {connectInterviewSdk, interviewQaTransport, observeRemoteAudio} from "./interviewSdkTransport.js";
+
+const policy = {
+  type:"realtime", model:"gpt-realtime-1.5", tracing:null,
+  include:["item.input_audio_transcription.logprobs"],
+  audio:{input:{
+    turn_detection:{type:"semantic_vad",eagerness:"low",create_response:false,interrupt_response:false},
+    transcription:{model:"gpt-4o-transcribe"}, noise_reduction:{type:"near_field"},
+  }},
+};
+
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+
+function provider({ session = policy, stalled = false } = {}) {
+  let peer;
+  class Channel extends EventTarget {
+    readyState = "connecting";
+    send = vi.fn(raw => {
+      if (JSON.parse(raw).type === "session.update" && session)
+        queueMicrotask(() => this.receive({type:"session.updated",event_id:"event_ack",session}));
+    });
+    receive(data) { this.dispatchEvent(new MessageEvent("message",{data:JSON.stringify(data)})); }
+    close() { this.readyState="closed"; this.dispatchEvent(new Event("close")); }
+  }
+  vi.stubGlobal("RTCPeerConnection", class {
+    constructor() { peer=this; }
+    createDataChannel() { return this.channel=new Channel(); }
+    addTrack(track) { this.input=track; }
+    async createOffer() { return {sdp:"fixture offer"}; }
+    async setLocalDescription() {}
+    async setRemoteDescription() {
+      this.remoteDescriptionSet=true;
+      this.channel.readyState="open";
+      this.channel.dispatchEvent(new Event("open"));
+    }
+    close() { this.closed=true; }
+  });
+  let settle;
+  const fetch=vi.fn(() => stalled ? new Promise(resolve => settle=resolve) : Promise.resolve({
+    ok:true, headers:new Headers(), text:async()=>"fixture answer",
+  }));
+  vi.stubGlobal("fetch",fetch);
+  const track={enabled:false,stop:vi.fn()};
+  const bind=vi.fn(), consume=vi.fn(), controller=new AbortController();
+  const connection=connectInterviewSdk({
+    signal:controller.signal, mediaStream:{getAudioTracks:()=>[track]},audioElement:{},
+    apiKey:"ek_fake_test_key",bind,consume,
+  });
+  return {connection, bind, consume, controller, track, fetch, peer:()=>peer, settle:()=>settle({ok:true})};
+}
+
+it("uses the installed SDK to establish one channel without overwriting server config or generating speech",async()=>{
+  const q=provider(); await q.connection;
+  const {channel,input}=q.peer();
+  expect(input).toBe(q.track);
+  expect(input.enabled).toBe(false);
+  expect(q.bind).toHaveBeenCalledWith(q.peer(),channel,expect.anything());
+  expect(channel.send.mock.calls.map(([raw])=>JSON.parse(raw))).toEqual([
+    {type:"session.update",session:{type:"realtime",tracing:null}},
+  ]);
+  const event={type:"output_audio_buffer.started",response_id:"resp_1",event_id:"event_audio"};
+  channel.receive(event);
+  expect(q.consume).toHaveBeenLastCalledWith(event);
+  q.bind.mock.calls[0][2].close();
+  expect(input.stop).not.toHaveBeenCalled();
+});
+
+it("fails closed if the provider enables automatic generation or omits evidence signals", async()=>{
+  for (const override of [{include:[]},{audio:{input:{...policy.audio.input,turn_detection:{...policy.audio.input.turn_detection,create_response:true}}}}]) {
+    const q=provider({session:{...policy,...override}});
+    await expect(q.connection).rejects.toMatchObject({code:"sdk_policy_unverified"});
+    expect(q.peer().closed).toBe(true);
+    expect(q.peer().channel.readyState).toBe("closed");
+  }
+});
+
+it("abandons a stalled SDK exchange without applying its late SDP or emitting old events", async()=>{
+  const q=provider({stalled:true});
+  const rejected=expect(q.connection).rejects.toMatchObject({name:"AbortError"});
+  await vi.waitFor(()=>expect(q.fetch).toHaveBeenCalledOnce());
+  q.controller.abort();
+  await rejected;
+  q.settle();
+  await Promise.resolve();
+  expect(q.peer().closed).toBe(true);
+  expect(q.peer().remoteDescriptionSet).toBeUndefined();
+  expect(q.consume).not.toHaveBeenCalled();
+});
+
+it("selects only explicit legacy/SDK arms for labelled canonical Staging openings",()=>{
+  const data="https://ujkzdaaadnvcfayuldmh.supabase.co";
+  const loc={origin:"https://fnb-system-staging.vercel.app",search:"?voice-transport=sdk"};
+  expect(interviewQaTransport("QA: Voice parity",loc,data)).toBe("sdk");
+  expect(interviewQaTransport("QA: Voice parity",{...loc,search:"?voice-transport=legacy"},data)).toBe("legacy");
+  expect(interviewQaTransport("QA: Voice parity",{...loc,search:""},data)).toBeUndefined();
+  expect(interviewQaTransport("Service Crew",loc,data)).toBeUndefined();
+  expect(interviewQaTransport("QA: Voice parity",loc,"https://other.supabase.co")).toBeUndefined();
+  expect(interviewQaTransport("QA: Voice parity",{...loc,origin:"https://interview.feedx.my"},data)).toBeUndefined();
+});
+
+it("reports increasing received audio energy once, without mistaking silence or muted playback for onset",async()=>{
+  vi.useFakeTimers();
+  const track={muted:false};
+  let energy=2;
+  const audio={paused:false,muted:true,volume:1};
+  const peer={getReceivers:()=>[{track,getStats:async()=>new Map([["a",{type:"inbound-rtp",kind:"audio",totalAudioEnergy:energy}]])}]};
+  const onset=vi.fn();
+  const stop=observeRemoteAudio(peer,track,audio,onset);
+  await vi.advanceTimersByTimeAsync(50);
+  expect(onset).not.toHaveBeenCalled();
+  energy++;
+  await vi.advanceTimersByTimeAsync(50);
+  expect(onset).not.toHaveBeenCalled();
+  audio.muted=false;
+  energy++;
+  await vi.advanceTimersByTimeAsync(50);
+  energy++;
+  await vi.advanceTimersByTimeAsync(150);
+  expect(onset).toHaveBeenCalledOnce();
+  stop();
+});

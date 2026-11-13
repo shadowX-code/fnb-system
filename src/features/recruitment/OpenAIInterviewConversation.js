@@ -120,7 +120,10 @@ export class OpenAIInterviewConversation {
       if (e.type === "output_audio_buffer.stopped" && response) response.drained = true;
       if (response?.drained && response.status === "completed" && !this.cancelled.has(id) && response.itemId)
         response.delivered = true;
-      for (const tool of this.tools.values()) if (tool.orientation && tool.responseId === id) this.settleOrientation(tool);
+      for (const tool of this.tools.values()) if (tool.responseId === id) {
+        if (tool.orientation) this.settleOrientation(tool);
+        else if (this.controlled) this.continueTool(tool);
+      }
       this.commitDialogue(id, response);
       this.settleCompletion(response);
     }
@@ -247,7 +250,10 @@ export class OpenAIInterviewConversation {
     if (!items.every(item=>this.candidateEligible(item))) {this.clearAnswer();return false;}
     this.acceptanceMode=mode;
     this.acceptedOwner=`answer:${crypto.randomUUID()}`;
-    for (const item of items) {this.onAcceptCandidate(item);this.committedInputs.delete(item);}
+    for (const item of items) {
+      this.onAcceptCandidate(item);this.committedInputs.delete(item);
+      this.trace({type:"response.requested",item_id:item,owner:this.acceptedOwner,phase:"accepted_answer"});
+    }
     this.drafts.clear();this.uncertainInputs.clear();this.awaitingResponse=true;this.setInput(false);
     this.send({type:"input_audio_buffer.clear"});
     this.watch("entry","accepted_answer_response_timeout");
@@ -314,7 +320,13 @@ export class OpenAIInterviewConversation {
     // No response.create: the next candidate speech remains provider-owned.
   }
   continueTool(tool) {
-    if (this.closed || tool.sent || !tool.result || !this.responses.get(tool.responseId)?.done) return;
+    const response = this.responses.get(tool.responseId);
+    if (this.closed || tool.sent || !tool.result || !response?.done) return;
+    if (this.controlled && response.itemId && !response.drained && !this.cancelled.has(tool.responseId)) {
+      this.watch(`tool-drain:${tool.callId}`, "tool_audio_drain_timeout", 90000);
+      return;
+    }
+    this.unwatch(`tool-drain:${tool.callId}`);
     tool.sent = true;
     if (tool.revision !== this.revision || this.speaking || this.cancelled.has(tool.responseId)) return;
     // Another provider-owned response has already taken this turn: never append
