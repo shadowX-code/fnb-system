@@ -10,25 +10,14 @@ export const languageLabel = (value) =>
 export const initialPresence = { state: "connecting", prompt: "", item: null };
 export function observeInterviewPresence(current, event) {
   const type = event.type;
-  if (type === "candidate.answer.preview") return {...current,state:event.listening ? "listening" : current.state};
-  if (type === "candidate.answer.accepted") return {...current,state:"thinking"};
-  if (
-    type === "input_audio_buffer.speech_started" ||
-    type === "output_audio_buffer.cleared"
-  )
-    return { ...current, state: "listening" };
-  if (
-    [
-      "input_audio_buffer.speech_stopped",
-      "input_audio_buffer.committed",
-      "response.created",
-    ].includes(type)
-  )
+  if (type === "candidate.answer.preview") {
+    const state = event.speaking ? "speaking" :
+      event.thinking ? "thinking" : event.listening ? "listening" :
+      current.state === "connecting" ? "connecting" : "thinking";
+    return { ...current, state };
+  }
+  if (type === "candidate.answer.accepted" || type === "response.created")
     return { ...current, state: "thinking" };
-  if (type === "output_audio_buffer.started")
-    return { ...current, state: "speaking" };
-  if (type === "output_audio_buffer.stopped")
-    return { ...current, state: "listening" };
   if (
     [
       "response.output_audio_transcript.delta",

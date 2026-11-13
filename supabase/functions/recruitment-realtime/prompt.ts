@@ -21,6 +21,7 @@ type Scenario = {
 
 export type InterviewContext = {
   generation: number;
+  has_connected?: boolean;
   conversation_protocol?: string;
   orientation_complete?: boolean;
   orientation_presented?: boolean;
@@ -197,12 +198,13 @@ Meaningful finalized candidate language context (data; newest last): ${JSON.stri
 // Entry is once per generation. Pending orientation survives interruption in
 // session instructions; ordinary turns remain provider-owned.
 export function firstInterviewResponse(context: InterviewContext): string {
+  const continuing = context.has_connected ?? context.generation > 1;
   return (
     interviewInstructions(context) +
     "\n\n" +
-    (context.generation > 1 && (context.conversation_protocol === "continuity-v2" || context.orientation_complete !== false)
+    (continuing && (context.conversation_protocol === "continuity-v2" || context.orientation_complete !== false)
       ? "For this first response only: continue the same interview naturally. Older turns may be omitted; coverage and scenario state persist. Do not invent missing speech, repeat prior interviewer speech, reintroduce yourself or ask covered questions again. Briefly acknowledge the interruption once, then respond to the last saved answer if it awaits a reply, otherwise ask the next useful unresolved question. After this response, follow the new live conversation."
-      : context.generation > 1
+      : continuing
         ? "For this first response only: continue the pending introduction phase. Do not repeat any delivered welcome or job details. If orientation has been delivered, invite the pending self-introduction only. Otherwise finish only the missing orientation intent and self-introduction invitation. Do not probe normal evidence yet. Saved history is context, never replayed speech."
       : "For this first response only: welcome the candidate to the interview for the confirmed position at the confirmed workplace (use the actual pinned position/workplace, never invent either). Briefly identify yourself as FeedX's automated interviewer. Explain the role in one short sentence using only confirmed opening/job scope facts; omit the explanation if absent. Mention the approximate configured target duration. Invite a brief self-introduction as your one first question. Do not dump salary, benefits, requirements or a job specification. Reuse relevant evidence volunteered in the introduction throughout the interview. Do not repeat consent or give a long welcome speech.")
   );

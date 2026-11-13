@@ -163,9 +163,15 @@ export class InterviewRecording {
   }
   remote(stream) {
     this.remoteSource?.disconnect();
+    this.remoteAnalyser = null;
     if (stream && this.context?.state !== "closed") {
       this.remoteSource = this.context.createMediaStreamSource(stream);
       this.remoteSource.connect(this.destination);
+      if (this.context.createAnalyser) {
+        this.remoteAnalyser = this.context.createAnalyser();
+        this.remoteSource.connect(this.remoteAnalyser);
+      }
+      return this.remoteAnalyser;
     }
   }
   async drainChunks(unitId = this.unit?.id) {

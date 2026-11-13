@@ -43,7 +43,7 @@ export default function RecruitmentInterviewSession({
   const [controller]=useState(()=>new InterviewSessionRecoveryController({token,entry,devices}));
   controller.devices=devices;
   const view=useSyncExternalStore(controller.subscribe,controller.getSnapshot);
-  const {status,recordingStatus,aiStatus,error,recoveryView,terminalReason,recoveryNotice,presence,turnView}=view;
+  const {hasConnected,status,recordingStatus,error,recoveryView,terminalReason,recoveryNotice,presence,turnView}=view;
   const setStatus=value=>controller.update("status",value),setRecordingStatus=value=>controller.update("recordingStatus",value),setError=value=>controller.update("error",value),setTerminalReason=value=>controller.update("terminalReason",value);
   const [actionBusy,setBusy]=useState(false),[elapsed,setElapsed]=useState(0),[actionState,setActionState]=useState("IDLE"),[partialConfirm,setPartialConfirm]=useState(false),[completedAt,setCompletedAt]=useState(entry.completed_at);
   const [submissionState,setSubmissionState]=useState(entry.status==="finalizing"?"PENDING":"IDLE");
@@ -361,7 +361,7 @@ export default function RecruitmentInterviewSession({
     status === "ready" &&
     recoveryView.state !== "RECOVERING"
   )
-    return <>{renderPreparation({ start })}<div ref={node=>{controller.audioHost=node;}} hidden aria-hidden="true" /></>;
+    return <>{renderPreparation({ start })}<div key="interview-audio" ref={node=>{controller.audioHost=node;}} hidden aria-hidden="true" /></>;
   const preview = (node) => {
     devices.previewRef.current = node;
     if (node && node.srcObject !== devices.streamRef.current)
@@ -393,13 +393,16 @@ export default function RecruitmentInterviewSession({
               : submitting ? "finalizing" : status
           }
           recovering={recoveryView.state === "RECOVERING"}
+          hasConnected={hasConnected}
           recordingStatus={recordingStatus}
           elapsed={elapsed}
           previewRef={preview}
         >
-          {!submitting && ["RECOVERY_REQUIRED","RECOVERING"].includes(recoveryView.state) && ["interrupted","starting"].includes(status) && (
+          {!submitting && ["RECOVERY_REQUIRED","RECOVERING"].includes(recoveryView.state) && ["interrupted","starting","start_failed"].includes(status) && (hasConnected || recoveryView.state !== "RECOVERING") && (
             <button className="candidate-button is-primary" disabled={controller.submitting} onPointerDown={()=>controller.pointer()} onClick={start}>
-              {recoveryView.state==="RECOVERING"?"Retry continuing":"Continue interview"}
+              {hasConnected
+                ? (recoveryView.state==="RECOVERING" ? "Retry continuing" : "Continue interview")
+                : "Retry start"}
             </button>
           )}
           {!submitting && recoveryView.state === "RESUMED" &&
@@ -442,7 +445,7 @@ export default function RecruitmentInterviewSession({
               </button>
             </div>
           ) : null}
-          {!submitting && recoveryView.state !== "RECOVERING" && status === "interrupted" && controller.session ? (
+          {!submitting && recoveryView.state !== "RECOVERING" && status === "interrupted" && hasConnected && controller.session ? (
             <button
               className="candidate-button is-secondary"
               disabled={busy}
@@ -472,7 +475,8 @@ export default function RecruitmentInterviewSession({
           {actionState === "CHECKING" && <p role="status" aria-live="polite">Checking whether your interview can finish. Your recording continues.</p>}
           {recoveryView.state === "RECOVERING" && (
             <p role="status">
-              {recoveryLabels[recoveryView.stage] || "Preparing your interview"}
+              {!hasConnected && ["preparing","server resume"].includes(recoveryView.stage)
+                ? "Preparing your interview" : recoveryLabels[recoveryView.stage] || "Preparing your interview"}
             </p>
           )}
           {recoveryNotice && <p role="status">{recoveryNotice}</p>}
@@ -484,7 +488,7 @@ export default function RecruitmentInterviewSession({
           {recoveryView.state!=="RESUMED" && <details className="recruitment-hint"><summary>Recovery reference</summary><p>{controller.operation?.id||controller.lastReference||controller.recoveryId||"Not started"}</p><p>{controller.journal.persistent?"Diagnostics are retained after refresh.":"Diagnostics could not be stored on this device; available observations will be sent when connected."}</p></details>}
         </SessionSurface>
       )}
-      <div ref={node=>{controller.audioHost=node;}} hidden aria-hidden="true" />
+      <div key="interview-audio" ref={node=>{controller.audioHost=node;}} hidden aria-hidden="true" />
     </>
   );
 }

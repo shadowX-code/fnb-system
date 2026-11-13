@@ -9,24 +9,36 @@ export function interviewQaTransport(title, location, dataUrl = import.meta.env.
   return transport === "sdk" || transport === "legacy" ? transport : undefined;
 }
 
-function hasControlledPolicy(session) {
-  const input = session?.audio?.input;
-  const vad = input?.turn_detection;
-  return session?.model === "gpt-realtime-1.5" && session.tracing === null &&
-    vad?.type === "semantic_vad" && vad.eagerness === "low" &&
-    vad.create_response === false && vad.interrupt_response === false &&
-    input.transcription?.model === "gpt-4o-transcribe" &&
-    input.noise_reduction?.type === "near_field" &&
-    session.include?.includes("item.input_audio_transcription.logprobs");
+const model = "gpt-realtime-1.5";
+const confidence = "item.input_audio_transcription.logprobs";
+const turnDetection = {
+  type: "semantic_vad", eagerness: "low", create_response: false, interrupt_response: false,
+};
+
+function controlledPolicyError(session) {
+  if (!session) return "ack_missing";
+  const input = session.audio?.input;
+  if (session.model !== model && !session.model?.startsWith(model + "-")) return "model";
+  if (session.tracing != null) return "tracing";
+  if (Object.entries(turnDetection).some(([key, value]) => input?.turn_detection?.[key] !== value))
+    return "turn_detection";
+  if (input?.transcription?.model !== "gpt-4o-transcribe") return "transcription";
+  if (input.noise_reduction && input.noise_reduction.type !== "near_field") return "noise_reduction";
+  if (session.include && !session.include.includes(confidence)) return "confidence";
+  return null;
 }
 
-export async function connectInterviewSdk({ signal, mediaStream, audioElement, apiKey, bind, consume }) {
+export async function connectInterviewSdk({ signal, mediaStream, audioElement, apiKey, bind, consume, checkpoint = () => {} }) {
   const { OpenAIRealtimeWebRTC } = await import("@openai/agents-realtime");
   signal?.throwIfAborted();
   class InterviewWebRTC extends OpenAIRealtimeWebRTC {
-    // The ephemeral secret already carries the server-owned configuration.
-    // In 0.21.0, the base serializer would send its own transcription and VAD defaults.
-    buildSessionPayload() { return { type: "realtime", tracing: null }; }
+    // Preserve the server-pinned prompt, voice, tools and transcription.
+    buildSessionPayload() {
+      return {
+        type: "realtime", tracing: null, include: [confidence],
+        audio: { input: { turn_detection: turnDetection, noise_reduction: { type: "near_field" } } },
+      };
+    }
   }
   const sdk = new InterviewWebRTC({
     mediaStream, audioElement,
@@ -35,24 +47,25 @@ export async function connectInterviewSdk({ signal, mediaStream, audioElement, a
       return peer;
     },
   });
-  let acknowledged = false;
+  let policyError = "ack_missing";
   sdk.on("*", event => {
     if (signal?.aborted) return;
-    if (event.type === "session.updated") acknowledged = hasControlledPolicy(event.session);
+    if (event.type === "session.updated") policyError = controlledPolicyError(event.session);
     consume(event);
   });
   try {
     await bounded(sdk.connect({
-      apiKey, model: "gpt-realtime-1.5", initialSessionConfig: { tracing: null },
+      apiKey, model, initialSessionConfig: { tracing: null },
     }), "Interviewer SDK connection", { signal, timeoutMs: 17000 });
-    if (!acknowledged) throw Error("Interviewer SDK did not acknowledge the required voice policy.");
+    if (policyError) throw Error("Interviewer SDK did not acknowledge the required voice policy.");
   } catch (error) {
     try { sdk.close(); } catch { /* Original startup error owns recovery. */ }
     if (signal?.aborted) throw signal.reason;
+    if (policyError) checkpoint("sdk.policy", policyError);
     // The SDK's SDP error can include provider text. Do not retain it in diagnostics.
     throw Object.assign(Error("Interviewer SDK could not connect with the required voice policy."), {
-      code: acknowledged ? "sdk_connection_failed" : "sdk_policy_unverified",
-      ...(error.code === "dependency_timeout" ? { code: error.code } : {}),
+      code: policyError ? "sdk_policy_unverified" : "sdk_connection_failed",
+      ...(error.code === "recovery_timeout" ? { code: error.code } : {}),
     });
   }
 }

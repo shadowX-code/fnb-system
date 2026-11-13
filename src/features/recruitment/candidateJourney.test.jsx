@@ -153,16 +153,16 @@ describe("candidate preparation gates", () => {
   });
 });
 describe("runtime-only interviewer presence", () => {
-  it("uses VAD/response/audio buffer events, not transcription receipt timing", () => {
+  it("reflects the controlled microphone and playback state", () => {
     let p = initialPresence;
-    for (const [type, state] of [
-      ["input_audio_buffer.speech_started", "listening"],
-      ["input_audio_buffer.committed", "thinking"],
-      ["response.created", "thinking"],
-      ["output_audio_buffer.started", "speaking"],
-      ["output_audio_buffer.stopped", "listening"],
+    for (const [view, state] of [
+      [{listening:true}, "listening"],
+      [{listening:true,thinking:true}, "thinking"],
+      [{speaking:true}, "speaking"],
+      [{}, "thinking"],
+      [{listening:true}, "listening"],
     ]) {
-      p = observeInterviewPresence(p, { type });
+      p = observeInterviewPresence(p, {type:"candidate.answer.preview", ...view});
       expect(p.state).toBe(state);
     }
     expect(

@@ -37,9 +37,9 @@ beforeEach(()=>{
   vi.spyOn(document,"hidden","get").mockReturnValue(false);
 });
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.useRealTimers();});
-function mount(status="interviewing",renderPreparation) {
+function mount(status="interviewing",renderPreparation,hasConnected) {
   const devices={start:vi.fn().mockResolvedValue({getTracks:()=>["audio","video"].map(kind=>({kind,readyState:"live",muted:false,addEventListener:vi.fn(),removeEventListener:vi.fn(),stop:vi.fn()}))}),stop:vi.fn(),streamRef:{current:{}},previewRef:{current:null}};
-  render(<RecruitmentInterviewSession token={"a".repeat(64)} entry={{status}} devices={devices} renderPreparation={renderPreparation}/>);
+  render(<RecruitmentInterviewSession token={"a".repeat(64)} entry={{status,has_connected:hasConnected}} devices={devices} renderPreparation={renderPreparation}/>);
   return devices;
 }
 it("refresh presents explicit resume and reconnects without waiting for old evidence upload",async()=>{
@@ -438,4 +438,19 @@ it('a delayed old pause rejection cannot replace a newer native failure or its r
  expect(screen.getByText('Native audio could not start. Tap Continue interview to try again.')).toBeTruthy();
  expect(screen.getByText(newest)).toBeTruthy();
  expect(read().some(e=>e.record.request_id===newest&&e.record.state==='RECOVERY_REQUIRED')).toBe(true);
+});
+
+it("first-start connection failure offers Retry start before and after refresh",async()=>{
+ qa.connect.mockRejectedValueOnce(Error("connection failed"));
+ mount("ready",({start})=><button onClick={start}>Start interview</button>,false);
+ fireEvent.click(screen.getByRole("button",{name:"Start interview"}));
+ await screen.findByRole("heading",{name:"Interview hasn’t started"});
+ expect(screen.getByRole("alert").textContent).toContain("Retry start");
+ expect(screen.queryByRole("button",{name:"Continue interview"})).toBeNull();
+ cleanup();
+ mount("interrupted",undefined,false);
+ fireEvent.click(screen.getByRole("button",{name:"Retry start"}));
+ await screen.findByRole("button",{name:"Finish interview"});
+ act(()=>qa.transports.at(-1).props.onStatus("disconnected"));
+ expect(screen.getByRole("button",{name:"Continue interview"})).toBeTruthy();
 });

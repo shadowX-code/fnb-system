@@ -57,7 +57,13 @@ it("uses the installed SDK to establish one channel without overwriting server c
   expect(input.enabled).toBe(false);
   expect(q.bind).toHaveBeenCalledWith(q.peer(),channel,expect.anything());
   expect(channel.send.mock.calls.map(([raw])=>JSON.parse(raw))).toEqual([
-    {type:"session.update",session:{type:"realtime",tracing:null}},
+    {type:"session.update",session:{
+      type:"realtime",tracing:null,include:policy.include,
+      audio:{input:{
+        turn_detection:policy.audio.input.turn_detection,
+        noise_reduction:policy.audio.input.noise_reduction,
+      }},
+    }},
   ]);
   const event={type:"output_audio_buffer.started",response_id:"resp_1",event_id:"event_audio"};
   channel.receive(event);
@@ -66,7 +72,7 @@ it("uses the installed SDK to establish one channel without overwriting server c
   expect(input.stop).not.toHaveBeenCalled();
 });
 
-it("fails closed if the provider enables automatic generation or omits evidence signals", async()=>{
+it("fails closed if the provider enables automatic generation or explicitly disables evidence signals", async()=>{
   for (const override of [{include:[]},{audio:{input:{...policy.audio.input,turn_detection:{...policy.audio.input.turn_detection,create_response:true}}}}]) {
     const q=provider({session:{...policy,...override}});
     await expect(q.connection).rejects.toMatchObject({code:"sdk_policy_unverified"});
@@ -119,4 +125,13 @@ it("reports increasing received audio energy once, without mistaking silence or 
   await vi.advanceTimersByTimeAsync(150);
   expect(onset).toHaveBeenCalledOnce();
   stop();
+});
+
+it("accepts a provider snapshot name and an acknowledgement without optional echoed settings",async()=>{
+  const q=provider({session:{
+    ...policy, model:"gpt-realtime-1.5-2026-01-01", tracing:undefined, include:undefined,
+    audio:{input:{...policy.audio.input,noise_reduction:undefined}},
+  }});
+  await q.connection;
+  q.bind.mock.calls[0][2].close();
 });

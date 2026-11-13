@@ -22,7 +22,9 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
     Object.assign(this,{token,entry,devices});
     this.qaTransport = interviewQaTransport(entry.job?.title, globalThis.location);this.listeners=new Set();
     this.journal=new InterviewRecoveryTrace(token);this.lastReference=this.journal.latestRequest();
-    this.snapshot={status:["starting","interviewing","interrupted"].includes(entry.status)?"interrupted":entry.status,
+    const hasConnected = entry.has_connected ?? ["interviewing", "interrupted"].includes(entry.status);
+    const activeStatus = ["starting", "interviewing", "interrupted"].includes(entry.status);
+    this.snapshot={hasConnected,status:activeStatus ? (hasConnected ? "interrupted" : "start_failed") : entry.status,
       recoveryView:{state:"RECOVERY_REQUIRED",stage:""},recordingStatus:"idle",aiStatus:"idle",error:"",busy:false,terminalReason:"",recoveryNotice:"",presence:initialPresence,turnView:{text:"",canSend:false,canInterrupt:false,listening:false},roomEpoch:0};
     this.onDiagnostic=details=>this.observe("recovery.command",details);
     this.getSnapshot=()=>this.snapshot;
@@ -94,13 +96,19 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
     const wasPaused=this.paused,prior=this.capture,pauseId=this.recoveryId;
     this.capture=null;this.paused=true;this.onInvalidate?.();
     this.cancel();clearTimeout(this.maxTimer);
-    this.updateAll({status:"interrupted",aiStatus:"paused",error:"The interview paused. Tap Continue interview to reacquire camera and microphone. Saved answers remain; the recording gap will be visible to your recruiter."});
+    this.updateAll({
+      status: this.snapshot.hasConnected ? "interrupted" : "start_failed",
+      aiStatus: "paused",
+      error: this.snapshot.hasConnected
+        ? "The interview paused. Tap Continue interview to reconnect your camera and microphone. Saved answers are retained."
+        : "The interview paused during setup. Tap Retry start when you’re ready.",
+    });
     this.observe("recovery.transition",{state:"RECOVERY_REQUIRED",stage:"room.disposed",request_id:pauseId});
     if(!wasPaused&&this.clientId&&pauseId) {
       this.pauseTask=bounded(recruitmentService.recoverPause(this.token,this.clientId,pauseId,reason),"Pausing interview",{timeoutMs:8000});
       this.pauseTask.catch(cause=>{
         this.observe("recovery.error",{stage:"pause",code:cause.code||"request_failed",request_id:pauseId});
-        if(this.paused&&this.intentId===pauseId&&this.recoveryId===pauseId)this.update("error","Your connection could not confirm the pause. Tap Continue interview to restore the server state.");
+        if(this.snapshot.hasConnected&&this.paused&&this.intentId===pauseId&&this.recoveryId===pauseId)this.update("error","Your connection could not confirm the pause. Tap Continue interview to restore the server state.");
       });
     }
     this.abandon(()=>prior?.stop(reason),"capture.dispose",pauseId);
@@ -136,7 +144,7 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
           !this.paused &&
           this.recoveryId === generation
         )
-          this.update("aiStatus",state);
+          this.updateAll({aiStatus:state, ...(state==="connected" ? {hasConnected:true} : {})});
       },
       onRecovery: (state) => {
         if (
@@ -150,6 +158,7 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
             ? "interviewer_audio_unavailable"
             : "interviewer_connection_lost",
         );
+        if (!this.snapshot.hasConnected) return;
         this.update("error",
           state === "transcription-unavailable"
             ? "Your last answer could not be recognized. Tap Continue interview to retry. Earlier submitted answers are retained."
@@ -182,12 +191,12 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
       this.update("error","Return to this page before resuming.");
       return;
     }
-    if (this.submitting || (this.state === "RESUMED" && this.snapshot.status !== "interrupted")) {
+    if (this.submitting || (this.operation && !this.snapshot.hasConnected) || (this.state === "RESUMED" && this.snapshot.status !== "interrupted")) {
       this.observe("recovery.command",{stage:"continue.guard",code:this.submitting ? "submission_pending" : "already_active",request_id:requestId});
       return;
     }
     this.intentId=requestId;
-    acknowledge(()=>this.updateAll({recoveryView:{state:"RECOVERING",stage:"preparing"},busy:true,error:"",status:"interrupted"}));
+    acknowledge(()=>this.updateAll({recoveryView:{state:"RECOVERING",stage:"preparing"},busy:true,error:"",status:"starting"}));
     let activation, mediaPromise, playback;
     let operation;
     try {
@@ -218,9 +227,11 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
     } catch (cause) {
       this.observe("recovery.error",{stage:"native activation",code:cause.name || "native_activation_failed",request_id:requestId});
       this.update("error",
-        "Native audio could not start. Tap Continue interview to try again.",
+        this.snapshot.hasConnected
+          ? "Native audio could not start. Tap Continue interview to try again."
+          : "Interviewer audio could not start. Check audio access and tap Retry start.",
       );
-      this.update("status","interrupted");
+      this.update("status",this.snapshot.hasConnected ? "interrupted" : "start_failed");
       this.update("aiStatus","paused");
       this.closeInterviewer();
       this.abandon(()=>devices.stop(),"devices.dispose",requestId);
@@ -298,7 +309,7 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
       if (!stream)
         throw Object.assign(
           Error(
-            "Camera and microphone could not start. Tap Continue interview to reacquire them.",
+            "Camera and microphone could not start. Check access and try again.",
           ),
           { code: "native_media_failed" },
         );
@@ -477,14 +488,14 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
           "Pausing failed recovery",
           { timeoutMs: 8000 },
         ).catch(() => {});
-      this.update("status","interrupted");
+      this.update("status",this.snapshot.hasConnected ? "interrupted" : "start_failed");
       this.update("aiStatus","paused");
-      this.update("error",
-        this.stage === "fresh AI session" && !["native_audio_inactive","page_hidden"].includes(cause.code)
-          ? "The interviewer could not start. Check your connection and tap Continue interview to try again."
-          : cause.message ||
-              "The interview could not continue. Tap Continue interview to try again.",
-      );
+      const action = this.snapshot.hasConnected ? "Continue interview" : "Retry start";
+      const detail = cause.message?.split(/(?:\. )?(?:Tap Continue interview|Please try continuing again)/)[0];
+      this.update("error", this.stage === "fresh AI session" && !["native_audio_inactive","page_hidden"].includes(cause.code)
+        ? `The interviewer could not connect. Check your connection and tap ${action}.`
+        : `${detail?.replace(/[.]+$/, "") || "The interview could not connect"}. Tap ${action} to try again.`);
+
       this.finish(operation, "RECOVERY_REQUIRED");
     } finally {
       if (!this.operation) {

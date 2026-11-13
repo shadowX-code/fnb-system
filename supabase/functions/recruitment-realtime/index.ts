@@ -189,15 +189,19 @@ Deno.serve(async (request) => {
   );
   if (durableError)
     return json(request, { error: "Interview context unavailable." }, 503);
-  const [{ data: annotations, error: annotationError }, { data: traces, error: traceError }] = await Promise.all([
+  const [{ data: annotations, error: annotationError }, { data: traces, error: traceError }, { data: connections, error: connectionError }] = await Promise.all([
     service.from("recruitment_transcript_annotations").select("provider_generation,provider_item_id,kind").eq("attempt_id", context.attempt_id),
     service.from("recruitment_realtime_traces").select("provider_generation,record").eq("attempt_id", context.attempt_id).in("record->>phase", ["orientation_pending", "orientation_complete"]),
+    service.from("recruitment_events").select("id").eq("attempt_id", context.attempt_id).eq("action", "provider_connected").limit(1),
   ]);
-  if (annotationError || traceError) return json(request, {error:"Interview context unavailable."}, 503);
+  if (annotationError || traceError || connectionError) return json(request, {error:"Interview context unavailable."}, 503);
   const continuation = continuationContext(durable, {provider_generation:context.generation,preferred_language:context.preferred_language},
     {...context,interview_profile:context.interview_profile},
     {...context.opening, employment_preference:context.employment_preference}, annotations || [], traces || []);
-  if (continuity) context.conversation_protocol = "continuity-v2";
+  if (continuity) {
+    context.conversation_protocol = "continuity-v2";
+    context.has_connected = Boolean(connections?.length);
+  }
   if (orientationEnabled) { context.orientation_complete = continuation.orientation_complete; context.orientation_presented = continuation.orientation_presented; }
   context.turns = continuation.turns;
   context.current_findings = durable.current_findings || [];

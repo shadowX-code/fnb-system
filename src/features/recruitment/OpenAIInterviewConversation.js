@@ -97,6 +97,8 @@ export class OpenAIInterviewConversation {
       if (response) response.itemId = e.item.id;
     }
     if (id && this.cancelled.has(id)) return ["output_audio_buffer.cleared", "output_audio_buffer.stopped", "response.done"].includes(e.type);
+    if (e.type === "response.output_audio_transcript.done" && this.responses.has(id))
+      this.responses.get(id).audioTranscriptDone = true;
     if (e.type === "response.done") {
       const response = this.responses.get(id);
       if (response) { response.done = true; response.status = e.response.status; response.cancelled ||= e.response.status === "cancelled"; }
@@ -172,13 +174,15 @@ export class OpenAIInterviewConversation {
       uncertain:this.uncertainInputs.size > 0,
       canSend:!!this.inputOpen && !this.speaking && !this.pendingInputs.size && !!this.drafts.size,
       listening:!!this.inputOpen,
+      thinking:!!this.pendingInputs.size && !this.speaking,
+      speaking:this.playing,
       waiting:!!this.pendingInputs.size,
-      canInterrupt:!this.inputOpen && !this.interrupting && [...this.responses.values()].some(r=>!r.cancelled && (!r.done || (r.itemId && !r.drained))),
+      canInterrupt:this.playing && !this.interrupting,
     });
   }
   syncInput() {
     if (this.closed || this.interrupting) return;
-    const busy=this.awaitingResponse || [...this.responses.values()].some(r=>!r.cancelled && (!r.done || (r.itemId && !r.drained))) || [...this.tools.values()].some(t=>!t.sent);
+    const busy=this.awaitingResponse || this.playing || [...this.responses.values()].some(r=>!r.cancelled && (!r.done || (r.itemId && !r.drained))) || [...this.tools.values()].some(t=>!t.sent);
     this.setInput(this.entryRequested && !busy);
   }
   controlledEvent(e) {

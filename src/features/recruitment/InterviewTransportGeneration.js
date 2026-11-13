@@ -30,7 +30,7 @@ export class InterviewTransportGeneration extends InterviewRecovery {
     const transport = new RecruitmentRealtimeSession({token,clientId,recoveryId,mediaStream,startedAt,audioElement,qaTransport:this.qaTransport,
       onDiagnostic:details=>{if(current())this.onDiagnostic?.({...details,request_id:recoveryId});},
       onTurnState:view=>{if(current())onTurnState(view);},
-      onRemote:stream=>{if(current())onRemote(stream);},
+      onRemote:stream=>current() ? onRemote(stream) : undefined,
       onStatus:state=>{
         if (!current()) return;
         onStatus(state);

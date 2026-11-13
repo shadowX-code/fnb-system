@@ -1,3 +1,4 @@
+import { watchInterviewPlaybackDrain } from "./interviewPlaybackDrain.js";
 import { interviewPlaybackOwner } from "./InterviewPlayback.js";
 import { bounded } from "./interviewRecovery.js";
 import { OpenAIInterviewConversation } from "./OpenAIInterviewConversation.js";
@@ -134,7 +135,7 @@ export class RecruitmentRealtimeSession {
       this.remoteTrackCleanup = () => track.removeEventListener("ended", ended);
       this.checkpoint("remote.attach");
       try {
-        this.onRemote(event.streams[0]);
+        this.remoteAnalyser = this.onRemote(event.streams[0]);
         this.audioElement.srcObject = event.streams[0];
         this.checkpoint("remote.attach","dependency_completed");
       } catch(error) {
@@ -199,7 +200,7 @@ export class RecruitmentRealtimeSession {
       if (this.qaTransport === "sdk") {
         await connectInterviewSdk({
           signal, mediaStream: providerStream, audioElement: this.audioElement,
-          apiKey: secret.value, bind,
+          apiKey: secret.value, bind, checkpoint: (stage, code) => this.checkpoint(stage, code),
           consume: event => this.consumeEvent(event),
         });
       } else {
@@ -321,6 +322,26 @@ export class RecruitmentRealtimeSession {
     this.evidence.observe(event);
     const accepted = this.conversation.event(event);
     this.audioPlaying = this.conversation.playing;
+    if (accepted && event.type === "output_audio_buffer.started" && this.remoteAnalyser) {
+      this.playbackDrain?.stop();
+      const responseId = event.response_id;
+      this.playbackDrain = watchInterviewPlaybackDrain(this.remoteAnalyser, () =>
+        !this.closed && this.ownsPlayback() && this.conversation.activeAudioResponse === responseId &&
+        !document.hidden && this.peer?.connectionState === "connected" && !this.audioElement.paused && !this.audioElement.muted &&
+        this.audioElement.readyState >= 2 && !this.remoteTrack?.muted &&
+        this.remoteTrack?.readyState === "live" && this.remoteAnalyser.context.state === "running",
+      () => {
+        if (this.closed || !this.ownsPlayback() || this.conversation.activeAudioResponse !== responseId) return;
+        this.consumeEvent({type:"output_audio_buffer.stopped",response_id:responseId,phase:"browser_audio_drained"});
+      });
+    }
+    if (!this.audioPlaying) {
+      this.playbackDrain?.stop();
+      this.playbackDrain = null;
+    } else if (["response.done","response.output_audio_transcript.done","output_audio_buffer.started"].includes(event.type)) {
+      const response = this.conversation.responses.get(this.conversation.activeAudioResponse);
+      if (response?.status === "completed" && response.audioTranscriptDone) this.playbackDrain?.complete();
+    }
     if (this.qaTransport && accepted && this.audioPlaying && event.type === "output_audio_buffer.started") {
       this.stopAudioProbe?.();
       const response_id = this.conversation.activeAudioResponse;
@@ -380,7 +401,7 @@ export class RecruitmentRealtimeSession {
     this.rejectPlayback?.(Error("Interview session was replaced."));this.rejectPlayback=null;
     this.rejectConnection?.(Error("Interview session was replaced."));this.rejectConnection=null;
     const cleanup=[()=>this.conversation.close(),()=>this.evidence.close(),()=>this.remoteTrackCleanup?.(),
-      ()=>this.stopAudioProbe?.(),()=>this.sdk ? this.sdk.close() : this.channel?.close(),
+      ()=>this.playbackDrain?.stop(),()=>this.stopAudioProbe?.(),()=>this.sdk ? this.sdk.close() : this.channel?.close(),
       ()=>{if(!this.sdk)this.peer?.close();},()=>this.providerMicrophone?.stop(),
       ()=>{if(this.playbackOwner)this.playbackOwner.dispose();else if(!interviewPlaybackOwner(this.audioElement)){this.audioElement.pause?.();this.audioElement.srcObject=null;}},
       ...(this.playbackListeners||[]).map(({type,listener})=>()=>this.audioElement.removeEventListener?.(type,listener))];
