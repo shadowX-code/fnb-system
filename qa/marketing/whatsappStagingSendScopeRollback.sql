@@ -40,8 +40,8 @@ begin
  then raise exception 'Opted-out recipient was allowed';end if;
  probe:=chat;
  probe.connection_generation:=chat.connection_generation-1;
- if marketing_private.whatsapp_test_staff_ready(probe,conn) or marketing_private.whatsapp_test_template_ready(probe,conn)
- then raise exception 'Superseded conversation was allowed';end if;
+ if marketing_private.whatsapp_test_staff_ready(probe,conn)
+ then raise exception 'An older credential generation opened the staff reply window';end if;
  sender_probe:=conn;
  sender_probe.whatsapp_waba_id:='10000000001';
  if marketing_private.whatsapp_test_staff_ready(chat,sender_probe) or marketing_private.whatsapp_campaign_connection(sender_probe)

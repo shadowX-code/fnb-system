@@ -51,8 +51,17 @@ begin
   then raise exception 'List and search did not match the detail identity';end if;
  end loop;
  identity:=marketing_private.whatsapp_inbox_identity(chat,null);
- if identity->>'source' is distinct from 'whatsapp_phone' or identity ? 'display_name'
- then raise exception 'Historical fallback inferred a profile name or leaked CRM identity';end if;
+ if identity->>'phone_e164' is distinct from phone
+  or identity->>'source' not in ('whatsapp_phone','whatsapp_profile')
+  or (identity->>'source'='whatsapp_phone' and identity ? 'display_name')
+ then raise exception 'Historical fallback leaked CRM identity or lost the phone';end if;
+ if identity->>'source'='whatsapp_profile' and not exists(
+  select 1 from public.marketing_conversation_messages m
+  join marketing_private.inbox_events e on e.event_key=chat.connection_id::text||':'||m.whatsapp_generation||':whatsapp:message:'||m.provider_message_id
+  where m.conversation_id=chat.id and m.kind in ('incoming','attachment')
+   and m.evidence_source='signed_webhook' and e.evidence_source='signed_webhook' and e.state='processed'
+   and btrim(e.payload->>'profile_name')=identity->>'display_name')
+ then raise exception 'Historical profile lacked signed inbound evidence';end if;
 
  if exists(select 1 from public.platform_customers where organization_id=chat.organization_id and phone_e164='+'||fixture_peer)
   or exists(select 1 from public.marketing_conversations where connection_id=conn.id and participant_key=fixture_peer)
