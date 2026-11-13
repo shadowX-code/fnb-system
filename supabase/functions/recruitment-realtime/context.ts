@@ -2,7 +2,7 @@ import { orientationComplete, orientationPresented } from "./orientation.ts";
 import type { InterviewContext } from "./prompt.ts";
 
 // Build quiet updates exclusively from canonical server evidence. Never allocate
-// a provider generation just to refresh coverage. Truncated AI is not resume history.
+// a provider generation just to refresh coverage. Unverified or truncated speech is not resume history.
 export function continuationContext(
   state: any,
   attempt: any,
@@ -11,14 +11,14 @@ export function continuationContext(
   annotations: any[],
   traces: any[] = [],
 ): InterviewContext {
-  const truncated = new Set(
+  const excluded = new Set(
     annotations
-      .filter((a) => a.kind === "truncated")
+      .filter((a) => ["truncated", "unverified_candidate", "transcription_failed"].includes(a.kind))
       .map((a) => `${a.provider_generation}:${a.provider_item_id}`),
   );
   const turns = state.turns.filter(
     (t: any) =>
-      !truncated.has(`${t.provider_generation}:${t.provider_item_id}`),
+      !excluded.has(`${t.provider_generation}:${t.provider_item_id}`),
   );
   return {
     job_facts: state.job_facts || config.job_facts || {},

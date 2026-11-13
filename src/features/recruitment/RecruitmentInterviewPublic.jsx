@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import {
   MapPin,
   Clock,
-  MessageCircle,
   UserRound,
   Camera,
   Mic,
@@ -15,7 +14,7 @@ import { recruitmentService } from "./recruitmentService.js";
 import RecruitmentInterviewSession from "./RecruitmentInterviewSession.jsx";
 import { useInterviewDevices } from "./useInterviewDevices.js";
 import { interviewLanguages, languageLabel } from "./interviewPresentation.js";
-import { preparationText, consentPresentation, preparationDeviceError } from "./candidatePreparation.js";
+import { candidateText, consentPresentation, preparationDeviceError } from "./candidatePreparation.js";
 import "./recruitmentPublic.css";
 
 const tokenFromPath = () =>
@@ -48,7 +47,7 @@ export default function RecruitmentInterviewPublic() {
     try { return localStorage.getItem("feedx-interview-interface") === "zh" ? "zh" : "en"; }
     catch { return "en"; }
   });
-  const t = preparationText[interfaceLanguage];
+  const t = candidateText(interfaceLanguage);
   const consentCopy = consentPresentation(entry?.consent_copy, interfaceLanguage);
   const devices = useInterviewDevices();
   useEffect(() => {
@@ -73,18 +72,14 @@ export default function RecruitmentInterviewPublic() {
         setContact(value?.profile?.contact || "");
         setLanguage(value?.preferred_language || "en");
       })
-      .catch((c) => {
-        if (active)
-          setBootstrapError(
-            c.message ||
-              "Could not load your interview. Try again with a stable connection.",
-          );
+      .catch(() => {
+        if (active) setBootstrapError("loadErrorDetail");
       });
     return () => {
       active = false;
     };
   }, [token, bootstrapRevision]);
-  async function run(action) {
+  async function run(action, failure = "saveError") {
     setBusy(true);
     setError("");
     try {
@@ -94,8 +89,8 @@ export default function RecruitmentInterviewPublic() {
       setEntry(value);
       if (value?.preferred_language) setLanguage(value.preferred_language);
       return true;
-    } catch (c) {
-      setError(c.message || "Could not save. Please try again.");
+    } catch {
+      setError(failure);
       return false;
     } finally {
       setBusy(false);
@@ -117,11 +112,8 @@ export default function RecruitmentInterviewPublic() {
       .then((value) => {
         if (active) setEntry(value);
       })
-      .catch((c) => {
-        if (active)
-          setError(
-            c.message || "Could not confirm readiness. Try again below.",
-          );
+      .catch(() => {
+        if (active) setError("readinessError");
       })
       .finally(() => {
         if (active) setReadinessBusy(false);
@@ -148,9 +140,34 @@ export default function RecruitmentInterviewPublic() {
       setEditing(false);
     }
   }
+  const languageChoices = (
+    <fieldset className="candidate-languages">
+      <legend>{t.interviewLanguage}</legend>
+      <p>{t.languageGuidance}</p>
+      <div>
+        {interviewLanguages.map((option) => (
+          <button key={option.value} className="candidate-button is-secondary" type="button"
+            aria-pressed={language === option.value} disabled={busy} onClick={() => setLanguage(option.value)}>
+            {language === option.value && <Check size={17} aria-hidden="true" />}
+            <span lang={option.value}>{option.value === "zh" && interfaceLanguage === "zh" ? "普通话" : option.label}</span>
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+  const readyHeading = () => <>
+    <h1>{t.getReady}</h1>
+    <div className="candidate-role">
+      <h2>{entry.job.position || entry.job.title}</h2>
+      <div className="candidate-role-meta">
+        {entry.job.workplace && <span><MapPin size={16} aria-hidden="true" />{entry.job.workplace}</span>}
+        {entry.job.target_minutes && <span><Clock size={16} aria-hidden="true" />{t.minutes(entry.job.target_minutes)}</span>}
+      </div>
+    </div>
+  </>;
   const getReady = ({ start, preparing = false } = {}) => (
     <section className="candidate-preparation">
-      <h1>{t.getReady}</h1>
+      {readyHeading()}
       <p>
         {t.deviceGuidance}
       </p>
@@ -227,12 +244,17 @@ export default function RecruitmentInterviewPublic() {
         </div>
         <button
           className="candidate-button is-secondary"
-          disabled={busy}
+          disabled={busy || details}
           onClick={() => setDetails(true)}
         >
           {t.change}
         </button>
       </div>
+      {details && <div className="candidate-language-edit">
+        {languageChoices}
+        <button className="candidate-button is-secondary" disabled={busy} onClick={continueDetails}>{busy ? t.saving : t.saveLanguage}</button>
+        <button className="candidate-button is-quiet" disabled={busy} onClick={() => { setLanguage(entry.preferred_language); setDetails(false); }}>{t.cancel}</button>
+      </div>}
       <div className="recruitment-consent">
         {/* Display the canonical versioned disclosure and acceptance snapshot. */}
         {consentCopy.body?.map(text => <p key={text}>{text}</p>)}
@@ -266,7 +288,7 @@ export default function RecruitmentInterviewPublic() {
       </div>
       {error && (
         <p role="alert" className="recruitment-error">
-          {error}
+          {t[error]}
         </p>
       )}
       {entry.consented &&
@@ -276,7 +298,7 @@ export default function RecruitmentInterviewPublic() {
         !readinessBusy && (
           <button
             className="candidate-button is-secondary"
-            onClick={() => run(() => recruitmentService.ready(token))}
+            onClick={() => run(() => recruitmentService.ready(token), "readinessError")}
           >
             {t.retryReadiness}
           </button>
@@ -285,6 +307,7 @@ export default function RecruitmentInterviewPublic() {
         className="candidate-button is-primary recruitment-full"
         disabled={
           busy ||
+          details ||
           readinessBusy ||
           preparing ||
           !online ||
@@ -322,7 +345,7 @@ export default function RecruitmentInterviewPublic() {
             </h1>
             {bootstrapError && (
               <>
-                <p role="alert">{bootstrapError}</p>
+                <p role="alert">{t[bootstrapError]}</p>
                 <button
                   className="candidate-button is-primary"
                   onClick={() => setBootstrapRevision((x) => x + 1)}
@@ -332,66 +355,17 @@ export default function RecruitmentInterviewPublic() {
               </>
             )}
           </section>
-        ) : !entry.available ? (
+        ) : !entry.available && !["finalizing", "completed", "partial", "failed"].includes(entry.status) ? (
           <section>
             <h1>{t.linkUnavailable}</h1>
             <p>
               {t.linkUnavailableReason}
             </p>
           </section>
-        ) : entry.status === "invited" || details ? (
-          <section className="candidate-details">
-            <h1>{t.details}</h1>
-            <p>{t.detailsGuidance}</p>
-            <div className="candidate-role">
-              <h2>{entry.job.position || entry.job.title}</h2>
-              {entry.job.title !== entry.job.position && (
-                <p>{entry.job.title}</p>
-              )}
-              <dl className="recruitment-details">
-                <div>
-                  <dt>
-                    <MapPin size={17} /> {t.workplace}
-                  </dt>
-                  <dd>{entry.job.workplace}</dd>
-                </div>
-                <div>
-                  <dt>
-                    <Clock size={17} /> {t.duration}
-                  </dt>
-                  <dd>{t.minutes(entry.job.target_minutes)}</dd>
-                </div>
-                <div>
-                  <dt>
-                    <MessageCircle size={17} /> {t.whatToExpect}
-                  </dt>
-                  <dd>
-                    {t.conversation}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-            <fieldset className="candidate-languages">
-              <legend>{t.preferredLanguage}</legend>
-              <p>
-                {t.languageGuidance}
-              </p>
-              <div>
-                {interviewLanguages.map((option) => (
-                  <button
-                    key={option.value}
-                    className="candidate-button is-secondary"
-                    type="button"
-                    aria-pressed={language === option.value}
-                    disabled={busy}
-                    onClick={() => setLanguage(option.value)}
-                  >
-                    {language === option.value && <Check size={17} />}
-                    <span lang={option.value}>{option.label}</span>
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+        ) : entry.status === "invited" ? (
+          <section className="candidate-preparation">
+            {readyHeading()}
+            {languageChoices}
             <div className="candidate-identity">
               <div>
                 <UserRound size={20} />
@@ -441,7 +415,7 @@ export default function RecruitmentInterviewPublic() {
             )}
             {error && (
               <p role="alert" className="recruitment-error">
-                {error}
+                {t[error]}
               </p>
             )}
             <button
@@ -451,7 +425,7 @@ export default function RecruitmentInterviewPublic() {
               }
               onClick={continueDetails}
             >
-              {busy ? t.saving : t.continue}
+              {busy ? t.saving : t.confirmDetails}
               <ArrowRight size={18} />
             </button>
           </section>
@@ -461,6 +435,7 @@ export default function RecruitmentInterviewPublic() {
             token={token}
             entry={entry}
             devices={devices}
+            language={interfaceLanguage}
             renderPreparation={getReady}
           />
         ) : (

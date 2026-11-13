@@ -1,140 +1,63 @@
-import { Check, Clock, Camera, MapPin } from "lucide-react";
-export function InterviewComplete({ entry, completedAt, reason }) {
+import { AlertCircle, Camera, Check, Clock, Mic, Volume2 } from "lucide-react";
+import { candidateText } from "./candidatePreparation.js";
+
+export function InterviewComplete({ entry, completedAt, status = "completed", language }) {
+  const t = candidateText(language);
+  const failed = status === "failed";
   return (
     <section className="candidate-complete">
-      <div className="candidate-complete-mark" aria-hidden="true">
-        <Check size={42} />
+      <div className={`candidate-state-icon ${failed ? "is-warning" : ""}`} aria-hidden="true">
+        {failed ? <AlertCircle size={25} /> : <Check size={25} />}
       </div>
-      <h1>{reason ? "Interview cannot continue" : "Interview complete"}</h1>
-      <p>{reason || "Thank you for your time."}</p>
-      {!reason && (
-        <p className="candidate-complete-note">
-          Your interview has been submitted to the hiring team for recruitment
-          review.
-        </p>
-      )}
+      <h1>{t[status]}</h1>
+      <p>{t[`${status}Help`]}</p>
       <dl className="recruitment-details">
-        <div>
-          <dt>Interview</dt>
-          <dd>{entry.job?.position || entry.job?.title || "Interview"}</dd>
-        </div>
-        <div>
-          <dt>Workplace</dt>
-          <dd>{entry.job?.workplace}</dd>
-        </div>
-        {completedAt && (
-          <div>
-            <dt>Completed on</dt>
-            <dd>
-              {new Date(completedAt).toLocaleString(undefined, {
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
-            </dd>
-          </div>
-        )}
+        <div><dt>{t.interview}</dt><dd>{entry.job?.position || entry.job?.title || t.interview}</dd></div>
+        {entry.job?.workplace && <div><dt>{t.workplace}</dt><dd>{entry.job.workplace}</dd></div>}
+        {!failed && completedAt && <div>
+          <dt>{t.completedOn}</dt>
+          <dd>{new Date(completedAt).toLocaleString(language === "zh" ? "zh-MY" : "en-MY", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kuala_Lumpur" })}</dd>
+        </div>}
       </dl>
-      <p className="recruitment-hint">You may now close this page.</p>
+      {!failed && <p className="recruitment-hint">{t.closePage}</p>}
     </section>
   );
 }
+
 export default function RecruitmentInterviewRoom({
-  entry,
-  presence,
-  status,
-  recovering,
-  recordingStatus,
-  elapsed,
-  previewRef,
-  children,
+  entry, presence, recordingStatus, elapsed, previewRef, children, language,
 }) {
-  const state =
-    status === "finalizing"
-      ? "submitting"
-      : recovering
-        ? "connecting"
-        : status === "interrupted"
-          ? "recovering"
-          : presence.state;
-  const labels = {
-    listening: "Listening",
-    speaking: "Speaking",
-    thinking: "Thinking",
-    connecting: "Connecting",
-    recovering: "Ready to continue",
-    submitting: "Submitting your responses",
-    submission_required: "Submission needs attention",
-  };
+  const t = candidateText(language);
+  const state = presence.state;
+  const PresenceIcon = state === "speaking" ? Volume2 : Mic;
   return (
     <section className="candidate-room" data-presence={state}>
       <header className="candidate-room-context">
         <div>
-          <strong>
-            {entry.job?.position || entry.job?.title || "Interview"}
-          </strong>
-          <span>
-            <MapPin size={14} />
-            {entry.job?.workplace}
-          </span>
+          <h1>{t.interview}</h1>
+          <p>{entry.job?.position || entry.job?.title}{entry.job?.workplace && ` · ${entry.job.workplace}`}</p>
         </div>
-        <span className="candidate-room-time">
-          <Clock size={16} />
+        <span className="candidate-room-time" aria-label={t.elapsed}>
+          <Clock size={16} aria-hidden="true" />
           {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
         </span>
       </header>
-      <div className="candidate-recording" role="status">
-        {recordingStatus === "recording" && status === "interviewing"
-          ? "● Recording"
-          : status === "interrupted"
-            ? "Interview paused · saved responses retained"
-            : status === "finalizing"
-              ? "Submitting your interview"
-              : status === "submission_required"
-                ? "Your saved responses are retained · retry submission"
-                : "Preparing your interview"}
-      </div>
-      <div className="candidate-presence">
-        <div className="candidate-orb" aria-hidden="true">
-          <i />
-          <div className="candidate-wave">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <span key={i} />
-            ))}
-          </div>
+      <div className="candidate-stage">
+        <div className="candidate-presence" role="status">
+          <span className="candidate-state-icon"><PresenceIcon size={22} aria-hidden="true" /></span>
+          <div><strong>{t[state] || t.connecting}</strong>{state === "listening" && <span>{t.speakNow}</span>}</div>
         </div>
-        <h1>FeedX Interviewer</h1>
-        <p role="status">
-          {status === "submission_required"
-            ? "Submission needs attention"
-            : labels[state] || "Connecting"}
-          {state === "listening" ? " · You can speak now" : ""}
-        </p>
-      </div>
-      {!["finalizing", "submission_required"].includes(status) && presence.prompt && (
-        <div className="candidate-prompt">
-          <span>FeedX Interviewer</span>
-          <p>{presence.prompt}</p>
+        <div className="candidate-self-view">
+          <video ref={previewRef} autoPlay playsInline muted aria-label={t.cameraPreview} />
+          <span><Camera size={13} aria-hidden="true" />{t.you}</span>
         </div>
-      )}
-      {!["finalizing", "submission_required"].includes(status) && <div className="candidate-self-view">
-        <video
-          ref={previewRef}
-          autoPlay
-          playsInline
-          muted
-          aria-label="Your interview camera"
-        />
-        <span>
-          <Camera size={13} />
-          You
-        </span>
+        {recordingStatus === "recording" && <span className="candidate-recording"><i aria-hidden="true" />{t.recording}</span>}
       </div>
-      }
+      <div className="candidate-prompt">
+        <span>{t.interviewer}</span>
+        <p>{presence.prompt || t.waitingForQuestion}</p>
+      </div>
       <div className="candidate-room-controls">{children}</div>
-      {!["finalizing", "submission_required"].includes(status) && <p className="recruitment-hint">
-        Keep this page open and your screen active. If interrupted, continue
-        here with your saved answers.
-      </p>}
     </section>
   );
 }

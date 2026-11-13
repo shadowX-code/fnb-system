@@ -18,16 +18,16 @@ beforeEach(()=>{
   qa.ready.mockResolvedValue({...entry,status:"ready",consented:true});
 });
 afterEach(cleanup);
-describe("Two-screen versioned candidate preparation",()=>{
-  it("combines job/profile details, removes progress pills and persists allowed profile before Get ready",async()=>{
+describe("Versioned candidate preparation",()=>{
+  it("combines job/profile details, removes progress pills and persists allowed profile within Get ready",async()=>{
     render(<RecruitmentInterviewPublic/>);
-    await screen.findByRole("heading",{name:"Interview details"});
+    await screen.findByRole("heading",{name:"Get ready"});
     expect(screen.queryByRole("navigation")).toBeNull();
     expect(screen.getByText("About 9 minutes")).toBeTruthy();
     fireEvent.click(screen.getByRole("button",{name:"Edit",exact:true}));
     fireEvent.change(screen.getByLabelText("Candidate name"),{target:{value:"Updated tester"}});
-    fireEvent.click(screen.getByRole("button",{name:"Continue"}));
-    await screen.findByRole("heading",{name:"Get ready"});
+    fireEvent.click(screen.getByRole("button",{name:"Confirm details"}));
+    await screen.findByRole("checkbox");
     expect(qa.confirmProfile).toHaveBeenCalledWith("a".repeat(64),"Updated tester","0000000055");
     expect(screen.queryByRole("heading",{name:"Consent"})).toBeNull();
     expect(screen.getByRole("button",{name:"Start interview"}).disabled).toBe(true);
@@ -39,7 +39,7 @@ describe("Two-screen versioned candidate preparation",()=>{
     await screen.findByRole("heading",{name:"Get ready"});
     expect(screen.getByRole("button",{name:"Start interview"}).disabled).toBe(true);
     fireEvent.click(screen.getByRole("checkbox",{name:entry.consent_copy.consent}));
-    await screen.findByText("Consent recorded");
+    await waitFor(()=>expect(screen.getByRole("checkbox").checked).toBe(true));
     expect(qa.consent).toHaveBeenCalledWith("a".repeat(64),entry.copy_version);
     if(order==="consent-first") { expect(qa.ready).not.toHaveBeenCalled(); qa.devices.state={status:"ready",level:.2}; view.rerender(<RecruitmentInterviewPublic/>); }
     await waitFor(()=>expect(screen.getByRole("button",{name:"Start interview"}).disabled).toBe(false));
@@ -60,7 +60,7 @@ describe("Two-screen versioned candidate preparation",()=>{
     qa.publicEntry.mockResolvedValue({...entry,status:"consented",consented:true});
     qa.devices.state={status:"ready",level:0};qa.ready.mockRejectedValueOnce(Error("Connection unavailable"));
     render(<RecruitmentInterviewPublic/>);
-    await screen.findByText("Connection unavailable");
+    await screen.findByText(/We couldn’t check that you’re ready/);
     expect(screen.getByRole("button",{name:"Start interview"}).disabled).toBe(true);
     fireEvent.click(screen.getByRole("button",{name:"Retry readiness check"}));
     await waitFor(()=>expect(screen.getByRole("button",{name:"Start interview"}).disabled).toBe(false));
@@ -88,7 +88,7 @@ it("reconnect uses the same presentation while retaining durable coverage and se
   expect(interviewerProfile.voice).toBe("marin");
   expect(prompt).toContain(interviewerProfile.instructions);
   expect(prompt).toContain("Experience [covered]");
-  expect(prompt).toContain("Complaint [answered]");
+  expect(prompt).toContain("Complaint [answered; required hypothetical");
   expect(prompt).toContain("Only conclude if the tool allows it");
   expect(prompt).not.toContain("Briefly acknowledge the interruption");
   expect(firstInterviewResponse(context)).toContain("For this first response only");

@@ -280,7 +280,7 @@ it("hydrates pinned priorities, partial evidence, facts and requirements as cont
   expect(text).toContain("[partial]");
   expect(text).toContain("11pm");
   expect(text).toContain("never replay as speech");
-  expect(text).toContain("Prioritize unresolved Core");
+  expect(text).toContain("prioritize materially missing evidence under the pinned completion minimum");
   expect(context.established_facts[0].turn_number).toBe(2);
 });
 it("labels recording failure separately from candidate stage and interview evidence", async () => {

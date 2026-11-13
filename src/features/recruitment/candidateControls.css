@@ -36,6 +36,11 @@
     background: var(--theme-surface-muted);
   }
 }
+.recruitment-public .candidate-button.is-quiet:not(:disabled) {
+  border-color: transparent;
+  color: var(--theme-muted);
+  background: transparent;
+}
 .recruitment-public .candidate-button:active:not(:disabled) {
   border-color: var(--theme-primary);
 }

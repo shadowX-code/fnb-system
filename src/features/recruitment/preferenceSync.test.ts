@@ -17,8 +17,8 @@ it('initial/replacement/quiet context uses only canonical application preference
   expect(context.employment_preference).toBe(preference);
   const instructions=interviewInstructions(context);
   expect(instructions).toContain(`employment preference (candidate information only): ${preference}`);
-  expect(instructions).toContain('do not ask the preference again');
-  expect(instructions).toContain('never a merged package');
+  expect(instructions).toContain('never ask for it again unless the candidate wants to change it');
+  expect(instructions).toContain('keep its terms separate');
   expect(JSON.stringify(context)).not.toContain('private_payroll');
  }
 });

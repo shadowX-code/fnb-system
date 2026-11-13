@@ -4,30 +4,18 @@ import RecruitmentInterviewRoom, {
 import {
   reconcileSubmission,
   isSubmissionTerminal,
+  submissionIntent,
 } from "./interviewSubmission.js";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { recruitmentService } from "./recruitmentService.js";
 import { RecruitmentRealtimeSession } from "./RecruitmentRealtimeSession.js";
-import { interviewLocalKey as acquirePartition } from "./interviewRecordingStore.js";
 import { InterviewRecording } from "./InterviewRecording.js";
 import { InterviewSessionRecoveryController } from "./InterviewSessionRecoveryController.js";
 import { InterviewRecoverySurface, InterviewRoomBoundary } from "./InterviewRecoverySurface.jsx";
 import { flushSync } from "react-dom";
 import { bounded } from "./interviewRecovery.js";
 
-const recoveryLabels = {
-  preparing: "Preparing to continue",
-  "tab ownership": "Checking this browser tab",
-  "server state": "Loading your saved interview",
-  "server resume": "Restoring your interview",
-  "transcript partition": "Finding saved answers",
-  "recent transcript": "Saving recent answers",
-  "camera and microphone": "Reacquiring camera and microphone",
-  "fresh recording": "Starting a new recording",
-  "fresh AI session": "Preparing your interviewer",
-  "device readiness": "Waiting for camera and microphone",
-  "interviewer playback": "Preparing interviewer audio",
-};
+import { candidateText } from "./candidatePreparation.js";
 
 function SessionSurface({active,controller,...props}) {
   if(!active)return <InterviewRecoverySurface {...props}/>;
@@ -39,17 +27,23 @@ export default function RecruitmentInterviewSession({
   entry,
   devices,
   renderPreparation,
+  language,
 }) {
+  const t = candidateText(language);
   const [controller]=useState(()=>new InterviewSessionRecoveryController({token,entry,devices}));
   controller.devices=devices;
   const view=useSyncExternalStore(controller.subscribe,controller.getSnapshot);
-  const {hasConnected,status,recordingStatus,error,recoveryView,terminalReason,recoveryNotice,presence,turnView}=view;
-  const setStatus=value=>controller.update("status",value),setRecordingStatus=value=>controller.update("recordingStatus",value),setError=value=>controller.update("error",value),setTerminalReason=value=>controller.update("terminalReason",value);
+  const {hasConnected,status,recordingStatus,error,recoveryView,recoveryNotice,presence,turnView}=view;
+  const setStatus=value=>controller.update("status",value),setRecordingStatus=value=>controller.update("recordingStatus",value),setError=value=>controller.update("error",value);
   const [actionBusy,setBusy]=useState(false),[elapsed,setElapsed]=useState(0),[actionState,setActionState]=useState("IDLE"),[partialConfirm,setPartialConfirm]=useState(false),[completedAt,setCompletedAt]=useState(entry.completed_at);
-  const [submissionState,setSubmissionState]=useState(entry.status==="finalizing"?"PENDING":"IDLE");
+  const finishReason=useRef(submissionIntent(controller.journal.key)),actionOwner=useRef(null);
+  const [submissionState,setSubmissionState]=useState(() =>
+    entry.status === "finalizing" ? "PENDING" :
+      !isSubmissionTerminal(entry.status) && finishReason.current ? "SUBMISSION_REQUIRED" : "IDLE"
+  );
+  controller.submissionPending = ["PENDING", "SUBMISSION_REQUIRED"].includes(submissionState);
   const busy=actionBusy||view.busy;
 
-  const finishReason=useRef(null),actionOwner=useRef(null);
   controller.onCompletion=finalize;
   controller.onInvalidate=()=>{actionOwner.current=null;setActionState("IDLE");setPartialConfirm(false);setBusy(false);};
   const observe=(type,details)=>controller.observe(type,details);
@@ -62,6 +56,7 @@ export default function RecruitmentInterviewSession({
   }
   function acceptSubmission(result) {
     if (!controller.mounted) return;
+    submissionIntent(controller.journal.key, null);
     setStatus(result.status);
     setCompletedAt(result.completed_at || entry.completed_at);
     if (!result.completed_at)
@@ -92,12 +87,12 @@ export default function RecruitmentInterviewSession({
       if (result.can_finish) await finalize(result.max_reached ? "max_duration" : "coverage");
       else {
         observe("recovery.command", {stage:"finish.denied",request_id:owner});
-        setError("The interviewer still needs more information. Continue the conversation, or choose Stop and save partial interview.");
+        setError("moreNeeded");
       }
     } catch (cause) {
       if (actionOwner.current === owner) {
         observe("recovery.command", {stage:"finish.failed",code:cause.code || "completion_check_failed",request_id:owner});
-        setError(cause.message || "Could not check completion. Try again or stop and save a partial interview.");
+        setError("finishUnavailable");
       }
     } finally {
       if (actionOwner.current === owner) {actionOwner.current=null;setActionState("IDLE");setBusy(false);}
@@ -112,14 +107,15 @@ export default function RecruitmentInterviewSession({
   async function finalize(reason) {
     if (controller.submitting) return;
     controller.submitting = true;
+    controller.submissionPending = true;
     finishReason.current = reason;
+    submissionIntent(controller.journal.key, reason);
     setBusy(true);
     setError("");
     setSubmissionState("PENDING");
     setActionState("SUBMITTING");
     setPartialConfirm(false);
     observe("recovery.command", {stage:"submission.requested",code:reason});
-    controller.transport?.close();
     clearTimeout(controller.maxTimer);
     try {
       await bounded(
@@ -135,7 +131,7 @@ export default function RecruitmentInterviewSession({
       // strand the UI after the server has independently reconciled that unit.
       const tasks = await Promise.allSettled([
         bounded(
-          (controller.transport || controller.transport)?.flush(),
+          controller.transport?.flush(),
           "Saving your responses",
           { timeoutMs: 8000 },
         ),
@@ -157,26 +153,39 @@ export default function RecruitmentInterviewSession({
       });
     } catch (cause) {
       observe("recovery.command", {stage:"submission.failed",code:cause.cause?.code || cause.code || "submission_failed"});
-      if (cause.cause?.code === "55000" || cause.code === "55000") {
-        controller.submitting = false;
-        setSubmissionState("IDLE");
-        pause("completion_not_authorized");
-        setError("The interview still needs more information. Continue interview to finish the conversation, or save a partial interview.");
+      if (isFinishDenied(cause)) {
+        releaseDeniedSubmission();
         return;
       }
-      setError(
-        cause.message ||
-          "Submission could not be confirmed. Retry with a stable connection.",
-      );
-      setStatus("finalizing");
-      if (cause.code === "submission_unavailable")
-        setTerminalReason(cause.message);
-      setSubmissionState("SUBMISSION_REQUIRED");
+      controller.transport?.close();
+      controller.abandon(() => controller.capture?.stop("completed"), "capture.submission");
+      devices.stop();
+      submissionFailed(cause);
     } finally {
       controller.submitting = false;
       setActionState("IDLE");
       setBusy(false);
     }
+  }
+  const isFinishDenied = (cause) => (cause.cause?.code || cause.code) === "55000";
+  function releaseDeniedSubmission() {
+    submissionIntent(controller.journal.key, null);
+    finishReason.current = null;
+    controller.submitting = false;
+    controller.submissionPending = false;
+    setSubmissionState("IDLE");
+    if (controller.session && controller.state === "RESUMED") pause("completion_not_authorized");
+    setStatus(controller.snapshot.hasConnected ? "interrupted" : "start_failed");
+    setError("moreNeeded");
+  }
+  function submissionFailed(cause) {
+    if (cause.code === "submission_unavailable") {
+      submissionIntent(controller.journal.key, null);
+      setStatus("failed");
+      setSubmissionState("COMPLETE");
+      return;
+    }
+    setSubmissionState("SUBMISSION_REQUIRED");
   }
   async function retryFinalization() {
     if (controller.submitting) return;
@@ -195,25 +204,32 @@ export default function RecruitmentInterviewSession({
         return;
       }
       if (!saved.available)
-        throw Error(
-          "This interview link is no longer available. Contact the hiring team.",
-        );
+        throw Object.assign(Error("Interview unavailable"), { code: "submission_unavailable" });
       await claimClient();
       controller.session = await bounded(
         recruitmentService.begin(token, controller.clientId),
         "Loading your interview",
         { timeoutMs: 15000 },
       );
-      if (saved.status !== "finalizing")
+      if (controller.session.status !== "finalizing" && saved.status !== "finalizing" && !finishReason.current)
+        throw Error("Submission state changed");
+      if (controller.session.status !== "finalizing" && saved.status !== "finalizing") {
         await bounded(
           recruitmentService.finish(
             token,
             controller.clientId,
-            finishReason.current || "candidate_stop",
+            finishReason.current,
           ),
           "Saving interview outcome",
           { timeoutMs: 15000 },
-        );
+        ).catch(cause => {
+          if (isFinishDenied(cause)) releaseDeniedSubmission();
+          throw cause;
+        });
+      }
+      setStatus("finalizing");
+      if (controller.capture?.captureStopped)
+        await bounded(controller.capture.captureStopped, "Saving recording evidence", { timeoutMs: 15000 });
       const recovery = new InterviewRecording({
         token,
         clientId: controller.clientId,
@@ -247,17 +263,15 @@ export default function RecruitmentInterviewSession({
         onResult: acceptSubmission,
       });
     } catch (cause) {
-      setError(cause.message);
-      if (cause.code === "submission_unavailable")
-        setTerminalReason(cause.message);
-      setSubmissionState("SUBMISSION_REQUIRED");
+      observe("recovery.command", {stage:"submission.retry_failed", code:cause.cause?.code || cause.code || "submission_failed"});
+      if (controller.submissionPending) submissionFailed(cause);
     } finally {
       controller.submitting = false;
       setBusy(false);
     }
   }
   useEffect(() => {
-    if (status !== "finalizing" || controller.submitting) return;
+    if (status !== "finalizing" || controller.submitting || submissionState === "SUBMISSION_REQUIRED") return;
     const submissionAbort = new AbortController();
     setSubmissionState("PENDING");
     reconcileSubmission({
@@ -266,10 +280,7 @@ export default function RecruitmentInterviewSession({
       signal: submissionAbort.signal,
     }).catch((cause) => {
       if (!submissionAbort.signal.aborted) {
-        setError(cause.message);
-        if (cause.code === "submission_unavailable")
-          setTerminalReason(cause.message);
-        setSubmissionState("SUBMISSION_REQUIRED");
+        submissionFailed(cause);
       }
     });
     return () => submissionAbort.abort();
@@ -310,6 +321,7 @@ export default function RecruitmentInterviewSession({
       );
       if (
         document.hidden ||
+        controller.submissionPending ||
         controller.paused ||
         controller.state !== "RESUMED"
       )
@@ -340,24 +352,19 @@ export default function RecruitmentInterviewSession({
         )
           return;
         if (!navigator.onLine)
-          setError(
-            "Connection lost. Recording continues locally. Return online to save evidence.",
-          );
+          setError("offlineInterview");
         else {
           pause("session_authority_lost");
-          setError(
-            "The interview could not continue. Tap Continue interview or contact your recruiter.",
-          );
+          setError("continueFailed");
         }
       }
     }, 15000);
     return()=>{clearInterval(clock);clearInterval(tick);clearTimeout(controller.maxTimer);};
   }, [token]);
-  const submitting = submissionState === "PENDING" || status === "finalizing";
-  const terminal =
-    ["completed", "partial", "failed"].includes(status) || !!terminalReason;
+  const submitting = controller.submissionPending || status === "finalizing";
+  const terminal = isSubmissionTerminal(status);
   if (
-    renderPreparation &&
+    !submitting && renderPreparation &&
     status === "ready" &&
     recoveryView.state !== "RECOVERING"
   )
@@ -374,18 +381,13 @@ export default function RecruitmentInterviewSession({
         <InterviewComplete
           entry={entry}
           completedAt={completedAt}
-          reason={
-            terminalReason ||
-            (status === "partial"
-              ? "Your interview was saved with partial evidence. The hiring team can review the available responses."
-              : status === "failed"
-                ? "Your responses were retained, but the interview evidence could not be fully verified. Contact the hiring team for the next step."
-                : "")
-          }
+          status={status}
+          language={language}
         />
       ) : (
         <SessionSurface active={activeRoom} controller={controller}
           entry={entry}
+          language={language}
           presence={presence}
           status={
             submissionState === "SUBMISSION_REQUIRED"
@@ -398,94 +400,59 @@ export default function RecruitmentInterviewSession({
           elapsed={elapsed}
           previewRef={preview}
         >
-          {!submitting && ["RECOVERY_REQUIRED","RECOVERING"].includes(recoveryView.state) && ["interrupted","starting","start_failed"].includes(status) && (hasConnected || recoveryView.state !== "RECOVERING") && (
-            <button className="candidate-button is-primary" disabled={controller.submitting} onPointerDown={()=>controller.pointer()} onClick={start}>
-              {hasConnected
-                ? (recoveryView.state==="RECOVERING" ? "Retry continuing" : "Continue interview")
-                : "Retry start"}
+          {error && !partialConfirm && <p className="recruitment-error" role="alert">{t[error] || t.continueFailed}</p>}
+          {!submitting && !partialConfirm && recoveryView.state === "RECOVERY_REQUIRED" &&
+            ["interrupted", "start_failed"].includes(status) && (
+            <button className="candidate-button is-primary" onPointerDown={() => controller.pointer()} onClick={start}>
+              {hasConnected ? t.resume : t.retryStart}
             </button>
           )}
-          {!submitting && recoveryView.state === "RESUMED" &&
-          status === "interviewing" &&
-          controller.session ? (
-            <div className="recruitment-actions">
-              {turnView.listening && <div className="candidate-answer">
-                {turnView.uncertain && <p role="status">We couldn’t confidently recognize that answer. Speak again, or check the words in Answer controls.</p>}
-                <details>
-                  <summary>Answer controls</summary>
-                  <p>Answers are sent automatically when you finish speaking. If detection misses your answer, you can check and submit it here.</p>
+          {!submitting && !partialConfirm && activeRoom && status === "interviewing" && controller.session && (
+            <div className="candidate-interview-actions">
+              {recoveryNotice && <p role="status">{t.recoveryWarning}</p>}
+              {turnView.listening && turnView.uncertain && (
+                <div className="candidate-answer">
+                  <p role="status">{t.answerUnclear}</p>
                   {turnView.text && <p className="candidate-answer-preview">{turnView.text}</p>}
-                  {turnView.waiting && <p role="status">Recognizing your answer…</p>}
-                  <button className="candidate-button is-secondary" disabled={!turnView.canSend} onClick={()=>{
-                    const accepted=controller.confirmAnswer();
-                    observe("recovery.command",{stage:"answer.manual",code:accepted ? "accepted" : "not_ready",request_id:controller.recoveryId});
-                    setError(accepted ? "" : "Finish speaking and wait for the recognized words, then try again.");
-                  }}>Use these words</button>
-                  <button className="candidate-button is-secondary" onClick={()=>controller.clearAnswer()}>Discard recognized words</button>
-                </details>
-              </div>}
-              {turnView.canInterrupt && <button className="candidate-button is-secondary" onClick={()=>{
-                const accepted=controller.interrupt();
-                observe("recovery.command",{stage:"answer.interrupt",code:accepted ? "requested" : "not_ready",request_id:controller.recoveryId});
-                if(!accepted)setError("Please wait for the interviewer to finish, then speak your answer.");
-              }}>I’d like to speak</button>}
-              <button
-                className="candidate-button is-secondary"
-                disabled={busy}
-                onClick={requestFinish}
-              >
-                {actionState === "CHECKING" ? "Checking completion…" : "Finish interview"}
-              </button>
-              <button
-                className="candidate-button is-secondary"
-                disabled={busy}
-                onClick={() => { if (!actionOwner.current && !controller.submitting) { setPartialConfirm(true); setError(""); observe("recovery.command", {stage:"partial.confirmation"}); } }}
-              >
-                Stop and save partial interview
-              </button>
+                  {turnView.canSend && <button className="candidate-button is-secondary" onClick={() => {
+                    const accepted = controller.confirmAnswer();
+                    observe("recovery.command", {stage:"answer.manual", code:accepted ? "accepted" : "not_ready", request_id:controller.recoveryId});
+                    setError(accepted ? "" : "answerNotReady");
+                  }}>{t.useWords}</button>}
+                  {turnView.text && <button className="candidate-button is-secondary" onClick={() => controller.clearAnswer()}>{t.discardWords}</button>}
+                </div>
+              )}
+              <div className="candidate-live-actions">
+                {turnView.canInterrupt && <button className="candidate-button is-secondary" onClick={() => {
+                  const accepted = controller.interrupt();
+                  observe("recovery.command", {stage:"answer.interrupt", code:accepted ? "requested" : "not_ready", request_id:controller.recoveryId});
+                  if (!accepted) setError("interruptionNotReady");
+                }}>{t.interrupt}</button>}
+                <button className="candidate-button is-secondary" disabled={busy} onClick={requestFinish}>
+                  {actionState === "CHECKING" ? t.checkingFinish : t.finish}
+                </button>
+              </div>
             </div>
-          ) : null}
-          {!submitting && recoveryView.state !== "RECOVERING" && status === "interrupted" && hasConnected && controller.session ? (
-            <button
-              className="candidate-button is-secondary"
-              disabled={busy}
-              onClick={() => { if (!actionOwner.current && !controller.submitting) { setPartialConfirm(true); setError(""); observe("recovery.command", {stage:"partial.confirmation"}); } }}
-            >
-              Stop and save partial interview
-            </button>
-          ) : null}
-          {status === "finalizing" &&
-          submissionState === "SUBMISSION_REQUIRED" ? (
-            <button
-              className="candidate-button is-primary"
-              disabled={busy}
-              onClick={retryFinalization}
-            >
-              Retry submission
-            </button>
-          ) : null}
-
+          )}
+          {!submitting && !partialConfirm && (activeRoom || (status === "interrupted" && hasConnected)) && (
+            <button className="candidate-button is-quiet" disabled={busy} onClick={() => {
+              if (actionOwner.current || controller.submitting) return;
+              setPartialConfirm(true);
+              setError("");
+              observe("recovery.command", {stage:"partial.confirmation"});
+            }}>{t.stop}</button>
+          )}
+          {submissionState === "SUBMISSION_REQUIRED" && (
+            <button className="candidate-button is-primary" disabled={busy} onClick={retryFinalization}>{t.retrySubmit}</button>
+          )}
           {partialConfirm && !submitting && (
-            <section role="alertdialog" aria-label="Save partial interview">
-              <p>Your saved responses will be submitted as an incomplete interview. Recording gaps remain visible to the hiring team.</p>
-              <button className="candidate-button is-primary" disabled={busy} onClick={confirmPartialStop}>Confirm stop and save</button>
-              <button className="candidate-button is-secondary" disabled={busy} onClick={() => setPartialConfirm(false)}>Keep interviewing</button>
-            </section>
+            <div role="group" aria-label={t.stopHeading} className="candidate-stop">
+              <h2>{t.stopHeading}</h2>
+              <p>{t.stopHelp}</p>
+              <button className="candidate-button is-primary" disabled={busy} onClick={confirmPartialStop}>{t.confirmStop}</button>
+              <button className="candidate-button is-secondary" disabled={busy} onClick={() => setPartialConfirm(false)}>{t.keepInterviewing}</button>
+            </div>
           )}
-          {actionState === "CHECKING" && <p role="status" aria-live="polite">Checking whether your interview can finish. Your recording continues.</p>}
-          {recoveryView.state === "RECOVERING" && (
-            <p role="status">
-              {!hasConnected && ["preparing","server resume"].includes(recoveryView.stage)
-                ? "Preparing your interview" : recoveryLabels[recoveryView.stage] || "Preparing your interview"}
-            </p>
-          )}
-          {recoveryNotice && <p role="status">{recoveryNotice}</p>}
-          {error && (
-            <p className="recruitment-error" role="alert">
-              {error}
-            </p>
-          )}
-          {recoveryView.state!=="RESUMED" && <details className="recruitment-hint"><summary>Recovery reference</summary><p>{controller.operation?.id||controller.lastReference||controller.recoveryId||"Not started"}</p><p>{controller.journal.persistent?"Diagnostics are retained after refresh.":"Diagnostics could not be stored on this device; available observations will be sent when connected."}</p></details>}
         </SessionSurface>
       )}
       <div key="interview-audio" ref={node=>{controller.audioHost=node;}} hidden aria-hidden="true" />

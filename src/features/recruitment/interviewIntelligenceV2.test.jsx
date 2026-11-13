@@ -113,20 +113,14 @@ describe("Interview Intelligence V2", () => {
   });
 });
 
-import Room from "./RecruitmentInterviewRoom.jsx";
+import { InterviewRecoverySurface } from "./InterviewRecoverySurface.jsx";
 it("submission retry presentation never says Submitting or pretends recording is active", () => {
   render(
-    <Room
-      entry={{ job: { position: "Service Crew" } }}
-      presence={{ state: "speaking" }}
-      status="submission_required"
-      recordingStatus="recording"
-      elapsed={0}
-    />,
+    <InterviewRecoverySurface entry={{job: {position: "Service Crew"}}} status="submission_required" />,
   );
   expect(screen.queryByText(/Submitting/)).toBeNull();
-  expect(screen.queryByText("● Recording")).toBeNull();
-  expect(screen.getAllByText(/Submission needs attention/)).toHaveLength(1);
+  expect(screen.queryByText("Recording")).toBeNull();
+  expect(screen.getAllByText(/Submission not yet confirmed/)).toHaveLength(1);
 });
 
 it("generic area names and scenario links are draft-owned, not Service Crew hardcoding", () => {

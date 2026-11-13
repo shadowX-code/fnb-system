@@ -20,6 +20,10 @@ export async function reconcileSubmission({
         signal,
         timeoutMs: 5000,
       });
+      if (isSubmissionTerminal(entry.status)) {
+        onResult(entry);
+        return entry;
+      }
       if (!entry.available)
         throw Object.assign(
           Error(
@@ -27,10 +31,6 @@ export async function reconcileSubmission({
           ),
           { code: "submission_unavailable" },
         );
-      if (isSubmissionTerminal(entry.status)) {
-        onResult(entry);
-        return entry;
-      }
       if (finalize) {
         const result = await bounded(finalize(), "Submitting your interview", {
           signal,
@@ -56,4 +56,18 @@ export async function reconcileSubmission({
     lastError?.message ||
       "Your responses are saved, but submission is not yet confirmed. Retry submission with a stable connection.",
   );
+}
+
+// A same-tab refresh can lose the finish response before the server exposes
+// finalizing. Store only the requested reason; the server still authorizes it.
+export function submissionIntent(partition, reason) {
+  const key = `${partition}:submission`;
+  try {
+    if (reason === null) sessionStorage.removeItem(key);
+    else if (reason !== undefined) sessionStorage.setItem(key, reason);
+    const saved = sessionStorage.getItem(key);
+    return ["coverage", "max_duration", "candidate_stop"].includes(saved) ? saved : null;
+  } catch {
+    return null;
+  }
 }

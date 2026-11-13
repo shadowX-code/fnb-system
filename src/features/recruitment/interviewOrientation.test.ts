@@ -14,7 +14,7 @@ it('physical 37-turn case retains pending orientation and Mandarin fallback afte
  expect(instructions).toContain('Orientation is pending');
  expect(instructions).toContain('Greeting / ambiguity fallback language only: Mandarin');
  expect(instructions).not.toContain('The starting preference no longer applies');
- expect(instructions).toContain('before offering-specific availability or schedule questions');
+ expect(instructions).toContain('ask once when it materially helps discuss availability');
  expect(instructions).toContain('Never narrate tools');
  expect(physical.turns[15].transcript).toContain('早上7点半');
  expect(physical.turns[16].transcript).toContain('part time');
@@ -63,13 +63,15 @@ it('late opening callbacks cannot advance a newer turn or bypass server completi
  const s=setup();s.response('old');s.candidate('new');s.confirm('old');expect(s.receipt).not.toHaveBeenCalled();expect(s.send).not.toHaveBeenCalled();
  s.response('pending');s.emit('response.function_call_arguments.done',{response_id:'pending',call_id:'close',name:'request_completion'});expect(s.tool).not.toHaveBeenCalled();
 });
-it('Unknown and Part Time provider payloads cannot expose Full Time schedule terms',()=>{
+it('confirmed terms remain available separately for all preferences without implying a choice',()=>{
  const offers=[{id:'ft',employment_type:'full_time',schedule:'07:30–17:00 Full Time'},{id:'pt',employment_type:'part_time',schedule:'Availability agreed with Supervisor',amount_min:8}];
- const unknown=interviewInstructions({...context,employment_offerings:offers});
- expect(unknown).toContain('Available offering TYPES only');expect(unknown).not.toContain('07:30');expect(unknown).not.toContain('amount_min');
- const pt=interviewInstructions({...context,employment_offerings:offers,employment_preference:'part_time'});
- expect(pt).toContain('Availability agreed with Supervisor');expect(pt).toContain('amount_min');expect(pt).not.toContain('07:30');
- const both=interviewInstructions({...context,employment_offerings:offers,employment_preference:'both'});expect(both).toContain('07:30');expect(both).toContain('Availability agreed');
+ for(const employment_preference of ['unknown','part_time','both'] as const) {
+  const instructions=interviewInstructions({...context,employment_offerings:offers,employment_preference});
+  expect(instructions).toContain('07:30–17:00 Full Time');
+  expect(instructions).toContain('Availability agreed with Supervisor');
+  expect(instructions).toContain('Never infer preference from prior jobs, examples, a pay question');
+  expect(instructions).toContain('keep its terms separate');
+ }
 });
 it('a late transcript preceding the delivered opening cannot complete the introduction opportunity',()=>{
  const s=setup();s.candidate('early');s.response('orientation');s.emit('response.function_call_arguments.done',{response_id:'orientation',call_id:'orientation-call',name:'confirm_orientation'});

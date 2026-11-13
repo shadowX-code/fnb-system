@@ -40,6 +40,7 @@ vi.mock("./RecruitmentInterviewSession.jsx", () => ({
   default: ({ renderPreparation }) => renderPreparation({ start: vi.fn() }),
 }));
 import Public from "./RecruitmentInterviewPublic.jsx";
+import { InterviewRecoverySurface } from "./InterviewRecoverySurface.jsx";
 import Room, { InterviewComplete } from "./RecruitmentInterviewRoom.jsx";
 const base = {
   available: true,
@@ -79,22 +80,22 @@ afterEach(cleanup);
 describe("candidate preparation gates", () => {
   it("shows compact identity, all languages, no editable form until Edit", async () => {
     render(<Public />);
-    await screen.findByText("Interview details");
+    await screen.findByText("Get ready");
     expect(screen.getByText("Candidate")).toBeTruthy();
     for (const label of ["English", "Bahasa Melayu", "中文", "粤语"])
-      expect(within(screen.getByRole("group", {name:"Preferred interview language"})).getByRole("button", { name: label })).toBeTruthy();
+      expect(within(screen.getByRole("group", {name:"Spoken interview language"})).getByRole("button", { name: label })).toBeTruthy();
     expect(screen.queryByLabelText("Candidate name")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Edit", exact: true }));
     expect(screen.getByLabelText("Candidate name")).toBeTruthy();
   });
   it("persists chosen language before profile confirmation and advances", async () => {
     render(<Public />);
-    await screen.findByText("Interview details");
+    await screen.findByText("Get ready");
     fireEvent.click(screen.getByRole("button", { name: "粤语" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Continue", exact: true }),
+      screen.getByRole("button", { name: "Confirm details", exact: true }),
     );
-    await screen.findByText("Get ready");
+    await screen.findByRole("checkbox");
     expect(mocks.language).toHaveBeenCalledWith("", "yue");
     expect(mocks.confirmProfile).toHaveBeenCalledOnce();
   });
@@ -204,7 +205,7 @@ describe("runtime-only interviewer presence", () => {
     render(
       <InterviewComplete entry={base} completedAt="2026-10-05T10:00:00Z" />,
     );
-    expect(screen.getByText("Interview complete")).toBeTruthy();
+    expect(screen.getByText("Interview submitted")).toBeTruthy();
     expect(
       screen.queryByText(/notified|report generation|coverage/i),
     ).toBeNull();
@@ -307,12 +308,12 @@ it("shared checkbox styling belongs to the input, leaving the consent label touc
 it("interface translation never changes spoken preference and persists canonical bilingual consent", async () => {
   mocks.entry.consent_copy = {body:[],consent:"I understand the automated interviewer and consent to recruitment recording.",translations:{zh:{body:[],consent:"我了解自动面试官，并同意录制摄像头、麦克风及回答，供招聘审核。"}}};
   render(<Public />);
-  await screen.findByText("Interview details");
+  await screen.findByText("Get ready");
   fireEvent.click(within(screen.getByRole("group",{name:"Interface language / 界面语言"})).getByRole("button",{name:"中文"}));
-  expect(screen.getByRole("heading",{name:"面试详情"})).toBeTruthy();
+  expect(screen.getByRole("heading",{name:"准备面试"})).toBeTruthy();
   expect(mocks.language).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button",{name:"继续",exact:true}));
-  await screen.findByText("准备面试");
+  fireEvent.click(screen.getByRole("button",{name:"确认资料",exact:true}));
+  await screen.findByRole("checkbox");
   expect(mocks.language).toHaveBeenCalledWith("","en");
   expect(screen.getByRole("button",{name:"开启摄像头和麦克风"})).toBeTruthy();
   expect(screen.getByRole("checkbox").closest("label").textContent).toContain("摄像头、麦克风及回答");
@@ -323,8 +324,8 @@ it("interface translation never changes spoken preference and persists canonical
   expect(localStorage.getItem("feedx-interview-interface")).toBe("zh");
 });
 it("submission replaces live speech and camera presentation while preserving retry state", () => {
-  render(<Room entry={base} presence={{...initialPresence,prompt:"Old goodbye",state:"speaking"}} status="finalizing" recordingStatus="pending" elapsed={386} />);
-  expect(screen.getByText("Submitting your responses")).toBeTruthy();
+  render(<InterviewRecoverySurface entry={base} status="finalizing" language="zh" />);
+  expect(screen.getByText("正在提交面试")).toBeTruthy();
   expect(screen.queryByText("Old goodbye")).toBeNull();
   expect(screen.queryByLabelText("Your interview camera")).toBeNull();
 });
@@ -332,17 +333,17 @@ it("submission replaces live speech and camera presentation while preserving ret
 
 it("Mandarin survives confirmation and refresh independently from English page language", async () => {
   const view = render(<Public />);
-  await screen.findByText("Interview details");
-  fireEvent.click(within(screen.getByRole("group", {name: "Preferred interview language"})).getByRole("button", {name:"中文"}));
-  fireEvent.click(screen.getByRole("button", {name:"Continue",exact:true}));
   await screen.findByText("Get ready");
+  fireEvent.click(within(screen.getByRole("group", {name: "Spoken interview language"})).getByRole("button", {name:"中文"}));
+  fireEvent.click(screen.getByRole("button", {name:"Confirm details",exact:true}));
+  await screen.findByRole("checkbox");
   expect(screen.getByText("Spoken interview language").parentElement.textContent).toContain("中文");
   expect(screen.getByText("Page language")).toBeTruthy();
   expect(mocks.language).toHaveBeenCalledWith("", "zh");
   mocks.entry.status = "profile_confirmed";
   view.unmount();
   render(<Public />);
-  await screen.findByText("Get ready");
+  await screen.findByRole("checkbox");
   expect(screen.getByText("Spoken interview language").parentElement.textContent).toContain("中文");
 });
 it("Chinese page preference survives refresh without changing spoken English, and saved consent has no redundant confirmation", async () => {
@@ -354,4 +355,30 @@ it("Chinese page preference survives refresh without changing spoken English, an
   expect(screen.queryByText("已记录同意")).toBeNull();
   expect(screen.getByRole("checkbox").checked).toBe(true);
   expect(mocks.language).not.toHaveBeenCalled();
+});
+
+
+it("carries verified offering terms, Mandarin and the unanswered candidate question into recovery", async () => {
+  const { firstInterviewResponse } = await import("../../../supabase/functions/recruitment-realtime/prompt.ts");
+  const prompt = firstInterviewResponse({
+    generation: 2, has_connected: true, conversation_protocol: "continuity-v2",
+    preferred_language: "zh", employment_preference: "unknown",
+    employment_offerings: [
+      {id:"full",employment_type:"full_time",amount_min:1800},
+      {id:"part",employment_type:"part_time",amount_min:8,compensation_type:"hourly",currency:"MYR"},
+    ],
+    turns: [
+      {turn_number:1,speaker:"candidate",transcript:"我会问厨房，再如实跟顾客解释。"},
+      {turn_number:2,speaker:"ai",transcript:"Would you like part-time?"},
+      {turn_number:3,speaker:"candidate",transcript:"兼职的时薪是多少？"},
+    ],
+    topics: [], scenarios: [], target_minutes: 10, required_topics: [], scenario_briefs: [],
+    language_guidance: "", interview_instructions: "",
+  });
+  expect(prompt).toContain('For your first recovery reply, speak Mandarin Chinese');
+  expect(prompt).toContain('Candidate: 兼职的时薪是多少？');
+  expect(prompt).toContain('"employment_type":"part_time","amount_min":8');
+  expect(prompt).toContain("Use at most one focused follow-up");
+  expect(prompt).toContain("Never reopen employment preference merely because it is unknown");
+  expect(prompt).not.toContain("Detailed terms are intentionally withheld");
 });

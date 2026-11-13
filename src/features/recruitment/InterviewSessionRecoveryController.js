@@ -21,18 +21,18 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
     });
     Object.assign(this,{token,entry,devices});
     this.qaTransport = interviewQaTransport(entry.job?.title, globalThis.location);this.listeners=new Set();
-    this.journal=new InterviewRecoveryTrace(token);this.lastReference=this.journal.latestRequest();
+    this.journal=new InterviewRecoveryTrace(token);
     const hasConnected = entry.has_connected ?? ["interviewing", "interrupted"].includes(entry.status);
     const activeStatus = ["starting", "interviewing", "interrupted"].includes(entry.status);
     this.snapshot={hasConnected,status:activeStatus ? (hasConnected ? "interrupted" : "start_failed") : entry.status,
-      recoveryView:{state:"RECOVERY_REQUIRED",stage:""},recordingStatus:"idle",aiStatus:"idle",error:"",busy:false,terminalReason:"",recoveryNotice:"",presence:initialPresence,turnView:{text:"",canSend:false,canInterrupt:false,listening:false},roomEpoch:0};
+      recoveryView:{state:"RECOVERY_REQUIRED",stage:""},recordingStatus:"idle",aiStatus:"idle",error:"",busy:false,recoveryNotice:"",presence:initialPresence,turnView:{text:"",canSend:false,canInterrupt:false,listening:false},roomEpoch:0};
     this.onDiagnostic=details=>this.observe("recovery.command",details);
     this.getSnapshot=()=>this.snapshot;
     this.subscribe=listener=>{this.listeners.add(listener);return()=>this.listeners.delete(listener);};
   }
   update(field,value) {this.updateAll({[field]:typeof value==="function"?value(this.snapshot[field]):value});}
   updateAll(values) {this.snapshot={...this.snapshot,...values};for(const listener of this.listeners)listener();}
-  observe(type,details) {if(details?.request_id&&(details.stage?.startsWith("continue.")||details.request_id===(this.intentId||this.recoveryId)))this.lastReference=details.request_id;this.journal.append(type,details);if(this.clientId)this.journal.identify(this.clientId);}
+  observe(type,details) {this.journal.append(type,details);if(this.clientId)this.journal.identify(this.clientId);}
   pointer() {this.continueIntent=crypto.randomUUID();this.observe("recovery.command",{stage:"continue.pointer",state:this.state,request_id:this.continueIntent});}
   disposeNative() {
     const prior=this.native;this.native=null;
@@ -91,7 +91,7 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
     catch {this.observe("recovery.error",{stage,code:"cleanup_failed",request_id:requestId});}
   }
   pause(reason) {
-    if(this.submitting||this.snapshot.status==="finalizing"||isSubmissionTerminal(this.snapshot.status))return;
+    if(this.submitting||this.submissionPending||this.snapshot.status==="finalizing"||isSubmissionTerminal(this.snapshot.status))return;
     if(!this.operation&&!this.session&&!this.capture)return; // Preparation has no Room ownership to invalidate.
     const wasPaused=this.paused,prior=this.capture,pauseId=this.recoveryId;
     this.capture=null;this.paused=true;this.onInvalidate?.();
@@ -99,16 +99,14 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
     this.updateAll({
       status: this.snapshot.hasConnected ? "interrupted" : "start_failed",
       aiStatus: "paused",
-      error: this.snapshot.hasConnected
-        ? "The interview paused. Tap Continue interview to reconnect your camera and microphone. Saved answers are retained."
-        : "The interview paused during setup. Tap Retry start when you’re ready.",
+      error: "",
     });
     this.observe("recovery.transition",{state:"RECOVERY_REQUIRED",stage:"room.disposed",request_id:pauseId});
     if(!wasPaused&&this.clientId&&pauseId) {
       this.pauseTask=bounded(recruitmentService.recoverPause(this.token,this.clientId,pauseId,reason),"Pausing interview",{timeoutMs:8000});
       this.pauseTask.catch(cause=>{
         this.observe("recovery.error",{stage:"pause",code:cause.code||"request_failed",request_id:pauseId});
-        if(this.snapshot.hasConnected&&this.paused&&this.intentId===pauseId&&this.recoveryId===pauseId)this.update("error","Your connection could not confirm the pause. Tap Continue interview to restore the server state.");
+        if(this.snapshot.hasConnected&&this.paused&&this.intentId===pauseId&&this.recoveryId===pauseId)this.update("error","continueFailed");
       });
     }
     this.abandon(()=>prior?.stop(reason),"capture.dispose",pauseId);
@@ -161,10 +159,10 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
         if (!this.snapshot.hasConnected) return;
         this.update("error",
           state === "transcription-unavailable"
-            ? "Your last answer could not be recognized. Tap Continue interview to retry. Earlier submitted answers are retained."
+            ? "transcriptionHelp"
             : state === "audio-interference"
-            ? "Audio was repeatedly interrupted by uncertain microphone input. Use earphones or a quieter place, then tap Continue interview. Saved answers are retained."
-            : "The interviewer was interrupted. Tap Continue interview; your saved answers are retained.",
+            ? "interferenceHelp"
+            : "",
         );
       },
       onCompletion: (reason) => {
@@ -188,10 +186,10 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
     this.observe("recovery.command", {stage:"continue.tap",state:this.state,request_id:requestId});
     if (document.hidden) {
       this.observe("recovery.error",{stage:"continue.guard",code:"page_hidden",request_id:requestId});
-      this.update("error","Return to this page before resuming.");
+      this.update("error","hiddenHelp");
       return;
     }
-    if (this.submitting || (this.operation && !this.snapshot.hasConnected) || (this.state === "RESUMED" && this.snapshot.status !== "interrupted")) {
+    if (this.submitting || this.submissionPending || (this.operation && !this.snapshot.hasConnected) || (this.state === "RESUMED" && this.snapshot.status !== "interrupted")) {
       this.observe("recovery.command",{stage:"continue.guard",code:this.submitting ? "submission_pending" : "already_active",request_id:requestId});
       return;
     }
@@ -226,11 +224,7 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
       }, requestId);
     } catch (cause) {
       this.observe("recovery.error",{stage:"native activation",code:cause.name || "native_activation_failed",request_id:requestId});
-      this.update("error",
-        this.snapshot.hasConnected
-          ? "Native audio could not start. Tap Continue interview to try again."
-          : "Interviewer audio could not start. Check audio access and tap Retry start.",
-      );
+      this.update("error","audioHelp");
       this.update("status",this.snapshot.hasConnected ? "interrupted" : "start_failed");
       this.update("aiStatus","paused");
       this.closeInterviewer();
@@ -330,11 +324,8 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
       const durable = await step("server state", (signal) =>
         recruitmentService.recoveryState(token, this.clientId, signal),
       );
-      if (durable.state === "TERMINAL" && durable.status !== "finalizing") {
-        this.update("terminalReason",
-          durable.reason ||
-            "This interview has already ended. Please contact your recruiter if another interview is needed.",
-        );
+      if (durable.state === "TERMINAL" || durable.status === "finalizing" || isSubmissionTerminal(durable.status)) {
+        this.update("status", durable.status === "finalizing" || isSubmissionTerminal(durable.status) ? durable.status : "failed");
         this.finish(operation, "TERMINAL");
         playback?.dispose();
         devices.stop();
@@ -490,11 +481,10 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
         ).catch(() => {});
       this.update("status",this.snapshot.hasConnected ? "interrupted" : "start_failed");
       this.update("aiStatus","paused");
-      const action = this.snapshot.hasConnected ? "Continue interview" : "Retry start";
-      const detail = cause.message?.split(/(?:\. )?(?:Tap Continue interview|Please try continuing again)/)[0];
-      this.update("error", this.stage === "fresh AI session" && !["native_audio_inactive","page_hidden"].includes(cause.code)
-        ? `The interviewer could not connect. Check your connection and tap ${action}.`
-        : `${detail?.replace(/[.]+$/, "") || "The interview could not connect"}. Tap ${action} to try again.`);
+      this.update("error", cause.code === "page_hidden" ? "hiddenHelp"
+        : cause.code === "native_audio_inactive" ? "audioHelp"
+        : this.stage === "camera and microphone" || this.stage === "device readiness" ? "devicesHelp"
+        : this.snapshot.hasConnected ? "continueFailed" : "");
 
       this.finish(operation, "RECOVERY_REQUIRED");
     } finally {
