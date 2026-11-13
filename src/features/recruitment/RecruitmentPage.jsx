@@ -880,7 +880,10 @@ export default function RecruitmentPage({ auth }) {
           focusJobFacts={Boolean(resumeProfileDraft)}
           onSave={async (o) => {
             const id = await mutate(() => recruitmentService.saveOpening(o));
-            if (resumeProfileDraft) setResumeProfileJob(id);
+            if (resumeProfileDraft) {
+              setResumeProfileJob(id);
+              if (/^QA([ :_-]|$)/i.test(o.title)) setIncludeQa(true);
+            }
           }}
           onClose={closeJobForm}
         />
