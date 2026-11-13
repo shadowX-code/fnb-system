@@ -6,7 +6,7 @@ import DataTable from '../../../components/tables/DataTable.jsx';
 import SelectField from '../../../components/forms/SelectField.jsx';
 import Badge from '../../../components/ui/Badge.jsx';
 import { payrollTimeNeedsReview } from './payrollRunPresentation.js';
-import { DecisionModal, LatestPublishedRoster, timeTreatment } from './PayrollTimeExceptionsTab.jsx';
+import { DecisionModal, LatestPublishedRoster, publishedRosterLabel, timeTreatment } from './PayrollTimeExceptionsTab.jsx';
 
 const hours = value => value == null ? '—' : `${(Number(value) / 60).toFixed(2)} h`;
 const money = value => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' }).format(value);
@@ -80,8 +80,19 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
         <Chevron size={16} aria-hidden="true" />{row.work_date}
       </button>;
     } },
-    { key: 'roster', header: 'Roster', render: row => <div className="whitespace-nowrap">{rosterLabel(row)}
-      {!frozen && row.latest_published_roster && <small className="block text-text-secondary">Newer roster</small>}</div> },
+    { key: 'roster', header: 'Roster', render: row => {
+      const latest = frozen ? null : row.latest_published_roster;
+      const historical = rosterLabel(row);
+      const published = latest ? publishedRosterLabel(latest) : historical;
+      const changed = latest && (
+        latest.entry_type !== (row.evidence?.roster_entry_type ?? null)
+        || published !== historical
+        || (latest.break_minutes ?? null) !== (row.evidence?.roster_break_minutes ?? null)
+      );
+      return <div className="whitespace-nowrap">{published}
+        {changed && <small className="block text-text-secondary">Roster changed</small>}
+      </div>;
+    } },
     { key: 'clock', header: 'Clock / Actual', render: row => <div className="whitespace-nowrap tabular-nums">{interval(row.evidence?.clock_in_at, row.evidence?.clock_out_at)}
       {row.actual_minutes != null && <small className="block text-text-secondary">{hours(row.actual_minutes)}{row.actual_minutes >= 1440 ? ' · 24h+ span' : ''}</small>}</div> },
     { key: 'leave', header: 'Leave', render: row => row.evidence?.leave_id ? `Approved ${human(row.evidence.leave_type)} Leave` : '—' },
@@ -111,10 +122,10 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, c
   const renderExpandedRow = row => expandedId === row.id && <div className="grid gap-4 py-2 text-sm md:grid-cols-3">
     <section>
       <h3 className="font-semibold">Roster comparison</h3>
-      <p className="mt-1 text-xs text-text-secondary">Roster used for Payroll review</p>
+      {!frozen && <LatestPublishedRoster roster={row.latest_published_roster} />}
+      <p className="mt-2 text-xs text-text-secondary">Roster used for Payroll review</p>
       <p>{rosterLabel(row)}{row.evidence?.roster_break_minutes != null ? ` · ${row.evidence.roster_break_minutes}m unpaid break` : ''}</p>
       {row.scheduled_minutes != null && <p className="text-text-secondary">{hours(row.scheduled_minutes)} scheduled payable</p>}
-      {!frozen && <LatestPublishedRoster roster={row.latest_published_roster} />}
     </section>
     <section>
       <h3 className="font-semibold">Payroll review</h3>
