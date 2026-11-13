@@ -43,6 +43,14 @@ export const recruitmentService = {
   workspace: ({openingId=null,stage="all",page=1,includeQa=false,search="",offering="all"}={}) => call("recruitment_workspace", {p_opening_id:openingId,p_stage:stage,p_page:page,p_include_qa:includeQa,p_search:search,p_offering:offering}),
   setPreference: (applicationId, preference) => call("recruitment_set_preference", {p_application_id:applicationId,p_preference:preference}),
   profileDrafts: (signal) => profileDraftCall("recruitment_profile_drafts", {}, signal),
+  profileTemplates: (signal) => profileDraftCall("recruitment_profile_templates", {}, signal),
+  createProfileDraft: ({requestId,name,positionId,templateKey,sourceId}) => profileDraftCall("recruitment_create_profile_draft", {
+    p_request_id:requestId,p_name:name,p_position_id:positionId,p_template_key:templateKey||null,p_source_profile_id:sourceId||null,
+  }),
+  testProfileDraft: (id, revision, openingId, configVersion) => profileDraftCall("recruitment_start_profile_test", {
+    p_draft_id:id,p_expected_revision:revision,p_opening_id:openingId,p_expected_config_version:configVersion,
+  }),
+  profileTestHistory: (key) => profileDraftCall("recruitment_profile_test_history", {p_profile_key:key}),
   prepareProfileDraft: (key, version) => profileDraftCall("recruitment_prepare_profile_draft", {p_profile_key:key,p_expected_version:version}),
   saveProfileDraft: (id, revision, definition) => profileDraftCall("recruitment_save_profile_draft", {p_draft_id:id,p_expected_revision:revision,p_definition:definition}),
   publishProfileDraft: (id, revision) => profileDraftCall("recruitment_publish_profile_draft", {p_draft_id:id,p_expected_revision:revision}),

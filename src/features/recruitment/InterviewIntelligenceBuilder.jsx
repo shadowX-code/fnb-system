@@ -19,6 +19,7 @@ export default function InterviewIntelligenceBuilder({
   onChange,
   version,
   unpublished = false,
+  step,
 }) {
   const editable = !!onChange;
   const patch = (key, value) => onChange({ ...definition, [key]: value });
@@ -300,6 +301,20 @@ export default function InterviewIntelligenceBuilder({
                 </AdminFormField>
               </>
             )}
+            {editable && (
+              <button type="button" className="btn-secondary justify-self-start md:col-span-2"
+                onClick={() => onChange({
+                  ...definition,
+                  [key]: definition[key].filter((_, i) => i !== index),
+                  ...(key === "evidence_areas" ? {
+                    scenarios: definition.scenarios.map(s => typeof s === "string" ? s : {
+                      ...s, evidence_areas: (s.evidence_areas || []).filter(name => name !== item.name),
+                    }),
+                  } : {}),
+                })}>
+                {key === "evidence_areas" ? "Remove assessment area" : "Remove scenario"}
+              </button>
+            )}
           </div>
         </details>
       );
@@ -326,7 +341,8 @@ export default function InterviewIntelligenceBuilder({
   );
   return (
     <div className="recruitment-profile-plan">
-      {text("role_context", "Role context")}
+      {(!step || step === "role") && text("role_context", "Role context")}
+      {(!step || step === "assessment") && <>
       <section className="recruitment-profile-section">
         <h2>Assessment Areas</h2>
         <p className="text-xs text-text-secondary mb-3">
@@ -367,14 +383,22 @@ export default function InterviewIntelligenceBuilder({
       <section className="recruitment-profile-section">
         <h2>Scenarios</h2>
         {objects("scenarios", scenarioFields)}
+        {editable && definition.scenarios.length < 20 && (
+          <button type="button" className="btn-secondary mt-3" onClick={() => patch("scenarios", [
+            ...definition.scenarios,
+            { brief:"",purpose:"",when_to_use:"",follow_up_guidance:"",stop_condition:"",evidence_areas:[],required:false },
+          ])}>Add scenario</button>
+        )}
       </section>
-      <details className="recruitment-profile-strategy">
+      </>}
+      {(!step || step === "behavior") && <>
+      <details className="recruitment-profile-strategy" open={step === "behavior" || undefined}>
         <summary>
           Interview Strategy <span aria-hidden="true">+</span>
         </summary>
         {text("follow_up_guidance", "Conversational guidance")}
       </details>
-      <details className="recruitment-profile-strategy">
+      <details className="recruitment-profile-strategy" open={step === "behavior" || undefined}>
         <summary>
           Completion &amp; duration settings <span aria-hidden="true">+</span>
         </summary>
@@ -450,12 +474,13 @@ export default function InterviewIntelligenceBuilder({
           </p>
         </section>
       </details>
-      <p className="text-xs text-text-secondary">
+      </>}
+      {!step && <p className="text-xs text-text-secondary">
         Version {version} ·{" "}
         {editable || unpublished
           ? "Unpublished draft — publication creates a new version."
           : "Published and immutable — existing invitations keep this version."}
-      </p>
+      </p>}
     </div>
   );
 }

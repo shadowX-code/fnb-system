@@ -37,6 +37,7 @@ import RecruitmentVoiceLab, {
   voiceLabAvailable,
 } from "./RecruitmentVoiceLab.jsx";
 import InterviewProfileSettings from "./InterviewProfileSettings.jsx";
+import RecruitmentJobFacts from "./RecruitmentJobFacts.jsx";
 import RecruitmentEvidenceReview from "./RecruitmentEvidenceReview.jsx";
 import { recruitmentService } from "./recruitmentService.js";
 
@@ -58,6 +59,7 @@ const initialOpening = {
     candidate_instructions:
       "Please find a quiet place with a stable connection.",
     interview_instructions: "Collect relevant evidence naturally.",
+    interview_profile_id: "",
   },
 };
 const fieldClass = "control w-full";
@@ -103,6 +105,7 @@ function OpeningForm({
   onClose,
   inline = false,
   onViewProfile,
+  focusJobFacts = false,
 }) {
   const [draft, setDraft] = useState(() =>
     structuredClone(
@@ -110,7 +113,7 @@ function OpeningForm({
         ...initialOpening,
         config: {
           ...initialOpening.config,
-          interview_profile_id: data.profiles[0]?.id || "",
+          interview_profile_id: "",
           opening_requirements: {},
         },
       },
@@ -128,7 +131,7 @@ function OpeningForm({
   const profile = data.profiles.find(
     (p) => p.id === draft.config.interview_profile_id,
   );
-  const jobFacts = draft.config.job_facts || {};
+  const profileChoices = data.profiles.filter(p => !p.position_id || p.position_id === draft.position_id);
   const requirements = draft.config.opening_requirements || {};
   const patchRequirements = (key, value) =>
     patchConfig("opening_requirements", { ...requirements, [key]: value });
@@ -273,7 +276,10 @@ function OpeningForm({
                 <AdminFormField label="Position" required>
                   <SelectField
                     value={draft.position_id}
-                    onChange={(value) => patch("position_id", value)}
+                    onChange={(value) => setDraft(current => ({
+                      ...current, position_id:value,
+                      config: { ...current.config, interview_profile_id:profile?.position_id && profile.position_id !== value ? "" : current.config.interview_profile_id },
+                    }))}
                     ariaLabel="Position"
                     placeholder="Select position"
                     searchable
@@ -420,7 +426,7 @@ function OpeningForm({
                     ariaLabel="Interview Profile"
                     placeholder="Select profile version"
                     searchable
-                    options={data.profiles.map((p) => ({
+                    options={profileChoices.map((p) => ({
                       value: p.id,
                       label: `${p.name} v${p.version}`,
                       description: `${p.definition.target_minutes}–${p.definition.max_minutes} min · ${p.definition.evidence_areas.length} assessment areas · ${p.definition.scenarios.length} scenarios`,
@@ -446,39 +452,8 @@ function OpeningForm({
             )}
             <fieldset>
               <legend><span className="recruitment-section-number">05</span> Additional Information</legend>
-            {Object.keys(jobFacts).length > 0 && (
-              <details className="recruitment-config-details">
-                <summary>Existing confirmed facts</summary>
-                <p className="recruitment-config-note">
-                  These facts remain available to existing invitations. Transfer
-                  offering-specific terms into the offerings below before
-                  removing them from this new configuration.
-                </p>
-                <details>
-                  <summary>Review existing information</summary>
-                  <div className="recruitment-form-grid">
-                    {Object.entries(jobFacts).map(([key, value]) => (
-                      <AdminFormField
-                        key={key}
-                        label={key.replaceAll("_", " ")}
-                      >
-                        <input
-                          className={fieldClass}
-                          value={value}
-                          onChange={(e) => {
-                            const next = { ...jobFacts };
-                            if (e.target.value.trim())
-                              next[key] = e.target.value;
-                            else delete next[key];
-                            patchConfig("job_facts", next);
-                          }}
-                        />
-                      </AdminFormField>
-                    ))}
-                  </div>
-                </details>
-              </details>
-            )}
+            <RecruitmentJobFacts config={draft.config} initiallyOpen={focusJobFacts}
+              onChange={config => setDraft(current => ({ ...current,config }))} />
               <details className="recruitment-config-details">
                 <summary>Confirmed information</summary>
                 <ConfirmedInformationEntries value={[
@@ -628,6 +603,8 @@ export default function RecruitmentPage({ auth }) {
   );
   const [formOpening, setFormOpening] = useState(undefined),
     [profilesOpen, setProfilesOpen] = useState(false),
+    [resumeProfileDraft, setResumeProfileDraft] = useState(null),
+    [resumeProfileJob, setResumeProfileJob] = useState(null),
     [applicationForm, setApplicationForm] = useState(false);
   const [selectedOpening, setSelectedOpening] = useState(""),
     [selectedApplicant, setSelectedApplicant] = useState(""),
@@ -729,6 +706,10 @@ export default function RecruitmentPage({ auth }) {
     setTab("candidates");
     setStage("all");
     setPage(1);
+  }
+  function closeJobForm() {
+    setFormOpening(undefined);
+    if (resumeProfileDraft) setProfilesOpen(true);
   }
   async function register(e) {
     e.preventDefault();
@@ -859,12 +840,25 @@ export default function RecruitmentPage({ auth }) {
       <div className="recruitment-workspace">
         <InterviewProfileSettings
           profiles={data.profiles}
+          positions={data.positions}
+          openings={data.openings}
+          onJobFacts={(job, profileDraft) => {
+            setResumeProfileDraft(profileDraft.id);
+            setProfilesOpen(false);
+            setFormOpening(job || {
+              ...initialOpening,
+              position_id: profileDraft.position_id || "",
+              title: profileDraft.name,
+            });
+          }}
+          resumeDraftId={resumeProfileDraft}
+          resumeJobId={resumeProfileJob}
           busy={busy}
           canManage={canManage}
           onPublish={(id, revision) =>
             mutate(() => recruitmentService.publishProfileDraft(id, revision))
           }
-          onClose={() => setProfilesOpen(false)}
+          onClose={() => {setResumeProfileDraft(null);setResumeProfileJob(null);setProfilesOpen(false);}}
         />
       </div>
     );
@@ -873,7 +867,7 @@ export default function RecruitmentPage({ auth }) {
       <div className="recruitment-workspace">
         <PageHeader
           breadcrumbs={[
-            { label: "Recruitment", onClick: () => setFormOpening(undefined) },
+            { label: resumeProfileDraft ? "Interview Profiles" : "Recruitment", onClick: closeJobForm },
             { label: formOpening ? "Edit job" : "Create Job" },
           ]}
           title={formOpening ? "Edit job opening" : "Create Job"}
@@ -883,8 +877,12 @@ export default function RecruitmentPage({ auth }) {
           opening={formOpening}
           data={data}
           busy={busy}
-          onSave={(o) => mutate(() => recruitmentService.saveOpening(o))}
-          onClose={() => setFormOpening(undefined)}
+          focusJobFacts={Boolean(resumeProfileDraft)}
+          onSave={async (o) => {
+            const id = await mutate(() => recruitmentService.saveOpening(o));
+            if (resumeProfileDraft) setResumeProfileJob(id);
+          }}
+          onClose={closeJobForm}
         />
       </div>
     );

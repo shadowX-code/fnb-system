@@ -76,6 +76,7 @@ export default function RecruitmentEvidenceReview({
   application,
   onClose,
   onChanged,
+  test = false,
 }) {
   const [section, setSection] = useState("overview");
   const [disputedTurn, setDisputedTurn] = useState(null),
@@ -96,7 +97,7 @@ export default function RecruitmentEvidenceReview({
     joined_date: "",
     duplicate_name_reason: "",
   });
-  const [attemptId, setAttemptId] = useState(null);
+  const [attemptId, setAttemptId] = useState(application.attemptId || null);
   const transcriptSection = useRef(null),
     recordingSection = useRef(null),
     decisionSection = useRef(null);
@@ -210,7 +211,7 @@ export default function RecruitmentEvidenceReview({
   const patchHire = (k, v) => setHire((h) => ({ ...h, [k]: v }));
   return (
     <Modal
-      title="Application review"
+      title={test ? "Test interview review" : "Application review"}
       size="3xl"
       panelClassName="recruitment-review"
       bodyClassName="!p-0"
@@ -224,7 +225,7 @@ export default function RecruitmentEvidenceReview({
           >
             Refresh evidence
           </button>
-          {data && (
+          {data && !test && (
             <button
               className="btn-primary"
               onClick={() => {
@@ -250,7 +251,7 @@ export default function RecruitmentEvidenceReview({
         <div className="recruitment-review-content">
           <nav className="recruitment-review-sections" aria-label="Application review sections">
             <AdminSegmentedControl value={section} onChange={setSection} label="Application review" options={[
-              {value:"overview",label:"Overview"}, {value:"assessment",label:"Assessment"}, {value:"fit",label:"Job Fit"}, {value:"evidence",label:"Interview Evidence"}, {value:"decision",label:"Decision"}
+              {value:"overview",label:"Overview"}, {value:"assessment",label:"Assessment"}, {value:"fit",label:"Job Fit"}, {value:"evidence",label:"Interview Evidence"}, ...(!test ? [{value:"decision",label:"Decision"}] : [])
             ]} />
           </nav>
           <div className="recruitment-review-main">

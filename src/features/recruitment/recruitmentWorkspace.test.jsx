@@ -9,6 +9,7 @@ import {
 import RecruitmentPage from "./RecruitmentPage.jsx";
 import { interviewInstructions } from "../../../supabase/functions/recruitment-realtime/prompt.ts";
 import { continuationContext } from "../../../supabase/functions/recruitment-realtime/context.ts";
+import { serviceCrewV2 } from "./serviceCrewV2.js";
 const qa = vi.hoisted(() => ({
   workspace: vi.fn(),
   saveOpening: vi.fn(),
@@ -114,7 +115,7 @@ beforeEach(() => {
   }));
   qa.saveOpening.mockResolvedValue("opening1");
   qa.profileDrafts.mockResolvedValue([]);
-  qa.prepareProfileDraft.mockResolvedValue({...profile,id:"draft2",version:2,status:"draft",revision:1});
+  qa.prepareProfileDraft.mockResolvedValue({...profile,id:"draft2",version:2,status:"draft",revision:1,definition:serviceCrewV2});
   qa.saveProfileDraft.mockImplementation(async(id,revision,definition)=>({...profile,id,version:2,status:"draft",revision:revision+1,definition}));
   qa.publishProfileDraft.mockResolvedValue("profile2");
 });
@@ -235,6 +236,8 @@ describe("opening-centred Recruitment workspace", () => {
       target: { value: "Revised role context" },
     });
     fireEvent.click(screen.getByRole("button",{name:"Save Draft"}));
+    await screen.findByText(/Draft saved. You can return later/);
+    fireEvent.click(screen.getByRole("tab",{name:"Preview & Publish"}));
     await waitFor(()=>expect(screen.getByRole("button",{name:"Publish Service Crew v2"}).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Publish Service Crew v2" }));
     await waitFor(() => expect(qa.publishProfileDraft).toHaveBeenCalledWith("draft2",2));
