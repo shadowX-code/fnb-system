@@ -40,33 +40,56 @@ export async function connectInterviewSdk({ signal, mediaStream, audioElement, a
       };
     }
   }
+  let channel;
+  let policyError = "ack_missing";
+  let acknowledgePolicy;
+  const policy = new Promise(resolve => { acknowledgePolicy = resolve; });
+  const observePolicy = ({ data }) => {
+    let event;
+    try { event = JSON.parse(data); } catch { return; }
+    if (event?.type !== "session.updated" || signal?.aborted) return;
+    policyError = controlledPolicyError(event.session);
+    acknowledgePolicy();
+  };
   const sdk = new InterviewWebRTC({
     mediaStream, audioElement,
     changePeerConnection(peer) {
-      bind(peer, sdk.connectionState.dataChannel, sdk);
+      channel = sdk.connectionState.dataChannel;
+      // SDK 0.21.0 can resolve connect before its wildcard listener sees the same
+      // acknowledgement. Observe the channel before the SDK adds its listeners.
+      channel.addEventListener("message", observePolicy);
+      bind(peer, channel, sdk);
       return peer;
     },
   });
-  let policyError = "ack_missing";
   sdk.on("*", event => {
     if (signal?.aborted) return;
-    if (event.type === "session.updated") policyError = controlledPolicyError(event.session);
     consume(event);
   });
   try {
     await bounded(sdk.connect({
       apiKey, model, initialSessionConfig: { tracing: null },
     }), "Interviewer SDK connection", { signal, timeoutMs: 17000 });
-    if (policyError) throw Error("Interviewer SDK did not acknowledge the required voice policy.");
+    await bounded(policy, "Interviewer SDK voice policy", { signal, timeoutMs: 1000 }).catch(error => {
+      if (error.code !== "recovery_timeout") throw error;
+    });
+    if (policyError) {
+      checkpoint("sdk.policy", policyError);
+      throw Object.assign(Error("Interviewer SDK did not acknowledge the required voice policy."), {
+        code: "sdk_policy_unverified",
+      });
+    }
+    checkpoint("sdk.policy", "dependency_completed");
   } catch (error) {
     try { sdk.close(); } catch { /* Original startup error owns recovery. */ }
     if (signal?.aborted) throw signal.reason;
-    if (policyError) checkpoint("sdk.policy", policyError);
     // The SDK's SDP error can include provider text. Do not retain it in diagnostics.
-    throw Object.assign(Error("Interviewer SDK could not connect with the required voice policy."), {
-      code: policyError ? "sdk_policy_unverified" : "sdk_connection_failed",
-      ...(error.code === "recovery_timeout" ? { code: error.code } : {}),
+    throw Object.assign(Error("Interviewer SDK could not connect."), {
+      code: ["sdk_policy_unverified", "recovery_timeout"].includes(error.code)
+        ? error.code : "sdk_connection_failed",
     });
+  } finally {
+    channel?.removeEventListener("message", observePolicy);
   }
 }
 

@@ -12,13 +12,19 @@ const policy = {
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
-function provider({ session = policy, stalled = false } = {}) {
+function provider({ session = policy, stalled = false, delay = 0, error } = {}) {
   let peer;
   class Channel extends EventTarget {
     readyState = "connecting";
     send = vi.fn(raw => {
-      if (JSON.parse(raw).type === "session.update" && session)
-        queueMicrotask(() => this.receive({type:"session.updated",event_id:"event_ack",session}));
+      if (JSON.parse(raw).type !== "session.update") return;
+      if (error) {
+        queueMicrotask(() => this.receive({type:"error", event_id:"event_error", error}));
+      } else if (session) {
+        const acknowledge = () => this.receive({type:"session.updated",event_id:"event_ack",session});
+        if (delay) setTimeout(acknowledge, delay);
+        else queueMicrotask(acknowledge);
+      }
     });
     receive(data) { this.dispatchEvent(new MessageEvent("message",{data:JSON.stringify(data)})); }
     close() { this.readyState="closed"; this.dispatchEvent(new Event("close")); }
@@ -42,12 +48,12 @@ function provider({ session = policy, stalled = false } = {}) {
   }));
   vi.stubGlobal("fetch",fetch);
   const track={enabled:false,stop:vi.fn()};
-  const bind=vi.fn(), consume=vi.fn(), controller=new AbortController();
+  const bind=vi.fn(), consume=vi.fn(), checkpoint=vi.fn(), controller=new AbortController();
   const connection=connectInterviewSdk({
     signal:controller.signal, mediaStream:{getAudioTracks:()=>[track]},audioElement:{},
-    apiKey:"ek_fake_test_key",bind,consume,
+    apiKey:"ek_fake_test_key",bind,consume,checkpoint,
   });
-  return {connection, bind, consume, controller, track, fetch, peer:()=>peer, settle:()=>settle({ok:true})};
+  return {connection, bind, consume, checkpoint, controller, track, fetch, peer:()=>peer, settle:()=>settle({ok:true})};
 }
 
 it("uses the installed SDK to establish one channel without overwriting server config or generating speech",async()=>{
@@ -79,6 +85,36 @@ it("fails closed if the provider enables automatic generation or explicitly disa
     expect(q.peer().closed).toBe(true);
     expect(q.peer().channel.readyState).toBe("closed");
   }
+});
+
+it("waits for the actual acknowledgement after SDK 0.21.0 resolves on its five-second fallback", async()=>{
+  vi.useFakeTimers();
+  const q=provider({delay:5200});
+  let ready = false;
+  const connection = q.connection.then(() => { ready = true; });
+  await vi.waitFor(() => expect(q.peer()?.channel.send).toHaveBeenCalled());
+  await vi.advanceTimersByTimeAsync(5050);
+  expect(ready).toBe(false);
+  expect(q.checkpoint).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(250);
+  await connection;
+  expect(q.checkpoint).toHaveBeenCalledWith("sdk.policy", "dependency_completed");
+  q.bind.mock.calls[0][2].close();
+});
+
+it("reports a missing acknowledgement separately from a rejected SDK connection", async()=>{
+  vi.useFakeTimers();
+  const q=provider({session:null});
+  const rejected=expect(q.connection).rejects.toMatchObject({code:"sdk_policy_unverified"});
+  await vi.waitFor(() => expect(q.peer()?.channel.send).toHaveBeenCalled());
+  await vi.advanceTimersByTimeAsync(6100);
+  await rejected;
+  expect(q.checkpoint).toHaveBeenCalledWith("sdk.policy", "ack_missing");
+  expect(q.peer().closed).toBe(true);
+
+  const failure=provider({error:{type:"invalid_request_error",code:"fixture_rejected",message:"Fixture rejection"}});
+  await expect(failure.connection).rejects.toMatchObject({code:"sdk_connection_failed"});
+  expect(failure.checkpoint).not.toHaveBeenCalled();
 });
 
 it("abandons a stalled SDK exchange without applying its late SDP or emitting old events", async()=>{
