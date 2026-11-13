@@ -199,6 +199,8 @@
     padding: 20px 24px;
   }
   .candidate-room-context { grid-column: 1 / -1; }
-  .candidate-stage { grid-row: 2 / span 2; }
+  .candidate-stage { grid-row: 2 / span 2; padding-inline-end: 56px; }
+  .candidate-stage .candidate-orb { width: min(100%, 190px); }
+  .candidate-self-view { width: 58px; inset-inline-end: 8px; }
   .candidate-prompt { min-height: 0; }
 }
