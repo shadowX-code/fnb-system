@@ -46,7 +46,7 @@ it("refresh presents explicit resume and reconnects without waiting for old evid
   const devices=mount();
   expect(screen.queryByRole("button",{name:"Start interview"})).toBeNull();
   fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));
-  await screen.findByRole("button",{name:"Finish interview"});
+  await screen.findByRole("button",{name:"End interview"});
   expect(qa.begin.mock.calls[0].slice(0,2)).toEqual(["a".repeat(64),"stable-client"]);
   expect(devices.start).toHaveBeenCalledTimes(1);
   expect(qa.captures.filter(c=>c.recorder.state==="recording")).toHaveLength(1);
@@ -54,7 +54,7 @@ it("refresh presents explicit resume and reconnects without waiting for old evid
 it("background closes the owner and foreground reacquires devices into a new unit on the same attempt",async()=>{
   const devices=mount();
   fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));
-  await screen.findByRole("button",{name:"Finish interview"});
+  await screen.findByRole("button",{name:"End interview"});
   const prior=qa.transports.at(-1);
   vi.spyOn(document,"hidden","get").mockReturnValue(true);
   fireEvent(document,new Event("visibilitychange"));
@@ -67,7 +67,7 @@ it("background closes the owner and foreground reacquires devices into a new uni
   fireEvent(document,new Event("visibilitychange"));
   fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));
   await waitFor(()=>expect(devices.start).toHaveBeenCalledTimes(2));
-  await screen.findByRole("button",{name:"Finish interview"});
+  await screen.findByRole("button",{name:"End interview"});
   expect(qa.begin).toHaveBeenCalledTimes(2);
   expect(qa.captures.filter(c=>c.recorder.state==="recording")).toHaveLength(1);
 });
@@ -77,7 +77,7 @@ it("activates fresh audio and requests fresh media during the tap, before server
   fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));
   expect(qa.activation).toHaveBeenCalledTimes(1);expect(devices.start).toHaveBeenCalledTimes(1);
   expect(qa.begin).not.toHaveBeenCalled();
-  await screen.findByRole("button",{name:"Finish interview"});
+  await screen.findByRole("button",{name:"End interview"});
 });
 it("a never-settling capture acquisition becomes visible retryable recovery; retry succeeds",async()=>{
   vi.useFakeTimers();qa.recordStart.mockImplementationOnce(()=>new Promise(()=>{}));mount();
@@ -86,7 +86,7 @@ it("a never-settling capture acquisition becomes visible retryable recovery; ret
   expect(screen.getByRole("alert").textContent).toMatch(/try again/);
   expect(screen.getByRole("button",{name:"Continue interview"}).disabled).toBe(false);
   await act(async()=>{fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));});
-  expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+  expect(screen.getByRole("button",{name:"End interview"})).toBeTruthy();
   expect(qa.begin).toHaveBeenCalledTimes(2);
 });
 it("repeated Continue cannot allocate a competing pending generation",async()=>{
@@ -98,7 +98,7 @@ it("repeated Continue cannot allocate a competing pending generation",async()=>{
   fireEvent.click(button);
   expect(qa.begin).toHaveBeenCalledTimes(1);
   await act(async()=>release({status:"starting",started_at:new Date().toISOString(),max_ends_at:new Date(Date.now()+600000).toISOString()}));
-  await screen.findByRole("button",{name:"Finish interview"});
+  await screen.findByRole("button",{name:"End interview"});
   expect(qa.captures.filter(c=>c.recorder.state==="recording")).toHaveLength(1);
 });
 it("cold refresh discards pending in-memory media/transport rather than joining it",async()=>{
@@ -107,7 +107,7 @@ it("cold refresh discards pending in-memory media/transport rather than joining 
   await waitFor(()=>expect(qa.connect).toHaveBeenCalledTimes(1));
   const stale=qa.transports.at(-1);cleanup();qa.connect.mockResolvedValue();
   mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));
-  await screen.findByRole("button",{name:"Finish interview"});expect(stale.closed).toBe(true);expect(qa.connect).toHaveBeenCalledTimes(2);
+  await screen.findByRole("button",{name:"End interview"});expect(stale.closed).toBe(true);expect(qa.connect).toHaveBeenCalledTimes(2);
 });
 it("durable terminal state explains the outcome without creating capture/provider ownership",async()=>{
   qa.state.mockResolvedValue({state:"TERMINAL",reason:"Interview link is unavailable."});mount();
@@ -120,7 +120,7 @@ it("pending old transcript persistence cannot hold a cold durable resume indefin
   vi.useFakeTimers();qa.flush.mockImplementationOnce(()=>new Promise(()=>{}));mount();
   await act(async()=>{fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));});
   await act(async()=>{await vi.advanceTimersByTimeAsync(8100);});
-  expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+  expect(screen.getByRole("button",{name:"End interview"})).toBeTruthy();
   expect(screen.getByText(/Your most recent responses may still be saving/)).toBeTruthy();
 });
 
@@ -133,7 +133,7 @@ it("an old heartbeat cannot finalize or pause a newly recovered session",async()
   vi.spyOn(document,"hidden","get").mockReturnValue(false);fireEvent(document,new Event("visibilitychange"));
   await act(async()=>{fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));});
   await act(async()=>{resolveHeartbeat({status:"finalizing"});});
-  expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();expect(screen.queryByText("Submitting your interview")).toBeNull();
+  expect(screen.getByRole("button",{name:"End interview"})).toBeTruthy();expect(screen.queryByText("Submitting your interview")).toBeNull();
 });
 it("fresh but still-muted mobile tracks expose a bounded reacquire action instead of starting AI",async()=>{
   vi.useFakeTimers();const devices=mount();
@@ -145,11 +145,11 @@ it("fresh but still-muted mobile tracks expose a bounded reacquire action instea
   expect(screen.getByRole("button",{name:"Continue interview"}).disabled).toBe(false);
   expect(qa.connect).not.toHaveBeenCalled();
   await act(async()=>{fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));});
-  expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+  expect(screen.getByRole("button",{name:"End interview"})).toBeTruthy();
 });
 
 it("late loss from a previous recording cannot cancel a new recovery",async()=>{
-  mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"Finish interview"});
+  mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"End interview"});
   const oldCapture=qa.captures.at(-1);
   vi.spyOn(document,"hidden","get").mockReturnValue(true);fireEvent(document,new Event("visibilitychange"));
   vi.spyOn(document,"hidden","get").mockReturnValue(false);fireEvent(document,new Event("visibilitychange"));
@@ -159,7 +159,7 @@ it("late loss from a previous recording cannot cancel a new recovery",async()=>{
   await waitFor(()=>expect(resolveBegin).toBeTypeOf("function"));
   oldCapture.props.onLost("local_storage_failed");
   resolveBegin({status:"starting",started_at:new Date().toISOString(),max_ends_at:new Date(Date.now()+600000).toISOString()});
-  await screen.findByRole("button",{name:"Finish interview"});
+  await screen.findByRole("button",{name:"End interview"});
 });
 
 it("requests native media before AudioContext activation or old cleanup",async()=>{
@@ -167,7 +167,7 @@ it("requests native media before AudioContext activation or old cleanup",async()
   fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));
   expect(devices.start.mock.invocationCallOrder[0]).toBeLessThan(qa.activation.mock.invocationCallOrder[0]);
   expect(devices.stop).not.toHaveBeenCalled();
-  await screen.findByRole("button",{name:"Finish interview"});
+  await screen.findByRole("button",{name:"End interview"});
 });
 it("hung camera acquisition has its own timeout and never starts a server resume",async()=>{
   vi.useFakeTimers();const devices=mount();devices.start.mockImplementationOnce(()=>new Promise(()=>{}));
@@ -177,7 +177,7 @@ it("hung camera acquisition has its own timeout and never starts a server resume
   expect(screen.getByRole("alert").textContent).not.toMatch(/Allow access/);
   expect(qa.begin).not.toHaveBeenCalled();
   await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Continue interview"})));
-  expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+  expect(screen.getByRole("button",{name:"End interview"})).toBeTruthy();
 });
 
 it("repeated Resume shares one pending tab identity without a competing own-tab lock",async()=>{
@@ -185,21 +185,21 @@ it("repeated Resume shares one pending tab identity without a competing own-tab 
  const button=screen.getByRole("button",{name:"Continue interview"});fireEvent.click(button);fireEvent.click(button);
  await waitFor(()=>expect(resolveClaim).toBeTypeOf("function"));
  await act(async()=>resolveClaim({clientId:"stable-client",release:vi.fn()}));
- await screen.findByRole("button",{name:"Finish interview"});expect(qa.claim).toHaveBeenCalledTimes(1);expect(devices.start).toHaveBeenCalledTimes(1);
+ await screen.findByRole("button",{name:"End interview"});expect(qa.claim).toHaveBeenCalledTimes(1);expect(devices.start).toHaveBeenCalledTimes(1);
  expect(qa.begin).toHaveBeenCalledTimes(1);
 });
 
 it("dead AI transport abandons capture and exposes only fresh-generation Continue",async()=>{
- const devices=mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"Finish interview"});
+ const devices=mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"End interview"});
  const old=qa.transports.at(-1),capture=qa.captures.at(-1);
  act(()=>old.props.onStatus("disconnected"));
  expect(old.closed).toBe(true);expect(capture.recorder.state).toBe("inactive");
  expect(screen.getByText("Interview paused")).toBeTruthy();
  expect(screen.queryByText("Recording")).toBeNull();expect(screen.queryByRole("button",{name:"Reconnect AI"})).toBeNull();
- expect(screen.queryByRole("button",{name:"Finish interview"})).toBeNull();
+ expect(screen.queryByRole("button",{name:"End interview"})).toBeNull();
  const before=qa.connect.mock.calls.length;
  await act(async()=>old.props.onStatus("connected"));expect(qa.connect).toHaveBeenCalledTimes(before);
- fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"Finish interview"});
+ fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"End interview"});
  expect(devices.start).toHaveBeenCalledTimes(2);expect(qa.connect).toHaveBeenCalledTimes(before+1);
  expect(qa.transports.at(-1)).not.toBe(old);
  expect(qa.captures.filter(c=>c.recorder.state==="recording")).toHaveLength(1);
@@ -208,19 +208,19 @@ it("hung fresh provider setup returns to recovery after its bounded timeout",asy
  vi.useFakeTimers();qa.connect.mockImplementationOnce(()=>new Promise(()=>{}));mount();
  await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Continue interview"})));
  expect(qa.connect).toHaveBeenCalledOnce();
- expect(screen.queryByRole("button",{name:"Finish interview"})).toBeNull();
+ expect(screen.queryByRole("button",{name:"End interview"})).toBeNull();
  expect(screen.queryByRole("button",{name:"Continue interview"})).toBeNull();
  const old=qa.transports.at(-1);
  await act(async()=>vi.advanceTimersByTimeAsync(31000));
  expect(screen.getByRole("button",{name:"Continue interview"})).toBeTruthy();
  expect(old.closed).toBe(true);
  await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Continue interview"})));
- expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+ expect(screen.getByRole("button",{name:"End interview"})).toBeTruthy();
  act(()=>old.props.onStatus("disconnected"));
- expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+ expect(screen.getByRole("button",{name:"End interview"})).toBeTruthy();
 });
 it("interviewer audio failure uses the same Continue action rather than separate audio management",async()=>{
- mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"Finish interview"});
+ mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"End interview"});
  act(()=>qa.transports.at(-1).props.onStatus("audio-blocked"));
  expect(screen.getByRole("button",{name:"Continue interview"})).toBeTruthy();expect(screen.queryByRole("button",{name:"Enable interviewer audio"})).toBeNull();
  expect(screen.queryByText("Recording")).toBeNull();
@@ -232,7 +232,7 @@ it("pre-start preparation remount preserves checked devices and Start invokes na
   expect(devices.stop).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button",{name:"Start interview"}));
   expect(devices.start).toHaveBeenCalledOnce();expect(qa.activation).toHaveBeenCalledOnce();
-  await screen.findByRole("button",{name:"Finish interview"});
+  await screen.findByRole("button",{name:"End interview"});
 });
 
 it("initial preparation has no Continue action and duplicate startup taps cannot allocate another generation",async()=>{
@@ -243,7 +243,7 @@ it("initial preparation has no Continue action and duplicate startup taps cannot
  await waitFor(()=>expect(qa.connect).toHaveBeenCalledOnce());
  expect(screen.queryByRole("button",{name:"Continue interview"})).toBeNull();
  expect(qa.begin).toHaveBeenCalledOnce();expect(devices.start).toHaveBeenCalledOnce();
- await act(async()=>connected());await screen.findByRole("button",{name:"Finish interview"});
+ await act(async()=>connected());await screen.findByRole("button",{name:"End interview"});
 });
 it("physical closing automatically reconciles canonical completion despite pending upload without another utterance",async()=>{
  vi.useFakeTimers();qa.finish.mockResolvedValue({status:"finalizing"});qa.evidence.mockResolvedValue({can_finish:true});
@@ -256,7 +256,7 @@ it("physical closing automatically reconciles canonical completion despite pendi
 });
 it("server denied completion returns to a genuinely resumable state rather than false Complete",async()=>{
  qa.finish.mockRejectedValue(Object.assign(Error("Required interview topics remain."),{cause:{code:"55000"}}));qa.evidence.mockResolvedValue({can_finish:true});
- mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"Finish interview"});
+ mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"End interview"});
  await act(async()=>{await qa.transports.at(-1).props.onTool();qa.transports.at(-1).props.onCompletion();});
  expect(await screen.findByRole("button",{name:"Continue interview"})).toBeTruthy();
  expect(screen.getByRole("alert").textContent).toContain("needs a little more information");
@@ -264,8 +264,8 @@ it("server denied completion returns to a genuinely resumable state rather than 
 });
 it('Finish shows checking immediately, blocks duplicate actions, then exposes authoritative denial',async()=>{
  let checked;qa.evidence.mockImplementationOnce(()=>new Promise(resolve=>checked=resolve));
- mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
- fireEvent.click(screen.getByRole('button',{name:'Finish interview'}));
+ mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'End interview'});
+ fireEvent.click(screen.getByRole('button',{name:'End interview'}));
  expect(screen.getByRole('button',{name:'Checking…'}).disabled).toBe(true);
  expect(screen.getByRole('button',{name:'Stop and submit partial interview'}).disabled).toBe(true);
  await waitFor(()=>expect(checked).toBeTypeOf('function'));
@@ -288,7 +288,7 @@ it('partial stop confirms once and shows submission immediately while evidence u
 
 it("Safari page-cache restore discards even an apparently active owner before the first Continue tap",async()=>{
  const devices=mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));
- await screen.findByRole("button",{name:"Finish interview"});
+ await screen.findByRole("button",{name:"End interview"});
  const old=qa.transports.at(-1);
  // pageshow can be the first delivered lifecycle event after WebKit suspension.
  const restored=new Event("pageshow");Object.defineProperty(restored,"persisted",{value:true});
@@ -296,7 +296,7 @@ it("Safari page-cache restore discards even an apparently active owner before th
  expect(old.closed).toBe(true);
  const button=screen.getByRole("button",{name:"Continue interview"});expect(button.disabled).toBe(false);
  fireEvent.click(button);expect(devices.start).toHaveBeenCalledTimes(2);
- await screen.findByRole("button",{name:"Finish interview"});
+ await screen.findByRole("button",{name:"End interview"});
  expect(qa.transports.at(-1)).not.toBe(old);expect(qa.begin).toHaveBeenCalledTimes(2);
 });
 
@@ -305,14 +305,14 @@ it('page-cache restore during hung acquisition clears busy and fences the late o
  fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));
  const restored=new Event("pageshow");Object.defineProperty(restored,"persisted",{value:true});fireEvent(window,restored);
  const button=screen.getByRole("button",{name:"Continue interview"});expect(button.disabled).toBe(false);
- fireEvent.click(button);await screen.findByRole("button",{name:"Finish interview"});
+ fireEvent.click(button);await screen.findByRole("button",{name:"End interview"});
  const stop=vi.fn();await act(async()=>resolveOld({getTracks:()=>[{stop}]}));
  expect(stop).toHaveBeenCalled();expect(qa.begin).toHaveBeenCalledOnce();
- expect(screen.getByRole("button",{name:"Finish interview"})).toBeTruthy();
+ expect(screen.getByRole("button",{name:"End interview"})).toBeTruthy();
 });
 it('the physical mute-before-background sequence reconstructs a distinct native output on the first Continue tap',async()=>{
  const {default:fixture}=await import('../../../qa/recruitment/safariTurnRecovery.fixture.json');
- const devices=mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ const devices=mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'End interview'});
  const prior=qa.transports.at(-1),output=prior.props.audioElement;
  act(()=>qa.captures.at(-1).props.onLost('media_track_muted'));
  for(const event of fixture.recovery.filter(r=>r.type==='recovery.visibility')) {
@@ -320,7 +320,7 @@ it('the physical mute-before-background sequence reconstructs a distinct native 
  }
  const button=screen.getByRole('button',{name:'Continue interview'});expect(button.disabled).toBe(false);
  fireEvent.click(button);expect(devices.start).toHaveBeenCalledTimes(2);expect(screen.getByText('Continuing your interview')).toBeTruthy();
- await screen.findByRole('button',{name:'Finish interview'});expect(qa.transports.at(-1).props.audioElement).not.toBe(output);expect(prior.closed).toBe(true);
+ await screen.findByRole('button',{name:'End interview'});expect(qa.transports.at(-1).props.audioElement).not.toBe(output);expect(prior.closed).toBe(true);
 });
 it('synchronous native activation failure records handler entry and a correlated failure, then permits retry',async()=>{
  const {recruitmentService}=await import('./recruitmentService.js');mount();
@@ -330,31 +330,31 @@ it('synchronous native activation failure records handler entry and a correlated
  await act(async()=>{});
  const records=recruitmentService.observeRecovery.mock.calls.map(args=>args[3]);
  // On cold bootstrap these remain locally buffered until tab identity is acquired.
- fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'End interview'});
  const flushed=recruitmentService.observeRecovery.mock.calls.map(args=>args[3]);
  const failure=flushed.find(r=>r.stage==='native activation'&&r.code==='InvalidStateError');
  expect(failure).toBeTruthy();expect(flushed.some(r=>r.stage==='continue.tap'&&r.request_id===failure.request_id)).toBe(true);
 });
 it('an interrupted pending completion check cannot disable Continue or finish the replacement generation',async()=>{
  let resolveCheck;qa.evidence.mockImplementationOnce(()=>new Promise(resolve=>resolveCheck=resolve));
- mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
- fireEvent.click(screen.getByRole('button',{name:'Finish interview'}));await waitFor(()=>expect(resolveCheck).toBeTypeOf('function'));
+ mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'End interview'});
+ fireEvent.click(screen.getByRole('button',{name:'End interview'}));await waitFor(()=>expect(resolveCheck).toBeTypeOf('function'));
  act(()=>qa.captures.at(-1).props.onLost('media_track_muted'));
  const button=screen.getByRole('button',{name:'Continue interview'});expect(button.disabled).toBe(false);fireEvent.click(button);
- await screen.findByRole('button',{name:'Finish interview'});
- await act(async()=>resolveCheck({can_finish:true}));expect(qa.finish).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:'Finish interview'})).toBeTruthy();
+ await screen.findByRole('button',{name:'End interview'});
+ await act(async()=>resolveCheck({can_finish:true}));expect(qa.finish).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:'End interview'})).toBeTruthy();
 });
 it('pointer intent and first-tap handler share one correlation ID through fresh native activation',async()=>{
  const {recruitmentService}=await import('./recruitmentService.js');const devices=mount();
  const button=screen.getByRole('button',{name:'Continue interview'});fireEvent.pointerDown(button);fireEvent.click(button);
- expect(devices.start).toHaveBeenCalledOnce();await screen.findByRole('button',{name:'Finish interview'});
+ expect(devices.start).toHaveBeenCalledOnce();await screen.findByRole('button',{name:'End interview'});
  const records=recruitmentService.observeRecovery.mock.calls.map(args=>args[3]);
  const pointer=records.find(r=>r.stage==='continue.pointer');expect(pointer).toBeTruthy();
  expect(records.find(r=>r.stage==='continue.tap').request_id).toBe(pointer.request_id);
  expect(records.some(r=>r.code==='dependency_completed'&&r.request_id===pointer.request_id)).toBe(true);
 });
 it('automatic flow keeps manual confirmation optional and delegates interruption without allocating another generation',async()=>{
- mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'End interview'});
  const t=qa.transports.at(-1);act(()=>t.props.onTurnState({listening:true,text:'我可以做周末。',canSend:true,canInterrupt:false}));
  expect(screen.queryByRole('button',{name:'Send answer'})).toBeNull();expect(screen.queryByRole('button',{name:'Try again'})).toBeNull();
  expect(screen.queryByRole("button",{name:"Use these words"})).toBeNull();
@@ -372,7 +372,7 @@ it('first Continue commits a stable pending surface before entering native captu
   expect(screen.queryByLabelText('Your camera preview')).toBeNull();
   return Promise.resolve({getTracks:()=>['audio','video'].map(kind=>({kind,readyState:'live',muted:false,addEventListener:vi.fn(),removeEventListener:vi.fn(),stop:vi.fn()}))});
  });
- fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'End interview'});
  expect(screen.queryByTestId('interview-recovery-surface')).toBeNull();
 });
 it('foreground reconstruction never mounts old media; a thrown Room recovers without recreating the route owner',async()=>{
@@ -380,7 +380,7 @@ it('foreground reconstruction never mounts old media; a thrown Room recovers wit
  fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Continue interview'});
  expect(screen.getByTestId('interview-recovery-surface')).toBeTruthy();expect(qa.interruption.mock.calls.some(args=>args[3]==='room_render_failed')).toBe(true);
  const prior=qa.captures.at(-1);qa.roomThrows=false;
- fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Finish interview'});
+ fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'End interview'});
  expect(devices.start).toHaveBeenCalledTimes(2);expect(qa.claim).toHaveBeenCalledOnce();expect(qa.captures.at(-1)).not.toBe(prior);
 });
 it('native cleanup failure cannot leave a failed reconstruction busy or prevent its retry action',async()=>{
@@ -389,7 +389,7 @@ it('native cleanup failure cannot leave a failed reconstruction busy or prevent 
  await act(async()=>{await vi.advanceTimersByTimeAsync(26000);});
  expect(screen.getByRole('button',{name:'Continue interview'})).toBeTruthy();expect(screen.getByTestId('interview-recovery-surface')).toBeTruthy();
  fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
- expect(screen.getByRole('button',{name:'Finish interview'})).toBeTruthy();
+ expect(screen.getByRole('button',{name:'End interview'})).toBeTruthy();
 });
 it('refresh retains the last pending dependency and replays diagnostics without resuming old native state',async()=>{
  const devices=mount();qa.connect.mockImplementationOnce(()=>new Promise(()=>{}));
@@ -406,7 +406,7 @@ it('a hidden page or inactive audio after connection cannot mount a falsely resu
  await screen.findByRole('button',{name:'Continue interview'});expect(screen.queryByLabelText('Your camera preview')).toBeNull();
  vi.spyOn(document,'hidden','get').mockReturnValue(false);qa.activation.mockReturnValueOnce({context:{close:vi.fn().mockResolvedValue(),state:'interrupted'},ready:Promise.resolve()});
  fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await screen.findByRole('button',{name:'Continue interview'});
- expect(screen.queryByRole('button',{name:'Finish interview'})).toBeNull();expect(screen.getByRole('alert').textContent).toContain('sound');
+ expect(screen.queryByRole('button',{name:'End interview'})).toBeNull();expect(screen.getByRole('alert').textContent).toContain('sound');
 });
 it('replays the physical failed-media then stalled-provider sequence into explicit retry states on the same attempt',async()=>{
  const fixture=(await import('../../../qa/recruitment/sessionRecoveryPhysical.fixture.json')).default;
@@ -420,13 +420,13 @@ it('replays the physical failed-media then stalled-provider sequence into explic
  qa.connect.mockImplementationOnce(()=>new Promise(()=>{}));fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));
  await act(async()=>{await vi.advanceTimersByTimeAsync(26000);});expect(screen.getByRole('button',{name:'Continue interview'})).toBeTruthy();
  fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
- expect(screen.getByRole('button',{name:'Finish interview'})).toBeTruthy();expect(qa.begin).toHaveBeenCalledTimes(3);
+ expect(screen.getByRole('button',{name:'End interview'})).toBeTruthy();expect(qa.begin).toHaveBeenCalledTimes(3);
  expect(qa.begin.mock.calls.every(args=>args[0]==='a'.repeat(64)&&args[1]==='stable-client')).toBe(true);
 });
 
 it('a delayed old pause rejection cannot replace a newer native failure or its recovery reference',async()=>{
  mount();fireEvent.click(screen.getByRole('button',{name:'Continue interview'}));
- await screen.findByRole('button',{name:'Finish interview'});
+ await screen.findByRole('button',{name:'End interview'});
  let rejectPause;qa.interruption.mockImplementationOnce(()=>new Promise((_,reject)=>{rejectPause=reject;}));
  vi.spyOn(document,'hidden','get').mockReturnValue(true);fireEvent(document,new Event('visibilitychange'));
  vi.spyOn(document,'hidden','get').mockReturnValue(false);fireEvent(document,new Event('visibilitychange'));
@@ -451,7 +451,7 @@ it("first-start connection failure offers Retry start before and after refresh",
  cleanup();
  mount("interrupted",undefined,false);
  fireEvent.click(screen.getByRole("button",{name:"Retry start"}));
- await screen.findByRole("button",{name:"Finish interview"});
+ await screen.findByRole("button",{name:"End interview"});
  act(()=>qa.transports.at(-1).props.onStatus("disconnected"));
  expect(screen.getByRole("button",{name:"Continue interview"})).toBeTruthy();
 });
@@ -462,7 +462,7 @@ it("preserves a coverage submission across refresh without falling back to parti
   qa.finish.mockRejectedValueOnce(Error("response lost"));
   mount();
   fireEvent.click(screen.getByRole("button", {name:"Continue interview"}));
-  fireEvent.click(await screen.findByRole("button", {name:"Finish interview"}));
+  fireEvent.click(await screen.findByRole("button", {name:"End interview"}));
   await screen.findByRole("button", {name:"Retry submission"});
   expect(qa.finish.mock.lastCall[2]).toBe("coverage");
 

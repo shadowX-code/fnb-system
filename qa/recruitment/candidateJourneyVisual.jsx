@@ -1,107 +1,65 @@
-// Development-only visual fixtures. No token, provider, media or business mutation.
+// Development-only visual fixture. No provider connection or business mutation.
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import Room, {
-  InterviewComplete,
-} from "../../src/features/recruitment/RecruitmentInterviewRoom.jsx";
-import {
-  initialPresence,
-  observeInterviewPresence,
-} from "../../src/features/recruitment/interviewPresentation.js";
+import Room, { InterviewComplete } from "../../src/features/recruitment/RecruitmentInterviewRoom.jsx";
+import { InterviewRecoverySurface } from "../../src/features/recruitment/InterviewRecoverySurface.jsx";
+import { candidateText } from "../../src/features/recruitment/candidatePreparation.js";
+import { initialPresence, observeInterviewPresence } from "../../src/features/recruitment/interviewPresentation.js";
 import "../../src/styles/index.css";
 import "../../src/features/recruitment/recruitmentPublic.css";
-const entry = {
-  job: {
-    position: "Service Crew / 服务员",
-    title: "Service Crew",
-    workplace: "Happiness Kopitiam Ipoh · 客服与餐饮团队",
-  },
+
+const entry = { job: { position: "Service Crew", workplace: "Happiness Kopitiam Ipoh" } };
+const turns = {
+  listening: { listening: true },
+  thinking: { thinking: true },
+  speaking: { speaking: true },
 };
-const signals = {
-  Listening: { type: "input_audio_buffer.speech_started" },
-  Thinking: { type: "response.created" },
-  Speaking: { type: "output_audio_buffer.started" },
+const query = new URLSearchParams(location.search);
+const fixtureLevel = {
+  context: { state: "running" },
+  fftSize: 2048,
+  getFloatTimeDomainData(samples) { samples.fill(Number(query.get("level")) || 0); },
 };
+
 function Fixture() {
-  const [mode, setMode] = useState("Listening"),
-    [text, setText] = useState("EN");
-  let presence = observeInterviewPresence(initialPresence, signals[mode] || {});
-  presence = observeInterviewPresence(presence, {
-    type: "response.output_audio_transcript.done",
-    item_id: "fixture",
-    transcript:
-      text === "中文"
+  const [mode, setMode] = useState(query.get("state") || "listening");
+  const [language, setLanguage] = useState(query.get("lang") === "zh" ? "zh" : "en");
+  const t = candidateText(language);
+  const turn = turns[mode];
+  const presence = observeInterviewPresence(
+    turn ? observeInterviewPresence(initialPresence, { type: "candidate.answer.preview", ...turn }) : initialPresence,
+    {
+      type: "response.output_audio_transcript.done",
+      item_id: "fixture",
+      transcript: language === "zh"
         ? "如果顾客等餐等了很久，你会怎样处理？"
-        : text === "粤语"
-          ? "如果客人等咗好耐都未有餐，你會點處理？"
-          : text === "BM"
-            ? "Bagaimana anda membantu pelanggan yang menunggu makanan terlalu lama?"
-            : "How would you help a customer whose food has taken longer than expected?",
-  });
+        : "How would you help a customer whose food has taken longer than expected?",
+    },
+  );
   return (
-    <>
-      <div
-        style={{
-          padding: 12,
-          background: "#fff",
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-        }}
-      >
-        <strong style={{ width: "100%" }}>
-          Visual fixture · no live interview
-        </strong>
-        {["Listening", "Thinking", "Speaking", "Recovering", "Complete"].map(
-          (value) => (
-            <button
-              key={value}
-              className="btn-secondary"
-              onClick={() => setMode(value)}
-            >
-              {value}
-            </button>
-          ),
-        )}
-        {["EN", "BM", "中文", "粤语"].map((value) => (
-          <button
-            key={value}
-            className="btn-secondary"
-            onClick={() => setText(value)}
-          >
-            {value}
-          </button>
-        ))}
+    <main className="recruitment-public" lang={language === "zh" ? "zh-Hans" : "en"}>
+      <div className="recruitment-public-card">
+        <header className="recruitment-public-header">
+          <span className="recruitment-mark">FeedX</span>
+          <div className="candidate-interface-language"><span>{t.interfaceLanguage}</span><div>
+            {["en", "zh"].map(locale => <button key={locale} className="candidate-button is-secondary"
+              aria-pressed={language === locale} onClick={() => setLanguage(locale)}>{locale === "en" ? "EN" : "中文"}</button>)}
+          </div></div>
+        </header>
+        {mode === "completed" ? <InterviewComplete entry={entry} language={language} completedAt="2026-11-14T01:50:00Z" />
+          : mode === "finalizing" || mode === "interrupted" ? <InterviewRecoverySurface entry={entry} language={language} status={mode} hasConnected>
+              {mode === "interrupted" && <button className="candidate-button is-primary" onClick={() => setMode("listening")}>{t.resume}</button>}
+            </InterviewRecoverySurface>
+          : <Room entry={entry} language={language} presence={presence} recordingStatus="recording" elapsed={222}
+              analyser={query.has("level") ? fixtureLevel : undefined}>
+              <div className="candidate-live-actions">
+                {mode === "speaking" && <button className="candidate-button is-secondary" onClick={() => setMode("listening")}>{t.interrupt}</button>}
+                <button className="candidate-button is-end" onClick={() => setMode("finalizing")}>{t.finish}</button>
+              </div>
+              <button className="candidate-button is-quiet">{t.stop}</button>
+            </Room>}
       </div>
-      <main className="recruitment-public">
-        <div className="recruitment-public-card">
-          <header className="recruitment-public-header">
-            <span className="recruitment-mark">FeedX</span>
-            <span>Interview</span>
-          </header>
-          {mode === "Complete" ? (
-            <InterviewComplete
-              entry={entry}
-              completedAt="2026-10-05T12:50:00Z"
-            />
-          ) : (
-            <Room
-              entry={entry}
-              presence={presence}
-              status={mode === "Recovering" ? "interrupted" : "interviewing"}
-              recordingStatus="recording"
-              elapsed={222}
-            >
-              <button className="btn-primary">
-                {mode === "Recovering"
-                  ? "Continue interview"
-                  : "Finish interview"}
-              </button>
-            </Room>
-          )}
-        </div>
-      </main>
-    </>
+    </main>
   );
 }
 createRoot(document.getElementById("root")).render(<Fixture />);

@@ -1,67 +1,147 @@
 @import "./candidateControls.css";
-.recruitment-public{--candidate-camera:#19362e;--candidate-ink:#152a28;--candidate-muted:#526865;--candidate-line:#e0e8e5;min-height:100dvh;background:#eff3f2;color:var(--candidate-ink);padding:36px 20px;font-family:inherit;display:grid;place-items:center}
-.recruitment-public-card{width:min(100%,600px);background:#fff;border:1px solid var(--candidate-line);border-radius:20px;overflow:hidden;box-shadow:0 8px 36px #153a2e08}
-.recruitment-public-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;border-bottom:1px solid var(--candidate-line);color:var(--candidate-muted);font-size:14px;font-weight:600}
-.recruitment-mark{color:#087b5b;font-size:24px;font-weight:800;letter-spacing:-.055em}
+.recruitment-public{--candidate-camera:#103438;--candidate-page:#eef5f4;min-height:100vh;min-height:100dvh;background:var(--candidate-page);color:var(--theme-text);padding:36px 20px;font-family:inherit;display:grid;place-items:center}
+.recruitment-public-card{width:min(100%,600px);background:var(--theme-surface);border:1px solid var(--theme-border);border-radius:16px}
+.recruitment-public-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;border-bottom:1px solid var(--theme-border);color:var(--theme-muted);font-size:14px;font-weight:600}
+.recruitment-mark{color:var(--theme-primary);font-size:24px;font-weight:800;letter-spacing:-.035em}
 .recruitment-public section{padding:28px}
 .recruitment-public h1{font-size:28px;line-height:1.2;letter-spacing:-.035em;font-weight:750;margin:0 0 12px}
 .recruitment-public h2{font-size:18px;line-height:1.35;font-weight:700;margin:0 0 8px}
-.recruitment-public p{line-height:1.55;color:var(--candidate-muted);margin:0 0 18px;font-size:15px;overflow-wrap:anywhere}
+.recruitment-public p{line-height:1.55;color:var(--theme-muted);margin:0 0 18px;font-size:15px;overflow-wrap:anywhere}
 .recruitment-full{width:100%;margin-top:20px}
-.recruitment-public .candidate-role{border:1px solid var(--candidate-line);border-radius:14px;padding:20px;margin:24px 0}
+.recruitment-public .candidate-role{border:1px solid var(--theme-border);border-radius:14px;padding:20px;margin:24px 0}
 .recruitment-details{display:grid;gap:16px;margin:18px 0 0}
-.recruitment-details dt{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--candidate-muted)}
+.recruitment-details dt{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--theme-muted)}
 .recruitment-details dd{margin:4px 0 0;font-size:15px;font-weight:550;overflow-wrap:anywhere}
 .candidate-languages{border:0;padding:0;margin:26px 0;min-width:0}
 .candidate-languages legend{font-weight:650;font-size:15px;margin-bottom:8px}
 .candidate-languages>p{font-size:13px;margin-bottom:14px}
 .candidate-languages>div{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.candidate-identity,.candidate-language-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--candidate-line);padding-top:20px;margin:20px 0}
+.candidate-identity,.candidate-language-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--theme-border);padding-top:20px;margin:20px 0}
 .candidate-identity>div{display:flex;align-items:center;gap:12px;min-width:0}
 .candidate-identity>div>div{min-width:0}
-.candidate-identity span,.candidate-language-summary span{display:block;color:var(--candidate-muted);font-size:13px;margin-bottom:5px}
+.candidate-identity span,.candidate-language-summary span{display:block;color:var(--theme-muted);font-size:13px;margin-bottom:5px}
 .candidate-identity strong{display:block;overflow-wrap:anywhere;font-size:15px}
 .candidate-identity p{font-size:14px;margin:4px 0 0}
 .candidate-edit{display:grid;gap:14px;margin-bottom:20px}
 .candidate-edit label{font-size:14px;font-weight:600}
-.candidate-edit input{display:block;width:100%;margin-top:6px;min-height:48px;border:1px solid var(--candidate-line);border-radius:10px;padding:10px 12px;background:#fff;color:var(--candidate-ink);font-size:16px}
+.candidate-edit input{display:block;width:100%;margin-top:6px;min-height:48px;border:1px solid var(--theme-border);border-radius:10px;padding:10px 12px;background:#fff;color:var(--theme-text);font-size:16px}
 .candidate-camera{position:relative;overflow:hidden;border-radius:14px;background:#e7eeea}
-.recruitment-preview{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#19362e}
+.recruitment-preview{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--candidate-camera)}
 .recruitment-check-preview{aspect-ratio:16/11;max-height:330px}
 .candidate-camera-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#d6e8e0;font-size:14px}
 .candidate-readiness{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
-.candidate-readiness>div{display:flex;align-items:flex-start;flex-direction:column;gap:5px;padding:12px;background:#f3f7f5;border-radius:10px;min-width:0;font-size:12px;color:var(--candidate-muted)}
-.candidate-readiness strong{font-size:13px;color:var(--candidate-ink)}
+.candidate-readiness>div{display:flex;align-items:flex-start;flex-direction:column;gap:5px;padding:12px;background:var(--theme-surface-muted);border-radius:10px;min-width:0;font-size:12px;color:var(--theme-muted)}
+.candidate-readiness strong{font-size:13px;color:var(--theme-text)}
 .recruitment-meter{height:4px;width:100%;background:#dbe7e1;border-radius:99px;overflow:hidden}
 .recruitment-meter span{display:block;height:100%;background:#148361}
-.recruitment-consent{margin:20px 0;padding:18px 0;border-top:1px solid var(--candidate-line)}
+.recruitment-consent{margin:20px 0;padding:18px 0;border-top:1px solid var(--theme-border)}
 .recruitment-consent h2{display:flex;gap:8px;align-items:center;font-size:15px}
 .recruitment-consent p{font-size:14px}
 .recruitment-public .recruitment-checkbox{display:flex;align-items:flex-start;gap:12px;line-height:1.55;font-size:14px;margin-top:20px}
 .recruitment-checkbox input{flex:none;margin-top:2px}
-.recruitment-public .recruitment-hint{font-size:12px;margin:16px 0 0;color:var(--candidate-muted)}
+.recruitment-public .recruitment-hint{font-size:12px;margin:16px 0 0;color:var(--theme-muted)}
 .recruitment-public .recruitment-error{color:#b02d39;font-size:14px;margin:16px 0 0}
-/* The interview stays in the candidate shell. Only the live camera uses a
-   dark background, so recovery and submission can reuse the same layout. */
-.recruitment-public section.candidate-room { display: grid; gap: 16px; }
-.candidate-room-context { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+/* The live room uses a scoped candidate theme. Preparation and recovery share
+   the light shell and its controls. */
+.recruitment-public:has(.candidate-room) {
+  --candidate-page: #070f1c;
+  --theme-surface: #0c1828;
+  --theme-surface-muted: #13283a;
+  --theme-text: #edf7f9;
+  --theme-muted: #a8c2cf;
+  --theme-border: #294458;
+  --theme-primary: #78e5d0;
+  --theme-primary-hover: #b8f5e9;
+  --theme-primary-soft: #143b45;
+  --candidate-camera: #101e2e;
+  color-scheme: dark;
+}
+.recruitment-public section.candidate-room { display: grid; min-width: 0; gap: 16px; }
+.candidate-room-context { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.candidate-room-context > div:first-child { min-width: 0; }
 .candidate-room-context h1 { margin-bottom: 5px; }
 .recruitment-public .candidate-room-context p { margin: 0; font-size: 13px; }
-.candidate-room-time { display: flex; align-items: center; gap: 6px; color: var(--theme-muted); font-size: 13px; font-variant-numeric: tabular-nums; padding-top: 5px; }
-.candidate-stage { display: grid; grid-template-columns: minmax(0, 1fr) 92px; align-items: center; gap: 8px 12px; border: 1px solid var(--theme-border); padding: 14px; border-radius: 14px; background: var(--theme-surface-muted); }
-.candidate-presence { display: flex; align-items: center; gap: 12px; }
+.candidate-room-meta { display: flex; align-items: flex-end; flex-direction: column; gap: 5px; white-space: nowrap; }
+.candidate-room-time, .candidate-recording { display: inline-flex; align-items: center; gap: 6px; color: var(--theme-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.candidate-recording i { width: 6px; height: 6px; border-radius: 50%; background: #ff9eac; }
+.candidate-stage {
+  --orb-color: #65d8f4;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  position: relative;
+  min-width: 0;
+  padding: 12px 8px 15px;
+  border-radius: 14px;
+  border: 1px solid var(--theme-border);
+  background: linear-gradient(155deg, #102638, #0c1929 70%);
+}
+.candidate-room[data-presence="listening"] .candidate-stage { --orb-color: #79f1ca; }
+.candidate-room[data-presence="thinking"] .candidate-stage { --orb-color: #88b4f6; }
+.candidate-room[data-presence="connecting"] .candidate-stage { --orb-color: #8aaabc; }
+.candidate-orb { display: block; width: clamp(156px, min(53vw, 32dvh), 228px); height: auto; color: var(--orb-color); }
+.candidate-orb-grid, .candidate-orb-orbit, .candidate-orb-signal { transform-box: view-box; transform-origin: center; }
+.candidate-orb-signal {
+  opacity: .32;
+  transform: scaleY(.46);
+  transition: transform 120ms linear, opacity 160ms ease;
+}
+.candidate-room[data-presence="listening"] .candidate-orb-grid { animation: candidate-orb-breathe 4.8s ease-in-out infinite alternate; }
+.candidate-room[data-presence="thinking"] .candidate-orb-orbit { animation: candidate-orb-turn 5s linear infinite; }
+.candidate-room[data-presence="speaking"] .candidate-orb-signal {
+  opacity: calc(.36 + var(--orb-energy, 0) * .64);
+  transform: scaleY(calc(.50 + var(--orb-energy, 0) * 1.85));
+}
+.candidate-room[data-presence="speaking"] .candidate-orb-grid {
+  transform: scale(calc(1 + var(--orb-energy, 0) * .045));
+  transition: transform 120ms linear;
+}
+.candidate-room[data-presence="connecting"] .candidate-orb-orbit { opacity: .35; }
+@keyframes candidate-orb-breathe { to { transform: scale(1.045); opacity: .64; } }
+@keyframes candidate-orb-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .candidate-orb * { animation: none !important; transition: none !important; }
+}
+.candidate-presence { display: grid; text-align: center; margin-top: -3px; }
+.candidate-presence strong { font-size: 18px; color: var(--orb-color); }
+.candidate-presence span { min-height: 19px; font-size: 13px; color: var(--theme-muted); }
 .candidate-state-icon { width: 44px; height: 44px; flex-shrink: 0; display: inline-grid; place-items: center; border-radius: 12px; background: var(--theme-primary-soft); color: var(--theme-primary-hover); }
 .candidate-state-icon.is-warning { background: var(--theme-surface-muted); color: var(--theme-muted); }
-.candidate-presence strong { display: block; font-size: 18px; }
-.candidate-presence div span { display: block; font-size: 13px; line-height: 1.4; color: var(--theme-muted); margin-top: 2px; }
-.candidate-self-view { position: relative; grid-column: 2; grid-row: span 2; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--candidate-camera); }
+.candidate-self-view {
+  position: absolute;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  width: clamp(54px, 16vw, 92px);
+  aspect-ratio: 4 / 5;
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--candidate-camera);
+}
 .candidate-self-view video { display: block; width: 100%; height: 100%; object-fit: cover; }
-.candidate-self-view>span { position: absolute; bottom: 6px; left: 6px; display: flex; align-items: center; gap: 4px; padding: 3px 5px; border-radius: 4px; background: var(--candidate-camera); color: #fff; font-size: 11px; }
-.candidate-recording { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--theme-muted); }
-.candidate-recording i { width: 7px; height: 7px; border-radius: 50%; background: #b02d39; }
-.candidate-prompt { min-height: 112px; max-height: 220px; overflow: auto; border: 1px solid var(--theme-border); background: var(--theme-primary-soft); border-radius: 12px; padding: 14px 16px; }
-.candidate-prompt>span { font-size: 12px; font-weight: 650; color: var(--theme-primary-hover); }
-.recruitment-public .candidate-prompt p { margin: 5px 0 0; color: var(--theme-text); font-size: 17px; }
+.candidate-self-view>span { position: absolute; bottom: 4px; left: 4px; display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 4px; background: #091424; color: #edf7f9; font-size: 11px; }
+.candidate-prompt {
+  min-height: 85px;
+  max-height: clamp(100px, 25dvh, 205px);
+  overflow: auto;
+  scrollbar-color: var(--theme-muted) transparent;
+  border: 1px solid var(--theme-border);
+  background: rgb(135 200 218 / .07);
+  border-radius: 12px;
+  padding: 12px 15px;
+}
+.candidate-prompt>span { font-size: 12px; font-weight: 650; color: var(--theme-primary); }
+.recruitment-public .candidate-prompt p { margin: 5px 0 0; color: var(--theme-text); font-size: 16px; }
+.recruitment-public .candidate-prompt:focus-visible { outline: 2px solid var(--theme-primary); outline-offset: 3px; }
+.recruitment-public .candidate-room .recruitment-error { color: #ffb6c2; }
+.recruitment-public .candidate-room .candidate-button.is-end:not(:disabled) {
+  background: var(--theme-surface-muted);
+  border-color: #477087;
+  color: var(--theme-text);
+}
+@media (hover: hover) {
+  .recruitment-public .candidate-room .candidate-button.is-end:hover:not(:disabled) { border-color: var(--theme-primary); }
+}
 .candidate-room-controls,.candidate-interview-actions,.candidate-live-actions,.candidate-stop { display: grid; gap: 10px; }
 .candidate-live-actions { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 .candidate-stop { border: 1px solid var(--theme-border); border-radius: 12px; padding: 14px; }
@@ -78,16 +158,23 @@
 .candidate-language-edit>button+button { margin-inline-start: 8px; }
 @media (max-width: 500px) {
   .recruitment-public { display: block; padding: 0; }
-  .recruitment-public-card { min-height: 100dvh; border: 0; border-radius: 0; box-shadow: none; }
+  .recruitment-public-card { min-height: 100vh; min-height: 100dvh; border: 0; border-radius: 0; box-shadow: none; }
   .recruitment-public section { padding: 20px 18px max(24px, env(safe-area-inset-bottom)); }
   .recruitment-public-header { padding: 10px 18px; }
   .candidate-readiness>div { padding: 10px; }
   .recruitment-public h1 { font-size: 26px; }
-  .candidate-stage { grid-template-columns: minmax(0, 1fr) 78px; }
+  .recruitment-public section.candidate-room { gap: 12px; }
+}
+@media (max-width: 500px) and (max-height: 620px) {
+  .recruitment-public section.candidate-room { padding-top: 14px; gap: 10px; }
+  .candidate-stage { padding-block: 6px 8px; }
+  .candidate-orb { width: 148px; }
+  .candidate-prompt { min-height: 72px; padding-block: 9px; }
+
 }
 /* Public preparation is a light surface regardless of the Admin theme. Reuse
    shared FeedX button grammar with the same semantic theme tokens. */
-.recruitment-public{--theme-primary:#087b5b;--theme-primary-hover:#066549;--theme-primary-soft:#eef8f4;--theme-text:#152a28;--theme-muted:#526865;--theme-border:#d7e3dd;--theme-surface:#fff;--theme-surface-raised:#fff;--theme-surface-muted:#f3f7f5;color-scheme:light}
+.recruitment-public{--theme-primary:#086456;--theme-primary-hover:#064c42;--theme-primary-soft:#eaf8f3;--theme-text:#112b34;--theme-muted:#48636c;--theme-border:#d9e7e6;--theme-surface:#fff;--theme-surface-muted:#f2f7f7;color-scheme:light}
 .recruitment-public .candidate-interface-language button{min-height:44px;padding:8px 12px;font-size:13px}
 .recruitment-public .recruitment-checkbox{margin-top:0}
 @media(max-width:500px){.candidate-languages{margin:20px 0}.recruitment-details{gap:12px}.candidate-identity,.candidate-language-summary{padding-top:16px;margin:16px 0}.recruitment-consent{margin:16px 0;padding:16px 0}}
@@ -98,3 +185,20 @@
 .candidate-interface-language .candidate-button{padding:8px 12px;font-size:13px}
 
 .recruitment-public .candidate-edit input:focus-visible{outline:3px solid var(--theme-primary);outline-offset:3px}
+
+.recruitment-public ::selection { color: #07332e; background: #bbefdf; }
+.recruitment-public:has(.candidate-room) .candidate-button.is-primary:not(:disabled) { color: #09242a; }
+.recruitment-public:has(.candidate-room) .candidate-interface-language .candidate-button[aria-pressed="true"] { color: var(--theme-primary); }
+
+@media (min-width: 640px) and (max-height: 700px) {
+  .recruitment-public:has(.candidate-room) { padding: 16px; }
+  .recruitment-public:has(.candidate-room) .recruitment-public-card { width: min(100%, 760px); }
+  .recruitment-public section.candidate-room {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    padding: 20px 24px;
+  }
+  .candidate-room-context { grid-column: 1 / -1; }
+  .candidate-stage { grid-row: 2 / span 2; }
+  .candidate-prompt { min-height: 0; }
+}

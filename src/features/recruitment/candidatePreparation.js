@@ -63,7 +63,7 @@ const journeyText = {
     listening: "Listening", speaking: "Speaking", thinking: "Thinking", connecting: "Connecting",
     speakNow: "You can speak now.", interviewer: "FeedX interviewer", you: "You", recording: "Recording",
     waitingForQuestion: "The interviewer's question will appear here.",
-    elapsed: "Elapsed time", finish: "Finish interview", checkingFinish: "Checking…",
+    elapsed: "Elapsed time", finish: "End interview", checkingFinish: "Checking…",
     stop: "Stop and submit partial interview", stopHeading: "Submit a partial interview?",
     stopHelp: "The hiring team will receive the responses saved so far and see that your interview was incomplete.",
     confirmStop: "Submit partial interview", keepInterviewing: "Keep interviewing",

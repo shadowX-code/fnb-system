@@ -6,7 +6,7 @@ import {
   isSubmissionTerminal,
   submissionIntent,
 } from "./interviewSubmission.js";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { recruitmentService } from "./recruitmentService.js";
 import { RecruitmentRealtimeSession } from "./RecruitmentRealtimeSession.js";
 import { InterviewRecording } from "./InterviewRecording.js";
@@ -363,17 +363,17 @@ export default function RecruitmentInterviewSession({
   }, [token]);
   const submitting = controller.submissionPending || status === "finalizing";
   const terminal = isSubmissionTerminal(status);
+  const { previewRef, streamRef } = devices;
+  const preview = useCallback((node) => {
+    previewRef.current = node;
+    if (node && node.srcObject !== streamRef.current) node.srcObject = streamRef.current;
+  }, [previewRef, streamRef]);
   if (
     !submitting && renderPreparation &&
     status === "ready" &&
     recoveryView.state !== "RECOVERING"
   )
     return <>{renderPreparation({ start })}<div key="interview-audio" ref={node=>{controller.audioHost=node;}} hidden aria-hidden="true" /></>;
-  const preview = (node) => {
-    devices.previewRef.current = node;
-    if (node && node.srcObject !== devices.streamRef.current)
-      node.srcObject = devices.streamRef.current;
-  };
   const activeRoom=recoveryView.state==="RESUMED"&&!submitting;
   return (
     <>
@@ -399,6 +399,7 @@ export default function RecruitmentInterviewSession({
           recordingStatus={recordingStatus}
           elapsed={elapsed}
           previewRef={preview}
+          analyser={activeRoom ? controller.transport?.remoteAnalyser : undefined}
         >
           {error && !partialConfirm && <p className="recruitment-error" role="alert">{t[error] || t.continueFailed}</p>}
           {!submitting && !partialConfirm && recoveryView.state === "RECOVERY_REQUIRED" &&
@@ -428,7 +429,7 @@ export default function RecruitmentInterviewSession({
                   observe("recovery.command", {stage:"answer.interrupt", code:accepted ? "requested" : "not_ready", request_id:controller.recoveryId});
                   if (!accepted) setError("interruptionNotReady");
                 }}>{t.interrupt}</button>}
-                <button className="candidate-button is-secondary" disabled={busy} onClick={requestFinish}>
+                <button className="candidate-button is-end" disabled={busy} onClick={requestFinish}>
                   {actionState === "CHECKING" ? t.checkingFinish : t.finish}
                 </button>
               </div>

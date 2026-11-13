@@ -1,5 +1,7 @@
-import { AlertCircle, Camera, Check, Clock, Mic, Volume2 } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { AlertCircle, Camera, Check, Clock } from "lucide-react";
 import { candidateText } from "./candidatePreparation.js";
+import InterviewOrb from "./InterviewOrb.jsx";
 
 export function InterviewComplete({ entry, completedAt, status = "completed", language }) {
   const t = candidateText(language);
@@ -25,11 +27,16 @@ export function InterviewComplete({ entry, completedAt, status = "completed", la
 }
 
 export default function RecruitmentInterviewRoom({
-  entry, presence, recordingStatus, elapsed, previewRef, children, language,
+  entry, presence, recordingStatus, elapsed, previewRef, analyser, children, language,
 }) {
   const t = candidateText(language);
   const state = presence.state;
-  const PresenceIcon = state === "speaking" ? Volume2 : Mic;
+  const caption = useRef(null);
+  const followCaption = useRef(true);
+  useEffect(() => { followCaption.current = true; }, [presence.item]);
+  useEffect(() => {
+    if (followCaption.current) caption.current.scrollTop = caption.current.scrollHeight;
+  }, [presence.item, presence.prompt]);
   return (
     <section className="candidate-room" data-presence={state}>
       <header className="candidate-room-context">
@@ -37,24 +44,30 @@ export default function RecruitmentInterviewRoom({
           <h1>{t.interview}</h1>
           <p>{entry.job?.position || entry.job?.title}{entry.job?.workplace && ` · ${entry.job.workplace}`}</p>
         </div>
-        <span className="candidate-room-time" aria-label={t.elapsed}>
-          <Clock size={16} aria-hidden="true" />
-          {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
-        </span>
+        <div className="candidate-room-meta">
+          {recordingStatus === "recording" && <span className="candidate-recording"><i aria-hidden="true" />{t.recording}</span>}
+          <span className="candidate-room-time" aria-label={t.elapsed}>
+            <Clock size={14} aria-hidden="true" />
+            {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
+          </span>
+        </div>
       </header>
       <div className="candidate-stage">
-        <div className="candidate-presence" role="status">
-          <span className="candidate-state-icon"><PresenceIcon size={22} aria-hidden="true" /></span>
-          <div><strong>{t[state] || t.connecting}</strong>{state === "listening" && <span>{t.speakNow}</span>}</div>
-        </div>
         <div className="candidate-self-view">
           <video ref={previewRef} autoPlay playsInline muted aria-label={t.cameraPreview} />
-          <span><Camera size={13} aria-hidden="true" />{t.you}</span>
+          <span><Camera size={12} aria-hidden="true" />{t.you}</span>
         </div>
-        {recordingStatus === "recording" && <span className="candidate-recording"><i aria-hidden="true" />{t.recording}</span>}
+        <InterviewOrb state={state} analyser={analyser} />
+        <div className="candidate-presence" role="status">
+          <strong>{t[state] || t.connecting}</strong>
+          <span>{state === "listening" ? t.speakNow : ""}</span>
+        </div>
       </div>
-      <div className="candidate-prompt">
-        <span>{t.interviewer}</span>
+      <div className="candidate-prompt" ref={caption} tabIndex={0} role="region" aria-label={t.interviewer}
+        onScroll={({ currentTarget: node }) => {
+          followCaption.current = node.scrollHeight - node.clientHeight - node.scrollTop < 12;
+        }}>
+        <span aria-hidden="true">{t.interviewer}</span>
         <p>{presence.prompt || t.waitingForQuestion}</p>
       </div>
       <div className="candidate-room-controls">{children}</div>
