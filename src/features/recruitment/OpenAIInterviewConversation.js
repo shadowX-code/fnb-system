@@ -1,10 +1,10 @@
 import { automaticTurnDecision } from "./interviewTurnAcceptance.js";
 import { meaningfulSpeech } from "../../../supabase/functions/recruitment-realtime/orientation.ts";
 // Owns provider conversation policy. Controlled automatic acceptance combines
-// end-of-turn provenance and ASR uncertainty; only deliberate intent interrupts output.
+// end-of-turn provenance and ASR uncertainty. Barge-in also requires local audio.
 export class OpenAIInterviewConversation {
-  constructor({send, onRecovery, onTool, onCompletion, onOrientation = () => {}, trace = () => {}, candidateEligible = () => true, onInput = () => {}, onTurnState = () => {}, onAcceptCandidate = () => {}, onRejectCandidate = () => {}}) {
-    Object.assign(this, {send, onRecovery, onTool, onCompletion:onCompletion||(()=>{}), onOrientation, trace, candidateEligible, onInput, onTurnState, onAcceptCandidate, onRejectCandidate});
+  constructor({send, onRecovery, onTool, onCompletion, onOrientation = () => {}, trace = () => {}, candidateEligible = () => true, onInput = () => {}, onTurnState = () => {}, onAcceptCandidate = () => {}, onRejectCandidate = () => {}, onBargeIn = () => {}}) {
+    Object.assign(this, {send, onRecovery, onTool, onCompletion:onCompletion||(()=>{}), onOrientation, trace, candidateEligible, onInput, onTurnState, onAcceptCandidate, onRejectCandidate, onBargeIn});
     this.responses = new Map(); this.turns = new Map(); this.tools = new Map();
     this.cancelled = new Set(); this.revision = 0; this.closed = false;
     this.speaking = false; this.playing = false; this.owner = null;
@@ -40,15 +40,7 @@ export class OpenAIInterviewConversation {
     if (this.closed) return false;
     const id = e.response_id || e.response?.id;
     if (this.controlled && !this.controlledEvent(e)) return false;
-    if (e.type === "input_audio_buffer.speech_started") {
-      if (this.owner !== e.item_id) {
-        this.revision++; this.owner = e.item_id;
-        // A newer live turn supersedes earlier response/tool obligations.
-        if (!this.controlled) for (const key of [...(this.timers?.keys() || [])]) this.unwatch(key);
-      }
-      this.speaking = true;
-      // Controlled mode interrupts only on explicit candidate intent. Legacy mode stays provider-owned.
-    }
+    if (e.type === "input_audio_buffer.speech_started") this.startSpeech(e.item_id);
     if (e.type === "input_audio_buffer.speech_stopped" && e.item_id === this.owner) this.speaking = false;
     if (e.type === "input_audio_buffer.committed" || e.type === "conversation.item.input_audio_transcription.completed") {
       if (!this.turns.has(e.item_id)) this.turns.set(e.item_id, {responded:false});
@@ -92,11 +84,14 @@ export class OpenAIInterviewConversation {
       this.watch(`response:${id}`, "response_generation_timeout", 60000);
       if (tool?.result?.can_finish) this.watch(`closing:${id}`, "closing_audio_timeout", 90000);
     }
-    if (e.type === "response.output_item.added" && e.item?.type === "message") {
+    if (e.type === "response.output_item.added") {
       const response = this.responses.get(id);
-      if (response) response.itemId = e.item.id;
+      if (response && e.item?.type === "message") response.itemId = e.item.id;
+      if (response && e.item?.type === "function_call") (response.toolItems ??= new Set()).add(e.item.id);
     }
-    if (id && this.cancelled.has(id)) return ["output_audio_buffer.cleared", "output_audio_buffer.stopped", "response.done"].includes(e.type);
+    if (id && this.cancelled.has(id)) {
+      return ["output_audio_buffer.cleared", "output_audio_buffer.stopped", "response.done"].includes(e.type);
+    }
     if (e.type === "response.output_audio_transcript.done" && this.responses.has(id))
       this.responses.get(id).audioTranscriptDone = true;
     if (e.type === "response.done") {
@@ -111,11 +106,16 @@ export class OpenAIInterviewConversation {
       for (const tool of this.tools.values()) if (tool.responseId === id) tool.orientation ? this.settleOrientation(tool) : this.continueTool(tool);
     }
     if (e.type === "output_audio_buffer.started") {
+      if (this.controlled && (!this.responses.has(id) || this.responses.get(id).drained)) return false;
+      if (this.activeAudioResponse !== id) this.bargeInSpeechAt = undefined;
       this.activeAudioResponse = id; this.playing = true;
       this.watch(`audio:${id}`, "audio_playback_timeout", 90000);
     }
     if (["output_audio_buffer.stopped","output_audio_buffer.cleared"].includes(e.type)) {
-      if (this.activeAudioResponse === id) { this.activeAudioResponse = null; this.playing = false; }
+      if (this.activeAudioResponse === id) {
+        this.discardBargeIn();
+        this.activeAudioResponse = null; this.playing = false;
+      }
       this.unwatch(`audio:${id}`);
       if (e.type === "output_audio_buffer.cleared") { this.cancelled.add(id); const r = this.responses.get(id); if(r) r.cancelled = true; }
       const response = this.responses.get(id);
@@ -162,9 +162,16 @@ export class OpenAIInterviewConversation {
     if (this.controlled) this.syncInput();
     return true;
   }
+  startSpeech(itemId) {
+    if (this.owner !== itemId) {
+      this.revision++; this.owner = itemId;
+      if (!this.controlled) for (const key of [...(this.timers?.keys() || [])]) this.unwatch(key);
+    }
+    this.speaking = true;
+  }
   setInput(open) {
     this.inputOpen = open;
-    this.onInput(open);
+    this.onInput(open, this.bargeInEnabled && this.playing && !this.interrupting);
     this.emitTurn();
   }
   emitTurn() {
@@ -172,7 +179,7 @@ export class OpenAIInterviewConversation {
     this.onTurnState({
       text:[...this.drafts.values()].join(" "),
       uncertain:this.uncertainInputs.size > 0,
-      canSend:!!this.inputOpen && !this.speaking && !this.pendingInputs.size && !!this.drafts.size,
+      canSend:!!this.inputOpen && !this.interrupting && !this.speaking && !this.pendingInputs.size && !!this.drafts.size,
       listening:!!this.inputOpen,
       thinking:!!this.pendingInputs.size && !this.speaking,
       speaking:this.playing,
@@ -187,17 +194,26 @@ export class OpenAIInterviewConversation {
   }
   controlledEvent(e) {
     const item=e.item_id, id=e.response_id || e.response?.id;
+    if (e.type === "error" && e.error?.event_id === this.interruptionCancelEvent &&
+        e.error?.code === "response_cancel_not_active") return false;
     if (this.processedInputs.has(item) && e.type.startsWith("input_audio_buffer.")) return false;
     if (e.type === "input_audio_buffer.speech_started") {
-      if (!this.inputOpen) {this.blockedInputs.add(item);return false;}
-      if (this.automatic) {
-        // A new utterance replaces uncertain hypotheses, never promotes them.
-        for (const prior of this.uncertainInputs) this.discardInput(prior);
-        this.uncertainInputs.clear();
-        this.inputSignals.set(item,{started:true,startMs:e.audio_start_ms});
+      if (!item || this.blockedInputs.has(item) || this.pendingInputs.has(item)) return false;
+      if (!this.inputOpen) {
+        if (this.bargeInEnabled && this.playing && !this.interrupting) {
+          if (this.bargeIn?.event.item_id === item) return false;
+          this.discardBargeIn();
+          this.bargeIn = { event:e, responseId:this.activeAudioResponse, observedAt:performance.now() };
+          this.confirmBargeIn();
+        } else this.blockedInputs.add(item);
+        return false;
       }
-      this.pendingInputs.add(item);
+      this.trackInput(e);
     }
+    if (this.bargeIn?.event.item_id === item && [
+      "input_audio_buffer.speech_stopped", "input_audio_buffer.committed",
+      "conversation.item.input_audio_transcription.completed", "conversation.item.input_audio_transcription.failed",
+    ].includes(e.type)) this.discardBargeIn();
     if (e.type.startsWith("input_audio_buffer.") && this.blockedInputs.has(item)) return false;
     if (e.type === "input_audio_buffer.committed") {
       this.committedInputs.add(item);
@@ -238,22 +254,69 @@ export class OpenAIInterviewConversation {
       if (this.automatic && !this.uncertainInputs.size) this.confirmAnswer("automatic");
       this.emitTurn();return false;
     }
-    if (this.interrupting === id && (e.type === "output_audio_buffer.cleared" || (e.type === "response.done" && !this.activeAudioResponse))) {
-      this.unwatch("explicit-interruption");this.interrupting=null;
-      this.activeAudioResponse=null;this.playing=false;this.setInput(true);
+    if (this.interrupting === id && id) {
+      if (["output_audio_buffer.cleared", "output_audio_buffer.stopped"].includes(e.type)) {
+        this.activeAudioResponse = null;
+        this.playing = false;
+      }
+      if (e.type === "response.done") this.responses.get(id).done = true;
+      if (!this.activeAudioResponse && this.responses.get(id).done) {
+        for (const itemId of this.responses.get(id).toolItems || [])
+          this.send({type:"conversation.item.delete",item_id:itemId});
+        this.unwatch("explicit-interruption");this.interrupting=null;
+        this.setInput(true);
+        if (this.automatic && !this.uncertainInputs.size) this.confirmAnswer("automatic");
+      }
     }
     return true;
+  }
+  trackInput(event, bargeIn = false) {
+    if (this.automatic) {
+      // A new utterance replaces uncertain hypotheses, never promotes them.
+      for (const prior of this.uncertainInputs) this.discardInput(prior);
+      this.uncertainInputs.clear();
+      this.inputSignals.set(event.item_id,{started:true,startMs:event.audio_start_ms,bargeIn});
+    }
+    this.pendingInputs.add(event.item_id);
+  }
+  observeBargeInSpeech(at) {
+    if (this.closed || !this.playing) return;
+    this.bargeInSpeechAt = at;
+    this.confirmBargeIn();
+  }
+  discardBargeIn() {
+    if (!this.bargeIn) return;
+    const { event, responseId } = this.bargeIn;
+    this.blockedInputs.add(event.item_id);
+    this.trace({...event,response_id:responseId,phase:"barge_in",status:"not_corroborated"});
+    this.bargeIn = null;
+  }
+  confirmBargeIn() {
+    const pending = this.bargeIn;
+    if (!pending || !Number.isFinite(pending.event.audio_start_ms) || pending.responseId !== this.activeAudioResponse ||
+        this.cancelled.has(pending.responseId)) return;
+    const { event, responseId, observedAt } = pending;
+    const now = performance.now();
+    if (now - observedAt > 650 || !(now - this.bargeInSpeechAt <= 100)) return;
+    this.bargeIn = null;
+    this.bargeInSpeechAt = undefined;
+    this.trace({...event,response_id:responseId,phase:"barge_in",status:"confirmed"});
+    this.trackInput(event, true);
+    this.startSpeech(event.item_id);
+    this.onBargeIn(event);
+    this.interrupt(event.item_id);
   }
   discardInput(item) {
     this.drafts.delete(item);this.committedInputs.delete(item);
     this.onRejectCandidate(item);this.send({type:"conversation.item.delete",item_id:item});
   }
   confirmAnswer(mode = "manual") {
-    if (!this.controlled || this.closed || !this.inputOpen || this.speaking || this.pendingInputs.size || !this.drafts.size) return false;
+    if (!this.controlled || this.closed || !this.inputOpen || this.interrupting || this.speaking || this.pendingInputs.size || !this.drafts.size) return false;
     const items=[...this.drafts.keys()];
     if (!items.every(item=>this.candidateEligible(item))) {this.clearAnswer();return false;}
     this.acceptanceMode=mode;
     this.acceptedOwner=`answer:${crypto.randomUUID()}`;
+    const interrupted = items.some(item => this.inputSignals.get(item)?.bargeIn);
     for (const item of items) {
       this.onAcceptCandidate(item);this.committedInputs.delete(item);
       this.trace({type:"response.requested",item_id:item,owner:this.acceptedOwner,phase:"accepted_answer"});
@@ -261,7 +324,8 @@ export class OpenAIInterviewConversation {
     this.drafts.clear();this.uncertainInputs.clear();this.awaitingResponse=true;this.setInput(false);
     this.send({type:"input_audio_buffer.clear"});
     this.watch("entry","accepted_answer_response_timeout");
-    this.send({type:"response.create",response:{metadata:{feedx_kind:"answer",owner:this.acceptedOwner}}});
+    this.send({type:"response.create",response:{metadata:{feedx_kind:"answer",owner:this.acceptedOwner},
+      ...(interrupted && this.instructions ? { instructions:this.instructions + "\nRespond to the candidate's latest intent in the current interview language first. Continue the existing interview from there. Never restart the opening or repeat a question the candidate has already answered." } : {})}});
     return true;
   }
   clearAnswer() {
@@ -273,15 +337,29 @@ export class OpenAIInterviewConversation {
     for (const item of this.pendingInputs) {this.blockedInputs.add(item);this.unwatch(`transcription:${item}`);}
     this.drafts.clear();this.uncertainInputs.clear();this.pendingInputs.clear();this.committedInputs.clear();this.speaking=false;this.emitTurn();
   }
-  interrupt() {
+  interrupt(candidateItem) {
     if (!this.controlled || this.closed || this.inputOpen || this.interrupting) return false;
-    const active=[...this.responses.entries()].reverse().find(([,r])=>!r.cancelled && (!r.done || (r.itemId && !r.drained)));
+    const active=[...this.responses.entries()].reverse().find(([id,r])=>!r.cancelled && (candidateItem ? id === this.activeAudioResponse : (!r.done || (r.itemId && !r.drained))));
     if (!active) return false;
     const [id,response]=active;
+    this.discardBargeIn();
+    this.bargeInSpeechAt = undefined;
     response.cancelled=true;this.cancelled.add(id);this.interrupting=id;
     this.unwatch(`response:${id}`);this.unwatch(`audio:${id}`);this.unwatch(`closing:${id}`);
-    if (!response.done) this.send({type:"response.cancel",response_id:id});
+    for (const tool of this.tools.values()) if (tool.responseId === id) {
+      tool.sent = true;
+      this.unwatch(`tool:${tool.callId}`);this.unwatch(`tool-drain:${tool.callId}`);this.unwatch(`orientation:${tool.callId}`);
+    }
+    if (!response.done) {
+      this.interruptionCancelEvent = crypto.randomUUID();
+      this.send({type:"response.cancel",response_id:id,event_id:this.interruptionCancelEvent});
+    }
+    // The WebRTC provider owns the playout buffer and truncation position.
     this.send({type:"output_audio_buffer.clear"});
+    if (candidateItem) {
+      this.playing = false;
+      this.setInput(true); // The same utterance continues while the clear acknowledgement is in flight.
+    }
     if (!this.activeAudioResponse && response.done) {this.interrupting=null;this.setInput(true);return true;}
     this.watch("explicit-interruption","interruption_ack_timeout",8000);this.emitTurn();return true;
   }

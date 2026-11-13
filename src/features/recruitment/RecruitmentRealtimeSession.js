@@ -6,6 +6,7 @@ import { recruitmentService } from "./recruitmentService.js";
 import { interviewTranscriptQueue } from "./interviewTranscriptQueue.js";
 import { InterviewTranscriptEvidence } from "./InterviewTranscriptEvidence.js";
 import { connectInterviewSdk, observeRemoteAudio } from "./interviewSdkTransport.js";
+import { watchInterviewBargeIn } from "./interviewBargeIn.js";
 
 // This transport consumes an existing microphone track. Closing WebRTC never stops the recording stream.
 export class RecruitmentRealtimeSession {
@@ -18,6 +19,7 @@ export class RecruitmentRealtimeSession {
     onStatus,
     onEvent,
     onRemote,
+    observeMicrophone = () => {},
     recoveryId,
     onTool,
     onCompletion,
@@ -37,6 +39,7 @@ export class RecruitmentRealtimeSession {
     this.onStatus = onStatus || (() => {});
     this.onEvent = onEvent || (() => {});
     this.onRemote = onRemote || (() => {});
+    this.observeMicrophone = observeMicrophone;
     this.evidence = new InterviewTranscriptEvidence({token,clientId,startedAt,onStatus:this.onStatus});
     this.peer = null;
     this.channel = null;
@@ -44,8 +47,9 @@ export class RecruitmentRealtimeSession {
     this.closed = false;
     this.flushing = false;
     this.conversation = new OpenAIInterviewConversation({candidateEligible:itemId=>this.evidence.candidateEligible(itemId),
-      onInput:open=>{if(this.providerMicrophone && !this.closed)this.providerMicrophone.enabled=open;
+      onInput:(open, overlap)=>{if(this.providerMicrophone && !this.closed)this.providerMicrophone.enabled=open || !!overlap;
         if(open && this.conversation?.controlled && !this.evidence.outputActive.size)this.evidence.interruptionBoundary=false;},
+      onBargeIn:event=>{this.evidence.confirmBargeIn(event.item_id);this.onEvent(event);},
       onTurnState:view=>{if(!this.closed){onTurnState(view);this.onEvent({type:"candidate.answer.preview",...view});}},
       onAcceptCandidate:itemId=>{if(this.evidence.acceptCandidate(itemId)){this.trace({type:"input_audio_buffer.committed",item_id:itemId,phase:this.conversation.acceptanceMode === "automatic" ? "candidate_auto_accepted" : "candidate_confirmed"});this.onEvent({type:"candidate.answer.accepted",item_id:itemId});}},
       onRejectCandidate:itemId=>this.evidence.rejectCandidate(itemId),trace:event=>this.trace(event),send:event=>this.send(event), onTool, onCompletion,
@@ -280,6 +284,18 @@ export class RecruitmentRealtimeSession {
       if (this.remoteTrack?.readyState !== "live" || peer.connectionState !== "connected" || this.audioElement.paused)
         throw Error("Interviewer audio stopped. Tap Continue interview to try again.");
       const settings = microphone.getSettings?.() || {};
+      if (settings.echoCancellation === true) {
+        const micAnalyser = this.observeMicrophone();
+        if (micAnalyser?.getFloatTimeDomainData && this.remoteAnalyser?.getFloatTimeDomainData) {
+          this.conversation.bargeInEnabled = true;
+          this.stopBargeIn = watchInterviewBargeIn(micAnalyser, this.remoteAnalyser, () =>
+            !this.closed && this.ownsPlayback() && this.conversation.playing && !document.hidden &&
+            this.peer?.connectionState === "connected" && micAnalyser.context.state === "running" &&
+            !microphone.muted && microphone.readyState === "live" &&
+            !this.audioElement.paused && !this.audioElement.muted && this.audioElement.volume > 0,
+          at => this.conversation.observeBargeInSpeech(at));
+        }
+      }
       this.trace({type:"transport.connected",phase:secret.orientation_required ? "orientation_pending" : "continuity-v2",status:`transport:${this.qaTransport || "legacy"};aec:${settings.echoCancellation ?? "unknown"};noise:${settings.noiseSuppression ?? "unknown"};peer:${peer.connectionState};remote:${this.remoteTrack.readyState}`});
       this.checkpoint("server.connected","dependency_completed");
       this.onStatus("connected");
@@ -316,6 +332,9 @@ export class RecruitmentRealtimeSession {
   consumeEvent(event) {
     if (this.closed || !this.ownsPlayback()) return;
     this.trace(event);
+    if (event.type === "output_audio_buffer.started" && this.conversation.controlled &&
+      (!this.conversation.responses.has(event.response_id) || this.conversation.cancelled.has(event.response_id) ||
+        this.conversation.responses.get(event.response_id).drained)) return;
     if (["conversation.item.input_audio_transcription.completed","conversation.item.input_audio_transcription.failed"].includes(event.type))
       this.trace({type:"input_audio_buffer.committed",item_id:event.item_id,phase:event.type.endsWith("completed") ? "transcription_completed" : "transcription_failed"});
     this.evidence.cancelled=this.conversation.cancelled;
@@ -401,7 +420,7 @@ export class RecruitmentRealtimeSession {
     this.rejectPlayback?.(Error("Interview session was replaced."));this.rejectPlayback=null;
     this.rejectConnection?.(Error("Interview session was replaced."));this.rejectConnection=null;
     const cleanup=[()=>this.conversation.close(),()=>this.evidence.close(),()=>this.remoteTrackCleanup?.(),
-      ()=>this.playbackDrain?.stop(),()=>this.stopAudioProbe?.(),()=>this.sdk ? this.sdk.close() : this.channel?.close(),
+      ()=>this.playbackDrain?.stop(),()=>this.stopAudioProbe?.(),()=>this.stopBargeIn?.(),()=>this.sdk ? this.sdk.close() : this.channel?.close(),
       ()=>{if(!this.sdk)this.peer?.close();},()=>this.providerMicrophone?.stop(),
       ()=>{if(this.playbackOwner)this.playbackOwner.dispose();else if(!interviewPlaybackOwner(this.audioElement)){this.audioElement.pause?.();this.audioElement.srcObject=null;}},
       ...(this.playbackListeners||[]).map(({type,listener})=>()=>this.audioElement.removeEventListener?.(type,listener))];

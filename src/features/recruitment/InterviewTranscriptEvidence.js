@@ -15,7 +15,7 @@ export class InterviewTranscriptEvidence {
   }
   observe(event) {
     if (event.type === "output_audio_buffer.started") { this.outputActive.add(event.response_id); this.interruptionBoundary = false; }
-    if (event.type === "input_audio_buffer.speech_started") {
+    if (event.type === "input_audio_buffer.speech_started" && !this.inputBoundaries.has(event.item_id)) {
       this.inputBoundaries.set(event.item_id, {started:true, overlap:this.outputActive.size > 0 || this.interruptionBoundary === true});
     }
     // Provider clear may precede speech_started at the same audio boundary.
@@ -45,7 +45,7 @@ export class InterviewTranscriptEvidence {
         }
       }
     }
-    if (event.type === "input_audio_buffer.speech_started")
+    if (event.type === "input_audio_buffer.speech_started" && !this.times.has(event.item_id))
       this.times.set(event.item_id, Math.max(0, Date.now() - this.startedAt));
     if (
       [
@@ -105,7 +105,11 @@ export class InterviewTranscriptEvidence {
   }
   candidateEligible(itemId) {
     const b = this.inputBoundaries.get(itemId);
-    return Boolean(b?.started && b.stopped && b.committed && !b.overlap && !b.rejected);
+    return Boolean(b?.started && b.stopped && b.committed && (!b.overlap || b.bargeIn) && !b.rejected);
+  }
+  confirmBargeIn(itemId) {
+    const boundary = this.inputBoundaries.get(itemId);
+    if (boundary) boundary.bargeIn = true;
   }
   acceptCandidate(itemId) {
     const final=this.pendingCandidates.get(itemId);

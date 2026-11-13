@@ -45,7 +45,8 @@ it.each(['[breathing]','(noise)','...'])('nonverbal transcript is discarded with
 it('explicit interruption closes old response ownership and opens input only after acknowledgement',()=>{
  response();e({type:'response.output_item.added',response_id:'entry',item:{type:'message',id:'ai-entry'}});e({type:'output_audio_buffer.started',response_id:'entry'});
  expect(c.interrupt()).toBe(true);expect(c.interrupt()).toBe(false);expect(c.inputOpen).toBe(false);
- e({type:'output_audio_buffer.cleared',response_id:'entry'});expect(c.inputOpen).toBe(true);
+ e({type:'output_audio_buffer.cleared',response_id:'entry'});expect(c.inputOpen).toBe(false);
+ e({type:'response.done',response:{id:'entry',status:'cancelled'}});expect(c.inputOpen).toBe(true);
  speak('I have a question.');expect(c.confirmAnswer()).toBe(true);expect(accepted).toHaveBeenCalledOnce();
  expect(send.mock.calls.filter(([x])=>x.type==='response.create')).toHaveLength(2);
  expect(send.mock.calls.some(([x])=>x.type==='response.create'&&x.response.instructions==='entry')).toBe(true);
