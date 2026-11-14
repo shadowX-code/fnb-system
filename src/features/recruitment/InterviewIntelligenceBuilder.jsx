@@ -1,6 +1,21 @@
+import { useRef } from "react";
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import { RecruitmentState } from "./RecruitmentPresentation.jsx";
+const approaches = {
+  behavioral: {
+    label: "Behavioral examples",
+    guidance: "Ask one question at a time. Start with a relevant real example, clarify the candidate’s own actions and results, and move on once enough evidence is available.",
+  },
+  experience: {
+    label: "Role experience",
+    guidance: "Start with the candidate’s relevant responsibilities and use concrete examples to clarify their contribution and results.",
+  },
+  scenarios: {
+    label: "Scenario-led",
+    guidance: "Use the profile’s configured scenarios where they add useful evidence. Explore the candidate’s reasoning and build on relevant real examples.",
+  },
+};
 const areaFields = {
   goal: "Assessment goal",
   evidence_guidance: "Useful behavioral evidence",
@@ -17,11 +32,11 @@ const scenarioFields = {
 export default function InterviewIntelligenceBuilder({
   definition,
   onChange,
-  version,
-  unpublished = false,
-  step,
+  profile,
+  reusableCompetencies = [],
 }) {
   const editable = !!onChange;
+  const assessment = useRef(null);
   const patch = (key, value) => onChange({ ...definition, [key]: value });
   const objects = (key, fields) =>
     definition[key].map((original, index) => {
@@ -60,15 +75,10 @@ export default function InterviewIntelligenceBuilder({
         </>
       );
       return (
-        <details key={index} className="recruitment-plan-detail">
+        <details key={index} className="recruitment-plan-detail" data-profile-item={key}>
           <summary className="cursor-pointer text-sm font-semibold">
             <span className="min-w-0">
-              <strong>{item.name || `Scenario ${index + 1}`}</strong>
-              <span className="recruitment-plan-detail-summary">
-                {key === "evidence_areas"
-                  ? item.goal || item.intent
-                  : item.purpose || item.brief}
-              </span>
+              <strong>{item.name || item.brief || `Scenario ${index + 1}`}</strong>
             </span>
             <span className="flex shrink-0 items-center gap-2">
               {item.priority && <RecruitmentState value={item.priority} />}
@@ -88,7 +98,7 @@ export default function InterviewIntelligenceBuilder({
             {key === "evidence_areas" && (
               <>
                 <AdminFormField
-                  label="Area name"
+                  label="Competency name"
                   as={editable ? "label" : "div"}
                 >
                   {editable ? (
@@ -319,168 +329,140 @@ export default function InterviewIntelligenceBuilder({
         </details>
       );
     });
-  const text = (key, label) => (
-    <section className="recruitment-profile-section">
-      <h2>{label}</h2>
-      {editable ? (
-        <textarea
-          aria-label={label}
-          className="control w-full min-h-28"
-          value={definition[key]}
-          maxLength={key === "role_context" ? 2000 : 4000}
-          onChange={(e) => patch(key, e.target.value)}
-        />
-      ) : (
-        <div className="recruitment-profile-prose">
-          {(definition[key] || "").split(/(?<=[.!?])\s+/).map((line, i) => (
-            <p key={i}>{line}</p>
-          ))}
-        </div>
-      )}
-    </section>
+  const approach = Object.entries(approaches).find(([, { guidance }]) =>
+    definition.follow_up_guidance === guidance ||
+      definition.follow_up_guidance?.startsWith(`${guidance}\n\n`),
   );
+  const additionalGuidance = approach
+    ? definition.follow_up_guidance.slice(approach[1].guidance.length + 2)
+    : definition.follow_up_guidance || "";
+
+  const existingNames = new Set(definition.evidence_areas.map((area) => area.name.trim().toLowerCase()));
+  const choices = reusableCompetencies.filter((area) => !existingNames.has(area.definition.name.trim().toLowerCase()));
+  function appendCompetency(value) {
+    const reused = choices[Number(value)];
+    let number = definition.evidence_areas.length + 1;
+    while (existingNames.has(`new competency ${number}`)) number++;
+    patch("evidence_areas", [...definition.evidence_areas, reused ? structuredClone(reused.definition) : {
+      name: `New competency ${number}`,
+      priority: "Important",
+      goal: "",
+      evidence_guidance: "",
+      follow_up_signals: "",
+      stop_condition: "",
+    }]);
+    requestAnimationFrame(() => {
+      const row = assessment.current?.querySelectorAll('[data-profile-item="evidence_areas"]');
+      if (!row?.length) return;
+      row[row.length - 1].open = true;
+      row[row.length - 1].querySelector("input")?.focus();
+    });
+  }
+
   return (
     <div className="recruitment-profile-plan">
-      {(!step || step === "role") && text("role_context", "Role context")}
-      {(!step || step === "assessment") && <>
       <section className="recruitment-profile-section">
-        <h2>Assessment Areas</h2>
-        <p className="text-xs text-text-secondary mb-3">
-          Define evidence goals, not a sequence of questions. One answer may
-          support several areas. Priorities guide collection; coverage, behavior
-          quality and job fit are separate.
-        </p>
+        <h2>Profile</h2>
+        {profile && <dl className="recruitment-profile-facts-grid">
+          <div><dt>Profile name</dt><dd>{profile.name}</dd></div>
+          <div><dt>Job Position</dt><dd>{profile.position}</dd></div>
+          <div><dt>Starting template</dt><dd>{profile.template}</dd></div>
+        </dl>}
+        <AdminFormField label="Role context" as={editable ? "label" : "div"}>
+          {editable ? (
+            <textarea className="control w-full recruitment-role-context" rows={2}
+              value={definition.role_context} maxLength={2000}
+              onChange={(event) => patch("role_context", event.target.value)} />
+          ) : <p className="recruitment-profile-prose">{definition.role_context || "No role description."}</p>}
+        </AdminFormField>
+      </section>
+
+      <section className="recruitment-profile-section" ref={assessment}>
+        <h2>Assessment</h2>
         {objects("evidence_areas", areaFields)}
+        {!definition.evidence_areas.length && <p className="text-sm text-text-secondary">No competencies yet.</p>}
         {editable && definition.evidence_areas.length < 30 && (
-          <button
-            type="button"
-            className="btn-secondary mt-3"
-            onClick={() => {
-              let n = definition.evidence_areas.length + 1;
-              while (
-                definition.evidence_areas.some(
-                  (a) => a.name === `New area ${n}`,
-                )
-              )
-                n++;
-              patch("evidence_areas", [
-                ...definition.evidence_areas,
-                {
-                  name: `New area ${n}`,
-                  priority: "Important",
-                  goal: "",
-                  evidence_guidance: "",
-                  follow_up_signals: "",
-                  stop_condition: "",
-                },
-              ]);
-            }}
-          >
-            Add assessment area
-          </button>
+          <SelectField className="recruitment-profile-add" ariaLabel="Add Competency"
+            placeholder="Add Competency" value="" searchable="auto"
+            options={[
+              { value: "new", label: "Create role-specific competency" },
+              ...choices.map((area, index) => ({ value: String(index), label: area.definition.name, description: area.source })),
+            ]}
+            onChange={appendCompetency} />
+        )}
+        {(editable || definition.scenarios.length > 0) && (
+          <details className="recruitment-profile-disclosure">
+            <summary>Scenarios <small>{definition.scenarios.length || "Optional"}</small></summary>
+            {objects("scenarios", scenarioFields)}
+            {editable && definition.scenarios.length < 20 && (
+              <button type="button" className="btn-secondary mt-3" onClick={() => patch("scenarios", [
+                ...definition.scenarios,
+                { brief: "", purpose: "", when_to_use: "", follow_up_guidance: "", stop_condition: "", evidence_areas: [], required: false },
+              ])}>Add scenario</button>
+            )}
+          </details>
         )}
       </section>
+
       <section className="recruitment-profile-section">
-        <h2>Scenarios</h2>
-        {objects("scenarios", scenarioFields)}
-        {editable && definition.scenarios.length < 20 && (
-          <button type="button" className="btn-secondary mt-3" onClick={() => patch("scenarios", [
-            ...definition.scenarios,
-            { brief:"",purpose:"",when_to_use:"",follow_up_guidance:"",stop_condition:"",evidence_areas:[],required:false },
-          ])}>Add scenario</button>
+        <h2>Interview Settings</h2>
+        <div className="recruitment-profile-facts-grid">
+          {[
+            ["target_minutes", "Target minutes", 90],
+            ["max_minutes", "Maximum minutes", 120],
+          ].map(([key, label, max]) => (
+            <AdminFormField key={key} label={label} as={editable ? "label" : "div"}>
+              {editable ? (
+                <input className="control w-full" type="number" min={5} max={max}
+                  value={definition[key]} onChange={(event) => patch(key, Number(event.target.value))} />
+              ) : <p>{definition[key]}</p>}
+            </AdminFormField>
+          ))}
+          <AdminFormField label="Interview approach" as={editable ? "label" : "div"}>
+            {editable ? (
+              <SelectField ariaLabel="Interview approach" value={approach?.[0] || "existing"}
+                options={[
+                  ...(!approach ? [{ value: "existing", label: "Existing guidance" }] : []),
+                  ...Object.entries(approaches).map(([value, { label }]) => ({ value, label, disabled: [approaches[value].guidance, additionalGuidance].filter(Boolean).join("\n\n").length > 4000 })),
+                ]}
+                onChange={(value) => {
+                  if (approaches[value]) patch("follow_up_guidance", [approaches[value].guidance, additionalGuidance].filter(Boolean).join("\n\n"));
+                }} />
+            ) : <p>{approach?.[1].label || "Profile guidance"}</p>}
+          </AdminFormField>
+        </div>
+        {(editable || additionalGuidance) && (
+          <details className="recruitment-profile-disclosure">
+            <summary>Additional Interviewer Guidance <small>{additionalGuidance ? "Configured" : "Optional"}</small></summary>
+            {editable ? (
+              <textarea aria-label="Additional Interviewer Guidance" className="control w-full mt-2" rows={3}
+                placeholder="Add role-specific interviewing guidance"
+                value={additionalGuidance}
+                maxLength={4000 - (approach ? approach[1].guidance.length + 2 : 0)}
+                onChange={(event) => {
+                  const guidance = event.target.value;
+                  patch("follow_up_guidance", [approach?.[1].guidance || (!guidance ? approaches.behavioral.guidance : ""), guidance].filter(Boolean).join("\n\n"));
+                }} />
+            ) : <p className="recruitment-profile-prose mt-2">{additionalGuidance}</p>}
+          </details>
         )}
-      </section>
-      </>}
-      {(!step || step === "behavior") && <>
-      <details className="recruitment-profile-strategy" open={step === "behavior" || undefined}>
-        <summary>
-          Interview Strategy <span aria-hidden="true">+</span>
-        </summary>
-        {text("follow_up_guidance", "Conversational guidance")}
-      </details>
-      <details className="recruitment-profile-strategy" open={step === "behavior" || undefined}>
-        <summary>
-          Completion &amp; duration settings <span aria-hidden="true">+</span>
-        </summary>
-        <section className="recruitment-profile-section">
-          <h2>Completion Rules</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {["target_minutes", "max_minutes"].map((key) => (
-              <AdminFormField
-                key={key}
-                label={
-                  key === "target_minutes"
-                    ? "Target minutes"
-                    : "Maximum minutes"
-                }
-              >
-                {editable ? (
-                  <input
-                    className="control w-full"
-                    type="number"
-                    min={5}
-                    max={120}
-                    value={definition[key]}
-                    onChange={(e) => patch(key, Number(e.target.value))}
-                  />
-                ) : (
-                  <p>{definition[key]}</p>
-                )}
-              </AdminFormField>
-            ))}
+        <details className="recruitment-profile-disclosure">
+          <summary>Advanced completion settings <small>Core covered</small></summary>
+          <div className="recruitment-profile-facts-grid mt-2">
             {["Important", "Optional"].map((priority) => (
-              <AdminFormField
-                key={priority}
-                label={`${priority} evidence minimum`}
-              >
+              <AdminFormField key={priority} label={`${priority} evidence minimum`} as={editable ? "label" : "div"}>
                 {editable ? (
-                  <SelectField
-                    value={definition.completion_criteria[priority]}
-                    ariaLabel={`${priority} evidence minimum`}
-                    options={(priority === "Important"
-                      ? ["partial", "covered"]
-                      : ["unresolved", "partial", "covered"]
-                    ).map((value) => ({ value, label: value }))}
-                    onChange={(value) =>
-                      patch("completion_criteria", {
-                        ...definition.completion_criteria,
-                        [priority]: value,
-                      })
-                    }
-                  />
-                ) : (
-                  <p className="capitalize">
-                    {definition.completion_criteria[priority]}
-                  </p>
-                )}
+                  <SelectField value={definition.completion_criteria[priority]} ariaLabel={`${priority} evidence minimum`}
+                    options={(priority === "Important" ? ["partial", "covered"] : ["unresolved", "partial", "covered"])
+                      .map((value) => ({ value, label: value }))}
+                    onChange={(value) => patch("completion_criteria", { ...definition.completion_criteria, [priority]: value })} />
+                ) : <p className="capitalize">{definition.completion_criteria[priority]}</p>}
               </AdminFormField>
             ))}
           </div>
-          <dl className="recruitment-completion-rules">
-            <div>
-              <dt>Core requirement</dt>
-              <dd>Covered</dd>
-            </div>
-            <div>
-              <dt>Scenario completion</dt>
-              <dd>
-                Required scenarios need an answer; optional scenarios may use
-                cited equivalent real evidence.
-              </dd>
-            </div>
-          </dl>
-          <p className="text-xs text-text-secondary mt-3">
-            Offer candidate questions before requesting permission to conclude.
-          </p>
-        </section>
-      </details>
-      </>}
-      {!step && <p className="text-xs text-text-secondary">
-        Version {version} ·{" "}
-        {editable || unpublished
-          ? "Unpublished draft — publication creates a new version."
-          : "Published and immutable — existing invitations keep this version."}
-      </p>}
+          <p className="text-xs text-text-secondary mt-2">Required scenarios need an answer. Optional scenarios can use equivalent real evidence.</p>
+        </details>
+      </section>
     </div>
   );
 }

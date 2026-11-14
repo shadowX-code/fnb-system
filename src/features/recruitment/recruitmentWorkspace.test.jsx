@@ -236,8 +236,7 @@ describe("opening-centred Recruitment workspace", () => {
       target: { value: "Revised role context" },
     });
     fireEvent.click(screen.getByRole("button",{name:"Save Draft"}));
-    await screen.findByText(/Draft saved. You can return later/);
-    fireEvent.click(screen.getByRole("tab",{name:"Preview & Publish"}));
+    await screen.findByText(/Version 2 · Saved draft/);
     await waitFor(()=>expect(screen.getByRole("button",{name:"Publish Service Crew v2"}).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Publish Service Crew v2" }));
     await waitFor(() => expect(qa.publishProfileDraft).toHaveBeenCalledWith("draft2",2));

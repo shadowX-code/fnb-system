@@ -72,22 +72,18 @@ async function open(props = {}) {
   );
   return view;
 }
-function preview() {
-  fireEvent.click(screen.getByRole("tab", { name:"Preview & Publish" }));
-}
 describe("Durable profile draft editing", () => {
   it("saves the whole definition, survives remount and resumes without creating a new version", async () => {
     const view = await open();
     fireEvent.change(screen.getByRole("textbox", { name: "Role context" }), {
       target: { value: "Updated confirmed role context" },
     });
-    preview();
     expect(
       screen.getByRole("button", { name: "Publish Service Crew v3" }).disabled,
     ).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(stored.revision).toBe(2));
-    await screen.findByText(/Draft saved. You can return later/);
+    await screen.findByText(/Version 3 · Saved draft/);
     expect(stored.definition.evidence_areas).toEqual(
       serviceCrewV2.evidence_areas,
     );
@@ -122,7 +118,6 @@ describe("Durable profile draft editing", () => {
       "My stale edits",
     );
     expect(stored.definition.role_context).toBe("Saved by another manager");
-    preview();
     expect(
       screen.getByRole("button", { name: "Publish Service Crew v3" }).disabled,
     ).toBe(true);
@@ -140,7 +135,6 @@ describe("Durable profile draft editing", () => {
   it("publication is separate, revision-bound and never implicit in save", async () => {
     const publish = vi.fn().mockResolvedValue("v3");
     await open({ onPublish: publish });
-    preview();
     expect(publish).not.toHaveBeenCalled();
     fireEvent.click(
       screen.getByRole("button", { name: "Publish Service Crew v3" }),

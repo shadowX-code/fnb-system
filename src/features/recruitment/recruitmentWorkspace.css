@@ -1109,131 +1109,134 @@
   overflow: hidden;
 }
 .recruitment-profile-plan {
+  max-width: 1152px;
+  margin-inline: auto;
   background: var(--theme-surface-raised);
+  border: 1px solid var(--theme-border);
   border-radius: 12px;
-  padding: 24px;
-  display: grid;
-  gap: 24px;
+  padding: 0 24px;
 }
 .recruitment-profile-section {
   min-width: 0;
-}
-.recruitment-profile-section h2,
-.recruitment-profile-history h2 {
-  font-size: 15px;
-  font-weight: 650;
-  margin-bottom: 10px;
+  padding-block: 18px;
 }
 .recruitment-profile-section + .recruitment-profile-section {
   border-top: 1px solid var(--theme-border);
-  padding-top: 20px;
+}
+.recruitment-profile-section h2 {
+  font-size: 1rem;
+  font-weight: 650;
+  margin-bottom: 12px;
+}
+.recruitment-profile-facts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 20px;
+  max-width: 42rem;
+}
+dl.recruitment-profile-facts-grid {
+  margin-bottom: 12px;
+}
+.recruitment-profile-facts-grid dt {
+  color: var(--theme-muted);
+  font-size: 0.75rem;
+}
+.recruitment-profile-facts-grid dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+.recruitment-profile-plan textarea {
+  height: auto;
+  min-height: 4.25rem;
+  padding-block: 0.5rem;
+  resize: vertical;
 }
 .recruitment-profile-prose {
   max-width: 75ch;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 0.875rem;
+  line-height: 1.5;
   color: var(--theme-text-secondary);
-  display: grid;
-  gap: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .recruitment-plan-detail {
   border-bottom: 1px solid var(--theme-border);
 }
-.recruitment-plan-detail > summary {
+.recruitment-profile-disclosure > summary,
+.recruitment-plan-detail > summary,
+.recruitment-profile-checks > summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 0;
+  min-height: 42px;
+  gap: 10px;
   list-style: none;
+  cursor: pointer;
   border-radius: 6px;
+  font-size: 0.875rem;
 }
-.recruitment-plan-detail > summary::-webkit-details-marker {
+.recruitment-profile-disclosure summary::-webkit-details-marker,
+.recruitment-profile-checks summary::-webkit-details-marker,
+.recruitment-plan-detail summary::-webkit-details-marker {
   display: none;
 }
-.recruitment-plan-detail > summary strong {
-  font-size: 13px;
-  font-weight: 600;
+.recruitment-profile-disclosure > summary::after {
+  content: "+";
 }
-.recruitment-plan-detail-summary {
-  display: block;
-  max-width: 80ch;
-  font-size: 12px;
-  line-height: 1.5;
+.recruitment-profile-disclosure[open] > summary::after {
+  content: "−";
+}
+.recruitment-profile-disclosure > summary small {
+  margin-inline-start: auto;
   color: var(--theme-muted);
-  font-weight: 400;
-  margin-top: 5px;
 }
-.recruitment-plan-detail:not([open]) .recruitment-plan-detail-summary {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.recruitment-profile-disclosure + .recruitment-profile-disclosure {
+  border-top: 1px solid var(--theme-border);
+}
+.recruitment-plan-detail > summary strong {
+  overflow-wrap: anywhere;
+  font-weight: 600;
 }
 .recruitment-plan-detail[open] .recruitment-detail-toggle {
   font-size: 0;
 }
 .recruitment-plan-detail[open] .recruitment-detail-toggle::after {
   content: "−";
-  font-size: 16px;
+  font-size: 1rem;
 }
 .recruitment-plan-detail-body {
-  padding: 16px;
-  margin-bottom: 12px;
+  padding: 12px 0;
+}
+.recruitment-profile-add {
+  width: min(100%, 15rem);
+  margin-block: 10px 4px;
+}
+.recruitment-profile-checks {
+  padding: 0 12px 4px;
+  border: 1px solid var(--theme-border);
   border-radius: 8px;
-  background: var(--theme-surface-nested);
 }
-.recruitment-plan-detail-body p {
-  font-size: 13px;
-  line-height: 1.6;
+.recruitment-profile-checks > ul {
+  margin-bottom: 8px;
 }
-.recruitment-profile-strategy {
-  background: var(--theme-surface-nested);
-  border-radius: 8px;
-  padding: 14px 16px;
-}
-.recruitment-profile-strategy > summary {
-  display: flex;
-  justify-content: space-between;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  list-style: none;
-}
-.recruitment-profile-strategy .recruitment-profile-section {
-  margin-top: 16px;
-}
-.recruitment-profile-strategy .recruitment-profile-section h2 {
-  display: none;
-}
-.recruitment-profile-history {
-  max-width: 720px;
-  padding: 4px 0;
-}
-.recruitment-completion-rules {
-  display: grid;
-  gap: 12px;
-  margin-top: 16px;
-  font-size: 13px;
-}
-.recruitment-completion-rules dt {
-  font-size: 12px;
-  color: var(--theme-muted);
-  margin-bottom: 4px;
-}
-.recruitment-profile-plan summary:focus-visible {
+.recruitment-profile-plan summary:focus-visible,
+.recruitment-profile-checks summary:focus-visible {
   outline: 2px solid var(--theme-primary);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
-@media (max-width: 1100px) {
+@media (max-width: 650px) {
   .recruitment-profile-plan {
-    padding: 20px;
+    padding-inline: 16px;
   }
-}
-@media (max-width: 800px) {
+  .recruitment-profile-facts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .recruitment-profile-section {
+    padding-block: 14px;
+  }
   .recruitment-plan-detail > summary {
     flex-wrap: wrap;
-    gap: 8px;
   }
 }
 

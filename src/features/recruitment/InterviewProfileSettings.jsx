@@ -6,7 +6,6 @@ import PageHeader from "../../components/layout/PageHeader.jsx";
 import DataTable from "../../components/tables/DataTable.jsx";
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
-import AdminSegmentedControl from "../../components/forms/AdminSegmentedControl.jsx";
 import Modal from "../../components/feedback/Modal.jsx";
 import { profilePublishIssues } from "./interviewProfileChecks.js";
 import { formatRecruitmentTime, interviewStateLabel } from "./candidateOperations.js";
@@ -16,14 +15,6 @@ import {
   RecruitmentState,
   RecruitmentEmpty,
 } from "./RecruitmentPresentation.jsx";
-
-const builderSteps = [
-  {value:"template",label:"Template"},
-  {value:"role",label:"Role & Knowledge"},
-  {value:"assessment",label:"Assessment Plan"},
-  {value:"behavior",label:"Interview Behavior"},
-  {value:"preview",label:"Preview & Publish"},
-];
 
 export default function InterviewProfileSettings({
   profiles,
@@ -46,7 +37,7 @@ export default function InterviewProfileSettings({
     [pending, setPending] = useState(false),
     [error, setError] = useState(""),
     [conflict, setConflict] = useState(false),
-    [step, setStep] = useState("role"),
+    [dialog, setDialog] = useState(null),
     [creation, setCreation] = useState(null),
     [templates, setTemplates] = useState([]),
     [testJobId, setTestJobId] = useState(""),
@@ -66,6 +57,7 @@ export default function InterviewProfileSettings({
           if (resumeDraftId && rows.some(p => p.id === resumeDraftId)) {
             view(resumeDraftId,rows);
             setTestJobId(resumeJobId || "");
+            if (canManage) setDialog("test");
           }
         }
       })
@@ -76,7 +68,7 @@ export default function InterviewProfileSettings({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [resumeDraftId, resumeJobId]);
+  }, [resumeDraftId, resumeJobId, canManage]);
   const selected =
     profiles.find((p) => p.id === versionId) ||
     drafts.find((p) => p.id === versionId);
@@ -103,6 +95,7 @@ export default function InterviewProfileSettings({
   const pendingFacts = testJob?.config?.unverified_job_facts || {};
   function library() {
     setVersionId(null);
+    setDialog(null);
     setEditing(false);
     setError("");
     setConflict(false);
@@ -118,7 +111,7 @@ export default function InterviewProfileSettings({
     setDraft(record ? profileDraft(record.definition) : null);
     setError("");
     setConflict(false);
-    setStep("role");
+    setDialog(null);
     setTestJobId("");
     setTestLink(null);
     setTestHistory(null);
@@ -173,7 +166,7 @@ export default function InterviewProfileSettings({
     return run(async () => {
       const record = await recruitmentService.createProfileDraft({...creation,requestId:creationRequest.current.id});
       setCreation(null);
-      setStep("role");
+      setDialog(null);
       setTestJobId("");
       setTestLink(null);
       remember(record);
@@ -226,6 +219,16 @@ export default function InterviewProfileSettings({
     });
   }
   const current = editing ? draft : selected?.definition;
+  const reusableCompetencies = families.flatMap(([profile]) =>
+    profile.definition.evidence_areas
+      .filter((area) => area.goal && area.evidence_guidance && area.follow_up_signals && area.stop_condition)
+      .map((area) => ({ definition: area, source: `${profile.name} v${profile.version}` })),
+  ).sort((a, b) => a.definition.name.localeCompare(b.definition.name));
+  const templateKey = selected?.template_key;
+  const templateName = selected?.template_name || templates.find(({ key }) => key === templateKey)?.name ||
+    (templateKey === "behavioral_v1" ? "Behavioral Interview" : templateKey) ||
+    (selected?.source_profile_id ? "Copied published profile" : "Original profile");
+
   return (
     <>
       <PageHeader
@@ -239,9 +242,7 @@ export default function InterviewProfileSettings({
         ]}
         title={selected ? selected.name : "Interview Profiles"}
         description={
-          selected
-            ? "A reusable evidence plan for this role."
-            : "Reusable interview plans with fixed published versions."
+          selected ? undefined : "Reusable interview plans with fixed published versions."
         }
         metadata={
           selected ? (
@@ -249,56 +250,40 @@ export default function InterviewProfileSettings({
               <RecruitmentState
                 value={isDraft ? "draft" : selected.status || "published"}
               />
-              <span>
+              <span aria-live={isDraft ? "polite" : undefined}>
                 Version {selected.version}
                 {!isDraft && selected.id === latest?.id ? " · Latest" : ""}
                 {isDraft
                   ? ` · ${dirty ? "Unsaved changes" : "Saved draft"}`
                   : ""}
               </span>
-              {position && <span>{position.name}</span>}
-              <span>
-                Target {current.target_minutes} min · Maximum{" "}
-                {current.max_minutes} min
-              </span>
             </>
           ) : null
         }
+        secondaryActions={selected && (versions.length > 0 || (canManage && !editing)) ? (
+          <>
+            {versions.length > 0 && <button type="button" className="btn-secondary"
+              disabled={locked || dirty} onClick={() => setDialog("history")}>Version History</button>}
+            {canManage && !editing && !isDraft && <>
+              <button type="button" className="btn-secondary" disabled={locked} onClick={() => startCreation(selected)}>Duplicate</button>
+              <button type="button" className="btn-secondary" disabled={locked} onClick={prepare}>
+                {drafts.some((p) => p.profile_key === selected.profile_key) ? "Resume draft" : "Prepare next version"}
+              </button>
+              <button type="button" className="btn-secondary" disabled={locked} onClick={() => setDialog("test")}>Test history</button>
+            </>}
+          </>
+        ) : null}
         primaryActions={
           !selected && canManage ? (
-            <button className="btn-primary" disabled={locked} onClick={() => startCreation()}>Create profile</button>
-          ) : selected && canManage ? (
-            editing ? (
-              <>
-                {latest && <button
-                  className="btn-secondary"
-                  disabled={locked}
-                  onClick={() => view(latest.id)}
-                >
-                  View published version
-                </button>}
-                <button
-                  className="btn-primary"
-                  disabled={locked || !dirty || conflict}
-                  onClick={save}
-                >
-                  Save Draft
-                </button>
-              </>
-            ) : (
-              <>
-              {!isDraft && <button className="btn-secondary" disabled={locked} onClick={() => startCreation(selected)}>Duplicate</button>}
-              <button
-                className="btn-secondary"
-                disabled={locked}
-                onClick={prepare}
-              >
-                {drafts.some((p) => p.profile_key === selected.profile_key)
-                  ? "Resume draft"
-                  : "Prepare next version"}
-              </button>
-              </>
-            )
+            <button type="button" className="btn-primary" disabled={locked} onClick={() => startCreation()}>Create profile</button>
+          ) : editing ? (
+            <>
+              <button type="button" className="btn-secondary" disabled={locked} onClick={() => setDialog("test")}>Test</button>
+              <button type="button" className="btn-secondary" disabled={locked || !dirty || conflict} onClick={save}>Save Draft</button>
+              <button type="button" className="btn-primary"
+                aria-label={`Publish ${selected.name} v${selected.version}`}
+                disabled={locked || dirty || conflict || issues.length > 0} onClick={publish}>Publish</button>
+            </>
           ) : null
         }
       />
@@ -316,12 +301,13 @@ export default function InterviewProfileSettings({
         </div>
       )}
       {loading && <p role="status">Loading saved drafts…</p>}
-      {editing && (
-        <p className="text-sm text-text-secondary" role="status">
-          {dirty
-            ? "Unsaved changes. Save Draft before leaving or publishing."
-            : "Draft saved. You can return later to continue editing. Publication is a separate action."}
-        </p>
+      {editing && issues.length > 0 && (
+        <details className="recruitment-profile-checks">
+          <summary>Before publishing <span>{issues.length} {issues.length === 1 ? "item" : "items"}</span></summary>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-text-secondary">
+            {issues.map((issue) => <li key={issue}>{issue}</li>)}
+          </ul>
+        </details>
       )}
       {!selected ? (
         <RecruitmentSection
@@ -422,30 +408,42 @@ export default function InterviewProfileSettings({
           )}
         </RecruitmentSection>
       ) : (
-        <>
+        <fieldset key={selected.id} disabled={locked || conflict} className="min-w-0">
+          <InterviewIntelligenceBuilder definition={current} onChange={editing ? setDraft : undefined}
+            profile={{ name: selected.name, position: position?.name || (selected.position_id ? "Unavailable" : "Any position"), template: templateName }}
+            reusableCompetencies={reusableCompetencies} />
+        </fieldset>
+      )}
+      {dialog === "history" && selected && (
+        <Modal title="Version History" size="md" onClose={() => setDialog(null)}>
+          <p className="text-sm text-text-secondary">Existing invitations keep their published version.</p>
+          <ol className="mt-3 divide-y divide-border">
+            {versions.map((profile) => (
+              <li key={profile.id}>
+                <button type="button" className="recruitment-attention-row"
+                  aria-current={profile.id === versionId ? "true" : undefined}
+                  onClick={() => view(profile.id)}>
+                  <span>Version {profile.version}{profile.id === latest.id ? " · Latest" : ""}{profile.id === versionId ? " · Viewing" : ""}</span>
+                  <RecruitmentState value={profile.status || "published"} />
+                </button>
+              </li>
+            ))}
+          </ol>
+        </Modal>
+      )}
+      {dialog === "test" && selected && (
+        <Modal title={editing ? "Test interview" : "Test history"} size="md"
+          onClose={() => { if (!pending) setDialog(null); }}
+          footer={editing && <button type="button" className="btn-primary"
+            disabled={locked || dirty || conflict || issues.length > 0 || !testJob}
+            onClick={startTest}>Create test interview</button>}>
+          {error && <p className="mb-3 text-sm text-red-700" role="alert">{error}</p>}
           {editing && (
-            <AdminSegmentedControl label="Builder steps" value={step} onChange={setStep}
-              options={builderSteps.map(s => ({ ...s,panelId:"profile-builder-step",disabled:pending }))} />
-          )}
-          <fieldset disabled={locked || conflict} className="min-w-0"
-            id={editing ? "profile-builder-step" : undefined}
-            aria-label={editing ? builderSteps.find(s => s.value === step)?.label : undefined}>
-            {editing && step === "template" && (
-              <RecruitmentSection title="Starting plan">
-                <p className="text-sm text-text-secondary">
-                  {saved.template_name || (saved.source_profile_id ? "Duplicated published profile" : "Previous published version")}
-                </p>
-                {position && <p className="mt-1 text-sm font-medium">{position.name}</p>}
-              </RecruitmentSection>
-            )}
-            {(!editing || ["role","assessment","behavior"].includes(step)) && (
-              <InterviewIntelligenceBuilder definition={current} onChange={editing ? setDraft : undefined}
-                version={selected.version} unpublished={isDraft} step={editing ? step : undefined} />
-            )}
-            {editing && ["role","preview"].includes(step) && (
-              <RecruitmentSection title="Job Facts" className="mt-3">
+            <>
+              {dirty && <p className="mb-3 text-sm text-text-secondary">Save Draft to test your changes.</p>}
+              {!dirty && issues.length > 0 && <p className="mb-3 text-sm text-text-secondary">Complete the items under Before publishing to create a test.</p>}
                 <div className="grid gap-3">
-                  <p className="text-sm text-text-secondary">Choose a job to preview the hiring terms the interviewer can share.</p>
+                  <p className="text-sm text-text-secondary">Choose a job to test with its hiring terms.</p>
                   <AdminFormField label="Hiring context">
                     <SelectField ariaLabel="Hiring context" value={testJobId}
                       options={eligibleJobs.map(job => ({value:job.id,label:job.title,description:`${job.workplace} · ${job.employer_name}`}))}
@@ -463,65 +461,18 @@ export default function InterviewProfileSettings({
                     </div>
                   )}
                   {onJobFacts && <button type="button" className="btn-secondary justify-self-start"
-                    disabled={dirty} onClick={() => onJobFacts(testJob,selected)}>
+                    disabled={locked || dirty || conflict} onClick={() => onJobFacts(testJob,selected)}>
                     {testJob ? "Edit Job Facts" : "Set up a job"}
                   </button>}
                 </div>
-              </RecruitmentSection>
-            )}
-            {editing && step === "preview" && (
-              <>
-                <RecruitmentSection title="Publication checks" className="mt-3">
-                  {issues.length ? <ul className="list-disc space-y-1 pl-5 text-sm text-text-secondary">{issues.map(issue => <li key={issue}>{issue}</li>)}</ul>
-                    : <p className="text-sm">The required assessment fields are complete.</p>}
-                  {Object.keys(pendingFacts).length > 0 && <p className="mt-2 text-sm text-text-secondary">Unverified job terms stay out of the interview.</p>}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button type="button" className="btn-secondary" disabled={dirty || issues.length > 0 || !testJob}
-                      onClick={startTest}>Create test interview</button>
-                    <button type="button" className="btn-primary" disabled={dirty || issues.length > 0}
-                      onClick={publish}>Publish {selected.name} v{selected.version}</button>
-                  </div>
-                  {testLink && <div className="mt-3 flex flex-wrap items-center gap-3 text-sm" role="status">
-                    <a className="btn-secondary" target="_blank" rel="noreferrer" href={testLink.url}>Open test interview</a>
-                    <span>Draft revision {testLink.revision} · Expires {formatRecruitmentTime(testLink.expires_at)}</span>
-                  </div>}
-                </RecruitmentSection>
-                <InterviewIntelligenceBuilder definition={current} version={selected.version} unpublished />
-              </>
-            )}
-          </fieldset>
-          {!isDraft && (
-            <section
-              className="recruitment-profile-history"
-              aria-labelledby="profile-history-title"
-            >
-              <h2 id="profile-history-title">Version History</h2>
-              <p className="text-xs text-text-secondary">
-                Published versions stay fixed. Existing invitations retain their
-                selected plan.
-              </p>
-              <ol className="mt-3 divide-y divide-border">
-                {versions.map((p) => (
-                  <li key={p.id}>
-                    <button
-                      className="recruitment-attention-row"
-                      onClick={() => view(p.id)}
-                      aria-current={p.id === versionId ? "true" : undefined}
-                    >
-                      <span>
-                        Version {p.version}
-                        {p.id === latest.id ? " · Latest" : ""}
-                        {p.id === versionId ? " · Viewing" : ""}
-                      </span>
-                      <RecruitmentState value={p.status || "published"} />
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </section>
+
+              {testLink && <div className="mt-3 flex flex-wrap items-center gap-3 text-sm" role="status">
+                <a className="btn-secondary" target="_blank" rel="noreferrer" href={testLink.url}>Open test interview</a>
+                <span>Draft revision {testLink.revision} · Expires {formatRecruitmentTime(testLink.expires_at)}</span>
+              </div>}
+            </>
           )}
-          {canManage && (
-            <RecruitmentSection title="Test interviews" className="mt-3">
+          <div className={editing ? "mt-4 border-t border-border pt-3" : ""}>
               <button type="button" className="btn-secondary" disabled={locked} onClick={loadTestHistory}>
                 {testHistory ? "Refresh test interviews" : "View recent tests"}
               </button>
@@ -541,9 +492,9 @@ export default function InterviewProfileSettings({
                   ))}
                 </ul>
               )}
-            </RecruitmentSection>
-          )}
-        </>
+
+          </div>
+        </Modal>
       )}
       {testReview && <RecruitmentEvidenceReview test application={{
         id:testReview.application_id,attemptId:testReview.attempt_id,name:"QA Interview Tester",contact:"",

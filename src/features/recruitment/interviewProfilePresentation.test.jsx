@@ -5,6 +5,7 @@ import {
   render,
   screen,
   within,
+  waitFor,
 } from "@testing-library/react";
 import InterviewProfileSettings from "./InterviewProfileSettings.jsx";
 import { serviceCrewV2 } from "./serviceCrewV2.js";
@@ -34,18 +35,19 @@ const profiles = [
   },
 ];
 describe("Interview plan presentation", () => {
-  it("scales library by family, shows latest published versions, and keeps historical guidance accessible", () => {
+  it("scales library by family, shows latest published versions, and keeps historical guidance accessible", async () => {
     render(<InterviewProfileSettings profiles={profiles} onClose={() => {}} />);
     expect(screen.getAllByRole("row")).toHaveLength(3);
+    await waitFor(() => expect(screen.queryByText("Loading saved drafts…")).toBeNull());
     expect(
       screen.getByRole("button", { name: "View Kitchen Crew profile" }),
     ).toBeTruthy();
     fireEvent.click(
       screen.getByRole("button", { name: "View Service Crew profile" }),
     );
-    expect(screen.getByRole("heading", { name: "Assessment Areas" })).toBeTruthy();
-    fireEvent.click(screen.getByText(/Completion & duration settings/));
-    expect(screen.getByRole("heading", { name: "Completion Rules" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Assessment" })).toBeTruthy();
+    fireEvent.click(screen.getByText(/Advanced completion settings/));
+    expect(screen.getByText("Important evidence minimum")).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: "Prepare next version" }),
     ).toBeNull();
@@ -56,11 +58,11 @@ describe("Interview plan presentation", () => {
     expect(
       within(summary.parentElement).getByText("Follow-up signals"),
     ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Version History" }));
     fireEvent.click(
       screen.getByRole("button", { name: /Version 1.*Published/ }),
     );
     expect(screen.getByText("Version 1")).toBeTruthy();
-    expect(screen.getByText(/Published and immutable/)).toBeTruthy();
     fireEvent.click(
       screen.getByRole("button", { name: "Interview Profiles", exact: true }),
     );

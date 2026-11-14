@@ -126,13 +126,31 @@ it("submission retry presentation never says Submitting or pretends recording is
 it("generic area names and scenario links are draft-owned, not Service Crew hardcoding", () => {
   const definition = structuredClone(serviceCrewV2), change = vi.fn();
   render(<InterviewIntelligenceBuilder definition={definition} onChange={change} version={3} />);
-  fireEvent.change(screen.getAllByLabelText("Area name")[0],{target:{value:"Communication"}});
+  fireEvent.change(screen.getAllByLabelText("Competency name")[0],{target:{value:"Communication"}});
   expect(change.mock.lastCall[0].evidence_areas[0].name).toBe("Communication");
   expect(change.mock.lastCall[0].scenarios[0].evidence_areas).toContain("Communication");
   expect(definition.evidence_areas[0].name).toBe("Customer Handling");
-  fireEvent.click(screen.getByRole("button",{name:"Add assessment area"}));
+  fireEvent.click(screen.getByRole("button", { name: "Add Competency" }));
+  fireEvent.click(screen.getByRole("option", { name: "Create role-specific competency" }));
   expect(change.mock.lastCall[0].evidence_areas).toHaveLength(6);
   const legacy = profileDraft({evidence_areas:[{name:"Responsibility",priority:"Core",intent:"Own actions and follow-through in a work situation."}],scenarios:[]});
   expect(legacy.evidence_areas.map(a=>a.name)).toEqual(["Responsibility"]);
   expect(legacy.evidence_areas[0].goal).toContain("follow-through");
+});
+
+
+it("copies a reusable competency with its rubric and leaves the source unchanged", () => {
+  const source = {
+    ...serviceCrewV2.evidence_areas[0],
+    name: "Food Safety",
+    rubric: { levels: [1, 2, 3, 4].map((level) => ({ level, criteria: `Food safety behavior at level ${level}` })) },
+  };
+  const change = vi.fn();
+  render(<InterviewIntelligenceBuilder definition={serviceCrewV2} onChange={change}
+    reusableCompetencies={[{ definition: source, source: "Kitchen Crew" }]} />);
+  fireEvent.click(screen.getByRole("button", {name: "Add Competency"}));
+  fireEvent.click(screen.getByRole("option", {name: /Food Safety.*Kitchen Crew/}));
+  const copied = change.mock.lastCall[0].evidence_areas.at(-1);
+  expect(copied).toEqual(source);
+  expect(copied.rubric).not.toBe(source.rubric);
 });

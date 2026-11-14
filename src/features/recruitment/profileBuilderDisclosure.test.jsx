@@ -59,7 +59,7 @@ it("prioritizes goals and priorities while collection guidance, rubrics and comp
     change.mock.calls[0][0].evidence_areas[0].rubric.levels[0].criteria,
   ).toBe("Updated explicit behavioral criterion");
   const completion = screen
-    .getByText(/Completion & duration settings/)
+    .getByText(/Advanced completion settings/)
     .closest("details");
   expect(completion.open).toBe(false);
   fireEvent.click(completion.querySelector("summary"));
