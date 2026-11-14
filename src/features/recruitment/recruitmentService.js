@@ -93,8 +93,8 @@ export const recruitmentService = {
     const {data,error}=await supabase.functions.invoke("recruitment-realtime",{body:{action:"context",token,client_id:clientId,recovery_id:recoveryId,generation,orientation_version:"continuity-v2"},signal});
     throwSupabaseError("recruitment-realtime",error);return data;
   },
-  realtimeSecret: async (token, clientId, recoveryId, signal) => {
-    const { data, error } = await supabase.functions.invoke("recruitment-realtime", { body: { token, client_id: clientId, recovery_id: recoveryId, conversation_version:"controlled-auto-v1",orientation_version:"continuity-v2" }, signal });
+  realtimeSecret: async (token, clientId, recoveryId, signal, naturalQa) => {
+    const { data, error } = await supabase.functions.invoke("recruitment-realtime", { body: { token, client_id: clientId, recovery_id: recoveryId, conversation_version:naturalQa ? "natural-qa-v1" : "controlled-auto-v1",orientation_version:"continuity-v2" }, signal });
     throwSupabaseError("recruitment-realtime", error);
     return data;
   },

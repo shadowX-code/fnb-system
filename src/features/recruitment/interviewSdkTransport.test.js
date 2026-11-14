@@ -12,7 +12,7 @@ const policy = {
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
-function provider({ session = policy, stalled = false, delay = 0, error } = {}) {
+function provider({ session = policy, stalled = false, delay = 0, error, naturalQa } = {}) {
   let peer;
   class Channel extends EventTarget {
     readyState = "connecting";
@@ -51,7 +51,7 @@ function provider({ session = policy, stalled = false, delay = 0, error } = {}) 
   const bind=vi.fn(), consume=vi.fn(), checkpoint=vi.fn(), controller=new AbortController();
   const connection=connectInterviewSdk({
     signal:controller.signal, mediaStream:{getAudioTracks:()=>[track]},audioElement:{},
-    apiKey:"ek_fake_test_key",bind,consume,checkpoint,
+    apiKey:"ek_fake_test_key",bind,consume,checkpoint,naturalQa,
   });
   return {connection, bind, consume, checkpoint, controller, track, fetch, peer:()=>peer, settle:()=>settle({ok:true})};
 }
@@ -174,4 +174,21 @@ it("accepts a provider snapshot name and an acknowledgement without optional ech
   }});
   await q.connection;
   q.bind.mock.calls[0][2].close();
+});
+
+
+it("selects Natural QA only for the explicit Staging SDK arm and verifies provider flags and tool isolation", async()=>{
+  const loc={origin:"https://fnb-system-staging.vercel.app",search:"?voice-transport=sdk&voice-policy=natural-qa"};
+  const data="https://ujkzdaaadnvcfayuldmh.supabase.co";
+  expect(interviewQaTransport("QA Profile Test",loc,data)).toBe("sdk-natural-qa");
+  expect(interviewQaTransport("Service Crew",loc,data)).toBeUndefined();
+  const turn_detection={...policy.audio.input.turn_detection,create_response:true,interrupt_response:true};
+  const session={...policy,tools:[],audio:{input:{...policy.audio.input,turn_detection}}};
+  const qa=provider({session,naturalQa:true});
+  await qa.connection;
+  const [[raw]]=qa.peer().channel.send.mock.calls;
+  expect(JSON.parse(raw).session.audio.input.turn_detection).toEqual(turn_detection);
+  qa.bind.mock.calls[0][2].close();
+  await expect(provider({session:{...session,tools:[{name:"request_completion"}]},naturalQa:true}).connection)
+    .rejects.toMatchObject({code:"sdk_policy_unverified"});
 });

@@ -253,9 +253,13 @@ VAD/ASR is a provider observation, not speaker verification. In the controlled r
 
 Native teardown is issued when the old capture is stopped, before waiting for recorder onstop or storage. Its context is released once; late finalization cannot issue another native close against replacement playback. Device hooks detach old ownership before disposal, so a stale native track exception cannot retain a poisoned stream until refresh. MP4 units, immutable acknowledgements, integrity validation and upload/finalization contracts are unchanged.
 
-Both WebRTC adapters keep the provider microphone gated during playback. Automatic barge-in is disabled because Staging iPhone traces showed provider output clear and truncation on VAD start before FeedX corroborated the input, despite controlled turn policy. Use I’d like to speak during playback.
+In controlled mode, both WebRTC adapters gate the provider microphone during playback. Automatic barge-in is disabled because Staging iPhone traces showed provider output clear and truncation on VAD start before FeedX corroborated the input, despite controlled turn policy. Use I’d like to speak during playback.
 
 The mic opens automatically for normal listening after the interviewer's output finishes. If the provider drain receipt is missing, FeedX waits for completed generation, the final output transcript, observed remote audio, and a sustained quiet tail while browser playback is live. This is a browser observation, not proof of hearing. Listening, Thinking and Speaking follow the turn controller. Manual interruption is available during AI playback.
+
+Natural Conversation QA is a separate SDK policy available only on canonical Staging Profile Builder test invitations (`?voice-transport=sdk&voice-policy=natural-qa`). The first generation pins that attempt to the policy. After the one FeedX entry response, the provider owns interruption and conversational replies and receives the same pinned profile and verified Job Facts. The session has no tools. The candidate can submit the recording through the existing partial submission path. An immutable server event excludes both speakers’ QA transcript turns from coverage, preference, report citations and other evidence acceptance. Existing test-opening restrictions continue to prevent hiring.
+
+QA traces retain response/item IDs, provider input and truncation offsets, browser observations and the recording-unit ID for each generation. The recording mixes microphone and remote tracks. Provider output receipts and browser receive-energy observations cannot establish the exact speaker output boundary or independently identify the speaker. Saved provisional dialogue is available only as conversation context on recovery. Controlled interview policy remains the baseline.
 
 ### Staging interview transport comparison
 

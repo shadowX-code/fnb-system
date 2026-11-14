@@ -40,7 +40,8 @@ export class InterviewTranscriptEvidence {
       for (const item of this.responseItems.get(event.response_id) || []) {
         const final = this.aiFinals.get(item);
         if (final) {
-          if (this.cancelled.has(event.response_id)) this.queueAnnotation(item, "truncated");
+          if (this.cancelled.has(event.response_id) || (this.provisionalCandidates && event.type === "output_audio_buffer.cleared"))
+            this.queueAnnotation(item, "truncated");
           this.saveFinal(final).catch(() => this.onStatus("transcript-pending")); this.aiFinals.delete(item);
         }
       }
@@ -85,7 +86,7 @@ export class InterviewTranscriptEvidence {
       const boundary = this.inputBoundaries.get(event.item_id);
       // VAD/commit is provenance, not speaker attestation. Overlap is retained
       // conservatively as unverified, including genuine barge-in, for review.
-      if (!this.requireAcceptance && (!boundary?.started || !boundary?.stopped || !boundary?.committed || boundary.overlap))
+      if (!this.requireAcceptance && (this.provisionalCandidates || !boundary?.started || !boundary?.stopped || !boundary?.committed || boundary.overlap))
         this.queueAnnotation(event.item_id, "unverified_candidate");
       const final={itemId:event.item_id,speaker:"candidate",transcript:event.transcript,elapsedMs:Math.max(0,Date.now()-this.startedAt)};
       if (this.requireAcceptance) this.pendingCandidates.set(event.item_id,final);

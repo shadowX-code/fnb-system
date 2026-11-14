@@ -76,6 +76,10 @@ export default function RecruitmentInterviewSession({
   }
   async function requestFinish() {
     if (actionOwner.current || controller.submitting) return;
+    if (controller.transport?.naturalQa) {
+      setPartialConfirm(true);
+      return;
+    }
     const owner = crypto.randomUUID();
     actionOwner.current = owner;
     setActionState("CHECKING"); setBusy(true); setError(""); setPartialConfirm(false);

@@ -5,7 +5,9 @@ export function interviewQaTransport(title, location, dataUrl = import.meta.env.
   if (dataUrl !== "https://ujkzdaaadnvcfayuldmh.supabase.co" ||
       location?.origin !== "https://fnb-system-staging.vercel.app" ||
       !/^QA([ :_-]|$)/i.test(title || "")) return undefined;
-  const transport = new URLSearchParams(location.search).get("voice-transport");
+  const params = new URLSearchParams(location.search);
+  const transport = params.get("voice-transport");
+  if (transport === "sdk" && params.get("voice-policy") === "natural-qa") return "sdk-natural-qa";
   return transport === "sdk" || transport === "legacy" ? transport : undefined;
 }
 
@@ -15,10 +17,11 @@ const turnDetection = {
   type: "semantic_vad", eagerness: "low", create_response: false, interrupt_response: false,
 };
 
-function controlledPolicyError(session) {
+function policyErrorFor(session, turnDetection, naturalQa) {
   if (!session) return "ack_missing";
   const input = session.audio?.input;
   if (session.model !== model && !session.model?.startsWith(model + "-")) return "model";
+  if (naturalQa && session.tools?.length) return "tools";
   if (session.tracing != null) return "tracing";
   if (Object.entries(turnDetection).some(([key, value]) => input?.turn_detection?.[key] !== value))
     return "turn_detection";
@@ -28,9 +31,12 @@ function controlledPolicyError(session) {
   return null;
 }
 
-export async function connectInterviewSdk({ signal, mediaStream, audioElement, apiKey, bind, consume, checkpoint = () => {} }) {
+export async function connectInterviewSdk({ signal, mediaStream, audioElement, apiKey, bind, consume, checkpoint = () => {}, naturalQa = false }) {
   const { OpenAIRealtimeWebRTC } = await import("@openai/agents-realtime");
   signal?.throwIfAborted();
+  const detection = naturalQa
+    ? { ...turnDetection, create_response: true, interrupt_response: true }
+    : turnDetection;
   class InterviewWebRTC extends OpenAIRealtimeWebRTC {
     // FeedX consumes raw events and owns provider context. SDK history lookups
     // can race with FeedX deleting an unverified input item.
@@ -42,7 +48,7 @@ export async function connectInterviewSdk({ signal, mediaStream, audioElement, a
     buildSessionPayload() {
       return {
         type: "realtime", tracing: null, include: [confidence],
-        audio: { input: { turn_detection: turnDetection, noise_reduction: { type: "near_field" } } },
+        audio: { input: { turn_detection: detection, noise_reduction: { type: "near_field" } } },
       };
     }
   }
@@ -54,7 +60,7 @@ export async function connectInterviewSdk({ signal, mediaStream, audioElement, a
     let event;
     try { event = JSON.parse(data); } catch { return; }
     if (event?.type !== "session.updated" || signal?.aborted) return;
-    policyError = controlledPolicyError(event.session);
+    policyError = policyErrorFor(event.session, detection, naturalQa);
     acknowledgePolicy();
   };
   const sdk = new InterviewWebRTC({

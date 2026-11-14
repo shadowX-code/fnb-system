@@ -41,3 +41,18 @@ it('duplicate provider finals cannot re-quarantine an already accepted turn',asy
  expect(qa.put.mock.calls.filter(([x])=>x.speaker==='candidate')).toHaveLength(1);
  expect(qa.put.mock.calls.some(([x])=>x.kind==='unverified_candidate')).toBe(false);
 });
+
+
+it("retains Natural QA speech as provisional and records a cleared AI item as truncated before persisting text",async()=>{
+ evidence.requireAcceptance=false;evidence.provisionalCandidates=true;
+ evidence.observe({type:'response.output_item.added',response_id:'ai',item:{type:'message',id:'output'}});
+ evidence.observe({type:'output_audio_buffer.started',response_id:'ai'});
+ evidence.observe({type:'response.output_audio_transcript.done',response_id:'ai',item_id:'output',transcript:'This full generated sentence was interrupted.'});
+ answer('candidate','等一下, can I ask a question?');
+ evidence.observe({type:'output_audio_buffer.cleared',response_id:'ai'});
+ await evidence.persistence;
+ const rows=qa.put.mock.calls.map(([row])=>row);
+ expect(rows.map(row=>[row.itemId,row.kind || row.speaker])).toEqual([
+  ['candidate','unverified_candidate'],['candidate','candidate'],['output','truncated'],['output','ai'],
+ ]);
+});

@@ -61,7 +61,7 @@ export class OpenAIInterviewConversation {
       this.orientationConfirmed = true;
       this.updateContext(this.instructions);
     }
-    if (!this.controlled && this.presentationOwned && e.type === "conversation.item.input_audio_transcription.completed") {
+    if (!this.controlled && !this.naturalQa && this.presentationOwned && e.type === "conversation.item.input_audio_transcription.completed") {
       if (this.candidateEligible(e.item_id)) this.uncertainInterruptions = 0;
       else if (++this.uncertainInterruptions >= 3) this.onRecovery("repeated_unverified_input");
     }
@@ -86,7 +86,7 @@ export class OpenAIInterviewConversation {
       this.responses.set(id, {itemId:null,revision:this.revision,done:false,kind,requestOwner,closing:tool?.result?.can_finish === true});
       if (stale) { this.cancelled.add(id); this.send({type:"response.cancel",response_id:id}); return false; }
       this.unwatch("entry"); this.unwatch("tool-response");
-      if (this.owner) {
+      if (this.owner && (!this.naturalQa || kind !== "entry")) {
         this.turns.set(this.owner, {responded:true}); this.unwatch(`turn:${this.owner}`);
       }
       this.watch(`response:${id}`, "response_generation_timeout", 60000);
@@ -96,7 +96,10 @@ export class OpenAIInterviewConversation {
       const response = this.responses.get(id);
       if (response) response.itemId = e.item.id;
     }
-    if (id && this.cancelled.has(id)) return ["output_audio_buffer.cleared", "output_audio_buffer.stopped", "response.done"].includes(e.type);
+    if (id && this.cancelled.has(id)) {
+      const boundary = ["output_audio_buffer.cleared", "output_audio_buffer.stopped", "response.done"].includes(e.type);
+      if (!this.naturalQa || !boundary) return boundary;
+    }
     if (e.type === "response.output_audio_transcript.done" && this.responses.has(id))
       this.responses.get(id).audioTranscriptDone = true;
     if (e.type === "response.done") {
@@ -135,6 +138,7 @@ export class OpenAIInterviewConversation {
         return false;
       }
     }
+    if (e.type === "response.function_call_arguments.done" && this.naturalQa) return false;
     if (e.type === "response.function_call_arguments.done" && !this.tools.has(e.call_id)) {
       if (this.responses.get(id)?.revision !== this.revision) return false;
       const tool = {callId:e.call_id,responseId:id,revision:this.revision};
@@ -166,6 +170,12 @@ export class OpenAIInterviewConversation {
     }
     if (e.type === "error") this.onRecovery("provider_error");
     if (this.controlled) this.syncInput();
+    if (this.naturalQa) this.onTurnState({
+      listening: true,
+      speaking: this.playing,
+      thinking: !this.speaking && !this.playing && [...this.responses.values()].some(r => !r.done && !r.cancelled),
+      canInterrupt: this.playing && !this.cancelled.has(this.activeAudioResponse),
+    });
     return true;
   }
   setInput(open) {
@@ -280,6 +290,14 @@ export class OpenAIInterviewConversation {
     this.drafts.clear();this.uncertainInputs.clear();this.pendingInputs.clear();this.committedInputs.clear();this.speaking=false;this.emitTurn();
   }
   interrupt() {
+    if (this.naturalQa) {
+      const id = this.activeAudioResponse;
+      if (this.closed || !id || this.cancelled.has(id)) return false;
+      this.cancelled.add(id);
+      if (!this.responses.get(id)?.done) this.send({type:"response.cancel",response_id:id});
+      this.send({type:"output_audio_buffer.clear"});
+      return true;
+    }
     if (!this.controlled || this.closed || this.inputOpen || this.interrupting) return false;
     const active=[...this.responses.entries()].reverse().find(([,r])=>!r.cancelled && (!r.done || (r.itemId && !r.drained)));
     if (!active) return false;

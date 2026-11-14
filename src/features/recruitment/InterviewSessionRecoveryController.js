@@ -123,6 +123,7 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
       mediaStream: devices.streamRef.current,
       startedAt: this.session.started_at,
       audioElement: this.audio,
+      recordingUnitId: this.capture?.unit?.id,
       signal,
       onRemote: (stream) => this.capture?.remote(stream),
       onTurnState: view => {

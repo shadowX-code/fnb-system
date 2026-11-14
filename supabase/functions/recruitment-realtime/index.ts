@@ -38,6 +38,9 @@ function json(request: Request, body: Record<string, unknown>, status = 200) {
   });
 }
 
+const stagingOrigin = "https://fnb-system-staging.vercel.app";
+const stagingProject = "https://ujkzdaaadnvcfayuldmh.supabase.co";
+
 const tokenPattern = /^[0-9a-f]{64}$/;
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -64,6 +67,9 @@ Deno.serve(async (request) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
     Deno.env.get("PROJECT_SERVICE_ROLE_KEY");
   const openaiKey = Deno.env.get("OPENAI_API_KEY");
+  const naturalQa = body.conversation_version === "natural-qa-v1";
+  if (naturalQa && (url !== stagingProject || origin !== stagingOrigin || !continuity || !body.recovery_id))
+    return json(request, { error: "Interview policy is unavailable." }, 403);
   if (!url || !serviceKey || !openaiKey)
     return json(request, { error: "Interview service is unavailable." }, 503);
 
@@ -142,6 +148,14 @@ Deno.serve(async (request) => {
       instructions: interviewInstructions(context),
     });
   }
+  if (naturalQa) {
+    const { data: attempt, error: attemptError } = await service.rpc("recruitment_public_attempt", { p_token: token });
+    const { data: opening } = attempt?.opening_id
+      ? await service.from("recruitment_openings").select("test_profile_id").eq("id", attempt.opening_id).single()
+      : { data: null };
+    if (attemptError || !opening?.test_profile_id)
+      return json(request, { error: "Interview policy is unavailable." }, 403);
+  }
   const { data, error } = await service.rpc(
     body.recovery_id
       ? "recruitment_recovery_context"
@@ -162,13 +176,33 @@ Deno.serve(async (request) => {
   const { data: role } = await service
     .from("recruitment_interview_attempts")
     .select(
-      "preferred_language,application:recruitment_applications(position_snapshot,workplace_snapshot,employment_preference),config:recruitment_interview_configs(job_facts,job_context,employment_offerings,opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition))",
+      "preferred_language,opening_id,application_id,opening:recruitment_openings(test_profile_id),application:recruitment_applications(position_snapshot,workplace_snapshot,employment_preference),config:recruitment_interview_configs(job_facts,job_context,employment_offerings,opening_requirements,interview_profile:recruitment_interview_profiles(name,version,definition))",
     )
     .eq("id", context.attempt_id)
     .single();
   context.preferred_language = role?.preferred_language || "en";
   if (!role?.application)
     return json(request, { error: "Interview context unavailable." }, 503);
+  const opening = Array.isArray(role.opening) ? role.opening[0] : role.opening;
+  if (naturalQa && !opening?.test_profile_id)
+    return json(request, { error: "Interview policy is unavailable." }, 403);
+  if (opening?.test_profile_id && url === stagingProject) {
+    const { data: prior, error: priorError } = await service.from("recruitment_events").select("id")
+      .eq("attempt_id", context.attempt_id).eq("action", "natural_voice_qa").limit(1);
+    if (priorError || (!naturalQa && prior?.length))
+      return json(request, { error: "Use the original QA interview link." }, 409);
+    // A fresh test attempt gets pinned before any Realtime secret can be issued.
+    if (naturalQa && !prior?.length) {
+      if (context.generation !== 1)
+        return json(request, { error: "Start Natural QA with a fresh test invitation." }, 409);
+      const { error: pinError } = await service.from("recruitment_events").insert({
+        attempt_id: context.attempt_id, opening_id: role.opening_id, application_id: role.application_id,
+        action: "natural_voice_qa", details: { generation: context.generation },
+      });
+      if (pinError) return json(request, { error: "Interview policy is unavailable." }, 503);
+    }
+  }
+  context.natural_qa = naturalQa;
   context.employment_preference = role.application.employment_preference;
   if (role?.application)
     context.opening = {
@@ -204,6 +238,22 @@ Deno.serve(async (request) => {
   }
   if (orientationEnabled) { context.orientation_complete = continuation.orientation_complete; context.orientation_presented = continuation.orientation_presented; }
   context.turns = continuation.turns;
+  if (naturalQa && context.has_connected) {
+    const { data: dialogue, error: dialogueError } = await service
+      .from("recruitment_transcript_turns")
+      .select("speaker,transcript,turn_number,provider_generation,provider_item_id")
+      .eq("attempt_id", context.attempt_id)
+      .lt("provider_generation", context.generation)
+      .order("turn_number", { ascending: false })
+      .limit(16);
+    if (dialogueError) return json(request, { error: "Interview context unavailable." }, 503);
+    const unavailable = new Set((annotations || [])
+      .filter(a => a.kind === "truncated" || a.kind === "transcription_failed")
+      .map(a => `${a.provider_generation}:${a.provider_item_id}`));
+    context.provisional_dialogue = (dialogue || []).reverse()
+      .filter(t => !unavailable.has(`${t.provider_generation}:${t.provider_item_id}`))
+      .map(({ speaker, transcript, turn_number }) => ({ speaker, transcript: transcript.slice(0, 1500), turn_number }));
+  }
   context.current_findings = durable.current_findings || [];
   context.job_facts = durable.job_facts || context.job_facts;
   context.scenarios = context.scenarios.map((s: any) => ({
@@ -233,7 +283,7 @@ Deno.serve(async (request) => {
       type: "realtime",
       model: "gpt-realtime-1.5",
       output_modalities: ["audio"],
-      tools: [
+      tools: naturalQa ? [] : [
         ...(orientationEnabled && !continuity ? [{
           type:"function",name:"confirm_orientation",
           description:"Silently confirm presentation only in the same response after speaking the workplace, position, confirmed role scope, approximate duration and self-introduction invitation. Then listen, without more speech. Never use a short Hello/Hi/OK as a substitute for the required orientation. This is not evidence coverage or completion permission.",
@@ -253,7 +303,7 @@ Deno.serve(async (request) => {
         },
       ],
       instructions: interviewInstructions(context),
-      ...(body.conversation_version === "controlled-auto-v1" ? {include:["item.input_audio_transcription.logprobs"]} : {}),
+      ...((naturalQa || body.conversation_version === "controlled-auto-v1") ? {include:["item.input_audio_transcription.logprobs"]} : {}),
       audio: {
         input: {
           transcription: {
@@ -307,7 +357,7 @@ Deno.serve(async (request) => {
     value: secret.value,
     expires_at: secret.expires_at,
     generation: context.generation,
-    turn_policy: ["controlled-auto-v1","controlled-turns-v1"].includes(body.conversation_version) ? body.conversation_version : "provider-owned-v1",
+    turn_policy: ["natural-qa-v1","controlled-auto-v1","controlled-turns-v1"].includes(body.conversation_version) ? body.conversation_version : "provider-owned-v1",
     conversation_protocol: continuity ? "continuity-v2" : "receipt-v1",
     orientation_required: !continuity && orientationEnabled && !context.orientation_complete && !context.orientation_presented,
     introduction_pending: !continuity && orientationEnabled && context.orientation_presented && !context.orientation_complete,

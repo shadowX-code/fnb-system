@@ -24,9 +24,12 @@ export class RecruitmentRealtimeSession {
     onTurnState = () => {},
     onDiagnostic = () => {},
     qaTransport,
+    recordingUnitId,
   }) {
     this.onDiagnostic=onDiagnostic;
     this.qaTransport=qaTransport;
+    this.recordingUnitId=recordingUnitId;
+    this.naturalQa=qaTransport === "sdk-natural-qa";
     this.token = token;
     this.recoveryId = recoveryId;
     this.clientId = clientId;
@@ -51,6 +54,7 @@ export class RecruitmentRealtimeSession {
       onRejectCandidate:itemId=>this.evidence.rejectCandidate(itemId),trace:event=>this.trace(event),send:event=>this.send(event), onTool, onCompletion,
       onOrientation:receipt=>this.trace({type:"output_audio_buffer.stopped",phase:"orientation_complete",...receipt}),
       onRecovery:reason=>{this.trace({type:"transport.disconnected",status:reason});this.disconnected(reason);}});
+    this.conversation.naturalQa = this.naturalQa;
     this.audioPlaying = false;
     this.eventSequence = 0;
   }
@@ -80,15 +84,17 @@ export class RecruitmentRealtimeSession {
       this.clientId,
       this.recoveryId,
       signal,
+      ...(this.naturalQa ? [true] : []),
     );
     if (this.closed) throw new Error("Interview session was replaced.");
     this.checkpoint("provider.authorization","dependency_completed");
     this.generation = secret.generation;
     if (secret.conversation_protocol !== "continuity-v2") throw Error("The interviewer needs the current interview version. Please reload this page.");
-    if (secret.turn_policy !== "controlled-auto-v1") throw Error("The interviewer needs the current turn policy. Please reload this page.");
-    this.conversation.controlled = true;
+    if (secret.turn_policy !== (this.naturalQa ? "natural-qa-v1" : "controlled-auto-v1")) throw Error("The interviewer needs the current turn policy. Please reload this page.");
+    this.conversation.controlled = !this.naturalQa;
     this.conversation.automatic = true;
-    this.evidence.requireAcceptance = true;
+    this.evidence.requireAcceptance = !this.naturalQa;
+    this.evidence.provisionalCandidates = this.naturalQa;
     this.conversation.presentationOwned = true;
     this.conversation.orientationRequired = secret.orientation_required === true;
     this.conversation.instructions = secret.conversation_instructions;
@@ -197,10 +203,10 @@ export class RecruitmentRealtimeSession {
       channel.addEventListener?.("close", channelLost);
     };
     try {
-      if (this.qaTransport === "sdk") {
+      if (this.qaTransport === "sdk" || this.naturalQa) {
         await connectInterviewSdk({
           signal, mediaStream: providerStream, audioElement: this.audioElement,
-          apiKey: secret.value, bind, checkpoint: (stage, code) => this.checkpoint(stage, code),
+          apiKey: secret.value, bind, naturalQa: this.naturalQa, checkpoint: (stage, code) => this.checkpoint(stage, code),
           consume: event => this.consumeEvent(event),
         });
       } else {
@@ -280,12 +286,13 @@ export class RecruitmentRealtimeSession {
       if (this.remoteTrack?.readyState !== "live" || peer.connectionState !== "connected" || this.audioElement.paused)
         throw Error("Interviewer audio stopped. Tap Continue interview to try again.");
       const settings = microphone.getSettings?.() || {};
-      this.trace({type:"transport.connected",phase:secret.orientation_required ? "orientation_pending" : "continuity-v2",status:`transport:${this.qaTransport || "legacy"};aec:${settings.echoCancellation ?? "unknown"};noise:${settings.noiseSuppression ?? "unknown"};peer:${peer.connectionState};remote:${this.remoteTrack.readyState}`});
+      this.trace({type:"transport.connected",item_id:this.naturalQa ? this.recordingUnitId : undefined,phase:secret.orientation_required ? "orientation_pending" : "continuity-v2",status:`transport:${this.qaTransport || "legacy"};aec:${settings.echoCancellation ?? "unknown"};noise:${settings.noiseSuppression ?? "unknown"};peer:${peer.connectionState};remote:${this.remoteTrack.readyState}`});
       this.checkpoint("server.connected","dependency_completed");
       this.onStatus("connected");
       this.flush().catch(() => this.onStatus("transcript-pending"));
       if (this.closed) throw Error("Interview session was replaced.");
       this.conversation.begin(`session:${this.generation}`, secret.first_response_instructions);
+      if (this.naturalQa) this.providerMicrophone.enabled = true;
       return secret;
     } catch (error) {
       this.checkpoint("webrtc.startup",error.code||error.name||"connection_failed");
@@ -298,7 +305,7 @@ export class RecruitmentRealtimeSession {
 
   send(event) {
     if (this.closed || this.channel?.readyState !== "open") return;
-    // FeedX owns response.create, cancellation and ordering on both transports.
+    // FeedX sends the one entry response. In Natural QA the provider owns all replies.
     this.trace({ ...event, type: `client.${event.type}` });
     this.channel.send(JSON.stringify(event));
   }
@@ -316,8 +323,11 @@ export class RecruitmentRealtimeSession {
   consumeEvent(event) {
     if (this.closed || !this.ownsPlayback()) return;
     this.trace(event);
+    if (this.naturalQa && !this.conversation.entryRequested) return;
     if (["conversation.item.input_audio_transcription.completed","conversation.item.input_audio_transcription.failed"].includes(event.type))
       this.trace({type:"input_audio_buffer.committed",item_id:event.item_id,phase:event.type.endsWith("completed") ? "transcription_completed" : "transcription_failed"});
+    if (this.naturalQa && event.type === "response.output_audio_transcript.done")
+      this.trace({type:"response.output_item.added",response_id:event.response_id,item_id:event.item_id,phase:"output_transcript_final"});
     this.evidence.cancelled=this.conversation.cancelled;
     this.evidence.observe(event);
     const accepted = this.conversation.event(event);
@@ -367,7 +377,8 @@ export class RecruitmentRealtimeSession {
     const record = { type: event.type, response_id: event.response_id || event.response?.id || null,
       item_id: event.item_id || event.item?.id || null, owner: event.owner || event.response?.metadata?.owner || null,
       status: event.response?.status || event.error?.code || event.status || null, phase: event.item?.phase || event.phase || (event.type === "response.function_call_arguments.done" ? event.name : null),
-      audio_end_ms: event.audio_end_ms ?? null, playing: event.phase === "browser" ? !this.audioElement.paused : this.audioPlaying,
+      audio_end_ms: event.audio_end_ms ?? null,
+      ...(this.naturalQa && event.type === "input_audio_buffer.speech_started" ? { audio_start_ms: event.audio_start_ms ?? null } : {}), playing: event.phase === "browser" ? !this.audioElement.paused : this.audioPlaying,
       elapsed_ms: Math.max(0, Date.now() - this.startedAt) };
     const item = { key: `${this.attemptKey}:${this.generation}:trace:${crypto.randomUUID()}`,
       attemptKey: this.attemptKey, kind: "realtime_trace", generation: this.generation, record };

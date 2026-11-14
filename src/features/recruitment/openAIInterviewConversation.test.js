@@ -109,3 +109,24 @@ it("a cancelled authorized closing never auto-submits",async()=>{
  created("closing",{feedx_kind:"tool",call_id:"close-call"});done("closing","cancelled");event({type:"output_audio_buffer.stopped",response_id:"closing"});await vi.advanceTimersByTimeAsync(0);
  expect(completion).not.toHaveBeenCalled();
 });
+
+
+it("Natural QA tolerates a provider clear, keeps the provider as sole reply owner and ignores completion tools",async()=>{
+ adapter.naturalQa=true;adapter.presentationOwned=true;
+ adapter.begin("session:1","entry");
+ created("entry",{feedx_kind:"entry",owner:"session:1"});
+ event({type:"output_audio_buffer.started",response_id:"entry"});
+ speech("question");
+ event({type:"output_audio_buffer.cleared",response_id:"entry"});
+ done("entry","cancelled");
+ commit("question");created("reply");
+ event({type:"conversation.item.input_audio_transcription.completed",item_id:"question",transcript:"等一下, can I ask a question?"});
+ event({type:"response.function_call_arguments.done",response_id:"reply",call_id:"complete",name:"request_completion"});
+ done("reply");
+ await vi.advanceTimersByTimeAsync(1);
+ expect(send.mock.calls.filter(([e])=>e.type==="response.create")).toHaveLength(1);
+ expect(send.mock.calls.some(([e])=>e.type==="output_audio_buffer.clear")).toBe(false);
+ expect(tool).not.toHaveBeenCalled();
+ expect(completion).not.toHaveBeenCalled();
+ expect(recovery).not.toHaveBeenCalled();
+});

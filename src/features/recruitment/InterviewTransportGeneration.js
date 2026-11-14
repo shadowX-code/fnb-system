@@ -9,7 +9,7 @@ export class InterviewTransportGeneration extends InterviewRecovery {
     const operation=super.begin(activate, requestId); // native gesture acquisition first
     this.closeInterviewer();return operation;
   }
-  async connectInterviewer({token,clientId,recoveryId,mediaStream,startedAt,audioElement,onStatus,onRemote,onRecovery,onCompletion,onTurnState=()=>{},onEvent=()=>{},signal}) {
+  async connectInterviewer({token,clientId,recoveryId,mediaStream,startedAt,audioElement,recordingUnitId,onStatus,onRemote,onRecovery,onCompletion,onTurnState=()=>{},onEvent=()=>{},signal}) {
     this.closeInterviewer();
     const current = () => this.transport === transport && !transport.closed;
     const assess = () => {
@@ -27,7 +27,7 @@ export class InterviewTransportGeneration extends InterviewRecovery {
       })().finally(()=>{if(this.assessment===pending)this.assessment=null;});
       this.assessment=pending;return pending;
     };
-    const transport = new RecruitmentRealtimeSession({token,clientId,recoveryId,mediaStream,startedAt,audioElement,qaTransport:this.qaTransport,
+    const transport = new RecruitmentRealtimeSession({token,clientId,recoveryId,mediaStream,startedAt,audioElement,recordingUnitId,qaTransport:this.qaTransport,
       onDiagnostic:details=>{if(current())this.onDiagnostic?.({...details,request_id:recoveryId});},
       onTurnState:view=>{if(current())onTurnState(view);},
       onRemote:stream=>current() ? onRemote(stream) : undefined,
@@ -49,7 +49,7 @@ export class InterviewTransportGeneration extends InterviewRecovery {
         if (!current()) return;
         onEvent(event);
         if(event.type === "input_audio_buffer.speech_started") this.completion=null;
-        if(event.type === "candidate.answer.accepted" || (event.type === "conversation.item.input_audio_transcription.completed" && !transport.conversation?.controlled)) {
+        if(event.type === "candidate.answer.accepted" || (event.type === "conversation.item.input_audio_transcription.completed" && !transport.naturalQa && !transport.conversation?.controlled)) {
           // Coalesce server coverage work, independently of provider turn progress.
           this.refreshCoverage ||= setTimeout(async()=>{
             this.refreshCoverage=null;
