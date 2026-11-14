@@ -186,20 +186,23 @@ Deno.serve(async (request) => {
   const opening = Array.isArray(role.opening) ? role.opening[0] : role.opening;
   if (naturalQa && !opening?.test_profile_id)
     return json(request, { error: "Interview policy is unavailable." }, 403);
+  let naturalEvidenceReview = false;
   if (opening?.test_profile_id && url === stagingProject) {
-    const { data: prior, error: priorError } = await service.from("recruitment_events").select("id")
+    const { data: prior, error: priorError } = await service.from("recruitment_events").select("details")
       .eq("attempt_id", context.attempt_id).eq("action", "natural_voice_qa").limit(1);
     if (priorError || (!naturalQa && prior?.length))
       return json(request, { error: "Use the original QA interview link." }, 409);
+    naturalEvidenceReview = naturalQa && prior?.[0]?.details?.evidence_review === "v1";
     // A fresh test attempt gets pinned before any Realtime secret can be issued.
     if (naturalQa && !prior?.length) {
       if (context.generation !== 1)
         return json(request, { error: "Start Natural QA with a fresh test invitation." }, 409);
       const { error: pinError } = await service.from("recruitment_events").insert({
         attempt_id: context.attempt_id, opening_id: role.opening_id, application_id: role.application_id,
-        action: "natural_voice_qa", details: { generation: context.generation },
+        action: "natural_voice_qa", details: { generation: context.generation, evidence_review: "v1" },
       });
       if (pinError) return json(request, { error: "Interview policy is unavailable." }, 503);
+      naturalEvidenceReview = true;
     }
   }
   context.natural_qa = naturalQa;
@@ -245,14 +248,18 @@ Deno.serve(async (request) => {
       .eq("attempt_id", context.attempt_id)
       .lt("provider_generation", context.generation)
       .order("turn_number", { ascending: false })
-      .limit(16);
+      .limit(48);
     if (dialogueError) return json(request, { error: "Interview context unavailable." }, 503);
     const unavailable = new Set((annotations || [])
       .filter(a => a.kind === "truncated" || a.kind === "transcription_failed")
       .map(a => `${a.provider_generation}:${a.provider_item_id}`));
-    context.provisional_dialogue = (dialogue || []).reverse()
+    const recent = (dialogue || []).reverse();
+    context.provisional_dialogue = recent
       .filter(t => !unavailable.has(`${t.provider_generation}:${t.provider_item_id}`))
       .map(({ speaker, transcript, turn_number }) => ({ speaker, transcript: transcript.slice(0, 1500), turn_number }));
+    const latest = recent.at(-1);
+    if (latest?.speaker === "ai" && !unavailable.has(`${latest.provider_generation}:${latest.provider_item_id}`))
+      context.pending_dialogue_question = latest.transcript.slice(0, 1000);
   }
   context.current_findings = durable.current_findings || [];
   context.job_facts = durable.job_facts || context.job_facts;
@@ -357,6 +364,7 @@ Deno.serve(async (request) => {
     value: secret.value,
     expires_at: secret.expires_at,
     generation: context.generation,
+    ...(naturalEvidenceReview ? { evidence_review: "v1" } : {}),
     turn_policy: ["natural-qa-v1","controlled-auto-v1","controlled-turns-v1"].includes(body.conversation_version) ? body.conversation_version : "provider-owned-v1",
     conversation_protocol: continuity ? "continuity-v2" : "receipt-v1",
     orientation_required: !continuity && orientationEnabled && !context.orientation_complete && !context.orientation_presented,

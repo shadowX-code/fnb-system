@@ -81,6 +81,7 @@ export default function RecruitmentEvidenceReview({
   const [section, setSection] = useState("overview");
   const [disputedTurn, setDisputedTurn] = useState(null),
     [disputeReason, setDisputeReason] = useState(""),
+    [corroboratingTurn, setCorroboratingTurn] = useState(null),
     [data, setData] = useState(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -149,10 +150,12 @@ export default function RecruitmentEvidenceReview({
   }
   async function generate(newVersion = false) {
     await act(async () => {
+      const hasReviewedTurns = data?.events?.some(event => event.action === "natural_voice_turn_reviewed");
+      if (hasReviewedTurns) await recruitmentService.assessReviewedNaturalTurns(application.id, data.attempt.id);
       await recruitmentService.generateReport(
         application.id,
         crypto.randomUUID(),
-        newVersion,
+        newVersion || hasReviewedTurns,
         attemptId,
       );
     });
@@ -172,7 +175,13 @@ export default function RecruitmentEvidenceReview({
     requestAnimationFrame(() => { const video = videoRefs.current[ref.unit_id];
     if (video) {
       video.scrollIntoView({ behavior: "smooth", block: "center" });
-      video.currentTime = ref.offset_seconds;
+      if (video.readyState) video.currentTime = ref.offset_seconds;
+      else {
+        video.addEventListener("loadedmetadata", () => {
+          if (videoRefs.current[ref.unit_id] === video) video.currentTime = ref.offset_seconds;
+        }, { once: true });
+        video.load();
+      }
     }});
   }
 
@@ -809,7 +818,16 @@ export default function RecruitmentEvidenceReview({
                 may include unplayed words. Recording links seek to approximate
                 context, not exact word timing.
               </p>
-              {turns.map((t, i) => (
+              {turns.map((t, i) => {
+                const start = t.elapsed_start_ms ?? t.elapsed_end_ms;
+                const linkedId = data.natural_review_recordings?.[`${t.provider_generation}:${t.provider_item_id}`];
+                const recording = data.units.find(unit => linkedId && unit.id === linkedId && unit.signed_url &&
+                  start >= unit.elapsed_start_ms && t.elapsed_end_ms <= unit.elapsed_end_ms &&
+                  unit.elapsed_end_ms > unit.elapsed_start_ms);
+                const reviewed = data.events?.some(event => event.action === "natural_voice_turn_reviewed" && event.details?.turn_id === t.id);
+                const excluded = data.annotations.some(a => a.provider_generation === t.provider_generation && a.provider_item_id === t.provider_item_id &&
+                  ["unverified_candidate", "truncated", "transcription_failed"].includes(a.kind));
+                return (
                 <div
                   key={t.id}
                   ref={(el) => {
@@ -832,6 +850,21 @@ export default function RecruitmentEvidenceReview({
                       : ""}
                   </p>
                   <p className="whitespace-pre-wrap">{t.transcript}</p>
+                  {reviewed && !excluded && <p className="text-xs">Corroborated against the recording</p>}
+                  {data.can_manage && finalized && recording && !reviewed && !excluded && (
+                    <>
+                      <button className="text-xs underline" onClick={() => {
+                        setCorroboratingTurn(t.id);
+                        showRecording({unit_id: recording.id,offset_seconds: Math.max(0,(start-recording.elapsed_start_ms)/1000-3)});
+                      }}>Listen to linked recording · Turn {t.turn_number}</button>
+                      {corroboratingTurn === t.id && (
+                        <button className="ml-2 text-xs underline" disabled={busy} onClick={() => act(async () => {
+                          await recruitmentService.reviewNaturalTurn(t.id, recording.id);
+                          setCorroboratingTurn(null);
+                        })}>Confirm I heard this speaker and the transcript matches</button>
+                      )}
+                    </>
+                  )}
                   {t.speaker === "candidate" && data.can_manage && !data.annotations.some(a => a.provider_generation === t.provider_generation && a.provider_item_id === t.provider_item_id && a.kind === "unverified_candidate") && (
                     <button className="text-xs underline" disabled={busy} onClick={() => {setDisputedTurn(t.id);setDisputeReason("");}}>Dispute attribution · Turn {t.turn_number}</button>
                   )}
@@ -843,7 +876,7 @@ export default function RecruitmentEvidenceReview({
                   </section>}
 
                 </div>
-              ))}
+              );})}
             </details>
             <details ref={recordingSection}>
               <summary className="cursor-pointer font-semibold py-2">

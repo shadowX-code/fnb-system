@@ -4,6 +4,7 @@ import { bounded } from "./interviewRecovery.js";
 import { OpenAIInterviewConversation } from "./OpenAIInterviewConversation.js";
 import { recruitmentService } from "./recruitmentService.js";
 import { interviewTranscriptQueue } from "./interviewTranscriptQueue.js";
+import { automaticTurnDecision } from "./interviewTurnAcceptance.js";
 import { InterviewTranscriptEvidence } from "./InterviewTranscriptEvidence.js";
 import { connectInterviewSdk, observeRemoteAudio } from "./interviewSdkTransport.js";
 
@@ -95,6 +96,7 @@ export class RecruitmentRealtimeSession {
     this.conversation.automatic = true;
     this.evidence.requireAcceptance = !this.naturalQa;
     this.evidence.provisionalCandidates = this.naturalQa;
+    this.evidence.naturalEvidenceReview = secret.evidence_review === "v1";
     this.conversation.presentationOwned = true;
     this.conversation.orientationRequired = secret.orientation_required === true;
     this.conversation.instructions = secret.conversation_instructions;
@@ -180,6 +182,7 @@ export class RecruitmentRealtimeSession {
     if (!microphone || microphone.readyState !== "live")
       throw new Error("Microphone is unavailable.");
     // Gate a dedicated provider clone; raw microphone evidence is never muted.
+    this.captureMicrophone = microphone;
     this.providerMicrophone = microphone.clone();
     this.providerMicrophone.enabled = false;
     const providerStream = new MediaStream([this.providerMicrophone]);
@@ -330,6 +333,20 @@ export class RecruitmentRealtimeSession {
       this.trace({type:"response.output_item.added",response_id:event.response_id,item_id:event.item_id,phase:"output_transcript_final"});
     this.evidence.cancelled=this.conversation.cancelled;
     this.evidence.observe(event);
+    if (this.evidence.naturalEvidenceReview &&
+        ["input_audio_buffer.speech_started", "input_audio_buffer.speech_stopped"].includes(event.type)) {
+      const item = this.evidence.inputBoundaries.get(event.item_id);
+      const track = this.captureMicrophone;
+      if (item && (!track || track.readyState !== "live" || track.muted || !track.enabled || document.hidden))
+        item.captureUncertain = true;
+    }
+    if (this.evidence.naturalEvidenceReview && event.type === "conversation.item.input_audio_transcription.completed") {
+      const item = this.evidence.inputBoundaries.get(event.item_id);
+      if (item && !item.captureUncertain && this.evidence.candidateEligible(event.item_id) &&
+          automaticTurnDecision({ ...item, logprobs: event.logprobs }, event.transcript || "") === "accept") {
+        this.trace({ type: "input_audio_buffer.committed", item_id: event.item_id, phase: "natural_candidate_reviewable" });
+      }
+    }
     const accepted = this.conversation.event(event);
     this.audioPlaying = this.conversation.playing;
     if (accepted && event.type === "output_audio_buffer.started" && this.remoteAnalyser) {

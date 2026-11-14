@@ -21,7 +21,7 @@ export async function checkRecordingVideo(blob) {
       error ? reject(error) : resolve();
     };
     const timer = setTimeout(
-      () => finish(Error("Recording playback check timed out.")),
+      () => finish(Object.assign(Error("Recording playback check timed out."), { code: "media_check_timeout" })),
       10000,
     );
     video.preload = "metadata";
@@ -141,7 +141,10 @@ export class InterviewRecording {
         .catch(() => this.onLost("local_storage_failed"));
     };
     this.recorder.onerror = () => this.onLost("recorder_error");
-    this.recorder.onstop = () => this.resolveStop?.();
+    this.recorder.onstop = () => {
+      this.stopAcknowledged = true;
+      this.resolveStop?.();
+    };
     this.context.addEventListener("statechange", () => {
       if (!this.stopping && ["suspended", "interrupted"].includes(this.context.state)) this.onLost("audio_context_suspended");
     });
@@ -222,8 +225,8 @@ export class InterviewRecording {
       this.drainPromise = null;
     }
   }
-  async stop(reason = "completed") {
-    if (this.stopping && this.stopPromise) return this.stopPromise;
+  stop(reason = "completed") {
+    if (this.stopPromise) return this.stopPromise;
     if (!this.unit) {
       this.dispose();
       return "not-started";
@@ -231,7 +234,7 @@ export class InterviewRecording {
     this.stopping = true;
     clearInterval(this.timer);
     this.captureStopped = (async () => {
-      let stopped = Promise.resolve(true);
+      let stopped = Promise.resolve(Boolean(this.stopAcknowledged));
       if (this.recorder && this.recorder.state !== "inactive") {
         stopped = new Promise((resolve) => {
           // Mobile suspension can prevent onstop. Do not hold recovery indefinitely.
@@ -243,6 +246,7 @@ export class InterviewRecording {
       // Issue native teardown now, never from a late onstop/upload callback after replacement.
       this.releaseNative();
       const closed = await stopped;
+      if (this.recorder) this.recorder.ondataavailable = null;
       await bounded(this.writing, "Saving recording bytes");
       this.unit = {
         ...this.unit,
@@ -264,22 +268,15 @@ export class InterviewRecording {
       chunks.map((c) => c.blob),
       { type: "video/mp4" },
     );
-    if (!unit.closed || !blob.size || blob.size > 128 * 1024 * 1024) {
-      await recruitmentService.evidence("invalid", this.token, this.clientId, {
-        unit_id: unit.id,
-      });
-      await recordingStore.removeUnit(unit.id);
-      return "invalid";
-    }
+    if (!blob.size || chunks.some((chunk, index) => chunk.index !== index))
+      return this.invalidateUnit(unit, "missing_media");
+    if (blob.size > 128 * 1024 * 1024)
+      return this.invalidateUnit(unit, "invalid_encoding");
     try {
       await checkRecordingVideo(blob);
-    } catch {
-      await recruitmentService.evidence("invalid", this.token, this.clientId, {
-        unit_id: unit.id,
-      });
-      await recordingStore.removeUnit(unit.id);
-      this.onStatus("invalid-recording");
-      return "invalid";
+    } catch (error) {
+      if (error.code === "media_check_timeout") throw error;
+      return this.invalidateUnit(unit, unit.closed ? "invalid_encoding" : "recorder_stop_unconfirmed");
     }
     const access = await recruitmentService.evidence(
       "upload",
@@ -288,7 +285,7 @@ export class InterviewRecording {
       {
         unit_id: unit.id,
         bytes: blob.size,
-        elapsed_end_ms: unit.elapsedEndMs,
+        elapsed_end_ms: unit.closed ? unit.elapsedEndMs : (chunks.at(-1).elapsedEndMs ?? unit.elapsedEndMs),
         reason: unit.reason,
       },
     );
@@ -309,6 +306,15 @@ export class InterviewRecording {
     this.onStatus("verified");
     return "verified";
   }
+  async invalidateUnit(unit, reason) {
+    await recruitmentService.evidence("invalid", this.token, this.clientId, {
+      unit_id: unit.id,
+      reason,
+    });
+    await recordingStore.removeUnit(unit.id);
+    this.onStatus("invalid-recording");
+    return "invalid";
+  }
   async recover({ deferUploads = false, excludeUnit = () => null } = {}) {
     const uploads = [];
     this.attemptKey = await interviewLocalKey(this.token);
@@ -318,12 +324,18 @@ export class InterviewRecording {
       this.token,
       this.clientId,
     );
+    const localChunks = new Map();
+    for (const unit of units) {
+      if (unit.id !== excludeUnit()) localChunks.set(unit.id, await recordingStore.chunks(unit.id));
+    }
+    const recoveringRemotely = new Set();
     for (const unit of state.units) {
       if (unit.id === excludeUnit()) continue;
       if (
-        ["capturing", "pending"].includes(unit.status) &&
-        !units.some((local) => local.id === unit.id)
+        ["capturing", "pending", "interrupted"].includes(unit.status) &&
+        !localChunks.get(unit.id)?.length
       ) {
+        recoveringRemotely.add(unit.id);
         const chunks = state.chunks.filter((c) => c.unit_id === unit.id);
         if (
           unit.expected_bytes &&
@@ -336,7 +348,15 @@ export class InterviewRecording {
             await recruitmentService.evidence("assemble", this.token, this.clientId, { unit_id: unit.id });
             await recruitmentService.evidence("verify", this.token, this.clientId, { unit_id: unit.id });
           });
-        } else
+        } else if (!unit.expected_bytes && chunks.length &&
+          chunks.every((chunk, index) => chunk.acknowledged_at && chunk.chunk_index === index)) {
+          // A replacement capture transitions the prior capturing unit to interrupted.
+          if (unit.status !== "capturing") uploads.push(() => recruitmentService.evidence("recover_acknowledged", this.token, this.clientId, { unit_id: unit.id }));
+          else uploads.push(async () => {
+            await recruitmentService.evidence("abandon", this.token, this.clientId, { unit_id: unit.id });
+            await recruitmentService.evidence("recover_acknowledged", this.token, this.clientId, { unit_id: unit.id });
+          });
+        } else if (unit.status !== "interrupted")
           await recruitmentService.evidence(
             "abandon",
             this.token,
@@ -346,7 +366,11 @@ export class InterviewRecording {
       }
     }
     for (const unit of units) {
-      if (unit.id === excludeUnit()) continue;
+      if (unit.id === excludeUnit() || recoveringRemotely.has(unit.id)) continue;
+      if (state.units.some(remote => remote.id === unit.id && ["verified", "invalid"].includes(remote.status))) {
+        await recordingStore.removeUnit(unit.id);
+        continue;
+      }
       if (unit.closed) uploads.push(() => this.uploadUnit(unit));
       else {
         if (!deferUploads) await recruitmentService.interruption(
@@ -354,10 +378,10 @@ export class InterviewRecording {
           this.clientId,
           "reload_unfinalized_unit",
         );
-        const chunks = await recordingStore.chunks(unit.id);
+        const chunks = localChunks.get(unit.id) || [];
         const recovered = {
           ...unit,
-          closed: true,
+          closed: false,
           reason: "abrupt_reload",
           elapsedEndMs: chunks.at(-1)?.elapsedEndMs || 0,
         };
@@ -366,7 +390,11 @@ export class InterviewRecording {
       }
     }
     this.uploadRecovery = (async () => {
-      for (const upload of uploads) await upload();
+      let failure;
+      for (const upload of uploads) {
+        try { await upload(); } catch (error) { failure ??= error; }
+      }
+      if (failure) throw failure;
     })();
     if (!deferUploads) await this.uploadRecovery;
   }

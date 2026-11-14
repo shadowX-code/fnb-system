@@ -33,6 +33,14 @@ async function profileDraftCall(name, args, signal) {
 }
 
 export const recruitmentService = {
+  assessReviewedNaturalTurns: async (applicationId, attemptId) => {
+    const { data, error } = await supabase.functions.invoke("recruitment-evidence", {
+      body: { action: "reviewed_coverage", application_id: applicationId, attempt_id: attemptId },
+    });
+    throwSupabaseError("recruitment-evidence", error);
+    return data;
+  },
+  reviewNaturalTurn: (turnId, recordingId) => call("recruitment_review_natural_turn", {p_turn_id:turnId,p_recording_id:recordingId}),
   disputeTranscript: (turnId, reason) => call("recruitment_dispute_transcript", {p_turn_id:turnId,p_reason:reason}),
   generateReport: async (applicationId, requestId, newVersion = false, attemptId = null) => {
     const {data,error} = await supabase.functions.invoke("recruitment-report", {body:{application_id:applicationId,request_id:requestId,new_version:newVersion,attempt_id:attemptId}});

@@ -94,6 +94,7 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
     if(this.submitting||this.submissionPending||this.snapshot.status==="finalizing"||isSubmissionTerminal(this.snapshot.status))return;
     if(!this.operation&&!this.session&&!this.capture)return; // Preparation has no Room ownership to invalidate.
     const wasPaused=this.paused,prior=this.capture,pauseId=this.recoveryId;
+    this.abandon(() => prior?.stop(reason), "capture.dispose", pauseId);
     this.capture=null;this.paused=true;this.onInvalidate?.();
     this.cancel();clearTimeout(this.maxTimer);
     this.updateAll({
@@ -109,7 +110,6 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
         if(this.snapshot.hasConnected&&this.paused&&this.intentId===pauseId&&this.recoveryId===pauseId)this.update("error","continueFailed");
       });
     }
-    this.abandon(()=>prior?.stop(reason),"capture.dispose",pauseId);
     this.abandon(()=>this.devices.stop(),"devices.dispose",pauseId);
     this.disposeNative();
   }

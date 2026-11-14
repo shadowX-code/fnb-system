@@ -16,7 +16,8 @@ export class InterviewTranscriptEvidence {
   observe(event) {
     if (event.type === "output_audio_buffer.started") { this.outputActive.add(event.response_id); this.interruptionBoundary = false; }
     if (event.type === "input_audio_buffer.speech_started") {
-      this.inputBoundaries.set(event.item_id, {started:true, overlap:this.outputActive.size > 0 || this.interruptionBoundary === true});
+      this.inputBoundaries.set(event.item_id, {started:true, startMs:event.audio_start_ms,
+        overlap:this.outputActive.size > 0 || this.interruptionBoundary === true});
     }
     // Provider clear may precede speech_started at the same audio boundary.
     if (event.type === "output_audio_buffer.cleared") this.interruptionBoundary = true;
@@ -24,7 +25,7 @@ export class InterviewTranscriptEvidence {
     if (["output_audio_buffer.stopped","output_audio_buffer.cleared"].includes(event.type)) this.outputActive.delete(event.response_id);
     if (event.type === "input_audio_buffer.speech_stopped") {
       const boundary = this.inputBoundaries.get(event.item_id);
-      if (boundary) boundary.stopped = true;
+      if (boundary) { boundary.stopped = true; boundary.endMs = event.audio_end_ms; }
     }
     if (event.type === "input_audio_buffer.committed") {
       const boundary = this.inputBoundaries.get(event.item_id);
@@ -86,7 +87,7 @@ export class InterviewTranscriptEvidence {
       const boundary = this.inputBoundaries.get(event.item_id);
       // VAD/commit is provenance, not speaker attestation. Overlap is retained
       // conservatively as unverified, including genuine barge-in, for review.
-      if (!this.requireAcceptance && (this.provisionalCandidates || !boundary?.started || !boundary?.stopped || !boundary?.committed || boundary.overlap))
+      if (!this.requireAcceptance && ((this.provisionalCandidates && !this.naturalEvidenceReview) || !boundary?.started || !boundary?.stopped || !boundary?.committed || boundary.overlap))
         this.queueAnnotation(event.item_id, "unverified_candidate");
       const final={itemId:event.item_id,speaker:"candidate",transcript:event.transcript,elapsedMs:Math.max(0,Date.now()-this.startedAt)};
       if (this.requireAcceptance) this.pendingCandidates.set(event.item_id,final);

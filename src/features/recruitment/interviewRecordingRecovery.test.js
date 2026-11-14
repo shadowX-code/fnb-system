@@ -188,5 +188,16 @@ it('old native audio is released synchronously even when recorder onstop never a
  recorder.unit={id:'old',closed:false};recorder.context={close};recorder.recorder={state:'recording',stop:vi.fn()};
  const pending=recorder.stop('page_backgrounded');expect(close).toHaveBeenCalledOnce();expect(stop).toHaveBeenCalledOnce();
  await vi.advanceTimersByTimeAsync(10100);await pending;recorder.dispose();expect(close).toHaveBeenCalledOnce();
- expect(recruitmentService.evidence).toHaveBeenCalledWith('invalid',expect.anything(),expect.anything(),{unit_id:'old'});
+ expect(recruitmentService.evidence).toHaveBeenCalledWith('invalid',expect.anything(),expect.anything(),{unit_id:'old', reason:'missing_media'});
+});
+
+it("assembles acknowledged chunks for an interrupted unit after local storage is lost", async () => {
+  recordingStore.units.mockResolvedValue([]);
+  recruitmentService.evidence.mockResolvedValueOnce({
+    units: [{ id: "unit", status: "interrupted" }],
+    chunks: [{ unit_id: "unit", chunk_index: 0, expected_bytes: 123, acknowledged_at: "now" }],
+  });
+  const recorder = new InterviewRecording({ token: "fixture", clientId: "client", onStatus: vi.fn() });
+  await recorder.recover();
+  expect(recruitmentService.evidence.mock.calls.map(([action]) => action)).toEqual(["state", "recover_acknowledged"]);
 });
