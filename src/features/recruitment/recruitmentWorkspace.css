@@ -693,32 +693,129 @@
   font-weight: 600;
   margin-bottom: 0.75rem;
 }
+.recruitment-offerings {
+  container-type: inline-size;
+}
 .recruitment-offering {
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-md, 0.75rem);
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.625rem;
 }
 .recruitment-offering > summary {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.5rem;
+  min-height: 44px;
   cursor: pointer;
-  padding: 1rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  padding: 0.625rem 0.875rem;
   background: var(--theme-surface-nested);
   border-radius: inherit;
 }
+.recruitment-offering[open] > summary {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+.recruitment-offering-summary {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(6rem, max-content) minmax(6.5rem, max-content) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+.recruitment-offering-summary small,
+.recruitment-offering-option small,
+.recruitment-offering-hint {
+  color: var(--theme-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.recruitment-offering-summary small {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
 .recruitment-offering-body {
+  display: grid;
+  justify-items: start;
+  gap: 1rem;
   padding: 1rem;
 }
+.recruitment-offering-group {
+  display: grid;
+  gap: 0.625rem;
+  width: 100%;
+  min-width: 0;
+}
+.recruitment-offering-group + .recruitment-offering-group {
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--theme-border);
+}
+.recruitment-offering-group h3,
+.recruitment-offering-option strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.recruitment-offering-group > .admin-form-field {
+  max-width: 36rem;
+}
+.recruitment-offering-fields {
+  display: grid;
+  gap: 0.625rem 0.75rem;
+  align-items: end;
+  max-width: 36rem;
+}
+.recruitment-offering-fields--two {
+  grid-template-columns: repeat(2, minmax(0, 11.5rem));
+}
+.recruitment-offering-fields--three {
+  grid-template-columns: repeat(3, minmax(0, 11.5rem));
+}
+.recruitment-offering-wide {
+  grid-column: 1 / -1;
+}
+.recruitment-offering-group > button {
+  justify-self: start;
+  max-width: 100%;
+  white-space: normal;
+}
+.recruitment-offering-option + .recruitment-offering-option {
+  border-top: 1px solid var(--theme-border);
+}
+.recruitment-offering-option > summary {
+  min-height: 44px;
+  cursor: pointer;
+  padding-inline: 0.5rem;
+}
+.recruitment-offering-option-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.75rem;
+  min-width: 0;
+}
+.recruitment-offering-option > .recruitment-offering-fields {
+  padding: 0.375rem 0.5rem 0.625rem;
+}
+.recruitment-offering-add-term {
+  max-width: 14rem;
+}
 .recruitment-pay-preview {
+  padding: 0.625rem;
+  background: var(--theme-surface-nested);
   font-size: 0.8125rem;
   line-height: 1.5;
-  padding: 0.75rem;
-  border-left: 2px solid var(--theme-primary);
-  background: var(--theme-surface-nested);
+}
+@container (max-width: 34rem) {
+  .recruitment-offering-summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .recruitment-offering-summary small {
+    grid-column: 1 / -1;
+  }
+  .recruitment-offering-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Job Setup keeps a single surface with four sections. */
@@ -835,21 +932,6 @@
   .recruitment-setup-section {
     padding-block: 16px;
   }
-}
-.recruitment-offering-summary {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-}
-.recruitment-offering-summary strong {
-  font-size: 14px;
-}
-.recruitment-offering-summary small {
-  font-size: 12px;
-  color: var(--theme-muted);
-  font-weight: 400;
-  line-height: 1.5;
-  max-width: 65ch;
 }
 .recruitment-candidate-filters {
   display: grid;
