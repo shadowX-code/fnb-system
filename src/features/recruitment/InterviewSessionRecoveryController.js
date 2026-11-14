@@ -124,7 +124,6 @@ export class InterviewSessionRecoveryController extends InterviewTransportGenera
       startedAt: this.session.started_at,
       audioElement: this.audio,
       signal,
-      observeMicrophone: () => this.capture?.observeMicrophone?.(),
       onRemote: (stream) => this.capture?.remote(stream),
       onTurnState: view => {
         if (this.mounted && !this.paused && this.recoveryId === generation) this.update("turnView",view);

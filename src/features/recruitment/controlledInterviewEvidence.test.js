@@ -23,24 +23,10 @@ it('discarded or unsubmitted text is preserved as unverified before any raw turn
  expect(calls[0].kind).toBe('unverified_candidate');expect(calls[1].transcript).toBe('A hallucinated question');
  expect(evidence.candidateEligible('noise')).toBe(false);
 });
-it('uncorroborated overlapping output cannot become accepted candidate evidence',async()=>{
+it('overlapping output can never be confirmed as candidate evidence',async()=>{
  answer('echo','Interviewer echo',true);expect(evidence.acceptCandidate('echo')).toBe(false);
  evidence.close();await evidence.persistence;
  expect(qa.put.mock.calls.some(([x])=>x.kind==='unverified_candidate')).toBe(true);
-});
-it('a corroborated barge-in retains its original item and requires completed VAD provenance',async()=>{
- evidence.observe({type:'output_audio_buffer.started',response_id:'ai'});
- evidence.observe({type:'input_audio_buffer.speech_started',item_id:'barge'});
- evidence.confirmBargeIn('barge');
- const startMs=evidence.times.get('barge');
- expect(evidence.candidateEligible('barge')).toBe(false);
- evidence.observe({type:'input_audio_buffer.speech_started',item_id:'barge'});
- evidence.observe({type:'input_audio_buffer.speech_stopped',item_id:'barge'});
- evidence.observe({type:'input_audio_buffer.committed',item_id:'barge'});
- evidence.observe({type:'conversation.item.input_audio_transcription.completed',item_id:'barge',transcript:'等一下，我想问一个问题。'});
- expect(evidence.acceptCandidate('barge')).toBe(true);
- await evidence.persistence;
- expect(qa.put).toHaveBeenCalledWith(expect.objectContaining({itemId:'barge',speaker:'candidate',startMs}));
 });
 it('background/close quarantines an unsubmitted answer, preserving acknowledged historical evidence',async()=>{
  answer('old','I worked at a cafe.');evidence.acceptCandidate('old');await evidence.persistence;

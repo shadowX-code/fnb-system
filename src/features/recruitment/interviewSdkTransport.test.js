@@ -74,6 +74,10 @@ it("uses the installed SDK to establish one channel without overwriting server c
   const event={type:"output_audio_buffer.started",response_id:"resp_1",event_id:"event_audio"};
   channel.receive(event);
   expect(q.consume).toHaveBeenLastCalledWith(event);
+  const final = {type:"conversation.item.input_audio_transcription.completed",event_id:"event_final",item_id:"item_1",content_index:0,transcript:"QA"};
+  channel.receive(final);
+  expect(q.consume).toHaveBeenLastCalledWith(final);
+  expect(channel.send).toHaveBeenCalledTimes(1);
   q.bind.mock.calls[0][2].close();
   expect(input.stop).not.toHaveBeenCalled();
 });

@@ -94,8 +94,7 @@ export class InterviewRecording {
     active();
     if (this.context.state !== "running") throw Error("Microphone audio is suspended. Tap Continue interview to reacquire it.");
     this.destination = this.context.createMediaStreamDestination();
-    this.microphoneSource = this.context.createMediaStreamSource(this.stream);
-    this.microphoneSource.connect(this.destination);
+    this.context.createMediaStreamSource(this.stream).connect(this.destination);
     this.recordingStream = new MediaStream([
       ...this.stream.getVideoTracks(),
       ...this.destination.stream.getAudioTracks(),
@@ -161,13 +160,6 @@ export class InterviewRecording {
         { once: true },
       ),
     );
-  }
-  observeMicrophone() {
-    if (this.microphoneAnalyser) return this.microphoneAnalyser;
-    if (!this.microphoneSource || !this.context.createAnalyser) return;
-    this.microphoneAnalyser = this.context.createAnalyser();
-    this.microphoneSource.connect(this.microphoneAnalyser);
-    return this.microphoneAnalyser;
   }
   remote(stream) {
     this.remoteSource?.disconnect();

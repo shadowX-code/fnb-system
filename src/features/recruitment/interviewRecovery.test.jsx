@@ -15,7 +15,7 @@ vi.mock("./InterviewRecording.js",()=>({InterviewRecording:class {
   stop() { this.recorder.state="inactive"; this.captureStopped=Promise.resolve(); this.stopPromise=new Promise(()=>{}); return this.stopPromise; }
 }}));
 vi.mock("./RecruitmentRealtimeSession.js",()=>({RecruitmentRealtimeSession:class {
-  constructor(props) { this.props=props; this.conversation={cancelled:new Set(),confirmAnswer:vi.fn().mockReturnValue(true),clearAnswer:vi.fn(),interrupt:vi.fn().mockReturnValue(true)};qa.transports.push(this); }
+  constructor(props) { this.props=props; this.conversation={confirmAnswer:vi.fn().mockReturnValue(true),clearAnswer:vi.fn(),interrupt:vi.fn().mockReturnValue(true)};qa.transports.push(this); }
   async refreshContext() {}
   async flush() {return qa.flush();}
   async connect({signal}={}) {signal?.addEventListener("abort",()=>this.close(),{once:true});await qa.connect(); if(!this.closed)this.props.onStatus?.("connected");}
@@ -249,7 +249,7 @@ it("physical closing automatically reconciles canonical completion despite pendi
  vi.useFakeTimers();qa.finish.mockResolvedValue({status:"finalizing"});qa.evidence.mockResolvedValue({can_finish:true});
  let finished=false;qa.entry.mockImplementation(async()=>({available:true,status:finished?"completed":"finalizing",recording_state:"complete",completed_at:"2026-10-06T17:10:36Z"}));
  mount();await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Continue interview"})));
- await act(async()=>{await qa.transports.at(-1).props.onTool({response_id:"closing"});qa.transports.at(-1).props.onCompletion();});
+ await act(async()=>{await qa.transports.at(-1).props.onTool();qa.transports.at(-1).props.onCompletion();});
  expect(screen.getByText("Submitting your interview")).toBeTruthy();expect(screen.queryByRole("button",{name:"Continue interview"})).toBeNull();
  await act(async()=>{finished=true;await vi.advanceTimersByTimeAsync(32000);});
  expect(screen.getByRole("heading",{name:"Interview submitted"})).toBeTruthy();expect(qa.finish).toHaveBeenCalledOnce();
@@ -257,7 +257,7 @@ it("physical closing automatically reconciles canonical completion despite pendi
 it("server denied completion returns to a genuinely resumable state rather than false Complete",async()=>{
  qa.finish.mockRejectedValue(Object.assign(Error("Required interview topics remain."),{cause:{code:"55000"}}));qa.evidence.mockResolvedValue({can_finish:true});
  mount();fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));await screen.findByRole("button",{name:"End interview"});
- await act(async()=>{await qa.transports.at(-1).props.onTool({response_id:"closing"});qa.transports.at(-1).props.onCompletion();});
+ await act(async()=>{await qa.transports.at(-1).props.onTool();qa.transports.at(-1).props.onCompletion();});
  expect(await screen.findByRole("button",{name:"Continue interview"})).toBeTruthy();
  expect(screen.getByRole("alert").textContent).toContain("needs a little more information");
  expect(screen.queryByRole("heading",{name:"Interview submitted"})).toBeNull();

@@ -32,6 +32,12 @@ export async function connectInterviewSdk({ signal, mediaStream, audioElement, a
   const { OpenAIRealtimeWebRTC } = await import("@openai/agents-realtime");
   signal?.throwIfAborted();
   class InterviewWebRTC extends OpenAIRealtimeWebRTC {
+    // FeedX consumes raw events and owns provider context. SDK history lookups
+    // can race with FeedX deleting an unverified input item.
+    sendEvent(event) {
+      if (event.type !== "conversation.item.retrieve") super.sendEvent(event);
+    }
+
     // Preserve the server-pinned prompt, voice, tools and transcription.
     buildSessionPayload() {
       return {

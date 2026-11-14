@@ -68,62 +68,23 @@ it('multiple in-flight finalized segments cannot cut off the current speaker or 
 });
 it('physical output-overlap sequence cannot interrupt output, create evidence, or restart the opening',()=>{
  answer('I can work weekends.');response('reply','answer',c.acceptedOwner);event({type:'output_audio_buffer.started',response_id:'reply'});
- c.bargeInEnabled=true;
  for(const e of fixture.audio.filter(e=>e.type.startsWith('input_audio_buffer.')))event(e);
  finish('Apa pengalaman kerja awak?','noise');expect(count()).toBe(2);expect(accepted).toHaveBeenCalledOnce();
  expect(send.mock.calls.some(([e])=>e.type==='response.cancel')).toBe(false);
 });
-it.each(['Actually, I meant weekends.','等一下，我周末可以上班。','等一下, I can work weekends.'])('keeps the original overlapped utterance and replies once after both acknowledgements: %s',text=>{
- c.bargeInEnabled=true;
- answer('Yes');response('reply','answer',c.acceptedOwner);event({type:'output_audio_buffer.started',response_id:'reply'});
- start('interruption');
- c.observeBargeInSpeech(performance.now());
- c.observeBargeInSpeech(performance.now());start('interruption');
- expect(view.mock.lastCall[0]).toMatchObject({listening:true,speaking:false,canInterrupt:false});
- expect(send.mock.calls.filter(([e])=>e.type==='response.cancel')).toHaveLength(1);
- expect(send.mock.calls.filter(([e])=>e.type==='output_audio_buffer.clear')).toHaveLength(1);
- expect(count()).toBe(2);
- finish(text,'interruption');
- event({type:'output_audio_buffer.cleared',response_id:'reply'});
- expect(count()).toBe(2);
- event({type:'response.done',response:{id:'reply',status:'cancelled'}});
- expect(accepted).toHaveBeenLastCalledWith('interruption');expect(count()).toBe(3);
- response('next','answer',c.acceptedOwner);event({type:'output_audio_buffer.started',response_id:'next'});
- event({type:'output_audio_buffer.started',response_id:'reply'});
- event({type:'output_audio_buffer.cleared',response_id:'reply'});
- expect(c.activeAudioResponse).toBe('next');
- start('second-interruption');c.observeBargeInSpeech(performance.now());
- expect(send.mock.calls.filter(([e])=>e.type==='output_audio_buffer.clear')).toHaveLength(2);
-});
-it('a short overlapping segment cannot interrupt or become eligible after the output drains',()=>{
- c.bargeInEnabled=true;
- answer('Yes');response('reply','answer',c.acceptedOwner);event({type:'output_audio_buffer.started',response_id:'reply'});
- start('ack');event({type:'input_audio_buffer.speech_stopped',item_id:'ack',audio_end_ms:1100});
- c.observeBargeInSpeech(performance.now());drain('reply');finish('OK','ack');
- expect(accepted).toHaveBeenCalledOnce();
- expect(count()).toBe(2);
- expect(send.mock.calls.some(([e])=>e.type==='output_audio_buffer.clear')).toBe(false);
-});
-it('an interrupted closing tool cannot request another response or leave a stale timeout',async()=>{
- c.bargeInEnabled=true;
- let assess;
- c.onTool=()=>new Promise(resolve=>{assess=resolve;});
- answer('Yes');response('reply','answer',c.acceptedOwner);
- event({type:'output_audio_buffer.started',response_id:'reply'});
- event({type:'response.function_call_arguments.done',response_id:'reply',call_id:'closing',name:'request_completion'});
- await Promise.resolve();
- start('interruption');c.observeBargeInSpeech(performance.now());
- assess({can_finish:true});await Promise.resolve();
- event({type:'response.done',response:{id:'reply',status:'cancelled'}});
- event({type:'output_audio_buffer.cleared',response_id:'reply'});
- vi.advanceTimersByTime(65000);
- expect(recovery).not.toHaveBeenCalled();expect(count()).toBe(2);
-});
 it('deliberate interruption waits for cancellation acknowledgement before automatic listening resumes',()=>{
  answer('Yes');response('reply','answer',c.acceptedOwner);event({type:'output_audio_buffer.started',response_id:'reply'});
  expect(c.interrupt()).toBe(true);expect(c.inputOpen).toBe(false);event({type:'output_audio_buffer.cleared',response_id:'reply'});
- event({type:'response.done',response:{id:'reply',status:'cancelled'}});
  answer('Actually I can start next week.','correction');expect(count()).toBe(3);
+});
+it('recovers from a provider-initiated clear without accepting overlapping input or sending another reply',()=>{
+ answer('Yes');response('reply','answer',c.acceptedOwner);
+ event({type:'output_audio_buffer.started',response_id:'reply'});
+ start('overlap');event({type:'output_audio_buffer.cleared',response_id:'reply'});
+ expect(recovery).toHaveBeenCalledWith('unexpected_output_clear');
+ expect(accepted).toHaveBeenCalledOnce();
+ expect(count()).toBe(2);
+ expect(send.mock.calls.some(([e])=>e.type==='output_audio_buffer.clear')).toBe(false);
 });
 it('accepted answer liveness is bounded without requesting duplicate speech; stale generations cannot advance',()=>{
  answer('Boleh');vi.advanceTimersByTime(30001);expect(recovery).toHaveBeenCalledWith('accepted_answer_response_timeout');expect(count()).toBe(2);

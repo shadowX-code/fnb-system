@@ -9,7 +9,7 @@ export class InterviewTransportGeneration extends InterviewRecovery {
     const operation=super.begin(activate, requestId); // native gesture acquisition first
     this.closeInterviewer();return operation;
   }
-  async connectInterviewer({token,clientId,recoveryId,mediaStream,startedAt,audioElement,onStatus,onRemote,observeMicrophone,onRecovery,onCompletion,onTurnState=()=>{},onEvent=()=>{},signal}) {
+  async connectInterviewer({token,clientId,recoveryId,mediaStream,startedAt,audioElement,onStatus,onRemote,onRecovery,onCompletion,onTurnState=()=>{},onEvent=()=>{},signal}) {
     this.closeInterviewer();
     const current = () => this.transport === transport && !transport.closed;
     const assess = () => {
@@ -28,7 +28,6 @@ export class InterviewTransportGeneration extends InterviewRecovery {
       this.assessment=pending;return pending;
     };
     const transport = new RecruitmentRealtimeSession({token,clientId,recoveryId,mediaStream,startedAt,audioElement,qaTransport:this.qaTransport,
-      observeMicrophone:()=>current() ? observeMicrophone?.() : undefined,
       onDiagnostic:details=>{if(current())this.onDiagnostic?.({...details,request_id:recoveryId});},
       onTurnState:view=>{if(current())onTurnState(view);},
       onRemote:stream=>current() ? onRemote(stream) : undefined,
@@ -37,11 +36,10 @@ export class InterviewTransportGeneration extends InterviewRecovery {
         onStatus(state);
         if (["disconnected","audio-blocked","audio-interference","transcription-unavailable"].includes(state)) onRecovery(state);
       },
-      onTool:async(event)=>{
+      onTool:async()=>{
         const result = await assess();
         if (!current()) throw Error("Interview was replaced.");
-        if (!transport.conversation.cancelled.has(event.response_id))
-          this.completion = result?.can_finish ? result : null;
+        this.completion = result?.can_finish ? result : null;
         return result || {can_finish:false,reason:"Continue collecting missing evidence."};
       },
       onCompletion:()=>{
