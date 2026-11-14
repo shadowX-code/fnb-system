@@ -80,7 +80,7 @@ export function OpeningPlan({ opening, profile }) {
             : "Opening interview plan"}
         </strong>
         <span className="text-xs text-text-secondary">
-          Target {config.target_minutes} min · Maximum {config.max_minutes} min
+          Target {profile?.definition.target_minutes ?? config.target_minutes} min · Maximum {profile?.definition.max_minutes ?? config.max_minutes} min
         </span>
       </div>
       <ul className="recruitment-requirements">
@@ -108,9 +108,9 @@ export function OpeningPlan({ opening, profile }) {
             </div>
           ))}
         </div>
-        {config.scenario_briefs.map((brief, i) => (
+        {(profile?.definition.scenarios || config.scenario_briefs).map((scenario, i) => (
           <p key={i} className="mt-3 text-sm text-text-secondary">
-            Scenario: {brief}
+            Scenario: {typeof scenario === "string" ? scenario : scenario.brief}
           </p>
         ))}
       </details>

@@ -200,7 +200,7 @@ describe("opening-centred Recruitment workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit setup" }));
 
     fireEvent.change(
-      screen.getByLabelText("Closing shift requirement / time"),
+      screen.getByLabelText("Closing shift"),
       { target: { value: "Midnight" } },
     );
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
@@ -415,16 +415,16 @@ it("opens Setup read-only, edits explicitly and cancels without saving", async (
   await enter();
   fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
   expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
-  expect(screen.getByLabelText(/Job-facing title/).disabled).toBe(false); // native disabled ancestor is authoritative
+  expect(screen.getByLabelText(/Job title/).disabled).toBe(false); // native disabled ancestor is authoritative
   expect(
-    screen.getByLabelText(/Job-facing title/).closest("fieldset[disabled]"),
+    screen.getByLabelText(/Job title/).closest("fieldset[disabled]"),
   ).not.toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Edit setup" }));
-  fireEvent.change(screen.getByLabelText(/Job-facing title/), {
+  fireEvent.change(screen.getByLabelText(/Job title/), {
     target: { value: "Unsaved name" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-  expect(screen.getByLabelText(/Job-facing title/).value).toBe("Service Crew");
+  expect(screen.getByLabelText(/Job title/).value).toBe("Service Crew");
   expect(qa.saveOpening).not.toHaveBeenCalled();
 });
 it("uses server search and offering filters before pagination, with quiet normal recording health", async () => {
@@ -461,10 +461,10 @@ it("creates a job in a workspace with explicit draft/open actions through the ex
   fireEvent.click(screen.getByRole("button", { name: "Create Job" }));
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.getByRole("heading", { name: "Create Job" })).toBeTruthy();
-  expect(screen.getByText("Job Information & Requirements")).toBeTruthy();
+  expect(screen.getByText("Job Requirements")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Save draft" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Open job" })).toBeTruthy();
-  fireEvent.change(screen.getByLabelText(/Job-facing title/), {
+  fireEvent.change(screen.getByLabelText(/Job title/), {
     target: { value: "Test Crew" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
@@ -474,7 +474,7 @@ it("creates a job in a workspace with explicit draft/open actions through the ex
     ),
   );
   fireEvent.click(screen.getByRole("button", { name: "Create Job" }));
-  fireEvent.change(screen.getByLabelText(/Job-facing title/), {
+  fireEvent.change(screen.getByLabelText(/Job title/), {
     target: { value: "Open Crew" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Open job" }));

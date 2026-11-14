@@ -1,62 +1,70 @@
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
-import SelectField from "../../components/forms/SelectField.jsx";
 
-const fields = [
-  ["employment_type", "Employment type"],
-  ["offered_salary", "Offered salary"],
-  ["working_hours", "Working hours"],
-  ["shift_arrangement", "Shift arrangement"],
-  ["public_holidays", "Public holiday terms"],
-  ["benefits", "Benefits"],
-  ["additional_facts", "Other hiring information"],
-];
+const legacyLabels = {
+  employment_type: "Employment type",
+  offered_salary: "Offered salary",
+  working_hours: "Working hours",
+  shift_arrangement: "Shift arrangement",
+  public_holidays: "Public holiday terms",
+  benefits: "Benefits",
+};
 
-export default function RecruitmentJobFacts({ config, onChange, initiallyOpen }) {
+export default function RecruitmentJobFacts({ config, description, onChange }) {
   const confirmed = config.job_facts || {};
   const pending = config.unverified_job_facts || {};
-  const hasOfferings = Boolean(config.employment_offerings?.length);
-  function setFact(key, status, value) {
-    const nextConfirmed = { ...confirmed };
-    const nextPending = { ...pending };
-    delete nextConfirmed[key];
-    delete nextPending[key];
-    if (status === "verified") nextConfirmed[key] = value;
-    if (status === "unverified") nextPending[key] = value;
-    onChange({ ...config, job_facts:nextConfirmed, unverified_job_facts:nextPending });
+  const context = config.job_context || {};
+  const value = confirmed.additional_facts ?? pending.additional_facts ?? "";
+  const verified = Object.hasOwn(confirmed, "additional_facts");
+  const legacy = [
+    ["Job scope", description],
+    ["Operating days", context.operating_days?.join(", ")],
+    ["Operating hours", [context.operating_start, context.operating_end].filter(Boolean).join("–")],
+    ["Additional job information", context.shared_facts],
+    ...(context.additional_information || []).map(({ topic, information }) => [topic, information]),
+    ...Object.entries(legacyLabels).flatMap(([key, label]) => [
+      [`${label} · Verified`, confirmed[key]],
+      [`${label} · Unverified`, pending[key]],
+    ]),
+  ].filter(([, text]) => text);
+
+  function update(text, isVerified) {
+    const job_facts = { ...confirmed };
+    const unverified_job_facts = { ...pending };
+    delete job_facts.additional_facts;
+    delete unverified_job_facts.additional_facts;
+    (isVerified ? job_facts : unverified_job_facts).additional_facts = text;
+    onChange({ job_facts, unverified_job_facts });
   }
 
   return (
-    <details className="recruitment-config-details" open={initiallyOpen || undefined}>
-      <summary>Job Facts</summary>
-      <p className="recruitment-config-note">
-        Verified terms may be shared with candidates. Unverified terms are for HR follow-up.
-        Use Employment Offerings for terms that differ by employment type.
-      </p>
-      <div className="grid gap-3">
-        {fields.map(([key, label]) => {
-          const status = Object.hasOwn(confirmed,key) ? "verified" : Object.hasOwn(pending,key) ? "unverified" : "unspecified";
-          const value = confirmed[key] ?? pending[key] ?? "";
-          return (
-            <div key={key} className="grid items-end gap-2 sm:grid-cols-[minmax(10rem,1fr)_2fr]">
-              <AdminFormField label={label}>
-                <SelectField ariaLabel={`${label} verification`} value={status}
-                  options={[
-                    {value:"unspecified",label:"Unspecified"},
-                    {value:"unverified",label:"Unverified"},
-                    {value:"verified",label:"Verified",disabled:hasOfferings && key !== "additional_facts" && status !== "verified"},
-                  ]}
-                  onChange={next => setFact(key,next,value)} />
-              </AdminFormField>
-              {status !== "unspecified" && (
-                <AdminFormField label={`${label} details`}>
-                  <input className="control w-full" value={value} maxLength={1000}
-                    onChange={e => setFact(key,status,e.target.value)} />
-                </AdminFormField>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </details>
+    <>
+      <AdminFormField label="Additional AI Knowledge"
+        helper="Add optional job-specific facts the interviewer can share, such as where to report on the first day. Use Employment & Pay for terms and Job Requirements for checks.">
+        <textarea className="control w-full" rows={4} maxLength={1000}
+          value={value} onChange={(event) => update(event.target.value, false)} />
+      </AdminFormField>
+      {value.trim() && (
+        <label className="recruitment-knowledge-confirm">
+          <input className="admin-checkbox" type="checkbox" checked={verified}
+            onChange={(event) => update(value, event.target.checked)} />
+          <span>Confirmed and approved to share with candidates
+            {!verified && <small>Unverified · visible to HR only</small>}
+          </span>
+        </label>
+      )}
+      {legacy.length > 0 && (
+        <details className="recruitment-job-detail">
+          <summary>Previously saved job information</summary>
+          <dl className="recruitment-saved-facts">
+            {legacy.map(([label, text], index) => (
+              <div key={index}>
+                <dt>{label}</dt>
+                <dd>{text}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      )}
+    </>
   );
 }

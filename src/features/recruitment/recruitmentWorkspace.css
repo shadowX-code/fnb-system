@@ -525,9 +525,13 @@
 .recruitment-setup {
   display: grid;
   gap: 16px;
+  width: 100%;
+  max-width: 1152px;
+  margin-inline: auto;
 }
 .recruitment-setup-actions {
   position: sticky;
+  z-index: 1;
   bottom: 0;
   display: flex;
   justify-content: flex-end;
@@ -678,11 +682,6 @@
   margin-bottom: 1rem;
   max-width: 75ch;
 }
-.recruitment-days {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
 .recruitment-config-details {
   border-top: 1px solid var(--theme-border);
   padding-block: 1rem;
@@ -709,13 +708,7 @@
   font-size: 0.875rem;
   font-weight: 600;
   background: var(--theme-surface-nested);
-}
-.recruitment-offering > summary::before {
-  content: "+";
-  color: var(--theme-muted);
-}
-.recruitment-offering[open] > summary::before {
-  content: "−";
+  border-radius: inherit;
 }
 .recruitment-offering-body {
   padding: 1rem;
@@ -728,7 +721,7 @@
   background: var(--theme-surface-nested);
 }
 
-/* Opening terms own the main workspace; interview method is secondary. */
+/* Job Setup keeps a single surface with four sections. */
 .recruitment-setup-header {
   display: flex;
   justify-content: space-between;
@@ -748,52 +741,100 @@
   margin-top: 4px;
 }
 .recruitment-setup-fields {
-  border: 0;
-  padding: 0;
-  min-width: 0;
-}
-.recruitment-form.recruitment-config-layout {
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 20px;
-  padding: 0;
-  background: transparent;
-  align-items: start;
-}
-.recruitment-config-main,
-.recruitment-config-aside {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
-}
-.recruitment-config-layout fieldset {
-  padding: 20px;
+  display: block;
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
-  background: var(--theme-surface-raised);
+  padding: 0 24px;
+  min-width: 0;
 }
-.recruitment-config-layout legend {
-  float: left;
-  width: 100%;
-  margin-bottom: 14px;
+.recruitment-setup-section {
+  min-width: 0;
+  padding-block: 22px;
 }
-.recruitment-config-layout legend + * {
-  clear: both;
+.recruitment-setup-section + .recruitment-setup-section {
+  border-top: 1px solid var(--theme-border);
 }
-.recruitment-config-aside .recruitment-form-grid {
-  grid-template-columns: minmax(0, 1fr);
+.recruitment-setup-section h2 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 650;
 }
-.recruitment-config-aside .md\:col-span-2 {
-  grid-column: auto;
+.recruitment-add-location {
+  align-self: end;
 }
-.recruitment-config-layout:has(.recruitment-offering:nth-of-type(2))
-  .recruitment-offerings {
-  border-top: 3px solid var(--theme-primary);
+.recruitment-profile-facts {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  font-size: 0.8125rem;
+  color: var(--theme-muted);
 }
-.recruitment-offering > summary::before {
-  content: none;
+.recruitment-job-detail {
+  margin-block: 12px;
 }
-.recruitment-offering[open] > summary::before {
-  content: none;
+.recruitment-job-detail:last-child {
+  margin-bottom: 0;
+}
+.recruitment-job-detail > summary {
+  min-height: 36px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.recruitment-job-detail > :not(summary) {
+  margin-top: 8px;
+}
+.recruitment-setup-section textarea {
+  min-height: 5.25rem;
+  padding-block: 0.625rem;
+  resize: vertical;
+}
+.recruitment-knowledge-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.8125rem;
+}
+.recruitment-knowledge-confirm small {
+  display: block;
+  color: var(--theme-muted);
+}
+.recruitment-saved-facts {
+  display: grid;
+  gap: 8px;
+  font-size: 0.8125rem;
+}
+.recruitment-saved-facts dt {
+  font-weight: 600;
+}
+.recruitment-saved-facts dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.recruitment-requirements-list {
+  display: grid;
+  gap: 12px;
+  max-width: 38rem;
+}
+.recruitment-requirements-list .recruitment-requirement-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+.recruitment-add-requirement {
+  width: min(100%, 15rem);
+}
+@media (max-width: 700px) {
+  .recruitment-setup-fields {
+    padding-inline: 16px;
+  }
+  .recruitment-setup-fields .recruitment-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .recruitment-setup-section {
+    padding-block: 16px;
+  }
 }
 .recruitment-offering-summary {
   display: grid;
@@ -809,11 +850,6 @@
   font-weight: 400;
   line-height: 1.5;
   max-width: 65ch;
-}
-.recruitment-setup-fields:disabled .recruitment-config-main input,
-.recruitment-setup-fields:disabled textarea {
-  color: var(--theme-text);
-  opacity: 1;
 }
 .recruitment-candidate-filters {
   display: grid;
@@ -881,9 +917,6 @@
   color: var(--theme-muted);
 }
 @media (max-width: 1100px) {
-  .recruitment-form.recruitment-config-layout {
-    grid-template-columns: minmax(0, 1fr) 260px;
-  }
   .recruitment-candidates-table .admin-table-cell {
     padding: 10px 8px;
   }
@@ -892,15 +925,6 @@
   }
 }
 @media (max-width: 800px) {
-  .recruitment-form.recruitment-config-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .recruitment-config-aside {
-    grid-template-columns: 1fr 1fr;
-  }
-  .recruitment-config-layout fieldset {
-    padding: 16px;
-  }
   .recruitment-candidates-table .recruitment-avatar {
     display: none;
   }
@@ -909,9 +933,6 @@
   }
 }
 @media (max-width: 600px) {
-  .recruitment-config-aside {
-    grid-template-columns: 1fr;
-  }
   .recruitment-candidate-filters {
     grid-template-columns: minmax(0, 1fr) 150px;
   }
@@ -919,20 +940,6 @@
     flex-wrap: wrap;
     gap: 4px;
   }
-}
-.recruitment-opening-header-fields {
-  grid-column: 1/-1;
-}
-.recruitment-opening-header-fields .recruitment-form-grid {
-  grid-template-columns: minmax(0, 1fr) 200px;
-}
-.recruitment-config-layout .recruitment-workplace-details fieldset {
-  padding: 12px 0 0;
-  border: 0;
-  background: transparent;
-}
-.recruitment-workplace-details {
-  margin-top: 12px;
 }
 
 /* Operations hierarchy: canonical summaries/toolbars, attention-led job workspace. */
@@ -952,43 +959,6 @@
   height: auto;
   white-space: normal;
   justify-content: flex-start;
-}
-.recruitment-config-aside {
-  position: sticky;
-  top: 16px;
-}
-.recruitment-config-layout fieldset {
-  border: 0;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
-}
-.recruitment-section-number {
-  display: inline-grid;
-  place-items: center;
-  min-width: 25px;
-  height: 25px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: var(--theme-surface-nested);
-  color: var(--theme-muted);
-  font-size: 11px;
-  vertical-align: middle;
-}
-.recruitment-config-main > .recruitment-job-information fieldset {
-  padding: 0;
-  box-shadow: none;
-}
-.recruitment-profile-preview {
-  padding: 16px;
-  background: var(--theme-surface-raised);
-  border-radius: 10px;
-  font-size: 13px;
-}
-.recruitment-profile-preview > summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-.recruitment-profile-preview .recruitment-plan {
-  margin-top: 16px;
 }
 .recruitment-review-snapshot [data-admin-summary-card] {
   min-height: 94px;
@@ -1031,18 +1001,11 @@
   }
 }
 @media (max-width: 800px) {
-  .recruitment-config-aside {
-    position: static;
-    grid-template-columns: 1fr;
-  }
   .recruitment-requirement-row {
     grid-template-columns: 1fr;
   }
   .recruitment-setup-header {
     flex-wrap: wrap;
-  }
-  .recruitment-config-layout .recruitment-form-grid {
-    grid-template-columns: 1fr;
   }
   .recruitment-setup-actions {
     flex-wrap: wrap;
@@ -1180,43 +1143,12 @@
   outline: 2px solid var(--theme-primary);
   outline-offset: 3px;
 }
-.recruitment-config-main {
-  gap: 0;
-  padding: 20px 24px;
-  border-radius: 12px;
-  background: var(--theme-surface-raised);
-}
-.recruitment-config-main > fieldset,
-.recruitment-config-main > .recruitment-job-information {
-  padding: 20px 0;
-  box-shadow: none;
-  border-radius: 0;
-  background: transparent;
-}
-.recruitment-config-main > :not(:first-child) {
-  border-top: 1px solid var(--theme-border);
-}
-.recruitment-config-main > fieldset:first-child {
-  padding-top: 0;
-}
-.recruitment-config-layout:has(.recruitment-offering:nth-of-type(2))
-  .recruitment-offerings {
-  border-top: 1px solid var(--theme-border);
-}
-.recruitment-config-aside fieldset,
-.recruitment-config-aside .recruitment-profile-preview {
-  background: var(--theme-surface-nested);
-  box-shadow: none;
-}
 @media (max-width: 1100px) {
   .recruitment-profile-plan {
     padding: 20px;
   }
 }
 @media (max-width: 800px) {
-  .recruitment-config-main {
-    padding: 16px;
-  }
   .recruitment-plan-detail > summary {
     flex-wrap: wrap;
     gap: 8px;
@@ -1227,4 +1159,3 @@
 .recruitment-review-content { display: block; }
 .recruitment-review-sections { position: sticky; top: 0; z-index: 1; padding: 0.5rem 1.25rem; background: var(--theme-surface-raised); border-bottom: 1px solid var(--theme-border); }
 .recruitment-review-main [hidden] { display: none; }
-.recruitment-config-layout fieldset fieldset { padding: 1rem 0 0; border: 0; border-top: 1px solid var(--theme-border); border-radius: 0; background: transparent; }

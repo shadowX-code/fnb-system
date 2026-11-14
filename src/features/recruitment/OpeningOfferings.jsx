@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Plus } from "lucide-react";
 import AdminFormField from "../../components/forms/AdminFormField.jsx";
 import TimePickerField from "../../components/forms/TimePickerField.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
@@ -9,15 +11,6 @@ const types = {
   temporary: "Temporary",
   internship: "Internship",
 };
-export const days = [
-  { value: "mon", label: "Mon" },
-  { value: "tue", label: "Tue" },
-  { value: "wed", label: "Wed" },
-  { value: "thu", label: "Thu" },
-  { value: "fri", label: "Fri" },
-  { value: "sat", label: "Sat" },
-  { value: "sun", label: "Sun" },
-];
 function Field({ label, value, onChange, type = "text", helper }) {
   if (type === "time")
     return (
@@ -77,86 +70,8 @@ function Choice({ label, value, onChange, options }) {
     </AdminFormField>
   );
 }
-export function JobContextFields({
-  title = "Job / Workplace Context",
-  value,
-  onChange,
-  description,
-  onDescription,
-  children,
-}) {
-  const set = (key, v) => {
-    const next = { ...value };
-    if (v === undefined || v === "" || (Array.isArray(v) && !v.length))
-      delete next[key];
-    else next[key] = v;
-    onChange(next);
-  };
-  return (
-    <fieldset>
-      <legend>{title}</legend>
-      <p className="recruitment-config-note">
-        Confirmed facts the interviewer may share. Blank information stays
-        unconfirmed.
-      </p>
-      <div className="recruitment-form-grid">
-        <Field
-          label="Candidate-facing location"
-          value={value.location}
-          onChange={(v) => set("location", v)}
-          helper="Opening-specific location; the canonical workplace stays linked above."
-        />
-        <Field
-          label="Job scope"
-          value={description}
-          onChange={(v) => onDescription(v || "")}
-        />
-        <AdminFormField
-          as="div"
-          label="Operating days"
-          className="md:col-span-2"
-        >
-          <div className="recruitment-days">
-            {days.map((d) => (
-              <label key={d.value} className="inline-flex items-center gap-2 text-sm">
-                <input
-                  className="admin-checkbox"
-                  type="checkbox"
-                  checked={(value.operating_days || []).includes(d.value)}
-                  onChange={(e) =>
-                    set(
-                      "operating_days",
-                      e.target.checked
-                        ? [...(value.operating_days || []), d.value]
-                        : (value.operating_days || []).filter(
-                            (v) => v !== d.value,
-                          ),
-                    )
-                  }
-                />
-                {d.label}
-              </label>
-            ))}
-          </div>
-        </AdminFormField>
-        <Field
-          label="Opens at"
-          type="time"
-          value={value.operating_start}
-          onChange={(v) => set("operating_start", v)}
-        />
-        <Field
-          label="Closes at"
-          type="time"
-          value={value.operating_end}
-          onChange={(v) => set("operating_end", v)}
-        />
-      </div>
-      {children}
-    </fieldset>
-  );
-}
-export default function OpeningOfferings({ value = [], onChange }) {
+export default function OpeningOfferings({ value = [], onChange, editing = true }) {
+  const [newOfferingId, setNewOfferingId] = useState(null);
   function patch(index, key, v) {
     onChange(
       value.map((o, i) => {
@@ -169,21 +84,16 @@ export default function OpeningOfferings({ value = [], onChange }) {
     );
   }
   return (
-    <fieldset className="recruitment-offerings">
-      <legend>
-        <span className="recruitment-section-number">02</span> Employment
-        Offerings
-      </legend>
-      <p className="recruitment-config-note">
-        Configure the terms candidates can ask about. Both offerings use the
-        same Interview Profile. Missing terms remain unconfirmed.
-      </p>
+    <div className="recruitment-offerings">
+      {value.length > 0 && <p className="recruitment-config-note">
+        Each offering has its own terms. Leave a term blank if it has not been confirmed.
+      </p>}
       {value.map((o, i) => {
         const set = (k, v) => patch(i, k, v);
         const six = hourlyExplanation(o, 6),
           ten = hourlyExplanation(o, 10);
         return (
-          <details key={o.id} className="recruitment-offering">
+          <details key={o.id} open={newOfferingId === o.id || undefined} className="recruitment-offering">
             <summary>
               <div className="recruitment-offering-summary">
                 <strong>
@@ -399,21 +309,19 @@ export default function OpeningOfferings({ value = [], onChange }) {
                     onChange={(v) => set("salary_confirmation", v)}
                   />
                   <Field
-                    label="Other approved candidate-facing facts"
+                    label="Benefits and other confirmed terms"
                     value={o.other_facts}
                     onChange={(v) => set("other_facts", v)}
                   />
                 </div>
               </details>
-              <button
+              {editing && <button
                 type="button"
                 className="btn-secondary"
-                onClick={() =>
-                  onChange(value.filter((_, index) => index !== i))
-                }
+                onClick={() => onChange(value.filter((_, index) => index !== i))}
               >
                 Remove offering
-              </button>
+              </button>}
             </div>
           </details>
         );
@@ -424,23 +332,19 @@ export default function OpeningOfferings({ value = [], onChange }) {
           team has confirmed them.
         </p>
       )}
-      <button
+      {editing && <button
         type="button"
         className="btn-secondary"
         disabled={value.length >= 6}
-        onClick={() =>
-          onChange([
-            ...value,
-            { id: crypto.randomUUID(), employment_type: "full_time" },
-          ])
-        }
+        onClick={() => {
+          const id = crypto.randomUUID();
+          const nextType = Object.keys(types).find((type) => !value.some((offer) => offer.employment_type === type));
+          onChange([...value, { id, employment_type: nextType || "full_time" }]);
+          setNewOfferingId(id);
+        }}
       >
-        + Add employment offering
-      </button>
-      <p className="recruitment-config-note mt-3">
-        OT policy and calculation are unconfirmed. Unspecified benefits,
-        increments and leave entitlements must not be promised.
-      </p>
-    </fieldset>
+        <Plus size={16} aria-hidden="true" /> Add offering
+      </button>}
+    </div>
   );
 }
