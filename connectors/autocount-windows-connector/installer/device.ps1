@@ -148,7 +148,7 @@ function Get-BookReaderPlan($Connection,$Identity,[string]$Database,$GrantCatalo
     return $plan
 }
 
-function Authorize-LocalBook([string]$Instance,[string]$Database,[string]$StartDate,$Confirm) {
+function Authorize-LocalBook([string]$Instance,[string]$Database,[string]$StartDate,$Confirm,[string]$ExpectedBookKey,[string]$ExpectedReader) {
     $admin = $null
     $lock = $null
     $transaction = $null
@@ -161,6 +161,7 @@ function Authorize-LocalBook([string]$Instance,[string]$Database,[string]$StartD
         $identity = Assert-ReadIdentity $admin $Database (Get-InstanceIdentity $Instance)
         if ($identity.sysadmin -ne 1) { Stop-ReadPoc 'AUTHORIZED_WINDOWS_SYSADMIN_REQUIRED' }
         $company = Read-BookCompany $admin $Database
+        if ($ExpectedBookKey -and $company.key -cne $ExpectedBookKey) { Stop-ReadPoc 'BOOK_COMPANY_IDENTITY_CHANGED' }
         if (-not (& $Confirm $company.company)) { return $false }
 
         $root = Get-RunLocalPath $company.key -BaseDirectory $deviceRoot
@@ -169,6 +170,10 @@ function Authorize-LocalBook([string]$Instance,[string]$Database,[string]$StartD
         $bookPath = Join-Path $root 'book.json'
         $readerPath = Join-Path $root 'reader.credential.xml'
         $pendingPath = Join-Path $root 'reader.pending.credential.xml'
+        if ($ExpectedReader -and ((Test-Path -LiteralPath $readerPath) -or -not (Test-Path -LiteralPath $pendingPath) -or
+            -not (Test-Path -LiteralPath $bookPath))) {
+            Stop-ReadPoc 'READER_REPAIR_STATE_CHANGED'
+        }
         $book = [pscustomobject]@{key=$company.key;company=$company.company;instance=$Instance;database=$Database;startDate=$StartDate;bookId=$null;authorized=$false}
         if (Test-Path -LiteralPath $bookPath) {
             $previous = [IO.File]::ReadAllText($bookPath) | ConvertFrom-Json
@@ -190,6 +195,7 @@ function Authorize-LocalBook([string]$Instance,[string]$Database,[string]$StartD
                 Save-ConnectorCredential $pendingPath $credential
             }
             $login = $credential.UserName
+            if ($ExpectedReader -and $login -cne $ExpectedReader) { Stop-ReadPoc 'READER_REPAIR_STATE_CHANGED' }
             if ($login -cnotmatch '^feedx_ro_[a-f0-9]{32}$') { Stop-ReadPoc 'READER_CREDENTIAL_PRINCIPAL_MISMATCH' }
             $sid = '0x'+$login.Substring(9)
             $quoted = Quote-ReadIdentifier $login
@@ -204,6 +210,7 @@ SELECT SUSER_ID(@login) AS loginId, USER_ID(@login) AS userId,
                 if ($existing.disabled) { Invoke-ReaderSecurityCommand $admin $null "ALTER LOGIN $quoted ENABLE;" $null }
                 $guardLogin = $true
             } else {
+                if ($ExpectedReader) { Stop-ReadPoc 'READER_REPAIR_STATE_CHANGED' }
                 $mode = Invoke-ReadQuery $admin "SELECT CONVERT(int,SERVERPROPERTY('IsIntegratedSecurityOnly')) AS integratedOnly"
                 if ($mode.integratedOnly -ne 0) { Stop-ReadPoc 'SQL_AUTHENTICATION_NOT_ENABLED' }
                 $plan = Get-AccountingReadPlan (Get-ReadCatalog $admin)

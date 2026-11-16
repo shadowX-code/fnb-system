@@ -1,15 +1,12 @@
--- Run in a fresh SSMS query on (local)\A2006, with AED_TEST selected, as the local SQL administrator.
--- Paste only the login name from the pending FeedX credential. Run the whole file; share the result sets.
--- This reads SQL security metadata and briefly impersonates the reader. It reads no journal or department rows.
+-- Bound @reader parameter supplied from the selected book's saved credential. Metadata only.
 SET NOCOUNT ON;
-DECLARE @reader sysname = N'<pending FeedX SQL login name>';
 
 IF DB_NAME() COLLATE Latin1_General_100_BIN2 <> N'AED_TEST'
    OR ISNULL(CONVERT(nvarchar(128), SERVERPROPERTY('InstanceName')), N'') <> N'A2006'
    OR ISNULL(IS_SRVROLEMEMBER(N'sysadmin'), 0) <> 1
     THROW 51001, 'Run in AED_TEST on A2006 as the local SQL administrator.', 1;
 
-IF LEN(@reader) <> 41 OR LEFT(@reader, 9) COLLATE Latin1_General_100_BIN2 <> N'feedx_ro_'
+IF @reader IS NULL OR LEN(@reader) <> 41 OR LEFT(@reader, 9) COLLATE Latin1_General_100_BIN2 <> N'feedx_ro_'
    OR SUBSTRING(@reader, 10, 32) COLLATE Latin1_General_100_BIN2 LIKE N'%[^a-f0-9]%'
     THROW 51002, 'Enter the exact local pending FeedX reader login name.', 1;
 
@@ -22,12 +19,19 @@ SELECT @schemaId = schema_id FROM sys.objects WHERE object_id=@objectId;
 IF @loginId IS NULL OR @userId IS NULL OR @schemaId IS NULL
     THROW 51003, 'Pending login/user SID or dbo.DeptChangeLog could not be matched. Stop before any grant changes.', 1;
 
-SELECT QUOTENAME(s.name)+N'.'+QUOTENAME(o.name) AS securable, o.type_desc, @disabled AS loginDisabled,
-       COALESCE(USER_NAME(o.principal_id), N'(inherits schema owner)') AS explicitObjectOwner,
-       USER_NAME(s.principal_id) AS schemaOwner,
+SELECT @objectId AS objectId,@userId AS userId,@loginId AS loginId, QUOTENAME(s.name)+N'.'+QUOTENAME(o.name) AS securable, o.type_desc, @disabled AS loginDisabled,
+       CASE WHEN o.principal_id=@userId THEN N'dedicated reader' ELSE USER_NAME(o.principal_id) END AS explicitObjectOwner,
+       CASE WHEN s.principal_id=@userId THEN N'dedicated reader' ELSE USER_NAME(s.principal_id) END AS schemaOwner,
        CASE WHEN d.owner_sid=@sid THEN 1 ELSE 0 END AS readerOwnsDatabase,
        CASE WHEN s.principal_id=@userId THEN 1 ELSE 0 END AS readerOwnsSchema,
-       CASE WHEN COALESCE(o.principal_id,s.principal_id)=@userId THEN 1 ELSE 0 END AS readerOwnsObject
+       CASE WHEN COALESCE(o.principal_id,s.principal_id)=@userId THEN 1 ELSE 0 END AS readerOwnsObject,
+       CASE WHEN EXISTS (
+           SELECT 1 FROM sys.triggers t JOIN sys.trigger_events e ON e.object_id=t.object_id
+           WHERE t.parent_class=0 AND t.is_disabled=0 AND e.type_desc LIKE N'REVOKE[_]%'
+       ) OR EXISTS (
+           SELECT 1 FROM sys.server_triggers t JOIN sys.server_trigger_events e ON e.object_id=t.object_id
+           WHERE t.is_disabled=0 AND e.type_desc LIKE N'REVOKE[_]%'
+       ) THEN 1 ELSE 0 END AS revokeTrigger
 FROM sys.objects o JOIN sys.schemas s ON s.schema_id=o.schema_id
 JOIN sys.databases d ON d.database_id=DB_ID()
 WHERE o.object_id=@objectId;
@@ -39,6 +43,7 @@ WHERE o.object_id=@objectId;
 ), members AS (SELECT DISTINCT principal_id FROM roles)
 SELECT CASE WHEN g.principal_id=@userId THEN N'dedicated reader' ELSE g.name END AS principal,
        g.type_desc, g.is_fixed_role,
+       CASE WHEN p.grantor_principal_id=DATABASE_PRINCIPAL_ID(N'dbo') THEN N'dbo' WHEN p.grantor_principal_id IS NOT NULL THEN N'other' END AS grantor,
        CASE WHEN p.class=0 THEN N'DATABASE' WHEN p.class=3 THEN N'SCHEMA'
             WHEN p.minor_id=0 THEN N'OBJECT' WHEN p.minor_id>0 THEN N'COLUMN' END AS grantScope,
        CASE WHEN p.class=1 AND p.minor_id>0 THEN COL_NAME(@objectId,p.minor_id) END AS columnName, p.permission_name, p.state_desc
@@ -63,9 +68,10 @@ ORDER BY principal, p.permission_name;
 -- Take the effective snapshot under the pending login without enabling it or using its password.
 DECLARE @inspect nvarchar(max) = N'EXECUTE AS LOGIN = '+QUOTENAME(@reader,'''')+N';
 BEGIN TRY
-    IF DB_NAME() <> N''AED_TEST'' OR USER_ID() <> @expectedUser
-        THROW 51004, ''Impersonated database user did not match the pending reader.'', 1;
-    SELECT HAS_PERMS_BY_NAME(N''dbo.DeptChangeLog'',N''OBJECT'',N''SELECT'') AS objectSelect,
+    IF DB_NAME() <> N''AED_TEST''
+        THROW 51004, ''Impersonated database context did not match AED_TEST.'', 1;
+    SELECT CASE WHEN USER_ID()=@expectedUser THEN 1 ELSE 0 END AS readerMappingMatches,
+           HAS_PERMS_BY_NAME(N''dbo.DeptChangeLog'',N''OBJECT'',N''SELECT'') AS objectSelect,
            HAS_PERMS_BY_NAME(N''dbo'',N''SCHEMA'',N''SELECT'') AS schemaSelect,
            HAS_PERMS_BY_NAME(DB_NAME(),N''DATABASE'',N''SELECT'') AS databaseSelect;
     SELECT permission_name, subentity_name AS columnName

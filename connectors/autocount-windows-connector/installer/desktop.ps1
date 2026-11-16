@@ -4,6 +4,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
 . (Join-Path $PSScriptRoot 'device.ps1')
+. (Join-Path $PSScriptRoot 'permission-review.ps1')
 
 $form = [Windows.Forms.Form]::new()
 $form.Text = 'FeedX AutoCount Connector'
@@ -44,10 +45,16 @@ function Run-UiAction([scriptblock]$Action,[string]$Area='Device setup') {
             if (-not $failure.InnerException) { break }
             $failure = $failure.InnerException
         }
-        $reason = switch -Regex ($failure.Message) {
+        $code = if ($failure.Message -cmatch '^[A-Z][A-Z0-9_]{4,95}$') { $failure.Message } elseif ($failure -is [Data.SqlClient.SqlException]) { 'SQL_ERROR_'+$failure.Number } else { 'SETUP_FAILED' }
+        $reason = switch -Regex ($code) {
             '^STAGING_HTTP_401$' { 'The pairing code expired, was used, or this computer was revoked. Generate a fresh code in Windows.'; break }
             '^DEVICE_REGISTRATION_INACTIVE$' { 'FeedX did not confirm an active pairing for this computer. Review device access in FeedX.'; break }
-            '^AUTHORIZED_WINDOWS_SYSADMIN_REQUIRED$' { 'Sign in to Windows as an authorized SQL Server administrator to approve this book.'; break }
+            '^AUTHORIZED_WINDOWS_SYSADMIN_REQUIRED$|^SQL_ERROR_(51001|18456|229)$' { 'Ask the SQL administrator to run this action under the Windows account that has both SQL admin access and the saved reader.'; break }
+            '^READER_REVIEW_CREDENTIAL_MISSING$' { 'Use the Windows account that saved the reader for this book, or begin book authorization first.'; break }
+            '^READER_REVIEW_TARGET_UNSUPPORTED$' { 'This permission review is available for AED_TEST on A2006.'; break }
+            '^READER_REPAIR_STATE_CHANGED$' { 'The reader or its permissions changed. Diagnose again before reviewing a repair.'; break }
+            '^READER_REPAIR_VERIFICATION_FAILED$' { 'The permission could not be verified after repair. The change was rolled back.'; break }
+            '^SQL_ERROR_5100[234]$|^READER_REVIEW_INCOMPLETE$' { 'The administrator review could not verify the selected reader and object. Ask your SQL administrator to review the local setup.'; break }
             '^SQL_AUTHENTICATION_NOT_ENABLED$' { 'This SQL Server does not allow SQL reader accounts. Ask your SQL administrator to review its authentication mode.'; break }
             '^BOOK_COMPANY_|^MAPPING_|^ACCOUNTING_' { 'The selected database could not be verified as a supported AutoCount Account Book.'; break }
             '^OTHER_DATABASE_ACCESS_|^READER_|^PROVISIONED_READER_' { 'The reader permissions could not be verified. Ask your SQL administrator to review the selected instance.'; break }
@@ -55,8 +62,11 @@ function Run-UiAction([scriptblock]$Action,[string]$Area='Device setup') {
             default { 'The operation could not finish. Check SQL Server access and try again.' }
         }
         $message.Text = $reason
-        $code = if ($failure.Message -cmatch '^[A-Z][A-Z0-9_]{4,95}$') { $failure.Message } elseif ($failure -is [Data.SqlClient.SqlException]) { 'SQL_ERROR_'+$failure.Number } else { 'SETUP_FAILED' }
-        $file = if ($Area -eq 'Book authorization') { 'authorization-summary.json' } else { 'device-setup.json' }
+        $file = switch ($Area) {
+            'Book authorization' { 'authorization-summary.json' }
+            'Permission review' { 'permission-review.json' }
+            default { 'device-setup.json' }
+        }
         $details = $failure.Data['FeedXPermissionDetails']
         $report = @{state='Failed';stage=$stage;code=$code;details=$details;finishedAt=[datetime]::UtcNow.ToString('o')}
         Write-LocalTextAtomically (Join-Path $deviceRoot $file) ($report | ConvertTo-Json -Depth 6)
@@ -84,6 +94,10 @@ $date.Format = 'Short'
 $date.MinDate = [datetime]'2000-01-01'
 $date.MaxDate = [datetime]::Today
 $date.Value = [datetime]::Today.AddDays(-7)
+$diagnose = Add-Control ([Windows.Forms.Button]::new()) 300 162 153 32 'Diagnose Permissions'
+$reviewRepair = Add-Control ([Windows.Forms.Button]::new()) 461 162 154 32 'Review && Repair'
+$diagnose.Enabled = $false
+$reviewRepair.Enabled = $false
 $null = Add-Label 220 '2. Pair this computer. You can pair before book authorization is complete.'
 $pair = Add-Control ([Windows.Forms.Button]::new()) 20 248 185 32 'Generate pairing code'
 $codeBox = Add-Control ([Windows.Forms.TextBox]::new()) 220 251 185 28 ''
@@ -115,6 +129,10 @@ function Format-ConnectorTime([string]$Value) {
 }
 function Get-DiagnosticHint([string]$Code) {
     switch -Regex ($Code) {
+        '^AUTHORIZED_WINDOWS_SYSADMIN_REQUIRED$|^SQL_ERROR_(51001|18456|229)$' { return 'Use the Windows account that has both SQL administrator access and the saved reader.' }
+        '^READER_REPAIR_STATE_CHANGED$' { return 'Diagnose permissions again before attempting repair.' }
+        '^READER_REPAIR_VERIFICATION_FAILED$' { return 'The approved change was rolled back because verification failed.' }
+        '^READER_REVIEW_CREDENTIAL_MISSING$|^SQL_ERROR_5100[234]$' { return 'Verify the saved reader and selected book with your SQL administrator.' }
         '^DEVICE_REGISTRATION_INACTIVE$' { return 'Review this computer''s device access in FeedX.' }
         '^DEVICE_NOT_PAIRED$|^STAGING_HTTP_401$' { return 'Check pairing and book binding in FeedX.' }
         '^STAGING_HTTPS_|^STAGING_HTTP_5' { return 'Check network access to FeedX Staging.' }
@@ -147,6 +165,12 @@ function Refresh-Diagnostics {
             $legacyCode = [IO.File]::ReadAllText($legacy).Trim()
             if ($legacyCode -cmatch '^[A-Z][A-Z0-9_]{4,95}$') { $lines += "Previous setup: $legacyCode. $(Get-DiagnosticHint $legacyCode)" }
         }
+    }
+    $permissions = Read-ConnectorReport (Join-Path $deviceRoot 'permission-review.json')
+    if ($permissions) {
+        $lines += "Permission review: $($permissions.state) ($(Format-ConnectorTime $permissions.finishedAt))"
+        if ($permissions.code) { $lines += "$($permissions.code). $(Get-DiagnosticHint $permissions.code)" }
+        $lines += @($permissions.lines | Where-Object { $_ })
     }
     $testReport = Read-ConnectorReport (Join-Path $deviceRoot 'test-summary.json')
     if ($testReport) {
@@ -244,6 +268,41 @@ $scan.Add_Click({
     }
 })
 $instances.Add_SelectedIndexChanged({ $books.Items.Clear() })
+$books.Add_SelectedIndexChanged({
+    $diagnose.Enabled = $instances.SelectedItem -ieq 'A2006' -and $books.SelectedItem -ceq 'AED_TEST'
+    $reviewRepair.Enabled = $false
+})
+function Save-AuthorizedBookReport {
+    $report = @{state='Authorized';finishedAt=[datetime]::UtcNow.ToString('o')}
+    Write-LocalTextAtomically (Join-Path $deviceRoot 'authorization-summary.json') ($report | ConvertTo-Json -Compress)
+}
+function Show-DeptPermissionReview([switch]$Repair) {
+    $reviewRepair.Enabled = $false
+    $instance = [string]$instances.SelectedItem
+    $database = [string]$books.SelectedItem
+    $confirm = if ($Repair) {{
+        param($Statement)
+        [Windows.Forms.MessageBox]::Show($form,"Review the proposed change for A2006 / AED_TEST. This revokes one direct SELECT grant from the saved FeedX reader, then attempts normal authorization by reopening the saved reader with its existing credential.`r`n`r`n$Statement`r`n`r`nApply this change?",'Confirm SQL reader repair','YesNo','Warning','Button2') -eq 'Yes'
+    }}
+    $result = Invoke-DeptPermissionReview $instance $database $confirm
+    $report = @{state=if ($result.repaired) { 'Direct grant removed' } else { 'Reviewed' }
+                lines=$result.lines;finishedAt=[datetime]::UtcNow.ToString('o')}
+    Write-LocalTextAtomically (Join-Path $deviceRoot 'permission-review.json') ($report | ConvertTo-Json -Depth 4)
+    $reviewRepair.Enabled = [bool]$result.repairable
+    $message.Text = if ($result.repairable) { 'One direct grant is eligible for review. See diagnostics.' } else { 'Permission review complete. See diagnostics for the next step.' }
+    Refresh-Diagnostics
+    if ($result.repaired) {
+        Run-UiAction {
+            $null = Authorize-LocalBook $instance $database $result.startDate { $true } -ExpectedBookKey $result.bookKey -ExpectedReader $result.reader
+            Save-AuthorizedBookReport
+            $message.Text = 'Reader reverified. Run Test Connection to send the authorized book to FeedX.'
+            Refresh-Diagnostics
+        } 'Book authorization'
+    }
+}
+$diagnose.Add_Click({ Run-UiAction { Show-DeptPermissionReview } 'Permission review' })
+$reviewRepair.Add_Click({ Run-UiAction { Show-DeptPermissionReview -Repair } 'Permission review' })
+
 $authorize.Add_Click({
     Run-UiAction {
         $database = [string]$books.SelectedItem
@@ -255,8 +314,8 @@ $authorize.Add_Click({
             return [Windows.Forms.MessageBox]::Show($form,"Authorize FeedX to read $Company ($database)? This may create a reader for accounts in this book, journals, departments, projects and company identity. Confirm your SQL monitoring masks generated login passwords.",'Approve read-only access','YesNo','Warning') -eq 'Yes'
         }
         if (-not $approved) { return }
-        $report = @{state='Authorized';finishedAt=[datetime]::UtcNow.ToString('o')}
-        Write-LocalTextAtomically (Join-Path $deviceRoot 'authorization-summary.json') ($report | ConvertTo-Json -Compress)
+        Save-AuthorizedBookReport
+        $reviewRepair.Enabled = $false
         $message.Text = 'Book authorization saved. If already paired, use Test Connection to send the book to FeedX.'
         Refresh-Diagnostics
     } 'Book authorization'
