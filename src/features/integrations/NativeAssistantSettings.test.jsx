@@ -9,3 +9,28 @@ it('shows safe upstream status/type/endpoint and missing Responses permission wi
  assistantCall.mockImplementation(async action=>{if(action==='test')throw Object.assign(new Error('OpenAI permission rejected'),{diagnostic:{source:'openai',http_status:401,provider_error_code:null,provider_error_type:'invalid_request_error',endpoint:'https://api.openai.com/v1/responses',model:'gpt-4o-mini',missing_permissions:['api.responses.write']}});return data;});
  render(<NativeAssistantSettings auth={{user:{id:'one'},hasPermission:()=>true}}/>);await screen.findByText('native-assistant-openai');fireEvent.click(screen.getByRole('button',{name:'Test connection'}));await screen.findByText('Provider response details');expect(screen.getByText('401')).toBeTruthy();expect(screen.getByText('invalid_request_error')).toBeTruthy();expect(screen.getByText('api.responses.write')).toBeTruthy();expect(screen.getByText('https://api.openai.com/v1/responses')).toBeTruthy();expect(screen.getByRole('checkbox',{name:'Enable text conversations'}).disabled).toBe(true);
 });
+it('organizes management without triggering provider tests, business reads or document retrieval',async()=>{
+ assistantCall.mockResolvedValue(data);render(<NativeAssistantSettings auth={{user:{id:'one'},hasPermission:()=>true}}/>);
+ await screen.findByText('native-assistant-openai');
+ for(const name of ['Overview','Capabilities','Knowledge','Voice & Usage'])expect(screen.getByRole('tab',{name})).toBeTruthy();
+ fireEvent.click(screen.getByRole('tab',{name:'Knowledge'}));expect(screen.getByText('Managed Knowledge')).toBeTruthy();expect(screen.getAllByText('Not connected')).toHaveLength(4);
+ fireEvent.click(screen.getByRole('tab',{name:'Capabilities'}));expect(screen.getByText('Not evaluated while disabled')).toBeTruthy();
+ expect(assistantCall.mock.calls.every(([action])=>action==='configuration')).toBe(true);
+ fireEvent.click(screen.getByRole('button',{name:'Test Finished Goods read'}));await waitFor(()=>expect(assistantCall).toHaveBeenCalledWith('tool_test',{}));
+});
+it.each([[true,'Available'],[false,'Not authorized']])('uses server tool access, not the settings role, to present capability availability (%s)',async(tools,label)=>{
+ assistantCall.mockResolvedValue({...data,can_edit:false,config:{...data.config,factory_reads_enabled:true},runtime:{...data.runtime,tools}});
+ render(<NativeAssistantSettings auth={{user:{id:'reader'},hasPermission:()=>false}}/>);await screen.findByText('native-assistant-openai');
+ fireEvent.click(screen.getByRole('tab',{name:'Capabilities'}));expect(screen.getByText(label)).toBeTruthy();expect(screen.getByRole('button',{name:'Test Finished Goods read'}).disabled).toBe(true);
+});
+it('respects server edit denial even when local settings permission allows edits',async()=>{
+ assistantCall.mockResolvedValue({...data,can_edit:false});render(<NativeAssistantSettings auth={{user:{id:'one'},hasPermission:()=>true}}/>);await screen.findByText('native-assistant-openai');
+ expect(screen.getByRole('button',{name:'Test connection'}).disabled).toBe(true);
+});
+it('keeps pending text edits while inspecting other sections',async()=>{
+ assistantCall.mockResolvedValue(data);render(<NativeAssistantSettings auth={{user:{id:'one'},hasPermission:()=>true}}/>);await screen.findByText('native-assistant-openai');
+ fireEvent.click(screen.getByRole('button',{name:'Model',exact:true}));fireEvent.click(await screen.findByRole('option',{name:'gpt-4.1-mini'}));
+ fireEvent.click(screen.getByRole('tab',{name:'Knowledge'}));fireEvent.click(screen.getByRole('tab',{name:'Overview'}));
+ expect(screen.getByRole('button',{name:'Model',exact:true}).textContent).toContain('gpt-4.1-mini');expect(screen.getByRole('button',{name:'Save',exact:true}).disabled).toBe(false);
+ expect(assistantCall.mock.calls).toEqual([['configuration']]);
+});

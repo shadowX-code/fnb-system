@@ -4,10 +4,7 @@ import ConfirmDialog from '../../components/feedback/ConfirmDialog.jsx';
 import {formatOperationalMoment} from '../../lib/dateTime.js';
 import {assistantCall} from '../ai-assistant/nativeAssistantService.js';
 
-const providers={
- openai:{name:'OpenAI Realtime',model:'gpt-realtime-2.1-mini',voices:'Cedar, Marin, Echo, Ash, Alloy'},
- grok:{name:'Grok Voice',model:'grok-voice-latest',voices:'Eve'},
-};
+import {assistantProviderPresentation as providers} from './assistantProviderPresentation.js';
 
 export default function AssistantProviders(){
  const [registry,setRegistry]=useState(null),[editing,setEditing]=useState(null),[busy,setBusy]=useState(false);
