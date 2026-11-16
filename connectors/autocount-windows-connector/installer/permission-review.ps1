@@ -38,15 +38,15 @@ function Convert-DeptPermissionEvidence([Data.DataSet]$Data) {
         $dbPermissions[0].permission_name -ceq 'SELECT' -and $dbPermissions[0].state_desc -ceq 'GRANT' -and
         $dbPermissions[0].grantor -ceq 'dbo' -and -not ($ownership -or $broader -or $roles.Count -or $serverPermissions.Count -or $revokeTrigger)
 
-    $triggerSelect=$objectSelect -and (Test-TriggerSelectMetadata $object.objectType 'SELECT' '')
+    $nonRowsetSelect=$objectSelect -and (Test-NonRowsetSelectMetadata $object.objectType 'SELECT' '')
     $otherEffective=@($effective | Where-Object {
         $_.permission_name -notin @('VIEW DEFINITION','VIEW SECURITY DEFINITION','VIEW PERFORMANCE DEFINITION') -and
-            -not (Test-TriggerSelectMetadata $object.objectType $_.permission_name ([string]$_.columnName))
+            -not (Test-NonRowsetSelectMetadata $object.objectType $_.permission_name ([string]$_.columnName))
     })
     $lines=@("AED_TEST / [dbo].[DeptChangeLog] ($($object.type_desc))",
         "Effective SELECT: object $objectSelect; schema $($scopes.schemaSelect -eq 1); database $($scopes.databaseSelect -eq 1).")
-    if ($triggerSelect) {
-        $lines+='The object-level SELECT result describes a trigger and does not grant access to data rows.'
+    if ($nonRowsetSelect) {
+        $lines+='The object-level SELECT result is metadata for this object type and does not grant access to data rows.'
         if ($otherEffective.Count) { $lines+="Other effective permissions: $($otherEffective.permission_name -join ', ')." }
     }
     if ($columns.Count) { $lines+="Columns with SELECT: $($columns -join ', ')." }
@@ -61,7 +61,7 @@ function Convert-DeptPermissionEvidence([Data.DataSet]$Data) {
     $lines+="Ownership: object $owner; schema $($object.schemaOwner); dedicated reader owns database $($object.readerOwnsDatabase -eq 1)."
     if ($revokeTrigger) { $lines+='An enabled SQL permission-change trigger requires administrator review before a revoke.' }
     $recommendation=if ($repairable) { 'Review & Repair can revoke this one direct SELECT grant. It will then rerun book authorization.' }
-        elseif ($triggerSelect -and -not ($columns.Count -or $otherEffective.Count -or $dbPermissions.Count -or $serverPermissions.Count -or $roles.Count -or $ownership -or $broader)) {
+        elseif ($nonRowsetSelect -and -not ($columns.Count -or $otherEffective.Count -or $dbPermissions.Count -or $serverPermissions.Count -or $roles.Count -or $ownership -or $broader)) {
             'Retry book authorization. The standard checks still verify the reader and its remaining permissions.'
         } elseif ($hasSelect -and -not ($dbPermissions.Count -or $serverPermissions.Count -or $roles.Count -or $ownership -or $broader)) {
             'SQL reports SELECT but did not identify an attributable grant or ownership path. Ask your SQL administrator to investigate the effective security context.'

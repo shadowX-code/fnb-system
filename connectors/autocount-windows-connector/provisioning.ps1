@@ -69,9 +69,11 @@ function Open-ProvisionedReader([Security.SecureString]$Secret) {
     } catch { $connection.Dispose(); throw }
 }
 
-function Test-TriggerSelectMetadata([string]$ObjectType,[string]$Permission,[string]$Column) {
-    # SQL Server can report object SELECT for DML triggers, which cannot be queried as a row source.
-    return $ObjectType -cin @('TR','TA') -and $Permission -ceq 'SELECT' -and -not $Column
+function Test-NonRowsetSelectMetadata([string]$ObjectType,[string]$Permission,[string]$Column) {
+    # sys.objects.type is char(2). Only known metadata classes can produce a harmless bare SELECT.
+    # Leave queryable and unrecognized classes subject to the full object permission check.
+    $metadataTypes=@('C','D','EC','F','PG','PK','R','ST','TA','TR','TT','UQ')
+    return $Permission -ceq 'SELECT' -and -not $Column -and $ObjectType.Trim() -cin $metadataTypes
 }
 
 function Get-ReaderPermissionDetails($Connection,$GrantCatalogConnection,$Object,$EffectivePermissions,$Plan) {
@@ -182,7 +184,7 @@ SELECT permission_name,subentity_name FROM sys.fn_my_permissions(@object,'OBJECT
 WHERE permission_name NOT IN ('VIEW DEFINITION','VIEW SECURITY DEFINITION','VIEW PERFORMANCE DEFINITION')
 ORDER BY permission_name,subentity_name
 '@ @{'@object'=$object.objectName} | Where-Object {
-            -not (Test-TriggerSelectMetadata $object.objectType $_.permission_name $_.subentity_name)
+            -not (Test-NonRowsetSelectMetadata $object.objectType $_.permission_name $_.subentity_name)
         })
         if ($Plan.metadataColumns -and $object.objectName -ceq '[dbo].[Profile]') {
             $unexpected=@($permissions | Where-Object { $_.permission_name -ne 'SELECT' -or $_.subentity_name -cnotin $Plan.metadataColumns })
