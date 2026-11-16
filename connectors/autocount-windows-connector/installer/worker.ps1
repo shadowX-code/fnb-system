@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'device.ps1')
 
 $statusPath = Join-Path $deviceRoot $(if ($TestConnection) { 'test-summary.json' } else { 'sync-summary.json' })
-$summary = [ordered]@{state='Running';paired=$false;attempted=0;passed=0;error=$null}
+$summary = [ordered]@{state='Running';paired=$false;bound=0;catalogChecked=$false;attempted=0;passed=0;error=$null}
 $credential = $null
 $failed = $false
 try {
@@ -15,13 +15,20 @@ try {
     $credential = Get-DeviceCredential
     $state = Invoke-DeviceAction $credential @{p_action='books'}
     $summary.paired = $true
-    $localBooks = @(Get-AuthorizedLocalBooks)
+    $localBooks = @(Get-LocalConnectorBooks)
     $published = $false
     foreach ($book in $localBooks) {
-        if (@($state.books | Where-Object { $_.bookId -ceq $book.bookId -and $_.ready }).Count) { continue }
+        if (@($state.books | Where-Object { $_.bookId -ceq $book.bookId -and $_.ready -eq $book.authorized }).Count) { continue }
+        $authorizationLock = $null
         try {
+            $root = Get-RunLocalPath $book.key -BaseDirectory $deviceRoot
+            $authorizationLock = [IO.File]::Open((Join-Path $root 'authorization.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+            $current = [IO.File]::ReadAllText((Join-Path $root 'book.json')) | ConvertFrom-Json
+            $currentAuthorized = $current.authorized -ne $false -and (Test-Path -LiteralPath (Join-Path $root 'reader.credential.xml'))
+            if ($currentAuthorized -ne $book.authorized -or $current.bookId -cne $book.bookId) { continue }
+            $action = if ($book.authorized) { 'discover' } else { 'authorization_required' }
             $remote = Invoke-DeviceAction $credential @{
-                p_action='discover';p_book_key=$book.key;p_book=$book.database;p_company=$book.company
+                p_action=$action;p_book_key=$book.key;p_book=$book.database;p_company=$book.company
             }
             if ($remote.bookId -cnotmatch '^[a-f0-9-]{36}$') { Stop-ReadPoc 'BOOK_DISCOVERY_RESPONSE_INVALID' }
             $book.bookId = $remote.bookId
@@ -32,13 +39,17 @@ try {
             $failed = $true
             $message = $_.Exception.GetBaseException().Message
             $summary.error = if ($message -cmatch '^[A-Z][A-Z0-9_]{4,95}$') { $message } else { 'BOOK_DISCOVERY_FAILED' }
+        } finally {
+            if ($authorizationLock) { $authorizationLock.Dispose() }
         }
     }
     if ($published) { $state = Invoke-DeviceAction $credential @{p_action='books'} }
+    $summary.bound = @($state.books | Where-Object { $_.ready -and $_.bound }).Count
+    $summary.catalogChecked = $true
     foreach ($record in $state.books) {
         if (-not $record.ready -or -not $record.bound) { continue }
         $lastSync = if ($record.lastSyncAt) { [datetimeoffset]::Parse($record.lastSyncAt) }
-        $book = @($localBooks | Where-Object bookId -CEQ $record.bookId)
+        $book = @($localBooks | Where-Object { $_.bookId -ceq $record.bookId -and $_.authorized })
         if ($book.Count -ne 1) { continue }
         if (-not $TestConnection -and -not $RunNow) {
             $checkpoint = Join-Path (Join-Path $deviceRoot $book[0].key) 'config.json'

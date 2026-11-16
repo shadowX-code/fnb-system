@@ -32,12 +32,18 @@ function Register-ConnectorSchedule {
                   (New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)))
     $null = Register-ScheduledTask -TaskName 'FeedX AutoCount Connector' -Action $action -Principal $principal -Settings $settings -Trigger $triggers -Force
 }
-function Run-UiAction([scriptblock]$Action) {
+function Run-UiAction([scriptblock]$Action,[string]$Area='Device setup') {
     try {
         $form.UseWaitCursor = $true
         & $Action
     } catch {
-        $failure = $_.Exception.GetBaseException()
+        $failure = $_.Exception
+        $stage = $null
+        while ($failure) {
+            if ($failure.Data['FeedXStage']) { $stage = $failure.Data['FeedXStage']; break }
+            if (-not $failure.InnerException) { break }
+            $failure = $failure.InnerException
+        }
         $reason = switch -Regex ($failure.Message) {
             '^STAGING_HTTP_401$' { 'The pairing code expired, was used, or this computer was revoked. Generate a fresh code in Windows.'; break }
             '^STAGING_HTTP_409$' { 'This computer is already registered. Open FeedX to review its connection.'; break }
@@ -50,7 +56,11 @@ function Run-UiAction([scriptblock]$Action) {
         }
         $message.Text = $reason
         $code = if ($failure.Message -cmatch '^[A-Z][A-Z0-9_]{4,95}$') { $failure.Message } elseif ($failure -is [Data.SqlClient.SqlException]) { 'SQL_ERROR_'+$failure.Number } else { 'SETUP_FAILED' }
-        Write-LocalTextAtomically (Join-Path $deviceRoot 'setup-status.txt') $code
+        $file = if ($Area -eq 'Book authorization') { 'authorization-summary.json' } else { 'device-setup.json' }
+        $details = $failure.Data['FeedXPermissionDetails']
+        $report = @{state='Failed';stage=$stage;code=$code;details=$details;finishedAt=[datetime]::UtcNow.ToString('o')}
+        Write-LocalTextAtomically (Join-Path $deviceRoot $file) ($report | ConvertTo-Json -Depth 6)
+        Refresh-Diagnostics
     } finally { $form.UseWaitCursor = $false }
 }
 $products = @(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
@@ -74,7 +84,7 @@ $date.Format = 'Short'
 $date.MinDate = [datetime]'2000-01-01'
 $date.MaxDate = [datetime]::Today
 $date.Value = [datetime]::Today.AddDays(-7)
-$null = Add-Label 220 '2. Generate a pairing code for this computer'
+$null = Add-Label 220 '2. Pair this computer. You can pair before book authorization is complete.'
 $pair = Add-Control ([Windows.Forms.Button]::new()) 20 248 185 32 'Generate pairing code'
 $codeBox = Add-Control ([Windows.Forms.TextBox]::new()) 220 251 185 28 ''
 $codeBox.AccessibleName = 'Pairing code'
@@ -108,13 +118,40 @@ function Get-DiagnosticHint([string]$Code) {
         '^DEVICE_NOT_PAIRED$|^STAGING_HTTP_401$' { return 'Check pairing and book binding in FeedX.' }
         '^STAGING_HTTPS_|^STAGING_HTTP_5' { return 'Check network access to FeedX Staging.' }
         '^STAGING_HTTP_4|^STAGING_RECEIPT_' { return 'Check the book binding in FeedX. Queued uploads are kept for retry.' }
+        '^READER_OTHER_DATABASE_ACCESS_OR_UNKNOWN$' { return 'Ask your SQL administrator to check for unintended reader access outside this book.' }
+        '^READER_DATABASE_INVENTORY_UNVERIFIED$' { return 'Ask your SQL administrator to verify database metadata visibility for this reader.' }
+        '^READER_PENDING_IDENTITY_MISMATCH$' { return 'Ask your SQL administrator to review the pending reader identity. The connector did not replace it.' }
+        '^READER_DISABLE_FAILED' { return 'Ask your SQL administrator to review and disable the pending reader before retrying.' }
+        '^SQL_ERROR_18456$' { return 'Ask your SQL administrator to check SQL authentication and reader sign-in.' }
         '^ACCOUNTING_SCOPE_EXCEEDS' { return 'The posting scope exceeds the connector limit. Contact FeedX support.' }
         '^SQL_|^READER_|^PROVISIONED_READER_|^BOOK_COMPANY_|^ACCOUNTING_' { return 'Ask your SQL administrator to review the authorized book and reader.' }
         default { return 'Retry when other connector work finishes. Contact FeedX support if this persists.' }
     }
 }
 function Refresh-Diagnostics {
-    $lines = @(foreach ($operation in @(@('Connection test','test-summary.json'),@('Sync','sync-summary.json'))) {
+    $lines = @()
+    $deviceSetup = Read-ConnectorReport (Join-Path $deviceRoot 'device-setup.json')
+    $lines += if ($deviceSetup) { "Device setup: $($deviceSetup.state) $($deviceSetup.code)" } else { 'Device setup: not tested' }
+    $authorization = Read-ConnectorReport (Join-Path $deviceRoot 'authorization-summary.json')
+    if ($authorization) {
+        $lines += "Book authorization: $($authorization.state) ($(Format-ConnectorTime $authorization.finishedAt))"
+        if ($authorization.code) {
+            $lines += "$($authorization.stage): $($authorization.code). $(Get-DiagnosticHint $authorization.code)"
+        }
+        if ($authorization.details) { $lines += ($authorization.details | ConvertTo-Json -Depth 6 -Compress) }
+    } else {
+        $legacy = Join-Path $deviceRoot 'setup-status.txt'
+        if (Test-Path -LiteralPath $legacy) {
+            $legacyCode = [IO.File]::ReadAllText($legacy).Trim()
+            if ($legacyCode -cmatch '^[A-Z][A-Z0-9_]{4,95}$') { $lines += "Previous setup: $legacyCode. $(Get-DiagnosticHint $legacyCode)" }
+        }
+    }
+    $testReport = Read-ConnectorReport (Join-Path $deviceRoot 'test-summary.json')
+    if ($testReport) {
+        $lines += if ($testReport.paired) { 'Device check-in: Paired' } else { 'Device check-in: Unverified' }
+        if ($testReport.catalogChecked) { $lines += "Cloud binding: $($testReport.bound) authorized and bound books" }
+    }
+    $lines += @(foreach ($operation in @(@('Connection test','test-summary.json'),@('Sync','sync-summary.json'))) {
         $result = Read-ConnectorReport (Join-Path $deviceRoot $operation[1])
         if (-not $result) { continue }
         $when = Format-ConnectorTime $result.finishedAt
@@ -125,7 +162,10 @@ function Refresh-Diagnostics {
     foreach ($folder in @(Get-ChildItem -LiteralPath $deviceRoot -Directory | Where-Object Name -cmatch '^[a-f0-9]{64}$')) {
         $book = Read-ConnectorReport (Join-Path $folder.FullName 'book.json')
         if ($book.database -cnotmatch '^[A-Z][A-Z0-9_]{0,63}$') { continue }
-        $lines += $book.database
+        $authorized = $book.authorized -ne $false -and (Test-Path -LiteralPath (Join-Path $folder.FullName 'reader.credential.xml'))
+        $authorizationLabel = if ($authorized) { 'Authorized on Windows' } else { 'Authorization Required' }
+        $lines += "$($book.database): $authorizationLabel"
+        if (-not $authorized) { continue }
         $checked = Read-ConnectorReport (Join-Path $folder.FullName 'connection-test.json')
         if ($checked) {
             $lines += "  Last test ($(Format-ConnectorTime $checked.finishedAt)): SQL $($checked.sqlConnection); FeedX $($checked.stagingConnection)."
@@ -173,16 +213,13 @@ $open.Add_Click({ Start-Process 'https://fnb-system-staging.vercel.app/finance/d
 $copyDiagnostics.Add_Click({ Run-UiAction { [Windows.Forms.Clipboard]::SetText($diagnostics.Text); $message.Text = 'Diagnostics copied.' } })
 $pair.Add_Click({
     Run-UiAction {
-        if (-not @(Get-AuthorizedLocalBooks).Count) {
-            $message.Text = 'Authorize an Account Book on this computer first.'
-            return
-        }
         $credential = Get-DeviceCredential -Create
         try {
             $pairing = Invoke-DeviceAction $credential @{p_action='issue';p_company=$env:COMPUTERNAME}
             if ($pairing.code -cnotmatch '^[A-F0-9]{16}$') { Stop-ReadPoc 'PAIRING_RESPONSE_INVALID' }
             $codeBox.Text = $pairing.code -replace '(.{4})(?=.)','$1-'
             $message.Text = "Computer: $env:COMPUTERNAME. Enter the code in FeedX, then use Test Connection to send authorized books."
+            Write-LocalTextAtomically (Join-Path $deviceRoot 'device-setup.json') '{"state":"Awaiting confirmation"}'
             Register-ConnectorSchedule
         } finally { $credential.Password.Dispose() }
     }
@@ -205,20 +242,17 @@ $authorize.Add_Click({
         $database = [string]$books.SelectedItem
         if (-not $database) { $message.Text = 'Select the Account Book database you want to authorize.'; return }
         if ([Windows.Forms.MessageBox]::Show($form,"Read the company identity of $database on $($instances.SelectedItem)?",'Review Account Book','YesNo','Question') -ne 'Yes') { return }
-        $book = Authorize-LocalBook $instances.SelectedItem $database {
+        $startDate = $date.Value.ToString('yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture)
+        $approved = Authorize-LocalBook $instances.SelectedItem $database $startDate {
             param($Company)
-            return [Windows.Forms.MessageBox]::Show($form,"Authorize FeedX to read $Company ($database)? This creates a reader for accounts in this book, journals, departments, projects and company identity. Confirm your SQL monitoring masks generated login passwords.",'Approve read-only access','YesNo','Warning') -eq 'Yes'
+            return [Windows.Forms.MessageBox]::Show($form,"Authorize FeedX to read $Company ($database)? This may create a reader for accounts in this book, journals, departments, projects and company identity. Confirm your SQL monitoring masks generated login passwords.",'Approve read-only access','YesNo','Warning') -eq 'Yes'
         }
-        if (-not $book) { return }
-        $path = Join-Path $book.root 'book.json'
-        $existing = Read-ConnectorReport $path
-        $book.bookId = $existing.bookId
-        $book.startDate = if ($existing) { $existing.startDate } else { $date.Value.ToString('yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture) }
-        $book.Remove('root')
-        Write-LocalTextAtomically $path ($book | ConvertTo-Json -Depth 4)
-        $message.Text = 'Book authorization saved on this computer. Generate a pairing code if needed. If already paired, use Test Connection to send the book to FeedX.'
+        if (-not $approved) { return }
+        $report = @{state='Authorized';finishedAt=[datetime]::UtcNow.ToString('o')}
+        Write-LocalTextAtomically (Join-Path $deviceRoot 'authorization-summary.json') ($report | ConvertTo-Json -Compress)
+        $message.Text = 'Book authorization saved. If already paired, use Test Connection to send the book to FeedX.'
         Refresh-Diagnostics
-    }
+    } 'Book authorization'
 })
 $test.Add_Click({ Run-UiAction { Start-ConnectorJob '-TestConnection' 'Connection test' } })
 $syncNow.Add_Click({ Run-UiAction { Start-ConnectorJob '-RunNow' 'Sync' } })
@@ -233,6 +267,7 @@ $form.Add_Shown({
                     $message.Text = 'Computer awaiting pairing confirmation. Generate a new code if needed.'
                     return
                 }
+                Write-LocalTextAtomically (Join-Path $deviceRoot 'device-setup.json') '{"state":"Paired"}'
                 Register-ConnectorSchedule
                 $message.Text = 'This computer is paired. Use Test Connection to check in and send any newly authorized books.'
             } finally { $credential.Password.Dispose() }

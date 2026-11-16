@@ -26,6 +26,7 @@ $pendingCredential = Join-Path $private 'staging.pending.credential.xml'
 $reportName = if ($InstalledBook -and $ConnectionTest) { 'connection-test.json' } else { 'status.json' }
 $reportPath = Join-Path $private $reportName
 $lock = [IO.File]::Open((Join-Path $private 'sync.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+$authorizationLock = $null
 $connection = $null
 $reader = $null
 $saveReader = $false
@@ -90,6 +91,10 @@ function Submit-Snapshot([string]$Dataset,[datetime]$Day) {
 try {
     $today = [TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([datetime]::UtcNow,'Singapore Standard Time').Date
     if ($InstalledBook) {
+        $authorizationLock = [IO.File]::Open((Join-Path $private 'authorization.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+        $localBook = [IO.File]::ReadAllText((Join-Path $private 'book.json')) | ConvertFrom-Json
+        if ($localBook.authorized -eq $false -or $localBook.bookId -cne $InstalledBook.bookId -or
+            $localBook.key -cne $InstalledBook.key) { Stop-ReadPoc 'BOOK_LOCAL_AUTHORIZATION_REQUIRED' }
         $cloud = Get-DeviceCredential
         if (-not $ConnectionTest) {
             if (-not (Test-Path -LiteralPath $configPath)) {
@@ -254,5 +259,8 @@ try {
         $status.pending = @(Get-ChildItem -LiteralPath $queue -File -Filter '*.json').Count
         Write-LocalTextAtomically $reportPath ($status | ConvertTo-Json -Depth 8)
         Write-Host ('Sync diagnostics: '+$reportPath)
-    } finally { $lock.Dispose() }
+    } finally {
+        if ($authorizationLock) { $authorizationLock.Dispose() }
+        $lock.Dispose()
+    }
 }

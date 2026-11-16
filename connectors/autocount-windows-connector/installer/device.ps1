@@ -49,12 +49,15 @@ function Invoke-DeviceAction($Credential,[hashtable]$Command) {
     return Invoke-DeviceApi $Credential 'finance_autocount_device' ($Command | ConvertTo-Json -Compress)
 }
 
-function Get-AuthorizedLocalBooks {
+function Get-LocalConnectorBooks {
     foreach ($folder in (Get-ChildItem -LiteralPath $deviceRoot -Directory | Where-Object Name -cmatch '^[a-f0-9]{64}$')) {
         $path = Join-Path $folder.FullName 'book.json'
-        if (-not (Test-Path -LiteralPath $path) -or -not (Test-Path -LiteralPath (Join-Path $folder.FullName 'reader.credential.xml'))) { continue }
+        if (-not (Test-Path -LiteralPath $path)) { continue }
         try { $book = [IO.File]::ReadAllText($path) | ConvertFrom-Json } catch { continue }
-        if ($book.key -ceq $folder.Name -and $book.database -cmatch '^[A-Z][A-Z0-9_]{0,63}$') { $book }
+        if ($book.key -cne $folder.Name -or $book.database -cnotmatch '^[A-Z][A-Z0-9_]{0,63}$') { continue }
+        $authorized = $book.authorized -ne $false -and (Test-Path -LiteralPath (Join-Path $folder.FullName 'reader.credential.xml'))
+        $book | Add-Member -NotePropertyName authorized -NotePropertyValue $authorized -Force
+        $book
     }
 }
 
@@ -102,9 +105,14 @@ FROM dbo.Profile p CROSS JOIN sys.databases d WHERE d.database_id=DB_ID()
 function Get-BookReaderPlan($Connection,$Identity,[string]$Database) {
     $inventoryVisible = Invoke-ReadQuery $Connection "SELECT HAS_PERMS_BY_NAME(NULL,NULL,'VIEW ANY DATABASE') AS allowed"
     if ($inventoryVisible.allowed -ne 1) { Stop-ReadPoc 'READER_DATABASE_INVENTORY_UNVERIFIED' }
-    $inventory = @(Invoke-ReadQuery $Connection "SELECT name,state_desc,user_access_desc FROM sys.databases WHERE database_id > 4 AND name <> @book" @{'@book'=$Database})
-    if (@($inventory | Where-Object { $_.state_desc -ne 'ONLINE' -or $_.user_access_desc -ne 'MULTI_USER' }).Count) {
-        Stop-ReadPoc 'OTHER_DATABASE_ACCESS_CANNOT_BE_VERIFIED'
+    # Offline databases cannot be opened. Recheck inventory before every extraction.
+    $inventory = @(Invoke-ReadQuery $Connection "SELECT name,state_desc,user_access_desc FROM sys.databases WHERE database_id > 4 AND state_desc <> 'OFFLINE' AND name <> @book" @{'@book'=$Database})
+    $unverified = @($inventory | Where-Object { $_.state_desc -ne 'ONLINE' -or $_.user_access_desc -ne 'MULTI_USER' })
+    if ($unverified.Count) {
+        Stop-ReadPermission 'OTHER_DATABASE_ACCESS_CANNOT_BE_VERIFIED' @{
+            unavailableCount=@($unverified | Where-Object state_desc -NE 'ONLINE').Count
+            restrictedCount=@($unverified | Where-Object user_access_desc -NE 'MULTI_USER').Count
+        }
     }
     $catalog = Get-ReadCatalog $Connection
     $plan = Get-AccountingReadPlan $catalog
@@ -115,68 +123,115 @@ function Get-BookReaderPlan($Connection,$Identity,[string]$Database) {
     return $plan
 }
 
-function Authorize-LocalBook([string]$Instance,[string]$Database,$Confirm) {
-    $admin = Open-LocalBook $Instance $Database
+function Authorize-LocalBook([string]$Instance,[string]$Database,[string]$StartDate,$Confirm) {
+    $admin = $null
+    $lock = $null
     $transaction = $null
     $reader = $null
-    $secret = $null
-    $created = $false
-    $stored = $false
-    $login = 'feedx_ro_'+[guid]::NewGuid().ToString('N')
-    $sid = '0x'+[guid]::NewGuid().ToString('N')
+    $credential = $null
+    $guardLogin = $false
+    $stage = 'Book identity'
     try {
+        $admin = Open-LocalBook $Instance $Database
         $identity = Assert-ReadIdentity $admin $Database (Get-InstanceIdentity $Instance)
         if ($identity.sysadmin -ne 1) { Stop-ReadPoc 'AUTHORIZED_WINDOWS_SYSADMIN_REQUIRED' }
         $company = Read-BookCompany $admin $Database
-        if (-not (& $Confirm $company.company)) { return $null }
-        $bookRoot = Join-Path $deviceRoot $company.key
-        $null = [IO.Directory]::CreateDirectory($bookRoot)
-        $readerPath = Join-Path $bookRoot 'reader.credential.xml'
-        $script:ProvisionedLogin = $login
-        if (Test-Path -LiteralPath $readerPath) {
-            $bookFile = Join-Path $bookRoot 'book.json'
-            if ((Test-Path -LiteralPath $bookFile) -and
-                (([IO.File]::ReadAllText($bookFile) | ConvertFrom-Json).instance -ine $Instance)) { Stop-ReadPoc 'BOOK_COMPANY_IDENTITY_CHANGED' }
-            $credential = Import-Clixml -LiteralPath $readerPath
-            $script:ProvisionedLogin = $credential.UserName
-        } else {
-            $mode = Invoke-ReadQuery $admin "SELECT CONVERT(int,SERVERPROPERTY('IsIntegratedSecurityOnly')) AS integratedOnly"
-            if ($mode.integratedOnly -ne 0) { Stop-ReadPoc 'SQL_AUTHENTICATION_NOT_ENABLED' }
-            $plan = Get-AccountingReadPlan (Get-ReadCatalog $admin)
-            $secret = New-ReaderSecret
-            $credential = [pscredential]::new($login,$secret)
-            $transaction = $admin.BeginTransaction()
-            $quoted = Quote-ReadIdentifier $login
-            $target = Quote-ReadIdentifier $Database
-            $ddl = "CREATE LOGIN $quoted WITH PASSWORD = <generated secret>, SID = $sid, DEFAULT_DATABASE = $target, CHECK_POLICY = ON, CHECK_EXPIRATION = OFF;"
-            Invoke-ReaderSecurityCommand $admin $transaction $ddl $secret
-            Invoke-ReaderSecurityCommand $admin $transaction "CREATE USER $quoted FOR LOGIN $quoted; GRANT CONNECT TO $quoted;" $null
-            foreach ($entry in $plan.Values) {
-                Invoke-ReaderSecurityCommand $admin $transaction "GRANT SELECT ON OBJECT::$($entry.table.name) TO $quoted;" $null
-            }
-            Invoke-ReaderSecurityCommand $admin $transaction "GRANT SELECT ON OBJECT::[dbo].[Profile] ([CompanyName], [Guid]) TO $quoted;" $null
-            $transaction.Commit()
-            $created = $true
+        if (-not (& $Confirm $company.company)) { return $false }
+
+        $root = Get-RunLocalPath $company.key -BaseDirectory $deviceRoot
+        $null = [IO.Directory]::CreateDirectory($root)
+        $lock = [IO.File]::Open((Join-Path $root 'authorization.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+        $bookPath = Join-Path $root 'book.json'
+        $readerPath = Join-Path $root 'reader.credential.xml'
+        $pendingPath = Join-Path $root 'reader.pending.credential.xml'
+        $book = [pscustomobject]@{key=$company.key;company=$company.company;instance=$Instance;database=$Database;startDate=$StartDate;bookId=$null;authorized=$false}
+        if (Test-Path -LiteralPath $bookPath) {
+            $previous = [IO.File]::ReadAllText($bookPath) | ConvertFrom-Json
+            if ($previous.instance -ine $Instance) { Stop-ReadPoc 'BOOK_COMPANY_IDENTITY_CHANGED' }
+            $book.startDate = $previous.startDate
+            $book.bookId = $previous.bookId
         }
+        Write-LocalTextAtomically $bookPath ($book | ConvertTo-Json -Depth 4)
+
+        $stage = 'SQL reader provisioning'
+        if (Test-Path -LiteralPath $readerPath) {
+            $credential = Import-Clixml -LiteralPath $readerPath
+        } else {
+            if (Test-Path -LiteralPath $pendingPath) {
+                $credential = Import-Clixml -LiteralPath $pendingPath
+            } else {
+                $login = 'feedx_ro_'+[guid]::NewGuid().ToString('N')
+                $credential = [pscredential]::new($login,(New-ReaderSecret))
+                Save-ConnectorCredential $pendingPath $credential
+            }
+            $login = $credential.UserName
+            if ($login -cnotmatch '^feedx_ro_[a-f0-9]{32}$') { Stop-ReadPoc 'READER_CREDENTIAL_PRINCIPAL_MISMATCH' }
+            $sid = '0x'+$login.Substring(9)
+            $quoted = Quote-ReadIdentifier $login
+            $existing = Invoke-ReadQuery $admin @'
+SELECT SUSER_ID(@login) AS loginId, USER_ID(@login) AS userId,
+       CONVERT(varchar(34),SUSER_SID(@login),1) AS loginSid,
+       (SELECT CONVERT(varchar(34),sid,1) FROM sys.database_principals WHERE name=@login) AS userSid,
+       (SELECT is_disabled FROM sys.sql_logins WHERE name=@login) AS disabled
+'@ @{'@login'=$login}
+            if ($existing.loginId -or $existing.userId) {
+                if ($existing.loginSid -ine $sid -or $existing.userSid -ine $sid) { Stop-ReadPoc 'READER_PENDING_IDENTITY_MISMATCH' }
+                if ($existing.disabled) { Invoke-ReaderSecurityCommand $admin $null "ALTER LOGIN $quoted ENABLE;" $null }
+                $guardLogin = $true
+            } else {
+                $mode = Invoke-ReadQuery $admin "SELECT CONVERT(int,SERVERPROPERTY('IsIntegratedSecurityOnly')) AS integratedOnly"
+                if ($mode.integratedOnly -ne 0) { Stop-ReadPoc 'SQL_AUTHENTICATION_NOT_ENABLED' }
+                $plan = Get-AccountingReadPlan (Get-ReadCatalog $admin)
+                $transaction = $admin.BeginTransaction()
+                $target = Quote-ReadIdentifier $Database
+                $ddl = "CREATE LOGIN $quoted WITH PASSWORD = <generated secret>, SID = $sid, DEFAULT_DATABASE = $target, CHECK_POLICY = ON, CHECK_EXPIRATION = OFF;"
+                Invoke-ReaderSecurityCommand $admin $transaction $ddl $credential.Password
+                Invoke-ReaderSecurityCommand $admin $transaction "CREATE USER $quoted FOR LOGIN $quoted; GRANT CONNECT TO $quoted;" $null
+                foreach ($entry in $plan.Values) {
+                    Invoke-ReaderSecurityCommand $admin $transaction "GRANT SELECT ON OBJECT::$($entry.table.name) TO $quoted;" $null
+                }
+                Invoke-ReaderSecurityCommand $admin $transaction "GRANT SELECT ON OBJECT::[dbo].[Profile] ([CompanyName], [Guid]) TO $quoted;" $null
+                $transaction.Commit()
+                $guardLogin = $true
+            }
+        }
+        $stage = 'SQL reader sign-in'
+        if ($credential -isnot [Management.Automation.PSCredential] -or $credential.UserName -cnotmatch '^feedx_ro_[a-f0-9]{32}$') {
+            Stop-ReadPoc 'READER_CREDENTIAL_PRINCIPAL_MISMATCH'
+        }
+        $script:ProvisionedLogin = $credential.UserName
         $reader = Open-LocalBook $Instance $Database $credential
         $identity = Assert-ReadIdentity $reader $Database (Get-InstanceIdentity $Instance)
+        $stage = 'SQL reader permissions'
         $null = Get-BookReaderPlan $reader $identity $Database
         $confirmed = Read-BookCompany $reader $Database
         if ($confirmed.key -cne $company.key) { Stop-ReadPoc 'BOOK_COMPANY_IDENTITY_CHANGED' }
-        if ($created) { Save-ConnectorCredential $readerPath $credential }
-        $stored = $true
-        return @{root=$bookRoot;key=$company.key;company=$company.company;instance=$Instance;database=$Database}
-    } catch {
-        if ($created -and -not $stored) {
-            if ($reader) { $reader.Dispose(); $reader = $null }
-            try { Invoke-ReaderSecurityCommand $admin $null "IF SUSER_SID('$login')=$sid ALTER LOGIN [$login] DISABLE;" $null }
-            catch { Stop-ReadPoc 'READER_DISABLE_FAILED_ADMIN_ACTION_REQUIRED' }
+        $stage = 'Save book authorization'
+        if ($guardLogin) {
+            [IO.File]::Move($pendingPath,$readerPath)
+            $guardLogin = $false
         }
+        $book.authorized = $true
+        Write-LocalTextAtomically $bookPath ($book | ConvertTo-Json -Depth 4)
+        return $true
+    } catch {
+        $original = $_.Exception
+        if ($guardLogin) {
+            if ($reader) { $reader.Dispose(); $reader = $null }
+            try { Invoke-ReaderSecurityCommand $admin $null "IF SUSER_SID('$login')=$sid ALTER LOGIN $quoted DISABLE;" $null }
+            catch {
+                $failure = [InvalidOperationException]::new('READER_DISABLE_FAILED_ADMIN_ACTION_REQUIRED',$original)
+                $failure.Data['FeedXStage'] = $stage
+                throw $failure
+            }
+        }
+        $original.Data['FeedXStage'] = $stage
         throw
     } finally {
         if ($transaction) { $transaction.Dispose() }
         if ($reader) { $reader.Dispose() }
-        $admin.Dispose()
-        if ($secret) { $secret.Dispose() }
+        if ($admin) { $admin.Dispose() }
+        if ($credential -is [Management.Automation.PSCredential]) { $credential.Password.Dispose() }
+        if ($lock) { $lock.Dispose() }
     }
 }

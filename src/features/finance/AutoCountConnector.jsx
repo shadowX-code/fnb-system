@@ -58,7 +58,7 @@ export function AutoCountDevices({ state, onAction, timestamp }) {
       <StatusBadge status={device.active ? 'info' : 'neutral'}>{device.active ? 'Paired' : 'Revoked'}</StatusBadge>
     </div>
     <p className="finance-source-note">SQL sync and native report support are assessed independently. Native Trial Balance, P&amp;L and Balance Sheet are unverified.</p>
-    {!device.books.length && <p className="finance-source-note">Authorized books appear after the Windows Connector checks in. Use Test Connection in Windows to check in now.</p>}
+    {!device.books.length && <p className="finance-source-note">Authorization Required. Books appear after the Windows Connector checks in. Use Test Connection in Windows to check in now.</p>}
     {device.books.length > 0 && <ul className="divide-y divide-border">
       {device.books.map((book) => {
         const entry = state.connections.find((item) => item.connection.id === book.connectionId);
@@ -66,7 +66,7 @@ export function AutoCountDevices({ state, onAction, timestamp }) {
         return <li key={book.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div>
             <p className="type-body-sm font-semibold">{book.company}</p>
-            <p className="type-caption text-text-secondary">{book.name} · {book.ready ? entry ? entry.legalEntityLabel : 'Ready to connect' : 'Authorize on Windows'}</p>
+            <p className="type-caption text-text-secondary">{book.name} · {book.ready ? entry ? entry.legalEntityLabel : 'Ready to connect' : 'Authorization Required'}</p>
           </div>
           {canBind && <button className="btn-secondary" type="button" onClick={() => onAction('bind', entry, { book })}>{entry ? 'Reconnect book' : 'Connect book'}</button>}
         </li>;
@@ -129,7 +129,7 @@ export function AutoCountActionModal({ action, entry, book, device, entities, on
       {pairingMode && !device && <SelectField label="Provider" value={provider} onChange={setProvider} disabled={busy}
         options={[{ value: 'autocount', label: 'AutoCount Desktop' }]} placeholder="Select provider" required />}
       {pairingMode && (provider || device) && <>
-        <p>Install the Windows Connector and authorize the Account Books you want to connect. Generate a pairing code in Windows and enter it here.</p>
+        <p>Install the Windows Connector. Generate a pairing code in Windows and enter it here. You can authorize books before or after pairing.</p>
         <div><a className="btn-secondary" href={windowsInstaller} download>Download Windows Connector</a></div>
         {device && <p>Confirming the replacement revokes the previous computer. The existing book bindings and history stay in FeedX.</p>}
         <label className="grid gap-2">Pairing code
