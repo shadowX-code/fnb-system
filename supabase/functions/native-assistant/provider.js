@@ -16,7 +16,7 @@ export function connection(config,get){
 export function publicRuntime(config,get){
  const {ready,blocker,authorizedModels}=connection(config,get);
  return {runtime_available:true,connection_ready:ready,ready:ready&&config.enabled,blocker:blocker||(!config.enabled?'assistant_disabled':null),model:config.model,
-  providers:[{value:'openai',label:'OpenAI',models,authorized_models:authorizedModels}],credential_ref:'native-assistant-openai',stt:false,tts:false,tools:!!config.factory_reads_enabled,
+  providers:[{value:'openai',label:'OpenAI',models,authorized_models:authorizedModels}],credential_ref:'native-assistant-openai',stt:false,tts:false,tools:Object.values(config.capability_connections||{}).some(value=>value===true),
   limits:{context_turns:6,context_tokens_estimated:8000,output_tokens:500,timeout_seconds:35,requests_per_minute:12,requests_per_day:100}};
 }
 

@@ -22,7 +22,7 @@ test('OpenAI conversation startup rejects the retired custom transport', async (
 test('Grok receives a separate credential and returns only ephemeral authorization', async () => {
  const {connection_protocol,...grokBase}=request;const grok = { ...grokBase, action:'realtime_connect', provider:'grok', voice:'eve' };
  const result = await dispatch(grok, {
-  rpc: async () => ({ config: { enabled:true, factory_reads_enabled:true }, can_edit:true }),
+  rpc: async () => ({ config: { enabled:true, capability_connections:{read_factory_finished_goods:true} }, can_edit:true }),
   get: key => ({
    NATIVE_ASSISTANT_GROK_API_KEY:'fixture-long-lived',
    NATIVE_ASSISTANT_GROK_APPROVED_USE:'native-assistant-staging-realtime-evaluation',
@@ -44,7 +44,7 @@ test('Grok receives a separate credential and returns only ephemeral authorizati
 test('Realtime inventory requires canonical permission and a charged reservation', async () => {
  const { voice, connection_protocol, ...base } = request;
  const tool = { ...base, action:'realtime_tool', arguments:{ query:'Sauce', availability:'low' } };
- const ctx = { rpc:async()=>({config:{enabled:true,factory_reads_enabled:true},can_edit:true}), get:key=>approved[key], reserveRealtime:fail, readFactory:fail };
+ const ctx = { rpc:async()=>({config:{enabled:true,capability_connections:{read_factory_finished_goods:true}},can_edit:true}), get:key=>approved[key], reserveRealtime:fail, readFactory:fail };
  await assert.rejects(dispatch(tool,ctx),{code:'factory_read_denied'});
  await assert.rejects(dispatch(tool,{...ctx,access:{factory:true},reserveRealtime:async()=>{throw Error('lease denied');}}),/lease denied/);
  const result = await dispatch(tool,{...ctx,access:{factory:true},

@@ -1253,3 +1253,7 @@ Verification/delivery evidence belongs in the scoped acceptance record.
 ## 2026-11-16 · Native Assistant module-operation reconciliation
 
 Factory Finished Goods READ moved to a Factory-owned server contract; Text/Voice/settings reads share one dispatcher and AI Integrations consumes its capability projection joined to canonical module metadata. Historical Voice alias, private history/memory, lease/accounting contracts and independent MCP/Grok authorities remain. The unused OpenAI client-secret baseline was removed; ACTION remains non-callable pending separate AI-execution authorization and exact-intent confirmation. See `docs/audits/native-assistant-architecture-reconciliation-20261116.md` and `docs/architecture/trusted-authorities.md`.
+
+
+### 2026-11-16 — Native Assistant capability management
+Complete canonical Workspace/Domain/Module inventory now uses the shared management table and drawer. Per-capability persisted connection configuration replaces the Factory-only feature intent; the shared Text/Voice/Test dispatcher rechecks connection state before executing existing module-authorized reads. No new adapter, ACTION executor or human grant is introduced. See platform and trusted-authorities docs.

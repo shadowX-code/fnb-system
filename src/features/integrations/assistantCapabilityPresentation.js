@@ -1,25 +1,32 @@
-import {moduleRegistry,moduleWorkspace,workspaceLabels} from '../../../config/modules.ts';
+import {moduleRegistry,moduleWorkspace,workspaceLabels,moduleSectionOrder} from '../../../config/modules.ts';
 import {assistantKnowledgeSources} from './assistantKnowledgeSources.js';
 
-export const capabilityStatuses={connected:'Connected',disabled:'Disabled',denied:'Access denied',partial:'Partial access',unavailable:'Not connected'};
-export const capabilityResourceTypes={registered:'Registered capability',source:'Source only'};
-// Pure presentation join; neither registers operations nor grants access.
-export function capabilityResources(capabilities=[]){
- const resources=[];
- for(const module of moduleRegistry){
+export const capabilityStatuses={connected:'Connected',disabled:'Disconnected',denied:'Access denied',partial:'Partial access',source:'Source only',unsupported:'Not implemented',unavailable:'Unavailable'};
+// Complete canonical inventory projection. No discovery entry grants execution.
+export function capabilityInventory(capabilities=[]){
+ return moduleRegistry.map(module=>{
   const operations=capabilities.filter(operation=>operation.module_id===module.id);
-  if(!operations.length)continue;
+  const sources=assistantKnowledgeSources.filter(source=>source.module_ids.includes(module.id));
+  const workspace=moduleWorkspace(module),domain=module.section;
   const states=[...new Set(operations.map(operation=>Object.hasOwn(capabilityStatuses,operation.availability)?operation.availability:'unavailable'))];
-  const domain=moduleWorkspace(module);
-  resources.push({id:module.id,label:module.label,domain,domainLabel:workspaceLabels[domain],type:'registered',modules:[module],operations,sources:[],status:states.length===1?states[0]:'partial'});
- }
- for(const source of assistantKnowledgeSources){
-  const modules=moduleRegistry.filter(module=>source.module_ids.includes(module.id));
-  for(const domain of new Set(modules.map(moduleWorkspace)))resources.push({id:`source:${source.module_ids.join(':')}:${domain}`,label:source.name,domain,domainLabel:workspaceLabels[domain],type:'source',modules:modules.filter(module=>moduleWorkspace(module)===domain),operations:[],sources:[source],status:'unavailable'});
- }
- return resources.sort((a,b)=>Number(a.type==='source')-Number(b.type==='source')||a.domainLabel.localeCompare(b.domainLabel)||a.label.localeCompare(b.label));
+  return {id:module.id,label:module.label,module,workspace,workspaceLabel:workspaceLabels[workspace],domain,domainKey:`${workspace}:${domain}`,operations,sources,status:states.length===1?states[0]:states.length?'partial':sources.length?'source':'unsupported'};
+ }).sort((a,b)=>Object.keys(workspaceLabels).indexOf(a.workspace)-Object.keys(workspaceLabels).indexOf(b.workspace)||(moduleSectionOrder.includes(a.domain)?moduleSectionOrder.indexOf(a.domain):999)-(moduleSectionOrder.includes(b.domain)?moduleSectionOrder.indexOf(b.domain):999)||a.label.localeCompare(b.label));
 }
-export function filterCapabilityResources(resources,{query='',domain='all',type='all',status='all'}){
+export function filterCapabilityInventory(rows,{query='',workspace='all',domain='all',status='all'}={}){
  const term=query.trim().toLocaleLowerCase();
- return resources.filter(resource=>(domain==='all'||resource.domain===domain)&&(type==='all'||resource.type===type)&&(status==='all'||resource.status===status)&&(!term||[resource.label,resource.domainLabel,...resource.modules.map(module=>module.label),...resource.operations.map(operation=>operation.label)].join(' ').toLocaleLowerCase().includes(term)));
+ return rows.filter(row=>(workspace==='all'||row.workspace===workspace)&&(domain==='all'||row.domainKey===domain)&&(status==='all'||row.status===status)&&(!term||[row.label,row.id,row.workspaceLabel,row.domain,...row.operations.map(operation=>operation.label),...row.sources.map(source=>source.name)].join(' ').toLocaleLowerCase().includes(term)));
+}
+export function capabilityTableRows(inventory,collapsed=new Set()){
+ const result=[];
+ for(const workspace of new Set(inventory.map(row=>row.workspace))){
+  const modules=inventory.filter(row=>row.workspace===workspace),id=`workspace:${workspace}`;
+  result.push({id,group:'workspace',label:modules[0].workspaceLabel,count:modules.length});
+  if(collapsed.has(id))continue;
+  for(const domainKey of new Set(modules.map(row=>row.domainKey))){
+   const children=modules.filter(row=>row.domainKey===domainKey),key=`domain:${domainKey}`;
+   result.push({id:key,group:'domain',label:children[0].domain,count:children.length});
+   if(!collapsed.has(key))result.push(...children);
+  }
+ }
+ return result;
 }

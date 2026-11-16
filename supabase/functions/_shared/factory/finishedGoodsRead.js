@@ -41,6 +41,6 @@ export const finishedGoodsRead = Object.freeze({
  label:'Factory Finished Goods', permission:'factory_finished_goods.view',
  scope:'Factory shared catalogue · current Admin permissions',
  tool:inventoryTool, validate:inventoryArguments, execute:readInventory,
- enabled:config=>!!config.factory_reads_enabled, authorized:access=>!!access.factory, deniedCode:'factory_read_denied',
+ testArguments:{query:'',availability:'all'}, authorized:access=>!!access.factory, deniedCode:'factory_read_denied',
  format:evidence=>evidence.availability==='low'?lowStockSummary(evidence):null,
 });

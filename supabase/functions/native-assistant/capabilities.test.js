@@ -1,7 +1,7 @@
 import {createBusinessDispatcher} from './business.js';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {generateText as generateProviderText} from './provider.js';import {inventoryArguments,callerAccess,readInventory} from '../_shared/factory/finishedGoodsRead.js';import {validateBody,dispatch} from './handler.js';
-const generateText=(claim,key,{readTool,...options}={})=>generateProviderText(claim,key,{...options,business:createBusinessDispatcher({readFactory:readTool,config:{factory_reads_enabled:!!readTool},access:{factory:true}})});
+const generateText=(claim,key,{readTool,...options}={})=>generateProviderText(claim,key,{...options,business:createBusinessDispatcher({readFactory:readTool,config:{capability_connections:{read_factory_finished_goods:!!readTool}},access:{factory:true}})});
 const response=data=>new Response(JSON.stringify(data));
 const claim={kind:'turn',model:'gpt-4o-mini',prompt:'Check Finished Goods',context:[]};
 test('real transport contract routes one fixed tool, carries authoritative evidence and sums both usages (fixture)',async()=>{

@@ -46,3 +46,8 @@ it('exposes native keyboard sort controls, direction and right-aligned numeric h
  expect(header.getAttribute('aria-sort')).toBe('descending');expect(button.type).toBe('button');expect(button.getAttribute('aria-label')).toBe('Sort by Spend, ascending');
  fireEvent.click(button);expect(sort).toHaveBeenCalledOnce();expect([...container.querySelectorAll('td')].map(e=>e.textContent)).toEqual(['9','100']);
 });
+
+it('renders hierarchical groups in one shared table without module cells or nested tables',()=>{
+ const {container}=render(<DataTable mobileLayout="compact" rows={[{id:'w',group:true},{id:'m',name:'Module'}]} getRowKey={r=>r.id} columns={[{key:'name',header:'Module'},{key:'state',header:'Status'}]} renderGroupRow={row=>row.group?{level:'workspace',content:<button aria-expanded="true">Workspace</button>}:null}/>);
+ expect(container.querySelectorAll('table')).toHaveLength(1);expect(container.querySelector('.admin-table-group th').colSpan).toBe(2);expect(container.querySelectorAll('tbody td')).toHaveLength(2);expect(container.querySelector('table').dataset.mobileLayout).toBe('compact');
+});

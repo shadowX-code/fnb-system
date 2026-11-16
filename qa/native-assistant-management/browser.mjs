@@ -1,6 +1,6 @@
 import {chromium} from '@playwright/test';
 import {mkdir,writeFile} from 'node:fs/promises';
-const output='/tmp/feedx-ai-capability-domains';await mkdir(output,{recursive:true});
+const output='/tmp/feedx-ai-capability-table';await mkdir(output,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:'chrome'});
 const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const findings=[];
@@ -10,44 +10,41 @@ for(const width of [1440,1040,400]){
  for(const section of ['Overview','AI Capabilities','Voice & Usage']){
   await page.getByRole('tab',{name:section,exact:true}).click();
   if(section==='AI Capabilities'){
-   for(const owner of ['Factory','Crew','HR','Marketing'])await page.locator(`details[aria-label="${owner} domain"]`).waitFor();
-   if(await page.getByRole('button',{name:'Test Finished Goods read'}).count())throw new Error('Standalone legacy controls remain');
-   await page.getByRole('button',{name:'View Finished Goods details'}).click();
-   await page.getByRole('region',{name:'Finished Goods details'}).getByRole('button',{name:'Test Finished Goods read'}).waitFor();
-   await page.screenshot({path:`${output}/${width}-factory-detail.png`,fullPage:true});
-   await page.getByRole('button',{name:'View Production SOP & QC details'}).click();
-   if(await page.getByRole('button',{name:'Test Finished Goods read'}).count())throw new Error('Multiple resource details remained open');
-   await page.screenshot({path:`${output}/${width}-source-detail.png`,fullPage:true});
-   await page.getByRole('button',{name:'Hide Production SOP & QC details'}).click();
-   await page.getByRole('button',{name:'Domain',exact:true}).click();await page.getByRole('option',{name:'Factory',exact:true}).click();
-   await page.getByText('2 of 5 resources', {exact:false}).waitFor();
-   await page.getByRole('button',{name:'Resource type',exact:true}).click();await page.getByRole('option',{name:'Source only',exact:true}).click();
-   await page.getByText('1 of 5 resources', {exact:false}).waitFor();
-   await page.getByRole('button',{name:'Connection',exact:true}).click();await page.getByRole('option',{name:'Connected',exact:true}).click();
-   await page.getByText('No resources match these filters.',{exact:false}).waitFor();
+   await page.getByRole('button',{name:'Collapse all',exact:true}).click();
+   for(const owner of ['Restaurant','Factory','Crew','HR','Marketing','Finance','Guest AI'])await page.getByRole('button',{name:new RegExp('^'+owner+'[0-9 ]')}).waitFor();
+   await page.getByRole('button',{name:'Workspace',exact:true}).click();await page.getByRole('option',{name:'Factory',exact:true}).click();
+   await page.getByRole('button',{name:'Expand all',exact:true}).click();
+   await page.getByRole('button',{name:'Manage Finished Goods',exact:true}).click();
+   const drawer=page.getByRole('dialog',{name:'Finished Goods',exact:true});
+   await drawer.getByRole('button',{name:'Test read',exact:true}).waitFor();
+   await page.screenshot({path:`${output}/${width}-factory-detail.png`,fullPage:false});
+   await page.keyboard.press('Escape');if(await page.getByRole('dialog').count())throw new Error('Drawer escape failed');
+   await page.getByRole('searchbox',{name:'Search modules'}).fill('finished goods');
+   const dimensions=await page.evaluate(()=>({viewport:innerWidth,scroll:document.documentElement.scrollWidth}));
+   if(dimensions.scroll>width)throw new Error('Module overflow');
+   await page.screenshot({path:`${output}/${width}-filtered.png`,fullPage:false});
+   await page.getByRole('button',{name:'Connection',exact:true}).click();await page.getByRole('option',{name:'Source only',exact:true}).click();
+   await page.getByText('No modules match these filters.').waitFor();
    await page.getByRole('button',{name:'Clear all'}).click();
-   await page.getByRole('searchbox',{name:'Search resources'}).fill('contract');await page.getByText('1 of 5 resources',{exact:false}).waitFor();
-   await page.getByRole('button',{name:'Clear all'}).click();
-   const owner=page.locator('details[aria-label="Factory domain"]');await owner.locator('summary').focus();await page.keyboard.press('Enter');
-   if(await owner.getAttribute('open')!==null)throw new Error('Keyboard domain collapse failed');
-   await page.keyboard.press('Enter');await page.getByRole('heading',{name:'AI Integrations',exact:true}).click();
+   await page.getByRole('button',{name:'Workspace',exact:true}).click();await page.getByRole('option',{name:'Factory',exact:true}).click();
+
   }
   if(section==='Voice & Usage')await page.getByText('2 of 2 sessions').waitFor();
   const dimensions=await page.evaluate(()=>({viewport:innerWidth,scroll:document.documentElement.scrollWidth}));
   if(dimensions.scroll>width+1)throw new Error(`Overflow ${width} ${section}: ${dimensions.scroll}`);
-  await page.screenshot({path:`${output}/${width}-${section.replaceAll(/[^a-z]/gi,'-')}.png`,fullPage:true});
+  await page.screenshot({path:`${output}/${width}-${section.replaceAll(/[^a-z]/gi,'-')}.png`,fullPage:false});
   findings.push({width,section,...dimensions});
  }
  await page.getByRole('button',{name:'Edit policy'}).click();
  await page.getByRole('spinbutton',{name:'Maximum session (seconds)'}).fill('120');
- await page.screenshot({path:`${output}/${width}-policy-edit.png`,fullPage:true});
+ await page.screenshot({path:`${output}/${width}-policy-edit.png`,fullPage:false});
  await page.getByRole('button',{name:'Cancel',exact:true}).click();
  if(await page.getByRole('spinbutton').count())throw new Error('Cancel did not restore View mode');
  await page.getByRole('button',{name:'Status',exact:true}).click();
  await page.getByRole('option',{name:'Failed',exact:true}).click();
  await page.getByText('1 of 2 sessions').waitFor();
  await page.getByRole('button',{name:'Provider',exact:true}).click();
- await page.screenshot({path:`${output}/${width}-branded-menu.png`,fullPage:true});
+ await page.screenshot({path:`${output}/${width}-branded-menu.png`,fullPage:false});
  await page.keyboard.press('Escape');
  if(await page.getByRole('listbox').count())throw new Error('Escape did not dismiss menu');
  await page.getByRole('button',{name:'Clear all'}).click();await page.getByText('2 of 2 sessions').waitFor();

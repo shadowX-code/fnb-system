@@ -9,7 +9,7 @@ export function shouldIgnoreRowClick(event) {
     return Boolean(control && control !== event.currentTarget);
   }
 
-export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, renderExpandedRow, density = "normal", columnSpacing = "normal", tableClassName = "", minWidth = 880, mobileLayout = "scroll" }) {
+export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, renderExpandedRow, renderGroupRow, density = "normal", columnSpacing = "normal", tableClassName = "", minWidth = 880, mobileLayout = "scroll" }) {
 
 
   return (
@@ -36,6 +36,8 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
         </thead>
         <tbody className="table-body divide-y divide-border">
           {rows.map((row, index) => {
+            const group = renderGroupRow?.(row, index);
+            if (group) return <tr key={getRowKey(row,index)} className={`admin-table-group admin-table-group--${group.level || 'domain'}`}><th colSpan={columns.length} scope="rowgroup">{group.content}</th></tr>;
             const rowProps = getRowProps ? getRowProps(row, index) : {};
             const rowClassName = rowProps.className ?? "";
             const rawRowOnClick = rowProps.onClick ?? (onRowClick ? () => onRowClick(row, index) : undefined);

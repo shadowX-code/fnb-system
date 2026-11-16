@@ -1,77 +1,51 @@
-import {useState} from 'react';
+import {useMemo,useState} from 'react';
 import {ChevronRight} from 'lucide-react';
-import {moduleRegistry,getPermissionDefinitions} from '../../../config/modules.ts';
+import {moduleRegistry,getPermissionDefinitions,workspaceLabels} from '../../../config/modules.ts';
 import Badge from '../../components/ui/Badge.jsx';
+import Drawer from '../../components/ui/Drawer.jsx';
+import DataTable from '../../components/tables/DataTable.jsx';
 import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
 import AdminSearchField from '../../components/forms/AdminSearchField.jsx';
 import SelectField from '../../components/forms/SelectField.jsx';
-import {capabilityResources,filterCapabilityResources,capabilityStatuses,capabilityResourceTypes} from './assistantCapabilityPresentation.js';
+import {capabilityInventory,filterCapabilityInventory,capabilityTableRows,capabilityStatuses} from './assistantCapabilityPresentation.js';
 
 const permissionLabels=new Map(getPermissionDefinitions().map(permission=>[permission.code,permission.description]));
 const tone=status=>status==='connected'?'success':['denied','partial'].includes(status)?'warning':'neutral';
-
-function ResourceDetail({resource,data,canEdit,busy,onFeature}){
- return <section id={`resource-${resource.id}`} aria-label={`${resource.label} details`} className="space-y-3 bg-background-secondary px-3 py-4 sm:px-4">
-  <p className="text-xs text-text-secondary">Owning {resource.modules.length===1?'module':'modules'}: {resource.modules.map(module=>module.label).join(' · ')}</p>
-  {resource.operations.map(operation=><div key={operation.id} className="space-y-3">
-   <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-text-secondary">{operation.kind}</span><h4 className="text-sm font-medium">{operation.label}</h4><Badge tone={tone(operation.availability)}>{capabilityStatuses[operation.availability]||'Not connected'}</Badge></div>
-   <dl className="grid gap-3 text-xs sm:grid-cols-2">
-    <div><dt className="font-medium">Scope</dt><dd className="mt-1 text-text-secondary">{operation.scope||'Scope not supplied.'}</dd></div>
-    <div><dt className="font-medium">Human authorization</dt><dd className="mt-1 text-text-secondary">{permissionLabels.get(operation.permission)||operation.permission||'Requirement not supplied.'} {operation.availability==='connected'?'Current user verified by server.':operation.availability==='denied'?'Current user is not authorized.':'Not evaluated while unavailable.'}</dd></div>
-    {operation.kind==='ACTION'&&<div><dt className="font-medium">AI authorization &amp; confirmation</dt><dd className="mt-1 text-text-secondary">No executable ACTION policy is supplied by the current Native Assistant contract.</dd></div>}
-   </dl>
-   {operation.id==='read_factory_finished_goods'&&operation.kind==='READ'&&<div className="space-y-2 border-t border-border pt-3">
-    <h4 className="text-xs font-semibold">Configuration</h4>
-    <div className="flex flex-wrap items-center gap-3"><label className="inline-flex min-h-10 items-center gap-2 text-sm"><input className="admin-checkbox" type="checkbox" checked={!!data.config.factory_reads_enabled} disabled={!canEdit||busy} onChange={event=>void onFeature('features',{expected_revision:data.config.revision,factory_reads_enabled:event.target.checked})}/> Enable Finished Goods reader</label><button type="button" className="btn-secondary" disabled={!canEdit||busy} onClick={()=>void onFeature('tool_test')}>Test Finished Goods read</button></div>
-    <p className="text-xs text-text-secondary">Enablement grants no module access. The test independently checks your existing human permission.</p>
-   </div>}
-  </div>)}
-  {resource.sources.map(source=><dl key={source.name} className="grid gap-3 text-xs sm:grid-cols-2">
-   <div className="sm:col-span-2"><dt className="font-medium">Missing integration</dt><dd className="mt-1 text-text-secondary">{source.readiness} A source-specific, authorized retrieval contract is required. No callable READ or ACTION is registered for this source.</dd></div>
-   <div><dt className="font-medium">Human authorization</dt><dd className="mt-1 text-text-secondary">{source.access}</dd></div>
-   <div><dt className="font-medium">Version &amp; freshness</dt><dd className="mt-1 text-text-secondary">{source.version} Current document freshness is not checked here.</dd></div>
-  </dl>)}
- </section>;
+function ModuleDetail({row,data,canEdit,busy,onFeature,onClose}){
+ const [feedback,setFeedback]=useState(''),[failed,setFailed]=useState(false);
+ async function act(action,values){setFeedback('');setFailed(false);const result=await onFeature(action,values);if(result?.error){setFailed(true);setFeedback(result.error);return;}if(result)setFeedback(action==='capability_connection'?'Connection saved.':`Read verified · ${result.total_matching} matching products · ${result.as_of}`);}
+ return <Drawer title={row.label} eyebrow={`${row.workspaceLabel} / ${row.domain}`} width="md" onClose={onClose}>
+  <div className="space-y-5">
+   <div className="flex flex-wrap items-center gap-2"><Badge tone={tone(row.status)}>{capabilityStatuses[row.status]}</Badge><span className="text-xs text-text-secondary">Connection never grants human permissions.</span></div>
+   {feedback&&<p role={failed?"alert":"status"} className={failed?"text-sm text-red-700":"text-sm text-primary"}>{feedback}</p>}
+   {row.operations.length?row.operations.map(operation=><section key={operation.id} className="space-y-3 border-b border-border pb-4">
+    <div><p className="text-xs font-semibold text-primary">{operation.kind}</p><h3 className="text-sm font-semibold">{operation.label}</h3></div>
+    <dl className="space-y-3 text-sm"><div><dt className="font-medium">Scope</dt><dd className="text-text-secondary">{operation.scope||'Not supplied'}</dd></div><div><dt className="font-medium">Human authorization</dt><dd className="text-text-secondary">{permissionLabels.get(operation.permission)||operation.permission||'Not supplied'}</dd><dd className="mt-1 text-xs text-text-secondary">{operation.availability==='connected'?'Current user verified by server.':operation.availability==='denied'?'Current user is not authorized.':'Checked again when the operation runs.'}</dd></div>
+     {operation.kind==='ACTION'&&<div><dt className="font-medium">AI execution policy</dt><dd className="text-text-secondary">No executable AI authorization and confirmation policy is implemented. Human permission alone is insufficient.</dd></div>}
+    </dl>
+    {operation.kind==='READ'&&typeof operation.connection_enabled==='boolean'&&<div className="flex flex-wrap gap-2 pt-1"><button type="button" className="btn-secondary" disabled={!canEdit||busy} onClick={()=>void act('capability_connection',{operation:operation.id,enabled:!operation.connection_enabled,expected_revision:data.config.revision})}>{operation.connection_enabled?'Disconnect':'Connect'}</button>{operation.test_supported&&<button type="button" className="btn-secondary" disabled={!canEdit||busy||operation.availability!=='connected'} onClick={()=>void act('capability_test',{operation:operation.id})}>Test read</button>}</div>}
+   </section>):<section className="space-y-2"><h3 className="text-sm font-semibold">Integration requirements</h3><p className="text-sm text-text-secondary">No Assistant READ or ACTION operation is registered for this module. A module-owned adapter, existing human-authority checks and a registered capability contract are required before connection.</p></section>}
+   {!row.operations.some(operation=>operation.kind==='ACTION')&&<p className="text-xs text-text-secondary">No ACTION operation is implemented. Future actions require separate AI execution authorization and confirmation.</p>}
+   {row.sources.map(source=><section key={source.name} className="space-y-2 border-t border-border pt-3"><h3 className="text-sm font-semibold">{source.name}</h3><p className="text-sm text-text-secondary">{source.readiness} Source-specific authorized retrieval is required.</p><dl className="space-y-2 text-xs"><div><dt className="font-medium">Source owner</dt><dd>{source.owner}</dd></div><div><dt className="font-medium">Authority</dt><dd>{source.access}</dd></div><div><dt className="font-medium">Version &amp; freshness</dt><dd>{source.version} Live freshness is not checked here.</dd></div></dl></section>)}
+  </div>
+ </Drawer>;
 }
-
 export default function NativeAssistantCapabilities({data,canEdit,busy,onFeature}){
- const [query,setQuery]=useState(''),[domain,setDomain]=useState('all'),[type,setType]=useState('all'),[status,setStatus]=useState('all'),[selected,setSelected]=useState(null);
- const capabilities=data.runtime.capabilities||[],resources=capabilityResources(capabilities);
- const rows=filterCapabilityResources(resources,{query,domain,type,status});
- const domains=[...new Map(resources.map(resource=>[resource.domain,resource.domainLabel]))].map(([value,label])=>({value,label}));
- const connected=resources.flatMap(resource=>resource.operations).filter(operation=>operation.availability==='connected');
- const unknown=capabilities.some(operation=>!moduleRegistry.some(module=>module.id===operation.module_id));
- const clear=()=>{setQuery('');setDomain('all');setType('all');setStatus('all');};
- const activeFilters=[...(query?[{key:'query',label:'Search',value:query,onRemove:()=>setQuery('')}]:[]),...(domain!=='all'?[{key:'domain',label:'Domain',value:domains.find(item=>item.value===domain)?.label,onRemove:()=>setDomain('all')}]:[]),...(type!=='all'?[{key:'type',label:'Resource type',value:capabilityResourceTypes[type],onRemove:()=>setType('all')}]:[]),...(status!=='all'?[{key:'status',label:'Connection',value:capabilityStatuses[status],onRemove:()=>setStatus('all')}]:[])];
+ const [query,setQuery]=useState(''),[workspace,setWorkspace]=useState('all'),[domain,setDomain]=useState('all'),[status,setStatus]=useState('all'),[selected,setSelected]=useState(null),[collapsed,setCollapsed]=useState(()=>new Set(Object.keys(workspaceLabels).filter(key=>key!=='factory').map(key=>`workspace:${key}`)));
+ const inventory=useMemo(()=>capabilityInventory(data.runtime.capabilities||[]),[data.runtime.capabilities]);
+ const filtered=filterCapabilityInventory(inventory,{query,workspace,domain,status}),rows=capabilityTableRows(filtered,collapsed);
+ const domains=[...new Map(inventory.filter(row=>workspace==='all'||row.workspace===workspace).map(row=>[row.domainKey,{value:row.domainKey,label:`${row.workspaceLabel} / ${row.domain}`}])).values()];
+ const connected=inventory.flatMap(row=>row.operations).filter(operation=>operation.availability==='connected');
+ const clear=()=>{setQuery('');setWorkspace('all');setDomain('all');setStatus('all');};
+ const activeFilters=[...(query?[{key:'query',label:'Search',value:query,onRemove:()=>setQuery('')}]:[]),...(workspace!=='all'?[{key:'workspace',label:'Workspace',value:workspaceLabels[workspace],onRemove:()=>{setWorkspace('all');setDomain('all');}}]:[]),...(domain!=='all'?[{key:'domain',label:'Domain',value:domains.find(item=>item.value===domain)?.label,onRemove:()=>setDomain('all')}]:[]),...(status!=='all'?[{key:'status',label:'Connection',value:capabilityStatuses[status],onRemove:()=>setStatus('all')}]:[])];
+ const columns=[{key:'label',header:'Module',render:row=><span className="block pl-6 font-medium max-sm:pl-0">{row.label}</span>},{key:'read',header:'READ',width:80,render:row=>row.operations.filter(operation=>operation.kind==='READ').length||<span aria-label="Not implemented" className="text-text-secondary">—</span>},{key:'action',header:'ACTION',width:80,render:row=>row.operations.filter(operation=>operation.kind==='ACTION').length||<span aria-label="Not implemented" className="text-text-secondary">—</span>},{key:'status',header:'Connection status',width:150,render:row=><Badge tone={tone(row.status)}>{capabilityStatuses[row.status]}</Badge>},{key:'manage',header:'Manage',width:95,render:row=><button className="btn-secondary min-h-10" type="button" aria-label={`Manage ${row.label}`} onClick={()=>setSelected(row.id)}>Manage</button>}];
+ const selectedRow=inventory.find(row=>row.id===selected);
  return <section className="space-y-3" aria-label="AI Capabilities">
-  <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Module resources</h3><p className="text-xs text-text-secondary" aria-label="Registered capability coverage"><strong className="text-text-primary">{connected.filter(operation=>operation.kind==='READ').length}</strong> connected READ · <strong className="text-text-primary">{connected.filter(operation=>operation.kind==='ACTION').length}</strong> available ACTION</p></div>
-  <AdminFilterToolbar compact denseFields presentation="inline" search={<AdminSearchField label="Search resources" value={query} onChange={setQuery} placeholder="Resource, module or operation"/>} filters={<>
-   <SelectField label="Domain" value={domain} onChange={setDomain} options={[{value:'all',label:'All'},...domains]}/>
-   <SelectField label="Resource type" value={type} onChange={setType} options={[{value:'all',label:'All'},...Object.entries(capabilityResourceTypes).map(([value,label])=>({value,label}))]}/>
-   <SelectField label="Connection" value={status} onChange={setStatus} options={[{value:'all',label:'All'},...Object.entries(capabilityStatuses).map(([value,label])=>({value,label}))]}/>
-  </>} activeFilters={activeFilters} onClear={clear}/>
-  {!Array.isArray(data.runtime.capabilities)&&<p role="status" className="text-sm text-text-secondary">Registered capabilities are unavailable. Refresh configuration before testing; source metadata is shown below.</p>}
-  {unknown&&<p role="status" className="text-sm text-text-secondary">Some operations have unresolved module ownership and are omitted. Refresh configuration.</p>}
-  <p role="status" className="text-xs text-text-secondary">{rows.length} of {resources.length} resources · Counts above cover all registered resources.</p>
-  {!rows.length?<p className="py-6 text-sm text-text-secondary">{resources.length?'No resources match these filters. Clear filters to show all resources.':'No registered resources or source metadata are available.'}</p>:<div className="space-y-3">
-   {domains.map(owner=>{
-    const children=rows.filter(resource=>resource.domain===owner.value);if(!children.length)return null;
-    const count=children.filter(resource=>resource.operations.some(operation=>operation.availability==='connected')).length;
-    return <details key={owner.value} open className="group rounded-lg border border-border" aria-label={`${owner.label} domain`}>
-     <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-3 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary [&::-webkit-details-marker]:hidden"><ChevronRight size={16} aria-hidden="true" className="shrink-0 text-text-secondary transition-transform group-open:rotate-90 motion-reduce:transition-none"/><h3 className="min-w-0 flex-1 text-sm font-semibold">{owner.label}</h3><span className="text-xs text-text-secondary">{children.length} {children.length===1?'resource':'resources'}{count?` · ${count} connected`:''}</span></summary>
-     <ul className="divide-y divide-border border-t border-border">
-      {children.map(resource=><li key={resource.id}>
-       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_160px_120px_80px]">
-        <h4 className="min-w-0 text-sm font-medium max-sm:col-span-2">{resource.label}</h4>
-        <span className="text-xs text-text-secondary">{capabilityResourceTypes[resource.type]}</span>
-        <span className="justify-self-end sm:justify-self-start"><Badge tone={tone(resource.status)}>{capabilityStatuses[resource.status]}</Badge></span>
-        <button type="button" className="btn-secondary min-h-10 justify-self-start sm:justify-self-end" aria-label={`${selected===resource.id?'Hide':'View'} ${resource.label} details`} aria-expanded={selected===resource.id} aria-controls={`resource-${resource.id}`} onClick={()=>setSelected(selected===resource.id?null:resource.id)}>{selected===resource.id?'Close':'Details'}</button>
-       </div>
-       {selected===resource.id&&<ResourceDetail resource={resource} data={data} canEdit={canEdit} busy={busy} onFeature={onFeature}/>}
-      </li>)}
-     </ul>
-    </details>;
-   })}
-  </div>}
+  <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Module inventory</h3><p className="text-xs text-text-secondary" aria-label="Registered capability coverage">{connected.filter(operation=>operation.kind==='READ').length} connected READ · {connected.filter(operation=>operation.kind==='ACTION').length} available ACTION</p></div>
+  <AdminFilterToolbar compact denseFields presentation="inline" search={<AdminSearchField label="Search modules" value={query} onChange={setQuery} placeholder="Module, domain or capability"/>} filters={<><SelectField label="Workspace" value={workspace} onChange={value=>{setWorkspace(value);setDomain('all');}} options={[{value:'all',label:'All'},...Object.entries(workspaceLabels).map(([value,label])=>({value,label}))]}/><SelectField label="Domain" value={domain} onChange={setDomain} options={[{value:'all',label:'All'},...domains]}/><SelectField label="Connection" value={status} onChange={setStatus} options={[{value:'all',label:'All'},...Object.entries(capabilityStatuses).map(([value,label])=>({value,label}))]}/></>} activeFilters={activeFilters} onClear={clear}/>
+  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-secondary"><p role="status">{filtered.length} of {moduleRegistry.length} canonical modules · {new Set(inventory.map(row=>row.workspace)).size} workspaces · {new Set(inventory.map(row=>row.domainKey)).size} domains</p><div className="flex gap-3"><button type="button" className="min-h-10 hover:text-primary focus-visible:outline" onClick={()=>setCollapsed(new Set())}>Expand all</button><button type="button" className="min-h-10 hover:text-primary focus-visible:outline" onClick={()=>setCollapsed(new Set(inventory.map(row=>`workspace:${row.workspace}`)))}>Collapse all</button></div></div>
+  {!Array.isArray(data.runtime.capabilities)&&<p role="status" className="text-sm text-text-secondary">Registered capabilities are unavailable. Inventory remains visible; refresh before managing connections.</p>}
+  {!filtered.length?<p className="py-6 text-sm text-text-secondary">No modules match these filters.</p>:<DataTable columns={columns} rows={rows} getRowKey={row=>row.id} density="compact" minWidth={600} mobileLayout="compact" getRowClassName={()=>'bg-surface'} renderGroupRow={row=>row.group?{level:row.group,content:<button type="button" aria-expanded={!collapsed.has(row.id)} onClick={()=>setCollapsed(previous=>{const next=new Set(previous);next.has(row.id)?next.delete(row.id):next.add(row.id);return next;})}><ChevronRight size={15} aria-hidden="true" className={collapsed.has(row.id)?'':'rotate-90'}/>{row.label}<small>{row.count} modules</small></button>}:null}/>}
+  {selectedRow&&<ModuleDetail key={selectedRow.id} row={selectedRow} data={data} canEdit={canEdit} busy={busy} onFeature={onFeature} onClose={()=>setSelected(null)}/>}
  </section>;
 }
