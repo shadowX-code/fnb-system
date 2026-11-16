@@ -10,7 +10,7 @@ node node_modules/vite/bin/vite.js --config qa/native-assistant-management/vite.
 node qa/native-assistant-management/browser.mjs
 ```
 
-The serve-only local harness renders actual components and canonical styles with explicitly labeled fixture data. Its service permits only configuration and usage reads; mutations, paid tests and business reads reject. Browser checks cover all three sections at 1440, 1040 and 400 CSS pixels, page overflow, branded filter menus and Escape dismissal. Screenshots and checks go to `/tmp/feedx-ai-capabilities`.
+The serve-only local harness renders actual components and canonical styles with explicitly labeled fixture data. Its service permits only configuration and usage reads; mutations, paid tests and business reads reject. Browser checks cover all three sections at 1440, 1040 and 400 CSS pixels, page overflow, branded filter menus and Escape dismissal. Screenshots and checks go to `/tmp/feedx-ai-capability-domains`.
 
 Canonical Staging acceptance: open AI Integrations → Native Assistant as an authorized Admin; inspect provider/test timestamps, capability state and usage records without activating Voice or running a paid provider test. Confirm read-only settings access under a suitable existing account. Source readiness is metadata only, not permission to access documents. Tests distinguish disabled Factory access from a server-denied caller and preserve the existing explicit read-test action.
 
@@ -34,3 +34,5 @@ Current official model pricing was checked at https://developers.openai.com/api/
 Renderer fixtures are not authenticated Staging evidence. Policy Edit/Cancel and filter tests must not save live settings or start Voice. The summary reports filtered record counts and coverage; it is not a monthly billing total.
 
 AI Capabilities QA also verifies canonical module grouping, source-only unavailable reads, nested Factory controls, and pointer/keyboard expansion. Authenticated Chrome inspection on this pass was unavailable (no open Chrome window or connected browser-control tool); fixtures do not count as authenticated acceptance.
+
+Domain IA verification covers Factory/Crew/HR/Marketing ownership, deduplicated multi-module sources, global connected-operation counts, combined filters, no-match recovery, single resource detail, keyboard domain collapse, and unchanged Factory feature/test payloads. No live business read or setting mutation is performed by the fixture harness.
