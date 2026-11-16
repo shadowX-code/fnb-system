@@ -136,6 +136,12 @@ function Get-DiagnosticHint([string]$Code) {
         '^DEVICE_REGISTRATION_INACTIVE$' { return 'Review this computer''s device access in FeedX.' }
         '^DEVICE_NOT_PAIRED$|^STAGING_HTTP_401$' { return 'Check pairing and book binding in FeedX.' }
         '^STAGING_HTTPS_|^STAGING_HTTP_5' { return 'Check network access to FeedX Staging.' }
+        '^upload_date_format$' { return 'The posting date format was rejected. Update the connector and retry the queued upload.' }
+        '^upload_envelope$' { return 'FeedX rejected the dataset, date range, or batch envelope. Share these diagnostics with FeedX support.' }
+        '^upload_record_shape$' { return 'FeedX rejected the row count or required fields. Share these diagnostics with FeedX support.' }
+        '^upload_record_values$' { return 'FeedX rejected a field value or duplicate source key. Share these diagnostics with FeedX support.' }
+        '^upload_request_conflict$' { return 'FeedX already has this request ID with different content. Keep the queue and contact FeedX support.' }
+        '^STAGING_QUEUE_ENVELOPE_INVALID$' { return 'The saved upload envelope is invalid. Keep the queue and contact FeedX support.' }
         '^STAGING_HTTP_4|^STAGING_RECEIPT_' { return 'Check the book binding in FeedX. Queued uploads are kept for retry.' }
         '^READER_OTHER_DATABASE_ACCESS_OR_UNKNOWN$' { return 'Ask your SQL administrator to check for unintended reader access outside this book.' }
         '^READER_DATABASE_INVENTORY_UNVERIFIED$' { return 'Ask your SQL administrator to verify database metadata visibility for this reader.' }
@@ -202,11 +208,18 @@ function Refresh-Diagnostics {
             $accepted = 0
             foreach ($receipt in $synced.receipts) { $accepted += $receipt.rows }
             $extracted = 0
-            foreach ($dataset in $synced.extracted) { $extracted += $dataset.rows }
+            foreach ($dataset in (@($synced.extracted)+@($synced.replayed))) { $extracted += $dataset.rows }
             $when = Format-ConnectorTime $synced.finishedAt
             $pending = if ($null -ne $synced.pending) { $synced.pending } else { 'not yet reported' }
-            $lines += "  Sync ($when): $extracted extracted; $accepted accepted (includes retries); $pending pending."
-            if ($synced.error) { $lines += "  $($synced.error). $(Get-DiagnosticHint $synced.error)" }
+            $lines += "  Sync ($when): $extracted source rows (includes retries); $accepted accepted; $pending pending."
+            if ($synced.failedUpload) {
+                $failed = $synced.failedUpload
+                $hint = if ($failed.reason) { Get-DiagnosticHint $failed.reason } else { Get-DiagnosticHint $synced.error }
+                $lines += "  Rejected $($failed.dataset) batch $($failed.requestId), $($failed.rows) source rows ($($synced.error)). $hint"
+            } elseif ($synced.error) { $lines += "  $($synced.error). $(Get-DiagnosticHint $synced.error)" }
+            foreach ($receipt in @($synced.receipts | Where-Object repairedScopeDate)) {
+                $lines += "  Recovered queued $($receipt.dataset) batch $($receipt.requestId). $($receipt.rows) accepted rows; duplicate receipt: $($receipt.duplicate)."
+            }
         }
     }
     $text = if ($lines.Count) { $lines -join [Environment]::NewLine } else { 'No connection test or sync has been recorded on this computer.' }

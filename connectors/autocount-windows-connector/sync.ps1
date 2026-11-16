@@ -6,6 +6,7 @@ Add-Type -AssemblyName System.Data
 . (Join-Path $PSScriptRoot 'sql\sql-read.ps1')
 . (Join-Path $PSScriptRoot 'sql\connection.ps1')
 . (Join-Path $PSScriptRoot 'common\credentials.ps1')
+. (Join-Path $PSScriptRoot 'common\staging-response.ps1')
 . (Join-Path $PSScriptRoot 'common\accounting-read.ps1')
 . (Join-Path $PSScriptRoot 'provisioning.ps1')
 
@@ -32,7 +33,7 @@ $reader = $null
 $saveReader = $false
 $cloud = $null
 $runId = $null
-$status = [ordered]@{target=if ($InstalledBook) { $InstalledBook.database } else { 'AED_TEST' };startedAt=[datetime]::UtcNow.ToString('o');sqlConnection='Not tested';stagingConnection='Not tested';extracted=@();receipts=@();reconciled='Not verified';nativeReports='Blocked pending supported no-upgrade SDK startup and native read contracts'}
+$status = [ordered]@{target=if ($InstalledBook) { $InstalledBook.database } else { 'AED_TEST' };startedAt=[datetime]::UtcNow.ToString('o');sqlConnection='Not tested';stagingConnection='Not tested';extracted=@();replayed=@();receipts=@();reconciled='Not verified';nativeReports='Blocked pending supported no-upgrade SDK startup and native read contracts'}
 
 function Parse-SyncDate([string]$Text) {
     return [datetime]::ParseExact($Text,'yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture)
@@ -48,15 +49,13 @@ function Request-FeedX($Credential,[string]$Body) {
     try {
         return Invoke-RestMethod -Uri 'https://ujkzdaaadnvcfayuldmh.supabase.co/rest/v1/rpc/finance_accept_accounting_snapshot' -Method Post -Headers $headers -ContentType 'application/json' -Body ([Text.Encoding]::UTF8.GetBytes($Body)) -TimeoutSec 35 -MaximumRedirection 0
     } catch {
-        $response = $_.Exception.Response
-        if ($response) { Stop-ReadPoc ('STAGING_HTTP_'+[int]$response.StatusCode) }
-        Stop-ReadPoc 'STAGING_HTTPS_UNAVAILABLE'
+        Stop-StagingRequest $_ -AccountingEndpoint
     }
 }
 function Report-SyncProgress([string]$State,[string]$ErrorKind) {
     $pending = @(Get-ChildItem -LiteralPath $queue -File -Filter '*.json').Count
     $sourceRows = 0
-    foreach ($dataset in $status.extracted) { $sourceRows += $dataset.rows }
+    foreach ($dataset in ($status.extracted+$status.replayed)) { $sourceRows += $dataset.rows }
     $progress = @{runId=$runId;state=$State;pending=$pending;sourceRows=$sourceRows}
     if ($ErrorKind) { $progress.error=$ErrorKind }
     $body = @{p_progress=$progress} | ConvertTo-Json -Compress
@@ -64,25 +63,54 @@ function Report-SyncProgress([string]$State,[string]$ErrorKind) {
     if ($result.state -cne 'Recorded') { Stop-ReadPoc 'STAGING_PROGRESS_RESPONSE_INVALID' }
 }
 
-function Send-PendingSnapshots($Credential,[string]$ConnectionId) {
+function Read-QueuedSnapshot([string]$Body) {
+    $snapshot=ConvertFrom-Json -InputObject $Body
+    if ($snapshot.p_dataset -cnotin @('COA','Department','Project','GL') -or
+        $snapshot.p_request_id -cnotmatch '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$' -or
+        $snapshot.p_rows -isnot [array]) { Stop-ReadPoc 'STAGING_QUEUE_ENVELOPE_INVALID' }
+
+    $legacyDate=$false
+    if ($snapshot.p_dataset -cne 'GL' -and $snapshot.p_scope_date -is [pscustomobject] -and
+        @($snapshot.p_scope_date.PSObject.Properties).Count -eq 0) {
+        # Preserve the request ID and row JSON byte for byte. Refuse an ambiguous match.
+        $marker=[regex]::new('(?<!\\)"p_scope_date"\s*:\s*\{\s*\}')
+        if ($marker.Matches($Body).Count -ne 1) { Stop-ReadPoc 'STAGING_QUEUE_ENVELOPE_INVALID' }
+        $Body=$marker.Replace($Body,'"p_scope_date":null',1)
+        $legacyDate=$true
+    }
+    return @{body=$Body;dataset=$snapshot.p_dataset;requestId=$snapshot.p_request_id;rows=$snapshot.p_rows.Count
+        date=if ($snapshot.p_scope_date -is [string] -and $snapshot.p_scope_date -cmatch '^\d{4}-\d{2}-\d{2}$') { $snapshot.p_scope_date } else { $null }
+        repairedScopeDate=$legacyDate}
+}
+function Send-PendingSnapshots($Credential,[string]$ConnectionId,[switch]$Retry) {
     foreach ($file in @(Get-ChildItem -LiteralPath $queue -File -Filter '*.json' | Sort-Object Name)) {
-        $body = [IO.File]::ReadAllText($file.FullName)
-        $snapshot = $body | ConvertFrom-Json
-        $receipt = Request-FeedX $Credential $body
+        $snapshot=Read-QueuedSnapshot ([IO.File]::ReadAllText($file.FullName))
+        $metadata=@{dataset=$snapshot.dataset;date=$snapshot.date;requestId=$snapshot.requestId;rows=$snapshot.rows
+            repairedScopeDate=$snapshot.repairedScopeDate}
+        if ($Retry) { $status.replayed += $metadata }
+        try { $receipt = Request-FeedX $Credential $snapshot.body } catch {
+            $status.failedUpload=$metadata + @{reason=$_.Exception.GetBaseException().Data['FeedXUploadErrorKind']}
+            throw
+        }
         if ($receipt.state -cne 'Accepted' -or $receipt.connectionId -cne $ConnectionId -or
-            $receipt.requestId -cne $snapshot.p_request_id -or $receipt.acceptedRows -ne $snapshot.p_rows.Count -or
+            $receipt.requestId -cne $snapshot.requestId -or $receipt.acceptedRows -ne $snapshot.rows -or
             $receipt.snapshotId -lt 1) { Stop-ReadPoc 'STAGING_RECEIPT_MISMATCH' }
-        $status.receipts += @{dataset=$snapshot.p_dataset;date=$snapshot.p_scope_date;rows=$receipt.acceptedRows;duplicate=$receipt.duplicate;snapshotId=$receipt.snapshotId;uploaded='Confirmed';accepted='Confirmed'}
+        $status.receipts += $metadata + @{duplicate=$receipt.duplicate;snapshotId=$receipt.snapshotId;uploaded='Confirmed';accepted='Confirmed';replayed=[bool]$Retry}
         Write-LocalTextAtomically $reportPath ($status | ConvertTo-Json -Depth 8)
         [IO.File]::Delete($file.FullName)
     }
 }
+function New-SnapshotBody([string]$Dataset,[datetime]$Day,[string]$RequestId,[array]$Rows) {
+    $envelope=@{p_request_id=$RequestId;p_dataset=$Dataset;p_rows=$Rows}
+    if ($Dataset -ceq 'GL') { $envelope.p_scope_date=Format-SyncDate $Day }
+    return $envelope | ConvertTo-Json -Depth 8 -Compress
+}
 function Submit-Snapshot([string]$Dataset,[datetime]$Day) {
     $rows = @(Read-AccountingScope $connection $plan $Dataset $Day)
-    $scopeDate = if ($Dataset -eq 'GL') { Format-SyncDate $Day }
+    $scopeDate = if ($Dataset -ceq 'GL') { Format-SyncDate $Day } else { $null }
     $status.extracted += @{dataset=$Dataset;date=$scopeDate;rows=$rows.Count}
     $id = [guid]::NewGuid().ToString()
-    $payload = @{p_request_id=$id;p_dataset=$Dataset;p_scope_date=$scopeDate;p_rows=$rows} | ConvertTo-Json -Depth 8 -Compress
+    $payload = New-SnapshotBody $Dataset $Day $id $rows
     $path = Get-RunLocalPath ($id+'.json') -BaseDirectory $queue
     Write-LocalTextAtomically $path $payload -CreateNew
     Send-PendingSnapshots $cloud $config.connectionId
@@ -206,8 +234,11 @@ try {
     }
     $runId = [guid]::NewGuid().ToString()
     Report-SyncProgress 'running'
-    Send-PendingSnapshots $cloud $config.connectionId
-    foreach ($kind in @('COA','Department','Project')) { Submit-Snapshot $kind $today }
+    Send-PendingSnapshots $cloud $config.connectionId -Retry
+    $recovered=@($status.receipts | Where-Object repairedScopeDate | ForEach-Object dataset)
+    foreach ($kind in @('COA','Department','Project')) {
+        if ($kind -cnotin $recovered) { Submit-Snapshot $kind $today }
+    }
 
     # Retry prior days for late edits and capture at most seven new days per run.
     $dates = [Collections.Generic.SortedSet[datetime]]::new()
@@ -239,7 +270,7 @@ try {
         $errorKind = switch -Regex ($status.error) {
             'SCOPE_EXCEEDS' { 'scope_limit'; break }
             '^SQL_ERROR_|^ACCOUNTING_' { 'source_read'; break }
-            '^STAGING_HTTP_4' { 'upload_rejected'; break }
+            '^STAGING_HTTP_4' { if ($status.failedUpload.reason) { $status.failedUpload.reason } else { 'upload_rejected' }; break }
             '^STAGING_HTTP_5|HTTPS_UNAVAILABLE' { 'network'; break }
             'RECEIPT_MISMATCH' { 'receipt'; break }
             default { 'local' }

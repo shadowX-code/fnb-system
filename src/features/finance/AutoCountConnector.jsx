@@ -13,7 +13,12 @@ const connectionLabels = {
 const syncErrors = {
   source_read: 'Check the Account Book reader and source tables on the office PC, then run Sync Now.',
   scope_limit: 'The connector reached its extraction limit. Review the posting scope in the Windows sync report.',
-  upload_rejected: 'FeedX rejected an upload. Review the Windows sync report before retrying.',
+  upload_rejected: 'FeedX rejected an upload. Review Copy diagnostics on the Windows connector before retrying.',
+  upload_date_format: 'FeedX rejected the posting date format. Update the Windows connector and retry the queued upload.',
+  upload_envelope: 'FeedX rejected the dataset, reporting date, or batch envelope. Share the Windows diagnostics with FeedX support.',
+  upload_record_shape: 'FeedX rejected the row count or required fields. Share the Windows diagnostics with FeedX support.',
+  upload_record_values: 'FeedX rejected a field value or duplicate source key. Share the Windows diagnostics with FeedX support.',
+  upload_request_conflict: 'FeedX already has this request ID with different content. Keep the queue and contact FeedX support.',
   network: 'Check the office PC’s access to FeedX Staging, then run Sync Now.',
   receipt: 'The upload receipt could not be verified. The connector keeps the batch for retry.',
   local: 'Open the Windows connector sync report to identify and correct the failure.',
@@ -39,7 +44,7 @@ export function AutoCountStatus({ entry, timestamp }) {
     <dl className="finance-source-facts">
       <div><dt>Source book</dt><dd>{entry.connection.externalTenantId} · {connector.verifiedAt ? 'Verified by connector' : 'Awaiting verification'}</dd></div>
       <div><dt>Last completed sync</dt><dd>{timestamp(connector.lastSyncAt)}</dd></div>
-      <div><dt>Source rows in latest reported run</dt><dd>{connector.sourceRows ?? 'Not reported'}</dd></div>
+      <div><dt>Source rows in latest run, including retries</dt><dd>{connector.sourceRows ?? 'Not reported'}</dd></div>
       <div><dt>Pending upload retries</dt><dd>{connector.pendingRetries ?? 'Not reported'}</dd></div>
     </dl>
     {entry.state === 'pending' && <p className="finance-source-note">The Windows Connector will verify the bound book on its next run. If this stays pending, check the connector on the office PC.</p>}

@@ -2,6 +2,7 @@
 . (Join-Path $PSScriptRoot '..\sql\sql-read.ps1')
 . (Join-Path $PSScriptRoot '..\sql\connection.ps1')
 . (Join-Path $PSScriptRoot '..\common\credentials.ps1')
+. (Join-Path $PSScriptRoot '..\common\staging-response.ps1')
 . (Join-Path $PSScriptRoot '..\common\accounting-read.ps1')
 . (Join-Path $PSScriptRoot '..\provisioning.ps1')
 Add-Type -AssemblyName System.Data
@@ -39,9 +40,7 @@ function Invoke-DeviceApi($Credential,[string]$Rpc,[string]$Body,$Book=$null) {
     try {
         return Invoke-RestMethod -UseBasicParsing -Uri ('https://ujkzdaaadnvcfayuldmh.supabase.co/rest/v1/rpc/'+$Rpc) -Method Post -Headers $headers -ContentType 'application/json' -Body ([Text.Encoding]::UTF8.GetBytes($Body)) -TimeoutSec 35 -MaximumRedirection 0
     } catch {
-        $response = $_.Exception.Response
-        if ($response) { Stop-ReadPoc ('STAGING_HTTP_'+[int]$response.StatusCode) }
-        Stop-ReadPoc 'STAGING_HTTPS_UNAVAILABLE'
+        Stop-StagingRequest $_ -AccountingEndpoint:($Rpc -ceq 'finance_accept_accounting_snapshot')
     }
 }
 
