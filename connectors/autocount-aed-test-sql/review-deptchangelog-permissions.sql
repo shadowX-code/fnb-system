@@ -19,7 +19,7 @@ SELECT @schemaId = schema_id FROM sys.objects WHERE object_id=@objectId;
 IF @loginId IS NULL OR @userId IS NULL OR @schemaId IS NULL
     THROW 51003, 'Pending login/user SID or dbo.DeptChangeLog could not be matched. Stop before any grant changes.', 1;
 
-SELECT @objectId AS objectId,@userId AS userId,@loginId AS loginId, QUOTENAME(s.name)+N'.'+QUOTENAME(o.name) AS securable, o.type_desc, @disabled AS loginDisabled,
+SELECT @objectId AS objectId,@userId AS userId,@loginId AS loginId, QUOTENAME(s.name)+N'.'+QUOTENAME(o.name) AS securable, o.type AS objectType, o.type_desc, @disabled AS loginDisabled,
        CASE WHEN o.principal_id=@userId THEN N'dedicated reader' ELSE USER_NAME(o.principal_id) END AS explicitObjectOwner,
        CASE WHEN s.principal_id=@userId THEN N'dedicated reader' ELSE USER_NAME(s.principal_id) END AS schemaOwner,
        CASE WHEN d.owner_sid=@sid THEN 1 ELSE 0 END AS readerOwnsDatabase,

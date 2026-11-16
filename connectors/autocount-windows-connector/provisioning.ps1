@@ -69,10 +69,16 @@ function Open-ProvisionedReader([Security.SecureString]$Secret) {
     } catch { $connection.Dispose(); throw }
 }
 
+function Test-TriggerSelectMetadata([string]$ObjectType,[string]$Permission,[string]$Column) {
+    # SQL Server can report object SELECT for DML triggers, which cannot be queried as a row source.
+    return $ObjectType -cin @('TR','TA') -and $Permission -ceq 'SELECT' -and -not $Column
+}
+
 function Get-ReaderPermissionDetails($Connection,$GrantCatalogConnection,$Object,$EffectivePermissions,$Plan) {
     $details=[ordered]@{
         scope=if ($Object.objectId) { 'OBJECT' } else { 'SCHEMA' }
         securable=$Object.objectName -replace '[\p{C}]','?'
+        objectType=$Object.objectType
         effective=@(foreach ($entry in $EffectivePermissions) {
             @{permission=$entry.permission_name;column=$entry.subentity_name -replace '[\p{C}]','?'}
         })
@@ -163,7 +169,7 @@ ORDER BY s.schema_id,p.permission_name
         Stop-ReadPermission 'READER_SCHEMA_PERMISSION_TOO_BROAD' (Get-ReaderPermissionDetails $Connection $GrantCatalogConnection $first $effective $Plan)
     }
     $visible=@(Invoke-ReadQuery $Connection @'
-SELECT o.object_id AS objectId, o.schema_id AS schemaId, USER_ID() AS readerId,
+SELECT o.object_id AS objectId, o.schema_id AS schemaId, o.type AS objectType, USER_ID() AS readerId,
        QUOTENAME(s.name)+N'.'+QUOTENAME(o.name) AS objectName
 FROM sys.objects o JOIN sys.schemas s ON s.schema_id=o.schema_id
 WHERE o.is_ms_shipped=0
@@ -175,7 +181,9 @@ ORDER BY s.name,o.name,o.object_id
 SELECT permission_name,subentity_name FROM sys.fn_my_permissions(@object,'OBJECT')
 WHERE permission_name NOT IN ('VIEW DEFINITION','VIEW SECURITY DEFINITION','VIEW PERFORMANCE DEFINITION')
 ORDER BY permission_name,subentity_name
-'@ @{'@object'=$object.objectName})
+'@ @{'@object'=$object.objectName} | Where-Object {
+            -not (Test-TriggerSelectMetadata $object.objectType $_.permission_name $_.subentity_name)
+        })
         if ($Plan.metadataColumns -and $object.objectName -ceq '[dbo].[Profile]') {
             $unexpected=@($permissions | Where-Object { $_.permission_name -ne 'SELECT' -or $_.subentity_name -cnotin $Plan.metadataColumns })
             if ($unexpected.Count) {

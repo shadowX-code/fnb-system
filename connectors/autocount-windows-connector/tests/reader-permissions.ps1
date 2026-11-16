@@ -4,7 +4,12 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '../provisioning.ps1')
 
 function Assert-ReadPermissions {}
-function Assert-ObjectReadPermission { $script:checked++ }
+function Assert-ObjectReadPermission {
+    $script:checked++
+}
+$types=@{sqlTrigger='TR';clrTrigger='TA';triggerAlter='TR';triggerControl='TR';triggerExecute='TR';triggerColumn='TR';table='U';view='V';inlineFunction='IF'
+    tableFunction='TF';clrFunction='FT';synonym='SN';externalTable='ET';procedure='P';unknown='ZZ'}
+$overrides=@{triggerAlter='ALTER';triggerControl='CONTROL';triggerExecute='EXECUTE';procedure='EXECUTE'}
 function Invoke-ReadQuery($Connection,$Sql,$Parameters) {
     if ($Sql -match 'FROM sys.login_token') { return }
     if ($Sql -match 'FROM sys.schemas s') {
@@ -14,15 +19,25 @@ function Invoke-ReadQuery($Connection,$Sql,$Parameters) {
         return
     }
     if ($Sql -match 'FROM sys.objects') {
-        [pscustomobject]@{objectId=10;schemaId=1;readerId=8;objectName='[dbo].[GLMast]'}
+        [pscustomobject]@{objectId=10;schemaId=1;readerId=8;objectName='[dbo].[GLMast]';objectType='U'}
         if ($script:scenario -ne 'approved') {
-            [pscustomobject]@{objectId=11;schemaId=1;readerId=8;objectName='[dbo].[LegacyJournal]'}
+            $type=if ($types.ContainsKey($script:scenario)) { $types[$script:scenario] } else { 'U' }
+            $name=if ($type -in @('TR','TA')) { '[dbo].[DeptChangeLog]' } else { '[dbo].[LegacyJournal]' }
+            [pscustomobject]@{objectId=11;schemaId=1;readerId=8;objectName=$name;objectType=$type}
         }
         return
     }
     if ($Sql -match 'fn_my_permissions\(@object') {
-        if ($Parameters['@object'] -cne '[dbo].[LegacyJournal]') { throw 'Unexpected effective permission check' }
-        return [pscustomobject]@{permission_name='SELECT';subentity_name='Amount'}
+        if ($Connection -cne 'reader') { throw 'Effective permissions were not checked on the reader session' }
+        if ($Parameters['@object'] -cnotin @('[dbo].[LegacyJournal]','[dbo].[DeptChangeLog]')) { throw 'Unexpected effective permission check' }
+        if ($script:scenario -in @('sqlTrigger','clrTrigger','triggerAlter','triggerControl','triggerExecute')) {
+            [pscustomobject]@{permission_name='SELECT';subentity_name=$null}
+            if (-not $overrides.ContainsKey($script:scenario)) { return }
+            [pscustomobject]@{permission_name=$overrides[$script:scenario];subentity_name=$null}
+            return
+        }
+        $permission=if ($overrides.ContainsKey($script:scenario)) { $overrides[$script:scenario] } else { 'SELECT' }
+        return [pscustomobject]@{permission_name=$permission;subentity_name='Amount'}
     }
     if ($Sql -match 'FROM sys.user_token') {
         [pscustomobject]@{principal_id=8}
@@ -49,11 +64,15 @@ $script:ProvisionedLogin='fixture-reader'
 $identity=@{login='fixture-reader';dbUser='fixture-reader'}
 $plan=@{names=@('[dbo].[GLMast]');metadataColumns=@('CompanyName','Guid')}
 $script:checked=0
-$script:scenario='approved'
-Assert-ProvisionedReader 'reader' $identity $plan @() 'admin'
-if ($script:checked -ne 1) { throw 'Approved table did not receive the existing SELECT-only check' }
+foreach ($script:scenario in @('approved','sqlTrigger','clrTrigger')) {
+    $script:checked=0
+    Assert-ProvisionedReader 'reader' $identity $plan @() 'admin'
+    if ($script:checked -ne 1) { throw 'Approved table did not receive the existing SELECT-only check' }
+}
 
-foreach ($script:scenario in @('public','schema','noCatalog')) {
+$blocked=@('public','schema','noCatalog','table','view','inlineFunction','tableFunction','clrFunction','synonym','externalTable',
+    'procedure','unknown','triggerAlter','triggerControl','triggerExecute','triggerColumn')
+foreach ($script:scenario in $blocked) {
     $expected=if ($script:scenario -eq 'schema') { 'READER_SCHEMA_PERMISSION_TOO_BROAD' } else { 'READER_PERMISSION_OUTSIDE_APPROVED_OBJECTS' }
     $observer=if ($script:scenario -ne 'noCatalog') { 'admin' }
     try {
@@ -62,7 +81,8 @@ foreach ($script:scenario in @('public','schema','noCatalog')) {
     } catch {
         if ($_.Exception.Message -cne $expected) { throw }
         $details=$_.Exception.Data['FeedXPermissionDetails']
-        if ($details.effective[0].permission -cne 'SELECT' -or $details.approvedObjects[0] -cne '[dbo].[GLMast]' -or
+        $expectedPermission=if ($overrides.ContainsKey($script:scenario)) { $overrides[$script:scenario] } else { 'SELECT' }
+        if ($details.effective[0].permission -cne $expectedPermission -or $details.approvedObjects[0] -cne '[dbo].[GLMast]' -or
             ($details | ConvertTo-Json -Depth 6) -match 'fixture-reader|Do not report raw') { throw 'Unsafe or incomplete diagnostic' }
         switch ($script:scenario) {
             'public' {
@@ -81,4 +101,4 @@ foreach ($script:scenario in @('public','schema','noCatalog')) {
         }
     }
 }
-Write-Host 'Approved reader, public column grant, inherited schema grant and unavailable attribution checks passed.'
+Write-Host 'Observed trigger SELECT is accepted, genuine data access and non-SELECT permissions remain blocked, and grant attribution is preserved.'

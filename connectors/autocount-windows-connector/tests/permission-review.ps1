@@ -1,6 +1,7 @@
 #requires -Version 5.1
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot '../../autocount-aed-test-sql/sql-read.ps1')
+. (Join-Path $PSScriptRoot '../provisioning.ps1')
 . (Join-Path $PSScriptRoot '../installer/permission-review.ps1')
 
 function Add-ReviewTable($Data,[string[]]$Columns) {
@@ -10,14 +11,16 @@ function Add-ReviewTable($Data,[string[]]$Columns) {
 }
 function New-DeptReviewFixture([string]$Scenario) {
     $data=[Data.DataSet]::new()
-    Add-ReviewTable $data @('objectId','userId','loginId','type_desc','loginDisabled','readerOwnsDatabase','readerOwnsSchema','readerOwnsObject','explicitObjectOwner','schemaOwner','revokeTrigger')
+    Add-ReviewTable $data @('objectId','userId','loginId','objectType','type_desc','loginDisabled','readerOwnsDatabase','readerOwnsSchema','readerOwnsObject','explicitObjectOwner','schemaOwner','revokeTrigger')
     Add-ReviewTable $data @('principal','type_desc','grantScope','columnName','permission_name','state_desc','grantor')
     Add-ReviewTable $data @('principal','type_desc','permission_name','state_desc')
     Add-ReviewTable $data @('readerMappingMatches','objectSelect','schemaSelect','databaseSelect')
     Add-ReviewTable $data @('permission_name','columnName')
     Add-ReviewTable $data @('columnName','columnSelect')
     try {
-        $null=$data.Tables[0].Rows.Add(@(7,8,9,'USER_TABLE',$true,0,0,($Scenario -ceq 'owner'),[DBNull]::Value,'dbo',($Scenario -ceq 'trigger')))
+        $objectType=if ($Scenario -eq 'triggerMetadata') { 'TR' } else { 'U' }
+        $description=if ($Scenario -eq 'triggerMetadata') { 'SQL_TRIGGER' } else { 'USER_TABLE' }
+        $null=$data.Tables[0].Rows.Add(@(7,8,9,$objectType,$description,$true,0,0,($Scenario -ceq 'owner'),[DBNull]::Value,'dbo',($Scenario -ceq 'trigger')))
         $null=$data.Tables[1].Rows.Add(@('public','DATABASE_ROLE'))
         $null=$data.Tables[2].Rows.Add(@('public','SERVER_ROLE'))
         $null=$data.Tables[3].Rows.Add(@(1,($Scenario -ne 'clear'),($Scenario -ceq 'schema'),0))
@@ -32,10 +35,13 @@ function New-DeptReviewFixture([string]$Scenario) {
     } finally { $data.Dispose() }
 }
 
-foreach ($scenario in @('unattributed','public','role','schema','owner','delegated','trigger','direct','clear')) {
+foreach ($scenario in @('unattributed','public','role','schema','owner','delegated','trigger','triggerMetadata','direct','clear')) {
     $evidence=New-DeptReviewFixture $scenario
     if ($evidence.repairable -ne ($scenario -ceq 'direct')) { throw "Unsafe repair classification: $scenario." }
     if ($evidence.hasSelect -ne ($scenario -ne 'clear')) { throw "Wrong effective access: $scenario." }
+    if ($scenario -ceq 'triggerMetadata' -and ($evidence.lines -join ' ') -notmatch 'SQL_TRIGGER.*does not grant access to data rows.*Retry book authorization') {
+        throw 'The office trigger metadata result did not direct the operator to retry authorization.'
+    }
     if ($scenario -ceq 'unattributed' -and ($evidence.lines -join ' ') -notmatch 'did not identify an attributable grant') {
         throw 'The reported AED_TEST evidence did not produce an actionable, read-only diagnosis.'
     }

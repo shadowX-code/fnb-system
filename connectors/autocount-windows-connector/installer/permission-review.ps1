@@ -26,7 +26,8 @@ function Convert-DeptPermissionEvidence([Data.DataSet]$Data) {
         ForEach-Object { "$($_.type_desc): $($_.principal)" } | Sort-Object -Unique)
     $columns=@($data.Tables[5].Rows | Where-Object { $_.columnSelect -eq 1 } | ForEach-Object { [string]$_.columnName })
     $objectSelect=$scopes.objectSelect -eq 1
-    $hasSelect=$objectSelect -or $columns.Count -gt 0 -or @($data.Tables[4].Rows | Where-Object permission_name -EQ 'SELECT').Count -gt 0
+    $effective=@($data.Tables[4].Rows)
+    $hasSelect=$objectSelect -or $columns.Count -gt 0 -or @($effective | Where-Object permission_name -EQ 'SELECT').Count -gt 0
     $broader=$scopes.schemaSelect -eq 1 -or $scopes.databaseSelect -eq 1
     $ownership=$object.readerOwnsDatabase -eq 1 -or $object.readerOwnsSchema -eq 1 -or $object.readerOwnsObject -eq 1 -or
         $object.explicitObjectOwner -ceq 'public' -or $object.schemaOwner -ceq 'public'
@@ -37,8 +38,17 @@ function Convert-DeptPermissionEvidence([Data.DataSet]$Data) {
         $dbPermissions[0].permission_name -ceq 'SELECT' -and $dbPermissions[0].state_desc -ceq 'GRANT' -and
         $dbPermissions[0].grantor -ceq 'dbo' -and -not ($ownership -or $broader -or $roles.Count -or $serverPermissions.Count -or $revokeTrigger)
 
-    $lines=@("AED_TEST / [dbo].[DeptChangeLog]",
+    $triggerSelect=$objectSelect -and (Test-TriggerSelectMetadata $object.objectType 'SELECT' '')
+    $otherEffective=@($effective | Where-Object {
+        $_.permission_name -notin @('VIEW DEFINITION','VIEW SECURITY DEFINITION','VIEW PERFORMANCE DEFINITION') -and
+            -not (Test-TriggerSelectMetadata $object.objectType $_.permission_name ([string]$_.columnName))
+    })
+    $lines=@("AED_TEST / [dbo].[DeptChangeLog] ($($object.type_desc))",
         "Effective SELECT: object $objectSelect; schema $($scopes.schemaSelect -eq 1); database $($scopes.databaseSelect -eq 1).")
+    if ($triggerSelect) {
+        $lines+='The object-level SELECT result describes a trigger and does not grant access to data rows.'
+        if ($otherEffective.Count) { $lines+="Other effective permissions: $($otherEffective.permission_name -join ', ')." }
+    }
     if ($columns.Count) { $lines+="Columns with SELECT: $($columns -join ', ')." }
     foreach ($grant in $dbPermissions) {
         $column=if ([string]$grant.columnName) { " ($($grant.columnName))" }
@@ -51,7 +61,9 @@ function Convert-DeptPermissionEvidence([Data.DataSet]$Data) {
     $lines+="Ownership: object $owner; schema $($object.schemaOwner); dedicated reader owns database $($object.readerOwnsDatabase -eq 1)."
     if ($revokeTrigger) { $lines+='An enabled SQL permission-change trigger requires administrator review before a revoke.' }
     $recommendation=if ($repairable) { 'Review & Repair can revoke this one direct SELECT grant. It will then rerun book authorization.' }
-        elseif ($hasSelect -and -not ($dbPermissions.Count -or $serverPermissions.Count -or $roles.Count -or $ownership -or $broader)) {
+        elseif ($triggerSelect -and -not ($columns.Count -or $otherEffective.Count -or $dbPermissions.Count -or $serverPermissions.Count -or $roles.Count -or $ownership -or $broader)) {
+            'Retry book authorization. The standard checks still verify the reader and its remaining permissions.'
+        } elseif ($hasSelect -and -not ($dbPermissions.Count -or $serverPermissions.Count -or $roles.Count -or $ownership -or $broader)) {
             'SQL reports SELECT but did not identify an attributable grant or ownership path. Ask your SQL administrator to investigate the effective security context.'
         } elseif ($hasSelect) { 'Ask your SQL administrator to review the reported grants, roles, and ownership for a restriction scoped to this reader.' }
         else { 'No effective SELECT was found for this object. Retry book authorization to check the rest of the reader permissions.' }
