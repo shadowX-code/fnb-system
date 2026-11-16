@@ -78,7 +78,7 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
 
  return {
   receive,
-  async tool(args, responseId) {
+  async tool(args, responseId, operation) {
    const owner = responses.get(responseId);
    const turn = owner?.turn;
    if (!turn || turn !== current || turn.response !== owner || turn.finished || turn.toolPending || owner.tool) return { stale: true };
@@ -91,7 +91,7 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
     if (turn.finished || turn !== current) return { stale: true };
     const tool = { turn_id: turn.id, operation: owner.number };
     activity({ ...tool, phase: 'executing' });
-    const evidence = await read(turn.id, args);
+    const evidence = await read(turn.id, args, operation);
     activity({ ...tool, phase: 'complete' });
     trace('factory_read_completed', turn.number, owner.number);
     return turn.finished || turn !== current ? { stale: true } : { evidence };

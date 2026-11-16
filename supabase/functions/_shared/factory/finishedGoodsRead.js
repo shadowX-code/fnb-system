@@ -1,4 +1,4 @@
-import {AssistantError} from './provider.js';
+import {AssistantError} from '../assistantError.js';
 export const inventoryTool={type:'function',name:'read_factory_finished_goods',description:'Read current Factory shared Finished Goods stock. Use for stock, availability and low-stock questions; re-read for follow-ups. No Company or Outlet scope exists in this catalogue.',strict:true,parameters:{type:'object',properties:{query:{type:'string',description:'Product name substring, empty for all products'},availability:{type:'string',enum:['all','low','out_of_stock']}},required:['query','availability'],additionalProperties:false}};
 export function inventoryArguments(value){
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!['query','availability'].includes(k))||typeof value.query!=='string'||value.query.length>80||!['all','low','out_of_stock'].includes(value.availability))throw new AssistantError('tool_arguments_invalid',400);
@@ -34,3 +34,13 @@ export function lowStockSummary(evidence){
  const shown=evidence.rows.slice(0,10);
  return [`${evidence.total_matching} product(s) below a recorded positive minimum.`,...shown.map(x=>`• ${String(x.product_name||x.product_code).slice(0,80)}: ${x.current_balance} ${x.uom||''}; minimum ${x.min_stock_level} ${x.uom||''}.`),...(evidence.total_matching>shown.length?[`Showing ${shown.length} of ${evidence.total_matching} matches.`]:[]),`${evidence.unknown_minimum_count} product(s) have no valid minimum threshold. Their low-stock status is UNKNOWN; they are not classified as low or healthy.`,`Scope: ${evidence.scope}. Read at ${evidence.as_of}.`,`Source: ${evidence.source}. Current aggregate balances, not reserved or available-to-promise stock.`].join('\n');
 }
+
+// Factory owns the schema, permission, bounded read and evidence semantics.
+export const finishedGoodsRead = Object.freeze({
+ id:inventoryTool.name, module_id:'factory_finished_goods', kind:'READ', version:1,
+ label:'Factory Finished Goods', permission:'factory_finished_goods.view',
+ scope:'Factory shared catalogue · current Admin permissions',
+ tool:inventoryTool, validate:inventoryArguments, execute:readInventory,
+ enabled:config=>!!config.factory_reads_enabled, authorized:access=>!!access.factory, deniedCode:'factory_read_denied',
+ format:evidence=>evidence.availability==='low'?lowStockSummary(evidence):null,
+});

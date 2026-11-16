@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dispatch } from './handler.js';
-import { sdkBaselineInstructions } from './realtime.js';
 
 const id = '249ec7e0-df75-4145-8a34-ec2baf82f9ef';
 const request = { action:'realtime_sdk_connect', provider:'openai', session_id:id, request_id:id, voice:'cedar', connection_protocol:'server_webrtc_v1' };
@@ -45,12 +44,12 @@ test('Grok receives a separate credential and returns only ephemeral authorizati
 test('Realtime inventory requires canonical permission and a charged reservation', async () => {
  const { voice, connection_protocol, ...base } = request;
  const tool = { ...base, action:'realtime_tool', arguments:{ query:'Sauce', availability:'low' } };
- const ctx = { rpc:async()=>({config:{enabled:true,factory_reads_enabled:true},can_edit:true}), get:key=>approved[key], reserveRealtime:fail, readTool:fail };
+ const ctx = { rpc:async()=>({config:{enabled:true,factory_reads_enabled:true},can_edit:true}), get:key=>approved[key], reserveRealtime:fail, readFactory:fail };
  await assert.rejects(dispatch(tool,ctx),{code:'factory_read_denied'});
  await assert.rejects(dispatch(tool,{...ctx,access:{factory:true},reserveRealtime:async()=>{throw Error('lease denied');}}),/lease denied/);
  const result = await dispatch(tool,{...ctx,access:{factory:true},
   reserveRealtime:async action=>assert.equal(action,'tool'),
-  readTool:async args=>({query:args.query,source:'/factory/warehouse/finished-goods'}),
+  readFactory:async args=>({query:args.query,source:'/factory/warehouse/finished-goods'}),
  });
  assert.equal(result.query,'Sauce');
 });
@@ -67,7 +66,7 @@ test('SDK admission issues a scoped server ticket without a provider call or fix
 });
 
 test('SDK startup classifies provider rejections without disclosing response text or unsafe metadata', async () => {
- const { createSdkVoiceSecret } = await import('./realtime.js');
+ const { createRealtimeCall } = await import('./realtime.js');
  const cases = [
   [429, 'rate_limit_exceeded', 'realtime_rate_limited'],
   [429, 'insufficient_quota', 'provider_quota_exhausted'],
@@ -76,7 +75,7 @@ test('SDK startup classifies provider rejections without disclosing response tex
   [503, 'secret-fixture', 'realtime_provider_temporary'],
  ];
  for (const [status, code, expected] of cases) {
-  await assert.rejects(createSdkVoiceSecret('cedar', key=>approved[key], {
+  await assert.rejects(createRealtimeCall({sdp:'v=0\r\n',voice:'cedar',tools:[]}, key=>approved[key], {
    transport:async()=>Response.json({error:{code,message:'private-fixture',type:'secret-fixture'}}, {
     status, headers:{'retry-after':'15','x-request-id':'req_fixture123'},
    }),

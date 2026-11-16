@@ -1249,3 +1249,7 @@ model between Admin and MCP, with source-bound paging and explicit period gaps.
 Verification/delivery evidence belongs in the scoped acceptance record.
 
 - HR Agent Payroll preparation reuses canonical earnings/statutory/time authorities with explicit Machine Actors, exact Draft action grants and redacted readiness. Finalize/payment/submission remain Human-owned.
+
+## 2026-11-16 · Native Assistant module-operation reconciliation
+
+Factory Finished Goods READ moved to a Factory-owned server contract; Text/Voice/settings reads share one dispatcher and AI Integrations consumes its capability projection joined to canonical module metadata. Historical Voice alias, private history/memory, lease/accounting contracts and independent MCP/Grok authorities remain. The unused OpenAI client-secret baseline was removed; ACTION remains non-callable pending separate AI-execution authorization and exact-intent confirmation. See `docs/audits/native-assistant-architecture-reconciliation-20261116.md` and `docs/architecture/trusted-authorities.md`.

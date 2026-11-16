@@ -45,33 +45,6 @@ export async function createRealtimeCall({ sdp, voice, tools, transcription = tr
  return { sdp: answer, call_id: response.headers.get('Location')?.split('/').pop() };
 }
 
-// This baseline is intentionally isolated from conversation history and business tools.
-export const sdkBaselineInstructions = 'You are the FeedX voice test assistant. Reply briefly in the language the user speaks, including mixed English and Mandarin. This session is for audio verification.';
-
-export async function createSdkVoiceSecret(voice, get, { signal, transport = fetch } = {}) {
- if (!realtimeReady(get)) throw new AssistantError('realtime_not_authorized', 403);
- const endpoint = 'https://api.openai.com/v1/realtime/client_secrets';
- let response;
- try {
-  response = await transport(endpoint, {
-   method: 'POST',
-   redirect: 'error',
-   headers: { Authorization: `Bearer ${get('NATIVE_ASSISTANT_REALTIME_API_KEY')}`, 'Content-Type': 'application/json' },
-   signal: AbortSignal.any([AbortSignal.timeout(10000), ...(signal ? [signal] : [])]),
-   body: JSON.stringify({
-    expires_after: { anchor: "created_at", seconds: 60 },
-    session: { type: 'realtime', model: realtimeModel, instructions: sdkBaselineInstructions, output_modalities: ['audio'], audio: { output: { voice } } },
-   }),
-  });
- } catch {
-  throw new AssistantError('realtime_unavailable', 502);
- }
- if(!response.ok)await rejectRealtime(response,endpoint);
- const result = await response.json().catch(() => null);
- if (typeof result?.value !== 'string' || !/^ek_[A-Za-z0-9_-]{8,2048}$/.test(result.value)) throw new AssistantError('realtime_unavailable', 502);
- return { client_secret: result.value, model: realtimeModel, instructions: sdkBaselineInstructions };
-}
-
 async function rejectRealtime(response,endpoint){
   const error = await providerJson(response, 16384).then(body => body?.error).catch(() => null);
   const categories = {

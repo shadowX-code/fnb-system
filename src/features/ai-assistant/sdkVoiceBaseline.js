@@ -67,10 +67,10 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
      const turn = await call('realtime_turn', { ...lease, turn_id, step, text, ...(details?{details}:{}) });
      if (getSession() === session_id) post('voice_turn', { session_id, turn });
     },
-    async read(turn_id, args) {
+    async read(turn_id, args, operation) {
      await run.observations;
      run.controller.signal.throwIfAborted();
-     return call('realtime_tool', { ...lease, turn_id, arguments: args }, run.controller.signal);
+     return call('realtime_tool', { ...lease, turn_id, arguments: args, ...(operation?{operation}:{}) }, run.controller.signal);
     },
     activity: detail => {
      if (getSession() === session_id) post('voice_activity', { ...detail, session_id, at: Date.now() });
@@ -82,7 +82,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
    const tools = (authorization.tools || []).map(definition => tool({
     name: definition.name, description: definition.description, parameters: definition.parameters, strict: true,
     async execute(args, _context, details) {
-     const result = await history.tool(args, details?.toolCall?.responseId);
+     const result = await history.tool(args, details?.toolCall?.responseId, definition.name);
      if (result.stale || active !== run) return backgroundResult('The voice turn has ended.');
      return result.evidence || result.error;
     },
