@@ -10,7 +10,7 @@ node node_modules/vite/bin/vite.js --config qa/native-assistant-management/vite.
 node qa/native-assistant-management/browser.mjs
 ```
 
-The serve-only local harness renders actual components and canonical styles with explicitly labeled fixture data. Its service permits only configuration and usage reads; mutations, paid tests and business reads reject. Browser checks cover all three sections at 1440, 1040 and 400 CSS pixels, page overflow, branded filter menus and Escape dismissal. Screenshots and checks go to `/tmp/feedx-assistant-management-refinement`.
+The serve-only local harness renders actual components and canonical styles with explicitly labeled fixture data. Its service permits only configuration and usage reads; mutations, paid tests and business reads reject. Browser checks cover all three sections at 1440, 1040 and 400 CSS pixels, page overflow, branded filter menus and Escape dismissal. Screenshots and checks go to `/tmp/feedx-ai-capabilities`.
 
 Canonical Staging acceptance: open AI Integrations → Native Assistant as an authorized Admin; inspect provider/test timestamps, capability state and usage records without activating Voice or running a paid provider test. Confirm read-only settings access under a suitable existing account. Source readiness is metadata only, not permission to access documents. Tests distinguish disabled Factory access from a server-denied caller and preserve the existing explicit read-test action.
 
@@ -32,3 +32,5 @@ The SDK currently accumulates only response audio totals and persists those thro
 Current official model pricing was checked at https://developers.openai.com/api/docs/models/gpt-realtime-2.1-mini on 16 November 2026: USD per million tokens is text input 0.60 / cached input 0.06 / output 2.40, audio input 10.00 / cached input 0.30 / output 20.00. These current rates are research evidence, not a historical price snapshot for the saved sessions, and are intentionally not applied. Grok has no saved sessions in this sample. Future estimation needs a server-associated model, complete/deduplicated token categories, report-completeness evidence and applicable versioned pricing; it must remain distinct from provider invoices.
 
 Renderer fixtures are not authenticated Staging evidence. Policy Edit/Cancel and filter tests must not save live settings or start Voice. The summary reports filtered record counts and coverage; it is not a monthly billing total.
+
+AI Capabilities QA also verifies canonical module grouping, source-only unavailable reads, nested Factory controls, and pointer/keyboard expansion. Authenticated Chrome inspection on this pass was unavailable (no open Chrome window or connected browser-control tool); fixtures do not count as authenticated acceptance.

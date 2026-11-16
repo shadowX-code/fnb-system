@@ -1,5 +1,5 @@
 import {businessCapabilities} from '../../../supabase/functions/native-assistant/business.js';
-import React from 'react';import {expect,it,vi,afterEach} from 'vitest';import {render,screen,fireEvent,waitFor,cleanup} from '@testing-library/react';
+import React from 'react';import {expect,it,vi,afterEach} from 'vitest';import {render,screen,fireEvent,waitFor,cleanup,within} from '@testing-library/react';
 vi.mock('../ai-assistant/nativeAssistantService.js',()=>({assistantCall:vi.fn(),assistantErrors:{provider_not_authorized:'Provider not authorized.'}}));
 import {assistantCall} from '../ai-assistant/nativeAssistantService.js';import NativeAssistantSettings from './NativeAssistantSettings.jsx';
 afterEach(()=>{cleanup();vi.clearAllMocks();});
@@ -13,16 +13,16 @@ it('shows safe upstream status/type/endpoint and missing Responses permission wi
 it('organizes management without triggering provider tests, business reads or document retrieval',async()=>{
  assistantCall.mockResolvedValue(data);render(<NativeAssistantSettings auth={{user:{id:'one'},hasPermission:()=>true}}/>);
  await screen.findByText('native-assistant-openai');
- for(const name of ['Overview','Access & Knowledge','Voice & Usage'])expect(screen.getByRole('tab',{name})).toBeTruthy();
- fireEvent.click(screen.getByRole('tab',{name:'Access & Knowledge'}));expect(screen.getByText('Managed Knowledge')).toBeTruthy();expect(screen.getAllByText('Not connected')).toHaveLength(4);
- fireEvent.click(screen.getByRole('tab',{name:'Access & Knowledge'}));expect(screen.getByText('Not evaluated while disabled')).toBeTruthy();
+ for(const name of ['Overview','AI Capabilities','Voice & Usage'])expect(screen.getByRole('tab',{name})).toBeTruthy();
+ fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));expect(screen.queryByText('Managed Knowledge')).toBeNull();expect(screen.getAllByText('Not connected')).toHaveLength(6);
+ fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));expect(screen.getByText(/Not evaluated while unavailable/)).toBeTruthy();
  expect(assistantCall.mock.calls.every(([action])=>action==='configuration')).toBe(true);
  fireEvent.click(screen.getByRole('button',{name:'Test Finished Goods read'}));await waitFor(()=>expect(assistantCall).toHaveBeenCalledWith('tool_test',{}));
 });
 it.each([[true,'Connected'],[false,'Access denied']])('uses server tool access, not the settings role, to present capability availability (%s)',async(tools,label)=>{
  assistantCall.mockResolvedValue({...data,can_edit:false,config:{...data.config,factory_reads_enabled:true},runtime:{...data.runtime,tools,capabilities:businessCapabilities({factory_reads_enabled:true},{factory:tools})}});
  render(<NativeAssistantSettings auth={{user:{id:'reader'},hasPermission:()=>false}}/>);await screen.findByText('native-assistant-openai');
- fireEvent.click(screen.getByRole('tab',{name:'Access & Knowledge'}));expect(screen.getByText(label)).toBeTruthy();expect(screen.getByRole('button',{name:'Test Finished Goods read'}).disabled).toBe(true);
+ fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));expect(screen.getAllByText(label).length).toBeGreaterThan(0);expect(screen.getByRole('button',{name:'Test Finished Goods read'}).disabled).toBe(true);
 });
 it('respects server edit denial even when local settings permission allows edits',async()=>{
  assistantCall.mockResolvedValue({...data,can_edit:false});render(<NativeAssistantSettings auth={{user:{id:'one'},hasPermission:()=>true}}/>);await screen.findByText('native-assistant-openai');
@@ -31,7 +31,7 @@ it('respects server edit denial even when local settings permission allows edits
 it('keeps pending text edits while inspecting other sections',async()=>{
  assistantCall.mockResolvedValue(data);render(<NativeAssistantSettings auth={{user:{id:'one'},hasPermission:()=>true}}/>);await screen.findByText('native-assistant-openai');
  fireEvent.click(screen.getByRole('button',{name:'Model',exact:true}));fireEvent.click(await screen.findByRole('option',{name:'gpt-4.1-mini'}));
- fireEvent.click(screen.getByRole('tab',{name:'Access & Knowledge'}));fireEvent.click(screen.getByRole('tab',{name:'Overview'}));
+ fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));fireEvent.click(screen.getByRole('tab',{name:'Overview'}));
  expect(screen.getByRole('button',{name:'Model',exact:true}).textContent).toContain('gpt-4.1-mini');expect(screen.getByRole('button',{name:'Save',exact:true}).disabled).toBe(false);
  expect(assistantCall.mock.calls).toEqual([['configuration']]);
 });
@@ -39,6 +39,18 @@ it('keeps pending text edits while inspecting other sections',async()=>{
 it('does not synthesize a callable Factory capability from legacy booleans',async()=>{
  assistantCall.mockResolvedValue({...data,runtime:{...data.runtime,tools:true,capabilities:undefined}});
  render(<NativeAssistantSettings auth={{user:{id:'reader'},hasPermission:()=>true}}/>);await screen.findByText('native-assistant-openai');
- fireEvent.click(screen.getByRole('tab',{name:'Access & Knowledge'}));expect(screen.getByRole('button',{name:'Test Finished Goods read'}).disabled).toBe(true);
- expect(screen.queryByText('Connected')).toBeNull();expect(screen.getByText(/No registered business operations/)).toBeTruthy();
+ fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));expect(screen.queryByRole('button',{name:'Test Finished Goods read'})).toBeNull();
+ expect(screen.queryByText('Connected')).toBeNull();expect(screen.getByText(/No registered operations/)).toBeTruthy();
+});
+
+it('nests existing enable/test intents only in the registered Factory READ detail',async()=>{
+ assistantCall.mockResolvedValue({...data,config:{...data.config,factory_reads_enabled:true},runtime:{...data.runtime,capabilities:businessCapabilities({factory_reads_enabled:true},{factory:true})}});
+ render(<NativeAssistantSettings auth={{user:{id:'one'},hasPermission:()=>true}}/>);await screen.findByText('native-assistant-openai');
+ fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));
+ const read=within(screen.getByRole('region',{name:'Finished Goods READ'}));
+ fireEvent.click(read.getByRole('checkbox',{name:'Enable Finished Goods reader'}));
+ await waitFor(()=>expect(assistantCall).toHaveBeenCalledWith('features',{expected_revision:1,factory_reads_enabled:false}));
+ expect(screen.getAllByRole('button',{name:'Test Finished Goods read'})).toHaveLength(1);
+ expect(screen.queryByText(/285|Other module coverage/)).toBeNull();
+ expect(within(screen.getByRole('region',{name:'Finished Goods ACTION'})).getByText('No ACTION operation registered.')).toBeTruthy();
 });

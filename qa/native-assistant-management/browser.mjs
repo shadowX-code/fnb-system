@@ -1,14 +1,24 @@
 import {chromium} from '@playwright/test';
 import {mkdir,writeFile} from 'node:fs/promises';
-const output='/tmp/feedx-assistant-management-refinement';await mkdir(output,{recursive:true});
+const output='/tmp/feedx-ai-capabilities';await mkdir(output,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:'chrome'});
 const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const findings=[];
 for(const width of [1440,1040,400]){
  await page.setViewportSize({width,height:960});await page.goto('http://127.0.0.1:4177/qa/native-assistant-management/index.html');
  await page.getByRole('button',{name:'Save',exact:true}).waitFor();
- for(const section of ['Overview','Access & Knowledge','Voice & Usage']){
+ for(const section of ['Overview','AI Capabilities','Voice & Usage']){
   await page.getByRole('tab',{name:section,exact:true}).click();
+  if(section==='AI Capabilities'){
+   await page.getByRole('region',{name:'Finished Goods READ'}).getByRole('button',{name:'Test Finished Goods read'}).waitFor();
+   const module=page.locator('details[aria-label="SOP Library capabilities"]');
+   await module.locator('summary').click();
+   if(await module.getAttribute('open')===null)throw new Error('Module details did not expand');
+   await page.screenshot({path:`${output}/${width}-source-details.png`,fullPage:true});
+   await module.locator('summary').focus();await page.keyboard.press('Enter');
+   if(await module.getAttribute('open')!==null)throw new Error('Keyboard module collapse failed');
+   await page.getByRole('heading',{name:'AI Integrations',exact:true}).click();
+  }
   if(section==='Voice & Usage')await page.getByText('2 of 2 sessions').waitFor();
   const dimensions=await page.evaluate(()=>({viewport:innerWidth,scroll:document.documentElement.scrollWidth}));
   if(dimensions.scroll>width+1)throw new Error(`Overflow ${width} ${section}: ${dimensions.scroll}`);

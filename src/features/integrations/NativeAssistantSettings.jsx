@@ -1,6 +1,6 @@
 import {assistantProviderPresentation} from './assistantProviderPresentation.js';
 import AdminUnderlineTabs from '../../components/navigation/AdminUnderlineTabs.jsx';
-import NativeAssistantAccess from './NativeAssistantAccess.jsx';
+import NativeAssistantCapabilities from './NativeAssistantCapabilities.jsx';
 import DashboardSection from '../../components/layout/DashboardSection.jsx';
 import AdminFormField from '../../components/forms/AdminFormField.jsx';
 import VoiceUsage from '../ai-assistant/VoiceUsage.jsx';
@@ -41,11 +41,11 @@ export default function NativeAssistantSettings({auth}){
    <button type="button" className="btn-secondary inline-flex items-center gap-2" aria-label="Refresh Native Assistant status" onClick={()=>void load()} disabled={busy}><RefreshCw size={15}/> Refresh</button>
   </div>
   <AdminUnderlineTabs value={section} onChange={setSection} ariaLabel="Native Assistant sections" tabs={[
-   {value:'overview',label:'Overview'},{value:'access',label:'Access & Knowledge'},{value:'voice',label:'Voice & Usage'},
+   {value:'overview',label:'Overview'},{value:'access',label:'AI Capabilities'},{value:'voice',label:'Voice & Usage'},
   ]}/>
   {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}{message&&<p role="status" className="text-sm text-text-secondary">{message}</p>}
   {diagnostic?.source==='openai'&&<details open className="text-xs text-text-secondary"><summary className="cursor-pointer">Provider response details</summary><dl className="mt-2 grid gap-2 sm:grid-cols-2">{[['Source','OpenAI upstream'],['HTTP status',diagnostic.http_status],['Provider error code',diagnostic.provider_error_code??'Not supplied'],['Provider error type',diagnostic.provider_error_type??'Not supplied'],['Endpoint',diagnostic.endpoint],['Model',diagnostic.model],['Missing permissions',(diagnostic.missing_permissions||[]).join(', ')||'Not specified']].map(([label,value])=><div key={label} className="min-w-0"><dt className="font-medium">{label}</dt><dd className="break-all">{value}</dd></div>)}</dl></details>}
-  {section==='voice'?<VoiceUsage key={identity} onSaved={load}/>:!data?<p role="status" className="text-sm text-text-secondary">{error?'Native Assistant configuration is unavailable. Refresh to try again.':'Loading server configuration…'}</p>:section==='access'?<NativeAssistantAccess data={data} canEdit={canEdit} busy={busy} onFeature={feature}/>:<div className="grid items-start gap-4 lg:grid-cols-2">
+  {section==='voice'?<VoiceUsage key={identity} onSaved={load}/>:!data?<p role="status" className="text-sm text-text-secondary">{error?'Native Assistant configuration is unavailable. Refresh to try again.':'Loading server configuration…'}</p>:section==='access'?<NativeAssistantCapabilities data={data} canEdit={canEdit} busy={busy} onFeature={feature}/>:<div className="grid items-start gap-4 lg:grid-cols-2">
    <DashboardSection title="Text conversation" density="compact" action={<Badge tone={data.runtime.ready?'success':'neutral'}>{data.runtime.ready?'Enabled':data.config.enabled?'Not connected':'Disabled'}</Badge>} contentClassName="space-y-3">
     <div className="grid gap-3 sm:grid-cols-2"><SelectField label="LLM provider" value="openai" options={[{value:'openai',label:'OpenAI'}]} disabled={!canEdit||busy} onChange={()=>{}}/><SelectField label="Model" value={model} options={(data.runtime.providers?.find(p=>p.value==='openai')||data.runtime.providers?.[0])?.models.map(value=>({value,label:value}))||[]} disabled={!canEdit||busy} onChange={setModel}/></div>
     <label className="inline-flex items-center gap-2 text-sm"><input className="admin-checkbox" type="checkbox" checked={enabled} disabled={!canEdit||busy||!canEnable&&!enabled} onChange={e=>setEnabled(e.target.checked)}/> Enable text conversations</label>
