@@ -120,6 +120,7 @@ function Get-DiagnosticHint([string]$Code) {
         '^STAGING_HTTP_4|^STAGING_RECEIPT_' { return 'Check the book binding in FeedX. Queued uploads are kept for retry.' }
         '^READER_OTHER_DATABASE_ACCESS_OR_UNKNOWN$' { return 'Ask your SQL administrator to check for unintended reader access outside this book.' }
         '^READER_DATABASE_INVENTORY_UNVERIFIED$' { return 'Ask your SQL administrator to verify database metadata visibility for this reader.' }
+        '^READER_PERMISSION_OUTSIDE_APPROVED_OBJECTS$|^READER_SCHEMA_PERMISSION_TOO_BROAD$|^READER_PROFILE_PERMISSION_TOO_BROAD$' { return 'Share Copy diagnostics with your SQL administrator. Review the reported effective permission and matching grant scope before changing any access.' }
         '^READER_PENDING_IDENTITY_MISMATCH$' { return 'Ask your SQL administrator to review the pending reader identity. The connector did not replace it.' }
         '^READER_DISABLE_FAILED' { return 'Ask your SQL administrator to review and disable the pending reader before retrying.' }
         '^SQL_ERROR_18456$' { return 'Ask your SQL administrator to check SQL authentication and reader sign-in.' }

@@ -69,7 +69,65 @@ function Open-ProvisionedReader([Security.SecureString]$Secret) {
     } catch { $connection.Dispose(); throw }
 }
 
-function Assert-ProvisionedReader($Connection,$Identity,$Plan,$Databases) {
+function Get-ReaderPermissionDetails($Connection,$GrantCatalogConnection,$Object,$EffectivePermissions,$Plan) {
+    $details=[ordered]@{
+        scope=if ($Object.objectId) { 'OBJECT' } else { 'SCHEMA' }
+        securable=$Object.objectName -replace '[\p{C}]','?'
+        effective=@(foreach ($entry in $EffectivePermissions) {
+            @{permission=$entry.permission_name;column=$entry.subentity_name -replace '[\p{C}]','?'}
+        })
+        approvedObjects=@($Plan.names | ForEach-Object { $_ -replace '[\p{C}]','?' })
+        approvedProfileColumns=@($Plan.metadataColumns | Where-Object { $_ })
+        grantEvidenceStatus='Unavailable'
+        grantCatalogEntries=@()
+    }
+    try {
+        # The reader supplies its own security token. The existing admin session can see public and role grants hidden from the reader.
+        $tokens=@(Invoke-ReadQuery $Connection @'
+SELECT DISTINCT principal_id FROM sys.user_token
+WHERE usage=N'GRANT OR DENY' AND principal_id>0
+'@)
+        $parameters=@{'@objectId'=[int]$Object.objectId;'@schemaId'=[int]$Object.schemaId;'@readerId'=[int]$Object.readerId}
+        $tokenParameters=@(for ($i=0; $i -lt $tokens.Count; $i++) {
+            $key="@grantee$i"
+            $parameters[$key]=[int]$tokens[$i].principal_id
+            $key
+        })
+        $grantees=(@('@readerId',"DATABASE_PRINCIPAL_ID(N'public')")+$tokenParameters) -join ','
+        $catalog=if ($GrantCatalogConnection) { $GrantCatalogConnection } else { $Connection }
+        $grants=@(Invoke-ReadQuery $catalog @"
+SELECT TOP (33)
+       CASE WHEN p.class=1 AND p.minor_id>0 THEN 'COLUMN'
+            WHEN p.class=1 THEN 'OBJECT' WHEN p.class=3 THEN 'SCHEMA' ELSE 'DATABASE' END AS grantScope,
+       CASE WHEN g.name=N'public' THEN 'public'
+            WHEN g.principal_id=@readerId THEN 'direct reader'
+            ELSE 'inherited token' END AS grantSource,
+       CASE WHEN g.type='R' AND g.name<>N'public' THEN g.name END AS roleName,
+       p.permission_name AS permission, p.state_desc AS grantState,
+       CASE WHEN p.class=1 AND p.minor_id>0 THEN COL_NAME(p.major_id,p.minor_id) END AS columnName
+FROM sys.database_permissions p
+JOIN sys.database_principals g ON g.principal_id=p.grantee_principal_id
+WHERE p.grantee_principal_id IN ($grantees)
+  AND (p.class=0 OR (p.class=3 AND p.major_id=@schemaId) OR (p.class=1 AND p.major_id=@objectId))
+  AND p.permission_name NOT IN ('CONNECT','VIEW DEFINITION','VIEW SECURITY DEFINITION','VIEW PERFORMANCE DEFINITION',
+       'VIEW ANY COLUMN ENCRYPTION KEY DEFINITION','VIEW ANY COLUMN MASTER KEY DEFINITION')
+ORDER BY p.class DESC,p.minor_id,p.permission_name,g.principal_id
+"@ $parameters)
+        $details.grantEvidenceStatus=if ($GrantCatalogConnection) { 'Administrator catalog' } else { 'Reader-visible catalog only' }
+        $details.grantCatalogEntries=@($grants | Select-Object -First 32 | ForEach-Object {
+            @{scope=$_.grantScope;source=$_.grantSource;role=$_.roleName -replace '[\p{C}]','?'
+              permission=$_.permission;state=$_.grantState;column=$_.columnName -replace '[\p{C}]','?'}
+        })
+        if ($grants.Count -gt 32) { $details.grantEvidenceTruncated=$true }
+    } catch {
+        # Failure to read attribution evidence must not replace the effective permission rejection.
+        $failure=$_.Exception.GetBaseException()
+        $details.grantEvidenceError=if ($failure -is [Data.SqlClient.SqlException]) { 'SQL_ERROR_'+$failure.Number } else { 'GRANT_CATALOG_LOOKUP_FAILED' }
+    }
+    return $details
+}
+
+function Assert-ProvisionedReader($Connection,$Identity,$Plan,$Databases,$GrantCatalogConnection) {
     Assert-ReadPermissions $Connection $Identity
     if ($Identity.login -cne $script:ProvisionedLogin -or $Identity.dbUser -cne $script:ProvisionedLogin) {
         Stop-ReadPoc 'PROVISIONED_READER_PRINCIPAL_MISMATCH'
@@ -91,27 +149,37 @@ SELECT name FROM sys.user_token WHERE type LIKE '%ROLE' AND name<>'public'
         Stop-ReadPermission 'READER_OTHER_DATABASE_ACCESS_OR_UNKNOWN' @{accessibleCount=$accessible;indeterminateCount=$indeterminate}
     }
     $broad=@(Invoke-ReadQuery $Connection @'
-SELECT p.permission_name
+SELECT TOP (32) s.schema_id AS schemaId, QUOTENAME(s.name) AS objectName,
+       USER_ID() AS readerId, p.permission_name
 FROM sys.schemas s
 CROSS APPLY sys.fn_my_permissions(QUOTENAME(s.name),'SCHEMA') p
 WHERE s.name NOT IN ('sys','INFORMATION_SCHEMA')
   AND p.permission_name NOT IN ('VIEW DEFINITION','VIEW SECURITY DEFINITION','VIEW PERFORMANCE DEFINITION')
+ORDER BY s.schema_id,p.permission_name
 '@)
-    if ($broad.Count) { Stop-ReadPoc 'READER_SCHEMA_PERMISSION_TOO_BROAD' }
+    if ($broad.Count) {
+        $first=$broad[0]
+        $effective=@($broad | Where-Object schemaId -EQ $first.schemaId)
+        Stop-ReadPermission 'READER_SCHEMA_PERMISSION_TOO_BROAD' (Get-ReaderPermissionDetails $Connection $GrantCatalogConnection $first $effective $Plan)
+    }
     $visible=@(Invoke-ReadQuery $Connection @'
-SELECT QUOTENAME(s.name)+N'.'+QUOTENAME(o.name) AS objectName
+SELECT o.object_id AS objectId, o.schema_id AS schemaId, USER_ID() AS readerId,
+       QUOTENAME(s.name)+N'.'+QUOTENAME(o.name) AS objectName
 FROM sys.objects o JOIN sys.schemas s ON s.schema_id=o.schema_id
 WHERE o.is_ms_shipped=0
+ORDER BY s.name,o.name,o.object_id
 '@)
     foreach ($object in $visible) {
         if ($object.objectName -cin $Plan.names) { continue }
-        if ($Plan.metadataColumns -and $object.objectName -ceq '[dbo].[Profile]') {
-            $metadata = @(Invoke-ReadQuery $Connection @'
-SELECT permission_name, subentity_name FROM sys.fn_my_permissions(N'dbo.Profile','OBJECT')
+        $permissions=@(Invoke-ReadQuery $Connection @'
+SELECT permission_name,subentity_name FROM sys.fn_my_permissions(@object,'OBJECT')
 WHERE permission_name NOT IN ('VIEW DEFINITION','VIEW SECURITY DEFINITION','VIEW PERFORMANCE DEFINITION')
-'@)
-            if (@($metadata | Where-Object { $_.permission_name -ne 'SELECT' -or $_.subentity_name -cnotin $Plan.metadataColumns }).Count) {
-                Stop-ReadPoc 'READER_PROFILE_PERMISSION_TOO_BROAD'
+ORDER BY permission_name,subentity_name
+'@ @{'@object'=$object.objectName})
+        if ($Plan.metadataColumns -and $object.objectName -ceq '[dbo].[Profile]') {
+            $unexpected=@($permissions | Where-Object { $_.permission_name -ne 'SELECT' -or $_.subentity_name -cnotin $Plan.metadataColumns })
+            if ($unexpected.Count) {
+                Stop-ReadPermission 'READER_PROFILE_PERMISSION_TOO_BROAD' (Get-ReaderPermissionDetails $Connection $GrantCatalogConnection $object $unexpected $Plan)
             }
             foreach ($field in $Plan.metadataColumns) {
                 $allowed = Invoke-ReadQuery $Connection "SELECT HAS_PERMS_BY_NAME(N'dbo.Profile','OBJECT','SELECT',@field,'COLUMN') AS allowed" @{'@field'=$field}
@@ -119,8 +187,9 @@ WHERE permission_name NOT IN ('VIEW DEFINITION','VIEW SECURITY DEFINITION','VIEW
             }
             continue
         }
-        $permissions=@(Invoke-ReadQuery $Connection "SELECT permission_name FROM sys.fn_my_permissions(@object,'OBJECT') WHERE permission_name NOT IN ('VIEW DEFINITION','VIEW SECURITY DEFINITION','VIEW PERFORMANCE DEFINITION')" @{'@object'=$object.objectName})
-        if ($permissions.Count) { Stop-ReadPoc 'READER_PERMISSION_OUTSIDE_APPROVED_OBJECTS' }
+        if ($permissions.Count) {
+            Stop-ReadPermission 'READER_PERMISSION_OUTSIDE_APPROVED_OBJECTS' (Get-ReaderPermissionDetails $Connection $GrantCatalogConnection $object $permissions $Plan)
+        }
     }
     foreach ($name in $Plan.names) { Assert-ObjectReadPermission $Connection @{name=$name} }
 }

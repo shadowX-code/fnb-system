@@ -102,7 +102,7 @@ FROM dbo.Profile p CROSS JOIN sys.databases d WHERE d.database_id=DB_ID()
     return @{company=$rows[0].company.Trim();key=(Get-BookDigest ('AutoCount|'+$Database+'|'+$rows[0].profileId+'|'+$rows[0].brokerId))}
 }
 
-function Get-BookReaderPlan($Connection,$Identity,[string]$Database) {
+function Get-BookReaderPlan($Connection,$Identity,[string]$Database,$GrantCatalogConnection) {
     $inventoryVisible = Invoke-ReadQuery $Connection "SELECT HAS_PERMS_BY_NAME(NULL,NULL,'VIEW ANY DATABASE') AS allowed"
     if ($inventoryVisible.allowed -ne 1) { Stop-ReadPoc 'READER_DATABASE_INVENTORY_UNVERIFIED' }
     # Offline databases cannot be opened. Recheck inventory before every extraction.
@@ -119,7 +119,7 @@ function Get-BookReaderPlan($Connection,$Identity,[string]$Database) {
     Assert-ProvisionedReader $Connection $Identity @{
         names=@($plan.Values | ForEach-Object { $_.table.name })
         metadataColumns=@('CompanyName','Guid')
-    } @($inventory | ForEach-Object name)
+    } @($inventory | ForEach-Object name) $GrantCatalogConnection
     return $plan
 }
 
@@ -203,7 +203,7 @@ SELECT SUSER_ID(@login) AS loginId, USER_ID(@login) AS userId,
         $reader = Open-LocalBook $Instance $Database $credential
         $identity = Assert-ReadIdentity $reader $Database (Get-InstanceIdentity $Instance)
         $stage = 'SQL reader permissions'
-        $null = Get-BookReaderPlan $reader $identity $Database
+        $null = Get-BookReaderPlan $reader $identity $Database $admin
         $confirmed = Read-BookCompany $reader $Database
         if ($confirmed.key -cne $company.key) { Stop-ReadPoc 'BOOK_COMPANY_IDENTITY_CHANGED' }
         $stage = 'Save book authorization'
@@ -222,6 +222,7 @@ SELECT SUSER_ID(@login) AS loginId, USER_ID(@login) AS userId,
             catch {
                 $failure = [InvalidOperationException]::new('READER_DISABLE_FAILED_ADMIN_ACTION_REQUIRED',$original)
                 $failure.Data['FeedXStage'] = $stage
+                $failure.Data['FeedXPermissionDetails'] = $original.Data['FeedXPermissionDetails']
                 throw $failure
             }
         }
