@@ -49,6 +49,31 @@ function Invoke-DeviceAction($Credential,[hashtable]$Command) {
     return Invoke-DeviceApi $Credential 'finance_autocount_device' ($Command | ConvertTo-Json -Compress)
 }
 
+function Confirm-ActiveDevicePairing($Credential) {
+    $device = Invoke-DeviceAction $Credential @{p_action='books'}
+    $id = [guid]::Empty
+    if (-not [guid]::TryParseExact([string]$device.deviceId,'D',[ref]$id) -or $id -eq [guid]::Empty) {
+        Stop-ReadPoc 'DEVICE_CHECK_IN_RESPONSE_INVALID'
+    }
+}
+
+function Request-DevicePairing($Credential,[string]$ComputerName) {
+    try {
+        $issued = Invoke-DeviceAction $Credential @{p_action='issue';p_company=$ComputerName}
+    } catch {
+        if ($_.Exception.GetBaseException().Message -cne 'STAGING_HTTP_409') { throw }
+        try { Confirm-ActiveDevicePairing $Credential }
+        catch {
+            if ($_.Exception.GetBaseException().Message -ceq 'STAGING_HTTP_401') { Stop-ReadPoc 'DEVICE_REGISTRATION_INACTIVE' }
+            throw
+        }
+        return @{state='Paired'}
+    }
+
+    if ($issued.code -cnotmatch '^[A-F0-9]{16}$') { Stop-ReadPoc 'PAIRING_RESPONSE_INVALID' }
+    return @{state='Awaiting confirmation';code=$issued.code}
+}
+
 function Get-LocalConnectorBooks {
     foreach ($folder in (Get-ChildItem -LiteralPath $deviceRoot -Directory | Where-Object Name -cmatch '^[a-f0-9]{64}$')) {
         $path = Join-Path $folder.FullName 'book.json'

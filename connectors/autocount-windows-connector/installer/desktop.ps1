@@ -46,7 +46,7 @@ function Run-UiAction([scriptblock]$Action,[string]$Area='Device setup') {
         }
         $reason = switch -Regex ($failure.Message) {
             '^STAGING_HTTP_401$' { 'The pairing code expired, was used, or this computer was revoked. Generate a fresh code in Windows.'; break }
-            '^STAGING_HTTP_409$' { 'This computer is already registered. Open FeedX to review its connection.'; break }
+            '^DEVICE_REGISTRATION_INACTIVE$' { 'FeedX did not confirm an active pairing for this computer. Review device access in FeedX.'; break }
             '^AUTHORIZED_WINDOWS_SYSADMIN_REQUIRED$' { 'Sign in to Windows as an authorized SQL Server administrator to approve this book.'; break }
             '^SQL_AUTHENTICATION_NOT_ENABLED$' { 'This SQL Server does not allow SQL reader accounts. Ask your SQL administrator to review its authentication mode.'; break }
             '^BOOK_COMPANY_|^MAPPING_|^ACCOUNTING_' { 'The selected database could not be verified as a supported AutoCount Account Book.'; break }
@@ -115,6 +115,7 @@ function Format-ConnectorTime([string]$Value) {
 }
 function Get-DiagnosticHint([string]$Code) {
     switch -Regex ($Code) {
+        '^DEVICE_REGISTRATION_INACTIVE$' { return 'Review this computer''s device access in FeedX.' }
         '^DEVICE_NOT_PAIRED$|^STAGING_HTTP_401$' { return 'Check pairing and book binding in FeedX.' }
         '^STAGING_HTTPS_|^STAGING_HTTP_5' { return 'Check network access to FeedX Staging.' }
         '^STAGING_HTTP_4|^STAGING_RECEIPT_' { return 'Check the book binding in FeedX. Queued uploads are kept for retry.' }
@@ -216,11 +217,16 @@ $pair.Add_Click({
     Run-UiAction {
         $credential = Get-DeviceCredential -Create
         try {
-            $pairing = Invoke-DeviceAction $credential @{p_action='issue';p_company=$env:COMPUTERNAME}
-            if ($pairing.code -cnotmatch '^[A-F0-9]{16}$') { Stop-ReadPoc 'PAIRING_RESPONSE_INVALID' }
-            $codeBox.Text = $pairing.code -replace '(.{4})(?=.)','$1-'
-            $message.Text = "Computer: $env:COMPUTERNAME. Enter the code in FeedX, then use Test Connection to send authorized books."
-            Write-LocalTextAtomically (Join-Path $deviceRoot 'device-setup.json') '{"state":"Awaiting confirmation"}'
+            $codeBox.Clear()
+            $pairing = Request-DevicePairing $credential $env:COMPUTERNAME
+            if ($pairing.state -ceq 'Paired') {
+                $message.Text = 'This computer is already paired. Use Test Connection to send any newly authorized books.'
+            } else {
+                $codeBox.Text = $pairing.code -replace '(.{4})(?=.)','$1-'
+                $message.Text = "Computer: $env:COMPUTERNAME. Enter the code in FeedX, then use Test Connection to send authorized books."
+            }
+            $report = @{state=$pairing.state;finishedAt=[datetime]::UtcNow.ToString('o')}
+            Write-LocalTextAtomically (Join-Path $deviceRoot 'device-setup.json') ($report | ConvertTo-Json -Compress)
             Register-ConnectorSchedule
         } finally { $credential.Password.Dispose() }
     }
@@ -262,7 +268,7 @@ $form.Add_Shown({
         Run-UiAction {
             $credential = Get-DeviceCredential
             try {
-                try { $null = Invoke-DeviceAction $credential @{p_action='books'} }
+                try { Confirm-ActiveDevicePairing $credential }
                 catch {
                     if ($_.Exception.GetBaseException().Message -ne 'STAGING_HTTP_401') { throw }
                     $message.Text = 'Computer awaiting pairing confirmation. Generate a new code if needed.'
