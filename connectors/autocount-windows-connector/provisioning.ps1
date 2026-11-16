@@ -72,7 +72,7 @@ function Open-ProvisionedReader([Security.SecureString]$Secret) {
 function Test-NonRowsetSelectMetadata([string]$ObjectType,[string]$Permission,[string]$Column) {
     # sys.objects.type is char(2). Only known metadata classes can produce a harmless bare SELECT.
     # Leave queryable and unrecognized classes subject to the full object permission check.
-    $metadataTypes=@('C','D','EC','F','PG','PK','R','ST','TA','TR','TT','UQ')
+    $metadataTypes=@('C','D','EC','F','IT','PG','PK','R','ST','TA','TR','TT','UQ')
     return $Permission -ceq 'SELECT' -and -not $Column -and $ObjectType.Trim() -cin $metadataTypes
 }
 

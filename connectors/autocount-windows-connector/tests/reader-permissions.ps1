@@ -11,7 +11,7 @@ $types=@{sqlTrigger='TR';clrTrigger='TA';triggerAlter='TR';triggerControl='TR';t
     defaultConstraint='D ';checkConstraint='C ';foreignKey='F ';primaryKey='PK';uniqueConstraint='UQ';edgeConstraint='EC'
     legacyRule='R ';planGuide='PG';statisticsTree='ST';tableType='TT';constraintAlter='D ';constraintColumn='D '}
 $metadataOnly=@('sqlTrigger','clrTrigger','defaultConstraint','checkConstraint','foreignKey','primaryKey',
-    'uniqueConstraint','edgeConstraint','legacyRule','planGuide','statisticsTree','tableType')
+    'uniqueConstraint','edgeConstraint','legacyRule','planGuide','statisticsTree','tableType','internalTable')
 $overrides=@{triggerAlter='ALTER';triggerControl='CONTROL';triggerExecute='EXECUTE';procedure='EXECUTE';constraintAlter='ALTER'}
 function Invoke-ReadQuery($Connection,$Sql,$Parameters) {
     if ($Sql -like "*fn_my_permissions(NULL, 'SERVER')*") {
@@ -90,7 +90,7 @@ foreach ($script:scenario in (@('approved')+$metadataOnly)) {
 }
 
 $blocked=@('public','schema','noCatalog','table','view','inlineFunction','tableFunction','clrFunction','synonym','externalTable',
-    'internalTable','queue','procedure','unknown','triggerAlter','triggerControl','triggerExecute','triggerColumn',
+    'queue','procedure','unknown','triggerAlter','triggerControl','triggerExecute','triggerColumn',
     'constraintAlter','constraintColumn','broadServer','broadDatabase','role')
 foreach ($script:scenario in $blocked) {
     $expected=switch ($script:scenario) {
