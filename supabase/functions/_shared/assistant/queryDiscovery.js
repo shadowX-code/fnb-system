@@ -33,10 +33,12 @@ export function discoverQueries(operations,capabilities,args){
   return [{operation,score:(supportedRank?100:0)+query.filter(word=>modules.includes(word)).length*2+query.filter(word=>label.includes(word)).length}];
  }).sort((a,b)=>b.score-a.score).map(row=>row.operation);
  const start=(args.page-1)*8;
- return {discovery_only:true,not_business_evidence:true,total_operations:rows.length,page:args.page,has_more:rows.length>start+8,operations:rows.slice(start,start+8).map(o=>({operation:o.id,module:o.module_id,kind:o.kind,description:o.tool.description,parameters:o.tool.parameters,queries:o.moduleInterface?.query,scope:o.scope}))};
+ return {discovery_only:true,not_business_evidence:true,total_operations:rows.length,page:args.page,has_more:rows.length>start+8,operations:rows.slice(start,start+8).map(o=>({operation:o.id,module:o.module_id,kind:o.kind,description:o.tool.description,parameters:o.tool.parameters,queries:o.moduleInterface?.query,scope:o.scope})),
+  ...(!rows.length?{instruction:'No match for this search. Search with only the resource or module name, without filtering, metric, unit or ranking words. Do not substitute a different domain or assume this search result proves that the user lacks permission.'}:{})};
 }
 
-const grammar = new Set('a an the of by in from for to show list all top highest lowest count summary how many compare rank ranking status current stock balance read records operations please what is are'.split(' '));
+const grammar = new Set(('a an the of by in from for to show list all top highest lowest count summary how many compare rank ranking status current stock balance read records operations please what is are '+
+ 'about for using same and unit units three two first page active inactive archived kg g mg ml litre litres pack packs sku').split(' '));
 function discoveryWords(value) {
  const words = value.toLowerCase()
   .replace(/\bfg\b|成品/g,' finished goods ')

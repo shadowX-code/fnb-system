@@ -1,9 +1,11 @@
 // Emit the acceptance matrix from the same definitions exercised by the build.
 // Live results are recorded separately because they depend on environment and actor.
 import {operations} from '../supabase/functions/native-assistant/business.js';
+import {readFileSync} from 'node:fs';
 
 const cell=value=>String(value ?? '').replaceAll('|','\\|').replace(/\s+/g,' ').trim();
 const code=name=>'\x60'+name+'\x60';
+const run=process.argv[2]?JSON.parse(readFileSync(process.argv[2],'utf8')):null;
 console.log(`# FeedX Native Assistant business acceptance matrix
 
 Every registered READ has a generated question and an executable regression for discovery, exact schema, disabled/stale policy, denied permission and invalid arguments. Run \`npm run test:assistant-business\` to produce current results. PASS below refers to that gate. Live natural-language answer acceptance is a separate record.
@@ -35,7 +37,11 @@ for(const op of operations.filter(o=>o.kind==='READ')){
   question,
   `${supported.join(', ')}. Inputs: ${fields.join(', ')||'none'}. ${op.description || op.tool.description}`,
   `${contract.aggregates}. ${contract.pagination} ${op.scope}`,
-  'PASS contract gate / BLOCKED from blanket live sign-off; see run evidence',
+  ['PASS contract gate',
+   run?.results[op.id] || (run ? run.enabled.includes(op.id)
+    ? 'BLOCKED live: no per-operation authenticated answer run within available Text budget'
+    : 'BLOCKED live: AI policy disabled; left unchanged'
+    : 'BLOCKED from blanket live sign-off; see run evidence')].join(' / '),
  ];
  console.log('| '+cells.map(cell).join(' | ')+' |');
 }

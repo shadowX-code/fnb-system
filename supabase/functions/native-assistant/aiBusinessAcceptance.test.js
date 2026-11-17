@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {operations,createBusinessDispatcher} from './business.js';
 import {dispatch} from './handler.js';
 import {generateText} from './provider.js';
@@ -8,7 +9,7 @@ import {rawMaterialStockStatus} from '../_shared/factory/stockCatalogue.js';
 
 const reads=operations.filter(o=>o.kind==='READ');
 const id='10000000-0000-4000-8000-000000000001';
-const config={revision:1,enabled:true,model:'gpt-4o-mini',credential_ref:'native-assistant-openai',
+const config={revision:1,enabled:true,provider:'openai',model:'gpt-4o-mini',credential_ref:'native-assistant-openai',
  capability_connections:Object.fromEntries(reads.map(o=>[o.id,true]))};
 const access={factory:true,permissions:Object.fromEntries(reads.map(o=>[o.permission,true]))};
 const envelope=(operation,args)=>({operation,arguments_json:JSON.stringify(args)});
@@ -64,16 +65,19 @@ const stock=Array.from({length:26},(_,i)=>({id:`item-${i}`,product_code:`FG-${i}
  product_name:`Product ${i}`,name:`Material ${i}`,status:'active',uom:'kg',current_balance:i,
  min_stock_level:5,manual_unit_cost:'DO_NOT_EXPOSE'})).concat({id:'mixed',uom:'ml',current_balance:999,status:'active'});
 
-function source({scope=true,brand=true}={}){
+function source({scope=true,brand=true,snapshot}={}){
  const calls=[];
  const caller={
   rpc(name,args){
    calls.push([name,args]);
-   let result={data:fixtures[name]};
+   let result={data:(snapshot?.rpcs||fixtures)[name]};
    if(name==='current_user_role_id')result={data:'owner'};
    if(name==='current_user_has_permission')result={data:true};
    if(name==='current_user_can_access_outlet')result={data:scope};
-   if(name==='factory_get_master_id_snapshot')result={data:stock.map(r=>r.id)};
+   if(name==='factory_get_master_id_snapshot'){
+    const table=args.p_entity==='finished_goods'?'factory_finished_goods':'factory_raw_materials';
+    result={data:(snapshot?.tables[table]||stock).map(r=>r.id)};
+   }
    if((name==='marketing_planner_read'&&!brand)||(name==='crew_leave_requests_admin_page'&&!scope))result={error:{code:'42501'}};
    return {...result,abortSignal:async()=>result};
   },
@@ -81,7 +85,7 @@ function source({scope=true,brand=true}={}){
    calls.push([table]);
    let included;
    const builder=new Proxy({}, {get:(_,method)=>method==='abortSignal'
-    ?async()=>({data:table==='sales_records'?sales:stock.filter(row=>included.includes(row.id))})
+    ?async()=>({data:(snapshot?.tables[table]||(table==='sales_records'?sales:stock)).filter(row=>!included||included.includes(row.id))})
     :(...values)=>{calls.push([method,...values]);if(method==='in')included=values[1];return builder;}});
    return builder;
   },
@@ -166,6 +170,7 @@ test('populated catalogue ranks before pagination, keeps same-unit boundaries, a
 test('natural discovery ignores query verbs, handles domain aliases, and never surfaces unauthorized matches',async()=>{
  const b=createBusinessDispatcher({config,access});
  for(const [search,operation] of [['top FG stock','read_factory_finished_goods'],['highest raw material stock','read_factory_raw_catalogue'],
+  ['highest active raw materials in kg','read_factory_raw_catalogue'],
   ['员工','read_employee_directory'],['HR employees','read_employee_directory'],['Restaurant sales input','read_sales_records'],['marketing plan','read_marketing_plan']]){
   const result=await b.execute('find_business_queries',{search,page:1});
   assert.equal(result.operations[0]?.operation,operation,search);
@@ -233,3 +238,43 @@ test('wide discovery does not consume result budget or break the current questio
  assert.equal(request.reply,'Two authorized results.');
  assert.equal(recorded.length,2);
 });
+
+// Optional replay consumes an aggregate/redacted source export made by an
+// authorized reviewer. No remote credentials, provider or writes are involved.
+const replayPath=process.env.FEEDX_ASSISTANT_SOURCE_REPLAY;
+if(replayPath){
+ const snapshot=JSON.parse(readFileSync(replayPath,'utf8'));
+ for(const {operation,question,args,expected} of snapshot.cases)test(`Staging source replay: ${operation}`,async()=>{
+  const {caller}=source({snapshot});
+  const evidence=[];
+  let calls=0;
+  const r=await dispatch({action:'respond',session_id:id,turn_id:id},{
+   access,caller,get:k=>({
+    NATIVE_ASSISTANT_OPENAI_API_KEY:'synthetic-key',NATIVE_ASSISTANT_APPROVED_USE:'native-assistant-phase1a',
+    NATIVE_ASSISTANT_APPROVAL_REFERENCE:'fixture',NATIVE_ASSISTANT_MODELS:config.model,
+   })[k],
+   rpc:async(action,payload)=>{
+    if(action==='status')return {config:{...config,last_test_outcome:'verified',tested_provider_revision:1,provider_revision:1}};
+    if(action==='claim')return {state:'running',lease_id:id,kind:'turn',model:config.model,prompt:question};
+    if(action==='tool_record'&&payload.evidence)evidence.push(payload.evidence);
+    if(action==='finish')return payload;
+    return {};
+   },
+   transport:async(_,init)=>{
+    const body=JSON.parse(init.body);
+    if(++calls===1)return response([functionCall('find_business_queries',{search:operation,page:1},'schema')]);
+    if(calls===2)return response([functionCall('run_business_query',envelope(operation,args),'read')]);
+    const actual=JSON.parse(body.input.at(-1).output);
+    for(const [path,value] of Object.entries(expected)){
+     const actualValue=path.split('.').reduce((obj,key)=>obj?.[key],actual);
+     assert.deepEqual(actualValue,value,path);
+    }
+    return response([{type:'message',content:[{type:'output_text',text:'Deterministic fixture answer.'}]}]);
+   },
+  });
+  assert.equal(calls,3);
+  assert.equal(r.reply,'Deterministic fixture answer.');
+  assert.equal(evidence.length,1);
+  assert.equal(evidence[0].capability,operation);
+ });
+}

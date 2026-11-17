@@ -61,10 +61,10 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
  const isTool = body?.action === 'realtime_tool';
  const tool = isTool ? voiceToolOperation(body) : undefined;
  const identity = isTool ? businessToolIdentity(tool, body.arguments) : {};
- const traceTool = (stage, outcome) => traceVoice('voice_tool', {
+ const traceTool = (stage, outcome, match_count) => traceVoice('voice_tool', {
   session_id:body.session_id, request_id:body.request_id, turn_id:uuid.test(body.turn_id || '') ? body.turn_id : undefined,
   tool: tool === 'run_business_query' ? tool : identity.operation,
-  operation:identity.operation, arguments_shape:businessToolArgumentShape(tool,body.arguments), stage, outcome,
+  operation:identity.operation, arguments_shape:businessToolArgumentShape(tool,body.arguments), stage, outcome, match_count,
  });
  try { validateBody(body); } catch (error) {
   if (!isTool || !uuid.test(body.session_id || '') || !uuid.test(body.request_id || '')) throw error;
@@ -121,7 +121,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
      stage = 'evidence';
      await voiceHistory({...args,step:'evidence',evidence});
     }
-    traceTool(stage,evidence.error || (evidence.discovery_only ? 'discovery' : 'returned'));
+    traceTool(stage,evidence.error || (evidence.discovery_only ? 'discovery' : 'returned'),evidence.discovery_only?evidence.total_operations:undefined);
     return evidence;
    } catch(error) {
     const failure = voiceToolFailure(error,identity,stage);
@@ -204,7 +204,18 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
    const assembled=assembleContext(snapshot,recalled.sources);
    if(assembled.summary&&JSON.stringify(assembled.summary)!==JSON.stringify(snapshot.summary))await rpc('context_summary',{session_id:args.session_id,...assembled.summary});
    const evidenceItems=[];
-   const result=await generateText({...claim,memory,assembled},connection(config,get).key,{transport,signal,business,onTool:(tool_state,evidence)=>{if(evidence&&!evidenceItems.includes(evidence))evidenceItems.push(evidence);const combined=evidenceItems.length===1?evidenceItems[0]:evidenceItems.length?{capability:'business_evidence',items:evidenceItems}:undefined;return rpc('tool_record',{...args,lease_id:claim.lease_id,tool_state,...combined?{evidence:combined}:{}});}});
+   const result=await generateText({...claim,memory,assembled},connection(config,get).key,{
+    transport,signal,business,
+    onTrace(tool,params,outcome,match_count){
+     traceVoice('text_tool',{session_id:args.session_id,turn_id:args.turn_id,tool,
+      operation:businessToolIdentity(tool,params).operation,arguments_shape:businessToolArgumentShape(tool,params),outcome,match_count});
+    },
+    onTool(tool_state,evidence){
+     if(evidence&&!evidenceItems.includes(evidence))evidenceItems.push(evidence);
+     const combined=evidenceItems.length===1?evidenceItems[0]:evidenceItems.length?{capability:'business_evidence',items:evidenceItems}:undefined;
+     return rpc('tool_record',{...args,lease_id:claim.lease_id,tool_state,...combined?{evidence:combined}:{}});
+    },
+   });
    if(signal?.aborted)throw new AssistantError('cancelled',409);
    return await rpc('finish',{...args,lease_id:claim.lease_id,...result,context_usage:{...assembled.stats,...estimatedTextCost(claim.model,result)}});
   }catch(error){const code=error instanceof AssistantError?error.code:'provider_unavailable';try{await rpc('finish',{...args,lease_id:claim.lease_id,error_code:code});}catch{}throw error;}
