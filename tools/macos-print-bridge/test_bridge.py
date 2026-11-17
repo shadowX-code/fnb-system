@@ -64,6 +64,26 @@ class RecoveryTest(unittest.TestCase):
         self.assertEqual(self.rpc.call_args.kwargs["p_status"], "Error")
         self.assertEqual([c.args[2] for c in self.rpc.call_args_list], ["device", "device"])
 
+    def test_guided_setup_holds_claims_until_stock_calibration_passes(self):
+        self.config.update(guided_setup=True, require_calibration=True)
+        bridge.cycle(self.config, {})
+        self.assertEqual(self.rpc.call_args.kwargs["p_status"], "Error")
+        self.assertEqual(self.rpc.call_args.kwargs["p_printers"][0]["Calibration"], "Pending")
+        self.assertEqual([call.args[2] for call in self.rpc.call_args_list], ["device"])
+
+    def test_calibration_review_archives_uncertainty_before_releasing_local_marker(self):
+        root = self.journal.parent
+        config = root / "config.json"
+        self.config["calibrated_labels"] = 0
+        result = {"stage": "unknown", "quantity": 3, "detail": "No ACK"}
+        bridge.save(self.calibration, result)
+        with patch.object(bridge, "ROOT", root), patch.object(bridge, "CONFIG", config):
+            bridge.acknowledge_calibration(self.config, result, "PASSED")
+        self.assertFalse(self.calibration.exists())
+        self.assertEqual(bridge.load(config)["calibrated_labels"], 3)
+        archived = bridge.load(next((root / "recovery-evidence").iterdir()))
+        self.assertEqual((archived["stage"], archived["detail"], archived["review"]), ("unknown", "No ACK", "PASSED"))
+
     def test_old_serial_setup_cannot_claim_using_previous_calibration(self):
         self.config.update(transport="tspl", calibrated_labels=3)
         bridge.cycle(self.config, {})

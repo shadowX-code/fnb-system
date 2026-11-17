@@ -58,6 +58,11 @@ begin
   update public.factory_label_jobs set lease_until=now()-interval '1 second' where id=v_reprint;
   assert public.factory_label_claim(v_device,gen_random_uuid()) is null,'Unknown outcome did not halt device';
   assert (select state='Unknown' from public.factory_label_jobs where id=v_reprint),'lease auto-retried';v_count:=v_count+2;
+  assert public.factory_label_setup_queue(v_device)=1,'owner could not see device hold';v_count:=v_count+1;
+  v_result:=public.factory_label_management('printers',1,'Software QA bridge');
+  assert exists(select 1 from jsonb_array_elements(v_result->'rows') d where d->>'id'=v_device::text and (d->>'unresolved_jobs')::int=1),'management did not report device hold';v_count:=v_count+1;
+  v_denied:=false;begin perform public.factory_label_setup_queue(gen_random_uuid());exception when insufficient_privilege then v_denied:=true;end;
+  assert v_denied,'unknown device setup read allowed';v_count:=v_count+1;
   v_next:=public.factory_label_enqueue(gen_random_uuid(),v_production.id,v_device,1,v_snapshot,v_raster);
   assert public.factory_label_claim(v_device,gen_random_uuid()) is null,'next queued job passed an interruption hold';v_count:=v_count+1;
   v_context:=public.factory_label_context(v_production.job_order_id,v_production.id);
@@ -83,6 +88,8 @@ begin
   perform set_config('request.jwt.claim.sub',v_readonly::text,true);perform set_config('request.jwt.claims',jsonb_build_object('sub',v_readonly,'role','authenticated')::text,true);
   v_denied:=false;begin perform public.factory_label_enqueue(gen_random_uuid(),v_production.id,v_device,1,v_snapshot,v_raster);exception when insufficient_privilege then v_denied:=true;end;assert v_denied,'read-only employee could print';v_count:=v_count+1;
   v_denied:=false;begin perform public.factory_label_resolve(v_job,'Failed','Unauthorized recovery');exception when insufficient_privilege then v_denied:=true;end;assert v_denied,'read-only employee could recover';v_count:=v_count+1;
+  v_denied:=false;begin perform public.factory_label_setup_queue(v_device);exception when insufficient_privilege then v_denied:=true;end;assert v_denied,'read-only employee could inspect the setup queue';v_count:=v_count+1;
+  assert not has_function_privilege('anon','public.factory_label_setup_queue(uuid)','EXECUTE'),'anonymous setup read granted';v_count:=v_count+1;
   perform set_config('request.jwt.claim.sub','',true);perform set_config('request.jwt.claims','{}',true);
   v_denied:=false;begin perform public.factory_label_context(v_production.job_order_id,v_production.id);exception when insufficient_privilege then v_denied:=true;end;assert v_denied,'anonymous label read allowed';v_count:=v_count+1;
   assert not has_function_privilege('anon','public.factory_label_enqueue(uuid,uuid,uuid,integer,jsonb,jsonb,jsonb,uuid,text)','EXECUTE'),'anon execute granted';

@@ -1,5 +1,16 @@
 # FeedX Windows Print Bridge — Staging
 
+## Guided installer
+
+1. In FeedX Staging, open **Factory Settings → Label Management → Printers → Set Up Printer**. Run the Windows installer on the printer computer. It installs per user and uses the Windows 10/11 inbox PowerShell 5.1 and .NET Framework runtime. The Windows printer driver must already expose a local print queue.
+2. Open **FeedX Print Bridge Staging** from Start. Choose **Connect / Configure**, then sign in with the authorized Staging operator, select the queue and set stock dimensions. Use portrait. Set stock and gap on the printer driver for Windows Driver printing. Choose RAW TSPL only for a verified compatible queue.
+3. Use **Connection Check** to inspect the Windows queue and optionally reconnect. With separate physical approval, select **Test / Review Calibration**, approve one TEST label and inspect the actual output. Review a pending test before attempting another. The printer appears in the Web wizard where heartbeat, printer status, calibration and unresolved jobs are shown separately.
+4. The background task starts at Windows sign-in under the current user. Reopen the app to reconnect or reauthorize as the original operator. Installing a newer copy replaces program files and preserves the device configuration, DPAPI session, calibration, and journal under `%LOCALAPPDATA%\FeedXPrintBridge`.
+
+The Staging executable is unsigned. Authenticode signing and enterprise policy validation are prerequisites for commercial distribution. The following legacy instructions apply to the old script archive.
+
+## Legacy script setup
+
 Windows 10/11, Windows PowerShell 5.1 and .NET Framework (included with Windows) are required. No Labelife or inbound network port is used. The current Windows user must remain signed in; a locked screen is fine. The per-user scheduled task starts at sign-in and runs without administrator privileges.
 
 1. Pair the D520 in Windows Bluetooth settings and install its vendor Windows printer driver. Print the Windows test page. FeedX discovers installed Windows queues; it does not pair Bluetooth devices.

@@ -5,6 +5,7 @@ on:
     paths:
       - tools/windows-print-bridge/**
       - tools/macos-print-bridge/**
+      - public/downloads/FeedX-Print-Bridge-Staging-*
       - .github/workflows/factory-label-bridge.yml
   workflow_dispatch:
 permissions:
@@ -18,10 +19,36 @@ jobs:
       - name: Verify Windows PowerShell 5.1, DPAPI, transport and recovery
         shell: powershell
         run: ./tools/windows-print-bridge/Test-Bridge.ps1
+      - name: Install and upgrade the exact Windows download
+        shell: powershell
+        run: ./tools/windows-print-bridge/Test-Installer.ps1 -Package public/downloads/FeedX-Print-Bridge-Staging-Windows.exe
   macos-software:
-    runs-on: macos-latest
+    runs-on: macos-15
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - run: python3 -B -m unittest discover -s tools/macos-print-bridge -v
       - run: xcrun clang -fobjc-arc -framework Foundation -framework IOBluetooth tools/macos-print-bridge/D520RFCOMM.m -o "$RUNNER_TEMP/d520-rfcomm"
+      - name: Verify the installed app payload and bundled runtime
+        run: |
+          pkgutil --expand-full public/downloads/FeedX-Print-Bridge-Staging-macOS-arm64.pkg "$RUNNER_TEMP/feedx-pkg"
+          app="$(find "$RUNNER_TEMP/feedx-pkg" -type d -name 'FeedX Print Bridge Staging.app' -print -quit)"
+          test -n "$app"
+          codesign --verify --deep --strict "$app"
+          "$app/Contents/MacOS/FeedX Print Bridge Staging" --self-test
+      - name: Install and upgrade the exact macOS download
+        run: |
+          state="$HOME/Library/Application Support/FeedX Print Bridge Staging"
+          test ! -e "$state"
+          sudo installer -pkg public/downloads/FeedX-Print-Bridge-Staging-macOS-arm64.pkg -target /
+          test ! -e "$state"
+          app="/Applications/FeedX Print Bridge Staging.app"
+          "$app/Contents/MacOS/FeedX Print Bridge Staging" --self-test
+          mkdir -m 700 "$state"
+          printf '%s' '{"device":"fixture","calibrated_labels":3}' > "$state/config.json"
+          printf '%s' '{"stage":"submitting","claim":"existing-claim"}' > "$state/journal.json"
+          printf '%s' '{"stage":"unknown","quantity":1}' > "$state/calibration.json"
+          shasum -a 256 "$state/"*.json > "$RUNNER_TEMP/feedx-before"
+          sudo installer -pkg public/downloads/FeedX-Print-Bridge-Staging-macOS-arm64.pkg -target /
+          shasum -a 256 -c "$RUNNER_TEMP/feedx-before"
+          "$app/Contents/MacOS/FeedX Print Bridge Staging" --self-test

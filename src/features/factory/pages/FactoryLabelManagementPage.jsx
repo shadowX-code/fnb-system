@@ -16,6 +16,7 @@ import {
   factoryLabelService,
   factoryLabelsEnabled,
 } from "../../../services/factoryLabelService.js";
+import PrinterSetupWizard, { printerSetupStatus } from "../labels/PrinterSetupWizard.jsx";
 import FactoryLabelEditorPage from "../labels/FactoryLabelEditorPage.jsx";
 import {
   openLabelManagement,
@@ -32,8 +33,10 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [printer, setPrinter] = useState(null),
+    [wizard, setWizard] = useState(null),
     [reason, setReason] = useState(""),
     [saving, setSaving] = useState(false);
+  const canSetup = can("factory_production.complete");
   const generation = useRef(0),
     lock = useRef(false);
   useEffect(() => {
@@ -104,6 +107,12 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
         }
       />
     );
+  useEffect(() => {
+    if (location.section !== "printers") return;
+    const timer = setInterval(() => { if (!lock.current) load(); }, 15000);
+    return () => clearInterval(timer);
+  }, [location.section, load]);
+
   async function togglePrinter() {
     if (lock.current) return;
     lock.current = true;
@@ -218,21 +227,10 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
               label: "Transport",
               render: (r) => r.printers?.find((p) => p.Name === r.printer_name)?.Connection || r.transport,
             },
-            {
-              key: "status",
-              label: "Status",
-              render: (r) => (
-                <FactoryStatusBadge
-                  status={
-                    !r.enabled
-                      ? "Disabled"
-                      : Date.now() - Date.parse(r.last_seen) > 90000
-                        ? "Offline"
-                        : r.status
-                  }
-                />
-              ),
-            },
+            { key: "bridge", label: "Bridge", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).bridge} /> },
+            { key: "connection", label: "Printer connection", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).connection} /> },
+            { key: "calibration", label: "Calibration", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).calibration} /> },
+            { key: "unresolved", label: "Unresolved jobs", render: (r) => r.unresolved_jobs ?? "—" },
             {
               key: "last_seen",
               label: "Last connected",
@@ -259,9 +257,11 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
     <div className="space-y-5">
       <PageHeader
         title="Label Management"
-        description="Manage Packaging SKU labels, reusable templates and Windows print bridges."
+        description="Manage Packaging SKU labels, reusable templates and print bridges."
         actions={
-          location.section === "templates" && canEdit ? (
+          location.section === "printers" && canSetup ? (
+            <button className="btn-primary" onClick={() => setWizard({ step: 0 })}><Printer size={15} /> Set Up Printer</button>
+          ) : location.section === "templates" && canEdit ? (
             <button
               className="btn-primary"
               onClick={() =>
@@ -353,20 +353,14 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
           onPageSizeChange={() => {}}
         />
       </FactoryDataSurface>
-      {location.section === "printers" && (
-        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-text-secondary">
-          <a
-            className="underline"
-            href="/downloads/feedx-print-bridge-staging.zip"
-            download
-          >
-            Download Windows Print Bridge
-          </a>
-          <a className="underline" href="/downloads/feedx-print-bridge-macos-staging.zip" download>
-            Download macOS Print Bridge
-          </a>
-          <p className="basis-full">Setup and calibration instructions are included in each download. Print Labels is available from completed Job Orders.</p>
-        </div>
+      {wizard && (
+        <PrinterSetupWizard
+          onClose={() => setWizard(null)}
+          onRefresh={load}
+          devices={data.section === "printers" ? data.rows : []}
+          selected={wizard.printer}
+          initialStep={wizard.step}
+        />
       )}
       {printer && (
         <Modal
@@ -411,10 +405,13 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
               </p>
             ))}
             <p className="text-sm text-text-secondary">
-              Change the queue, driver, TSPL settings or media calibration
-              on the bridge computer. Disabling pauses new
-              claims; an active Printing job must be resolved first.
+              Disabling pauses new claims. Resolve any active print before disabling. Uncertain Job Order output must be reviewed in Print History.
             </p>
+            {canSetup && (
+              <button className="btn-secondary" onClick={() => {
+                setWizard({ step: 1, printer }); setPrinter(null);
+              }}>Reconnect, Reauthorize or Troubleshoot</button>
+            )}
             {canEdit && (
               <Field label="Configuration change reason">
                 <input

@@ -31,6 +31,22 @@ public static class FeedXTransport {
  static void Validate(byte[] data,int width,int height,decimal wm,decimal hm,int copies) {
   if(wm<20 || wm>120 || hm<20 || hm>200 || width!=(int)Math.Round(wm*203m/25.4m,MidpointRounding.AwayFromZero) || height!=(int)Math.Round(hm*203m/25.4m,MidpointRounding.AwayFromZero) || copies<1 || copies>10000 || data==null || data.Length!=((width+7)/8)*height) throw new ArgumentException("Invalid label bitmap or dimensions.");
  }
+ public static byte[] Calibration(int width, int height) {
+  int stride=(width+7)/8;
+  var packed=new byte[stride*height];
+  using(var bitmap=new Bitmap(width,height))
+  using(var graphics=Graphics.FromImage(bitmap))
+  using(var font=new Font(FontFamily.GenericSansSerif,Math.Min(28,width/9),FontStyle.Bold,GraphicsUnit.Pixel)) {
+   graphics.Clear(Color.White);
+   graphics.DrawRectangle(Pens.Black,32,32,width-65,height-65);
+   graphics.DrawLine(Pens.Black,45,55,90,55);
+   graphics.DrawLine(Pens.Black,45,55,45,95);
+   graphics.DrawString("TEST",font,Brushes.Black,45,95);
+   for(int y=0;y<height;y++)for(int x=0;x<width;x++)
+    if(bitmap.GetPixel(x,y).R<128) packed[y*stride+x/8]|=(byte)(128>>(x%8));
+  }
+  return packed;
+ }
  public static int Raw(string printer,byte[] command,string name) {
   IntPtr handle;Check(OpenPrinter(printer,out handle,IntPtr.Zero));bool started=false;
   try {

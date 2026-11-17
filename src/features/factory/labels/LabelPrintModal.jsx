@@ -426,13 +426,13 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             <p className="text-sm">
               <a
                 className="underline"
-                href="/downloads/feedx-print-bridge-staging.zip"
+                href="/downloads/FeedX-Print-Bridge-Staging-Windows.exe"
                 download
               >
                 Download Windows Print Bridge
               </a>
               {" · "}
-              <a className="underline" href="/downloads/feedx-print-bridge-macos-staging.zip" download>
+              <a className="underline" href="/downloads/FeedX-Print-Bridge-Staging-macOS-arm64.pkg" download>
                 Download macOS Print Bridge
               </a>
             </p>

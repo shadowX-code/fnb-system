@@ -1,4 +1,14 @@
 # FeedX macOS Print Bridge · Staging
+## Guided installer
+
+1. In FeedX Staging, open **Factory Settings → Label Management → Printers → Set Up Printer** and download the Apple silicon package. Install it on the computer connected to the printer, then open **FeedX Print Bridge Staging** in Applications. The package bundles Python, TLS certificates, and the precompiled Bluetooth helper. The package targets macOS 12+ on Apple silicon.
+2. Choose **Connect / Configure**. Sign in with a FeedX Staging account that can complete Production. The setup app obtains the public client configuration from the canonical Staging host and creates a separate FeedX Auth session in the user’s Keychain. Existing bridges remain tied to their original operator. Choose an installed CUPS queue or the Bluetooth-paired D520. Enter stock width and length, and the measured Bluetooth gap. Use portrait; CUPS queue media and gap are configured in the driver, and the D520 uses its established feed direction.
+3. Choose **Connection Check** to query the printer without sending a label. Use **Test / Review Calibration** only when authorized to print. Approve one label, inspect it, then separately approve the three-label confirmation for D520 Bluetooth. Check count, frame, dimensions, and orientation before recording the outcome. Local unresolved calibration prevents claims. A completed Bluetooth write without an ACK still requires physical inspection.
+4. Back in FeedX, verify bridge Online, printer Available, calibration Passed, and zero Unresolved Jobs. On later sign-ins the LaunchAgent starts in the same macOS user session. Reopen the app for **Connection Check**, **Reauthorize** or calibration review. Upgrade by installing the new package over the existing app. The installer payload leaves the user’s configuration, Keychain identity, calibration ledger and recovery journal in place.
+
+This Staging package is ad hoc signed at the application level. Organization-approved distribution, Developer ID signing and notarization are prerequisites for commercial rollout. Use the legacy instructions below only for the source/script distribution.
+
+## Legacy script setup
 
 Requires macOS, Python 3.9 or newer, and an authorized FeedX Staging operator with the existing Production Complete permission. Extract this package into a folder that the operator can keep. Open Terminal in that folder. The bridge runs as the signed-in macOS user and talks only to FeedX Staging over outbound HTTPS. The login password is used once, the session is stored in the login Keychain, and the private local journal keeps its device and claim IDs across restarts.
 

@@ -7,13 +7,14 @@ $config=Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
 if($config.ProjectRef -ne 'ujkzdaaadnvcfayuldmh') {throw 'This package supports FeedX Staging only.'}
 $root=Split-Path $ConfigPath
 $mutex=New-Object Threading.Mutex($false,"Local\FeedXPrintBridge-$($config.DeviceId)")
-if(!$mutex.WaitOne(0)) {exit 0}
+try { if(!$mutex.WaitOne(0)) {exit 0} } catch [Threading.AbandonedMutexException] { # Prior worker exited while holding the lock. The journal owns recovery.
+}
 try {
  Add-Type -Path "$PSScriptRoot\Transport.cs" -ReferencedAssemblies System.Drawing
  $session=Read-BridgeState "$root\session.xml"
  if(!$session) {throw 'Sign in using Install-Bridge.ps1.'}
  $backoff=5
- while($true) {
+ while(!(Test-BridgePaused $root)) {
   try {
    if([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() -gt [long]$session.expires_at-120) {
     $session=Invoke-BridgeAuth $config.PublicKey @{refresh_token=$session.refresh_token} 'refresh_token'

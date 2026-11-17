@@ -196,8 +196,24 @@ def inventory(config=None, probe_bluetooth=True):
 
 
 def device_status(config, session, printers, status):
+    printers = [
+        dict(row, Calibration=calibration_status(config),
+             StockWidthMm=config.get("stock_width", 80), StockHeightMm=config.get("stock_height", 90))
+        if row["Name"] == config["printer"] else row for row in printers
+    ]
     return rpc(config, session, "device", p_device=config["device"], p_name=config["name"],
                p_printer=config["printer"], p_transport=config["transport"], p_status=status, p_printers=printers)
+
+
+def calibration_status(config):
+    if CALIBRATION.exists():
+        return "Needs review"
+    count = config.get("calibrated_labels", 0)
+    if count >= (3 if config["transport"] == "tspl" else 1):
+        return "Passed"
+    if count == 1:
+        return "Single label passed"
+    return "Pending" if config["transport"] == "tspl" or config.get("require_calibration") else "Not reported"
 
 
 def label(job):
@@ -324,8 +340,8 @@ def cycle(config, session):
     calibrating = CALIBRATION.exists() or (
         config["transport"] == "tspl"
         and (not config.get("bluetooth_address") or config.get("calibrated_labels") != 3)
-    )
-    printers = inventory(config, probe_bluetooth=not calibrating)
+    ) or (config.get("require_calibration") and calibration_status(config) != "Passed")
+    printers = inventory(config, probe_bluetooth=not calibrating or config.get("guided_setup", False))
     ready = not calibrating and any(p["Name"] == config["printer"] and not p["WorkOffline"] for p in printers)
     device_status(config, session, printers, "Error" if calibrating else "Ready" if ready else "Offline")
     if not ready:
@@ -345,7 +361,11 @@ def cycle(config, session):
         outcome(state, "Unknown", "Claim expired or has insufficient time remaining. Inspect print history.")
         return
     try:
-        submit = prepare(config, label(job), f"FeedX-{state['job']}")
+        values = label(job)
+        if config.get("guided_setup") and values[3:5] != (config.get("stock_width", 80), config.get("stock_height", 90)):
+            outcome(state, "Failed", "Label dimensions differ from the calibrated stock. No label submitted.")
+            return
+        submit = prepare(config, values, f"FeedX-{state['job']}")
     except (ValueError, KeyError, TypeError, OSError, BridgeError, subprocess.SubprocessError):
         outcome(state, "Failed", "Invalid label raster or unsupported media settings. No label submitted.")
         return
@@ -364,8 +384,8 @@ def cycle(config, session):
         outcome(state, "Sent", detail)
 
 
-def calibration(copies):
-    w, h = 639, 719
+def calibration(copies, width_mm=80, height_mm=90):
+    w, h = (math.floor(mm * 203 / 25.4 + 0.5) for mm in (width_mm, height_mm))
     stride = (w + 7) // 8
     pixels = bytearray(stride * h)
     # An inset frame and asymmetric corner markers reveal scaling and orientation.
@@ -376,7 +396,7 @@ def calibration(copies):
                     or y in (inset, inset + 1, h - inset - 2, h - inset - 1)
                     or (x < 122 and 51 < y < 60) or (51 < x < 60 and y < 103)):
                 pixels[y * stride + x // 8] |= 128 >> (x % 8)
-    return bytes(pixels), w, h, 80, 90, copies
+    return bytes(pixels), w, h, width_mm, height_mm, copies
 
 
 def local_test(config, copies):
@@ -388,7 +408,7 @@ def local_test(config, copies):
         raise BridgeError("Verify one calibration label before running the three-label test.")
     if not any(p["Name"] == config["printer"] and not p["WorkOffline"] for p in inventory(config)):
         raise BridgeError("The configured printer is unavailable.")
-    submit = prepare(config, calibration(copies), "FeedX-80x90-Calibration")
+    submit = prepare(config, calibration(copies, config.get("stock_width", 80), config.get("stock_height", 90)), "FeedX TEST Calibration")
     save(CALIBRATION, {"stage": "submitting", "quantity": copies})
     try:
         detail = submit()
@@ -445,11 +465,11 @@ def setup(config, args):
     print("Registered in Staging. Run start, or test-print 1 for local calibration.")
 
 
-def run(config):
+def run(config, paused=lambda: False):
     session = read_session(config)
     backoff = 5
     print("FeedX Staging bridge running. Ctrl-C stops it.")
-    while True:
+    while not paused():
         try:
             if int(time.time()) >= session["expires_at"] - 120:
                 refreshed = auth(config, "refresh_token", refresh_token=session["refresh_token"])
@@ -461,6 +481,17 @@ def run(config):
             print("Bridge connection or printer error. Check FeedX history, printer and sign-in.", file=sys.stderr)
             backoff = min(60, backoff * 2)
         time.sleep(backoff)
+
+
+def acknowledge_calibration(config, result, review):
+    evidence = ROOT / "recovery-evidence"
+    evidence.mkdir(mode=0o700, exist_ok=True)
+    save(evidence / f"setup-{uuid.uuid4()}.json", dict(result, review=review,
+         reviewed_at=datetime.now().astimezone().isoformat()))
+    if config:
+        config["calibrated_labels"] = result["quantity"] if review == "PASSED" else 0
+        save(CONFIG, config)
+    clear(CALIBRATION)
 
 
 def main():
@@ -502,10 +533,7 @@ def main():
             review = input("Inspect the labels and clear held jobs. Type PASSED for correct output, or INSPECTED to clear without passing: ")
             if review not in ("PASSED", "INSPECTED"):
                 raise BridgeError("Calibration remains pending.")
-            if config:
-                config["calibrated_labels"] = result["quantity"] if review == "PASSED" else 0
-                save(CONFIG, config)
-            clear(CALIBRATION)
+            acknowledge_calibration(config, result, review)
         elif not config:
             raise BridgeError("Run setup before using this command.")
         elif args.action == "start":
