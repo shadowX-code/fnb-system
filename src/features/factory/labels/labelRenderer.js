@@ -197,18 +197,26 @@ export function labelText(snapshot, index) {
       : value;
   return `${e.prefix || ""}${formatted ?? ""}${e.suffix || ""}`;
 }
+function attachClosingPunctuation(parts) {
+  const units = [];
+  for (const part of parts) {
+    if (part.length === 1 && ",.;:!?，。、；：！？)]}）》」』】〕〉”’%％".includes(part) &&
+        units.length && units.at(-1) !== "\n") {
+      units[units.length - 1] += part;
+    } else units.push(part);
+  }
+  return units;
+}
 export function layoutLabelText(ctx, text, element) {
   const lines = [];
   let line = "",
     tooWide = false;
-  const units = [];
-  for (const char of text) {
-    // Keep closing punctuation with its preceding character at a line boundary.
-    if (",.;:!?，。、；：！？)]}）》」』】〕〉”’%％".includes(char) &&
-        units.length && units.at(-1) !== "\n") {
-      units[units.length - 1] += char;
-    } else units.push(char);
-  }
+  const words = text.match(/[A-Za-z0-9]+(?:['’\-][A-Za-z0-9]+)*|[\s\S]/gu) || [];
+  const units = attachClosingPunctuation(words).flatMap((word) =>
+    ctx.measureText(word).width > element.w
+      ? attachClosingPunctuation([...word])
+      : [word],
+  );
   for (const char of units) {
     if (char === "\n") {
       lines.push(line);

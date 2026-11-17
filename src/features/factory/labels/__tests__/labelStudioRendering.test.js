@@ -143,3 +143,14 @@ it("keeps closing punctuation with the preceding character without shrinking or 
   expect(layoutLabelText(ctx, "a,b", { ...element, w: 1 }).overflow).toBe(true);
   expect(layoutLabelText(ctx, "a\n,b", element).lines).toEqual(["a", ",b"]);
 });
+
+
+it("wraps a word with trailing punctuation intact when it fits the next line", () => {
+  const ctx = { measureText: (text) => ({ width: [...text].length }) };
+  const result = layoutLabelText(ctx, "Stock, Ginger, Salt", { w: 12, h: 20, size: 2 });
+  expect(result.lines).toEqual(["Stock, ", "Ginger, Salt"]);
+  expect(result.lines.join("")).toBe("Stock, Ginger, Salt");
+  expect(result.overflow).toBe(false);
+  expect(layoutLabelText(ctx, "123456789", { w: 4, h: 20, size: 2 }).lines)
+    .toEqual(["1234", "5678", "9"]);
+});
