@@ -168,7 +168,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
     }
   }
   async function resolvePrint() {
-    if (flight.current) return;
+    if (!canRecover || !resolve || resolve.reason.trim().length < 3 || flight.current) return;
     flight.current = true;
     setBusy(true);
     setError("");
@@ -544,7 +544,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {canRecover &&
-                    ["Sent", "Confirmed", "Failed", "Unknown"].includes(
+                    ["Sent", "Confirmed", "Failed"].includes(
                       h.state,
                     ) && (
                       <button
@@ -560,22 +560,25 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                         Reprint
                       </button>
                     )}
-                  {canRecover &&
-                    ["Sent", "Unknown", "Queued", "Printing"].includes(
-                      h.state,
-                    ) && (
+                  {canRecover && ["Sent", "Unknown"].includes(h.state) &&
+                    [["Confirmed", "Confirm Printed"], ["Failed", "Report Issue"]].map(([state, label]) => (
+                      <button
+                        key={state}
+                        className="btn-secondary"
+                        disabled={busy}
+                        onClick={() => setResolve({ job: h, state, reason: "" })}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  {canRecover && ["Queued", "Printing"].includes(h.state) && (
                       <button
                         className="btn-secondary"
                         disabled={busy}
                         onClick={() =>
                           setResolve({
                             job: h,
-                            state:
-                              h.state === "Queued"
-                                ? "Failed"
-                                : h.state === "Printing"
-                                  ? "Unknown"
-                                  : "Confirmed",
+                            state: h.state === "Queued" ? "Failed" : "Unknown",
                             reason: "",
                           })
                         }
@@ -585,6 +588,11 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                     )}
                 </div>
               </div>
+              {h.state === "Unknown" && (
+                <p className="text-text-secondary">
+                  Check the physical output before printing again. This bridge is paused until the outcome is recorded.
+                </p>
+              )}
               {(h.detail || h.reprint_reason) && (
                 <p>{h.detail || h.reprint_reason}</p>
               )}
@@ -611,34 +619,25 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             />
           )}
         </div>
-        {resolve && (
-          <div className="space-y-3 rounded-xl border border-border p-4">
-            <h3 className="font-semibold">Review Print Outcome</h3>
+        {resolve && canRecover && (
+          <div key={`${resolve.job.id}:${resolve.state}`} className="space-y-3 rounded-xl border border-border p-4">
+            <h3 className="font-semibold">
+              {resolve.state === "Confirmed"
+                ? "Confirm Printed"
+                : resolve.state === "Failed" && resolve.job.state !== "Queued"
+                  ? "Report Issue"
+                  : "Review Print Outcome"}
+            </h3>
             <p className="text-sm text-text-secondary">
-              Inspect the physical output and the bridge computer’s print queue, if present.
-              Clear any held job before authorizing a reprint. A live Printing claim
-              cannot be cancelled.
+              {resolve.state === "Confirmed"
+                ? `Confirm only after checking that all ${resolve.job.quantity} requested labels printed correctly. Record what you inspected.`
+                : resolve.state === "Failed" && resolve.job.state !== "Queued"
+                  ? "Count any usable labels and clear held output before recording an issue. Include the usable count and what happened. Any reprint is a separate action."
+                  : "Inspect the physical output and the bridge computer’s print queue, if present. A live Printing claim cannot be cancelled."}
             </p>
-            <SearchableSelect
-              value={resolve.state}
-              options={(resolve.job.state === "Queued"
-                ? ["Failed"]
-                : resolve.job.state === "Printing"
-                  ? ["Unknown"]
-                  : ["Confirmed", "Failed"]
-              ).map((value) => ({
-                value,
-                label:
-                  value === "Confirmed"
-                    ? "Physically printed and inspected"
-                    : value === "Failed"
-                      ? "Not printed / remaining output discarded"
-                      : "Interrupted; outcome uncertain",
-              }))}
-              onChange={(state) => setResolve((r) => ({ ...r, state }))}
-            />
             <Field label="Inspection / recovery reason">
               <input
+                autoFocus
                 aria-label="Inspection / recovery reason"
                 className={inputClass()}
                 maxLength={1000}

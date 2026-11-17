@@ -77,6 +77,41 @@ async function confirmPrint() {
   fireEvent.click(screen.getByRole("checkbox"));
 }
 describe("Factory label workflow", () => {
+  const uncertain = {
+    ...context,
+    history: [{
+      id: "unknown-job", state: "Unknown", quantity: 3,
+      detail: "D520 write completed, but no print acknowledgment was observed.",
+      events: [{ id: 1, state: "Unknown", created_at: "2026-11-17T13:00:00Z", detail: "ACK missing" }],
+    }],
+  };
+  it.each([
+    ["Confirm Printed", "Confirmed", "Checked all three printed labels"],
+    ["Report Issue", "Failed", "One usable label; held output cleared"],
+  ])("records %s through the existing recovery authority without submitting a print", async (action, outcome, reason) => {
+    factoryLabelService.context.mockResolvedValue(uncertain);
+    factoryLabelService.resolve.mockResolvedValue({ state: outcome });
+    render(<LabelPrintModal {...props} />);
+    fireEvent.click(await screen.findByRole("button", { name: action }));
+    expect(screen.queryByRole("button", { name: "Reprint" })).toBeNull();
+    const record = screen.getByRole("button", { name: "Record Outcome" });
+    expect(record.disabled).toBe(true);
+    fireEvent.change(screen.getByRole("textbox", { name: "Inspection / recovery reason" }), { target: { value: reason } });
+    fireEvent.click(record);
+    await screen.findByText("Print outcome recorded.");
+    expect(factoryLabelService.resolve).toHaveBeenCalledExactlyOnceWith("unknown-job", outcome, reason);
+    expect(factoryLabelService.enqueue).not.toHaveBeenCalled();
+    expect(screen.getByText(/Unknown.*ACK missing/)).toBeTruthy();
+  });
+
+  it("keeps uncertain print history visible to users without recovery permission", async () => {
+    factoryLabelService.context.mockResolvedValue(uncertain);
+    render(<LabelPrintModal {...props} can={(key) => key !== "factory_production.verify"} />);
+    await screen.findByText(/Check the physical output before printing again/);
+    expect(screen.queryByRole("button", { name: "Confirm Printed" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Report Issue" })).toBeNull();
+  });
+
   it("queues the reviewed authoritative snapshot and prevents double submission", async () => {
     let finish;
     factoryLabelService.enqueue.mockImplementation(
