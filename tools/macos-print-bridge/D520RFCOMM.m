@@ -46,16 +46,16 @@ static BOOL sendBytes(IOBluetoothRFCOMMChannel *channel, NSData *payload) {
     return YES;
 }
 
-static BOOL received(D520Reply *reply, NSData *expected, NSData *rejected) {
+static int received(D520Reply *reply, NSData *expected, NSData *rejected) {
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:4];
     do {
         if (rejected && [reply.bytes rangeOfData:rejected options:0 range:NSMakeRange(0, reply.bytes.length)].location != NSNotFound)
-            return NO;
+            return -1;
         if ([reply.bytes rangeOfData:expected options:0 range:NSMakeRange(0, reply.bytes.length)].location != NSNotFound)
-            return YES;
+            return 1;
         tick();
     } while (deadline.timeIntervalSinceNow > 0);
-    return NO;
+    return 0;
 }
 
 int main(int argc, const char *argv[]) {
@@ -87,21 +87,29 @@ int main(int argc, const char *argv[]) {
         if ([device openRFCOMMChannelSync:&channel withChannelID:port delegate:reply] != kIOReturnSuccess || !channel)
             return 4;
 
-        BOOL ok = NO;
+        int result = 5;
         if (probe) {
             NSData *query = [@"SSSGETBMAPMODE\r\n" dataUsingEncoding:NSASCIIStringEncoding];
             NSData *mode = [@"SSSGETBMAPMODE:4\r\n" dataUsingEncoding:NSASCIIStringEncoding];
-            ok = sendBytes(channel, query) && received(reply, mode, nil);
-            if (ok) printf("%s\n", device.addressString.UTF8String);
+            if (sendBytes(channel, query) && received(reply, mode, nil) == 1) {
+                printf("%s\n", device.addressString.UTF8String);
+                result = 0;
+            }
         } else {
             // Write only the single job supplied by the Bridge. A NAK or missing ACK is uncertain.
             NSData *payload = [[NSFileHandle fileHandleWithStandardInput] readDataOfLength:210000];
             const uint8_t ack[] = {0x7e, 0x01, 0x7e}, nak[] = {0x7e, 0x00, 0x7e};
-            ok = payload.length > 0 && payload.length < 210000 && sendBytes(channel, payload)
-                && received(reply, [NSData dataWithBytes:ack length:sizeof(ack)],
-                            [NSData dataWithBytes:nak length:sizeof(nak)]);
+            if (!payload.length || payload.length >= 210000) {
+                result = 9;
+            } else if (!sendBytes(channel, payload)) {
+                result = 6;
+            } else {
+                int receipt = received(reply, [NSData dataWithBytes:ack length:sizeof(ack)],
+                                       [NSData dataWithBytes:nak length:sizeof(nak)]);
+                result = receipt == 1 ? 0 : receipt == -1 ? 7 : 8;
+            }
         }
         [channel closeChannel];
-        return ok ? 0 : 5;
+        return result;
     }
 }

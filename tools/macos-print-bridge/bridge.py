@@ -227,7 +227,7 @@ def lzo_literal_block(block):
 
 def tspl(pixels, w, h, mm_w, mm_h, copies, gap, invert):
     header = (f"\r\nREFERENCE 0,0\r\nOFFSET 0 mm\r\nSIZE {mm_w:g} mm,{mm_h:g} mm\r\n"
-              f"GAP {gap:g} mm,0\r\nDIRECTION 0,0\r\nCLS\r\nBITMAP 0,0,{(w + 7) // 8},{h},4,")
+              f"GAP {gap:g} mm,0\r\nDIRECTION 1,0\r\nCLS\r\nBITMAP 0,0,{(w + 7) // 8},{h},4,")
     if invert:
         pixels = pixels.translate(bytes(255 - x for x in range(256)))
     payload = bytearray(header.encode())
@@ -293,7 +293,17 @@ def send_cups(args, payload):
 
 
 def send_bluetooth(address, payload):
-    command([str(NATIVE), "print", address], payload, 45)
+    try:
+        command([str(NATIVE), "print", address], payload, 45)
+    except subprocess.CalledProcessError as error:
+        detail = {
+            4: "D520 RFCOMM channel could not open.",
+            6: "D520 RFCOMM write failed or stopped before submitting all bytes.",
+            7: "D520 returned a negative acknowledgment.",
+            8: "D520 write completed, but no print acknowledgment was observed.",
+            9: "The native helper rejected the label payload.",
+        }.get(error.returncode, "D520 transport failed.")
+        raise BridgeError(detail) from None
     return "The D520 acknowledged the Bluetooth submission. Verify physical output."
 
 
@@ -346,7 +356,9 @@ def cycle(config, session):
     save(JOURNAL, state)
     try:
         detail = submit()
-    except (OSError, BridgeError, subprocess.SubprocessError):
+    except BridgeError as error:
+        outcome(state, "Unknown", f"{error} Inspect physical output before recovery.")
+    except (OSError, subprocess.SubprocessError):
         outcome(state, "Unknown", "Submission failed or was interrupted. Inspect the printer and any CUPS job before recovery.")
     else:
         outcome(state, "Sent", detail)
@@ -357,10 +369,12 @@ def calibration(copies):
     stride = (w + 7) // 8
     pixels = bytearray(stride * h)
     # An inset frame and asymmetric corner markers reveal scaling and orientation.
-    for y in range(16, h - 16):
-        for x in range(16, w - 16):
-            if (x in (16, 17, w - 18, w - 17) or y in (16, 17, h - 18, h - 17)
-                    or (x < 110 and 35 < y < 44) or (35 < x < 44 and y < 87)):
+    inset = 32
+    for y in range(inset, h - inset):
+        for x in range(inset, w - inset):
+            if (x in (inset, inset + 1, w - inset - 2, w - inset - 1)
+                    or y in (inset, inset + 1, h - inset - 2, h - inset - 1)
+                    or (x < 122 and 51 < y < 60) or (51 < x < 60 and y < 103)):
                 pixels[y * stride + x // 8] |= 128 >> (x % 8)
     return bytes(pixels), w, h, 80, 90, copies
 
@@ -378,7 +392,11 @@ def local_test(config, copies):
     save(CALIBRATION, {"stage": "submitting", "quantity": copies})
     try:
         detail = submit()
-    except (OSError, BridgeError, subprocess.SubprocessError):
+    except BridgeError as error:
+        save(CALIBRATION, {"stage": "unknown", "quantity": copies, "detail": str(error)})
+        print(f"Unknown. {error} Inspect physical output before acknowledging.", file=sys.stderr)
+        return 1
+    except (OSError, subprocess.SubprocessError):
         print("Unknown. Inspect physical output and any CUPS job before acknowledging.", file=sys.stderr)
         return 1
     save(CALIBRATION, {"stage": "sent", "quantity": copies, "detail": detail})
@@ -458,7 +476,7 @@ def main():
     polarity = install.add_mutually_exclusive_group()
     polarity.add_argument("--invert", action="store_true")
     polarity.add_argument("--no-invert", dest="invert", action="store_false")
-    install.set_defaults(invert=False)
+    install.set_defaults(invert=True)
     sub.add_parser("start")
     test = sub.add_parser("test-print")
     test.add_argument("quantity", type=int, choices=(1, 3))

@@ -102,10 +102,14 @@ class TransportTest(unittest.TestCase):
 
     def test_tspl_mode_four_frames_canonical_raster_and_one_copy(self):
         values = bridge.calibration(1)
-        output = bridge.tspl(*values, gap=2, invert=False)
+        output = bridge.tspl(*values, gap=2, invert=True)
         marker = b"BITMAP 0,0,80,719,4,"
         header, frames = output.split(marker, 1)
         self.assertIn(b"SIZE 80 mm,90 mm", header)
+        self.assertIn(b"DIRECTION 1,0\r\n", header)
+        stride = 80
+        self.assertEqual(values[0][31 * stride + 4], 0)
+        self.assertEqual(values[0][32 * stride + 4], 255)
         offset = 0
         for start in range(0, len(values[0]), 4096):
             raw = values[0][start:start + 4096]
@@ -120,10 +124,19 @@ class TransportTest(unittest.TestCase):
                     data_start += 1
                 self.assertEqual(18 + (data_start - 1) * 255 + block[data_start], len(raw))
                 data_start += 1
-            self.assertEqual(block[data_start:-3], raw)
+            self.assertEqual(block[data_start:-3], bytes(x ^ 255 for x in raw))
             self.assertEqual(block[-3:], b"\x11\x00\x00")
             offset += 4 + length
         self.assertEqual(frames[offset:], b"\x00\x00\x00\x00\r\nPRINT 1,1\r\n")
+
+    def test_native_receipt_errors_distinguish_no_ack_and_nak_without_retry(self):
+        for code, detail in [(6, "write failed"), (7, "negative acknowledgment"), (8, "write completed")]:
+            with self.subTest(code=code), patch.object(
+                bridge, "command", side_effect=subprocess.CalledProcessError(code, "print")
+            ) as command:
+                with self.assertRaisesRegex(bridge.BridgeError, detail):
+                    bridge.send_bluetooth("test-address", b"raster")
+                command.assert_called_once()
 
     def test_cups_uses_exact_media_and_disables_scaling(self):
         results = [b"PageSize/Media Size: *Custom.WIDTHxHEIGHT\n", b"request id is Label-123 (1 file)\n"]
