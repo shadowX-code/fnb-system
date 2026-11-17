@@ -1,3 +1,4 @@
+import {employeeHeadcount} from '../../../../supabase/functions/_shared/people/employeeDirectory.js';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BriefcaseBusiness, Cake, CreditCard, Edit3, Eye, Gift, KeyRound, MoreHorizontal, Plus, Power, Search, ShieldCheck, UserRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
@@ -1517,6 +1518,7 @@ export default function UsersPage({ ui, store, auth }) {
     });
   }, [accountFilter, companyFilter, employmentStatusFilter, employmentTypeFilter, query, roleFilter, users, workplaceFilter]);
 
+  const headcount = employeeHeadcount(users);
   const stats = {
     active: users.filter((user) => getAccessState(user) === EMPLOYEE_ACCESS_STATE.ACTIVE).length,
     disabled: users.filter((user) => getAccessState(user) === EMPLOYEE_ACCESS_STATE.DISABLED).length,
@@ -1524,9 +1526,9 @@ export default function UsersPage({ ui, store, auth }) {
     fullTime: users.filter((user) => user.employment_type === "full_time").length,
     partTime: users.filter((user) => user.employment_type === "part_time").length,
     probation: users.filter((user) => user.employment_type === "probation").length,
-    activeEmployment: users.filter((user) => user.employment_status === "active").length,
-    resigned: users.filter((user) => user.employment_status === "resigned").length,
-    terminated: users.filter((user) => user.employment_status === "terminated").length,
+    activeEmployment: headcount.active,
+    resigned: headcount.resigned,
+    terminated: headcount.terminated,
   };
   const celebrations = useMemo(() => {
     const today = todayDate();

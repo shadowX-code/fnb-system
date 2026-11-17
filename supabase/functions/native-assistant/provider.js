@@ -1,3 +1,4 @@
+import {businessEvidenceInstructions} from '../_shared/assistant/moduleInterface.js';
 import {contextInstructions} from './conversationContext.js';
 import {memoryContext,recentContext} from './context.js';
 import {AssistantError} from '../_shared/assistantError.js';
@@ -47,7 +48,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
  const previous=(claim.assembled?.recent||recentContext(claim.context)).flatMap(x=>[{role:'user',content:x.prompt},{role:'assistant',content:x.reply}]);
  const current={role:'user',content:claim.prompt};
  let input=[...previous,current];let evidence=null;const max=claim.kind==='test'?32:500;
- const payload=(remaining=max,allowTools=true)=>({model:claim.model,instructions:claim.kind==='test'?'Reply with READY only.':instructions+contextInstructions(claim.assembled)+memoryContext(claim.memory),input,max_output_tokens:remaining,store:false,...(business?.tools.length&&claim.kind!=='test'&&allowTools?{tools:business.tools,tool_choice:'auto',parallel_tool_calls:false}:{})});
+ const payload=(remaining=max,allowTools=true)=>({model:claim.model,instructions:claim.kind==='test'?'Reply with READY only.':instructions+businessEvidenceInstructions+contextInstructions(claim.assembled)+memoryContext(claim.memory),input,max_output_tokens:remaining,store:false,...(business?.tools.length&&claim.kind!=='test'&&allowTools?{tools:business.tools,tool_choice:'auto',parallel_tool_calls:false}:{})});
  while(new TextEncoder().encode(JSON.stringify(payload())).length>24000 && input.length>1)input=input.slice(2);
  if(new TextEncoder().encode(JSON.stringify(payload())).length>24000)throw new AssistantError('context_limit',413);
  const controller=new AbortController();const abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)controller.abort();

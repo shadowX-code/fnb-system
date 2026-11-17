@@ -9,7 +9,8 @@ const args=o=>Object.fromEntries(Object.entries(o.properties||{}).map(([k,s])=>[
 test('fixed connection allowlist covers exactly the shipped contracts',()=>{
  const sql=fs.readFileSync(new URL('../../migrations/20261117061932_native_assistant_gap_read_contracts.sql',import.meta.url),'utf8');
  const ids=[...sql.match(/\$new\$coalesce\(p_payload->>'operation',''\) not in \((.*?)\)\$new\$/)[1].matchAll(/'([^']+)'/g)].map(m=>m[1]);
- assert.deepEqual(ids,operations.map(o=>o.id));assert.equal(new Set(ids).size,ids.length);
+ assert.deepEqual(['read_employee_directory',...ids],operations.map(o=>o.id));
+ const forward=fs.readFileSync(new URL('../../migrations/20261117094742_module_owned_ai_employee_reads.sql',import.meta.url),'utf8');assert(forward.includes("not in ('read_employee_directory','read_recipe_ingredients'"));assert.equal(new Set(ids).size,ids.length);
 });
 test('every new READ validates exact bounded arguments and rejects arbitrary query selection',()=>{
  for(const o of operations.filter(o=>o.properties)){const a=args(o);o.validate(a);assert.throws(()=>o.validate({...a,table:'employees'}));if(o.arguments)o.arguments(a);if(o.check)o.check(a);}

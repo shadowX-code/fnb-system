@@ -1272,3 +1272,7 @@ Expanded the existing shared Text/Voice composition to 82 fixed READ contracts a
 ## 2026-11-17 — Native Assistant bounded gap closure
 
 Added 24 disabled-by-default domain READs; total 109 READ / two unchanged ACTIONs. Crew maintenance/read separation preserves existing interactive behavior while enabling read-only recorded snapshots. Shared Restaurant calculations now serve both pages and Assistant. Narrow HR, Platform, Marketing, Finance and Factory projections preserve human scope. All 128 modules have explicit coverage independent of AI access policy; 116 expose listed operations, nine remain genuinely not integrated and three are not independent business authorities. L3 verification and remaining evidence limitations: `docs/audits/native-assistant-gap-closure.md`.
+
+## 2026-11-17 — Module-owned Native Assistant read semantics
+
+Added the Employees summary/list/detail reference with unchanged human RLS and disabled-by-default AI policy; shared status/count helpers replace repeated UI/Assistant definitions. Attached interface/completeness declarations to existing domain contracts and added a build-time alignment drift gate. Preserved the dispatcher, ACTION authority and all existing access policies. See `docs/audits/native-assistant-module-interface.md` for exact scope and acceptance limits.

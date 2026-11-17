@@ -1,3 +1,14 @@
+// Shared raw workforce semantics: unspecified status is not silently active.
+export function workforceStatusCounts(groups) {
+ const result={total:0,active:0,inactive:0,resigned:0,terminated:0,other:0};
+ for(const g of groups){const n=Number(g.n);if(!Number.isSafeInteger(n)||n<0)throw Error('Workforce counts unavailable');result.total+=n;
+  if(g.employment_status==='active')result.active+=n;
+  else if(g.employment_status==='resigned'){result.resigned+=n;result.inactive+=n;}
+  else if(g.employment_status==='terminated'){result.terminated+=n;result.inactive+=n;}
+  else result.other+=n;
+ }
+ return result;
+}
 export const companyName = entity => entity.display_name || entity.legal_company_name || entity.name || 'Company name unavailable';
 export const classificationLabel = value => value ? String(value).replace(/[_-]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) : 'Unspecified';
 const classification = value => typeof value === 'string' && value.trim() ? value.trim() : '';
@@ -19,7 +30,7 @@ export function workforceOverview(records, company = 'all') {
     const type=classification(row.employment_type);group.types.set(type,(group.types.get(type)||0)+1);
     groups.set(id,group);
   }
-  return {total:employees.length,active:employees.filter(row=>row.employment_status==='active').length,
+  return {...workforceStatusCounts(employees.map(row=>({employment_status:row.employment_status,n:1}))),
     companyCount:[...groups.keys()].filter(id=>id!=='unassigned').length,
     types:distribution('employment_type'),statuses:distribution('employment_status'),
     companies:[...groups.values()].map(group=>({...group,types:[...group.types].map(([key,count])=>({key,label:classificationLabel(key),count}))}))};

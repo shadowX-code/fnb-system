@@ -1,3 +1,4 @@
+import {declareReadInterface} from '../assistant/moduleInterface.js';
 import {AssistantError} from '../assistantError.js';
 export const inventoryTool={type:'function',name:'read_factory_finished_goods',description:'Read current Factory shared Finished Goods stock. Use for stock, availability and low-stock questions; re-read for follow-ups. No Company or Outlet scope exists in this catalogue.',strict:true,parameters:{type:'object',properties:{query:{type:'string',description:'Product name substring, empty for all products'},availability:{type:'string',enum:['all','low','out_of_stock']}},required:['query','availability'],additionalProperties:false}};
 export function inventoryArguments(value){
@@ -26,7 +27,7 @@ export async function readInventory(caller,args,signal){
  const rows=records.map(x=>({...x,current_balance:number(x.current_balance),min_stock_level:number(x.min_stock_level)}));
  const queryRows=rows.filter(x=>!args.query||`${x.product_name} ${x.product_name_en||''} ${x.product_code||''}`.toLowerCase().includes(args.query.toLowerCase()));
  const matching=queryRows.filter(x=>(args.availability==='all'||args.availability==='out_of_stock'&&x.current_balance!==null&&x.current_balance<=0||args.availability==='low'&&x.current_balance!==null&&x.min_stock_level>0&&x.current_balance<x.min_stock_level)).sort((a,b)=>a.product_name.localeCompare(b.product_name)||a.id.localeCompare(b.id));
- return {capability:'read_factory_finished_goods',source:'/factory/warehouse/finished-goods',scope:'Factory shared catalogue · current Admin permissions',as_of:new Date().toISOString(),query:args.query,availability:args.availability,total_scoped_products:queryRows.length,unknown_minimum_count:queryRows.filter(x=>x.min_stock_level===null||x.min_stock_level<=0).length,total_matching:matching.length,returned:Math.min(20,matching.length),truncated:matching.length>20,rows:matching.slice(0,20),limitations:'Current aggregate balance, not reserved/ATP stock. Low means strictly below a recorded positive minimum; absent/zero minimum is unknown, not healthy. No Company/Outlet attribution. At most 20 matching products. Snapshot and row read are not an atomic transaction.'};
+ return {capability:'read_factory_finished_goods',source:'/factory/warehouse/finished-goods',scope:'Factory shared catalogue · current Admin permissions',as_of:new Date().toISOString(),query:args.query,availability:args.availability,total_scoped_products:queryRows.length,unknown_minimum_count:queryRows.filter(x=>x.min_stock_level===null||x.min_stock_level<=0).length,total_matching:matching.length,returned:Math.min(20,matching.length),truncated:matching.length>20,rows:matching.slice(0,20),completeness:{aggregate_scope:'complete_filtered_scope',row_scope:'bounded_projection',total_assertion:'Use explicit catalogue totals only; rows are capped at20.'},limitations:'Current aggregate balance, not reserved/ATP stock. Low means strictly below a recorded positive minimum; absent/zero minimum is unknown, not healthy. No Company/Outlet attribution. At most 20 matching products. Snapshot and row read are not an atomic transaction.'};
 }
 
 // Stock classifications are canonical tool facts, never free-form model inference.
@@ -37,6 +38,7 @@ export function lowStockSummary(evidence){
 
 // Factory owns the schema, permission, bounded read and evidence semantics.
 export const finishedGoodsRead = Object.freeze({
+ moduleInterface:declareReadInterface({module_id:'factory_finished_goods',permission:'factory_finished_goods.view',scope:'Factory shared catalogue',source:'/factory/warehouse/finished-goods',properties:inventoryTool.parameters.properties,interface:{queryKinds:['summary','list'],authority:'factory_get_master_id_snapshot + scoped inventory rows',aggregates:'complete_filtered_scope',fields:['rows','total_scoped_products','total_matching','unknown_minimum_count'],pagination:'Complete identity/count-checked catalogue; rows capped at20. Non-atomic source snapshot.'}}),
  id:inventoryTool.name, module_id:'factory_finished_goods', kind:'READ', version:1,
  label:'Factory Finished Goods', permission:'factory_finished_goods.view',
  scope:'Factory shared catalogue · current Admin permissions',

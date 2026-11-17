@@ -208,3 +208,11 @@ Compliance supports the existing review decisions with typed machine attribution
 private document URLs and fabricated evidence are never supplied by MCP.
 
 `employee_workforce_summary_read` aggregates the same employee employment-type/status/legal-entity fields used by the HR workforce view. It is a stable security-invoker read requiring `employees.view`, preserving employee RLS and returning only counts by group. It does not enumerate employee identity or grant all-company scope.
+
+### Module-owned Employees AI read interface
+
+`employee_directory_read` is a stable security-invoker Employees read requiring `employees.view` and preserving employee RLS. Summary does not require an employee ID. List/detail expose only identity labels and employment/assignment metadata, never contacts, Auth IDs, identity documents, compensation, bank or disciplinary data. List pages contain at most 20 unique employee IDs; summary/total count cover all matching authorized rows in one database statement. Filters are employment status, Legal Entity, exact workplace and name/code substring. Unknown or hidden detail has the same denied outcome.
+
+`employeeDirectory.js` owns the fixed RPC arguments, exposed fields and Employees status defaults; the Admin service and Assistant reference it. Employees active/inactive refer to employment, not system-login state. Inactive means resigned or terminated; other statuses are separate. Null status/type follow the existing Employees form projection (`active`/`probation`). HR workforce distributions deliberately preserve raw unspecified classifications; `hrWorkforceModel.js` now supplies the same weighted status-count calculation for HR and Assistant. Neither path counts assignment revisions as extra employees. Effective-dated assignment detail remains `employee_employment_assignment_read`.
+
+The new directory capability defaults Disabled. Existing workforce READ enablement is preserved and may answer no-ID headcount questions without enabling directory disclosure. No company-wide visibility is implied by a complete count: completeness is relative to current human RLS and requested filters.

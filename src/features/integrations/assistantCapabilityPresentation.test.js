@@ -8,7 +8,7 @@ it('accounts for all registry entries without counting aliases or external autho
  const r=reconcileBusinessModules();expect(r.entries).toHaveLength(moduleRegistry.length);expect(r.counts).toEqual({business:128,alias:12,permission:8,external:138,technical:0});
  expect(new Set(r.entries.map(e=>e.module.id)).size).toBe(286);expect(new Set(r.business.map(m=>m.id)).size).toBe(128);
  expect(r.unmappedExternal).toEqual(['factory_agent_mesti_review','factory_mesti_inspection']);
- const rows=capabilityInventory(operations);expect(rows).toHaveLength(128);expect(new Set(rows.flatMap(r=>r.operations).map(o=>o.id)).size).toBe(111);
+ const rows=capabilityInventory(operations);expect(rows).toHaveLength(128);expect(new Set(rows.flatMap(r=>r.operations).map(o=>o.id)).size).toBe(112);
  expect(rows.some(r=>/^(factory|hr|restaurant)_agent_/.test(r.id))).toBe(false);
 });
 it('uses Platform ownership without rewriting route metadata and preserves distinct embedded business lifecycles',()=>{
@@ -25,9 +25,9 @@ it('filters and collapses normalized inventory; external operations cannot becom
  expect(capabilityTableRows(rows,new Set(['workspace:factory'])).some(r=>r.id==='factory_finished_goods')).toBe(false);
 });
 
-it('keeps all 37 reconciliation records and separates technical coverage from policy',async()=>{
+it('keeps the 37 reconciliation records plus Employees reference and separates technical coverage from policy',async()=>{
  const {assistantCoverageReview}=await import('./assistantCoverageReview.js');
- expect(Object.keys(assistantCoverageReview)).toHaveLength(37);
+ expect(Object.keys(assistantCoverageReview)).toHaveLength(38);
  const rows=capabilityInventory(operations);expect(rows.filter(r=>r.operations.length)).toHaveLength(116);
  for(const row of rows){expect(row.coverage).toBeDefined();expect(row.coverage.missing).toBeTruthy();}
  for(const id of Object.keys(assistantCoverageReview)){const r=rows.find(r=>r.id===id);expect(r.coverageReads.map(o=>o.id)).toEqual(r.coverage.reads);}

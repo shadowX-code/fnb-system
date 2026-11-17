@@ -1,3 +1,4 @@
+import {readEmployeeDirectory,employmentStatus,employmentType} from '../../supabase/functions/_shared/people/employeeDirectory.js';
 export const EMPLOYEE_BANK_CHANGE_KEY = "feedx:employee-bank-change";
 import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
@@ -26,8 +27,8 @@ function mapEmployee(row) {
     workplace: row.workplace ?? "",
     department: row.department ?? "",
     outlet_access: [],
-    employment_type: row.employment_type ?? "probation",
-    employment_status: row.employment_status ?? "active",
+    employment_type: employmentType(row.employment_type),
+    employment_status: employmentStatus(row.employment_status),
     legal_entity_id: row.legal_entity_id ?? "",
     access_state: normalizeEmployeeAccessState(row.access_state, enableSystemLogin),
     enable_system_login: enableSystemLogin,
@@ -49,6 +50,11 @@ function mapEmployee(row) {
 }
 
 export const employeeService = {
+  async readDirectory(args) {
+    const {data,error}=await readEmployeeDirectory(supabase,args);
+    throwSupabaseError("employees.directory",error);
+    return data;
+  },
   // Raw classifications and one row per employee; form defaults are not workforce evidence.
   async readWorkforce() {
     const rows = [];

@@ -1,6 +1,13 @@
 // Coverage evidence is separate from server-enforced AI access policy.
 export const coverageLabels = {"full": "Full", "partial": "Partial", "shared": "Shared", "missing": "Not integrated", "blocked": "Not integrated", "not_applicable": "Not applicable"};
 export const assistantCoverageReview = {
+  "employees": {
+    "classification": "partial",
+    "available": "Authorized unique headcount and employment-status totals, filtered employee directory and effective-dated assignment details. Summary totals cover the requested human scope; directory pages contain at most 20 employees.",
+    "missing": "Contacts, identity documents, compensation, bank details, disciplinary records and historical headcount reconstruction are not exposed. Employment status is not login access; HR raw classifications retain unspecified values.",
+    "reads": ["read_employee_directory", "read_employee_assignment", "read_workforce_distribution"],
+    "evidence": ["src/services/employeeService.js", "supabase/functions/_shared/people/employeeDirectory.js", "supabase/functions/_shared/people/employeeDirectoryRead.js"]
+  },
   "hr_dashboard": {
     "classification": "partial",
     "available": "RLS-scoped complete workforce distributions and authorized payroll period/run statuses.",
