@@ -12,7 +12,7 @@ test('Factory count, pagination, exact SKU detail and legacy arguments share one
  const rows=Array.from({length:45},(_,i)=>({id:String(i).padStart(2,'0'),product_code:'SKU'+i,product_name:'Product '+String(i).padStart(2,'0'),current_balance:i,min_stock_level:10}));
  const caller=inventoryCaller(rows),base={query:'',availability:'all'};
  const legacy=await readInventory(caller,base),p2=await readInventory(caller,{...base,mode:'list',page:2,sku:null}),summary=await readInventory(caller,{...base,mode:'summary',page:1,sku:null});
- assert.equal(summary.total_matching,45);assert.equal(summary.rows.length,0);assert.equal(p2.rows.length,20);assert.equal(p2.total_matching,45);assert(!p2.rows.some(r=>legacy.rows.some(l=>l.id===r.id)));
+ assert.equal(summary.total_matching,45);assert.equal(summary.low_stock_count,10);assert.equal(summary.out_of_stock_count,1);assert.equal(summary.rows.length,0);assert.equal(p2.rows.length,20);assert.equal(p2.total_matching,45);assert(!p2.rows.some(r=>legacy.rows.some(l=>l.id===r.id)));
  const detail=await readInventory(caller,{...base,mode:'detail',page:1,sku:'SKU24'});assert.equal(detail.rows[0].id,'24');assert.equal(detail.detail_found,true);
  const low=await readInventory(caller,{...base,availability:'low'});assert.equal(low.total_matching,10);
  assert.throws(()=>inventoryArguments({...base,mode:'detail',sku:null}));assert.throws(()=>inventoryArguments({...base,outlet_id:'arbitrary'}));
