@@ -34,6 +34,30 @@ export function validateBusinessArguments(id,args){
 }
 export function capabilityConnected(config,id){return config.capability_connections?.[id]===true;}
 export function businessOperation(id){const operation=operations.find(item=>item.id===id);if(!operation)throw new AssistantError('tool_not_allowed',403);return operation;}
+export function businessToolIdentity(tool, args) {
+ const id = tool === 'run_business_query' ? args?.operation : tool;
+ const operation = operations.find(item => item.id === id);
+ if (operation) return { operation: operation.id, operation_label: operation.label };
+ if (tool === 'find_business_queries') return { operation: tool, operation_label: 'FeedX query discovery' };
+ return {};
+}
+export function businessToolArgumentShape(tool, args) {
+ const id = businessToolIdentity(tool, args).operation;
+ const parameters = operations.find(item => item.id === id)?.tool.parameters
+  || queryDiscoveryTools.find(item => item.name === id)?.parameters;
+ if (!parameters) return {};
+ let inner = args;
+ if (tool === 'run_business_query') {
+  try { inner = queryEnvelopeArguments(tool, args).args; } catch { return {}; }
+ }
+ if (!inner || typeof inner !== 'object' || Array.isArray(inner)) return {};
+ const keys = Object.keys(inner);
+ return {
+  fields: keys.filter(key => Object.hasOwn(parameters.properties, key)),
+  unsupported_field_count: keys.filter(key => !Object.hasOwn(parameters.properties, key)).length,
+  ...(parameters.properties.mode?.enum?.includes(inner.mode) ? {mode:inner.mode} : {}),
+ };
+}
 export function businessCapabilities(config,access){
  return operations.map(operation=>({id:operation.id,module_id:operation.module_id,related_module_ids:operation.related_module_ids||[],kind:operation.kind,version:operation.version,
   label:operation.label,scope:operation.scope,permission:operation.permission,query:operation.moduleInterface?.query,policy_group:operation.policyGroup||null,
@@ -63,7 +87,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    if(!capabilityConnected(current,id))throw new AssistantError('capability_disconnected',403);
    if(!operation.authorized(access||{}))throw new AssistantError(operation.deniedCode,403);
    try{operation.validate(args);}catch(error){
-    if(enveloped&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,operation:id,parameters:operation.tool.parameters,instruction:'Include every required field from this exact schema, using null only where its type permits null. No business read or action occurred.'};
+    if(enveloped&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,operation:id,operation_label:operation.label,parameters:operation.tool.parameters,instruction:'Correct the arguments using this exact schema. Preserve only explicit, supported filters. Null optional scope filters mean the current authorized scope. No business read or action occurred.'};
     throw error;
    }
    signal?.throwIfAborted();

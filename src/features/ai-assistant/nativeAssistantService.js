@@ -10,7 +10,11 @@ export async function assistantCall(action,args={},signal){
  try{
   const response=await fetch(endpoint,{method:'POST',headers:{Authorization:`Bearer ${data.session.access_token}`,apikey:import.meta.env.VITE_SUPABASE_ANON_KEY,'Content-Type':'application/json'},body:JSON.stringify({action,...args}),signal:controller.signal});
   const result=await response.json().catch(()=>({error:'assistant_unavailable'}));
-  if(!response.ok||result.error)throw new AssistantClientError(result.error||'assistant_unavailable',result.diagnostic||null);
+  // Authenticated tool validation feedback is an SDK function output. Keep its
+  // schema and operation for the model instead of converting it to a transport error.
+  const toolFeedback=action==='realtime_tool'&&result.error==='tool_arguments_invalid'
+   &&result.not_business_evidence===true&&result.no_evidence===true;
+  if(!response.ok||result.error&&!toolFeedback)throw new AssistantClientError(result.error||'assistant_unavailable',result.diagnostic||null);
   return result;
  }catch(error){if(error instanceof AssistantClientError)throw error;throw new AssistantClientError(signal?.aborted?'cancelled':controller.signal.aborted?'provider_timeout':'assistant_unavailable');}
  finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}

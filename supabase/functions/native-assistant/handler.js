@@ -4,7 +4,7 @@ import {memoryContext,preferences} from './context.js';
 import {credentialEnvironment,verifyVoiceProvider,providerVoices} from './providerRegistry.js';
 import {createGrokSession,grokReady,grokVoices} from './grokVoice.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
-import {createBusinessDispatcher,validateBusinessArguments,businessOperation} from './business.js';
+import {createBusinessDispatcher,validateBusinessArguments,businessOperation,businessToolIdentity,businessToolArgumentShape} from './business.js';
 import {realtimeModel,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -43,11 +43,34 @@ export function validateBody(body){
  if(body.action==='realtime_turn'&&body.details!==undefined&&(body.details===null||typeof body.details!=='object'||Array.isArray(body.details)||Object.keys(body.details).some(k=>k!=='reason')||!['provider_completed','missing_assistant_transcript','provider_cancelled','provider_incomplete','provider_failed','max_output_tokens','content_filter','session_ended','session_expired','transport_disconnected','provider_error','lease_failed','turn_limit'].includes(body.details.reason)))throw new AssistantError('invalid_request',400);
  if(body.action==='action_confirm'&&(typeof body.fingerprint!=='string'||!/^[a-f0-9]{32}$/.test(body.fingerprint)))throw new AssistantError('invalid_request',400);
  if(body.action==='action_policy'&&(businessOperation(body.operation).kind!=='ACTION'||typeof body.enabled!=='boolean'||!Number.isSafeInteger(body.expected_revision)))throw new AssistantError('configuration_invalid',400);
- if(body.action==='realtime_tool')validateBusinessArguments(body.operation??finishedGoodsRead.id,body.arguments);
+ if(body.action==='realtime_tool')validateBusinessArguments(voiceToolOperation(body),body.arguments);
  return body;
 }
-export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,readFactory,reserveRealtime,endVoice,registry,voiceHistory,issueVoiceTicket,access={factory:false}}){
- validateBody(body);
+function voiceToolOperation(args) {
+ // Grok's existing single-tool transport did not send a name. OpenAI SDK calls do.
+ return args.operation ?? (args.provider === 'grok' ? finishedGoodsRead.id : undefined);
+}
+
+function voiceToolFailure(error, identity, stage) {
+ return new AssistantError(error instanceof AssistantError ? error.code : 'assistant_unavailable',
+  error instanceof AssistantError ? error.status : 503, {...identity, stage});
+}
+
+export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,readFactory,reserveRealtime,endVoice,registry,voiceHistory,issueVoiceTicket,traceVoice=()=>{},access={factory:false}}){
+ const isTool = body?.action === 'realtime_tool';
+ const tool = isTool ? voiceToolOperation(body) : undefined;
+ const identity = isTool ? businessToolIdentity(tool, body.arguments) : {};
+ const traceTool = (stage, outcome) => traceVoice('voice_tool', {
+  session_id:body.session_id, request_id:body.request_id, turn_id:uuid.test(body.turn_id || '') ? body.turn_id : undefined,
+  tool: tool === 'run_business_query' ? tool : identity.operation,
+  operation:identity.operation, arguments_shape:businessToolArgumentShape(tool,body.arguments), stage, outcome,
+ });
+ try { validateBody(body); } catch (error) {
+  if (!isTool || !uuid.test(body.session_id || '') || !uuid.test(body.request_id || '')) throw error;
+  const failure = voiceToolFailure(error, identity, 'validation');
+  traceTool('validation', failure.code);
+  throw failure;
+ }
  const {action,connection_protocol,...args}=body;
  if(action.startsWith('action_')){const {data,error}=await caller.rpc('native_assistant_action',{p_step:action.slice(7),p_payload:args}).abortSignal(signal);if(error)throw new AssistantError('action_not_authorized',403);return data;}
  if(action.startsWith('voice_')&&['voice_usage_report','voice_usage','voice_policy_save','voice_allowance_request','voice_allowance_review'].includes(action))return voiceUsage(({voice_usage_report:'report',voice_usage:'get',voice_policy_save:'save',voice_allowance_request:'request',voice_allowance_review:'review'})[action],args);
@@ -74,7 +97,11 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
    return {};
   }
   const connecting=action==='realtime_connect'||action==='realtime_sdk_connect';
-  if(connecting?!realtime[args.provider]:!evaluator)throw new AssistantError('realtime_not_authorized',403);
+  if(connecting?!realtime[args.provider]:!evaluator){
+   const error = new AssistantError('realtime_not_authorized',403);
+   if(isTool){traceTool('availability',error.code);throw voiceToolFailure(error,identity,'availability');}
+   throw error;
+  }
   if(action==='realtime_heartbeat'){return reserveRealtime('heartbeat',args);}
   if(action==='realtime_sdk_observe'){
    await reserveRealtime('sdk_'+args.milestone,args);
@@ -82,11 +109,24 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
   }
   if(action==='realtime_turn')return voiceHistory(args);
   if(action==='realtime_tool'){
-   if(!runtime.tools)throw new AssistantError('business_read_denied',403);
-   await reserveRealtime('tool',args);
-   const evidence=await business.execute(args.operation??finishedGoodsRead.id,args.arguments,signal);
-   if(args.turn_id&&!evidence.not_business_evidence)await voiceHistory({...args,step:'evidence',evidence});
-   return evidence;
+   let stage = 'authorization';
+   try {
+    if(args.provider==='grok'&&!runtime.tools)throw new AssistantError('business_read_denied',403);
+    stage = 'lease';
+    await reserveRealtime('tool',args);
+    stage = 'dispatch';
+    const evidence=await business.execute(tool,args.arguments,signal);
+    if(args.turn_id&&!evidence.not_business_evidence){
+     stage = 'evidence';
+     await voiceHistory({...args,step:'evidence',evidence});
+    }
+    traceTool(stage,evidence.error || (evidence.discovery_only ? 'discovery' : 'returned'));
+    return evidence;
+   } catch(error) {
+    const failure = voiceToolFailure(error,identity,stage);
+    traceTool(stage,failure.code);
+    throw failure;
+   }
   }
   const credential=registry?await registry('key',args):null;
   if(credential&&credential.active_voice!==args.voice)throw new AssistantError('configuration_changed',409);
@@ -105,6 +145,10 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
    if(signal?.aborted)throw new AssistantError('cancelled',409);
    const secret=await issueVoiceTicket(args,{tools,instructions});
    await reserveRealtime('sdk_issued',args);
+   traceVoice('voice_tool_snapshot',{
+    session_id:args.session_id,request_id:args.request_id,revision:config.revision,
+    tools:tools.map(t=>t.name),available:business.capabilities.filter(c=>c.availability==='connected').map(c=>c.id),
+   });
    return {...secret,model:realtimeModel,tools,instructions};
   }
    const result=await createGrokSession(voiceGet,{signal,transport});

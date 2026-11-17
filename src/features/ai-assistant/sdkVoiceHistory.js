@@ -1,3 +1,27 @@
+const toolFailureReasons = {
+ business_read_denied: 'Current user permissions or scope deny this read.',
+ factory_read_denied: 'Current user permissions or scope deny this read.',
+ capability_disconnected: 'AI access for this capability is disabled.',
+ tool_arguments_invalid: 'The arguments do not match the registered query schema.',
+ tool_not_allowed: 'The requested operation is not registered for Assistant use.',
+ action_not_authorized: 'The action is outside current AI or human authority.',
+ business_read_unavailable: 'The authorized data source could not return a result.',
+ business_result_limit: 'The result exceeds the bounded read. A narrower query is needed.',
+ inventory_unavailable: 'The authorized inventory source could not return a result.',
+ inventory_scope_changed: 'Inventory scope changed during the read.',
+ inventory_result_limit: 'The catalogue exceeds the bounded read.',
+ voice_request_limit: 'This voice session reached its tool-call limit.',
+ voice_session_expired: 'This voice session expired or was revoked. Start a new session.',
+ realtime_not_authorized: 'Voice access is no longer available.',
+ authentication_required: 'Sign in again before querying.',
+ provider_timeout: 'The request timed out.',
+};
+
+function attemptedOperation(tool, args) {
+ const operation = tool === 'run_business_query' ? args?.operation : tool;
+ return typeof operation === 'string' && /^[a-z][a-z0-9_]{0,99}$/.test(operation) ? operation : undefined;
+}
+
 // Observe SDK events without taking ownership of transport, playback or response creation.
 export function createSdkVoiceHistory({ write, read, state, trace, activity = () => {}, id = () => crypto.randomUUID() }) {
  const inputs = new Map();
@@ -81,30 +105,39 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
   async tool(args, responseId, operation) {
    const owner = responses.get(responseId);
    const turn = owner?.turn;
-   if (!turn || turn !== current || turn.response !== owner || turn.finished || turn.toolPending || owner.tool) return { stale: true };
+   const ownsTurn = () => turn && turn === current && turn.response === owner && !turn.finished;
+   if (!ownsTurn() || turn.toolPending || owner.tool) return { stale: true };
    owner.tool = true;
    turn.toolPending = true;
    state('executing');
-   trace('factory_read_started', turn.number, owner.number);
+   const attempted = attemptedOperation(operation, args);
+   const tool = { turn_id: turn.id, operation: owner.number, capability: attempted };
+   trace('business_tool_started', turn.number, owner.number, attempted);
    try {
     await turn.started;
-    if (turn.finished || turn !== current) return { stale: true };
-    const tool = { turn_id: turn.id, operation: owner.number };
+    if (!ownsTurn()) return { stale: true };
     activity({ ...tool, phase: 'executing' });
-    const evidence = await read(turn.id, args, operation);
-    activity({ ...tool, phase: 'complete' });
-    trace('factory_read_completed', turn.number, owner.number);
-    return turn.finished || turn !== current ? { stale: true } : { evidence };
+    const result = await read(turn.id, args, operation);
+    if (!ownsTurn()) return { stale: true };
+    activity({ ...tool, label: result.operation_label, phase: result.error ? 'failed' : 'complete' });
+    trace('business_tool_finished', turn.number, owner.number, result.error || (result.discovery_only ? 'discovery' : 'returned'));
+    return { result };
    } catch (error) {
-    const denied = error.code === 'factory_read_denied';
-    activity({ turn_id: turn.id, operation: owner.number, phase: denied ? 'denied' : 'failed' });
-    trace('factory_read_failed', turn.number, owner.number, denied ? 'permission_denied' : 'tool_unavailable');
-    return turn.finished || turn !== current ? { stale: true } : { error: denied
-     ? 'Factory access was denied by current Admin permissions. Explain this in the user’s language. Do not retry the read or invent stock.'
-     : 'Current Factory stock is unavailable. Explain the failed read; do not claim successful evidence or retry automatically.' };
+    if (!ownsTurn()) return { stale: true };
+    const code = Object.hasOwn(toolFailureReasons, error.code) ? error.code : 'assistant_unavailable';
+    const capability = error.diagnostic?.operation || attempted;
+    const label = error.diagnostic?.operation_label;
+    const denied = ['business_read_denied','factory_read_denied','capability_disconnected','action_not_authorized'].includes(code);
+    activity({ ...tool, capability, label, phase: denied ? 'denied' : 'failed' });
+    trace('business_tool_failed', turn.number, owner.number, code);
+    const reason = error.diagnostic?.stage === 'evidence'
+     ? 'The operation result could not be saved to this conversation.'
+     : toolFailureReasons[code] || 'The tool request did not finish successfully.';
+    return { result: { error: code, operation: capability, operation_label: label, reason, no_evidence: true,
+     instruction: 'Briefly explain the actual failure in the user’s language. Do not switch domains, invent evidence, or retry automatically.' } };
    } finally {
     turn.toolPending = false;
-    if (!turn.finished && turn === current) state('thinking');
+    if (ownsTurn()) state('thinking');
    }
   },
   close(reason = 'session_ended') {

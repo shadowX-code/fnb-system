@@ -54,7 +54,8 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   post('history',{session_id:'saved',turns:[{...completed,request_id:'first'},{...completed,request_id:'second'}]});
   const rows=()=>[...document.querySelectorAll('#webActivity > li')];
   expect(rows().map(row=>row.dataset.stage)).toEqual(['complete','complete']);
-  const voice=(phase, at, operation)=>post('voice_activity',{session_id:'saved',turn_id:'live',phase,at,operation});
+  const voice=(phase, at, operation)=>post('voice_activity',{session_id:'saved',turn_id:'live',phase,at,operation,
+   capability:operation===1?'read_factory_finished_goods':operation===2?'read_employee_directory':undefined});
   voice('processing',1000);
   const live=rows()[0];
   voice('executing',1100,1);
@@ -72,7 +73,7 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
   expect(live.textContent).toContain('Completed · 1.1 s');
   expect([...live.querySelectorAll('ul > li')].map(row=>row.textContent)).toEqual([
     'Factory Finished Goods · Completed · 0.1 s',
-    'Factory Finished Goods · Access denied · 0.1 s',
+    'Employee headcount and directory · Access denied · 0.1 s',
   ]);
   input.blur();
   post('view',{immersive:true});

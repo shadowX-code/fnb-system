@@ -70,7 +70,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     async read(turn_id, args, operation) {
      await run.observations;
      run.controller.signal.throwIfAborted();
-     return call('realtime_tool', { ...lease, turn_id, arguments: args, ...(operation?{operation}:{}) }, run.controller.signal);
+     return call('realtime_tool', { ...lease, turn_id, arguments: args, operation }, run.controller.signal);
     },
     activity: detail => {
      if (getSession() === session_id) post('voice_activity', { ...detail, session_id, at: Date.now() });
@@ -84,7 +84,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     async execute(args, _context, details) {
      const result = await history.tool(args, details?.toolCall?.responseId, definition.name);
      if (result.stale || active !== run) return backgroundResult('The voice turn has ended.');
-     return result.evidence || result.error;
+     return result.result;
     },
    }));
    const agent = new RealtimeAgent({ name: 'FeedX voice assistant', instructions: authorization.instructions, tools });

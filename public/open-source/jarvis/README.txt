@@ -42,3 +42,4 @@ Recipients retain GPL rights to run, inspect, modify and redistribute this HUD.
 No FeedX proprietary licence or NDA is applied to these GPL program files.
 
 2026-11-17: Factory summary evidence distinguishes aggregate counts from list rows; low-stock telemetry uses explicit canonical count when present. Core renderer unchanged.
+2026-11-17: Business activity uses the actual capability supplied by the host or recorded evidence. Provider reply-length limits offer explicit recovery in Conversation.

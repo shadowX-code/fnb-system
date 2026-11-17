@@ -18,10 +18,10 @@ test('discovery, model schemas and execution share the module contract; disabled
  }
  assert.equal(reads,1);
 });
-test('Voice name dispatch and legacy fixed-name compatibility reserve once and attach the unchanged evidence',async()=>{
- for(const operation of [undefined,finishedGoodsRead.id]){
+test('SDK named dispatch and legacy Grok compatibility reserve once and attach unchanged evidence',async()=>{
+ for(const [provider,operation] of [['grok',undefined],['openai',finishedGoodsRead.id]]){
   let reads=0,reservations=0;const evidence={capability:finishedGoodsRead.id,scope:'fixture',as_of:'fixture',rows:[]};
-  const result=await dispatch({action:'realtime_tool',provider:'openai',session_id:id,request_id:id,turn_id:id,arguments:args,...operation?{operation}:{}},{
+  const result=await dispatch({action:'realtime_tool',provider,session_id:id,request_id:id,turn_id:id,arguments:args,...operation?{operation}:{}},{
    rpc:async()=>({config:{enabled:true,capability_connections:{read_factory_finished_goods:true}}}),get:()=>undefined,access:{factory:true},
    reserveRealtime:async action=>{assert.equal(action,'tool');reservations++;},
    readFactory:async value=>{assert.deepEqual(value,args);reads++;return evidence;},

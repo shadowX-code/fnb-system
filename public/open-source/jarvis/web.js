@@ -155,12 +155,21 @@ const terminalPhases = new Set(['complete', 'interrupted', 'cancelled', 'unfinis
 const activityRows = new Map();
 const activityList = $('#webActivity');
 
+function operationTitle(id) {
+ if (id === 'read_factory_finished_goods') return 'Factory Finished Goods';
+ if (id === 'read_employee_directory') return 'Employee headcount and directory';
+ if (id === 'find_business_queries') return 'FeedX query discovery';
+ if (typeof id !== 'string' || !/^[a-z][a-z0-9_]{0,99}$/.test(id)) return '';
+ const title = id.replace(/^read_/, '').replaceAll('_', ' ');
+ return title.charAt(0).toUpperCase() + title.slice(1);
+}
+
 function activity(id, phase, details = {}) {
  if (!id || !activityPhases[phase]) return;
  let entry = activityRows.get(id);
  if (!entry) {
   const row = document.createElement('li');
-  row.innerHTML = '<span class="web-event-node" aria-hidden="true"></span><div class="web-activity-copy"><strong></strong><small></small><details hidden><summary>Factory reads</summary><ul></ul></details></div>';
+  row.innerHTML = '<span class="web-event-node" aria-hidden="true"></span><div class="web-activity-copy"><strong></strong><small></small><details hidden><summary>Business operations</summary><ul></ul></details></div>';
   entry = { row, operations: new Map() };
   activityRows.set(id, entry);
   activityList.querySelector('.web-activity-idle')?.remove();
@@ -170,7 +179,7 @@ function activity(id, phase, details = {}) {
  const at = Number.isFinite(details.at) ? details.at : undefined;
  entry.voice ||= details.voice;
  entry.evidence ||= Boolean(details.evidence);
- entry.factory ||= details.factory;
+ entry.capability ||= operationTitle(details.evidence?.capability);
  if (details.prompt && details.prompt !== 'Voice transcript unavailable') {
   const prompt = details.prompt.replace(/\s+/g, ' ').trim();
   if (prompt) entry.prompt = prompt.length > 56 ? prompt.slice(0, 55) + '…' : prompt;
@@ -185,9 +194,11 @@ function activity(id, phase, details = {}) {
   }
   const elapsed = terminalPhases.has(phase) ? activityDuration(operation.started, at) : '';
   operation.phase = phase;
-  operation.item.textContent = ['Factory Finished Goods', activityPhases[phase][0], elapsed].filter(Boolean).join(' · ');
+  operation.label = details.label || operationTitle(details.capability) || operation.label;
+  if (details.capability !== 'find_business_queries') entry.capability ||= operation.label;
+  operation.item.textContent = [operation.label || 'Business operation', activityPhases[phase][0], elapsed].filter(Boolean).join(' · ');
   entry.row.querySelector('details').hidden = false;
-  entry.row.querySelector('summary').textContent = 'Factory reads (' + entry.operations.size + ')';
+  entry.row.querySelector('summary').textContent = 'Business operations (' + entry.operations.size + ')';
   if (!terminalPhases.has(entry.phase) && phase === 'executing') entry.phase = phase;
   entry.started ??= at;
  } else if (!terminalPhases.has(entry.phase) && (!details.recorded || !entry.phase || terminalPhases.has(phase))) {
@@ -198,8 +209,7 @@ function activity(id, phase, details = {}) {
  const [status, icon] = activityPhases[entry.phase || 'processing'];
  entry.row.dataset.stage = entry.phase || 'processing';
  entry.row.querySelector('.web-event-node').innerHTML = hudIcon(icon);
- entry.row.querySelector('strong').textContent = entry.evidence || entry.operations.size || entry.factory
-  ? 'Factory Finished Goods' : entry.prompt || (entry.voice ? 'Voice response' : 'Text response');
+ entry.row.querySelector('strong').textContent = entry.prompt || entry.capability || (entry.voice ? 'Voice response' : 'Text response');
  const elapsed = activityDuration(entry.started, entry.finished);
  entry.row.querySelector('small').textContent = [status, elapsed, entry.evidence && 'Evidence in Conversation'].filter(Boolean).join(' · ');
 }
@@ -219,7 +229,7 @@ function showRecordedActivity(turn, older = false) {
   phase = turn.tool_state === 'executing' ? 'executing' : 'processing';
  }
  activity(turn.request_id, phase, {
-  voice: turn.voice, prompt: turn.prompt, evidence: turn.evidence, factory: Boolean(turn.tool_state),
+  voice: turn.voice, prompt: turn.prompt, evidence: turn.evidence,
   started: Date.parse(turn.created_at), at: Date.parse(turn.finished_at), older, recorded: true,
  });
  const operations = activityRows.get(turn.request_id)?.operations;
@@ -245,7 +255,7 @@ function appendResponseDetails(item,message){
  const usage=message.usage,context=usage?.context;
  if(!usage&&!message.outcome)return;
  const details=document.createElement('details'),label=document.createElement('summary');
- details.className='web-response-details';label.textContent=message.outcome?'Reply status':'Response details';details.append(label);
+ details.className='web-response-details';label.textContent=message.reason==='max_output_tokens'?'Reply length limit · ask again for a shorter answer':message.outcome?'Reply status':'Response details';details.append(label);
  const note=document.createElement('p');
  if(message.outcome){const reasons={max_output_tokens:'The provider reached the reply-length safety limit.',content_filter:'The provider stopped this reply for safety.',provider_cancelled:'The provider cancelled this response.',transport_disconnected:'The voice connection was lost.',session_expired:'The session duration limit was reached.',lease_failed:'The session could not be renewed.',provider_error:'The voice provider reported an error.',session_ended:'Voice ended before this reply completed.',turn_limit:'The call reached its turn safety limit.'};note.textContent=(reasons[message.reason]||'No completed assistant reply is available.')+' Any text shown is a partial transcript. Ask again explicitly or reconnect Voice; no read is retried automatically.';details.append(note);}
  if(Number.isInteger(usage?.input_tokens)&&Number.isInteger(usage?.output_tokens)){
@@ -409,9 +419,9 @@ addEventListener('message',event=>{
   document.body.dataset.voiceState=d.state;
   const states={reconnecting:'thinking',connecting:'thinking',ending:'idle',suspended:'idle',interrupted:'listening',listening:'listening',transcribing:'thinking',executing:'executing',speaking:'speaking',error:'error'};window.FEEDX_AUDIO_LEVEL=0;if(states[d.state])setState(states[d.state]);else if(!activeRequest)setState('idle');return;}
  if(d.request_id!==activeRequest)return;
- if(d.type==='state'&&d.state==='executing'){activity(activeRequest,'executing',{factory:true,at:Date.now()});setState('executing');showNotice('Reading authorized Factory Finished Goods…');}
+ if(d.type==='state'&&d.state==='executing'){activity(activeRequest,'executing',{at:Date.now()});setState('executing');showNotice('Checking authorized FeedX data…');}
  if(d.type==='state'&&d.state==='thinking'){activity(activeRequest,'processing',{at:Date.now(),prompt:currentSession.messages.find(m=>m.request_id===activeRequest)?.text});setState('thinking');showNotice('Thinking…');}
- if(d.type==='result'&&typeof d.reply==='string'){activity(activeRequest,'complete',{factory:Boolean(d.tool_state),evidence:d.evidence,started:Date.parse(d.created_at),at:Date.parse(d.finished_at)});
+ if(d.type==='result'&&typeof d.reply==='string'){activity(activeRequest,'complete',{evidence:d.evidence,started:Date.parse(d.created_at),at:Date.parse(d.finished_at)});
   if(d.tool_state==='failed')activity(activeRequest,'failed',{operation:'text-read'});
   currentSession.messages.push({role:'assistant',text:d.reply.slice(0,3000),request_id:activeRequest,evidence:d.evidence,time:d.finished_at,usage:d.usage});const prompt=currentSession.messages.find(m=>m.request_id===activeRequest&&m.role==='user');if(prompt&&d.created_at)prompt.time=d.created_at;activeRequest='';renderMessages();setState('idle');showNotice(d.evidence?'Response received · verified read evidence attached.':'Response received.');
  }

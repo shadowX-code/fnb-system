@@ -43,10 +43,10 @@ test('Grok receives a separate credential and returns only ephemeral authorizati
 
 test('Realtime inventory requires canonical permission and a charged reservation', async () => {
  const { voice, connection_protocol, ...base } = request;
- const tool = { ...base, action:'realtime_tool', arguments:{ query:'Sauce', availability:'low' } };
+ const tool = { ...base, action:'realtime_tool', operation:'read_factory_finished_goods', arguments:{ query:'Sauce', availability:'low' } };
  const ctx = { rpc:async()=>({config:{enabled:true,capability_connections:{read_factory_finished_goods:true}},can_edit:true}), get:key=>approved[key], reserveRealtime:fail, readFactory:fail };
- await assert.rejects(dispatch(tool,ctx),{code:'business_read_denied'});
- await assert.rejects(dispatch(tool,{...ctx,access:{factory:true},reserveRealtime:async()=>{throw Error('lease denied');}}),/lease denied/);
+ await assert.rejects(dispatch(tool,{...ctx,reserveRealtime:async()=>{}}),{code:'factory_read_denied'});
+ await assert.rejects(dispatch(tool,{...ctx,access:{factory:true},reserveRealtime:async()=>{throw Error('lease denied');}}),{code:'assistant_unavailable',diagnostic:{operation:'read_factory_finished_goods',operation_label:'Factory Finished Goods',stage:'lease'}});
  const result = await dispatch(tool,{...ctx,access:{factory:true},
   reserveRealtime:async action=>assert.equal(action,'tool'),
   readFactory:async args=>({query:args.query,source:'/factory/warehouse/finished-goods'}),
