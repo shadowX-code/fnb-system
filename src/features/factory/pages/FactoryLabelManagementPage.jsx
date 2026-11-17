@@ -107,12 +107,6 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
         }
       />
     );
-  useEffect(() => {
-    if (location.section !== "printers") return;
-    const timer = setInterval(() => { if (!lock.current) load(); }, 15000);
-    return () => clearInterval(timer);
-  }, [location.section, load]);
-
   async function togglePrinter() {
     if (lock.current) return;
     lock.current = true;

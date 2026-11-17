@@ -2,6 +2,8 @@
 
 ## Commercial readiness review, 18 November 2026
 
+The current readiness pass is L2 Workflow. It includes 37 focused UI/renderer tests, 25 hardware-free macOS tests and the application build. Management list/editor navigation uses one printer polling effect with stable React hook order. Regression tests cover Product Labels → Product Editor → Template Editor → Printers and timer cleanup.
+
 - Software acceptance uses simulated printers and temporary state. macOS checks cover startup after session-store errors, refresh expiry, failed persistence of a rotated session, network loss during outcome reporting, single-instance protection, setup pause/restart, original-operator enforcement, and preserved device/calibration/recovery evidence. Windows worker simulations cover session-store, refresh, persistence and network failures with bounded backoff and return to normal polling. Existing print claims and outcome contracts remain the authority.
 - Returning devices reconnect with saved printer/media settings. The wizard lets installed users skip downloads, explains expired sign-in/offline printers, and directs Unknown jobs to Job Order → Print Labels → History. Full physical confirmation and partial issue counts remain explicit. Reprints remain separate authorized requests using the frozen raster.
 - Canonical text layout keeps closing punctuation with the preceding character at automatic line boundaries. English and Chinese regression cases preserve source content, field width and font size. Impossible pairs produce overflow. Print and Studio share the layout function. Saved batch rasters retain their existing pixels.
