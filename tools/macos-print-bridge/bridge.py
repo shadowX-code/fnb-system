@@ -61,7 +61,22 @@ def rpc(config, session, name, **body):
 
 
 def command(args, data=None, timeout=10):
-    return subprocess.run(args, input=data, capture_output=True, check=True, timeout=timeout, env=LANG).stdout
+    child = subprocess.Popen(args, stdin=subprocess.PIPE if data is not None else subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=LANG)
+    try:
+        stdout, _ = child.communicate(data, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        # A stuck Bluetooth kernel write can leave even a killed child waiting for the driver.
+        # Return immediately so the caller can persist Unknown and avoid any resend.
+        child.kill()
+        raise
+    finally:
+        for stream in (child.stdin, child.stdout):
+            if stream and not stream.closed:
+                stream.close()
+    if child.returncode:
+        raise subprocess.CalledProcessError(child.returncode, args)
+    return stdout
 
 
 def save(path, value):
@@ -178,11 +193,11 @@ def serial_command(probe=False, data=None):
     command([sys.executable, str(SCRIPT), "_probe" if probe else "_serial"], data, 6 if probe else 45)
 
 
-def inventory(config=None):
+def inventory(config=None, probe_serial=True):
     printers = cups_printers()[:75]
     if Path(SERIAL).exists() or (config and config["transport"] == "tspl"):
         offline = True
-        if config and config["transport"] == "tspl":
+        if config and config["transport"] == "tspl" and probe_serial:
             try:
                 serial_command(probe=True)
                 offline = False
@@ -284,17 +299,17 @@ def cycle(config, session):
     state = load(JOURNAL)
     if state and state["stage"] == "submitting":
         outcome(state, "Unknown", "Bridge restarted during submission. Inspect the printer and any CUPS job.")
-    printers = inventory(config)
-    calibrating = CALIBRATION.exists() or (
-        config["transport"] == "tspl" and config.get("calibrated_labels") != 3
-    )
-    ready = not calibrating and any(p["Name"] == config["printer"] and not p["WorkOffline"] for p in printers)
-    device_status(config, session, printers, "Error" if calibrating else "Ready" if ready else "Offline")
     if state and state["stage"] == "reporting":
         rpc(config, session, "report", p_device=config["device"], p_job=state["job"],
             p_claim=state["claim"], p_state=state["outcome"], p_detail=state["detail"])
         clear(JOURNAL)
         return
+    calibrating = CALIBRATION.exists() or (
+        config["transport"] == "tspl" and config.get("calibrated_labels") != 3
+    )
+    printers = inventory(config, probe_serial=not calibrating)
+    ready = not calibrating and any(p["Name"] == config["printer"] and not p["WorkOffline"] for p in printers)
+    device_status(config, session, printers, "Error" if calibrating else "Ready" if ready else "Offline")
     if not ready:
         return
     if state is None:

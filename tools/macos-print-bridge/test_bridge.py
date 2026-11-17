@@ -1,4 +1,5 @@
 import base64
+import subprocess
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -51,7 +52,7 @@ class RecoveryTest(unittest.TestCase):
         args, body = self.rpc.call_args
         self.assertEqual(args[2], "report")
         self.assertEqual((body["p_claim"], body["p_state"]), (claim, "Unknown"))
-        self.assertEqual([c.args[2] for c in self.rpc.call_args_list], ["device", "report"])
+        self.assertEqual([c.args[2] for c in self.rpc.call_args_list], ["report"])
 
     def test_offline_and_unreviewed_calibration_never_claim(self):
         self.inventory.return_value = [{"Name": "Label", "WorkOffline": True}]
@@ -83,6 +84,15 @@ class RecoveryTest(unittest.TestCase):
 
 
 class TransportTest(unittest.TestCase):
+    def test_native_timeout_kills_without_waiting_for_a_stalled_driver(self):
+        child = Mock(stdin=None, stdout=None)
+        child.communicate.side_effect = subprocess.TimeoutExpired("print", 1)
+        with patch.object(bridge.subprocess, "Popen", return_value=child):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                bridge.command(["print"], timeout=1)
+        child.kill.assert_called_once()
+        child.wait.assert_not_called()
+
     def test_tspl_follows_windows_dimensions_polarity_and_count(self):
         values = bridge.calibration(3)
         output = bridge.tspl(*values, gap=2, invert=True)
