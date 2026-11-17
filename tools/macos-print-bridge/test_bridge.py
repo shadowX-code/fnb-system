@@ -64,6 +64,13 @@ class RecoveryTest(unittest.TestCase):
         self.assertEqual(self.rpc.call_args.kwargs["p_status"], "Error")
         self.assertEqual([c.args[2] for c in self.rpc.call_args_list], ["device", "device"])
 
+    def test_old_serial_setup_cannot_claim_using_previous_calibration(self):
+        self.config.update(transport="tspl", calibrated_labels=3)
+        bridge.cycle(self.config, {})
+        self.inventory.assert_called_once_with(self.config, probe_bluetooth=False)
+        self.assertEqual(self.rpc.call_args.kwargs["p_status"], "Error")
+        self.assertEqual([call.args[2] for call in self.rpc.call_args_list], ["device"])
+
     def test_claim_retry_uses_same_id_and_sent_is_not_resent(self):
         def lost_claim(config, session, name, **body):
             if name == "claim":
@@ -93,14 +100,30 @@ class TransportTest(unittest.TestCase):
         child.kill.assert_called_once()
         child.wait.assert_not_called()
 
-    def test_tspl_follows_windows_dimensions_polarity_and_count(self):
-        values = bridge.calibration(3)
-        output = bridge.tspl(*values, gap=2, invert=True)
-        header = b"SIZE 80 mm,90 mm\r\nGAP 2 mm,0\r\nDIRECTION 1\r\nCLS\r\nBITMAP 0,0,80,719,0,"
-        self.assertTrue(output.startswith(header))
-        self.assertTrue(output.endswith(b"\r\nPRINT 1,3\r\n"))
-        self.assertEqual(output[len(header)], 255)
-        self.assertEqual(len(output) - len(header) - len(b"\r\nPRINT 1,3\r\n"), 80 * 719)
+    def test_tspl_mode_four_frames_canonical_raster_and_one_copy(self):
+        values = bridge.calibration(1)
+        output = bridge.tspl(*values, gap=2, invert=False)
+        marker = b"BITMAP 0,0,80,719,4,"
+        header, frames = output.split(marker, 1)
+        self.assertIn(b"SIZE 80 mm,90 mm", header)
+        offset = 0
+        for start in range(0, len(values[0]), 4096):
+            raw = values[0][start:start + 4096]
+            length = int.from_bytes(frames[offset:offset + 4], "little")
+            block = frames[offset + 4:offset + 4 + length]
+            if len(raw) <= 238:
+                self.assertEqual(block[0] - 17, len(raw))
+                data_start = 1
+            else:
+                data_start = 1
+                while block[data_start] == 0:
+                    data_start += 1
+                self.assertEqual(18 + (data_start - 1) * 255 + block[data_start], len(raw))
+                data_start += 1
+            self.assertEqual(block[data_start:-3], raw)
+            self.assertEqual(block[-3:], b"\x11\x00\x00")
+            offset += 4 + length
+        self.assertEqual(frames[offset:], b"\x00\x00\x00\x00\r\nPRINT 1,1\r\n")
 
     def test_cups_uses_exact_media_and_disables_scaling(self):
         results = [b"PageSize/Media Size: *Custom.WIDTHxHEIGHT\n", b"request id is Label-123 (1 file)\n"]

@@ -6,7 +6,7 @@ const output = resolve("public/downloads");
 mkdirSync(output, { recursive: true });
 const root = mkdtempSync(join(tmpdir(), "feedx-bridge-"));
 if (process.argv[2] === "--macos") {
-  const files = ["Start-Bridge.command", "bridge.py", "README.md"];
+  const files = ["Start-Bridge.command", "bridge.py", "D520RFCOMM.m", "README.md"];
   const archive = join(output, "feedx-print-bridge-macos-staging.zip");
   try {
     for (const name of files)

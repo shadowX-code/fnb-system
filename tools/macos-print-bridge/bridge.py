@@ -13,9 +13,7 @@ import socket
 import stat
 import subprocess
 import sys
-import termios
 import time
-import tty
 import urllib.request
 import uuid
 from datetime import datetime
@@ -25,8 +23,9 @@ from zlib import compress
 ROOT = Path.home() / "Library/Application Support/FeedX Print Bridge Staging"
 ENDPOINT = "https://ujkzdaaadnvcfayuldmh.supabase.co"
 KEYCHAIN = "my.feedx.staging.print-bridge"
-SERIAL = "/dev/cu.D520"
-SCRIPT = Path(__file__).resolve()
+BLUETOOTH = "D520 (Bluetooth)"
+NATIVE_SOURCE = Path(__file__).with_name("D520RFCOMM.m")
+NATIVE = ROOT / "d520-rfcomm"
 CONFIG = ROOT / "config.json"
 JOURNAL = ROOT / "journal.json"
 CALIBRATION = ROOT / "calibration.json"
@@ -165,45 +164,34 @@ def cups_printers():
     ]
 
 
-def serial_worker(probe):
-    if not stat.S_ISCHR(os.stat(SERIAL).st_mode):
-        raise BridgeError("Bluetooth serial endpoint unavailable.")
-    fd = os.open(SERIAL, os.O_RDWR | os.O_NOCTTY)
+def build_bluetooth():
     try:
-        # TIOCEXCL keeps another local opener out for this submission.
-        fcntl.ioctl(fd, termios.TIOCEXCL)
-        if not probe:
-            tty.setraw(fd)
-            settings = termios.tcgetattr(fd)
-            settings[2] |= termios.CLOCAL | termios.CREAD
-            settings[4] = settings[5] = termios.B115200
-            termios.tcsetattr(fd, termios.TCSANOW, settings)
-            remaining = memoryview(sys.stdin.buffer.read())
-            while remaining:
-                count = os.write(fd, remaining)
-                if count <= 0:
-                    raise BridgeError("Bluetooth write stopped.")
-                remaining = remaining[count:]
-            termios.tcdrain(fd)
-    finally:
-        os.close(fd)
+        command(["/usr/bin/xcrun", "clang", "-fobjc-arc", "-framework", "Foundation",
+                 "-framework", "IOBluetooth", str(NATIVE_SOURCE), "-o", str(NATIVE)], timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        raise BridgeError("Could not build the Bluetooth helper. Install Apple's Command Line Tools.") from None
 
 
-def serial_command(probe=False, data=None):
-    command([sys.executable, str(SCRIPT), "_probe" if probe else "_serial"], data, 6 if probe else 45)
+def bluetooth_probe(address=None):
+    args = [str(NATIVE), "probe"] + ([address] if address else [])
+    reported = command(args, timeout=18).decode().strip()
+    if not re.fullmatch(r"[0-9a-fA-F]{2}([-:][0-9a-fA-F]{2}){5}", reported):
+        raise BridgeError("The Bluetooth helper returned an invalid device identity.")
+    return reported
 
 
-def inventory(config=None, probe_serial=True):
+def inventory(config=None, probe_bluetooth=True):
     printers = cups_printers()[:75]
-    if Path(SERIAL).exists() or (config and config["transport"] == "tspl"):
+    address = config.get("bluetooth_address") if config else None
+    if config and config["transport"] == "tspl":
         offline = True
-        if config and config["transport"] == "tspl" and probe_serial:
+        if address and probe_bluetooth:
             try:
-                serial_command(probe=True)
-                offline = False
-            except (OSError, subprocess.SubprocessError):
+                offline = bluetooth_probe(address) != address
+            except (OSError, BridgeError, subprocess.SubprocessError):
                 pass
-        printers.append({"Name": SERIAL, "WorkOffline": offline, "Platform": "macOS", "Connection": "Bluetooth serial"})
+        printers.append({"Name": config["printer"], "WorkOffline": offline, "Platform": "macOS",
+                         "Connection": "Bluetooth Classic SPP"})
     return printers
 
 
@@ -226,11 +214,30 @@ def label(job):
     return pixels, w, h, mm_w, mm_h, copies
 
 
+def lzo_literal_block(block):
+    """A valid LZO1X block made from one literal run and an end marker."""
+    size = len(block)
+    if size <= 238:
+        prefix = bytes([17 + size])
+    else:
+        zeros, tail = divmod(size - 19, 255)
+        prefix = bytes(zeros + 1) + bytes([tail + 1])
+    return prefix + block + b"\x11\x00\x00"
+
+
 def tspl(pixels, w, h, mm_w, mm_h, copies, gap, invert):
-    header = f"SIZE {mm_w:g} mm,{mm_h:g} mm\r\nGAP {gap:g} mm,0\r\nDIRECTION 1\r\nCLS\r\nBITMAP 0,0,{(w + 7) // 8},{h},0,"
+    header = (f"\r\nREFERENCE 0,0\r\nOFFSET 0 mm\r\nSIZE {mm_w:g} mm,{mm_h:g} mm\r\n"
+              f"GAP {gap:g} mm,0\r\nDIRECTION 0,0\r\nCLS\r\nBITMAP 0,0,{(w + 7) // 8},{h},4,")
     if invert:
         pixels = pixels.translate(bytes(255 - x for x in range(256)))
-    return header.encode() + pixels + f"\r\nPRINT 1,{copies}\r\n".encode()
+    payload = bytearray(header.encode())
+    for offset in range(0, len(pixels), 4096):
+        block = lzo_literal_block(pixels[offset:offset + 4096])
+        payload.extend(len(block).to_bytes(4, "little"))
+        payload.extend(block)
+    payload.extend(bytes(4))
+    payload.extend(f"\r\nPRINT 1,{copies}\r\n".encode())
+    return bytes(payload)
 
 
 def pdf(pixels, w, h, mm_w, mm_h, copies):
@@ -263,7 +270,7 @@ def pdf(pixels, w, h, mm_w, mm_h, copies):
 def prepare(config, values, title):
     if config["transport"] == "tspl":
         payload = tspl(*values, gap=config["gap"], invert=config["invert"])
-        return lambda: send_serial(payload)
+        return lambda: send_bluetooth(config["bluetooth_address"], payload)
     _, _, _, w, h, copies = values
     queue = config["printer"]
     options = command(["/usr/bin/lpoptions", "-p", queue, "-l"]).decode()
@@ -285,9 +292,9 @@ def send_cups(args, payload):
     return f"CUPS accepted job {match[1]}. Verify physical output."
 
 
-def send_serial(payload):
-    serial_command(data=payload)
-    return "macOS Bluetooth serial accepted the write. Verify physical output."
+def send_bluetooth(address, payload):
+    command([str(NATIVE), "print", address], payload, 45)
+    return "The D520 acknowledged the Bluetooth submission. Verify physical output."
 
 
 def outcome(state, status, detail):
@@ -305,9 +312,10 @@ def cycle(config, session):
         clear(JOURNAL)
         return
     calibrating = CALIBRATION.exists() or (
-        config["transport"] == "tspl" and config.get("calibrated_labels") != 3
+        config["transport"] == "tspl"
+        and (not config.get("bluetooth_address") or config.get("calibrated_labels") != 3)
     )
-    printers = inventory(config, probe_serial=not calibrating)
+    printers = inventory(config, probe_bluetooth=not calibrating)
     ready = not calibrating and any(p["Name"] == config["printer"] and not p["WorkOffline"] for p in printers)
     device_status(config, session, printers, "Error" if calibrating else "Ready" if ready else "Offline")
     if not ready:
@@ -360,6 +368,8 @@ def calibration(copies):
 def local_test(config, copies):
     if JOURNAL.exists() or CALIBRATION.exists():
         raise BridgeError("Resolve the pending print or calibration before testing again.")
+    if config["transport"] == "tspl" and not config.get("bluetooth_address"):
+        raise BridgeError("Run setup --bluetooth to configure the D520 adapter.")
     if copies == 3 and not config.get("calibrated_labels"):
         raise BridgeError("Verify one calibration label before running the three-label test.")
     if not any(p["Name"] == config["printer"] and not p["WorkOffline"] for p in inventory(config)):
@@ -379,12 +389,11 @@ def local_test(config, copies):
 def setup(config, args):
     if JOURNAL.exists() or CALIBRATION.exists():
         raise BridgeError("Resolve the pending print or calibration before changing configuration.")
-    if args.serial:
-        if input("Use the experimental D520 Bluetooth serial transport? Type D520: ") != "D520":
-            raise BridgeError("Bluetooth setup canceled.")
-        printer = SERIAL
-        if not Path(SERIAL).exists():
-            raise BridgeError("The D520 serial endpoint is unavailable on this Mac.")
+    address = None
+    if args.bluetooth:
+        build_bluetooth()
+        address = bluetooth_probe()
+        printer = BLUETOOTH
     else:
         printer = args.queue
         if not any(p["Name"] == printer for p in cups_printers()):
@@ -400,8 +409,8 @@ def setup(config, args):
             raise BridgeError("A Staging anon key is required.")
     elif not key.startswith("sb_publishable_"):
         raise BridgeError("A Staging publishable key is required.")
-    settings = dict(printer=printer, transport="tspl" if args.serial else "spooler",
-                    gap=args.gap, invert=not args.no_invert)
+    settings = dict(printer=printer, transport="tspl" if args.bluetooth else "spooler",
+                    gap=args.gap, invert=args.invert, bluetooth_address=address)
     calibrated = (config or {}).get("calibrated_labels", 0)
     if any((config or {}).get(name) != value for name, value in settings.items()):
         calibrated = 0
@@ -437,18 +446,19 @@ def run(config):
 
 
 def main():
-    if sys.argv[1:] in (["_serial"], ["_probe"]):
-        serial_worker(sys.argv[1] == "_probe")
-        return 0
     parser = argparse.ArgumentParser(description="FeedX macOS Print Bridge (Staging)")
     sub = parser.add_subparsers(dest="action", required=True)
     sub.add_parser("printers")
+    sub.add_parser("bluetooth-probe")
     install = sub.add_parser("setup")
     target = install.add_mutually_exclusive_group(required=True)
     target.add_argument("--queue")
-    target.add_argument("--serial", action="store_true")
+    target.add_argument("--bluetooth", "--serial", dest="bluetooth", action="store_true")
     install.add_argument("--gap", type=float, default=2)
-    install.add_argument("--no-invert", action="store_true")
+    polarity = install.add_mutually_exclusive_group()
+    polarity.add_argument("--invert", action="store_true")
+    polarity.add_argument("--no-invert", dest="invert", action="store_false")
+    install.set_defaults(invert=False)
     sub.add_parser("start")
     test = sub.add_parser("test-print")
     test.add_argument("quantity", type=int, choices=(1, 3))
@@ -459,7 +469,11 @@ def main():
         return 0
     with lock():
         config = load(CONFIG)
-        if args.action == "setup":
+        if args.action == "bluetooth-probe":
+            build_bluetooth()
+            bluetooth_probe((config or {}).get("bluetooth_address"))
+            print("D520 Bluetooth Classic SPP responded with bitmap mode 4.")
+        elif args.action == "setup":
             if not 0 <= args.gap <= 10:
                 raise BridgeError("Gap must be between 0 and 10 mm.")
             setup(config, args)
