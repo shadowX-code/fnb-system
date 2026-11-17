@@ -5,7 +5,7 @@ import {employeeDirectoryRead} from '../_shared/people/employeeDirectoryRead.js'
 import {domainQueryInstructions} from '../_shared/assistant/moduleInterface.js';
 import {voiceInstructions} from './realtime.js';
 import {generateText} from './provider.js';
-import {validateBody} from './handler.js';
+import {dispatch,validateBody} from './handler.js';
 const factory='read_factory_finished_goods';
 function inventoryCaller(rows){return {rpc:name=>{const value={data:name==='current_user_role_id'?'role':name==='current_user_has_permission'?true:rows.map(r=>r.id)};return {then:f=>Promise.resolve(value).then(f),abortSignal:async()=>value};},from:()=>({select:()=>({in:(_key,ids)=>({abortSignal:async()=>({data:rows.filter(r=>ids.includes(r.id))})})})})};}
 test('Factory count, pagination, exact SKU detail and legacy arguments share one authority',async()=>{
@@ -76,4 +76,25 @@ test('query dimensions never masquerade as executable mode values',()=>{
  assert.deepEqual(employeeDirectoryRead.moduleInterface.query.modes,['summary','list','detail']);
  assert(employeeDirectoryRead.moduleInterface.query.dimensions.includes('count'));
  assert.equal(operations.find(o=>o.id==='read_operational_financials').moduleInterface.query.modes,null);
+});
+test('malformed inner JSON can be corrected on Text/Voice without executing a domain read or bypassing policy',async()=>{
+ const operation='read_factory_raw_catalogue';
+ const arguments_={operation,arguments_json:'{"mode":"list","sort":'};
+ const config={enabled:true,capability_connections:{[operation]:true}};
+ const access={permissions:{'factory_raw_inventory.view':true}};
+ const noRead=()=>assert.fail('Invalid query reached the domain source');
+ const business=createBusinessDispatcher({config,access,caller:{rpc:noRead,from:noRead}});
+ const feedback=await business.execute('run_business_query',arguments_);
+ assert.equal(feedback.error,'tool_arguments_invalid');
+ assert.equal(feedback.operation,operation);
+ assert.equal(feedback.not_business_evidence,true);
+ assert.deepEqual(feedback.parameters.properties.sort.enum,['name','balance_desc','balance_asc']);
+ const identity='10000000-0000-4000-8000-000000000001';
+ const request={action:'realtime_tool',session_id:identity,request_id:identity,turn_id:identity,provider:'openai',
+  operation:'run_business_query',arguments:arguments_};
+ const deps={access,get:()=>undefined,rpc:async()=>({config}),reserveRealtime:async()=>{},voiceHistory:noRead};
+ assert.deepEqual(await dispatch(request,deps),feedback);
+ await assert.rejects(dispatch(request,{...deps,access:{}}),{code:'business_read_denied'});
+ await assert.rejects(dispatch(request,{...deps,rpc:async()=>({config:{enabled:true}})}),{code:'capability_disconnected'});
+ await assert.rejects(dispatch({...request,arguments:{...arguments_,extra:true}},deps),{code:'tool_arguments_invalid'});
 });

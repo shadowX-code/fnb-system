@@ -86,8 +86,11 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    if(operation.kind==='ACTION'&&current.ai_action_authorizations?.[id]!==true)throw new AssistantError('action_not_authorized',403);
    if(!capabilityConnected(current,id))throw new AssistantError('capability_disconnected',403);
    if(!operation.authorized(access||{}))throw new AssistantError(operation.deniedCode,403);
-   try{operation.validate(args);}catch(error){
-    if(enveloped&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,operation:id,operation_label:operation.label,parameters:operation.tool.parameters,instruction:'Correct the arguments using this exact schema. Preserve only explicit, supported filters. Null optional scope filters mean the current authorized scope. No business read or action occurred.'};
+   try{
+    if(args===undefined)throw new AssistantError('tool_arguments_invalid',400);
+    operation.validate(args);
+   }catch(error){
+    if(enveloped&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,operation:id,operation_label:operation.label,parameters:operation.tool.parameters,instruction:'Encode a valid JSON object with this exact schema. Preserve only explicit, supported filters. Null optional scope filters mean the current authorized scope. No business read or action occurred.'};
     throw error;
    }
    signal?.throwIfAborted();

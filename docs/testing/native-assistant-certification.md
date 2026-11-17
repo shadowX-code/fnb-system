@@ -1,0 +1,11 @@
+# Native Assistant Staging certification
+
+Run the existing contract and orchestration gate with `npm run test:assistant-business`. It verifies implemented capability behavior under fixtures and ensures certification scenarios still correspond to module-owned READ contracts.
+
+Review the [110-operation matrix](../audits/native-assistant-business-acceptance-matrix.md) and [scenario definitions](../../qa/staging/nativeAssistantCertification.mjs) before starting the live run. In an authorized canonical Staging account, establish the expected result from the domain-owned source, record scope and time, then ask the scenario through Native Assistant Text. Submit follow-ups in the same conversation. For isolated scopes use existing test accounts and permissions. Record any disabled capability, blocked scope, missing fixture, or active request budget as BLOCKED.
+
+Record the canonical deployment SHA and the actual saved turn identity, user-facing reply, model, completion state, tool state and evidence. Export only the reviewed fields through an authorized read path. Do not record provider secrets or private employee records. Store the run outside Git. The JSON maps scenario IDs to `{turn, source}` or `{blocker}`. Each scenario defines the fields expected in its independently obtained source result.
+
+Run `npm run qa:staging:assistant-certify -- /absolute/path/to/run.json --strict`. It requires the expected capabilities, matches declared scope and evidence, and checks whether the answer includes required facts. The exit code fails on FAIL and, with `--strict`, also on BLOCKED. A missing scenario cannot pass. The command evaluates the supplied saved records and does not send provider requests. Review any answer claims outside the script's targeted checks manually.
+
+For a full release record, identify which operation lacks authenticated end-to-end evidence and why. Keep historical passes identifiable by turn/time and release, and leave new or changed scenarios pending until observed. Scripted provider, replay, owner-session and microphone evidence are distinct. Never toggle a live policy or bypass a request budget to obtain a passing record.

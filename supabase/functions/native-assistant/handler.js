@@ -9,6 +9,12 @@ import {createBusinessDispatcher,validateBusinessArguments,businessOperation,bus
 import {realtimeModel,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function textAdmission(error) {
+ if(error.code!=='daily_token_budget'&&error.code!=='daily_request_limit')throw error;
+ const reset=new Date();
+ reset.setUTCHours(24,0,0,0);
+ throw new AssistantError(error.code,error.status,{reset_at:reset.toISOString()});
+}
 const fields={action_list:['session_id'],action_confirm:['intent_id','fingerprint'],action_cancel:['intent_id'],action_policy:['operation','enabled','expected_revision'],voice_usage_report:['request_id','input_audio_tokens','output_audio_tokens','duration_ms'],voice_usage:[],voice_policy_save:['revision','enabled','maximum_seconds','concurrency','daily_sessions'],voice_allowance_request:['cents','reason'],voice_allowance_review:['id','decision'],realtime_heartbeat:['session_id','request_id','provider'],realtime_sdk_observe:['session_id','request_id','provider','milestone'],realtime_sdk_connect:['session_id','request_id','provider','voice','connection_protocol'],provider_list:[],provider_put:['provider','credential','approval_reference'],provider_revoke:['provider'],provider_test:['provider','session_id','request_id','sdp'],provider_activate:['provider','voice'],realtime_connect:['session_id','request_id','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments','turn_id','operation'],realtime_turn:['session_id','request_id','provider','turn_id','step','text','details'],realtime_end:['session_id','request_id','provider'],capability_connection:['operation','enabled','expected_revision'],capability_test:['operation','arguments'],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],history_recall:['query','exclude_session_id'],session_list:['query','before_activity','before_id'],session_new:[],session_rename:['session_id','title'],session_delete:['session_id'],memory_get:[],memory_save:['enabled',...Object.keys(preferences)],memory_delete:[],storage_usage:[],history:['session_id','before_seq'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
 export function validateBody(body){
  if(!body||typeof body!=='object'||Array.isArray(body)||!Object.hasOwn(fields,body.action))throw new AssistantError('invalid_request',400);
@@ -191,7 +197,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
  }
  if(action==='begin'){
   if(!runtime.ready)throw new AssistantError(runtime.blocker||'assistant_disabled',503);
-  return rpc('begin',args);
+  return rpc('begin',args).catch(textAdmission);
  }
  if(action==='respond'){
   if(!runtime.ready)throw new AssistantError(runtime.blocker||'assistant_disabled',503);

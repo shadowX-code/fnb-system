@@ -6,6 +6,12 @@ vi.mock('../../lib/supabase.ts', () => ({
 }));
 afterEach(() => vi.unstubAllGlobals());
 
+it('distinguishes the shared Text allocation from provider billing and gives a reset time', async () => {
+ vi.stubGlobal('fetch',async()=>Response.json({error:'daily_token_budget',diagnostic:{reset_at:'2026-11-18T00:00:00.000Z'}},{status:429}));
+ await expect(assistantCall('begin')).rejects.toMatchObject({code:'daily_token_budget',
+  message:expect.stringMatching(/shared daily Text budget.*resets at.*local time/i)});
+});
+
 it('delivers sanitized validation feedback to the SDK as an in-band tool result', async () => {
  const feedback = {
   error:'tool_arguments_invalid', operation:'read_employee_directory', no_evidence:true,

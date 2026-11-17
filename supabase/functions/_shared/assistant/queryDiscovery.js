@@ -13,7 +13,9 @@ export function queryEnvelopeArguments(id,a){
   return a;
  }
  if(id!=='run_business_query'||Object.keys(a).length!==2||typeof a.operation!=='string'||a.operation.length>100||isQueryEnvelope(a.operation)||typeof a.arguments_json!=='string'||a.arguments_json.length>4000)bad();
- let args;try{args=JSON.parse(a.arguments_json);}catch{bad();}
+ // Keep a bounded malformed inner payload identifiable through authorization.
+ // The dispatcher can then provide the exact schema without running the read.
+ let args;try{args=JSON.parse(a.arguments_json);}catch{}
  return {operation:a.operation,args};
 }
 export function discoverQueries(operations,capabilities,args){
