@@ -9,4 +9,9 @@ Staging only. No paid Voice test or Production change.
 - Inactive Brand execution rejected by canonical domain trigger, with transaction rolled back.
 - ACTION remains disconnected and separate AI execution authorization disabled outside the rollback transaction.
 
+Authenticated canonical Staging acceptance (2026-11-17):
+- Isaac Yap: Factory cleaning reference and November operational finance drawer tests succeeded.
+- One genuine gpt-4o-mini Text request invoked both READs, completed in 11,603ms, and persisted two source evidence cards. Provider usage: 3,812 input / 371 output tokens; displayed estimate US$0.000794, not billed charges.
+- Browser refresh restored the selected conversation, completed answer and both evidence cards without a new provider call. Pending actions correctly remained empty with ACTION disabled.
+
 Remaining: complete per-module adapter review beyond seven registered contracts. No retrieval enabled for unreviewed SOP/private document sources. No fabricated empty adapter. No paid media acceptance is required for unchanged SDK media transport; fixture tool routing is not claimed as a new live spoken acceptance.
