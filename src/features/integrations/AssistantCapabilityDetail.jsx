@@ -3,10 +3,12 @@ import {getPermissionDefinitions} from '../../../config/modules.ts';
 import Drawer from '../../components/ui/Drawer.jsx';
 import Badge from '../../components/ui/Badge.jsx';
 import {coverageLabels} from './assistantCoverageReview.js';
-import {reconcileBusinessModules} from './businessModuleProjection.js';
+import {reconcileBusinessModules,businessWorkspaceLabels} from './businessModuleProjection.js';
 
 const permissionLabels=new Map(getPermissionDefinitions().map(p=>[p.code,p.description]));
-const moduleLabels=new Map(reconcileBusinessModules().business.map(m=>[m.id,m.label]));
+const modules=reconcileBusinessModules().business;
+const moduleLabels=new Map(modules.map(m=>[m.id,m.label]));
+const ownerLabels=new Map(modules.map(m=>[m.id,`${businessWorkspaceLabels[m.workspace]} / ${m.label}`]));
 const sectionClass='space-y-3';
 function AccessState({enabled}){
  return <Badge tone={enabled===true?'success':'neutral'}>{enabled===true?'Enabled':enabled===false?'Disabled':'Unavailable'}</Badge>;
@@ -25,7 +27,7 @@ export default function AssistantCapabilityDetail({row,data,canEdit,busy,onFeatu
   finally{setSaving(false);}
  }
  function control(o){return <button type="button" className="btn-secondary min-h-10 shrink-0" disabled={!canEdit||busy||saving||typeof o.connection_enabled!=='boolean'} aria-label={`${o.connection_enabled?'Disable':'Enable'} AI Access: ${o.label}`} onClick={()=>void act('capability_connection',{operation:o.id,enabled:!o.connection_enabled,expected_revision:data.config.revision})}>{o.connection_enabled?'Disable':'Enable'} AI Access</button>;}
- function permission(o){return <p className="text-xs text-text-secondary">Requires {permissionLabels.get(o.permission)||'the existing source permission'}.{o.availability==='denied'&&' Your account cannot use this operation.'}</p>;}
+ function permission(o){return <p className="text-xs text-text-secondary">Requires {(permissionLabels.get(o.permission)||'the existing source permission').replace(/[.!]+$/, '')}.{o.availability==='denied'&&' Your account cannot use this operation.'}</p>;}
  return <Drawer title={row.label} eyebrow={`${row.workspaceLabel} / ${row.domain}`} description={<Badge tone="neutral">{coverage} coverage</Badge>} width="md" onClose={onClose}>
   <div className="space-y-6">
    {feedback&&<p role={failed?'alert':'status'} className={failed?'text-sm text-red-700':'text-sm text-primary'}>{feedback}</p>}
@@ -53,7 +55,7 @@ export default function AssistantCapabilityDetail({row,data,canEdit,busy,onFeatu
     <div className="divide-y divide-border">{related.map(o=><article key={o.id} className="space-y-2 py-3 first:pt-0 last:pb-0">
      <div className="flex items-start justify-between gap-3"><h4 className="text-sm font-semibold">{o.label}</h4><AccessState enabled={o.connection_enabled}/></div>
      <p className="text-sm text-text-secondary">{o.scope}</p>{permission(o)}
-     <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-text-secondary">Owner: {moduleLabels.get(o.module_id)||'Ownership unavailable'}</p>{onSelect&&moduleLabels.has(o.module_id)&&<button type="button" className="min-h-10 text-xs font-medium text-primary underline underline-offset-4" onClick={()=>onSelect(o.module_id)}>Manage {moduleLabels.get(o.module_id)} access</button>}</div>
+     <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-text-secondary">Owner: {ownerLabels.get(o.module_id)||'Ownership unavailable'}</p>{onSelect&&moduleLabels.has(o.module_id)&&<button type="button" className="min-h-10 text-xs font-medium text-primary underline underline-offset-4" onClick={()=>onSelect(o.module_id)}>Manage {moduleLabels.get(o.module_id)} access</button>}</div>
     </article>)}</div>
    </section>}
    {!!actions.length&&<section aria-label="AI Actions" className={sectionClass}>
