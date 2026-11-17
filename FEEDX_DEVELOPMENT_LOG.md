@@ -1257,3 +1257,5 @@ Factory Finished Goods READ moved to a Factory-owned server contract; Text/Voice
 
 ### 2026-11-16 — Native Assistant capability management
 Complete canonical Workspace/Domain/Module inventory now uses the shared management table and drawer. Per-capability persisted connection configuration replaces the Factory-only feature intent; the shared Text/Voice/Test dispatcher rechecks connection state before executing existing module-authorized reads. No new adapter, ACTION executor or human grant is introduced. See platform and trusted-authorities docs.
+
+2026-11-17 — Native Assistant module rollout: six bounded human-authorized READ contracts; shared multi-tool Text/Voice dispatch; private expiring draft previews and explicit-confirmation Marketing draft authority (off by default). Canonical ownership: docs/architecture/trusted-authorities.md. Coverage and remaining adapter review: docs/audits/native-assistant-capability-rollout.md.

@@ -1,5 +1,5 @@
 import {newTicket,hashTicket,connectVoice,cleanupVoice,endVoiceLease} from './voiceConnection.js';
-import {callerAccess} from '../_shared/factory/finishedGoodsRead.js';
+import {businessAccess} from './business.js';
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import {dispatch} from './handler.js';
 import {AssistantError} from './provider.js';
@@ -31,7 +31,7 @@ Deno.serve(async request=>{
  if(mode)return json({error:'invalid_request'},400);
  const {data,error}=await caller.auth.getUser();
  if(error||!data.user)return json({error:'authentication_required'},401);
- const access=await callerAccess(caller);
+ const access=await businessAccess(caller);
  async function rpc(action:string,payload:unknown){
   const {data:result,error:failure}=await service.rpc('native_assistant_service',{p_actor:data.user!.id,p_action:action,p_payload:payload});
   if(failure){const code=safeCodes.has(failure.message)?failure.message:'assistant_request_failed';throw new AssistantError(code,failure.code==='42501'?403:failure.code==='40001'?409:failure.code==='54000'?429:failure.code==='55000'?409:400);}return result;

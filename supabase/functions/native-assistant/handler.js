@@ -7,7 +7,7 @@ import {createBusinessDispatcher,validateBusinessArguments,businessOperation} fr
 import {realtimeModel,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const fields={voice_usage_report:['request_id','input_audio_tokens','output_audio_tokens','duration_ms'],voice_usage:[],voice_policy_save:['revision','enabled','maximum_seconds','concurrency','daily_sessions'],voice_allowance_request:['cents','reason'],voice_allowance_review:['id','decision'],realtime_heartbeat:['session_id','request_id','provider'],realtime_sdk_observe:['session_id','request_id','provider','milestone'],realtime_sdk_connect:['session_id','request_id','provider','voice','connection_protocol'],provider_list:[],provider_put:['provider','credential','approval_reference'],provider_revoke:['provider'],provider_test:['provider','session_id','request_id','sdp'],provider_activate:['provider','voice'],realtime_connect:['session_id','request_id','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments','turn_id','operation'],realtime_turn:['session_id','request_id','provider','turn_id','step','text','details'],realtime_end:['session_id','request_id','provider'],capability_connection:['operation','enabled','expected_revision'],capability_test:['operation'],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],history_recall:['query','exclude_session_id'],session_list:['query','before_activity','before_id'],session_new:[],session_rename:['session_id','title'],session_delete:['session_id'],memory_get:[],memory_save:['enabled',...Object.keys(preferences)],memory_delete:[],storage_usage:[],history:['session_id','before_seq'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
+const fields={action_list:['session_id'],action_confirm:['intent_id','fingerprint'],action_cancel:['intent_id'],action_policy:['operation','enabled','expected_revision'],voice_usage_report:['request_id','input_audio_tokens','output_audio_tokens','duration_ms'],voice_usage:[],voice_policy_save:['revision','enabled','maximum_seconds','concurrency','daily_sessions'],voice_allowance_request:['cents','reason'],voice_allowance_review:['id','decision'],realtime_heartbeat:['session_id','request_id','provider'],realtime_sdk_observe:['session_id','request_id','provider','milestone'],realtime_sdk_connect:['session_id','request_id','provider','voice','connection_protocol'],provider_list:[],provider_put:['provider','credential','approval_reference'],provider_revoke:['provider'],provider_test:['provider','session_id','request_id','sdp'],provider_activate:['provider','voice'],realtime_connect:['session_id','request_id','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments','turn_id','operation'],realtime_turn:['session_id','request_id','provider','turn_id','step','text','details'],realtime_end:['session_id','request_id','provider'],capability_connection:['operation','enabled','expected_revision'],capability_test:['operation','arguments'],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],history_recall:['query','exclude_session_id'],session_list:['query','before_activity','before_id'],session_new:[],session_rename:['session_id','title'],session_delete:['session_id'],memory_get:[],memory_save:['enabled',...Object.keys(preferences)],memory_delete:[],storage_usage:[],history:['session_id','before_seq'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
 export function validateBody(body){
  if(!body||typeof body!=='object'||Array.isArray(body)||!Object.hasOwn(fields,body.action))throw new AssistantError('invalid_request',400);
  const allowed=['action',...fields[body.action]];if(Object.keys(body).some(k=>!allowed.includes(k)))throw new AssistantError('invalid_request',400);
@@ -39,12 +39,15 @@ export function validateBody(body){
  if(body.action==='provider_activate'&&!providerVoices[body.provider]?.includes(body.voice))throw new AssistantError('configuration_invalid',400);
  if(body.action==='realtime_turn'&&(!['start','input','complete','interrupted','unavailable','unfinished','failed'].includes(body.step)||typeof body.text!=='string'||body.text.length>3000))throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_turn'&&body.details!==undefined&&(body.details===null||typeof body.details!=='object'||Array.isArray(body.details)||Object.keys(body.details).some(k=>k!=='reason')||!['provider_completed','missing_assistant_transcript','provider_cancelled','provider_incomplete','provider_failed','max_output_tokens','content_filter','session_ended','session_expired','transport_disconnected','provider_error','lease_failed','turn_limit'].includes(body.details.reason)))throw new AssistantError('invalid_request',400);
+ if(body.action==='action_confirm'&&(typeof body.fingerprint!=='string'||!/^[a-f0-9]{32}$/.test(body.fingerprint)))throw new AssistantError('invalid_request',400);
+ if(body.action==='action_policy'&&(body.operation!=='prepare_marketing_draft'||typeof body.enabled!=='boolean'||!Number.isSafeInteger(body.expected_revision)))throw new AssistantError('configuration_invalid',400);
  if(body.action==='realtime_tool')validateBusinessArguments(body.operation??finishedGoodsRead.id,body.arguments);
  return body;
 }
 export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,readFactory,reserveRealtime,endVoice,registry,voiceHistory,issueVoiceTicket,access={factory:false}}){
  validateBody(body);
  const {action,connection_protocol,...args}=body;
+ if(action.startsWith('action_')){const {data,error}=await caller.rpc('native_assistant_action',{p_step:action.slice(7),p_payload:args}).abortSignal(signal);if(error)throw new AssistantError('action_not_authorized',403);return data;}
  if(action.startsWith('voice_')&&['voice_usage_report','voice_usage','voice_policy_save','voice_allowance_request','voice_allowance_review'].includes(action))return voiceUsage(({voice_usage_report:'report',voice_usage:'get',voice_policy_save:'save',voice_allowance_request:'request',voice_allowance_review:'review'})[action],args);
  if(['history_recall','session_list','session_new','session_rename','session_delete','history','memory_get','memory_save','memory_delete','storage_usage'].includes(action))return rpc(action,args);
  if(action.startsWith('provider_')){
@@ -55,7 +58,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
  }
  const configResponse=await rpc(['configuration','configure','test','capability_connection','capability_test'].includes(action)?'configuration':'status',{});
  const config=configResponse.config;
- const business=createBusinessDispatcher({caller,readFactory,config,access,loadConfig:async()=>(await rpc('status',{})).config});
+ const business=createBusinessDispatcher({caller,readFactory,config,access,sessionId:args.session_id,loadConfig:async()=>(await rpc('status',{})).config});
  const evaluator=!!config.enabled;
  const realtime={openai:!!(evaluator&&realtimeReady(get)),grok:!!(evaluator&&grokReady(get))};
  const managed=registry&&(['configuration','status'].includes(action)||action.startsWith('realtime_'))?await registry('runtime',{}):null;
@@ -77,7 +80,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
   }
   if(action==='realtime_turn')return voiceHistory(args);
   if(action==='realtime_tool'){
-   if(!runtime.tools)throw new AssistantError('factory_read_denied',403);
+   if(!runtime.tools)throw new AssistantError('business_read_denied',403);
    await reserveRealtime('tool',args);
    const evidence=await business.execute(args.operation??finishedGoodsRead.id,args.arguments,signal);
    if(args.turn_id)await voiceHistory({...args,step:'evidence',evidence});
@@ -115,8 +118,8 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
  if(action==='capability_connection'){if(!configResponse.can_edit)throw new AssistantError('settings_edit_required',403);return rpc('capability_connection',args);}
  if(action==='capability_test'){
   if(!configResponse.can_edit)throw new AssistantError('settings_edit_required',403);
-  const operation=businessOperation(args.operation);if(!operation.testArguments)throw new AssistantError('tool_test_unavailable',409);
-  const result=await business.execute(operation.id,operation.testArguments,signal);return {outcome:'verified',as_of:result.as_of,scope:result.scope,total_matching:result.total_matching};
+  const operation=businessOperation(args.operation);if(operation.kind!=='READ')throw new AssistantError('tool_test_unavailable',409);
+  const result=await business.execute(operation.id,args.arguments??operation.testArguments,signal);return {outcome:'verified',as_of:result.as_of,scope:result.scope,total_matching:result.total_matching};
  }
  if(action==='configure'){
   if(args.enabled&&!connection(config,get).ready)throw new AssistantError(runtime.blocker||'provider_not_authorized',409);
@@ -149,7 +152,8 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
    const recalled=query?await rpc('history_recall',{query,exclude_session_id:args.session_id}):{sources:[]};
    const assembled=assembleContext(snapshot,recalled.sources);
    if(assembled.summary&&JSON.stringify(assembled.summary)!==JSON.stringify(snapshot.summary))await rpc('context_summary',{session_id:args.session_id,...assembled.summary});
-   const result=await generateText({...claim,memory,assembled},connection(config,get).key,{transport,signal,business,onTool:(tool_state,evidence)=>rpc('tool_record',{...args,lease_id:claim.lease_id,tool_state,evidence})});
+   const evidenceItems=[];
+   const result=await generateText({...claim,memory,assembled},connection(config,get).key,{transport,signal,business,onTool:(tool_state,evidence)=>{if(evidence&&!evidenceItems.includes(evidence))evidenceItems.push(evidence);const combined=evidenceItems.length===1?evidenceItems[0]:evidenceItems.length?{capability:'business_evidence',items:evidenceItems}:undefined;return rpc('tool_record',{...args,lease_id:claim.lease_id,tool_state,...combined?{evidence:combined}:{}});}});
    if(signal?.aborted)throw new AssistantError('cancelled',409);
    return await rpc('finish',{...args,lease_id:claim.lease_id,...result,context_usage:{...assembled.stats,...estimatedTextCost(claim.model,result)}});
   }catch(error){const code=error instanceof AssistantError?error.code:'provider_unavailable';try{await rpc('finish',{...args,lease_id:claim.lease_id,error_code:code});}catch{}throw error;}

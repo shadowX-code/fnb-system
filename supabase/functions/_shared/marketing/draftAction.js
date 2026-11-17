@@ -1,0 +1,7 @@
+import {uuid,validateFields} from '../assistant/readContract.js';
+import {AssistantError} from '../assistantError.js';
+const properties={organization_id:uuid,brand_id:uuid,title:{type:'string',maxLength:200},caption:{type:'string',maxLength:2000}};
+export const draftAction=Object.freeze({id:'prepare_marketing_draft',module_id:'marketing_calendar',kind:'ACTION',version:1,label:'Prepare text-only content draft',permission:'marketing_content.create',scope:'Authorized brand; draft only, never review/schedule/publish',deniedCode:'action_not_authorized',authorized:a=>a.permissions?.['marketing_content.create']===true,
+ validate:a=>validateFields(properties,a),tool:{type:'function',name:'prepare_marketing_draft',description:'Prepare a text-only Facebook content draft preview for the user to explicitly confirm in Pending actions. This tool never executes or publishes a draft. Do not claim creation before confirmation.',strict:true,parameters:{type:'object',properties,required:Object.keys(properties),additionalProperties:false}},
+ async execute(caller,args,signal,sessionId){const {data,error}=await caller.rpc('native_assistant_action',{p_step:'preview',p_payload:{operation:'prepare_marketing_draft',session_id:sessionId,arguments:args}}).abortSignal(signal);if(error)throw new AssistantError('action_not_authorized',403);return {capability:'prepare_marketing_draft',source:'/marketing/calendar',scope:'Brand-scoped draft preview; explicit confirmation required',as_of:new Date().toISOString(),...data};}
+});

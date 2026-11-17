@@ -1,3 +1,4 @@
+import AssistantActions from './AssistantActions.jsx';
 import VoiceUsage from './VoiceUsage.jsx';
 import Drawer from '../../components/ui/Drawer.jsx';
 import VoiceInteraction from './VoiceInteraction.jsx';
@@ -19,6 +20,7 @@ export default function AiAssistantPage({ ui, auth }) {
   useEffect(()=>setHudView(fullscreen),[fullscreen,setHudView]);
   const voiceLocked=realtimeState.active||['connecting','reconnecting','ending'].includes(realtimeState.state);
   const threadControls=<>
+    <button type="button" className="btn-ghost" onClick={()=>setDrawer('actions')}>Pending actions</button>
     <button type="button" className="btn-ghost" aria-label="History" onClick={()=>setDrawer('history')}><History size={16}/> History</button>
     <button type="button" className="btn-ghost" onClick={()=>setDrawer('memory')}><Brain size={16}/> <span className="assistant-memory-label">Personal memory</span></button>
   </>;
@@ -60,6 +62,7 @@ export default function AiAssistantPage({ ui, auth }) {
     {ASSISTANT_STAGING_ALLOWED&&<VoiceInteraction state={realtimeState} controller={realtimeRef} onRefresh={refreshAvailability} onUsage={openUsage} immersive={fullscreen}/>}
     {fullscreen&&<button type="button" className="btn-ghost assistant-view-switch" onClick={toggleFullscreen}><Minimize2 size={15}/> Standard view</button>}
     </div>
+    {drawer==='actions'&&<AssistantActions sessionId={thread?.id} onClose={()=>setDrawer(null)}/>}
     {drawer==='history'&&<HistoryDrawer close={()=>setDrawer(null)} thread={thread} locked={voiceLocked} act={threadAction} rename={renameThread}/>}
     {drawer==='usage'&&<Drawer title="Voice usage" description="Environment availability and session safety" width="sm" onClose={()=>setDrawer(null)} className="assistant-drawer"><VoiceUsage onSaved={refreshAvailability}/></Drawer>}
     {drawer==='memory'&&<MemoryDrawer close={()=>setDrawer(null)} voiceActive={voiceLocked}/>}

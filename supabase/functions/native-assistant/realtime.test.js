@@ -45,7 +45,7 @@ test('Realtime inventory requires canonical permission and a charged reservation
  const { voice, connection_protocol, ...base } = request;
  const tool = { ...base, action:'realtime_tool', arguments:{ query:'Sauce', availability:'low' } };
  const ctx = { rpc:async()=>({config:{enabled:true,capability_connections:{read_factory_finished_goods:true}},can_edit:true}), get:key=>approved[key], reserveRealtime:fail, readFactory:fail };
- await assert.rejects(dispatch(tool,ctx),{code:'factory_read_denied'});
+ await assert.rejects(dispatch(tool,ctx),{code:'business_read_denied'});
  await assert.rejects(dispatch(tool,{...ctx,access:{factory:true},reserveRealtime:async()=>{throw Error('lease denied');}}),/lease denied/);
  const result = await dispatch(tool,{...ctx,access:{factory:true},
   reserveRealtime:async action=>assert.equal(action,'tool'),

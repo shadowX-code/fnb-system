@@ -33,7 +33,7 @@ test('Voice name dispatch and legacy fixed-name compatibility reserve once and a
 test('public intents cannot supply action authority, confirmation, a caller or arbitrary operation',()=>{
  const base={action:'realtime_tool',provider:'openai',session_id:id,request_id:id,arguments:args};
  for(const extra of [{operation:'create_factory_job_order'},{confirmed:true},{actor:id},{diagnostic:true},{ai_execution_authorized:true}])assert.throws(()=>validateBody({...base,...extra}));
- assert.equal(businessCapabilities({capability_connections:{read_factory_finished_goods:true}},{factory:true}).filter(x=>x.kind==='ACTION').length,0);
+ assert.equal(businessCapabilities({capability_connections:{read_factory_finished_goods:true}},{factory:true}).filter(x=>x.kind==='ACTION'&&x.availability==='connected').length,0);
 });
 test('settings test cannot bypass disconnected state or human authority',async()=>{
  let reads=0;const context={rpc:async()=>({config:{capability_connections:{read_factory_finished_goods:false}},can_edit:true}),get:()=>undefined,access:{factory:true},readFactory:async()=>{reads++;}};
