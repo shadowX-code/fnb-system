@@ -16,6 +16,9 @@ function AccessState({enabled}){
 export default function AssistantCapabilityDetail({row,data,canEdit,busy,onFeature,onClose,onSelect}){
  const [feedback,setFeedback]=useState(''),[failed,setFailed]=useState(false),[saving,setSaving]=useState(false);
  const reads=row.operations.filter(o=>o.kind==='READ'&&o.module_id===row.id);
+ const grouped=reads.filter(o=>o.policy_group===row.id);
+ const groupEnabled=grouped.length>0&&grouped.every(o=>o.connection_enabled);
+ const groupMixed=grouped.some(o=>o.connection_enabled)&&!groupEnabled;
  const actions=row.operations.filter(o=>o.kind==='ACTION');
  const related=[...new Map([...row.operations,...(row.coverageReads||[])].filter(o=>o.kind==='READ'&&o.module_id!==row.id).map(o=>[o.id,o])).values()];
  const coverage=coverageLabels[row.coverage?.classification]||'Not integrated';
@@ -34,6 +37,7 @@ export default function AssistantCapabilityDetail({row,data,canEdit,busy,onFeatu
    <section aria-label="AI Read Access" className={sectionClass}>
     <h3 className="text-sm font-semibold text-text-primary">AI Read Access</h3>
     <p className="text-xs text-text-secondary">AI access never grants user permissions. Existing permissions and data scope apply to every request.</p>
+    {!!grouped.length&&<div className="flex flex-wrap items-center justify-between gap-3 py-2"><div><p className="text-sm font-medium">Ordinary module reads · {groupMixed?'Mixed access':groupEnabled?'Enabled':'Disabled'}</p><p className="text-xs text-text-secondary">Applies only to the {grouped.length} listed reads. Separate and future capabilities are not included.</p></div><button type="button" className="btn-secondary min-h-10" disabled={!canEdit||busy||saving} onClick={()=>void act('capability_connection',{operation:`module:${row.id}`,enabled:!groupEnabled,expected_revision:data.config.revision})}>{groupEnabled?'Disable':'Enable'} ordinary reads</button></div>}
     {reads.length?<div className="divide-y divide-border">{reads.map(o=><article key={o.id} className="space-y-2 py-3 first:pt-0 last:pb-0">
      <div className="flex items-start justify-between gap-3"><h4 className="text-sm font-semibold">{o.label}</h4><AccessState enabled={o.connection_enabled}/></div>
      <p className="text-sm text-text-secondary">{o.scope}</p>

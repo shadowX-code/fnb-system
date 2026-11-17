@@ -12,7 +12,7 @@ test('employee aggregate needs no IDs, preserves unique identities and separates
 test('employee query uses human permission and fixed RPC with source aggregates, never private fields',async()=>{
  const calls=[];const caller={rpc:(name,a)=>({abortSignal:async()=>{calls.push([name,a]);return {data:name==='current_user_has_permission'?true:{summary:{total:42,active:40,inactive:2,secret:'NO'},rows:[{id:'a',full_name:'Test',bank_account_number:'NO',ic_no:'NO',auth_user_id:'NO'}],total_count:42,page:1,page_size:20,has_more:true,as_of:'source-time',schema_version:1,aggregate_complete:true}};}})};
  const result=await directory.execute(caller,args);
- assert.equal(calls[1][0],'employee_directory_read');assert.equal(result.summary.total,42);assert.equal(result.completeness.aggregate_scope,'complete_filtered_scope');assert.equal(result.source_as_of,'source-time');assert(!JSON.stringify(result).includes('NO'));
+ assert.equal(calls[1][0],'employee_directory_query');assert.equal(result.summary.total,42);assert.equal(result.completeness.aggregate_scope,'complete_filtered_scope');assert.equal(result.source_as_of,'source-time');assert(!JSON.stringify(result).includes('NO'));
  await assert.rejects(directory.execute({rpc:()=>({abortSignal:async()=>({data:false})})},args),{code:'business_read_denied'});
  await assert.rejects(createBusinessDispatcher({config:{},access:{permissions:{'employees.view':true}},caller}).execute(directory.id,args),{code:'capability_disconnected'});
 });

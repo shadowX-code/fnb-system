@@ -1276,3 +1276,6 @@ Added 24 disabled-by-default domain READs; total 109 READ / two unchanged ACTION
 ## 2026-11-17 — Module-owned Native Assistant read semantics
 
 Added the Employees summary/list/detail reference with unchanged human RLS and disabled-by-default AI policy; shared status/count helpers replace repeated UI/Assistant definitions. Attached interface/completeness declarations to existing domain contracts and added a build-time alignment drift gate. Preserved the dispatcher, ACTION authority and all existing access policies. See `docs/audits/native-assistant-module-interface.md` for exact scope and acceptance limits.
+
+## 2026-11-17 — Domain Query consolidation
+Preserved 110 READ / 2 ACTION authority; extended Employees type/outlet summaries and Finished Goods page/SKU queries. Added bounded schema discovery over the existing dispatcher to avoid a >53 KB tool catalogue exceeding Text's 24 KB request limit. Removed Text-only Factory answer substitution. Explicit Employees policy grouping preserves all current flags and excludes future/sensitive operations. Staging-only migration; no business writes or provider changes.

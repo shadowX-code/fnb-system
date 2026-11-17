@@ -1,3 +1,4 @@
+import {queryDiscoveryTools,isQueryEnvelope,queryEnvelopeArguments,discoverQueries} from '../_shared/assistant/queryDiscovery.js';
 import {employeeDirectoryRead} from '../_shared/people/employeeDirectoryRead.js';
 import {restaurantGapReads} from '../_shared/restaurant/gapReads.js';
 import {financeGapReads} from '../_shared/finance/gapReads.js';
@@ -26,6 +27,7 @@ import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 // Discovery never makes a module executable. ACTION tools create previews only.
 export const operations = [employeeDirectoryRead,...restaurantGapReads,...peopleGapReads,...financeGapReads,...marketingGapReads,...factoryGapReads,...crewGapReads,finishedGoodsRead,cleaningRead,employmentRead,leaveRead,reportRead,plannerRead,draftAction,captionAction,...factoryPlatformReads,...crewPlatformReads,...marketingPlatformReads,...peoplePlatformReads,...factoryCatalogueReads,...peopleCatalogueReads,...restaurantCatalogueReads,...financePlatformReads];
 export function validateBusinessArguments(id,args){
+ if(isQueryEnvelope(id)){const parsed=queryEnvelopeArguments(id,args);return id==='run_business_query'?validateBusinessArguments(parsed.operation,parsed.args):parsed;}
  const operation=operations.find(item=>item.id===id);
  if(!operation)throw new AssistantError('tool_not_allowed',403);
  return operation.validate(args);
@@ -34,7 +36,7 @@ export function capabilityConnected(config,id){return config.capability_connecti
 export function businessOperation(id){const operation=operations.find(item=>item.id===id);if(!operation)throw new AssistantError('tool_not_allowed',403);return operation;}
 export function businessCapabilities(config,access){
  return operations.map(operation=>({id:operation.id,module_id:operation.module_id,related_module_ids:operation.related_module_ids||[],kind:operation.kind,version:operation.version,
-  label:operation.label,scope:operation.scope,permission:operation.permission,
+  label:operation.label,scope:operation.scope,permission:operation.permission,query:operation.moduleInterface?.query,policy_group:operation.policyGroup||null,
   connection_enabled:capabilityConnected(config,operation.id),test_supported:operation.kind==='READ',test_parameters:operation.kind==='READ'?operation.tool.parameters.properties:undefined,
   ai_execution_enabled:operation.kind==='ACTION'?config.ai_action_authorizations?.[operation.id]===true:undefined,
   availability:!capabilityConnected(config,operation.id)||operation.kind==='ACTION'&&config.ai_action_authorizations?.[operation.id]!==true?'disabled':operation.authorized(access)?'connected':'denied'}));
@@ -44,8 +46,13 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  const resolve=id=>{const operation=operations.find(item=>item.id===id);if(!operation)throw new AssistantError('tool_not_allowed',403);return operation;};
  return {
   capabilities,
-  tools:operations.filter(operation=>capabilities.find(item=>item.id===operation.id)?.availability==='connected').map(operation=>operation.tool),
+  tools:(()=>{const offered=operations.filter(operation=>capabilities.find(item=>item.id===operation.id)?.availability==='connected');return offered.length>8?queryDiscoveryTools:offered.map(operation=>operation.tool);})(),
   async execute(id,args,signal){
+   if(isQueryEnvelope(id)){
+    const parsed=queryEnvelopeArguments(id,args);
+    if(id==='find_business_queries'){const current=loadConfig?await loadConfig():config||{};return discoverQueries(operations,businessCapabilities(current,access||{}),parsed);}
+    id=parsed.operation;args=parsed.args;
+   }
    const operation=resolve(id);
    // ACTION requires a separate, server-owned execution authority and confirmed
    // intent. Neither a tool argument nor the human's existing permission grants it.
@@ -68,4 +75,11 @@ export async function businessAccess(caller){
  if(error||!data||typeof data!=='object'||Array.isArray(data))throw new AssistantError('admin_required',403);
  const permissions=Object.fromEntries(unique.map(permission=>[permission,data[permission]===true]));
  return {permissions,factory:permissions['factory_finished_goods.view']===true};
+}
+
+// Explicit existing members only. Never derive blanket access from module IDs.
+export function modulePolicyMembers(id){
+ const members=operations.filter(o=>o.kind==='READ'&&o.policyGroup===id);
+ if(!members.length)throw new AssistantError('tool_not_allowed',403);
+ return members.map(o=>o.id);
 }

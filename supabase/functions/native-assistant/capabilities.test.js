@@ -28,7 +28,11 @@ test('retired fallback requests are rejected at the Edge boundary',()=>{
  assert.throws(()=>validateBody({action:'provider_activate',provider:'render',voice:''}));
 });
 
-test('low-stock answer is formatted from real read evidence, unknown minima never become low (fixture)',async()=>{
- let requests=0;const r=await generateText(claim,'fixture',{readTool:async()=>({availability:'low',total_matching:1,unknown_minimum_count:25,rows:[{product_name:'Fixture sauce',current_balance:42,min_stock_level:60,uom:'kg'}],scope:'Fixture scope',as_of:'fixture-time',source:'/factory/warehouse/finished-goods'}),transport:async()=>{requests++;return response({status:'completed',output:[{type:'function_call',name:'read_factory_finished_goods',call_id:'fixture-call',arguments:'{"query":"","availability":"low"}'}],usage:{input_tokens:80,output_tokens:10}});}});
- assert.match(r.reply,/42 kg; minimum 60 kg/);assert.match(r.reply,/25 product\(s\).*no valid minimum/);assert.match(r.reply,/not classified as low or healthy/);assert.equal(requests,1);assert.equal(r.input_tokens,80);
+test('low-stock evidence returns to the provider instead of a Text-only canned fallback',async()=>{
+ let requests=0;const r=await generateText(claim,'fixture',{readTool:async()=>({availability:'low',total_matching:1,unknown_minimum_count:25,rows:[],scope:'Fixture',as_of:'fixture-time'}),transport:async(_url,init)=>{
+  requests++;if(requests===1)return response({status:'completed',output:[{type:'function_call',name:'read_factory_finished_goods',call_id:'fixture-call',arguments:'{"query":"","availability":"low"}'}],usage:{input_tokens:80,output_tokens:10}});
+  const evidence=JSON.parse(JSON.parse(init.body).input.at(-1).output);assert.equal(evidence.unknown_minimum_count,25);
+  return response({status:'completed',output:[{type:'message',content:[{type:'output_text',text:'One low; 25 unknown thresholds.'}]}],usage:{input_tokens:100,output_tokens:10}});
+ }});
+ assert.equal(r.reply,'One low; 25 unknown thresholds.');assert.equal(requests,2);assert.equal(r.input_tokens,180);
 });

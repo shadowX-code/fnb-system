@@ -72,3 +72,11 @@ it('shows refreshed server policy after a save and preserves exact revision owne
  expect(screen.getByRole('button',{name:/Disable AI Access:/}).disabled).toBe(false);
  expect(screen.getByText('Enabled')).toBeTruthy();
 });
+it('ordinary module policy explicitly groups reviewed reads without hiding mixed individual access',()=>{
+ const onFeature=vi.fn(async()=>({ok:true}));
+ const operations=[{...read,id:'read_employee_directory',module_id:'employees',policy_group:'employees',connection_enabled:false},{...read,id:'read_employee_assignment',label:'Assignment',module_id:'employees',policy_group:'employees',connection_enabled:true}];
+ render(<AssistantCapabilityDetail row={{...row,id:'employees',operations}} data={{config:{revision:24}}} canEdit onFeature={onFeature} onClose={()=>{}}/>);
+ expect(screen.getByText(/Mixed access/)).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Enable ordinary reads'}));
+ expect(onFeature).toHaveBeenCalledExactlyOnceWith('capability_connection',{operation:'module:employees',enabled:true,expected_revision:24});
+});

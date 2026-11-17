@@ -8,13 +8,13 @@ function walk(dir){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.
 const domainFiles=walk('supabase/functions/_shared').filter(p=>/\/(people|factory|crew|finance|restaurant|marketing|assistant)\//.test(p)&&p.endsWith('.js'));
 const tokens=new Set(operations.flatMap(o=>[o.rpc,...[...(o.query?.toString()||o.execute.toString()).matchAll(/\.(?:rpc|from)\(['"]([^'"]+)['"]/g)].map(m=>m[1])]).filter(Boolean));
 const consumers=[...walk('src/services'),...walk('supabase/migrations')].filter(p=>/\.(js|ts|sql)$/.test(p)&&!p.includes('__tests__')&&[...tokens].some(t=>fs.readFileSync(p,'utf8').includes(t)));
-const fixed=['src/features/company-users/pages/UsersPage.jsx','supabase/functions/_shared/completeRows.js','supabase/functions/_shared/hrWorkforceModel.js','src/features/sales-purchase/utils/analytics.js'];
+const fixed=['supabase/functions/native-assistant/business.js','supabase/functions/native-assistant/handler.js','supabase/functions/native-assistant/provider.js','supabase/functions/native-assistant/realtime.js','src/features/company-users/pages/UsersPage.jsx','supabase/functions/_shared/completeRows.js','supabase/functions/_shared/hrWorkforceModel.js','src/features/sales-purchase/utils/analytics.js'];
 for(const o of operations){
  if(!o.moduleInterface||o.moduleInterface.module_id!==o.module_id||o.moduleInterface.kind!==o.kind)throw Error(`Missing module interface: ${o.id}`);
  if(o.kind==='READ'&&(!o.moduleInterface.human_permission||!o.moduleInterface.source||!o.moduleInterface.exposure))throw Error(`Incomplete READ declaration: ${o.id}`);
  if(o.kind==='ACTION'&&!o.moduleInterface.execution_policy)throw Error(`Missing ACTION execution policy: ${o.id}`);
 }
-const current={version:1,operations:Object.fromEntries(operations.map(o=>[o.id,hash(serialize({interface:o.moduleInterface,tool:o.tool,query:o.query,rpc:o.rpc,arguments:o.arguments,project:o.project,check:o.check,execute:o.execute,authorize:o.authorized}))])),sources:Object.fromEntries([...new Set([...domainFiles,...consumers,...fixed])].sort().map(p=>[p,hash(fs.readFileSync(p))]))};
+const current={version:1,operations:Object.fromEntries(operations.map(o=>[o.id,hash(serialize({interface:o.moduleInterface,tool:o.tool,query:o.query,rpc:o.rpc,arguments:o.arguments,project:o.project,check:o.check,normalize:o.normalizeArguments,policyGroup:o.policyGroup,execute:o.execute,authorize:o.authorized}))])),sources:Object.fromEntries([...new Set([...domainFiles,...consumers,...fixed])].sort().map(p=>[p,hash(fs.readFileSync(p))]))};
 const file='docs/testing/native-assistant-interface-baseline.json';
 if(process.argv.includes('--record-reviewed')){fs.writeFileSync(file,JSON.stringify(current,null,2)+'\n');console.log(`Recorded reviewed interfaces: ${operations.length}; dependencies: ${Object.keys(current.sources).length}`);}
 else {

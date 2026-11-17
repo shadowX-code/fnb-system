@@ -1,3 +1,4 @@
+import {modulePolicyMembers} from './business.js';
 import {assembleContext,contextInstructions,explicitRecallQuery,estimatedTextCost} from './conversationContext.js';
 import {memoryContext,preferences} from './context.js';
 import {credentialEnvironment,verifyVoiceProvider,providerVoices} from './providerRegistry.js';
@@ -26,7 +27,8 @@ export function validateBody(body){
  if(body.action==='memory_save'&&(typeof body.enabled!=='boolean'||Object.entries(preferences).some(([k,v])=>body[k]!==null&&!Object.hasOwn(v,body[k]))))throw new AssistantError('memory_invalid',400);
  if(body.action==='begin'&&(typeof body.text!=='string'||!body.text.trim()||body.text.length>2000))throw new AssistantError('text_invalid',400);
  if(body.action==='configure'&&(body.provider!=='openai'||!models.includes(body.model)||body.credential_ref!=='native-assistant-openai'||typeof body.enabled!=='boolean'||!Number.isSafeInteger(body.expected_revision)))throw new AssistantError('configuration_invalid',400);
- if(['capability_connection','capability_test'].includes(body.action))businessOperation(body.operation);
+ if(body.action==='capability_connection'&&typeof body.operation==='string'&&body.operation.startsWith('module:'))modulePolicyMembers(body.operation.slice(7));
+ else if(['capability_connection','capability_test'].includes(body.action))businessOperation(body.operation);
  if(body.action==='capability_connection'&&(typeof body.enabled!=='boolean'||!Number.isSafeInteger(body.expected_revision)))throw new AssistantError('configuration_invalid',400);
  if(body.action.startsWith('realtime_')&&!['openai','grok'].includes(body.provider))throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_sdk_observe'&&(body.provider!=='openai'||!['connected','usage_observed'].includes(body.milestone)))throw new AssistantError('invalid_request',400);
@@ -83,7 +85,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
    if(!runtime.tools)throw new AssistantError('business_read_denied',403);
    await reserveRealtime('tool',args);
    const evidence=await business.execute(args.operation??finishedGoodsRead.id,args.arguments,signal);
-   if(args.turn_id)await voiceHistory({...args,step:'evidence',evidence});
+   if(args.turn_id&&!evidence.discovery_only)await voiceHistory({...args,step:'evidence',evidence});
    return evidence;
   }
   const credential=registry?await registry('key',args):null;

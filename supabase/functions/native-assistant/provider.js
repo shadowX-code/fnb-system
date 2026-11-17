@@ -1,4 +1,4 @@
-import {businessEvidenceInstructions} from '../_shared/assistant/moduleInterface.js';
+import {businessEvidenceInstructions,domainQueryInstructions} from '../_shared/assistant/moduleInterface.js';
 import {contextInstructions} from './conversationContext.js';
 import {memoryContext,recentContext} from './context.js';
 import {AssistantError} from '../_shared/assistantError.js';
@@ -48,7 +48,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
  const previous=(claim.assembled?.recent||recentContext(claim.context)).flatMap(x=>[{role:'user',content:x.prompt},{role:'assistant',content:x.reply}]);
  const current={role:'user',content:claim.prompt};
  let input=[...previous,current];let evidence=null;const max=claim.kind==='test'?32:500;
- const payload=(remaining=max,allowTools=true)=>({model:claim.model,instructions:claim.kind==='test'?'Reply with READY only.':instructions+businessEvidenceInstructions+contextInstructions(claim.assembled)+memoryContext(claim.memory),input,max_output_tokens:remaining,store:false,...(business?.tools.length&&claim.kind!=='test'&&allowTools?{tools:business.tools,tool_choice:'auto',parallel_tool_calls:false}:{})});
+ const payload=(remaining=max,allowTools=true)=>({model:claim.model,instructions:claim.kind==='test'?'Reply with READY only.':instructions+businessEvidenceInstructions+domainQueryInstructions+contextInstructions(claim.assembled)+memoryContext(claim.memory),input,max_output_tokens:remaining,store:false,...(business?.tools.length&&claim.kind!=='test'&&allowTools?{tools:business.tools,tool_choice:'auto',parallel_tool_calls:false}:{})});
  while(new TextEncoder().encode(JSON.stringify(payload())).length>24000 && input.length>1)input=input.slice(2);
  if(new TextEncoder().encode(JSON.stringify(payload())).length>24000)throw new AssistantError('context_limit',413);
  const controller=new AbortController();const abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)controller.abort();
@@ -71,7 +71,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
     if(seenCalls.has(calls[0].call_id))throw new AssistantError('duplicate_tool_call',409);seenCalls.add(calls[0].call_id);
     let args;try{args=JSON.parse(calls[0].arguments);}catch{throw new AssistantError('tool_arguments_invalid',400);}
     await onTool?.('executing');
-    try{const signature=JSON.stringify([calls[0].name,args]);if(seenReads.has(signature)){evidence=seenReads.get(signature);await onTool?.('completed',evidence);}else{evidence=await business.execute(calls[0].name,args,controller.signal);evidenceBytes+=new TextEncoder().encode(JSON.stringify(evidence)).length;if(evidenceBytes>14000)throw new AssistantError('business_result_limit',413);seenReads.set(signature,evidence);await onTool?.('completed',evidence);const formatted=business.tools.length===1?business.format(calls[0].name,evidence):null;if(formatted)return {reply:formatted,input_tokens:inputTokens,output_tokens:outputTokens,latency_ms:Date.now()-started};}}catch(error){if(controller.signal.aborted)throw error;await onTool?.('failed');if(!['business_read_denied','business_read_unavailable','capability_disconnected','factory_read_denied','action_not_authorized','business_result_limit'].includes(error.code))throw error;evidence={error:error.code,no_evidence:true};}
+    try{const signature=JSON.stringify([calls[0].name,args]);if(seenReads.has(signature)){evidence=seenReads.get(signature);if(!evidence.discovery_only)await onTool?.('completed',evidence);}else{evidence=await business.execute(calls[0].name,args,controller.signal);evidenceBytes+=new TextEncoder().encode(JSON.stringify(evidence)).length;if(evidenceBytes>14000)throw new AssistantError('business_result_limit',413);seenReads.set(signature,evidence);if(!evidence.discovery_only)await onTool?.('completed',evidence);}}catch(error){if(controller.signal.aborted)throw error;await onTool?.('failed');if(!['business_read_denied','business_read_unavailable','capability_disconnected','factory_read_denied','action_not_authorized','business_result_limit'].includes(error.code))throw error;evidence={error:error.code,no_evidence:true};}
     input=[...input,...data.output,{type:'function_call_output',call_id:calls[0].call_id,output:JSON.stringify(evidence)}];continue;
    }
    const reply=data.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text||'').join('').trim();

@@ -21,9 +21,9 @@ export function readContract(def){
  const moduleInterface=declareReadInterface(def);
  const properties=def.properties,parameters={type:'object',properties:Object.fromEntries(Object.entries(properties).map(([k,{nullable,...s}])=>[k,nullable?{...s,type:[s.type,'null']}:s])),required:Object.keys(properties),additionalProperties:false};
  return Object.freeze({...def,moduleInterface,kind:'READ',version:def.version||1,deniedCode:'business_read_denied',authorized:access=>access.permissions?.[def.permission]===true,
-  validate:args=>validateFields(properties,args),tool:{type:'function',name:def.id,description:def.description,strict:true,parameters},
+  validate:args=>validateFields(properties,def.normalizeArguments?def.normalizeArguments(args):args),tool:{type:'function',name:def.id,description:def.description,strict:true,parameters},
   async execute(caller,args,signal){
-   validateFields(properties,args);await permitted(caller,def.permission,signal);signal?.throwIfAborted();
+   args=def.normalizeArguments?def.normalizeArguments(args):args;validateFields(properties,args);await permitted(caller,def.permission,signal);signal?.throwIfAborted();
    def.check?.(args);
    if(def.outletScope){const scope=await caller.rpc('current_user_can_access_outlet',{target_outlet_id:args.outlet_id}).abortSignal(signal);if(scope.error||scope.data!==true)throw new AssistantError('business_read_denied',403);}
    let query=def.query?def.query(caller,args):caller.rpc(def.rpc,def.arguments(args));
