@@ -3,7 +3,7 @@ export function declareReadInterface(def){
  const declared=def.interface||{};
  return Object.freeze({version:1,module_id:def.module_id,kind:'READ',
   query_kinds:declared.queryKinds||['bounded_read'],filters:def.properties,
-  query:Object.freeze({version:1,modes:declared.queryKinds||['bounded_read'],mode_parameter:def.properties?.mode?'mode':null,allowed_filters:Object.keys(def.properties||{}),unsupported:declared.unsupported||['Undeclared metrics, grouping dimensions and historical comparisons are unavailable.'],follow_up:'Reuse explicit user filters and verified identifiers, then execute fresh authorized evidence. Never infer missing scope or relax filters after denial.'}),
+  query:Object.freeze({version:1,dimensions:declared.queryKinds||['bounded_read'],modes:def.properties?.mode?.enum||null,mode_parameter:def.properties?.mode?'mode':null,allowed_filters:Object.keys(def.properties||{}),unsupported:declared.unsupported||['Undeclared metrics, grouping dimensions and historical comparisons are unavailable.'],follow_up:'Reuse explicit user filters and verified identifiers, then execute fresh authorized evidence. Never infer missing scope or relax filters after denial.'}),
   policy_group:def.policyGroup||null,
   authority:declared.authority||def.rpc||'domain-owned query',
   human_permission:def.permission,scope:def.scope,

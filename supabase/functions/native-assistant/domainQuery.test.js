@@ -71,3 +71,9 @@ test('malformed envelope gets safe schema feedback after authorization, before a
  assert.equal(result.error,'tool_arguments_invalid');assert(result.not_business_evidence);assert.equal(result.parameters.additionalProperties,false);assert.equal(called,0);
  await assert.rejects(createBusinessDispatcher({config,access:{}}).execute('run_business_query',{operation:'read_employee_directory',arguments_json:'{"mode":"unknown"}'}),{code:'business_read_denied'});
 });
+
+test('query dimensions never masquerade as executable mode values',()=>{
+ assert.deepEqual(employeeDirectoryRead.moduleInterface.query.modes,['summary','list','detail']);
+ assert(employeeDirectoryRead.moduleInterface.query.dimensions.includes('count'));
+ assert.equal(operations.find(o=>o.id==='read_operational_financials').moduleInterface.query.modes,null);
+});
