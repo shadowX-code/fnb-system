@@ -1,4 +1,12 @@
-import {draftAction} from '../_shared/marketing/draftAction.js';
+import {restaurantCatalogueReads} from '../_shared/restaurant/catalogueReads.js';
+import {peopleCatalogueReads} from '../_shared/people/catalogueReads.js';
+import {factoryCatalogueReads} from '../_shared/factory/catalogueReads.js';
+import {factoryPlatformReads} from '../_shared/factory/platformReads.js';
+import {crewPlatformReads} from '../_shared/crew/platformReads.js';
+import {marketingPlatformReads} from '../_shared/marketing/platformReads.js';
+import {peoplePlatformReads} from '../_shared/people/platformReads.js';
+import {financePlatformReads} from '../_shared/finance/platformReads.js';
+import {draftAction,captionAction} from '../_shared/marketing/draftAction.js';
 import {plannerRead} from '../_shared/marketing/plannerRead.js';
 import {reportRead} from '../_shared/finance/reportRead.js';
 import {leaveRead} from '../_shared/crew/leaveRead.js';
@@ -9,7 +17,7 @@ import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 
 // Composition of implemented module contracts, not a permission or grant store.
 // Discovery never makes a module executable. ACTION tools create previews only.
-export const operations = [finishedGoodsRead,cleaningRead,employmentRead,leaveRead,reportRead,plannerRead,draftAction];
+export const operations = [finishedGoodsRead,cleaningRead,employmentRead,leaveRead,reportRead,plannerRead,draftAction,captionAction,...factoryPlatformReads,...crewPlatformReads,...marketingPlatformReads,...peoplePlatformReads,...factoryCatalogueReads,...peopleCatalogueReads,...restaurantCatalogueReads,...financePlatformReads];
 export function validateBusinessArguments(id,args){
  const operation=operations.find(item=>item.id===id);
  if(!operation)throw new AssistantError('tool_not_allowed',403);
@@ -48,8 +56,9 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
 }
 
 export async function businessAccess(caller){
- const permissions={};
- const {data:role,error}=await caller.rpc('current_user_role_id');if(error||!role)throw new AssistantError('admin_required',403);
- await Promise.all([...new Set(operations.map(o=>o.permission))].map(async permission=>{const {data,error}=await caller.rpc('current_user_has_permission',{permission_code:permission});permissions[permission]=!error&&data===true;}));
+ const unique=[...new Set(operations.map(o=>o.permission))];
+ const {data,error}=await caller.rpc('native_assistant_permissions',{p_codes:unique});
+ if(error||!data||typeof data!=='object'||Array.isArray(data))throw new AssistantError('admin_required',403);
+ const permissions=Object.fromEntries(unique.map(permission=>[permission,data[permission]===true]));
  return {permissions,factory:permissions['factory_finished_goods.view']===true};
 }

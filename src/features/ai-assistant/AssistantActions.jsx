@@ -10,8 +10,8 @@ export default function AssistantActions({sessionId,onClose}){
  {error&&<p role="alert">{error}</p>}{!items.length&&<p>No action previews in this conversation.</p>}
  {items.map(item=><section key={item.id} className="space-y-3 border-b border-border py-4"><h3 className="font-semibold">{item.arguments.title}</h3><p className="whitespace-pre-wrap text-sm">{item.arguments.caption}</p><p className="text-xs text-text-secondary">Brand {item.arguments.brand_id} · {item.state} · Expires {new Date(item.expires_at).toLocaleString()}</p>
  {item.state==='preview'&&<div className="flex flex-wrap gap-2"><button className="btn-secondary" disabled={busy} onClick={()=>setReview(item.id)}>Review confirmation</button><button className="btn-ghost" disabled={busy} onClick={()=>act(item,false)}>Cancel</button></div>}
- {review===item.id&&<div role="group" aria-label="Confirm draft creation"><p>Create this text-only Facebook draft in the shown brand? It will not be scheduled or published.</p><button className="btn-primary" disabled={busy} onClick={()=>act(item,true)}>Confirm create draft</button></div>}
- {item.state==='executed'&&<p role="status">Draft created. Review it in Content Calendar.</p>}
+ {review===item.id&&<div role="group" aria-label="Confirm draft creation"><p>{item.operation==='prepare_marketing_caption'?'Save this inactive caption template in the shown brand? It will not be activated or sent.':'Create this text-only Facebook draft in the shown brand? It will not be scheduled or published.'}</p><button className="btn-primary" disabled={busy} onClick={()=>act(item,true)}>{item.operation==='prepare_marketing_caption'?'Confirm save template':'Confirm create draft'}</button></div>}
+ {item.state==='executed'&&<p role="status">{item.operation==='prepare_marketing_caption'?'Inactive caption template saved. Review it in the caption library.':'Draft created. Review it in Content Calendar.'}</p>}
  </section>)}
  </Drawer>;
 }

@@ -40,7 +40,7 @@ export function validateBody(body){
  if(body.action==='realtime_turn'&&(!['start','input','complete','interrupted','unavailable','unfinished','failed'].includes(body.step)||typeof body.text!=='string'||body.text.length>3000))throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_turn'&&body.details!==undefined&&(body.details===null||typeof body.details!=='object'||Array.isArray(body.details)||Object.keys(body.details).some(k=>k!=='reason')||!['provider_completed','missing_assistant_transcript','provider_cancelled','provider_incomplete','provider_failed','max_output_tokens','content_filter','session_ended','session_expired','transport_disconnected','provider_error','lease_failed','turn_limit'].includes(body.details.reason)))throw new AssistantError('invalid_request',400);
  if(body.action==='action_confirm'&&(typeof body.fingerprint!=='string'||!/^[a-f0-9]{32}$/.test(body.fingerprint)))throw new AssistantError('invalid_request',400);
- if(body.action==='action_policy'&&(body.operation!=='prepare_marketing_draft'||typeof body.enabled!=='boolean'||!Number.isSafeInteger(body.expected_revision)))throw new AssistantError('configuration_invalid',400);
+ if(body.action==='action_policy'&&(businessOperation(body.operation).kind!=='ACTION'||typeof body.enabled!=='boolean'||!Number.isSafeInteger(body.expected_revision)))throw new AssistantError('configuration_invalid',400);
  if(body.action==='realtime_tool')validateBusinessArguments(body.operation??finishedGoodsRead.id,body.arguments);
  return body;
 }
@@ -119,7 +119,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
  if(action==='capability_test'){
   if(!configResponse.can_edit)throw new AssistantError('settings_edit_required',403);
   const operation=businessOperation(args.operation);if(operation.kind!=='READ')throw new AssistantError('tool_test_unavailable',409);
-  const result=await business.execute(operation.id,args.arguments??operation.testArguments,signal);return {outcome:'verified',as_of:result.as_of,scope:result.scope,total_matching:result.total_matching};
+  const result=await business.execute(operation.id,args.arguments??operation.testArguments??{},signal);return {outcome:'verified',as_of:result.as_of,scope:result.scope,total_matching:result.total_matching};
  }
  if(action==='configure'){
   if(args.enabled&&!connection(config,get).ready)throw new AssistantError(runtime.blocker||'provider_not_authorized',409);
