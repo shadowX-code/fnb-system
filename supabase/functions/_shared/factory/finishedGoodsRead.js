@@ -3,7 +3,7 @@ import {AssistantError} from '../assistantError.js';
 export const inventoryTool={type:'function',name:'read_factory_finished_goods',description:'Read current Factory shared Finished Goods stock. Use for stock, availability and low-stock questions; re-read for follow-ups. Use mode summary for complete counts, list with page for subsequent results, detail with exact sku for one product. No Company or Outlet scope exists in this catalogue.',strict:true,parameters:{type:'object',properties:{mode:{type:'string',enum:['summary','list','detail']},page:{type:'integer',minimum:1,maximum:50},sku:{type:['string','null'],maxLength:80},query:{type:'string',description:'Product name substring, empty for all products'},availability:{type:'string',enum:['all','low','out_of_stock']}},required:['mode','page','sku','query','availability'],additionalProperties:false}};
 export function inventoryArguments(value){
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!['query','availability','mode','page','sku'].includes(k)))throw new AssistantError('tool_arguments_invalid',400);
- const a={mode:'list',page:1,sku:null,...value};
+ const a={query:'',availability:'all',mode:'list',page:1,sku:null,...value};
  if(typeof a.query!=='string'||a.query.length>80||!['all','low','out_of_stock'].includes(a.availability)||!['summary','list','detail'].includes(a.mode)||!Number.isInteger(a.page)||a.page<1||a.page>50||(a.sku!==null&&(typeof a.sku!=='string'||!a.sku.trim()||a.sku.length>80))||(a.mode==='detail')!==(a.sku!==null)||(a.mode!=='list'&&a.page!==1))throw new AssistantError('tool_arguments_invalid',400);
  return a;
 }

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "operations": {
-    "read_employee_directory": "8c55cbd450de196651aa80e74a97594fba4ee092d51be1593ca6bfac701b1906",
+    "read_employee_directory": "fbc5dd9ea1f217baca4fba0704e866971af23da21dc21adf2ccf1777cf16225c",
     "read_recipe_ingredients": "c0c49056628c04284c05c4604ec6dfbc4f163c3284220d14596a1ffc439fe1ce",
     "read_restaurant_alerts": "c3e1b9d4363a2565e09efb33d5d2f0a825ce06f2d061a590f64d276b66652be1",
     "read_restaurant_data_health": "1048d350c7ba86a7f60630807a12f421d532614e34dc1a94b2fac04931b13961",
@@ -154,7 +154,7 @@
     "supabase/functions/_shared/crew/platformReads.js": "759d9e1eefb20c5db015a9d29fceb63949e2cd5ab9de4374832dfae3d034dbb4",
     "supabase/functions/_shared/factory/catalogueReads.js": "5b38e947703c5a72752503157e10218e1caed123ed519bb61dcb9b5f35113933",
     "supabase/functions/_shared/factory/cleaningRead.js": "65c1e9a10d873851b5d42d3bf0fedb90a7a18ecd34ecd12c1c2fc05f38ecc20f",
-    "supabase/functions/_shared/factory/finishedGoodsRead.js": "732654783abe6e12a2da3df6f30e2c85d407dbc9739125e892a18387499a7398",
+    "supabase/functions/_shared/factory/finishedGoodsRead.js": "851d7a6756161b842c09028199e10d424e63461d24b05aa376fd56302de3506b",
     "supabase/functions/_shared/factory/gapReads.js": "911fc537712befc0b7a8bd3d91d1e3c5344b7edbe8469782b91b6f4dd8997119",
     "supabase/functions/_shared/factory/platformReads.js": "ca04b82eff5d77f908743cc1356b5ba350483836a57551cfea6a34824e432e7f",
     "supabase/functions/_shared/finance/gapReads.js": "db5f704a7c7d604f625e586eda1914b63b0f8bff87ce199e87a659e096203133",
@@ -167,7 +167,7 @@
     "supabase/functions/_shared/marketing/platformReads.js": "9a264845c8bec2db02afff1189b455a4eb3e23e1c4a092a06ec08be7ddc61d89",
     "supabase/functions/_shared/people/catalogueReads.js": "b5cbcbb2aab991f84119b62b61071f2c873cabe8047361b9897165f0a3315803",
     "supabase/functions/_shared/people/employeeDirectory.js": "d0facda05f019959e7b6326e32e9dd11193778b3a285531ef91b69c3d4020b7c",
-    "supabase/functions/_shared/people/employeeDirectoryRead.js": "e504cad92db0dbec3b32b258d296f1e2166e7676a321324b43fc459f9c0d43bb",
+    "supabase/functions/_shared/people/employeeDirectoryRead.js": "f04ee5e84c5d350556c06f32d844e34bd4bf88fefd32d99b859473ffb3c507b2",
     "supabase/functions/_shared/people/employmentRead.js": "0e61824f5a2b3154490e15cec619f6486107b1d7d2593689f9b6e6938d1aaa1c",
     "supabase/functions/_shared/people/gapReads.js": "106317a17778459eeca42e2bfd8fa8fff821df9b2cd60c6664e42432ef965c7c",
     "supabase/functions/_shared/people/platformReads.js": "f5d499dff868d0490468a779626c1a434b92152a04b47e46ccd8a29b3591bbbb",

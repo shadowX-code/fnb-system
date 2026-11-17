@@ -20,6 +20,8 @@ test('Factory count, pagination, exact SKU detail and legacy arguments share one
 test('employee modes preserve old callers and reject unsupported filters; migration does not rewrite access',()=>{
  const a={mode:'summary',employee_id:null,status:'all',legal_entity_id:null,workplace:null,query:'',page:1};
  assert.equal(employeeDirectoryRead.validate(a).outlet_id,null);
+ assert.equal(employeeDirectoryRead.validate({mode:'summary'}).employee_id,null);
+ assert.equal(employeeDirectoryRead.validate({mode:'summary'}).status,'all');
  assert.equal(employeeDirectoryRead.validate({...a,employment_type:'permanent'}).employment_type,'permanent');
  assert.throws(()=>employeeDirectoryRead.validate({...a,include_bank:true}));
  const sql=fs.readFileSync('supabase/migrations/20261117103349_assistant_domain_query_semantics.sql','utf8');
@@ -65,7 +67,7 @@ test('Text can discover then query with bounded schema payload; Voice gets the i
 test('malformed envelope gets safe schema feedback after authorization, before any query',async()=>{
  let called=0;const config={capability_connections:{read_employee_directory:true}},access={permissions:{'employees.view':true}};
  const b=createBusinessDispatcher({config,access,caller:{rpc:()=>{called++;throw Error('must not query');}}});
- const result=await b.execute('run_business_query',{operation:'read_employee_directory',arguments_json:'{"mode":"summary"}'});
+ const result=await b.execute('run_business_query',{operation:'read_employee_directory',arguments_json:'{"mode":"unknown"}'});
  assert.equal(result.error,'tool_arguments_invalid');assert(result.not_business_evidence);assert.equal(result.parameters.additionalProperties,false);assert.equal(called,0);
- await assert.rejects(createBusinessDispatcher({config,access:{}}).execute('run_business_query',{operation:'read_employee_directory',arguments_json:'{"mode":"summary"}'}),{code:'business_read_denied'});
+ await assert.rejects(createBusinessDispatcher({config,access:{}}).execute('run_business_query',{operation:'read_employee_directory',arguments_json:'{"mode":"unknown"}'}),{code:'business_read_denied'});
 });
