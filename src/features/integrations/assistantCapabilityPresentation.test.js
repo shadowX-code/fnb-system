@@ -8,7 +8,7 @@ it('accounts for all registry entries without counting aliases or external autho
  const r=reconcileBusinessModules();expect(r.entries).toHaveLength(moduleRegistry.length);expect(r.counts).toEqual({business:128,alias:12,permission:8,external:138,technical:0});
  expect(new Set(r.entries.map(e=>e.module.id)).size).toBe(286);expect(new Set(r.business.map(m=>m.id)).size).toBe(128);
  expect(r.unmappedExternal).toEqual(['factory_agent_mesti_review','factory_mesti_inspection']);
- const rows=capabilityInventory(operations);expect(rows).toHaveLength(128);expect(new Set(rows.flatMap(r=>r.operations).map(o=>o.id)).size).toBe(87);
+ const rows=capabilityInventory(operations);expect(rows).toHaveLength(128);expect(new Set(rows.flatMap(r=>r.operations).map(o=>o.id)).size).toBe(111);
  expect(rows.some(r=>/^(factory|hr|restaurant)_agent_/.test(r.id))).toBe(false);
 });
 it('uses Platform ownership without rewriting route metadata and preserves distinct embedded business lifecycles',()=>{
@@ -25,15 +25,15 @@ it('filters and collapses normalized inventory; external operations cannot becom
  expect(capabilityTableRows(rows,new Set(['workspace:factory'])).some(r=>r.id==='factory_finished_goods')).toBe(false);
 });
 
-it('reconciles exactly the 37 gaps without adding callable operations or changing policy counts',async()=>{
+it('keeps all 37 reconciliation records and separates technical coverage from policy',async()=>{
  const {assistantCoverageReview}=await import('./assistantCoverageReview.js');
- const rows=capabilityInventory(operations),gaps=rows.filter(r=>!r.operations.length);
- expect(Object.keys(assistantCoverageReview).sort()).toEqual(gaps.map(r=>r.id).sort());
- const counts={};for(const r of gaps){counts[r.coverage.classification]=(counts[r.coverage.classification]||0)+1;expect(r.coverage.missing.length).toBeGreaterThan(30);expect(r.coverage.evidence.length).toBeGreaterThan(0);expect(r.coverageReads.map(o=>o.id)).toEqual(r.coverage.reads);expect(r.status).toBe('unsupported');}
- expect(counts).toEqual({partial:10,missing:10,blocked:14,not_applicable:3});
- expect(rows.filter(r=>r.operations.length)).toHaveLength(91);
- expect(new Set(rows.flatMap(r=>r.operations.map(o=>o.id))).size).toBe(87);
+ expect(Object.keys(assistantCoverageReview)).toHaveLength(37);
+ const rows=capabilityInventory(operations);expect(rows.filter(r=>r.operations.length)).toHaveLength(116);
+ for(const row of rows){expect(row.coverage).toBeDefined();expect(row.coverage.missing).toBeTruthy();}
+ for(const id of Object.keys(assistantCoverageReview)){const r=rows.find(r=>r.id===id);expect(r.coverageReads.map(o=>o.id)).toEqual(r.coverage.reads);}
  const enabled=capabilityInventory(operations.map(o=>({...o,connection_enabled:true,ai_execution_enabled:true})));
- expect(enabled.filter(r=>r.status==='unsupported').map(r=>r.id).sort()).toEqual(gaps.map(r=>r.id).sort());
- expect(enabled.find(r=>r.id==='finance_statements').coverage.classification).toBe('partial');
+ expect(enabled.map(r=>r.coverage.classification)).toEqual(rows.map(r=>r.coverage.classification));
+ expect(rows.find(r=>r.id==='crew_operations').status).toBe('disabled');
+ expect(rows.find(r=>r.id==='finance_cash').status).toBe('unsupported');
+ expect(enabled.find(r=>r.id==='recipe_intelligence').coverage.classification).toBe('partial');
 });

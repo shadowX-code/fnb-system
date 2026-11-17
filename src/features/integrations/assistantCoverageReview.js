@@ -1,58 +1,70 @@
-// Presentation-only reconciliation of the 37 gaps at 7b8df5356. Never used for dispatch, grants or enabled counts.
-export const coverageLabels = {"full": "Fully covered by verified shared capability", "partial": "Partially covered", "missing": "Missing authorized AI integration", "blocked": "Blocked by authority/data contract", "not_applicable": "Not applicable for independent AI integration"};
+// Coverage evidence is separate from server-enforced AI access policy.
+export const coverageLabels = {"full": "Full", "partial": "Partial", "shared": "Shared", "missing": "Not integrated", "blocked": "Not integrated", "not_applicable": "Not applicable"};
 export const assistantCoverageReview = {
   "hr_dashboard": {
     "classification": "partial",
-    "available": "Legal-entity names and linked employee counts; effective assignment for a known employee.",
-    "missing": "Complete workforce distributions, company-wide employee enumeration and payroll-run status are not returned. Holiday policies are not payroll-run evidence.",
+    "available": "RLS-scoped complete workforce distributions and authorized payroll period/run statuses.",
+    "missing": "Individual payroll amounts and unrestricted employee enumeration are intentionally excluded.",
     "reads": [
+      "read_workforce_distribution",
+      "read_payroll_run_status",
       "read_legal_entities",
       "read_employee_assignment"
     ],
     "evidence": [
       "src/features/hr/HrDashboardPage.jsx",
       "supabase/functions/_shared/people/platformReads.js",
-      "supabase/functions/_shared/people/employmentRead.js"
+      "supabase/functions/_shared/people/employmentRead.js",
+      "supabase/functions/_shared/people/gapReads.js"
     ]
   },
   "platform_organizations": {
-    "classification": "missing",
-    "available": "Canonical Platform team/brand access management exists.",
-    "missing": "Legal entities are employers, not security tenancy or membership. No sanitized Assistant tenancy/access-management read exists.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Visible organization team roles, Brand assignments and access status.",
+    "missing": "Only assignments visible through existing human organization/Brand authority; no machine grants or changes.",
+    "reads": [
+      "read_platform_team_access"
+    ],
     "evidence": [
       "src/features/integrations/businessModuleProjection.js",
-      "docs/architecture/platform.md"
+      "docs/architecture/platform.md",
+      "supabase/functions/_shared/marketing/gapReads.js"
     ]
   },
   "platform_customers": {
-    "classification": "missing",
-    "available": "Customer master/contact ownership is separate from Factory customers and audience counts.",
-    "missing": "No Assistant customer/contact read with verified consent, identity and brand scope exists. Audience metrics do not expose customer records.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Brand-scoped customer directory, contact eligibility and aggregate subscription states.",
+    "missing": "Private contacts, consent-history bodies and POS/customer-detail drilldowns are excluded.",
+    "reads": [
+      "read_brand_customer_directory"
+    ],
     "evidence": [
       "src/features/marketing/MarketingCustomersView.jsx",
       "src/features/marketing/customerContact.js",
-      "src/features/integrations/businessModuleProjection.js"
+      "src/features/integrations/businessModuleProjection.js",
+      "supabase/functions/_shared/marketing/gapReads.js"
     ]
   },
   "marketing_whatsapp_templates": {
-    "classification": "missing",
+    "classification": "blocked",
     "available": "Existing human template-management service, distinct from campaign/FAQ reads.",
-    "missing": "No Assistant template metadata read exists. Provider synchronization and template approval/activation cannot be inferred from campaigns or FAQs.",
+    "missing": "The actual canonical template read decrypts provider credentials, verifies current WABA/generation and is limited to explicit Staging test/configuration authority. A general persisted template read does not exist. Reusing unrelated provider credentials or implying general template access is not authorized.",
     "reads": [],
     "evidence": [
-      "src/features/marketing/marketingService.js:whatsappTemplates"
+      "supabase/functions/_shared/whatsappSignupHandler.ts"
     ]
   },
   "marketing_ads": {
-    "classification": "missing",
-    "available": "Human Ads read service exists for brand-scoped provider reports.",
-    "missing": "No verified Assistant Ads report projection exists. Organic social-performance evidence is not paid-ad spend, attribution or currency coverage.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Exact-period stored paid-ad snapshots with scope, currency and observed timestamps.",
+    "missing": "No provider refresh; missing snapshots remain unavailable. Large responses fail closed; at most five reports.",
+    "reads": [
+      "read_marketing_ads_evidence"
+    ],
     "evidence": [
       "src/features/marketing/adsService.js:read",
-      "supabase/functions/_shared/marketing/platformReads.js"
+      "supabase/functions/_shared/marketing/platformReads.js",
+      "supabase/functions/_shared/marketing/gapReads.js"
     ]
   },
   "finance_cash": {
@@ -75,13 +87,16 @@ export const assistantCoverageReview = {
     ]
   },
   "finance_data_sources": {
-    "classification": "missing",
-    "available": "The human management view has provider connections, mapping and reconciliation information.",
-    "missing": "Operational monthly financial reads omit provider configuration, authority-period decisions and reconciliation state. A sanitized authorized management read is missing.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Owner-visible accounting source status, retry counts and synchronization freshness.",
+    "missing": "No authority-period decisions, reconciliation details, credentials or source changes.",
+    "reads": [
+      "read_accounting_source_health"
+    ],
     "evidence": [
       "src/features/finance/FinanceDataSourcesPage.jsx",
-      "src/features/finance/dataSources.js"
+      "src/features/finance/dataSources.js",
+      "supabase/functions/_shared/finance/gapReads.js"
     ]
   },
   "finance_statements": {
@@ -148,56 +163,68 @@ export const assistantCoverageReview = {
   },
   "sales-comparison": {
     "classification": "partial",
-    "available": "Recorded sales amounts by outlet and month, including channel identity, in bounded pages.",
-    "missing": "Channel shares, tax-adjusted comparisons, complete trend windows and YoY/MoM calculations are not supplied by this read.",
+    "available": "Canonical monthly gross/net/deduction evidence for requested and prior years.",
+    "missing": "Per-channel share/trend presentation is not returned; absent source records must not be treated as zero business activity.",
     "reads": [
+      "read_sales_comparison",
       "read_sales_records"
     ],
     "evidence": [
       "src/features/sales-purchase/pages/SalesComparisonPage.jsx",
-      "supabase/functions/_shared/restaurant/catalogueReads.js"
+      "supabase/functions/_shared/restaurant/catalogueReads.js",
+      "supabase/functions/_shared/restaurant/gapReads.js"
     ]
   },
   "purchase-comparison": {
     "classification": "partial",
-    "available": "Recorded purchase amounts by outlet/month, supplier and category, in bounded pages.",
-    "missing": "Complete comparison periods, supplier/category totals and variance calculations are not supplied. A page is not a complete monthly total.",
+    "available": "Complete-source monthly purchase efficiency, previous-period values and variance percentages.",
+    "missing": "Supplier/category drilldown remains in source records; purchase-based estimates are not accounting COGS.",
     "reads": [
+      "read_purchase_comparison",
       "read_purchase_records"
     ],
     "evidence": [
       "src/features/sales-purchase/pages/PurchaseComparisonPage.jsx",
-      "supabase/functions/_shared/restaurant/catalogueReads.js"
+      "supabase/functions/_shared/restaurant/catalogueReads.js",
+      "supabase/functions/_shared/restaurant/gapReads.js"
     ]
   },
   "roles": {
-    "classification": "missing",
-    "available": "Canonical role/permission management exists.",
-    "missing": "Per-operation authorization checks are not a role catalogue or permission-assignment report. A dedicated sanitized human-authorized read is missing.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Role definitions, stored permission assignments and outlet assignments.",
+    "missing": "Protected-role effective behavior remains canonical; stored assignments alone do not enumerate all effective rights.",
+    "reads": [
+      "read_role_directory"
+    ],
     "evidence": [
-      "src/services/roleService.js"
+      "src/services/roleService.js",
+      "supabase/functions/_shared/people/gapReads.js"
     ]
   },
   "recipe_intelligence": {
     "classification": "partial",
-    "available": "Recipe catalogue identity, status and serving-size metadata for an authorized outlet.",
-    "missing": "Ingredient quantities, cost/yield calculations, product mappings and complete sales history needed for recipe intelligence are excluded.",
+    "available": "Saved recipe quantities, units, wastage allowance, serving size and catalogue metadata.",
+    "missing": "Authoritative full cost/yield analysis, product mapping and complete sales attribution remain unavailable; no inferred zero ingredient costs.",
     "reads": [
+      "read_recipe_ingredients",
       "read_inventory_recipe_catalogue"
     ],
     "evidence": [
       "src/features/sales-purchase/inventory/recipeIntelligence/useRecipeIntelligenceRead.js",
-      "supabase/functions/_shared/restaurant/catalogueReads.js"
+      "supabase/functions/_shared/restaurant/catalogueReads.js",
+      "supabase/functions/_shared/restaurant/gapReads.js"
     ]
   },
   "brands": {
-    "classification": "missing",
-    "available": "Canonical Brand management read exists.",
-    "missing": "Marketing brand-scoped output does not cover Brand ownership, outlet assignments or access configuration.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Human-authorized Brand identities, status and outlet assignments.",
+    "missing": "Branding assets, audit bodies and configuration changes are excluded.",
+    "reads": [
+      "read_platform_brands"
+    ],
     "evidence": [
-      "src/services/brandService.js"
+      "src/services/brandService.js",
+      "supabase/functions/_shared/marketing/gapReads.js"
     ]
   },
   "external_agents": {
@@ -211,163 +238,198 @@ export const assistantCoverageReview = {
     ]
   },
   "alerts": {
-    "classification": "missing",
-    "available": "The existing page derives alerts from loaded sales, purchases, suppliers and tax configuration.",
-    "missing": "Raw records do not reproduce canonical alert type, severity, thresholds or full-period coverage. No authorized Assistant alert-result read exists.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Canonical alert calculations over count-checked authorized sales/purchase records.",
+    "missing": "Two-year source window; no persistent special-month annotation authority exists. Not a complete all-time risk assessment.",
+    "reads": [
+      "read_restaurant_alerts"
+    ],
     "evidence": [
       "src/features/sales-purchase/pages/AlertsInsightsPage.jsx",
-      "src/features/sales-purchase/utils/analytics.js"
+      "src/features/sales-purchase/utils/analytics.js",
+      "supabase/functions/_shared/restaurant/gapReads.js"
     ]
   },
   "data-health": {
-    "classification": "missing",
-    "available": "The existing page calculates loaded-source checks and completeness.",
-    "missing": "Reporting completeness and paged records are not equivalent to channel completeness, missing supplier/category checks or this page\u2019s risk classification.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Shared canonical source-check warnings, channel completeness and scores.",
+    "missing": "No financial month closing authority; special-month annotations excluded. Underlying source permissions remain independently required.",
+    "reads": [
+      "read_restaurant_data_health"
+    ],
     "evidence": [
-      "src/features/sales-purchase/pages/DataHealthPage.jsx"
+      "src/features/sales-purchase/pages/DataHealthPage.jsx",
+      "supabase/functions/_shared/restaurant/gapReads.js"
     ]
   },
   "audit-logs": {
-    "classification": "blocked",
-    "available": "No sanitized Assistant audit-evidence read.",
-    "missing": "Audit before/after payloads may expose cross-module sensitive data. Current business reads cannot substitute for actor, change and event evidence.",
-    "reads": [],
+    "classification": "partial",
+    "available": "RLS-scoped event action, module, actor label and timestamp.",
+    "missing": "Sensitive before/after bodies, descriptions, arbitrary metadata, IP and device data are excluded.",
+    "reads": [
+      "read_audit_event_metadata"
+    ],
     "evidence": [
       "src/services/auditLogService.js",
-      "src/features/factory/pages/FactoryAuditTrailPage.jsx"
+      "src/features/factory/pages/FactoryAuditTrailPage.jsx",
+      "supabase/functions/_shared/people/gapReads.js"
     ]
   },
   "factory_dashboard": {
     "classification": "partial",
-    "available": "Existing job-order status totals and bounded production records.",
-    "missing": "The operational-date pipeline, scheduling/readiness, material allocation and full dashboard metrics are not covered. The operational job-list wrapper releases due jobs and must not be reused as a read.",
+    "available": "Dated scheduled/released/in-progress/completed pipeline and canonical status totals.",
+    "missing": "No due-job release or material allocation. Bounded stage rows do not include complete scheduling/readiness or all monthly dashboard analytics.",
     "reads": [
+      "read_factory_operational_pipeline",
       "read_factory_job_summary",
       "read_factory_production_records"
     ],
     "evidence": [
       "src/services/factoryService.js:listOperationalJobOrders",
       "supabase/functions/_shared/factory/platformReads.js",
-      "supabase/functions/_shared/factory/catalogueReads.js"
+      "supabase/functions/_shared/factory/catalogueReads.js",
+      "supabase/functions/_shared/factory/gapReads.js"
     ]
   },
   "factory_production_planning": {
     "classification": "partial",
-    "available": "Existing job-order status totals and bounded production records.",
-    "missing": "The operational-date pipeline, scheduling/readiness, material allocation and full dashboard metrics are not covered. The operational job-list wrapper releases due jobs and must not be reused as a read.",
+    "available": "Dated scheduled/released/in-progress/completed pipeline and canonical status totals.",
+    "missing": "No due-job release or material allocation. Bounded stage rows do not include complete scheduling/readiness or all monthly dashboard analytics.",
     "reads": [
+      "read_factory_operational_pipeline",
       "read_factory_job_summary",
       "read_factory_production_records"
     ],
     "evidence": [
       "src/services/factoryService.js:listOperationalJobOrders",
       "supabase/functions/_shared/factory/platformReads.js",
-      "supabase/functions/_shared/factory/catalogueReads.js"
+      "supabase/functions/_shared/factory/catalogueReads.js",
+      "supabase/functions/_shared/factory/gapReads.js"
     ]
   },
   "factory_job_orders": {
     "classification": "partial",
-    "available": "Existing job-order status totals and bounded production records.",
-    "missing": "The operational-date pipeline, scheduling/readiness, material allocation and full dashboard metrics are not covered. The operational job-list wrapper releases due jobs and must not be reused as a read.",
+    "available": "Dated scheduled/released/in-progress/completed pipeline and canonical status totals.",
+    "missing": "No due-job release or material allocation. Bounded stage rows do not include complete scheduling/readiness or all monthly dashboard analytics.",
     "reads": [
+      "read_factory_operational_pipeline",
       "read_factory_job_summary",
       "read_factory_production_records"
     ],
     "evidence": [
       "src/services/factoryService.js:listOperationalJobOrders",
       "supabase/functions/_shared/factory/platformReads.js",
-      "supabase/functions/_shared/factory/catalogueReads.js"
+      "supabase/functions/_shared/factory/catalogueReads.js",
+      "supabase/functions/_shared/factory/gapReads.js"
     ]
   },
   "factory_batch_traceability": {
-    "classification": "missing",
-    "available": "Human batch lineage/detail services exist.",
-    "missing": "Production metadata and QC records do not establish linked receiving allocations, transformations or downstream dispatch lineage. A bounded authorized trace read is missing.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Canonical finished-good batch source allocations, raw receiving lineage and approved stock adjustments.",
+    "missing": "Downstream dispatch/customer lineage is not supplied by this source-detail contract.",
+    "reads": [
+      "read_factory_batch_lineage"
+    ],
     "evidence": [
-      "src/services/factoryService.js:getFinishedGoodBatchTraceabilityDetail"
+      "src/services/factoryService.js:getFinishedGoodBatchTraceabilityDetail",
+      "supabase/functions/_shared/factory/gapReads.js"
     ]
   },
   "factory_mesti_health_declaration": {
-    "classification": "blocked",
-    "available": "No authorized Assistant health or personnel-inspection projection.",
-    "missing": "These records contain employee health/personnel information. Field-specific disclosure and document/signature boundaries must be verified; other QC reads are not equivalent.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Declaration workflow register with entry decision, work action and review timestamps.",
+    "missing": "Medical answers, symptoms, employee/visitor identity, contacts, notes and signatures are intentionally excluded.",
+    "reads": [
+      "read_factory_health_register"
+    ],
     "evidence": [
       "src/services/factoryService.js",
-      "docs/domains/factory-master-data.md"
+      "docs/domains/factory-master-data.md",
+      "supabase/functions/_shared/factory/gapReads.js"
     ]
   },
   "factory_mesti_operator_hygiene": {
-    "classification": "blocked",
-    "available": "No authorized Assistant health or personnel-inspection projection.",
-    "missing": "These records contain employee health/personnel information. Field-specific disclosure and document/signature boundaries must be verified; other QC reads are not equivalent.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Monthly inspection entry and verification states with source timestamps.",
+    "missing": "Personnel identity, detailed hygiene/health findings, notes and signatures are intentionally excluded.",
+    "reads": [
+      "read_factory_hygiene_register"
+    ],
     "evidence": [
       "src/services/factoryService.js",
-      "docs/domains/factory-master-data.md"
+      "docs/domains/factory-master-data.md",
+      "supabase/functions/_shared/factory/gapReads.js"
     ]
   },
   "factory_audit_logs": {
-    "classification": "blocked",
-    "available": "No sanitized Assistant audit-evidence read.",
-    "missing": "Audit before/after payloads may expose cross-module sensitive data. Current business reads cannot substitute for actor, change and event evidence.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Canonical event metadata, actor label, business reference, result and timestamp.",
+    "missing": "Sensitive before/after bodies, descriptions, actor email, IP and device data are excluded.",
+    "reads": [
+      "read_factory_audit_events"
+    ],
     "evidence": [
       "src/services/auditLogService.js",
-      "src/features/factory/pages/FactoryAuditTrailPage.jsx"
+      "src/features/factory/pages/FactoryAuditTrailPage.jsx",
+      "supabase/functions/_shared/factory/gapReads.js"
     ]
   },
   "crew_dashboard": {
     "classification": "partial",
-    "available": "Authorized attendance, roster and leave records are available through their owning reads.",
-    "missing": "The dashboard brief, joined today/upcoming timeline and task-attention projection are not exposed. Its current v3/v2 dashboard service is read-only; the earlier task-materialization blocker did not apply to this dashboard.",
+    "available": "Canonical daily brief, permission-filtered summaries, attention, upcoming events, Crew and task state.",
+    "missing": "Lists are bounded; no missing-instance creation or hidden domain authority is inferred.",
     "reads": [
-      "read_crew_attendance",
-      "read_crew_roster",
-      "read_crew_leave"
+      "read_crew_daily_brief"
     ],
     "evidence": [
       "src/services/crewService.js:dashboardAdminData",
       "supabase/migrations/20260922003000_crew_dashboard_operational_detail.sql",
       "supabase/migrations/20260921234500_crew_dashboard_30_day_upcoming.sql",
-      "supabase/functions/_shared/crew/platformReads.js"
+      "supabase/functions/_shared/crew/platformReads.js",
+      "supabase/functions/_shared/crew/gapReads.js"
     ]
   },
   "crew_operations": {
-    "classification": "blocked",
-    "available": "No mutation-free Assistant task lifecycle read.",
-    "missing": "Task list authorities refresh/materialize lifecycle state. SOPs and roster records do not establish task execution or completion.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Canonical recorded task definitions/review queue without maintenance writes.",
+    "missing": "Missing instances are not materialized; stored lifecycle states are not refreshed by a read. Missing records cannot establish no work is due.",
+    "reads": [
+      "read_crew_task_snapshot"
+    ],
     "evidence": [
       "src/services/crewService.js:tasksAdminPage",
-      "supabase/migrations/20260920110000_crew_tasks_admin_page_next_run.sql"
+      "supabase/migrations/20260920110000_crew_tasks_admin_page_next_run.sql",
+      "supabase/functions/_shared/crew/gapReads.js"
     ]
   },
   "crew_learning": {
     "classification": "partial",
-    "available": "Current published SOP catalogue and published SOP text within authorized outlet scope.",
-    "missing": "Onboarding journeys, employee assignments, progress, quizzes and signed media retrieval are not covered. Admin reads cannot impersonate a Crew session.",
+    "available": "Onboarding curriculum versions and recorded progress plus published SOP text.",
+    "missing": "No automatic enrollment, Crew impersonation, quiz answers or signed media access; absent assignments remain absent.",
     "reads": [
+      "read_crew_onboarding_catalogue",
+      "read_crew_onboarding_progress",
       "read_crew_sop_catalogue",
       "read_crew_published_sop"
     ],
     "evidence": [
       "src/services/crewService.js:learningHome/learningAssignment",
       "supabase/functions/_shared/crew/platformReads.js",
-      "docs/domains/crew-learning.md"
+      "docs/domains/crew-learning.md",
+      "supabase/functions/_shared/crew/gapReads.js"
     ]
   },
   "crew_performance": {
-    "classification": "blocked",
-    "available": "No approved Assistant performance-score projection.",
-    "missing": "Existing performance reads can refresh mutable scores. Team-review windows or feedback counts are not complete performance results.",
-    "reads": [],
+    "classification": "partial",
+    "available": "Canonical recorded performance scores/status with employment/outlet revalidation.",
+    "missing": "No recalculation or refresh; private review notes excluded. Unrecorded scores are unavailable, not zero.",
+    "reads": [
+      "read_crew_performance_snapshot"
+    ],
     "evidence": [
       "src/services/crewService.js:performanceAdminData",
-      "supabase/migrations/20260901132039_crew_performance_progressive_current_score.sql"
+      "supabase/migrations/20260901132039_crew_performance_progressive_current_score.sql",
+      "supabase/functions/_shared/crew/gapReads.js"
     ]
   },
   "crew_google_reviews": {

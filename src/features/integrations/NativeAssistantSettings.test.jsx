@@ -15,7 +15,7 @@ it('organizes management without triggering provider tests, business reads or do
  assistantCall.mockResolvedValue(data);render(<NativeAssistantSettings auth={{user:{id:'one'},hasPermission:()=>true}}/>);
  await screen.findByText('native-assistant-openai');
  for(const name of ['Overview','AI Capabilities','Voice & Usage'])expect(screen.getByRole('tab',{name})).toBeTruthy();
- fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));openFactory();expect(screen.queryByText('Managed Knowledge')).toBeNull();expect(screen.getAllByText('Not supported').length).toBeGreaterThan(0);
+ fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));openFactory();expect(screen.queryByText('Managed Knowledge')).toBeNull();expect(screen.queryByRole('button',{name:'Test Connection'})).toBeNull();
  expect(screen.getByText(/User permissions and scope are checked/)).toBeTruthy();
  expect(assistantCall.mock.calls.every(([action])=>action==='configuration')).toBe(true);
  expect(screen.queryByRole('button',{name:'Test Connection'})).toBeNull();

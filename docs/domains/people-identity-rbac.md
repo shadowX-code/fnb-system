@@ -206,3 +206,5 @@ surface. Departments and Job Positions are read-only for Agents until their
 browser-orchestrated mutation paths have a shared atomic command. Food Handling
 Compliance supports the existing review decisions with typed machine attribution;
 private document URLs and fabricated evidence are never supplied by MCP.
+
+`employee_workforce_summary_read` aggregates the same employee employment-type/status/legal-entity fields used by the HR workforce view. It is a stable security-invoker read requiring `employees.view`, preserving employee RLS and returning only counts by group. It does not enumerate employee identity or grant all-company scope.

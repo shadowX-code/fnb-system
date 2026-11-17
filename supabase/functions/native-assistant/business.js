@@ -1,3 +1,9 @@
+import {restaurantGapReads} from '../_shared/restaurant/gapReads.js';
+import {financeGapReads} from '../_shared/finance/gapReads.js';
+import {peopleGapReads} from '../_shared/people/gapReads.js';
+import {crewGapReads} from '../_shared/crew/gapReads.js';
+import {factoryGapReads} from '../_shared/factory/gapReads.js';
+import {marketingGapReads} from '../_shared/marketing/gapReads.js';
 import {restaurantCatalogueReads} from '../_shared/restaurant/catalogueReads.js';
 import {peopleCatalogueReads} from '../_shared/people/catalogueReads.js';
 import {factoryCatalogueReads} from '../_shared/factory/catalogueReads.js';
@@ -17,7 +23,7 @@ import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 
 // Composition of implemented module contracts, not a permission or grant store.
 // Discovery never makes a module executable. ACTION tools create previews only.
-export const operations = [finishedGoodsRead,cleaningRead,employmentRead,leaveRead,reportRead,plannerRead,draftAction,captionAction,...factoryPlatformReads,...crewPlatformReads,...marketingPlatformReads,...peoplePlatformReads,...factoryCatalogueReads,...peopleCatalogueReads,...restaurantCatalogueReads,...financePlatformReads];
+export const operations = [...restaurantGapReads,...peopleGapReads,...financeGapReads,...marketingGapReads,...factoryGapReads,...crewGapReads,finishedGoodsRead,cleaningRead,employmentRead,leaveRead,reportRead,plannerRead,draftAction,captionAction,...factoryPlatformReads,...crewPlatformReads,...marketingPlatformReads,...peoplePlatformReads,...factoryCatalogueReads,...peopleCatalogueReads,...restaurantCatalogueReads,...financePlatformReads];
 export function validateBusinessArguments(id,args){
  const operation=operations.find(item=>item.id===id);
  if(!operation)throw new AssistantError('tool_not_allowed',403);

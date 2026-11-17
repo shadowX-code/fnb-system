@@ -1,5 +1,7 @@
 # Native Assistant: remaining 37-module coverage reconciliation
 
+Historical audit; implementation results supersede these counts in [gap closure](native-assistant-gap-closure.md).
+
 Baseline: `7b8df53562bc21ebae6947709d83738aa8c992bd`. Repository-grounded review, 17 November 2026.
 
 Result: **0 fully covered, 10 partially covered, 10 missing authorized AI integrations, 14 blocked by authority/data contract, 3 not applicable for independent AI integration**. No new callable mappings, adapters, grants or policy writes. The 85 READ / 2 ACTION definitions and 91 modules with directly registered/shared operations are unchanged. These ten partial relationships are explanatory references, not new supported modules.

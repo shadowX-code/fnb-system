@@ -162,3 +162,7 @@ Per-location metadata retains last attempt, successful sync, failure and sanitiz
 ### Crew Mobile Guest Voice
 
 Guest Voice reads the selected outlet's current complete Google review cache through the existing Google gateway. A service-only cache projection checks the opaque Crew session and canonical outlet access before selecting an unexpired snapshot for the current connection generation and mapping revision. Crew receives Google’s official rating and count when present, plus read-only reviews and sync freshness. It receives no connection credentials or owner replies. The Home carousel prefers written comments and the review list retains all ratings. Review content stays in memory and expires with the original snapshot. Guest Voice does not grant Google Reviews Admin permissions or introduce another sync or scoring path.
+
+### Recorded performance observation
+
+`crew_performance_admin_data_snapshot` uses the canonical period/employment result projection without score refresh. Existing interactive calls retain refresh behavior through the shared core. Snapshot output excludes nonexistent results and is explicitly recorded evidence, not newly calculated performance; outlet changes and finalized ownership checks remain canonical.

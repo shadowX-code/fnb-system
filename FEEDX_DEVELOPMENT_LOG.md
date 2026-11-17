@@ -1268,3 +1268,7 @@ Expanded the existing shared Text/Voice composition to 82 fixed READ contracts a
 ### Native Assistant shared coverage and connection drawers — 17 November 2026
 - Added three canonical Factory MeSTI READs (default disconnected), shared eight existing module views without duplicate tools, and retained current human authority. 85 unique READs cover 91 modules; 37 remain without contracts.
 - Standardized READ/ACTION drawers, independent connection/access states and collapsed Test Connection diagnostics with branded scope/period inputs. No new business mutations or Production release.
+
+## 2026-11-17 — Native Assistant bounded gap closure
+
+Added 24 disabled-by-default domain READs; total 109 READ / two unchanged ACTIONs. Crew maintenance/read separation preserves existing interactive behavior while enabling read-only recorded snapshots. Shared Restaurant calculations now serve both pages and Assistant. Narrow HR, Platform, Marketing, Finance and Factory projections preserve human scope. All 128 modules have explicit coverage independent of AI access policy; 116 expose listed operations, nine remain genuinely not integrated and three are not independent business authorities. L3 verification and remaining evidence limitations: `docs/audits/native-assistant-gap-closure.md`.

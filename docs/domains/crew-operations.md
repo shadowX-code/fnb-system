@@ -82,3 +82,7 @@ Cash Checkout cross-day resolution preserves the original checkout ID and busine
 The private cash-chain resolver identifies every earlier unresolved run and returns no verified previous-carry amount until those runs are completed or cancelled. Count, save and submission may proceed with an explicitly provisional basis; Crew completion and Manager approval cannot finalize while predecessors remain unresolved. Once a run starts, its recorded opening/float basis is preserved. A later resolution or audited allocation correction that changes its carry basis appends Review Required evidence without rewriting financial fields; the later run requires Manager review. Review records the saved evidence and current resolved chain basis. Outlet serialization covers continuation, cancellation, review, completion and allocation correction. Finalized later evidence is never recalculated.
 
 Submitted Cash Checkouts await a Manager decision even when legacy variance exception flags say `not_required`. Admin row status, Needs Review count, and review actions use the canonical Submitted lifecycle; Returned stays distinct and requires Crew correction.
+
+### Recorded task read
+
+`crew_tasks_admin_page_snapshot` shares `crew_tasks_admin_page_read_core` with the existing interactive page. The interactive wrapper retains lifecycle refresh/instance materialization; the snapshot disables both. Both retain the same human permission, outlet and period validation. Snapshot evidence represents already recorded tasks and cannot certify that missing instances mean no work is due.

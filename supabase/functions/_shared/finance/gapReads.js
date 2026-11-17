@@ -1,0 +1,4 @@
+import {readContract,rowsEvidence} from '../assistant/readContract.js';
+export const financeGapReads=[
+ readContract({id:'read_accounting_source_health',module_id:'finance_data_sources',label:'Accounting source synchronization health',permission:'reports.view',source:'/finance/data-sources',scope:'Canonical source-owner check; source freshness/status only; first20',description:'Read owner-visible accounting synchronization evidence. Empty means no visible sources, not healthy connections. No tokens, devices credentials, sync errors or configuration changes.',properties:{},rpc:'finance_accounting_source_status',arguments:()=>({}),project:d=>rowsEvidence(d,['id','active','sourceBook','companyName','legalEntityId','legalEntityLabel','entityActive','verifiedAt','lastSyncAt','lastAttemptAt','lastSyncReportAt','syncState','pendingRetries','sourceRows','nextPollAt'])}),
+];

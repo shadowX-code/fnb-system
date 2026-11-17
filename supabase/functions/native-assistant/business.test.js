@@ -9,8 +9,8 @@ test('discovery, model schemas and execution share the module contract; disabled
  let reads=0;const readFactory=async()=>{reads++;return {capability:finishedGoodsRead.id};};
  for(const [enabled,authorized,status] of [[false,true,'disabled'],[true,false,'denied'],[true,true,'connected']]){
   const business=createBusinessDispatcher({config:{capability_connections:{read_factory_finished_goods:enabled}},access:{factory:authorized},readFactory});
-  assert.equal(business.capabilities[0].availability,status);
-  assert.equal(business.capabilities[0].module_id,'factory_finished_goods');
+  assert.equal(business.capabilities.find(o=>o.id==='read_factory_finished_goods').availability,status);
+  assert.equal(business.capabilities.find(o=>o.id==='read_factory_finished_goods').module_id,'factory_finished_goods');
   assert.equal(business.tools.length,status==='connected'?1:0);
   if(status!=='connected')await assert.rejects(business.execute(finishedGoodsRead.id,args),{code:enabled?'factory_read_denied':'capability_disconnected'});
   else {assert.deepEqual(business.tools,[finishedGoodsRead.tool]);await business.execute(finishedGoodsRead.id,args);}
