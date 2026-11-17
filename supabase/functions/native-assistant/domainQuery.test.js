@@ -62,3 +62,10 @@ test('Text can discover then query with bounded schema payload; Voice gets the i
  }});
  assert.equal(n,3);assert.match(reply.reply,/45 products/);assert.equal(evidence.length,1);assert.equal(evidence[0].capability,factory);
 });
+test('malformed envelope gets safe schema feedback after authorization, before any query',async()=>{
+ let called=0;const config={capability_connections:{read_employee_directory:true}},access={permissions:{'employees.view':true}};
+ const b=createBusinessDispatcher({config,access,caller:{rpc:()=>{called++;throw Error('must not query');}}});
+ const result=await b.execute('run_business_query',{operation:'read_employee_directory',arguments_json:'{"mode":"summary"}'});
+ assert.equal(result.error,'tool_arguments_invalid');assert(result.not_business_evidence);assert.equal(result.parameters.additionalProperties,false);assert.equal(called,0);
+ await assert.rejects(createBusinessDispatcher({config,access:{}}).execute('run_business_query',{operation:'read_employee_directory',arguments_json:'{"mode":"summary"}'}),{code:'business_read_denied'});
+});

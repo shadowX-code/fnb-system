@@ -27,7 +27,7 @@ import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 // Discovery never makes a module executable. ACTION tools create previews only.
 export const operations = [employeeDirectoryRead,...restaurantGapReads,...peopleGapReads,...financeGapReads,...marketingGapReads,...factoryGapReads,...crewGapReads,finishedGoodsRead,cleaningRead,employmentRead,leaveRead,reportRead,plannerRead,draftAction,captionAction,...factoryPlatformReads,...crewPlatformReads,...marketingPlatformReads,...peoplePlatformReads,...factoryCatalogueReads,...peopleCatalogueReads,...restaurantCatalogueReads,...financePlatformReads];
 export function validateBusinessArguments(id,args){
- if(isQueryEnvelope(id)){const parsed=queryEnvelopeArguments(id,args);return id==='run_business_query'?validateBusinessArguments(parsed.operation,parsed.args):parsed;}
+ if(isQueryEnvelope(id)){const parsed=queryEnvelopeArguments(id,args);if(id==='run_business_query')businessOperation(parsed.operation);return parsed;}
  const operation=operations.find(item=>item.id===id);
  if(!operation)throw new AssistantError('tool_not_allowed',403);
  return operation.validate(args);
@@ -48,6 +48,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   capabilities,
   tools:(()=>{const offered=operations.filter(operation=>capabilities.find(item=>item.id===operation.id)?.availability==='connected');return offered.length>8?queryDiscoveryTools:offered.map(operation=>operation.tool);})(),
   async execute(id,args,signal){
+   const enveloped=id==='run_business_query';
    if(isQueryEnvelope(id)){
     const parsed=queryEnvelopeArguments(id,args);
     if(id==='find_business_queries'){const current=loadConfig?await loadConfig():config||{};return discoverQueries(operations,businessCapabilities(current,access||{}),parsed);}
@@ -61,7 +62,11 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    if(operation.kind==='ACTION'&&current.ai_action_authorizations?.[id]!==true)throw new AssistantError('action_not_authorized',403);
    if(!capabilityConnected(current,id))throw new AssistantError('capability_disconnected',403);
    if(!operation.authorized(access||{}))throw new AssistantError(operation.deniedCode,403);
-   operation.validate(args);signal?.throwIfAborted();
+   try{operation.validate(args);}catch(error){
+    if(enveloped&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,operation:id,parameters:operation.tool.parameters,instruction:'Include every required field from this exact schema, using null only where its type permits null. No business read or action occurred.'};
+    throw error;
+   }
+   signal?.throwIfAborted();
    // caller is the authenticated human client, never the service-role client.
    return readFactory&&id===finishedGoodsRead.id?readFactory(args,signal):operation.execute(caller,args,signal,sessionId);
   },

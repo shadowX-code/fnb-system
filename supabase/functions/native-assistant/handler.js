@@ -85,7 +85,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
    if(!runtime.tools)throw new AssistantError('business_read_denied',403);
    await reserveRealtime('tool',args);
    const evidence=await business.execute(args.operation??finishedGoodsRead.id,args.arguments,signal);
-   if(args.turn_id&&!evidence.discovery_only)await voiceHistory({...args,step:'evidence',evidence});
+   if(args.turn_id&&!evidence.not_business_evidence)await voiceHistory({...args,step:'evidence',evidence});
    return evidence;
   }
   const credential=registry?await registry('key',args):null;
