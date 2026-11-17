@@ -49,7 +49,7 @@ function ConnectionSection({ state, onAction }) {
         {entry.connector && <AutoCountStatus entry={entry} timestamp={timestamp} />}
         <dl className="finance-source-facts">
           <div><dt>Legal entity</dt><dd>{entry.legalEntityLabel}</dd></div>
-          <div><dt>Last connector check-in</dt><dd>{timestamp(entry.lastConnectedAt)}</dd></div>
+          <div><dt>Last book connection check</dt><dd>{timestamp(entry.lastConnectedAt)}</dd></div>
           <div><dt>Last accepted upload</dt><dd>{timestamp(successfulSyncs.at(-1))}</dd></div>
           <div><dt>Source freshness</dt><dd>{entry.evidenceAt ? timestamp(entry.evidenceAt) : 'Not assessed · sync time alone does not prove complete evidence'}</dd></div>
           <div><dt>Effective authority</dt><dd>{periods.length ? periods.map((period) => <div key={`${period.resource}:${period.start}`}>{period.resource} · {periodLabel(period)}</div>) : 'Not assigned'}</dd></div>

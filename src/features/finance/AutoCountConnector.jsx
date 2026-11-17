@@ -11,7 +11,11 @@ const connectionLabels = {
   error: ['error', 'Legal entity inactive'],
 };
 const syncErrors = {
-  source_read: 'Check the Account Book reader and source tables on the office PC, then run Sync Now.',
+  source_read: 'The office connector could not read the Account Book. Check Windows connector diagnostics for the SQL error.',
+  source_login: 'SQL Server rejected the saved reader login or could not open the Account Book. Check the reader on the office PC.',
+  source_unreachable: 'The office connector could not reach local SQL Server. Check that SQL Server has started. The connector will retry.',
+  source_permissions: 'The saved reader did not pass SQL permission checks. Review the Windows authorization diagnostics.',
+  source_schema: 'The connector could not verify the Account Book identity or its source tables. Review the Windows diagnostics.',
   scope_limit: 'The connector reached its extraction limit. Review the posting scope in the Windows sync report.',
   upload_rejected: 'FeedX rejected an upload. Review Copy diagnostics on the Windows connector before retrying.',
   upload_date_format: 'FeedX rejected the posting date format. Update the Windows connector and retry the queued upload.',
@@ -31,24 +35,50 @@ const commandErrors = {
   PT422: 'Check that the Legal Entity is active and the book is ready.',
 };
 
+function connectionHeartbeat(lastSeenAt, now = Date.now()) {
+  const seen = Date.parse(lastSeenAt);
+  if (!Number.isFinite(seen)) return null;
+  return now - seen > 15 * 60 * 1000 ? 'overdue' : 'online';
+}
+
+const backgroundLabels = {
+  unattended: 'Runs when signed out',
+  signed_in: 'Requires a signed-in Windows user',
+  missing: 'Windows task missing',
+  disabled: 'Windows task disabled',
+};
+
 export function AutoCountStatus({ entry, timestamp }) {
   const [tone, label] = connectionLabels[entry.state];
   const { connector } = entry;
+  const live = ['connected', 'pending'].includes(entry.state);
+  const heartbeat = live ? connectionHeartbeat(connector.deviceLastSeenAt) : null;
+  const missedPoll = Date.parse(connector.nextPollAt) < Date.now() && heartbeat === 'overdue';
+  const nextRun = connector.nextPollAt ? `${timestamp(connector.nextPollAt)}${missedPoll ? ' · overdue' : ''}`
+    : ['disabled', 'missing'].includes(connector.backgroundMode) ? 'Not scheduled' : 'Awaiting schedule report';
   return <>
     <div className="flex flex-wrap gap-2" aria-live="polite">
       <StatusBadge status={tone}>{label}</StatusBadge>
-      {entry.state === 'connected' && connector.syncState === 'running' && <StatusBadge status="in_progress">Syncing</StatusBadge>}
+      {heartbeat === 'online' && <StatusBadge status="success">Online</StatusBadge>}
+      {heartbeat === 'overdue' && <StatusBadge status="warning">Check-in overdue</StatusBadge>}
+      {entry.state === 'connected' && connector.syncState === 'running' && heartbeat !== 'overdue' && <StatusBadge status="in_progress">Syncing</StatusBadge>}
+      {live && connector.syncState === 'running' && heartbeat === 'overdue' && <StatusBadge status="warning">Sync outcome pending</StatusBadge>}
       {['connected', 'pending'].includes(entry.state) && ['failed', 'interrupted'].includes(connector.syncState) && <StatusBadge status="error">Sync failed</StatusBadge>}
       {entry.state === 'connected' && connector.retryRequestedAt && <StatusBadge status="scheduled">Sync requested</StatusBadge>}
     </div>
     <dl className="finance-source-facts">
       <div><dt>Source book</dt><dd>{entry.connection.externalTenantId} · {connector.verifiedAt ? 'Verified by connector' : 'Awaiting verification'}</dd></div>
+      <div><dt>Last device check-in</dt><dd>{timestamp(connector.deviceLastSeenAt)}</dd></div>
+      <div><dt>Last sync attempt</dt><dd>{timestamp(connector.lastAttemptAt ?? connector.lastSyncReportAt)}{!connector.lastAttemptAt && connector.lastSyncReportAt ? ' · outcome time' : ''}</dd></div>
       <div><dt>Last completed sync</dt><dd>{timestamp(connector.lastSyncAt)}</dd></div>
-      <div><dt>Source rows in latest run, including retries</dt><dd>{connector.sourceRows ?? 'Not reported'}</dd></div>
+      <div><dt>Next scheduled run</dt><dd>{nextRun}</dd></div>
+      {connector.backgroundMode && <div><dt>Windows background task</dt><dd>{backgroundLabels[connector.backgroundMode]}{heartbeat === 'overdue' ? ' · last reported' : ''}</dd></div>}
+      <div><dt>Last reported source rows, including retries</dt><dd>{connector.sourceRows ?? 'Not reported'}</dd></div>
       <div><dt>Pending upload retries</dt><dd>{connector.pendingRetries ?? 'Not reported'}</dd></div>
     </dl>
+    {heartbeat === 'overdue' && <p className="finance-source-note">FeedX has missed expected Windows check-ins. Check that the office PC is awake and connected, then review the connector's Windows task diagnostics.</p>}
     {entry.state === 'pending' && <p className="finance-source-note">The Windows Connector will verify the bound book on its next run. If this stays pending, check the connector on the office PC.</p>}
-    {entry.state === 'connected' && connector.retryRequestedAt && <p className="finance-source-note">The next scheduled run or Sync Now on the office PC will pick up this request.</p>}
+    {entry.state === 'connected' && connector.retryRequestedAt && <p className="finance-source-note">The request stays queued until the next eligible Windows check. An online connector checks every five minutes.</p>}
     {['connected', 'pending'].includes(entry.state) && connector.syncState === 'failed' && <p className="finance-source-note">{syncErrors[connector.syncError] ?? syncErrors.local}</p>}
     {entry.state === 'connected' && connector.syncState === 'interrupted' && <p className="finance-source-note">The connector did not report an outcome. Check the office PC and run Sync Now.</p>}
   </>;
@@ -60,7 +90,11 @@ export function AutoCountDevices({ state, onAction, timestamp }) {
   return state.connectorDevices?.map((device) => <article key={device.id} className="finance-source-connection">
     <div className="finance-section-heading">
       <div><h3>{device.label || 'AutoCount Desktop Connector'}</h3><p>Last check-in: {timestamp(device.lastSeenAt)}</p></div>
-      <StatusBadge status={device.active ? 'info' : 'neutral'}>{device.active ? 'Paired' : 'Revoked'}</StatusBadge>
+      <div className="flex flex-wrap gap-2">
+        <StatusBadge status={device.active ? 'info' : 'neutral'}>{device.active ? 'Paired' : 'Revoked'}</StatusBadge>
+        {device.active && connectionHeartbeat(device.lastSeenAt) === 'overdue' && <StatusBadge status="warning">Check-in overdue</StatusBadge>}
+        {device.active && connectionHeartbeat(device.lastSeenAt) === 'online' && <StatusBadge status="success">Online</StatusBadge>}
+      </div>
     </div>
     <p className="finance-source-note">SQL sync and native report support are assessed independently. Native Trial Balance, P&amp;L and Balance Sheet are unverified.</p>
     {!device.books.length && <p className="finance-source-note">Authorization Required. Books appear after the Windows Connector checks in. Use Test Connection in Windows to check in now.</p>}

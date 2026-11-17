@@ -5,6 +5,7 @@ Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
 . (Join-Path $PSScriptRoot 'device.ps1')
 . (Join-Path $PSScriptRoot 'permission-review.ps1')
+. (Join-Path $PSScriptRoot 'scheduler.ps1')
 
 $form = [Windows.Forms.Form]::new()
 $form.Text = 'FeedX AutoCount Connector'
@@ -22,16 +23,6 @@ function Add-Control($Control,[int]$X,[int]$Y,[int]$Width,[int]$Height,[string]$
 }
 function Add-Label([int]$Y,[string]$Text,[int]$Height=25) {
     return Add-Control ([Windows.Forms.Label]::new()) 20 $Y 595 $Height $Text
-}
-function Register-ConnectorSchedule {
-    $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-    $worker = Join-Path $PSScriptRoot 'worker.ps1'
-    $action = New-ScheduledTaskAction -Execute (Join-Path $PSHOME 'powershell.exe') -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "'+$worker+'"')
-    $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
-    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 1)
-    $triggers = @((New-ScheduledTaskTrigger -AtLogOn -User $user),
-                  (New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)))
-    $null = Register-ScheduledTask -TaskName 'FeedX AutoCount Connector' -Action $action -Principal $principal -Settings $settings -Trigger $triggers -Force
 }
 function Run-UiAction([scriptblock]$Action,[string]$Area='Device setup') {
     try {
@@ -61,10 +52,13 @@ function Run-UiAction([scriptblock]$Action,[string]$Area='Device setup') {
             '^STAGING_HTTPS_' { 'FeedX Staging is unreachable. Check the network connection on this computer.'; break }
             default { 'The operation could not finish. Check SQL Server access and try again.' }
         }
-        $message.Text = $reason
+        $message.Text = if ($Area -ceq 'Background setup') {
+            'Windows could not enable unattended sync. Use the installing account password and check the account can run scheduled tasks.'
+        } else { $reason }
         $file = switch ($Area) {
             'Book authorization' { 'authorization-summary.json' }
             'Permission review' { 'permission-review.json' }
+            'Background setup' { 'schedule-setup.json' }
             default { 'device-setup.json' }
         }
         $details = $failure.Data['FeedXPermissionDetails']
@@ -105,7 +99,8 @@ $codeBox.AccessibleName = 'Pairing code'
 $codeBox.ReadOnly = $true
 $open = Add-Control ([Windows.Forms.Button]::new()) 420 248 195 32 'Open FeedX Staging'
 $null = Add-Label 290 'Enter the code in FeedX and confirm this computer. Codes expire in 15 minutes.'
-$null = Add-Label 320 '3. Match each authorized book to a Legal Entity in FeedX and connect.'
+$null = Add-Label 320 '3. Match the book to a Legal Entity in FeedX.'
+$unattended = Add-Control ([Windows.Forms.Button]::new()) 420 311 195 32 'Enable unattended sync'
 $test = Add-Control ([Windows.Forms.Button]::new()) 20 355 185 32 'Test Connection'
 $syncNow = Add-Control ([Windows.Forms.Button]::new()) 220 355 185 32 'Sync Now'
 $copyDiagnostics = Add-Control ([Windows.Forms.Button]::new()) 420 355 195 32 'Copy diagnostics'
@@ -156,6 +151,21 @@ function Get-DiagnosticHint([string]$Code) {
 }
 function Refresh-Diagnostics {
     $lines = @()
+    if (-not $script:scheduleReadAt -or ([datetime]::UtcNow-$script:scheduleReadAt).TotalSeconds -ge 30) {
+        $script:scheduleReadAt = [datetime]::UtcNow
+        try { $script:localSchedule = Get-ConnectorSchedule } catch { $script:localSchedule = @{mode='unavailable'} }
+    }
+    $schedule = $script:localSchedule
+    $lines += "Windows background task: $($schedule.mode) $($schedule.state)"
+    if ($schedule.lastRunAt) { $lines += "Last task run: $(Format-ConnectorTime $schedule.lastRunAt). Windows result: $($schedule.lastResult). Missed runs: $($schedule.missedRuns)." }
+    if ($schedule.nextPollAt) { $lines += "Next task run: $(Format-ConnectorTime $schedule.nextPollAt)." }
+    $setup = Read-ConnectorReport (Join-Path $deviceRoot 'schedule-setup.json')
+    if ($setup.code) { $lines += "Background setup: $($setup.code). Use the installing account and check its scheduled task logon rights." }
+    $poll = Read-ConnectorReport (Join-Path $deviceRoot 'poll-summary.json')
+    if ($poll) {
+        $lines += "Last worker poll: $(Format-ConnectorTime $poll.finishedAt). $($poll.state)."
+        if ($poll.error) { $lines += "  $($poll.error). $(Get-DiagnosticHint $poll.error)" }
+    }
     $deviceSetup = Read-ConnectorReport (Join-Path $deviceRoot 'device-setup.json')
     $lines += if ($deviceSetup) { "Device setup: $($deviceSetup.state) $($deviceSetup.code)" } else { 'Device setup: not tested' }
     $authorization = Read-ConnectorReport (Join-Path $deviceRoot 'authorization-summary.json')
@@ -236,7 +246,11 @@ $timer = [Windows.Forms.Timer]::new()
 $timer.Interval = 2000
 $timer.Add_Tick({
     if ($script:job -and $script:job.HasExited) {
-        $message.Text = if ($script:job.ExitCode -eq 0) { 'Operation finished. See diagnostics for the result.' } else { 'Operation needs attention. See diagnostics for the result.' }
+        $message.Text = switch ($script:job.ExitCode) {
+            0 { 'Operation finished. See diagnostics for the result.' }
+            2 { 'The background connector is already running. Check diagnostics after it finishes.' }
+            default { 'Operation needs attention. See diagnostics for the result.' }
+        }
         $script:job.Dispose()
         $script:job = $null
         $test.Enabled = $true
@@ -332,6 +346,23 @@ $authorize.Add_Click({
         $message.Text = 'Book authorization saved. If already paired, use Test Connection to send the book to FeedX.'
         Refresh-Diagnostics
     } 'Book authorization'
+})
+$unattended.Add_Click({
+    Run-UiAction {
+        if (-not (Test-Path -LiteralPath $deviceCredentialPath)) { Stop-ReadPoc 'DEVICE_NOT_PAIRED' }
+        $windowsUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+        $windowsCredential = Get-Credential -UserName $windowsUser -Message 'Allow Windows Task Scheduler to sync while this account is signed out. Enter this Windows account password.'
+        if (-not $windowsCredential) { return }
+        try {
+            Register-ConnectorSchedule $windowsCredential
+            $script:scheduleReadAt = $null
+            $registered = Get-ConnectorSchedule
+            if ($registered.mode -cne 'unattended') { Stop-ReadPoc 'SCHEDULE_UNATTENDED_NOT_VERIFIED' }
+            Write-LocalTextAtomically (Join-Path $deviceRoot 'schedule-setup.json') '{"state":"Unattended"}'
+            $message.Text = 'Unattended sync is enabled. Windows will run the connector while this account is signed out.'
+            Refresh-Diagnostics
+        } finally { $windowsCredential.Password.Dispose() }
+    } 'Background setup'
 })
 $test.Add_Click({ Run-UiAction { Start-ConnectorJob '-TestConnection' 'Connection test' } })
 $syncNow.Add_Click({ Run-UiAction { Start-ConnectorJob '-RunNow' 'Sync' } })

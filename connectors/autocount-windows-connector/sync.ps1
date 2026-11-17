@@ -260,10 +260,18 @@ try {
     $status.nextGlDate = $config.nextDate
     Report-SyncProgress 'succeeded'
 } catch {
-    $failure = $_.Exception.GetBaseException()
+    $failure = $_.Exception
+    while ($failure.InnerException -and $failure -isnot [Data.SqlClient.SqlException]) { $failure = $failure.InnerException }
     $status.error = if ($failure.Message -cmatch '^[A-Z][A-Z0-9_]{4,95}$') { $failure.Message } elseif ($failure -is [Data.SqlClient.SqlException]) { 'SQL_ERROR_'+$failure.Number } else { 'LOCAL_SYNC_ERROR' }
     if ($InstalledBook -and -not $ConnectionTest -and -not $runId -and $cloud -and $status.sqlConnection -ne 'Connected') {
-        try { $null = Invoke-DeviceAction $cloud @{p_action='source_error';p_book_key=$InstalledBook.key} }
+        $sourceFailure = switch -Regex ($status.error) {
+            '^SQL_ERROR_(18456|4060)$' { 'source_login'; break }
+            '^SQL_ERROR_(-2|2|26|40|53|17142)$' { 'source_unreachable'; break }
+            '^READER_|^PROVISIONED_READER_|^SQL_IDENTITY_|^SQL_PERMISSION_|^SQL_ERROR_229$' { 'source_permissions'; break }
+            '^ACCOUNTING_|^MAPPING_|^BOOK_COMPANY_' { 'source_schema'; break }
+            default { 'source_read' }
+        }
+        try { $null = Invoke-DeviceAction $cloud @{p_action='source_error';p_book_key=$InstalledBook.key;p_code=$sourceFailure} }
         catch { $status.progressReport = 'Not delivered' }
     }
     if ($runId) {

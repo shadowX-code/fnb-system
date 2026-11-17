@@ -38,7 +38,9 @@ export type FinancialConnectionView = {
   status: 'active' | 'historical'; sync: SyncState[]; evidenceAt?: string | null; lastConnectedAt?: string | null;
   connector?: { bookId?: string | null; verifiedAt: string | null; entityActive: boolean; lastSyncAt: string | null;
     syncState: 'running' | 'succeeded' | 'failed' | 'interrupted' | null; syncError: string | null;
-    pendingRetries: number | null; sourceRows: number | null; retryRequestedAt: string | null };
+    pendingRetries: number | null; sourceRows: number | null; retryRequestedAt: string | null;
+    lastAttemptAt?: string | null; lastSyncReportAt?: string | null; deviceLastSeenAt?: string | null; nextPollAt?: string | null;
+    backgroundMode?: 'unattended' | 'signed_in' | 'missing' | 'disabled' | null };
   datasets?: { dataset: 'COA' | 'GL' | 'Department' | 'Project'; scopeDate: string | null; acceptedRows: number; acceptedAt: string }[];
 };
 export type MappingReadiness = {

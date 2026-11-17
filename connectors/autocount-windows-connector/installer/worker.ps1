@@ -2,7 +2,11 @@
 param([switch]$RunNow,[switch]$TestConnection)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'device.ps1')
+. (Join-Path $PSScriptRoot 'scheduler.ps1')
 
+try {
+    $workerLock = [IO.File]::Open((Join-Path $deviceRoot 'worker.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+} catch [IO.IOException] { exit 2 }
 $statusPath = Join-Path $deviceRoot $(if ($TestConnection) { 'test-summary.json' } else { 'sync-summary.json' })
 $summary = [ordered]@{state='Running';paired=$false;bound=0;catalogChecked=$false;attempted=0;passed=0;error=$null}
 $credential = $null
@@ -13,7 +17,12 @@ try {
         return
     }
     $credential = Get-DeviceCredential
-    $state = Invoke-DeviceAction $credential @{p_action='books'}
+    $schedule = $null
+    try { $schedule = Get-ConnectorSchedule } catch {}
+    if ($schedule -and $schedule.mode -in @('unattended','signed_in','disabled','missing')) {
+        try { $state = Invoke-DeviceAction $credential @{p_background_mode=$schedule.mode;p_next_poll_at=$schedule.nextPollAt} }
+        catch { $state = Invoke-DeviceAction $credential @{p_action='books'} }
+    } else { $state = Invoke-DeviceAction $credential @{p_action='books'} }
     $summary.paired = $true
     $localBooks = @(Get-LocalConnectorBooks)
     $published = $false
@@ -48,15 +57,21 @@ try {
     $summary.catalogChecked = $true
     foreach ($record in $state.books) {
         if (-not $record.ready -or -not $record.bound) { continue }
-        $lastSync = if ($record.lastSyncAt) { [datetimeoffset]::Parse($record.lastSyncAt) }
+        $lastSync = if ($record.lastSyncAt -is [datetime] -or $record.lastSyncAt -is [datetimeoffset]) {
+            [datetimeoffset]$record.lastSyncAt
+        } elseif ($record.lastSyncAt) {
+            [datetimeoffset]::Parse([string]$record.lastSyncAt, [Globalization.CultureInfo]::InvariantCulture)
+        }
         $book = @($localBooks | Where-Object { $_.bookId -ceq $record.bookId -and $_.authorized })
         if ($book.Count -ne 1) { continue }
         if (-not $TestConnection -and -not $RunNow) {
-            $checkpoint = Join-Path (Join-Path $deviceRoot $book[0].key) 'config.json'
+            $bookDirectory = Join-Path $deviceRoot $book[0].key
+            $checkpoint = Join-Path $bookDirectory 'config.json'
+            $pending = @(Get-ChildItem -LiteralPath (Join-Path $bookDirectory 'queue') -File -Filter '*.json' -ErrorAction SilentlyContinue).Count -gt 0
             $today = [TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([datetime]::UtcNow,'Singapore Standard Time').ToString('yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture)
             $caughtUp = (Test-Path -LiteralPath $checkpoint) -and
                 (([IO.File]::ReadAllText($checkpoint) | ConvertFrom-Json).nextDate -gt $today)
-            if ($caughtUp -and -not $record.requested -and -not $record.needsRetry -and $lastSync -and $lastSync -gt [datetimeoffset]::UtcNow.AddDays(-1)) { continue }
+            if ($caughtUp -and -not $pending -and -not $record.requested -and -not $record.needsRetry -and $lastSync -and $lastSync -gt [datetimeoffset]::UtcNow.AddDays(-1)) { continue }
         }
         $summary.attempted++
         try {
@@ -78,8 +93,11 @@ try {
     $summary.state = if ($failed) { 'Failed' } elseif ($summary.attempted) { 'Complete' } else { 'No eligible books' }
     $summary.finishedAt = [datetime]::UtcNow.ToString('o')
     # Keep the last observed sync result when the background poll has no work.
-    if ($TestConnection -or $RunNow -or $summary.attempted -or $failed) {
-        Write-LocalTextAtomically $statusPath ($summary | ConvertTo-Json -Compress)
-    }
+    try {
+        Write-LocalTextAtomically (Join-Path $deviceRoot 'poll-summary.json') ($summary | ConvertTo-Json -Compress)
+        if ($TestConnection -or $RunNow -or $summary.attempted -or $failed) {
+            Write-LocalTextAtomically $statusPath ($summary | ConvertTo-Json -Compress)
+        }
+    } finally { $workerLock.Dispose() }
 }
 if ($failed) { exit 1 }
