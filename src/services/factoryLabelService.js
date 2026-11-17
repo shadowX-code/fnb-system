@@ -27,8 +27,13 @@ export const factoryLabelService = {
       p_page: page,
     }),
   enqueue: (args) => rpc("enqueue", args),
-  resolve: (job, state, reason) =>
-    rpc("resolve", { p_job: job, p_state: state, p_reason: reason }),
+  resolve: (job, state, reason, usableQuantity) =>
+    rpc("resolve", {
+      p_job: job,
+      p_state: state,
+      p_reason: reason,
+      p_usable_quantity: usableQuantity,
+    }),
 };
 
 Object.assign(factoryLabelService, {

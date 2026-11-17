@@ -761,6 +761,7 @@
     "supabase/migrations/20261117040538_native_assistant_action_list_scope.sql": "655ecfb5f09d48c7d8c5a61fc18a349db0ffb63b0168e6b9494118baf5b11724",
     "supabase/migrations/20261117044313_native_assistant_shared_coverage_reads.sql": "10f94c5cfc94ac8e738ace00da953f23d8deec64775f9a6e016191aa0fe0fbd5",
     "supabase/migrations/20261117061932_native_assistant_gap_read_contracts.sql": "a240613366b56598b9577dde515043856bec5baae1171f51a64d35120136ed9a",
-    "supabase/migrations/20261117103349_assistant_domain_query_semantics.sql": "f1baeabb2efe656d49851f2102906344e296f94b7b6d44cce2487b7b5994197c"
+    "supabase/migrations/20261117103349_assistant_domain_query_semantics.sql": "f1baeabb2efe656d49851f2102906344e296f94b7b6d44cce2487b7b5994197c",
+    "supabase/migrations/20261117141711_factory_label_operator_outcomes.sql": "b586201e9123bd2b9903ebe8b334bd84a399c756c9b31cd80f81ff0750a7c44f"
   }
 }

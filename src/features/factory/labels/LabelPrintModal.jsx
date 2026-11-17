@@ -47,6 +47,17 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
     generation = useRef(0),
     request = useRef(initialRequest);
   const pendingRequest = Boolean(request.current);
+  const historyRef = useRef(null);
+  const selectedHold = data?.devices?.find((entry) => entry.id === device)?.hold;
+  const issue = resolve?.state === "Failed" && resolve.job.state !== "Queued";
+  const usableCount = resolve?.state === "Confirmed"
+    ? resolve.job.quantity
+    : issue && /^\d+$/.test(resolve.count)
+      ? Number(resolve.count)
+      : null;
+  const canRecordOutcome = resolve?.state === "Confirmed" ||
+    (resolve?.reason.trim().length >= 3 &&
+      (!issue || (usableCount !== null && usableCount <= resolve.job.quantity && resolve.cleared)));
   const canPrint = can("factory_production.complete"),
     canRecover = can("factory_production.verify");
   const load = useCallback(async () => {
@@ -149,10 +160,9 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
       setReprint(null);
       setReason("");
       setQuantity("");
-      setNotice(
-        "Labels queued. Sent means accepted by the print transport; confirm the physical labels after inspection.",
-      );
+      setNotice("Labels queued.");
       await load();
+      historyRef.current?.scrollIntoView?.({ block: "start" });
     } catch (e) {
       if (e.code) {
         request.current = null;
@@ -168,18 +178,24 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
     }
   }
   async function resolvePrint() {
-    if (!canRecover || !resolve || resolve.reason.trim().length < 3 || flight.current) return;
+    if (!canRecover || !resolve || !canRecordOutcome || flight.current) return;
     flight.current = true;
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       await factoryLabelService.resolve(
         resolve.job.id,
         resolve.state,
-        resolve.reason,
+        resolve.state === "Confirmed"
+          ? "Operator inspected the full count and confirmed usable output."
+          : resolve.reason.trim(),
+        usableCount,
       );
       setResolve(null);
-      setNotice("Print outcome recorded.");
+      setNotice(resolve.job.state === "Unknown"
+        ? "Print outcome recorded. The bridge can continue queued work."
+        : "Print outcome recorded.");
       await load();
     } catch (e) {
       setError(e.message);
@@ -387,7 +403,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                 options={(data?.devices || []).map((d) => ({
                   value: d.id,
                   label: `${d.name} · ${d.printer_name}`,
-                  helper: `${Date.now() - Date.parse(d.last_seen) > 90000 ? "Offline" : d.status} · ${d.transport}`,
+                  helper: `${d.hold ? "Held for print review" : Date.now() - Date.parse(d.last_seen) > 90000 ? "Offline" : d.status} · ${d.transport}`,
                 }))}
                 onChange={(v) => {
                   setDevice(v);
@@ -395,6 +411,13 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                 }}
               />
             </Field>
+            {selectedHold && (
+              <p role="status" className="text-sm text-text-secondary">
+                This bridge is paused. Review the print in Job Order {selectedHold.job_order_no}
+                {selectedHold.batch_no && ` · batch ${selectedHold.batch_no}`}.
+                New work stays queued until that outcome is recorded.
+              </p>
+            )}
             {!data?.devices?.length && (
               <p className="text-sm text-text-secondary">
                 Set up the Windows or macOS Print Bridge to register a printer.
@@ -508,7 +531,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             </p>
           </div>
         </div>
-        <div className="space-y-3 border-t border-border pt-4">
+        <div ref={historyRef} className="space-y-3 border-t border-border pt-4">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-text-primary">Print history</h3>
             <button
@@ -525,90 +548,168 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
               No print requests for this batch.
             </p>
           )}
-          {(data?.history || []).map((h) => (
-            <div
-              key={h.id}
-              className="space-y-2 border-b border-border pb-3 text-sm"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <strong>
-                    {h.state} · {h.quantity} labels
-                  </strong>
+          {(data?.history || []).map((h) => {
+            const events = h.events || [];
+            const inspection = events.findLast((event) => event.usable_quantity != null);
+            const submission = events.findLast((event) => ["Sent", "Unknown"].includes(event.state));
+            return (
+              <div
+                key={h.id}
+                className="space-y-2 border-b border-border pb-3 text-sm"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <strong>
+                      {h.state} · {h.quantity} requested
+                    </strong>
+                    <p className="text-text-secondary">
+                      {h.operator_name || "Recorded operator"} ·{" "}
+                      {formatFactoryDate(h.created_at)} · Template{" "}
+                      {h.template_version}
+                      {h.reprint_of ? " · Reprint" : ""}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {canRecover &&
+                      ["Confirmed", "Failed"].includes(
+                        h.state,
+                      ) && (
+                        <button
+                          className="btn-secondary"
+                          disabled={busy || pendingRequest}
+                          onClick={() => {
+                            setReprint(h);
+                            setReason("");
+                            setQuantity(h.state === "Failed" && inspection
+                              ? String(h.quantity - inspection.usable_quantity || "")
+                              : String(h.quantity));
+                            resetRequest();
+                          }}
+                        >
+                          Reprint
+                        </button>
+                      )}
+                    {canRecover && ["Sent", "Unknown"].includes(h.state) &&
+                      [["Confirmed", "Confirm Printed"], ["Failed", "Report Issue"]].map(([state, label]) => (
+                        <button
+                          key={state}
+                          className="btn-secondary"
+                          disabled={busy}
+                          onClick={() => setResolve({ job: h, state, reason: "", count: "", cleared: false })}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    {canRecover && ["Queued", "Printing"].includes(h.state) && (
+                        <button
+                          className="btn-secondary"
+                          disabled={busy}
+                          onClick={() =>
+                            setResolve({
+                              job: h,
+                              state: h.state === "Queued" ? "Failed" : "Unknown",
+                              reason: "",
+                            })
+                          }
+                        >
+                          Review Outcome
+                        </button>
+                      )}
+                  </div>
+                </div>
+                {h.state === "Unknown" && (
                   <p className="text-text-secondary">
-                    {h.operator_name || "Recorded operator"} ·{" "}
-                    {formatFactoryDate(h.created_at)} · Template{" "}
-                    {h.template_version}
-                    {h.reprint_of ? " · Reprint" : ""}
+                    Check the physical output before printing again. This bridge is paused until the outcome is recorded.
                   </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {canRecover &&
-                    ["Sent", "Confirmed", "Failed"].includes(
-                      h.state,
-                    ) && (
-                      <button
-                        className="btn-secondary"
-                        disabled={busy || pendingRequest}
-                        onClick={() => {
-                          setReprint(h);
-                          setReason("");
-                          setQuantity(String(h.quantity));
-                          resetRequest();
-                        }}
-                      >
-                        Reprint
-                      </button>
+                )}
+                {submission && (
+                  <p><strong>Submission {submission.state === "Sent" ? "accepted" : "uncertain"}.</strong>{" "}{submission.detail}</p>
+                )}
+                {inspection ? (
+                  <p><strong>Usable labels {inspection.usable_quantity} of {h.quantity}.</strong>{" "}
+                    {inspection.state === "Confirmed" ? "Physically confirmed." : inspection.detail}
+                  </p>
+                ) : (
+                  <>
+                    {["Sent", "Unknown"].includes(h.state) && <p>Physical output awaiting inspection.</p>}
+                    {h.detail && h.detail !== submission?.detail && <p>{h.detail}</p>}
+                  </>
+                )}
+                {h.reprint_reason && <p>Reprint reason · {h.reprint_reason}</p>}
+                {resolve?.job.id === h.id && canRecover && (
+                  <div className="space-y-3 rounded-lg border border-border p-3">
+                    <p className="text-text-secondary">
+                      {resolve.state === "Confirmed"
+                        ? `Have you checked that all ${h.quantity} labels printed and are usable?`
+                        : issue
+                          ? "Count the usable labels and clear any held output before recording the issue."
+                          : h.state === "Queued"
+                            ? "Cancel this queued print request."
+                            : "Inspect the printer before continuing. An active submission cannot be cancelled."}
+                    </p>
+                    {issue && (
+                      <Field label="Usable labels">
+                        <input
+                          aria-label="Usable labels"
+                          className={inputClass()}
+                          type="number"
+                          min="0"
+                          max={h.quantity}
+                          step="1"
+                          value={resolve.count}
+                          disabled={busy}
+                          onChange={(e) => setResolve((r) => ({ ...r, count: e.target.value }))}
+                        />
+                      </Field>
                     )}
-                  {canRecover && ["Sent", "Unknown"].includes(h.state) &&
-                    [["Confirmed", "Confirm Printed"], ["Failed", "Report Issue"]].map(([state, label]) => (
-                      <button
-                        key={state}
-                        className="btn-secondary"
-                        disabled={busy}
-                        onClick={() => setResolve({ job: h, state, reason: "" })}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  {canRecover && ["Queued", "Printing"].includes(h.state) && (
-                      <button
-                        className="btn-secondary"
-                        disabled={busy}
-                        onClick={() =>
-                          setResolve({
-                            job: h,
-                            state: h.state === "Queued" ? "Failed" : "Unknown",
-                            reason: "",
-                          })
-                        }
-                      >
-                        Review Outcome
-                      </button>
+                    {resolve.state !== "Confirmed" && (
+                      <Field label="Inspection / recovery reason">
+                        <input
+                          aria-label="Inspection / recovery reason"
+                          className={inputClass()}
+                          maxLength={1000}
+                          value={resolve.reason}
+                          disabled={busy}
+                          onChange={(e) => setResolve((r) => ({ ...r, reason: e.target.value }))}
+                        />
+                      </Field>
                     )}
-                </div>
+                    {issue && (
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={resolve.cleared}
+                          disabled={busy}
+                          onChange={(e) => setResolve((r) => ({ ...r, cleared: e.target.checked }))}
+                        />
+                        I inspected the printer and cleared any held output.
+                      </label>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <button className="btn-secondary" disabled={busy} onClick={() => setResolve(null)}>
+                        Back
+                      </button>
+                      <button className="btn-primary" disabled={busy || !canRecordOutcome} onClick={resolvePrint}>
+                        {resolve.state === "Confirmed" ? `Confirm ${h.quantity} usable labels` : "Record Outcome"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <details>
+                  <summary className="cursor-pointer text-text-secondary">
+                    Audit history
+                  </summary>
+                  {events.map((e) => (
+                    <p key={e.id} className="mt-1">
+                      {e.state} · {new Date(e.created_at).toLocaleString()} ·{" "}
+                      {e.detail || "Recorded by operator"}
+                      {e.usable_quantity != null && ` · ${e.usable_quantity} usable`}
+                    </p>
+                  ))}
+                </details>
               </div>
-              {h.state === "Unknown" && (
-                <p className="text-text-secondary">
-                  Check the physical output before printing again. This bridge is paused until the outcome is recorded.
-                </p>
-              )}
-              {(h.detail || h.reprint_reason) && (
-                <p>{h.detail || h.reprint_reason}</p>
-              )}
-              <details>
-                <summary className="cursor-pointer text-text-secondary">
-                  Audit history
-                </summary>
-                {(h.events || []).map((e) => (
-                  <p key={e.id} className="mt-1">
-                    {e.state} · {new Date(e.created_at).toLocaleString()} ·{" "}
-                    {e.detail || "Recorded by operator"}
-                  </p>
-                ))}
-              </details>
-            </div>
-          ))}
+            );
+          })}
           {data?.history_total > 20 && (
             <FactoryPagination
               page={page}
@@ -619,53 +720,6 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             />
           )}
         </div>
-        {resolve && canRecover && (
-          <div key={`${resolve.job.id}:${resolve.state}`} className="space-y-3 rounded-xl border border-border p-4">
-            <h3 className="font-semibold">
-              {resolve.state === "Confirmed"
-                ? "Confirm Printed"
-                : resolve.state === "Failed" && resolve.job.state !== "Queued"
-                  ? "Report Issue"
-                  : "Review Print Outcome"}
-            </h3>
-            <p className="text-sm text-text-secondary">
-              {resolve.state === "Confirmed"
-                ? `Confirm only after checking that all ${resolve.job.quantity} requested labels printed correctly. Record what you inspected.`
-                : resolve.state === "Failed" && resolve.job.state !== "Queued"
-                  ? "Count any usable labels and clear held output before recording an issue. Include the usable count and what happened. Any reprint is a separate action."
-                  : "Inspect the physical output and the bridge computer’s print queue, if present. A live Printing claim cannot be cancelled."}
-            </p>
-            <Field label="Inspection / recovery reason">
-              <input
-                autoFocus
-                aria-label="Inspection / recovery reason"
-                className={inputClass()}
-                maxLength={1000}
-                value={resolve.reason}
-                disabled={busy}
-                onChange={(e) =>
-                  setResolve((r) => ({ ...r, reason: e.target.value }))
-                }
-              />
-            </Field>
-            <div className="flex gap-2">
-              <button
-                className="btn-secondary"
-                disabled={busy}
-                onClick={() => setResolve(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn-primary"
-                disabled={busy || resolve.reason.trim().length < 3}
-                onClick={resolvePrint}
-              >
-                Record Outcome
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </Modal>
   );

@@ -89,6 +89,19 @@ class RecoveryTest(unittest.TestCase):
         self.assertEqual([c.kwargs["p_claim"] for c in self.rpc.call_args_list if c.args[2] == "claim"], [claim, claim])
         self.assertEqual(self.rpc.call_args.kwargs["p_state"], "Sent")
 
+    def test_full_d520_write_without_ack_reports_unknown_without_resending(self):
+        self.config.update(transport="tspl", bluetooth_address="test-address", calibrated_labels=3, gap=2, invert=True)
+        with patch.object(
+            bridge, "command", side_effect=subprocess.CalledProcessError(8, "print")
+        ) as command:
+            bridge.cycle(self.config, {})
+            self.assertEqual(bridge.load(self.journal)["outcome"], "Unknown")
+            bridge.cycle(self.config, {})
+        command.assert_called_once()
+        self.assertEqual(self.rpc.call_args.kwargs["p_state"], "Unknown")
+        self.assertIn("write completed", self.rpc.call_args.kwargs["p_detail"])
+        self.assertFalse(self.journal.exists())
+
 
 class TransportTest(unittest.TestCase):
     def test_native_timeout_kills_without_waiting_for_a_stalled_driver(self):

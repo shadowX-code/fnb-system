@@ -85,23 +85,64 @@ describe("Factory label workflow", () => {
       events: [{ id: 1, state: "Unknown", created_at: "2026-11-17T13:00:00Z", detail: "ACK missing" }],
     }],
   };
-  it.each([
-    ["Confirm Printed", "Confirmed", "Checked all three printed labels"],
-    ["Report Issue", "Failed", "One usable label; held output cleared"],
-  ])("records %s through the existing recovery authority without submitting a print", async (action, outcome, reason) => {
+  it("confirms the full physical count inline without typing or sending another job", async () => {
     factoryLabelService.context.mockResolvedValue(uncertain);
-    factoryLabelService.resolve.mockResolvedValue({ state: outcome });
+    factoryLabelService.resolve.mockResolvedValue({ state: "Confirmed" });
     render(<LabelPrintModal {...props} />);
-    fireEvent.click(await screen.findByRole("button", { name: action }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm Printed" }));
     expect(screen.queryByRole("button", { name: "Reprint" })).toBeNull();
-    const record = screen.getByRole("button", { name: "Record Outcome" });
-    expect(record.disabled).toBe(true);
-    fireEvent.change(screen.getByRole("textbox", { name: "Inspection / recovery reason" }), { target: { value: reason } });
-    fireEvent.click(record);
-    await screen.findByText("Print outcome recorded.");
-    expect(factoryLabelService.resolve).toHaveBeenCalledExactlyOnceWith("unknown-job", outcome, reason);
+    expect(factoryLabelService.resolve).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm 3 usable labels" }));
+    await screen.findByText(/The bridge can continue queued work/);
+    expect(factoryLabelService.resolve).toHaveBeenCalledExactlyOnceWith(
+      "unknown-job", "Confirmed", expect.stringMatching(/inspected the full count/), 3,
+    );
     expect(factoryLabelService.enqueue).not.toHaveBeenCalled();
-    expect(screen.getByText(/Unknown.*ACK missing/)).toBeTruthy();
+  });
+
+  it("records a partial issue only after counting usable labels and clearing held output", async () => {
+    factoryLabelService.context.mockResolvedValue(uncertain);
+    factoryLabelService.resolve.mockImplementation(async () => {
+      const original = uncertain.history[0];
+      factoryLabelService.context.mockResolvedValue({
+        ...uncertain,
+        history: [{
+          ...original, state: "Failed",
+          events: [...original.events, { id: 2, state: "Failed", usable_quantity: 1, detail: "Two missing" }],
+        }],
+      });
+      return { state: "Failed" };
+    });
+    render(<LabelPrintModal {...props} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Report Issue" }));
+    const record = screen.getByRole("button", { name: "Record Outcome" });
+    fireEvent.change(screen.getByRole("textbox", { name: "Inspection / recovery reason" }), {
+      target: { value: "Two missing" },
+    });
+    const count = screen.getByRole("spinbutton", { name: "Usable labels" });
+    fireEvent.change(count, { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /cleared any held output/ }));
+    expect(record.disabled).toBe(true);
+    fireEvent.change(count, { target: { value: "1" } });
+    fireEvent.click(record);
+    await screen.findByText("Usable labels 1 of 3.");
+    expect(screen.getByText("Submission uncertain.")).toBeTruthy();
+    expect(factoryLabelService.resolve).toHaveBeenCalledExactlyOnceWith(
+      "unknown-job", "Failed", "Two missing", 1,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Reprint" }));
+    expect(screen.getByRole("spinbutton", { name: "Label quantity" }).value).toBe("2");
+    expect(factoryLabelService.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("identifies the Job Order holding the selected bridge", async () => {
+    factoryLabelService.context.mockResolvedValue({
+      ...context,
+      devices: [{ ...context.devices[0], hold: { job_order_no: "JO0", batch_no: "B0" } }],
+    });
+    render(<LabelPrintModal {...props} />);
+    await confirmPrint();
+    expect(screen.getByText(/Review the print in Job Order JO0 · batch B0/)).toBeTruthy();
   });
 
   it("keeps uncertain print history visible to users without recovery permission", async () => {

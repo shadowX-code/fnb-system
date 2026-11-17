@@ -3,7 +3,7 @@
 do $$
 declare
  v_user uuid; v_readonly uuid; v_production public.factory_productions; v_config jsonb; v_snapshot jsonb; v_old_snapshot jsonb; v_context jsonb; v_raster jsonb;
- v_device uuid:=gen_random_uuid(); v_request uuid:=gen_random_uuid(); v_job uuid; v_reprint uuid; v_claim uuid:=gen_random_uuid(); v_result jsonb; v_denied boolean;
+ v_device uuid:=gen_random_uuid(); v_request uuid:=gen_random_uuid(); v_job uuid; v_reprint uuid; v_next uuid; v_windows_next uuid; v_claim uuid:=gen_random_uuid(); v_result jsonb; v_denied boolean;
  v_config_request uuid:=gen_random_uuid(); v_before text; v_after text; v_version integer; v_count integer:=0;
 begin
  select md5(jsonb_agg(to_jsonb(p) order by p.id)::text) into v_before from public.factory_productions p;
@@ -11,7 +11,7 @@ begin
   select e.auth_user_id into strict v_user from public.employees e join public.roles r on r.id=e.role_id where r.name='owner' and lower(e.employment_status)='active' limit 1;
   perform set_config('request.jwt.claim.sub',v_user::text,true);
   perform set_config('request.jwt.claims',jsonb_build_object('sub',v_user,'role','authenticated')::text,true);
-  select * into strict v_production from public.factory_productions where status='completed' and manufacturing_date is not null and expiry_date is not null and actual_pack_qty between 2 and 10000 and batch_no is not null order by created_at desc limit 1;
+  select * into strict v_production from public.factory_productions where status='completed' and manufacturing_date is not null and expiry_date is not null and actual_pack_qty between 4 and 10000 and batch_no is not null order by created_at desc limit 1;
   select coalesce(max(version),0) into v_version from public.factory_label_configs where finished_good_id=v_production.finished_good_id;
   v_config:=jsonb_build_object('template_id',(select id from public.factory_label_templates where template_key='s08-sambal' limit 1),'width_mm',80,'height_mm',90,'net_weight','QA 2kg','storage_instructions','QA Freezer','shelf_life_days',180,'expiry_rule','days_after','approval_note','Software QA only; rolled back','content_approved',true);
   v_result:=public.factory_label_save_config(v_production.finished_good_id,v_config,v_version,v_config_request);
@@ -28,10 +28,10 @@ begin
   perform public.factory_label_device(v_device,'Software QA bridge','No physical printer','spooler','Ready','[]');
   v_raster:=jsonb_build_object('format','mono1','width',639,'height',719,'data',encode(decode(repeat('00',80*719),'hex'),'base64'));
   v_denied:=false;begin perform public.factory_label_enqueue(gen_random_uuid(),v_production.id,v_device,1,v_snapshot,v_raster||'{"width":640}');exception when others then v_denied:=true;end;assert v_denied,'wrong media accepted';v_count:=v_count+1;
-  v_job:=public.factory_label_enqueue(v_request,v_production.id,v_device,v_production.actual_pack_qty::int,v_snapshot,v_raster);
-  assert public.factory_label_enqueue(v_request,v_production.id,v_device,v_production.actual_pack_qty::int,v_snapshot,v_raster)=v_job,'duplicate request created another job';v_count:=v_count+1;
+  v_job:=public.factory_label_enqueue(v_request,v_production.id,v_device,v_production.actual_pack_qty::int-2,v_snapshot,v_raster);
+  assert public.factory_label_enqueue(v_request,v_production.id,v_device,v_production.actual_pack_qty::int-2,v_snapshot,v_raster)=v_job,'duplicate request created another job';v_count:=v_count+1;
   v_denied:=false;begin perform public.factory_label_enqueue(v_request,v_production.id,v_device,1,v_snapshot,v_raster);exception when others then v_denied:=true;end;assert v_denied,'changed print request accepted';v_count:=v_count+1;
-  v_denied:=false;begin perform public.factory_label_enqueue(gen_random_uuid(),v_production.id,v_device,1,v_snapshot,v_raster);exception when others then v_denied:=true;end;assert v_denied,'batch allowance exceeded';v_count:=v_count+1;
+  v_denied:=false;begin perform public.factory_label_enqueue(gen_random_uuid(),v_production.id,v_device,3,v_snapshot,v_raster);exception when others then v_denied:=true;end;assert v_denied,'batch allowance exceeded';v_count:=v_count+1;
   v_old_snapshot:=v_snapshot;
   perform public.factory_label_save_config(v_production.finished_good_id,v_config||'{"net_weight":"QA new weight"}',v_version+1,gen_random_uuid());
   assert public.factory_label_candidate(v_production.id)=v_old_snapshot,'master change rewrote batch label';v_count:=v_count+1;
@@ -44,17 +44,41 @@ begin
   assert (select state='Sent' from public.factory_label_jobs where id=v_job),'submission became physical confirmation';v_count:=v_count+1;
   perform public.factory_label_report(v_device,v_job,v_claim,'Sent','Duplicate receipt');
   assert (select count(*)=1 from public.factory_label_events where job_id=v_job and state='Sent'),'report replay duplicated audit';v_count:=v_count+1;
-  perform public.factory_label_resolve(v_job,'Confirmed','Software QA physical-confirmation simulation');
+  v_denied:=false;begin perform public.factory_label_enqueue(gen_random_uuid(),v_production.id,v_device,1,v_snapshot,null,'{}',v_job,'Unverified reprint');exception when others then v_denied:=sqlerrm='Resolve the original print before reprinting.';end;
+  assert v_denied,'Sent job could be reprinted without inspection';v_count:=v_count+1;
+  v_windows_next:=public.factory_label_enqueue(gen_random_uuid(),v_production.id,v_device,1,v_snapshot,v_raster);
+  v_claim:=gen_random_uuid();
+  assert public.factory_label_claim(v_device,v_claim)->>'id'=v_windows_next::text,'Windows Sent outcome unexpectedly paused the queue';v_count:=v_count+1;
+  perform public.factory_label_report(v_device,v_windows_next,v_claim,'Sent','Simulated Windows spooler accepted the label');
+  perform public.factory_label_resolve(v_job,'Confirmed','Software QA physical-confirmation simulation',v_production.actual_pack_qty::int-2);
+  assert exists(select 1 from public.factory_label_events where job_id=v_job and state='Confirmed' and usable_quantity=v_production.actual_pack_qty::int-2),'full count missing';v_count:=v_count+1;
   v_reprint:=public.factory_label_enqueue(gen_random_uuid(),v_production.id,v_device,1,v_snapshot,null,'{}',v_job,'Software QA controlled reprint');
   assert (select raster=v_raster from public.factory_label_jobs where id=v_reprint),'reprint changed original raster';v_count:=v_count+1;
   v_claim:=gen_random_uuid();perform public.factory_label_claim(v_device,v_claim);
   update public.factory_label_jobs set lease_until=now()-interval '1 second' where id=v_reprint;
   assert public.factory_label_claim(v_device,gen_random_uuid()) is null,'Unknown outcome did not halt device';
   assert (select state='Unknown' from public.factory_label_jobs where id=v_reprint),'lease auto-retried';v_count:=v_count+2;
-  perform public.factory_label_resolve(v_reprint,'Failed','QA inspected and cleared spooler; no physical output');
+  v_next:=public.factory_label_enqueue(gen_random_uuid(),v_production.id,v_device,1,v_snapshot,v_raster);
+  assert public.factory_label_claim(v_device,gen_random_uuid()) is null,'next queued job passed an interruption hold';v_count:=v_count+1;
+  v_context:=public.factory_label_context(v_production.job_order_id,v_production.id);
+  assert exists(select 1 from jsonb_array_elements(v_context->'devices') d where d->>'id'=v_device::text and d->'hold'->>'batch_no'=v_production.batch_no),'hold missing from printer read model';v_count:=v_count+1;
+  v_denied:=false;begin perform public.factory_label_enqueue(gen_random_uuid(),v_production.id,v_device,1,v_snapshot,null,'{}',v_reprint,'Uncertain reprint');exception when others then v_denied:=sqlerrm='Resolve the original print before reprinting.';end;
+  assert v_denied,'Unknown job could be reprinted before review';v_count:=v_count+1;
+  v_denied:=false;begin perform public.factory_label_resolve(v_reprint,'Confirmed','Incorrect count',0);exception when others then v_denied:=sqlerrm='Enter a usable label count consistent with the recorded outcome.';end;
+  assert v_denied,'accepted partial confirmation';v_count:=v_count+1;
+  perform public.factory_label_resolve(v_reprint,'Failed','QA inspected and cleared spooler; no physical output',0);
+  perform public.factory_label_resolve(v_reprint,'Failed','QA inspected and cleared spooler; no physical output',0);
+  assert (select count(*)=1 and min(usable_quantity)=0 from public.factory_label_events where job_id=v_reprint and state='Failed'),'replay changed issue evidence';v_count:=v_count+1;
+  v_claim:=gen_random_uuid();
+  assert public.factory_label_claim(v_device,v_claim)->>'id'=v_next::text,'queue failed to resume';v_count:=v_count+1;
+  perform public.factory_label_report(v_device,v_next,v_claim,'Unknown','D520 write completed, but no print acknowledgment was observed.');
+  perform public.factory_label_report(v_device,v_next,v_claim,'Unknown','Duplicate transport receipt');
+  assert (select count(*)=1 from public.factory_label_events where job_id=v_next and state='Unknown'),'unacknowledged write receipt not idempotent';v_count:=v_count+1;
+  perform public.factory_label_resolve(v_next,'Confirmed','Physically inspected one usable label',1);
+  assert exists(select 1 from public.factory_label_events where job_id=v_next and state='Unknown' and detail like 'D520 write completed%'),'confirmation lost transport evidence';v_count:=v_count+1;
   v_denied:=false;begin perform public.factory_label_report(gen_random_uuid(),v_job,gen_random_uuid(),'Sent','Forged receipt');exception when insufficient_privilege then v_denied:=true;end;assert v_denied,'forged device allowed';v_count:=v_count+1;
   v_context:=public.factory_label_context(v_production.job_order_id,v_production.id);
-  assert (v_context->>'history_total')::integer=2,'history missing';v_count:=v_count+1;
+  assert (v_context->>'history_total')::integer=4,'history missing';v_count:=v_count+1;
   select e.auth_user_id into strict v_readonly from public.employees e join public.roles r on r.id=e.role_id where r.name='factory_read_only_test' and lower(e.employment_status)='active' limit 1;
   perform set_config('request.jwt.claim.sub',v_readonly::text,true);perform set_config('request.jwt.claims',jsonb_build_object('sub',v_readonly,'role','authenticated')::text,true);
   v_denied:=false;begin perform public.factory_label_enqueue(gen_random_uuid(),v_production.id,v_device,1,v_snapshot,v_raster);exception when insufficient_privilege then v_denied:=true;end;assert v_denied,'read-only employee could print';v_count:=v_count+1;
