@@ -15,34 +15,60 @@ const read={id:'read',module_id:'crew_roster',kind:'READ',label:'Roster informat
 it('manages individual access without diagnostics or granting user permissions',()=>{
  const onFeature=vi.fn(async()=>({ok:true}));
  render(<AssistantCapabilityDetail row={{...row,operations:[read]}} data={{config:{revision:4}}} canEdit onFeature={onFeature} onClose={()=>{}}/>);
- expect(screen.getByText('Allow AI to read')).toBeTruthy();
+ expect(screen.getByText('AI Read Access')).toBeTruthy();
  expect(screen.getByText(/Your account cannot use/)).toBeTruthy();
  expect(screen.queryByText('Advanced Diagnostics')).toBeNull();
  expect(screen.queryByRole('button',{name:'Test Connection'})).toBeNull();
- expect(screen.queryByText('Allow AI actions')).toBeNull();
- fireEvent.click(screen.getByRole('button',{name:'Disable AI Access'}));
+ expect(screen.queryByText('AI Actions')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:/Disable AI Access:/}));
  expect(onFeature).toHaveBeenCalledExactlyOnceWith('capability_connection',{operation:'read',enabled:false,expected_revision:4});
 });
 it('keeps ACTION access and execution authorization independent',()=>{
  const onFeature=vi.fn(async()=>({ok:true}));
  render(<AssistantCapabilityDetail row={{...row,status:'disabled',operations:[{...read,id:'draft',kind:'ACTION',availability:'disabled',ai_execution_enabled:false}]}} data={{config:{revision:4}}} canEdit onFeature={onFeature} onClose={()=>{}}/>);
- expect(screen.getByText('Allow AI actions')).toBeTruthy();
+ expect(screen.getByText('AI Actions')).toBeTruthy();
  fireEvent.click(screen.getByRole('button',{name:'Enable AI action authorization'}));
  expect(onFeature).toHaveBeenCalledExactlyOnceWith('action_policy',{operation:'draft',enabled:true,expected_revision:4});
  expect(screen.getByText(/confirmation of a current preview/)).toBeTruthy();
 });
 it('unsupported resources have no configuration and view-only cannot edit',()=>{
  const {rerender}=render(<AssistantCapabilityDetail row={{...row,status:'unsupported',operations:[]}} data={{config:{revision:4}}} canEdit onFeature={vi.fn()} onClose={()=>{}}/>);
- expect(screen.getByText('Not supported')).toBeTruthy();
+ expect(screen.getByText(/Not integrated coverage|Partial coverage/)).toBeTruthy();
  expect(screen.queryByRole('button',{name:/AI Access/})).toBeNull();
  rerender(<AssistantCapabilityDetail row={{...row,operations:[read]}} data={{config:{revision:4}}} canEdit={false} onFeature={vi.fn()} onClose={()=>{}}/>);
- expect(screen.getByRole('button',{name:'Disable AI Access'}).disabled).toBe(true);
+ expect(screen.getByRole('button',{name:/Disable AI Access:/}).disabled).toBe(true);
 });
 it('explains partial coverage without granting module access and navigates to the existing owner',()=>{
  const onSelect=vi.fn(),onFeature=vi.fn();
- render(<AssistantCapabilityDetail row={{...row,status:'unsupported',operations:[],coverage:{classification:'partial',available:'Monthly operational P&L only.',missing:'No statutory statements.',reads:['read']},coverageReads:[read]}} data={{config:{revision:4}}} canEdit onFeature={onFeature} onClose={()=>{}} onSelect={onSelect}/>);
- expect(screen.getByText(/READ coverage · Partial/)).toBeTruthy();
- expect(screen.getByText('Not supported')).toBeTruthy();
+ render(<AssistantCapabilityDetail row={{...row,status:'unsupported',operations:[],coverage:{classification:'partial',available:'Monthly operational P&L only.',missing:'No statutory statements.',reads:['read']},coverageReads:[{...read,module_id:'factory_finished_goods'}]}} data={{config:{revision:4}}} canEdit onFeature={onFeature} onClose={()=>{}} onSelect={onSelect}/>);
+ expect(screen.getByText(/Partial coverage/)).toBeTruthy();
+ expect(screen.getByText(/Not integrated coverage|Partial coverage/)).toBeTruthy();
  expect(screen.queryByRole('button',{name:/Enable AI Access|Disable AI Access/})).toBeNull();
- fireEvent.click(screen.getByRole('button',{name:'Manage owning module access'}));expect(onSelect).toHaveBeenCalledWith('crew_roster');expect(onFeature).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:/Manage .* access/}));expect(onSelect).toHaveBeenCalledWith('factory_finished_goods');expect(onFeature).not.toHaveBeenCalled();
+});
+
+it('deduplicates owned coverage reads and keeps missing policy unavailable',()=>{
+ render(<AssistantCapabilityDetail row={{...row,operations:[{...read,connection_enabled:undefined}],coverage:{classification:'partial',available:'Roster only.',missing:'No approvals.',reads:['read']},coverageReads:[read]}} data={{config:{revision:4}}} canEdit onFeature={vi.fn()} onClose={()=>{}}/>);
+ expect(screen.getAllByText('Roster information')).toHaveLength(1);
+ expect(screen.queryByRole('region',{name:'Related Data'})).toBeNull();
+ expect(screen.getByText('Unavailable')).toBeTruthy();
+ expect(screen.getByRole('button',{name:/Enable AI Access:/}).disabled).toBe(true);
+});
+it('deduplicates shared reads and leaves control with the actual owner',()=>{
+ const shared={...read,module_id:'factory_finished_goods'};
+ render(<AssistantCapabilityDetail row={{...row,operations:[shared],coverageReads:[shared]}} data={{config:{revision:4}}} canEdit onFeature={vi.fn()} onClose={()=>{}} onSelect={()=>{}}/>);
+ expect(screen.getAllByText('Roster information')).toHaveLength(1);
+ expect(screen.getByRole('region',{name:'Related Data'})).toBeTruthy();
+ expect(screen.queryByRole('button',{name:/Enable AI Access:|Disable AI Access:/})).toBeNull();
+});
+it('shows refreshed server policy after a save and preserves exact revision ownership',async()=>{
+ const onFeature=vi.fn(async()=>({ok:true}));
+ const props={data:{config:{revision:4}},canEdit:true,onFeature,onClose:()=>{}};
+ const {rerender}=render(<AssistantCapabilityDetail {...props} row={{...row,operations:[{...read,connection_enabled:false}]}}/>);
+ fireEvent.click(screen.getByRole('button',{name:/Enable AI Access:/}));
+ await screen.findByRole('status');
+ expect(onFeature).toHaveBeenCalledExactlyOnceWith('capability_connection',{operation:'read',enabled:true,expected_revision:4});
+ rerender(<AssistantCapabilityDetail {...props} data={{config:{revision:5}}} row={{...row,operations:[read]}}/>);
+ expect(screen.getByRole('button',{name:/Disable AI Access:/}).disabled).toBe(false);
+ expect(screen.getByText('Enabled')).toBeTruthy();
 });

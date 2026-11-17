@@ -16,11 +16,11 @@ it('organizes management without triggering provider tests, business reads or do
  await screen.findByText('native-assistant-openai');
  for(const name of ['Overview','AI Capabilities','Voice & Usage'])expect(screen.getByRole('tab',{name})).toBeTruthy();
  fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));openFactory();expect(screen.queryByText('Managed Knowledge')).toBeNull();expect(screen.queryByRole('button',{name:'Test Connection'})).toBeNull();
- expect(screen.getByText(/User permissions and scope are checked/)).toBeTruthy();
+ expect(screen.getByText(/Existing permissions and data scope apply/)).toBeTruthy();
  expect(assistantCall.mock.calls.every(([action])=>action==='configuration')).toBe(true);
  expect(screen.queryByRole('button',{name:'Test Connection'})).toBeNull();
 });
-it.each([[true,'Enabled'],[false,'Your account cannot use this operation. Enabling AI access does not change that.']])('uses server tool access, not the settings role, to present capability availability (%s)',async(tools,label)=>{
+it.each([[true,'Enabled'],[false,/Your account cannot use this operation/]])('uses server tool access, not the settings role, to present capability availability (%s)',async(tools,label)=>{
  assistantCall.mockResolvedValue({...data,can_edit:false,config:{...data.config,capability_connections:{read_factory_finished_goods:true}},runtime:{...data.runtime,tools,capabilities:businessCapabilities({capability_connections:{read_factory_finished_goods:true}},{factory:tools})}});
  render(<NativeAssistantSettings auth={{user:{id:'reader'},hasPermission:()=>false}}/>);await screen.findByText('native-assistant-openai');
  fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));openFactory();expect(screen.getAllByText(label).length).toBeGreaterThan(0);expect(screen.queryByRole('button',{name:'Test Connection'})).toBeNull();
@@ -49,7 +49,7 @@ it('nests existing enable/test intents only in the registered Factory READ detai
  render(<NativeAssistantSettings auth={{user:{id:'one'},hasPermission:()=>true}}/>);await screen.findByText('native-assistant-openai');
  fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));openFactory();
  const read=within(screen.getByRole('dialog',{name:'Finished Goods'}));
- fireEvent.click(read.getByRole('button',{name:'Disable AI Access'}));
+ fireEvent.click(read.getByRole('button',{name:/Disable AI Access:/}));
  await waitFor(()=>expect(assistantCall).toHaveBeenCalledWith('capability_connection',{operation:'read_factory_finished_goods',expected_revision:1,enabled:false}));
  expect(screen.queryByRole('button',{name:'Test Connection'})).toBeNull();
  expect(screen.queryByText(/285|Other module coverage/)).toBeNull();
