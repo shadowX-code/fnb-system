@@ -380,7 +380,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                     : ""}
                 </p>
               )}
-            <Field label="Windows print bridge">
+            <Field label="Print bridge">
               <SearchableSelect
                 value={device}
                 disabled={busy || pendingRequest}
@@ -397,7 +397,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             </Field>
             {!data?.devices?.length && (
               <p className="text-sm text-text-secondary">
-                Install and sign in to the Windows bridge to register a printer.
+                Set up the Windows or macOS Print Bridge to register a printer.
               </p>
             )}
             <p className="text-sm">
@@ -407,6 +407,10 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                 download
               >
                 Download Windows Print Bridge
+              </a>
+              {" · "}
+              <a className="underline" href="/downloads/feedx-print-bridge-macos-staging.zip" download>
+                Download macOS Print Bridge
               </a>
             </p>
             <Field label="Label quantity">
@@ -611,8 +615,8 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
           <div className="space-y-3 rounded-xl border border-border p-4">
             <h3 className="font-semibold">Review Print Outcome</h3>
             <p className="text-sm text-text-secondary">
-              Inspect the physical output and Windows queue. Clear any held
-              spooler job before authorizing a reprint. A live Printing claim
+              Inspect the physical output and the bridge computer’s print queue, if present.
+              Clear any held job before authorizing a reprint. A live Printing claim
               cannot be cancelled.
             </p>
             <SearchableSelect

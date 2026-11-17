@@ -1,0 +1,23 @@
+# FeedX macOS Print Bridge · Staging
+
+Requires macOS, Python 3.9 or newer, and an authorized FeedX Staging operator with the existing Production Complete permission. Extract this package into a folder that the operator can keep. Open Terminal in that folder. The bridge runs as the signed-in macOS user and talks only to FeedX Staging over outbound HTTPS. The login password is used once, the session is stored in the login Keychain, and the private local journal keeps its device and claim IDs across restarts.
+
+## Configure and run
+
+1. Run `./Start-Bridge.command printers`. It lists installed CUPS queues and identifies the D520 serial endpoint if macOS exposes it. A paired device in Bluetooth Settings alone is insufficient.
+2. **CUPS:** Connect the printer with the vendor-supported driver (USB is the documented macOS driver path). Confirm the exact queue appears in `lpstat -p -a` and its driver supports custom PageSize. Set the driver for 203 DPI, 80 × 90 mm stock, matching gap, portrait orientation, and actual size. Run `./Start-Bridge.command setup --queue 'Exact_Queue_Name'`. The bridge submits a monochrome 203 DPI PDF with an exact-size page and requests no scaling. Confirm that the driver honors those settings before printing operational labels.
+3. **D520 Bluetooth serial (experimental):** Quit Labelife and other software using the printer. Power on the printer and make sure `/dev/cu.D520` exists. Run `./Start-Bridge.command setup --serial --gap 2`, replacing 2 with the measured gap in millimeters. This mode sends TSPL over the paired callout endpoint. It is based on the installed D520 driver’s TSPL output and the macOS serial endpoint. If the firmware prints inverted colors, inspect and acknowledge the first attempt before recalibrating with `--no-invert`.
+4. Enter the **Staging publishable/anon key** and sign in with your FeedX Staging operator. Setup registers a persistent local device ID. Run `./Start-Bridge.command start` or double-click Start-Bridge.command after setup. Keep the Terminal window open. Ctrl-C stops the bridge. Run setup again as the same operator if the session needs renewal or if you change the queue. Follow your organization’s software policy.
+5. In **Factory Settings → Label Management → Printers**, check that the bridge appears with its configured printer and connection, and becomes Ready. Then use **Print Labels** from a completed Job Order for operational work.
+
+## Test Print and physical acceptance
+
+Stop the bridge first. Load the correct 80 × 90 mm gap stock and calibrate its sensor using the printer’s instructions. Run `./Start-Bridge.command test-print 1`. This submits a local calibration label, independent of any Job Order or packaged-unit allowance. The asymmetric mark belongs in the upper left. The frame sits about 2 mm from each edge and measures about 76 × 86 mm. Measure both axes and check orientation, clipping, polarity, and gap feed.
+
+After physically checking the printer and clearing any held CUPS job, run `./Start-Bridge.command acknowledge-test`. Enter `PASSED` only if the count, orientation, dimensions, and feed are correct. Enter `INSPECTED` to clear the attempt without passing it. Run `./Start-Bridge.command test-print 3` after the single label passes. Verify exactly three complete, aligned labels without skips and acknowledge again. Bluetooth serial claims are paused until both checks pass. Test a representative authorized Staging label for text, logo, barcode and QR scan readability, and check reconnect behavior on sacrificial stock before operational use.
+
+The local calibration marker pauses claims until reviewed. Sent means macOS accepted the submission. Even a completed serial write or CUPS job receipt does not prove paper output. If the connection fails after a submission begins, the result is Unknown. Inspect the printer for partial output and inspect/cancel any held CUPS job before acknowledging. Never repeat a test blindly.
+
+For an operational job, use the existing FeedX Review Outcome and authorized Reprint workflow. Stop the bridge and check the physical printer and any held CUPS job before resolving or reprinting uncertain output. A restart converts an interrupted submission to Unknown and retries only the report. A lost claim response retries the same claim ID. Do not delete the journal. It lives under `~/Library/Application Support/FeedX Print Bridge Staging`.
+
+Vendor setup references: [Labelife connection and drivers](https://help.labelife.net/portal/en/kb/articles/how-to-use-shipping-label-printer) and [D520 Bluetooth and macOS USB setup](https://omezizy.com/pages/newd520guide).

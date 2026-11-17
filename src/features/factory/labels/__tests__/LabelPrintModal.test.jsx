@@ -69,7 +69,7 @@ async function confirmPrint() {
   await screen.findByAltText(/Label preview/);
   fireEvent.click(
     screen
-      .getByText("Windows print bridge")
+      .getByText("Print bridge")
       .closest("label")
       .querySelector("button"),
   );

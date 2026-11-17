@@ -212,8 +212,12 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
           ]
         : [
             { key: "name", label: "Print bridge" },
-            { key: "printer_name", label: "Configured Windows printer" },
-            { key: "transport", label: "Transport" },
+            { key: "printer_name", label: "Configured printer" },
+            {
+              key: "transport",
+              label: "Transport",
+              render: (r) => r.printers?.find((p) => p.Name === r.printer_name)?.Connection || r.transport,
+            },
             {
               key: "status",
               label: "Status",
@@ -336,7 +340,7 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
           }
           emptyDescription={
             location.section === "printers"
-              ? "Install and sign in to the Windows Print Bridge to register an existing Windows printer."
+              ? "Set up the Windows or macOS Print Bridge to register a printer."
               : "Change the search to see other records."
           }
         />
@@ -350,18 +354,19 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
         />
       </FactoryDataSurface>
       {location.section === "printers" && (
-        <p className="text-sm text-text-secondary">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-text-secondary">
           <a
             className="underline"
             href="/downloads/feedx-print-bridge-staging.zip"
             download
           >
-            Download Windows Print Bridge and setup guide
+            Download Windows Print Bridge
           </a>
-          . Printer queue selection, transport and calibration are configured on
-          its Windows computer. Print Labels remains available from completed
-          Job Orders.
-        </p>
+          <a className="underline" href="/downloads/feedx-print-bridge-macos-staging.zip" download>
+            Download macOS Print Bridge
+          </a>
+          <p className="basis-full">Setup and calibration instructions are included in each download. Print Labels is available from completed Job Orders.</p>
+        </div>
       )}
       {printer && (
         <Modal
@@ -392,22 +397,22 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
         >
           <div className="space-y-4">
             <dl className="grid grid-cols-2 gap-3 text-sm">
-              <dt>Windows printer</dt>
+              <dt>Printer</dt>
               <dd>{printer.printer_name}</dd>
               <dt>Transport</dt>
-              <dd>{printer.transport}</dd>
+              <dd>{printer.printers?.find((p) => p.Name === printer.printer_name)?.Connection || printer.transport}</dd>
               <dt>Availability</dt>
               <dd>{printer.enabled ? "Enabled" : "Disabled"}</dd>
             </dl>
-            <h3 className="font-semibold">Discovered Windows printers</h3>
+            <h3 className="font-semibold">Discovered printers</h3>
             {(printer.printers || []).map((p) => (
               <p className="text-sm" key={p.Name}>
-                {p.Name} · {p.WorkOffline ? "Offline" : "Available to Windows"}
+                {p.Name} · {p.WorkOffline ? "Offline" : "Available"}{p.Connection ? ` · ${p.Connection}` : ""}
               </p>
             ))}
             <p className="text-sm text-text-secondary">
               Change the queue, driver, TSPL settings or media calibration
-              through the existing bridge on Windows. Disabling pauses new
+              on the bridge computer. Disabling pauses new
               claims; an active Printing job must be resolved first.
             </p>
             {canEdit && (

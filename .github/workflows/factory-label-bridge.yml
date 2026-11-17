@@ -1,9 +1,10 @@
-name: Factory Windows Print Bridge
+name: Factory Print Bridge
 on:
   push:
     branches: [dev, codex/factory-label-printing]
     paths:
       - tools/windows-print-bridge/**
+      - tools/macos-print-bridge/**
       - .github/workflows/factory-label-bridge.yml
   workflow_dispatch:
 permissions:
@@ -17,3 +18,9 @@ jobs:
       - name: Verify Windows PowerShell 5.1, DPAPI, transport and recovery
         shell: powershell
         run: ./tools/windows-print-bridge/Test-Bridge.ps1
+  macos-software:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -B -m unittest discover -s tools/macos-print-bridge -v
