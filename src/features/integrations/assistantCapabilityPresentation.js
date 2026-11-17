@@ -2,7 +2,7 @@ import {reconcileBusinessModules,businessWorkspaceLabels as workspaceLabels} fro
 import {moduleSectionOrder} from '../../../config/modules.ts';
 import {assistantKnowledgeSources} from './assistantKnowledgeSources.js';
 
-export const capabilityStatuses={connected:'Connected',disabled:'Disconnected',partial:'Partially Connected',unsupported:'Not Implemented',unavailable:'Unavailable'};
+export const capabilityStatuses={connected:'Enabled',disabled:'Disabled',partial:'Partially enabled',unsupported:'Not supported',unavailable:'Unavailable'};
 // Normalized business inventory. Navigation and machine grants never grant Native execution.
 export function capabilityInventory(capabilities=[]){
  return reconcileBusinessModules().business.map(module=>{
