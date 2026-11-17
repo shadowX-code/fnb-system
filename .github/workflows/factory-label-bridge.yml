@@ -27,6 +27,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python3 -m pip install certifi==2026.2.25
       - run: python3 -B -m unittest discover -s tools/macos-print-bridge -v
       - run: xcrun clang -fobjc-arc -framework Foundation -framework IOBluetooth tools/macos-print-bridge/D520RFCOMM.m -o "$RUNNER_TEMP/d520-rfcomm"
       - name: Verify the installed app payload and bundled runtime

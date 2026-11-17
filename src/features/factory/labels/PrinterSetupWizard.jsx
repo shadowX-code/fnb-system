@@ -48,7 +48,7 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
         <>
           {step > 0 && <button className="btn-secondary" onClick={() => setStep(step - 1)}>Back</button>}
           <button className="btn-primary" onClick={step === 2 ? onClose : () => setStep(step + 1)}>
-            {step === 2 ? "Done" : "Continue"}
+            {step === 2 ? (ready ? "Done" : "Close") : "Continue"}
           </button>
         </>
       }
@@ -73,6 +73,7 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
               ? "Install the package on the Mac connected to the printer, then open FeedX Print Bridge Staging from Applications."
               : "Run the installer on the Windows printer computer, then open FeedX Print Bridge Staging from the Start menu."}</p>
             <a className="btn-secondary inline-flex" href={printerInstallers[platform]} download>Download Bridge installer</a>
+            <button className="btn-secondary" onClick={() => setStep(1)}>Bridge already installed</button>
           </>
         )}
         {step === 1 && (
@@ -80,7 +81,9 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
             <a className="btn-secondary inline-flex" href="feedx-printer-staging://setup">Open Bridge Setup</a>
             <p>If it does not open, launch FeedX Print Bridge Staging from Applications or the Windows Start menu.</p>
             <ol className="list-decimal space-y-2 pl-5">
-              <li>Choose <strong>Connect / Configure</strong>. Sign in with your authorized FeedX Staging account, then select the local printer and enter its stock dimensions. Use the specified feed direction, and set the gap in the driver for spooler printing.</li>
+              <li>{selected
+                ? <>Choose <strong>Reconnect</strong> to resume this computer’s bridge using its saved printer and calibration. Use <strong>Connect / Configure</strong> when changing the printer or stock.</>
+                : <>Choose <strong>Connect / Configure</strong>. Sign in with your authorized FeedX Staging account, then select the local printer and enter its stock dimensions. A returning computer reuses its saved configuration.</>}</li>
               <li>Run <strong>Connection Check</strong>. For D520 Bluetooth, power on and pair the D520 in macOS, then close Labelife so it releases the connection.</li>
               <li>When approved to print, open <strong>Test / Review Calibration</strong> and explicitly approve the copy count. Check the output before recording the result. macOS D520 Bluetooth requires the one-label test followed by a separate three-label test.</li>
             </ol>
@@ -105,6 +108,10 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
                 <dt>Unresolved print jobs</dt><dd>{status.unresolved ?? "Not reported"}</dd>
               </dl>
             )}
+            {status?.bridge === "Offline" && <p>Open Bridge Setup on the registered computer and choose <strong>Reconnect</strong>. If sign-in expired, choose <strong>Reauthorize</strong> with the original operator’s account.</p>}
+            {status?.connection === "Unavailable" && <p>The bridge is online. Check printer power and its local queue or Bluetooth pairing, then run <strong>Connection Check</strong>.</p>}
+            {status?.calibration === "Needs review" && <p>Open <strong>Test / Review Calibration</strong> to inspect the previous attempt before another test.</p>}
+            {status?.unresolved > 0 && <p role="alert">This computer is paused for print review. In the affected Job Order, open Print Labels → History and choose Confirm Printed or Report Issue after inspecting the output and clearing any held work. Reprints require a separate reviewed request. <a className="underline" href="/factory/job-orders">Open Job Orders</a></p>}
             <p role="status">{ready
               ? "Setup complete. This printer is ready for Job Order labels."
               : "Setup is verified when the bridge is online, the printer is available, calibration has passed, and no job awaits review."}</p>

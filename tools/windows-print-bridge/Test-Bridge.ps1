@@ -47,6 +47,38 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
  $script:offline=$false;$script:serverState='Sent';$script:calls.Clear();Invoke-BridgeCycle $config ([pscustomobject]@{}) 'mock'
  if($script:calls.Contains('journal:submitting')){throw 'Completed claim submitted again'}
 }
+# Simulate startup/session-store, refresh, durable persistence and network recovery.
+& $module {
+ $script:reads=0;$script:auths=0;$script:saves=0;$script:cycles=0;$script:checks=0
+ $script:delays=[Collections.Generic.List[int]]::new()
+ function Test-BridgePaused($Root){$script:checks++;return $script:checks -gt 5}
+ function Read-BridgeState($Path){
+  $script:reads++
+  if($script:reads -eq 1){throw 'Simulated temporarily unavailable session store'}
+  return [pscustomobject]@{expires_at=0;refresh_token='old-fixture'}
+ }
+ function Invoke-BridgeAuth($Key,$Body,$Grant){
+  $script:auths++
+  if($script:auths -eq 1){throw 'Simulated network outage during refresh'}
+  return [pscustomobject]@{expires_in=3600;refresh_token='new-fixture'}
+ }
+ function Save-BridgeState($Path,$Value){
+  $script:saves++
+  if($script:saves -eq 1){throw 'Simulated session persistence error'}
+ }
+ function Invoke-BridgeCycle($Config,$Session,$Path){
+  if($Session.refresh_token -ne 'new-fixture' -or $script:saves -ne 2){throw 'Cycle received an unpersisted session'}
+  $script:cycles++
+  if($script:cycles -eq 1){throw 'Simulated transient report outage'}
+ }
+ function Start-Sleep($Seconds){$script:delays.Add($Seconds)}
+ function Set-Content {param($LiteralPath,$Value) if($Value -match 'fixture'){throw 'Session leaked to status file'}}
+ Invoke-BridgeWorker ([pscustomobject]@{PublicKey='public-fixture'}) 'fixture-root'
+ if($script:reads -ne 2 -or $script:auths -ne 2 -or $script:saves -ne 2 -or $script:cycles -ne 2){
+  throw "Worker failed to recover safely: reads=$script:reads auths=$script:auths saves=$script:saves cycles=$script:cycles"
+ }
+ if(($script:delays -join ',') -ne '10,20,40,60,5'){throw 'Worker backoff did not reset after recovery'}
+}
 Write-Output 'PASS: PowerShell parser, C# compilation, TSPL bytes/polarity/copies, raster validation, crash recovery, durable ordering, receipt retry, offline and completed-claim guards.'
 if($env:OS -eq 'Windows_NT') {
  $path=Join-Path ([IO.Path]::GetTempPath()) ("feedx-bridge-qa-"+[guid]::NewGuid()+'.xml')

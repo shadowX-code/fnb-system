@@ -2,6 +2,7 @@
 set -eu
 # Build on Apple silicon with Apple Command Line Tools and the pinned build dependencies.
 [ "$(uname -sm)" = "Darwin arm64" ]
+"${FEEDX_BRIDGE_BUILD_PYTHON:-python3}" -c 'import sys; assert sys.version_info[:2] == (3, 13), "Build with supported Python 3.13"'
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 out="${1:-$root/public/downloads}"
 mkdir -p "$out"
@@ -34,4 +35,4 @@ codesign --verify --deep --strict "$app"
 # The PyInstaller onedir sibling is build output. Only the Finder app is installed.
 rm -rf "$work/payload/$name"
 pkgbuild --root "$work/payload" --install-location /Applications --identifier my.feedx.staging.print-bridge \
-  --version 1.1.0 "$out/FeedX-Print-Bridge-Staging-macOS-arm64.pkg"
+  --version 1.1.1 "$out/FeedX-Print-Bridge-Staging-macOS-arm64.pkg"

@@ -132,4 +132,36 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath) {
         Set-BridgeOutcome $state 'Unknown' 'Submission interrupted or rejected. Inspect printer and Windows queue before recovery.' $StatePath
     }
 }
+function Invoke-BridgeWorker($Config, $Root) {
+ $session=$null
+ $pendingSession=$false
+ $backoff=5
+ while(!(Test-BridgePaused $root)) {
+  try {
+   if(!$session) {
+    $session=Read-BridgeState "$root\session.xml"
+    if(!$session) {throw 'Open Printer Setup and choose Reauthorize.'}
+   }
+   if($pendingSession) {
+    Save-BridgeState "$root\session.xml" $session
+    $pendingSession=$false
+   }
+   if([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() -gt [long]$session.expires_at-120) {
+    $session=Invoke-BridgeAuth $config.PublicKey @{refresh_token=$session.refresh_token} 'refresh_token'
+    $session | Add-Member -NotePropertyName expires_at -NotePropertyValue ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()+$session.expires_in) -Force
+    $pendingSession=$true
+    Save-BridgeState "$root\session.xml" $session
+    $pendingSession=$false
+   }
+   Invoke-BridgeCycle $config $session "$root\journal.xml"
+   $backoff=5
+  } catch {
+   # Do not log HTTP responses: they can contain identity or token material.
+   Set-Content -LiteralPath "$root\status.txt" -Value ("{0:u} Connection or print error. Check FeedX history, printer, and sign-in. No automatic resubmission." -f [datetime]::UtcNow)
+   $backoff=[Math]::Min(60,$backoff*2)
+  }
+  Start-Sleep -Seconds $backoff
+ }
+}
+
 Export-ModuleMember -Function *-Bridge*

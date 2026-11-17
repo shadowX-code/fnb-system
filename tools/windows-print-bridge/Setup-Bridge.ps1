@@ -124,7 +124,9 @@ try {
     if($LASTEXITCODE -ne 0){throw 'Local bridge file permissions could not be secured.'}
     $config=if(Test-Path -LiteralPath $configPath){Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json}else{$null}
     if($config -and $config.ProjectRef -ne 'ujkzdaaadnvcfayuldmh'){throw 'Unexpected environment.'}
-    $action=Read-Field 'Manage the FeedX Staging printer on this computer.' -Options @('Connect / Configure','Connection Check','Test / Review Calibration','Reauthorize','Open FeedX')
+    $actions=@('Connect / Configure','Connection Check','Test / Review Calibration','Reauthorize','Open FeedX')
+    if($config){$actions=@('Reconnect')+$actions}
+    $action=Read-Field 'Manage the FeedX Staging printer on this computer.' -Options $actions
     if($action -eq 'Open FeedX'){Start-Process "$web/factory/settings/labels?section=printers";return}
     if($action -eq 'Connection Check'){
         if(!$config){Show-Notice 'Run Connect / Configure first.';return}
@@ -166,7 +168,9 @@ try {
         $config|Add-Member -NotePropertyName Owner -NotePropertyValue $session.user.id -Force
     }
     if(!$session){Show-Notice 'Use Reauthorize to restore your FeedX sign-in.';return}
-    if($action -eq 'Test / Review Calibration'){
+    if($action -eq 'Reconnect'){
+        Show-Notice 'Bridge reconnected. Review printer connection and pending print outcomes in FeedX.'
+    } elseif($action -eq 'Test / Review Calibration'){
         if(!$config.PSObject.Properties['GuidedSetup']){
             Show-Notice 'Use Connect / Configure to record the printer stock before running a guided test.'
             return
@@ -180,13 +184,17 @@ try {
         $legacy=$config.PSObject.Properties['Printer']
         $prior=if($legacy){$config.Printer}else{''}
         $name=Read-Field 'Choose a Windows printer queue.' $prior -Options @($discovered.Name)
-        $transport=Read-Field 'Choose Windows Driver, or RAW TSPL for a verified compatible queue.' -Options @('Windows Driver','RAW TSPL')
+        $priorTransport=if($legacy -and $config.Transport -eq 'tspl'){'RAW TSPL'}else{'Windows Driver'}
+        $transport=Read-Field 'Choose Windows Driver, or RAW TSPL for a verified compatible queue.' $priorTransport -Options @('Windows Driver','RAW TSPL')
         $transport=if($transport -eq 'RAW TSPL'){'tspl'}else{'spooler'}
         $printer=$discovered | Where-Object {$_.Name -ceq $name} | Select-Object -First 1
         if($printer.WorkOffline -or $printer.PrinterStatus -in @(6,7)){Show-Notice 'Selected printer is offline. Check its connection and retry.';return}
-        $width=Read-Number 'Stock width in millimetres.' 80 20 120
-        $height=Read-Number 'Stock length in the feed direction in millimetres.' 90 20 200
-        $gap=if($transport -eq 'tspl'){Read-Number 'Stock gap in millimetres.' 2 0 10}else{0}
+        $priorWidth=if($config.PSObject.Properties['StockWidthMm']){$config.StockWidthMm}else{80}
+        $priorHeight=if($config.PSObject.Properties['StockHeightMm']){$config.StockHeightMm}else{90}
+        $priorGap=if($config.PSObject.Properties['GapMm']){$config.GapMm}else{2}
+        $width=Read-Number 'Stock width in millimetres.' $priorWidth 20 120
+        $height=Read-Number 'Stock length in the feed direction in millimetres.' $priorHeight 20 200
+        $gap=if($transport -eq 'tspl'){Read-Number 'Stock gap in millimetres.' $priorGap 0 10}else{0}
         Show-Notice 'Load stock in portrait orientation. Windows Driver uses the configured stock and gap settings. RAW TSPL uses direction 1.'
         $invert=if($legacy){$config.TsplInvert}else{$true}
         $settings=@{Printer=$name;Transport=$transport;GapMm=$gap;TsplInvert=$invert;StockWidthMm=$width;StockHeightMm=$height;GuidedSetup=$true}

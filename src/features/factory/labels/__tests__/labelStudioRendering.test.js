@@ -129,3 +129,17 @@ it("keeps explicitly static text in newly authored templates static even beneath
     labelText({ definition, content: { ingredients: "SKU content" } }, 1),
   ).toBe("Dried Shrimp, Chili");
 });
+
+it("keeps closing punctuation with the preceding character without shrinking or widening the field", () => {
+  const ctx = { measureText: (text) => ({ width: [...text].length }) };
+  const element = { w: 5, h: 50, size: 2 };
+  for (const text of ["Sugar, Salt.", "虾米酱，冷冻。", "12345)67890!", "Test!? next"]) {
+    const result = layoutLabelText(ctx, text, element);
+    expect(result.lines.join("")).toBe(text);
+    expect(result.lines.every((line) => line.length <= 5)).toBe(true);
+    expect(result.lines.slice(1).every((line) => !/^[,.;:!?，。)]/.test(line))).toBe(true);
+    expect(result.overflow).toBe(false);
+  }
+  expect(layoutLabelText(ctx, "a,b", { ...element, w: 1 }).overflow).toBe(true);
+  expect(layoutLabelText(ctx, "a\n,b", element).lines).toEqual(["a", ",b"]);
+});

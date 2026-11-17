@@ -201,7 +201,15 @@ export function layoutLabelText(ctx, text, element) {
   const lines = [];
   let line = "",
     tooWide = false;
+  const units = [];
   for (const char of text) {
+    // Keep closing punctuation with its preceding character at a line boundary.
+    if (",.;:!?，。、；：！？)]}）》」』】〕〉”’%％".includes(char) &&
+        units.length && units.at(-1) !== "\n") {
+      units[units.length - 1] += char;
+    } else units.push(char);
+  }
+  for (const char of units) {
     if (char === "\n") {
       lines.push(line);
       line = "";

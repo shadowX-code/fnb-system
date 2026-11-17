@@ -35,3 +35,19 @@ it("offers native installers and verifies readiness only after the selected devi
   result.rerender(<PrinterSetupWizard {...props} devices={[{ ...device, unresolved_jobs: 0 }]} />);
   expect(screen.getByText("Setup complete. This printer is ready for Job Order labels.")).toBeTruthy();
 });
+
+it("lets returning computers skip installation and explains the exact unresolved hold", () => {
+  const props = { devices: [device], selected: device, initialStep: 1, onClose: vi.fn(), onRefresh: vi.fn() };
+  render(<PrinterSetupWizard {...props} />);
+  expect(screen.getByText(/resume this computer’s bridge using its saved printer and calibration/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(screen.getByRole("alert").textContent).toContain("Confirm Printed or Report Issue");
+  expect(screen.getByRole("button", { name: "Close", exact: true })).toBeTruthy();
+  expect(screen.queryByText("Setup complete.", { exact: false })).toBeNull();
+});
+
+it("offers a direct path for already installed bridges", () => {
+  render(<PrinterSetupWizard devices={[]} onClose={vi.fn()} onRefresh={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Bridge already installed" }));
+  expect(screen.getByRole("link", { name: "Open Bridge Setup" })).toBeTruthy();
+});

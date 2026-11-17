@@ -466,15 +466,22 @@ def setup(config, args):
 
 
 def run(config, paused=lambda: False):
-    session = read_session(config)
+    session = None
+    pending_session = False
     backoff = 5
     print("FeedX Staging bridge running. Ctrl-C stops it.")
     while not paused():
         try:
+            if session is None:
+                session = read_session(config)
+            if pending_session:
+                store_session(config, session)
+                pending_session = False
             if int(time.time()) >= session["expires_at"] - 120:
-                refreshed = auth(config, "refresh_token", refresh_token=session["refresh_token"])
-                store_session(config, refreshed)
-                session = refreshed
+                session = auth(config, "refresh_token", refresh_token=session["refresh_token"])
+                pending_session = True
+                store_session(config, session)
+                pending_session = False
             cycle(config, session)
             backoff = 5
         except (OSError, ValueError, KeyError, BridgeError, subprocess.SubprocessError):

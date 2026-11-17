@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import urllib.error
 import uuid
 from pathlib import Path
 
@@ -108,7 +109,10 @@ def configure(config, session):
 def register(config, session):
     bridge.store_session(config, session)
     bridge.save(bridge.CONFIG, config)
-    bridge.device_status(config, session, bridge.inventory(config), "Error")
+    printers = bridge.inventory(config)
+    available = any(p["Name"] == config["printer"] and not p["WorkOffline"] for p in printers)
+    status = "Offline" if not available else "Ready" if bridge.calibration_status(config) == "Passed" else "Error"
+    bridge.device_status(config, session, printers, status)
 
 
 def calibrate(config, session):
@@ -196,11 +200,18 @@ def is_paused():
 
 
 def existing_session(config):
-    session = bridge.read_session(config)
-    if int(time.time()) >= session["expires_at"] - 120:
-        session = bridge.auth(config, "refresh_token", refresh_token=session["refresh_token"])
-        bridge.store_session(config, session)
-    return session
+    try:
+        session = bridge.read_session(config)
+        if int(time.time()) >= session["expires_at"] - 120:
+            session = bridge.auth(config, "refresh_token", refresh_token=session["refresh_token"])
+            bridge.store_session(config, session)
+        return session
+    except urllib.error.HTTPError as error:
+        if error.code in (400, 401):
+            raise bridge.BridgeError("FeedX sign-in expired. Choose Reauthorize and sign in as the original bridge operator.") from None
+        raise
+    except subprocess.CalledProcessError:
+        raise bridge.BridgeError("FeedX sign-in is unavailable in Keychain. Choose Reauthorize to restore it.") from None
 
 
 def main():
@@ -221,10 +232,16 @@ def main():
         return
     with setup_lock():
         config = bridge.load(bridge.CONFIG)
-        action = choose("Manage this computer’s FeedX Staging printer.",
-            ("Connect / Configure", "Connection Check", "Test / Review Calibration", "Reauthorize", "Open FeedX"))
+        actions = (("Reconnect",) if config else ()) + (
+            "Connect / Configure", "Connection Check", "Test / Review Calibration", "Reauthorize", "Open FeedX")
+        action = choose("Manage this computer’s FeedX Staging printer.", actions)
         if action == "Open FeedX":
             subprocess.run(["/usr/bin/open", PRINTERS], check=False)
+        elif action == "Reconnect":
+            session = existing_session(config)
+            config["guided_setup"] = True
+            register(config, session)
+            dialog("Bridge reconnected. Review its printer connection and any pending print outcomes in FeedX.")
         elif action == "Reauthorize":
             if not config:
                 raise bridge.BridgeError("Run Connect / Configure first.")

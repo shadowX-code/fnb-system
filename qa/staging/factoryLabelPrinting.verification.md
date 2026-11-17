@@ -1,5 +1,14 @@
 # Factory label printing verification
 
+## Commercial readiness review, 18 November 2026
+
+- Software acceptance uses simulated printers and temporary state. macOS checks cover startup after session-store errors, refresh expiry, failed persistence of a rotated session, network loss during outcome reporting, single-instance protection, setup pause/restart, original-operator enforcement, and preserved device/calibration/recovery evidence. Windows worker simulations cover session-store, refresh, persistence and network failures with bounded backoff and return to normal polling. Existing print claims and outcome contracts remain the authority.
+- Returning devices reconnect with saved printer/media settings. The wizard lets installed users skip downloads, explains expired sign-in/offline printers, and directs Unknown jobs to Job Order → Print Labels → History. Full physical confirmation and partial issue counts remain explicit. Reprints remain separate authorized requests using the frozen raster.
+- Canonical text layout keeps closing punctuation with the preceding character at automatic line boundaries. English and Chinese regression cases preserve source content, field width and font size. Impossible pairs produce overflow. Print and Studio share the layout function. Saved batch rasters retain their existing pixels.
+- Native installer acceptance run `44115767331`, attempt 2, passed on Windows and Apple silicon macOS. Revised packages include worker fixes and supported macOS Python 3.13, so native CI verifies the changed artifacts. This review leaves the installed physical device and printer untouched.
+- Distribution prerequisites remain Developer ID application/installer signing, macOS notarization and Authenticode signing under the business’s release identities. Staging has ad hoc application signing and an unsigned Windows executable. macOS supports Apple silicon. Windows printing requires a supported driver/queue.
+- Deferred D520 checks require available hardware and separate print approval. They include the installed Wizard’s live connection/configuration and heartbeat, local restart/reconnect, and guided calibration/Unknown review. Earlier corrected one-label TEST, one S9 sample and three S9 samples passed physical output acceptance and retain missing-ACK evidence.
+
 QA level: L3 Canonical. Target: Staging `ujkzdaaadnvcfayuldmh` / `fnb-system-staging` only.
 
 - `factoryLabelPrinting.contract.sql`: 32 real Staging assertions with all additive label fixtures rolled back. Covers approved config retry/concurrency, canonical dates/packaged quantity, immutable history/master-version isolation, raster dimensions, duplicate and changed requests, over-allocation, exclusive/replayed claims, Sent versus Confirmed, reprint pixel identity, expired lease → Unknown, queue blocking, forged devices, print history, read-only and anonymous denials, grants/internal helper isolation, and unchanged Production checksum.
