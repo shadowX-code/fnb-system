@@ -26,7 +26,7 @@ export function validateBusinessArguments(id,args){
 export function capabilityConnected(config,id){return config.capability_connections?.[id]===true;}
 export function businessOperation(id){const operation=operations.find(item=>item.id===id);if(!operation)throw new AssistantError('tool_not_allowed',403);return operation;}
 export function businessCapabilities(config,access){
- return operations.map(operation=>({id:operation.id,module_id:operation.module_id,kind:operation.kind,version:operation.version,
+ return operations.map(operation=>({id:operation.id,module_id:operation.module_id,related_module_ids:operation.related_module_ids||[],kind:operation.kind,version:operation.version,
   label:operation.label,scope:operation.scope,permission:operation.permission,
   connection_enabled:capabilityConnected(config,operation.id),test_supported:operation.kind==='READ',test_parameters:operation.kind==='READ'?operation.tool.parameters.properties:undefined,
   ai_execution_enabled:operation.kind==='ACTION'?config.ai_action_authorizations?.[operation.id]===true:undefined,

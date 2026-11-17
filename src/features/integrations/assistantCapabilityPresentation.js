@@ -2,15 +2,16 @@ import {reconcileBusinessModules,businessWorkspaceLabels as workspaceLabels} fro
 import {moduleSectionOrder} from '../../../config/modules.ts';
 import {assistantKnowledgeSources} from './assistantKnowledgeSources.js';
 
-export const capabilityStatuses={connected:'Connected',disabled:'Disconnected',denied:'Access denied',partial:'Partial access',source:'Source only',unsupported:'Not implemented',unavailable:'Unavailable'};
+export const capabilityStatuses={connected:'Connected',disabled:'Disconnected',partial:'Partially Connected',unsupported:'Not Implemented',unavailable:'Unavailable'};
 // Normalized business inventory. Navigation and machine grants never grant Native execution.
 export function capabilityInventory(capabilities=[]){
  return reconcileBusinessModules().business.map(module=>{
-  const operations=capabilities.filter(operation=>operation.module_id===module.id);
+  const operations=capabilities.filter(operation=>operation.module_id===module.id||operation.related_module_ids?.includes(module.id));
   const sources=assistantKnowledgeSources.filter(source=>source.module_ids.some(id=>id===module.id||module.linkedEntries.some(entry=>entry.kind!=='external'&&entry.module.id===id)));
   const workspace=module.workspace,domain=module.section;
-  const states=[...new Set(operations.map(operation=>Object.hasOwn(capabilityStatuses,operation.availability)?operation.availability:'unavailable'))];
-  return {id:module.id,label:module.label,module,workspace,workspaceLabel:workspaceLabels[workspace],domain,domainKey:`${workspace}:${domain}`,operations,sources,status:states.length===1?states[0]:states.length?'partial':sources.length?'source':'unsupported'};
+  const enabled=operations.filter(operation=>operation.connection_enabled===true&&(operation.kind!=='ACTION'||operation.ai_execution_enabled===true)).length;
+  const unknown=operations.some(operation=>typeof operation.connection_enabled!=='boolean');
+  return {id:module.id,label:module.label,module,workspace,workspaceLabel:workspaceLabels[workspace],domain,domainKey:`${workspace}:${domain}`,operations,sources,status:!operations.length?'unsupported':unknown?'unavailable':enabled===operations.length?'connected':enabled?'partial':'disabled'};
  }).sort((a,b)=>Object.keys(workspaceLabels).indexOf(a.workspace)-Object.keys(workspaceLabels).indexOf(b.workspace)||(moduleSectionOrder.includes(a.domain)?moduleSectionOrder.indexOf(a.domain):999)-(moduleSectionOrder.includes(b.domain)?moduleSectionOrder.indexOf(b.domain):999)||a.label.localeCompare(b.label));
 }
 export function filterCapabilityInventory(rows,{query='',workspace='all',domain='all',status='all'}={}){

@@ -8,7 +8,7 @@ it('accounts for all registry entries without counting aliases or external autho
  const r=reconcileBusinessModules();expect(r.entries).toHaveLength(moduleRegistry.length);expect(r.counts).toEqual({business:128,alias:12,permission:8,external:138,technical:0});
  expect(new Set(r.entries.map(e=>e.module.id)).size).toBe(286);expect(new Set(r.business.map(m=>m.id)).size).toBe(128);
  expect(r.unmappedExternal).toEqual(['factory_agent_mesti_review','factory_mesti_inspection']);
- const rows=capabilityInventory(operations);expect(rows).toHaveLength(128);expect(rows.flatMap(r=>r.operations)).toHaveLength(84);
+ const rows=capabilityInventory(operations);expect(rows).toHaveLength(128);expect(new Set(rows.flatMap(r=>r.operations).map(o=>o.id)).size).toBe(87);
  expect(rows.some(r=>/^(factory|hr|restaurant)_agent_/.test(r.id))).toBe(false);
 });
 it('uses Platform ownership without rewriting route metadata and preserves distinct embedded business lifecycles',()=>{

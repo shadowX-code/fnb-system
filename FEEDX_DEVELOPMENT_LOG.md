@@ -1264,3 +1264,7 @@ Complete canonical Workspace/Domain/Module inventory now uses the shared managem
 ## 2026-11-17 — Native Assistant verified domain READ expansion (Staging)
 
 Expanded the existing shared Text/Voice composition to 82 fixed READ contracts and two draft-only Marketing ACTION contracts across 81 of 128 canonical modules. Added bounded human-permission batching, published SOP/template and safe FAQ projections, operational records/metadata, per-capability connection persistence, and inactive-caption preview/confirmation through the existing Marketing authority. No External Agent grants or opaque Crew identities reused. Remaining 47 modules are explicitly reconciled rather than falsely connected. Live Voice acceptance deferred by user; see `qa/native-assistant-rollout/platform-acceptance.md` for actual acceptance and cleanup evidence.
+
+### Native Assistant shared coverage and connection drawers — 17 November 2026
+- Added three canonical Factory MeSTI READs (default disconnected), shared eight existing module views without duplicate tools, and retained current human authority. 85 unique READs cover 91 modules; 37 remain without contracts.
+- Standardized READ/ACTION drawers, independent connection/access states and collapsed Test Connection diagnostics with branded scope/period inputs. No new business mutations or Production release.

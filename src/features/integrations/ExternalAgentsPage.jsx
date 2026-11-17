@@ -62,7 +62,7 @@ function EffectiveAccessSummary({ agent }) {
     {domains.length ? <TagList tags={domains} maxVisible={3} label="business domains" /> : <p className="text-xs text-text-secondary">Details in Manage</p>}
   </div>;
 }
-export default function ExternalAgentsPage({ auth }) {
+export default function ExternalAgentsPage({ auth, store }) {
   const [section,setSection]=useState(ASSISTANT_STAGING_ALLOWED?"providers":"agents");
   const [data, setData] = useState(null), [selected, setSelected] = useState(null), [detail, setDetail] = useState(null);
   const [search, setSearch] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
@@ -151,7 +151,7 @@ export default function ExternalAgentsPage({ auth }) {
     <PageHeader title="AI Integrations" breadcrumbs={[{ label: "System" }, { label: "AI Integrations" }]} description="Manage Native Assistant connectivity and external agent access." actions={section==="agents"&&<><button className="btn-secondary" type="button" disabled={loading || busy} onClick={load}><RefreshCw size={15} /> Refresh</button>{canCreate && canEdit && data?.can_register && <button className="btn-primary" type="button" disabled={busy || loading || !catalog.length} onClick={() => { setError(""); setConnection({ name: "", provider: "", adapter: catalog[0].key, tools: [], requestId: crypto.randomUUID(), validity: catalog[0].credential_policy?.default_days || 90 }); }}><Plus size={15} /> Connect agent</button>}</>} />
     {ASSISTANT_STAGING_ALLOWED && <AdminUnderlineTabs value={section} onChange={setSection} ariaLabel="AI Integrations sections" tabs={[{value:'providers',label:'Providers'},{value:'assistant',label:'Native Assistant'},{value:'agents',label:'External Agents'}]} />}
     {section==="providers"&&<AssistantProviders key={adminId} />}
-    {section==="assistant"&&<NativeAssistantSettings auth={auth} />}
+    {section==="assistant"&&<NativeAssistantSettings auth={auth} store={store} />}
     {section==="agents"&&<div role="tabpanel" aria-label="External Agents" className="space-y-4">
     {!selected && !connection && error && <div role="alert" className="external-agent-notice">{error} <button type="button" className="btn-secondary" onClick={load}>Retry</button></div>}
     <div className="external-agent-toolbar"><AdminSearchField label="Search agents" placeholder="Name, provider or workspace" value={search} onChange={setSearch} /></div>

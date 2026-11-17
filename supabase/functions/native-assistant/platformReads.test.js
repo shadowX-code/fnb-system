@@ -7,7 +7,7 @@ const id='10000000-0000-4000-8000-000000000001';
 const op=name=>operations.find(o=>o.id===name);
 const args=o=>Object.fromEntries(Object.entries(o.properties||{}).map(([k,s])=>[k,s.type==='number'?(s.minimum||1):s.enum?s.enum[0]:k==='page'?1:k.includes('id')?id:k==='from'?'2026-11-01':k==='to'?'2026-11-02':'2026-11-01']));
 test('fixed connection allowlist covers exactly the shipped contracts',()=>{
- const sql=fs.readFileSync(new URL('../../migrations/20261117034637_native_assistant_remaining_verified_reads.sql',import.meta.url),'utf8');
+ const sql=fs.readFileSync(new URL('../../migrations/20261117044313_native_assistant_shared_coverage_reads.sql',import.meta.url),'utf8');
  const ids=[...sql.match(/\$new\$coalesce\(p_payload->>'operation',''\) not in \((.*?)\)\$new\$/)[1].matchAll(/'([^']+)'/g)].map(m=>m[1]);
  assert.deepEqual(ids,operations.map(o=>o.id));assert.equal(new Set(ids).size,ids.length);
 });
@@ -64,4 +64,17 @@ test('parameterless Admin READ test passes an empty argument object through the 
 test('action list forward migration binds owned rows and stored result without variable shadowing',()=>{
  const sql=fs.readFileSync(new URL('../../migrations/20261117040538_native_assistant_action_list_scope.sql',import.meta.url),'utf8');
  assert(sql.includes('t.actor=auth.uid() and t.session_id=sid'));assert(sql.includes('t.created_at,t.result'));assert(sql.includes('action_list_contract_changed'));
+});
+test('new MeSTI reads keep human RPCs, dates and narrow evidence projections',()=>{
+ const waste=op('read_factory_waste_disposal');const p=waste.project([{location_name:'Kitchen',days:{'2026-11-01':{required_count:1,completed_count:0,session_status:null,events:[{completed_by_name:'private'}],verified_by_name:'private'}}}]);
+ assert.equal(p.rows[0].days['2026-11-01'].session_status,null);assert(!JSON.stringify(p).includes('private'));
+ const raw=op('read_factory_raw_control_evidence');assert.deepEqual(raw.arguments({from:'2026-11-01',to:'2026-11-02'}),{p_date_from:'2026-11-01',p_date_to:'2026-11-02'});assert.equal(raw.permission,'factory_raw_receiving.view');
+ assert(!JSON.stringify(raw.project([{id,received_by_name:'private',control_methods_snapshot:'pinned'}])).includes('private'));
+});
+test('shared module coverage does not duplicate callable tools or connection authority',()=>{
+ const report=op('read_operational_financials');assert(report.related_module_ids.includes('finance_analysis'));
+ const config={capability_connections:{[report.id]:true}},access={permissions:{[report.permission]:true}};
+ const b=createBusinessDispatcher({config,access});assert.equal(b.tools.filter(t=>t.name===report.id).length,1);
+ assert.equal(createBusinessDispatcher({config:{capability_connections:{[report.id]:false}},access}).tools.length,0);
+ assert.equal(new Set(operations.flatMap(o=>[o.module_id,...o.related_module_ids||[]])).size,91);
 });
