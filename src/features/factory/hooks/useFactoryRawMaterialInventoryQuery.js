@@ -1,3 +1,4 @@
+import { rawMaterialStockStatus } from '../../../../supabase/functions/_shared/factory/stockCatalogue.js';
 import { useMemo } from "react";
 import useFactoryMasterData from "./useFactoryMasterData.js";
 import useFactoryPermissions from "./useFactoryPermissions.js";
@@ -23,7 +24,7 @@ export default function useFactoryRawMaterialInventoryQuery({ filters }) {
       const lastReceiving = [...materialReceivings].sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0))[0];
       const lastConsumption = [...consumption].sort((a, b) => new Date(b.movement_date || b.created_at || 0) - new Date(a.movement_date || a.created_at || 0))[0];
       const latest = latestCost(receivingRows, material); const balance = Number(material.current_balance || 0); const converted = latest.missing ? null : convert(balance, material.uom, latest.uom);
-      return { ...material, last_receiving_date: lastReceiving?.received_date || "", last_consumption_date: lastConsumption?.movement_date || "", latest_cost: latest.unitCost, latest_cost_uom: latest.uom, latest_cost_missing: latest.missing, latest_cost_source: latest.source, latest_cost_unsupported: !latest.missing && converted == null, inventory_value: converted == null ? null : converted * latest.unitCost, stock_status: balance <= 0 ? "Out of Stock" : Number(material.min_stock_level || 0) > 0 && balance <= Number(material.min_stock_level) ? "Low Stock" : "In Stock" };
+      return { ...material, last_receiving_date: lastReceiving?.received_date || "", last_consumption_date: lastConsumption?.movement_date || "", latest_cost: latest.unitCost, latest_cost_uom: latest.uom, latest_cost_missing: latest.missing, latest_cost_source: latest.source, latest_cost_unsupported: !latest.missing && converted == null, inventory_value: converted == null ? null : converted * latest.unitCost, stock_status: rawMaterialStockStatus(balance, material.min_stock_level) };
     });
     const rows = allRows.filter((row) => includesText(`${row.name} ${row.name_en} ${row.name_cn} ${row.name_bm} ${row.material_code}`, filters.material) && (!filters.status || row.status === filters.status) && (!filters.category || row.category_id === filters.category || row.category === filters.category));
     return { rows, allRows, categories, loading: false, error: "", errorKind: "", retry: () => {} };

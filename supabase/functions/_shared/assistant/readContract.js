@@ -20,17 +20,26 @@ export async function permitted(caller,permission,signal){
 export function readContract(def){
  const moduleInterface=declareReadInterface(def);
  const properties=def.properties,parameters={type:'object',properties:Object.fromEntries(Object.entries(properties).map(([k,{nullable,...s}])=>[k,nullable?{...s,type:[s.type,'null']}:s])),required:Object.keys(properties),additionalProperties:false};
+ const validate=(args)=>{
+  const normalized=validateFields(properties,def.normalizeArguments?def.normalizeArguments(args):args);
+  def.check?.(normalized);
+  return normalized;
+ };
  return Object.freeze({...def,moduleInterface,kind:'READ',version:def.version||1,deniedCode:'business_read_denied',authorized:access=>access.permissions?.[def.permission]===true,
-  validate:args=>validateFields(properties,def.normalizeArguments?def.normalizeArguments(args):args),tool:{type:'function',name:def.id,description:def.description,strict:true,parameters},
+  validate,tool:{type:'function',name:def.id,description:def.description,strict:true,parameters},
   async execute(caller,args,signal){
-   args=def.normalizeArguments?def.normalizeArguments(args):args;validateFields(properties,args);await permitted(caller,def.permission,signal);signal?.throwIfAborted();
-   def.check?.(args);
+   args=validate(args);await permitted(caller,def.permission,signal);signal?.throwIfAborted();
    if(def.outletScope){const scope=await caller.rpc('current_user_can_access_outlet',{target_outlet_id:args.outlet_id}).abortSignal(signal);if(scope.error||scope.data!==true)throw new AssistantError('business_read_denied',403);}
    let query=def.query?def.query(caller,args):caller.rpc(def.rpc,def.arguments(args));
    if(def.range)query=query.range(0,def.range-1);
    const {data,error}=await query.abortSignal(signal);
-   if(error)throw new AssistantError(error.code==='42501'?'business_read_denied':'business_read_unavailable',error.code==='42501'?403:503);
-   const evidence={capability:def.id,source:def.source,scope:def.scope,requested_scope:args,as_of:new Date().toISOString(),version:def.version||1,...def.project(data,args)};
+   if(error||data==null)throw new AssistantError(error?.code==='42501'?'business_read_denied':'business_read_unavailable',error?.code==='42501'?403:503);
+   let projected;
+   try{projected=def.project(data,args);}catch(error){
+    if(error instanceof AssistantError)throw error;
+    throw new AssistantError('business_read_unavailable',503);
+   }
+   const evidence={capability:def.id,source:def.source,scope:def.scope,requested_scope:args,as_of:new Date().toISOString(),version:def.version||1,...projected};
    evidence.completeness=readCompleteness(moduleInterface,evidence,args);
    if(new TextEncoder().encode(JSON.stringify(evidence)).length>10000)throw new AssistantError('business_result_limit',413);
    return evidence;

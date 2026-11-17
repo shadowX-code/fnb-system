@@ -4,6 +4,7 @@ import {memoryContext,preferences} from './context.js';
 import {credentialEnvironment,verifyVoiceProvider,providerVoices} from './providerRegistry.js';
 import {createGrokSession,grokReady,grokVoices} from './grokVoice.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
+import {queryDiscoveryTools} from '../_shared/assistant/queryDiscovery.js';
 import {createBusinessDispatcher,validateBusinessArguments,businessOperation,businessToolIdentity,businessToolArgumentShape} from './business.js';
 import {realtimeModel,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
@@ -111,7 +112,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
   if(action==='realtime_tool'){
    let stage = 'authorization';
    try {
-    if(args.provider==='grok'&&!runtime.tools)throw new AssistantError('business_read_denied',403);
+    if(args.provider==='grok'&&tool!==finishedGoodsRead.id)throw new AssistantError('tool_not_allowed',403);
     stage = 'lease';
     await reserveRealtime('tool',args);
     stage = 'dispatch';
@@ -135,7 +136,11 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
   if(admission?.replayed&&admission.state!=='reserved')throw new AssistantError('voice_session_active',409);
   try{
   if(signal?.aborted)throw new AssistantError('cancelled',409);
-  const tools=business.tools.map(({strict,...tool})=>tool);
+  const supported=args.provider==='openai'
+   ? [...business.tools,...queryDiscoveryTools.filter(query=>!business.tools.some(tool=>tool.name===query.name))]
+   : business.capabilities.some(capability=>capability.id===finishedGoodsRead.id&&capability.availability==='connected')
+    ? [finishedGoodsRead.tool] : [];
+  const tools=supported.map(({strict,...tool})=>tool);
   const [snapshot, {memory}]=await Promise.all([rpc('context_snapshot',{session_id:args.session_id}),rpc('memory_get',{})]);
   const assembled=assembleContext(snapshot);
   if(assembled.summary&&JSON.stringify(assembled.summary)!==JSON.stringify(snapshot.summary))await rpc('context_summary',{session_id:args.session_id,...assembled.summary});

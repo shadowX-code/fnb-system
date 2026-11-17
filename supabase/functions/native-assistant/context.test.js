@@ -11,7 +11,7 @@ test('memory is opt-in and cannot contain raw preferences or operational data',(
 });
 test('context excludes unknown transcripts and historical stock answers',()=>{
  assert.deepEqual(recentContext([{prompt:'Voice transcript unavailable',reply:'skip'},{prompt:'Check stock',has_evidence:true,reply:'old stock count'},{prompt:'hello',reply:'good morning'}]),
- [{prompt:'Check stock',reply:'[Historical inventory answer omitted. Read current authorized evidence again.]'},{prompt:'hello',reply:'good morning'}]);
+ [{prompt:'Check stock',reply:'[Historical business answer omitted. Read current authorized evidence again.]'},{prompt:'hello',reply:'good morning'}]);
 });
 test('history and memory load without provider state or credentials',async()=>{
  const rpc=async(action,args)=>({action,args});

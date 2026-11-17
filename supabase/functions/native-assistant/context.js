@@ -12,6 +12,6 @@ export function memoryContext(memory){
 }
 export function recentContext(rows,{limit=6,maxChars=2000}={}){
  return (rows||[]).filter(x=>typeof x.prompt==='string'&&x.prompt!=='Voice transcript unavailable'&&(x.has_evidence||typeof x.reply==='string')).slice(-limit).map(x=>({
-  prompt:x.prompt.slice(0,maxChars),reply:x.has_evidence?'[Historical inventory answer omitted. Read current authorized evidence again.]':x.reply.slice(0,maxChars),
+  prompt:x.prompt.slice(0,maxChars),reply:x.has_evidence?'[Historical business answer omitted. Read current authorized evidence again.]':x.reply.slice(0,maxChars),
  }));
 }
