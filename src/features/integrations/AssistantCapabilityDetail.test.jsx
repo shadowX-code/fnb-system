@@ -38,3 +38,11 @@ it('unsupported resources have no configuration and view-only cannot edit',()=>{
  rerender(<AssistantCapabilityDetail row={{...row,operations:[read]}} data={{config:{revision:4}}} canEdit={false} onFeature={vi.fn()} onClose={()=>{}}/>);
  expect(screen.getByRole('button',{name:'Disable AI Access'}).disabled).toBe(true);
 });
+it('explains partial coverage without granting module access and navigates to the existing owner',()=>{
+ const onSelect=vi.fn(),onFeature=vi.fn();
+ render(<AssistantCapabilityDetail row={{...row,status:'unsupported',operations:[],coverage:{classification:'partial',available:'Monthly operational P&L only.',missing:'No statutory statements.',reads:['read']},coverageReads:[read]}} data={{config:{revision:4}}} canEdit onFeature={onFeature} onClose={()=>{}} onSelect={onSelect}/>);
+ expect(screen.getByText(/READ coverage · Partially covered/)).toBeTruthy();
+ expect(screen.getByText('Not supported')).toBeTruthy();
+ expect(screen.queryByRole('button',{name:/Enable AI Access|Disable AI Access/})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Manage owning module access'}));expect(onSelect).toHaveBeenCalledWith('crew_roster');expect(onFeature).not.toHaveBeenCalled();
+});

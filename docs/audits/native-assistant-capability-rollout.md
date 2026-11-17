@@ -148,3 +148,7 @@ See `qa/native-assistant-rollout/platform-acceptance.md` for measured checks and
 ## Coverage refinement — 17 November 2026
 
 Reviewed all 47 prior gaps against their recorded domain owners. Three new READ contracts cover two modules. Eight modules expose an existing shared READ rather than duplicating tools/query logic or connection settings. Total: 85 unique READ / 2 ACTION contracts, 91 modules with bounded registered coverage, 37 without contracts. Existing 82 READ connections are preserved; the three additions default disconnected. Shared coverage does not claim complete page/report functionality. Remaining gaps above retain their specific source, side-effect, sensitive-data or unimplemented-projection limitation. No new ACTIONs or permission grants.
+
+## Subsequent 37-module reconciliation
+
+See [the exact classification](native-assistant-37-module-coverage.md). Ten gaps have partial related READ coverage, ten lack authorized integrations, fourteen are authority/data-contract blocked, and three are not independent integration targets. None is fully covered. Crew Dashboard's prior task-materialization blocker above is superseded: its current v3/v2 projection is read-only. Finance Statements has partial operational P&L coverage. These corrections do not add callable operations or change the 91-module registered-coverage count.

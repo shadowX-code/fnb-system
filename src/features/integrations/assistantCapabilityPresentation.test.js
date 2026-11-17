@@ -24,3 +24,16 @@ it('filters and collapses normalized inventory; external operations cannot becom
  expect(capabilityTableRows(rows).filter(r=>!r.group)).toHaveLength(128);
  expect(capabilityTableRows(rows,new Set(['workspace:factory'])).some(r=>r.id==='factory_finished_goods')).toBe(false);
 });
+
+it('reconciles exactly the 37 gaps without adding callable operations or changing policy counts',async()=>{
+ const {assistantCoverageReview}=await import('./assistantCoverageReview.js');
+ const rows=capabilityInventory(operations),gaps=rows.filter(r=>!r.operations.length);
+ expect(Object.keys(assistantCoverageReview).sort()).toEqual(gaps.map(r=>r.id).sort());
+ const counts={};for(const r of gaps){counts[r.coverage.classification]=(counts[r.coverage.classification]||0)+1;expect(r.coverage.missing.length).toBeGreaterThan(30);expect(r.coverage.evidence.length).toBeGreaterThan(0);expect(r.coverageReads.map(o=>o.id)).toEqual(r.coverage.reads);expect(r.status).toBe('unsupported');}
+ expect(counts).toEqual({partial:10,missing:10,blocked:14,not_applicable:3});
+ expect(rows.filter(r=>r.operations.length)).toHaveLength(91);
+ expect(new Set(rows.flatMap(r=>r.operations.map(o=>o.id))).size).toBe(87);
+ const enabled=capabilityInventory(operations.map(o=>({...o,connection_enabled:true,ai_execution_enabled:true})));
+ expect(enabled.filter(r=>r.status==='unsupported').map(r=>r.id).sort()).toEqual(gaps.map(r=>r.id).sort());
+ expect(enabled.find(r=>r.id==='finance_statements').coverage.classification).toBe('partial');
+});
