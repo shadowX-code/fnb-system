@@ -168,10 +168,10 @@ export function createStation(host, events) {
       center.lerp(toCenter,weight); yaw+=(desiredYaw-yaw)*weight; pitch+=(desiredPitch-pitch)*weight;
       zoom+=(desiredZoom-zoom)*weight; view+=((focused ? 1 : 0)-view)*weight;
       if(focused && view>.985 && !settled) {
-        // Adjacent hulls stay in place. Only the occupied cabin needs full-rate animation.
+        for(const [id,root] of roomRoots) root.visible=id===focused;
         settled=true;
       }
-      const aspect=width/height, overviewHeight=Math.max(15.75,27.6/aspect), roomHeight=Math.max(5.65,(focused==="command" ? 11.15 : 9.5)/aspect);
+      const aspect=width/height, overviewHeight=Math.max(20.7,27.6/aspect), roomHeight=Math.max(focused==="command" ? 7.45 : 6.95,(focused==="command" ? 11.15 : 9.5)/aspect);
       const half=T.MathUtils.lerp(overviewHeight,roomHeight,view)/(2*zoom);
       camera.near=.1+29.45*view;
       camera.left=-half*aspect; camera.right=half*aspect; camera.top=half; camera.bottom=-half; camera.updateProjectionMatrix();

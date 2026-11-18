@@ -90,17 +90,32 @@ function globe(k,p) {
   k.drum(g,C.glass,0,.70,0,1.63,.08,1.63);
   k.part(g,"ring",C.cyan,0,.75,0,1.29,1.29,.6,[Math.PI/2,0,0],true);
   const holo=group(g,0,1.62,0); holo.userData.moving=true;
-  const world=new T.Mesh(new T.IcosahedronGeometry(.68,2),new T.MeshBasicMaterial({color:"#218caf",transparent:true,opacity:.73}));
-  holo.add(world);
-  const lines=new T.LineSegments(new T.WireframeGeometry(new T.SphereGeometry(.692,16,9)),new T.LineBasicMaterial({color:"#83edff",transparent:true,opacity:.48}));
-  holo.add(lines);
-  // Continental silhouettes projected onto the globe's surface.
-  const continents=[[-105,49,37,18],[-66,-15,16,30],[15,6,21,30],[69,48,58,18],[134,-25,16,10]];
-  for(let lat=-66;lat<76;lat+=6) for(let lon=-180;lon<180;lon+=7) {
-    if(!continents.some(([x,y,w,h])=>((lon-x)/w)**2+((lat-y)/h)**2<1+.15*Math.sin(lon*.22+lat))) continue;
-    const a=lon*Math.PI/180,b=lat*Math.PI/180;
-    k.ball(holo,"#8af2e4",.695*Math.cos(b)*Math.sin(a),.695*Math.sin(b),.695*Math.cos(b)*Math.cos(a),.072,.066,.071,null,true);
+  const map=document.createElement("canvas"); map.width=512;map.height=256;
+  const ink=map.getContext("2d");
+  ink.fillStyle="#116987"; ink.fillRect(0,0,512,256);
+  ink.fillStyle="#72e5df";
+  const land=[
+    [[-168,66],[-147,71],[-130,60],[-108,70],[-84,72],[-56,53],[-74,45],[-81,30],[-97,21],[-88,16],[-83,9],[-103,18],[-118,32],[-128,51],[-143,59]],
+    [[-81,11],[-66,12],[-50,1],[-35,-6],[-43,-23],[-55,-38],[-68,-55],[-75,-48],[-72,-29],[-81,-7]],
+    [[-54,83],[-22,80],[-31,68],[-45,60],[-58,68]],
+    [[-17,15],[-10,31],[5,37],[21,33],[32,31],[42,13],[51,11],[43,-3],[35,-12],[31,-30],[18,-35],[11,-18],[9,-4],[-2,5],[-16,7]],
+    [[-10,36],[-10,44],[2,48],[6,57],[18,60],[28,70],[51,69],[70,73],[98,76],[123,72],[150,70],[178,66],[164,56],[147,51],[139,36],[126,38],[122,26],[109,19],[105,9],[97,18],[80,7],[73,20],[59,25],[55,17],[42,14],[35,29],[23,38],[11,45],[4,41]],
+    [[112,-22],[119,-18],[131,-12],[137,-17],[145,-12],[154,-26],[147,-38],[132,-33],[116,-35]],
+    [[47,-14],[51,-15],[47,-25],[44,-24]],[[130,32],[142,45],[144,43],[137,32]],
+    [[-180,-73],[-140,-70],[-95,-75],[-61,-64],[-57,-73],[-5,-70],[48,-66],[99,-66],[152,-70],[180,-74],[180,-90],[-180,-90]],
+  ];
+  for(const continent of land) {
+    ink.beginPath();
+    continent.forEach(([lon,lat],i)=>{const x=(lon+180)*512/360,y=(90-lat)*256/180;if(i)ink.lineTo(x,y);else ink.moveTo(x,y);});
+    ink.closePath();ink.fill();
   }
+  ink.strokeStyle="#3a9ab0";ink.lineWidth=1;
+  for(let x=0;x<512;x+=32){ink.beginPath();ink.moveTo(x,0);ink.lineTo(x,256);ink.stroke();}
+  for(let y=0;y<256;y+=24){ink.beginPath();ink.moveTo(0,y);ink.lineTo(512,y);ink.stroke();}
+  const texture=new T.CanvasTexture(map);texture.colorSpace=T.SRGBColorSpace;
+  const world=new T.Mesh(new T.SphereGeometry(.69,32,20),new T.MeshBasicMaterial({map:texture,transparent:true,opacity:.91}));
+  holo.add(world);
+  k.part(holo,"ring","#6bdeec",0,0,0,1.50,1.50,.28,[1.07,0,-.28],true);
   return t=>{ holo.rotation.y=t*.17; holo.position.y=1.62+.043*Math.sin(t*1.5); };
 }
 
