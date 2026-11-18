@@ -103,8 +103,9 @@ export function instrumentTexture(kind) {
   const canvas = document.createElement("canvas");
   canvas.width = 512; canvas.height = 240;
   const c = canvas.getContext("2d");
-  const accent = { command: "#73eeff", finance: "#60e6c2", factory: "#ffbc5f", marketing: "#d6a4ff" }[kind];
-  c.fillStyle = kind === "marketing" ? "#362b58" : "#102e44"; c.fillRect(0, 0, 512, 240);
+  const accent = { command: "#73eeff", finance: "#60e6c2", factory: "#8df6ff", marketing: "#d6a4ff" }[kind];
+  const background = { marketing: "#362b58", factory: "#175c86" };
+  c.fillStyle = background[kind] ?? "#102e44"; c.fillRect(0, 0, 512, 240);
   c.fillStyle = accent; c.fillRect(0, 0, 7, 240);
   c.font = "bold 22px system-ui"; c.fillText({ command: "ORBITAL TELEMETRY", finance: "FINANCIAL ANALYSIS", factory: "ASSEMBLY CONTROL", marketing: "STUDIO  /  STORYBOARD" }[kind], 22, 36);
   c.fillStyle = "#91afc0"; c.font = "14px monospace"; c.fillText("FEEDX    /    SIMULATION", 23, 62);

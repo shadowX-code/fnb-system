@@ -2,10 +2,11 @@ import * as T from "three";
 import { rooms, roomById } from "./departments.js";
 import { createKit, group, color as C } from "./modelKit.js";
 import { buildCabin, buildInfrastructure, mountFactoryJunction, serviceShuttle } from "./architecture.js";
-import { furnish } from "./fittings.js";
+import { furnish, bindFactoryWorkcell } from "./fittings.js";
 import { populate } from "./crew.js";
 import { stationArt } from "./stationArt.js";
 import junctionUrl from "./assets/factory-junction.glb?url";
+import workcellUrl from "./assets/factory-workcell.glb?url";
 import technicianUrl from "./assets/technician.glb?url";
 
 const clamp=T.MathUtils.clamp;
@@ -76,14 +77,16 @@ export function createStation(host, events) {
 
     for(const [index, room] of rooms.entries()) {
       const root=group(scene,...room.at); root.name=room.id; roomRoots.set(room.id,root);
-      buildCabin(kit,room,root);
-      motions.push({root,updates:furnish(kit,root,room)});
+      if(room.id!=="factory") {
+        buildCabin(kit,room,root);
+        motions.push({root,updates:furnish(kit,root,room)});
+      }
       const figures=populate(kit,root,room,index); crew.push({root,figures});
       const [sx,sy,sz]=room.hullScale;
       const factoryBay=room.id==="factory";
       target(root,room.id,null,[0,1.45*sy,0],[(factoryBay ? 7.85 : 7.2)*sx,(factoryBay ? 4.45 : 3.9)*sy,4.5*sz]);
       target(root,room.id,"equipment",POSITIONS[room.id],room.id==="finance" ? [1.83,1.64,1.04] : [1.56,2.2,1.31]);
-      target(root,room.id,"screen",[0,1.70,-1.98],[3.12,1.35,.22]);
+      if(!factoryBay) target(root,room.id,"screen",[0,1.70,-1.98],[3.12,1.35,.22]);
       for (const fig of figures) target(fig.anchor,room.id,fig.id,[0,.71,0],[.58,1.53,.54]);
       kit.bake(root);
       const label=document.createElement("button"); label.type="button"; label.className="station-callout";
@@ -92,12 +95,22 @@ export function createStation(host, events) {
       host.append(label); labels.set(room.id,label);
     }
     const factory=roomRoots.get("factory");
+    // Light the recessed workbench from the practical lamps in the front pressure rib.
+    const workLight=new T.PointLight("#ffd59a",7,5.5);
+    workLight.position.set(-.45,2.68,.85);
+    factory.add(workLight);
     const specialist=crew.find(({root})=>root===factory).figures.find(figure=>figure.id==="specialist");
     Promise.all([
       art.load(junctionUrl,model=>{
         mountFactoryJunction(model.scene,factory,orbit);
         const switchFace=factory.getObjectByName("InspectContact");
         target(switchFace,"factory","equipment",[0,-.045,0],[.32,.15,.24]);
+      }),
+      art.load(workcellUrl,({scene:workcell})=>{
+        factory.add(workcell);
+        const rig=bindFactoryWorkcell(workcell,target);
+        motions.push({root:factory,updates:[rig.animate]});
+        remove.push(rig.dispose);
       }),
       art.load(technicianUrl,model=>specialist.attachPilot(model)),
     ]).then(()=>{

@@ -98,7 +98,7 @@ export function populate(k,base,room,roomIndex) {
       if(next!==activeClip) {
         next.reset().play();
         if(activeClip) next.crossFadeFrom(activeClip,.16,false);
-        else if(pilotState==="Inspect") next.time=1.15;
+        else if(pilotState==="Inspect") next.time=1.38;
         activeClip=next;
       }
       // Use the scheduler's travelled distance as the walk cycle clock.

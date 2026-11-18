@@ -39,7 +39,7 @@ export function stationArt() {
     if (!response.ok) throw new Error("Could not load station art.");
     const bytes = await response.arrayBuffer();
     if (controller.signal.aborted) return;
-    // Both GLBs are self-contained. Decoding may finish after a route exit.
+    // Station GLBs are self-contained. Decoding may finish after a route exit.
     const model = await loader.parseAsync(bytes, "");
     const release = ownModel(model.scene);
     if (controller.signal.aborted) {

@@ -1,6 +1,49 @@
 import * as T from "three";
 import { color as C, group, instrumentTexture, TAU } from "./modelKit.js";
 
+export function bindFactoryWorkcell(workcell, target) {
+  const turret = workcell.getObjectByName("RobotTurret");
+  const fixture = workcell.getObjectByName("FixtureHead");
+  const screens = ["FactoryInstrumentGlass", "OperatorGlass"].map(name => workcell.getObjectByName(name));
+  if (!turret || !fixture || screens.some(screen => !screen?.geometry?.attributes.uv)) {
+    throw new Error("The Factory workcell is missing a joint or mapped instrument screen.");
+  }
+
+  target(fixture, "factory", "equipment", [0, .68, 0], [1.05, 1.72, .90]);
+  const display = instrumentTexture("factory");
+  display.flipY = false;
+  const glass = new T.MeshBasicMaterial({ map: display });
+  for (const screen of screens) {
+    screen.material = glass;
+    screen.geometry.computeBoundingBox();
+    const bounds = screen.geometry.boundingBox;
+    const size = bounds.getSize(new T.Vector3());
+    size.z = Math.max(size.z, .08);
+    target(screen, "factory", "screen", bounds.getCenter(new T.Vector3()).toArray(), size.toArray());
+  }
+
+  const ctx = display.image.getContext("2d");
+  let previousColumn = -1;
+  return {
+    animate(time) {
+      turret.rotation.y = .09 * Math.sin(time * .5);
+      fixture.rotation.y = -.07 * Math.sin(time * .5 + .8);
+      const column = Math.floor((Math.sin(time * .72) + 1) * 15);
+      if (column === previousColumn) return;
+      previousColumn = column;
+      ctx.fillStyle = "#164566";
+      ctx.fillRect(276, 215, 180, 6);
+      ctx.fillStyle = "#aaf9ff";
+      ctx.fillRect(276 + 5 * column, 215, 24, 6);
+      display.needsUpdate = true;
+    },
+    dispose() {
+      glass.dispose();
+      display.dispose();
+    },
+  };
+}
+
 function plant(k,p,x,z,scale=1) {
   const g=group(p,x,0,z); g.scale.setScalar(scale);
   k.part(g,"taper",C.cream,0,.22,0,.55,.43,.55,[Math.PI,0,0]);
@@ -46,24 +89,6 @@ function addBooks(k,p,x,y,z) {
     const h=.39+(i%3)*.08; k.box(p,tint,x+i*.135,y+h/2,z,.12,h,.26);
     k.box(p,C.cream,x+i*.135,y+h*.73,z+.136,.075,.026,.014);
   });
-}
-function robot(k,p) {
-  const g=group(p,1.75,0,-.82);
-  k.soft(g,C.blue,0,.24,0,1.39,.47,1.18);
-  k.box(g,C.orange,0,.42,.59,1.19,.10,.04);
-  k.drum(g,C.seam,0,.54,0,.90,.22,.9);
-  k.drum(g,C.orange,0,.71,0,.60,.26,.60);
-  const pivot=group(g,0,.8,0); pivot.userData.moving=true;
-  function link(a,b,size) {
-    k.beam(pivot,a,b,size,C.orange,true);
-    const joint=k.drum(pivot,C.ink,...b,size*1.45,size*1.12,size*1.45);
-    joint.rotation.x=Math.PI/2;
-    k.drum(pivot,C.gold,b[0],b[1],b[2]+size*.59,size*.78,.06,size*.78,[Math.PI/2,0,0]);
-  }
-  link([0,0,0],[.40,.88,0],.31); link([.40,.88,0],[-.27,1.34,0],.24);
-  link([-.27,1.34,0],[-.68,.96,.06],.17);
-  for (const x of [-.77,-.59]) k.box(pivot,C.blue,x,.84,.07,.066,.24,.10);
-  return t=>{ pivot.rotation.y=-.18+.34*Math.sin(t*.50); pivot.rotation.z=.055*Math.sin(t*.82); };
 }
 function studio(k,p) {
   const g=group(p,1.75,0,-.40); g.rotation.y=-.54;
@@ -164,26 +189,6 @@ export function furnish(k,base,room) {
     k.box(paper,C.white,0,0,0,.39,.035,.27);
     for (let i=0;i<4;i++) k.box(paper,C.seam,-.02,.021,-.08+i*.04,.23,.013,.013);
     plant(k,base,2.91,.26,.75);
-  } else if(room.id==="factory") {
-    callbacks.push(robot(k,base));
-    const rack=group(base,2.72,1.43,-1.75); rack.rotation.y=-.53;
-    k.soft(rack,C.blue,0,0,0,.84,1.17,.13);
-    for(let j=0;j<3;j++) {
-      const x=-.25+j*.24;
-      k.box(rack,C.hull,x,-.10,.10,.06,.49,.06);
-      k.part(rack,"ring",C.gold,x,.20,.11,.175,.175,.41);
-    }
-    for(let i=0;i<7;i++) {
-      k.box(base,C.ink,.86+i*.27,.046,.0,.19,.032,.175,[0,.43,0]);
-      k.box(base,C.gold,.98+i*.27,.047,.0,.12,.032,.175,[0,.43,0]);
-    }
-    for(let i=0;i<3;i++) {
-      const x=.65+i*.4; k.box(base,C.seam,x,1.0,-1.85,.09,1.83,.12); k.box(base,C.orange,x,1.83,-1.80,.15,.12,.14);
-    }
-    for (let i=0;i<2;i++) {
-      k.soft(base,"#bb8954",2.90,.23+i*.42,.16,.68,.41,.54);
-      k.box(base,C.ink,2.90,.25+i*.42,.44,.28,.12,.025);
-    }
   } else {
     callbacks.push(studio(k,base));
     const casework=group(base,-2.58,0,-.79);
